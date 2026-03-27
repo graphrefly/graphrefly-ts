@@ -33,3 +33,23 @@ corepack enable && pnpm install
 - `src/` — library source
 - `docs/` — documentation
 - `archive/docs/` — archived design/session notes
+
+## Tree-shaking imports
+
+Prefer direct subpath imports when possible:
+
+```ts
+import { node, batch, DATA } from "@graphrefly/graphrefly-ts/core";
+```
+
+The root entry remains available:
+
+```ts
+import { node, batch, DATA } from "@graphrefly/graphrefly-ts";
+```
+
+For grouped ergonomic imports, namespace access is also supported:
+
+```ts
+import { core } from "@graphrefly/graphrefly-ts";
+```

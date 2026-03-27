@@ -4,6 +4,7 @@
 	"packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
 	"description": "GraphRefly TypeScript implementation",
 	"type": "module",
+	"sideEffects": false,
 	"main": "dist/index.cjs",
 	"module": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -16,6 +17,36 @@
 			"require": {
 				"types": "./dist/index.d.cts",
 				"default": "./dist/index.cjs"
+			}
+		},
+		"./core": {
+			"import": {
+				"types": "./dist/core/index.d.ts",
+				"default": "./dist/core/index.js"
+			},
+			"require": {
+				"types": "./dist/core/index.d.cts",
+				"default": "./dist/core/index.cjs"
+			}
+		},
+		"./extra": {
+			"import": {
+				"types": "./dist/extra/index.d.ts",
+				"default": "./dist/extra/index.js"
+			},
+			"require": {
+				"types": "./dist/extra/index.d.cts",
+				"default": "./dist/extra/index.cjs"
+			}
+		},
+		"./graph": {
+			"import": {
+				"types": "./dist/graph/index.d.ts",
+				"default": "./dist/graph/index.js"
+			},
+			"require": {
+				"types": "./dist/graph/index.d.cts",
+				"default": "./dist/graph/index.cjs"
 			}
 		}
 	},

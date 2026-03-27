@@ -27,15 +27,15 @@
 
 ### 0.3 — Node primitive
 
-- [ ] `node(deps?, fn?, opts?)` — single primitive
-- [ ] Node interface: `.get()`, `.status`, `.down()`, `.up()`, `.unsubscribe()`
-- [ ] Output slot: null → single sink → Set (optimization)
-- [ ] Two-phase push: DIRTY propagation (phase 1), DATA/RESOLVED propagation (phase 2)
-- [ ] Diamond resolution via bitmask
-- [ ] `equals` option for RESOLVED check
-- [ ] Lazy connect/disconnect on subscribe/unsubscribe
-- [ ] Error handling: fn throws → `[[ERROR, err]]` downstream
-- [ ] `resubscribable` and `resetOnTeardown` options
+- [x] `node(deps?, fn?, opts?)` — single primitive
+- [x] Node interface: `.get()`, `.status`, `.down()`, `.up()`, `.unsubscribe()`
+- [x] Output slot: null → single sink → Set (optimization)
+- [x] Two-phase push: DIRTY propagation (phase 1), DATA/RESOLVED propagation (phase 2)
+- [x] Diamond resolution via bitmask
+- [x] `equals` option for RESOLVED check
+- [x] Lazy connect/disconnect on subscribe/unsubscribe
+- [x] Error handling: fn throws → `[[ERROR, err]]` downstream
+- [x] `resubscribable` and `resetOnTeardown` options
 
 ### 0.4 — Meta (companion stores)
 
