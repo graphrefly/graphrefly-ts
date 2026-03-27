@@ -13,17 +13,17 @@
 
 ### 0.1 — Project scaffold
 
-- [ ] Repository setup: pnpm, tsup, vitest, biome
-- [ ] `GRAPHREFLY-SPEC.md` in docs (done)
-- [ ] Folder structure: `src/core/`, `src/extra/`, `src/graph/`
-- [ ] Package config: `@graphrefly/graphrefly-ts`, ESM + CJS + .d.ts
+- [x] Repository setup: pnpm, tsup, vitest, biome
+- [x] `GRAPHREFLY-SPEC.md` in docs
+- [x] Folder structure: `src/core/`, `src/extra/`, `src/graph/`
+- [x] Package config: `@graphrefly/graphrefly-ts`, ESM + CJS + .d.ts
 
 ### 0.2 — Message protocol
 
-- [ ] Message type symbols: DATA, DIRTY, RESOLVED, INVALIDATE, PAUSE, RESUME, TEARDOWN, COMPLETE, ERROR
-- [ ] `Messages` type: `[Type, Data?][]` — always array of tuples
-- [ ] batch() utility — defers DATA, not DIRTY
-- [ ] Protocol invariant tests (DIRTY before DATA, RESOLVED semantics, forward unknown types)
+- [x] Message type symbols: DATA, DIRTY, RESOLVED, INVALIDATE, PAUSE, RESUME, TEARDOWN, COMPLETE, ERROR
+- [x] `Messages` type: `[Type, Data?][]` — always array of tuples
+- [x] batch() utility — defers DATA, not DIRTY
+- [x] Protocol invariant tests (DIRTY before DATA, RESOLVED semantics, forward unknown types)
 
 ### 0.3 — Node primitive
 
