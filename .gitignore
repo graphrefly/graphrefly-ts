@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+out/
+build/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Tests & coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Caches
+.cache/
+.parcel-cache/
+.turbo/
+.vite/
+*.tmp
+
+# Environment (keep examples)
+.env
+.env.*
+!.env.example
+
+# pnpm
+.pnpm-store/
+
+# Package manager artifacts
+*.tgz
+
+# Misc scratch
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

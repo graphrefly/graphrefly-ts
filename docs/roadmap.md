@@ -1,0 +1,257 @@
+# Roadmap
+
+> **Spec:** [GRAPHREFLY-SPEC.md](GRAPHREFLY-SPEC.md)
+>
+> **Guidance:** [docs-guidance.md](docs-guidance.md) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
+>
+> **Predecessor:** callbag-recharge (170+ modules, 13 categories). Key patterns and lessons
+> carried forward — see `archive/docs/DESIGN-ARCHIVE-INDEX.md` for lineage. Clone path for local reference: `~/src/callbag-recharge`.
+
+---
+
+## Phase 0: Foundation
+
+### 0.1 — Project scaffold
+
+- [ ] Repository setup: pnpm, tsup, vitest, biome
+- [ ] `GRAPHREFLY-SPEC.md` in docs (done)
+- [ ] Folder structure: `src/core/`, `src/extra/`, `src/graph/`
+- [ ] Package config: `@graphrefly/graphrefly-ts`, ESM + CJS + .d.ts
+
+### 0.2 — Message protocol
+
+- [ ] Message type symbols: DATA, DIRTY, RESOLVED, INVALIDATE, PAUSE, RESUME, TEARDOWN, COMPLETE, ERROR
+- [ ] `Messages` type: `[Type, Data?][]` — always array of tuples
+- [ ] batch() utility — defers DATA, not DIRTY
+- [ ] Protocol invariant tests (DIRTY before DATA, RESOLVED semantics, forward unknown types)
+
+### 0.3 — Node primitive
+
+- [ ] `node(deps?, fn?, opts?)` — single primitive
+- [ ] Node interface: `.get()`, `.status`, `.down()`, `.up()`, `.unsubscribe()`
+- [ ] Output slot: null → single sink → Set (optimization)
+- [ ] Two-phase push: DIRTY propagation (phase 1), DATA/RESOLVED propagation (phase 2)
+- [ ] Diamond resolution via bitmask
+- [ ] `equals` option for RESOLVED check
+- [ ] Lazy connect/disconnect on subscribe/unsubscribe
+- [ ] Error handling: fn throws → `[[ERROR, err]]` downstream
+- [ ] `resubscribable` and `resetOnTeardown` options
+
+### 0.4 — Meta (companion stores)
+
+- [ ] `meta` option: each key becomes a subscribable node
+- [ ] Meta nodes participate in describe() output
+- [ ] Meta nodes independently observable
+
+### 0.5 — Sugar constructors
+
+- [ ] `state(initial, opts?)` — no deps, no fn
+- [ ] `producer(fn, opts?)` — no deps, with fn
+- [ ] `derived(deps, fn, opts?)` — deps, fn returns value
+- [ ] `operator(deps, fn, opts?)` — deps, fn uses down()
+- [ ] `effect(deps, fn)` — deps, fn returns nothing
+- [ ] `subscribe(dep, callback)` — single dep shorthand
+- [ ] `pipe(source, op1, op2)` — linear composition
+
+### 0.6 — Tests & validation
+
+- [ ] Core node tests (state, derived, effect patterns)
+- [ ] Diamond resolution tests
+- [ ] Lifecycle signal tests (INVALIDATE, PAUSE, RESUME, TEARDOWN)
+- [ ] Batch tests
+- [ ] Meta companion store tests
+- [ ] Protocol invariant tests
+- [ ] Benchmarks vs callbag-recharge (regression guard)
+
+---
+
+## Phase 1: Graph Container
+
+### 1.1 — Graph core
+
+- [ ] `Graph(name, opts?)` constructor
+- [ ] `graph.add(name, node)` / `graph.remove(name)`
+- [ ] `graph.get(name)` / `graph.set(name, value)` / `graph.node(name)`
+- [ ] `graph.connect(fromName, toName)` / `graph.disconnect(fromName, toName)`
+- [ ] Edge validation (no transforms, pure wires)
+
+### 1.2 — Composition
+
+- [ ] `graph.mount(name, childGraph)` — subgraph embedding
+- [ ] Colon-delimited namespace: `"parent:child:node"`
+- [ ] `graph.resolve(path)` — node lookup by qualified path
+- [ ] Lifecycle signal propagation through mount hierarchy
+
+### 1.3 — Introspection
+
+- [ ] `graph.describe()` → JSON (nodes, edges, subgraphs, meta)
+- [ ] `graph.observe(name?)` → live message stream
+- [ ] Type inference in describe output (state/derived/producer/operator/effect)
+
+### 1.4 — Lifecycle & persistence
+
+- [ ] `graph.signal(messages)` — broadcast to all nodes
+- [ ] `graph.destroy()` — TEARDOWN all
+- [ ] `graph.snapshot()` / `graph.restore(data)` / `Graph.fromSnapshot(data)`
+- [ ] `graph.toJSON()` — deterministic serialization
+
+### 1.5 — Tests
+
+- [ ] Graph add/remove/connect/disconnect
+- [ ] Mount and namespace resolution
+- [ ] describe() output validation against JSON schema
+- [ ] observe() message stream tests
+- [ ] Snapshot round-trip tests
+- [ ] Cross-subgraph signal propagation
+
+---
+
+## Phase 2: Extra (Operators & Sources)
+
+Port proven operators from callbag-recharge. Each is a function returning a node.
+
+### 2.1 — Tier 1 operators (sync, static deps)
+
+- [ ] `map`, `filter`, `scan`, `reduce`
+- [ ] `take`, `skip`, `takeWhile`, `takeUntil`
+- [ ] `first`, `last`, `find`, `elementAt`
+- [ ] `startWith`, `tap`, `distinctUntilChanged`, `pairwise`
+- [ ] `combine`, `merge`, `withLatestFrom`, `zip`
+- [ ] `concat`, `race`
+
+### 2.2 — Tier 2 operators (async, dynamic)
+
+- [ ] `switchMap`, `concatMap`, `exhaustMap`, `flatMap`
+- [ ] `debounce`, `throttle`, `sample`, `audit`
+- [ ] `delay`, `timeout`
+- [ ] `buffer`, `bufferCount`, `bufferTime`
+- [ ] `window`, `windowCount`, `windowTime`
+- [ ] `interval`, `repeat`
+- [ ] `pausable`, `rescue`
+
+### 2.3 — Sources & sinks
+
+- [ ] `fromTimer`, `fromEvent`, `fromIter`
+- [ ] `fromPromise`, `fromAsyncIter`, `fromAny`
+- [ ] `of`, `empty`, `never`, `throwError`
+- [ ] `forEach`, `toArray`
+- [ ] `share`, `cached`, `replay`
+
+---
+
+## Phase 3: Resilience & Data
+
+### 3.1 — Utils (resilience)
+
+- [ ] `retry`, `backoff` (exponential, linear, fibonacci)
+- [ ] `withBreaker` (circuit breaker)
+- [ ] `rateLimiter`, `tokenTracker`
+- [ ] `withStatus` (now: sugar for meta companion stores)
+- [ ] `checkpoint` + adapters (file, SQLite, IndexedDB)
+
+### 3.2 — Data structures
+
+- [ ] `reactiveMap` (KV with TTL, eviction)
+- [ ] `reactiveLog` (append-only, reactive tail/slice)
+- [ ] `reactiveIndex` (dual-key sorted index)
+- [ ] `reactiveList` (positional operations)
+- [ ] `pubsub` (lazy topic stores)
+
+---
+
+## Phase 4: Domain Layers (Graph Factories)
+
+Each returns a `Graph` — uniform introspection, lifecycle, persistence.
+
+### 4.1 — Orchestration
+
+- [ ] `pipeline()` → Graph
+- [ ] `task()`, `branch()`, `gate()`, `approval()`
+- [ ] `forEach()`, `join()`, `loop()`, `subPipeline()`
+- [ ] `sensor()`, `wait()`, `onFailure()`
+- [ ] `toMermaid()` / `toD2()` diagram export
+
+### 4.2 — Messaging
+
+- [ ] `topic()` → Graph
+- [ ] `subscription()` (cursor-based consumer)
+- [ ] `jobQueue()` → Graph
+- [ ] `jobFlow()` → Graph (multi-queue chaining)
+- [ ] `topicBridge()` (distributed sync)
+
+### 4.3 — Memory
+
+- [ ] `collection()` → Graph (reactive node set with eviction)
+- [ ] `lightCollection()` (FIFO/LRU, no reactive scoring)
+- [ ] `vectorIndex()` (HNSW)
+- [ ] `knowledgeGraph()` → Graph
+- [ ] `decay()` scoring
+
+### 4.4 — AI surface
+
+- [ ] `chatStream()` → Graph
+- [ ] `agentLoop()` → Graph
+- [ ] `fromLLM()` (adapter)
+- [ ] `toolRegistry()` → Graph
+- [ ] `agentMemory()` → Graph
+- [ ] `systemPromptBuilder()`
+
+---
+
+## Phase 5: Framework & Distribution
+
+### 5.1 — Framework compat
+
+- [ ] React: `useStore`, `useSubscribe`
+- [ ] Vue: `useStore`, `useSubscribe`
+- [ ] Svelte: `useSubscribe`
+- [ ] Solid: `useSubscribe`
+
+### 5.2 — Adapters
+
+- [ ] `fromHTTP`, `fromWebSocket`/`toWebSocket`
+- [ ] `fromWebhook`, `toSSE`
+- [ ] `fromMCP` (Model Context Protocol)
+
+### 5.3 — Worker bridge
+
+- [ ] `workerBridge()` / `workerSelf()`
+- [ ] Transport abstraction (Worker, SharedWorker, ServiceWorker, BroadcastChannel)
+
+### 5.4 — LLM tool integration
+
+- [ ] `knobsAsTools(graph)` → OpenAI/MCP tool schemas from describe()
+- [ ] `gaugesAsContext(graph)` → formatted gauge values for system prompts
+- [ ] Graph builder validation (validate LLM-generated graph defs)
+
+---
+
+## Phase 6: Node Versioning
+
+- [ ] V0: id + version (recommended minimum)
+- [ ] V1: + cid + prev (content addressing, linked history)
+- [ ] V2: + schema (type validation)
+- [ ] V3: + caps + refs (access control, cross-graph references)
+- [ ] Attribution: mutation records with actor (human/llm/system)
+
+---
+
+## Phase 7: Polish & Launch
+
+- [ ] README with "graph + re + fly" tagline
+- [ ] `llms.txt` for AI agent discovery
+- [ ] Showcase demos (markdown editor, workflow builder, AI assistant)
+- [ ] npm publish: `@graphrefly/graphrefly-ts`
+- [ ] Docs site
+- [ ] Community launch (HN, Reddit, dev.to)
+
+---
+
+## Effort Key
+
+| Size | Meaning |
+|------|---------|
+| **S** | Half day or less |
+| **M** | 1-2 days |
+| **L** | 3-4 days |
+| **XL** | 5+ days |

@@ -1,0 +1,3 @@
+[tasks.bootstrap]
+description = "Enable Corepack (pnpm from package.json) and install dependencies"
+run = "corepack enable && pnpm install"

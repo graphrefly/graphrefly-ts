@@ -1,0 +1,52 @@
+{
+	"name": "@graphrefly/graphrefly-ts",
+	"version": "0.0.0",
+	"packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
+	"description": "GraphRefly TypeScript implementation",
+	"type": "module",
+	"main": "dist/index.cjs",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write ."
+	},
+	"keywords": [
+		"graph",
+		"reactive",
+		"state"
+	],
+	"license": "MIT",
+	"devDependencies": {
+		"@biomejs/biome": "2.4.6",
+		"@types/node": "^25.5.0",
+		"tsup": "^8.5.1",
+		"typescript": "^5.7.0",
+		"vitest": "^3.0.0"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"@biomejs/biome",
+			"esbuild"
+		]
+	}
+}
