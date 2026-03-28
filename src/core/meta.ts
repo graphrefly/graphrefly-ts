@@ -1,3 +1,4 @@
+import { accessHintForGuard } from "./guard.js";
 import { type Node, NodeImpl } from "./node.js";
 
 /** JSON-shaped slice of a node for Phase 1 `Graph.describe()` (GRAPHREFLY-SPEC §3.6, Appendix B). */
@@ -67,7 +68,10 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
  * Nodes not created by {@link node} fall back to `type: "state"` and empty `deps`.
  */
 export function describeNode(node: Node): DescribeNodeOutput {
-	const meta = metaSnapshot(node);
+	const meta: Record<string, unknown> = { ...metaSnapshot(node) };
+	if (node instanceof NodeImpl && node._guard != null && meta.access === undefined) {
+		meta.access = accessHintForGuard(node._guard);
+	}
 	let type: DescribeNodeOutput["type"] = "state";
 	let deps: string[] = [];
 

@@ -1,6 +1,8 @@
+import type { Actor } from "../core/actor.js";
+import { GuardDenied } from "../core/guard.js";
 import { DATA, type Messages, TEARDOWN } from "../core/messages.js";
 import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
-import { type Node, NodeImpl, type NodeSink } from "../core/node.js";
+import { type Node, NodeImpl, type NodeSink, type NodeTransportOptions } from "../core/node.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
@@ -13,6 +15,15 @@ export const GRAPH_META_SEGMENT = "__meta__";
 
 /** Options for {@link Graph} (reserved for future hooks). */
 export type GraphOptions = Record<string, unknown>;
+
+/** Options for {@link Graph.signal} and {@link Graph.set} (actor context, internal lifecycle). */
+export type GraphActorOptions = {
+	actor?: Actor;
+	/**
+	 * When `true`, skips node guards (graph lifecycle TEARDOWN, unmount teardown, etc.).
+	 */
+	internal?: boolean;
+};
 
 /** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
 export type GraphDescribeOutput = {
@@ -130,7 +141,7 @@ function teardownMountedGraph(root: Graph): void {
 		teardownMountedGraph(child);
 	}
 	for (const n of root._nodes.values()) {
-		n.down([[TEARDOWN]] satisfies Messages);
+		n.down([[TEARDOWN]] satisfies Messages, { internal: true });
 	}
 }
 
@@ -286,7 +297,7 @@ export class Graph {
 			const [from, to] = parseEdgeKey(key);
 			if (from === name || to === name) this._edges.delete(key);
 		}
-		node.down([[TEARDOWN]] satisfies Messages);
+		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
 	}
 
 	/**
@@ -312,9 +323,16 @@ export class Graph {
 		return this.node(name).get();
 	}
 
-	/** Shorthand for `graph.node(name).down([[DATA, value]])` — accepts `::` qualified paths (§3.2). */
-	set(name: string, value: unknown): void {
-		this.node(name).down([[DATA, value]] satisfies Messages);
+	/**
+	 * Shorthand for `graph.node(name).down([[DATA, value]], { actor })` — accepts `::` qualified paths (§3.2).
+	 */
+	set(name: string, value: unknown, options?: GraphActorOptions): void {
+		const internal = options?.internal === true;
+		this.node(name).down([[DATA, value]] satisfies Messages, {
+			actor: options?.actor,
+			internal,
+			delivery: "write",
+		});
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -566,38 +584,50 @@ export class Graph {
 	 * PAUSE) that the primary does not forward. **TEARDOWN-only** batches skip the
 	 * extra meta pass — the primary’s `down()` already cascades TEARDOWN to meta.
 	 */
-	signal(messages: Messages, visited?: Set<Node>): void {
-		const vis = visited ?? new Set<Node>();
-		// Mounts first (depth-first), then local nodes — matches graphrefly-py.
+	signal(messages: Messages, options?: GraphActorOptions): void {
+		this._signalDeliver(messages, options ?? {}, new Set());
+	}
+
+	private _signalDeliver(messages: Messages, opts: GraphActorOptions, vis: Set<Node>): void {
 		for (const sub of this._mounts.values()) {
-			sub.signal(messages, vis);
+			sub._signalDeliver(messages, opts, vis);
 		}
+		const internal = opts.internal === true;
+		const downOpts: NodeTransportOptions = internal
+			? { internal: true }
+			: { actor: opts.actor, delivery: "signal" };
 		for (const localName of [...this._nodes.keys()].sort()) {
 			const n = this._nodes.get(localName)!;
 			if (vis.has(n)) continue;
 			vis.add(n);
-			n.down(messages);
+			n.down(messages, downOpts);
 			// Avoid double TEARDOWN: primary's down() already cascades TEARDOWN to meta companions.
 			if (isTeardownOnlyBatch(messages)) continue;
-			this._signalMetaSubtree(n, messages, vis);
+			this._signalMetaSubtree(n, messages, vis, downOpts);
 		}
 	}
 
-	private _signalMetaSubtree(root: Node, messages: Messages, vis: Set<Node>): void {
+	private _signalMetaSubtree(
+		root: Node,
+		messages: Messages,
+		vis: Set<Node>,
+		downOpts: NodeTransportOptions,
+	): void {
 		for (const mk of Object.keys(root.meta).sort()) {
 			const mnode = root.meta[mk];
 			if (vis.has(mnode)) continue;
 			vis.add(mnode);
-			mnode.down(messages);
+			mnode.down(messages, downOpts);
 			if (isTeardownOnlyBatch(messages)) continue;
-			this._signalMetaSubtree(mnode, messages, vis);
+			this._signalMetaSubtree(mnode, messages, vis, downOpts);
 		}
 	}
 
 	/**
 	 * Static structure snapshot: qualified node keys, edges, mount names (GRAPHREFLY-SPEC §3.6, Appendix B).
 	 */
-	describe(): GraphDescribeOutput {
+	describe(options?: { actor?: Actor }): GraphDescribeOutput {
+		const actor = options?.actor;
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
 		const nodeToPath = new Map<Node, string>();
@@ -606,22 +636,35 @@ export class Graph {
 		}
 		const nodes: Record<string, DescribeNodeOutput> = {};
 		for (const [p, n] of targets) {
+			if (actor != null && !n.allowsObserve(actor)) continue;
 			const raw = describeNode(n);
 			const deps =
 				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d) ?? d.name ?? "") : [];
 			const { name: _name, ...rest } = raw;
 			nodes[p] = { ...rest, deps };
 		}
-		const edges = this._collectAllEdges("");
+		const nodeKeys = new Set(Object.keys(nodes));
+		let edges = this._collectAllEdges("");
+		if (actor != null) {
+			edges = edges.filter((e) => nodeKeys.has(e.from) && nodeKeys.has(e.to));
+		}
 		edges.sort((a, b) => {
 			const c = a.from.localeCompare(b.from);
 			return c !== 0 ? c : a.to.localeCompare(b.to);
 		});
+		const allSubgraphs = this._collectSubgraphs("");
+		const subgraphs =
+			actor != null
+				? allSubgraphs.filter((sg) => {
+						const prefix = `${sg}${PATH_SEP}`;
+						return [...nodeKeys].some((k) => k === sg || k.startsWith(prefix));
+					})
+				: allSubgraphs;
 		return {
 			name: this.name,
 			nodes,
 			edges,
-			subgraphs: this._collectSubgraphs(""),
+			subgraphs,
 		};
 	}
 
@@ -682,23 +725,34 @@ export class Graph {
 	 *
 	 * `observe()` subscribes in **sorted path order** (`localeCompare`); causal emission order may differ.
 	 */
-	observe(path: string): GraphObserveOne;
-	observe(): GraphObserveAll;
-	observe(path?: string): GraphObserveOne | GraphObserveAll {
-		if (path !== undefined) {
+	observe(path: string, options?: { actor?: Actor }): GraphObserveOne;
+	observe(options?: { actor?: Actor }): GraphObserveAll;
+	observe(
+		pathOrOpts?: string | { actor?: Actor },
+		options?: { actor?: Actor },
+	): GraphObserveOne | GraphObserveAll {
+		if (typeof pathOrOpts === "string") {
+			const path = pathOrOpts;
+			const actor = options?.actor;
 			const target = this.resolve(path);
+			if (actor != null && !target.allowsObserve(actor)) {
+				throw new GuardDenied({ actor, action: "observe", nodeName: path });
+			}
 			return {
 				subscribe(sink: NodeSink) {
 					return target.subscribe(sink);
 				},
 			};
 		}
+		const actor = pathOrOpts?.actor;
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
 				const targets: [string, Node][] = [];
 				this._collectObserveTargets("", targets);
 				targets.sort((a, b) => a[0].localeCompare(b[0]));
-				const unsubs = targets.map(([p, nd]) =>
+				const picked =
+					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
+				const unsubs = picked.map(([p, nd]) =>
 					nd.subscribe((msgs) => {
 						sink(p, msgs);
 					}),
@@ -719,7 +773,7 @@ export class Graph {
 	 * mounted subgraph (§3.7). The instance is left empty and may be reused with {@link Graph.add}.
 	 */
 	destroy(): void {
-		this.signal([[TEARDOWN]] satisfies Messages);
+		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
 		for (const child of [...this._mounts.values()]) {
 			child._destroyClearOnly();
 		}

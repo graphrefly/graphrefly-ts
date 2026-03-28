@@ -1,4 +1,8 @@
+import type { Actor } from "./actor.js";
+import { normalizeActor } from "./actor.js";
 import { emitWithBatch } from "./batch.js";
+import type { GuardAction, NodeGuard } from "./guard.js";
+import { GuardDenied } from "./guard.js";
 import {
 	COMPLETE,
 	DATA,
@@ -96,7 +100,28 @@ export interface NodeOptions {
 	 * or `false` to let the default dispatch run.
 	 */
 	onMessage?: OnMessageHandler;
+	/**
+	 * ABAC: `(actor, action) => boolean`. `write` applies to both {@link Node.down} and {@link Node.up}.
+	 * Companion {@link NodeOptions.meta | meta} nodes inherit this guard from the primary.
+	 */
+	guard?: NodeGuard;
 }
+
+/**
+ * Options for {@link Node.down} / {@link Node.up} (actor context, graph delivery mode, internal bypass).
+ */
+export type NodeTransportOptions = {
+	actor?: Actor;
+	/**
+	 * When `true`, skips guard checks (reactive internals, graph lifecycle TEARDOWN, etc.).
+	 * Not for untrusted call sites.
+	 */
+	internal?: boolean;
+	/**
+	 * `signal` for {@link Graph.signal} deliveries; default `write` for {@link Graph.set} and direct `down`.
+	 */
+	delivery?: "write" | "signal";
+};
 
 /**
  * Optional hints passed to {@link Node.subscribe} to enable per-sink
@@ -109,6 +134,12 @@ export interface SubscribeHints {
 	 * dirty state locally via `onDepSettled`.
 	 */
 	singleDep?: boolean;
+	/**
+	 * Actor to check against the node's `observe` guard.
+	 * When set, `subscribe()` throws {@link GuardDenied} if the actor is not
+	 * permitted to observe this node. Aligned with graphrefly-py `subscribe(actor=)`.
+	 */
+	actor?: Actor;
 }
 
 /** A reactive node in the GraphReFly protocol. */
@@ -119,7 +150,7 @@ export interface Node<T = unknown> {
 	/** Returns the current cached value. */
 	get(): T | undefined;
 	/** Push messages downstream. */
-	down(messages: Messages): void;
+	down(messages: Messages, options?: NodeTransportOptions): void;
 	/**
 	 * Registers a sink to receive downstream messages.
 	 *
@@ -129,9 +160,15 @@ export interface Node<T = unknown> {
 	 */
 	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void;
 	/** Send messages upstream (present on nodes with deps). */
-	up?: (messages: Messages) => void;
+	up?: (messages: Messages, options?: NodeTransportOptions) => void;
 	/** Disconnect from upstream deps (present on nodes with deps). */
 	unsubscribe?: () => void;
+	/** Last successful guarded `down` / `up` (not set for `internal` deliveries). */
+	readonly lastMutation?: Readonly<{ actor: Actor; timestamp_ns: number }>;
+	/** Whether {@link NodeTransportOptions.actor | actor} may {@link Graph.observe | observe} this node. */
+	allowsObserve(actor: Actor): boolean;
+	/** Whether a {@link NodeOptions.guard | guard} is installed. */
+	hasGuard(): boolean;
 }
 
 // --- Bitmask helpers: integer for <=31 deps, Uint32Array for >31 ---
@@ -262,6 +299,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_opts: NodeOptions;
 	_equals: (a: unknown, b: unknown) => boolean;
 	_onMessage: OnMessageHandler | undefined;
+	/** @internal — read by {@link describeNode} for `accessHintForGuard`. */
+	readonly _guard: NodeGuard | undefined;
+	private _lastMutation: { actor: Actor; timestamp_ns: number } | undefined;
 	_hasDeps: boolean;
 	_autoComplete: boolean;
 	_isSingleDep: boolean;
@@ -298,6 +338,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._describeKind = opts.describeKind;
 		this._equals = opts.equals ?? Object.is;
 		this._onMessage = opts.onMessage;
+		this._guard = opts.guard;
 		this._hasDeps = deps.length > 0;
 		this._autoComplete = opts.completeWhenDepsComplete ?? true;
 		this._isSingleDep = deps.length === 1 && fn != null;
@@ -318,6 +359,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				initial: v,
 				name: `${opts.name ?? "node"}:meta:${k}`,
 				describeKind: "state",
+				...(opts.guard != null ? { guard: opts.guard } : {}),
 			});
 		}
 		Object.freeze(meta);
@@ -329,14 +371,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._actions = {
 			down(messages): void {
 				self._manualEmitUsed = true;
-				self.down(messages);
+				self._downInternal(messages);
 			},
 			emit(value): void {
 				self._manualEmitUsed = true;
 				self._emitAutoValue(value);
 			},
 			up(messages): void {
-				self.up(messages);
+				self._upInternal(messages);
 			},
 		};
 
@@ -365,11 +407,38 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return this._status;
 	}
 
+	get lastMutation(): Readonly<{ actor: Actor; timestamp_ns: number }> | undefined {
+		return this._lastMutation;
+	}
+
+	hasGuard(): boolean {
+		return this._guard != null;
+	}
+
+	allowsObserve(actor: Actor): boolean {
+		if (this._guard == null) return true;
+		return this._guard(normalizeActor(actor), "observe");
+	}
+
 	get(): T | undefined {
 		return this._cached;
 	}
 
-	down(messages: Messages): void {
+	down(messages: Messages, options?: NodeTransportOptions): void {
+		if (messages.length === 0) return;
+		if (!options?.internal && this._guard != null) {
+			const actor = normalizeActor(options?.actor);
+			const delivery = options?.delivery ?? "write";
+			const action: GuardAction = delivery === "signal" ? "signal" : "write";
+			if (!this._guard(actor, action)) {
+				throw new GuardDenied({ actor, action, nodeName: this.name });
+			}
+			this._lastMutation = { actor, timestamp_ns: Date.now() * 1_000_000 };
+		}
+		this._downInternal(messages);
+	}
+
+	private _downInternal(messages: Messages): void {
 		if (messages.length === 0) return;
 		let lifecycleMessages = messages;
 		let sinkMessages = messages;
@@ -409,6 +478,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void {
+		if (hints?.actor != null && this._guard != null) {
+			const actor = normalizeActor(hints.actor);
+			if (!this._guard(actor, "observe")) {
+				throw new GuardDenied({ actor, action: "observe", nodeName: this.name });
+			}
+		}
+
 		if (this._terminal && this._opts.resubscribable) {
 			this._terminal = false;
 			this._status = this._hasDeps ? "disconnected" : "settled";
@@ -462,10 +538,28 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		};
 	}
 
-	up(messages: Messages): void {
+	up(messages: Messages, options?: NodeTransportOptions): void {
+		if (!this._hasDeps) return;
+		if (!options?.internal && this._guard != null) {
+			const actor = normalizeActor(options?.actor);
+			if (!this._guard(actor, "write")) {
+				throw new GuardDenied({ actor, action: "write", nodeName: this.name });
+			}
+			this._lastMutation = { actor, timestamp_ns: Date.now() * 1_000_000 };
+		}
+		for (const dep of this._deps) {
+			if (options === undefined) {
+				dep.up?.(messages);
+			} else {
+				dep.up?.(messages, options);
+			}
+		}
+	}
+
+	private _upInternal(messages: Messages): void {
 		if (!this._hasDeps) return;
 		for (const dep of this._deps) {
-			dep.up?.(messages);
+			dep.up?.(messages, { internal: true });
 		}
 	}
 
@@ -519,7 +613,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				try {
 					for (const metaNode of Object.values(this.meta)) {
 						try {
-							metaNode.down([[TEARDOWN]]);
+							(metaNode as NodeImpl)._downInternal([[TEARDOWN]]);
 						} catch {
 							/* best-effort: other meta nodes still receive TEARDOWN */
 						}
@@ -540,11 +634,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const wasDirty = this._status === "dirty";
 		const unchanged = this._equals(this._cached, value);
 		if (unchanged) {
-			this.down(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
+			this._downInternal(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
 			return;
 		}
 		this._cached = value as T;
-		this.down(wasDirty ? [[DATA, value]] : [[DIRTY], [DATA, value]]);
+		this._downInternal(wasDirty ? [[DATA, value]] : [[DIRTY], [DATA, value]]);
 	}
 
 	_runFn(): void {
@@ -569,7 +663,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				}
 				if (allSame) {
 					if (this._status === "dirty") {
-						this.down([[RESOLVED]]);
+						this._downInternal([[RESOLVED]]);
 					}
 					return;
 				}
@@ -587,7 +681,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (out === undefined) return;
 			this._emitAutoValue(out);
 		} catch (err) {
-			this.down([[ERROR, err]]);
+			this._downInternal([[ERROR, err]]);
 		}
 	}
 
@@ -596,7 +690,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._depDirtyMask.set(index);
 		this._depSettledMask.clear(index);
 		if (!wasDirty) {
-			this.down([[DIRTY]]);
+			this._downInternal([[DIRTY]]);
 		}
 	}
 
@@ -618,7 +712,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._deps.length > 0 &&
 			this._depCompleteMask.covers(this._allDepsCompleteMask)
 		) {
-			this.down([[COMPLETE]]);
+			this._downInternal([[COMPLETE]]);
 		}
 	}
 
@@ -630,7 +724,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				try {
 					if (this._onMessage(msg, index, this._actions)) continue;
 				} catch (err) {
-					this.down([[ERROR, err]]);
+					this._downInternal([[ERROR, err]]);
 					return;
 				}
 			}
@@ -642,7 +736,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					this._maybeCompleteFromDeps();
 					continue;
 				}
-				this.down([msg]);
+				this._downInternal([msg]);
 				continue;
 			}
 			if (t === DIRTY) {
@@ -674,15 +768,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				continue;
 			}
 			if (t === ERROR) {
-				this.down([msg]);
+				this._downInternal([msg]);
 				continue;
 			}
 			if (t === INVALIDATE || t === TEARDOWN || t === PAUSE || t === RESUME) {
-				this.down([msg]);
+				this._downInternal([msg]);
 				continue;
 			}
 			// Forward unknown message types
-			this.down([msg]);
+			this._downInternal([msg]);
 		}
 	}
 

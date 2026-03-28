@@ -57,9 +57,10 @@ From **GRAPHREFLY-SPEC** §1 and §2:
 From **§3**:
 
 - [ ] add/remove/connect/disconnect; edges are **wires only** (no transforms on edges).
-- [ ] `describe()` matches expected shape (see spec Appendix B).
-- [ ] `observe(name?)` — message stream for tests and debugging.
+- [ ] `describe()` matches expected shape (see spec Appendix B); with actor, hidden nodes and dependent edges/subgraphs are omitted.
+- [ ] `observe(name?)` / `observe({ actor })` — message stream for tests and debugging; `GuardDenied` when the actor cannot observe.
 - [ ] `signal()`, `destroy()`, snapshot round-trips as specified.
+- [ ] **Guard (roadmap 1.5):** `set`/`signal` vs `write`/`signal` actions, meta inheriting primary guard, `lastMutation`, internal TEARDOWN bypass, `policy()` allow/deny order.
 
 ---
 

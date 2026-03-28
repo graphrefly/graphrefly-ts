@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_ACTOR } from "../../core/actor.js";
+import { GuardDenied, policy } from "../../core/guard.js";
 import { DATA, PAUSE, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
@@ -568,5 +570,115 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		g1.add("n", n1);
 		g1.restore(snap);
 		expect(g1.get(metaPath)).toBe("hi");
+	});
+});
+
+describe("Graph guard (Phase 1.5)", () => {
+	const human = { type: "human" as const, id: "u1" };
+	const llm = { type: "llm" as const, id: "gpt" };
+
+	it("meta companions inherit primary guard", () => {
+		const g = new Graph("g");
+		const n = state(0, {
+			name: "n",
+			meta: { note: "a" },
+			guard: policy((allow, deny) => {
+				allow("write", { where: (a) => a.type === "human" });
+				deny("write", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add("n", n);
+		const metaPath = `n::${GRAPH_META_SEGMENT}::note`;
+		g.set(metaPath, "b", { actor: human });
+		expect(g.get(metaPath)).toBe("b");
+		expect(() => g.set(metaPath, "c", { actor: llm })).toThrow(GuardDenied);
+	});
+
+	it("set and signal use write vs signal actions", () => {
+		const g = new Graph("g");
+		const n = state(0, {
+			guard: (_a, action) => action !== "signal",
+		});
+		g.add("x", n);
+		expect(() => g.signal([[PAUSE, "p"]])).toThrow(GuardDenied);
+		g.set("x", 1, { actor: human });
+		expect(g.get("x")).toBe(1);
+	});
+
+	it("describe and observe respect observe action", () => {
+		const g = new Graph("g");
+		const secret = state(0, {
+			name: "secret",
+			guard: policy((allow, deny) => {
+				allow("write");
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add("secret", secret);
+		const dLlm = g.describe({ actor: llm });
+		expect(dLlm.nodes.secret).toBeUndefined();
+		const dHuman = g.describe({ actor: human });
+		expect(dHuman.nodes.secret).toBeDefined();
+
+		expect(() => g.observe("secret", { actor: llm })).toThrow(GuardDenied);
+		const sub = g.observe("secret", { actor: human }).subscribe(() => {});
+		sub();
+	});
+
+	it("observe() filters paths for actor", () => {
+		const g = new Graph("g");
+		const n = state(0, {
+			name: "hidden",
+			guard: policy((allow, deny) => {
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add("hidden", n);
+		const paths: string[] = [];
+		const unsub = g.observe({ actor: llm }).subscribe((p) => {
+			paths.push(p);
+		});
+		unsub();
+		expect(paths.some((p) => p.startsWith("hidden"))).toBe(false);
+	});
+
+	it("lastMutation records actor on guarded write (timestamp_ns)", () => {
+		const n = state(0, { guard: () => true });
+		n.down([[DATA, 5]], { actor: human });
+		expect(n.lastMutation?.actor.type).toBe("human");
+		expect(typeof n.lastMutation?.timestamp_ns).toBe("number");
+		expect(n.lastMutation!.timestamp_ns).toBeGreaterThan(0);
+	});
+
+	it("subscribe checks observe guard when actor is passed", () => {
+		const n = state(0, {
+			guard: policy((allow, deny) => {
+				allow("write");
+				allow("observe", { where: (a) => a.type === "human" });
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		expect(() => n.subscribe(() => {}, { actor: llm })).toThrow(GuardDenied);
+		const unsub = n.subscribe(() => {}, { actor: human });
+		unsub();
+	});
+
+	it("internal TEARDOWN bypasses guard", () => {
+		const g = new Graph("g");
+		const n = state(0, { guard: () => false });
+		g.add("x", n);
+		g.remove("x");
+		expect(true).toBe(true);
+	});
+
+	it("DEFAULT_ACTOR satisfies allow-all guard", () => {
+		const n = state(0, {
+			guard: (a) => a.type === "system",
+		});
+		n.down([[DATA, 1]]);
+		expect(n.get()).toBe(1);
+		expect(n.lastMutation?.actor).toEqual(DEFAULT_ACTOR);
 	});
 });

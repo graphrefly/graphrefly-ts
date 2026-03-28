@@ -4,6 +4,7 @@
 export {
 	GRAPH_META_SEGMENT,
 	Graph,
+	type GraphActorOptions,
 	type GraphDescribeOutput,
 	type GraphObserveAll,
 	type GraphObserveOne,

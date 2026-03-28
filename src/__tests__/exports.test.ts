@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { core, describeNode, extra, graph, version } from "../index.js";
+import {
+	core,
+	DEFAULT_ACTOR,
+	describeNode,
+	extra,
+	GuardDenied,
+	graph,
+	policy,
+	version,
+} from "../index.js";
 
 describe("graphrefly", () => {
 	it("exports version", () => {
@@ -24,5 +33,18 @@ describe("graphrefly", () => {
 	it("exports describeNode for Graph.describe parity", () => {
 		expect(typeof describeNode).toBe("function");
 		expect(typeof core.describeNode).toBe("function");
+	});
+
+	it("exports actor and guard primitives", () => {
+		expect(DEFAULT_ACTOR.type).toBe("system");
+		expect(typeof policy).toBe("function");
+		expect(GuardDenied.name).toBe("GuardDenied");
+		const err = new GuardDenied({
+			actor: DEFAULT_ACTOR,
+			action: "write",
+			nodeName: "n::x",
+		});
+		expect(err.node).toBe("n::x");
+		expect(err.nodeName).toBe("n::x");
 	});
 });

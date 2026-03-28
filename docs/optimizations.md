@@ -277,6 +277,18 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `Graph` Phase 1.2 | Aligned: `::` path separator, mount `remove` + subtree TEARDOWN, qualified paths, `edges()`, signal mounts-first, `resolve` strips leading name, `:` in names OK; see §14 | Same; see §14 |
 | `Graph` Phase 1.3 | `describe`, `observe`, `GRAPH_META_SEGMENT`, `signal`→meta, `describe_kind` on sugar; see §15 | `describe()`, `observe()`, `GRAPH_META_SEGMENT`, `describeKind` on sugar, registry name on add; see §15 | `observe()` order: TS full-path `localeCompare` vs Py per-level sort (§15) |
 | `Graph` Phase 1.4 | `destroy`, `snapshot` (flat `version: 1`), `restore` (name check + type filter + silent catch), `from_snapshot(data, build=)`, `to_json()` → str + `\n`; see §16 | `destroy`, `snapshot`, `restore`, `fromSnapshot(data, build?)`, `toJSON()` → object, `toJSONString()` → str + `\n`; see §16 |
+| `Graph` Phase 1.5 | **Both:** actor/guard/`policy()`, scoped `describe`/`observe`, `set`/`signal`/`down`/`up` actor + delivery (`write` vs `signal`), `internal` lifecycle TEARDOWN, `meta.access` guarded hint, `GuardDenied` + `lastMutation`; non-transactional `signal` on first denial — see `graphrefly-py/docs/optimizations.md` built-in §8 | Same |
+| `policy()` semantics | Deny-overrides: any matching deny blocks; if no deny, any matching allow permits; no match → deny | Same (aligned from parity round) |
+| `DEFAULT_ACTOR` | `{"type": "system", "id": ""}` | `{ type: "system", id: "" }` (aligned) |
+| `lastMutation` timestamp | `timestamp_ns` (`time.time_ns()`) | `timestamp_ns` (`Date.now() * 1_000_000`) — both nanoseconds |
+| `accessHintForGuard` | Probes guard with standard actor types → `"both"`, `"human"`, `"restricted"`, etc. | `accessHintForGuard()` — same probing logic (aligned from parity round) |
+| `subscribe()` observe guard | `subscribe(sink, hints, *, actor=)` checks observe guard at node level | `subscribe(sink, { actor? })` checks observe guard at node level (aligned from parity round) |
+| `up()` guard + attribution | `up(msgs, *, actor=, internal=, guard_action=)` checks guard, records `last_mutation` | `up(msgs, opts?)` checks guard, records `lastMutation` (aligned from parity round) |
+| `on_message` (spec §2.6) | `on_message` option on node; checked in `_handle_dep_messages`; `True` consumes, exception → ERROR | `onMessage` option; same semantics |
+| `meta` guard inheritance | Meta companions inherit parent guard at construction | Same |
+| `Graph.destroy()` guard bypass | `_signal_graph(..., internal=True)` bypasses all guards | Same |
+| `Graph.set` internal | `set(name, value, *, internal=False)` | `set(name, value, { internal? })` |
+| `allows_observe()` / `has_guard()` | Public methods on `NodeImpl` | Public methods on `Node` interface |
 
 ### Open design items (low priority)
 
