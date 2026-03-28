@@ -10,7 +10,7 @@ import {
 	RESUME,
 	TEARDOWN,
 } from "../../core/messages.js";
-import { metaSnapshot } from "../../core/meta.js";
+import { describeNode, metaSnapshot } from "../../core/meta.js";
 import { node } from "../../core/node.js";
 
 describe("node primitive", () => {
@@ -788,5 +788,37 @@ describe("meta (companion stores)", () => {
 			};
 		}
 		expect(metaSnapshot(n)).toEqual({ ok: 0 });
+	});
+
+	it("meta mapping is frozen (read-only parity with graphrefly-py MappingProxyType)", () => {
+		const n = node({ initial: 0, meta: { k: 1 } });
+		expect(Object.isFrozen(n.meta)).toBe(true);
+	});
+
+	it("describeNode includes meta and spec fields", () => {
+		const n = node({
+			initial: 0,
+			meta: { description: "purpose", type_hint: "integer" },
+			name: "retry_limit",
+		});
+		const d = describeNode(n);
+		expect(d.type).toBe("state");
+		expect(d.status).toBe("settled");
+		expect(d.name).toBe("retry_limit");
+		expect(d.deps).toEqual([]);
+		expect(d.meta).toEqual({ description: "purpose", type_hint: "integer" });
+		expect(d.value).toBe(0);
+	});
+
+	it("describeNode derived lists dep names", () => {
+		const src = node({ initial: 1, name: "input" });
+		const n = node([src], ([v]) => (v as number) * 2, {
+			name: "validate",
+			meta: { description: "ok" },
+		});
+		const snap = describeNode(n);
+		expect(snap.type).toBe("derived");
+		expect(snap.deps).toEqual(["input"]);
+		expect(snap.meta).toEqual({ description: "ok" });
 	});
 });

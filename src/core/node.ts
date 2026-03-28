@@ -211,6 +211,445 @@ const statusAfterMessage = (status: NodeStatus, msg: Message): NodeStatus => {
 	return status;
 };
 
+// --- NodeImpl: class-based for V8 hidden class optimization and prototype method sharing ---
+
+/**
+ * Class-based implementation of the {@link Node} interface.
+ *
+ * All internal state lives on instance fields (`_` prefix, private by convention)
+ * so that introspection (e.g. {@link describeNode}) can read them directly via
+ * `instanceof NodeImpl` — no side-channel registry needed.
+ *
+ * Follows callbag-recharge's `ProducerImpl` pattern: V8 hidden class stability,
+ * prototype method sharing, selective binding for commonly detached methods.
+ */
+export class NodeImpl<T = unknown> implements Node<T> {
+	// --- Configuration (set once, never reassigned) ---
+	readonly name: string | undefined;
+	readonly meta: Record<string, Node>;
+	_deps: readonly Node[];
+	_fn: NodeFn<T> | undefined;
+	_opts: NodeOptions;
+	_equals: (a: unknown, b: unknown) => boolean;
+	_hasDeps: boolean;
+	_autoComplete: boolean;
+	_isSingleDep: boolean;
+
+	// --- Mutable state ---
+	_cached: T | undefined;
+	_status: NodeStatus;
+	_terminal = false;
+	_connected = false;
+	_producerStarted = false;
+	_connecting = false;
+	_manualEmitUsed = false;
+	_sinkCount = 0;
+	_singleDepSinkCount = 0;
+
+	// --- Object/collection state ---
+	_depDirtyMask: BitSet;
+	_depSettledMask: BitSet;
+	_depCompleteMask: BitSet;
+	_allDepsCompleteMask: BitSet;
+	_lastDepValues: readonly unknown[] | undefined;
+	_cleanup: (() => void) | undefined;
+	_sinks: NodeSink | Set<NodeSink> | null = null;
+	_singleDepSinks = new WeakSet<NodeSink>();
+	_upstreamUnsubs: Array<() => void> = [];
+	_actions: NodeActions;
+	_boundEmitToSinks: (messages: Messages) => void;
+
+	constructor(deps: readonly Node[], fn: NodeFn<T> | undefined, opts: NodeOptions) {
+		this._deps = deps;
+		this._fn = fn;
+		this._opts = opts;
+		this.name = opts.name;
+		this._equals = opts.equals ?? Object.is;
+		this._hasDeps = deps.length > 0;
+		this._autoComplete = opts.completeWhenDepsComplete ?? true;
+		this._isSingleDep = deps.length === 1 && fn != null;
+
+		this._cached = opts.initial as T | undefined;
+		this._status = this._hasDeps ? "disconnected" : "settled";
+
+		this._depDirtyMask = createBitSet(deps.length);
+		this._depSettledMask = createBitSet(deps.length);
+		this._depCompleteMask = createBitSet(deps.length);
+		this._allDepsCompleteMask = createBitSet(deps.length);
+		for (let i = 0; i < deps.length; i++) this._allDepsCompleteMask.set(i);
+
+		// Build companion meta nodes
+		const meta: Record<string, Node> = {};
+		for (const [k, v] of Object.entries(opts.meta ?? {})) {
+			meta[k] = node({ initial: v, name: `${opts.name ?? "node"}:meta:${k}` });
+		}
+		Object.freeze(meta);
+		this.meta = meta;
+
+		// Actions object: created once, references `this` methods.
+		// Captures `this` via arrow-in-object so manualEmitUsed is set on the instance.
+		const self = this;
+		this._actions = {
+			down(messages): void {
+				self._manualEmitUsed = true;
+				self.down(messages);
+			},
+			emit(value): void {
+				self._manualEmitUsed = true;
+				self._emitAutoValue(value);
+			},
+			up(messages): void {
+				self.up(messages);
+			},
+		};
+
+		// Bind commonly detached protocol methods
+		this.down = this.down.bind(this);
+		this.up = this.up.bind(this);
+		this._boundEmitToSinks = this._emitToSinks.bind(this);
+	}
+
+	// --- Public interface (Node<T>) ---
+
+	get status(): NodeStatus {
+		return this._status;
+	}
+
+	get(): T | undefined {
+		return this._cached;
+	}
+
+	down(messages: Messages): void {
+		if (messages.length === 0) return;
+		let lifecycleMessages = messages;
+		let sinkMessages = messages;
+		if (this._terminal && !this._opts.resubscribable) {
+			const teardownOnly = messages.filter((m) => m[0] === TEARDOWN);
+			if (teardownOnly.length === 0) return;
+			lifecycleMessages = teardownOnly;
+			sinkMessages = teardownOnly;
+		}
+		this._handleLocalLifecycle(lifecycleMessages);
+		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
+		// AND the batch contains a phase-2 message (DATA/RESOLVED). Standalone DIRTY
+		// (without follow-up) must pass through so downstream is notified.
+		if (this._canSkipDirty() && sinkMessages.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
+			const filtered = sinkMessages.filter((m) => m[0] !== DIRTY);
+			if (filtered.length > 0) {
+				emitWithBatch(this._boundEmitToSinks, filtered);
+			}
+		} else {
+			emitWithBatch(this._boundEmitToSinks, sinkMessages);
+		}
+	}
+
+	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void {
+		if (this._terminal && this._opts.resubscribable) {
+			this._terminal = false;
+			this._status = this._hasDeps ? "disconnected" : "settled";
+		}
+
+		this._sinkCount += 1;
+		if (hints?.singleDep) {
+			this._singleDepSinkCount += 1;
+			this._singleDepSinks.add(sink);
+		}
+
+		if (this._sinks == null) {
+			this._sinks = sink;
+		} else if (typeof this._sinks === "function") {
+			this._sinks = new Set<NodeSink>([this._sinks, sink]);
+		} else {
+			this._sinks.add(sink);
+		}
+
+		if (this._hasDeps) {
+			this._connectUpstream();
+		} else if (this._fn) {
+			this._startProducer();
+		}
+
+		let removed = false;
+		return () => {
+			if (removed) return;
+			removed = true;
+			this._sinkCount -= 1;
+			if (this._singleDepSinks.has(sink)) {
+				this._singleDepSinkCount -= 1;
+				this._singleDepSinks.delete(sink);
+			}
+			if (this._sinks == null) return;
+			if (typeof this._sinks === "function") {
+				if (this._sinks === sink) this._sinks = null;
+			} else {
+				this._sinks.delete(sink);
+				if (this._sinks.size === 1) {
+					const [only] = this._sinks;
+					this._sinks = only;
+				} else if (this._sinks.size === 0) {
+					this._sinks = null;
+				}
+			}
+			if (this._sinks == null) {
+				this._disconnectUpstream();
+				this._stopProducer();
+			}
+		};
+	}
+
+	up(messages: Messages): void {
+		if (!this._hasDeps) return;
+		for (const dep of this._deps) {
+			dep.up?.(messages);
+		}
+	}
+
+	unsubscribe(): void {
+		if (!this._hasDeps) return;
+		this._disconnectUpstream();
+	}
+
+	// --- Private methods (prototype, _ prefix) ---
+
+	_emitToSinks(messages: Messages): void {
+		if (this._sinks == null) return;
+		if (typeof this._sinks === "function") {
+			this._sinks(messages);
+			return;
+		}
+		// Snapshot: a sink callback may unsubscribe itself or others mid-iteration.
+		// Iterating the live Set would skip not-yet-visited sinks that were removed.
+		const snapshot = [...this._sinks];
+		for (const sink of snapshot) {
+			sink(messages);
+		}
+	}
+
+	_handleLocalLifecycle(messages: Messages): void {
+		for (const m of messages) {
+			const t = m[0];
+			if (t === DATA) {
+				this._cached = m[1] as T;
+			}
+			this._status = statusAfterMessage(this._status, m);
+			if (t === COMPLETE || t === ERROR) {
+				this._terminal = true;
+			}
+			if (t === TEARDOWN) {
+				if (this._opts.resetOnTeardown) {
+					this._cached = undefined;
+				}
+				// Propagate TEARDOWN to companion meta nodes so their
+				// subscribers are notified and resources released (§5.1).
+				// COMPLETE/ERROR are intentionally NOT propagated — meta
+				// stores outlive the parent's terminal state to allow
+				// post-mortem writes (e.g. setting meta.error after ERROR).
+				try {
+					for (const metaNode of Object.values(this.meta)) {
+						try {
+							metaNode.down([[TEARDOWN]]);
+						} catch {
+							/* best-effort: other meta nodes still receive TEARDOWN */
+						}
+					}
+				} finally {
+					this._disconnectUpstream();
+					this._stopProducer();
+				}
+			}
+		}
+	}
+
+	_canSkipDirty(): boolean {
+		return this._sinkCount === 1 && this._singleDepSinkCount === 1;
+	}
+
+	_emitAutoValue(value: unknown): void {
+		const wasDirty = this._status === "dirty";
+		const unchanged = this._equals(this._cached, value);
+		if (unchanged) {
+			this.down(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
+			return;
+		}
+		this._cached = value as T;
+		this.down(wasDirty ? [[DATA, value]] : [[DIRTY], [DATA, value]]);
+	}
+
+	_runFn(): void {
+		if (!this._fn) return;
+		if (this._terminal && !this._opts.resubscribable) return;
+		if (this._connecting) return;
+
+		try {
+			const depValues = this._deps.map((dep) => dep.get());
+			// Identity check BEFORE cleanup: if all dep values are unchanged,
+			// skip cleanup+fn entirely so effect nodes don't teardown/restart on no-op.
+			if (
+				depValues.length > 0 &&
+				this._lastDepValues != null &&
+				this._lastDepValues.length === depValues.length &&
+				depValues.every((v, i) => Object.is(v, this._lastDepValues?.[i]))
+			) {
+				if (this._status === "dirty") {
+					this.down([[RESOLVED]]);
+				}
+				return;
+			}
+			this._cleanup?.();
+			this._cleanup = undefined;
+			this._manualEmitUsed = false;
+			this._lastDepValues = depValues;
+			const out = this._fn(depValues, this._actions);
+			if (isCleanupFn(out)) {
+				this._cleanup = out;
+				return;
+			}
+			if (this._manualEmitUsed) return;
+			if (out === undefined) return;
+			this._emitAutoValue(out);
+		} catch (err) {
+			this.down([[ERROR, err]]);
+		}
+	}
+
+	_onDepDirty(index: number): void {
+		const wasDirty = this._depDirtyMask.has(index);
+		this._depDirtyMask.set(index);
+		this._depSettledMask.clear(index);
+		if (!wasDirty) {
+			this.down([[DIRTY]]);
+		}
+	}
+
+	_onDepSettled(index: number): void {
+		if (!this._depDirtyMask.has(index)) {
+			this._onDepDirty(index);
+		}
+		this._depSettledMask.set(index);
+		if (this._depDirtyMask.any() && this._depSettledMask.covers(this._depDirtyMask)) {
+			this._depDirtyMask.reset();
+			this._depSettledMask.reset();
+			this._runFn();
+		}
+	}
+
+	_maybeCompleteFromDeps(): void {
+		if (
+			this._autoComplete &&
+			this._deps.length > 0 &&
+			this._depCompleteMask.covers(this._allDepsCompleteMask)
+		) {
+			this.down([[COMPLETE]]);
+		}
+	}
+
+	_handleDepMessages(index: number, messages: Messages): void {
+		for (const msg of messages) {
+			const t = msg[0];
+			if (!this._fn) {
+				// Passthrough: forward all messages except COMPLETE when multi-dep.
+				// Multi-dep passthrough must wait for ALL deps to complete (§1.3.5).
+				if (t === COMPLETE && this._deps.length > 1) {
+					this._depCompleteMask.set(index);
+					this._maybeCompleteFromDeps();
+					continue;
+				}
+				this.down([msg]);
+				continue;
+			}
+			if (t === DIRTY) {
+				this._onDepDirty(index);
+				continue;
+			}
+			if (t === DATA || t === RESOLVED) {
+				this._onDepSettled(index);
+				continue;
+			}
+			if (t === COMPLETE) {
+				this._depCompleteMask.set(index);
+				// Complete implies no longer pending — clear dirty/settled bits
+				// so a preceding DIRTY from this dep doesn't block settlement.
+				this._depDirtyMask.clear(index);
+				this._depSettledMask.clear(index);
+				if (this._depDirtyMask.any() && this._depSettledMask.covers(this._depDirtyMask)) {
+					this._depDirtyMask.reset();
+					this._depSettledMask.reset();
+					this._runFn();
+				} else if (!this._depDirtyMask.any() && this._status === "dirty") {
+					// D2: dep went DIRTY→COMPLETE without DATA — node was marked
+					// dirty but no settlement came.  Recompute so downstream
+					// gets RESOLVED (value unchanged) or DATA (value changed).
+					this._depSettledMask.reset();
+					this._runFn();
+				}
+				this._maybeCompleteFromDeps();
+				continue;
+			}
+			if (t === ERROR) {
+				this.down([msg]);
+				continue;
+			}
+			if (t === INVALIDATE || t === TEARDOWN || t === PAUSE || t === RESUME) {
+				this.down([msg]);
+				continue;
+			}
+			// Forward unknown message types
+			this.down([msg]);
+		}
+	}
+
+	_connectUpstream(): void {
+		if (!this._hasDeps || this._connected) return;
+		this._connected = true;
+		this._depDirtyMask.reset();
+		this._depSettledMask.reset();
+		this._depCompleteMask.reset();
+		this._status = "settled";
+		const subHints: SubscribeHints | undefined = this._isSingleDep
+			? { singleDep: true }
+			: undefined;
+		this._connecting = true;
+		try {
+			for (let i = 0; i < this._deps.length; i += 1) {
+				const dep = this._deps[i];
+				this._upstreamUnsubs.push(
+					dep.subscribe((msgs) => this._handleDepMessages(i, msgs), subHints),
+				);
+			}
+		} finally {
+			this._connecting = false;
+		}
+		if (this._fn) {
+			this._runFn();
+		}
+	}
+
+	_stopProducer(): void {
+		if (!this._producerStarted) return;
+		this._producerStarted = false;
+		this._cleanup?.();
+		this._cleanup = undefined;
+	}
+
+	_startProducer(): void {
+		if (this._deps.length !== 0 || !this._fn || this._producerStarted) return;
+		this._producerStarted = true;
+		this._runFn();
+	}
+
+	_disconnectUpstream(): void {
+		if (!this._connected) return;
+		for (const unsub of this._upstreamUnsubs.splice(0)) {
+			unsub();
+		}
+		this._connected = false;
+		this._depDirtyMask.reset();
+		this._depSettledMask.reset();
+		this._depCompleteMask.reset();
+		this._status = "disconnected";
+	}
+}
+
 export function node<T = unknown>(
 	depsOrFn?: readonly Node[] | NodeFn<T> | NodeOptions,
 	fnOrOpts?: NodeFn<T> | NodeOptions,
@@ -232,390 +671,5 @@ export function node<T = unknown>(
 		opts = (isNodeOptions(fnOrOpts) ? fnOrOpts : optsArg) ?? {};
 	}
 
-	const equals = opts.equals ?? Object.is;
-	const hasDeps = deps.length > 0;
-	const autoComplete = opts.completeWhenDepsComplete ?? true;
-
-	let cached = opts.initial as T | undefined;
-	let status: NodeStatus = hasDeps ? "disconnected" : "settled";
-	let terminal = false;
-	let connected = false;
-	const depDirtyMask = createBitSet(deps.length);
-	const depSettledMask = createBitSet(deps.length);
-	const depCompleteMask = createBitSet(deps.length);
-	let lastDepValues: readonly unknown[] | undefined;
-	let cleanup: (() => void) | undefined;
-	let producerStarted = false;
-	let connecting = false;
-	let sinks: NodeSink | Set<NodeSink> | null = null;
-	let singleDepSinkCount = 0;
-	let sinkCount = 0;
-
-	const upstreamUnsubs: Array<() => void> = [];
-
-	const meta: Record<string, Node> = {};
-	for (const [k, v] of Object.entries(opts.meta ?? {})) {
-		meta[k] = node({ initial: v, name: `${opts.name ?? "node"}:meta:${k}` });
-	}
-	Object.freeze(meta);
-
-	const emitToSinks = (messages: Messages): void => {
-		if (sinks == null) return;
-		if (typeof sinks === "function") {
-			sinks(messages);
-			return;
-		}
-		// Snapshot: a sink callback may unsubscribe itself or others mid-iteration.
-		// Iterating the live Set would skip not-yet-visited sinks that were removed.
-		const snapshot = [...sinks];
-		for (const sink of snapshot) {
-			sink(messages);
-		}
-	};
-
-	const handleLocalLifecycle = (messages: Messages): void => {
-		for (const m of messages) {
-			const t = m[0];
-			if (t === DATA) {
-				cached = m[1] as T;
-			}
-			status = statusAfterMessage(status, m);
-			if (t === COMPLETE || t === ERROR) {
-				terminal = true;
-			}
-			if (t === TEARDOWN) {
-				if (opts.resetOnTeardown) {
-					cached = undefined;
-				}
-				// Propagate TEARDOWN to companion meta nodes so their
-				// subscribers are notified and resources released (§5.1).
-				// COMPLETE/ERROR are intentionally NOT propagated — meta
-				// stores outlive the parent's terminal state to allow
-				// post-mortem writes (e.g. setting meta.error after ERROR).
-				try {
-					for (const metaNode of Object.values(meta)) {
-						try {
-							metaNode.down([[TEARDOWN]]);
-						} catch {
-							/* best-effort: other meta nodes still receive TEARDOWN */
-						}
-					}
-				} finally {
-					disconnectUpstream();
-					stopProducer();
-				}
-			}
-		}
-	};
-
-	const canSkipDirty = (): boolean => sinkCount === 1 && singleDepSinkCount === 1;
-
-	const down = (messages: Messages): void => {
-		if (messages.length === 0) return;
-		let lifecycleMessages = messages;
-		let sinkMessages = messages;
-		if (terminal && !opts.resubscribable) {
-			const teardownOnly = messages.filter((m) => m[0] === TEARDOWN);
-			if (teardownOnly.length === 0) return;
-			lifecycleMessages = teardownOnly;
-			sinkMessages = teardownOnly;
-		}
-		handleLocalLifecycle(lifecycleMessages);
-		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
-		// AND the batch contains a phase-2 message (DATA/RESOLVED). Standalone DIRTY
-		// (without follow-up) must pass through so downstream is notified.
-		if (canSkipDirty() && sinkMessages.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
-			const filtered = sinkMessages.filter((m) => m[0] !== DIRTY);
-			if (filtered.length > 0) {
-				emitWithBatch(emitToSinks, filtered);
-			}
-		} else {
-			emitWithBatch(emitToSinks, sinkMessages);
-		}
-	};
-
-	const emitAutoValue = (value: unknown): void => {
-		const wasDirty = status === "dirty";
-		const unchanged = equals(cached, value);
-		if (unchanged) {
-			down(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
-			return;
-		}
-		cached = value as T;
-		down(wasDirty ? [[DATA, value]] : [[DIRTY], [DATA, value]]);
-	};
-
-	let manualEmitUsed = false;
-
-	const actions: NodeActions = {
-		down(messages): void {
-			manualEmitUsed = true;
-			down(messages);
-		},
-		emit(value): void {
-			manualEmitUsed = true;
-			emitAutoValue(value);
-		},
-		up(messages): void {
-			if (!hasDeps) return;
-			for (const dep of deps) {
-				dep.up?.(messages);
-			}
-		},
-	};
-
-	const runFn = (): void => {
-		if (!fn) return;
-		if (terminal && !opts.resubscribable) return;
-		if (connecting) return;
-
-		cleanup?.();
-		cleanup = undefined;
-		manualEmitUsed = false;
-
-		try {
-			const depValues = deps.map((dep) => dep.get());
-			if (
-				depValues.length > 0 &&
-				lastDepValues != null &&
-				lastDepValues.length === depValues.length &&
-				depValues.every((v, i) => Object.is(v, lastDepValues?.[i]))
-			) {
-				if (status === "dirty") {
-					down([[RESOLVED]]);
-				}
-				return;
-			}
-			lastDepValues = depValues;
-			const out = fn(depValues, actions);
-			if (isCleanupFn(out)) {
-				cleanup = out;
-				return;
-			}
-			if (manualEmitUsed) return;
-			if (out === undefined) return;
-			emitAutoValue(out);
-		} catch (err) {
-			down([[ERROR, err]]);
-		}
-	};
-
-	const onDepDirty = (index: number): void => {
-		const wasDirty = depDirtyMask.has(index);
-		depDirtyMask.set(index);
-		depSettledMask.clear(index);
-		if (!wasDirty) {
-			down([[DIRTY]]);
-		}
-	};
-
-	const onDepSettled = (index: number): void => {
-		if (!depDirtyMask.has(index)) {
-			onDepDirty(index);
-		}
-		depSettledMask.set(index);
-		if (depDirtyMask.any() && depSettledMask.covers(depDirtyMask)) {
-			depDirtyMask.reset();
-			depSettledMask.reset();
-			runFn();
-		}
-	};
-
-	const forwardUnknown = (msg: Message): void => {
-		down([msg]);
-	};
-
-	const allDepsCompleteMask = createBitSet(deps.length);
-	for (let i = 0; i < deps.length; i++) allDepsCompleteMask.set(i);
-
-	const maybeCompleteFromDeps = (): void => {
-		if (autoComplete && deps.length > 0 && depCompleteMask.covers(allDepsCompleteMask)) {
-			down([[COMPLETE]]);
-		}
-	};
-
-	const handleDepMessages = (index: number, messages: Messages): void => {
-		for (const msg of messages) {
-			const t = msg[0];
-			if (!fn) {
-				// Passthrough: forward all messages except COMPLETE when multi-dep.
-				// Multi-dep passthrough must wait for ALL deps to complete (§1.3.5).
-				if (t === COMPLETE && deps.length > 1) {
-					depCompleteMask.set(index);
-					maybeCompleteFromDeps();
-					continue;
-				}
-				down([msg]);
-				continue;
-			}
-			if (t === DIRTY) {
-				onDepDirty(index);
-				continue;
-			}
-			if (t === DATA || t === RESOLVED) {
-				onDepSettled(index);
-				continue;
-			}
-			if (t === COMPLETE) {
-				depCompleteMask.set(index);
-				// Complete implies no longer pending — clear dirty/settled bits
-				// so a preceding DIRTY from this dep doesn't block settlement.
-				depDirtyMask.clear(index);
-				depSettledMask.clear(index);
-				if (depDirtyMask.any() && depSettledMask.covers(depDirtyMask)) {
-					depDirtyMask.reset();
-					depSettledMask.reset();
-					runFn();
-				} else if (!depDirtyMask.any() && status === "dirty") {
-					// D2: dep went DIRTY→COMPLETE without DATA — node was marked
-					// dirty but no settlement came.  Recompute so downstream
-					// gets RESOLVED (value unchanged) or DATA (value changed).
-					depSettledMask.reset();
-					runFn();
-				}
-				maybeCompleteFromDeps();
-				continue;
-			}
-			if (t === ERROR) {
-				down([msg]);
-				continue;
-			}
-			if (t === INVALIDATE || t === TEARDOWN || t === PAUSE || t === RESUME) {
-				down([msg]);
-				continue;
-			}
-			forwardUnknown(msg);
-		}
-	};
-
-	const isSingleDep = deps.length === 1 && fn != null;
-
-	function connectUpstream(): void {
-		if (!hasDeps || connected) return;
-		connected = true;
-		depDirtyMask.reset();
-		depSettledMask.reset();
-		depCompleteMask.reset();
-		status = "settled";
-		const subHints: SubscribeHints | undefined = isSingleDep ? { singleDep: true } : undefined;
-		connecting = true;
-		try {
-			for (let i = 0; i < deps.length; i += 1) {
-				const dep = deps[i];
-				upstreamUnsubs.push(dep.subscribe((msgs) => handleDepMessages(i, msgs), subHints));
-			}
-		} finally {
-			connecting = false;
-		}
-		if (fn) {
-			runFn();
-		}
-	}
-
-	function stopProducer(): void {
-		if (!producerStarted) return;
-		producerStarted = false;
-		cleanup?.();
-		cleanup = undefined;
-	}
-
-	function startProducer(): void {
-		if (deps.length !== 0 || !fn || producerStarted) return;
-		producerStarted = true;
-		runFn();
-	}
-
-	function disconnectUpstream(): void {
-		if (!connected) return;
-		for (const unsub of upstreamUnsubs.splice(0)) {
-			unsub();
-		}
-		connected = false;
-		depDirtyMask.reset();
-		depSettledMask.reset();
-		depCompleteMask.reset();
-		status = "disconnected";
-	}
-
-	const singleDepSinks = new WeakSet<NodeSink>();
-
-	const subscribe = (sink: NodeSink, hints?: SubscribeHints): (() => void) => {
-		if (terminal && opts.resubscribable) {
-			terminal = false;
-			status = hasDeps ? "disconnected" : "settled";
-		}
-
-		sinkCount += 1;
-		if (hints?.singleDep) {
-			singleDepSinkCount += 1;
-			singleDepSinks.add(sink);
-		}
-
-		if (sinks == null) {
-			sinks = sink;
-		} else if (typeof sinks === "function") {
-			sinks = new Set<NodeSink>([sinks, sink]);
-		} else {
-			sinks.add(sink);
-		}
-
-		if (hasDeps) {
-			connectUpstream();
-		} else if (fn) {
-			startProducer();
-		}
-
-		let removed = false;
-		return () => {
-			if (removed) return;
-			removed = true;
-			sinkCount -= 1;
-			if (singleDepSinks.has(sink)) {
-				singleDepSinkCount -= 1;
-				singleDepSinks.delete(sink);
-			}
-			if (sinks == null) return;
-			if (typeof sinks === "function") {
-				if (sinks === sink) sinks = null;
-			} else {
-				sinks.delete(sink);
-				if (sinks.size === 1) {
-					const [only] = sinks;
-					sinks = only;
-				} else if (sinks.size === 0) {
-					sinks = null;
-				}
-			}
-			if (sinks == null) {
-				disconnectUpstream();
-				stopProducer();
-			}
-		};
-	};
-
-	const base: Node = {
-		name: opts.name,
-		get(): T | undefined {
-			return cached;
-		},
-		get status(): NodeStatus {
-			return status;
-		},
-		down,
-		subscribe,
-		meta,
-	};
-
-	if (hasDeps) {
-		base.up = (messages: Messages): void => {
-			for (const dep of deps) {
-				dep.up?.(messages);
-			}
-		};
-		base.unsubscribe = (): void => {
-			disconnectUpstream();
-		};
-	}
-
-	return base as Node<T>;
+	return new NodeImpl<T>(deps, fn, opts);
 }

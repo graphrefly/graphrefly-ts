@@ -157,10 +157,20 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **Python** | Keep per-emission handling + `ExceptionGroup` (or first-error policy as chosen); document the partial-state contract explicitly. |
 | **TypeScript** | JSDoc on `batch` / `drainPending` documents partial delivery + first error rethrown. |
 
+### 11. `describe_node` / `describeNode` and read-only `meta`
+
+| | |
+|--|--|
+| **Python** | `describe_node(n)` reads `NodeImpl` internals; `node.meta` is `MappingProxyType` (read-only mapping of companion nodes). |
+| **TypeScript** | `describeNode(n)` uses `instanceof NodeImpl` to read class fields directly; `node.meta` is `Object.freeze({...})`. |
+| **Shared** | `meta_snapshot` / `metaSnapshot` omit keys when a companion `get()` throws; same best-effort `type` inference for GRAPHREFLY-SPEC Appendix B describe entries (full `graph.describe()` remains Phase 1). |
+
 ### Cross-language summary
 
 | Topic | Python | TypeScript |
 |-------|--------|------------|
+| Core sugar `subscribe(dep, fn)` / `operator` | Not exported: use `node([dep], fn)`, `effect([dep], fn)`, `derived` (same sugar surface as here) | Not exported: use `node([dep], fn)`, `effect([dep], fn)`, and `derived` for all deps+fn nodes |
+| `pipe` and `Node.__or__` | `pipe()` plus `|` on nodes (GRAPHREFLY-SPEC §6.1) | `pipe()` only |
 | Message tags | `StrEnum` | `Symbol` |
 | Subgraph write locks | Union-find + `RLock`; `defer_set` / `defer_down`; per-node `_cache_lock` for `get()`/`_cached` | N/A (single-threaded) |
 | Batch emit API | `emit_with_batch` (+ `dispatch_messages` alias); optional `subgraph_lock` for node emissions | `emitWithBatch` |
@@ -170,13 +180,22 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Nested `batch` throw + drain (**A4**) | Do **not** clear global queue while flushing | `!flushInProgress` guard before clear |
 | `TEARDOWN` after terminal (**B3**) | Full lifecycle + emit to sinks | Same |
 | Partial drain before rethrow (**C1**) | Document intentional | Document intentional (JSDoc) |
-| Source `up` / `unsubscribe` | no-op | omitted |
+| Source `up` / `unsubscribe` | no-op | no-op (always present for V8 shape stability) |
 | `fn` returns callable | cleanup | cleanup |
-| Connect re-entrancy | `_connecting` | `connecting` (aligned) |
-| Sink snapshot during delivery | TBD | `[...sinks]` snapshot before iterating |
+| Connect re-entrancy | `_connecting` | `_connecting` (aligned) |
+| Sink snapshot during delivery | `list(self._sinks)` snapshot before iterating | `[...this._sinks]` snapshot before iterating |
 | Drain cycle detection | TBD | `MAX_DRAIN_ITERATIONS = 1000` cap |
-| TEARDOWN → `"disconnected"` status | TBD | `statusAfterMessage` maps TEARDOWN |
-| DIRTY→COMPLETE settlement | TBD | `runFn()` when no dirty deps remain but node is dirty |
+| TEARDOWN → `"disconnected"` status | `_status_after_message` maps TEARDOWN | `statusAfterMessage` maps TEARDOWN |
+| DIRTY→COMPLETE settlement (D2) | `_run_fn()` when no dirty deps remain but node is dirty | `_runFn()` when no dirty deps remain but node is dirty |
+| Describe slice + frozen meta | `describe_node`, `MappingProxyType` | `describeNode` via `instanceof NodeImpl`, `Object.freeze(meta)` |
+| Node internals | Class-based `NodeImpl`, all methods on class | Class-based `NodeImpl`, V8 hidden class optimization, prototype methods |
+| Dep-value identity check | Before cleanup (skip cleanup+fn on no-op) | Before cleanup (skip cleanup+fn on no-op) |
+
+### Open design items (low priority)
+
+1. **`_is_cleanup_fn` / `isCleanupFn` treats any callable return as cleanup.** Both languages use `callable(value)` / `typeof value === "function"`. A compute function cannot emit a callable as a data value — it will be silently swallowed as cleanup. Fix: accept `{ cleanup: fn }` wrapper or add an opt-out flag. Low priority because the pattern is well-documented and rarely needed.
+
+2. **`inferDescribeType` cannot distinguish effect/passthrough/pre-run-operator from `"derived"`.** Type inference relies on `_manualEmitUsed` (runtime), so an operator that hasn't run yet reports `"derived"`. Fix: sugar constructors (`effect()`, `operator()`) set an `_explicitKind` field on `NodeImpl`. Low priority until Graph.describe() is implemented (Phase 1).
 
 ---
 

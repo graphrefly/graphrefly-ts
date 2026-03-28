@@ -1,4 +1,21 @@
-import type { Node } from "./node.js";
+import { type Node, NodeImpl } from "./node.js";
+
+/** JSON-shaped slice of a node for Phase 1 `Graph.describe()` (GRAPHREFLY-SPEC §3.6, Appendix B). */
+export type DescribeNodeOutput = {
+	type: "state" | "derived" | "producer" | "operator" | "effect";
+	status: Node["status"];
+	deps: string[];
+	meta: Record<string, unknown>;
+	name?: string;
+	value?: unknown;
+};
+
+function inferDescribeType(n: NodeImpl): DescribeNodeOutput["type"] {
+	if (!n._hasDeps) return n._fn != null ? "producer" : "state";
+	if (n._fn == null) return "derived";
+	if (n._manualEmitUsed) return "operator";
+	return "derived";
+}
 
 /**
  * Reads the current cached value of every companion meta field on a node,
@@ -35,5 +52,46 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
 			/* omit key — describe tooling still gets other fields */
 		}
 	}
+	return out;
+}
+
+/**
+ * Single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).
+ * Parity with graphrefly-py `describe_node`.
+ *
+ * `type` is inferred from factory configuration and the last `manualEmitUsed`
+ * hint after the most recent compute run. Pure effect nodes (fn returns
+ * `undefined` without `down`/`emit`) may still report `"derived"` until sugar
+ * supplies explicit kinds.
+ *
+ * Nodes not created by {@link node} fall back to `type: "state"` and empty `deps`.
+ */
+export function describeNode(node: Node): DescribeNodeOutput {
+	const meta = metaSnapshot(node);
+	let type: DescribeNodeOutput["type"] = "state";
+	let deps: string[] = [];
+
+	if (node instanceof NodeImpl) {
+		type = inferDescribeType(node);
+		deps = node._deps.map((d) => d.name ?? "");
+	}
+
+	const out: DescribeNodeOutput = {
+		type,
+		status: node.status,
+		deps,
+		meta,
+	};
+
+	if (node.name != null) {
+		out.name = node.name;
+	}
+
+	try {
+		out.value = node.get();
+	} catch {
+		/* omit value */
+	}
+
 	return out;
 }

@@ -40,18 +40,18 @@
 ### 0.4 — Meta (companion stores)
 
 - [x] `meta` option: each key becomes a subscribable node
-- [x] Meta nodes participate in describe() output (`metaSnapshot()` merges current meta values for Graph/describe)
+- [x] Meta nodes participate in describe() output (`metaSnapshot()` + `describeNode()` for per-node JSON; full `graph.describe()` in Phase 1.3)
 - [x] Meta nodes independently observable
 
 ### 0.5 — Sugar constructors
 
-- [ ] `state(initial, opts?)` — no deps, no fn
-- [ ] `producer(fn, opts?)` — no deps, with fn
-- [ ] `derived(deps, fn, opts?)` — deps, fn returns value
-- [ ] `operator(deps, fn, opts?)` — deps, fn uses down()
-- [ ] `effect(deps, fn)` — deps, fn returns nothing
-- [ ] `subscribe(dep, callback)` — single dep shorthand
-- [ ] `pipe(source, op1, op2)` — linear composition
+- [x] `state(initial, opts?)` — no deps, no fn
+- [x] `producer(fn, opts?)` — no deps, with fn
+- [x] `derived(deps, fn, opts?)` — deps + fn (alias over `node`; spec “operator” pattern is the same primitive)
+- [x] `effect(deps, fn)` — deps, fn returns nothing
+- [x] `pipe(source, op1, op2)` — linear composition
+- [ ] `subscribe(dep, callback)` — omitted in TS: use `node([dep], fn)` or `effect([dep], fn)`; instance `Node.subscribe` covers sink attachment
+- [ ] `operator(deps, fn, opts?)` — omitted; use `derived`
 
 ### 0.6 — Tests & validation
 
