@@ -1,0 +1,455 @@
+---
+const base = import.meta.env.BASE_URL;
+
+const features = [
+	{
+		title: "One protocol",
+		desc: "Messages are arrays of tuples `[Type, Data?]`. Same shape for TS and Python — reviewable, replayable, LLM-friendly.",
+		color: "#f0a858",
+	},
+	{
+		title: "Diamond-safe",
+		desc: "Two-phase push: DIRTY propagates, then DATA or RESOLVED. Glitch-free graphs when paths merge.",
+		color: "#4de8c2",
+	},
+	{
+		title: "Graph as artifact",
+		desc: "`describe()`, `observe()`, snapshots — the container is the introspection layer.",
+		color: "#a78bfa",
+	},
+	{
+		title: "Human + LLM",
+		desc: "Meta on nodes, access hints, and stable JSON snapshots for co-designed systems.",
+		color: "#f472b6",
+	},
+];
+---
+
+<div class="gr-home">
+	<section class="gr-hero">
+		<div class="gr-hero-bg" aria-hidden="true">
+			<div class="gr-orb gr-orb-1"></div>
+			<div class="gr-orb gr-orb-2"></div>
+			<div class="gr-orb gr-orb-3"></div>
+			<div class="gr-flow-lines">
+				<svg viewBox="0 0 1200 600" fill="none" preserveAspectRatio="xMidYMid slice">
+					<path
+						class="gr-flow-line gr-fl-1"
+						d="M-100 300 Q200 100 400 300 T800 300 T1300 300"
+						stroke="url(#gr-grad1)"
+						stroke-width="1.5"></path>
+					<path
+						class="gr-flow-line gr-fl-2"
+						d="M-100 350 Q250 150 450 350 T850 320 T1300 350"
+						stroke="url(#gr-grad2)"
+						stroke-width="1"></path>
+					<path
+						class="gr-flow-line gr-fl-3"
+						d="M-100 250 Q150 400 350 250 T750 280 T1300 250"
+						stroke="url(#gr-grad3)"
+						stroke-width="1"></path>
+					<defs>
+						<linearGradient id="gr-grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+							<stop offset="0%" stop-color="#4de8c200"></stop>
+							<stop offset="30%" stop-color="#4de8c2"></stop>
+							<stop offset="70%" stop-color="#2bb89a"></stop>
+							<stop offset="100%" stop-color="#4de8c200"></stop>
+						</linearGradient>
+						<linearGradient id="gr-grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+							<stop offset="0%" stop-color="#a78bfa00"></stop>
+							<stop offset="40%" stop-color="#a78bfa88"></stop>
+							<stop offset="100%" stop-color="#a78bfa00"></stop>
+						</linearGradient>
+						<linearGradient id="gr-grad3" x1="0%" y1="0%" x2="100%" y2="0%">
+							<stop offset="0%" stop-color="#f0a85800"></stop>
+							<stop offset="50%" stop-color="#f0a85866"></stop>
+							<stop offset="100%" stop-color="#f0a85800"></stop>
+						</linearGradient>
+					</defs>
+				</svg>
+			</div>
+			<div class="gr-noise"></div>
+		</div>
+
+		<div class="gr-hero-inner">
+			<p class="gr-kicker">Reactive graph protocol</p>
+			<h1 class="gr-title">
+				<span class="gr-title-a">Graph</span><span class="gr-title-b">re</span><span class="gr-title-c"
+					>Fly</span
+				><span class="gr-title-dot">.</span>
+			</h1>
+			<p class="gr-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+			<p class="gr-sub">
+				TypeScript and Python implementations share one spec — messages,
+				<code>node</code>, <code>Graph</code>, snapshots.
+			</p>
+			<div class="gr-actions">
+				<a class="gr-btn gr-btn-primary" href={`${base}spec/`}>Read the spec</a>
+				<a class="gr-btn gr-btn-ghost" href={`${base}roadmap/`}>Roadmap</a>
+				<a
+					class="gr-btn gr-btn-ghost"
+					href="https://github.com/graphrefly/graphrefly-py"
+					target="_blank"
+					rel="noopener noreferrer">graphrefly-py</a
+				>
+			</div>
+		</div>
+	</section>
+
+	<section class="gr-features">
+		<div class="gr-features-grid">
+			{
+				features.map((f, i) => (
+					<div class="gr-feature" style={`--gr-delay:${i * 0.1}s;--gr-accent:${f.color}`}>
+						<h3 class="gr-feature-title">{f.title}</h3>
+						<p class="gr-feature-desc">{f.desc}</p>
+					</div>
+				))
+			}
+		</div>
+	</section>
+
+	<section class="gr-cta">
+		<h2 class="gr-cta-title">Implementations</h2>
+		<p class="gr-cta-sub"><code>graphrefly-ts</code> · <code>graphrefly-py</code></p>
+		<div class="gr-actions">
+			<a
+				class="gr-btn gr-btn-primary"
+				href="https://github.com/graphrefly/graphrefly-ts"
+				target="_blank"
+				rel="noopener noreferrer">TypeScript repo</a
+			>
+			<a
+				class="gr-btn gr-btn-ghost"
+				href="https://github.com/graphrefly/graphrefly-py"
+				target="_blank"
+				rel="noopener noreferrer">Python repo</a
+			>
+		</div>
+	</section>
+</div>
+
+<style is:global>
+	.gr-home {
+		--gr-aqua: #4de8c2;
+		--gr-aqua-dim: #2bb89a;
+		--gr-deep: #0a1628;
+		--gr-surface: #0f1f35;
+		--gr-text: #e2eaf4;
+		--gr-text-muted: #8899b0;
+		--gr-warm: #f0a858;
+		--gr-border: #162a42;
+		color: var(--gr-text);
+		font-family: Outfit, system-ui, sans-serif;
+		margin: -1.5rem -1rem 0;
+		max-width: none;
+	}
+
+	@media (min-width: 72rem) {
+		.gr-home {
+			margin: -2rem max(-2rem, 50% - 50vw) 0;
+			width: 100vw;
+			max-width: 100vw;
+		}
+	}
+
+	.gr-hero {
+		position: relative;
+		min-height: 72vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		padding: 4rem 1.5rem 3rem;
+	}
+
+	.gr-hero-bg {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		background: radial-gradient(ellipse 80% 60% at 50% 40%, #0d2847 0%, var(--gr-deep) 70%);
+	}
+
+	.gr-orb {
+		position: absolute;
+		border-radius: 50%;
+		filter: blur(100px);
+		opacity: 0.4;
+		animation: gr-float 20s ease-in-out infinite;
+	}
+
+	.gr-orb-1 {
+		width: 600px;
+		height: 600px;
+		top: -10%;
+		left: -5%;
+		background: radial-gradient(circle, #4de8c233, transparent 70%);
+	}
+	.gr-orb-2 {
+		width: 400px;
+		height: 400px;
+		top: 20%;
+		right: -5%;
+		background: radial-gradient(circle, #a78bfa22, transparent 70%);
+		animation-delay: -7s;
+		animation-duration: 25s;
+	}
+	.gr-orb-3 {
+		width: 300px;
+		height: 300px;
+		bottom: 5%;
+		left: 30%;
+		background: radial-gradient(circle, #f0a85818, transparent 70%);
+		animation-delay: -13s;
+		animation-duration: 30s;
+	}
+
+	@keyframes gr-float {
+		0%,
+		100% {
+			transform: translate(0, 0) scale(1);
+		}
+		25% {
+			transform: translate(30px, -40px) scale(1.05);
+		}
+		50% {
+			transform: translate(-20px, 20px) scale(0.95);
+		}
+		75% {
+			transform: translate(15px, 30px) scale(1.02);
+		}
+	}
+
+	.gr-flow-lines {
+		position: absolute;
+		inset: 0;
+		opacity: 0.35;
+	}
+	.gr-flow-lines svg {
+		width: 100%;
+		height: 100%;
+	}
+	.gr-flow-line {
+		stroke-dasharray: 800;
+		stroke-dashoffset: 800;
+		animation: gr-flow-draw 4s ease forwards;
+	}
+	.gr-fl-1 {
+		animation-delay: 0.2s;
+	}
+	.gr-fl-2 {
+		animation-delay: 0.5s;
+	}
+	.gr-fl-3 {
+		animation-delay: 0.8s;
+	}
+	@keyframes gr-flow-draw {
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+
+	.gr-noise {
+		position: absolute;
+		inset: 0;
+		opacity: 0.03;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+		pointer-events: none;
+	}
+
+	.gr-hero-inner {
+		position: relative;
+		z-index: 1;
+		text-align: center;
+		max-width: 40rem;
+		padding: 0 0.5rem;
+	}
+
+	.gr-kicker {
+		font-size: 0.8rem;
+		font-weight: 500;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		color: var(--gr-aqua-dim);
+		margin-bottom: 1rem;
+		opacity: 0;
+		animation: gr-fade-up 0.8s ease 0.2s forwards;
+	}
+
+	.gr-title {
+		font-family: "Instrument Sans", Outfit, system-ui, sans-serif;
+		font-weight: 700;
+		line-height: 1.05;
+		margin: 0 0 1rem;
+		font-size: clamp(2.5rem, 8vw, 4.25rem);
+		letter-spacing: -0.03em;
+		opacity: 0;
+		animation: gr-fade-up 0.8s ease 0.4s forwards;
+	}
+
+	.gr-title-a {
+		color: var(--gr-text);
+	}
+	.gr-title-b {
+		background: linear-gradient(135deg, var(--gr-aqua), #7df0d5, var(--gr-aqua-dim));
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+	.gr-title-c {
+		color: var(--gr-text);
+	}
+	.gr-title-dot {
+		color: var(--gr-warm);
+	}
+
+	.gr-tagline {
+		font-size: 1.1rem;
+		color: var(--gr-text-muted);
+		font-style: italic;
+		margin: 0 0 1rem;
+		opacity: 0;
+		animation: gr-fade-up 0.8s ease 0.55s forwards;
+	}
+
+	.gr-sub {
+		font-size: 1.05rem;
+		line-height: 1.65;
+		color: var(--gr-text-muted);
+		margin-bottom: 2rem;
+		opacity: 0;
+		animation: gr-fade-up 0.8s ease 0.7s forwards;
+	}
+
+	.gr-sub code {
+		font-size: 0.95em;
+		color: var(--gr-aqua);
+		background: var(--gr-surface);
+		border: 1px solid var(--gr-border);
+		border-radius: 4px;
+		padding: 0.1em 0.35em;
+	}
+
+	.gr-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		justify-content: center;
+		opacity: 0;
+		animation: gr-fade-up 0.8s ease 0.85s forwards;
+	}
+
+	@keyframes gr-fade-up {
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+		from {
+			opacity: 0;
+			transform: translateY(16px);
+		}
+	}
+
+	.gr-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.65rem 1.25rem;
+		border-radius: 999px;
+		font-weight: 600;
+		font-size: 0.95rem;
+		text-decoration: none;
+		border: 1px solid transparent;
+		transition:
+			background 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+	}
+
+	.gr-btn-primary {
+		background: linear-gradient(135deg, var(--gr-aqua), var(--gr-aqua-dim));
+		color: #041018;
+		border-color: transparent;
+	}
+	.gr-btn-primary:hover {
+		filter: brightness(1.08);
+		color: #041018;
+	}
+
+	.gr-btn-ghost {
+		background: transparent;
+		border-color: var(--gr-border);
+		color: var(--gr-text);
+	}
+	.gr-btn-ghost:hover {
+		border-color: var(--gr-aqua-dim);
+		color: var(--gr-aqua);
+	}
+
+	.gr-features {
+		padding: 3rem 1.5rem 4rem;
+		max-width: 72rem;
+		margin: 0 auto;
+	}
+
+	.gr-features-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 1.25rem;
+	}
+
+	.gr-feature {
+		padding: 1.35rem 1.25rem;
+		border-radius: 14px;
+		background: rgba(15, 31, 53, 0.65);
+		border: 1px solid var(--gr-border);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+		opacity: 0;
+		animation: gr-fade-up 0.7s ease forwards;
+		animation-delay: calc(0.15s + var(--gr-delay, 0s));
+		border-top: 3px solid var(--gr-accent);
+	}
+
+	.gr-feature-title {
+		margin: 0 0 0.5rem;
+		font-size: 1.1rem;
+		font-weight: 600;
+		font-family: "Instrument Sans", Outfit, system-ui, sans-serif;
+	}
+
+	.gr-feature-desc {
+		margin: 0;
+		font-size: 0.95rem;
+		line-height: 1.6;
+		color: var(--gr-text-muted);
+	}
+
+	.gr-cta {
+		text-align: center;
+		padding: 3rem 1.5rem 4rem;
+		border-top: 1px solid var(--gr-border);
+		max-width: 40rem;
+		margin: 0 auto;
+	}
+
+	.gr-cta-title {
+		font-family: "Instrument Sans", Outfit, system-ui, sans-serif;
+		font-size: 1.75rem;
+		margin: 0 0 0.5rem;
+		color: var(--gr-aqua);
+	}
+
+	.gr-cta-sub {
+		margin: 0 0 1.5rem;
+		color: var(--gr-text-muted);
+		font-size: 1rem;
+	}
+
+	.gr-cta-sub code {
+		color: var(--gr-aqua);
+		background: var(--gr-surface);
+		padding: 0.15em 0.4em;
+		border-radius: 4px;
+		font-size: 0.9em;
+	}
+</style>

@@ -1,0 +1,46 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"required": ["name", "nodes", "edges", "subgraphs"],
+	"properties": {
+		"name": { "type": "string" },
+		"nodes": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "object",
+				"required": ["type", "status"],
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["state", "derived", "producer", "operator", "effect"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["disconnected", "dirty", "settled", "resolved", "completed", "errored"]
+					},
+					"value": {},
+					"deps": {
+						"type": "array",
+						"items": { "type": "string" }
+					},
+					"meta": { "type": "object" }
+				}
+			}
+		},
+		"edges": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["from", "to"],
+				"properties": {
+					"from": { "type": "string" },
+					"to": { "type": "string" }
+				}
+			}
+		},
+		"subgraphs": {
+			"type": "array",
+			"items": { "type": "string" }
+		}
+	}
+}

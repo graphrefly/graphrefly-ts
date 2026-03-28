@@ -52,15 +52,15 @@ From **GRAPHREFLY-SPEC** §1 and §2:
 
 ---
 
-## What to test — Graph (when implemented)
+## What to test — Graph
 
-From **§3**:
+From **§3** (see `src/__tests__/graph/graph.test.ts`, `validate-describe-appendix-b.ts`, `describe-appendix-b.schema.json`):
 
-- [ ] add/remove/connect/disconnect; edges are **wires only** (no transforms on edges).
-- [ ] `describe()` matches expected shape (see spec Appendix B); with actor, hidden nodes and dependent edges/subgraphs are omitted.
-- [ ] `observe(name?)` / `observe({ actor })` — message stream for tests and debugging; `GuardDenied` when the actor cannot observe.
-- [ ] `signal()`, `destroy()`, snapshot round-trips as specified.
-- [ ] **Guard (roadmap 1.5):** `set`/`signal` vs `write`/`signal` actions, meta inheriting primary guard, `lastMutation`, internal TEARDOWN bypass, `policy()` allow/deny order.
+- [x] add/remove/connect/disconnect; edges are **wires only** (no transforms on edges).
+- [x] `describe()` matches expected shape (see spec Appendix B); with actor, hidden nodes and dependent edges/subgraphs are omitted.
+- [x] `observe(name?)` / `observe({ actor })` — message stream for tests and debugging; `GuardDenied` when the actor cannot observe.
+- [x] `signal()`, `destroy()`, snapshot round-trips as specified.
+- [x] **Guard (roadmap 1.5):** `set`/`signal` vs `write`/`signal` actions, meta inheriting primary guard, `lastMutation`, internal TEARDOWN bypass, `policy()` allow/deny order.
 
 ---
 
@@ -85,6 +85,8 @@ Use a small test helper or the future public API to collect ordered message arra
 ### With `Graph.observe()`
 
 Prefer **`graph.observe(name)`** (or per-node) for live streams — see **GRAPHREFLY-SPEC §3.6**. This replaces a separate “Inspector-only” observe path: the Graph is the introspection layer.
+
+**Note:** `graph.set()` forwards **`[[DATA, value]]` only** to the node; observers on a **state** source may not see a preceding `DIRTY`. For **two-phase** ordering (`DIRTY` then `DATA`), assert on a **derived** (or other dep-backed) node after an upstream `set`, or call `node.down()` with an explicit batch.
 
 ---
 

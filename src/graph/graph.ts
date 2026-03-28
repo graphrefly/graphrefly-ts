@@ -3,6 +3,7 @@ import { GuardDenied } from "../core/guard.js";
 import { DATA, type Messages, TEARDOWN } from "../core/messages.js";
 import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
 import { type Node, NodeImpl, type NodeSink, type NodeTransportOptions } from "../core/node.js";
+import { state as stateNode } from "../core/sugar.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
@@ -41,6 +42,38 @@ export type GraphDescribeOutput = {
 export type GraphPersistSnapshot = GraphDescribeOutput & {
 	version?: number;
 };
+
+/** Snapshot format version (§3.8). */
+const SNAPSHOT_VERSION = 1;
+
+/**
+ * Validate the snapshot envelope: version, required keys, types. Aligned with
+ * Python `_parse_snapshot_envelope`. Throws on invalid data.
+ */
+function parseSnapshotEnvelope(data: GraphPersistSnapshot): void {
+	if (data.version !== SNAPSHOT_VERSION) {
+		throw new Error(
+			`unsupported snapshot version ${String(data.version)} (expected ${SNAPSHOT_VERSION})`,
+		);
+	}
+	for (const key of ["name", "nodes", "edges", "subgraphs"] as const) {
+		if (!(key in data)) {
+			throw new Error(`snapshot missing required key "${key}"`);
+		}
+	}
+	if (typeof data.name !== "string") {
+		throw new TypeError(`snapshot 'name' must be a string`);
+	}
+	if (typeof data.nodes !== "object" || data.nodes === null || Array.isArray(data.nodes)) {
+		throw new TypeError(`snapshot 'nodes' must be an object`);
+	}
+	if (!Array.isArray(data.edges)) {
+		throw new TypeError(`snapshot 'edges' must be an array`);
+	}
+	if (!Array.isArray(data.subgraphs)) {
+		throw new TypeError(`snapshot 'subgraphs' must be an array`);
+	}
+}
 
 /** Recursively sort object keys for deterministic JSON (git-diffable). */
 function sortJsonValue(value: unknown): unknown {
@@ -810,6 +843,7 @@ export class Graph {
 	 * @throws If `data.name` does not equal {@link Graph.name}.
 	 */
 	restore(data: GraphPersistSnapshot): void {
+		parseSnapshotEnvelope(data);
 		if (data.name !== this.name) {
 			throw new Error(
 				`Graph "${this.name}": restore snapshot name "${data.name}" does not match this graph`,
@@ -834,9 +868,66 @@ export class Graph {
 	 * and mounts, then {@link Graph.restore} values (§3.8).
 	 */
 	static fromSnapshot(data: GraphPersistSnapshot, build?: (g: Graph) => void): Graph {
+		parseSnapshotEnvelope(data);
 		const g = new Graph(data.name);
-		build?.(g);
-		g.restore(data);
+		if (build) {
+			build(g);
+			g.restore(data);
+			return g;
+		}
+		// Without build: reject edges and non-state nodes (aligned with Python).
+		if (data.edges.length > 0) {
+			throw new Error(
+				"Graph.fromSnapshot does not support non-empty edges without a build callback; " +
+					"node functions cannot be reconstructed from JSON. Build the graph in code and " +
+					"use graph.restore(snapshot) to apply values, or pass a build callback.",
+			);
+		}
+		for (const path of Object.keys(data.nodes).sort()) {
+			const slice = data.nodes[path];
+			if (!slice || path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
+			if (slice.type !== "state") {
+				throw new Error(
+					`Graph.fromSnapshot only supports state nodes without a build callback ` +
+						`(got type "${slice.type}" at "${path}")`,
+				);
+			}
+		}
+		// Auto-create mount hierarchy from subgraphs.
+		for (const mount of [...data.subgraphs].sort((a, b) => {
+			const da = a.split(PATH_SEP).length;
+			const db = b.split(PATH_SEP).length;
+			return da - db || a.localeCompare(b);
+		})) {
+			const parts = mount.split(PATH_SEP);
+			let target: Graph = g;
+			for (const seg of parts) {
+				if (!target._mounts.has(seg)) {
+					target.mount(seg, new Graph(seg));
+				}
+				target = target._mounts.get(seg)!;
+			}
+		}
+		// Register state nodes and meta.
+		for (const path of Object.keys(data.nodes).sort()) {
+			const slice = data.nodes[path];
+			if (!slice) continue;
+			if (path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
+			const meta: Record<string, unknown> = {};
+			if (slice.meta) {
+				for (const [k, v] of Object.entries(slice.meta)) {
+					meta[k] = v;
+				}
+			}
+			// Find owner graph and local name.
+			const segments = path.split(PATH_SEP);
+			const localName = segments.pop()!;
+			let owner: Graph = g;
+			for (const seg of segments) {
+				owner = owner._mounts.get(seg)!;
+			}
+			owner.add(localName, stateNode(slice.value, { meta }));
+		}
 		return g;
 	}
 

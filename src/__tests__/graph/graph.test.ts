@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { GuardDenied, policy } from "../../core/guard.js";
-import { DATA, PAUSE, TEARDOWN } from "../../core/messages.js";
+import { DATA, DIRTY, PAUSE, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { derived, effect, producer, state } from "../../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphPersistSnapshot } from "../../graph/graph.js";
+import { assertDescribeMatchesAppendixB } from "./validate-describe-appendix-b.js";
 
 describe("Graph (Phase 1.1)", () => {
 	it("Graph(name) and empty name throws", () => {
@@ -680,5 +681,228 @@ describe("Graph guard (Phase 1.5)", () => {
 		n.down([[DATA, 1]]);
 		expect(n.get()).toBe(1);
 		expect(n.lastMutation?.actor).toEqual(DEFAULT_ACTOR);
+	});
+});
+
+describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signals, policy", () => {
+	const human = { type: "human" as const, id: "u1" };
+
+	it("describe() conforms to GRAPHREFLY-SPEC Appendix B (all node kinds)", () => {
+		const g = new Graph("app");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const p = producer(() => {}, { name: "p" });
+		const e = effect([a], () => {});
+		g.add("a", a);
+		g.add("b", b);
+		g.add("p", p);
+		g.add("e", e);
+		g.connect("a", "b");
+		g.connect("a", "e");
+		assertDescribeMatchesAppendixB(g.describe());
+	});
+
+	it("describe() on nested mounts conforms to Appendix B", () => {
+		const root = new Graph("root");
+		const child = new Graph("ch");
+		const n = state(0, { name: "n" });
+		child.add("n", n);
+		root.mount("c", child);
+		assertDescribeMatchesAppendixB(root.describe());
+	});
+
+	it("observe(path) on state sees DATA when graph.set writes (DATA-only batch)", () => {
+		const g = new Graph("g");
+		const n = state(0, { name: "n" });
+		g.add("n", n);
+		const seq: symbol[] = [];
+		const off = g.observe("n").subscribe((msgs) => {
+			for (const m of msgs) seq.push(m[0] as symbol);
+		});
+		g.set("n", 1);
+		off();
+		expect(seq).toContain(DATA);
+		expect(g.get("n")).toBe(1);
+	});
+
+	it("observe(path) on derived sees DIRTY before DATA when upstream graph.set recomputes", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const seq: symbol[] = [];
+		const off = g.observe("b").subscribe((msgs) => {
+			for (const m of msgs) seq.push(m[0] as symbol);
+		});
+		g.set("a", 5);
+		off();
+		const iDirty = seq.indexOf(DIRTY);
+		const iData = seq.indexOf(DATA);
+		expect(iDirty).toBeGreaterThanOrEqual(0);
+		expect(iData).toBeGreaterThan(iDirty);
+		expect(g.get("b")).toBe(6);
+	});
+
+	it("snapshot survives JSON wire and restores nested mount values", () => {
+		const root0 = new Graph("app");
+		const child0 = new Graph("sub");
+		const n0 = state(3, { name: "x" });
+		child0.add("x", n0);
+		root0.mount("sub", child0);
+		const snap = root0.snapshot();
+		const wired = JSON.parse(JSON.stringify(snap)) as GraphPersistSnapshot;
+
+		const root1 = Graph.fromSnapshot(wired, (g) => {
+			const ch = new Graph("sub");
+			ch.add("x", state(0, { name: "x" }));
+			g.mount("sub", ch);
+		});
+		expect(root1.name).toBe("app");
+		expect(root1.get("sub::x")).toBe(3);
+	});
+
+	it("graph.signal reaches every mounted subgraph (sibling mounts)", () => {
+		const root = new Graph("root");
+		const c1 = new Graph("c1");
+		const c2 = new Graph("c2");
+		const n1 = state(0, { name: "n1" });
+		const n2 = state(0, { name: "n2" });
+		c1.add("n1", n1);
+		c2.add("n2", n2);
+		root.mount("m1", c1);
+		root.mount("m2", c2);
+		const pauses: string[] = [];
+		n1.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === PAUSE) pauses.push("n1");
+		});
+		n2.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === PAUSE) pauses.push("n2");
+		});
+		root.signal([[PAUSE, "k"]]);
+		expect(pauses.sort()).toEqual(["n1", "n2"]);
+	});
+
+	it("policy: deny wins when both allow and deny match the same actor and action", () => {
+		const g = policy((allow, deny) => {
+			allow("write", { where: (a) => a.type === "human" });
+			deny("write", { where: (a) => a.id === "u1" });
+		});
+		const n = state(0, { guard: g });
+		expect(g(human, "write")).toBe(false);
+		expect(g({ type: "human", id: "u2" }, "write")).toBe(true);
+		n.down([[DATA, 1]], { actor: { type: "human", id: "u2" } });
+		expect(n.get()).toBe(1);
+		expect(() => n.down([[DATA, 2]], { actor: human })).toThrow(GuardDenied);
+	});
+
+	it("policy: action wildcard * matches any GuardAction", () => {
+		const g = policy((allow, _deny) => {
+			allow("*", { where: (a) => a.type === "wallet" });
+		});
+		const w = { type: "wallet" as const, id: "w1" };
+		expect(g(w, "write")).toBe(true);
+		expect(g(w, "signal")).toBe(true);
+		expect(g(w, "observe")).toBe(true);
+		expect(g(human, "write")).toBe(false);
+	});
+
+	it("policy: composed guards require both policies to allow", () => {
+		const p1 = policy((allow, _deny) => {
+			allow("write", { where: (a) => a.type === "human" });
+		});
+		const p2 = policy((allow, _deny) => {
+			allow("write", { where: (a) => a.id === "u1" });
+		});
+		const both = (a: Parameters<typeof p1>[0], act: Parameters<typeof p1>[1]) =>
+			p1(a, act) && p2(a, act);
+		const n = state(0, { guard: both });
+		n.down([[DATA, 9]], { actor: human });
+		expect(n.get()).toBe(9);
+		expect(() => n.down([[DATA, 0]], { actor: { type: "human", id: "other" } })).toThrow(
+			GuardDenied,
+		);
+	});
+
+	it("policy: default is deny when no rule matches", () => {
+		const g = policy((allow, _deny) => {
+			allow("write", { where: (a) => a.type === "system" });
+		});
+		expect(g(human, "write")).toBe(false);
+	});
+
+	it("graph.set records lastMutation with actor", () => {
+		const g = new Graph("g");
+		const n = state(0, { name: "n", guard: () => true });
+		g.add("n", n);
+		g.set("n", 5, { actor: human });
+		expect(n.lastMutation?.actor.type).toBe("human");
+		expect(n.lastMutation?.actor.id).toBe("u1");
+		expect(typeof n.lastMutation?.timestamp_ns).toBe("number");
+	});
+
+	it("observe() whole-graph delivers qualified paths for mounted nodes", () => {
+		const g = new Graph("g");
+		const child = new Graph("ch");
+		const n = state(0, { name: "n" });
+		child.add("n", n);
+		g.mount("sub", child);
+		const paths: string[] = [];
+		const unsub = g.observe().subscribe((path) => {
+			paths.push(path);
+		});
+		g.set("sub::n", 1);
+		unsub();
+		expect(paths).toContain("sub::n");
+	});
+
+	it("restore rejects snapshot with wrong version", () => {
+		const g = new Graph("g");
+		g.add("x", state(0));
+		const snap = g.snapshot();
+		(snap as Record<string, unknown>).version = 99;
+		expect(() => g.restore(snap)).toThrow(/version/);
+	});
+
+	it("restore rejects snapshot missing required keys", () => {
+		const g = new Graph("g");
+		expect(() => g.restore({ name: "g", version: 1 } as GraphPersistSnapshot)).toThrow(
+			/required key/,
+		);
+	});
+
+	it("fromSnapshot without build rejects edges", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const snap = g.snapshot();
+		expect(() => Graph.fromSnapshot(snap)).toThrow(/edges/);
+	});
+
+	it("fromSnapshot without build rejects non-state nodes", () => {
+		const snap: GraphPersistSnapshot = {
+			version: 1,
+			name: "g",
+			nodes: { x: { type: "derived", status: "settled", deps: [], meta: {} } },
+			edges: [],
+			subgraphs: [],
+		};
+		expect(() => Graph.fromSnapshot(snap)).toThrow(/state/);
+	});
+
+	it("fromSnapshot without build auto-creates mounts and state nodes", () => {
+		const root = new Graph("app");
+		const child = new Graph("sub");
+		child.add("x", state(42, { name: "x" }));
+		root.mount("sub", child);
+		const snap = root.snapshot();
+		const wired = JSON.parse(JSON.stringify(snap)) as GraphPersistSnapshot;
+		const restored = Graph.fromSnapshot(wired);
+		expect(restored.name).toBe("app");
+		expect(restored.get("sub::x")).toBe(42);
 	});
 });

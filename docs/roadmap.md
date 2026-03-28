@@ -119,14 +119,14 @@ Built-in ABAC at the node level. Replaces external authz libraries (e.g. CASL) â
 
 ### 1.6 â€” Tests
 
-- [ ] Graph add/remove/connect/disconnect
-- [ ] Mount and namespace resolution
-- [ ] describe() output validation against JSON schema
-- [ ] observe() message stream tests
-- [ ] Snapshot round-trip tests
-- [ ] Cross-subgraph signal propagation
+- [x] Graph add/remove/connect/disconnect
+- [x] Mount and namespace resolution
+- [x] describe() output validation against JSON schema
+- [x] observe() message stream tests
+- [x] Snapshot round-trip tests
+- [x] Cross-subgraph signal propagation
 - [x] Guard enforcement: allowed/denied writes, signals, observe filtering
-- [ ] Policy builder: allow/deny precedence, wildcard, composed policies
+- [x] Policy builder: allow/deny precedence, wildcard, composed policies
 - [x] Actor attribution: mutation records, actor propagation through subgraphs
 - [x] Scoped describe: filtered output matches guard permissions
 - [x] GuardDenied error: correct actor/node/action in diagnostics

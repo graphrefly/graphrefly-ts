@@ -54,6 +54,9 @@
 		"dist"
 	],
 	"scripts": {
+		"docs:dev": "pnpm --dir website dev",
+		"docs:build": "pnpm --dir website build",
+		"docs:preview": "pnpm --dir website preview",
 		"build": "tsup",
 		"test": "vitest run",
 		"bench": "vitest bench",

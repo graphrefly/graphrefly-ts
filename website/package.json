@@ -1,0 +1,22 @@
+{
+	"name": "@graphrefly/docs-site",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"sync-docs": "node scripts/sync-docs.mjs",
+		"predev": "pnpm sync-docs",
+		"prebuild": "pnpm sync-docs",
+		"dev": "astro dev",
+		"start": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview"
+	},
+	"dependencies": {
+		"@astrojs/starlight": "^0.37.2",
+		"astro": "^5.16.0",
+		"sharp": "^0.34.5"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0"
+	}
+}

@@ -29,6 +29,9 @@ jobs:
 
       - run: pnpm run build
 
+      - name: Docs site build
+        run: pnpm --dir website run build
+
       # GITHUB_ACTIONS sets CI=true by default — perf-smoke.test.ts skips wall-clock (matches graphrefly-py).
       - name: Benchmark smoke
         run: pnpm bench

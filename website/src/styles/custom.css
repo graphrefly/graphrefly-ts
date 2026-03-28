@@ -1,0 +1,120 @@
+/* GraphReFly — ported from callbag-recharge VitePress theme (Starlight tokens) */
+
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap");
+
+:root {
+	--gr-aqua: #4de8c2;
+	--gr-aqua-dim: #2bb89a;
+	--gr-aqua-glow: #4de8c244;
+	--gr-deep: #0a1628;
+	--gr-surface: #0f1f35;
+	--gr-surface-raised: #142640;
+	--gr-text: #e2eaf4;
+	--gr-text-muted: #8899b0;
+	--gr-accent-warm: #f0a858;
+	--gr-border: #1e3450;
+	--gr-border-subtle: #162a42;
+}
+
+/* Starlight dark shell — align with callbag palette */
+:root[data-theme="dark"] {
+	--sl-color-white: #f4f8fc;
+	--sl-color-gray-1: var(--gr-text);
+	--sl-color-gray-2: var(--gr-text-muted);
+	--sl-color-gray-3: #6b7f99;
+	--sl-color-gray-4: #4a5f7a;
+	--sl-color-gray-5: var(--gr-border);
+	--sl-color-gray-6: var(--gr-surface-raised);
+	--sl-color-black: var(--gr-deep);
+
+	--sl-color-accent-low: #0d3d35;
+	--sl-color-accent: var(--gr-aqua);
+	--sl-color-accent-high: #7df0d5;
+
+	--sl-color-bg: var(--gr-deep);
+	--sl-color-bg-nav: rgba(10, 22, 40, 0.88);
+	--sl-color-bg-sidebar: var(--gr-deep);
+	--sl-color-hairline: var(--gr-border-subtle);
+	--sl-color-hairline-shade: var(--gr-border-subtle);
+
+	--sl-font: "Outfit", system-ui, sans-serif;
+	--sl-font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Nav blur (desktop) */
+header.sl-header {
+	backdrop-filter: blur(20px) saturate(1.35);
+	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+	border-bottom: 1px solid var(--gr-border-subtle);
+}
+
+@media (max-width: 50rem) {
+	header.sl-header {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		background: rgba(10, 22, 40, 0.95);
+	}
+}
+
+/* Sidebar section labels */
+nav.sidebar .large {
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 0.7rem;
+	letter-spacing: 0.12em;
+	color: var(--gr-text-muted);
+}
+
+/* Prose — callbag-style rhythm */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3 {
+	font-family: "Instrument Sans", Outfit, system-ui, sans-serif;
+	letter-spacing: -0.02em;
+}
+
+.sl-markdown-content h1 {
+	color: var(--gr-aqua);
+	font-weight: 700;
+}
+
+.sl-markdown-content h2 {
+	border-top: 1px solid var(--gr-border-subtle);
+	padding-top: 1.75rem;
+	margin-top: 2.5rem;
+}
+
+.sl-markdown-content p,
+.sl-markdown-content li {
+	line-height: 1.75;
+}
+
+.sl-markdown-content a {
+	color: var(--gr-aqua);
+	text-underline-offset: 3px;
+}
+
+.sl-markdown-content a:hover {
+	color: #7df0d5;
+}
+
+.sl-markdown-content :not(pre) > code {
+	background: var(--gr-surface-raised);
+	border: 1px solid var(--gr-border-subtle);
+	color: var(--gr-aqua);
+	border-radius: 4px;
+	padding: 0.12em 0.4em;
+	font-size: 0.88em;
+}
+
+.sl-markdown-content pre {
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 12px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Selection */
+::selection {
+	background: rgba(77, 232, 194, 0.22);
+	color: #fff;
+}
