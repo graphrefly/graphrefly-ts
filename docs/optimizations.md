@@ -184,6 +184,30 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **Python** | `Graph(..., {"thread_safe": True})` (default): registry uses an `RLock`; **`down([[TEARDOWN]])` runs after the lock is released** on `remove`. |
 | **TypeScript** | No graph-level lock (single-threaded spec). |
 
+### 14. `Graph` Phase 1.2 composition — parity (mount, `resolve`, `signal`)
+
+**Path separator:** Both ports use `::` as the qualified-path separator (e.g. `"parent::child::node"`). Single `:` is allowed in graph names, node names, and mount names. Both ports forbid `::` in names.
+
+**Aligned:** Both provide `mount`, `::` separated `resolve`, recursive `signal`, forbid `::` in local node and mount names, forbid mount versus node name collisions, reject self-mount and mount cycles, treat a path that ends on a subgraph (or continues past a leaf node) as an error, and:
+
+- `remove(mount_name)` unmounts and sends TEARDOWN through the mounted subtree
+- `node` / `get` / `set` accept `::` qualified paths
+- `connect` / `disconnect` accept `::` qualified paths; same-owner edges stored on child graph, cross-subgraph edges on parent
+- `add` rejects duplicate node instances (same reference registered under two names)
+- `mount` rejects the same child `Graph` instance mounted twice on one parent
+- `edges()` public read-only listing of registered `(from, to)` pairs
+- `signal` visit order: recurse into mounts first, then deliver to local nodes
+- `resolve` strips leading graph name (e.g. `root.resolve("app::sub::x")` when `root.name == "app"`)
+- Graph names may contain single `:` (both ports reject `::` in graph names)
+
+**Remaining intentional divergence:**
+
+| Topic | Python | TypeScript | Rationale |
+|-------|--------|------------|-----------|
+| `signal` node dedupe | No per-call dedupe (duplicate mount is forbidden, so unnecessary). | Shared `visited` `Set<Node>` across recursion. | TS keeps the dedupe as defense-in-depth. |
+
+**Docs:** `graphrefly-py/docs/roadmap.md` still lists `graph.signal` under Phase 1.4 unchecked while Phase 1.2 marks composition done; `signal` exists — checklist drift only.
+
 ### Cross-language summary
 
 | Topic | Python | TypeScript |
@@ -211,6 +235,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Dep-value identity check | Before cleanup (skip cleanup+fn on no-op) | Before cleanup (skip cleanup+fn on no-op) |
 | `INVALIDATE` (§1.2) | Cleanup + clear `_cached` + `_last_dep_values`; terminal passthrough (§9); no auto recompute | Same |
 | `Graph` Phase 1.1 | `thread_safe` + `RLock`; TEARDOWN after unlock on `remove`; `disconnect` vs `_deps` → §C | Registry only; `connect` / `disconnect` errors aligned; see §C |
+| `Graph` Phase 1.2 | Aligned: `::` path separator, mount `remove` + subtree TEARDOWN, qualified paths, `edges()`, signal mounts-first, `resolve` strips leading name, `:` in names OK; see §14 | Same; see §14 |
 
 ### Open design items (low priority)
 
