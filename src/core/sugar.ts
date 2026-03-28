@@ -12,7 +12,7 @@ export function state<T>(initial: T, opts?: Omit<NodeOptions, "initial">): Node<
  * Auto source: no deps; `fn` runs on subscribe and uses `actions.emit` / `actions.down`.
  */
 export function producer<T = unknown>(fn: NodeFn<T>, opts?: NodeOptions): Node<T> {
-	return node<T>(fn, opts);
+	return node<T>(fn, { describeKind: "producer", ...opts });
 }
 
 /**
@@ -24,14 +24,14 @@ export function derived<T = unknown>(
 	fn: NodeFn<T>,
 	opts?: NodeOptions,
 ): Node<T> {
-	return node<T>(deps, fn, opts);
+	return node<T>(deps, fn, { describeKind: "derived", ...opts });
 }
 
 /**
  * Side-effect node: `fn` returns nothing; no auto-emit from return value.
  */
 export function effect(deps: readonly Node[], fn: NodeFn<unknown>): Node<unknown> {
-	return node(deps, fn);
+	return node(deps, fn, { describeKind: "effect" });
 }
 
 /** Unary transform used by {@link pipe} (typically returns a new node wrapping `n`). */

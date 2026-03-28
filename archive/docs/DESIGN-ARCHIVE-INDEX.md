@@ -62,6 +62,20 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-web3-research-and-type-extensibility.md`
 
+### Session access-control-actor-guard (March 28) — Built-in ABAC: Actor, Guard, Policy Builder
+**Topic:** Designing built-in access control for GraphReFly that replaces external authz libraries (e.g. CASL). The graph is the single enforcement point — every mutation flows through `down()`/`set()`/`signal()`, so one guard per node is complete coverage.
+
+**Key decisions:**
+- **Three primitives:** Actor context (who), capability guard (may they), scoped introspection (what can they see)
+- **`policy()` declarative builder** — CASL-style `allow()`/`deny()` DX, zero dependencies, ~50 LOC
+- **Attribution pulled to Phase 1.5** — `node.lastMutation` records `{ actor, timestamp }` on every mutation
+- **CASL rejected** as dependency — its subject model, sift.js query engine, and pack/unpack serialization are unnecessary when the graph is the only enforcement point
+- **Web3 identity maps cleanly** — wallet signatures, x402 proofs, ERC-8004 agent IDs all produce actors; the guard is identity-mechanism-agnostic
+
+**Roadmap impact:** New Phase 1.5 (Actor & Guard), expanded Phase 1.6 (tests), Phase 5.4 accepts `actor?`, Phase 6 simplified (attribution moved, V3 caps = serialized guard policy).
+
+**Files:** `archive/docs/SESSION-access-control-actor-guard.md`
+
 ---
 
 ## Reading Guide
@@ -86,4 +100,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** March 28, 2026
-**Archive Status:** Active — spec design + Web3 integration research
+**Archive Status:** Active — spec design + Web3 integration + access control

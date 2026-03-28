@@ -163,7 +163,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 |--|--|
 | **Python** | `describe_node(n)` reads `NodeImpl` internals; `node.meta` is `MappingProxyType` (read-only mapping of companion nodes). |
 | **TypeScript** | `describeNode(n)` uses `instanceof NodeImpl` to read class fields directly; `node.meta` is `Object.freeze({...})`. |
-| **Shared** | `meta_snapshot` / `metaSnapshot` omit keys when a companion `get()` throws; same best-effort `type` inference for GRAPHREFLY-SPEC Appendix B describe entries (full `graph.describe()` remains Phase 1). |
+| **Shared** | `meta_snapshot` / `metaSnapshot` omit keys when a companion `get()` throws; same best-effort `type` inference for Appendix B entries; `Graph.describe()` Phase 1.3 (TS + Python). |
 
 ### 12. `INVALIDATE` local lifecycle (**GRAPHREFLY-SPEC §1.2**)
 
@@ -208,6 +208,24 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 
 **Docs:** `graphrefly-py/docs/roadmap.md` still lists `graph.signal` under Phase 1.4 unchecked while Phase 1.2 marks composition done; `signal` exists — checklist drift only.
 
+### 15. `Graph` Phase 1.3 introspection (`describe`, `observe`, meta paths)
+
+| | |
+|--|--|
+| **Meta path segment** | Reserved literal `__meta__` (export `GRAPH_META_SEGMENT`). Address: `localNode::__meta__::<metaKey>`; **repeat** the segment for nested companion meta (same as graphrefly-py `_resolve_meta_chain`). |
+| **`connect` / `disconnect`** | Paths whose `::` segments include `__meta__` are rejected (wires stay on registered primaries). **TypeScript:** `assertConnectPathNotMeta`. |
+| **`Graph.add` / registry name** | **TypeScript:** If the node has no `name` in options, `add(localName, node)` calls `NodeImpl._assignRegistryName(localName)` so `describe()` / `deps` match the registry (parity with Python setting `_name` on add). |
+| **`signal` → meta** | **TypeScript:** After each primary, deliver the batch to companion `meta` nodes (sorted by meta key), except **TEARDOWN-only** batches — primary `down()` already cascades TEARDOWN to meta, so the extra meta pass is skipped (no duplicate). **Python:** Same TEARDOWN rule in `_signal_node_subtree`; otherwise depth-first meta with sorted keys; `visited` on `id(node)` (see graphrefly-py `docs/optimizations.md` §15). |
+| **`observe()` all nodes** | **TypeScript:** One `subscribe` per primary + meta target; **subscription attach order** is `localeCompare` on the qualified path (deterministic; **not** causal emission order). Documented on `Graph.observe()`. **Python:** Mount-first sorted order matching `signal`, with **sorted meta keys** under each primary (same as `signal`→meta). Full-path sort order still differs from TS `localeCompare`. |
+| **Describe `type`** | Both: `describeKind` / `describe_kind` on `NodeOptions`; sugar constructors (`effect`, `producer`, `derived`) set it; `inferDescribeType` / `_infer_describe_type` prefers explicit kind when set. |
+| **`describe().nodes`** | Keys = same qualified targets as `_collect_observe_targets` (primary + recursive meta). | Same pattern. |
+
+| **`describe().nodes`** | Both strip `name` from per-node entries (dict key is the qualified path). |
+| **`describe().subgraphs`** | Both recursively collect all nested mount paths (e.g. `["sub", "sub::inner"]`). |
+| **`connect` self-loop** | Both reject `connect(x, x)` before dep validation. |
+
+**Docs:** `graphrefly-py/docs/optimizations.md` §15 — Python Phase 1.3 shipped (`GRAPH_META_SEGMENT`, `describe`, `observe`, `signal`→meta). Both ports now sort local nodes and mounts in `signal`, `_collect_observe_targets`, and `_collect_edges`. Intentional divergence: TS sorts observe targets by `localeCompare` on full path; Python sorts by name within each graph level.
+
 ### Cross-language summary
 
 | Topic | Python | TypeScript |
@@ -236,12 +254,13 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `INVALIDATE` (§1.2) | Cleanup + clear `_cached` + `_last_dep_values`; terminal passthrough (§9); no auto recompute | Same |
 | `Graph` Phase 1.1 | `thread_safe` + `RLock`; TEARDOWN after unlock on `remove`; `disconnect` vs `_deps` → §C | Registry only; `connect` / `disconnect` errors aligned; see §C |
 | `Graph` Phase 1.2 | Aligned: `::` path separator, mount `remove` + subtree TEARDOWN, qualified paths, `edges()`, signal mounts-first, `resolve` strips leading name, `:` in names OK; see §14 | Same; see §14 |
+| `Graph` Phase 1.3 | `describe`, `observe`, `GRAPH_META_SEGMENT`, `signal`→meta, `describe_kind` on sugar; see §15 | `describe()`, `observe()`, `GRAPH_META_SEGMENT`, `describeKind` on sugar, registry name on add; see §15 | `observe()` order: TS full-path `localeCompare` vs Py per-level sort (§15) |
 
 ### Open design items (low priority)
 
 1. **`_is_cleanup_fn` / `isCleanupFn` treats any callable return as cleanup.** Both languages use `callable(value)` / `typeof value === "function"`. A compute function cannot emit a callable as a data value — it will be silently swallowed as cleanup. Fix: accept `{ cleanup: fn }` wrapper or add an opt-out flag. Low priority because the pattern is well-documented and rarely needed.
 
-2. **`inferDescribeType` cannot distinguish effect/passthrough/pre-run-operator from `"derived"`.** Type inference relies on `_manualEmitUsed` (runtime), so an operator that hasn't run yet reports `"derived"`. Fix: sugar constructors (`effect()`, `operator()`) set an `_explicitKind` field on `NodeImpl`. Low priority until Graph.describe() is implemented (Phase 1).
+2. **Describe `type` before first run (operator vs derived).** Both ports: `describeKind` / `describe_kind` on `NodeOptions` and sugar (`effect`, `producer`, `derived`); operators that only use `down()`/`emit()` still infer via `_manualEmitUsed` / `_manual_emit_used` after a run unless `describeKind: "operator"` / `describe_kind="operator"` is set.
 
 ---
 

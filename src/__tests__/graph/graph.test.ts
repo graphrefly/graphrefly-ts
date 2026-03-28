@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PAUSE, TEARDOWN } from "../../core/messages.js";
+import { DATA, PAUSE, TEARDOWN } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
-import { Graph } from "../../graph/graph.js";
+import { GRAPH_META_SEGMENT, Graph } from "../../graph/graph.js";
 
 describe("Graph (Phase 1.1)", () => {
 	it("Graph(name) and empty name throws", () => {
@@ -69,6 +70,13 @@ describe("Graph (Phase 1.1)", () => {
 		g.connect("a", "b");
 		g.disconnect("a", "b");
 		expect(() => g.disconnect("a", "b")).toThrow(/no registered edge/);
+	});
+
+	it("connect rejects self-loop", () => {
+		const g = new Graph("g");
+		const a = state(0);
+		g.add("a", a);
+		expect(() => g.connect("a", "a")).toThrow(/cannot connect a node to itself/);
 	});
 
 	it("connect throws when target deps do not include source instance", () => {
@@ -331,5 +339,130 @@ describe("Graph composition (Phase 1.2)", () => {
 		expect(root.edges().length).toBe(1);
 		root.remove("sub");
 		expect(root.edges()).toEqual([]);
+	});
+});
+
+describe("Graph introspection (Phase 1.3)", () => {
+	it("add assigns registry name when node has no options name", () => {
+		const g = new Graph("g");
+		const n = state(1);
+		g.add("counter", n);
+		expect(n.name).toBe("counter");
+	});
+
+	it("does not override options.name on add", () => {
+		const g = new Graph("g");
+		const n = state(1, { name: "keep" });
+		g.add("alias", n);
+		expect(n.name).toBe("keep");
+	});
+
+	it("rejects reserved __meta__ for add and mount", () => {
+		const g = new Graph("g");
+		expect(() => g.add(GRAPH_META_SEGMENT, state(0))).toThrow(/reserved/);
+		expect(() => g.mount(GRAPH_META_SEGMENT, new Graph("c"))).toThrow(/reserved/);
+	});
+
+	it("describe includes qualified nodes, edges, subgraphs (recursive)", () => {
+		const root = new Graph("app");
+		const child = new Graph("pay");
+		const grandchild = new Graph("inner");
+		const a = state(1);
+		const b = derived([a], ([v]) => (v as number) + 1);
+		child.add("a", a);
+		child.add("b", b);
+		child.connect("a", "b");
+		grandchild.add("x", state(0));
+		child.mount("gc", grandchild);
+		root.mount("sub", child);
+		const d = root.describe();
+		expect(d.name).toBe("app");
+		expect(d.subgraphs).toEqual(["sub", "sub::gc"]);
+		expect(d.nodes["sub::a"]).toMatchObject({ type: "state" });
+		expect(d.nodes["sub::b"]).toMatchObject({ type: "derived", deps: ["sub::a"] });
+		expect(d.nodes["sub::gc::x"]).toMatchObject({ type: "state" });
+		expect(d.edges).toContainEqual({ from: "sub::a", to: "sub::b" });
+	});
+
+	it("describe lists each meta companion as its own node entry (Python parity)", () => {
+		const g = new Graph("g");
+		const n = node({ initial: 0, meta: { desc: "purpose" } });
+		g.add("n", n);
+		const d = g.describe();
+		const metaKey = `n::${GRAPH_META_SEGMENT}::desc`;
+		expect(d.nodes[metaKey]).toMatchObject({ type: "state" });
+		expect(d.nodes.n?.meta).toEqual({ desc: "purpose" });
+	});
+
+	it("connect and disconnect reject meta paths (Python parity)", () => {
+		const g = new Graph("g");
+		const a = node({ initial: 1, meta: { m: 0 } });
+		const b = derived([a], ([v]) => v);
+		g.add("a", a);
+		g.add("b", b);
+		const mp = `a::${GRAPH_META_SEGMENT}::m`;
+		expect(() => g.connect(mp, "b")).toThrow(/meta paths/);
+		expect(() => g.connect("a", mp)).toThrow(/meta paths/);
+		g.connect("a", "b");
+		expect(() => g.disconnect(mp, "b")).toThrow(/meta paths/);
+	});
+
+	it("resolve, set, and observe on meta companion path", () => {
+		const g = new Graph("g");
+		const n = node({ initial: 0, meta: { tag: "x" } });
+		g.add("n", n);
+		const metaPath = `n::${GRAPH_META_SEGMENT}::tag`;
+		expect(g.resolve(metaPath).get()).toBe("x");
+		const seen: unknown[] = [];
+		const off = g.observe(metaPath).subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) seen.push(m[1]);
+			}
+		});
+		g.set(metaPath, "y");
+		off();
+		expect(seen).toContain("y");
+	});
+
+	it("signal delivers to meta companions", () => {
+		const g = new Graph("g");
+		const n = node({ initial: 0, meta: { m: 0 } });
+		g.add("n", n);
+		const metaPath = `n::${GRAPH_META_SEGMENT}::m`;
+		const types: symbol[] = [];
+		g.observe(metaPath).subscribe((msgs) => {
+			for (const m of msgs) types.push(m[0] as symbol);
+		});
+		g.signal([[PAUSE, "id"]]);
+		expect(types).toContain(PAUSE);
+	});
+
+	it("signal does not duplicate TEARDOWN to meta (parent already cascades)", () => {
+		const g = new Graph("g");
+		const n = node({ initial: 0, meta: { m: 0 } });
+		g.add("n", n);
+		const metaPath = `n::${GRAPH_META_SEGMENT}::m`;
+		let teardowns = 0;
+		g.observe(metaPath).subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === TEARDOWN) teardowns += 1;
+			}
+		});
+		g.signal([[TEARDOWN]]);
+		expect(teardowns).toBe(1);
+	});
+
+	it("observe() sink sees sorted paths for graph.signal", () => {
+		const g = new Graph("g");
+		g.add("b", state(0));
+		g.add("a", state(0));
+		const order: string[] = [];
+		g.observe().subscribe((path, msgs) => {
+			for (const m of msgs) {
+				if (m[0] === PAUSE) order.push(path);
+			}
+		});
+		g.signal([[PAUSE, "z"]]);
+		expect(order).toEqual(["a", "b"]);
 	});
 });

@@ -1,11 +1,39 @@
 import { DATA, type Messages, TEARDOWN } from "../core/messages.js";
-import { type Node, NodeImpl } from "../core/node.js";
+import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
+import { type Node, NodeImpl, type NodeSink } from "../core/node.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
 
+/**
+ * Reserved segment for meta companion paths: `nodeName::__meta__::metaKey` (GRAPHREFLY-SPEC §3.6).
+ * Forbidden as a local node or mount name.
+ */
+export const GRAPH_META_SEGMENT = "__meta__";
+
 /** Options for {@link Graph} (reserved for future hooks). */
 export type GraphOptions = Record<string, unknown>;
+
+/** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
+export type GraphDescribeOutput = {
+	name: string;
+	nodes: Record<string, DescribeNodeOutput>;
+	edges: ReadonlyArray<{ from: string; to: string }>;
+	subgraphs: string[];
+};
+
+/** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
+export type GraphObserveOne = {
+	subscribe(sink: NodeSink): () => void;
+};
+
+/**
+ * {@link Graph.observe} on the whole graph — sink receives each batch with the qualified source path.
+ * Subscription order follows `localeCompare` on paths (mounts-first walk, then sorted locals/meta).
+ */
+export type GraphObserveAll = {
+	subscribe(sink: (nodePath: string, messages: Messages) => void): () => void;
+};
 
 function assertLocalName(name: string, graphName: string, label: string): void {
 	if (name === "") {
@@ -17,6 +45,23 @@ function assertNoPathSep(name: string, graphName: string, label: string): void {
 	if (name.includes(PATH_SEP)) {
 		throw new Error(
 			`Graph "${graphName}": ${label} "${name}" must not contain '${PATH_SEP}' (path separator)`,
+		);
+	}
+}
+
+function assertNotReservedMetaSegment(name: string, graphName: string, label: string): void {
+	if (name === GRAPH_META_SEGMENT) {
+		throw new Error(
+			`Graph "${graphName}": ${label} name "${GRAPH_META_SEGMENT}" is reserved for meta companion paths`,
+		);
+	}
+}
+
+/** `connect` / `disconnect` endpoints must be registered graph nodes, not meta paths (graphrefly-py parity). */
+function assertConnectPathNotMeta(path: string, graphName: string): void {
+	if (path.split(PATH_SEP).includes(GRAPH_META_SEGMENT)) {
+		throw new Error(
+			`Graph "${graphName}": connect/disconnect endpoints must be registered graph nodes, not meta paths (got "${path}")`,
 		);
 	}
 }
@@ -42,6 +87,11 @@ function edgeKey(from: string, to: string): string {
 function parseEdgeKey(key: string): [string, string] {
 	const i = key.indexOf("\t");
 	return [key.slice(0, i), key.slice(i + 1)];
+}
+
+/** True when every tuple is TEARDOWN — parent {@link NodeImpl} already forwards that to `meta`. */
+function isTeardownOnlyBatch(messages: Messages): boolean {
+	return messages.length > 0 && messages.every((m) => m[0] === TEARDOWN);
 }
 
 /** TEARDOWN every node in a mounted graph tree (depth-first into mounts). */
@@ -124,6 +174,11 @@ export class Graph {
 			throw new Error(`Graph "${this.name}": unknown node "${head}" (from path "${fullPath}")`);
 		}
 
+		const localN = this._nodes.get(head);
+		if (localN && rest.length > 0 && rest[0] === GRAPH_META_SEGMENT) {
+			return this._resolveMetaEndpointKeys(localN, head, rest, fullPath);
+		}
+
 		const child = this._mounts.get(head);
 		if (!child) {
 			if (this._nodes.has(head)) {
@@ -147,6 +202,7 @@ export class Graph {
 	add(name: string, node: Node): void {
 		assertLocalName(name, this.name, "add");
 		assertNoPathSep(name, this.name, "add");
+		assertNotReservedMetaSegment(name, this.name, "node");
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": name "${name}" is already a mount point`);
 		}
@@ -161,6 +217,9 @@ export class Graph {
 			}
 		}
 		this._nodes.set(name, node);
+		if (node instanceof NodeImpl) {
+			node._assignRegistryName(name);
+		}
 	}
 
 	/**
@@ -244,9 +303,15 @@ export class Graph {
 		if (!fromPath || !toPath) {
 			throw new Error(`Graph "${this.name}": connect paths must be non-empty`);
 		}
+		assertConnectPathNotMeta(fromPath, this.name);
+		assertConnectPathNotMeta(toPath, this.name);
 
 		const [fromGraph, fromLocal, fromNode] = this._resolveEndpoint(fromPath);
 		const [toGraph, toLocal, toNode] = this._resolveEndpoint(toPath);
+
+		if (fromNode === toNode) {
+			throw new Error(`Graph "${this.name}": cannot connect a node to itself`);
+		}
 
 		if (!(toNode instanceof NodeImpl)) {
 			throw new Error(
@@ -278,6 +343,8 @@ export class Graph {
 		if (!fromPath || !toPath) {
 			throw new Error(`Graph "${this.name}": disconnect paths must be non-empty`);
 		}
+		assertConnectPathNotMeta(fromPath, this.name);
+		assertConnectPathNotMeta(toPath, this.name);
 
 		const [fromGraph, fromLocal] = this._resolveEndpoint(fromPath);
 		const [toGraph, toLocal] = this._resolveEndpoint(toPath);
@@ -321,6 +388,7 @@ export class Graph {
 	mount(name: string, child: Graph): void {
 		assertLocalName(name, this.name, "mount");
 		assertNoPathSep(name, this.name, "mount");
+		assertNotReservedMetaSegment(name, this.name, "mount");
 		if (this._nodes.has(name)) {
 			throw new Error(
 				`Graph "${this.name}": cannot mount at "${name}" — node with that name exists`,
@@ -376,6 +444,11 @@ export class Graph {
 			throw new Error(`Graph "${this.name}": unknown name "${head}"`);
 		}
 
+		const localN = this._nodes.get(head);
+		if (localN && rest.length > 0 && rest[0] === GRAPH_META_SEGMENT) {
+			return this._resolveMetaChainFromNode(localN, rest, segments.join(PATH_SEP));
+		}
+
 		const child = this._mounts.get(head);
 		if (!child) {
 			if (this._nodes.has(head)) {
@@ -390,10 +463,78 @@ export class Graph {
 	}
 
 	/**
+	 * Resolve `::__meta__::key` segments from a registered primary node (possibly chained).
+	 */
+	private _resolveMetaChainFromNode(n: Node, parts: readonly string[], fullPath: string): Node {
+		let current = n;
+		let i = 0;
+		const p = [...parts];
+		while (i < p.length) {
+			if (p[i] !== GRAPH_META_SEGMENT) {
+				throw new Error(
+					`Graph "${this.name}": expected ${GRAPH_META_SEGMENT} segment in meta path "${fullPath}"`,
+				);
+			}
+			if (i + 1 >= p.length) {
+				throw new Error(
+					`Graph "${this.name}": meta path requires a key after ${GRAPH_META_SEGMENT} in "${fullPath}"`,
+				);
+			}
+			const key = p[i + 1] as string;
+			const next = current.meta[key];
+			if (!next) {
+				throw new Error(`Graph "${this.name}": unknown meta "${key}" in path "${fullPath}"`);
+			}
+			current = next;
+			i += 2;
+		}
+		return current;
+	}
+
+	private _resolveMetaEndpointKeys(
+		baseNode: Node,
+		baseLocalKey: string,
+		parts: readonly string[],
+		fullPath: string,
+	): [Graph, string, Node] {
+		let current = baseNode;
+		let localKey = baseLocalKey;
+		let i = 0;
+		const p = [...parts];
+		while (i < p.length) {
+			if (p[i] !== GRAPH_META_SEGMENT) {
+				throw new Error(
+					`Graph "${this.name}": expected ${GRAPH_META_SEGMENT} segment in meta path "${fullPath}"`,
+				);
+			}
+			if (i + 1 >= p.length) {
+				throw new Error(
+					`Graph "${this.name}": meta path requires a key after ${GRAPH_META_SEGMENT} in "${fullPath}"`,
+				);
+			}
+			const metaKey = p[i + 1] as string;
+			const next = current.meta[metaKey];
+			if (!next) {
+				throw new Error(
+					`Graph "${this.name}": unknown meta "${metaKey}" on node (in "${fullPath}")`,
+				);
+			}
+			localKey = `${localKey}${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}${metaKey}`;
+			current = next;
+			i += 2;
+		}
+		return [this, localKey, current];
+	}
+
+	/**
 	 * Deliver a message batch to every registered node in this graph and, recursively,
 	 * in mounted child graphs (§3.7). Recurses into mounts first, then delivers to
-	 * local nodes (matches Python visit order). Each {@link Node} receives at most one
-	 * delivery per call (deduped by reference).
+	 * local nodes (sorted by name). Each {@link Node} receives at most one delivery
+	 * per call (deduped by reference).
+	 *
+	 * Companion `meta` nodes receive the same batch for control-plane types (e.g.
+	 * PAUSE) that the primary does not forward. **TEARDOWN-only** batches skip the
+	 * extra meta pass — the primary’s `down()` already cascades TEARDOWN to meta.
 	 */
 	signal(messages: Messages, visited?: Set<Node>): void {
 		const vis = visited ?? new Set<Node>();
@@ -401,10 +542,141 @@ export class Graph {
 		for (const sub of this._mounts.values()) {
 			sub.signal(messages, vis);
 		}
-		for (const n of this._nodes.values()) {
+		for (const localName of [...this._nodes.keys()].sort()) {
+			const n = this._nodes.get(localName)!;
 			if (vis.has(n)) continue;
 			vis.add(n);
 			n.down(messages);
+			// Avoid double TEARDOWN: primary's down() already cascades TEARDOWN to meta companions.
+			if (isTeardownOnlyBatch(messages)) continue;
+			this._signalMetaSubtree(n, messages, vis);
 		}
+	}
+
+	private _signalMetaSubtree(root: Node, messages: Messages, vis: Set<Node>): void {
+		for (const mk of Object.keys(root.meta).sort()) {
+			const mnode = root.meta[mk];
+			if (vis.has(mnode)) continue;
+			vis.add(mnode);
+			mnode.down(messages);
+			if (isTeardownOnlyBatch(messages)) continue;
+			this._signalMetaSubtree(mnode, messages, vis);
+		}
+	}
+
+	/**
+	 * Static structure snapshot: qualified node keys, edges, mount names (GRAPHREFLY-SPEC §3.6, Appendix B).
+	 */
+	describe(): GraphDescribeOutput {
+		const targets: [string, Node][] = [];
+		this._collectObserveTargets("", targets);
+		const nodeToPath = new Map<Node, string>();
+		for (const [p, n] of targets) {
+			nodeToPath.set(n, p);
+		}
+		const nodes: Record<string, DescribeNodeOutput> = {};
+		for (const [p, n] of targets) {
+			const raw = describeNode(n);
+			const deps =
+				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d) ?? d.name ?? "") : [];
+			const { name: _name, ...rest } = raw;
+			nodes[p] = { ...rest, deps };
+		}
+		const edges = this._collectAllEdges("");
+		edges.sort((a, b) => {
+			const c = a.from.localeCompare(b.from);
+			return c !== 0 ? c : a.to.localeCompare(b.to);
+		});
+		return {
+			name: this.name,
+			nodes,
+			edges,
+			subgraphs: this._collectSubgraphs(""),
+		};
+	}
+
+	private _collectSubgraphs(prefix: string): string[] {
+		const out: string[] = [];
+		for (const m of [...this._mounts.keys()].sort()) {
+			const q = prefix === "" ? m : `${prefix}${m}`;
+			out.push(q);
+			out.push(...this._mounts.get(m)!._collectSubgraphs(`${q}${PATH_SEP}`));
+		}
+		return out;
+	}
+
+	private _collectAllEdges(prefix: string): { from: string; to: string }[] {
+		const out: { from: string; to: string }[] = [];
+		for (const m of [...this._mounts.keys()].sort()) {
+			const p2 = prefix === "" ? m : `${prefix}${PATH_SEP}${m}`;
+			out.push(...this._mounts.get(m)!._collectAllEdges(p2));
+		}
+		for (const [f, t] of this.edges()) {
+			out.push({
+				from: this._qualifyEdgeEndpoint(f, prefix),
+				to: this._qualifyEdgeEndpoint(t, prefix),
+			});
+		}
+		return out;
+	}
+
+	private _qualifyEdgeEndpoint(part: string, prefix: string): string {
+		if (part.includes(PATH_SEP)) return part;
+		return prefix === "" ? part : `${prefix}${PATH_SEP}${part}`;
+	}
+
+	private _collectObserveTargets(prefix: string, out: [string, Node][]): void {
+		for (const m of [...this._mounts.keys()].sort()) {
+			const p2 = prefix === "" ? m : `${prefix}${PATH_SEP}${m}`;
+			this._mounts.get(m)!._collectObserveTargets(p2, out);
+		}
+		for (const loc of [...this._nodes.keys()].sort()) {
+			const n = this._nodes.get(loc)!;
+			const p = prefix === "" ? loc : `${prefix}${PATH_SEP}${loc}`;
+			out.push([p, n]);
+			this._appendMetaObserveTargets(p, n, out);
+		}
+	}
+
+	private _appendMetaObserveTargets(basePath: string, n: Node, out: [string, Node][]): void {
+		for (const mk of Object.keys(n.meta).sort()) {
+			const m = n.meta[mk];
+			const mp = `${basePath}${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}${mk}`;
+			out.push([mp, m]);
+			this._appendMetaObserveTargets(mp, m, out);
+		}
+	}
+
+	/**
+	 * Live message stream from one node or meta path, or from the whole graph (§3.6).
+	 *
+	 * `observe()` subscribes in **sorted path order** (`localeCompare`); causal emission order may differ.
+	 */
+	observe(path: string): GraphObserveOne;
+	observe(): GraphObserveAll;
+	observe(path?: string): GraphObserveOne | GraphObserveAll {
+		if (path !== undefined) {
+			const target = this.resolve(path);
+			return {
+				subscribe(sink: NodeSink) {
+					return target.subscribe(sink);
+				},
+			};
+		}
+		return {
+			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
+				const targets: [string, Node][] = [];
+				this._collectObserveTargets("", targets);
+				targets.sort((a, b) => a[0].localeCompare(b[0]));
+				const unsubs = targets.map(([p, nd]) =>
+					nd.subscribe((msgs) => {
+						sink(p, msgs);
+					}),
+				);
+				return () => {
+					for (const u of unsubs) u();
+				};
+			},
+		};
 	}
 }

@@ -58,9 +58,17 @@ export interface NodeActions {
  */
 export type OnMessageHandler = (msg: Message, depIndex: number, actions: NodeActions) => boolean;
 
+/** Explicit describe `type` for {@link Graph.describe} / {@link describeNode} (GRAPHREFLY-SPEC Appendix B). */
+export type NodeDescribeKind = "state" | "derived" | "producer" | "operator" | "effect";
+
 /** Options for {@link node}. */
 export interface NodeOptions {
 	name?: string;
+	/**
+	 * Overrides inferred `type` in describe output. Sugar constructors set this;
+	 * omit to infer from deps / fn / manual emit usage.
+	 */
+	describeKind?: NodeDescribeKind;
 	/** Equality check for RESOLVED detection. Defaults to `Object.is`. */
 	equals?: (a: unknown, b: unknown) => boolean;
 	initial?: unknown;
@@ -244,7 +252,10 @@ const statusAfterMessage = (status: NodeStatus, msg: Message): NodeStatus => {
  */
 export class NodeImpl<T = unknown> implements Node<T> {
 	// --- Configuration (set once, never reassigned) ---
-	readonly name: string | undefined;
+	private readonly _optsName: string | undefined;
+	private _registryName: string | undefined;
+	/** @internal — read by {@link describeNode} before inference. */
+	readonly _describeKind: NodeDescribeKind | undefined;
 	readonly meta: Record<string, Node>;
 	_deps: readonly Node[];
 	_fn: NodeFn<T> | undefined;
@@ -283,7 +294,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._deps = deps;
 		this._fn = fn;
 		this._opts = opts;
-		this.name = opts.name;
+		this._optsName = opts.name;
+		this._describeKind = opts.describeKind;
 		this._equals = opts.equals ?? Object.is;
 		this._onMessage = opts.onMessage;
 		this._hasDeps = deps.length > 0;
@@ -302,7 +314,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Build companion meta nodes
 		const meta: Record<string, Node> = {};
 		for (const [k, v] of Object.entries(opts.meta ?? {})) {
-			meta[k] = node({ initial: v, name: `${opts.name ?? "node"}:meta:${k}` });
+			meta[k] = node({
+				initial: v,
+				name: `${opts.name ?? "node"}:meta:${k}`,
+				describeKind: "state",
+			});
 		}
 		Object.freeze(meta);
 		this.meta = meta;
@@ -328,6 +344,19 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this.down = this.down.bind(this);
 		this.up = this.up.bind(this);
 		this._boundEmitToSinks = this._emitToSinks.bind(this);
+	}
+
+	get name(): string | undefined {
+		return this._registryName ?? this._optsName;
+	}
+
+	/**
+	 * When a node is registered with {@link Graph.add} without an options `name`,
+	 * the graph assigns the registry local name for introspection (parity with graphrefly-py).
+	 */
+	_assignRegistryName(localName: string): void {
+		if (this._optsName !== undefined || this._registryName !== undefined) return;
+		this._registryName = localName;
 	}
 
 	// --- Public interface (Node<T>) ---

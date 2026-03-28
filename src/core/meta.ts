@@ -11,6 +11,7 @@ export type DescribeNodeOutput = {
 };
 
 function inferDescribeType(n: NodeImpl): DescribeNodeOutput["type"] {
+	if (n._describeKind != null) return n._describeKind;
 	if (!n._hasDeps) return n._fn != null ? "producer" : "state";
 	if (n._fn == null) return "derived";
 	if (n._manualEmitUsed) return "operator";
@@ -59,10 +60,9 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
  * Single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).
  * Parity with graphrefly-py `describe_node`.
  *
- * `type` is inferred from factory configuration and the last `manualEmitUsed`
- * hint after the most recent compute run. Pure effect nodes (fn returns
- * `undefined` without `down`/`emit`) may still report `"derived"` until sugar
- * supplies explicit kinds.
+ * `type` is inferred from factory configuration, optional `describeKind` in node options,
+ * and the last `manualEmitUsed` hint (operator vs derived). {@link effect} sets
+ * `describeKind: "effect"`.
  *
  * Nodes not created by {@link node} fall back to `type: "state"` and empty `deps`.
  */

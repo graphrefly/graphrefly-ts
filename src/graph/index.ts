@@ -1,4 +1,11 @@
 /**
  * Graph container: registry, wiring, introspection (Phase 1).
  */
-export { Graph, type GraphOptions } from "./graph.js";
+export {
+	GRAPH_META_SEGMENT,
+	Graph,
+	type GraphDescribeOutput,
+	type GraphObserveAll,
+	type GraphObserveOne,
+	type GraphOptions,
+} from "./graph.js";

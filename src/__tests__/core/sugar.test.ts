@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
+import { describeNode } from "../../core/meta.js";
 import type { Node } from "../../core/node.js";
 import { derived, effect, pipe, producer, state } from "../../core/sugar.js";
 
@@ -44,6 +45,15 @@ describe("sugar constructors", () => {
 		unsub();
 		expect(d.get()).toBe(9);
 		expect(seen).toContain(DATA);
+	});
+
+	it("effect and producer set describe kind for describe()", () => {
+		const e = effect([state(0)], () => {});
+		expect(describeNode(e).type).toBe("effect");
+		const p = producer((_d, { emit }) => {
+			emit(1);
+		});
+		expect(describeNode(p).type).toBe("producer");
 	});
 
 	it("effect runs without auto-emit from return value", () => {

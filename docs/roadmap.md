@@ -84,10 +84,10 @@
 
 ### 1.3 — Introspection
 
-- [ ] `graph.describe()` → JSON (nodes, edges, subgraphs, meta)
-- [ ] `graph.observe(name?)` → live message stream
-- [ ] Type inference in describe output (state/derived/producer/operator/effect)
-- [ ] Meta node registration: `graph.add()` must register `node.meta.*` sub-nodes so `describe()`, `observe()`, and `signal()` reach them
+- [x] `graph.describe()` → JSON (nodes, edges, subgraphs, meta)
+- [x] `graph.observe(name?)` → live message stream
+- [x] Type inference in describe output (state/derived/producer/operator/effect)
+- [x] Meta node registration: `graph.add()` must register `node.meta.*` sub-nodes so `describe()`, `observe()`, and `signal()` reach them (`::__meta__::` paths + `signal`→meta; TEARDOWN cascades from primary only)
 
 ### 1.4 — Lifecycle & persistence
 
@@ -96,7 +96,28 @@
 - [ ] `graph.snapshot()` / `graph.restore(data)` / `Graph.fromSnapshot(data)`
 - [ ] `graph.toJSON()` — deterministic serialization
 
-### 1.5 — Tests
+### 1.5 — Actor & Guard (access control)
+
+Built-in ABAC at the node level. Replaces external authz libraries (e.g. CASL) — the graph is the single enforcement point.
+
+- [ ] `Actor` type: `{ type: "human" | "llm" | "wallet" | "system" | string, id: string, ...claims }`
+- [ ] Actor context parameter on `down()`, `set()`, `signal()` — optional, defaults to `{ type: "system" }`
+- [ ] `guard` node option: `(actor: Actor, action: "write" | "signal" | "observe") => boolean` — checked on `down()`/`set()`/`signal()`; throws `GuardDenied` on rejection
+- [ ] `policy()` declarative builder — CASL-style ergonomics without the dependency:
+  ```
+  policy((allow, deny) => {
+    allow("write",  { where: actor => actor.role === "admin" })
+    allow("signal", { where: actor => actor.type === "wallet" })
+    allow("observe") // open by default
+    deny("write",   { where: actor => actor.type === "llm" })
+  })
+  ```
+- [ ] Scoped `describe(actor?)` / `observe(name?, actor?)` — filters output to nodes the actor may observe
+- [ ] Attribution: each mutation records `{ actor, timestamp }` on the node (accessible via `node.lastMutation`)
+- [ ] `meta.access` derived from guard when present (backward compat)
+- [ ] `GuardDenied` error type with `{ actor, node, action }` for diagnostics
+
+### 1.6 — Tests
 
 - [ ] Graph add/remove/connect/disconnect
 - [ ] Mount and namespace resolution
@@ -104,6 +125,11 @@
 - [ ] observe() message stream tests
 - [ ] Snapshot round-trip tests
 - [ ] Cross-subgraph signal propagation
+- [ ] Guard enforcement: allowed/denied writes, signals, observe filtering
+- [ ] Policy builder: allow/deny precedence, wildcard, composed policies
+- [ ] Actor attribution: mutation records, actor propagation through subgraphs
+- [ ] Scoped describe: filtered output matches guard permissions
+- [ ] GuardDenied error: correct actor/node/action in diagnostics
 
 ---
 
@@ -221,8 +247,8 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 
 ### 5.4 — LLM tool integration
 
-- [ ] `knobsAsTools(graph)` → OpenAI/MCP tool schemas from describe()
-- [ ] `gaugesAsContext(graph)` → formatted gauge values for system prompts
+- [ ] `knobsAsTools(graph, actor?)` → OpenAI/MCP tool schemas from scoped describe()
+- [ ] `gaugesAsContext(graph, actor?)` → formatted gauge values for system prompts
 - [ ] Graph builder validation (validate LLM-generated graph defs)
 
 ---
@@ -232,8 +258,8 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 - [ ] V0: id + version (recommended minimum)
 - [ ] V1: + cid + prev (content addressing, linked history)
 - [ ] V2: + schema (type validation)
-- [ ] V3: + caps + refs (access control, cross-graph references)
-- [ ] Attribution: mutation records with actor (human/llm/system)
+- [ ] V3: + caps (serialized guard policy) + refs (cross-graph references) — runtime enforcement already in Phase 1.5; V3 adds the serialization/transport format
+- [ ] ~~Attribution~~ → Phase 1.5 (`node.lastMutation`)
 
 ---
 
