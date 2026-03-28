@@ -21,6 +21,7 @@ Load context and plan the implementation in a single pass. **Parallelize all rea
 
 Read in parallel:
 - `docs/GRAPHREFLY-SPEC.md` — behavior authority; deep-read sections relevant to the task
+- `docs/optimizations.md` — built-in optimizations, cross-language notes, and **open design decisions** (read when touching protocol, batch, node lifecycle, or parity)
 - `docs/test-guidance.md` — checklist for the relevant layer (core protocol, node, graph, extra)
 - `docs/roadmap.md` — if this is a new feature or cross-cutting change
 - Any files the user referenced in $ARGUMENTS
@@ -60,6 +61,8 @@ Prioritize (in order):
 
 Do NOT consider backward compatibility at this early stage (pre-1.0).
 
+**Cross-language decision log:** If Phase 1–2 surface an **architectural or product-level** question (protocol semantics, batch/node invariants, parity between ports, or anything that needs a spec/product call), **jot it down** in **`docs/optimizations.md`** — use **Open design decisions** or **Cross-language implementation notes** as appropriate. If the sibling repo **`graphrefly-py`** is available (e.g. `../graphrefly-py` next to this checkout), add a **matching** entry to **`graphrefly-py/docs/optimizations.md`** so both implementations stay visible. If the sibling tree is not in the workspace, tell the user to mirror the note there.
+
 **Wait for user approval before proceeding.**
 
 ### Light mode — Skip unless escalation needed
@@ -85,5 +88,7 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
    - Use **`Graph.observe()`** / **`graph.observe()`** for live message assertions when the Graph API exists; until then, test at the **node** and **message** level per test-guidance
 3. Run tests: `pnpm test`
 4. Fix any test failures
+
+If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, or “needs spec” item), update **`docs/optimizations.md`** here and mirror to **`graphrefly-py/docs/optimizations.md`** when that repo is available.
 
 When done, briefly list files changed and new exports added. Then suggest running `/qa` for adversarial review and final checks.

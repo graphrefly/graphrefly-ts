@@ -59,6 +59,8 @@ Group findings:
 1. **Needs Decision** — architecture-affecting or ambiguous fixes
 2. **Auto-applicable** — clear fixes that follow existing patterns
 
+**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, note them in **`docs/optimizations.md`** (e.g. **Open design decisions** or **Cross-language implementation notes**). If **`graphrefly-py`** is available alongside this repo, add the same bullet to **`graphrefly-py/docs/optimizations.md`**. If not available, call out mirroring for the user.
+
 **Wait for user decisions on group 1. Group 2 can be applied immediately if user approves the batch.**
 
 ---
@@ -89,6 +91,7 @@ Read `docs/docs-guidance.md` first.
 
 Update documentation when behavior or public API changed:
 - `docs/GRAPHREFLY-SPEC.md` — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
+- `docs/optimizations.md` — when this review records **open architectural decisions** or cross-language parity notes; mirror substantive entries to **`graphrefly-py/docs/optimizations.md`** if that repo is in the workspace
 - JSDoc on exported symbols (source of truth for API until a docs site exists)
 - `docs/test-guidance.md` — if new test patterns are established
 - `docs/roadmap.md` — check off completed items when appropriate

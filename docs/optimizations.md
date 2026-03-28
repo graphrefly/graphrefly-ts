@@ -120,7 +120,14 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **TypeScript** | In the `batchDepth === 0 && threw` branch: run `pendingPhase2.length = 0` **only if** `!flushInProgress`. |
 | **Python** | Same invariant: never clear the process-global phase-2 queue solely because a nested `batch` failed while the outer drain is active. |
 
-### 8. `TEARDOWN` after terminal (`COMPLETE` / `ERROR`) — full pass-through (**decision B3**)
+### 8. Concurrency model (**Python vs TypeScript**)
+
+| | |
+|--|--|
+| **Python** | Per-subgraph `RLock` + union-find registry (weak-ref cleanup), TLS `defer_set` / `defer_down`, `emit_with_batch(..., subgraph_lock=node)` for batch drains, and a per-node `threading.Lock` on `_cached` so `get()` is safe under free-threaded Python without taking the subgraph write lock (roadmap 0.4). |
+| **TypeScript** | Single-threaded assumption per GRAPHREFLY-SPEC §6.1; no subgraph lock layer in core today. |
+
+### 9. `TEARDOWN` after terminal (`COMPLETE` / `ERROR`) — full pass-through (**decision B3**)
 
 **Decision:** The terminal gate on `down()` **does not apply** to **`TEARDOWN`**. For a non-resubscribable node that has already reached `COMPLETE` or `ERROR`, a `down` payload that includes `TEARDOWN` must still:
 
@@ -133,7 +140,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **TypeScript** | If `terminal && !resubscribable`, skip the early return when the payload contains `TEARDOWN`; handle lifecycle + emit teardown to sinks. |
 | **Python** | Mirror in `NodeImpl.down` (or equivalent): teardown is not swallowed after terminal. |
 
-### 9. Batch drain: partial apply before rethrow (**decision C1**)
+### 10. Batch drain: partial apply before rethrow (**decision C1**)
 
 **Decision:** Treat **best-effort drain** as the specified behavior: run **all** queued phase-2 callbacks with **per-callback** error isolation; surface the **first** error only **after** the queue is quiescent. Callers may observe a **partially updated** graph — this is **intentional** (prefer that to orphaned deferrals or fail-fast leaving dirty state). **Document** in module docstrings / JSDoc; optional future knobs (`fail_fast`, `AggregateError`) are not required for parity.
 
@@ -147,7 +154,8 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Topic | Python | TypeScript |
 |-------|--------|------------|
 | Message tags | `StrEnum` | `Symbol` |
-| Batch emit API | `emit_with_batch` (+ `dispatch_messages` alias) | `emitWithBatch` |
+| Subgraph write locks | Union-find + `RLock`; `defer_set` / `defer_down`; per-node `_cache_lock` for `get()`/`_cached` | N/A (single-threaded) |
+| Batch emit API | `emit_with_batch` (+ `dispatch_messages` alias); optional `subgraph_lock` for node emissions | `emitWithBatch` |
 | Defer phase-2 | `defer_when`: `depth` vs `batching` | depth **or** draining (aligned with Py `batching`) |
 | `isBatching` / `is_batching` | depth **or** draining | depth **or** draining |
 | Batch drain resilience | per-emission try/catch, `ExceptionGroup` | per-emission try/catch, first error re-thrown |
