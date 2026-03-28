@@ -146,6 +146,77 @@ describe("emitWithBatch", () => {
 	});
 });
 
+describe("batch drain semantics", () => {
+	it("isBatching is true during drain (nested emissions are deferred)", () => {
+		const log: string[] = [];
+		let batchingDuringDrain: boolean | undefined;
+
+		batch(() => {
+			emitWithBatch(
+				(_msgs) => {
+					// This runs during drain — isBatching should be true
+					batchingDuringDrain = isBatching();
+					log.push("first-drain");
+					// Nested emission during drain should be deferred
+					emitWithBatch(
+						(_msgs2) => {
+							log.push("nested-drain");
+						},
+						[[DATA, 99]],
+					);
+				},
+				[[DATA, 1]],
+			);
+		});
+
+		expect(batchingDuringDrain).toBe(true);
+		// Both should have drained: first, then nested
+		expect(log).toEqual(["first-drain", "nested-drain"]);
+	});
+
+	it("per-emission try/catch: one throwing callback does not orphan others", () => {
+		const log: string[] = [];
+
+		expect(() =>
+			batch(() => {
+				emitWithBatch(() => {
+					throw new Error("boom");
+				}, [[DATA, 1]]);
+				emitWithBatch(() => {
+					log.push("second");
+				}, [[DATA, 2]]);
+			}),
+		).toThrow("boom");
+
+		// Second callback should still have run despite first throwing
+		expect(log).toEqual(["second"]);
+	});
+
+	it("isBatching is false after drain completes", () => {
+		batch(() => {
+			emitWithBatch(() => undefined, [[DATA, 1]]);
+		});
+		expect(isBatching()).toBe(false);
+	});
+
+	it("nested batch throw during drain does not clear outer deferral queue (A4)", () => {
+		const log: string[] = [];
+		expect(() =>
+			batch(() => {
+				emitWithBatch(() => {
+					emitWithBatch(() => {
+						log.push("deferred-from-callback");
+					}, [[DATA, 1]]);
+					batch(() => {
+						throw new Error("inner");
+					});
+				}, [[DATA, 0]]);
+			}),
+		).toThrow("inner");
+		expect(log).toEqual(["deferred-from-callback"]);
+	});
+});
+
 describe("terminal and control messages are not phase-2", () => {
 	it("ERROR, COMPLETE, PAUSE, RESUME, TEARDOWN emit immediately even in batch", () => {
 		for (const t of [ERROR, COMPLETE, PAUSE, RESUME, TEARDOWN] as const) {

@@ -3,4 +3,5 @@
  */
 export * from "./batch.js";
 export * from "./messages.js";
+export * from "./meta.js";
 export * from "./node.js";

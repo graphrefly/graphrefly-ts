@@ -39,9 +39,9 @@
 
 ### 0.4 — Meta (companion stores)
 
-- [ ] `meta` option: each key becomes a subscribable node
-- [ ] Meta nodes participate in describe() output
-- [ ] Meta nodes independently observable
+- [x] `meta` option: each key becomes a subscribable node
+- [x] Meta nodes participate in describe() output (`metaSnapshot()` merges current meta values for Graph/describe)
+- [x] Meta nodes independently observable
 
 ### 0.5 — Sugar constructors
 
@@ -87,6 +87,7 @@
 - [ ] `graph.describe()` → JSON (nodes, edges, subgraphs, meta)
 - [ ] `graph.observe(name?)` → live message stream
 - [ ] Type inference in describe output (state/derived/producer/operator/effect)
+- [ ] Meta node registration: `graph.add()` must register `node.meta.*` sub-nodes so `describe()`, `observe()`, and `signal()` reach them
 
 ### 1.4 — Lifecycle & persistence
 

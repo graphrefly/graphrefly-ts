@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
-import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	PAUSE,
+	RESOLVED,
+	RESUME,
+	TEARDOWN,
+} from "../../core/messages.js";
+import { metaSnapshot } from "../../core/meta.js";
 import { node } from "../../core/node.js";
 
 describe("node primitive", () => {
@@ -495,5 +505,205 @@ describe("node primitive", () => {
 		// Source should still work after all unsubs
 		source.down([[DIRTY], [DATA, 5]]);
 		expect(source.get()).toBe(5);
+	});
+});
+
+describe("connect-order re-entrancy guard", () => {
+	it("multi-dep node sees all dep values on first compute (no premature runFn)", () => {
+		// dep `a` emits DATA immediately on subscribe (producer pattern).
+		// Without the _connecting guard, `runFn` would fire during the subscribe
+		// loop before `b` is wired, seeing b.get() as undefined.
+		const a = node(
+			(_deps, { down }) => {
+				down([[DATA, "from-a"]]);
+			},
+			{ name: "a" },
+		);
+		const b = node<number>({ initial: 42, name: "b" });
+
+		const seen: unknown[][] = [];
+		const derived = node([a, b], (depValues) => {
+			seen.push([...depValues]);
+			return `${depValues[0]}-${depValues[1]}`;
+		});
+
+		const unsub = derived.subscribe(() => undefined);
+		unsub();
+
+		// The first (and ideally only) runFn call should see both dep values
+		expect(seen.length).toBeGreaterThanOrEqual(1);
+		expect(seen[0]).toEqual(["from-a", 42]);
+		expect(derived.get()).toBe("from-a-42");
+	});
+
+	it("connect guard does not suppress post-connect updates", () => {
+		const a = node(
+			(_deps, { down }) => {
+				down([[DATA, 1]]);
+			},
+			{ name: "a" },
+		);
+		const b = node<number>({ initial: 2, name: "b" });
+		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const unsub = derived.subscribe(() => undefined);
+
+		// After connect, normal updates still propagate
+		b.down([[DIRTY], [DATA, 10]]);
+		expect(derived.get()).toBe(11);
+		unsub();
+	});
+
+	it("runFn terminal guard: dep updates after COMPLETE do not recompute", () => {
+		const src = node({ initial: 1 });
+		let recompute = 0;
+		const d = node([src], ([v]) => {
+			recompute += 1;
+			return v;
+		});
+		d.subscribe(() => undefined);
+		expect(recompute).toBe(1);
+		src.down([[COMPLETE]]);
+		expect(d.status).toBe("completed");
+		src.down([[DIRTY], [DATA, 2]]);
+		expect(recompute).toBe(1);
+	});
+
+	it("TEARDOWN after COMPLETE runs lifecycle and reaches sinks (B3)", () => {
+		const src = node({ initial: 1 });
+		const n = node([src], ([v]) => v, { meta: { m: 0 } });
+		const sinkTypes: symbol[] = [];
+		let metaSawTeardown = false;
+		const unsubMeta = n.meta.m.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === TEARDOWN)) metaSawTeardown = true;
+		});
+		const unsub = n.subscribe((msgs) => {
+			for (const m of msgs) sinkTypes.push(m[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		expect(n.status).toBe("completed");
+		n.down([[TEARDOWN]]);
+		expect(metaSawTeardown).toBe(true);
+		expect(sinkTypes.filter((t) => t === TEARDOWN).length).toBeGreaterThanOrEqual(1);
+		unsub();
+		unsubMeta();
+	});
+});
+
+describe("meta (companion stores)", () => {
+	it("meta keys are subscribable nodes with initial values", () => {
+		const n = node([node({ initial: 0 })], ([v]) => v, {
+			name: "with-meta",
+			meta: { description: "hi", status: "idle" },
+		});
+		expect(n.meta.description.get()).toBe("hi");
+		expect(n.meta.status.get()).toBe("idle");
+		expect(metaSnapshot(n)).toEqual({ description: "hi", status: "idle" });
+	});
+
+	it("meta field is independently subscribable from the parent node", () => {
+		const src = node({ initial: 1 });
+		const n = node([src], ([v]) => (v as number) * 2, {
+			meta: { err: null as string | null },
+		});
+		const seen: symbol[][] = [];
+		const unsub = n.meta.err.subscribe((msgs) => {
+			seen.push(msgs.map((m) => m[0] as symbol));
+		});
+		n.meta.err.down([[DIRTY], [DATA, "bad"]]);
+		unsub();
+		expect(seen).toEqual([[DIRTY], [DATA]]);
+		expect(metaSnapshot(n).err).toBe("bad");
+	});
+
+	it("meta can be updated without subscribing to the parent", () => {
+		const n = node({ initial: 0, meta: { tag: "a" } });
+		expect(n.meta.tag.get()).toBe("a");
+		n.meta.tag.down([[DATA, "b"]]);
+		expect(n.meta.tag.get()).toBe("b");
+		expect(metaSnapshot(n)).toEqual({ tag: "b" });
+	});
+
+	it("metaSnapshot is empty when no meta option", () => {
+		const n = node({ initial: 1 });
+		expect(metaSnapshot(n)).toEqual({});
+	});
+
+	it("parent TEARDOWN still disconnects when one meta.down throws", () => {
+		const src = node({ initial: 1 });
+		const n = node([src], ([v]) => (v as number) * 2, {
+			meta: { flaky: 0, stable: 1 },
+		});
+		const origFlakyDown = n.meta.flaky.down.bind(n.meta.flaky);
+		n.meta.flaky.down = (msgs) => {
+			if (msgs[0]?.[0] === TEARDOWN) throw new Error("meta teardown boom");
+			origFlakyDown(msgs);
+		};
+		let stableSawTeardown = false;
+		const unsubStable = n.meta.stable.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === TEARDOWN)) stableSawTeardown = true;
+		});
+		const unsub = n.subscribe(() => {});
+		n.down([[TEARDOWN]]);
+		expect(stableSawTeardown).toBe(true);
+		expect(n.status).toBe("disconnected");
+		unsub();
+		unsubStable();
+	});
+
+	it("parent TEARDOWN propagates to every meta child when none throw", () => {
+		const n = node({ initial: 0, meta: { a: 1, b: 2, c: 3 } });
+		const saw: string[] = [];
+		const unsubs = (["a", "b", "c"] as const).map((key) =>
+			n.meta[key].subscribe((msgs) => {
+				if (msgs.some((m) => m[0] === TEARDOWN)) saw.push(key);
+			}),
+		);
+		n.down([[TEARDOWN]]);
+		expect(saw.sort()).toEqual(["a", "b", "c"]);
+		for (const u of unsubs) u();
+	});
+
+	it("TEARDOWN runs stopProducer even when meta.down throws (producer restarts on resubscribe)", () => {
+		let producerRuns = 0;
+		const p = node(
+			(_deps, { down }) => {
+				producerRuns += 1;
+				down([[DATA, producerRuns]]);
+			},
+			{ meta: { m: 0 } },
+		);
+		const origMetaDown = p.meta.m.down.bind(p.meta.m);
+		p.meta.m.down = (msgs) => {
+			if (msgs[0]?.[0] === TEARDOWN) throw new Error("meta teardown boom");
+			origMetaDown(msgs);
+		};
+		const u1 = p.subscribe(() => undefined);
+		expect(producerRuns).toBe(1);
+		p.down([[TEARDOWN]]);
+		expect(producerRuns).toBe(1);
+		u1();
+		const u2 = p.subscribe(() => undefined);
+		expect(producerRuns).toBe(2);
+		u2();
+	});
+
+	it("metaSnapshot omits keys when get() throws", () => {
+		const n = node({ initial: 0, meta: { fine: 1, bad: 2 } });
+		const bad = n.meta.bad as { get: () => unknown };
+		bad.get = () => {
+			throw new Error("no snapshot");
+		};
+		expect(metaSnapshot(n)).toEqual({ fine: 1 });
+	});
+
+	it("metaSnapshot omits every key whose get() throws", () => {
+		const n = node({ initial: 0, meta: { ok: 0, x: 1, y: 2 } });
+		for (const key of ["x", "y"] as const) {
+			const child = n.meta[key] as { get: () => unknown };
+			child.get = () => {
+				throw new Error("bad");
+			};
+		}
+		expect(metaSnapshot(n)).toEqual({ ok: 0 });
 	});
 });

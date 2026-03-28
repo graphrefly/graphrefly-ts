@@ -240,6 +240,7 @@ export function node<T = unknown>(
 	let lastDepValues: readonly unknown[] | undefined;
 	let cleanup: (() => void) | undefined;
 	let producerStarted = false;
+	let connecting = false;
 	let sinks: NodeSink | Set<NodeSink> | null = null;
 	let singleDepSinkCount = 0;
 	let sinkCount = 0;
@@ -250,6 +251,7 @@ export function node<T = unknown>(
 	for (const [k, v] of Object.entries(opts.meta ?? {})) {
 		meta[k] = node({ initial: v, name: `${opts.name ?? "node"}:meta:${k}` });
 	}
+	Object.freeze(meta);
 
 	const emitToSinks = (messages: Messages): void => {
 		if (sinks == null) return;
@@ -276,8 +278,23 @@ export function node<T = unknown>(
 				if (opts.resetOnTeardown) {
 					cached = undefined;
 				}
-				disconnectUpstream();
-				stopProducer();
+				// Propagate TEARDOWN to companion meta nodes so their
+				// subscribers are notified and resources released (§5.1).
+				// COMPLETE/ERROR are intentionally NOT propagated — meta
+				// stores outlive the parent's terminal state to allow
+				// post-mortem writes (e.g. setting meta.error after ERROR).
+				try {
+					for (const metaNode of Object.values(meta)) {
+						try {
+							metaNode.down([[TEARDOWN]]);
+						} catch {
+							/* best-effort: other meta nodes still receive TEARDOWN */
+						}
+					}
+				} finally {
+					disconnectUpstream();
+					stopProducer();
+				}
 			}
 		}
 	};
@@ -286,18 +303,25 @@ export function node<T = unknown>(
 
 	const down = (messages: Messages): void => {
 		if (messages.length === 0) return;
-		if (terminal && !opts.resubscribable) return;
-		handleLocalLifecycle(messages);
+		let lifecycleMessages = messages;
+		let sinkMessages = messages;
+		if (terminal && !opts.resubscribable) {
+			const teardownOnly = messages.filter((m) => m[0] === TEARDOWN);
+			if (teardownOnly.length === 0) return;
+			lifecycleMessages = teardownOnly;
+			sinkMessages = teardownOnly;
+		}
+		handleLocalLifecycle(lifecycleMessages);
 		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
 		// AND the batch contains a phase-2 message (DATA/RESOLVED). Standalone DIRTY
 		// (without follow-up) must pass through so downstream is notified.
-		if (canSkipDirty() && messages.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
-			const filtered = messages.filter((m) => m[0] !== DIRTY);
+		if (canSkipDirty() && sinkMessages.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
+			const filtered = sinkMessages.filter((m) => m[0] !== DIRTY);
 			if (filtered.length > 0) {
 				emitWithBatch(emitToSinks, filtered);
 			}
 		} else {
-			emitWithBatch(emitToSinks, messages);
+			emitWithBatch(emitToSinks, sinkMessages);
 		}
 	};
 
@@ -334,6 +358,7 @@ export function node<T = unknown>(
 	const runFn = (): void => {
 		if (!fn) return;
 		if (terminal && !opts.resubscribable) return;
+		if (connecting) return;
 
 		cleanup?.();
 		cleanup = undefined;
@@ -458,9 +483,14 @@ export function node<T = unknown>(
 		depCompleteMask.reset();
 		status = "settled";
 		const subHints: SubscribeHints | undefined = isSingleDep ? { singleDep: true } : undefined;
-		for (let i = 0; i < deps.length; i += 1) {
-			const dep = deps[i];
-			upstreamUnsubs.push(dep.subscribe((msgs) => handleDepMessages(i, msgs), subHints));
+		connecting = true;
+		try {
+			for (let i = 0; i < deps.length; i += 1) {
+				const dep = deps[i];
+				upstreamUnsubs.push(dep.subscribe((msgs) => handleDepMessages(i, msgs), subHints));
+			}
+		} finally {
+			connecting = false;
 		}
 		if (fn) {
 			runFn();
