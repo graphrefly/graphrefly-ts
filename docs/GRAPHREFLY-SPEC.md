@@ -237,8 +237,78 @@ All nodes accept these options:
 | `meta` | object | — | Companion store fields |
 | `resubscribable` | bool | false | Allow reconnection after COMPLETE |
 | `resetOnTeardown` | bool | false | Clear cached value on TEARDOWN |
+| `onMessage` | fn | — | Custom message type handler (see §2.6) |
 
-### 2.6 Diamond Resolution
+### 2.6 Custom Message Handling (`onMessage`)
+
+The message type set is open (§1.2). Nodes forward unrecognized types by default. The
+`onMessage` option lets a node **intercept** specific message types before the default
+dispatch:
+
+```
+node(deps, fn, {
+  onMessage(msg, depIndex, actions) {
+    // msg:      the message tuple [Type, Data?]
+    // depIndex: which dep sent it
+    // actions:  { down(), emit(), up() } — same as fn receives
+    //
+    // Return true  → message consumed, skip default handling
+    // Return false → message not handled, proceed with default dispatch
+  }
+})
+```
+
+`onMessage` is called **for every message** from every dep — including DIRTY, DATA,
+RESOLVED, COMPLETE, etc. This gives full control. However, intercepting protocol messages
+(DIRTY, DATA, RESOLVED) can break two-phase invariants; users SHOULD only intercept
+custom types unless they fully understand the protocol.
+
+When `onMessage` returns `true`:
+- The message is consumed. It is NOT forwarded downstream.
+- The default dispatch (dirty tracking, settlement, forwarding) is skipped for that message.
+- The handler MAY call `actions.down()` or `actions.emit()` to produce downstream output.
+
+When `onMessage` returns `false` (or is not set):
+- The default dispatch runs: DIRTY/DATA/RESOLVED drive the settlement cycle, unknown
+  types forward unchanged (§1.3.6).
+
+When `onMessage` throws:
+- The exception is caught by the node. The node emits `[[ERROR, err]]` downstream
+  (same behavior as fn throwing — §2.4). No further messages from that dep batch are
+  processed.
+
+Example — intercepting a custom `ESCROW_LOCKED` type:
+
+```
+// TS
+const ESCROW_LOCKED = Symbol.for("web3/ESCROW_LOCKED");
+
+const handler = node([escrowSource], computeFn, {
+  onMessage(msg, depIndex, actions) {
+    if (msg[0] === ESCROW_LOCKED) {
+      actions.emit({ status: "locked", tx: msg[1] });
+      return true;
+    }
+    return false;
+  }
+});
+
+// Python
+ESCROW_LOCKED = "ESCROW_LOCKED"
+
+def handle_escrow(msg, dep_index, actions):
+    if msg[0] == ESCROW_LOCKED:
+        actions.emit({"status": "locked", "tx": msg[1]})
+        return True
+    return False
+
+handler = node([escrow_source], compute_fn, on_message=handle_escrow)
+```
+
+Nodes without `onMessage` forward all unrecognized types unchanged — the spec default
+(§1.3.6) is preserved.
+
+### 2.7 Diamond Resolution
 
 When a node depends on multiple deps that share an upstream ancestor:
 
@@ -257,7 +327,7 @@ When a node depends on multiple deps that share an upstream ancestor:
 
 D recomputes exactly once, with both deps settled. This is the glitch-free guarantee.
 
-### 2.7 Sugar Constructors
+### 2.8 Sugar Constructors
 
 Implementations SHOULD provide these for readability:
 
@@ -641,3 +711,4 @@ ERROR         [ERROR, err]            Error termination
 | Multi-agent routing | `Graph.mount` + `connect` across subgraphs |
 | LLM builds graph | `Graph.fromSnapshot` + `describe()` for introspection |
 | Git-versioned graphs | `graph.toJSON()` → deterministic, diffable |
+| Custom domain signals | User-defined message types + `onMessage` to intercept; unhandled types forward through graph |

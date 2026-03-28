@@ -61,7 +61,7 @@
 - [x] Batch tests — `protocol.test.ts`
 - [x] Meta companion store tests — `node.test.ts` (`metaSnapshot`, `describeNode`, TEARDOWN to meta)
 - [x] Protocol invariant tests — `protocol.test.ts`
-- [x] Benchmarks — `pnpm bench` (`src/__bench__/graphrefly.bench.ts`); perf smoke / local wall-clock guard (`perf-smoke.test.ts`, skips timing when `CI` — matches graphrefly-py); optional compare vs `~/src/callbag-recharge`
+- [x] Benchmarks — `pnpm bench` (`src/__bench__/graphrefly.bench.ts`, shapes aligned with callbag-recharge `compare.bench.ts` where APIs match); perf smoke (`perf-smoke.test.ts`, skips timing when `CI`); optional compare vs `~/src/callbag-recharge`
 
 ---
 

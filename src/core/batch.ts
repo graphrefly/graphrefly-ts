@@ -1,4 +1,4 @@
-import { isPhase2Message, type Message, type Messages } from "./messages.js";
+import { DATA, isPhase2Message, type Message, type Messages, RESOLVED } from "./messages.js";
 
 /**
  * §1.3.7 — Inside a batch, DIRTY propagates immediately; DATA and RESOLVED are
@@ -159,6 +159,23 @@ export function emitWithBatch(emit: (messages: Messages) => void, messages: Mess
 	if (messages.length === 0) {
 		return;
 	}
+	// Fast path: single-message batches (most common in graph-internal propagation)
+	// skip partitionForBatch allocation entirely.
+	if (messages.length === 1) {
+		const t = messages[0][0];
+		if (t === DATA || t === RESOLVED) {
+			if (isBatching()) {
+				pendingPhase2.push(() => emit(messages));
+			} else {
+				emit(messages);
+			}
+		} else {
+			emit(messages);
+		}
+		return;
+	}
+	// Multi-message: partition into immediate and deferred to preserve
+	// two-phase ordering (DIRTY propagates before DATA for diamond settlement).
 	const { immediate, deferred } = partitionForBatch(messages);
 	if (immediate.length > 0) {
 		emit(immediate);

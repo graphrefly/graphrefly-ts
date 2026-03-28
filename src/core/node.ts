@@ -46,6 +46,18 @@ export interface NodeActions {
 	up(messages: Messages): void;
 }
 
+/**
+ * Callback for intercepting messages before the default dispatch.
+ *
+ * Called for every message from every dep. Return `true` to consume the
+ * message (skip default handling), or `false` to let default dispatch run.
+ *
+ * @param msg      — The message tuple `[Type, Data?]`.
+ * @param depIndex — Which dep sent it (index into the deps array).
+ * @param actions  — `{ down(), emit(), up() }` — same as `NodeFn` receives.
+ */
+export type OnMessageHandler = (msg: Message, depIndex: number, actions: NodeActions) => boolean;
+
 /** Options for {@link node}. */
 export interface NodeOptions {
 	name?: string;
@@ -69,6 +81,13 @@ export interface NodeOptions {
 	 * auto-complete.
 	 */
 	completeWhenDepsComplete?: boolean;
+	/**
+	 * Intercept messages before the default dispatch (spec §2.6).
+	 *
+	 * Return `true` to consume the message (skip default handling),
+	 * or `false` to let the default dispatch run.
+	 */
+	onMessage?: OnMessageHandler;
 }
 
 /**
@@ -231,6 +250,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_fn: NodeFn<T> | undefined;
 	_opts: NodeOptions;
 	_equals: (a: unknown, b: unknown) => boolean;
+	_onMessage: OnMessageHandler | undefined;
 	_hasDeps: boolean;
 	_autoComplete: boolean;
 	_isSingleDep: boolean;
@@ -265,6 +285,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._opts = opts;
 		this.name = opts.name;
 		this._equals = opts.equals ?? Object.is;
+		this._onMessage = opts.onMessage;
 		this._hasDeps = deps.length > 0;
 		this._autoComplete = opts.completeWhenDepsComplete ?? true;
 		this._isSingleDep = deps.length === 1 && fn != null;
@@ -333,14 +354,29 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
 		// AND the batch contains a phase-2 message (DATA/RESOLVED). Standalone DIRTY
 		// (without follow-up) must pass through so downstream is notified.
-		if (this._canSkipDirty() && sinkMessages.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
-			const filtered = sinkMessages.filter((m) => m[0] !== DIRTY);
-			if (filtered.length > 0) {
-				emitWithBatch(this._boundEmitToSinks, filtered);
+		if (this._canSkipDirty()) {
+			// Inline check: does the batch contain DATA or RESOLVED?
+			let hasPhase2 = false;
+			for (let i = 0; i < sinkMessages.length; i++) {
+				const t = sinkMessages[i][0];
+				if (t === DATA || t === RESOLVED) {
+					hasPhase2 = true;
+					break;
+				}
 			}
-		} else {
-			emitWithBatch(this._boundEmitToSinks, sinkMessages);
+			if (hasPhase2) {
+				// Inline filter: remove DIRTY messages
+				const filtered: Message[] = [];
+				for (let i = 0; i < sinkMessages.length; i++) {
+					if (sinkMessages[i][0] !== DIRTY) filtered.push(sinkMessages[i]);
+				}
+				if (filtered.length > 0) {
+					emitWithBatch(this._boundEmitToSinks, filtered);
+				}
+				return;
+			}
 		}
+		emitWithBatch(this._boundEmitToSinks, sinkMessages);
 	}
 
 	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void {
@@ -488,19 +524,26 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		if (this._connecting) return;
 
 		try {
-			const depValues = this._deps.map((dep) => dep.get());
+			const n = this._deps.length;
+			const depValues = new Array(n);
+			for (let i = 0; i < n; i++) depValues[i] = this._deps[i].get();
 			// Identity check BEFORE cleanup: if all dep values are unchanged,
 			// skip cleanup+fn entirely so effect nodes don't teardown/restart on no-op.
-			if (
-				depValues.length > 0 &&
-				this._lastDepValues != null &&
-				this._lastDepValues.length === depValues.length &&
-				depValues.every((v, i) => Object.is(v, this._lastDepValues?.[i]))
-			) {
-				if (this._status === "dirty") {
-					this.down([[RESOLVED]]);
+			const prev = this._lastDepValues;
+			if (n > 0 && prev != null && prev.length === n) {
+				let allSame = true;
+				for (let i = 0; i < n; i++) {
+					if (!Object.is(depValues[i], prev[i])) {
+						allSame = false;
+						break;
+					}
 				}
-				return;
+				if (allSame) {
+					if (this._status === "dirty") {
+						this.down([[RESOLVED]]);
+					}
+					return;
+				}
 			}
 			this._cleanup?.();
 			this._cleanup = undefined;
@@ -553,6 +596,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_handleDepMessages(index: number, messages: Messages): void {
 		for (const msg of messages) {
 			const t = msg[0];
+			// User-defined message handler gets first look (spec §2.6).
+			if (this._onMessage) {
+				try {
+					if (this._onMessage(msg, index, this._actions)) continue;
+				} catch (err) {
+					this.down([[ERROR, err]]);
+					return;
+				}
+			}
 			if (!this._fn) {
 				// Passthrough: forward all messages except COMPLETE when multi-dep.
 				// Multi-dep passthrough must wait for ALL deps to complete (§1.3.5).
