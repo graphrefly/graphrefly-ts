@@ -56,6 +56,8 @@
 	"scripts": {
 		"build": "tsup",
 		"test": "vitest run",
+		"bench": "vitest bench",
+		"bench:baseline": "vitest bench --outputJson benchmarks/vitest-baseline.json",
 		"test:watch": "vitest",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",

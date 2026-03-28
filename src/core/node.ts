@@ -324,10 +324,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		let lifecycleMessages = messages;
 		let sinkMessages = messages;
 		if (this._terminal && !this._opts.resubscribable) {
-			const teardownOnly = messages.filter((m) => m[0] === TEARDOWN);
-			if (teardownOnly.length === 0) return;
-			lifecycleMessages = teardownOnly;
-			sinkMessages = teardownOnly;
+			const terminalPassthrough = messages.filter((m) => m[0] === TEARDOWN || m[0] === INVALIDATE);
+			if (terminalPassthrough.length === 0) return;
+			lifecycleMessages = terminalPassthrough;
+			sinkMessages = terminalPassthrough;
 		}
 		this._handleLocalLifecycle(lifecycleMessages);
 		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
@@ -430,6 +430,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			const t = m[0];
 			if (t === DATA) {
 				this._cached = m[1] as T;
+			}
+			if (t === INVALIDATE) {
+				// GRAPHREFLY-SPEC §1.2: clear cached state; do not auto-emit from here.
+				this._cleanup?.();
+				this._cleanup = undefined;
+				this._cached = undefined;
+				this._lastDepValues = undefined;
 			}
 			this._status = statusAfterMessage(this._status, m);
 			if (t === COMPLETE || t === ERROR) {

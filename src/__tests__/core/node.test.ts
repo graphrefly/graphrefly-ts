@@ -5,6 +5,7 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
+	INVALIDATE,
 	PAUSE,
 	RESOLVED,
 	RESUME,
@@ -154,6 +155,63 @@ describe("node primitive", () => {
 
 		expect(seen).toContain(PAUSE);
 		expect(seen).toContain(RESUME);
+	});
+
+	it("forwards PAUSE then RESUME through multi-hop derived chain", () => {
+		const source = node<number>({ initial: 1 });
+		const hop = node([source], ([v]) => v as number);
+		const leaf = node([hop], ([v]) => (v as number) * 2);
+		const seen: symbol[] = [];
+		const unsub = leaf.subscribe((messages) => {
+			for (const m of messages) {
+				seen.push(m[0] as symbol);
+			}
+		});
+
+		source.down([[PAUSE, "lock-a"]]);
+		source.down([[RESUME, "lock-a"]]);
+		unsub();
+
+		expect(seen.indexOf(PAUSE)).toBeGreaterThanOrEqual(0);
+		expect(seen.indexOf(RESUME)).toBeGreaterThan(seen.indexOf(PAUSE));
+	});
+
+	it("INVALIDATE propagates and clears caches along multi-hop derived chain", () => {
+		const source = node<number>({ initial: 42 });
+		const hop = node([source], ([v]) => v as number);
+		const leaf = node([hop], ([v]) => (v as number) + 1);
+		let sawInvalidate = false;
+		const unsub = leaf.subscribe((messages) => {
+			sawInvalidate ||= messages.some((m) => m[0] === INVALIDATE);
+		});
+
+		expect(leaf.get()).toBe(43);
+		source.down([[INVALIDATE]]);
+		unsub();
+
+		expect(sawInvalidate).toBe(true);
+		expect(source.get()).toBeUndefined();
+		expect(hop.get()).toBeUndefined();
+		expect(leaf.get()).toBeUndefined();
+		expect(source.status).toBe("dirty");
+	});
+
+	it("INVALIDATE clears dep memo so identical DATA triggers recompute", () => {
+		const source = node<number>({ initial: 7 });
+		let runs = 0;
+		const d = node([source], ([v]) => {
+			runs += 1;
+			return (v as number) + 1;
+		});
+		const unsub = d.subscribe(() => undefined);
+		expect(runs).toBe(1);
+		expect(d.get()).toBe(8);
+		source.down([[INVALIDATE]]);
+		source.down([[DIRTY], [DATA, 7]]);
+		unsub();
+
+		expect(runs).toBe(2);
+		expect(d.get()).toBe(8);
 	});
 
 	it("supports node(fn, opts) producer form", () => {

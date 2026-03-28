@@ -17,7 +17,11 @@ export default defineConfig({
 	test: {
 		// Colocated *.test.ts or src/__tests__/**/*.test.ts (see docs/test-guidance.md)
 		include: ["src/**/*.test.ts"],
-		exclude: ["**/node_modules/**", "dist/**"],
+		exclude: ["**/node_modules/**", "dist/**", "**/*.bench.ts"],
+		environment: "node",
+	},
+	benchmark: {
+		include: ["src/__bench__/**/*.bench.ts"],
 		environment: "node",
 	},
 });

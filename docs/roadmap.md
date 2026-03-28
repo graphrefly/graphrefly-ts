@@ -55,13 +55,13 @@
 
 ### 0.6 — Tests & validation
 
-- [ ] Core node tests (state, derived, effect patterns)
-- [ ] Diamond resolution tests
-- [ ] Lifecycle signal tests (INVALIDATE, PAUSE, RESUME, TEARDOWN)
-- [ ] Batch tests
-- [ ] Meta companion store tests
-- [ ] Protocol invariant tests
-- [ ] Benchmarks vs callbag-recharge (regression guard)
+- [x] Core node tests — `src/__tests__/core/node.test.ts`, `sugar.test.ts`
+- [x] Diamond resolution tests — `node.test.ts`
+- [x] Lifecycle signal tests — `node.test.ts`, `lifecycle.test.ts` (INVALIDATE cache clear per §1.2; PAUSE / RESUME; `up` fan-out; two-phase ordering)
+- [x] Batch tests — `protocol.test.ts`
+- [x] Meta companion store tests — `node.test.ts` (`metaSnapshot`, `describeNode`, TEARDOWN to meta)
+- [x] Protocol invariant tests — `protocol.test.ts`
+- [x] Benchmarks — `pnpm bench` (`src/__bench__/graphrefly.bench.ts`); perf smoke / local wall-clock guard (`perf-smoke.test.ts`, skips timing when `CI` — matches graphrefly-py); optional compare vs `~/src/callbag-recharge`
 
 ---
 

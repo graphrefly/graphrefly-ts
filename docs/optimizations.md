@@ -135,18 +135,18 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **Python** | Per-subgraph `RLock` + union-find registry (weak-ref cleanup), TLS `defer_set` / `defer_down`, `emit_with_batch(..., subgraph_lock=node)` for batch drains, and a per-node `threading.Lock` on `_cached` so `get()` is safe under free-threaded Python without taking the subgraph write lock (roadmap 0.4). |
 | **TypeScript** | Single-threaded assumption per GRAPHREFLY-SPEC §6.1; no subgraph lock layer in core today. |
 
-### 9. `TEARDOWN` after terminal (`COMPLETE` / `ERROR`) — full pass-through (**decision B3**)
+### 9. `TEARDOWN` / `INVALIDATE` after terminal (`COMPLETE` / `ERROR`) — pass-through (**decision B3**)
 
-**Decision:** The terminal gate on `down()` **does not apply** to **`TEARDOWN`**. For a non-resubscribable node that has already reached `COMPLETE` or `ERROR`, a `down` payload that includes `TEARDOWN` must still:
+**Decision:** The terminal gate on `down()` **does not apply** to **`TEARDOWN`** or **`INVALIDATE`**. For a non-resubscribable node that has already reached `COMPLETE` or `ERROR`, filter the incoming batch to **only** `TEARDOWN` and/or `INVALIDATE` tuples (drop co-delivered `DATA`, etc.); then:
 
-1. Run normal **local lifecycle** for teardown (companion meta teardown, upstream disconnect, producer stop, etc.).
-2. **Forward `TEARDOWN` to downstream sinks** (filter mixed payloads to teardown-only if needed).
+1. Run **local lifecycle** for those tuples (`TEARDOWN`: meta, upstream disconnect, producer stop, etc.; `INVALIDATE`: cache clear, dep memo clear, optional `fn` cleanup — see §12).
+2. **Forward the filtered tuples to downstream sinks**.
 
 | | |
 |--|--|
-| **Rationale** | `graph.destroy()` and resource cleanup must work after a node has terminated; §5.1 control flows **through** the graph — sinks may still need `TEARDOWN` after they saw `COMPLETE`/`ERROR`. |
-| **TypeScript** | If `terminal && !resubscribable`, skip the early return when the payload contains `TEARDOWN`; handle lifecycle + emit teardown to sinks. |
-| **Python** | Mirror in `NodeImpl.down` (or equivalent): teardown is not swallowed after terminal. |
+| **Rationale** | Same control-plane pattern as B3: `graph.destroy()` and post-terminal cache/UI invalidation must not be swallowed after `COMPLETE`/`ERROR`. |
+| **TypeScript** | If `terminal && !resubscribable`, filter to `TEARDOWN` or `INVALIDATE` tuples only before early return. |
+| **Python** | `NodeImpl.down`: `terminal_passthrough` = `TEARDOWN` or `INVALIDATE` only. |
 
 ### 10. Batch drain: partial apply before rethrow (**decision C1**)
 
@@ -165,6 +165,15 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **TypeScript** | `describeNode(n)` uses `instanceof NodeImpl` to read class fields directly; `node.meta` is `Object.freeze({...})`. |
 | **Shared** | `meta_snapshot` / `metaSnapshot` omit keys when a companion `get()` throws; same best-effort `type` inference for GRAPHREFLY-SPEC Appendix B describe entries (full `graph.describe()` remains Phase 1). |
 
+### 12. `INVALIDATE` local lifecycle (**GRAPHREFLY-SPEC §1.2**)
+
+**Decision:** On `INVALIDATE`, if the node has a registered **`fn` cleanup** (callable returned from `fn`), **run it once** and clear the registration; then clear the cached output (`_cached` / `_cached = undefined`) and drop the dep-value memo (`_last_dep_values` / `_lastDepValues`) so the next settlement cannot skip `fn` purely via unchanged dep identity. Do not schedule `fn` from the `INVALIDATE` handler itself (“don’t auto-emit”). **`INVALIDATE` also passes the post-terminal gate** together with `TEARDOWN` (§9).
+
+| | |
+|--|--|
+| **Python** | `NodeImpl._handle_local_lifecycle` |
+| **TypeScript** | `NodeImpl._handleLocalLifecycle` |
+
 ### Cross-language summary
 
 | Topic | Python | TypeScript |
@@ -178,7 +187,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `isBatching` / `is_batching` | depth **or** draining | depth **or** draining |
 | Batch drain resilience | per-emission try/catch, `ExceptionGroup` | per-emission try/catch, first error re-thrown |
 | Nested `batch` throw + drain (**A4**) | Do **not** clear global queue while flushing | `!flushInProgress` guard before clear |
-| `TEARDOWN` after terminal (**B3**) | Full lifecycle + emit to sinks | Same |
+| `TEARDOWN` / `INVALIDATE` after terminal (**B3**) | Filter + full lifecycle + emit to sinks | Same |
 | Partial drain before rethrow (**C1**) | Document intentional | Document intentional (JSDoc) |
 | Source `up` / `unsubscribe` | no-op | no-op (always present for V8 shape stability) |
 | `fn` returns callable | cleanup | cleanup |
@@ -190,6 +199,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Describe slice + frozen meta | `describe_node`, `MappingProxyType` | `describeNode` via `instanceof NodeImpl`, `Object.freeze(meta)` |
 | Node internals | Class-based `NodeImpl`, all methods on class | Class-based `NodeImpl`, V8 hidden class optimization, prototype methods |
 | Dep-value identity check | Before cleanup (skip cleanup+fn on no-op) | Before cleanup (skip cleanup+fn on no-op) |
+| `INVALIDATE` (§1.2) | Cleanup + clear `_cached` + `_last_dep_values`; terminal passthrough (§9); no auto recompute | Same |
 
 ### Open design items (low priority)
 

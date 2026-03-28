@@ -8,7 +8,7 @@
 		}
 	},
 	"files": {
-		"includes": ["**", "!dist", "!node_modules", "!**/dist"]
+		"includes": ["**", "!dist", "!node_modules", "!**/dist", "!benchmarks"]
 	},
 	"linter": {
 		"enabled": true,
