@@ -226,6 +226,27 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 
 **Docs:** `graphrefly-py/docs/optimizations.md` §15 — Python Phase 1.3 shipped (`GRAPH_META_SEGMENT`, `describe`, `observe`, `signal`→meta). Both ports now sort local nodes and mounts in `signal`, `_collect_observe_targets`, and `_collect_edges`. Intentional divergence: TS sorts observe targets by `localeCompare` on full path; Python sorts by name within each graph level.
 
+### 16. `Graph` Phase 1.4 lifecycle & persistence (`destroy`, `snapshot`, `restore`, `fromSnapshot`, `toJSON`)
+
+**Aligned:**
+
+| | |
+|--|--|
+| **`destroy()`** | Both: `signal([[TEARDOWN]])` then clear all registries recursively through mounts. |
+| **`snapshot()`** | Both: `{ version: 1, ...describe() }` — flat `version` field, sorted `nodes` keys. |
+| **`restore(data)`** | Both: validate `data.name` matches graph name; skip `derived`/`operator`/`effect` types; silently ignore unknown/failing paths. |
+| **`fromSnapshot(data, build?)`** | Both: optional `build` callback registers topology before `restore()` applies values. Without `build`, only all-state zero-edge graphs are supported. |
+| **`toJSON()` / `to_json()`** | TS returns a plain sorted-key **object** (for `JSON.stringify(graph)`); Python returns a compact JSON **string** with trailing newline. Language-appropriate. |
+| **`toJSONString()`** | TS only — `JSON.stringify(toJSON()) + "\n"`. Python's `to_json()` serves the same role. |
+
+**Intentional divergence:**
+
+| Topic | Python | TypeScript | Rationale |
+|-------|--------|------------|-----------|
+| `toJSON()` return type | `to_json()` → `str` (no universal `__json__` hook in Python) | `toJSON()` → plain object (ECMAScript `JSON.stringify` protocol) | Language idiom |
+| JSON separator style | Compact: `separators=(",",":")` | Default: `JSON.stringify` (also compact with one arg) | Both produce compact JSON; byte-identical cross-language snapshots are not required |
+| `_parse_snapshot_envelope` | Validates `version`, `name`, `nodes`, `edges`, `subgraphs` types | Only validates `data.name` match | Python is stricter; both correct |
+
 ### Cross-language summary
 
 | Topic | Python | TypeScript |
@@ -255,6 +276,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `Graph` Phase 1.1 | `thread_safe` + `RLock`; TEARDOWN after unlock on `remove`; `disconnect` vs `_deps` → §C | Registry only; `connect` / `disconnect` errors aligned; see §C |
 | `Graph` Phase 1.2 | Aligned: `::` path separator, mount `remove` + subtree TEARDOWN, qualified paths, `edges()`, signal mounts-first, `resolve` strips leading name, `:` in names OK; see §14 | Same; see §14 |
 | `Graph` Phase 1.3 | `describe`, `observe`, `GRAPH_META_SEGMENT`, `signal`→meta, `describe_kind` on sugar; see §15 | `describe()`, `observe()`, `GRAPH_META_SEGMENT`, `describeKind` on sugar, registry name on add; see §15 | `observe()` order: TS full-path `localeCompare` vs Py per-level sort (§15) |
+| `Graph` Phase 1.4 | `destroy`, `snapshot` (flat `version: 1`), `restore` (name check + type filter + silent catch), `from_snapshot(data, build=)`, `to_json()` → str + `\n`; see §16 | `destroy`, `snapshot`, `restore`, `fromSnapshot(data, build?)`, `toJSON()` → object, `toJSONString()` → str + `\n`; see §16 |
 
 ### Open design items (low priority)
 

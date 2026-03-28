@@ -8,4 +8,5 @@ export {
 	type GraphObserveAll,
 	type GraphObserveOne,
 	type GraphOptions,
+	type GraphPersistSnapshot,
 } from "./graph.js";

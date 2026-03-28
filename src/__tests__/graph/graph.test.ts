@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA, PAUSE, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
-import { GRAPH_META_SEGMENT, Graph } from "../../graph/graph.js";
+import { GRAPH_META_SEGMENT, Graph, type GraphPersistSnapshot } from "../../graph/graph.js";
 
 describe("Graph (Phase 1.1)", () => {
 	it("Graph(name) and empty name throws", () => {
@@ -464,5 +464,109 @@ describe("Graph introspection (Phase 1.3)", () => {
 		});
 		g.signal([[PAUSE, "z"]]);
 		expect(order).toEqual(["a", "b"]);
+	});
+});
+
+describe("Graph lifecycle & persistence (Phase 1.4)", () => {
+	it("destroy signals TEARDOWN and clears registries (including mounts)", () => {
+		const root = new Graph("root");
+		const child = new Graph("child");
+		const n = state(0, { name: "n" });
+		child.add("n", n);
+		root.mount("c", child);
+		const types: symbol[] = [];
+		n.subscribe((msgs) => {
+			for (const m of msgs) types.push(m[0] as symbol);
+		});
+		root.destroy();
+		expect(types).toContain(TEARDOWN);
+		expect(() => root.resolve("c::n")).toThrow();
+		expect(root.describe().nodes).toEqual({});
+		expect(root.describe().subgraphs).toEqual([]);
+	});
+
+	it("snapshot extends describe with version 1", () => {
+		const g = new Graph("app");
+		g.add("z", state(1));
+		g.add("a", state(2));
+		const snap = g.snapshot();
+		expect(snap.version).toBe(1);
+		expect(snap.name).toBe("app");
+		expect(snap.nodes.a?.value).toBe(2);
+		expect(snap.nodes.z?.value).toBe(1);
+	});
+
+	it("toJSON + JSON.stringify is stable across key insertion order", () => {
+		const g = new Graph("g");
+		g.add("b", state(0));
+		g.add("a", state(0));
+		const j1 = JSON.stringify(g);
+		const j2 = JSON.stringify(g);
+		expect(j1).toBe(j2);
+		const parsed = JSON.parse(j1) as GraphPersistSnapshot;
+		expect(Object.keys(parsed.nodes).sort()).toEqual(["a", "b"]);
+	});
+
+	it("toJSONString is stable and ends with newline", () => {
+		const g = new Graph("g");
+		g.add("a", state(0));
+		const s = g.toJSONString();
+		expect(s).toBe(g.toJSONString());
+		expect(s.endsWith("\n")).toBe(true);
+	});
+
+	it("restore applies state (and producer) values; skips derived", () => {
+		const g = new Graph("g");
+		const a = state(10, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		b.subscribe(() => {});
+		const snap = g.snapshot();
+		g.set("a", 0);
+		expect(g.get("b")).toBe(0);
+		g.restore(snap);
+		expect(g.get("a")).toBe(10);
+		expect(g.get("b")).toBe(20);
+	});
+
+	it("restore throws when snapshot name mismatches graph", () => {
+		const g = new Graph("one");
+		const snap: GraphPersistSnapshot = {
+			version: 1,
+			name: "other",
+			nodes: {},
+			edges: [],
+			subgraphs: [],
+		};
+		expect(() => g.restore(snap)).toThrow(/other/);
+	});
+
+	it("Graph.fromSnapshot with build restores values", () => {
+		const a = state(0, { name: "a" });
+		const g0 = new Graph("app");
+		g0.add("a", a);
+		g0.set("a", 7);
+		const snap = g0.snapshot();
+
+		const g1 = Graph.fromSnapshot(snap, (g) => {
+			g.add("a", state(0, { name: "a" }));
+		});
+		expect(g1.get("a")).toBe(7);
+	});
+
+	it("restore sets meta companion paths from snapshot", () => {
+		const n0 = node({ initial: 0, meta: { tag: "hi" } });
+		const g0 = new Graph("g");
+		g0.add("n", n0);
+		const snap = g0.snapshot();
+		const metaPath = `n::${GRAPH_META_SEGMENT}::tag`;
+
+		const n1 = node({ initial: 0, meta: { tag: "" } });
+		const g1 = new Graph("g");
+		g1.add("n", n1);
+		g1.restore(snap);
+		expect(g1.get(metaPath)).toBe("hi");
 	});
 });

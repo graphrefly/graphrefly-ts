@@ -483,7 +483,8 @@ graph.destroy()                 — send [[TEARDOWN]] to all nodes, cleanup
 graph.snapshot()                — serialize: structure + current values → JSON
 graph.restore(data)             — rebuild state from snapshot
 Graph.fromSnapshot(data)        — construct new graph from snapshot
-graph.toJSON()                  — deterministic JSON string (git-versionable)
+graph.toJSON()                  — deterministic JSON-serializable snapshot (sorted keys)
+graph.toJSONString()            — optional: UTF-8 text + stable newlines (git-versionable)
 ```
 
 Snapshots capture **wiring and state values**, not computation functions. The fn lives in
@@ -491,6 +492,11 @@ code. The snapshot captures which nodes exist, how they're connected, their curr
 and their meta.
 
 Same state → same JSON bytes → git can diff.
+
+**ECMAScript:** `JSON.stringify(graph)` calls `toJSON()`; that hook **must** return a plain
+object (not an already-stringified JSON string) or the output is double-encoded. Use
+`toJSONString()` (or `JSON.stringify(graph)` after a sorted `toJSON()` return) for
+deterministic text.
 
 ---
 
@@ -710,5 +716,5 @@ ERROR         [ERROR, err]            Error termination
 | Excel calculations | `state` inputs → `derived` formulas → gauges via meta |
 | Multi-agent routing | `Graph.mount` + `connect` across subgraphs |
 | LLM builds graph | `Graph.fromSnapshot` + `describe()` for introspection |
-| Git-versioned graphs | `graph.toJSON()` → deterministic, diffable |
+| Git-versioned graphs | `JSON.stringify(graph)` or `graph.toJSONString()` → deterministic, diffable |
 | Custom domain signals | User-defined message types + `onMessage` to intercept; unhandled types forward through graph |

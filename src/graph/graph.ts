@@ -22,6 +22,36 @@ export type GraphDescribeOutput = {
 	subgraphs: string[];
 };
 
+/**
+ * Persisted graph snapshot: {@link GraphDescribeOutput} plus optional format version
+ * ({@link Graph.snapshot}, {@link Graph.restore}, {@link Graph.fromSnapshot}, {@link Graph.toJSON},
+ * {@link Graph.toJSONString} — §3.8).
+ */
+export type GraphPersistSnapshot = GraphDescribeOutput & {
+	version?: number;
+};
+
+/** Recursively sort object keys for deterministic JSON (git-diffable). */
+function sortJsonValue(value: unknown): unknown {
+	if (value === null || typeof value !== "object") {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value.map(sortJsonValue);
+	}
+	const obj = value as Record<string, unknown>;
+	const keys = Object.keys(obj).sort();
+	const out: Record<string, unknown> = {};
+	for (const k of keys) {
+		out[k] = sortJsonValue(obj[k]);
+	}
+	return out;
+}
+
+function stableJsonStringify(value: unknown): string {
+	return `${JSON.stringify(sortJsonValue(value))}\n`;
+}
+
 /** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
 export type GraphObserveOne = {
 	subscribe(sink: NodeSink): () => void;
@@ -678,5 +708,100 @@ export class Graph {
 				};
 			},
 		};
+	}
+
+	// ——————————————————————————————————————————————————————————————
+	//  Lifecycle & persistence (§3.7–§3.8)
+	// ——————————————————————————————————————————————————————————————
+
+	/**
+	 * Send `[[TEARDOWN]]` to all nodes, then clear registries on this graph and every
+	 * mounted subgraph (§3.7). The instance is left empty and may be reused with {@link Graph.add}.
+	 */
+	destroy(): void {
+		this.signal([[TEARDOWN]] satisfies Messages);
+		for (const child of [...this._mounts.values()]) {
+			child._destroyClearOnly();
+		}
+		this._mounts.clear();
+		this._nodes.clear();
+		this._edges.clear();
+	}
+
+	/** Clear structure after parent already signaled TEARDOWN through this subtree. */
+	private _destroyClearOnly(): void {
+		for (const child of [...this._mounts.values()]) {
+			child._destroyClearOnly();
+		}
+		this._mounts.clear();
+		this._nodes.clear();
+		this._edges.clear();
+	}
+
+	/**
+	 * Serialize structure and current values to JSON-shaped data (§3.8). Same information
+	 * as {@link Graph.describe} plus a `version` field for format evolution.
+	 */
+	snapshot(): GraphPersistSnapshot {
+		const d = this.describe();
+		return { version: 1, ...d };
+	}
+
+	/**
+	 * Apply persisted values onto an existing graph whose topology matches the snapshot
+	 * (§3.8). Only {@link DescribeNodeOutput.type} `state` and `producer` entries with a
+	 * `value` field are written; `derived` / `operator` / `effect` are skipped so deps
+	 * drive recomputation. Unknown paths are ignored.
+	 *
+	 * @throws If `data.name` does not equal {@link Graph.name}.
+	 */
+	restore(data: GraphPersistSnapshot): void {
+		if (data.name !== this.name) {
+			throw new Error(
+				`Graph "${this.name}": restore snapshot name "${data.name}" does not match this graph`,
+			);
+		}
+		for (const path of Object.keys(data.nodes).sort()) {
+			const slice = data.nodes[path];
+			if (slice === undefined || slice.value === undefined) continue;
+			if (slice.type === "derived" || slice.type === "operator" || slice.type === "effect") {
+				continue;
+			}
+			try {
+				this.set(path, slice.value);
+			} catch {
+				/* missing path or set not applicable */
+			}
+		}
+	}
+
+	/**
+	 * Create a graph named from the snapshot, optionally run `build` to register nodes
+	 * and mounts, then {@link Graph.restore} values (§3.8).
+	 */
+	static fromSnapshot(data: GraphPersistSnapshot, build?: (g: Graph) => void): Graph {
+		const g = new Graph(data.name);
+		build?.(g);
+		g.restore(data);
+		return g;
+	}
+
+	/**
+	 * Plain snapshot with **recursively sorted object keys** for deterministic serialization (§3.8).
+	 *
+	 * @remarks
+	 * ECMAScript `JSON.stringify(graph)` invokes this method; it must return a plain object, not an
+	 * already-stringified JSON string (otherwise the graph would be double-encoded).
+	 * For a single UTF-8 string with a trailing newline (convenient for git), use {@link Graph.toJSONString}.
+	 */
+	toJSON(): GraphPersistSnapshot {
+		return sortJsonValue(this.snapshot()) as GraphPersistSnapshot;
+	}
+
+	/**
+	 * Deterministic JSON **text**: `JSON.stringify` of {@link Graph.toJSON} plus a trailing newline (§3.8).
+	 */
+	toJSONString(): string {
+		return stableJsonStringify(this.snapshot());
 	}
 }

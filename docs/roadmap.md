@@ -91,10 +91,10 @@
 
 ### 1.4 — Lifecycle & persistence
 
-- [ ] `graph.signal(messages)` — broadcast to all nodes
-- [ ] `graph.destroy()` — TEARDOWN all
-- [ ] `graph.snapshot()` / `graph.restore(data)` / `Graph.fromSnapshot(data)`
-- [ ] `graph.toJSON()` — deterministic serialization
+- [x] `graph.signal(messages)` — broadcast to all nodes
+- [x] `graph.destroy()` — TEARDOWN all
+- [x] `graph.snapshot()` / `graph.restore(data)` / `Graph.fromSnapshot(data)`
+- [x] `graph.toJSON()` — deterministic serialization
 
 ### 1.5 — Actor & Guard (access control)
 
@@ -227,12 +227,21 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 
 ## Phase 5: Framework & Distribution
 
-### 5.1 — Framework compat
+### 5.1 — Framework bindings
 
-- [ ] React: `useStore`, `useSubscribe`
-- [ ] Vue: `useStore`, `useSubscribe`
-- [ ] Svelte: `useSubscribe`
-- [ ] Solid: `useSubscribe`
+- [ ] React: `useStore`, `useSubscribe`, `useSubscribeRecord`
+- [ ] Vue: `useStore`, `useSubscribe`, `useSubscribeRecord`
+- [ ] Svelte: `useSubscribe`, `useSubscribeRecord`
+- [ ] Solid: `useSubscribe`, `useSubscribeRecord`
+
+### 5.1b — State-management compat layers
+
+Thin wrappers that let users keep familiar APIs while backed by GraphReFly primitives.
+
+- [ ] Jotai: `atom` (primitive, derived, writable-derived)
+- [ ] Zustand: `create` (set/get contract)
+- [ ] Nanostores: `atom`, `computed`, `map`
+- [ ] TC39 Signals: `Signal.State`, `Signal.Computed`, `Signal.subtle.Watcher`
 
 ### 5.2 — Adapters
 
