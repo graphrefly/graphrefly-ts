@@ -10,6 +10,7 @@ describe("graphrefly", () => {
 		expect(typeof core).toBe("object");
 		expect(typeof graph).toBe("object");
 		expect(typeof extra).toBe("object");
+		expect(typeof graph.Graph).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {

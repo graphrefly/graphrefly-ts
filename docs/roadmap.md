@@ -69,11 +69,11 @@
 
 ### 1.1 — Graph core
 
-- [ ] `Graph(name, opts?)` constructor
-- [ ] `graph.add(name, node)` / `graph.remove(name)`
-- [ ] `graph.get(name)` / `graph.set(name, value)` / `graph.node(name)`
-- [ ] `graph.connect(fromName, toName)` / `graph.disconnect(fromName, toName)`
-- [ ] Edge validation (no transforms, pure wires)
+- [x] `Graph(name, opts?)` constructor
+- [x] `graph.add(name, node)` / `graph.remove(name)`
+- [x] `graph.get(name)` / `graph.set(name, value)` / `graph.node(name)`
+- [x] `graph.connect(fromName, toName)` / `graph.disconnect(fromName, toName)`
+- [x] Edge validation (no transforms, pure wires)
 
 ### 1.2 — Composition
 
