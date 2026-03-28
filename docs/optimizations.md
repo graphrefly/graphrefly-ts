@@ -56,7 +56,15 @@ While subscribing upstream deps, `runFn` is suppressed for re-entrant dep emissi
 
 ### 8. Batch drain resilience
 
-The batch drain loop wraps each individual deferred emission in try/catch so one throwing callback does not orphan remaining emissions. The first error is captured and re-thrown after all emissions drain. `flushInProgress` ensures `isBatching()` remains true during drain, so nested `emitWithBatch` calls still defer phase-2 messages.
+The batch drain loop wraps each individual deferred emission in try/catch so one throwing callback does not orphan remaining emissions. The first error is captured and re-thrown after all emissions drain. `flushInProgress` ensures `isBatching()` remains true during drain, so nested `emitWithBatch` calls still defer phase-2 messages. A cycle-detection cap (`MAX_DRAIN_ITERATIONS = 1000`) prevents infinite loops when reactive cycles occur during drain.
+
+### 9. Sink snapshot during delivery
+
+`emitToSinks` snapshots the sink set before iterating. If a sink callback unsubscribes itself or another sink mid-delivery, all sinks present at delivery start still receive the message. Prevents the classic reactive-library bug where `Set` mutation during `for...of` skips not-yet-visited entries.
+
+### 10. DIRTY→COMPLETE settlement
+
+When a dep goes DIRTY then COMPLETE without intermediate DATA/RESOLVED, the node would be stuck in `"dirty"` status indefinitely. The COMPLETE handler now detects `!depDirtyMask.any() && status === "dirty"` and triggers `runFn()` to settle (typically emitting RESOLVED since dep values are unchanged).
 
 ---
 
@@ -165,6 +173,10 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Source `up` / `unsubscribe` | no-op | omitted |
 | `fn` returns callable | cleanup | cleanup |
 | Connect re-entrancy | `_connecting` | `connecting` (aligned) |
+| Sink snapshot during delivery | TBD | `[...sinks]` snapshot before iterating |
+| Drain cycle detection | TBD | `MAX_DRAIN_ITERATIONS = 1000` cap |
+| TEARDOWN → `"disconnected"` status | TBD | `statusAfterMessage` maps TEARDOWN |
+| DIRTY→COMPLETE settlement | TBD | `runFn()` when no dirty deps remain but node is dirty |
 
 ---
 
@@ -247,6 +259,8 @@ Non-blocking items tracked for later; not optimizations per se.
 | `completeWhenDepsComplete` opt-out | Built-in | Configurable auto-COMPLETE | Derived/operator nodes that should not auto-complete |
 | Single-dep DIRTY skip | Built-in | Fewer dispatches in hot chains | Single-dep linear chains (auto-detected via subscribe hint) |
 | Connect-order guard | Built-in | Correct multi-dep initial compute | Multi-dep nodes with eager-emit deps |
-| Batch drain resilience | Built-in | Fault-tolerant drain, correct nested deferral | All batch usage |
+| Batch drain resilience | Built-in | Fault-tolerant drain, correct nested deferral, cycle detection | All batch usage |
+| Sink snapshot during delivery | Built-in | Correct delivery when sinks mutate mid-iteration | Multi-subscriber nodes |
+| DIRTY→COMPLETE settlement | Built-in | Prevents stuck dirty status | Multi-dep nodes where a dep completes without settling |
 | Production debug stripping | Potential | Smaller bundle / less branch overhead | Production builds |
 | COMPLETE-all-deps semantics | Open decision | Align with spec for effect vs derived | See Open design decisions §A |

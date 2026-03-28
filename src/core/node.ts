@@ -52,7 +52,12 @@ export interface NodeOptions {
 	/** Equality check for RESOLVED detection. Defaults to `Object.is`. */
 	equals?: (a: unknown, b: unknown) => boolean;
 	initial?: unknown;
-	/** Each key becomes an independently subscribable companion node. */
+	/**
+	 * Each key becomes an independently subscribable companion node.
+	 * Meta nodes outlive the parent's subscription lifecycle: when all sinks
+	 * unsubscribe the parent disconnects upstream but meta nodes stay alive.
+	 * Send `[[TEARDOWN]]` to the parent to release meta node resources.
+	 */
 	meta?: Record<string, unknown>;
 	/** Allow fresh subscriptions after COMPLETE/ERROR. */
 	resubscribable?: boolean;
@@ -202,6 +207,7 @@ const statusAfterMessage = (status: NodeStatus, msg: Message): NodeStatus => {
 	if (t === COMPLETE) return "completed";
 	if (t === ERROR) return "errored";
 	if (t === INVALIDATE) return "dirty";
+	if (t === TEARDOWN) return "disconnected";
 	return status;
 };
 
@@ -259,7 +265,10 @@ export function node<T = unknown>(
 			sinks(messages);
 			return;
 		}
-		for (const sink of sinks) {
+		// Snapshot: a sink callback may unsubscribe itself or others mid-iteration.
+		// Iterating the live Set would skip not-yet-visited sinks that were removed.
+		const snapshot = [...sinks];
+		for (const sink of snapshot) {
 			sink(messages);
 		}
 	};
@@ -455,6 +464,12 @@ export function node<T = unknown>(
 				depSettledMask.clear(index);
 				if (depDirtyMask.any() && depSettledMask.covers(depDirtyMask)) {
 					depDirtyMask.reset();
+					depSettledMask.reset();
+					runFn();
+				} else if (!depDirtyMask.any() && status === "dirty") {
+					// D2: dep went DIRTY→COMPLETE without DATA — node was marked
+					// dirty but no settlement came.  Recompute so downstream
+					// gets RESOLVED (value unchanged) or DATA (value changed).
 					depSettledMask.reset();
 					runFn();
 				}

@@ -508,6 +508,89 @@ describe("node primitive", () => {
 	});
 });
 
+describe("D1: sink snapshot during emitToSinks", () => {
+	it("unsubscribing another sink mid-delivery does not skip it", () => {
+		const src = node({ initial: 0 });
+		const log: string[] = [];
+		let unsubB: () => void;
+		const unsubA = src.subscribe(() => {
+			log.push("A");
+			// A unsubscribes B during delivery
+			unsubB();
+		});
+		unsubB = src.subscribe(() => {
+			log.push("B");
+		});
+		src.down([[DIRTY], [DATA, 1]]);
+		// Both should have been called despite A removing B mid-iteration
+		expect(log).toContain("A");
+		expect(log).toContain("B");
+		unsubA();
+	});
+});
+
+describe("D2: DIRTY→COMPLETE without DATA unsticks dirty node", () => {
+	it("dep goes DIRTY then COMPLETE (no DATA) — derived resolves", () => {
+		const a = node({ initial: 1 });
+		const b = node({ initial: 2 });
+		const sinkMsgs: symbol[][] = [];
+		const derived = node([a, b], ([av, bv]) => {
+			return (av as number) + (bv as number);
+		});
+		derived.subscribe((msgs) => {
+			sinkMsgs.push(msgs.map((m) => m[0] as symbol));
+		});
+		expect(derived.get()).toBe(3);
+
+		// a goes DIRTY then COMPLETE without DATA
+		a.down([[DIRTY]]);
+		expect(derived.status).toBe("dirty");
+		a.down([[COMPLETE]]);
+		// Dep values unchanged → runFn fires the equality shortcut → RESOLVED
+		// Node must NOT stay stuck in "dirty".
+		expect(derived.status).not.toBe("dirty");
+		// Sinks should have received DIRTY then RESOLVED (value unchanged)
+		const flat = sinkMsgs.flat();
+		expect(flat).toContain(DIRTY);
+		expect(flat).toContain(RESOLVED);
+	});
+
+	it("dep goes DIRTY then COMPLETE — multi-dep diamond unsticks", () => {
+		const a = node({ initial: 1 });
+		const b = node({ initial: 2 });
+		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number));
+		derived.subscribe(() => undefined);
+
+		// Both deps go dirty, only b settles; a completes without DATA
+		a.down([[DIRTY]]);
+		b.down([[DIRTY]]);
+		expect(derived.status).toBe("dirty");
+		b.down([[DATA, 20]]);
+		// b settled but a still dirty → no recompute yet
+		a.down([[COMPLETE]]);
+		// Now a is done (no pending dirty bits) → derived should recompute
+		expect(derived.status).not.toBe("dirty");
+		expect(derived.get()).toBe(21); // 1 + 20
+	});
+});
+
+describe("D3: TEARDOWN updates status to disconnected", () => {
+	it("source node status becomes disconnected after TEARDOWN", () => {
+		const src = node({ initial: 1 });
+		expect(src.status).toBe("settled");
+		src.down([[TEARDOWN]]);
+		expect(src.status).toBe("disconnected");
+	});
+
+	it("terminated node status becomes disconnected after TEARDOWN (B3)", () => {
+		const src = node({ initial: 1 });
+		src.down([[COMPLETE]]);
+		expect(src.status).toBe("completed");
+		src.down([[TEARDOWN]]);
+		expect(src.status).toBe("disconnected");
+	});
+});
+
 describe("connect-order re-entrancy guard", () => {
 	it("multi-dep node sees all dep values on first compute (no premature runFn)", () => {
 		// dep `a` emits DATA immediately on subscribe (producer pattern).

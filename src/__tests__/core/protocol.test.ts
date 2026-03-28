@@ -217,6 +217,22 @@ describe("batch drain semantics", () => {
 	});
 });
 
+describe("D4: drain cycle detection", () => {
+	it("reactive cycle during drain throws instead of infinite-looping", () => {
+		expect(() =>
+			batch(() => {
+				const cyclicEmit = (): void => {
+					emitWithBatch(() => {
+						// re-enqueue indefinitely
+						emitWithBatch(() => cyclicEmit(), [[DATA, 1]]);
+					}, [[DATA, 0]]);
+				};
+				cyclicEmit();
+			}),
+		).toThrow(/reactive cycle/);
+	});
+});
+
 describe("terminal and control messages are not phase-2", () => {
 	it("ERROR, COMPLETE, PAUSE, RESUME, TEARDOWN emit immediately even in batch", () => {
 		for (const t of [ERROR, COMPLETE, PAUSE, RESUME, TEARDOWN] as const) {

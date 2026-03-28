@@ -5,6 +5,8 @@ import { isPhase2Message, type Message, type Messages } from "./messages.js";
  * deferred until the outermost `batch()` callback returns.
  */
 
+const MAX_DRAIN_ITERATIONS = 1000;
+
 let batchDepth = 0;
 let flushInProgress = false;
 const pendingPhase2: Array<() => void> = [];
@@ -79,7 +81,15 @@ function drainPending(): void {
 	let firstError: unknown;
 	let hasError = false;
 	try {
+		let iterations = 0;
 		while (pendingPhase2.length > 0) {
+			iterations += 1;
+			if (iterations > MAX_DRAIN_ITERATIONS) {
+				pendingPhase2.length = 0;
+				throw new Error(
+					`batch drain exceeded ${MAX_DRAIN_ITERATIONS} iterations — likely a reactive cycle`,
+				);
+			}
 			const ops = pendingPhase2.splice(0);
 			for (const run of ops) {
 				try {
