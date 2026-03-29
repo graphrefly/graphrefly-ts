@@ -1,27 +1,42 @@
-import { describe, expect, it } from "vitest";
-import { COMPLETE, DATA } from "../../core/messages.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import {
+	audit,
+	bufferCount,
 	combine,
 	concat,
+	concatMap,
+	debounce,
+	delay,
 	distinctUntilChanged,
 	elementAt,
+	exhaustMap,
 	filter,
 	find,
 	first,
+	interval,
 	last,
 	map,
 	merge,
+	mergeMap,
 	pairwise,
+	pausable,
 	race,
 	reduce,
+	repeat,
+	rescue,
+	sample,
 	scan,
 	skip,
 	startWith,
+	switchMap,
 	take,
 	takeUntil,
 	takeWhile,
 	tap,
+	throttle,
+	timeout,
 	withLatestFrom,
 	zip,
 } from "../../extra/operators.js";
@@ -292,5 +307,254 @@ describe("extra operators (Tier 1)", () => {
 			.filter((m) => m[0] === DATA)
 			.map((m) => m[1]);
 		expect(dataVals).toContain(50);
+	});
+});
+
+describe("extra operators (Tier 2)", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("switchMap unsubscribes prior inner", () => {
+		const src = state(0);
+		const innerA = state(100);
+		const innerB = state(200);
+		const out = switchMap(src, (v) => ((v as number) === 0 ? innerA : innerB));
+		const { batches, unsub } = collect(out);
+		innerA.down([[DATA, 11]]);
+		src.down([[DATA, 1]]);
+		innerB.down([[DATA, 22]]);
+		innerA.down([[DATA, 99]]);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1] as number);
+		expect(dataVals).toContain(11);
+		expect(dataVals).toContain(22);
+		expect(dataVals).not.toContain(99);
+		unsub();
+	});
+
+	it("exhaustMap drops outer DATA while inner active", () => {
+		const src = state(0);
+		const inner = state(10);
+		const out = exhaustMap(src, () => inner);
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 1]]);
+		inner.down([[DATA, 1]]);
+		src.down([[DATA, 2]]);
+		const resolvedAfterSecond = batches.flat().filter((m) => m[0] === RESOLVED);
+		expect(resolvedAfterSecond.length).toBeGreaterThanOrEqual(1);
+		inner.down([[COMPLETE]]);
+		unsub();
+	});
+
+	it("concatMap runs inners sequentially", () => {
+		const src = state(0);
+		const a = state(100);
+		const b = state(200);
+		let wave = 0;
+		const out = concatMap(src, () => {
+			wave += 1;
+			return wave === 1 ? a : b;
+		});
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 1]]);
+		b.down([[DATA, 999]]);
+		expect(
+			batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.some((m) => m[1] === 999),
+		).toBe(false);
+		a.down([[COMPLETE]]);
+		src.down([[DATA, 2]]);
+		b.down([[DATA, 201]]);
+		expect(
+			batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as number),
+		).toContain(201);
+		unsub();
+	});
+
+	it("mergeMap keeps multiple inners active", () => {
+		const src = state(0);
+		const inner1 = state(1);
+		const inner2 = state(2);
+		let pick = 0;
+		const out = mergeMap(src, () => {
+			pick += 1;
+			return pick === 1 ? inner1 : inner2;
+		});
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 1]]);
+		src.down([[DATA, 2]]);
+		inner1.down([[DATA, 10]]);
+		inner2.down([[DATA, 20]]);
+		const dataVals = new Set(
+			batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as number),
+		);
+		expect(dataVals.has(10)).toBe(true);
+		expect(dataVals.has(20)).toBe(true);
+		inner1.down([[COMPLETE]]);
+		inner2.down([[COMPLETE]]);
+		src.down([[COMPLETE]]);
+		unsub();
+	});
+
+	it("debounce emits once after quiet window (fake timers)", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = debounce(s, 50);
+		const { batches, unsub } = collect(out);
+		s.down([[DATA, 1]]);
+		s.down([[DATA, 2]]);
+		s.down([[DATA, 3]]);
+		expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(0);
+		vi.advanceTimersByTime(50);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(3);
+		unsub();
+	});
+
+	it("delay shifts DATA by ms (fake timers)", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = delay(s, 40);
+		const { batches, unsub } = collect(out);
+		s.down([[DATA, 7]]);
+		expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(0);
+		vi.advanceTimersByTime(40);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(7);
+		unsub();
+	});
+
+	it("timeout errors when idle (fake timers)", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = timeout(s, 30);
+		const { batches, unsub } = collect(out);
+		vi.advanceTimersByTime(30);
+		expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
+		unsub();
+	});
+
+	it("throttle leading edge passes first emission", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = throttle(s, 1_000, { trailing: false });
+		const { batches, unsub } = collect(out);
+		s.down([[DATA, 1]]);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(1);
+		s.down([[DATA, 2]]);
+		expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(1);
+		unsub();
+	});
+
+	it("sample emits when notifier settles", () => {
+		const src = state(1);
+		const tick = state(0);
+		const out = sample(src, tick);
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 10]]);
+		tick.down([[DATA, 1]]);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(10);
+		unsub();
+	});
+
+	it("bufferCount batches DATA", () => {
+		const s = state(1);
+		const out = bufferCount(s, 2);
+		const { batches, unsub } = collect(out);
+		s.down([[DATA, 2]]);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toEqual([1, 2]);
+		unsub();
+	});
+
+	it("rescue maps ERROR to value", () => {
+		const s = state(0);
+		const out = rescue(s, () => 42);
+		const { batches, unsub } = collect(out);
+		s.down([[ERROR, new Error("x")]]);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(42);
+		unsub();
+	});
+
+	it("rescue forwards ERROR when recover throws", () => {
+		const s = state(0);
+		const boom = new Error("recover");
+		const out = rescue(s, () => {
+			throw boom;
+		});
+		const { batches, unsub } = collect(out);
+		s.down([[ERROR, new Error("up")]]);
+		const errMsg = batches.flat().find((m) => m[0] === ERROR);
+		expect(errMsg?.[1]).toBe(boom);
+		unsub();
+	});
+
+	it("pausable buffers then flushes on RESUME", () => {
+		const s = state(0);
+		const out = pausable(s);
+		const { batches, unsub } = collect(out);
+		s.down([[PAUSE]]);
+		s.down([[DIRTY]]);
+		s.down([[DATA, 5]]);
+		s.down([[RESUME]]);
+		expect(batches.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(1);
+		unsub();
+	});
+
+	it("interval ticks via producer (fake timers)", () => {
+		vi.useFakeTimers();
+		const tick = interval(100);
+		const { batches, unsub } = collect(tick);
+		vi.advanceTimersByTime(250);
+		const values = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1] as number);
+		expect(values.length).toBeGreaterThanOrEqual(2);
+		unsub();
+	});
+
+	it("repeat completes after N rounds", () => {
+		const s = state(1, { resubscribable: true });
+		const out = repeat(s, 2);
+		const { batches, unsub } = collect(out);
+		s.down([[COMPLETE]]);
+		s.down([[COMPLETE]]);
+		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("audit emits trailing-only after timer (fake timers)", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = audit(s, 100);
+		const { batches, unsub } = collect(out);
+		s.down([[DATA, 1]]);
+		// No leading emit
+		const immediate = batches.flat().filter((m) => m[0] === DATA);
+		expect(immediate.length).toBe(0);
+		vi.advanceTimersByTime(150);
+		const after = batches.flat().filter((m) => m[0] === DATA);
+		expect(after.length).toBe(1);
+		expect(after[0][1]).toBe(1);
+		unsub();
+	});
+
+	it("repeat throws on count <= 0", () => {
+		const s = state(0);
+		expect(() => repeat(s, 0)).toThrow(RangeError);
+	});
+
+	it("bufferCount throws on count <= 0", () => {
+		const s = state(0);
+		expect(() => bufferCount(s, 0)).toThrow(RangeError);
 	});
 });

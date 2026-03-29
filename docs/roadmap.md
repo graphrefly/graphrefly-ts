@@ -148,13 +148,13 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 ### 2.2 — Tier 2 operators (async, dynamic)
 
-- [ ] `switchMap`, `concatMap`, `exhaustMap`, `flatMap`
-- [ ] `debounce`, `throttle`, `sample`, `audit`
-- [ ] `delay`, `timeout`
-- [ ] `buffer`, `bufferCount`, `bufferTime`
-- [ ] `window`, `windowCount`, `windowTime`
-- [ ] `interval`, `repeat`
-- [ ] `pausable`, `rescue`
+- [x] `switchMap`, `concatMap`, `exhaustMap`, `flatMap`
+- [x] `debounce`, `throttle`, `sample`, `audit`
+- [x] `delay`, `timeout`
+- [x] `buffer`, `bufferCount`, `bufferTime`
+- [x] `window`, `windowCount`, `windowTime`
+- [x] `interval`, `repeat`
+- [x] `pausable`, `rescue`
 
 ### 2.3 — Sources & sinks
 
