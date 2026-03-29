@@ -158,11 +158,11 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 ### 2.3 — Sources & sinks
 
-- [ ] `fromTimer`, `fromCron`, `fromEvent`, `fromIter`
-- [ ] `fromPromise`, `fromAsyncIter`, `fromAny`
-- [ ] `of`, `empty`, `never`, `throwError`
-- [ ] `forEach`, `toArray`
-- [ ] `share`, `cached`, `replay`
+- [x] `fromTimer`, `fromCron`, `fromEvent`, `fromIter`
+- [x] `fromPromise`, `fromAsyncIter`, `fromAny`
+- [x] `of`, `empty`, `never`, `throwError`
+- [x] `forEach`, `toArray`
+- [x] `share`, `cached`, `replay`
 
 ---
 

@@ -28,6 +28,8 @@ Read in parallel:
 - Relevant source files in the area you'll modify
 - Existing tests for the area
 
+**Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
+
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):
 - **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (`GRAPHREFLY-SPEC.md` §5.1).
 - **Messages are always** `[[Type, Data?], ...]` — no single-message shorthand.

@@ -2377,3 +2377,23 @@ export function rescue<T>(
 		},
 	});
 }
+
+/**
+ * Forward DATA only when `control` is truthy; otherwise emit RESOLVED.
+ * Value-level gate (boolean control signal). See `pausable` for protocol-level PAUSE/RESUME.
+ */
+export function gate<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
+	return node<T>(
+		[source as Node, control as Node],
+		(_deps, a) => {
+			const v = (source as Node).get();
+			const c = (control as Node).get();
+			if (!c) {
+				a.down([[RESOLVED]]);
+				return undefined;
+			}
+			return v as T;
+		},
+		operatorOpts(opts),
+	);
+}

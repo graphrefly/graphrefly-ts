@@ -289,6 +289,12 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `Graph.destroy()` guard bypass | `_signal_graph(..., internal=True)` bypasses all guards | Same |
 | `Graph.set` internal | `set(name, value, *, internal=False)` | `set(name, value, { internal? })` |
 | `allows_observe()` / `has_guard()` | Public methods on `NodeImpl` | Public methods on `Node` interface |
+| Extra Phase 2.3 (sources/sinks) | `graphrefly.extra.sources` + `graphrefly.extra.cron`; see §5 above | `src/extra/sources.ts` + `src/extra/cron.ts`; see §5 above |
+| `gate(source, control)` | `graphrefly.extra.tier2.gate` | `src/extra/operators.ts` `gate` (aligned 2026-03-28) |
+| `firstValueFrom` | `first_value_from(source, timeout=)` (blocking) + `first_value_from_future(source)` | `firstValueFrom(source): Promise<T>` |
+| `fromEvent` / `from_event_emitter` | Generic emitter (`add_method=`, `remove_method=`) | DOM `addEventListener` API |
+| `toArray` / `to_array` | Reactive `Node[list]` | Reactive `Node<T[]>` |
+| `to_list` (blocking) | Py-only sync bridge | N/A |
 
 ### Open design items (low priority)
 
@@ -340,9 +346,43 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
    | `windowTime` | Both: true sub-node windows of `ms`/`seconds` duration |
    | `merge` / `zip` | TS: BigInt bitmask (no >31-source overflow); Python: unlimited-precision int |
 
-   **Python-only:** `gate(control)` — value-level boolean gate (formerly `pausable(control)`); renamed to avoid collision with protocol-level `pausable()`.
+   `gate(source, control)` — value-level boolean gate. Both ports (parity aligned 2026-03-28).
 
    **Deferred QA items:** see **Deferred follow-ups** → *Tier 2 extra operators (roadmap 2.2) — deferred semantics (QA)*.
+
+5. **Sources & sinks (roadmap 2.3).** TypeScript ships `src/extra/sources.ts` + `src/extra/cron.ts`; Python ships `graphrefly.extra.sources` + `graphrefly.extra.cron`. **Parity aligned (2026-03-28):**
+
+   | Source/Sink | Aligned behavior |
+   |-------------|-----------------|
+   | `fromTimer` / `from_timer` | Both: `(delay, { period? })` — one-shot emits `0` then COMPLETE; periodic emits `0, 1, 2, …` every `period` (never completes). TS: `signal` (AbortSignal) support; Py: no signal (deferred). |
+   | `fromCron` / `from_cron` | Both: built-in 5-field cron parser (zero external deps); emits `timestamp_ns` (`Date.now() * 1_000_000` / `time.time_ns()`). TS: `output: "date"` option for Date objects. |
+   | `fromIter` / `from_iter` | Both: synchronous drain, one DATA per item, then COMPLETE. Error → ERROR. |
+   | `of` | Both: `fromIter(values)` / `from_iter` under the hood. |
+   | `empty` | Both: synchronous COMPLETE, no DATA. |
+   | `never` | Both: no-op producer, never emits. |
+   | `throwError` / `throw_error` | Both: immediate ERROR. |
+   | `fromAny` / `from_any` | Both: Node passthrough, then async/iterable/scalar dispatch. Scalar → `of(value)`. |
+   | `forEach` / `for_each` | Both: return unsubscribe callable (`() => void`). TS: `onMessage`-based; Py: sink-based with optional `on_error`. |
+   | `toArray` / `to_array` | Both: reactive Node — collect DATA, emit `[…]` on COMPLETE. |
+   | `share` | Both: ref-counted upstream wire; pass `initial: source.get()`. |
+   | `cached` | Both: `replay(source, 1)` / `replay(source, buffer_size=1)`. |
+   | `replay` | Both: real circular buffer + late-subscriber replay; reject `bufferSize < 1`. |
+   | `firstValueFrom` | TS: `Promise<T>` (resolves on first DATA, rejects on ERROR/COMPLETE-without-data). Py: `first_value_from(source, timeout=)` blocks via `threading.Event`; `first_value_from_future(source)` returns `Future`. |
+   | `describeKind` | Both: source factories use `"producer"` (not `"operator"`). |
+   | Static source timing | Both: synchronous emission during producer start (no deferred microtask). |
+
+   **Intentional divergences:**
+
+   | Topic | Python | TypeScript | Rationale |
+   |-------|--------|------------|-----------|
+   | `fromEvent` / `from_event_emitter` | `from_event_emitter(emitter, event, add_method=, remove_method=)` — generic emitter | `fromEvent(target, type, opts?)` — DOM `addEventListener` API | Language ecosystem |
+   | `to_list` (blocking) | Py-only: blocks via `threading.Event`, returns `list` | N/A — use `await firstValueFrom(toArray(src))` | Py sync bridge |
+   | `first_value_from` / `first_value_from_future` | Py-only: sync/Future bridges | `firstValueFrom`: `Promise<T>` | Language concurrency model |
+   | `fromPromise` / `from_awaitable` | `from_awaitable`: worker thread + `asyncio.run` | `fromPromise`: native Promise | Language async model |
+   | `fromAsyncIter` / `from_async_iter` | Worker thread + `asyncio.run` | Native async iteration | Language async model |
+   | AbortSignal on async sources | Not supported (deferred) | `signal` option on `fromTimer`, `fromPromise`, `fromAsyncIter` | TS has native AbortSignal; Py deferred |
+
+   **Open:** Python AbortSignal equivalent (e.g. `threading.Event` signal parameter) — deferred to future parity round.
 
 ---
 
