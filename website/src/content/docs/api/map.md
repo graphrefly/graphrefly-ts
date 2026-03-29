@@ -1,9 +1,9 @@
 ---
 title: "map()"
-description: "Map each value from `source` through `project`."
+description: "Maps each settled value from `source` through `project`."
 ---
 
-Map each value from `source` through `project`.
+Maps each settled value from `source` through `project`.
 
 ## Signature
 
@@ -15,6 +15,18 @@ function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts):
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `project` | `(value: T) =&gt; R` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `project` | `(value: T) =&gt; R` | Transform for each value. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;R&gt;` - Derived node emitting mapped values.
+
+## Basic Usage
+
+```ts
+import { map, state } from "@graphrefly/graphrefly-ts";
+
+const n = map(state(2), (x) => x * 3);
+```

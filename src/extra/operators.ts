@@ -11,14 +11,43 @@ function operatorOpts(opts?: ExtraOpts): NodeOptions {
 	return { describeKind: "operator", ...opts };
 }
 
-/** Map each value from `source` through `project`. */
+/**
+ * Maps each settled value from `source` through `project`.
+ *
+ * @param source - Upstream node.
+ * @param project - Transform for each value.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<R>` - Derived node emitting mapped values.
+ *
+ * @example
+ * ```ts
+ * import { map, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = map(state(2), (x) => x * 3);
+ * ```
+ *
+ * @category extra
+ */
 export function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts): Node<R> {
 	return derived([source as Node], ([v]) => project(v as T), operatorOpts(opts));
 }
 
 /**
- * Emit values that satisfy `predicate`; when the predicate fails, downstream settles with
- * `RESOLVED` (no output) per two-phase semantics.
+ * Forwards values that satisfy `predicate`; otherwise emits `RESOLVED` with no `DATA` (two-phase semantics).
+ *
+ * @param source - Upstream node.
+ * @param predicate - Inclusion test.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Filtered node.
+ *
+ * @example
+ * ```ts
+ * import { filter, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = filter(state(1), (x) => x > 0);
+ * ```
+ *
+ * @category extra
  */
 export function filter<T>(
 	source: Node<T>,
@@ -36,7 +65,24 @@ export function filter<T>(
 	);
 }
 
-/** Fold: each emission updates an accumulator; output is the new accumulator. */
+/**
+ * Folds each upstream value into an accumulator; emits the new accumulator every time.
+ *
+ * @param source - Upstream node.
+ * @param reducer - `(acc, value) => nextAcc`.
+ * @param seed - Initial accumulator.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<R>` - Scan node.
+ *
+ * @example
+ * ```ts
+ * import { scan, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = scan(state(1), (a, x) => a + x, 0);
+ * ```
+ *
+ * @category extra
+ */
 export function scan<T, R>(
 	source: Node<T>,
 	reducer: (acc: R, value: T) => R,
@@ -55,8 +101,22 @@ export function scan<T, R>(
 }
 
 /**
- * Reduce to a single value emitted when `source` completes. On an empty completion (no prior
- * `DATA`), emits `seed`.
+ * Reduces to one value emitted when `source` completes; if no `DATA` arrived, emits `seed`.
+ *
+ * @param source - Upstream node.
+ * @param reducer - `(acc, value) => nextAcc`.
+ * @param seed - Empty-completion default and initial accumulator.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<R>` - Node that emits once on completion.
+ *
+ * @example
+ * ```ts
+ * import { reduce, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = reduce(state(1), (a, x) => a + x, 0);
+ * ```
+ *
+ * @category extra
  */
 export function reduce<T, R>(
 	source: Node<T>,
@@ -90,8 +150,21 @@ export function reduce<T, R>(
 }
 
 /**
- * Emit at most `count` **`DATA`** values from `source`, then `COMPLETE`. `RESOLVED` settlements
- * from upstream do not advance the counter (so `skip` + `take` composes correctly).
+ * Emits at most `count` **`DATA`** values, then **`COMPLETE`**. `RESOLVED` does not advance the counter.
+ *
+ * @param source - Upstream node.
+ * @param count - Maximum `DATA` emissions (≤0 completes immediately).
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Limited stream.
+ *
+ * @example
+ * ```ts
+ * import { take, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = take(state(0), 3);
+ * ```
+ *
+ * @category extra
  */
 export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) {
@@ -159,8 +232,21 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 }
 
 /**
- * Skip the first `count` **`DATA`** emissions from `source`. `RESOLVED` settlements do not
- * advance the counter.
+ * Skips the first `count` **`DATA`** emissions. `RESOLVED` does not advance the counter.
+ *
+ * @param source - Upstream node.
+ * @param count - Number of `DATA` values to drop.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Skipped stream.
+ *
+ * @example
+ * ```ts
+ * import { skip, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = skip(state(0), 2);
+ * ```
+ *
+ * @category extra
  */
 export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	let skipped = 0;
@@ -190,7 +276,23 @@ export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 	});
 }
 
-/** Emit values while `predicate` holds; then `COMPLETE`. */
+/**
+ * Emits while `predicate` holds; on first false, sends **`COMPLETE`**.
+ *
+ * @param source - Upstream node.
+ * @param predicate - Continuation test.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Truncated stream.
+ *
+ * @example
+ * ```ts
+ * import { takeWhile, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = takeWhile(state(1), (x) => x < 10);
+ * ```
+ *
+ * @category extra
+ */
 export function takeWhile<T>(
 	source: Node<T>,
 	predicate: (value: T) => boolean,
@@ -225,8 +327,23 @@ export function takeWhile<T>(
 }
 
 /**
- * Emit values from `source` until `notifier` delivers a matching message, then `COMPLETE`.
- * By default triggers on `DATA` from the notifier. Pass `predicate` for custom trigger logic.
+ * Forwards `source` until `notifier` matches `predicate` (default: notifier **`DATA`**), then **`COMPLETE`**.
+ *
+ * @param source - Main upstream.
+ * @param notifier - Triggers completion when `predicate(msg)` is true.
+ * @param opts - Optional {@link NodeOptions}, plus `predicate` for custom notifier matching.
+ * @returns `Node<T>` - Truncated stream.
+ *
+ * @example
+ * ```ts
+ * import { producer, takeUntil, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const src = state(1);
+ * const stop = producer((_d, a) => a.emit(undefined));
+ * const n = takeUntil(src, stop);
+ * ```
+ *
+ * @category extra
  */
 export function takeUntil<T>(
 	source: Node<T>,
@@ -266,14 +383,41 @@ export function takeUntil<T>(
 	);
 }
 
-/** First `DATA` from `source`, then `COMPLETE`. */
+/**
+ * Emits the first **`DATA`** then **`COMPLETE`** (same as `take(source, 1)`).
+ *
+ * @param source - Upstream node.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Single-value stream.
+ *
+ * @example
+ * ```ts
+ * import { first, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = first(state(42));
+ * ```
+ *
+ * @category extra
+ */
 export function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 	return take(source, 1, opts);
 }
 
 /**
- * Last value before `source` completes. Use `options.defaultValue` if the source may complete
- * without emitting.
+ * Buffers values and emits the last **`DATA`** on **`COMPLETE`**; optional `defaultValue` if none arrived.
+ *
+ * @param source - Upstream node.
+ * @param options - Optional {@link NodeOptions} and `defaultValue` when empty.
+ * @returns `Node<T>` - Last-or-default node.
+ *
+ * @example
+ * ```ts
+ * import { last, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = last(state(1), { defaultValue: 0 });
+ * ```
+ *
+ * @category extra
  */
 export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: T }): Node<T> {
 	const { defaultValue, ...rest } = options ?? {};
@@ -306,7 +450,23 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 	);
 }
 
-/** First value matching `predicate`, then `COMPLETE`. */
+/**
+ * Emits the first value matching `predicate`, then **`COMPLETE`**.
+ *
+ * @param source - Upstream node.
+ * @param predicate - Match test.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - First-match stream.
+ *
+ * @example
+ * ```ts
+ * import { find, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = find(state(1), (x) => x > 0);
+ * ```
+ *
+ * @category extra
+ */
 export function find<T>(
 	source: Node<T>,
 	predicate: (value: T) => boolean,
@@ -315,12 +475,44 @@ export function find<T>(
 	return take(filter(source, predicate, opts), 1, opts);
 }
 
-/** Zero-based index: emit the `index`th `DATA`, then `COMPLETE`. */
+/**
+ * Emits the `index`th **`DATA`** (zero-based), then **`COMPLETE`**.
+ *
+ * @param source - Upstream node.
+ * @param index - Zero-based emission index.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Single indexed value.
+ *
+ * @example
+ * ```ts
+ * import { elementAt, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = elementAt(state(0), 2);
+ * ```
+ *
+ * @category extra
+ */
 export function elementAt<T>(source: Node<T>, index: number, opts?: ExtraOpts): Node<T> {
 	return take(skip(source, index, opts), 1, opts);
 }
 
-/** `initial` first, then every value from `source`. */
+/**
+ * Prepends `initial` as **`DATA`**, then forwards every value from `source`.
+ *
+ * @param source - Upstream node.
+ * @param initial - Value emitted before upstream.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Prefixed stream.
+ *
+ * @example
+ * ```ts
+ * import { startWith, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = startWith(state(2), 0);
+ * ```
+ *
+ * @category extra
+ */
 export function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Node<T> {
 	let prepended = false;
 	return node<T>(
@@ -337,7 +529,23 @@ export function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Nod
 	);
 }
 
-/** Run `fn` for side effects; values pass through unchanged. */
+/**
+ * Invokes `fn` for side effects; values pass through unchanged.
+ *
+ * @param source - Upstream node.
+ * @param fn - Side effect per value.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Passthrough node.
+ *
+ * @example
+ * ```ts
+ * import { tap, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = tap(state(1), (x) => console.log(x));
+ * ```
+ *
+ * @category extra
+ */
 export function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): Node<T> {
 	return derived(
 		[source as Node],
@@ -349,7 +557,23 @@ export function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts
 	);
 }
 
-/** Suppress adjacent duplicates; delegates to node-level `equals` (default `Object.is`). */
+/**
+ * Suppresses adjacent duplicates using `equals` (default `Object.is`).
+ *
+ * @param source - Upstream node.
+ * @param equals - Optional equality for consecutive values.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Deduped stream.
+ *
+ * @example
+ * ```ts
+ * import { distinctUntilChanged, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = distinctUntilChanged(state(1));
+ * ```
+ *
+ * @category extra
+ */
 export function distinctUntilChanged<T>(
 	source: Node<T>,
 	equals: (a: T, b: T) => boolean = Object.is,
@@ -361,7 +585,22 @@ export function distinctUntilChanged<T>(
 	});
 }
 
-/** Emit `[previous, current]` pairs (starts after the second source value). */
+/**
+ * Emits `[previous, current]` pairs starting after the second value (first pair uses `RESOLVED` only).
+ *
+ * @param source - Upstream node.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<readonly [T, T]>` - Pair stream.
+ *
+ * @example
+ * ```ts
+ * import { pairwise, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = pairwise(state(0));
+ * ```
+ *
+ * @category extra
+ */
 export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]> {
 	let prev: T | undefined;
 	let hasPrev = false;
@@ -383,7 +622,22 @@ export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T
 	);
 }
 
-/** Combine latest value from each dependency whenever any dep settles (combineLatest). */
+/**
+ * Combines the latest value from each dependency whenever any dep settles (combineLatest).
+ *
+ * @param sources - Tuple of nodes (fixed arity preserves tuple type).
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Tuple of latest values.
+ *
+ * @example
+ * ```ts
+ * import { combine, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = combine([state(1), state("a")] as const);
+ * ```
+ *
+ * @category extra
+ */
 export function combine<const T extends readonly unknown[]>(
 	sources: { [K in keyof T]: Node<T[K]> },
 	opts?: ExtraOpts,
@@ -393,8 +647,21 @@ export function combine<const T extends readonly unknown[]>(
 }
 
 /**
- * When `primary` settles, emit `[primary, latestSecondary]`. Updates from `secondary` alone
- * refresh the cached secondary value but do not emit.
+ * When `primary` settles, emits `[primary, latestSecondary]`. `secondary` alone updates cache only.
+ *
+ * @param primary - Main stream.
+ * @param secondary - Latest value is paired on each primary emission.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<readonly [A, B]>` - Paired stream.
+ *
+ * @example
+ * ```ts
+ * import { state, withLatestFrom } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = withLatestFrom(state(1), state("x"));
+ * ```
+ *
+ * @category extra
  */
 export function withLatestFrom<A, B>(
 	primary: Node<A>,
@@ -437,8 +704,23 @@ export function withLatestFrom<A, B>(
 }
 
 /**
- * Merge: forward DATA from any dependency. Uses dirty bitmask for proper two-phase tracking.
- * **`COMPLETE`** is emitted only after **every** source has completed (spec §1.3.5).
+ * Merges **`DATA`** from any source with correct two-phase dirty tracking. **`COMPLETE`** after **all** sources complete (spec §1.3.5).
+ *
+ * @param sources - Nodes to merge (empty completes immediately).
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Merged stream.
+ *
+ * @remarks
+ * **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `GRAPHREFLY-SPEC.md`.
+ *
+ * @example
+ * ```ts
+ * import { merge, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = merge([state(1), state(2)]);
+ * ```
+ *
+ * @category extra
  */
 export function merge<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T> {
 	if (sources.length === 0) {
@@ -500,8 +782,20 @@ export function merge<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
 }
 
 /**
- * Zip one value from each source per cycle into a tuple. Only `DATA` enqueues values
- * (RESOLVED does not per spec §1.3.3). Completes when a completed source's buffer is empty.
+ * Zips one **`DATA`** from each source per cycle into a tuple. Only **`DATA`** enqueues (spec §1.3.3).
+ *
+ * @param sources - Tuple of nodes.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Zipped tuples.
+ *
+ * @example
+ * ```ts
+ * import { state, zip } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = zip([state(1), state(2)] as const);
+ * ```
+ *
+ * @category extra
  */
 export function zip<const T extends readonly unknown[]>(
 	sources: { [K in keyof T]: Node<T[K]> },
@@ -578,8 +872,21 @@ export function zip<const T extends readonly unknown[]>(
 }
 
 /**
- * All values from `first` (until it completes), then all from `second`. DATA from
- * `second` that arrives during phase 0 is buffered and replayed on handoff.
+ * Plays all of `firstSrc`, then all of `secondSrc`. **`DATA`** from `secondSrc` during phase one is buffered until handoff.
+ *
+ * @param firstSrc - First segment.
+ * @param secondSrc - Second segment.
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Concatenated stream.
+ *
+ * @example
+ * ```ts
+ * import { concat, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = concat(state(1), state(2));
+ * ```
+ *
+ * @category extra
  */
 export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Node<T> {
 	let phase: 0 | 1 = 0;
@@ -622,8 +929,20 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 }
 
 /**
- * Race: first source to emit `DATA` wins. All subsequent messages are forwarded only from
- * the winning source; other sources are silenced. Matches Rx `race` semantics.
+ * First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-style `race`).
+ *
+ * @param sources - Contestants (empty completes immediately; one node is identity).
+ * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @returns `Node<T>` - Winning stream.
+ *
+ * @example
+ * ```ts
+ * import { race, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = race([state(1), state(2)]);
+ * ```
+ *
+ * @category extra
  */
 export function race<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T> {
 	if (sources.length === 0) {

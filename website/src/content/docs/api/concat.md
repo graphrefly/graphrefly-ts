@@ -1,10 +1,9 @@
 ---
 title: "concat()"
-description: "All values from `first` (until it completes), then all from `second`. DATA from\n`second` that arrives during phase 0 is buffered and replayed on handoff."
+description: "Plays all of `firstSrc`, then all of `secondSrc`. **`DATA`** from `secondSrc` during phase one is buffered until handoff."
 ---
 
-All values from `first` (until it completes), then all from `second`. DATA from
-`second` that arrives during phase 0 is buffered and replayed on handoff.
+Plays all of `firstSrc`, then all of `secondSrc`. **`DATA`** from `secondSrc` during phase one is buffered until handoff.
 
 ## Signature
 
@@ -16,6 +15,18 @@ function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Nod
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `firstSrc` | `Node&lt;T&gt;` |  |
-| `secondSrc` | `Node&lt;T&gt;` |  |
-| `opts` | `ExtraOpts` |  |
+| `firstSrc` | `Node&lt;T&gt;` | First segment. |
+| `secondSrc` | `Node&lt;T&gt;` | Second segment. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Concatenated stream.
+
+## Basic Usage
+
+```ts
+import { concat, state } from "@graphrefly/graphrefly-ts";
+
+const n = concat(state(1), state(2));
+```

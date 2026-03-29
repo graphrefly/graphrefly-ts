@@ -1,10 +1,9 @@
 ---
 title: "take()"
-description: "Emit at most `count` **`DATA`** values from `source`, then `COMPLETE`. `RESOLVED` settlements\nfrom upstream do not advance the counter (so `skip` + `take` compo"
+description: "Emits at most `count` **`DATA`** values, then **`COMPLETE`**. `RESOLVED` does not advance the counter."
 ---
 
-Emit at most `count` **`DATA`** values from `source`, then `COMPLETE`. `RESOLVED` settlements
-from upstream do not advance the counter (so `skip` + `take` composes correctly).
+Emits at most `count` **`DATA`** values, then **`COMPLETE`**. `RESOLVED` does not advance the counter.
 
 ## Signature
 
@@ -16,6 +15,18 @@ function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `count` | `number` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `count` | `number` | Maximum `DATA` emissions (≤0 completes immediately). |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Limited stream.
+
+## Basic Usage
+
+```ts
+import { take, state } from "@graphrefly/graphrefly-ts";
+
+const n = take(state(0), 3);
+```

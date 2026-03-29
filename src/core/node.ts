@@ -832,6 +832,32 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 }
 
+/**
+ * Creates a reactive {@link Node} — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).
+ *
+ * Typical shapes: `node([])` / `node([], opts)` for a manual source; `node(producerFn, opts)` for a
+ * producer; `node(deps, computeFn, opts)` for derived nodes and operators.
+ *
+ * @param depsOrFn - Dependency nodes, a {@link NodeFn} (producer), or {@link NodeOptions} alone.
+ * @param fnOrOpts - With deps: compute function or options. Omitted for producer-only form.
+ * @param optsArg - Options when both `deps` and `fn` are provided.
+ * @returns `Node<T>` - Configured node instance (lazy until subscribed).
+ *
+ * @remarks
+ * **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `GRAPHREFLY-SPEC.md`.
+ *
+ * @example
+ * ```ts
+ * import { node, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const a = state(1);
+ * const b = node([a], ([x]) => (x as number) + 1);
+ * ```
+ *
+ * @seeAlso [GRAPHREFLY-SPEC.md](/spec)
+ *
+ * @category core
+ */
 export function node<T = unknown>(
 	depsOrFn?: readonly Node[] | NodeFn<T> | NodeOptions,
 	fnOrOpts?: NodeFn<T> | NodeOptions,

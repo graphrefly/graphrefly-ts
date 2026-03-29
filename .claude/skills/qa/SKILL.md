@@ -87,14 +87,17 @@ If a failure is related to an implementation design question, **HALT** and raise
 
 **Skip this phase if `--skip-docs` was passed.**
 
-Read `docs/docs-guidance.md` first.
+**Authoritative checklist:** follow **`docs/docs-guidance.md`** end-to-end (authority order, Tier 0–5, JSDoc tag table, `gen-api-docs.mjs` REGISTRY, `docs:gen` / `docs:gen:check`, `sync-docs`, when to edit which file).
 
 Update documentation when behavior or public API changed:
-- `docs/GRAPHREFLY-SPEC.md` — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
-- `docs/optimizations.md` — when this review records **open architectural decisions** or cross-language parity notes; mirror substantive entries to **`graphrefly-py/docs/optimizations.md`** if that repo is in the workspace
-- JSDoc on exported symbols (source of truth for API until a docs site exists)
-- `docs/test-guidance.md` — if new test patterns are established
-- `docs/roadmap.md` — check off completed items when appropriate
-- `CLAUDE.md` — only if fundamental workflow/commands changed
 
-When this repo gains a docs generator or site (see roadmap Phase 7), follow `docs/docs-guidance.md` for registry and generated pages.
+- **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
+- **`docs/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
+- **`docs/optimizations.md`** — when this review records **open architectural decisions** or cross-language parity notes; mirror substantive entries to **`graphrefly-py/docs/optimizations.md`** if that repo is in the workspace
+- **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages)
+- **New public symbols** — barrel export + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI)
+- **`docs/test-guidance.md`** — if new test patterns are established
+- **`docs/roadmap.md`** — check off completed items when appropriate
+- **`CLAUDE.md`** — only if fundamental workflow/commands changed
+
+Do **not** hand-edit **`website/src/content/docs/api/*.md`** — regenerate from JSDoc via `docs:gen` per **`docs/docs-guidance.md`**.

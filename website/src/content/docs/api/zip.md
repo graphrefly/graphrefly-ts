@@ -1,10 +1,9 @@
 ---
 title: "zip()"
-description: "Zip one value from each source per cycle into a tuple. Only `DATA` enqueues values\n(RESOLVED does not per spec §1.3.3). Completes when a completed source's buff"
+description: "Zips one **`DATA`** from each source per cycle into a tuple. Only **`DATA`** enqueues (spec §1.3.3)."
 ---
 
-Zip one value from each source per cycle into a tuple. Only `DATA` enqueues values
-(RESOLVED does not per spec §1.3.3). Completes when a completed source's buffer is empty.
+Zips one **`DATA`** from each source per cycle into a tuple. Only **`DATA`** enqueues (spec §1.3.3).
 
 ## Signature
 
@@ -19,5 +18,17 @@ function zip<const T extends readonly unknown[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` |  |
-| `opts` | `ExtraOpts` |  |
+| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Tuple of nodes. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Zipped tuples.
+
+## Basic Usage
+
+```ts
+import { state, zip } from "@graphrefly/graphrefly-ts";
+
+const n = zip([state(1), state(2)] as const);
+```

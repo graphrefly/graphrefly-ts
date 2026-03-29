@@ -1,10 +1,9 @@
 ---
 title: "filter()"
-description: "Emit values that satisfy `predicate`; when the predicate fails, downstream settles with\n`RESOLVED` (no output) per two-phase semantics."
+description: "Forwards values that satisfy `predicate`; otherwise emits `RESOLVED` with no `DATA` (two-phase semantics)."
 ---
 
-Emit values that satisfy `predicate`; when the predicate fails, downstream settles with
-`RESOLVED` (no output) per two-phase semantics.
+Forwards values that satisfy `predicate`; otherwise emits `RESOLVED` with no `DATA` (two-phase semantics).
 
 ## Signature
 
@@ -20,6 +19,18 @@ function filter<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `predicate` | `(value: T) =&gt; boolean` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `predicate` | `(value: T) =&gt; boolean` | Inclusion test. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Filtered node.
+
+## Basic Usage
+
+```ts
+import { filter, state } from "@graphrefly/graphrefly-ts";
+
+const n = filter(state(1), (x) => x > 0);
+```

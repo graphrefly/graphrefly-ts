@@ -1,10 +1,9 @@
 ---
 title: "race()"
-description: "Race: first source to emit `DATA` wins. All subsequent messages are forwarded only from\nthe winning source; other sources are silenced. Matches Rx `race` semant"
+description: "First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-style `race`)."
 ---
 
-Race: first source to emit `DATA` wins. All subsequent messages are forwarded only from
-the winning source; other sources are silenced. Matches Rx `race` semantics.
+First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-style `race`).
 
 ## Signature
 
@@ -16,5 +15,17 @@ function race<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `readonly Node&lt;T&gt;[]` |  |
-| `opts` | `ExtraOpts` |  |
+| `sources` | `readonly Node&lt;T&gt;[]` | Contestants (empty completes immediately; one node is identity). |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Winning stream.
+
+## Basic Usage
+
+```ts
+import { race, state } from "@graphrefly/graphrefly-ts";
+
+const n = race([state(1), state(2)]);
+```

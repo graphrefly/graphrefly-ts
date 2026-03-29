@@ -1,9 +1,9 @@
 ---
 title: "scan()"
-description: "Fold: each emission updates an accumulator; output is the new accumulator."
+description: "Folds each upstream value into an accumulator; emits the new accumulator every time."
 ---
 
-Fold: each emission updates an accumulator; output is the new accumulator.
+Folds each upstream value into an accumulator; emits the new accumulator every time.
 
 ## Signature
 
@@ -20,7 +20,19 @@ function scan<T, R>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `reducer` | `(acc: R, value: T) =&gt; R` |  |
-| `seed` | `R` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `reducer` | `(acc: R, value: T) =&gt; R` | `(acc, value) =&gt; nextAcc`. |
+| `seed` | `R` | Initial accumulator. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;R&gt;` - Scan node.
+
+## Basic Usage
+
+```ts
+import { scan, state } from "@graphrefly/graphrefly-ts";
+
+const n = scan(state(1), (a, x) => a + x, 0);
+```

@@ -1,10 +1,9 @@
 ---
 title: "derived()"
-description: "Reactive compute: deps + fn that returns a value (or uses explicit `down()` / `emit()`).\nThin alias over ; same primitive as “operator” style in the spec."
+description: "Creates a derived node from dependencies and a compute function (same primitive as operators)."
 ---
 
-Reactive compute: deps + fn that returns a value (or uses explicit `down()` / `emit()`).
-Thin alias over ; same primitive as “operator” style in the spec.
+Creates a derived node from dependencies and a compute function (same primitive as operators).
 
 ## Signature
 
@@ -20,6 +19,19 @@ function derived<T = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `deps` | `readonly Node[]` |  |
-| `fn` | `NodeFn&lt;T&gt;` |  |
-| `opts` | `NodeOptions` |  |
+| `deps` | `readonly Node[]` | Upstream nodes. |
+| `fn` | `NodeFn&lt;T&gt;` | Compute function; return value is emitted, or use `actions` explicitly. |
+| `opts` | `NodeOptions` | Optional . |
+
+## Returns
+
+`Node&lt;T&gt;` - Derived node.
+
+## Basic Usage
+
+```ts
+import { derived, state } from "@graphrefly/graphrefly-ts";
+
+const a = state(1);
+const b = derived([a], ([x]) => (x as number) * 2);
+```

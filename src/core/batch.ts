@@ -20,6 +20,8 @@ const pendingPhase2: Array<() => void> = [];
  * bugs when callbacks trigger further DATA/RESOLVED.
  *
  * @returns `true` while inside `batch()` or while the drain loop is running.
+ *
+ * @category core
  */
 export function isBatching(): boolean {
 	return batchDepth > 0 || flushInProgress;
@@ -49,6 +51,8 @@ export function isBatching(): boolean {
  *   core.emitWithBatch(sink, [[core.DATA, 1]]);
  * });
  * ```
+ *
+ * @category core
  */
 export function batch(fn: () => void): void {
 	batchDepth += 1;
@@ -118,6 +122,8 @@ function drainPending(): void {
  *
  * @param messages — One `down()` payload; order within each group is preserved.
  * @returns `immediate` (non-phase-2) and `deferred` (phase-2) tuples.
+ *
+ * @category core
  */
 export function partitionForBatch(messages: Messages): {
 	immediate: Messages;
@@ -154,6 +160,8 @@ export function partitionForBatch(messages: Messages): {
  *
  * core.emitWithBatch((msgs) => console.log(msgs), [[core.DIRTY], [core.DATA, 42]]);
  * ```
+ *
+ * @category core
  */
 export function emitWithBatch(emit: (messages: Messages) => void, messages: Messages): void {
 	if (messages.length === 0) {

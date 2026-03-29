@@ -1,9 +1,9 @@
 ---
 title: "distinctUntilChanged()"
-description: "Suppress adjacent duplicates; delegates to node-level `equals` (default `Object.is`)."
+description: "Suppresses adjacent duplicates using `equals` (default `Object.is`)."
 ---
 
-Suppress adjacent duplicates; delegates to node-level `equals` (default `Object.is`).
+Suppresses adjacent duplicates using `equals` (default `Object.is`).
 
 ## Signature
 
@@ -19,6 +19,18 @@ function distinctUntilChanged<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `equals` | `(a: T, b: T) =&gt; boolean` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `equals` | `(a: T, b: T) =&gt; boolean` | Optional equality for consecutive values. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Deduped stream.
+
+## Basic Usage
+
+```ts
+import { distinctUntilChanged, state } from "@graphrefly/graphrefly-ts";
+
+const n = distinctUntilChanged(state(1));
+```

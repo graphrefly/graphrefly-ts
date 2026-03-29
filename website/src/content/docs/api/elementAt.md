@@ -1,9 +1,9 @@
 ---
 title: "elementAt()"
-description: "Zero-based index: emit the `index`th `DATA`, then `COMPLETE`."
+description: "Emits the `index`th **`DATA`** (zero-based), then **`COMPLETE`**."
 ---
 
-Zero-based index: emit the `index`th `DATA`, then `COMPLETE`.
+Emits the `index`th **`DATA`** (zero-based), then **`COMPLETE`**.
 
 ## Signature
 
@@ -15,6 +15,18 @@ function elementAt<T>(source: Node<T>, index: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `index` | `number` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `index` | `number` | Zero-based emission index. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Single indexed value.
+
+## Basic Usage
+
+```ts
+import { elementAt, state } from "@graphrefly/graphrefly-ts";
+
+const n = elementAt(state(0), 2);
+```

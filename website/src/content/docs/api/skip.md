@@ -1,10 +1,9 @@
 ---
 title: "skip()"
-description: "Skip the first `count` **`DATA`** emissions from `source`. `RESOLVED` settlements do not\nadvance the counter."
+description: "Skips the first `count` **`DATA`** emissions. `RESOLVED` does not advance the counter."
 ---
 
-Skip the first `count` **`DATA`** emissions from `source`. `RESOLVED` settlements do not
-advance the counter.
+Skips the first `count` **`DATA`** emissions. `RESOLVED` does not advance the counter.
 
 ## Signature
 
@@ -16,6 +15,18 @@ function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `count` | `number` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `count` | `number` | Number of `DATA` values to drop. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Skipped stream.
+
+## Basic Usage
+
+```ts
+import { skip, state } from "@graphrefly/graphrefly-ts";
+
+const n = skip(state(0), 2);
+```

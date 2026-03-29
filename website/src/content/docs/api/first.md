@@ -1,9 +1,9 @@
 ---
 title: "first()"
-description: "First `DATA` from `source`, then `COMPLETE`."
+description: "Emits the first **`DATA`** then **`COMPLETE`** (same as `take(source, 1)`)."
 ---
 
-First `DATA` from `source`, then `COMPLETE`.
+Emits the first **`DATA`** then **`COMPLETE`** (same as `take(source, 1)`).
 
 ## Signature
 
@@ -15,5 +15,17 @@ function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - Single-value stream.
+
+## Basic Usage
+
+```ts
+import { first, state } from "@graphrefly/graphrefly-ts";
+
+const n = first(state(42));
+```

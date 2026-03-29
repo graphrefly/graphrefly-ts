@@ -1,9 +1,9 @@
 ---
 title: "effect()"
-description: "Side-effect node: `fn` returns nothing; no auto-emit from return value."
+description: "Runs a side-effect when deps settle; return value is not auto-emitted."
 ---
 
-Side-effect node: `fn` returns nothing; no auto-emit from return value.
+Runs a side-effect when deps settle; return value is not auto-emitted.
 
 ## Signature
 
@@ -15,5 +15,20 @@ function effect(deps: readonly Node[], fn: NodeFn<unknown>): Node<unknown>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `deps` | `readonly Node[]` |  |
-| `fn` | `NodeFn&lt;unknown&gt;` |  |
+| `deps` | `readonly Node[]` | Nodes to watch. |
+| `fn` | `NodeFn&lt;unknown&gt;` | Side-effect body. |
+
+## Returns
+
+`Node&lt;unknown&gt;` - Effect node.
+
+## Basic Usage
+
+```ts
+import { effect, state } from "@graphrefly/graphrefly-ts";
+
+const n = state(1);
+effect([n], ([v]) => {
+    console.log(v);
+  });
+```

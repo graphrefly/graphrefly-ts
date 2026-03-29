@@ -1,10 +1,9 @@
 ---
 title: "takeUntil()"
-description: "Emit values from `source` until `notifier` delivers a matching message, then `COMPLETE`.\nBy default triggers on `DATA` from the notifier. Pass `predicate` for c"
+description: "Forwards `source` until `notifier` matches `predicate` (default: notifier **`DATA`**), then **`COMPLETE`**."
 ---
 
-Emit values from `source` until `notifier` delivers a matching message, then `COMPLETE`.
-By default triggers on `DATA` from the notifier. Pass `predicate` for custom trigger logic.
+Forwards `source` until `notifier` matches `predicate` (default: notifier **`DATA`**), then **`COMPLETE`**.
 
 ## Signature
 
@@ -20,6 +19,20 @@ function takeUntil<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `notifier` | `Node` |  |
-| `opts` | `ExtraOpts & { predicate?: (msg: Message) =&gt; boolean }` |  |
+| `source` | `Node&lt;T&gt;` | Main upstream. |
+| `notifier` | `Node` | Triggers completion when `predicate(msg)` is true. |
+| `opts` | `ExtraOpts & { predicate?: (msg: Message) =&gt; boolean }` | Optional , plus `predicate` for custom notifier matching. |
+
+## Returns
+
+`Node&lt;T&gt;` - Truncated stream.
+
+## Basic Usage
+
+```ts
+import { producer, takeUntil, state } from "@graphrefly/graphrefly-ts";
+
+const src = state(1);
+const stop = producer((_d, a) => a.emit(undefined));
+const n = takeUntil(src, stop);
+```

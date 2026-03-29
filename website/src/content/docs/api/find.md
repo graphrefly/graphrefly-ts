@@ -1,9 +1,9 @@
 ---
 title: "find()"
-description: "First value matching `predicate`, then `COMPLETE`."
+description: "Emits the first value matching `predicate`, then **`COMPLETE`**."
 ---
 
-First value matching `predicate`, then `COMPLETE`.
+Emits the first value matching `predicate`, then **`COMPLETE`**.
 
 ## Signature
 
@@ -19,6 +19,18 @@ function find<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `source` | `Node&lt;T&gt;` |  |
-| `predicate` | `(value: T) =&gt; boolean` |  |
-| `opts` | `ExtraOpts` |  |
+| `source` | `Node&lt;T&gt;` | Upstream node. |
+| `predicate` | `(value: T) =&gt; boolean` | Match test. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;T&gt;` - First-match stream.
+
+## Basic Usage
+
+```ts
+import { find, state } from "@graphrefly/graphrefly-ts";
+
+const n = find(state(1), (x) => x > 0);
+```

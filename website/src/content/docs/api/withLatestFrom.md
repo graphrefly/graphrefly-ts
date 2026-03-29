@@ -1,10 +1,9 @@
 ---
 title: "withLatestFrom()"
-description: "When `primary` settles, emit `[primary, latestSecondary]`. Updates from `secondary` alone\nrefresh the cached secondary value but do not emit."
+description: "When `primary` settles, emits `[primary, latestSecondary]`. `secondary` alone updates cache only."
 ---
 
-When `primary` settles, emit `[primary, latestSecondary]`. Updates from `secondary` alone
-refresh the cached secondary value but do not emit.
+When `primary` settles, emits `[primary, latestSecondary]`. `secondary` alone updates cache only.
 
 ## Signature
 
@@ -20,6 +19,18 @@ function withLatestFrom<A, B>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `primary` | `Node&lt;A&gt;` |  |
-| `secondary` | `Node&lt;B&gt;` |  |
-| `opts` | `ExtraOpts` |  |
+| `primary` | `Node&lt;A&gt;` | Main stream. |
+| `secondary` | `Node&lt;B&gt;` | Latest value is paired on each primary emission. |
+| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+
+## Returns
+
+`Node&lt;readonly [A, B]&gt;` - Paired stream.
+
+## Basic Usage
+
+```ts
+import { state, withLatestFrom } from "@graphrefly/graphrefly-ts";
+
+const n = withLatestFrom(state(1), state("x"));
+```

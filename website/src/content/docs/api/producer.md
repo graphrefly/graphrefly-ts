@@ -1,9 +1,9 @@
 ---
 title: "producer()"
-description: "Auto source: no deps; `fn` runs on subscribe and uses `actions.emit` / `actions.down`."
+description: "Creates a producer node with no deps; `fn` runs when the first subscriber connects."
 ---
 
-Auto source: no deps; `fn` runs on subscribe and uses `actions.emit` / `actions.down`.
+Creates a producer node with no deps; `fn` runs when the first subscriber connects.
 
 ## Signature
 
@@ -15,5 +15,19 @@ function producer<T = unknown>(fn: NodeFn<T>, opts?: NodeOptions): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `NodeFn&lt;T&gt;` |  |
-| `opts` | `NodeOptions` |  |
+| `fn` | `NodeFn&lt;T&gt;` | Receives deps (empty) and ; use `emit` / `down` to push. |
+| `opts` | `NodeOptions` | Optional . |
+
+## Returns
+
+`Node&lt;T&gt;` - Producer node.
+
+## Basic Usage
+
+```ts
+import { producer } from "@graphrefly/graphrefly-ts";
+
+const tick = producer((_d, a) => {
+    a.emit(1);
+  });
+```
