@@ -64,9 +64,9 @@ From **§3** (see `src/__tests__/graph/graph.test.ts`, `validate-describe-append
 
 ---
 
-## What to test — extra operators (future)
+## What to test — extra operators
 
-Tier **1** (sync-style): happy path, DIRTY propagation, RESOLVED when suppressing duplicate value, error/complete propagation, reconnect, diamond where applicable.
+Tier **1** (sync-style): happy path, DIRTY propagation, RESOLVED when suppressing duplicate value, error/complete propagation, reconnect, diamond where applicable. For **`merge`**, assert **`COMPLETE` only after every inner source has completed** (spec §1.3.5, same as multi-dep passthrough).
 
 Tier **2** (async / dynamic): same plus teardown (timers, inner subs), reconnect freshness, races called out in spec/roadmap.
 

@@ -139,12 +139,12 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 ### 2.1 — Tier 1 operators (sync, static deps)
 
-- [ ] `map`, `filter`, `scan`, `reduce`
-- [ ] `take`, `skip`, `takeWhile`, `takeUntil`
-- [ ] `first`, `last`, `find`, `elementAt`
-- [ ] `startWith`, `tap`, `distinctUntilChanged`, `pairwise`
-- [ ] `combine`, `merge`, `withLatestFrom`, `zip`
-- [ ] `concat`, `race`
+- [x] `map`, `filter`, `scan`, `reduce`
+- [x] `take`, `skip`, `takeWhile`, `takeUntil`
+- [x] `first`, `last`, `find`, `elementAt`
+- [x] `startWith`, `tap`, `distinctUntilChanged`, `pairwise`
+- [x] `combine`, `merge`, `withLatestFrom`, `zip`
+- [x] `concat`, `race`
 
 ### 2.2 — Tier 2 operators (async, dynamic)
 

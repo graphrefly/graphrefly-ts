@@ -6,6 +6,7 @@ import {
 	extra,
 	GuardDenied,
 	graph,
+	map,
 	policy,
 	version,
 } from "../index.js";
@@ -20,6 +21,7 @@ describe("graphrefly", () => {
 		expect(typeof graph).toBe("object");
 		expect(typeof extra).toBe("object");
 		expect(typeof graph.Graph).toBe("function");
+		expect(typeof map).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {

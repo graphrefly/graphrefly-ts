@@ -296,6 +296,29 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 
 2. **Describe `type` before first run (operator vs derived).** Both ports: `describeKind` / `describe_kind` on `NodeOptions` and sugar (`effect`, `producer`, `derived`); operators that only use `down()`/`emit()` still infer via `_manualEmitUsed` / `_manual_emit_used` after a run unless `describeKind: "operator"` / `describe_kind="operator"` is set.
 
+3. **Tier 1 extra operators (roadmap 2.1).** TypeScript ships `src/extra/operators.ts`; Python ships `graphrefly.extra.tier1`. **Parity aligned (2026-03-28):**
+
+   | Operator | Aligned behavior |
+   |----------|-----------------|
+   | `skip` | Both count wire `DATA` only (via `onMessage`); initial dep settlement does not consume a skip slot |
+   | `reduce` | Both: COMPLETE-gated fold — accumulate silently, emit once on COMPLETE (not alias for `scan`) |
+   | `race` | Both: winner-lock — first source to emit DATA wins, continues forwarding only that source |
+   | `merge` | Both: dirty bitmask tracking; single DIRTY downstream per wave; `COMPLETE` after all sources complete |
+   | `zip` | Both: only DATA enqueues (RESOLVED does not, per spec §1.3.3); COMPLETE when a source completes with empty buffer or all complete |
+   | `concat` | Both: buffer DATA from second source during phase 0; replay on handoff |
+   | `takeUntil` | Both: default trigger on DATA only from notifier; optional `predicate` for custom trigger |
+   | `withLatestFrom` | Both: full `onMessage` — suppress secondary-only emissions; emit only on primary settle |
+   | `filter` | Both: pure predicate gate — no implicit dedup (use `distinctUntilChanged` for that) |
+   | `scan` | Both: delegate equality to `node(equals=eq)`, no manual RESOLVED in compute |
+   | `distinctUntilChanged` | Both: delegate to `node(equals=eq)` |
+   | `pairwise` | Both: explicit RESOLVED for first value (no pair yet) |
+   | `takeWhile` | Both: predicate exceptions handled by node-level error catching (spec §2.4) |
+   | `startWith` | Both: inline `a.emit(initial)` then `a.emit(v)` in compute |
+   | `combine/merge/zip/race` | Both: accept empty sources (degenerate case: empty tuple or COMPLETE producer) |
+   | `last` | Both: sentinel for no-default — empty completion without default emits only COMPLETE |
+
+   **Deferred QA items:** see §Deferred follow-ups.
+
 ---
 
 ## Potential optimizations
@@ -362,14 +385,25 @@ These came out of QA review; behavior is **not** “wrong” until aligned with 
 
 ## Deferred follow-ups (QA)
 
-Non-blocking items tracked for later; not optimizations per se.
+Non-blocking items tracked for later; not optimizations per se. Keep this section **identical** in `graphrefly-py/docs/optimizations.md` and here (aside from language-specific labels in the first table).
 
 | Item | Notes |
-|------|--------|
-| **`lastDepValues` + `Object.is`** | Skips `fn` when dep snapshots are referentially equal. Fine for immutable values; misleading if deps are mutated in place. |
-| **`sideEffects: false` in `package.json`** | Safe while the library has no import-time side effects. Revisit if global registration or polyfills are added at module load. |
-| **JSDoc on `node()` / public types** | `docs/docs-guidance.md`: add JSDoc on new public exports. |
+|------|-------|
+| **`lastDepValues` + `Object.is` / referential equality** | Skips `fn` when dep snapshots are referentially equal. Fine for immutable values; misleading if deps are mutated in place. |
+| **`sideEffects: false` in `package.json`** | TypeScript package only. Safe while the library has no import-time side effects. Revisit if global registration or polyfills are added at module load. |
+| **JSDoc / docstrings on `node()` and public APIs** | `docs/docs-guidance.md`: JSDoc on new TS exports; docstrings on new Python public APIs. |
 | **Roadmap §0.3 checkboxes** | Mark Phase 0.3 items when the team agrees the milestone is complete. |
+
+### Tier 1 extra operators (roadmap 2.1) — deferred semantics (QA)
+
+Applies to `src/extra/operators.ts` and `graphrefly.extra.tier1`. **Keep the table below identical in both repos’ `docs/optimizations.md`.**
+
+| Item | Notes |
+|------|-------|
+| **`takeUntil` / `take_until` + notifier `DIRTY`** | Decide whether the first notifier signal that ends the primary should be any protocol tuple (e.g. a lone `DIRTY`) or only phase-2 / `DATA` (Rx-style “next”). Implementations may differ until aligned. |
+| **`zip` + partial queues** | When one inner source completes, buffered values that never formed a full tuple are dropped; downstream then completes. Document if stricter Rx parity is required. |
+| **`concat` + `ERROR` on the second source before the first completes** | Phase gating ignores the second source until the first completes; an `ERROR` on the second during phase 0 may be swallowed until phase 1. Decide whether tail-source errors should short-circuit early. |
+| **`race` + pre-winner `DIRTY`** | Before the first winning `DATA`, `DIRTY` (and other tuples) may be forwarded from more than one inner source (TypeScript: `take(merge(...), 1)`; Python: multi-dep `on_message`). JSDoc on TS `race` notes this; a stricter “winner-only” behavior would need a different implementation in either port. |
 
 ---
 

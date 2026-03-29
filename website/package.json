@@ -4,8 +4,11 @@
 	"type": "module",
 	"scripts": {
 		"sync-docs": "node scripts/sync-docs.mjs",
-		"predev": "pnpm sync-docs",
-		"prebuild": "pnpm sync-docs",
+		"sync-docs:check": "node scripts/sync-docs.mjs --check",
+		"docs:gen": "node scripts/gen-api-docs.mjs",
+		"docs:gen:check": "node scripts/gen-api-docs.mjs --check",
+		"predev": "pnpm sync-docs && pnpm docs:gen",
+		"prebuild": "pnpm sync-docs && pnpm docs:gen",
 		"dev": "astro dev",
 		"start": "astro dev",
 		"build": "astro build",

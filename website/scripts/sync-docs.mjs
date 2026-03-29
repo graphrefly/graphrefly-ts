@@ -1,15 +1,27 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const websiteRoot = join(__dirname, "..");
 const repoDocs = join(websiteRoot, "..", "docs");
+const specRepo = join(websiteRoot, "..", "..", "graphrefly");
 const outDir = join(websiteRoot, "src", "content", "docs");
 
-/** Map source filename → Starlight slug (path under /) */
-const FILES = [
+const checkMode = process.argv.includes("--check");
+
+/**
+ * Sources:
+ *   - SHARED: pulled from ~/src/graphrefly (canonical spec repo)
+ *   - LOCAL:  pulled from this repo's docs/
+ *
+ * Format: [sourceDir, srcName, destName, title]
+ */
+const SHARED_FILES = [
 	["GRAPHREFLY-SPEC.md", "spec.md", "Specification"],
+];
+
+const LOCAL_FILES = [
 	["roadmap.md", "roadmap.md", "Roadmap"],
 	["optimizations.md", "optimizations.md", "Optimizations"],
 	["benchmark.md", "benchmark.md", "Benchmark"],
@@ -33,27 +45,67 @@ ${body.replace(/^\ufeff/, "")}
 `;
 }
 
-mkdirSync(outDir, { recursive: true });
-
-for (const [srcName, destName, defaultTitle] of FILES) {
-	const srcPath = join(repoDocs, srcName);
+function syncFile(srcPath, destName, defaultTitle) {
 	let body;
 	try {
 		body = readFileSync(srcPath, "utf8");
 	} catch {
 		console.warn(`[sync-docs] skip (missing): ${srcPath}`);
-		continue;
+		return false;
 	}
 	const title = defaultTitle || titleFromBody(body);
 	const desc =
-		srcName === "GRAPHREFLY-SPEC.md"
+		destName === "spec.md"
 			? "Behavior spec for graphrefly-ts and graphrefly-py."
 			: `GraphReFly — ${title}.`;
 	const destPath = join(outDir, destName);
-	writeFileSync(destPath, withFrontmatter(body, title, desc), "utf8");
-	console.log(`[sync-docs] ${srcName} → ${destName}`);
+	const content = withFrontmatter(body, title, desc);
+
+	if (checkMode) {
+		if (existsSync(destPath)) {
+			const existing = readFileSync(destPath, "utf8");
+			if (existing !== content) {
+				console.log(`  ⚠ ${destName} is stale`);
+				return true; // stale
+			}
+			console.log(`  ✓ ${destName} is up to date`);
+		} else {
+			console.log(`  ⚠ ${destName} does not exist`);
+			return true; // stale
+		}
+		return false;
+	}
+
+	writeFileSync(destPath, content, "utf8");
+	console.log(`[sync-docs] ${destName}`);
+	return false;
 }
 
-/** Optional: mirror `../graphrefly-py/docs` into `src/content/docs/py/` and add Starlight sidebar links. */
+mkdirSync(outDir, { recursive: true });
 
-console.log("[sync-docs] done.");
+let stale = 0;
+
+// Shared spec from canonical repo
+for (const [srcName, destName, defaultTitle] of SHARED_FILES) {
+	const srcPath = join(specRepo, srcName);
+	// Fallback: if shared repo not found, try local docs/
+	const fallbackPath = join(repoDocs, srcName);
+	const path = existsSync(srcPath) ? srcPath : fallbackPath;
+	if (syncFile(path, destName, defaultTitle)) stale++;
+}
+
+// Local docs from this repo
+for (const [srcName, destName, defaultTitle] of LOCAL_FILES) {
+	const srcPath = join(repoDocs, srcName);
+	if (syncFile(srcPath, destName, defaultTitle)) stale++;
+}
+
+if (checkMode) {
+	if (stale > 0) {
+		console.log(`\n${stale} file(s) stale. Run 'pnpm sync-docs' to regenerate.`);
+		process.exit(1);
+	}
+	console.log("\n[sync-docs] all files up to date.");
+} else {
+	console.log("[sync-docs] done.");
+}

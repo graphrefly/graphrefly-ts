@@ -1,4 +1,4 @@
 /**
  * Extra layer: operators, sources, sinks (Phase 2+).
  */
-export {};
+export * from "./operators.js";
