@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600;700;900&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ======== Reset & Base ======== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --ink:#0a0a0f;
+  --ink-deep:#08080c;
+  --ink-raised:#0e0e14;
+  --aqua:#4de8c2;
+  --aqua-dim:#2bb89a;
+  --warm:#c4a882;
+  --stone:#6b7280;
+  --parchment:#f5f0e8;
+  --purple:#a78bfa;
+  --pink:#f472b6;
+  --serif:'Noto Serif SC',serif;
+  --sans:'Source Sans 3',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);
+  color:var(--parchment);
+  font-family:var(--sans);
+  font-weight:400;
+  line-height:1.7;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+
+/* ======== Noise overlay ======== */
+body::after{
+  content:'';
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:9999;
+  opacity:.03;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:128px 128px;
+}
+
+/* ======== Header ======== */
+.header{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 2.5rem;
+  background:rgba(10,10,15,.6);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(77,232,194,.06);
+  transition:background .3s;
+}
+.header-mark{
+  font-family:var(--serif);font-weight:700;font-size:1.25rem;letter-spacing:.02em;
+}
+.header-mark span{color:var(--aqua)}
+.header-nav{display:flex;align-items:center;gap:2rem}
+.header-nav a{
+  font-size:.875rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--stone);transition:color .25s;
+}
+.header-nav a:hover{color:var(--parchment)}
+.header-nav .search-icon{
+  width:18px;height:18px;stroke:var(--stone);cursor:pointer;transition:stroke .25s;
+}
+.header-nav .search-icon:hover{stroke:var(--parchment)}
+
+/* ======== Hero ======== */
+.hero{
+  position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+.hero-bg{position:absolute;inset:0;z-index:0}
+
+/* Orbs */
+.orb{
+  position:absolute;border-radius:50%;filter:blur(100px);
+  will-change:transform;
+}
+.orb--aqua{
+  width:500px;height:500px;background:rgba(77,232,194,.18);
+  top:10%;left:15%;
+  animation:float-a 24s ease-in-out infinite;
+}
+.orb--gold{
+  width:400px;height:400px;background:rgba(196,168,130,.14);
+  top:50%;right:10%;
+  animation:float-b 28s ease-in-out infinite;
+}
+.orb--purple{
+  width:350px;height:350px;background:rgba(167,139,250,.12);
+  bottom:10%;left:40%;
+  animation:float-c 22s ease-in-out infinite;
+}
+@keyframes float-a{
+  0%,100%{transform:translate(0,0) scale(1)}
+  33%{transform:translate(60px,-40px) scale(1.1)}
+  66%{transform:translate(-30px,50px) scale(.95)}
+}
+@keyframes float-b{
+  0%,100%{transform:translate(0,0) scale(1)}
+  25%{transform:translate(-50px,30px) scale(1.08)}
+  50%{transform:translate(40px,-60px) scale(.92)}
+  75%{transform:translate(-20px,-20px) scale(1.05)}
+}
+@keyframes float-c{
+  0%,100%{transform:translate(0,0) scale(1)}
+  40%{transform:translate(50px,40px) scale(1.12)}
+  70%{transform:translate(-40px,-30px) scale(.9)}
+}
+
+/* SVG flow lines */
+.hero-lines{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.5}
+.hero-lines svg{width:100%;height:100%}
+.flow-line{
+  fill:none;stroke-width:2.5;stroke-linecap:round;
+  stroke-dasharray:1600;stroke-dashoffset:1600;
+}
+.flow-line--1{stroke:url(#grad-aqua);animation:draw 4s ease forwards .5s}
+.flow-line--2{stroke:url(#grad-warm);animation:draw 4s ease forwards 1s;stroke-width:3}
+.flow-line--3{stroke:url(#grad-purple);animation:draw 4s ease forwards 1.5s;stroke-width:2}
+.flow-line--4{stroke:url(#grad-aqua);animation:draw 4s ease forwards 1.8s;stroke-width:1.5;opacity:.5}
+.flow-line--5{stroke:url(#grad-warm);animation:draw 4s ease forwards 2.1s;stroke-width:1;opacity:.4}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* Vertical decorative text */
+.hero-vertical{
+  position:absolute;z-index:2;
+  writing-mode:vertical-rl;
+  font-family:var(--serif);font-size:.8rem;letter-spacing:.5em;
+  color:rgba(196,168,130,.15);
+  user-select:none;
+}
+.hero-vertical--left{left:2rem;top:30%}
+.hero-vertical--right{right:2rem;top:38%}
+
+/* Hero content */
+.hero-content{
+  position:relative;z-index:3;
+  max-width:900px;
+  text-align:center;
+  padding:6rem 2rem 4rem;
+}
+.hero-kicker{
+  font-size:.75rem;font-weight:600;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--aqua);margin-bottom:1.5rem;
+  opacity:0;animation:fadeUp .8s ease forwards .3s;
+}
+.hero-title{
+  font-family:var(--serif);font-weight:900;
+  font-size:clamp(3rem,8vw,6rem);line-height:1.05;
+  margin-bottom:.5rem;
+  opacity:0;animation:fadeUp .8s ease forwards .5s;
+}
+.hero-title .re{
+  background:linear-gradient(135deg,var(--aqua),#38bdf8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero-title .dot{color:var(--warm)}
+
+.hero-subtitle{
+  font-family:var(--serif);font-size:1.15rem;
+  color:rgba(196,168,130,.5);
+  letter-spacing:.12em;font-style:italic;
+  margin-bottom:2rem;
+  opacity:0;animation:fadeUp .8s ease forwards .65s;
+}
+
+.hero-tagline{
+  font-size:1.25rem;font-weight:300;line-height:1.6;
+  color:var(--parchment);
+  margin-bottom:2.5rem;
+  opacity:0;animation:fadeUp .8s ease forwards .85s;
+}
+.hero-cta{
+  display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;
+  opacity:0;animation:fadeUp .8s ease forwards 1s;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.75rem 1.75rem;border-radius:6px;
+  font-family:var(--sans);font-size:.875rem;font-weight:600;
+  letter-spacing:.04em;transition:all .25s;cursor:pointer;border:none;
+}
+.btn--primary{
+  background:var(--aqua);color:var(--ink);
+}
+.btn--primary:hover{background:#6aefd3;box-shadow:0 0 30px rgba(77,232,194,.25)}
+.btn--ghost{
+  background:transparent;color:var(--parchment);
+  border:1px solid rgba(245,240,232,.15);
+}
+.btn--ghost:hover{border-color:rgba(245,240,232,.35);background:rgba(245,240,232,.04)}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* ======== Ripple dividers ======== */
+.ripple-divider{
+  width:100%;overflow:hidden;line-height:0;pointer-events:none;
+}
+.ripple-divider svg{width:100%;display:block}
+.ripple-divider--up{transform:scaleY(-1)}
+
+/* ======== Sections shared ======== */
+section{padding:6rem 2rem}
+.container{max-width:1100px;margin:0 auto}
+.section-label{
+  font-size:.7rem;font-weight:600;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--aqua);margin-bottom:1rem;
+}
+
+/* ======== Philosophy ======== */
+.philosophy{position:relative;overflow:hidden;background:var(--ink-raised)}
+.philosophy .container{
+  display:flex;gap:4rem;align-items:center;
+}
+.phil-stroke{
+  width:3px;min-height:300px;flex-shrink:0;
+  background:linear-gradient(to bottom,transparent,var(--warm),transparent);
+  border-radius:2px;
+}
+.phil-body{max-width:700px}
+.phil-quote{
+  font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.8rem);
+  font-weight:700;line-height:1.4;
+  margin-bottom:.75rem;
+  color:var(--parchment);
+}
+.phil-translation{
+  font-size:1.1rem;color:var(--warm);font-style:italic;margin-bottom:2rem;
+}
+.phil-text{
+  font-size:1rem;color:var(--stone);line-height:1.8;max-width:600px;
+}
+.phil-text strong{color:var(--parchment);font-weight:600}
+
+/* ======== Features ======== */
+.features-section{background:var(--ink)}
+.features-section h2{
+  font-family:var(--serif);font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:700;
+  margin-bottom:.5rem;color:var(--parchment);
+}
+.features-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;
+  margin-top:2.5rem;
+}
+.feature-card{
+  position:relative;
+  background:rgba(14,14,20,.7);
+  border:1px solid rgba(77,232,194,.06);
+  border-radius:10px;padding:1.8rem 1.6rem;
+  overflow:hidden;cursor:default;
+  opacity:0;transform:translateY(20px);
+  transition:all .5s ease-out;
+}
+.feature-card.visible{opacity:1;transform:translateY(0)}
+.feature-card:hover{
+  transform:translateY(-4px);
+  box-shadow:0 16px 40px rgba(0,0,0,.25);
+  border-color:rgba(77,232,194,.12);
+}
+/* Contour texture in card */
+.feature-card::before{
+  content:'';position:absolute;top:-50%;right:-50%;width:200%;height:200%;
+  background:radial-gradient(ellipse at 70% 30%,rgba(77,232,194,.02),transparent 50%);
+  pointer-events:none;
+}
+/* Left accent border */
+.feature-card::after{
+  content:'';position:absolute;left:0;top:10%;bottom:10%;width:3px;border-radius:3px;
+}
+.feature-card[data-accent="warm"]::after{background:var(--warm)}
+.feature-card[data-accent="aqua"]::after{background:var(--aqua)}
+.feature-card[data-accent="purple"]::after{background:var(--purple)}
+.feature-card[data-accent="pink"]::after{background:var(--pink)}
+.feature-coord{
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.15em;
+  color:var(--stone);margin-bottom:1rem;
+  display:flex;align-items:center;gap:.4rem;
+}
+.feature-coord .marker{font-size:.55rem}
+.feature-card[data-accent="warm"] .marker{color:var(--warm)}
+.feature-card[data-accent="aqua"] .marker{color:var(--aqua)}
+.feature-card[data-accent="purple"] .marker{color:var(--purple)}
+.feature-card[data-accent="pink"] .marker{color:var(--pink)}
+.feature-card h3{
+  font-family:var(--serif);font-size:1.1rem;font-weight:600;margin-bottom:.6rem;letter-spacing:-.01em;
+}
+.feature-card p{font-size:.88rem;color:var(--stone);line-height:1.65}
+.feature-card p strong{color:var(--aqua);font-weight:600}
+
+/* ======== Code Preview ======== */
+.code-section{
+  background:var(--ink-raised);
+}
+.code-block{
+  max-width:700px;margin:2rem auto 0;
+  background:rgba(10,10,15,.8);
+  border:1px solid rgba(196,168,130,.12);
+  border-radius:10px;overflow:hidden;
+  font-family:var(--mono);font-size:.875rem;line-height:1.8;
+}
+.code-header{
+  display:flex;align-items:center;gap:6px;
+  padding:.75rem 1.25rem;
+  background:rgba(196,168,130,.05);
+  border-bottom:1px solid rgba(196,168,130,.08);
+}
+.code-dots{display:flex;gap:6px}
+.code-dot{width:10px;height:10px;border-radius:50%;background:rgba(245,240,232,.1)}
+.code-dot:nth-child(1){background:rgba(220,60,60,.5)}
+.code-dot:nth-child(2){background:rgba(196,168,130,.5)}
+.code-dot:nth-child(3){background:rgba(77,232,194,.5)}
+.code-header span{margin-left:auto;font-size:.7rem;color:var(--stone);letter-spacing:.08em}
+.code-body{padding:1.5rem 1.75rem;overflow-x:auto}
+.code-body .kw{color:var(--purple)}
+.code-body .fn{color:#38bdf8}
+.code-body .str{color:var(--aqua)}
+.code-body .num{color:var(--warm)}
+.code-body .cmt{color:rgba(107,114,128,.7);font-style:italic}
+.code-body .punct{color:var(--stone)}
+
+/* ======== Use Cases ======== */
+.use-cases-section{background:var(--ink);position:relative;overflow:hidden}
+.use-cases-section h2{
+  font-family:var(--serif);font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:700;
+  margin-bottom:.5rem;color:var(--parchment);
+}
+.use-cases-wrap{position:relative;margin-top:2.5rem}
+.use-cases-streams{position:absolute;inset:0;pointer-events:none;z-index:0}
+.use-cases-streams svg{width:100%;height:100%}
+.use-cases-streams path{fill:none;stroke-linecap:round}
+.use-cases-grid{
+  position:relative;z-index:1;
+  display:flex;flex-wrap:wrap;gap:2rem;justify-content:center;
+  align-items:flex-start;
+}
+.use-card{
+  width:180px;min-height:120px;
+  padding:1.25rem 1.75rem;
+  background:rgba(14,14,20,.75);
+  border:1px solid rgba(77,232,194,.1);
+  border-radius:999px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;
+  box-shadow:0 0 30px rgba(77,232,194,.04),0 8px 32px rgba(0,0,0,.3);
+  opacity:0;transform:translateY(20px) scale(.92);
+  transition:all .6s ease;
+}
+.use-card:nth-child(even){margin-top:3.5rem}
+.use-card.visible{opacity:1;transform:translateY(0) scale(1)}
+.use-card:nth-child(even).visible{transform:translateY(0) scale(1)}
+.use-card:hover{
+  border-color:rgba(77,232,194,.25);
+  box-shadow:0 0 40px rgba(77,232,194,.1),0 12px 40px rgba(0,0,0,.3);
+  transform:translateY(-4px) scale(1.03);
+}
+.use-card:nth-child(even):hover{transform:translateY(calc(0px - 4px)) scale(1.03)}
+.use-card-glyph{
+  font-size:1.3rem;margin-bottom:.4rem;
+  display:block;
+  filter:grayscale(.2);
+}
+.use-card h4{
+  font-family:var(--serif);font-size:.85rem;font-weight:600;margin-bottom:.3rem;
+  line-height:1.2;
+}
+.use-card p{font-size:.68rem;color:var(--stone);line-height:1.5}
+@media(max-width:768px){
+  .use-card{width:140px;padding:1.25rem 1rem}
+  .use-card h4{font-size:.8rem}
+  .use-cases-streams{display:none}
+}
+
+/* ======== Implementations CTA ======== */
+.impl-cta{text-align:center;padding:5rem 2rem;background:var(--ink-raised)}
+.impl-cta h2{
+  font-family:var(--serif);font-size:clamp(1.5rem,3vw,2.2rem);font-weight:700;
+  margin-bottom:.5rem;
+}
+.impl-cta h2 .sep{color:var(--stone);font-weight:300;margin:0 2.5rem}
+.impl-brush{
+  display:block;width:200px;height:3px;margin:1rem auto 2rem;
+  background:linear-gradient(90deg,transparent,var(--warm),transparent);
+  border-radius:2px;
+}
+.impl-cards{
+  display:flex;gap:0;justify-content:center;flex-wrap:wrap;align-items:stretch;
+  max-width:800px;margin:0 auto;
+}
+.impl-divider{
+  width:3px;flex-shrink:0;align-self:stretch;
+  background:linear-gradient(to bottom,transparent,var(--warm),transparent);
+  border-radius:2px;
+  margin:0 3rem;
+}
+.impl-card{
+  flex:1;min-width:260px;max-width:340px;
+  padding:2.5rem 2rem;
+  background:rgba(14,14,20,.6);
+  border:1px solid rgba(245,240,232,.06);
+  border-radius:12px;
+  text-align:center;
+  transition:border-color .3s,box-shadow .3s;
+}
+.impl-card:hover{border-color:rgba(77,232,194,.15);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.impl-card h3{
+  font-family:var(--serif);font-size:1.15rem;font-weight:600;margin-bottom:.4rem;
+}
+.impl-card .impl-lang{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;
+  color:var(--stone);margin-bottom:1.25rem;text-transform:uppercase;
+}
+.impl-card .btn{width:100%;justify-content:center}
+
+/* ======== Footer ======== */
+.footer{
+  border-top:1px solid rgba(245,240,232,.05);
+  padding:3rem 2rem;
+  text-align:center;
+  background:var(--ink);
+}
+.footer-mark{
+  font-family:var(--serif);font-weight:700;font-size:1rem;margin-bottom:.75rem;
+}
+.footer-mark span{color:var(--aqua)}
+.footer-text{font-size:.8rem;color:var(--stone);margin-bottom:1rem;max-width:500px;margin-left:auto;margin-right:auto}
+.footer-link{
+  font-size:.75rem;color:var(--stone);border-bottom:1px solid rgba(107,114,128,.3);
+  transition:color .25s;
+}
+.footer-link:hover{color:var(--parchment)}
+
+/* ======== Responsive ======== */
+@media(max-width:768px){
+  .header{padding:.75rem 1.25rem}
+  .header-nav{gap:1.25rem}
+  .hero-vertical{display:none}
+  .philosophy .container{flex-direction:column;gap:2rem}
+  .phil-stroke{min-height:3px;width:80px;height:3px}
+  section{padding:4rem 1.25rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ======== Header ======== -->
+<header class="header">
+  <div class="header-mark">Graph<span>re</span>Fly</div>
+  <nav class="header-nav">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/>
+    </svg>
+    <a href="#">Docs</a>
+    <a href="#">Spec</a>
+    <a href="https://github.com" target="_blank">GitHub</a>
+  </nav>
+</header>
+
+<!-- ======== Hero ======== -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="orb orb--aqua"></div>
+    <div class="orb orb--gold"></div>
+    <div class="orb orb--purple"></div>
+
+    <div class="hero-lines">
+      <svg viewBox="0 0 1440 900" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="grad-aqua" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="rgba(77,232,194,.6)"/>
+            <stop offset="100%" stop-color="rgba(77,232,194,0)"/>
+          </linearGradient>
+          <linearGradient id="grad-warm" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="rgba(196,168,130,.5)"/>
+            <stop offset="100%" stop-color="rgba(196,168,130,0)"/>
+          </linearGradient>
+          <linearGradient id="grad-purple" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(167,139,250,.4)"/>
+            <stop offset="100%" stop-color="rgba(167,139,250,0)"/>
+          </linearGradient>
+        </defs>
+        <path class="flow-line flow-line--1" d="M-50,350 C200,300 350,500 550,380 C750,260 900,450 1150,320 C1300,240 1400,350 1500,300"/>
+        <path class="flow-line flow-line--2" d="M-50,550 C150,500 300,650 500,520 C700,390 850,580 1100,480 C1250,420 1380,530 1500,470"/>
+        <path class="flow-line flow-line--3" d="M-50,200 C180,180 320,280 480,220 C640,160 800,300 1000,230 C1200,160 1350,250 1500,200"/>
+        <path class="flow-line flow-line--4" d="M-50,450 C200,420 380,550 580,470 C780,390 950,500 1180,430 C1320,380 1420,450 1500,420"/>
+        <path class="flow-line flow-line--5" d="M-50,150 C150,130 280,200 420,170 C560,140 720,250 900,200 C1080,150 1250,220 1500,180"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="hero-vertical hero-vertical--left">观其流而知其源</div>
+  <div class="hero-vertical hero-vertical--right">应于务亦留其迹</div>
+
+  <div class="hero-content">
+    <p class="hero-kicker">Reactive Graph Protocol</p>
+    <h1 class="hero-title">Graph<span class="re">re</span>Fly<span class="dot">.</span></h1>
+    <p class="hero-subtitle">state that flows</p>
+    <p class="hero-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+    <div class="hero-cta">
+      <a href="#" class="btn btn--primary">Read the spec</a>
+      <a href="#" class="btn btn--ghost">pip install graphrefly</a>
+      <a href="#" class="btn btn--ghost">graphrefly-py</a>
+    </div>
+  </div>
+</section>
+
+<!-- Sine divider: hero → philosophy (4 curves) -->
+<div class="ripple-divider">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,30 C180,10 360,50 540,30 C720,10 900,50 1080,30 C1260,10 1350,40 1440,30 L1440,60 L0,60 Z" fill="#0e0e14"/>
+    <path d="M0,30 C180,10 360,50 540,30 C720,10 900,50 1080,30 C1260,10 1350,40 1440,30" fill="none" stroke="#4de8c2" stroke-width="0.8" opacity="0.1"/>
+  </svg>
+</div>
+
+<!-- ======== Philosophy ======== -->
+<section class="philosophy">
+  <div class="container">
+    <div class="phil-stroke" aria-hidden="true"></div>
+    <div class="phil-body">
+      <p class="section-label">Philosophy</p>
+      <blockquote class="phil-quote">川流不息，光影自浮</blockquote>
+      <p class="phil-translation">"Stream flows, light glows — insight without interference."</p>
+      <p class="phil-text">
+        Data moves with relentless precision, yet its velocity demands a deeper, quieter clarity.
+        We embrace the art of <strong>non-intrusive observation</strong>&mdash;capturing the essence of the stream
+        without ever diverting its natural course. By allowing swift reactions to be
+        <strong>snapshotted, persisted, and resumed</strong> at will, we transform ephemeral code into
+        <strong>enduring, modular graphs</strong>.
+        This creates a shared reality where <strong>structural integrity meets liquid speed</strong>, allowing
+        <strong>humans and AI to cooperate</strong> on a single, transparent foundation. This is the simple alchemy of our
+        protocol: <strong>Graph + Reactive = Fly</strong>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Sine divider: philosophy → features (3 curves) -->
+<div class="ripple-divider ripple-divider--up">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,30 C240,12 480,48 720,30 C960,12 1200,48 1440,30 L1440,60 L0,60 Z" fill="#0e0e14"/>
+    <path d="M0,30 C240,12 480,48 720,30 C960,12 1200,48 1440,30" fill="none" stroke="#c4a882" stroke-width="0.6" opacity="0.07"/>
+  </svg>
+</div>
+
+<!-- ======== Features ======== -->
+<section class="features-section">
+  <div class="container">
+    <p class="section-label">Four Pillars</p>
+    <h2>The foundation beneath the flow</h2>
+    <div class="features-grid">
+      <div class="feature-card" data-accent="warm" data-reveal>
+        <div class="feature-coord"><span class="marker">&#x25C6;</span> N01 &middot; ENGINE</div>
+        <h3>Reactive Precision</h3>
+        <p>Combining <strong>Callbag-ish</strong> minimalism with <strong>Diamond-safe</strong> correctness. A protocol small enough for an LLM to reason about, yet robust enough to eliminate race conditions through a rigorous <strong>two-phase push</strong> mechanism (<strong>DIRTY</strong> then <strong>DATA</strong>). Every flow is glitch-free, high-performance, and mathematically sound.</p>
+      </div>
+      <div class="feature-card" data-accent="aqua" data-reveal>
+        <div class="feature-coord"><span class="marker">&#x25C6;</span> N02 &middot; CONTRACT</div>
+        <h3>Governed Integrity</h3>
+        <p>Trust is not an add-on; it is the protocol. With <strong>ABAC</strong> (Attribute-Based Access Control) and <strong>Versioning</strong> baked directly into both nodes and graphs, every state change is authorized, immutable, and auditable. Complex reactive systems remain stable, secure, and effortlessly reversible.</p>
+      </div>
+      <div class="feature-card" data-accent="purple" data-reveal>
+        <div class="feature-coord"><span class="marker">&#x25C6;</span> N03 &middot; VISION</div>
+        <h3>Living Blueprints</h3>
+        <p>Moving from ephemeral code to <strong>Introspectable Artifacts</strong>. Graphs are modular, pluggable solutions that encapsulate <strong>Values, Status, and Algorithm</strong> into a single, serializable unit. Through the <strong>Companion Store</strong>, every step is accountable and every metadata point is inspectable.</p>
+      </div>
+      <div class="feature-card" data-accent="pink" data-reveal>
+        <div class="feature-coord"><span class="marker">&#x25C6;</span> N04 &middot; FUTURE</div>
+        <h3>Agentic Co-operation</h3>
+        <p>A symbiotic workspace where <strong>Humans master the abstraction</strong> and <strong>AI masters the implementation</strong>. By unifying security, observability, and composability, GraphReFly provides the perfect arena for agents&mdash;human or LLM&mdash;to play to their strengths and rely on a shared, transparent logic.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Sine divider: features → code (5 curves) -->
+<div class="ripple-divider">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,30 C144,14 288,46 432,30 C576,14 720,46 864,30 C1008,14 1152,46 1296,30 C1368,22 1404,38 1440,30 L1440,60 L0,60 Z" fill="#0e0e14"/>
+    <path d="M0,30 C144,14 288,46 432,30 C576,14 720,46 864,30 C1008,14 1152,46 1296,30 C1368,22 1404,38 1440,30" fill="none" stroke="#4de8c2" stroke-width="0.7" opacity="0.08"/>
+  </svg>
+</div>
+
+<!-- ======== Code Preview ======== -->
+<section class="code-section">
+  <div class="container">
+    <p class="section-label">Quick Taste</p>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>example.ts</span>
+      </div>
+      <div class="code-body">
+        <pre><code><span class="kw">const</span> count <span class="punct">=</span> <span class="fn">state</span><span class="punct">(</span><span class="num">0</span><span class="punct">);</span>
+<span class="kw">const</span> doubled <span class="punct">=</span> <span class="fn">derived</span><span class="punct">([</span>count<span class="punct">],</span> <span class="punct">(</span>c<span class="punct">)</span> <span class="punct">=&gt;</span> c <span class="punct">*</span> <span class="num">2</span><span class="punct">);</span>
+<span class="fn">effect</span><span class="punct">([</span>doubled<span class="punct">],</span> <span class="punct">(</span>d<span class="punct">)</span> <span class="punct">=&gt;</span> console<span class="punct">.</span><span class="fn">log</span><span class="punct">(</span>d<span class="punct">));</span>
+
+count<span class="punct">.</span><span class="fn">down</span><span class="punct">([[</span><span class="str">DATA</span><span class="punct">,</span> <span class="num">1</span><span class="punct">]]);</span>  <span class="cmt">// logs: 2</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Sine divider: code → use cases (4 curves) -->
+<div class="ripple-divider ripple-divider--up">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,30 C180,12 360,48 540,30 C720,12 900,48 1080,30 C1260,12 1350,42 1440,30 L1440,60 L0,60 Z" fill="#0e0e14"/>
+    <path d="M0,30 C180,12 360,48 540,30 C720,12 900,48 1080,30 C1260,12 1350,42 1440,30" fill="none" stroke="#a78bfa" stroke-width="0.5" opacity="0.06"/>
+  </svg>
+</div>
+
+<!-- ======== Use Cases ======== -->
+<section class="use-cases-section">
+  <div class="container">
+    <p class="section-label">Where the stream leads</p>
+    <h2>Built for the current ahead</h2>
+    <div class="use-cases-wrap">
+      <!-- Dimmed stream curves connecting the bubbles -->
+      <div class="use-cases-streams">
+        <svg viewBox="0 0 1100 220" preserveAspectRatio="xMidYMid meet">
+          <path d="M60,110 C180,60 280,160 400,110 C520,60 620,160 740,110" stroke="rgba(77,232,194,.12)" stroke-width="1.5"/>
+          <path d="M360,110 C480,50 580,170 700,110 C820,50 920,170 1040,110" stroke="rgba(196,168,130,.08)" stroke-width="1"/>
+          <path d="M-20,130 C100,80 220,180 340,120 C460,60 580,160 700,100 C820,40 940,140 1120,90" stroke="rgba(167,139,250,.06)" stroke-width="0.8"/>
+        </svg>
+      </div>
+      <div class="use-cases-grid">
+        <div class="use-card" data-reveal>
+          <span class="use-card-glyph">&#x2699;</span>
+          <h4>Orchestration</h4>
+          <p>Observable, diamond-safe multi-step pipelines.</p>
+        </div>
+        <div class="use-card" data-reveal>
+          <span class="use-card-glyph">&#x21C4;</span>
+          <h4>Message Queue</h4>
+          <p>Buffered, back-pressured message passing.</p>
+        </div>
+        <div class="use-card" data-reveal>
+          <span class="use-card-glyph">&#x2691;</span>
+          <h4>AI Agentic Memory</h4>
+          <p>Inspectable graph state for LLM agents.</p>
+        </div>
+        <div class="use-card" data-reveal>
+          <span class="use-card-glyph">&#x26BF;</span>
+          <h4>Security</h4>
+          <p>Audit trails baked into the protocol.</p>
+        </div>
+        <div class="use-card" data-reveal>
+          <span class="use-card-glyph">&#x2615;</span>
+          <h4>Human + AI Ops</h4>
+          <p>Shared graphs for real-time co-operation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Sine divider: use cases → impl (3 curves) -->
+<div class="ripple-divider">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,30 C240,14 480,46 720,30 C960,14 1200,46 1440,30 L1440,60 L0,60 Z" fill="#0e0e14"/>
+    <path d="M0,30 C240,14 480,46 720,30 C960,14 1200,46 1440,30" fill="none" stroke="#c4a882" stroke-width="0.5" opacity="0.06"/>
+  </svg>
+</div>
+
+<!-- ======== Implementations CTA ======== -->
+<section class="impl-cta">
+  <p class="section-label">Implementations</p>
+  <div class="impl-cards">
+    <div class="impl-card">
+      <h3>graphrefly-ts</h3>
+      <p class="impl-lang">TypeScript</p>
+      <a href="https://github.com" class="btn btn--primary" target="_blank">View on GitHub</a>
+    </div>
+    <div class="impl-divider" aria-hidden="true"></div>
+    <div class="impl-card">
+      <h3>graphrefly-py</h3>
+      <p class="impl-lang">Python</p>
+      <a href="https://github.com" class="btn btn--ghost" target="_blank">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ======== Footer ======== -->
+<footer class="footer">
+  <div class="footer-mark">Graph<span>re</span>Fly</div>
+  <p class="footer-text">Reactive graph protocol for human + LLM co-operation.</p>
+  <a href="https://github.com" class="footer-link" target="_blank">GitHub</a>
+</footer>
+
+<!-- ======== Script ======== -->
+<script>
+(function(){
+  // IntersectionObserver for reveal animations
+  const reveals = document.querySelectorAll('[data-reveal]');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+    reveals.forEach(function(el, i) {
+      el.style.transitionDelay = (i % 5) * 0.12 + 's';
+      io.observe(el);
+    });
+  } else {
+    reveals.forEach(function(el) { el.classList.add('visible'); });
+  }
+
+  // Header background on scroll
+  var header = document.querySelector('.header');
+  window.addEventListener('scroll', function() {
+    if (window.scrollY > 60) {
+      header.style.background = 'rgba(10,10,15,.85)';
+    } else {
+      header.style.background = 'rgba(10,10,15,.6)';
+    }
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>

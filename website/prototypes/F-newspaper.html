@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0d0d0d;
+    --cream: #f5f0e6;
+    --aqua: #4de8c2;
+    --red: #c0392b;
+    --gray: #6b6b6b;
+    --rule-dark: #333;
+    --rule-light: #ccc;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--cream);
+    font-family: 'Lora', Georgia, 'Times New Roman', serif;
+    font-size: 17px;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* Paper grain overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+
+  /* Utility */
+  .small-caps {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .thin-rule {
+    border: none;
+    border-top: 1px solid var(--rule-dark);
+    margin: 0;
+  }
+
+  .thin-rule--light {
+    border-top-color: var(--rule-light);
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  /* ===================== MASTHEAD ===================== */
+  .masthead {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--black);
+    border-bottom: 1px solid var(--rule-dark);
+  }
+
+  .masthead__top-rule {
+    height: 3px;
+    background: var(--aqua);
+  }
+
+  .masthead__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 12px 40px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .masthead__title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: var(--cream);
+    text-align: center;
+  }
+
+  .masthead__nav {
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .masthead__nav a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gray);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+
+  .masthead__nav a:hover { color: var(--cream); }
+
+  .masthead__subtitle {
+    text-align: center;
+    padding: 6px 40px 8px;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .masthead__subtitle span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  /* ===================== HERO ===================== */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 140px 40px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero__orbs {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero__orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.12;
+  }
+
+  .hero__orb--1 {
+    width: 500px; height: 500px;
+    background: var(--aqua);
+    top: 10%; left: 15%;
+    animation: orb-drift-1 35s ease-in-out infinite;
+  }
+
+  .hero__orb--2 {
+    width: 400px; height: 400px;
+    background: var(--aqua);
+    bottom: 15%; right: 10%;
+    animation: orb-drift-2 40s ease-in-out infinite;
+  }
+
+  .hero__orb--3 {
+    width: 300px; height: 300px;
+    background: #2a7a6a;
+    top: 50%; left: 55%;
+    animation: orb-drift-3 32s ease-in-out infinite;
+  }
+
+  @keyframes orb-drift-1 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(40px, -30px); }
+    66% { transform: translate(-20px, 25px); }
+  }
+
+  @keyframes orb-drift-2 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(-35px, 20px); }
+    66% { transform: translate(25px, -40px); }
+  }
+
+  @keyframes orb-drift-3 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(30px, 35px); }
+    66% { transform: translate(-40px, -15px); }
+  }
+
+  .hero__svg-lines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .hero__svg-lines svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .flow-line {
+    fill: none;
+    stroke: var(--aqua);
+    stroke-width: 1;
+    opacity: 0.2;
+    stroke-dasharray: 1200;
+    stroke-dashoffset: 1200;
+    animation: draw-line 5s ease forwards;
+  }
+
+  .flow-line:nth-child(2) { animation-delay: 0.6s; }
+  .flow-line:nth-child(3) { animation-delay: 1.2s; }
+
+  @keyframes draw-line {
+    to { stroke-dashoffset: 0; }
+  }
+
+  .hero__content {
+    position: relative;
+    z-index: 2;
+    opacity: 0;
+    animation: fade-in 1.2s ease 0.3s forwards;
+  }
+
+  @keyframes fade-in {
+    to { opacity: 1; }
+  }
+
+  .hero__headline {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(72px, 12vw, 160px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 40px;
+  }
+
+  .hero__headline .aqua { color: var(--aqua); }
+  .hero__headline .red { color: var(--red); font-size: 0.8em; }
+
+  .hero__epigraph {
+    margin-bottom: 16px;
+  }
+
+  .hero__epigraph blockquote {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: clamp(22px, 3vw, 36px);
+    color: var(--cream);
+    position: relative;
+    display: inline-block;
+    padding: 0 50px;
+  }
+
+  .hero__epigraph blockquote::before,
+  .hero__epigraph blockquote::after {
+    font-family: 'Playfair Display', serif;
+    font-size: 72px;
+    color: var(--aqua);
+    opacity: 0.4;
+    position: absolute;
+    line-height: 1;
+  }
+
+  .hero__epigraph blockquote::before {
+    content: '\201C';
+    left: 0;
+    top: -10px;
+  }
+
+  .hero__epigraph blockquote::after {
+    content: '\201D';
+    right: 0;
+    bottom: -30px;
+  }
+
+  .hero__epigraph-translation {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--gray);
+    margin-top: 8px;
+  }
+
+  .hero__tagline {
+    font-family: 'Lora', serif;
+    font-size: 18px;
+    color: var(--gray);
+    margin-top: 32px;
+    margin-bottom: 40px;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero__ctas {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .hero__ctas a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--cream);
+    text-decoration: none;
+    border-bottom: 1px solid var(--aqua);
+    padding-bottom: 2px;
+    transition: color 0.3s, border-color 0.3s;
+  }
+
+  .hero__ctas a:hover {
+    color: var(--aqua);
+  }
+
+  .hero__date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  /* ===================== EDITORIAL SPREAD ===================== */
+  .editorial {
+    padding: 80px 0;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .editorial__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+    display: grid;
+    grid-template-columns: 1fr 1px minmax(0, 380px);
+    gap: 0 48px;
+  }
+
+  .editorial__main {
+    padding-right: 0;
+  }
+
+  .editorial__divider {
+    background: var(--rule-dark);
+    width: 1px;
+    align-self: stretch;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .section-header__rule {
+    flex: 1;
+    height: 1px;
+    background: var(--rule-dark);
+  }
+
+  .section-header__label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gray);
+    white-space: nowrap;
+  }
+
+  .section-header--light .section-header__rule {
+    background: var(--rule-light);
+  }
+
+  .section-header--light .section-header__label {
+    color: #999;
+  }
+
+  .editorial__section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 900;
+    margin-bottom: 24px;
+    line-height: 1.15;
+  }
+
+  .editorial__body p {
+    margin-bottom: 24px;
+    color: #d4d0c8;
+  }
+
+  .drop-cap::first-letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 4.2em;
+    float: left;
+    line-height: 0.8;
+    margin-right: 10px;
+    margin-top: 6px;
+    color: var(--aqua);
+    font-weight: 700;
+  }
+
+  .editorial__sidebar {
+    padding-top: 80px;
+  }
+
+  .pull-quote {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.6;
+    color: var(--cream);
+    border-left: 3px solid var(--aqua);
+    padding-left: 24px;
+    margin-bottom: 48px;
+  }
+
+  .protocol-box {
+    background: #151515;
+    border: 1px solid var(--rule-dark);
+    padding: 20px;
+  }
+
+  .protocol-box__title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 14px;
+  }
+
+  .protocol-box pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--cream);
+    overflow-x: auto;
+  }
+
+  .protocol-box .kw { color: var(--aqua); }
+  .protocol-box .cm { color: var(--gray); }
+
+  /* ===================== FEATURES / PRINCIPLES ===================== */
+  .principles {
+    padding: 80px 0;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .principles__grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px;
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 0;
+    margin-top: 48px;
+  }
+
+  .principles__col-rule {
+    background: var(--rule-dark);
+    width: 1px;
+  }
+
+  .principle {
+    padding: 32px 40px;
+  }
+
+  .principle:nth-child(-n+3) {
+    border-bottom: 1px solid var(--rule-dark);
+  }
+
+  .principle__marker {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--red);
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
+  .principle__title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: inline;
+    vertical-align: middle;
+  }
+
+  .principle__body {
+    margin-top: 12px;
+    color: #d4d0c8;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  /* ===================== CODE LISTING ===================== */
+  .code-section {
+    padding: 80px 0;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .code-listing {
+    max-width: 780px;
+    margin: 0 auto;
+    border: 1px solid var(--rule-dark);
+    background: #111;
+  }
+
+  .code-listing__header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--rule-dark);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .code-listing__label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .code-listing__lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--aqua);
+    letter-spacing: 0.1em;
+  }
+
+  .code-listing__body {
+    padding: 24px;
+    overflow-x: auto;
+  }
+
+  .code-listing__body pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--cream);
+  }
+
+  .code-listing__body .kw { color: #c792ea; }
+  .code-listing__body .fn { color: var(--aqua); }
+  .code-listing__body .str { color: #c3e88d; }
+  .code-listing__body .num { color: #f78c6c; }
+  .code-listing__body .cm { color: var(--gray); font-style: italic; }
+  .code-listing__body .op { color: #89ddff; }
+  .code-listing__body .ct { color: #ffcb6b; }
+
+  /* ===================== APPLICATIONS ===================== */
+  .applications {
+    padding: 80px 0;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .applications__list {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 40px;
+    column-count: 2;
+    column-gap: 64px;
+    column-rule: 1px solid var(--rule-dark);
+  }
+
+  .app-item {
+    break-inside: avoid;
+    margin-bottom: 28px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid #1a1a1a;
+  }
+
+  .app-item__title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .app-item__title::before {
+    content: '\2014\00a0';
+    color: var(--aqua);
+  }
+
+  .app-item__desc {
+    font-size: 15px;
+    color: #b0ada5;
+    line-height: 1.7;
+  }
+
+  /* ===================== CTA / IMPLEMENTATIONS ===================== */
+  .implementations {
+    background: var(--cream);
+    color: var(--black);
+    padding: 80px 0;
+  }
+
+  .implementations__title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(40px, 6vw, 64px);
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 48px;
+    color: var(--black);
+  }
+
+  .implementations__grid {
+    max-width: 800px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 0 48px;
+  }
+
+  .implementations__divider {
+    background: var(--rule-light);
+    width: 1px;
+  }
+
+  .impl-card {
+    text-align: center;
+    padding: 24px;
+  }
+
+  .impl-card__label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 12px;
+  }
+
+  .impl-card__name {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--black);
+  }
+
+  .impl-card__link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--black);
+    text-decoration: none;
+    border-bottom: 1px solid var(--aqua);
+    padding-bottom: 2px;
+    transition: color 0.3s;
+  }
+
+  .impl-card__link:hover {
+    color: var(--aqua);
+  }
+
+  /* ===================== FOOTER ===================== */
+  .footer {
+    padding: 48px 40px;
+    text-align: center;
+    border-top: 1px solid var(--rule-dark);
+  }
+
+  .footer__line1 {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--gray);
+    margin-bottom: 8px;
+  }
+
+  .footer__line2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: #444;
+  }
+
+  /* ===================== SCROLL REVEAL ===================== */
+  .reveal {
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  .reveal--visible {
+    opacity: 1;
+  }
+
+  /* ===================== RESPONSIVE ===================== */
+  @media (max-width: 900px) {
+    .editorial__inner {
+      grid-template-columns: 1fr;
+      gap: 40px 0;
+    }
+
+    .editorial__divider { display: none; }
+
+    .editorial__sidebar { padding-top: 0; }
+
+    .principles__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .principles__col-rule { display: none; }
+
+    .principle { border-bottom: 1px solid var(--rule-dark); }
+
+    .applications__list { column-count: 1; }
+
+    .implementations__grid { grid-template-columns: 1fr; gap: 32px 0; }
+    .implementations__divider { display: none; }
+
+    .masthead__nav { display: none; }
+  }
+
+  @media (max-width: 600px) {
+    .container { padding: 0 20px; }
+    .editorial__inner { padding: 0 20px; }
+    .principles__grid { padding: 0 20px; }
+    .applications__list { padding: 0 20px; }
+    .principle { padding: 24px 0; }
+    .hero { padding: 120px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== MASTHEAD ===== -->
+<header class="masthead">
+  <div class="masthead__top-rule"></div>
+  <div class="masthead__inner">
+    <div class="masthead__title">GraphReFly</div>
+    <nav class="masthead__nav">
+      <a href="#">Docs</a>
+      <a href="#">Spec</a>
+      <a href="#">GitHub</a>
+    </nav>
+  </div>
+  <div class="masthead__subtitle">
+    <span>Vol. 0.1 &middot; Reactive Graph Protocol &middot; Est. 2025</span>
+  </div>
+</header>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero__orbs">
+    <div class="hero__orb hero__orb--1"></div>
+    <div class="hero__orb hero__orb--2"></div>
+    <div class="hero__orb hero__orb--3"></div>
+  </div>
+
+  <div class="hero__svg-lines">
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="none">
+      <path class="flow-line" d="M0,350 C200,300 400,420 600,380 C800,340 1000,400 1200,360" />
+      <path class="flow-line" d="M0,450 C300,400 500,500 700,440 C900,380 1100,480 1200,430" />
+      <path class="flow-line" d="M0,550 C250,520 450,580 650,530 C850,480 1050,560 1200,520" />
+    </svg>
+  </div>
+
+  <div class="hero__content">
+    <h1 class="hero__headline">
+      Graph<span class="aqua">Re</span>Fly<span class="red">.</span>
+    </h1>
+
+    <div class="hero__epigraph">
+      <blockquote>川流不息，唯取一瓢</blockquote>
+      <p class="hero__epigraph-translation">The river flows endlessly; one takes but a single scoop.</p>
+    </div>
+
+    <p class="hero__tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+
+    <div class="hero__ctas">
+      <a href="#">Read the spec &rarr;</a>
+      <a href="#">Roadmap &rarr;</a>
+      <a href="#">Python &rarr;</a>
+    </div>
+
+    <p class="hero__date">March 2025 &middot; TypeScript &amp; Python</p>
+  </div>
+</section>
+
+<!-- ===== EDITORIAL SPREAD ===== -->
+<section class="editorial reveal">
+  <div class="editorial__inner">
+    <div class="editorial__main">
+      <div class="section-header">
+        <span class="section-header__rule"></span>
+        <span class="section-header__label">The Protocol</span>
+        <span class="section-header__rule"></span>
+      </div>
+
+      <h2 class="editorial__section-title">From Elegant Simplicity<br>to a Full Reactive Graph</h2>
+
+      <div class="editorial__body">
+        <p class="drop-cap">It began with callbag&mdash;a protocol of arresting simplicity where every source, sink, and operator shared one function signature. That economy of form was a revelation: composable streams with no framework, no classes, no registries. But as systems grew in ambition&mdash;as AI agents demanded inspectable state, as human operators needed audit trails, as orchestration crossed language boundaries&mdash;the single-function signature reached its limits.</p>
+
+        <p>GraphReFly inherits callbag&rsquo;s core insight&mdash;that a protocol should be minimal, composable, and free of hidden magic&mdash;but reimagines it for a world where graphs are artifacts, not just execution traces. Every node is addressable. Every message is a tuple&mdash;the same shape in TypeScript and Python&mdash;reviewable, replayable, LLM-friendly. The two-phase push model (DIRTY, then DATA) ensures diamond-safe propagation without glitches.</p>
+
+        <p>The result is a protocol designed equally for human eyes and machine reasoning. State is observable without disturbing data flow. Graphs can be serialized, diffed, and versioned. What was once an ephemeral stream becomes a durable, inspectable structure&mdash;a shared workspace where humans and language models co-operate with full transparency.</p>
+      </div>
+    </div>
+
+    <div class="editorial__divider"></div>
+
+    <aside class="editorial__sidebar">
+      <div class="pull-quote">
+        &ldquo;One protocol. Messages are arrays of tuples. Same shape for TS and Python&mdash;reviewable, replayable, LLM-friendly.&rdquo;
+      </div>
+
+      <div class="protocol-box">
+        <div class="protocol-box__title">Protocol Message Format</div>
+        <pre><span class="cm">// Messages are tuples:</span>
+[<span class="kw">Type</span>, Data?]
+
+<span class="cm">// Type enum:</span>
+<span class="kw">START</span>  = 0
+<span class="kw">DATA</span>   = 1
+<span class="kw">END</span>    = 2
+<span class="kw">DIRTY</span>  = 3
+
+<span class="cm">// Two-phase push:</span>
+<span class="cm">// 1. DIRTY propagates</span>
+<span class="cm">// 2. DATA resolves</span>
+<span class="cm">// = diamond-safe</span></pre>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===== PRINCIPLES ===== -->
+<section class="principles reveal">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-header__rule"></span>
+      <span class="section-header__label">Principles</span>
+      <span class="section-header__rule"></span>
+    </div>
+  </div>
+
+  <div class="principles__grid">
+    <div class="principle">
+      <span class="principle__marker"></span>
+      <h3 class="principle__title">One Protocol</h3>
+      <p class="principle__body">Messages are tuples. Nodes are functions. No classes, no framework, no hidden registries. The entire protocol fits on an index card&mdash;yet composes into systems of arbitrary complexity.</p>
+    </div>
+
+    <div class="principles__col-rule"></div>
+
+    <div class="principle">
+      <span class="principle__marker"></span>
+      <h3 class="principle__title">Diamond-Safe</h3>
+      <p class="principle__body">Two-phase push (DIRTY then DATA) eliminates glitch propagation. Nodes that share upstream dependencies converge correctly without manual scheduling or topological sorts.</p>
+    </div>
+
+    <div class="principle" style="border-bottom: none;">
+      <span class="principle__marker"></span>
+      <h3 class="principle__title">Graph as Artifact</h3>
+      <p class="principle__body">Graphs are serializable, diffable, and versionable. State is observable without disturbing data flow. The reactive graph is not just execution&mdash;it is a persistent, inspectable structure.</p>
+    </div>
+
+    <div class="principles__col-rule"></div>
+
+    <div class="principle" style="border-bottom: none;">
+      <span class="principle__marker"></span>
+      <h3 class="principle__title">Human + LLM</h3>
+      <p class="principle__body">Designed for co-operation between human operators and language models. Audit trails, natural-language descriptions, and full observability make the graph a shared workspace for both.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CODE LISTING ===== -->
+<section class="code-section reveal">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-header__rule"></span>
+      <span class="section-header__label">Example</span>
+      <span class="section-header__rule"></span>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="code-listing">
+      <div class="code-listing__header">
+        <span class="code-listing__label">Listing 1 &mdash; Basic Reactive Graph</span>
+        <span class="code-listing__lang">TypeScript</span>
+      </div>
+      <div class="code-listing__body">
+        <pre><span class="kw">const</span> count = <span class="fn">state</span>(<span class="num">0</span>);
+<span class="kw">const</span> doubled = <span class="fn">derived</span>([count], (<span class="ct">c</span>) <span class="op">=&gt;</span> c <span class="op">*</span> <span class="num">2</span>);
+
+<span class="fn">effect</span>([doubled], (<span class="ct">d</span>) <span class="op">=&gt;</span> console.<span class="fn">log</span>(d));
+
+count.<span class="fn">down</span>([[<span class="ct">DATA</span>, <span class="num">1</span>]]);  <span class="cm">// logs: 2</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== APPLICATIONS ===== -->
+<section class="applications reveal">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-header__rule"></span>
+      <span class="section-header__label">Applications</span>
+      <span class="section-header__rule"></span>
+    </div>
+  </div>
+
+  <div class="applications__list">
+    <div class="app-item">
+      <div class="app-item__title">Orchestration</div>
+      <p class="app-item__desc">Coordinate complex workflows across nodes. Define dependencies declaratively and let the graph resolve execution order through two-phase propagation.</p>
+    </div>
+
+    <div class="app-item">
+      <div class="app-item__title">Message Queue</div>
+      <p class="app-item__desc">Reliable, observable message passing with built-in backpressure. Every message is a tuple&mdash;inspectable, replayable, and language-agnostic.</p>
+    </div>
+
+    <div class="app-item">
+      <div class="app-item__title">AI Agentic Memory</div>
+      <p class="app-item__desc">Inspectable state for AI agents. The graph serves as persistent, structured memory that both humans and LLMs can query and reason about.</p>
+    </div>
+
+    <div class="app-item">
+      <div class="app-item__title">Security &amp; Audit</div>
+      <p class="app-item__desc">Audit trails built into the protocol. Every state change is traceable. Observability is a first-class concern, not an afterthought.</p>
+    </div>
+
+    <div class="app-item">
+      <div class="app-item__title">Human + AI Operations</div>
+      <p class="app-item__desc">Co-designed systems where human operators and language models share the same reactive graph&mdash;full transparency, no hidden state.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== IMPLEMENTATIONS CTA ===== -->
+<section class="implementations reveal">
+  <hr class="thin-rule thin-rule--light" style="max-width: 1200px; margin: 0 auto 60px;">
+  <h2 class="implementations__title">Read more.</h2>
+
+  <div class="implementations__grid">
+    <div class="impl-card">
+      <div class="impl-card__label">TypeScript</div>
+      <div class="impl-card__name">graphrefly-ts</div>
+      <a href="#" class="impl-card__link">github.com/graphrefly/graphrefly-ts &rarr;</a>
+    </div>
+
+    <div class="implementations__divider"></div>
+
+    <div class="impl-card">
+      <div class="impl-card__label">Python</div>
+      <div class="impl-card__name">graphrefly-py</div>
+      <a href="#" class="impl-card__link">github.com/graphrefly/graphrefly-py &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <hr class="thin-rule" style="max-width: 1200px; margin: 0 auto 40px;">
+  <p class="footer__line1">GraphReFly &middot; Reactive graph protocol for human + LLM co-operation</p>
+  <p class="footer__line2">Published under MIT License &middot; graphrefly.github.io</p>
+  <hr class="thin-rule" style="max-width: 1200px; margin: 40px auto 0;">
+</footer>
+
+<script>
+  // Scroll reveal — simple IntersectionObserver
+  document.addEventListener('DOMContentLoaded', () => {
+    const reveals = document.querySelectorAll('.reveal');
+    if (!reveals.length) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('reveal--visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -40px 0px'
+    });
+
+    reveals.forEach((el) => observer.observe(el));
+  });
+</script>
+</body>
+</html>

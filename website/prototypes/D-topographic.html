@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly - Topographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ──────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --terrain-dark: #0c1117;
+  --terrain-deep: #0f1620;
+  --aqua: #4de8c2;
+  --aqua-light: #7df0d5;
+  --aqua-dim: rgba(77, 232, 194, 0.08);
+  --earth: #d4956b;
+  --earth-dim: rgba(212, 149, 107, 0.12);
+  --sand: #c9b896;
+  --sage: #5a7a6a;
+  --sage-dim: rgba(90, 122, 106, 0.15);
+  --text-primary: #e8ece9;
+  --text-secondary: #c9b896;
+  --text-muted: #6a7d72;
+  --font-heading: 'Sora', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--terrain-dark);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── Header ────────────────────────────────────────── */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(12, 17, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(77, 232, 194, 0.1);
+}
+
+.header-bg-pattern {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.04;
+}
+
+.header-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.header-logo .marker {
+  color: var(--aqua);
+  font-size: 0.7rem;
+  margin-right: 0.1rem;
+}
+
+.header-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.header-nav a {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.header-nav a::before {
+  content: attr(data-coord);
+  font-size: 0.6rem;
+  color: var(--sage);
+  opacity: 0.6;
+}
+
+.header-nav a:hover { color: var(--aqua); }
+
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid rgba(77, 232, 194, 0.12);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.header-search:hover { border-color: rgba(77, 232, 194, 0.3); }
+
+.header-search kbd {
+  background: rgba(77, 232, 194, 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  margin-left: 0.5rem;
+}
+
+/* ── Hero ──────────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 2rem 4rem;
+  overflow: hidden;
+}
+
+.hero-topo-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-topo-bg svg {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  top: -20%;
+  left: -20%;
+  animation: topo-drift 150s linear infinite;
+}
+
+@keyframes topo-drift {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(3deg) scale(1.02); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+/* Orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(77, 232, 194, 0.12), rgba(77, 232, 194, 0.02), transparent 70%);
+  top: 15%;
+  left: 20%;
+  animation: orb-drift-1 22s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(212, 149, 107, 0.1), rgba(212, 149, 107, 0.02), transparent 70%);
+  top: 40%;
+  right: 15%;
+  animation: orb-drift-2 25s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(77, 232, 194, 0.08), rgba(212, 149, 107, 0.05), transparent 70%);
+  bottom: 15%;
+  left: 40%;
+  animation: orb-drift-3 20s ease-in-out infinite;
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(30px, -20px); }
+  50% { transform: translate(-15px, 25px); }
+  75% { transform: translate(20px, 15px); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-25px, 15px); }
+  50% { transform: translate(20px, -30px); }
+  75% { transform: translate(-10px, -15px); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(20px, -25px); }
+  66% { transform: translate(-25px, 10px); }
+}
+
+/* Flow lines (rivers) */
+.hero-rivers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.hero-rivers svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.river-path {
+  fill: none;
+  stroke: var(--aqua);
+  stroke-width: 1.2;
+  opacity: 0.12;
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: river-draw 4s ease-out forwards;
+}
+
+.river-path:nth-child(2) {
+  stroke: var(--earth);
+  opacity: 0.08;
+  animation-delay: 0.8s;
+}
+
+.river-path:nth-child(3) {
+  opacity: 0.06;
+  animation-delay: 1.6s;
+}
+
+@keyframes river-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Hero content */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 800px;
+}
+
+.hero-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--aqua);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fade-up 0.8s ease-out 0.2s forwards;
+}
+
+.hero-title {
+  font-family: var(--font-heading);
+  font-size: clamp(3.5rem, 8vw, 6.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  animation: fade-up 0.8s ease-out 0.4s forwards;
+}
+
+.hero-title .re {
+  background: linear-gradient(135deg, var(--aqua), var(--aqua-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-tagline {
+  font-size: 1.15rem;
+  font-weight: 300;
+  color: var(--sand);
+  max-width: 560px;
+  margin: 0 auto 1.2rem;
+  opacity: 0;
+  animation: fade-up 0.8s ease-out 0.6s forwards;
+}
+
+.hero-elev {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--sage);
+  letter-spacing: 0.15em;
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  animation: fade-up 0.8s ease-out 0.7s forwards;
+}
+
+.hero-ctas {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: fade-up 0.8s ease-out 0.85s forwards;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.8rem;
+  border-radius: 50px;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1.5px solid transparent;
+}
+
+.btn-primary {
+  background: var(--aqua);
+  color: var(--terrain-dark);
+  border-color: var(--aqua);
+}
+
+.btn-primary:hover {
+  background: var(--aqua-light);
+  border-color: var(--aqua-light);
+  box-shadow: 0 0 30px rgba(77, 232, 194, 0.2);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--earth);
+  border-color: rgba(212, 149, 107, 0.35);
+}
+
+.btn-ghost:hover {
+  border-color: var(--earth);
+  background: rgba(212, 149, 107, 0.06);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Contour Divider ───────────────────────────────── */
+.contour-divider {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+  pointer-events: none;
+}
+
+.contour-divider svg {
+  width: 100%;
+  display: block;
+}
+
+/* ── Terrain / Layers Section ──────────────────────── */
+.terrain-section {
+  position: relative;
+  padding: 6rem 2rem 5rem;
+  background: var(--terrain-deep);
+}
+
+.terrain-section .section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--sage);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.terrain-section h2 {
+  font-family: var(--font-heading);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+  margin-bottom: 4rem;
+}
+
+.elevation-bands {
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.elevation-bands::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(77, 232, 194, 0.15), transparent);
+  transform: translateX(-50%);
+}
+
+.elev-band {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  padding: 2rem 0;
+  position: relative;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.6s ease-out;
+}
+
+.elev-band.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.elev-band:nth-child(even) { flex-direction: row-reverse; }
+.elev-band:nth-child(even) .elev-content { text-align: right; }
+
+.elev-marker {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.elev-band:nth-child(1) .elev-marker {
+  background: rgba(77, 232, 194, 0.08);
+  border: 1.5px solid rgba(77, 232, 194, 0.2);
+}
+
+.elev-band:nth-child(2) .elev-marker {
+  background: rgba(212, 149, 107, 0.08);
+  border: 1.5px solid rgba(212, 149, 107, 0.2);
+}
+
+.elev-band:nth-child(3) .elev-marker {
+  background: rgba(90, 122, 106, 0.12);
+  border: 1.5px solid rgba(90, 122, 106, 0.25);
+}
+
+.elev-marker .elev-num {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.elev-marker .elev-alt {
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.elev-band:nth-child(1) .elev-alt { color: var(--aqua); }
+.elev-band:nth-child(2) .elev-alt { color: var(--earth); }
+.elev-band:nth-child(3) .elev-alt { color: var(--sage); }
+
+.elev-content { flex: 1; }
+
+.elev-content h3 {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+.elev-content p {
+  font-size: 0.92rem;
+  color: var(--sand);
+  line-height: 1.65;
+  max-width: 380px;
+}
+
+.elev-band:nth-child(even) .elev-content p { margin-left: auto; }
+
+/* ── Features Section ──────────────────────────────── */
+.features-section {
+  position: relative;
+  padding: 5rem 2rem 6rem;
+  background: var(--terrain-dark);
+}
+
+.features-section .section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--sage);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.features-section h2 {
+  font-family: var(--font-heading);
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+  margin-bottom: 3.5rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.feature-card {
+  position: relative;
+  padding: 1.8rem 1.6rem;
+  border-radius: 10px;
+  background: rgba(15, 22, 32, 0.7);
+  border: 1px solid rgba(77, 232, 194, 0.06);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease-out;
+  cursor: default;
+}
+
+.feature-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  border-color: rgba(77, 232, 194, 0.12);
+}
+
+/* Contour texture in card */
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(ellipse at 70% 30%, rgba(77, 232, 194, 0.02), transparent 50%);
+  pointer-events: none;
+}
+
+/* Left accent border */
+.feature-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 3px;
+  border-radius: 3px;
+}
+
+.feature-card[data-accent="earth"]::after { background: var(--earth); }
+.feature-card[data-accent="aqua"]::after { background: var(--aqua); }
+.feature-card[data-accent="sage"]::after { background: var(--sage); }
+.feature-card[data-accent="sand"]::after { background: var(--sand); }
+
+.feature-coord {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.feature-coord .triangle { font-size: 0.55rem; }
+
+.feature-card[data-accent="earth"] .triangle { color: var(--earth); }
+.feature-card[data-accent="aqua"] .triangle { color: var(--aqua); }
+.feature-card[data-accent="sage"] .triangle { color: var(--sage); }
+.feature-card[data-accent="sand"] .triangle { color: var(--sand); }
+
+.feature-card h3 {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  letter-spacing: -0.01em;
+}
+
+.feature-card p {
+  font-size: 0.88rem;
+  color: var(--sand);
+  line-height: 1.65;
+}
+
+/* ── Code Preview Section ──────────────────────────── */
+.code-section {
+  position: relative;
+  padding: 5rem 2rem 6rem;
+  background: var(--terrain-deep);
+}
+
+.code-inset {
+  max-width: 720px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.code-inset-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--sage);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-inset-label .triangle { color: var(--earth); }
+
+.code-block {
+  background: rgba(12, 17, 23, 0.9);
+  border: 1px solid rgba(77, 232, 194, 0.1);
+  border-radius: 10px;
+  padding: 1.8rem 2rem;
+  overflow-x: auto;
+  position: relative;
+}
+
+.code-block::before {
+  content: 'TypeScript';
+  position: absolute;
+  top: 0.7rem;
+  right: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.code-block pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.code-block .kw { color: var(--earth); }
+.code-block .fn { color: var(--aqua); }
+.code-block .str { color: var(--aqua-light); }
+.code-block .num { color: var(--sand); }
+.code-block .cmt { color: var(--text-muted); font-style: italic; }
+.code-block .cnst { color: var(--text-primary); }
+.code-block .type { color: #b8a2d0; }
+.code-block .punc { color: var(--sage); }
+
+/* ── Use Cases (Trail) Section ─────────────────────── */
+.trail-section {
+  position: relative;
+  padding: 5rem 2rem 6rem;
+  background: var(--terrain-dark);
+  overflow: hidden;
+}
+
+.trail-section .section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--sage);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.trail-section h2 {
+  font-family: var(--font-heading);
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+  margin-bottom: 4rem;
+}
+
+.trail-container {
+  position: relative;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.trail-path-svg {
+  position: absolute;
+  left: 28px;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trail-line {
+  stroke: var(--aqua);
+  stroke-width: 2;
+  stroke-dasharray: 8, 6;
+  fill: none;
+  opacity: 0.2;
+}
+
+.trail-line-animated {
+  stroke: var(--aqua);
+  stroke-width: 2;
+  stroke-dasharray: 8, 6;
+  fill: none;
+  opacity: 0.5;
+  animation: trail-flow 2s linear infinite;
+}
+
+@keyframes trail-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -28; }
+}
+
+.waypoint {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  position: relative;
+  opacity: 0;
+  transform: translateX(-15px);
+  transition: all 0.5s ease-out;
+}
+
+.waypoint.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.waypoint-marker {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--terrain-deep);
+  border: 2px solid rgba(77, 232, 194, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.3rem;
+  position: relative;
+  z-index: 2;
+}
+
+.waypoint-content h3 {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.waypoint-content p {
+  font-size: 0.88rem;
+  color: var(--sand);
+  line-height: 1.6;
+}
+
+/* ── Implementations CTA ───────────────────────────── */
+.impl-section {
+  position: relative;
+  padding: 5rem 2rem 5rem;
+  background: var(--terrain-deep);
+  text-align: center;
+}
+
+.impl-section h2 {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.8rem;
+}
+
+.impl-section .subtitle {
+  font-size: 0.95rem;
+  color: var(--sand);
+  margin-bottom: 3rem;
+}
+
+.impl-trails {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  flex-wrap: wrap;
+}
+
+.impl-trail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.8rem 2.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(77, 232, 194, 0.08);
+  background: rgba(12, 17, 23, 0.6);
+  transition: all 0.3s;
+  min-width: 220px;
+}
+
+.impl-trail:hover {
+  border-color: rgba(77, 232, 194, 0.2);
+  transform: translateY(-2px);
+}
+
+.impl-trail .impl-icon {
+  font-size: 2rem;
+  margin-bottom: 0.3rem;
+}
+
+.impl-trail h3 {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.impl-legend {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.impl-legend .solid {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+  border-top: 2px solid var(--aqua);
+  vertical-align: middle;
+  margin-right: 0.3rem;
+}
+
+.impl-legend .dashed {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+  border-top: 2px dashed var(--earth);
+  vertical-align: middle;
+  margin-right: 0.3rem;
+}
+
+.impl-legend-row {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+/* ── Footer ────────────────────────────────────────── */
+.footer {
+  position: relative;
+  padding: 3rem 2rem;
+  background: var(--terrain-dark);
+  text-align: center;
+  border-top: 1px solid rgba(77, 232, 194, 0.08);
+}
+
+.footer-brand {
+  font-family: var(--font-heading);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.footer-brand span { color: var(--sage); font-weight: 400; font-size: 0.85rem; }
+
+.footer-copy {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* ── Responsive ────────────────────────────────────── */
+@media (max-width: 768px) {
+  .header { padding: 0 1rem; }
+  .header-nav { gap: 1rem; }
+  .header-search { display: none; }
+
+  .elevation-bands::before { display: none; }
+  .elev-band,
+  .elev-band:nth-child(even) { flex-direction: column; text-align: center; gap: 1.2rem; }
+  .elev-band:nth-child(even) .elev-content { text-align: center; }
+  .elev-content p,
+  .elev-band:nth-child(even) .elev-content p { margin: 0 auto; }
+
+  .features-grid { grid-template-columns: 1fr; }
+
+  .impl-trails { flex-direction: column; align-items: center; }
+
+  .code-block { padding: 1.2rem 1rem; }
+  .code-block pre { font-size: 0.78rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Header                                      ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<header class="header">
+  <div class="header-bg-pattern">
+    <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <pattern id="header-topo" x="0" y="0" width="120" height="60" patternUnits="userSpaceOnUse">
+        <ellipse cx="60" cy="30" rx="50" ry="20" fill="none" stroke="#4de8c2" stroke-width="0.5"/>
+        <ellipse cx="60" cy="30" rx="35" ry="14" fill="none" stroke="#4de8c2" stroke-width="0.4"/>
+        <ellipse cx="60" cy="30" rx="20" ry="8" fill="none" stroke="#4de8c2" stroke-width="0.3"/>
+      </pattern>
+      <rect width="100%" height="100%" fill="url(#header-topo)"/>
+    </svg>
+  </div>
+  <a href="#" class="header-logo"><span class="marker">&#9650;</span> GraphReFly</a>
+  <nav class="header-nav">
+    <div class="header-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search
+      <kbd>/</kbd>
+    </div>
+    <a href="#" data-coord="01">docs</a>
+    <a href="#" data-coord="02">spec</a>
+    <a href="#" data-coord="03">github</a>
+  </nav>
+</header>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Hero                                        ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section class="hero">
+  <!-- Topo background pattern -->
+  <div class="hero-topo-bg">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+      <g fill="none" stroke="#4de8c2" stroke-width="0.6" opacity="0.06">
+        <!-- Contour rings cluster 1 -->
+        <ellipse cx="300" cy="350" rx="280" ry="180" transform="rotate(-8 300 350)"/>
+        <ellipse cx="300" cy="350" rx="230" ry="145" transform="rotate(-8 300 350)"/>
+        <ellipse cx="300" cy="350" rx="180" ry="110" transform="rotate(-8 300 350)"/>
+        <ellipse cx="300" cy="350" rx="130" ry="78" transform="rotate(-8 300 350)"/>
+        <ellipse cx="300" cy="350" rx="80" ry="48" transform="rotate(-8 300 350)"/>
+        <ellipse cx="300" cy="350" rx="40" ry="22" transform="rotate(-8 300 350)"/>
+        <!-- Contour rings cluster 2 -->
+        <ellipse cx="720" cy="550" rx="240" ry="160" transform="rotate(12 720 550)"/>
+        <ellipse cx="720" cy="550" rx="190" ry="125" transform="rotate(12 720 550)"/>
+        <ellipse cx="720" cy="550" rx="140" ry="90" transform="rotate(12 720 550)"/>
+        <ellipse cx="720" cy="550" rx="90" ry="56" transform="rotate(12 720 550)"/>
+        <ellipse cx="720" cy="550" rx="45" ry="26" transform="rotate(12 720 550)"/>
+        <!-- Contour rings cluster 3 -->
+        <ellipse cx="550" cy="200" rx="200" ry="120" transform="rotate(-15 550 200)"/>
+        <ellipse cx="550" cy="200" rx="150" ry="88" transform="rotate(-15 550 200)"/>
+        <ellipse cx="550" cy="200" rx="100" ry="55" transform="rotate(-15 550 200)"/>
+        <ellipse cx="550" cy="200" rx="50" ry="28" transform="rotate(-15 550 200)"/>
+        <!-- Contour cluster 4 -->
+        <ellipse cx="150" cy="700" rx="180" ry="110" transform="rotate(5 150 700)"/>
+        <ellipse cx="150" cy="700" rx="130" ry="78" transform="rotate(5 150 700)"/>
+        <ellipse cx="150" cy="700" rx="80" ry="45" transform="rotate(5 150 700)"/>
+        <!-- Contour cluster 5 -->
+        <ellipse cx="850" cy="250" rx="160" ry="100" transform="rotate(-20 850 250)"/>
+        <ellipse cx="850" cy="250" rx="110" ry="65" transform="rotate(-20 850 250)"/>
+        <ellipse cx="850" cy="250" rx="60" ry="34" transform="rotate(-20 850 250)"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Orbs -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- River flow lines -->
+  <div class="hero-rivers">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" preserveAspectRatio="none">
+      <path class="river-path" d="M-50,300 C150,280 250,350 400,320 C550,290 600,380 750,350 C900,320 1000,280 1250,310"/>
+      <path class="river-path" d="M-50,500 C100,480 200,540 350,510 C500,480 650,550 800,520 C950,490 1050,460 1250,490"/>
+      <path class="river-path" d="M-50,650 C200,630 300,690 500,660 C700,630 800,700 1000,670 C1100,655 1150,640 1250,650"/>
+    </svg>
+  </div>
+
+  <!-- Content -->
+  <div class="hero-content">
+    <div class="hero-kicker">&#9650; Reactive Graph Protocol</div>
+    <h1 class="hero-title">Graph<span class="re">Re</span>Fly.</h1>
+    <p class="hero-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+    <div class="hero-elev">ELEV. 0.1</div>
+    <div class="hero-ctas">
+      <a href="#" class="btn btn-primary">Get Started</a>
+      <a href="#" class="btn btn-ghost">View Spec</a>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Contour Divider -> Terrain Layers           ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<div class="contour-divider">
+  <svg viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,80 C160,60 320,95 480,75 C640,55 800,90 960,70 C1120,50 1280,85 1440,65 L1440,120 L0,120 Z" fill="#0f1620"/>
+    <path d="M0,80 C160,60 320,95 480,75 C640,55 800,90 960,70 C1120,50 1280,85 1440,65" fill="none" stroke="#4de8c2" stroke-width="1" opacity="0.12"/>
+    <path d="M0,90 C180,75 350,100 520,85 C690,70 850,95 1020,80 C1190,65 1320,90 1440,78" fill="none" stroke="#4de8c2" stroke-width="0.6" opacity="0.06"/>
+  </svg>
+</div>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Terrain Layers Section                      ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section class="terrain-section">
+  <div class="section-label">&#9650; Elevation Profile</div>
+  <h2>Three layers of terrain</h2>
+
+  <div class="elevation-bands">
+    <div class="elev-band" data-reveal>
+      <div class="elev-marker">
+        <div style="text-align:center">
+          <div class="elev-num">L.01</div>
+          <div class="elev-alt">&#9650;</div>
+        </div>
+      </div>
+      <div class="elev-content">
+        <h3>Protocol Layer</h3>
+        <p>Messages as tuples &mdash; [Type, Data?]. A minimal, universal wire format. Two-phase push (DIRTY then DATA) ensures diamond-safe propagation with zero glitches.</p>
+      </div>
+    </div>
+
+    <div class="elev-band" data-reveal>
+      <div class="elev-marker">
+        <div style="text-align:center">
+          <div class="elev-num">L.02</div>
+          <div class="elev-alt">&#9650;</div>
+        </div>
+      </div>
+      <div class="elev-content">
+        <h3>Node Layer</h3>
+        <p>Stateful primitives that compose freely. State, derived, and effect nodes wire up via the protocol. Every node is observable without disturbing data flow.</p>
+      </div>
+    </div>
+
+    <div class="elev-band" data-reveal>
+      <div class="elev-marker">
+        <div style="text-align:center">
+          <div class="elev-num">L.03</div>
+          <div class="elev-alt">&#9650;</div>
+        </div>
+      </div>
+      <div class="elev-content">
+        <h3>Graph Layer</h3>
+        <p>The container that makes the topology inspectable. Describe, snapshot, replay. Graphs become persistent artifacts both humans and LLMs can reason over.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contour divider -->
+<div class="contour-divider">
+  <svg viewBox="0 0 1440 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,40 C200,20 400,60 600,35 C800,10 1000,55 1200,30 C1350,15 1420,40 1440,35 L1440,0 L0,0 Z" fill="#0f1620"/>
+    <path d="M0,40 C200,20 400,60 600,35 C800,10 1000,55 1200,30 C1350,15 1420,40 1440,35" fill="none" stroke="#4de8c2" stroke-width="0.8" opacity="0.1"/>
+  </svg>
+</div>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Features Section                            ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section class="features-section">
+  <div class="section-label">&#9650; Elevation Markers</div>
+  <h2>Built for the terrain ahead</h2>
+
+  <div class="features-grid">
+    <div class="feature-card" data-accent="earth" data-reveal>
+      <div class="feature-coord"><span class="triangle">&#9650;</span> N01</div>
+      <h3>One protocol</h3>
+      <p>Every node speaks the same tuple messages. Sources, sinks, operators &mdash; all compose through a single handshake. No special cases.</p>
+    </div>
+
+    <div class="feature-card" data-accent="aqua" data-reveal>
+      <div class="feature-coord"><span class="triangle">&#9650;</span> N02</div>
+      <h3>Diamond-safe</h3>
+      <p>Two-phase DIRTY/DATA push eliminates glitch artifacts in diamond-shaped graphs. Derived values are always consistent, never stale.</p>
+    </div>
+
+    <div class="feature-card" data-accent="sage" data-reveal>
+      <div class="feature-coord"><span class="triangle">&#9650;</span> N03</div>
+      <h3>Graph as artifact</h3>
+      <p>Describe, snapshot, serialize. The graph is not hidden runtime state &mdash; it is a first-class inspectable artifact that persists across sessions.</p>
+    </div>
+
+    <div class="feature-card" data-accent="sand" data-reveal>
+      <div class="feature-coord"><span class="triangle">&#9650;</span> N04</div>
+      <h3>Human + LLM</h3>
+      <p>Observability without disturbing data flow. Both humans and language models can inspect, modify, and reason over the same reactive graph.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Code Preview Section                        ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section class="code-section">
+  <div class="code-inset">
+    <div class="code-inset-label"><span class="triangle">&#9650;</span> Sample</div>
+    <div class="code-block">
+      <pre><code><span class="kw">const</span> <span class="cnst">count</span> <span class="punc">=</span> <span class="fn">state</span><span class="punc">(</span><span class="num">0</span><span class="punc">);</span>
+<span class="kw">const</span> <span class="cnst">doubled</span> <span class="punc">=</span> <span class="fn">derived</span><span class="punc">([</span><span class="cnst">count</span><span class="punc">],</span> <span class="punc">(</span><span class="cnst">c</span><span class="punc">)</span> <span class="punc">=&gt;</span> <span class="cnst">c</span> <span class="punc">*</span> <span class="num">2</span><span class="punc">);</span>
+<span class="fn">effect</span><span class="punc">([</span><span class="cnst">doubled</span><span class="punc">],</span> <span class="punc">(</span><span class="cnst">d</span><span class="punc">)</span> <span class="punc">=&gt;</span> <span class="cnst">console</span><span class="punc">.</span><span class="fn">log</span><span class="punc">(</span><span class="cnst">d</span><span class="punc">));</span>
+
+<span class="cnst">count</span><span class="punc">.</span><span class="fn">down</span><span class="punc">([[</span><span class="str">DATA</span><span class="punc">,</span> <span class="num">1</span><span class="punc">]]);</span>  <span class="cmt">// logs: 2</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Contour divider -->
+<div class="contour-divider">
+  <svg viewBox="0 0 1440 80" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,50 C240,30 480,65 720,40 C960,15 1200,55 1440,35 L1440,0 L0,0 Z" fill="#0f1620"/>
+    <path d="M0,50 C240,30 480,65 720,40 C960,15 1200,55 1440,35" fill="none" stroke="#4de8c2" stroke-width="0.7" opacity="0.08"/>
+  </svg>
+</div>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Use Cases (Trail) Section                   ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section class="trail-section">
+  <div class="section-label">&#9650; Trail Map</div>
+  <h2>Where the terrain leads</h2>
+
+  <div class="trail-container">
+    <!-- Trail line -->
+    <svg class="trail-path-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <line class="trail-line" x1="2" y1="0" x2="2" y2="100%" />
+      <line class="trail-line-animated" x1="2" y1="0" x2="2" y2="100%" />
+    </svg>
+
+    <div class="waypoint" data-reveal>
+      <div class="waypoint-marker">&#9881;</div>
+      <div class="waypoint-content">
+        <h3>Orchestration</h3>
+        <p>Coordinate multi-step LLM pipelines with observable, replayable state at every node.</p>
+      </div>
+    </div>
+
+    <div class="waypoint" data-reveal>
+      <div class="waypoint-marker">&#9993;</div>
+      <div class="waypoint-content">
+        <h3>Message Queue</h3>
+        <p>Backpressure-aware tuple streams that integrate with any transport layer.</p>
+      </div>
+    </div>
+
+    <div class="waypoint" data-reveal>
+      <div class="waypoint-marker">&#9733;</div>
+      <div class="waypoint-content">
+        <h3>AI Agentic Memory</h3>
+        <p>Persistent graph snapshots give agents structured, inspectable long-term memory.</p>
+      </div>
+    </div>
+
+    <div class="waypoint" data-reveal>
+      <div class="waypoint-marker">&#9879;</div>
+      <div class="waypoint-content">
+        <h3>Security</h3>
+        <p>Audit every message, trace every propagation path. Full observability by design.</p>
+      </div>
+    </div>
+
+    <div class="waypoint" data-reveal>
+      <div class="waypoint-marker">&#9878;</div>
+      <div class="waypoint-content">
+        <h3>Human + AI Ops</h3>
+        <p>Shared graphs where humans set policy and LLMs execute &mdash; both with full visibility.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Implementations CTA                         ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<div class="contour-divider">
+  <svg viewBox="0 0 1440 80" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <path d="M0,45 C180,25 360,60 540,40 C720,20 900,55 1080,35 C1260,15 1380,45 1440,38 L1440,80 L0,80 Z" fill="#0f1620"/>
+    <path d="M0,45 C180,25 360,60 540,40 C720,20 900,55 1080,35 C1260,15 1380,45 1440,38" fill="none" stroke="#4de8c2" stroke-width="0.7" opacity="0.08"/>
+  </svg>
+</div>
+
+<section class="impl-section">
+  <h2>Two paths, one terrain</h2>
+  <p class="subtitle">Same protocol, different ecosystems. Pick your trail.</p>
+
+  <div class="impl-trails">
+    <a href="#" class="impl-trail">
+      <div class="impl-icon">&#9650;</div>
+      <h3>graphrefly-ts</h3>
+      <div class="impl-legend">TypeScript &middot; npm</div>
+    </a>
+    <a href="#" class="impl-trail">
+      <div class="impl-icon">&#9650;</div>
+      <h3>graphrefly-py</h3>
+      <div class="impl-legend">Python &middot; pip</div>
+    </a>
+  </div>
+
+  <div class="impl-legend-row">
+    <span class="impl-legend"><span class="solid"></span> TypeScript</span>
+    <span class="impl-legend"><span class="dashed"></span> Python</span>
+  </div>
+</section>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Footer                                      ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<footer class="footer">
+  <div class="footer-brand">GraphReFly <span>&middot; Reactive graph protocol</span></div>
+  <div class="footer-copy">&copy; 2025 &middot; Map Rev 0.1</div>
+</footer>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  JavaScript                                  ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<script>
+(function () {
+  'use strict';
+
+  // ── Intersection Observer for reveal animations ──
+  const revealElements = document.querySelectorAll('[data-reveal]');
+
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry, index) => {
+        if (entry.isIntersecting) {
+          // Stagger sequential reveals (waypoints, bands)
+          const parent = entry.target.parentElement;
+          const siblings = parent ? Array.from(parent.querySelectorAll('[data-reveal]')) : [];
+          const siblingIndex = siblings.indexOf(entry.target);
+          const delay = siblingIndex >= 0 ? siblingIndex * 120 : 0;
+
+          setTimeout(() => {
+            entry.target.classList.add('visible');
+          }, delay);
+
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+  );
+
+  revealElements.forEach((el) => revealObserver.observe(el));
+
+  // ── Header background opacity on scroll ──
+  const header = document.querySelector('.header');
+  let ticking = false;
+
+  function onScroll() {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        const scrollY = window.scrollY;
+        const opacity = Math.min(0.95, 0.85 + scrollY / 2000);
+        header.style.background = `rgba(12, 17, 23, ${opacity})`;
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+})();
+</script>
+</body>
+</html>

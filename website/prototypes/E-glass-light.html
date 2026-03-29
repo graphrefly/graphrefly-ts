@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --aqua: #4de8c2;
+  --pink: #f472b6;
+  --purple: #a78bfa;
+  --amber: #f0a858;
+  --glass-bg: rgba(255,255,255,0.05);
+  --glass-bg-hover: rgba(255,255,255,0.09);
+  --glass-border: rgba(255,255,255,0.1);
+  --glass-border-hover: rgba(255,255,255,0.18);
+  --text: #f0f4ff;
+  --muted: #8899b0;
+  --bg-start: #0a0a1a;
+  --bg-mid: #0d1525;
+  --bg-end: #0a1628;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg-start);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Noise overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ── HEADER ── */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0 40px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10,10,26,0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.header-logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.header-logo .re {
+  background: linear-gradient(135deg, var(--aqua), var(--purple), var(--pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.header-nav a:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+}
+
+.search-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.search-pill:hover { border-color: rgba(255,255,255,0.18); }
+
+.search-pill svg { width: 14px; height: 14px; }
+
+/* ── HERO ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 24px 80px;
+  overflow: hidden;
+}
+
+/* Gradient mesh background */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 40%, rgba(77,232,194,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 75% 30%, rgba(167,139,250,0.1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 70%, rgba(244,114,182,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(240,168,88,0.07) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%);
+  z-index: 0;
+}
+
+/* Floating orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 1;
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(77,232,194,0.35), rgba(167,139,250,0.2), transparent);
+  top: 10%;
+  left: 5%;
+  animation: float1 28s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(244,114,182,0.3), rgba(167,139,250,0.15), transparent);
+  top: 30%;
+  right: 5%;
+  animation: float2 25s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(240,168,88,0.25), rgba(244,114,182,0.15), transparent);
+  bottom: 10%;
+  left: 30%;
+  animation: float3 30s ease-in-out infinite;
+}
+
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(60px, -40px) scale(1.05); }
+  50% { transform: translate(-30px, 50px) scale(0.95); }
+  75% { transform: translate(40px, 20px) scale(1.02); }
+}
+
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-50px, 30px) scale(1.08); }
+  66% { transform: translate(30px, -50px) scale(0.96); }
+}
+
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  20% { transform: translate(40px, -30px) scale(1.04); }
+  50% { transform: translate(-60px, -20px) scale(0.97); }
+  80% { transform: translate(20px, 40px) scale(1.06); }
+}
+
+/* SVG flow lines */
+.flow-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.flow-lines svg {
+  width: 100%;
+  height: 100%;
+}
+
+.flow-line {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.4;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: drawLine 4s ease-out forwards;
+}
+
+.flow-line:nth-child(1) { animation-delay: 0.3s; }
+.flow-line:nth-child(2) { animation-delay: 0.8s; }
+.flow-line:nth-child(3) { animation-delay: 1.3s; }
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  max-width: 800px;
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.kicker::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aqua);
+  box-shadow: 0 0 8px var(--aqua);
+}
+
+.hero-title {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin-bottom: 24px;
+}
+
+.hero-title .re {
+  background: linear-gradient(
+    90deg,
+    var(--aqua),
+    var(--purple),
+    var(--pink),
+    var(--amber),
+    var(--aqua)
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: prismaticShift 8s ease-in-out infinite;
+}
+
+@keyframes prismaticShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.hero-tagline {
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  font-weight: 300;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 48px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border-radius: 14px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.btn-primary {
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+  isolation: isolate;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, var(--aqua), var(--purple), var(--pink));
+  z-index: -2;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 13px;
+  background: rgba(10,10,26,0.85);
+  backdrop-filter: blur(12px);
+  z-index: -1;
+  transition: background 0.3s;
+}
+
+.btn-primary:hover::after {
+  background: rgba(10,10,26,0.7);
+}
+
+.btn-ghost {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--muted);
+  backdrop-filter: blur(12px);
+}
+
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.09);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.18);
+}
+
+/* ── SECTION COMMON ── */
+section {
+  position: relative;
+  padding: 120px 24px;
+}
+
+.container {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.section-kicker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 20px;
+}
+
+.section-sub {
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+/* ── FEATURES ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 64px;
+}
+
+.feature-card {
+  position: relative;
+  padding: 40px 36px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-4px);
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  left: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  filter: blur(50px);
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.feature-card:hover::before { opacity: 0.75; }
+
+.feature-card.amber::before { background: var(--amber); }
+.feature-card.aqua::before { background: var(--aqua); }
+.feature-card.purple::before { background: var(--purple); }
+.feature-card.pink::before { background: var(--pink); }
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 1.3rem;
+}
+
+.feature-card h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+.feature-card p {
+  font-size: 0.95rem;
+  font-weight: 300;
+  color: var(--muted);
+}
+
+.feature-card p strong {
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+/* ── PRISM SECTION ── */
+.prism-section {
+  text-align: center;
+  overflow: hidden;
+}
+
+.prism-visual {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  height: 320px;
+  margin: 0 auto 48px;
+}
+
+.prism-visual svg {
+  width: 100%;
+  height: 100%;
+}
+
+.prism-beam-in {
+  stroke: rgba(255,255,255,0.7);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+}
+
+.prism-beam-out {
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+}
+
+.prism-section.visible .prism-beam-in {
+  animation: drawBeam 1.5s ease-out forwards;
+}
+
+.prism-section.visible .prism-beam-out {
+  animation: drawBeam 1.5s ease-out forwards;
+}
+
+.prism-section.visible .prism-beam-out:nth-child(2) { animation-delay: 0.8s; }
+.prism-section.visible .prism-beam-out:nth-child(3) { animation-delay: 1.0s; }
+.prism-section.visible .prism-beam-out:nth-child(4) { animation-delay: 1.2s; }
+.prism-section.visible .prism-beam-out:nth-child(5) { animation-delay: 1.4s; }
+.prism-section.visible .prism-beam-out:nth-child(6) { animation-delay: 1.6s; }
+
+@keyframes drawBeam {
+  to { stroke-dashoffset: 0; }
+}
+
+.prism-shape {
+  fill: rgba(255,255,255,0.04);
+  stroke: rgba(255,255,255,0.15);
+  stroke-width: 1.5;
+}
+
+.prism-section h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.prism-section h2 span {
+  background: linear-gradient(90deg, var(--aqua), var(--purple), var(--pink), var(--amber));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.prism-section .section-sub {
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* ── CODE SECTION ── */
+.code-section {
+  background:
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(167,139,250,0.06) 0%, transparent 70%);
+}
+
+.code-card {
+  max-width: 720px;
+  margin: 48px auto 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(16px);
+}
+
+.code-card-header {
+  height: 3px;
+  background: linear-gradient(90deg, var(--aqua), var(--purple), var(--pink));
+}
+
+.code-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.code-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+}
+
+.code-card-top span {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: 'Fira Code', monospace;
+}
+
+.code-body {
+  padding: 28px 28px;
+  background: rgba(6,6,18,0.6);
+  display:flex;justify-content:center;
+}
+
+.code-body pre {
+  margin: 0;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  text-align:left;
+  max-width:520px;
+  width:100%;
+}
+
+.code-body .kw { color: var(--purple); }
+.code-body .fn { color: var(--aqua); }
+.code-body .str { color: var(--pink); }
+.code-body .num { color: var(--amber); }
+.code-body .cm { color: #5a6a80; font-style: italic; }
+.code-body .br { color: rgba(255,255,255,0.35); }
+.code-body .op { color: rgba(255,255,255,0.5); }
+.code-body .pr { color: var(--text); }
+.code-body .type { color: #7dd3fc; }
+
+/* ── USE CASES ── */
+.usecases-grid {
+  display: flex;
+  gap: 20px;
+  margin-top: 64px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.usecase-card {
+  flex: 1 1 200px;
+  max-width: 220px;
+  padding: 32px 24px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.usecase-card:nth-child(even) { transform: translateY(16px); }
+
+.usecase-card:hover {
+  background: var(--glass-bg-hover);
+  transform: translateY(-4px);
+}
+
+.usecase-card:nth-child(even):hover {
+  transform: translateY(12px);
+}
+
+.usecase-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, transparent 40%, var(--aqua), var(--purple), transparent 80%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s;
+}
+
+.usecase-card:hover::after { opacity: 0.15; }
+
+.usecase-icon {
+  font-size: 1.6rem;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.usecase-card h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.usecase-card p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+/* color accents */
+.usecase-card:nth-child(1) .usecase-icon { color: var(--aqua); }
+.usecase-card:nth-child(2) .usecase-icon { color: var(--purple); }
+.usecase-card:nth-child(3) .usecase-icon { color: var(--pink); }
+.usecase-card:nth-child(4) .usecase-icon { color: var(--amber); }
+.usecase-card:nth-child(5) .usecase-icon { color: var(--aqua); }
+
+/* ── IMPLEMENTATIONS ── */
+.impl-section {
+  text-align: center;
+}
+
+.impl-grid {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 56px;
+  flex-wrap: wrap;
+}
+
+.impl-card {
+  flex: 0 1 340px;
+  padding: 48px 36px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(16px);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.impl-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-4px);
+}
+
+.impl-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  border-radius: 2px;
+}
+
+.impl-card.ts::before { background: linear-gradient(90deg, transparent, var(--aqua), transparent); }
+.impl-card.py::before { background: linear-gradient(90deg, transparent, var(--amber), transparent); }
+
+.impl-card .lang-icon {
+  font-size: 2.4rem;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.impl-card h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.impl-card p {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 300;
+  margin-bottom: 24px;
+}
+
+.impl-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.impl-connector .line {
+  width: 2px;
+  height: 40px;
+  background: linear-gradient(180deg, var(--aqua), var(--purple), var(--pink), var(--amber));
+  border-radius: 2px;
+}
+
+/* ── FOOTER ── */
+.footer {
+  position: relative;
+  padding: 40px 24px;
+  text-align: center;
+  background: rgba(255,255,255,0.02);
+  backdrop-filter: blur(12px);
+}
+
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--aqua), var(--purple), var(--pink), transparent);
+}
+
+.footer-text {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 300;
+  margin-bottom: 16px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+.footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover { color: var(--text); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .header { padding: 0 20px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .impl-grid { flex-direction: column; align-items: center; }
+  .impl-connector { flex-direction: row; }
+  .impl-connector .line { width: 40px; height: 2px; }
+  .usecases-grid { flex-direction: column; align-items: center; }
+  .usecase-card:nth-child(even) { transform: none; }
+  .usecase-card:nth-child(even):hover { transform: translateY(-4px); }
+}
+</style>
+</head>
+<body>
+
+<!-- ════ HEADER ════ -->
+<header class="header">
+  <a href="#" class="header-logo">Graph<span class="re">Re</span>Fly</a>
+  <nav class="header-nav">
+    <div class="search-pill">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+      Search
+    </div>
+    <a href="#">Docs</a>
+    <a href="#">Spec</a>
+    <a href="#">GitHub</a>
+  </nav>
+</header>
+
+<!-- ════ HERO ════ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="flow-lines">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="prismGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#4de8c2" />
+          <stop offset="50%" stop-color="#a78bfa" />
+          <stop offset="100%" stop-color="#f472b6" />
+        </linearGradient>
+        <linearGradient id="prismGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#f472b6" />
+          <stop offset="50%" stop-color="#f0a858" />
+          <stop offset="100%" stop-color="#4de8c2" />
+        </linearGradient>
+        <linearGradient id="prismGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#a78bfa" />
+          <stop offset="50%" stop-color="#4de8c2" />
+          <stop offset="100%" stop-color="#f0a858" />
+        </linearGradient>
+      </defs>
+      <path class="flow-line" d="M-50 300 C300 280, 500 450, 800 350 S1200 250, 1500 380" stroke="url(#prismGrad1)" />
+      <path class="flow-line" d="M-50 500 C200 480, 450 350, 720 480 S1100 550, 1500 450" stroke="url(#prismGrad2)" />
+      <path class="flow-line" d="M-50 700 C350 680, 600 550, 900 650 S1250 700, 1500 600" stroke="url(#prismGrad3)" />
+    </svg>
+  </div>
+
+  <div class="hero-content">
+    <div class="kicker">Reactive Graph Protocol</div>
+    <h1 class="hero-title">Graph<span class="re">Re</span>Fly.</h1>
+    <p class="hero-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+    <div class="hero-buttons">
+      <a href="#" class="btn btn-primary">Read the Spec</a>
+      <a href="#" class="btn btn-ghost">npm install @graphrefly/graphrefly</a>
+    </div>
+  </div>
+</section>
+
+<!-- ════ FEATURES ════ -->
+<section>
+  <div class="container">
+    <div class="section-kicker">Core Concepts</div>
+    <h2 class="section-title">Built on first principles.</h2>
+
+    <div class="features-grid">
+      <div class="feature-card amber">
+        <div class="feature-icon">&#9672;</div>
+        <h3>Reactive Precision</h3>
+        <p>Combining <strong>Callbag-ish</strong> minimalism with <strong>Diamond-safe</strong> correctness. A protocol small enough for an LLM to reason about, yet robust enough to eliminate race conditions through a rigorous <strong>two-phase push</strong> mechanism (<strong>DIRTY</strong> then <strong>DATA</strong>). Every flow is glitch-free, high-performance, and mathematically sound.</p>
+      </div>
+      <div class="feature-card aqua">
+        <div class="feature-icon">&#9830;</div>
+        <h3>Governed Integrity</h3>
+        <p>Trust is not an add-on; it is the protocol. With <strong>ABAC</strong> (Attribute-Based Access Control) and <strong>Versioning</strong> baked directly into both nodes and graphs, every state change is authorized, immutable, and auditable. Complex reactive systems remain stable, secure, and effortlessly reversible.</p>
+      </div>
+      <div class="feature-card purple">
+        <div class="feature-icon">&#9724;</div>
+        <h3>Living Blueprints</h3>
+        <p>Moving from ephemeral code to <strong>Introspectable Artifacts</strong>. Graphs are modular, pluggable solutions that encapsulate <strong>Values, Status, and Algorithm</strong> into a single, serializable unit. Through the <strong>Companion Store</strong>, every step is accountable and every metadata point is inspectable.</p>
+      </div>
+      <div class="feature-card pink">
+        <div class="feature-icon">&#9734;</div>
+        <h3>Agentic Co-operation</h3>
+        <p>A symbiotic workspace where <strong>Humans master the abstraction</strong> and <strong>AI masters the implementation</strong>. By unifying security, observability, and composability, GraphReFly provides the perfect arena for agents&mdash;human or LLM&mdash;to play to their strengths and rely on a shared, transparent logic.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ PRISM SECTION ════ -->
+<section class="prism-section" id="prism-section">
+  <div class="container">
+    <div class="prism-visual">
+      <svg viewBox="0 0 700 320" fill="none">
+        <!-- incoming white beam -->
+        <path class="prism-beam-in" d="M 0 160 L 280 160" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
+
+        <!-- prism diamond -->
+        <polygon class="prism-shape" points="310,80 400,160 310,240 220,160"/>
+
+        <!-- spectral beams out -->
+        <path class="prism-beam-out" d="M 400 160 L 700 60" stroke="#4de8c2" stroke-width="2"/>
+        <path class="prism-beam-out" d="M 400 160 L 700 110" stroke="#7dd3fc" stroke-width="2"/>
+        <path class="prism-beam-out" d="M 400 160 L 700 160" stroke="#a78bfa" stroke-width="2"/>
+        <path class="prism-beam-out" d="M 400 160 L 700 210" stroke="#f472b6" stroke-width="2"/>
+        <path class="prism-beam-out" d="M 400 160 L 700 260" stroke="#f0a858" stroke-width="2"/>
+
+        <!-- glow at refraction point -->
+        <circle cx="310" cy="160" r="60" fill="url(#prismCenter)" opacity="0.3"/>
+        <defs>
+          <radialGradient id="prismCenter">
+            <stop offset="0%" stop-color="white" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="white" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+      </svg>
+    </div>
+    <h2>One protocol. <span>Every spectrum.</span></h2>
+    <p class="section-sub">A single message format &mdash; tuples of [Type, Data?] &mdash; powers sources, sinks, operators, and entire graphs. The same primitive adapts to every use case, from real-time UI bindings to LLM agentic memory.</p>
+  </div>
+</section>
+
+<!-- ════ CODE SECTION ════ -->
+<section class="code-section">
+  <div class="container" style="text-align: center;">
+    <div class="section-kicker">Developer Experience</div>
+    <h2 class="section-title">Clean, expressive, typed.</h2>
+    <p class="section-sub" style="margin: 0 auto;">Sugar constructors keep the common path simple. The protocol stays accessible underneath.</p>
+
+    <div class="code-card">
+      <div class="code-card-header"></div>
+      <div class="code-card-top">
+        <div class="code-dot"></div>
+        <div class="code-dot"></div>
+        <div class="code-dot"></div>
+        <span>graph.ts</span>
+      </div>
+      <div class="code-body">
+<pre><span class="kw">const</span> <span class="pr">count</span>   <span class="op">=</span> <span class="fn">state</span><span class="br">(</span><span class="num">0</span><span class="br">)</span><span class="op">;</span>
+<span class="kw">const</span> <span class="pr">doubled</span> <span class="op">=</span> <span class="fn">derived</span><span class="br">(</span><span class="br">[</span><span class="pr">count</span><span class="br">]</span><span class="op">,</span> <span class="br">(</span><span class="pr">c</span><span class="br">)</span> <span class="op">=&gt;</span> <span class="pr">c</span> <span class="op">*</span> <span class="num">2</span><span class="br">)</span><span class="op">;</span>
+
+<span class="fn">effect</span><span class="br">(</span><span class="br">[</span><span class="pr">doubled</span><span class="br">]</span><span class="op">,</span> <span class="br">(</span><span class="pr">d</span><span class="br">)</span> <span class="op">=&gt;</span> <span class="pr">console</span><span class="op">.</span><span class="fn">log</span><span class="br">(</span><span class="pr">d</span><span class="br">)</span><span class="br">)</span><span class="op">;</span>
+
+<span class="pr">count</span><span class="op">.</span><span class="fn">down</span><span class="br">(</span><span class="br">[</span><span class="br">[</span><span class="type">DATA</span><span class="op">,</span> <span class="num">1</span><span class="br">]</span><span class="br">]</span><span class="br">)</span><span class="op">;</span>  <span class="cm">// logs: 2</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ USE CASES ════ -->
+<section>
+  <div class="container" style="text-align: center;">
+    <div class="section-kicker">Use Cases</div>
+    <h2 class="section-title">One graph, many domains.</h2>
+    <p class="section-sub" style="margin: 0 auto;">The protocol is domain-agnostic. The graph carries whatever your system needs.</p>
+
+    <div class="usecases-grid">
+      <div class="usecase-card">
+        <span class="usecase-icon">&#9881;</span>
+        <h4>Orchestration</h4>
+        <p>Coordinate multi-step workflows with observable state at every node.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="usecase-icon">&#9993;</span>
+        <h4>Message Queue</h4>
+        <p>Reactive pub/sub with backpressure, built on the same tuple protocol.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="usecase-icon">&#9733;</span>
+        <h4>AI Agentic Memory</h4>
+        <p>LLMs read and write graph nodes as persistent, inspectable memory.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="usecase-icon">&#9888;</span>
+        <h4>Security</h4>
+        <p>Audit trails and permission boundaries at the protocol level.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="usecase-icon">&#9741;</span>
+        <h4>Human + AI Ops</h4>
+        <p>Shared graphs where humans observe, approve, and intervene in real time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ IMPLEMENTATIONS ════ -->
+<section class="impl-section">
+  <div class="container">
+    <div class="section-kicker">Implementations</div>
+    <h2 class="section-title">One light, two prisms.</h2>
+    <p class="section-sub" style="margin: 0 auto 0;">Same protocol, native implementations. Use whichever fits your stack.</p>
+
+    <div class="impl-grid">
+      <div class="impl-card ts">
+        <span class="lang-icon" style="color: var(--aqua);">TS</span>
+        <h3>TypeScript</h3>
+        <p>First-class types, tree-shakeable, zero dependencies. Works everywhere JS runs.</p>
+        <a href="#" class="btn btn-ghost" style="font-size: 0.85rem; padding: 10px 24px;">npm i @graphrefly/graphrefly-ts</a>
+      </div>
+
+      <div class="impl-connector">
+        <div class="line"></div>
+        <span>SAME SPEC</span>
+        <div class="line"></div>
+      </div>
+
+      <div class="impl-card py">
+        <span class="lang-icon" style="color: var(--amber);">PY</span>
+        <h3>Python</h3>
+        <p>Async-native, type-hinted, built for data pipelines and LLM agent frameworks.</p>
+        <a href="#" class="btn btn-ghost" style="font-size: 0.85rem; padding: 10px 24px;">pip install graphrefly</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ FOOTER ════ -->
+<footer class="footer">
+  <p class="footer-text">GraphReFly &middot; Reactive graph protocol for human + LLM co-operation</p>
+  <div class="footer-links">
+    <a href="#">Documentation</a>
+    <a href="#">Specification</a>
+    <a href="#">GitHub</a>
+    <a href="#">NPM</a>
+    <a href="#">PyPI</a>
+  </div>
+</footer>
+
+<script>
+// Intersection Observer for prism section animation
+const prismSection = document.getElementById('prism-section');
+if (prismSection) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.3 });
+  observer.observe(prismSection);
+}
+
+// Subtle parallax on orbs relative to mouse
+document.addEventListener('mousemove', (e) => {
+  const x = (e.clientX / window.innerWidth - 0.5) * 2;
+  const y = (e.clientY / window.innerHeight - 0.5) * 2;
+  const orbs = document.querySelectorAll('.orb');
+  orbs.forEach((orb, i) => {
+    const factor = (i + 1) * 8;
+    orb.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
+  });
+});
+</script>
+</body>
+</html>

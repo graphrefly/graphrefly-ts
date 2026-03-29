@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --signal: #4de8c2;
+  --signal-dim: #1a5c4a;
+  --signal-glow: rgba(77, 232, 194, 0.4);
+  --amber: #f0a858;
+  --text: #e0e0e0;
+  --text-dim: #707070;
+  --bg: #000000;
+  --grid: #0a1a0a;
+  --grid-bright: #111;
+  --border: #1a2a1a;
+  --mono: 'IBM Plex Mono', monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--mono);
+  font-weight: 400;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Grid background */
+.grid-bg {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Container */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ─── HEADER ─── */
+.header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.92);
+  border-bottom: 1px solid var(--signal-dim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+.header .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-logo {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--signal);
+  letter-spacing: 0.5px;
+}
+
+.header-logo .cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--signal);
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-search {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid var(--signal-dim);
+  color: var(--text);
+  padding: 4px 10px;
+  outline: none;
+  width: 200px;
+}
+
+.header-search::placeholder {
+  color: var(--text-dim);
+}
+
+.header-search:focus {
+  border-color: var(--signal);
+}
+
+.nav-link {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--signal);
+}
+
+/* ─── HERO ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  padding-top: 52px;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+/* Orbs / signal bursts */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.35;
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 300px; height: 300px;
+  background: var(--signal);
+  top: 15%; left: 10%;
+  animation: orb-jitter-1 12s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 200px; height: 200px;
+  background: var(--amber);
+  top: 55%; right: 15%;
+  animation: orb-jitter-2 10s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 250px; height: 250px;
+  background: var(--signal);
+  bottom: 10%; left: 40%;
+  animation: orb-jitter-3 14s ease-in-out infinite;
+}
+
+@keyframes orb-jitter-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-15px, 25px) scale(0.95); }
+  75% { transform: translate(20px, 10px) scale(1.02); }
+}
+
+@keyframes orb-jitter-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  30% { transform: translate(-25px, 15px) scale(1.08); }
+  60% { transform: translate(20px, -30px) scale(0.92); }
+  80% { transform: translate(-10px, 5px) scale(1.03); }
+}
+
+@keyframes orb-jitter-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  20% { transform: translate(15px, -25px) scale(0.96); }
+  45% { transform: translate(-20px, 10px) scale(1.06); }
+  70% { transform: translate(25px, 20px) scale(0.98); }
+}
+
+/* SVG flow lines */
+.hero-svg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: visible;
+}
+
+.flow-line {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 6px var(--signal-glow));
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: draw-line 2s ease-out forwards;
+}
+
+.flow-line:nth-child(2) {
+  stroke: var(--signal-dim);
+  stroke-width: 1;
+  animation-delay: 0.5s;
+}
+
+.flow-line:nth-child(3) {
+  stroke-width: 1;
+  opacity: 0.5;
+  animation-delay: 1s;
+}
+
+@keyframes draw-line {
+  to { stroke-dashoffset: 0; }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.hero-kicker {
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--signal-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.hero-kicker .prompt {
+  color: var(--signal);
+}
+
+.hero-title {
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 700;
+  color: var(--signal);
+  line-height: 1.05;
+  margin-bottom: 20px;
+  letter-spacing: -1px;
+}
+
+.hero-title .cursor-char {
+  display: inline-block;
+  border-right: 3px solid var(--signal);
+  animation: blink 1s step-end infinite;
+  padding-right: 4px;
+}
+
+.hero-tagline {
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--text);
+  max-width: 600px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.hero-install {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+}
+
+.hero-install .prompt {
+  color: var(--signal);
+}
+
+.hero-install code {
+  color: var(--amber);
+}
+
+.hero-ctas {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 48px;
+}
+
+.cta-btn {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 10px 20px;
+  border: 1px solid var(--signal-dim);
+  color: var(--signal);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cta-btn:hover {
+  background: var(--signal);
+  color: var(--bg);
+  box-shadow: 0 0 20px var(--signal-glow);
+}
+
+.cta-btn.primary {
+  background: var(--signal);
+  color: var(--bg);
+  border-color: var(--signal);
+}
+
+.cta-btn.primary:hover {
+  background: transparent;
+  color: var(--signal);
+}
+
+.ascii-art {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--signal-dim);
+  white-space: pre;
+  opacity: 0;
+  animation: fade-in 1s ease-out 1.5s forwards;
+}
+
+@keyframes fade-in {
+  to { opacity: 1; }
+}
+
+/* ─── SECTIONS ─── */
+section {
+  padding: 100px 0;
+}
+
+.section-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--signal);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 48px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--signal-dim);
+}
+
+/* ─── PROTOCOL ─── */
+.protocol-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.protocol-table pre {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+.protocol-table .type-name {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.protocol-table .dim {
+  color: var(--text-dim);
+}
+
+.protocol-table .head {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.protocol-table .line {
+  color: var(--signal-dim);
+}
+
+/* ─── FEATURES ─── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 600px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feature-panel {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--signal);
+  padding: 28px 24px;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.feature-panel.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.feature-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--amber);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.feature-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--signal);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.feature-desc {
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+/* ─── CODE PREVIEW ─── */
+.code-section {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--signal-dim);
+}
+
+.code-header {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--signal-dim);
+}
+
+.code-dot.red { background: #444; }
+.code-dot.yellow { background: #555; }
+.code-dot.green { background: var(--signal-dim); }
+
+.code-title {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 12px;
+  letter-spacing: 1px;
+}
+
+.code-body {
+  padding: 24px;
+  overflow-x: auto;
+}
+
+.code-body pre {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.code-line {
+  display: flex;
+  gap: 16px;
+}
+
+.code-ln {
+  color: var(--text-dim);
+  user-select: none;
+  min-width: 24px;
+  text-align: right;
+}
+
+.code-prompt {
+  color: var(--signal-dim);
+  user-select: none;
+}
+
+.code-text {
+  color: var(--signal);
+}
+
+.code-keyword {
+  color: var(--amber);
+}
+
+.code-output {
+  color: var(--text);
+}
+
+.code-comment {
+  color: var(--text-dim);
+}
+
+/* ─── SIGNAL PATH ─── */
+.signal-path {
+  overflow-x: auto;
+  padding: 20px 0;
+}
+
+.signal-diagram {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-width: 700px;
+}
+
+.signal-node {
+  border: 1px solid var(--signal-dim);
+  padding: 20px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(0, 0, 0, 0.7);
+  min-width: 160px;
+}
+
+.signal-node:hover {
+  border-color: var(--signal);
+  box-shadow: 0 0 24px var(--signal-glow);
+  background: rgba(77, 232, 194, 0.04);
+}
+
+.signal-node-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--signal);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.signal-node-desc {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--text-dim);
+}
+
+.signal-arrow {
+  font-size: 18px;
+  color: var(--signal-dim);
+  padding: 0 8px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.signal-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.signal-row:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── IMPLEMENTATIONS ─── */
+.impl-section {
+  text-align: center;
+}
+
+.impl-prompt {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+
+.impl-prompt .prompt {
+  color: var(--signal);
+}
+
+.impl-options {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.impl-option {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 14px 28px;
+  border: 1px solid var(--signal-dim);
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.impl-option:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+  box-shadow: 0 0 16px var(--signal-glow);
+}
+
+.impl-option .num {
+  color: var(--amber);
+  margin-right: 8px;
+}
+
+.impl-option .name {
+  color: var(--signal);
+}
+
+/* ─── FOOTER ─── */
+.footer {
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer p {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.footer .signal {
+  color: var(--signal-dim);
+}
+
+/* ─── RESPONSIVENESS ─── */
+@media (max-width: 768px) {
+  .header-search { display: none; }
+  .hero-title { font-size: 40px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .signal-diagram { min-width: 0; flex-direction: column; }
+  .signal-arrow { transform: rotate(90deg); padding: 4px 0; }
+  .ascii-art { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<!-- ─── HEADER ─── -->
+<header class="header">
+  <div class="container">
+    <div class="header-logo">&gt; GraphReFly<span class="cursor"></span></div>
+    <nav class="header-nav">
+      <input type="text" class="header-search" placeholder="[search: ____]">
+      <a href="#" class="nav-link">[docs]</a>
+      <a href="#" class="nav-link">[spec]</a>
+      <a href="#" class="nav-link">[src]</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <svg class="hero-svg" viewBox="0 0 1200 800" preserveAspectRatio="none">
+      <path class="flow-line" d="M0,400 C200,350 400,500 600,380 S1000,450 1200,400" />
+      <path class="flow-line" d="M0,500 C300,450 500,550 700,480 S1000,520 1200,490" />
+      <path class="flow-line" d="M0,300 C250,280 450,350 650,310 S950,340 1200,320" />
+    </svg>
+  </div>
+  <div class="container">
+    <div class="hero-content">
+      <p class="hero-kicker"><span class="prompt">&gt;</span> REACTIVE GRAPH PROTOCOL</p>
+      <h1 class="hero-title">GraphReFly<span class="cursor-char">_</span></h1>
+      <p class="hero-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+      <p class="hero-install"><span class="prompt">$</span> <code>npm install @graphrefly/graphrefly-ts</code></p>
+      <div class="hero-ctas">
+        <a href="#" class="cta-btn primary">[read spec]</a>
+        <a href="#" class="cta-btn">[roadmap]</a>
+        <a href="#" class="cta-btn">[python]</a>
+      </div>
+      <div class="ascii-art">
+  ┌─────────┐  DATA   ┌──────────┐  DATA   ┌──────────┐
+  │  state  │────────→│ derived  │────────→│  effect  │
+  └─────────┘         └──────────┘         └──────────┘
+       │                    │
+       │  DIRTY             │  DIRTY
+       └────────────────────┘
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── PROTOCOL ─── -->
+<section id="protocol">
+  <div class="container">
+    <div class="section-header">── MESSAGE PROTOCOL ──</div>
+    <div class="protocol-table">
+      <pre>
+<span class="head">  TYPE          DATA        PURPOSE</span>
+<span class="line">  ─────────     ────────    ─────────────────────────────</span>
+  <span class="type-name">DATA</span>          value       Value delivery
+  <span class="type-name">DIRTY</span>         <span class="dim">—</span>           Phase 1: invalidation signal
+  <span class="type-name">RESOLVED</span>      <span class="dim">—</span>           Phase 2: resolved unchanged
+  <span class="type-name">COMPLETE</span>      <span class="dim">—</span>           Clean termination
+  <span class="type-name">ERROR</span>         error       Error termination
+      </pre>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FEATURES ─── -->
+<section id="features">
+  <div class="container">
+    <div class="section-header">── CORE PROPERTIES ──</div>
+    <div class="features-grid">
+      <div class="feature-panel" data-animate>
+        <div class="feature-num">[01]</div>
+        <div class="feature-title">One Protocol</div>
+        <p class="feature-desc">Sources, transforms, and sinks are all nodes. Every node speaks the same message tuple protocol: [Type, Data?]. No special cases, no type hierarchies.</p>
+      </div>
+      <div class="feature-panel" data-animate>
+        <div class="feature-num">[02]</div>
+        <div class="feature-title">Diamond-Safe</div>
+        <p class="feature-desc">Two-phase push (DIRTY then DATA) prevents glitches in diamond-shaped dependency graphs. Nodes resolve only after all upstream paths deliver.</p>
+      </div>
+      <div class="feature-panel" data-animate>
+        <div class="feature-num">[03]</div>
+        <div class="feature-title">Graph as Artifact</div>
+        <p class="feature-desc">The Graph container holds topology, snapshot, and describe metadata. Inspect or serialize the full execution state at any point. Observability without interference.</p>
+      </div>
+      <div class="feature-panel" data-animate>
+        <div class="feature-num">[04]</div>
+        <div class="feature-title">Human + LLM</div>
+        <p class="feature-desc">Designed for co-operation. LLMs observe the graph, propose mutations via messages, and receive feedback through the same protocol humans use. Shared ground truth.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CODE PREVIEW ─── -->
+<section id="code">
+  <div class="container">
+    <div class="section-header">── QUICK START ──</div>
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-dot red"></span>
+        <span class="code-dot yellow"></span>
+        <span class="code-dot green"></span>
+        <span class="code-title">TERMINAL</span>
+      </div>
+      <div class="code-body">
+        <pre>
+<span class="code-line"><span class="code-ln"> 1</span> <span class="code-prompt">&gt;</span> <span class="code-keyword">const</span> <span class="code-text">count = state(0);</span></span>
+<span class="code-line"><span class="code-ln"> 2</span> <span class="code-prompt">&gt;</span> <span class="code-keyword">const</span> <span class="code-text">doubled = derived([count], c =&gt; c * 2);</span></span>
+<span class="code-line"><span class="code-ln"> 3</span> <span class="code-prompt">&gt;</span> <span class="code-keyword">const</span> <span class="code-text">log = effect([doubled], d =&gt; console.log(d));</span></span>
+<span class="code-line"><span class="code-ln"> 4</span> <span class="code-prompt">&gt;</span> <span class="code-text">count.down([[DATA, 1]]);</span></span>
+<span class="code-line"><span class="code-ln">  </span> <span class="code-output">&larr; 2</span></span>
+<span class="code-line"><span class="code-ln"> 5</span> <span class="code-prompt">&gt;</span> <span class="code-text">count.down([[DATA, 5]]);</span></span>
+<span class="code-line"><span class="code-ln">  </span> <span class="code-output">&larr; 10</span></span>
+<span class="code-line"><span class="code-ln"> 6</span> <span class="code-prompt">&gt;</span> <span class="code-comment">// graph.snapshot() → full state at any time</span></span>
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SIGNAL PATH ─── -->
+<section id="signal-path">
+  <div class="container">
+    <div class="section-header">── SIGNAL PATHS ──</div>
+    <div class="signal-path">
+      <div class="signal-row">
+        <div class="signal-diagram">
+          <div class="signal-node">
+            <div class="signal-node-label">Orchestrate</div>
+            <div class="signal-node-desc">Multi-agent coordination</div>
+          </div>
+          <div class="signal-arrow">───&rarr;</div>
+          <div class="signal-node">
+            <div class="signal-node-label">Message Q</div>
+            <div class="signal-node-desc">Buffered reactive queue</div>
+          </div>
+          <div class="signal-arrow">───&rarr;</div>
+          <div class="signal-node">
+            <div class="signal-node-label">AI Memory</div>
+            <div class="signal-node-desc">Persistent graph state</div>
+          </div>
+        </div>
+      </div>
+      <div class="signal-row">
+        <div class="signal-diagram">
+          <div class="signal-node">
+            <div class="signal-node-label">Security</div>
+            <div class="signal-node-desc">Audit and access control</div>
+          </div>
+          <div class="signal-arrow">───&rarr;</div>
+          <div class="signal-node">
+            <div class="signal-node-label">Human + AI Ops</div>
+            <div class="signal-node-desc">Shared inspectable graph</div>
+          </div>
+          <div class="signal-arrow">───&rarr;</div>
+          <div class="signal-node">
+            <div class="signal-node-label">Deploy</div>
+            <div class="signal-node-desc">Reactive infra layer</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── IMPLEMENTATIONS ─── -->
+<section id="impl" class="impl-section">
+  <div class="container">
+    <div class="section-header">── IMPLEMENTATIONS ──</div>
+    <p class="impl-prompt"><span class="prompt">&gt;</span> select implementation:</p>
+    <div class="impl-options">
+      <a href="#" class="impl-option"><span class="num">[1]</span> <span class="name">graphrefly-ts</span></a>
+      <a href="#" class="impl-option"><span class="num">[2]</span> <span class="name">graphrefly-py</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer class="footer">
+  <div class="container">
+    <p><span class="signal">──</span> GraphReFly v0.1 <span class="signal">──</span> reactive graph protocol <span class="signal">──</span> EOF</p>
+  </div>
+</footer>
+
+<script>
+// Feature panel slide-in on scroll
+const panels = document.querySelectorAll('[data-animate]');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+      }, i * 120);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+panels.forEach(p => observer.observe(p));
+</script>
+</body>
+</html>

@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --space: #06070d;
+  --star-white: #f0f4ff;
+  --aqua: #4de8c2;
+  --purple: #a78bfa;
+  --warm: #f0a858;
+  --dust: #1a2744;
+  --pink: #f472b6;
+  --text-muted: rgba(240, 244, 255, 0.5);
+  --text-dim: rgba(240, 244, 255, 0.3);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--space);
+  color: var(--star-white);
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* Star field background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1px 1px at 10% 20%, rgba(240,244,255,0.8), transparent),
+    radial-gradient(1px 1px at 25% 55%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 40% 10%, rgba(240,244,255,0.7), transparent),
+    radial-gradient(1px 1px at 55% 75%, rgba(240,244,255,0.5), transparent),
+    radial-gradient(1px 1px at 70% 30%, rgba(240,244,255,0.9), transparent),
+    radial-gradient(1px 1px at 85% 65%, rgba(240,244,255,0.4), transparent),
+    radial-gradient(1px 1px at 15% 80%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 90% 15%, rgba(240,244,255,0.7), transparent),
+    radial-gradient(1px 1px at 5% 45%, rgba(240,244,255,0.5), transparent),
+    radial-gradient(1px 1px at 60% 50%, rgba(240,244,255,0.3), transparent),
+    radial-gradient(1px 1px at 35% 35%, rgba(240,244,255,0.8), transparent),
+    radial-gradient(1px 1px at 78% 88%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 48% 92%, rgba(240,244,255,0.4), transparent),
+    radial-gradient(1px 1px at 92% 42%, rgba(240,244,255,0.7), transparent),
+    radial-gradient(1.5px 1.5px at 20% 70%, rgba(240,244,255,0.9), transparent),
+    radial-gradient(1px 1px at 65% 15%, rgba(240,244,255,0.5), transparent),
+    radial-gradient(1px 1px at 82% 52%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 12% 38%, rgba(240,244,255,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 50% 28%, rgba(240,244,255,0.8), transparent),
+    radial-gradient(1px 1px at 33% 62%, rgba(240,244,255,0.5), transparent),
+    radial-gradient(1px 1px at 72% 78%, rgba(240,244,255,0.7), transparent),
+    radial-gradient(1px 1px at 88% 8%, rgba(240,244,255,0.3), transparent),
+    radial-gradient(1px 1px at 8% 95%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 45% 42%, rgba(240,244,255,0.4), transparent),
+    radial-gradient(1px 1px at 58% 68%, rgba(240,244,255,0.5), transparent),
+    radial-gradient(1.5px 1.5px at 95% 55%, rgba(240,244,255,0.7), transparent),
+    radial-gradient(1px 1px at 28% 88%, rgba(240,244,255,0.6), transparent),
+    radial-gradient(1px 1px at 3% 12%, rgba(240,244,255,0.8), transparent),
+    radial-gradient(1px 1px at 75% 5%, rgba(240,244,255,0.4), transparent),
+    radial-gradient(1px 1px at 52% 35%, rgba(240,244,255,0.5), transparent);
+}
+
+/* Twinkling stars */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(2px 2px at 30% 40%, rgba(77,232,194,0.8), transparent),
+    radial-gradient(2px 2px at 75% 60%, rgba(167,139,250,0.8), transparent);
+  animation: twinkle 4s ease-in-out infinite;
+}
+
+section, header, footer {
+  position: relative;
+  z-index: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── HEADER ─── */
+.header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1.25rem 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 7, 13, 0.3);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(240, 244, 255, 0.04);
+  transition: background 0.4s;
+}
+
+.header-logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.header-logo span {
+  background: linear-gradient(135deg, var(--aqua), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.header-nav a {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  transition: color 0.3s;
+  letter-spacing: 0.02em;
+}
+
+.header-nav a:hover {
+  color: var(--star-white);
+}
+
+.header-nav .search-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.header-nav .search-icon:hover {
+  opacity: 1;
+}
+
+/* ─── HERO ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8rem 2rem 4rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Nebula orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.orb-1 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, var(--aqua), transparent 70%);
+  top: 10%; left: -5%;
+  animation: float1 30s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--purple), transparent 70%);
+  top: 30%; right: -8%;
+  animation: float2 25s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, var(--warm), transparent 70%);
+  bottom: 5%; left: 20%;
+  animation: float3 35s ease-in-out infinite;
+}
+
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.05); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-30px, 20px) scale(0.97); }
+  66% { transform: translate(25px, -35px) scale(1.04); }
+}
+
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(20px, 25px) scale(1.03); }
+  66% { transform: translate(-35px, -15px) scale(0.96); }
+}
+
+/* Hero SVG flow lines */
+.hero-lines {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+.hero-lines path {
+  fill: none;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.hero-line-1 {
+  stroke: rgba(77, 232, 194, 0.2);
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: drawLine 6s ease-in-out forwards, pulseLine 8s ease-in-out 6s infinite;
+}
+
+.hero-line-2 {
+  stroke: rgba(167, 139, 250, 0.15);
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: drawLine2 5.5s ease-in-out 0.5s forwards, pulseLine 9s ease-in-out 6s infinite;
+}
+
+.hero-line-3 {
+  stroke: rgba(240, 168, 88, 0.12);
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: drawLine3 5s ease-in-out 1s forwards, pulseLine 7s ease-in-out 6s infinite;
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawLine2 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawLine3 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pulseLine {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.hero-dot {
+  fill: var(--star-white);
+  opacity: 0.6;
+}
+
+.hero-kicker {
+  font-size: 0.8rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp 1s ease-out 0.3s forwards;
+}
+
+.hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(3.5rem, 8vw, 7rem);
+  font-weight: 300;
+  line-height: 1.05;
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(25px);
+  animation: fadeUp 1s ease-out 0.6s forwards;
+}
+
+.hero-title .re {
+  background: linear-gradient(135deg, var(--aqua), #3bc4a0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 500;
+}
+
+.hero-tagline {
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--text-muted);
+  max-width: 540px;
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  transform: translateY(25px);
+  animation: fadeUp 1s ease-out 0.9s forwards;
+  font-weight: 300;
+}
+
+.hero-ctas {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp 1s ease-out 1.2s forwards;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: 100px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.35s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: rgba(77, 232, 194, 0.1);
+  border-color: rgba(77, 232, 194, 0.3);
+  color: var(--aqua);
+  box-shadow: 0 0 20px rgba(77, 232, 194, 0.1);
+}
+
+.btn-primary:hover {
+  background: rgba(77, 232, 194, 0.18);
+  box-shadow: 0 0 30px rgba(77, 232, 194, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  border-color: rgba(240, 244, 255, 0.12);
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+  border-color: rgba(240, 244, 255, 0.25);
+  color: var(--star-white);
+  transform: translateY(-1px);
+}
+
+/* Hero mini constellation */
+.hero-constellation {
+  margin-top: 4rem;
+  opacity: 0;
+  animation: fadeUp 1s ease-out 1.5s forwards;
+}
+
+.hero-constellation svg {
+  width: 200px;
+  height: 80px;
+}
+
+.constellation-dot {
+  fill: var(--star-white);
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.constellation-dot:nth-child(2) { animation-delay: 0.5s; }
+.constellation-dot:nth-child(3) { animation-delay: 1s; }
+.constellation-dot:nth-child(4) { animation-delay: 1.5s; }
+.constellation-dot:nth-child(5) { animation-delay: 2s; }
+.constellation-dot:nth-child(6) { animation-delay: 0.7s; }
+
+.constellation-line {
+  stroke: rgba(240, 244, 255, 0.15);
+  stroke-width: 0.5;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; r: 2; }
+  50% { opacity: 1; r: 3; }
+}
+
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── PHILOSOPHY ─── */
+.philosophy {
+  padding: 8rem 2rem;
+  text-align: center;
+  position: relative;
+}
+
+.philosophy-orbital {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 400px; height: 400px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.06;
+}
+
+.philosophy-orbital circle {
+  fill: none;
+  stroke: var(--star-white);
+  stroke-width: 0.5;
+}
+
+.philosophy-quote {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 300;
+  margin-bottom: 1rem;
+  color: rgba(240, 244, 255, 0.9);
+  letter-spacing: 0.08em;
+}
+
+.philosophy-translation {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 3rem;
+  font-weight: 300;
+}
+
+.philosophy-text {
+  max-width: 600px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.philosophy-text em {
+  color: var(--text-muted);
+}
+
+/* ─── FEATURES ─── */
+.features {
+  padding: 6rem 2rem 8rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.section-label {
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  text-align: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 300;
+  margin-bottom: 4rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: rgba(10, 12, 24, 0.6);
+  border: 1px solid rgba(240, 244, 255, 0.05);
+  border-radius: 20px;
+  padding: 2rem;
+  position: relative;
+  transition: all 0.5s ease;
+  opacity: 0;
+  transform: scale(0.95) translateY(20px);
+}
+
+.feature-card.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(240, 244, 255, 0.1);
+}
+
+.feature-card[data-accent="warm"] {
+  box-shadow: 0 0 0 0 rgba(240, 168, 88, 0);
+}
+.feature-card[data-accent="warm"]::before { background: var(--warm); box-shadow: 0 0 12px var(--warm); }
+.feature-card[data-accent="warm"]:hover { box-shadow: 0 0 40px rgba(240, 168, 88, 0.08); border-color: rgba(240, 168, 88, 0.15); }
+
+.feature-card[data-accent="aqua"]::before { background: var(--aqua); box-shadow: 0 0 12px var(--aqua); }
+.feature-card[data-accent="aqua"]:hover { box-shadow: 0 0 40px rgba(77, 232, 194, 0.08); border-color: rgba(77, 232, 194, 0.15); }
+
+.feature-card[data-accent="purple"]::before { background: var(--purple); box-shadow: 0 0 12px var(--purple); }
+.feature-card[data-accent="purple"]:hover { box-shadow: 0 0 40px rgba(167, 139, 250, 0.08); border-color: rgba(167, 139, 250, 0.15); }
+
+.feature-card[data-accent="pink"]::before { background: var(--pink); box-shadow: 0 0 12px var(--pink); }
+.feature-card[data-accent="pink"]:hover { box-shadow: 0 0 40px rgba(244, 114, 182, 0.08); border-color: rgba(244, 114, 182, 0.15); }
+
+.feature-card h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.35rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+/* ─── INTERACTIVE CONSTELLATION ─── */
+.constellation-section {
+  padding: 6rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.constellation-visual {
+  width: 100%;
+  max-width: 800px;
+}
+
+.constellation-visual svg {
+  width: 100%;
+  height: auto;
+}
+
+.const-node {
+  transition: r 0.3s;
+}
+
+.const-node-glow {
+  animation: nodeGlow 3s ease-in-out infinite;
+}
+
+@keyframes nodeGlow {
+  0%, 100% { opacity: 0.15; r: 16; }
+  50% { opacity: 0.3; r: 20; }
+}
+
+.const-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+
+.const-connection {
+  stroke-width: 0.8;
+  fill: none;
+}
+
+.const-flow {
+  stroke-dasharray: 4 8;
+  animation: flowDash 3s linear infinite;
+}
+
+@keyframes flowDash {
+  to { stroke-dashoffset: -24; }
+}
+
+/* ─── CODE PREVIEW ─── */
+.code-section {
+  padding: 4rem 2rem 8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.code-card {
+  max-width: 640px;
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  background: rgba(10, 12, 24, 0.8);
+}
+
+.code-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(77,232,194,0.2), rgba(167,139,250,0.2), rgba(240,168,88,0.15));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(240, 244, 255, 0.04);
+}
+
+.code-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  opacity: 0.4;
+}
+
+.code-dot:nth-child(1) { background: #ff5f57; }
+.code-dot:nth-child(2) { background: #ffbd2e; }
+.code-dot:nth-child(3) { background: #28c840; }
+
+.code-label {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.code-body {
+  padding: 1.5rem 2rem 2rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: rgba(240, 244, 255, 0.7);
+}
+
+.code-body .kw { color: var(--purple); }
+.code-body .fn { color: var(--aqua); }
+.code-body .str { color: var(--warm); }
+.code-body .num { color: var(--pink); }
+.code-body .cmt { color: var(--text-dim); font-style: italic; }
+.code-body .op { color: rgba(240, 244, 255, 0.5); }
+.code-body .par { color: rgba(240, 244, 255, 0.4); }
+
+/* ─── USE CASES ─── */
+.use-cases {
+  padding: 4rem 2rem 8rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.use-cases-track {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding: 2rem 0.5rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.use-cases-track::-webkit-scrollbar {
+  height: 4px;
+}
+
+.use-cases-track::-webkit-scrollbar-track {
+  background: rgba(240, 244, 255, 0.03);
+  border-radius: 2px;
+}
+
+.use-cases-track::-webkit-scrollbar-thumb {
+  background: rgba(240, 244, 255, 0.08);
+  border-radius: 2px;
+}
+
+.use-case-card {
+  flex: 0 0 220px;
+  scroll-snap-align: start;
+  background: rgba(10, 12, 24, 0.5);
+  border: 1px solid rgba(240, 244, 255, 0.05);
+  border-radius: 20px;
+  padding: 1.75rem;
+  position: relative;
+  transition: all 0.4s;
+}
+
+.use-case-card:hover {
+  border-color: rgba(240, 244, 255, 0.1);
+  transform: translateY(-3px);
+}
+
+.use-case-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+}
+
+.use-case-card:nth-child(1) .use-case-dot { background: var(--aqua); box-shadow: 0 0 10px var(--aqua); }
+.use-case-card:nth-child(2) .use-case-dot { background: var(--purple); box-shadow: 0 0 10px var(--purple); }
+.use-case-card:nth-child(3) .use-case-dot { background: var(--warm); box-shadow: 0 0 10px var(--warm); }
+.use-case-card:nth-child(4) .use-case-dot { background: var(--pink); box-shadow: 0 0 10px var(--pink); }
+.use-case-card:nth-child(5) .use-case-dot { background: var(--aqua); box-shadow: 0 0 10px var(--aqua); }
+
+.use-case-card h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.15rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.use-case-card p {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ─── IMPLEMENTATIONS ─── */
+.implementations {
+  padding: 6rem 2rem 8rem;
+  text-align: center;
+}
+
+.impl-subtitle {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 300;
+  margin-bottom: 3rem;
+}
+
+.impl-subtitle em {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.impl-nodes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  margin-bottom: 3rem;
+}
+
+.impl-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.impl-orb {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.impl-orb::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  padding: 1px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.impl-orb.ts {
+  background: rgba(77, 232, 194, 0.08);
+  color: var(--aqua);
+}
+.impl-orb.ts::before {
+  background: linear-gradient(135deg, var(--aqua), transparent);
+}
+
+.impl-orb.py {
+  background: rgba(167, 139, 250, 0.08);
+  color: var(--purple);
+}
+.impl-orb.py::before {
+  background: linear-gradient(135deg, var(--purple), transparent);
+}
+
+.impl-connector {
+  width: 60px;
+  height: 2px;
+  position: relative;
+}
+
+.impl-connector::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--aqua), var(--purple));
+  opacity: 0.3;
+}
+
+.impl-connector .conn-dot {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--star-white);
+  top: -1.5px;
+  animation: connTravel 2s linear infinite;
+}
+
+@keyframes connTravel {
+  from { left: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  to { left: calc(100% - 4px); opacity: 0; }
+}
+
+.impl-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.impl-ctas {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ─── FOOTER ─── */
+.footer {
+  padding: 4rem 2rem 2rem;
+  text-align: center;
+  border-top: 1px solid rgba(240, 244, 255, 0.03);
+  background: linear-gradient(to bottom, transparent, rgba(3, 4, 8, 0.5));
+}
+
+.footer-constellation {
+  margin-bottom: 2rem;
+  opacity: 0.15;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.footer-links a {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  transition: color 0.3s;
+}
+
+.footer-links a:hover {
+  color: var(--text-muted);
+}
+
+.footer-copy {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .header { padding: 1rem 1.5rem; }
+  .header-nav { gap: 1.25rem; }
+  .header-nav a { font-size: 0.8rem; }
+  .hero { padding: 6rem 1.5rem 3rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .impl-nodes { flex-direction: column; }
+  .impl-connector { width: 2px; height: 40px; }
+  .impl-connector::before { width: 1px; height: 100%; }
+  .impl-connector .conn-dot { animation-name: connTravelV; left: -1.5px !important; }
+}
+
+@keyframes connTravelV {
+  from { top: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  to { top: calc(100% - 4px); opacity: 0; }
+}
+
+/* ─── SCROLL REVEAL ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">Graph<span>ReFly</span></div>
+  <nav class="header-nav">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <a href="#">Docs</a>
+    <a href="#">Spec</a>
+    <a href="#">GitHub</a>
+  </nav>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <svg class="hero-lines" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+    <path class="hero-line-1" d="M-50,300 C200,250 400,450 700,350 S1100,200 1500,380"/>
+    <path class="hero-line-2" d="M-50,500 C300,400 500,600 800,480 S1200,350 1500,500"/>
+    <path class="hero-line-3" d="M-50,650 C250,600 450,750 750,620 S1050,550 1500,680"/>
+    <circle class="hero-dot" cx="700" cy="350" r="2.5"/>
+    <circle class="hero-dot" cx="800" cy="480" r="2"/>
+    <circle class="hero-dot" cx="400" cy="420" r="1.8"/>
+    <circle class="hero-dot" cx="1100" cy="280" r="2.2"/>
+    <circle class="hero-dot" cx="300" cy="330" r="1.5"/>
+  </svg>
+
+  <p class="hero-kicker">Reactive Graph Protocol</p>
+  <h1 class="hero-title">Graph<span class="re">Re</span>Fly</h1>
+  <p class="hero-tagline">Human + LLM co-operation on a shared, inspectable graph.</p>
+
+  <div class="hero-ctas">
+    <a href="#" class="btn btn-primary">Read the spec</a>
+    <a href="#" class="btn btn-ghost">Roadmap</a>
+    <a href="#" class="btn btn-ghost">graphrefly-py</a>
+  </div>
+
+  <div class="hero-constellation">
+    <svg viewBox="0 0 200 80">
+      <line class="constellation-line" x1="20" y1="40" x2="60" y2="20"/>
+      <line class="constellation-line" x1="60" y1="20" x2="110" y2="35"/>
+      <line class="constellation-line" x1="110" y1="35" x2="150" y2="15"/>
+      <line class="constellation-line" x1="110" y1="35" x2="140" y2="60"/>
+      <line class="constellation-line" x1="60" y1="20" x2="80" y2="60"/>
+      <line class="constellation-line" x1="80" y1="60" x2="140" y2="60"/>
+      <circle class="constellation-dot" cx="20" cy="40" r="2.5"/>
+      <circle class="constellation-dot" cx="60" cy="20" r="2.5"/>
+      <circle class="constellation-dot" cx="110" cy="35" r="2.5"/>
+      <circle class="constellation-dot" cx="150" cy="15" r="2.5"/>
+      <circle class="constellation-dot" cx="80" cy="60" r="2.5"/>
+      <circle class="constellation-dot" cx="140" cy="60" r="2.5"/>
+    </svg>
+  </div>
+</section>
+
+<!-- PHILOSOPHY -->
+<section class="philosophy reveal">
+  <svg class="philosophy-orbital" viewBox="0 0 400 400">
+    <circle cx="200" cy="200" r="120"/>
+    <circle cx="200" cy="200" r="170"/>
+    <circle cx="200" cy="200" r="195"/>
+  </svg>
+  <p class="philosophy-quote">川流不息，唯取一瓢</p>
+  <p class="philosophy-translation">"The river flows endlessly; one takes but a single scoop."</p>
+  <p class="philosophy-text">
+    GraphReFly began as <em>callbag-recharge</em> -- a reactive streaming experiment. Over time it became clear that the real primitive wasn't streams, but <em>a graph of interdependent values</em>. Messages as tuples, two-phase push, observability without disturbing data flow. A protocol small enough to fit in your palm, powerful enough to let humans and LLMs co-operate on a single, inspectable artifact.
+  </p>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <p class="section-label reveal">Core Principles</p>
+  <h2 class="section-title reveal">Built on fundamentals</h2>
+  <div class="features-grid">
+    <div class="feature-card" data-accent="warm">
+      <h3>One protocol</h3>
+      <p>Messages are tuples -- [Type, Data?]. Sources, sinks, operators, graphs: all the same shape. Compose without adapters.</p>
+    </div>
+    <div class="feature-card" data-accent="aqua">
+      <h3>Diamond-safe</h3>
+      <p>Two-phase push (DIRTY then DATA) ensures glitch-free propagation through any graph topology, including diamonds and cycles.</p>
+    </div>
+    <div class="feature-card" data-accent="purple">
+      <h3>Graph as artifact</h3>
+      <p>The graph is a first-class value. Describe it, snapshot it, serialize it, hand it to an LLM. Inspectable by design.</p>
+    </div>
+    <div class="feature-card" data-accent="pink">
+      <h3>Human + LLM</h3>
+      <p>Observe without disturbing. Both human developers and AI agents can read the graph state, reason about it, and participate -- without breaking data flow.</p>
+    </div>
+  </div>
+</section>
+
+<!-- INTERACTIVE CONSTELLATION -->
+<section class="constellation-section reveal">
+  <p class="section-label">The Graph</p>
+  <h2 class="section-title" style="margin-bottom: 2rem;">Nodes and connections</h2>
+  <div class="constellation-visual">
+    <svg viewBox="0 0 800 400" fill="none">
+      <!-- Connections -->
+      <line class="const-connection const-flow" x1="120" y1="200" x2="280" y2="120" stroke="rgba(77,232,194,0.2)"/>
+      <line class="const-connection const-flow" x1="120" y1="200" x2="300" y2="280" stroke="rgba(77,232,194,0.2)"/>
+      <line class="const-connection const-flow" x1="280" y1="120" x2="450" y2="160" stroke="rgba(167,139,250,0.2)" style="animation-delay:-1s"/>
+      <line class="const-connection const-flow" x1="300" y1="280" x2="450" y2="160" stroke="rgba(167,139,250,0.2)" style="animation-delay:-0.5s"/>
+      <line class="const-connection const-flow" x1="450" y1="160" x2="600" y2="100" stroke="rgba(240,168,88,0.2)" style="animation-delay:-1.5s"/>
+      <line class="const-connection const-flow" x1="450" y1="160" x2="620" y2="260" stroke="rgba(240,168,88,0.2)" style="animation-delay:-2s"/>
+      <line class="const-connection const-flow" x1="300" y1="280" x2="480" y2="330" stroke="rgba(244,114,182,0.15)" style="animation-delay:-0.7s"/>
+      <line class="const-connection const-flow" x1="600" y1="100" x2="700" y2="180" stroke="rgba(240,244,255,0.1)" style="animation-delay:-1.2s"/>
+      <line class="const-connection const-flow" x1="620" y1="260" x2="700" y2="180" stroke="rgba(240,244,255,0.1)" style="animation-delay:-1.8s"/>
+
+      <!-- Glow halos -->
+      <circle class="const-node-glow" cx="120" cy="200" r="16" fill="rgba(77,232,194,0.15)"/>
+      <circle class="const-node-glow" cx="280" cy="120" r="16" fill="rgba(77,232,194,0.1)" style="animation-delay:-0.5s"/>
+      <circle class="const-node-glow" cx="300" cy="280" r="16" fill="rgba(77,232,194,0.1)" style="animation-delay:-1s"/>
+      <circle class="const-node-glow" cx="450" cy="160" r="16" fill="rgba(167,139,250,0.12)" style="animation-delay:-1.5s"/>
+      <circle class="const-node-glow" cx="600" cy="100" r="16" fill="rgba(240,168,88,0.1)" style="animation-delay:-2s"/>
+      <circle class="const-node-glow" cx="620" cy="260" r="16" fill="rgba(240,168,88,0.1)" style="animation-delay:-0.3s"/>
+      <circle class="const-node-glow" cx="480" cy="330" r="16" fill="rgba(244,114,182,0.1)" style="animation-delay:-0.8s"/>
+      <circle class="const-node-glow" cx="700" cy="180" r="16" fill="rgba(240,244,255,0.08)" style="animation-delay:-1.3s"/>
+
+      <!-- Nodes -->
+      <circle class="const-node" cx="120" cy="200" r="5" fill="var(--aqua)"/>
+      <circle class="const-node" cx="280" cy="120" r="4.5" fill="var(--aqua)" opacity="0.8"/>
+      <circle class="const-node" cx="300" cy="280" r="4.5" fill="var(--aqua)" opacity="0.8"/>
+      <circle class="const-node" cx="450" cy="160" r="5" fill="var(--purple)"/>
+      <circle class="const-node" cx="600" cy="100" r="4" fill="var(--warm)" opacity="0.9"/>
+      <circle class="const-node" cx="620" cy="260" r="4" fill="var(--warm)" opacity="0.9"/>
+      <circle class="const-node" cx="480" cy="330" r="3.5" fill="var(--pink)" opacity="0.8"/>
+      <circle class="const-node" cx="700" cy="180" r="4.5" fill="var(--star-white)" opacity="0.7"/>
+
+      <!-- Labels -->
+      <text class="const-label" x="100" y="235">state</text>
+      <text class="const-label" x="258" y="105">state</text>
+      <text class="const-label" x="278" y="310">producer</text>
+      <text class="const-label" x="430" y="145">derived</text>
+      <text class="const-label" x="585" y="85">derived</text>
+      <text class="const-label" x="605" y="295">effect</text>
+      <text class="const-label" x="460" y="360">effect</text>
+      <text class="const-label" x="710" y="185">observe</text>
+    </svg>
+  </div>
+</section>
+
+<!-- CODE PREVIEW -->
+<section class="code-section reveal">
+  <p class="section-label">Try it</p>
+  <h2 class="section-title" style="margin-bottom: 2rem;">Minimal, expressive</h2>
+  <div class="code-card">
+    <div class="code-header">
+      <span class="code-dot"></span>
+      <span class="code-dot"></span>
+      <span class="code-dot"></span>
+      <span class="code-label">example.ts</span>
+    </div>
+    <div class="code-body">
+      <span class="kw">const</span> count <span class="op">=</span> <span class="fn">state</span><span class="par">(</span><span class="num">0</span><span class="par">)</span><span class="op">;</span><br>
+      <span class="kw">const</span> doubled <span class="op">=</span> <span class="fn">derived</span><span class="par">(</span><span class="op">[</span>count<span class="op">]</span><span class="op">,</span> <span class="par">(</span>c<span class="par">)</span> <span class="op">=&gt;</span> c <span class="op">*</span> <span class="num">2</span><span class="par">)</span><span class="op">;</span><br>
+      <span class="fn">effect</span><span class="par">(</span><span class="op">[</span>doubled<span class="op">]</span><span class="op">,</span> <span class="par">(</span>d<span class="par">)</span> <span class="op">=&gt;</span> console.<span class="fn">log</span><span class="par">(</span>d<span class="par">)</span><span class="par">)</span><span class="op">;</span><br>
+      <br>
+      count.<span class="fn">down</span><span class="par">(</span><span class="op">[[</span>DATA<span class="op">,</span> <span class="num">1</span><span class="op">]]</span><span class="par">)</span><span class="op">;</span>  <span class="cmt">// logs: 2</span>
+    </div>
+  </div>
+</section>
+
+<!-- USE CASES -->
+<section class="use-cases reveal">
+  <p class="section-label">Applications</p>
+  <h2 class="section-title" style="margin-bottom: 1rem;">Where graphs fly</h2>
+  <div class="use-cases-track">
+    <div class="use-case-card">
+      <div class="use-case-dot"></div>
+      <h3>Orchestration</h3>
+      <p>Coordinate multi-step workflows where each stage depends on upstream signals.</p>
+    </div>
+    <div class="use-case-card">
+      <div class="use-case-dot"></div>
+      <h3>Message Queues</h3>
+      <p>Back-pressure aware routing with tuple-based messages and composable operators.</p>
+    </div>
+    <div class="use-case-card">
+      <div class="use-case-dot"></div>
+      <h3>AI Agentic Memory</h3>
+      <p>Give LLM agents a shared, inspectable graph they can read and write without breaking flow.</p>
+    </div>
+    <div class="use-case-card">
+      <div class="use-case-dot"></div>
+      <h3>Security</h3>
+      <p>Audit every node, trace every message. The graph is the audit log.</p>
+    </div>
+    <div class="use-case-card">
+      <div class="use-case-dot"></div>
+      <h3>Human + AI Ops</h3>
+      <p>Humans set policy, AI executes. Both observe the same graph in real time.</p>
+    </div>
+  </div>
+</section>
+
+<!-- IMPLEMENTATIONS -->
+<section class="implementations reveal">
+  <p class="section-label">Implementations</p>
+  <h2 class="impl-subtitle">Two stars, <em>one constellation</em></h2>
+  <div class="impl-nodes">
+    <div class="impl-node">
+      <div class="impl-orb ts">TS</div>
+      <span class="impl-label">graphrefly-ts</span>
+    </div>
+    <div class="impl-connector">
+      <div class="conn-dot"></div>
+    </div>
+    <div class="impl-node">
+      <div class="impl-orb py">PY</div>
+      <span class="impl-label">graphrefly-py</span>
+    </div>
+  </div>
+  <div class="impl-ctas">
+    <a href="#" class="btn btn-primary">TypeScript</a>
+    <a href="#" class="btn btn-ghost" style="border-color: rgba(167,139,250,0.3); color: var(--purple);">Python</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-constellation">
+    <svg width="120" height="40" viewBox="0 0 120 40">
+      <line x1="10" y1="20" x2="40" y2="10" stroke="rgba(240,244,255,0.3)" stroke-width="0.5"/>
+      <line x1="40" y1="10" x2="70" y2="25" stroke="rgba(240,244,255,0.3)" stroke-width="0.5"/>
+      <line x1="70" y1="25" x2="110" y2="15" stroke="rgba(240,244,255,0.3)" stroke-width="0.5"/>
+      <circle cx="10" cy="20" r="2" fill="rgba(240,244,255,0.5)"/>
+      <circle cx="40" cy="10" r="2" fill="rgba(240,244,255,0.5)"/>
+      <circle cx="70" cy="25" r="2" fill="rgba(240,244,255,0.5)"/>
+      <circle cx="110" cy="15" r="2" fill="rgba(240,244,255,0.5)"/>
+    </svg>
+  </div>
+  <div class="footer-links">
+    <a href="#">Documentation</a>
+    <a href="#">Specification</a>
+    <a href="#">GitHub</a>
+    <a href="#">npm</a>
+    <a href="#">PyPI</a>
+  </div>
+  <p class="footer-copy">GraphReFly -- Reactive Graph Protocol for Human + LLM Co-operation</p>
+</footer>
+
+<script>
+// Scroll reveal
+const revealElements = document.querySelectorAll('.reveal, .feature-card');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      const delay = entry.target.classList.contains('feature-card')
+        ? Array.from(entry.target.parentElement.children).indexOf(entry.target) * 120
+        : 0;
+      setTimeout(() => {
+        entry.target.classList.add('visible');
+      }, delay);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+revealElements.forEach(el => observer.observe(el));
+
+// Header background on scroll
+const header = document.querySelector('.header');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 60) {
+    header.style.background = 'rgba(6, 7, 13, 0.7)';
+  } else {
+    header.style.background = 'rgba(6, 7, 13, 0.3)';
+  }
+}, { passive: true });
+</script>
+
+</body>
+</html>
