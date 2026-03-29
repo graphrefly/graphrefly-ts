@@ -1,9 +1,9 @@
 ---
 title: "exponential()"
-description: "Builds exponential backoff in seconds, capped by `maxDelaySeconds`, with optional jitter."
+description: "Builds exponential backoff in nanoseconds, capped by `maxDelayNs`, with optional jitter."
 ---
 
-Builds exponential backoff in seconds, capped by `maxDelaySeconds`, with optional jitter.
+Builds exponential backoff in nanoseconds, capped by `maxDelayNs`, with optional jitter.
 
 ## Signature
 

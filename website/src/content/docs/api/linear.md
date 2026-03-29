@@ -1,22 +1,22 @@
 ---
 title: "linear()"
-description: "Builds linear backoff: `baseSeconds + stepSeconds * attempt` (`stepSeconds` defaults to `baseSeconds`)."
+description: "Builds linear backoff: `baseNs + stepNs * attempt` (`stepNs` defaults to `baseNs`)."
 ---
 
-Builds linear backoff: `baseSeconds + stepSeconds * attempt` (`stepSeconds` defaults to `baseSeconds`).
+Builds linear backoff: `baseNs + stepNs * attempt` (`stepNs` defaults to `baseNs`).
 
 ## Signature
 
 ```ts
-function linear(baseSeconds: number, stepSeconds?: number): BackoffStrategy
+function linear(baseNs: number, stepNs?: number): BackoffStrategy
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `baseSeconds` | `number` | Base delay in seconds (clamped non-negative). |
-| `stepSeconds` | `number` | Added per retry attempt (clamped non-negative). |
+| `baseNs` | `number` | Base delay in nanoseconds (clamped non-negative). |
+| `stepNs` | `number` | Added per retry attempt in nanoseconds (clamped non-negative). |
 
 ## Returns
 

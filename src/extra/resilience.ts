@@ -5,7 +5,13 @@ import { batch } from "../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { type PipeOperator, producer } from "../core/sugar.js";
-import { type BackoffPreset, type BackoffStrategy, resolveBackoffPreset } from "./backoff.js";
+import {
+	type BackoffPreset,
+	type BackoffStrategy,
+	NS_PER_MS,
+	NS_PER_SEC,
+	resolveBackoffPreset,
+} from "./backoff.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -13,11 +19,15 @@ function operatorOpts(opts?: ExtraOpts): NodeOptions {
 	return { describeKind: "operator", ...opts };
 }
 
+function clampNonNegative(value: number): number {
+	return value < 0 ? 0 : value;
+}
+
 function msgVal(m: Message): unknown {
 	return m[1];
 }
 
-function coerceDelaySeconds(raw: number | null): number {
+function coerceDelayNs(raw: number | null): number {
 	if (raw === null) return 0;
 	if (typeof raw !== "number" || !Number.isFinite(raw)) {
 		throw new TypeError("backoff strategy must return a finite number or null");
@@ -28,14 +38,14 @@ function coerceDelaySeconds(raw: number | null): number {
 export type RetryOptions = {
 	/** Max retry attempts after each terminal `ERROR` (not counting the first failure). */
 	count?: number;
-	/** Delay between attempts; strategies use **seconds** (converted internally). */
+	/** Delay between attempts; strategies use **nanoseconds**. */
 	backoff?: BackoffStrategy | BackoffPreset;
 };
 
 /**
  * Returns a {@link PipeOperator} that resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
  *
- * @param opts - `count` caps attempts; `backoff` supplies delay in **seconds** (or a preset name).
+ * @param opts - `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name).
  * @returns Unary operator suitable for {@link pipe}.
  *
  * @remarks
@@ -44,7 +54,7 @@ export type RetryOptions = {
  *
  * @example
  * ```ts
- * import { ERROR, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
+ * import { ERROR, NS_PER_SEC, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
  *
  * const src = producer(
  *   (_d, a) => {
@@ -52,7 +62,7 @@ export type RetryOptions = {
  *   },
  *   { resubscribable: true },
  * );
- * pipe(src, retry({ count: 2, backoff: constant(0.05) }));
+ * pipe(src, retry({ count: 2, backoff: constant(0.25 * NS_PER_SEC) }));
  * ```
  *
  * @category extra
@@ -100,13 +110,13 @@ export function retry(opts?: RetryOptions): PipeOperator {
 						return;
 					}
 					const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
-					const delaySec = coerceDelaySeconds(raw === undefined ? null : raw);
-					prevDelay = delaySec;
+					const delayNs = coerceDelayNs(raw === undefined ? null : raw);
+					prevDelay = delayNs;
 					attempt += 1;
 					timerGen += 1;
 					const gen = timerGen;
 					disconnectUpstream();
-					const delayMs = delaySec > 0 ? delaySec * 1000 : 1;
+					const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
 
 					timer = setTimeout(() => {
 						timer = undefined;
@@ -169,74 +179,148 @@ export class CircuitOpenError extends Error {
 	}
 }
 
+export interface CircuitBreakerOptions {
+	/** Number of consecutive failures before opening. Default: 5. */
+	failureThreshold?: number;
+	/** Base cooldown in nanoseconds before transitioning to half-open. Default: 30s. */
+	cooldownNs?: number;
+	/** Backoff strategy for cooldown escalation across consecutive open cycles. Overrides `cooldownNs` when provided. */
+	cooldown?: BackoffStrategy;
+	/** Max trial requests allowed in half-open state. Default: 1. */
+	halfOpenMax?: number;
+	/** Clock function returning milliseconds (for testability). Default: `performance.now`. */
+	now?: () => number;
+}
+
+export interface CircuitBreaker {
+	/** Whether a request should be allowed through. Triggers open→half-open transition when cooldown expires. */
+	canExecute(): boolean;
+	/** Record a successful execution. Resets to closed. */
+	recordSuccess(): void;
+	/** Record a failed execution. May transition to open. */
+	recordFailure(error?: unknown): void;
+	/** Current circuit state (read-only, does not trigger transitions). */
+	readonly state: CircuitState;
+	/** Number of consecutive failures in the current closed period. */
+	readonly failureCount: number;
+	/** Manually reset to closed state, clearing all counters. */
+	reset(): void;
+}
+
 /**
- * Small synchronous circuit breaker with `closed`, `open`, and `half-open` states (aligned with roadmap §3.1).
+ * Factory for a synchronous circuit breaker with `closed`, `open`, and `half-open` states.
+ *
+ * Supports escalating cooldown via an optional {@link BackoffStrategy} — each consecutive
+ * open→half-open→open cycle increments the backoff attempt.
+ *
+ * @param options - Threshold, cooldown, half-open limit, and optional clock override.
+ * @returns {@link CircuitBreaker} instance.
  *
  * @remarks
- * **Timing:** Uses `performance.now()` for cooldown (milliseconds). Not thread-safe across workers; JS runtimes are single-threaded.
+ * **Timing:** Uses `performance.now()` by default (milliseconds). Override `now` for tests.
+ *
+ * @example
+ * ```ts
+ * import { circuitBreaker, exponential, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * const b = circuitBreaker({
+ *   failureThreshold: 3,
+ *   cooldown: exponential({ baseNs: 1 * NS_PER_SEC }),
+ * });
+ * ```
  *
  * @category extra
  */
-export class CircuitBreaker {
-	readonly #failureThreshold: number;
-	readonly #cooldownMs: number;
-	readonly #halfOpenMax: number;
-	#state: CircuitState = "closed";
-	#failures = 0;
-	#openedAt = 0;
-	#trials = 0;
+export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker {
+	const threshold = Math.max(1, options?.failureThreshold ?? 5);
+	const baseCooldownNs = clampNonNegative(options?.cooldownNs ?? 30 * NS_PER_SEC);
+	const cooldownStrategy = options?.cooldown ?? null;
+	const halfOpenMax = Math.max(1, options?.halfOpenMax ?? 1);
+	const now = options?.now ?? performance.now.bind(performance);
 
-	constructor(options?: {
-		failureThreshold?: number;
-		cooldownSeconds?: number;
-		halfOpenMax?: number;
-	}) {
-		this.#failureThreshold = Math.max(1, options?.failureThreshold ?? 5);
-		this.#cooldownMs = Math.max(0, (options?.cooldownSeconds ?? 30) * 1000);
-		this.#halfOpenMax = Math.max(1, options?.halfOpenMax ?? 1);
+	let _state: CircuitState = "closed";
+	let _failureCount = 0;
+	let _openCycle = 0;
+	let _lastOpenedAt = 0;
+	let _lastCooldownMs = baseCooldownNs / NS_PER_MS;
+	let _halfOpenAttempts = 0;
+
+	function getCooldownMs(): number {
+		if (!cooldownStrategy) return baseCooldownNs / NS_PER_MS;
+		const delayNs = cooldownStrategy(_openCycle);
+		return delayNs !== null ? delayNs / NS_PER_MS : baseCooldownNs / NS_PER_MS;
 	}
 
-	get state(): CircuitState {
-		return this.#state;
+	function transitionToOpen(): void {
+		_state = "open";
+		_lastCooldownMs = getCooldownMs();
+		_lastOpenedAt = now();
+		_halfOpenAttempts = 0;
 	}
 
-	canExecute(): boolean {
-		if (this.#state === "closed") return true;
-		if (this.#state === "open") {
-			if (performance.now() - this.#openedAt >= this.#cooldownMs) {
-				this.#state = "half-open";
-				this.#trials = 1;
+	const breaker: CircuitBreaker = {
+		canExecute(): boolean {
+			if (_state === "closed") return true;
+
+			if (_state === "open") {
+				const elapsed = now() - _lastOpenedAt;
+				if (elapsed >= _lastCooldownMs) {
+					_state = "half-open";
+					_halfOpenAttempts = 1;
+					return true;
+				}
+				return false;
+			}
+
+			if (_halfOpenAttempts < halfOpenMax) {
+				_halfOpenAttempts++;
 				return true;
 			}
 			return false;
-		}
-		if (this.#trials < this.#halfOpenMax) {
-			this.#trials += 1;
-			return true;
-		}
-		return false;
-	}
+		},
 
-	recordSuccess(): void {
-		this.#state = "closed";
-		this.#failures = 0;
-		this.#trials = 0;
-	}
+		recordSuccess(): void {
+			if (_state === "half-open") {
+				_state = "closed";
+				_failureCount = 0;
+				_openCycle = 0;
+			} else if (_state === "closed") {
+				_failureCount = 0;
+			}
+		},
 
-	recordFailure(_error?: unknown): void {
-		if (this.#state === "half-open") {
-			this.#state = "open";
-			this.#openedAt = performance.now();
-			this.#trials = 0;
-			return;
-		}
-		this.#failures += 1;
-		if (this.#failures >= this.#failureThreshold) {
-			this.#state = "open";
-			this.#openedAt = performance.now();
-			this.#trials = 0;
-		}
-	}
+		recordFailure(_error?: unknown): void {
+			if (_state === "half-open") {
+				_openCycle++;
+				transitionToOpen();
+				return;
+			}
+
+			if (_state === "closed") {
+				_failureCount++;
+				if (_failureCount >= threshold) {
+					transitionToOpen();
+				}
+			}
+		},
+
+		get state(): CircuitState {
+			return _state;
+		},
+
+		get failureCount(): number {
+			return _failureCount;
+		},
+
+		reset(): void {
+			_state = "closed";
+			_failureCount = 0;
+			_openCycle = 0;
+			_halfOpenAttempts = 0;
+		},
+	};
+
+	return breaker;
 }
 
 export type WithBreakerBundle<T> = {
@@ -256,9 +340,9 @@ export type WithBreakerBundle<T> = {
  *
  * @example
  * ```ts
- * import { state, withBreaker, CircuitBreaker } from "@graphrefly/graphrefly-ts";
+ * import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly-ts";
  *
- * const b = new CircuitBreaker({ failureThreshold: 2 });
+ * const b = circuitBreaker({ failureThreshold: 2 });
  * const s = state(1);
  * const { node, breakerState } = withBreaker(b)(s);
  * ```
@@ -319,69 +403,60 @@ export function withBreaker<T>(
 	};
 }
 
+export interface TokenBucket {
+	/** Number of tokens currently available (after refill). */
+	available(): number;
+	/** Try to consume `cost` tokens. Returns `true` if successful. */
+	tryConsume(cost?: number): boolean;
+}
+
 /**
  * Token-bucket meter (capacity + refill rate per second). Use with {@link rateLimiter} or custom gates.
  *
- * @category extra
- */
-export class TokenBucket {
-	readonly #capacity: number;
-	readonly #refillPerSec: number;
-	#tokens: number;
-	#updatedAt: number;
-	constructor(capacity: number, refillPerSecond: number) {
-		if (capacity <= 0) throw new RangeError("capacity must be > 0");
-		if (refillPerSecond < 0) throw new RangeError("refillPerSecond must be >= 0");
-		this.#capacity = capacity;
-		this.#refillPerSec = refillPerSecond;
-		this.#tokens = capacity;
-		this.#updatedAt = performance.now();
-	}
-
-	#refillLocked(now: number): void {
-		if (this.#refillPerSec > 0) {
-			const elapsed = (now - this.#updatedAt) / 1000;
-			this.#tokens = Math.min(this.#capacity, this.#tokens + elapsed * this.#refillPerSec);
-		}
-		this.#updatedAt = now;
-	}
-
-	available(): number {
-		const now = performance.now();
-		this.#refillLocked(now);
-		return this.#tokens;
-	}
-
-	tryConsume(cost = 1): boolean {
-		if (cost <= 0) return true;
-		const now = performance.now();
-		this.#refillLocked(now);
-		if (this.#tokens >= cost) {
-			this.#tokens -= cost;
-			return true;
-		}
-		return false;
-	}
-}
-
-/**
- * Alias for `new TokenBucket(capacity, refillPerSecond)` (parity with graphrefly-py `token_tracker`).
- *
  * @param capacity - Maximum tokens (must be positive).
  * @param refillPerSecond - Tokens added per elapsed second (non-negative).
- * @returns A new {@link TokenBucket}.
+ * @returns {@link TokenBucket} instance.
  *
  * @category extra
  */
-export function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket {
-	return new TokenBucket(capacity, refillPerSecond);
+export function tokenBucket(capacity: number, refillPerSecond: number): TokenBucket {
+	if (capacity <= 0) throw new RangeError("capacity must be > 0");
+	if (refillPerSecond < 0) throw new RangeError("refillPerSecond must be >= 0");
+
+	let tokens = capacity;
+	let updatedAt = performance.now();
+
+	function refill(now: number): void {
+		if (refillPerSecond > 0) {
+			const elapsed = (now - updatedAt) / 1000;
+			tokens = Math.min(capacity, tokens + elapsed * refillPerSecond);
+		}
+		updatedAt = now;
+	}
+
+	return {
+		available(): number {
+			refill(performance.now());
+			return tokens;
+		},
+		tryConsume(cost = 1): boolean {
+			if (cost <= 0) return true;
+			const now = performance.now();
+			refill(now);
+			if (tokens >= cost) {
+				tokens -= cost;
+				return true;
+			}
+			return false;
+		},
+	};
 }
 
 /**
- * Returns a {@link PipeOperator} that enforces a sliding window: at most `maxEvents` `DATA` values per `windowSeconds`.
+ * Returns a {@link PipeOperator} that enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
  *
  * @param maxEvents - Maximum `DATA` emissions per window (must be positive).
- * @param windowSeconds - Window length in seconds (must be positive).
+ * @param windowNs - Window length in nanoseconds (must be positive).
  * @returns Unary operator; excess values queue FIFO until a slot frees.
  *
  * @remarks
@@ -389,10 +464,10 @@ export function tokenTracker(capacity: number, refillPerSecond: number): TokenBu
  *
  * @category extra
  */
-export function rateLimiter(maxEvents: number, windowSeconds: number): PipeOperator {
+export function rateLimiter(maxEvents: number, windowNs: number): PipeOperator {
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
-	if (windowSeconds <= 0) throw new RangeError("windowSeconds must be > 0");
-	const windowMs = windowSeconds * 1000;
+	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
+	const windowMs = windowNs / NS_PER_MS;
 
 	return function rateLimitOperator<T>(source: Node<T>): Node<T> {
 		return producer<T>(

@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { DATA, DIRTY } from "../../core/messages.js";
+import { pubsub } from "../../extra/pubsub.js";
+import { reactiveIndex } from "../../extra/reactive-index.js";
+import { reactiveList } from "../../extra/reactive-list.js";
+import { logSlice, reactiveLog } from "../../extra/reactive-log.js";
+
+function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
+	const batches: unknown[] = [];
+	const unsub = node.subscribe((msgs) => {
+		batches.push(msgs);
+	});
+	return { batches, unsub };
+}
+
+describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
+	it("append and clear emit versioned snapshots", () => {
+		const lg = reactiveLog<number>();
+		const { batches, unsub } = collect(lg.entries);
+		lg.append(1);
+		unsub();
+		const flat = (batches as [symbol, unknown][][]).flat();
+		expect(flat.some((m) => m[0] === DIRTY)).toBe(true);
+		const data = flat.find((m) => m[0] === DATA) as [
+			symbol,
+			{ version: number; value: { entries: readonly number[] } },
+		];
+		expect(data[1].version).toBe(1);
+		expect([...data[1].value.entries]).toEqual([1]);
+	});
+
+	it("tail returns last n entries", () => {
+		const lg = reactiveLog<string>();
+		lg.append("a");
+		lg.append("b");
+		const tail = lg.tail(1);
+		expect(tail.get()).toEqual(["b"]);
+	});
+
+	it("logSlice matches tuple slice semantics", () => {
+		const lg = reactiveLog([0, 1, 2, 3]);
+		const sl = logSlice(lg, 1, 3);
+		expect(sl.get()).toEqual([1, 2]);
+	});
+});
+
+describe("extra reactiveIndex (roadmap §3.2)", () => {
+	it("orders by secondary then primary and supports delete", () => {
+		const idx = reactiveIndex<string, string>();
+		idx.upsert("p1", 10, "a");
+		idx.upsert("p2", 5, "b");
+		expect(idx.byPrimary.get()).toEqual(
+			new Map([
+				["p1", "a"],
+				["p2", "b"],
+			]),
+		);
+		const ordered = idx.ordered.get() as { value: { rows: { primary: string }[] } };
+		expect(ordered.value.rows.map((r) => r.primary)).toEqual(["p2", "p1"]);
+		idx.delete("p2");
+		const m = idx.byPrimary.get() as Map<string, string>;
+		expect([...m.keys()]).toEqual(["p1"]);
+	});
+});
+
+describe("extra reactiveList (roadmap §3.2)", () => {
+	it("append, insert, pop, clear", () => {
+		const lst = reactiveList<number>();
+		lst.append(1);
+		lst.insert(0, 0);
+		expect((lst.items.get() as { value: { items: readonly number[] } }).value.items).toEqual([
+			0, 1,
+		]);
+		expect(lst.pop()).toBe(1);
+		expect((lst.items.get() as { value: { items: readonly number[] } }).value.items).toEqual([0]);
+	});
+});
+
+describe("extra pubsub (roadmap §3.2)", () => {
+	it("creates topics lazily and delivers publishes", () => {
+		const hub = pubsub();
+		const t = hub.topic("x");
+		const seen: unknown[] = [];
+		const unsub = t.subscribe((msgs) => {
+			for (const m of msgs as [symbol, unknown][]) {
+				if (m[0] === DATA) seen.push(m[1]);
+			}
+		});
+		hub.publish("x", 42);
+		unsub();
+		expect(seen).toEqual([42]);
+	});
+});

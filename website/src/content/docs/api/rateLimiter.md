@@ -1,14 +1,14 @@
 ---
 title: "rateLimiter()"
-description: "Returns a  that enforces a sliding window: at most `maxEvents` `DATA` values per `windowSeconds`."
+description: "Returns a  that enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`."
 ---
 
-Returns a  that enforces a sliding window: at most `maxEvents` `DATA` values per `windowSeconds`.
+Returns a  that enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
 
 ## Signature
 
 ```ts
-function rateLimiter(maxEvents: number, windowSeconds: number): PipeOperator
+function rateLimiter(maxEvents: number, windowNs: number): PipeOperator
 ```
 
 ## Parameters
@@ -16,7 +16,7 @@ function rateLimiter(maxEvents: number, windowSeconds: number): PipeOperator
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `maxEvents` | `number` | Maximum `DATA` emissions per window (must be positive). |
-| `windowSeconds` | `number` | Window length in seconds (must be positive). |
+| `windowNs` | `number` | Window length in nanoseconds (must be positive). |
 
 ## Returns
 

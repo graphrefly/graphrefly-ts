@@ -296,6 +296,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `toArray` / `to_array` | Reactive `Node[list]` | Reactive `Node<T[]>` |
 | `to_list` (blocking) | Py-only sync bridge | N/A |
 | Extra Phase 3.1 (resilience) | `graphrefly.extra.{backoff,resilience,checkpoint}`; see §6 below | `src/extra/{backoff,resilience,checkpoint}.ts`; see §6 below |
+| Extra Phase 3.2 (data structures) | `graphrefly.extra.data_structures` (`reactive_map`, …); see §17 | `reactiveMap` + `reactive-base` (`Versioned` snapshots); see §17 |
 
 ### 6. Resilience & checkpoint (roadmap 3.1) — parity (2026-03-29)
 
@@ -304,8 +305,8 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Topic | Both |
 |-------|------|
 | `retry` | Resubscribe-on-ERROR with optional backoff; `count` caps attempts; `backoff` accepts strategy or preset name; successful DATA resets attempt counter; max-retries sentinel: `2_147_483_647` (`0x7fffffff`) |
-| `backoff` strategies | `constant`, `linear`, `exponential`, `fibonacci`; jitter modes: `none`, `full`, `equal`; `resolveBackoffPreset` / `resolve_backoff_preset` maps preset names |
-| `CircuitBreaker` | `closed` → `open` → `half-open` states; `canExecute` / `can_execute`, `recordSuccess` / `record_success`, `recordFailure` / `record_failure` |
+| `backoff` strategies | `constant`, `linear`, `exponential`, `fibonacci`, `decorrelatedJitter` / `decorrelated_jitter`; jitter modes: `none`, `full`, `equal`; `resolveBackoffPreset` / `resolve_backoff_preset` maps preset names (including `"decorrelated_jitter"`); `withMaxAttempts` / `with_max_attempts` caps any strategy at N attempts (returns `null`/`None` after cap) |
+| `CircuitBreaker` | `closed` → `open` → `half-open` states; `canExecute` / `can_execute`, `recordSuccess` / `record_success`, `recordFailure` / `record_failure`, `reset()`, `failureCount` / `failure_count`; optional `cooldownStrategy` / `cooldown_strategy` (BackoffStrategy) for escalating cooldowns across open cycles |
 | `withBreaker` / `with_breaker` | Returns `WithBreakerBundle` (`node` + `breakerState`/`breaker_state`); `onOpen: "skip"` → RESOLVED, `"error"` → CircuitOpenError |
 | `rateLimiter` / `rate_limiter` | Sliding-window FIFO queue; throws/raises on `maxEvents <= 0` or `windowSeconds <= 0`; COMPLETE/ERROR clear timers + pending + window times |
 | `TokenBucket` | Capacity + refill-per-second; `tryConsume` / `try_consume`; `tokenTracker` / `token_tracker` factory alias |
@@ -321,11 +322,24 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Thread safety | `CircuitBreaker` + `TokenBucket` use `threading.Lock`; retry uses `threading.Timer` | Single-threaded (`setTimeout`) | Spec §6.1 |
 | `CircuitBreaker` params | `cooldown` (seconds, implicit) | `cooldownSeconds` (seconds, explicit) | Naming convention |
 | `CircuitOpenError` base | `RuntimeError` | `Error` | Language convention |
+| API pattern | `@runtime_checkable Protocol` + private `_Impl` class + `circuit_breaker()` / `token_bucket()` factory | `interface` + private class + `circuitBreaker()` / `tokenBucket()` factory | Both expose factory functions as primary API; types for structural checks |
 | Retry delay validation | `_coerce_delay()` raises `ValueError` for non-finite | `coerceDelaySeconds()` throws `TypeError` for non-finite | Both validate; error type differs |
 | IndexedDB checkpoint | N/A (backend-only) | `saveGraphCheckpointIndexedDb` / `restoreGraphCheckpointIndexedDb` (browser) | TS browser runtime only |
 | `SqliteCheckpointAdapter` | `sqlite3` stdlib | `node:sqlite` (`DatabaseSync`, Node 22.5+) | Both stdlib, zero deps |
 
 **Meta integration (spec §2.3, Option A):** `withBreaker` and `withStatus` wire companion nodes into `node.meta` at construction via the `meta` option. Bundles still provide ergonomic typed access; `node.meta.breakerState` / `node.meta["status"]` are the same node instances returned in the bundle. Companions appear in `graph.describe()` under `::__meta__::` paths.
+
+### 17. Phase 3.2 data structures (versioned snapshots)
+
+**TypeScript:** `reactiveMap` (`src/extra/reactive-map.ts`); shared `Versioned<T>` + `snapshotEqualsVersion` in `src/extra/reactive-base.ts` (not re-exported from the package barrel — use concrete factories).
+
+**Python:** `reactive_map`, `reactive_log`, `reactive_index`, `reactive_list`, `pubsub`, `log_slice` in `graphrefly.extra.data_structures` (re-exported from `graphrefly.extra`). **Parity aligned (2026-03-29):** All mutations emit via two-phase `batch()` (DIRTY then DATA); all snapshot nodes use `Versioned` (named tuple with monotonic `version` + `value`) with `_versioned_equals` for efficient dedup; `data.get().value` returns `MappingProxyType` (immutable) for maps and `tuple` for logs/lists; all factories accept an optional `name` param; `describe_kind` set on all internal nodes.
+
+**Semantics (aligned):** Both ports use `Versioned` snapshots with a monotonic version counter for `NodeOptions.equals`. TTL: both use monotonic clocks — TS `performance.now()` (ms), Python `time.monotonic()` (seconds). Lazy expiry + explicit `prune()` / `pruneExpired()` on both; no background timer in the first iteration. LRU: TS refreshes order on `get`/`has`; Python refreshes order on `set` only (reads use `data.get()` as a dict snapshot — no per-key LRU touch on read). `pubsub` topic publish uses two-phase protocol on both.
+
+**Doc / API surface:** TS `defaultTtlMs` / Python `default_ttl` (seconds) — convert mentally when comparing.
+
+**Derived log views (`tail` / `log_slice` / `logSlice`):** Both ports attach a noop subscription to each derived view so `get()` stays wired without a user sink (same idea as Python’s `_keepalive_derived`). Each call allocates a new derived node plus that subscription; creating very many throwaway views can retain subscriptions until those nodes are unreachable. See JSDoc on `reactiveLog` / `logSlice` in graphrefly-ts and docstrings on `ReactiveLogBundle.tail` / `log_slice` in `graphrefly.extra.data_structures` (Py).
 
 ### Open design items (low priority)
 

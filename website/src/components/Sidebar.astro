@@ -1,0 +1,48 @@
+---
+import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter';
+import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro';
+import SidebarSublist from '@astrojs/starlight/components/SidebarSublist.astro';
+import type { SidebarEntry } from '@astrojs/starlight/utils/routing/types';
+
+const { sidebar } = Astro.locals.starlightRoute;
+
+const base = import.meta.env.BASE_URL;
+let pathname = Astro.url.pathname;
+if (base !== '/') {
+	const b = base.endsWith('/') ? base.slice(0, -1) : base;
+	if (pathname.startsWith(b)) pathname = pathname.slice(b.length) || '/';
+}
+if (!pathname.startsWith('/')) pathname = `/${pathname}`;
+pathname = pathname.replace(/\/$/, '') || '/';
+
+type Mode = 'spec' | 'api' | 'lab' | 'all';
+
+function routeMode(path: string): Mode {
+	if (path === '/spec' || path.startsWith('/spec/')) return 'spec';
+	if (path.startsWith('/api')) return 'api';
+	if (path.startsWith('/lab')) return 'lab';
+	return 'all';
+}
+
+function filterSidebar(entries: SidebarEntry[], m: Mode): SidebarEntry[] {
+	if (m === 'all') return entries;
+	return entries.filter((e) => {
+		if (e.type !== 'group') return false;
+		const { label } = e;
+		if (m === 'spec') return label === 'Protocol';
+		if (m === 'api') return label === 'API' || label.startsWith('API ');
+		if (m === 'lab') return label === 'Labs';
+		return false;
+	});
+}
+
+const sublist = filterSidebar(sidebar, routeMode(pathname));
+---
+
+<SidebarPersister>
+	<SidebarSublist sublist={sublist} />
+</SidebarPersister>
+
+<div class="md:sl-hidden">
+	<MobileMenuFooter />
+</div>

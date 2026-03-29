@@ -178,11 +178,11 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 ### 3.2 — Data structures
 
-- [ ] `reactiveMap` (KV with TTL, eviction)
-- [ ] `reactiveLog` (append-only, reactive tail/slice)
-- [ ] `reactiveIndex` (dual-key sorted index)
-- [ ] `reactiveList` (positional operations)
-- [ ] `pubsub` (lazy topic stores)
+- [x] `reactiveMap` (KV with TTL, eviction)
+- [x] `reactiveLog` (append-only, reactive tail/slice)
+- [x] `reactiveIndex` (dual-key sorted index)
+- [x] `reactiveList` (positional operations)
+- [x] `pubsub` (lazy topic stores)
 
 ---
 

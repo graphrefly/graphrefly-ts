@@ -105,6 +105,15 @@ const REGISTRY = {
 	saveGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
 	restoreGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
 
+	// Extra — data structures (roadmap §3.2)
+	reactiveMap: "src/extra/reactive-map.ts",
+	reactiveLog: "src/extra/reactive-log.ts",
+	logSlice: "src/extra/reactive-log.ts",
+	reactiveIndex: "src/extra/reactive-index.ts",
+	reactiveList: "src/extra/reactive-list.ts",
+	pubsub: "src/extra/pubsub.ts",
+	PubSubHub: "src/extra/pubsub.ts",
+
 	// Graph container
 	Graph: "src/graph/graph.ts",
 };

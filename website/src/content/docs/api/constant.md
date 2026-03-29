@@ -1,21 +1,21 @@
 ---
 title: "constant()"
-description: "Builds a strategy that always returns the same delay in seconds."
+description: "Builds a strategy that always returns the same delay in nanoseconds."
 ---
 
-Builds a strategy that always returns the same delay in seconds.
+Builds a strategy that always returns the same delay in nanoseconds.
 
 ## Signature
 
 ```ts
-function constant(delaySeconds: number): BackoffStrategy
+function constant(delayNs: number): BackoffStrategy
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `delaySeconds` | `number` | Non-negative delay; values below zero are clamped to zero. |
+| `delayNs` | `number` | Non-negative delay in nanoseconds; values below zero are clamped to zero. |
 
 ## Returns
 
@@ -24,7 +24,7 @@ function constant(delaySeconds: number): BackoffStrategy
 ## Basic Usage
 
 ```ts
-import { constant, retry } from "@graphrefly/graphrefly-ts";
+import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
 
-const op = retry({ count: 3, backoff: constant(0.25) });
+const op = retry({ count: 3, backoff: constant(0.25 * NS_PER_SEC) });
 ```

@@ -11,6 +11,11 @@ export default defineConfig({
 		starlight({
 			title: "GraphReFly",
 			description: "Reactive graph protocol for human + LLM co-operation — TypeScript and Python.",
+			components: {
+				Header: "./src/components/Header.astro",
+				MobileMenuFooter: "./src/components/MobileMenuFooter.astro",
+				Sidebar: "./src/components/Sidebar.astro",
+			},
 			customCss: ["./src/styles/custom.css"],
 			head: [
 				{ tag: "link", attrs: { rel: "preconnect", href: "https://fonts.googleapis.com" } },
@@ -28,15 +33,8 @@ export default defineConfig({
 			],
 			sidebar: [
 				{
-					label: "Overview",
-					items: [{ label: "Home", link: "/" }],
-				},
-				{
 					label: "Protocol",
-					items: [
-						{ label: "Specification", link: "/spec" },
-						{ label: "Roadmap", link: "/roadmap" },
-					],
+					items: [{ label: "Specification", link: "/spec" }],
 				},
 				{
 					label: "API — Core",
@@ -137,19 +135,22 @@ export default defineConfig({
 					],
 				},
 				{
+					label: "API — Data structures",
+					collapsed: true,
+					items: [
+						{ label: "reactiveMap()", link: "/api/reactiveMap" },
+						{ label: "reactiveLog()", link: "/api/reactiveLog" },
+						{ label: "logSlice()", link: "/api/logSlice" },
+						{ label: "reactiveIndex()", link: "/api/reactiveIndex" },
+						{ label: "reactiveList()", link: "/api/reactiveList" },
+						{ label: "pubsub()", link: "/api/pubsub" },
+						{ label: "PubSubHub", link: "/api/PubSubHub" },
+					],
+				},
+				{
 					label: "API — Graph",
 					collapsed: true,
 					items: [{ label: "Graph", link: "/api/Graph" }],
-				},
-				{
-					label: "Project",
-					collapsed: true,
-					items: [
-						{ label: "Optimizations", link: "/optimizations" },
-						{ label: "Benchmark", link: "/benchmark" },
-						{ label: "Test guidance", link: "/test-guidance" },
-						{ label: "Docs guidance", link: "/docs-guidance" },
-					],
 				},
 			],
 		}),

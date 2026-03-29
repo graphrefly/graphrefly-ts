@@ -3,17 +3,21 @@ import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { pipe, producer, state } from "../../core/sugar.js";
 import {
 	constant,
+	decorrelatedJitter,
 	exponential,
 	fibonacci,
 	linear,
+	NS_PER_MS,
+	NS_PER_SEC,
 	resolveBackoffPreset,
+	withMaxAttempts,
 } from "../../extra/backoff.js";
 import {
-	CircuitBreaker,
 	CircuitOpenError,
+	circuitBreaker,
 	rateLimiter,
 	retry,
-	tokenTracker,
+	tokenBucket,
 	withBreaker,
 	withStatus,
 } from "../../extra/resilience.js";
@@ -32,29 +36,89 @@ describe("extra resilience (roadmap §3.1)", () => {
 		vi.useRealTimers();
 	});
 
-	describe("backoff", () => {
+	describe("backoff (nanosecond units)", () => {
+		it("constant returns fixed delay in ns", () => {
+			const s = constant(500 * NS_PER_MS);
+			expect(s(0)).toBe(500_000_000);
+			expect(s(5)).toBe(500_000_000);
+		});
+
 		it("linear grows with attempt", () => {
-			const s = linear(1, 0.5);
-			expect(s(0)).toBe(1);
-			expect(s(1)).toBe(1.5);
-			expect(s(2)).toBe(2);
+			const s = linear(1 * NS_PER_SEC, 0.5 * NS_PER_SEC);
+			expect(s(0)).toBe(1 * NS_PER_SEC);
+			expect(s(1)).toBe(1.5 * NS_PER_SEC);
+			expect(s(2)).toBe(2 * NS_PER_SEC);
 		});
 
 		it("fibonacci scales base", () => {
-			const s = fibonacci(1, 100);
-			expect(s(0)).toBe(1);
-			expect(s(1)).toBe(2);
-			expect(s(2)).toBe(3);
+			const s = fibonacci(1 * NS_PER_SEC, 100 * NS_PER_SEC);
+			expect(s(0)).toBe(1 * NS_PER_SEC);
+			expect(s(1)).toBe(2 * NS_PER_SEC);
+			expect(s(2)).toBe(3 * NS_PER_SEC);
 		});
 
-		it("resolveBackoffPreset returns strategies", () => {
+		it("resolveBackoffPreset returns strategies for all presets", () => {
 			expect(typeof resolveBackoffPreset("constant")(0)).toBe("number");
 			expect(typeof resolveBackoffPreset("exponential")(0)).toBe("number");
+			expect(typeof resolveBackoffPreset("decorrelatedJitter")(0)).toBe("number");
 		});
 
-		it("exponential caps maxDelaySeconds", () => {
-			const s = exponential({ baseSeconds: 1, factor: 10, maxDelaySeconds: 5, jitter: "none" });
-			expect(s(100)).toBe(5);
+		it("resolveBackoffPreset throws on unknown", () => {
+			expect(() => resolveBackoffPreset("nope" as never)).toThrow(/Unknown backoff preset/);
+		});
+
+		it("exponential caps maxDelayNs", () => {
+			const s = exponential({
+				baseNs: 1 * NS_PER_SEC,
+				factor: 10,
+				maxDelayNs: 5 * NS_PER_SEC,
+				jitter: "none",
+			});
+			expect(s(100)).toBe(5 * NS_PER_SEC);
+		});
+	});
+
+	describe("decorrelatedJitter", () => {
+		it("returns values between base and ceiling", () => {
+			const s = decorrelatedJitter(100 * NS_PER_MS, 10 * NS_PER_SEC);
+			for (let i = 0; i < 50; i++) {
+				const d = s(i, undefined, null);
+				expect(d).toBeGreaterThanOrEqual(100 * NS_PER_MS);
+				expect(d).toBeLessThanOrEqual(10 * NS_PER_SEC);
+			}
+		});
+
+		it("uses prevDelay to compute ceiling", () => {
+			const s = decorrelatedJitter(100 * NS_PER_MS, 10 * NS_PER_SEC);
+			const d = s(1, undefined, 200 * NS_PER_MS);
+			expect(d).toBeGreaterThanOrEqual(100 * NS_PER_MS);
+			expect(d).toBeLessThanOrEqual(600 * NS_PER_MS); // min(10s, 200ms * 3)
+		});
+
+		it("defaults prevDelay to base", () => {
+			const s = decorrelatedJitter(100 * NS_PER_MS, 10 * NS_PER_SEC);
+			const d = s(0);
+			expect(d).toBeGreaterThanOrEqual(100 * NS_PER_MS);
+			expect(d).toBeLessThanOrEqual(300 * NS_PER_MS); // min(10s, 100ms * 3)
+		});
+	});
+
+	describe("withMaxAttempts", () => {
+		it("returns null after max attempts", () => {
+			const inner = constant(1 * NS_PER_SEC);
+			const capped = withMaxAttempts(inner, 3);
+			expect(capped(0)).toBe(1 * NS_PER_SEC);
+			expect(capped(1)).toBe(1 * NS_PER_SEC);
+			expect(capped(2)).toBe(1 * NS_PER_SEC);
+			expect(capped(3)).toBeNull();
+			expect(capped(100)).toBeNull();
+		});
+
+		it("passes through inner strategy args", () => {
+			const inner = linear(1 * NS_PER_SEC);
+			const capped = withMaxAttempts(inner, 5);
+			expect(capped(0)).toBe(1 * NS_PER_SEC);
+			expect(capped(2)).toBe(3 * NS_PER_SEC);
 		});
 	});
 
@@ -95,9 +159,9 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 	});
 
-	describe("CircuitBreaker and withBreaker", () => {
+	describe("circuitBreaker (factory)", () => {
 		it("opens after threshold failures", () => {
-			const b = new CircuitBreaker({ failureThreshold: 2, cooldownSeconds: 60 });
+			const b = circuitBreaker({ failureThreshold: 2, cooldownNs: 60 * NS_PER_SEC });
 			expect(b.canExecute()).toBe(true);
 			b.recordFailure();
 			b.recordFailure();
@@ -105,8 +169,94 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(b.canExecute()).toBe(false);
 		});
 
-		it("withBreaker skip emits RESOLVED when open", () => {
-			const b = new CircuitBreaker({ failureThreshold: 1, cooldownSeconds: 600 });
+		it("exposes failureCount", () => {
+			const b = circuitBreaker({ failureThreshold: 5 });
+			expect(b.failureCount).toBe(0);
+			b.recordFailure();
+			expect(b.failureCount).toBe(1);
+			b.recordFailure();
+			expect(b.failureCount).toBe(2);
+		});
+
+		it("reset() returns to closed", () => {
+			const b = circuitBreaker({ failureThreshold: 1 });
+			b.recordFailure();
+			expect(b.state).toBe("open");
+			b.reset();
+			expect(b.state).toBe("closed");
+			expect(b.failureCount).toBe(0);
+			expect(b.canExecute()).toBe(true);
+		});
+
+		it("injectable now() for testing", () => {
+			let clock = 1000;
+			const b = circuitBreaker({
+				failureThreshold: 1,
+				cooldownNs: 5 * NS_PER_SEC,
+				now: () => clock,
+			});
+			b.recordFailure();
+			expect(b.state).toBe("open");
+			expect(b.canExecute()).toBe(false);
+
+			clock += 4999;
+			expect(b.canExecute()).toBe(false);
+
+			clock += 2;
+			expect(b.canExecute()).toBe(true);
+			expect(b.state).toBe("half-open");
+		});
+
+		it("escalating cooldown via backoff strategy", () => {
+			let clock = 0;
+			const b = circuitBreaker({
+				failureThreshold: 1,
+				cooldown: (openCycle) => (openCycle + 1) * NS_PER_SEC,
+				now: () => clock,
+			});
+
+			// First open cycle: cooldown = 1s = 1000ms
+			b.recordFailure();
+			expect(b.state).toBe("open");
+			clock += 1000;
+			expect(b.canExecute()).toBe(true);
+			expect(b.state).toBe("half-open");
+
+			// Fail in half-open → open cycle increments
+			b.recordFailure();
+			expect(b.state).toBe("open");
+
+			// Second open cycle: cooldown = 2s = 2000ms
+			clock += 1999;
+			expect(b.canExecute()).toBe(false);
+			clock += 2;
+			expect(b.canExecute()).toBe(true);
+			expect(b.state).toBe("half-open");
+
+			// Success resets open cycle
+			b.recordSuccess();
+			expect(b.state).toBe("closed");
+		});
+
+		it("half-open respects halfOpenMax", () => {
+			let clock = 0;
+			const b = circuitBreaker({
+				failureThreshold: 1,
+				cooldownNs: 1 * NS_PER_SEC,
+				halfOpenMax: 2,
+				now: () => clock,
+			});
+			b.recordFailure();
+			clock += 1000;
+			expect(b.canExecute()).toBe(true); // trial 1
+			expect(b.canExecute()).toBe(true); // trial 2
+			expect(b.canExecute()).toBe(false); // max reached
+		});
+	});
+
+	describe("withBreaker", () => {
+		it("skip emits RESOLVED when open", () => {
+			const b = circuitBreaker({ failureThreshold: 1, cooldownNs: 600 * NS_PER_SEC });
 			b.recordFailure();
 			const s = state(1);
 			const { node: out } = withBreaker(b)(s);
@@ -116,8 +266,8 @@ describe("extra resilience (roadmap §3.1)", () => {
 			unsub();
 		});
 
-		it("withBreaker onOpen error", () => {
-			const b = new CircuitBreaker({ failureThreshold: 1, cooldownSeconds: 600 });
+		it("onOpen error emits CircuitOpenError", () => {
+			const b = circuitBreaker({ failureThreshold: 1, cooldownNs: 600 * NS_PER_SEC });
 			b.recordFailure();
 			const s = state(1);
 			const { node: out } = withBreaker(b, { onOpen: "error" })(s);
@@ -130,9 +280,9 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 	});
 
-	describe("tokenTracker / rateLimiter", () => {
-		it("TokenBucket tryConsume respects capacity", () => {
-			const tb = tokenTracker(2, 0);
+	describe("tokenBucket / rateLimiter", () => {
+		it("tokenBucket tryConsume respects capacity", () => {
+			const tb = tokenBucket(2, 0);
 			expect(tb.tryConsume(1)).toBe(true);
 			expect(tb.tryConsume(1)).toBe(true);
 			expect(tb.tryConsume(1)).toBe(false);
@@ -143,7 +293,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
 			vi.useFakeTimers();
 			const s = state(0);
-			const out = rateLimiter(1, 1)(s);
+			const out = rateLimiter(1, 1 * NS_PER_SEC)(s);
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 1]]);
 			s.down([[DATA, 2]]);
@@ -194,7 +344,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("meta integration (spec §2.3)", () => {
 		it("withBreaker breakerState is accessible via node.meta", () => {
-			const b = new CircuitBreaker({ failureThreshold: 2 });
+			const b = circuitBreaker({ failureThreshold: 2 });
 			const s = state(1);
 			const bundle = withBreaker(b)(s);
 			expect(bundle.node.meta.breakerState).toBe(bundle.breakerState);
@@ -210,7 +360,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("withBreaker breakerState appears in graph.describe()", () => {
-			const b = new CircuitBreaker({ failureThreshold: 2 });
+			const b = circuitBreaker({ failureThreshold: 2 });
 			const s = state(1);
 			const bundle = withBreaker(b)(s);
 			const g = new Graph("test");

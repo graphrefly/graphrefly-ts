@@ -15,7 +15,7 @@ function retry(opts?: RetryOptions): PipeOperator
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `opts` | `RetryOptions` | `count` caps attempts; `backoff` supplies delay in **seconds** (or a preset name). |
+| `opts` | `RetryOptions` | `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name). |
 
 ## Returns
 
@@ -24,7 +24,7 @@ Unary operator suitable for .
 ## Basic Usage
 
 ```ts
-import { ERROR, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
+import { ERROR, NS_PER_SEC, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
 
 const src = producer(
   (_d, a) => {
@@ -32,7 +32,7 @@ const src = producer(
   },
 { resubscribable: true },
 );
-pipe(src, retry({ count: 2, backoff: constant(0.05) }));
+pipe(src, retry({ count: 2, backoff: constant(0.25 * NS_PER_SEC) }));
 ```
 
 ## Behavior Details

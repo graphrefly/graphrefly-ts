@@ -15,8 +15,8 @@ function resolveBackoffPreset(name: BackoffPreset): BackoffStrategy
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `BackoffPreset` | One of `constant`, `linear`, `exponential`, or `fibonacci`. |
+| `name` | `BackoffPreset` | One of `constant`, `linear`, `exponential`, `fibonacci`, or `decorrelatedJitter`. |
 
 ## Returns
 
-Configured strategy (1s constant/linear, default exponential/fibonacci).
+Configured strategy with default parameters.
