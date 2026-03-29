@@ -170,11 +170,11 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 ### 3.1 — Utils (resilience)
 
-- [ ] `retry`, `backoff` (exponential, linear, fibonacci)
-- [ ] `withBreaker` (circuit breaker)
-- [ ] `rateLimiter`, `tokenTracker`
-- [ ] `withStatus` (now: sugar for meta companion stores)
-- [ ] `checkpoint` + adapters (file, SQLite, IndexedDB)
+- [x] `retry`, `backoff` (exponential, linear, fibonacci)
+- [x] `withBreaker` (circuit breaker)
+- [x] `rateLimiter`, `tokenTracker`
+- [x] `withStatus` (now: sugar for meta companion stores)
+- [x] `checkpoint` + adapters (file, SQLite, IndexedDB)
 
 ### 3.2 — Data structures
 

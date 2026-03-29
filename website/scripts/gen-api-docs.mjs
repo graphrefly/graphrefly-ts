@@ -81,6 +81,30 @@ const REGISTRY = {
 	pausable: "src/extra/operators.ts",
 	rescue: "src/extra/operators.ts",
 
+	// Extra — backoff + resilience + checkpoint (roadmap §3.1)
+	constant: "src/extra/backoff.ts",
+	linear: "src/extra/backoff.ts",
+	exponential: "src/extra/backoff.ts",
+	fibonacci: "src/extra/backoff.ts",
+	resolveBackoffPreset: "src/extra/backoff.ts",
+	retry: "src/extra/resilience.ts",
+	CircuitBreaker: "src/extra/resilience.ts",
+	CircuitOpenError: "src/extra/resilience.ts",
+	TokenBucket: "src/extra/resilience.ts",
+	tokenTracker: "src/extra/resilience.ts",
+	rateLimiter: "src/extra/resilience.ts",
+	withBreaker: "src/extra/resilience.ts",
+	withStatus: "src/extra/resilience.ts",
+	MemoryCheckpointAdapter: "src/extra/checkpoint.ts",
+	DictCheckpointAdapter: "src/extra/checkpoint.ts",
+	FileCheckpointAdapter: "src/extra/checkpoint.ts",
+	SqliteCheckpointAdapter: "src/extra/checkpoint.ts",
+	saveGraphCheckpoint: "src/extra/checkpoint.ts",
+	restoreGraphCheckpoint: "src/extra/checkpoint.ts",
+	checkpointNodeValue: "src/extra/checkpoint.ts",
+	saveGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
+	restoreGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
+
 	// Graph container
 	Graph: "src/graph/graph.ts",
 };

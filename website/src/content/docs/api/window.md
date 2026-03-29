@@ -1,14 +1,18 @@
 ---
 title: "window()"
-description: "Opens a new buffer whenever `notifier` settles; emits arrays of source values (`window`)."
+description: "Splits source `DATA` into sub-nodes, opening a new window each time `notifier` emits `DATA`."
 ---
 
-Opens a new buffer whenever `notifier` settles; emits arrays of source values (`window`).
+Splits source `DATA` into sub-nodes, opening a new window each time `notifier` emits `DATA`.
 
 ## Signature
 
 ```ts
-function window<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T[]>
+function window<T>(
+	source: Node<T>,
+	notifier: Node<unknown>,
+	opts?: ExtraOpts,
+): Node<Node<T>>
 ```
 
 ## Parameters
@@ -16,17 +20,9 @@ function window<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `notifier` | `Node&lt;unknown&gt;` | Same role as . |
+| `notifier` | `Node&lt;unknown&gt;` | Each `DATA` from `notifier` closes the current window and opens a new one. |
 | `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
 
 ## Returns
 
-`Node&lt;T[]&gt;` - Alias of .
-
-## Basic Usage
-
-```ts
-import { window, state } from "@graphrefly/graphrefly-ts";
-
-window(state(0), state(0));
-```
+`Node&lt;Node&lt;T&gt;&gt;` - Each emission is a sub-node carrying that window's values.

@@ -295,6 +295,37 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `fromEvent` / `from_event_emitter` | Generic emitter (`add_method=`, `remove_method=`) | DOM `addEventListener` API |
 | `toArray` / `to_array` | Reactive `Node[list]` | Reactive `Node<T[]>` |
 | `to_list` (blocking) | Py-only sync bridge | N/A |
+| Extra Phase 3.1 (resilience) | `graphrefly.extra.{backoff,resilience,checkpoint}`; see §6 below | `src/extra/{backoff,resilience,checkpoint}.ts`; see §6 below |
+
+### 6. Resilience & checkpoint (roadmap 3.1) — parity (2026-03-29)
+
+**Aligned:**
+
+| Topic | Both |
+|-------|------|
+| `retry` | Resubscribe-on-ERROR with optional backoff; `count` caps attempts; `backoff` accepts strategy or preset name; successful DATA resets attempt counter; max-retries sentinel: `2_147_483_647` (`0x7fffffff`) |
+| `backoff` strategies | `constant`, `linear`, `exponential`, `fibonacci`; jitter modes: `none`, `full`, `equal`; `resolveBackoffPreset` / `resolve_backoff_preset` maps preset names |
+| `CircuitBreaker` | `closed` → `open` → `half-open` states; `canExecute` / `can_execute`, `recordSuccess` / `record_success`, `recordFailure` / `record_failure` |
+| `withBreaker` / `with_breaker` | Returns `WithBreakerBundle` (`node` + `breakerState`/`breaker_state`); `onOpen: "skip"` → RESOLVED, `"error"` → CircuitOpenError |
+| `rateLimiter` / `rate_limiter` | Sliding-window FIFO queue; throws/raises on `maxEvents <= 0` or `windowSeconds <= 0`; COMPLETE/ERROR clear timers + pending + window times |
+| `TokenBucket` | Capacity + refill-per-second; `tryConsume` / `try_consume`; `tokenTracker` / `token_tracker` factory alias |
+| `withStatus` / `with_status` | `WithStatusBundle` (`node` + `status` + `error`); recovery from `errored` via `batch` |
+| `describeKind` | All resilience operators use `"operator"` |
+| Checkpoint adapters | `Memory`, `Dict`, `File`, `Sqlite` on both; `save_graph_checkpoint`/`restore_graph_checkpoint`; `checkpoint_node_value` returns `{ version: 1, value }` |
+
+**Intentional divergences:**
+
+| Topic | Python | TypeScript | Rationale |
+|-------|--------|------------|-----------|
+| Timer base | `time.monotonic()` (seconds) | `performance.now()` (ms, monotonic in Node.js) | Both monotonic; unit conversion internal |
+| Thread safety | `CircuitBreaker` + `TokenBucket` use `threading.Lock`; retry uses `threading.Timer` | Single-threaded (`setTimeout`) | Spec §6.1 |
+| `CircuitBreaker` params | `cooldown` (seconds, implicit) | `cooldownSeconds` (seconds, explicit) | Naming convention |
+| `CircuitOpenError` base | `RuntimeError` | `Error` | Language convention |
+| Retry delay validation | `_coerce_delay()` raises `ValueError` for non-finite | `coerceDelaySeconds()` throws `TypeError` for non-finite | Both validate; error type differs |
+| IndexedDB checkpoint | N/A (backend-only) | `saveGraphCheckpointIndexedDb` / `restoreGraphCheckpointIndexedDb` (browser) | TS browser runtime only |
+| `SqliteCheckpointAdapter` | `sqlite3` stdlib | `node:sqlite` (`DatabaseSync`, Node 22.5+) | Both stdlib, zero deps |
+
+**Meta integration (spec §2.3, Option A):** `withBreaker` and `withStatus` wire companion nodes into `node.meta` at construction via the `meta` option. Bundles still provide ergonomic typed access; `node.meta.breakerState` / `node.meta["status"]` are the same node instances returned in the bundle. Companions appear in `graph.describe()` under `::__meta__::` paths.
 
 ### Open design items (low priority)
 
