@@ -2,6 +2,7 @@
  * Sources and sinks (roadmap §2.3). Each API returns a {@link Node} built with
  * {@link node}, {@link producer}, {@link derived}, or {@link effect} — no second protocol.
  */
+import { wallClockNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR, type Message } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
@@ -32,7 +33,7 @@ export type NodeInput<T> = Node<T> | PromiseLike<T> | AsyncIterable<T> | Iterabl
 export type FromCronOptions = ExtraOpts & {
 	/** Polling interval in ms. Default `60_000`. */
 	tickMs?: number;
-	/** Output format: `"timestamp_ns"` (default) emits `Date.now() * 1_000_000`; `"date"` emits a `Date` object. */
+	/** Output format: `"timestamp_ns"` (default) emits wall-clock nanoseconds; `"date"` emits a `Date` object. */
 	output?: "timestamp_ns" | "date";
 };
 
@@ -159,7 +160,7 @@ export function fromCron(expr: string, opts?: FromCronOptions): Node<number | Da
 					now.getMinutes();
 				if (key !== lastFiredKey && matchesCron(schedule, now)) {
 					lastFiredKey = key;
-					a.emit(emitDate ? now : Date.now() * 1_000_000);
+					a.emit(emitDate ? now : wallClockNs());
 				}
 			};
 			check();

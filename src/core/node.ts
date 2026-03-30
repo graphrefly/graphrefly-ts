@@ -1,6 +1,7 @@
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
 import { emitWithBatch } from "./batch.js";
+import { wallClockNs } from "./clock.js";
 import type { GuardAction, NodeGuard } from "./guard.js";
 import { GuardDenied } from "./guard.js";
 import {
@@ -464,7 +465,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (!this._guard(actor, action)) {
 				throw new GuardDenied({ actor, action, nodeName: this.name });
 			}
-			this._lastMutation = { actor, timestamp_ns: Date.now() * 1_000_000 };
+			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
 		}
 		this._downInternal(messages);
 	}
@@ -577,7 +578,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (!this._guard(actor, "write")) {
 				throw new GuardDenied({ actor, action: "write", nodeName: this.name });
 			}
-			this._lastMutation = { actor, timestamp_ns: Date.now() * 1_000_000 };
+			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
 		}
 		for (const dep of this._deps) {
 			if (options === undefined) {

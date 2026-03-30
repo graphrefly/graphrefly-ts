@@ -95,7 +95,7 @@ obs.causality: Array<{
   triggerDepIndex: number,
   triggerDepName: string | undefined,
   depValues: unknown[],
-  timestamp: number,
+  timestamp_ns: number,
 }>
 ```
 Implementation: wrap `NodeImpl._fn` to snapshot dep values before/after (same approach as predecessor's `causalityTrace`). Only active when `{ causal: true }` — zero overhead otherwise.
@@ -110,14 +110,14 @@ Implementation: wrap `NodeImpl._fn` to snapshot dep values before/after (same ap
 ```ts
 const tl = graph.observe("node", { timeline: true });
 tl.entries: Array<{
-  timestamp: number,
+  timestamp_ns: number,
   type: "data" | "dirty" | "resolved" | "complete" | "error",
   data: unknown,
   inBatch: boolean,
 }>
 tl.dispose(): void
 ```
-Minimal wrapper: adds `Date.now()` and batch-detection flag to each message before passing to the events array. Roadmap already includes this.
+Minimal wrapper: adds a monotonic `timestamp_ns` and batch-detection flag to each message before passing to the events array. Roadmap already includes this.
 
 ### Gap 7: Diff
 
@@ -163,9 +163,9 @@ graph.annotate("retryLimit", "Increased from 3→5 because last 3 attempts timed
 graph.traceLog() → TraceEntry[]  // ring buffer, chronological
 
 type TraceEntry = {
-  node: string,        // qualified path
+  path: string,        // qualified path
   reason: string,
-  timestamp: number,
+  timestamp_ns: number,
 }
 ```
 Storage: per-graph `Map<string, string>` for latest annotation + ring buffer array for chronological log. Appears in `describe()` output as `meta.__annotation` or a dedicated `annotation` field. `Graph.inspectorEnabled` gates overhead.

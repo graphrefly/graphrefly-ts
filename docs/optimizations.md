@@ -280,7 +280,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `Graph` Phase 1.5 | **Both:** actor/guard/`policy()`, scoped `describe`/`observe`, `set`/`signal`/`down`/`up` actor + delivery (`write` vs `signal`), `internal` lifecycle TEARDOWN, `meta.access` guarded hint, `GuardDenied` + `lastMutation`; non-transactional `signal` on first denial — see `graphrefly-py/docs/optimizations.md` built-in §8 | Same |
 | `policy()` semantics | Deny-overrides: any matching deny blocks; if no deny, any matching allow permits; no match → deny | Same (aligned from parity round) |
 | `DEFAULT_ACTOR` | `{"type": "system", "id": ""}` | `{ type: "system", id: "" }` (aligned) |
-| `lastMutation` timestamp | `timestamp_ns` (`time.time_ns()`) | `timestamp_ns` (`Date.now() * 1_000_000`) — both nanoseconds |
+| `lastMutation` timestamp | `timestamp_ns` via `wall_clock_ns()` (`time.time_ns()`) | `timestamp_ns` via `wallClockNs()` (`Date.now() * 1_000_000`) — both wall-clock nanoseconds; centralised in `core/clock` |
 | `accessHintForGuard` | Probes guard with standard actor types → `"both"`, `"human"`, `"restricted"`, etc. | `accessHintForGuard()` — same probing logic (aligned from parity round) |
 | `subscribe()` observe guard | `subscribe(sink, hints, *, actor=)` checks observe guard at node level | `subscribe(sink, { actor? })` checks observe guard at node level (aligned from parity round) |
 | `up()` guard + attribution | `up(msgs, *, actor=, internal=, guard_action=)` checks guard, records `last_mutation` | `up(msgs, opts?)` checks guard, records `lastMutation` (aligned from parity round) |
@@ -308,6 +308,58 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 
 Parity hardening (2026-03-30): both ports now keep `data` / `resolved` events under `causal` even when no trigger index is known yet, always emit `derived` on every `run`, and set `completedCleanly` / `completed_cleanly` only when no prior `ERROR` was seen. Structured timeline timestamps use `timestamp_ns` in both ports (nanoseconds). `ObserveResult.values` is latest-by-path map in both ports.
 
+### 19. Inspector helper parity (reasoning trace + diagram export)
+
+| Topic | TypeScript | Python |
+|-------|------------|--------|
+| Reasoning trace path validation | `graph.annotate(path, reason)` resolves `path` and throws if unknown. | `graph.annotate(path, reason)` resolves `path` and raises if unknown. |
+| Reasoning trace entry key | `TraceEntry.path` (qualified node path) | `TraceEntry.path` (qualified node path) |
+| Inspector disabled behavior | `traceLog()` returns `[]`; `annotate()` is a no-op. | `trace_log()` returns `[]`; `annotate()` is a no-op. |
+| Diagram export | `graph.toMermaid({ direction })`, `graph.toD2({ direction })` | `graph.to_mermaid(direction=...)`, `graph.to_d2(direction=...)` |
+| Direction set | `TD`, `LR`, `BT`, `RL` | `TD`, `LR`, `BT`, `RL` |
+| D2 direction mapping | `TD→down`, `LR→right`, `BT→up`, `RL→left` | `TD→down`, `LR→right`, `BT→up`, `RL→left` |
+| Direction validation | Runtime guard throws for values outside `TD/LR/BT/RL`. | Runtime guard raises for values outside `TD/LR/BT/RL`. |
+| Trace ring size | 1000 entries (bounded ring). | 1000 entries (bounded ring). |
+| Trace timestamp | `timestamp_ns` via `monotonic_ns()` (`time.monotonic_ns()`). | `timestamp_ns` via `monotonicNs()` (`performance.now`-based ns). Both centralised in `core/clock`. |
+| Inspector default | Disabled when `NODE_ENV=production`; enabled otherwise. | Disabled when `NODE_ENV=production`; enabled otherwise. |
+| `spy` return shape | `Graph.spy(...)` returns `{ result: ObserveResult, dispose() }` (`GraphSpyHandle`) | `Graph.spy(...)` returns `SpyHandle` with `.result` and `.dispose()` |
+| `dumpGraph` / `dump_graph` JSON stability | Uses recursively sorted keys before stringify (byte-stable for same graph + options) | Uses `json.dumps(..., sort_keys=True)` (byte-stable for same graph + options) |
+
+### 20. `reachable(...)` parity decisions (2026-03-30)
+
+| Topic | TypeScript | Python |
+|-------|------------|--------|
+| Signature style | `reachable(described, from, direction, { maxDepth? })` | `reachable(described, from_path, direction, *, max_depth=None)` |
+| Direction validation | Runtime guard: only `"upstream"` / `"downstream"` accepted; invalid throws | Runtime guard: only `"upstream"` / `"downstream"` accepted; invalid raises |
+| Depth validation | Integer-only `maxDepth >= 0` (`0` returns `[]`) | Integer-only `max_depth >= 0` (`0` returns `[]`; rejects `bool`) |
+| Malformed payload handling | Defensive: non-object `nodes` / non-array `edges` treated as empty; malformed edges skipped | Defensive: same behavior (`nodes`/`edges` normalized, malformed entries skipped) |
+| Traversal semantics | BFS over `deps` + `edges`; upstream = deps+incoming, downstream = reverse-deps+outgoing | Same |
+| Output ordering | Lexical code-point ordering (stable, locale-independent) | Lexical code-point ordering via `sorted()` |
+
+### 21. Centralised clock utilities (`core/clock`) — parity (2026-03-30)
+
+Both repos export two timestamp functions from `core/clock`:
+
+| Function | Python | TypeScript | Use case |
+|----------|--------|------------|----------|
+| `monotonic_ns` / `monotonicNs` | `time.monotonic_ns()` — true nanoseconds | `Math.trunc(performance.now() * 1_000_000)` — ~microsecond effective precision | Timeline events, trace entries, resilience timers, TTL deadlines, all internal duration tracking |
+| `wall_clock_ns` / `wallClockNs` | `time.time_ns()` — true nanoseconds | `Date.now() * 1_000_000` — ~256ns precision loss at epoch scale | `lastMutation` attribution (guard), `fromCron` emission payload |
+
+**Convention:** all timestamps in the protocol are nanoseconds (`_ns` suffix). No code outside `core/clock` should call `Date.now()`, `performance.now()`, `time.time_ns()`, or `time.monotonic_ns()` directly.
+
+**JS platform precision limits** (documented in `src/core/clock.ts`):
+
+- `monotonicNs`: `performance.now()` returns ms with ~5µs browser resolution; last 3 digits of ns value are always zero.
+- `wallClockNs`: `Date.now() * 1e6` produces values ~1.8×10¹⁸ which exceed IEEE 754's 2⁵³ safe integer limit, causing ~256ns quantisation. Irrelevant in practice — JS is single-threaded, so sub-µs collisions cannot occur.
+
+Python has no precision limitations (arbitrary-precision `int`).
+
+**Internal timing (acceptable divergence):** TS `throttle` operator uses `performance.now()` (milliseconds) directly for relative elapsed-time gating. This is internal and never exposed as a protocol timestamp. Python tier-2 time operators use `threading.Timer` (wall-clock seconds). Both are correct for their purpose.
+
+**Ring buffer (TS):** Trace log uses a fixed-capacity `RingBuffer<TraceEntry>` (default 1000) for O(1) push + eviction. Python uses `collections.deque(maxlen=1000)`.
+
+**Diagram export — deps + edges:** Both `toMermaid`/`to_mermaid` and `toD2`/`to_d2` now render arrows from **both** constructor `deps` and explicit `connect()` edges, deduplicated by `(from, to)` pair.
+
 ### 6. Resilience & checkpoint (roadmap 3.1) — parity (2026-03-29)
 
 **Aligned:**
@@ -328,7 +380,7 @@ Parity hardening (2026-03-30): both ports now keep `data` / `resolved` events un
 
 | Topic | Python | TypeScript | Rationale |
 |-------|--------|------------|-----------|
-| Timer base | `time.monotonic()` (seconds) | `performance.now()` (ms, monotonic in Node.js) | Both monotonic; unit conversion internal |
+| Timer base | `monotonic_ns()` (nanoseconds via `time.monotonic_ns()`) | `monotonicNs()` (nanoseconds via `performance.now()`) | Both centralised in `core/clock`; nanosecond internal tracking |
 | Thread safety | `CircuitBreaker` + `TokenBucket` use `threading.Lock`; retry uses `threading.Timer` | Single-threaded (`setTimeout`) | Spec §6.1 |
 | `CircuitBreaker` params | `cooldown` (seconds, implicit) | `cooldownSeconds` (seconds, explicit) | Naming convention |
 | `CircuitOpenError` base | `RuntimeError` | `Error` | Language convention |
@@ -345,9 +397,9 @@ Parity hardening (2026-03-30): both ports now keep `data` / `resolved` events un
 
 **Python:** `reactive_map`, `reactive_log`, `reactive_index`, `reactive_list`, `pubsub`, `log_slice` in `graphrefly.extra.data_structures` (re-exported from `graphrefly.extra`). **Parity aligned (2026-03-29):** All mutations emit via two-phase `batch()` (DIRTY then DATA); all snapshot nodes use `Versioned` (named tuple with monotonic `version` + `value`) with `_versioned_equals` for efficient dedup; `data.get().value` returns `MappingProxyType` (immutable) for maps and `tuple` for logs/lists; all factories accept an optional `name` param; `describe_kind` set on all internal nodes.
 
-**Semantics (aligned):** Both ports use `Versioned` snapshots with a monotonic version counter for `NodeOptions.equals`. TTL: both use monotonic clocks — TS `performance.now()` (ms), Python `time.monotonic()` (seconds). Lazy expiry + explicit `prune()` / `pruneExpired()` on both; no background timer in the first iteration. LRU: TS refreshes order on `get`/`has`; Python refreshes order on `set` only (reads use `data.get()` as a dict snapshot — no per-key LRU touch on read). `pubsub` topic publish uses two-phase protocol on both.
+**Semantics (aligned):** Both ports use `Versioned` snapshots with a monotonic version counter for `NodeOptions.equals`. TTL: both use `monotonicNs()` / `monotonic_ns()` internally; public API takes seconds (`defaultTtl` / `default_ttl`). Lazy expiry + explicit `prune()` / `pruneExpired()` on both; no background timer in the first iteration. LRU: TS refreshes order on `get`/`has`; Python refreshes order on `set` only (reads use `data.get()` as a dict snapshot — no per-key LRU touch on read). `pubsub` topic publish uses two-phase protocol on both.
 
-**Doc / API surface:** TS `defaultTtlMs` / Python `default_ttl` (seconds) — convert mentally when comparing.
+**Doc / API surface:** Both use seconds for TTL: TS `defaultTtl` / Python `default_ttl`.
 
 **Derived log views (`tail` / `log_slice` / `logSlice`):** Both ports attach a noop subscription to each derived view so `get()` stays wired without a user sink (same idea as Python’s `_keepalive_derived`). Each call allocates a new derived node plus that subscription; creating very many throwaway views can retain subscriptions until those nodes are unreachable. See JSDoc on `reactiveLog` / `logSlice` in graphrefly-ts and docstrings on `ReactiveLogBundle.tail` / `log_slice` in `graphrefly.extra.data_structures` (Py).
 
@@ -410,7 +462,7 @@ Parity hardening (2026-03-30): both ports now keep `data` / `resolved` events un
    | Source/Sink | Aligned behavior |
    |-------------|-----------------|
    | `fromTimer` / `from_timer` | Both: `(delay, { period? })` — one-shot emits `0` then COMPLETE; periodic emits `0, 1, 2, …` every `period` (never completes). TS: `signal` (AbortSignal) support; Py: no signal (deferred). |
-   | `fromCron` / `from_cron` | Both: built-in 5-field cron parser (zero external deps); emits `timestamp_ns` (`Date.now() * 1_000_000` / `time.time_ns()`). TS: `output: "date"` option for Date objects. |
+   | `fromCron` / `from_cron` | Both: built-in 5-field cron parser (zero external deps); emits wall-clock `timestamp_ns` via `wallClockNs()` / `wall_clock_ns()`. TS: `output: "date"` option for Date objects. |
    | `fromIter` / `from_iter` | Both: synchronous drain, one DATA per item, then COMPLETE. Error → ERROR. |
    | `of` | Both: `fromIter(values)` / `from_iter` under the hood. |
    | `empty` | Both: synchronous COMPLETE, no DATA. |

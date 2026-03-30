@@ -5,7 +5,12 @@ import { GuardDenied, policy } from "../../core/guard.js";
 import { DATA, DIRTY, PAUSE, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
-import { GRAPH_META_SEGMENT, Graph, type GraphPersistSnapshot } from "../../graph/graph.js";
+import {
+	GRAPH_META_SEGMENT,
+	Graph,
+	type GraphPersistSnapshot,
+	reachable,
+} from "../../graph/graph.js";
 import { assertDescribeMatchesAppendixB } from "./validate-describe-appendix-b.js";
 
 describe("Graph (Phase 1.1)", () => {
@@ -412,6 +417,80 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(Object.keys(byPath.nodes)).toContain("a");
 	});
 
+	it("reachable traverses upstream via deps and incoming edges", () => {
+		const d = {
+			name: "g",
+			nodes: {
+				a: { type: "state", status: "settled", deps: [], meta: {} },
+				b: { type: "derived", status: "settled", deps: ["a"], meta: {} },
+				c: { type: "derived", status: "settled", deps: ["b"], meta: {} },
+				x: { type: "state", status: "settled", deps: [], meta: {} },
+			},
+			edges: [{ from: "x", to: "b" }],
+			subgraphs: [],
+		} satisfies GraphPersistSnapshot;
+
+		expect(reachable(d, "c", "upstream")).toEqual(["a", "b", "x"]);
+		expect(reachable(d, "c", "upstream", { maxDepth: 1 })).toEqual(["b"]);
+	});
+
+	it("reachable traverses downstream via reverse deps and outgoing edges", () => {
+		const d = {
+			name: "g",
+			nodes: {
+				a: { type: "state", status: "settled", deps: [], meta: {} },
+				b: { type: "derived", status: "settled", deps: ["a"], meta: {} },
+				c: { type: "derived", status: "settled", deps: ["b"], meta: {} },
+				sink: { type: "state", status: "settled", deps: [], meta: {} },
+			},
+			edges: [{ from: "a", to: "sink" }],
+			subgraphs: [],
+		} satisfies GraphPersistSnapshot;
+
+		expect(reachable(d, "a", "downstream")).toEqual(["b", "c", "sink"]);
+		expect(reachable(d, "a", "downstream", { maxDepth: 1 })).toEqual(["b", "sink"]);
+	});
+
+	it("reachable validates direction and maxDepth as integer", () => {
+		const d = {
+			name: "g",
+			nodes: { a: { type: "state", status: "settled", deps: [], meta: {} } },
+			edges: [],
+			subgraphs: [],
+		} satisfies GraphPersistSnapshot;
+
+		expect(() => reachable(d, "a", "sideways" as unknown as "upstream")).toThrow(
+			/direction must be/,
+		);
+		expect(() => reachable(d, "a", "upstream", { maxDepth: 1.5 })).toThrow(/integer >= 0/);
+		expect(() => reachable(d, "a", "upstream", { maxDepth: -1 })).toThrow(/integer >= 0/);
+		expect(reachable(d, "a", "upstream", { maxDepth: 0 })).toEqual([]);
+	});
+
+	it("reachable handles unknown start and malformed describe payloads defensively", () => {
+		const malformed = {
+			name: "g",
+			nodes: { a: { type: "state", status: "settled", deps: ["b"], meta: {} } },
+			edges: [{ from: "b", to: "a" }, { from: 1 }, null],
+			subgraphs: [],
+		} as unknown as GraphPersistSnapshot;
+		expect(reachable(malformed, "missing", "upstream")).toEqual([]);
+		expect(() =>
+			reachable(
+				{ name: "g", nodes: null, edges: null, subgraphs: [] } as unknown as GraphPersistSnapshot,
+				"a",
+				"upstream",
+			),
+		).not.toThrow();
+		expect(
+			reachable(
+				{ name: "g", nodes: null, edges: null, subgraphs: [] } as unknown as GraphPersistSnapshot,
+				"a",
+				"upstream",
+			),
+		).toEqual([]);
+	});
+
 	it("describe lists each meta companion as its own node entry (Python parity)", () => {
 		const g = new Graph("g");
 		const n = node({ initial: 0, meta: { desc: "purpose" } });
@@ -566,6 +645,141 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(obs.events.some((e) => e.path === "a" && e.type === "data")).toBe(true);
 		expect(obs.events.some((e) => e.path === "b" && e.type === "data")).toBe(true);
 		expect(obs.events.some((e) => e.timestamp_ns != null)).toBe(true);
+	});
+
+	it("toMermaid exports qualified nodes and edges with direction", () => {
+		const g = new Graph("g");
+		const child = new Graph("child");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		child.add("a", a);
+		child.add("b", b);
+		child.connect("a", "b");
+		g.mount("sub", child);
+		const text = g.toMermaid({ direction: "TD" });
+		expect(text).toContain("flowchart TD");
+		expect(text).toContain('["sub::a"]');
+		expect(text).toContain('["sub::b"]');
+		expect(text).toContain("-->");
+	});
+
+	it("toD2 exports qualified nodes and maps direction", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const text = g.toD2({ direction: "RL" });
+		expect(text).toContain("direction: left");
+		expect(text).toContain('"a"');
+		expect(text).toContain('"b"');
+		expect(text).toContain("->");
+	});
+
+	it("toMermaid rejects invalid direction at runtime", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		expect(() => g.toMermaid({ direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
+			/invalid diagram direction/,
+		);
+	});
+
+	it("toD2 rejects invalid direction at runtime", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		expect(() => g.toD2({ direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
+			/invalid diagram direction/,
+		);
+	});
+
+	it("toMermaid and toD2 render constructor deps without explicit connect", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		// No connect() — deps only
+		const mermaid = g.toMermaid();
+		expect(mermaid).toContain("-->");
+		const d2 = g.toD2();
+		expect(d2).toContain("->");
+	});
+
+	it("annotate validates path and traceLog follows inspector gating", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		g.annotate("a", "first");
+		expect(g.traceLog().some((e) => e.reason === "first")).toBe(true);
+		expect(() => g.annotate("missing", "x")).toThrow();
+
+		const prev = Graph.inspectorEnabled;
+		try {
+			Graph.inspectorEnabled = false;
+			expect(g.traceLog()).toEqual([]);
+			g.annotate("a", "second");
+		} finally {
+			Graph.inspectorEnabled = prev;
+		}
+		expect(g.traceLog().some((e) => e.reason === "second")).toBe(false);
+	});
+
+	it("spy logs events with include/exclude filters", () => {
+		const g = new Graph("g");
+		const logs: string[] = [];
+		g.add("a", state(0, { name: "a" }));
+		const spy = g.spy({
+			path: "a",
+			includeTypes: ["data", "dirty", "resolved"],
+			excludeTypes: ["resolved"],
+			theme: "none",
+			logger: (line) => logs.push(line),
+		});
+		g.set("a", 1);
+		spy.dispose();
+		expect(logs.some((line) => line.includes("DATA"))).toBe(true);
+		expect(logs.some((line) => line.includes("RESOLVED"))).toBe(false);
+	});
+
+	it("spy supports JSON output in graph-wide mode", () => {
+		const g = new Graph("g");
+		const lines: string[] = [];
+		g.add("a", state(0, { name: "a" }));
+		g.add("b", state(0, { name: "b" }));
+		const spy = g.spy({
+			format: "json",
+			theme: "none",
+			logger: (line) => lines.push(line),
+		});
+		g.set("a", 2);
+		g.set("b", 3);
+		spy.dispose();
+		const parsed = lines.map((line) => JSON.parse(line) as { type?: string; path?: string });
+		expect(parsed.some((evt) => evt.type === "data" && evt.path === "a")).toBe(true);
+		expect(parsed.some((evt) => evt.type === "data" && evt.path === "b")).toBe(true);
+	});
+
+	it("dumpGraph returns pretty text and JSON variants", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const pretty = g.dumpGraph({ format: "pretty" });
+		expect(pretty).toContain("Graph g");
+		expect(pretty).toContain("Nodes:");
+		expect(pretty).toContain("Edges:");
+		const jsonText = g.dumpGraph({ format: "json", indent: 2 });
+		expect(jsonText).toBe(g.dumpGraph({ format: "json", indent: 2 }));
+		const parsed = JSON.parse(jsonText) as {
+			name: string;
+			nodes: Record<string, unknown>;
+			edges: Array<{ from: string; to: string }>;
+		};
+		expect(parsed.name).toBe("g");
+		expect(parsed.nodes.a).toBeDefined();
+		expect(parsed.edges).toEqual([{ from: "a", to: "b" }]);
 	});
 });
 

@@ -3,6 +3,7 @@
  * {@link state} node.
  */
 import { batch } from "../core/batch.js";
+import { monotonicNs } from "../core/clock.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node, NodeOptions } from "../core/node.js";
 import { state } from "../core/sugar.js";
@@ -17,15 +18,15 @@ export type ReactiveMapOptions = {
 	name?: string;
 	/** When set, evicts least-recently-used keys after inserts that exceed this size. */
 	maxSize?: number;
-	/** Used when `set` omits per-call `ttlMs`. */
-	defaultTtlMs?: number;
+	/** Default TTL in seconds. Used when `set` omits per-call `ttl`. */
+	defaultTtl?: number;
 } & Omit<NodeOptions, "initial" | "describeKind" | "equals">;
 
 export type ReactiveMapBundle<K, V> = {
 	/** Emits {@link ReactiveMapSnapshot} on each structural change (two-phase). */
 	node: Node<ReactiveMapSnapshot<K, V>>;
 	get: (key: K) => V | undefined;
-	set: (key: K, value: V, opts?: { ttlMs?: number }) => void;
+	set: (key: K, value: V, opts?: { ttl?: number }) => void;
 	delete: (key: K) => void;
 	clear: () => void;
 	has: (key: K) => boolean;
@@ -53,7 +54,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
 /**
  * Creates a reactive `Map` with optional per-key TTL and optional LRU max size.
  *
- * @param options - Node options plus `maxSize` / `defaultTtlMs`.
+ * @param options - Node options plus `maxSize` / `defaultTtl` (seconds).
  * @returns `ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and a `node` emitting versioned readonly map snapshots.
  *
  * @remarks
@@ -61,7 +62,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
  * snapshot emission (expired keys are pruned first). There is no
  * background timer; monotonic-clock–expired keys may still appear in the last-emitted
  * snapshot on `node` until a read or `pruneExpired` removes them.
- * Uses `performance.now()` (monotonic in Node.js) — immune to wall-clock adjustments.
+ * Uses `monotonicNs()` — immune to wall-clock adjustments.
  *
  * **LRU:** Uses native `Map` insertion order — `get` / `has` refreshes position; under
  * `maxSize` pressure the first key in iteration order is evicted. When `maxSize` is
@@ -71,7 +72,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
  * ```ts
  * import { reactiveMap } from "@graphrefly/graphrefly-ts";
  *
- * const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtlMs: 60_000 });
+ * const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
  * m.set("x", 1);
  * m.node.subscribe((msgs) => {
  *   console.log(msgs);
@@ -81,7 +82,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
  * @category extra
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMapBundle<K, V> {
-	const { name, maxSize, defaultTtlMs, ...nodeOpts } = options;
+	const { name, maxSize, defaultTtl, ...nodeOpts } = options;
 	const store = new Map<K, MapEntry<V>>();
 
 	let current = emptySnapshot<K, V>();
@@ -94,7 +95,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	});
 
 	function pruneExpiredInternal(): boolean {
-		const now = performance.now();
+		const now = monotonicNs();
 		let removed = false;
 		for (const [k, e] of store) {
 			if (isExpired(e, now)) {
@@ -116,7 +117,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 
 	function pushSnapshot(): void {
 		pruneExpiredInternal();
-		const now = performance.now();
+		const now = monotonicNs();
 		const map = buildMap(store, now) as ReadonlyMap<K, V>;
 		current = bumpVersion(current, { map });
 		batch(() => {
@@ -136,7 +137,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		node: n,
 
 		get(key: K): V | undefined {
-			const now = performance.now();
+			const now = monotonicNs();
 			const e = store.get(key);
 			if (e === undefined) return undefined;
 			if (isExpired(e, now)) {
@@ -148,13 +149,13 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 			return e.value;
 		},
 
-		set(key: K, value: V, setOpts?: { ttlMs?: number }): void {
+		set(key: K, value: V, setOpts?: { ttl?: number }): void {
 			pruneExpiredInternal();
-			const ttlMs = setOpts?.ttlMs ?? defaultTtlMs;
-			if (ttlMs !== undefined && ttlMs <= 0) {
-				throw new RangeError(`reactiveMap: ttlMs must be positive (got ${ttlMs})`);
+			const ttlSec = setOpts?.ttl ?? defaultTtl;
+			if (ttlSec !== undefined && ttlSec <= 0) {
+				throw new RangeError(`reactiveMap: ttl must be positive (got ${ttlSec})`);
 			}
-			const expiresAt = ttlMs !== undefined ? performance.now() + ttlMs : undefined;
+			const expiresAt = ttlSec !== undefined ? monotonicNs() + ttlSec * 1_000_000_000 : undefined;
 			if (store.has(key)) store.delete(key);
 			store.set(key, { value, expiresAt });
 			evictLruWhileOver();
@@ -173,7 +174,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		},
 
 		has(key: K): boolean {
-			const now = performance.now();
+			const now = monotonicNs();
 			const e = store.get(key);
 			if (e === undefined) return false;
 			if (isExpired(e, now)) {

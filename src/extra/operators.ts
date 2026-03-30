@@ -1707,7 +1707,7 @@ export function throttle<T>(
 				}
 				if (t === DATA) {
 					const v = msg[1] as T;
-					const now = Date.now();
+					const now = performance.now();
 					if (leading && now - lastEmit >= ms) {
 						lastEmit = now;
 						a.emit(v);
@@ -1716,7 +1716,7 @@ export function throttle<T>(
 							timer = setTimeout(() => {
 								timer = undefined;
 								if (hasPending) {
-									lastEmit = Date.now();
+									lastEmit = performance.now();
 									a.emit(pending as T);
 									hasPending = false;
 								}
@@ -1732,7 +1732,7 @@ export function throttle<T>(
 								() => {
 									timer = undefined;
 									if (hasPending) {
-										lastEmit = Date.now();
+										lastEmit = performance.now();
 										a.emit(pending as T);
 										hasPending = false;
 									}

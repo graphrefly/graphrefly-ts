@@ -974,3 +974,342 @@ whatever. The `distill()` pattern doesn't care. It just sees `NodeInput<Extracti
 
 For structured-output-capable LLMs, `parse` is trivial (JSON.parse). For others,
 it's a regex/heuristic parser. Either way, the distill pattern is the same.
+
+---
+
+## `fromFSWatch()` — File System Watcher as Reactive Source
+
+### The Need
+
+The tracker's regression detection relies on knowing when files change. Currently
+the codebase has `fromEvent` (DOM events) and `fromTimer`/`fromCron`, but no file
+system watcher.
+
+### Signature
+
+```typescript
+function fromFSWatch(
+  paths: string | string[],
+  opts?: FSWatchOptions,
+): Node<FSEvent>
+
+interface FSWatchOptions extends NodeOptions {
+  /** Watch recursively. Default: true. */
+  recursive?: boolean
+
+  /** Debounce ms — coalesce rapid file saves. Default: 100. */
+  debounce?: number
+
+  /** Glob patterns to include. Default: all. */
+  include?: string[]
+
+  /** Glob patterns to exclude. Default: ['node_modules', '.git', 'dist']. */
+  exclude?: string[]
+}
+
+interface FSEvent {
+  type: 'change' | 'rename' | 'create' | 'delete'
+  path: string
+  timestamp: number
+}
+```
+
+### Internal Shape
+
+```typescript
+function fromFSWatch(
+  paths: string | string[],
+  opts?: FSWatchOptions,
+): Node<FSEvent> {
+  const pathList = Array.isArray(paths) ? paths : [paths]
+  const debounceMs = opts?.debounce ?? 100
+
+  return producer((_deps, actions) => {
+    // Use Node.js fs.watch (or chokidar if available)
+    const watchers = pathList.map(p =>
+      fs.watch(p, { recursive: opts?.recursive ?? true }, (eventType, filename) => {
+        if (!filename) return
+        if (shouldExclude(filename, opts?.exclude)) return
+        if (opts?.include && !shouldInclude(filename, opts.include)) return
+        // Debounce is handled by wrapping in the library's own debounce operator
+        // OR using an internal setTimeout coalescing here
+        actions.emit({
+          type: eventType as FSEvent['type'],
+          path: path.resolve(p, filename),
+          timestamp: Date.now(),
+        })
+      })
+    )
+
+    // Cleanup: close all watchers
+    return () => { for (const w of watchers) w.close() }
+  }, opts)
+}
+```
+
+### Design Notes
+
+- **Debounce built-in vs. composable?** Built-in. File watchers are noisy (editors
+  write temp files, save triggers multiple events). A 100ms default debounce is
+  almost always wanted. The caller can override to 0 if they need raw events, or
+  pipe through the library's `debounce()` for finer control.
+
+- **chokidar vs. fs.watch?** Start with `fs.watch` (zero deps). `fs.watch` is
+  unreliable on some platforms (Linux recursive, macOS rename events), but good
+  enough for the common case. A future `fromChokidar()` adapter can wrap chokidar
+  for production use. Or make chokidar an optional peer dep.
+
+- **Node.js only.** This is inherently server-side. Browser equivalent would be
+  `fromFileSystemAccess()` wrapping the File System Access API — separate adapter.
+
+- **Cleanup via producer pattern.** The returned cleanup function closes all watchers
+  when the node is unsubscribed (lazy connect/disconnect). No leaked watchers.
+
+### Where in Roadmap
+
+Phase 5.2 (Adapters) — alongside `fromHTTP`, `fromWebSocket`, etc. These are all
+environment-specific sources that wrap platform APIs.
+
+---
+
+## `fromGitHook()` — Git Hook as Reactive Source
+
+### The Need
+
+More structured than `fromFSWatch`. Instead of "file X changed", you get
+"commit abc123 touched files [X, Y, Z] with message M". This is what the tracker's
+`signal/code-changed` node should be wired to.
+
+### Signature
+
+```typescript
+function fromGitHook(
+  repoPath: string,
+  opts?: GitHookOptions,
+): Node<GitEvent>
+
+interface GitHookOptions extends NodeOptions {
+  /** Which hooks to listen for. Default: ['post-commit', 'post-merge']. */
+  hooks?: GitHookType[]
+
+  /** Polling fallback interval (ms) if hook installation fails. Default: 5000. */
+  pollInterval?: number
+}
+
+type GitHookType = 'post-commit' | 'post-merge' | 'post-checkout' | 'post-rewrite'
+
+interface GitEvent {
+  hook: GitHookType
+  commit: string           // HEAD sha
+  files: string[]          // changed files (from git diff)
+  message: string          // commit message
+  timestamp: number
+  author: string
+}
+```
+
+### Two Strategies
+
+**Strategy A: Hook scripts.** Install actual git hook scripts under `.git/hooks/`
+that signal the running process (via IPC, file write, or HTTP). Pros: instant,
+event-driven. Cons: modifies `.git/hooks/`, conflicts with existing hooks (husky,
+lefthook, etc.).
+
+**Strategy B: Polling.** `fromTimer` + `git log --since=<last-check>` on each tick.
+Pros: zero side effects, works with any hook manager. Cons: latency up to
+`pollInterval`, shell subprocess overhead.
+
+**Recommendation: Strategy B as default, Strategy A as opt-in.**
+
+```typescript
+function fromGitHook(
+  repoPath: string,
+  opts?: GitHookOptions,
+): Node<GitEvent> {
+  let lastSeen = ''
+
+  return producer((_deps, actions) => {
+    const interval = opts?.pollInterval ?? 5000
+
+    const check = () => {
+      const head = execSync('git rev-parse HEAD', { cwd: repoPath }).toString().trim()
+      if (head === lastSeen) return
+
+      const files = execSync(
+        `git diff --name-only ${lastSeen || 'HEAD~1'}..HEAD`,
+        { cwd: repoPath }
+      ).toString().trim().split('\n').filter(Boolean)
+
+      const message = execSync(
+        'git log -1 --format=%s',
+        { cwd: repoPath }
+      ).toString().trim()
+
+      const author = execSync(
+        'git log -1 --format=%an',
+        { cwd: repoPath }
+      ).toString().trim()
+
+      lastSeen = head
+      actions.emit({
+        hook: 'post-commit',  // inferred
+        commit: head,
+        files,
+        message,
+        timestamp: Date.now(),
+        author,
+      })
+    }
+
+    // Initial check
+    lastSeen = execSync('git rev-parse HEAD', { cwd: repoPath }).toString().trim()
+
+    const timer = setInterval(check, interval)
+    return () => clearInterval(timer)
+  }, opts)
+}
+```
+
+### Design Notes
+
+- **Why not just `fromFSWatch` on `.git/`?** Watching `.git/` is fragile — git writes
+  many internal files (index, FETCH_HEAD, etc.) that aren't user-facing changes.
+  `fromGitHook` gives structured `GitEvent` objects, not raw file events.
+
+- **Cross-repo.** For the tracker's parity use case, you'd wire two `fromGitHook`
+  nodes — one for `graphrefly-ts`, one for `graphrefly-py`. Each feeds into the
+  tracker's `signal/code-changed` via `merge()`.
+
+- **Python parity.** Same design, using `subprocess.run(['git', ...])` and
+  `threading.Timer` for polling. Or `asyncio` timer with `from_awaitable`.
+
+### Where in Roadmap
+
+Phase 5.2 (Adapters) — alongside `fromFSWatch`. Both are environment-specific sources.
+
+---
+
+## `graph.reachable()` — Transitive Node Reachability
+
+### What Exists Today
+
+`describe()` returns:
+- `nodes[path].deps: string[]` — direct upstream dependencies (constructor deps)
+- `edges: { from, to }[]` — explicit wires added via `graph.connect()`
+
+There's a private `_graphsReachableViaMounts()` that walks mount hierarchy, but
+nothing public that walks **node-level** dependency or edge graphs transitively.
+
+`Graph.diff()` compares two snapshots structurally but doesn't traverse relationships.
+
+### The Gap
+
+"What nodes are transitively affected if `core::batch` changes?" requires:
+1. Find `core::batch` in `describe().nodes`
+2. Find all nodes where `deps` includes `core::batch` (direct downstreams)
+3. Recursively find their downstreams
+4. Also follow explicit `edges` in the forward direction
+
+This is a BFS/DFS over the describe output. It's ~15 lines of code. The question
+is whether it belongs on `Graph` or as a standalone utility.
+
+### Recommendation: Standalone Utility, Not a Graph Method
+
+```typescript
+function reachable(
+  described: GraphDescribeOutput,
+  from: string,
+  direction: 'upstream' | 'downstream',
+  opts?: { maxDepth?: number }
+): string[]
+```
+
+**Why utility, not method:**
+- `describe()` already snapshots the topology. `reachable` is a pure function over
+  that snapshot — no need for internal access.
+- Works with filtered `describe()` output (guard-scoped, filter-scoped).
+- Can be used on `Graph.diff()` results, saved snapshots, or cross-graph merges.
+- Doesn't add surface area to the Graph class (which is already large).
+- Testable in isolation without constructing a graph.
+
+### Implementation
+
+```typescript
+function reachable(
+  described: GraphDescribeOutput,
+  from: string,
+  direction: 'upstream' | 'downstream',
+  opts?: { maxDepth?: number },
+): string[] {
+  const maxDepth = opts?.maxDepth ?? Infinity
+
+  // Build adjacency from describe output
+  // deps: child depends on parent → parent is upstream of child
+  // edges: from → to (explicit wires, same direction as connect())
+  const adj = new Map<string, Set<string>>()
+
+  for (const [path, node] of Object.entries(described.nodes)) {
+    if (direction === 'upstream') {
+      // path's upstream = its deps + edges pointing TO path
+      adj.set(path, new Set(node.deps))
+    } else {
+      // For downstream: invert deps (path is downstream of each dep)
+      for (const dep of node.deps) {
+        if (!adj.has(dep)) adj.set(dep, new Set())
+        adj.get(dep)!.add(path)
+      }
+    }
+  }
+
+  // Add explicit edges
+  for (const { from: f, to: t } of described.edges) {
+    if (direction === 'downstream') {
+      if (!adj.has(f)) adj.set(f, new Set())
+      adj.get(f)!.add(t)
+    } else {
+      if (!adj.has(t)) adj.set(t, new Set())
+      adj.get(t)!.add(f)
+    }
+  }
+
+  // BFS
+  const visited = new Set<string>()
+  const queue: Array<[string, number]> = [[from, 0]]
+  visited.add(from)
+
+  while (queue.length > 0) {
+    const [current, depth] = queue.shift()!
+    if (depth >= maxDepth) continue
+    const neighbors = adj.get(current)
+    if (!neighbors) continue
+    for (const next of neighbors) {
+      if (!visited.has(next)) {
+        visited.add(next)
+        queue.push([next, depth + 1])
+      }
+    }
+  }
+
+  visited.delete(from)  // exclude the starting node
+  return [...visited].sort()
+}
+```
+
+### Is It Worth Adding?
+
+Yes. Three reasons:
+
+1. **The tracker needs it.** "What issues are affected by this code change?" is
+   `reachable(describe(), changedNode, 'downstream')`. Core to regression detection.
+
+2. **AI debugging needs it.** "Why did this node recompute?" is
+   `reachable(describe(), suspectNode, 'upstream')`. Shows the causal chain.
+
+3. **It's tiny but non-obvious.** Building the inverted adjacency from `deps` + `edges`
+   is the tricky part. Users would get it wrong (forget edges, forget to invert deps
+   for downstream). Better to provide it.
+
+### Where in Roadmap
+
+Phase 3.3 (Inspector) under "Graph queries (extend `describe`)" — it's a query over
+describe output, same family as `Graph.diff()` and `describe({ filter })`.

@@ -1,5 +1,6 @@
 import type { Actor } from "../core/actor.js";
 import { isBatching } from "../core/batch.js";
+import { monotonicNs } from "../core/clock.js";
 import { GuardDenied } from "../core/guard.js";
 import {
 	COMPLETE,
@@ -77,6 +78,21 @@ export type GraphPersistSnapshot = GraphDescribeOutput & {
 	version?: number;
 };
 
+/** Direction options for diagram export helpers. */
+export type GraphDiagramDirection = "TD" | "LR" | "BT" | "RL";
+
+/** Options for {@link Graph.toMermaid} / {@link Graph.toD2}. */
+export type GraphDiagramOptions = {
+	/**
+	 * Diagram flow direction.
+	 * - `TD`: top-down
+	 * - `LR`: left-right (default)
+	 * - `BT`: bottom-top
+	 * - `RL`: right-left
+	 */
+	direction?: GraphDiagramDirection;
+};
+
 /** Snapshot format version (§3.8). */
 const SNAPSHOT_VERSION = 1;
 
@@ -128,6 +144,125 @@ function sortJsonValue(value: unknown): unknown {
 
 function stableJsonStringify(value: unknown): string {
 	return `${JSON.stringify(sortJsonValue(value))}\n`;
+}
+
+function escapeMermaidLabel(value: string): string {
+	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+function escapeD2Label(value: string): string {
+	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+function d2DirectionFromGraphDirection(direction: GraphDiagramDirection): string {
+	if (direction === "TD") return "down";
+	if (direction === "BT") return "up";
+	if (direction === "RL") return "left";
+	return "right";
+}
+
+/** Collect deduplicated (from, to) arrows from deps + edges. */
+function collectDiagramArrows(described: GraphDescribeOutput): [string, string][] {
+	const seen = new Set<string>();
+	const arrows: [string, string][] = [];
+	function add(from: string, to: string): void {
+		const key = `${from}\0${to}`;
+		if (seen.has(key)) return;
+		seen.add(key);
+		arrows.push([from, to]);
+	}
+	for (const [path, info] of Object.entries(described.nodes)) {
+		const deps: string[] | undefined = (info as Record<string, unknown>).deps as
+			| string[]
+			| undefined;
+		if (deps) {
+			for (const dep of deps) add(dep, path);
+		}
+	}
+	for (const edge of described.edges) add(edge.from, edge.to);
+	return arrows;
+}
+
+function normalizeDiagramDirection(direction: unknown): GraphDiagramDirection {
+	if (direction === undefined) return "LR";
+	if (direction === "TD" || direction === "LR" || direction === "BT" || direction === "RL") {
+		return direction;
+	}
+	throw new Error(
+		`invalid diagram direction ${String(direction)}; expected one of: TD, LR, BT, RL`,
+	);
+}
+
+/** Fixed-capacity ring buffer — O(1) push and eviction. */
+class RingBuffer<T> {
+	private buf: (T | undefined)[];
+	private head = 0;
+	private _size = 0;
+	constructor(private capacity: number) {
+		this.buf = new Array(capacity);
+	}
+	get size(): number {
+		return this._size;
+	}
+	push(item: T): void {
+		const idx = (this.head + this._size) % this.capacity;
+		this.buf[idx] = item;
+		if (this._size < this.capacity) this._size++;
+		else this.head = (this.head + 1) % this.capacity;
+	}
+	toArray(): T[] {
+		const result: T[] = [];
+		for (let i = 0; i < this._size; i++) result.push(this.buf[(this.head + i) % this.capacity]!);
+		return result;
+	}
+}
+
+const SPY_ANSI_THEME: Required<GraphSpyTheme> = {
+	data: "\u001b[32m",
+	dirty: "\u001b[33m",
+	resolved: "\u001b[36m",
+	complete: "\u001b[34m",
+	error: "\u001b[31m",
+	derived: "\u001b[35m",
+	path: "\u001b[90m",
+	reset: "\u001b[0m",
+};
+
+const SPY_NO_COLOR_THEME: Required<GraphSpyTheme> = {
+	data: "",
+	dirty: "",
+	resolved: "",
+	complete: "",
+	error: "",
+	derived: "",
+	path: "",
+	reset: "",
+};
+
+function describeData(value: unknown): string {
+	if (typeof value === "string") return JSON.stringify(value);
+	if (typeof value === "number" || typeof value === "boolean" || value == null)
+		return String(value);
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return "[unserializable]";
+	}
+}
+
+function resolveSpyTheme(theme: GraphSpyOptions["theme"]): Required<GraphSpyTheme> {
+	if (theme === "none") return SPY_NO_COLOR_THEME;
+	if (theme === "ansi" || theme == null) return SPY_ANSI_THEME;
+	return {
+		data: theme.data ?? "",
+		dirty: theme.dirty ?? "",
+		resolved: theme.resolved ?? "",
+		complete: theme.complete ?? "",
+		error: theme.error ?? "",
+		derived: theme.derived ?? "",
+		path: theme.path ?? "",
+		reset: theme.reset ?? "",
+	};
 }
 
 /** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
@@ -184,6 +319,45 @@ export type ObserveEvent = {
 	trigger_dep_index?: number;
 	trigger_dep_name?: string;
 	dep_values?: unknown[];
+};
+
+/** Built-in color presets for {@link Graph.spy}. */
+export type GraphSpyThemeName = "none" | "ansi";
+
+/** ANSI/style overrides for {@link Graph.spy} event rendering. */
+export type GraphSpyTheme = Partial<Record<ObserveEvent["type"] | "path" | "reset", string>>;
+
+/** Options for {@link Graph.spy}. */
+export type GraphSpyOptions = ObserveOptions & {
+	/** Observe one path; omit for graph-wide mode. */
+	path?: string;
+	/** Keep only these event types in spy output. */
+	includeTypes?: ObserveEvent["type"][];
+	/** Exclude these event types from spy output. */
+	excludeTypes?: ObserveEvent["type"][];
+	/** Built-in color preset (`ansi` default) or explicit color tokens. */
+	theme?: GraphSpyThemeName | GraphSpyTheme;
+	/** One-line `pretty` output (default) or JSON-per-event. */
+	format?: "pretty" | "json";
+	/** Optional sink for rendered lines (`console.log` by default). */
+	logger?: (line: string, event: ObserveEvent) => void;
+};
+
+/** Handle returned by {@link Graph.spy}. */
+export type GraphSpyHandle = {
+	readonly result: ObserveResult;
+	dispose(): void;
+};
+
+/** Options for {@link Graph.dumpGraph}. */
+export type GraphDumpOptions = {
+	actor?: Actor;
+	filter?: DescribeFilter;
+	format?: "pretty" | "json";
+	indent?: number;
+	includeEdges?: boolean;
+	includeSubgraphs?: boolean;
+	logger?: (text: string) => void;
 };
 
 function assertLocalName(name: string, graphName: string, label: string): void {
@@ -1054,7 +1228,7 @@ export class Graph {
 						type: "derived",
 						path,
 						dep_values: [...event.depValues],
-						...(timeline ? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() } : {}),
+						...(timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {}),
 					});
 				}
 			});
@@ -1063,9 +1237,7 @@ export class Graph {
 		const unsub = target.subscribe((msgs) => {
 			for (const m of msgs) {
 				const t = m[0];
-				const base = timeline
-					? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() }
-					: {};
+				const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
 				const withCausal =
 					causal && lastRunDepValues != null
 						? {
@@ -1150,9 +1322,7 @@ export class Graph {
 			nd.subscribe((msgs) => {
 				for (const m of msgs) {
 					const t = m[0];
-					const base = timeline
-						? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() }
-						: {};
+					const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
 					if (t === DATA) {
 						result.values[path] = m[1];
 						result.events.push({ type: "data", path, data: m[1], ...base });
@@ -1195,6 +1365,251 @@ export class Graph {
 				for (const u of unsubs) u();
 			},
 		};
+	}
+
+	/**
+	 * Convenience live debugger over {@link Graph.observe}. Logs protocol events as they flow.
+	 *
+	 * Supports one-node (`path`) and graph-wide modes, event filtering, and JSON/pretty rendering.
+	 * Color themes are built in (`ansi` / `none`) to avoid external dependencies.
+	 *
+	 * @param options - Spy configuration.
+	 * @returns Disposable handle plus a structured observation accumulator.
+	 */
+	spy(options: GraphSpyOptions = {}): GraphSpyHandle {
+		const include = options.includeTypes ? new Set(options.includeTypes) : null;
+		const exclude = options.excludeTypes ? new Set(options.excludeTypes) : null;
+		const theme = resolveSpyTheme(options.theme);
+		const format = options.format ?? "pretty";
+		const logger = options.logger ?? ((line: string) => console.log(line));
+
+		const shouldLog = (type: ObserveEvent["type"]): boolean => {
+			if (include?.has(type) === false) return false;
+			if (exclude?.has(type) === true) return false;
+			return true;
+		};
+
+		const renderEvent = (event: ObserveEvent): string => {
+			if (format === "json") {
+				try {
+					return JSON.stringify(event);
+				} catch {
+					return JSON.stringify({
+						type: event.type,
+						path: event.path,
+						data: "[unserializable]",
+					});
+				}
+			}
+			const color = theme[event.type] ?? "";
+			const pathPart = event.path ? `${theme.path}${event.path}${theme.reset} ` : "";
+			const dataPart = event.data !== undefined ? ` ${describeData(event.data)}` : "";
+			const triggerPart =
+				event.trigger_dep_name != null
+					? ` <- ${event.trigger_dep_name}`
+					: event.trigger_dep_index != null
+						? ` <- #${event.trigger_dep_index}`
+						: "";
+			const batchPart = event.in_batch ? " [batch]" : "";
+			return `${pathPart}${color}${event.type.toUpperCase()}${theme.reset}${dataPart}${triggerPart}${batchPart}`;
+		};
+
+		if (!Graph.inspectorEnabled) {
+			const timeline = options.timeline ?? true;
+			const acc: {
+				values: Record<string, unknown>;
+				dirtyCount: number;
+				resolvedCount: number;
+				events: ObserveEvent[];
+				completedCleanly: boolean;
+				errored: boolean;
+			} = {
+				values: {},
+				dirtyCount: 0,
+				resolvedCount: 0,
+				events: [],
+				completedCleanly: false,
+				errored: false,
+			};
+			let stop: () => void = () => {};
+			const result: ObserveResult = {
+				get values() {
+					return acc.values;
+				},
+				get dirtyCount() {
+					return acc.dirtyCount;
+				},
+				get resolvedCount() {
+					return acc.resolvedCount;
+				},
+				get events() {
+					return acc.events;
+				},
+				get completedCleanly() {
+					return acc.completedCleanly;
+				},
+				get errored() {
+					return acc.errored;
+				},
+				dispose() {
+					stop();
+				},
+			};
+
+			const pushEvent = (path: string | undefined, message: Messages[number]) => {
+				const t = message[0];
+				const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
+				let event: ObserveEvent | undefined;
+				if (t === DATA) {
+					if (path != null) acc.values[path] = message[1];
+					event = { type: "data", ...(path != null ? { path } : {}), data: message[1], ...base };
+				} else if (t === DIRTY) {
+					acc.dirtyCount += 1;
+					event = { type: "dirty", ...(path != null ? { path } : {}), ...base };
+				} else if (t === RESOLVED) {
+					acc.resolvedCount += 1;
+					event = { type: "resolved", ...(path != null ? { path } : {}), ...base };
+				} else if (t === COMPLETE) {
+					if (!acc.errored) acc.completedCleanly = true;
+					event = { type: "complete", ...(path != null ? { path } : {}), ...base };
+				} else if (t === ERROR) {
+					acc.errored = true;
+					event = {
+						type: "error",
+						...(path != null ? { path } : {}),
+						data: message[1],
+						...base,
+					};
+				}
+				if (!event) return;
+				acc.events.push(event);
+				if (!shouldLog(event.type)) return;
+				logger(renderEvent(event), event);
+			};
+
+			if (options.path != null) {
+				const stream = this.observe(options.path, {
+					actor: options.actor,
+					structured: false,
+				});
+				stop = stream.subscribe((messages) => {
+					for (const m of messages) {
+						pushEvent(options.path, m);
+					}
+				});
+			} else {
+				const stream = this.observe({ actor: options.actor, structured: false });
+				stop = stream.subscribe((path, messages) => {
+					for (const m of messages) {
+						pushEvent(path, m);
+					}
+				});
+			}
+			return {
+				result,
+				dispose() {
+					result.dispose();
+				},
+			};
+		}
+
+		const structuredObserveOptions = {
+			actor: options.actor,
+			structured: true as const,
+			...(options.timeline !== false ? { timeline: true as const } : {}),
+			...(options.causal ? { causal: true as const } : {}),
+			...(options.derived ? { derived: true as const } : {}),
+		};
+		const result: ObserveResult =
+			options.path != null
+				? this.observe(options.path, structuredObserveOptions)
+				: this.observe(structuredObserveOptions);
+
+		let cursor = 0;
+		const flushNewEvents = () => {
+			const nextEvents = result.events.slice(cursor);
+			cursor = result.events.length;
+			for (const event of nextEvents) {
+				if (!shouldLog(event.type)) continue;
+				logger(renderEvent(event), event);
+			}
+		};
+
+		const stream =
+			options.path != null
+				? this.observe(options.path, { actor: options.actor, structured: false })
+				: this.observe({ actor: options.actor, structured: false });
+
+		const stop =
+			options.path != null
+				? (stream as GraphObserveOne).subscribe((messages) => {
+						if (messages.length > 0) {
+							flushNewEvents();
+						}
+					})
+				: (stream as GraphObserveAll).subscribe((_path, messages) => {
+						if (messages.length > 0) {
+							flushNewEvents();
+						}
+					});
+
+		return {
+			result,
+			dispose() {
+				stop();
+				flushNewEvents();
+				result.dispose();
+			},
+		};
+	}
+
+	/**
+	 * CLI/debug-friendly graph dump built on {@link Graph.describe}.
+	 *
+	 * @param options - Optional actor/filter/format toggles.
+	 * @returns Rendered graph text.
+	 */
+	dumpGraph(options: GraphDumpOptions = {}): string {
+		const described = this.describe({
+			actor: options.actor,
+			filter: options.filter,
+		});
+		const includeEdges = options.includeEdges ?? true;
+		const includeSubgraphs = options.includeSubgraphs ?? true;
+		if (options.format === "json") {
+			const payload: GraphDescribeOutput = {
+				name: described.name,
+				nodes: described.nodes,
+				edges: includeEdges ? described.edges : [],
+				subgraphs: includeSubgraphs ? described.subgraphs : [],
+			};
+			const text = JSON.stringify(sortJsonValue(payload), null, options.indent ?? 2);
+			options.logger?.(text);
+			return text;
+		}
+
+		const lines: string[] = [];
+		lines.push(`Graph ${described.name}`);
+		lines.push("Nodes:");
+		for (const path of Object.keys(described.nodes).sort((a, b) => a.localeCompare(b))) {
+			const n = described.nodes[path]!;
+			lines.push(`- ${path} (${n.type}/${n.status}): ${describeData(n.value)}`);
+		}
+		if (includeEdges) {
+			lines.push("Edges:");
+			for (const edge of described.edges) {
+				lines.push(`- ${edge.from} -> ${edge.to}`);
+			}
+		}
+		if (includeSubgraphs) {
+			lines.push("Subgraphs:");
+			for (const sg of described.subgraphs) {
+				lines.push(`- ${sg}`);
+			}
+		}
+		const text = lines.join("\n");
+		options.logger?.(text);
+		return text;
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -1368,8 +1783,68 @@ export class Graph {
 		return stableJsonStringify(this.snapshot());
 	}
 
+	/**
+	 * Export the current graph topology as Mermaid flowchart text.
+	 *
+	 * Renders qualified node paths and registered edges from {@link Graph.describe}.
+	 *
+	 * @param options - Optional diagram direction (`LR` by default).
+	 * @returns Mermaid flowchart source.
+	 */
+	toMermaid(options?: GraphDiagramOptions): string {
+		const direction = normalizeDiagramDirection(options?.direction);
+		const described = this.describe();
+		const paths = Object.keys(described.nodes).sort((a, b) => a.localeCompare(b));
+		const ids = new Map<string, string>();
+		for (let i = 0; i < paths.length; i += 1) {
+			ids.set(paths[i]!, `n${i}`);
+		}
+		const lines: string[] = [`flowchart ${direction}`];
+		for (const path of paths) {
+			const id = ids.get(path)!;
+			lines.push(`  ${id}["${escapeMermaidLabel(path)}"]`);
+		}
+		for (const [from, to] of collectDiagramArrows(described)) {
+			const fromId = ids.get(from);
+			const toId = ids.get(to);
+			if (!fromId || !toId) continue;
+			lines.push(`  ${fromId} --> ${toId}`);
+		}
+		return lines.join("\n");
+	}
+
+	/**
+	 * Export the current graph topology as D2 diagram text.
+	 *
+	 * Renders qualified node paths, constructor deps, and registered edges from {@link Graph.describe}.
+	 *
+	 * @param options - Optional diagram direction (`LR` by default).
+	 * @returns D2 source text.
+	 */
+	toD2(options?: GraphDiagramOptions): string {
+		const direction = normalizeDiagramDirection(options?.direction);
+		const described = this.describe();
+		const paths = Object.keys(described.nodes).sort((a, b) => a.localeCompare(b));
+		const ids = new Map<string, string>();
+		for (let i = 0; i < paths.length; i += 1) {
+			ids.set(paths[i]!, `n${i}`);
+		}
+		const lines: string[] = [`direction: ${d2DirectionFromGraphDirection(direction)}`];
+		for (const path of paths) {
+			const id = ids.get(path)!;
+			lines.push(`${id}: "${escapeD2Label(path)}"`);
+		}
+		for (const [from, to] of collectDiagramArrows(described)) {
+			const fromId = ids.get(from);
+			const toId = ids.get(to);
+			if (!fromId || !toId) continue;
+			lines.push(`${fromId} -> ${toId}`);
+		}
+		return lines.join("\n");
+	}
+
 	// ——————————————————————————————————————————————————————————————
-	//  Inspector (§3.3) — reasoning trace, overhead gating
+	//  Inspector (roadmap 3.3) — reasoning trace, overhead gating
 	// ——————————————————————————————————————————————————————————————
 
 	/**
@@ -1383,8 +1858,7 @@ export class Graph {
 	);
 
 	private _annotations = new Map<string, string>();
-	private _traceRingBuffer: TraceEntry[] = [];
-	private _traceMaxSize = 256;
+	private _traceRing = new RingBuffer<TraceEntry>(1000);
 
 	/**
 	 * Attaches a reasoning annotation to a node — captures *why* an AI agent set a value.
@@ -1398,11 +1872,7 @@ export class Graph {
 		if (!Graph.inspectorEnabled) return;
 		this.resolve(path); // validate path exists
 		this._annotations.set(path, reason);
-		const entry: TraceEntry = { node: path, reason, timestamp: Date.now() };
-		this._traceRingBuffer.push(entry);
-		if (this._traceRingBuffer.length > this._traceMaxSize) {
-			this._traceRingBuffer.shift();
-		}
+		this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
 	}
 
 	/**
@@ -1412,7 +1882,7 @@ export class Graph {
 	 */
 	traceLog(): readonly TraceEntry[] {
 		if (!Graph.inspectorEnabled) return [];
-		return [...this._traceRingBuffer];
+		return this._traceRing.toArray();
 	}
 
 	/**
@@ -1454,11 +1924,11 @@ export class Graph {
 	}
 }
 
-/** Entry in the reasoning trace ring buffer (§3.3). */
+/** Entry in the reasoning trace ring buffer (roadmap 3.3). */
 export type TraceEntry = {
-	node: string;
+	path: string;
 	reason: string;
-	timestamp: number;
+	timestamp_ns: number;
 };
 
 /** Result of {@link Graph.diff}. */
@@ -1477,3 +1947,128 @@ export type GraphDiffChange = {
 	from: unknown;
 	to: unknown;
 };
+
+/** Direction for {@link reachable} graph traversal. */
+export type ReachableDirection = "upstream" | "downstream";
+
+/** Options for {@link reachable}. */
+export type ReachableOptions = {
+	/** Maximum hop depth from `from` (0 returns `[]`). Omit for unbounded traversal. */
+	maxDepth?: number;
+};
+
+/**
+ * Reachability query over a {@link Graph.describe} snapshot.
+ *
+ * Traversal combines dependency links (`deps`) and explicit graph edges (`edges`):
+ * - `upstream`: follows `deps` plus incoming edges.
+ * - `downstream`: follows reverse-`deps` plus outgoing edges.
+ *
+ * @param described - `graph.describe()` output to traverse.
+ * @param from - Start path (qualified node path).
+ * @param direction - Traversal direction.
+ * @param options - Optional max depth bound.
+ * @returns Sorted list of reachable paths (excluding `from`).
+ */
+export function reachable(
+	described: GraphDescribeOutput,
+	from: string,
+	direction: ReachableDirection,
+	options: ReachableOptions = {},
+): string[] {
+	if (!from) return [];
+	if (direction !== "upstream" && direction !== "downstream") {
+		throw new Error(`reachable: direction must be "upstream" or "downstream"`);
+	}
+	const maxDepth = options.maxDepth;
+	if (maxDepth != null && (!Number.isInteger(maxDepth) || maxDepth < 0)) {
+		throw new Error(`reachable: maxDepth must be an integer >= 0`);
+	}
+	if (maxDepth === 0) return [];
+
+	const depsByPath = new Map<string, string[]>();
+	const reverseDeps = new Map<string, Set<string>>();
+	const incomingEdges = new Map<string, Set<string>>();
+	const outgoingEdges = new Map<string, Set<string>>();
+	const universe = new Set<string>();
+
+	const nodesRaw =
+		described != null &&
+		typeof described === "object" &&
+		"nodes" in described &&
+		typeof (described as Record<string, unknown>).nodes === "object" &&
+		(described as Record<string, unknown>).nodes !== null &&
+		!Array.isArray((described as Record<string, unknown>).nodes)
+			? ((described as Record<string, unknown>).nodes as Record<string, unknown>)
+			: {};
+	const edgesRaw =
+		described != null &&
+		typeof described === "object" &&
+		"edges" in described &&
+		Array.isArray((described as Record<string, unknown>).edges)
+			? ((described as Record<string, unknown>).edges as unknown[])
+			: [];
+
+	for (const [path, node] of Object.entries(nodesRaw)) {
+		if (!path) continue;
+		universe.add(path);
+		const deps =
+			node != null && typeof node === "object" && Array.isArray((node as { deps?: unknown[] }).deps)
+				? (node as { deps: unknown[] }).deps
+				: [];
+		const cleanDeps = deps.filter((d): d is string => typeof d === "string" && d.length > 0);
+		depsByPath.set(path, cleanDeps);
+		for (const dep of cleanDeps) {
+			universe.add(dep);
+			if (!reverseDeps.has(dep)) reverseDeps.set(dep, new Set());
+			reverseDeps.get(dep)!.add(path);
+		}
+	}
+	for (const edge of edgesRaw) {
+		if (edge == null || typeof edge !== "object") continue;
+		const edgeFrom =
+			"from" in edge && typeof (edge as { from?: unknown }).from === "string"
+				? ((edge as { from: string }).from as string)
+				: "";
+		const edgeTo =
+			"to" in edge && typeof (edge as { to?: unknown }).to === "string"
+				? ((edge as { to: string }).to as string)
+				: "";
+		if (!edgeFrom || !edgeTo) continue;
+		universe.add(edgeFrom);
+		universe.add(edgeTo);
+		if (!outgoingEdges.has(edgeFrom)) outgoingEdges.set(edgeFrom, new Set());
+		outgoingEdges.get(edgeFrom)!.add(edgeTo);
+		if (!incomingEdges.has(edgeTo)) incomingEdges.set(edgeTo, new Set());
+		incomingEdges.get(edgeTo)!.add(edgeFrom);
+	}
+
+	if (!universe.has(from)) return [];
+
+	const neighbors = (path: string): string[] => {
+		if (direction === "upstream") {
+			const depNeighbors = depsByPath.get(path) ?? [];
+			const edgeNeighbors = [...(incomingEdges.get(path) ?? [])];
+			return [...depNeighbors, ...edgeNeighbors];
+		}
+		const depNeighbors = [...(reverseDeps.get(path) ?? [])];
+		const edgeNeighbors = [...(outgoingEdges.get(path) ?? [])];
+		return [...depNeighbors, ...edgeNeighbors];
+	};
+
+	const visited = new Set<string>([from]);
+	const out = new Set<string>();
+	const queue: Array<{ path: string; depth: number }> = [{ path: from, depth: 0 }];
+	while (queue.length > 0) {
+		const next = queue.shift()!;
+		if (maxDepth != null && next.depth >= maxDepth) continue;
+		for (const nb of neighbors(next.path)) {
+			if (!nb || visited.has(nb)) continue;
+			visited.add(nb);
+			out.add(nb);
+			queue.push({ path: nb, depth: next.depth + 1 });
+		}
+	}
+
+	return [...out].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}

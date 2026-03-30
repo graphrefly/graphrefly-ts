@@ -189,7 +189,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("injectable now() for testing", () => {
-			let clock = 1000;
+			let clock = 1 * NS_PER_SEC;
 			const b = circuitBreaker({
 				failureThreshold: 1,
 				cooldownNs: 5 * NS_PER_SEC,
@@ -199,10 +199,10 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(b.state).toBe("open");
 			expect(b.canExecute()).toBe(false);
 
-			clock += 4999;
+			clock += 5 * NS_PER_SEC - NS_PER_MS;
 			expect(b.canExecute()).toBe(false);
 
-			clock += 2;
+			clock += 2 * NS_PER_MS;
 			expect(b.canExecute()).toBe(true);
 			expect(b.state).toBe("half-open");
 		});
@@ -215,10 +215,10 @@ describe("extra resilience (roadmap §3.1)", () => {
 				now: () => clock,
 			});
 
-			// First open cycle: cooldown = 1s = 1000ms
+			// First open cycle: cooldown = 1s
 			b.recordFailure();
 			expect(b.state).toBe("open");
-			clock += 1000;
+			clock += 1 * NS_PER_SEC;
 			expect(b.canExecute()).toBe(true);
 			expect(b.state).toBe("half-open");
 
@@ -226,10 +226,10 @@ describe("extra resilience (roadmap §3.1)", () => {
 			b.recordFailure();
 			expect(b.state).toBe("open");
 
-			// Second open cycle: cooldown = 2s = 2000ms
-			clock += 1999;
+			// Second open cycle: cooldown = 2s
+			clock += 2 * NS_PER_SEC - NS_PER_MS;
 			expect(b.canExecute()).toBe(false);
-			clock += 2;
+			clock += 2 * NS_PER_MS;
 			expect(b.canExecute()).toBe(true);
 			expect(b.state).toBe("half-open");
 
@@ -247,7 +247,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				now: () => clock,
 			});
 			b.recordFailure();
-			clock += 1000;
+			clock += 1 * NS_PER_SEC;
 			expect(b.canExecute()).toBe(true); // trial 1
 			expect(b.canExecute()).toBe(true); // trial 2
 			expect(b.canExecute()).toBe(false); // max reached

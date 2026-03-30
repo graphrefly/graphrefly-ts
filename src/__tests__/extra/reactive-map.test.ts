@@ -51,23 +51,23 @@ describe("extra reactiveMap (roadmap §3.2)", () => {
 		expect(m.get("z")).toBe(3);
 	});
 
-	it("expires keys by ttlMs on read and pruneExpired", () => {
+	it("expires keys by ttl on read and pruneExpired", () => {
 		vi.useFakeTimers();
 		const m = reactiveMap<string, number>();
-		m.set("a", 1, { ttlMs: 1000 });
+		m.set("a", 1, { ttl: 1 });
 		expect(m.get("a")).toBe(1);
 		vi.advanceTimersByTime(1000);
 		expect(m.get("a")).toBeUndefined();
-		m.set("b", 2, { ttlMs: 5000 });
+		m.set("b", 2, { ttl: 5 });
 		vi.advanceTimersByTime(2000);
 		m.pruneExpired();
 		expect(m.has("b")).toBe(true);
 		vi.useRealTimers();
 	});
 
-	it("uses defaultTtlMs when set omits ttlMs", () => {
+	it("uses defaultTtl when set omits ttl", () => {
 		vi.useFakeTimers();
-		const m = reactiveMap<string, number>({ defaultTtlMs: 100 });
+		const m = reactiveMap<string, number>({ defaultTtl: 0.1 });
 		m.set("k", 1);
 		vi.advanceTimersByTime(150);
 		expect(m.get("k")).toBeUndefined();

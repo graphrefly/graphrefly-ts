@@ -826,17 +826,16 @@ describe("Tier 2 operator protocol matrix", () => {
 	});
 
 	describe("throttle", () => {
-		// Regression: throttle uses `Date.now()` for spacing — start past `ms` so `now - lastEmit >= ms` holds for the first leading edge (`lastEmit` starts at 0).
+		// Regression: throttle uses `performance.now()` for spacing — lastEmit starts at -Infinity so the first leading edge always fires.
 		it("reconnect sees leading DATA again (fake timers)", () => {
 			vi.useFakeTimers({ shouldAdvanceTime: true });
-			vi.setSystemTime(10_000);
 			const s = state(0);
 			const out = throttle(s, 1_000, { trailing: false });
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
 			expect(a.flat().find((m) => m[0] === DATA)?.[1]).toBe(1);
 			a.unsub();
-			vi.setSystemTime(12_000);
+			vi.advanceTimersByTime(2_000);
 			const b = subscribeProtocol(out);
 			s.down([[DATA, 2]]);
 			expect(b.flat().find((m) => m[0] === DATA)?.[1]).toBe(2);

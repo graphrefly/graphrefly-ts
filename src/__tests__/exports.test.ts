@@ -1,13 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+	catchError,
+	combine,
+	combineLatest,
 	core,
 	DEFAULT_ACTOR,
+	debounce,
+	debounceTime,
 	describeNode,
 	extra,
+	flatMap,
 	GuardDenied,
 	graph,
 	map,
+	mergeMap,
 	policy,
+	replay,
+	rescue,
+	shareReplay,
+	throttle,
+	throttleTime,
 	version,
 } from "../index.js";
 
@@ -35,6 +47,15 @@ describe("graphrefly", () => {
 	it("exports describeNode for Graph.describe parity", () => {
 		expect(typeof describeNode).toBe("function");
 		expect(typeof core.describeNode).toBe("function");
+	});
+
+	it("RxJS alias identity", () => {
+		expect(shareReplay).toBe(replay);
+		expect(combineLatest).toBe(combine);
+		expect(debounceTime).toBe(debounce);
+		expect(throttleTime).toBe(throttle);
+		expect(catchError).toBe(rescue);
+		expect(flatMap).toBe(mergeMap);
 	});
 
 	it("exports actor and guard primitives", () => {

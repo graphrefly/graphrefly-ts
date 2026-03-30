@@ -2,6 +2,7 @@
  * Resilience utilities — roadmap §3.1 (retry, breaker, rate limit, status companions).
  */
 import { batch } from "../core/batch.js";
+import { monotonicNs } from "../core/clock.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
@@ -187,7 +188,7 @@ export interface CircuitBreakerOptions {
 	cooldown?: BackoffStrategy;
 	/** Max trial requests allowed in half-open state. Default: 1. */
 	halfOpenMax?: number;
-	/** Clock function returning milliseconds (for testability). Default: `performance.now`. */
+	/** Clock function returning nanoseconds (for testability). Default: `monotonicNs`. */
 	now?: () => number;
 }
 
@@ -216,7 +217,7 @@ export interface CircuitBreaker {
  * @returns {@link CircuitBreaker} instance.
  *
  * @remarks
- * **Timing:** Uses `performance.now()` by default (milliseconds). Override `now` for tests.
+ * **Timing:** Uses `monotonicNs()` by default (nanoseconds). Override `now` for tests.
  *
  * @example
  * ```ts
@@ -235,24 +236,24 @@ export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker 
 	const baseCooldownNs = clampNonNegative(options?.cooldownNs ?? 30 * NS_PER_SEC);
 	const cooldownStrategy = options?.cooldown ?? null;
 	const halfOpenMax = Math.max(1, options?.halfOpenMax ?? 1);
-	const now = options?.now ?? performance.now.bind(performance);
+	const now = options?.now ?? monotonicNs;
 
 	let _state: CircuitState = "closed";
 	let _failureCount = 0;
 	let _openCycle = 0;
 	let _lastOpenedAt = 0;
-	let _lastCooldownMs = baseCooldownNs / NS_PER_MS;
+	let _lastCooldownNs = baseCooldownNs;
 	let _halfOpenAttempts = 0;
 
-	function getCooldownMs(): number {
-		if (!cooldownStrategy) return baseCooldownNs / NS_PER_MS;
+	function getCooldownNs(): number {
+		if (!cooldownStrategy) return baseCooldownNs;
 		const delayNs = cooldownStrategy(_openCycle);
-		return delayNs !== null ? delayNs / NS_PER_MS : baseCooldownNs / NS_PER_MS;
+		return delayNs !== null ? delayNs : baseCooldownNs;
 	}
 
 	function transitionToOpen(): void {
 		_state = "open";
-		_lastCooldownMs = getCooldownMs();
+		_lastCooldownNs = getCooldownNs();
 		_lastOpenedAt = now();
 		_halfOpenAttempts = 0;
 	}
@@ -263,7 +264,7 @@ export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker 
 
 			if (_state === "open") {
 				const elapsed = now() - _lastOpenedAt;
-				if (elapsed >= _lastCooldownMs) {
+				if (elapsed >= _lastCooldownNs) {
 					_state = "half-open";
 					_halfOpenAttempts = 1;
 					return true;
@@ -423,24 +424,24 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 	if (refillPerSecond < 0) throw new RangeError("refillPerSecond must be >= 0");
 
 	let tokens = capacity;
-	let updatedAt = performance.now();
+	let updatedAt = monotonicNs();
 
 	function refill(now: number): void {
 		if (refillPerSecond > 0) {
-			const elapsed = (now - updatedAt) / 1000;
-			tokens = Math.min(capacity, tokens + elapsed * refillPerSecond);
+			const elapsedNs = now - updatedAt;
+			tokens = Math.min(capacity, tokens + (elapsedNs / NS_PER_SEC) * refillPerSecond);
 		}
 		updatedAt = now;
 	}
 
 	return {
 		available(): number {
-			refill(performance.now());
+			refill(monotonicNs());
 			return tokens;
 		},
 		tryConsume(cost = 1): boolean {
 			if (cost <= 0) return true;
-			const now = performance.now();
+			const now = monotonicNs();
 			refill(now);
 			if (tokens >= cost) {
 				tokens -= cost;
@@ -480,8 +481,6 @@ export function tokenTracker(capacity: number, refillPerSecond: number): TokenBu
 export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): Node<T> {
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
 	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
-	const windowMs = windowNs / NS_PER_MS;
-
 	return producer<T>(
 		(_d, a) => {
 			const times: number[] = [];
@@ -497,13 +496,13 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 			}
 
 			function prune(now: number): void {
-				const boundary = now - windowMs;
+				const boundary = now - windowNs;
 				while (times.length > 0 && times[0] <= boundary) times.shift();
 			}
 
 			function tryEmit(): void {
 				while (pending.length > 0) {
-					const now = performance.now();
+					const now = monotonicNs();
 					prune(now);
 					if (times.length < maxEvents) {
 						times.push(now);
@@ -513,12 +512,12 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 						cancelTimer();
 						timerGen += 1;
 						const gen = timerGen;
-						const delay = Math.max(0, oldest + windowMs - performance.now());
+						const delayNs = Math.max(0, oldest + windowNs - monotonicNs());
 						timer = setTimeout(() => {
 							timer = undefined;
 							if (gen !== timerGen) return;
 							tryEmit();
-						}, delay);
+						}, delayNs / NS_PER_MS);
 						return;
 					}
 				}

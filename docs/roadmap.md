@@ -234,6 +234,7 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 
 - [x] `graph.describe({ filter })` — filtered describe via options bag: `graph.describe({ filter: { status: "errored" } })`, `graph.describe({ filter: (n) => n.type === "state" })`
 - [x] `Graph.diff(snapshotA, snapshotB)` — static method, structural + value diff between two snapshots (nodes changed, edges added/removed, values changed)
+- [x] `reachable(described, from, direction, opts?)` — standalone utility: BFS over `describe()` output, walks `deps` (inverted for downstream) + explicit `edges` transitively. Returns sorted path list. Supports `maxDepth` limit. Needed for tracker regression detection ("what's affected?") and AI debugging ("why did this recompute?").
 
 #### Reasoning trace (AI agent observability)
 
@@ -242,8 +243,8 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 
 #### Diagram export
 
-- [ ] `graph.toMermaid(opts?)` — Mermaid flowchart (TD/LR/BT/RL directions)
-- [ ] `graph.toD2(opts?)` — D2 diagram
+- [x] `graph.toMermaid(opts?)` — Mermaid flowchart (TD/LR/BT/RL directions)
+- [x] `graph.toD2(opts?)` — D2 diagram
 
 #### Performance gating
 
@@ -251,8 +252,8 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 
 #### Convenience
 
-- [ ] `graph.spy(name?)` — observe + console/logger output (for quick debugging)
-- [ ] `graph.dumpGraph()` — pretty-print topology with values and statuses (CLI-friendly)
+- [x] `graph.spy(name?)` — observe + console/logger output (for quick debugging)
+- [x] `graph.dumpGraph()` — pretty-print topology with values and statuses (CLI-friendly)
 
 #### RxJS compatibility (AI ergonomics)
 
@@ -297,7 +298,9 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 - [ ] `agentLoop()` → Graph
 - [ ] `fromLLM()` (adapter)
 - [ ] `toolRegistry()` → Graph
-- [ ] `agentMemory()` → Graph
+- [ ] `agentMemory()` → Graph — composes `distill()` (3.2b) + tracker-specific scoring/eviction
+- [ ] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — handles structured and unstructured LLM output, deduplicates against existing memories
+- [ ] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — clusters and merges related memories via LLM
 - [ ] `systemPromptBuilder()`
 
 ### 4.5 — CQRS
@@ -338,6 +341,8 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 - [ ] `fromHTTP`, `fromWebSocket`/`toWebSocket`
 - [ ] `fromWebhook`, `toSSE`
 - [ ] `fromMCP` (Model Context Protocol)
+- [ ] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps); optional `fromChokidar()` for production. Cleanup closes watchers on unsubscribe.
+- [ ] `fromGitHook(repoPath, opts?)` — git change detection as reactive source; emits structured `GitEvent` (commit, files, message, author). Default: polling via `git log --since`; opt-in hook script installation. Cross-repo via `merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])`.
 
 ### 5.2b — ORM / database adapters
 
