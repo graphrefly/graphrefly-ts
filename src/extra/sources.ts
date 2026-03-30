@@ -21,6 +21,13 @@ function operatorOpts(opts?: ExtraOpts): NodeOptions {
 /** Options for {@link fromTimer} / {@link fromPromise} / {@link fromAsyncIter}. */
 export type AsyncSourceOpts = ExtraOpts & { signal?: AbortSignal };
 
+/**
+ * Values accepted by {@link fromAny}.
+ *
+ * @category extra
+ */
+export type NodeInput<T> = Node<T> | PromiseLike<T> | AsyncIterable<T> | Iterable<T> | T;
+
 /** Options for {@link fromCron}. */
 export type FromCronOptions = ExtraOpts & {
 	/** Polling interval in ms. Default `60_000`. */
@@ -371,28 +378,24 @@ function isNode(x: unknown): x is Node {
  *
  * @category extra
  */
-export function fromAny<T>(
-	input: T,
-	opts?: AsyncSourceOpts,
-): Node<T extends Node<infer U> ? U : T> {
+export function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T> {
 	if (isNode(input)) {
-		return input as Node<T extends Node<infer U> ? U : T>;
+		return input as Node<T>;
 	}
 	if (isThenable(input)) {
-		return fromPromise(input as unknown as Promise<unknown>, opts) as Node<
-			T extends Node<infer U> ? U : T
-		>;
+		return fromPromise(input as PromiseLike<T>, opts);
 	}
-	if (Symbol.asyncIterator in Object(input)) {
-		return fromAsyncIter(input as AsyncIterable<unknown>, opts) as Node<
-			T extends Node<infer U> ? U : T
-		>;
-	}
-	if (Symbol.iterator in Object(input)) {
-		return fromIter(input as Iterable<unknown>, opts) as Node<T extends Node<infer U> ? U : T>;
+	if (input !== null && input !== undefined) {
+		const candidate = input as { [Symbol.asyncIterator]?: unknown; [Symbol.iterator]?: unknown };
+		if (typeof candidate[Symbol.asyncIterator] === "function") {
+			return fromAsyncIter(input as AsyncIterable<T>, opts);
+		}
+		if (typeof candidate[Symbol.iterator] === "function") {
+			return fromIter(input as Iterable<T>, opts);
+		}
 	}
 	// scalar fallback
-	return of(input) as Node<T extends Node<infer U> ? U : T>;
+	return of(input as T);
 }
 
 /**

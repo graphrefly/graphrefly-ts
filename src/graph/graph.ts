@@ -1,4 +1,5 @@
 import type { Actor } from "../core/actor.js";
+import { isBatching } from "../core/batch.js";
 import { GuardDenied } from "../core/guard.js";
 import {
 	COMPLETE,
@@ -11,7 +12,13 @@ import {
 	TEARDOWN,
 } from "../core/messages.js";
 import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
-import { type Node, NodeImpl, type NodeSink, type NodeTransportOptions } from "../core/node.js";
+import {
+	type Node,
+	NodeImpl,
+	type NodeInspectorHookEvent,
+	type NodeSink,
+	type NodeTransportOptions,
+} from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
@@ -29,7 +36,20 @@ export type GraphOptions = Record<string, unknown>;
 /** Filter for {@link Graph.describe} — object-style partial match or predicate. */
 export type DescribeFilter =
 	| Partial<Pick<DescribeNodeOutput, "type" | "status">>
-	| ((node: DescribeNodeOutput) => boolean);
+	| {
+			type?: DescribeNodeOutput["type"];
+			status?: DescribeNodeOutput["status"];
+			/** Keep nodes whose `deps` includes this qualified path. */
+			depsIncludes?: string;
+			/** Snake-case alias for `depsIncludes` (Python parity). */
+			deps_includes?: string;
+			/** Keep nodes whose `meta` contains this key. */
+			metaHas?: string;
+			/** Snake-case alias for `metaHas` (Python parity). */
+			meta_has?: string;
+	  }
+	| ((node: DescribeNodeOutput) => boolean)
+	| ((nodePath: string, node: DescribeNodeOutput) => boolean);
 
 /** Options for {@link Graph.signal} and {@link Graph.set} (actor context, internal lifecycle). */
 export type GraphActorOptions = {
@@ -132,12 +152,14 @@ export type ObserveOptions = {
 	causal?: boolean;
 	/** Include timestamps and batch context on each event. */
 	timeline?: boolean;
+	/** Include per-evaluation dep snapshots for compute/derived nodes. */
+	derived?: boolean;
 };
 
 /** Accumulated observation result (structured mode). */
 export type ObserveResult<T = unknown> = {
-	/** All DATA values received so far. */
-	readonly values: T[];
+	/** Latest DATA value by observed path. */
+	readonly values: Record<string, T>;
 	/** Number of DIRTY messages received. */
 	readonly dirtyCount: number;
 	/** Number of RESOLVED messages received. */
@@ -154,9 +176,14 @@ export type ObserveResult<T = unknown> = {
 
 /** A single event in the structured observation log. */
 export type ObserveEvent = {
-	type: "data" | "dirty" | "resolved" | "complete" | "error";
+	type: "data" | "dirty" | "resolved" | "complete" | "error" | "derived";
+	path?: string;
 	data?: unknown;
-	timestamp?: number;
+	timestamp_ns?: number;
+	in_batch?: boolean;
+	trigger_dep_index?: number;
+	trigger_dep_name?: string;
+	dep_values?: unknown[];
 };
 
 function assertLocalName(name: string, graphName: string, label: string): void {
@@ -794,11 +821,34 @@ export class Graph {
 			const entry: DescribeNodeOutput = { ...rest, deps };
 			if (filter != null) {
 				if (typeof filter === "function") {
-					if (!filter(entry)) continue;
+					const fn = filter as
+						| ((nodePath: string, node: DescribeNodeOutput) => boolean)
+						| ((node: DescribeNodeOutput) => boolean);
+					const pass =
+						fn.length >= 2
+							? (fn as (nodePath: string, node: DescribeNodeOutput) => boolean)(p, entry)
+							: (fn as (node: DescribeNodeOutput) => boolean)(entry);
+					if (!pass) continue;
 				} else {
 					let match = true;
 					for (const [fk, fv] of Object.entries(filter)) {
-						if ((entry as Record<string, unknown>)[fk] !== fv) {
+						const normalizedKey =
+							fk === "deps_includes" ? "depsIncludes" : fk === "meta_has" ? "metaHas" : fk;
+						if (normalizedKey === "depsIncludes") {
+							if (!entry.deps.includes(String(fv))) {
+								match = false;
+								break;
+							}
+							continue;
+						}
+						if (normalizedKey === "metaHas") {
+							if (!Object.hasOwn(entry.meta, String(fv))) {
+								match = false;
+								break;
+							}
+							continue;
+						}
+						if ((entry as Record<string, unknown>)[normalizedKey] !== fv) {
 							match = false;
 							break;
 						}
@@ -889,15 +939,27 @@ export class Graph {
 	 * Live message stream from one node (or meta path), or from the whole graph (§3.6).
 	 *
 	 * Overloads: `(path, options?)` for one node; `(options?)` for all nodes. Whole-graph mode
-	 * subscribes in **sorted path order** (`localeCompare`). With `{ structured: true }` on a single
-	 * path, returns an {@link ObserveResult} — requires {@link Graph.inspectorEnabled} for structured extras.
+	 * subscribes in **sorted path order** (`localeCompare`). With structured options
+	 * (`structured`, `timeline`, `causal`, `derived`), returns an {@link ObserveResult}.
+	 * Inspector-gated extras (`causal` / `derived`) require {@link Graph.inspectorEnabled}.
 	 *
 	 * @param pathOrOpts - Qualified `path` string, or omit and pass only `options` for graph-wide observation.
 	 * @param options - Optional `actor`, `structured`, `causal`, `timeline` (inspector-gated).
 	 * @returns `GraphObserveOne`, `GraphObserveAll`, or `ObserveResult` depending on overload/options.
 	 */
-	observe(path: string, options?: ObserveOptions & { structured: true }): ObserveResult;
+	observe(
+		path: string,
+		options?: ObserveOptions & {
+			structured?: true;
+			timeline?: true;
+			causal?: true;
+			derived?: true;
+		},
+	): ObserveResult;
 	observe(path: string, options?: ObserveOptions): GraphObserveOne;
+	observe(
+		options: ObserveOptions & { structured?: true; timeline?: true; causal?: true; derived?: true },
+	): ObserveResult;
 	observe(options?: ObserveOptions): GraphObserveAll;
 	observe(
 		pathOrOpts?: string | ObserveOptions,
@@ -910,8 +972,13 @@ export class Graph {
 			if (actor != null && !target.allowsObserve(actor)) {
 				throw new GuardDenied({ actor, action: "observe", nodeName: path });
 			}
-			if (options?.structured && Graph.inspectorEnabled) {
-				return this._createObserveResult(target);
+			const wantsStructured =
+				options?.structured === true ||
+				options?.timeline === true ||
+				options?.causal === true ||
+				options?.derived === true;
+			if (wantsStructured && Graph.inspectorEnabled) {
+				return this._createObserveResult(path, target, options);
 			}
 			return {
 				subscribe(sink: NodeSink) {
@@ -919,7 +986,16 @@ export class Graph {
 				},
 			};
 		}
-		const actor = (pathOrOpts as ObserveOptions | undefined)?.actor;
+		const opts = pathOrOpts as ObserveOptions | undefined;
+		const actor = opts?.actor;
+		const wantsStructured =
+			opts?.structured === true ||
+			opts?.timeline === true ||
+			opts?.causal === true ||
+			opts?.derived === true;
+		if (wantsStructured && Graph.inspectorEnabled) {
+			return this._createObserveResultForAll(opts ?? {});
+		}
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
 				const targets: [string, Node][] = [];
@@ -939,16 +1015,23 @@ export class Graph {
 		};
 	}
 
-	private _createObserveResult<T>(target: Node<T>): ObserveResult<T> {
+	private _createObserveResult<T>(
+		path: string,
+		target: Node<T>,
+		options: ObserveOptions,
+	): ObserveResult<T> {
+		const timeline = options.timeline === true;
+		const causal = options.causal === true;
+		const derived = options.derived === true;
 		const result: {
-			values: T[];
+			values: Record<string, T>;
 			dirtyCount: number;
 			resolvedCount: number;
 			events: ObserveEvent[];
 			completedCleanly: boolean;
 			errored: boolean;
 		} = {
-			values: [],
+			values: {},
 			dirtyCount: 0,
 			resolvedCount: 0,
 			events: [],
@@ -956,24 +1039,61 @@ export class Graph {
 			errored: false,
 		};
 
+		let lastTriggerDepIndex: number | undefined;
+		let lastRunDepValues: unknown[] | undefined;
+		let detachInspectorHook: (() => void) | undefined;
+		if ((causal || derived) && target instanceof NodeImpl) {
+			detachInspectorHook = target._setInspectorHook((event: NodeInspectorHookEvent) => {
+				if (event.kind === "dep_message") {
+					lastTriggerDepIndex = event.depIndex;
+					return;
+				}
+				lastRunDepValues = [...event.depValues];
+				if (derived) {
+					result.events.push({
+						type: "derived",
+						path,
+						dep_values: [...event.depValues],
+						...(timeline ? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() } : {}),
+					});
+				}
+			});
+		}
+
 		const unsub = target.subscribe((msgs) => {
 			for (const m of msgs) {
 				const t = m[0];
+				const base = timeline
+					? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() }
+					: {};
+				const withCausal =
+					causal && lastRunDepValues != null
+						? {
+								trigger_dep_index: lastTriggerDepIndex,
+								trigger_dep_name:
+									lastTriggerDepIndex != null &&
+									lastTriggerDepIndex >= 0 &&
+									target instanceof NodeImpl
+										? target._deps[lastTriggerDepIndex]?.name
+										: undefined,
+								dep_values: [...lastRunDepValues],
+							}
+						: {};
 				if (t === DATA) {
-					result.values.push(m[1] as T);
-					result.events.push({ type: "data", data: m[1], timestamp: Date.now() });
+					result.values[path] = m[1] as T;
+					result.events.push({ type: "data", path, data: m[1], ...base, ...withCausal });
 				} else if (t === DIRTY) {
 					result.dirtyCount++;
-					result.events.push({ type: "dirty", timestamp: Date.now() });
+					result.events.push({ type: "dirty", path, ...base });
 				} else if (t === RESOLVED) {
 					result.resolvedCount++;
-					result.events.push({ type: "resolved", timestamp: Date.now() });
+					result.events.push({ type: "resolved", path, ...base, ...withCausal });
 				} else if (t === COMPLETE) {
 					if (!result.errored) result.completedCleanly = true;
-					result.events.push({ type: "complete", timestamp: Date.now() });
+					result.events.push({ type: "complete", path, ...base });
 				} else if (t === ERROR) {
 					result.errored = true;
-					result.events.push({ type: "error", data: m[1], timestamp: Date.now() });
+					result.events.push({ type: "error", path, data: m[1], ...base });
 				}
 			}
 		});
@@ -999,6 +1119,80 @@ export class Graph {
 			},
 			dispose() {
 				unsub();
+				detachInspectorHook?.();
+			},
+		};
+	}
+
+	private _createObserveResultForAll(options: ObserveOptions): ObserveResult {
+		const timeline = options.timeline === true;
+		const result: {
+			values: Record<string, unknown>;
+			dirtyCount: number;
+			resolvedCount: number;
+			events: ObserveEvent[];
+			completedCleanly: boolean;
+			errored: boolean;
+		} = {
+			values: {},
+			dirtyCount: 0,
+			resolvedCount: 0,
+			events: [],
+			completedCleanly: false,
+			errored: false,
+		};
+		const actor = options.actor;
+		const targets: [string, Node][] = [];
+		this._collectObserveTargets("", targets);
+		targets.sort((a, b) => a[0].localeCompare(b[0]));
+		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
+		const unsubs = picked.map(([path, nd]) =>
+			nd.subscribe((msgs) => {
+				for (const m of msgs) {
+					const t = m[0];
+					const base = timeline
+						? { timestamp_ns: Date.now() * 1_000_000, in_batch: isBatching() }
+						: {};
+					if (t === DATA) {
+						result.values[path] = m[1];
+						result.events.push({ type: "data", path, data: m[1], ...base });
+					} else if (t === DIRTY) {
+						result.dirtyCount++;
+						result.events.push({ type: "dirty", path, ...base });
+					} else if (t === RESOLVED) {
+						result.resolvedCount++;
+						result.events.push({ type: "resolved", path, ...base });
+					} else if (t === COMPLETE) {
+						if (!result.errored) result.completedCleanly = true;
+						result.events.push({ type: "complete", path, ...base });
+					} else if (t === ERROR) {
+						result.errored = true;
+						result.events.push({ type: "error", path, data: m[1], ...base });
+					}
+				}
+			}),
+		);
+		return {
+			get values() {
+				return result.values;
+			},
+			get dirtyCount() {
+				return result.dirtyCount;
+			},
+			get resolvedCount() {
+				return result.resolvedCount;
+			},
+			get events() {
+				return result.events;
+			},
+			get completedCleanly() {
+				return result.completedCleanly;
+			},
+			get errored() {
+				return result.errored;
+			},
+			dispose() {
+				for (const u of unsubs) u();
 			},
 		};
 	}

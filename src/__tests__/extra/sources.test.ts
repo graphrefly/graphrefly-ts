@@ -165,6 +165,22 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		a.unsub();
 	});
 
+	it("fromAny handles null/undefined as scalar values", () => {
+		const a = collect(fromAny(null));
+		expect(
+			a.batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1]),
+		).toEqual([null]);
+		a.unsub();
+
+		const b = collect(fromAny(undefined));
+		expect(b.batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+		expect(b.batches.flat().some((m) => m[0] === ERROR)).toBe(false);
+		b.unsub();
+	});
+
 	it("fromAny with existing Node returns same reference", () => {
 		const s = state(99);
 		const result = fromAny(s);

@@ -298,6 +298,16 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | Extra Phase 3.1 (resilience) | `graphrefly.extra.{backoff,resilience,checkpoint}`; see §6 below | `src/extra/{backoff,resilience,checkpoint}.ts`; see §6 below |
 | Extra Phase 3.2 (data structures) | `graphrefly.extra.data_structures` (`reactive_map`, …); see §17 | `reactiveMap` + `reactive-base` (`Versioned` snapshots); see §17 |
 
+### 18. Inspector causality hooks (Phase 3.3 observe extensions)
+
+| Topic | TypeScript | Python |
+|-------|------------|--------|
+| Core hook shape | `NodeImpl._setInspectorHook()` installs an internal, opt-in hook with `dep_message` and `run` events. | `NodeImpl._set_inspector_hook()` mirrors the same hook contract (`dep_message`, `run`). |
+| Runtime overhead | Hook pointer is `undefined` by default; no event allocation unless `observe(name, { timeline/causal/derived })` is active. | Hook pointer is `None` by default; no event allocation unless `observe(..., timeline/causal/derived)` is active. |
+| Graph usage | `observe(name, { timeline, causal, derived })` enriches structured events with `in_batch`, trigger dep metadata, and dep snapshots. `observe({ structured: true, ... })` is also supported graph-wide. | `observe(name, timeline=True, causal=True, derived=True)` uses the same hook-driven enrichment model (graph-wide structured supported). |
+
+Parity hardening (2026-03-30): both ports now keep `data` / `resolved` events under `causal` even when no trigger index is known yet, always emit `derived` on every `run`, and set `completedCleanly` / `completed_cleanly` only when no prior `ERROR` was seen. Structured timeline timestamps use `timestamp_ns` in both ports (nanoseconds). `ObserveResult.values` is latest-by-path map in both ports.
+
 ### 6. Resilience & checkpoint (roadmap 3.1) — parity (2026-03-29)
 
 **Aligned:**
@@ -498,6 +508,12 @@ These came out of QA review; behavior is **not** “wrong” until aligned with 
 **Open decision:** Whether to add optional **`asyncio`**-based scheduling later (e.g. **`loop.call_soon_threadsafe`** and loop-backed delays) so time-based operators integrate cleanly with apps that already own a **running event loop**, while keeping **`threading.Timer`** as the default portable baseline.
 
 **TypeScript (parity note):** The same product split applies on the JS side: tighter integration with the host’s **event loop / task queue** vs timer primitives that do not assume a specific runtime; align cross-language when either port adds loop-integrated scheduling.
+
+### E. Roadmap §3.1b callback coercion scope (`fromAny` / `from_any`)
+
+**Resolved (Option 2):** Public higher-order operators in TypeScript (`switchMap`, `concatMap`, `mergeMap`, `exhaustMap`) and Python (`switch_map`, `concat_map`, `merge_map`, `exhaust_map`) now accept callback outputs as **Node, scalar, Promise/Awaitable, Iterable, or AsyncIterable**, with coercion through `fromAny` / `from_any`.
+
+**Rationale:** Better ergonomics and stronger parity with AI-generated integration code while preserving the single reactive output model.
 
 ---
 

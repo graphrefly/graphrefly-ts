@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
+import { batch } from "../../core/batch.js";
 import { GuardDenied, policy } from "../../core/guard.js";
 import { DATA, DIRTY, PAUSE, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
@@ -387,6 +388,30 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(d.edges).toContainEqual({ from: "sub::a", to: "sub::b" });
 	});
 
+	it("describe filter supports depsIncludes, metaHas, and path-aware predicate", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a", meta: { label: "input" } });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+
+		const byDeps = g.describe({ filter: { depsIncludes: "a" } });
+		expect(Object.keys(byDeps.nodes)).toEqual(["b"]);
+
+		const byMeta = g.describe({ filter: { metaHas: "label" } });
+		expect(Object.keys(byMeta.nodes)).toContain("a");
+		const byDepsSnake = g.describe({ filter: { deps_includes: "a" } });
+		expect(Object.keys(byDepsSnake.nodes)).toEqual(["b"]);
+		const byMetaSnake = g.describe({ filter: { meta_has: "label" } });
+		expect(Object.keys(byMetaSnake.nodes)).toContain("a");
+
+		const byPath = g.describe({
+			filter: (path, node) => path.startsWith("a") && node.type === "state",
+		});
+		expect(Object.keys(byPath.nodes)).toContain("a");
+	});
+
 	it("describe lists each meta companion as its own node entry (Python parity)", () => {
 		const g = new Graph("g");
 		const n = node({ initial: 0, meta: { desc: "purpose" } });
@@ -467,6 +492,80 @@ describe("Graph introspection (Phase 1.3)", () => {
 		});
 		g.signal([[PAUSE, "z"]]);
 		expect(order).toEqual(["a", "b"]);
+	});
+
+	it("observe(path, { timeline: true }) includes timestamp and batch context", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const obs = g.observe("b", { timeline: true });
+		batch(() => {
+			g.set("a", 2);
+		});
+		obs.dispose();
+		const timed = obs.events.filter((e) => e.timestamp_ns != null);
+		expect(timed.length).toBeGreaterThan(0);
+		expect(obs.events.some((e) => e.in_batch === true)).toBe(true);
+		expect(obs.values.b).toBe(3);
+	});
+
+	it("observe(path, { causal: true, derived: true }) captures trigger and dep snapshots", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const obs = g.observe("b", { causal: true, derived: true, timeline: true });
+		g.set("a", 5);
+		obs.dispose();
+		const derivedEvents = obs.events.filter((e) => e.type === "derived");
+		const derivedEvent = derivedEvents[derivedEvents.length - 1];
+		expect(derivedEvent?.dep_values).toEqual([5]);
+		const dataEvents = obs.events.filter((e) => e.type === "data");
+		const dataEvent = dataEvents[dataEvents.length - 1];
+		expect(dataEvent?.trigger_dep_index).toBe(0);
+		expect(dataEvent?.trigger_dep_name).toBe("a");
+		expect(dataEvent?.dep_values).toEqual([5]);
+		expect(obs.values.b).toBe(6);
+	});
+
+	it("observe(path, { causal: true, derived: true }) includes initial derived run", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.connect("a", "b");
+		const obs = g.observe("b", { causal: true, derived: true, timeline: true });
+		g.set("a", 3);
+		obs.dispose();
+		const derivedEvents = obs.events.filter((e) => e.type === "derived");
+		expect(derivedEvents.length).toBeGreaterThanOrEqual(2);
+		expect(derivedEvents.some((e) => JSON.stringify(e.dep_values) === JSON.stringify([0]))).toBe(
+			true,
+		);
+		expect(derivedEvents.some((e) => JSON.stringify(e.dep_values) === JSON.stringify([3]))).toBe(
+			true,
+		);
+	});
+
+	it("observe({ structured: true }) on whole graph returns structured result", () => {
+		const g = new Graph("g");
+		g.add("a", state(1, { name: "a" }));
+		g.add("b", state(2, { name: "b" }));
+		const obs = g.observe({ structured: true, timeline: true });
+		g.set("a", 10);
+		g.set("b", 20);
+		obs.dispose();
+		expect(obs.values.a).toBe(10);
+		expect(obs.values.b).toBe(20);
+		expect(obs.events.some((e) => e.path === "a" && e.type === "data")).toBe(true);
+		expect(obs.events.some((e) => e.path === "b" && e.type === "data")).toBe(true);
+		expect(obs.events.some((e) => e.timestamp_ns != null)).toBe(true);
 	});
 });
 

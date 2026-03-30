@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { producer, state } from "../../core/sugar.js";
 import {
 	audit,
 	bufferCount,
@@ -47,6 +47,10 @@ function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) 
 		batches.push([...msgs]);
 	});
 	return { batches, unsub };
+}
+
+function tick(ms = 0): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe("extra operators (Tier 1)", () => {
@@ -484,6 +488,82 @@ describe("extra operators (Tier 2)", () => {
 		inner1.down([[COMPLETE]]);
 		inner2.down([[COMPLETE]]);
 		src.down([[COMPLETE]]);
+		unsub();
+	});
+
+	// Regression: roadmap §3.1b — higher-order projects accept scalar via fromAny coercion.
+	it("switchMap coerces scalar project returns", () => {
+		const src = state(0);
+		const out = switchMap(src, (v) => (v as number) + 100);
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 2]]);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(dataVals).toContain(102);
+		unsub();
+	});
+
+	// Regression: roadmap §3.1b — higher-order projects accept PromiseLike via fromAny coercion.
+	it("switchMap coerces Promise project returns", async () => {
+		const src = state(0);
+		const out = switchMap(src, (v) => Promise.resolve((v as number) + 5));
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 3]]);
+		await tick(0);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(dataVals).toContain(8);
+		unsub();
+	});
+
+	// Regression: parity 3.1 — forwardInner emits current settled inner value on attach.
+	it("switchMap forwards settled inner current value immediately", () => {
+		const src = state(1);
+		const out = switchMap(src, (v) => state((v as number) * 10));
+		const { batches, unsub } = collect(out);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(dataVals).toContain(10);
+		unsub();
+	});
+
+	// Regression: roadmap §3.1b — higher-order projects accept Iterable via fromAny coercion.
+	it("concatMap coerces iterable project returns", () => {
+		const src = producer<number>((_d, a) => {
+			a.down([[DATA, 4], [COMPLETE]]);
+		});
+		const out = concatMap(src, (v) => [v * 2, v * 3]);
+		const { batches, unsub } = collect(out);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1] as number);
+		expect(dataVals).toEqual(expect.arrayContaining([8, 12]));
+		unsub();
+	});
+
+	// Regression: roadmap §3.1b — higher-order projects accept AsyncIterable via fromAny coercion.
+	it("mergeMap coerces async iterable project returns", async () => {
+		const src = state(0);
+		const out = mergeMap(src, async function* (v: number) {
+			yield v + 1;
+			yield v + 2;
+		});
+		const { batches, unsub } = collect(out);
+		src.down([[DATA, 10]]);
+		await tick(0);
+		await tick(0);
+		const dataVals = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1] as number);
+		expect(dataVals).toEqual(expect.arrayContaining([11, 12]));
 		unsub();
 	});
 

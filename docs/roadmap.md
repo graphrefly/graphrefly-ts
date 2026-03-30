@@ -193,11 +193,11 @@ Design invariant: every public function returns `Node<T>`, `Graph`, `void`, or a
 - [x] `fromIDBTransaction(tx)` → `Node<void>` — reactive primitive wrapping `IDBTransaction` completion
 - [x] Refactor `saveGraphCheckpointIndexedDb` → returns `Node<void>` (not `Promise<void>`)
 - [x] Refactor `restoreGraphCheckpointIndexedDb` → returns `Node<boolean>` (not `Promise<boolean>`)
-- [ ] Refactor `SqliteCheckpointAdapter` methods → return `Node<T>` or `void` (not `Promise<T>`)
-- [ ] Audit all remaining exports for `Promise<T>` return types — fix any found
-- [ ] Update adapter interface types: methods return `Node<T>` or `void`
-- [ ] Callback parameter types accept sync, Promise, Node, AsyncIterable via `fromAny` pattern
-- [ ] `firstValueFrom` exported for end-users only — not used internally
+- [x] Refactor `SqliteCheckpointAdapter` methods → use synchronous returns (`void` / plain value), never `Promise<T>`
+- [x] Audit all remaining exports for `Promise<T>` return types — fix any found
+- [x] Update checkpoint adapter interface types: synchronous (`save: void`, `load: plain value | null`)
+- [x] Callback parameter types accept sync, Promise, Node, AsyncIterable via `fromAny` pattern
+- [x] `firstValueFrom` exported for end-users only — not used internally
 - [ ] **Python parity:** same treatment in `graphrefly-py` — no `async def` / `Awaitable` / `Future` in public APIs; wrap `asyncio` calls in reactive sources
 
 ### 3.2 — Data structures
@@ -208,6 +208,15 @@ Design invariant: every public function returns `Node<T>`, `Graph`, `void`, or a
 - [x] `reactiveList` (positional operations)
 - [x] `pubsub` (lazy topic stores)
 
+### 3.2b — Composite data patterns
+
+Higher-order patterns composing Phase 0–3.2 primitives. No new core concepts — these wire `state`, `derived`, `effect`, `switchMap`, `reactiveMap`, `dynamicNode`, and `fromAny` into reusable shapes.
+
+Design reference: `archive/docs/SKETCH-reactive-tracker-factory.md`
+
+- [ ] `verifiable(source, verifyFn, opts?)` — value node + verification companion; fully reactive (no imperative trigger). `source: NodeInput<T>`, `verifyFn: (value: T) => NodeInput<VerifyResult>`, trigger via `opts.trigger: NodeInput<unknown>` or `opts.autoVerify`. Uses `switchMap` internally to cancel stale verifications.
+- [ ] `distill(source, extractFn, opts)` — budget-constrained reactive memory store. Watches source stream, extracts via `extractFn: (raw, existing) => NodeInput<Extraction<TMem>>`, stores in `reactiveMap`, evicts stale entries (reactive eviction via `dynamicNode`), optional consolidation, produces budgeted compact view ranked by caller-provided `score`/`cost` functions. LLM-agnostic — extraction and consolidation functions are pluggable.
+
 ### 3.3 — Inspector (graph-native debugging for humans & AI)
 
 Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). In GraphReFly the graph IS the introspection layer — these extend `describe()` and `observe()` rather than adding a separate object. Needed before Phase 4: orchestration and agent loops are impractical to debug without causal tracing and structured observation.
@@ -217,9 +226,9 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 #### Structured observation (extend `observe`)
 
 - [x] `observe(name, { structured: true })` returns `ObserveResult` object: `{ values, dirtyCount, resolvedCount, events, completedCleanly, errored, dispose }` — options bag on existing `observe()`
-- [ ] `observe(name, { timeline: true })` — timestamped events with batch context (`{ timestamp, type, data, inBatch }`)
-- [ ] `observe(name, { causal: true })` — which dep triggered recomputation: `{ triggerDepIndex, triggerDepName, depValues }`
-- [ ] `observe(name, { derived: true })` — per-evaluation dep snapshots for derived/compute nodes
+- [x] `observe(name, { timeline: true })` — timestamped events with batch context (`{ timestamp_ns, type, data, in_batch }`)
+- [x] `observe(name, { causal: true })` — which dep triggered recomputation: `{ trigger_dep_index, trigger_dep_name, dep_values }`
+- [x] `observe(name, { derived: true })` — per-evaluation dep snapshots for derived/compute nodes
 
 #### Graph queries (extend `describe`)
 

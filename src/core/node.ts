@@ -63,6 +63,16 @@ export interface NodeActions {
  */
 export type OnMessageHandler = (msg: Message, depIndex: number, actions: NodeActions) => boolean;
 
+/**
+ * Internal inspector hook (opt-in): emits dependency message and run events
+ * for graph-level observability features (`observe(..., { causal|derived })`).
+ */
+export type NodeInspectorHookEvent =
+	| { kind: "dep_message"; depIndex: number; message: Message }
+	| { kind: "run"; depValues: readonly unknown[] };
+
+export type NodeInspectorHook = (event: NodeInspectorHookEvent) => void;
+
 /** Explicit describe `type` for {@link Graph.describe} / {@link describeNode} (GRAPHREFLY-SPEC Appendix B). */
 export type NodeDescribeKind = "state" | "derived" | "producer" | "operator" | "effect";
 
@@ -335,6 +345,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_upstreamUnsubs: Array<() => void> = [];
 	_actions: NodeActions;
 	_boundEmitToSinks: (messages: Messages) => void;
+	private _inspectorHook: NodeInspectorHook | undefined;
 
 	constructor(deps: readonly Node[], fn: NodeFn<T> | undefined, opts: NodeOptions) {
 		this._deps = deps;
@@ -405,6 +416,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_assignRegistryName(localName: string): void {
 		if (this._optsName !== undefined || this._registryName !== undefined) return;
 		this._registryName = localName;
+	}
+
+	/**
+	 * @internal Attach/remove inspector hook for graph-level observability.
+	 * Returns a disposer that restores the previous hook.
+	 */
+	_setInspectorHook(hook?: NodeInspectorHook): () => void {
+		const prev = this._inspectorHook;
+		this._inspectorHook = hook;
+		return () => {
+			if (this._inspectorHook === hook) {
+				this._inspectorHook = prev;
+			}
+		};
 	}
 
 	// --- Public interface (Node<T>) ---
@@ -691,6 +716,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			prevCleanup?.();
 			this._manualEmitUsed = false;
 			this._lastDepValues = depValues;
+			this._inspectorHook?.({ kind: "run", depValues });
 			const out = this._fn(depValues, this._actions);
 			if (isCleanupFn(out)) {
 				this._cleanup = out;
@@ -737,6 +763,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	_handleDepMessages(index: number, messages: Messages): void {
 		for (const msg of messages) {
+			this._inspectorHook?.({ kind: "dep_message", depIndex: index, message: msg });
 			const t = msg[0];
 			// User-defined message handler gets first look (spec §2.6).
 			if (this._onMessage) {

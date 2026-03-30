@@ -15,6 +15,7 @@ import {
 } from "../core/messages.js";
 import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
+import { fromAny, type NodeInput } from "./sources.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -1079,11 +1080,19 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 
 function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => void): () => void {
 	let unsub: (() => void) | undefined;
+	let finished = false;
+	let emitted = false;
+	const finish = (): void => {
+		if (finished) return;
+		finished = true;
+		onInnerComplete();
+	};
 	unsub = inner.subscribe((msgs) => {
 		let sawComplete = false;
 		let sawError = false;
 		const out: Message[] = [];
 		for (const m of msgs) {
+			if (m[0] === DATA) emitted = true;
 			if (m[0] === COMPLETE) sawComplete = true;
 			else {
 				if (m[0] === ERROR) sawError = true;
@@ -1094,11 +1103,17 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 		if (sawError) {
 			unsub?.();
 			unsub = undefined;
-			onInnerComplete();
+			finish();
 		} else if (sawComplete) {
-			onInnerComplete();
+			finish();
 		}
 	});
+	if (!emitted && (inner.status === "settled" || inner.status === "resolved")) {
+		a.emit(inner.get() as R);
+	}
+	if (inner.status === "completed" || inner.status === "errored") {
+		finish();
+	}
 	return () => {
 		unsub?.();
 		unsub = undefined;
@@ -1109,7 +1124,7 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
  * Maps each settled value to an inner node; unsubscribes the previous inner (Rx-style `switchMap`).
  *
  * @param source - Upstream node.
- * @param project - Maps each outer value to an inner node.
+ * @param project - Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via {@link fromAny}.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<R>` - Emissions from the active inner subscription.
  * @example
@@ -1124,7 +1139,7 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
  */
 export function switchMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
@@ -1139,7 +1154,7 @@ export function switchMap<T, R>(
 	function attach(v: T, a: NodeActions): void {
 		attached = true;
 		clearInner();
-		innerUnsub = forwardInner(project(v), a, () => {
+		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 			clearInner();
 			if (sourceDone) a.down([[COMPLETE]]);
 		});
@@ -1189,7 +1204,7 @@ export function switchMap<T, R>(
  * Like {@link switchMap}, but ignores outer `DATA` while an inner subscription is active (`exhaustMap`).
  *
  * @param source - Upstream node.
- * @param project - Maps each outer value to an inner node.
+ * @param project - Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via {@link fromAny}.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<R>` - Emissions from the active inner while it runs.
  * @example
@@ -1203,7 +1218,7 @@ export function switchMap<T, R>(
  */
 export function exhaustMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
@@ -1217,7 +1232,7 @@ export function exhaustMap<T, R>(
 
 	function attach(v: T, a: NodeActions): void {
 		attached = true;
-		innerUnsub = forwardInner(project(v), a, () => {
+		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 			clearInner();
 			if (sourceDone) a.down([[COMPLETE]]);
 		});
@@ -1270,7 +1285,7 @@ export function exhaustMap<T, R>(
  * Enqueues each outer value and subscribes to inners one at a time (`concatMap`).
  *
  * @param source - Upstream node.
- * @param project - Maps each outer value to an inner node.
+ * @param project - Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via {@link fromAny}.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<R>` - Sequential concatenation of inner streams.
  * @example
@@ -1284,7 +1299,7 @@ export function exhaustMap<T, R>(
  */
 export function concatMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts & { maxBuffer?: number },
 ): Node<R> {
 	const { maxBuffer: maxBuf, ...concatNodeOpts } = opts ?? {};
@@ -1305,7 +1320,7 @@ export function concatMap<T, R>(
 			return;
 		}
 		const v = queue.shift()!;
-		innerUnsub = forwardInner(project(v), a, () => {
+		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 			clearInner();
 			tryPump(a);
 		});
@@ -1368,7 +1383,7 @@ export type MergeMapOptions = ExtraOpts & {
  * Subscribes to inner nodes in parallel (up to `concurrent`) and merges outputs (`mergeMap` / `flatMap`).
  *
  * @param source - Upstream node.
- * @param project - Maps each outer value to an inner node.
+ * @param project - Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via {@link fromAny}.
  * @param opts - Optional options including `concurrent` limit.
  * @returns `Node<R>` - Merged output of all active inners; completes when the outer and every inner complete.
  * @example
@@ -1386,7 +1401,7 @@ export type MergeMapOptions = ExtraOpts & {
  */
 export function mergeMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: MergeMapOptions,
 ): Node<R> {
 	const { concurrent: concurrentOpt, ...mergeNodeOpts } = opts ?? {};
@@ -1403,7 +1418,7 @@ export function mergeMap<T, R>(
 
 	function spawn(v: T, a: NodeActions): void {
 		active++;
-		const inner = project(v);
+		const inner = fromAny(project(v));
 		let stop: (() => void) | undefined;
 		const runStop = (): void => {
 			stop?.();

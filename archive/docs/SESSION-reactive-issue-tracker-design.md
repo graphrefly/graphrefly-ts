@@ -558,4 +558,5 @@ Day 60: consolidation runs
 ## FILES
 
 - This file: `archive/docs/SESSION-reactive-issue-tracker-design.md`
+- `archive/docs/SKETCH-reactive-tracker-factory.md` — full graph factory sketch + `verifiable()` and `distill()` detailed design
 - Referenced: `docs/roadmap.md` (Phase 4.3-4.4 gaps), `docs/batch-review/batch-11.md` (example findings), `docs/batch-review/batch-14.md` (parity examples), `docs/optimizations.md` (cross-repo decisions)
