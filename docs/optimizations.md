@@ -403,6 +403,15 @@ Python has no precision limitations (arbitrary-precision `int`).
 
 **Derived log views (`tail` / `log_slice` / `logSlice`):** Both ports attach a noop subscription to each derived view so `get()` stays wired without a user sink (same idea as Python’s `_keepalive_derived`). Each call allocates a new derived node plus that subscription; creating very many throwaway views can retain subscriptions until those nodes are unreachable. See JSDoc on `reactiveLog` / `logSlice` in graphrefly-ts and docstrings on `ReactiveLogBundle.tail` / `log_slice` in `graphrefly.extra.data_structures` (Py).
 
+### 17b. Phase 3.2b composite patterns parity (`verifiable`, `distill`)
+
+Both ports now align on the following:
+
+- **Falsy option values are honored** (`trigger`, `context`, `consolidateTrigger`) by checking only for `null`/`undefined` (`None` in Python), not truthiness.
+- **Extraction/consolidation are atomic**: each `Extraction` payload applies inside one outer `batch`, so downstream observers do not see intermediate partial states for multi-op updates.
+- **Extraction contract is strict**: `upsert` is required by contract; malformed payloads are ignored by internal sink wiring (no imperative exception leakage to caller).
+- **Eviction contract is explicit**: `evict` accepts `boolean | Node<boolean>` on both sides.
+
 ### Open design items (low priority)
 
 1. **`_is_cleanup_fn` / `isCleanupFn` treats any callable return as cleanup.** Both languages use `callable(value)` / `typeof value === "function"`. A compute function cannot emit a callable as a data value — it will be silently swallowed as cleanup. Fix: accept `{ cleanup: fn }` wrapper or add an opt-out flag. Low priority because the pattern is well-documented and rarely needed.

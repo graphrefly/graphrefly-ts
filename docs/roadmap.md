@@ -214,8 +214,8 @@ Higher-order patterns composing Phase 0–3.2 primitives. No new core concepts �
 
 Design reference: `archive/docs/SKETCH-reactive-tracker-factory.md`
 
-- [ ] `verifiable(source, verifyFn, opts?)` — value node + verification companion; fully reactive (no imperative trigger). `source: NodeInput<T>`, `verifyFn: (value: T) => NodeInput<VerifyResult>`, trigger via `opts.trigger: NodeInput<unknown>` or `opts.autoVerify`. Uses `switchMap` internally to cancel stale verifications.
-- [ ] `distill(source, extractFn, opts)` — budget-constrained reactive memory store. Watches source stream, extracts via `extractFn: (raw, existing) => NodeInput<Extraction<TMem>>`, stores in `reactiveMap`, evicts stale entries (reactive eviction via `dynamicNode`), optional consolidation, produces budgeted compact view ranked by caller-provided `score`/`cost` functions. LLM-agnostic — extraction and consolidation functions are pluggable.
+- [x] `verifiable(source, verifyFn, opts?)` — value node + verification companion; fully reactive (no imperative trigger). `source: NodeInput<T>`, `verifyFn: (value: T) => NodeInput<VerifyResult>`, trigger via `opts.trigger: NodeInput<unknown>` or `opts.autoVerify`. Uses `switchMap` internally to cancel stale verifications.
+- [x] `distill(source, extractFn, opts)` — budget-constrained reactive memory store. Watches source stream, extracts via `extractFn: (raw, existing) => NodeInput<Extraction<TMem>>`, stores in `reactiveMap`, evicts stale entries (reactive eviction via `dynamicNode`), optional consolidation, produces budgeted compact view ranked by caller-provided `score`/`cost` functions. LLM-agnostic — extraction and consolidation functions are pluggable.
 
 ### 3.3 — Inspector (graph-native debugging for humans & AI)
 
