@@ -20,7 +20,7 @@ If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise, this is *
 Load context and plan the implementation in a single pass. **Parallelize all reads.**
 
 Read in parallel:
-- `docs/GRAPHREFLY-SPEC.md` — behavior authority; deep-read sections relevant to the task
+- `~/src/graphrefly/GRAPHREFLY-SPEC.md` — behavior authority; deep-read sections relevant to the task
 - `docs/optimizations.md` — built-in optimizations, cross-language notes, and **open design decisions** (read when touching protocol, batch, node lifecycle, or parity)
 - `docs/test-guidance.md` — checklist for the relevant layer (core protocol, node, graph, extra)
 - `docs/roadmap.md` — if this is a new feature or cross-cutting change
@@ -31,7 +31,7 @@ Read in parallel:
 **Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
 
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):
-- **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (`GRAPHREFLY-SPEC.md` §5.1).
+- **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (`~/src/graphrefly/GRAPHREFLY-SPEC.md` §5.1).
 - **Messages are always** `[[Type, Data?], ...]` — no single-message shorthand.
 - **DIRTY before DATA/RESOLVED** in the same logical update where two-phase push applies; **batch** defers DATA, not DIRTY.
 - **Unknown message types forward** — do not swallow unrecognized tuples.
@@ -40,7 +40,7 @@ While planning, explicitly validate proposed changes against these invariants (f
 
 Do NOT start implementing yet.
 
-**Optional context:** The predecessor codebase **callbag-recharge** at `~/src/callbag-recharge` has mature patterns, tests, and docs. Use it for **analogous** operator behavior, edge cases, and test structure — then map concepts to GraphReFly (unified message tuples, `node`, `Graph`, `describe`/`observe`). It is not the behavior spec; `docs/GRAPHREFLY-SPEC.md` is.
+**Optional context:** The predecessor codebase **callbag-recharge** at `~/src/callbag-recharge` has mature patterns, tests, and docs. Use it for **analogous** operator behavior, edge cases, and test structure — then map concepts to GraphReFly (unified message tuples, `node`, `Graph`, `describe`/`observe`). It is not the behavior spec; `~/src/graphrefly/GRAPHREFLY-SPEC.md` is.
 
 ---
 
@@ -56,7 +56,7 @@ Do NOT start implementing yet.
 4. **Recommendation** — preferred approach and why
 
 Prioritize (in order):
-1. **Correctness** — matches `GRAPHREFLY-SPEC.md` and protocol invariants
+1. **Correctness** — matches `~/src/graphrefly/GRAPHREFLY-SPEC.md` and protocol invariants
 2. **Completeness** — edge cases (errors, completion, reconnect, diamonds)
 3. **Consistency** — matches patterns already in graphrefly-ts
 4. **Simplicity** — minimal solution
@@ -83,7 +83,7 @@ If any apply, escalate: HALT and present findings as in full mode.
 After user approves (full mode) or after Phase 1 (light mode, no escalation):
 
 1. Implement the changes
-   - Treat `docs/GRAPHREFLY-SPEC.md` as non-negotiable for behavior
+   - Treat `~/src/graphrefly/GRAPHREFLY-SPEC.md` as non-negotiable for behavior
    - If existing code drifts from the spec, align toward the spec as part of the change
 2. Create tests following `docs/test-guidance.md`:
    - Put tests in the most specific existing file under `src/__tests__/` (or colocated `*.test.ts` per project convention)

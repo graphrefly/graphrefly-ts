@@ -1,6 +1,6 @@
 import type { Actor } from "../core/actor.js";
 import { GuardDenied } from "../core/guard.js";
-import { DATA, type Messages, TEARDOWN } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, INVALIDATE, type Messages, TEARDOWN } from "../core/messages.js";
 import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
 import { type Node, NodeImpl, type NodeSink, type NodeTransportOptions } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
@@ -163,9 +163,19 @@ function parseEdgeKey(key: string): [string, string] {
 	return [key.slice(0, i), key.slice(i + 1)];
 }
 
-/** True when every tuple is TEARDOWN — parent {@link NodeImpl} already forwards that to `meta`. */
-function isTeardownOnlyBatch(messages: Messages): boolean {
-	return messages.length > 0 && messages.every((m) => m[0] === TEARDOWN);
+/**
+ * Lifecycle-destructive message types that meta companion nodes ignore
+ * during graph-wide signal propagation (spec §2.3 Companion lifecycle).
+ * TEARDOWN: parent already cascades explicitly.
+ * INVALIDATE/COMPLETE/ERROR: meta stores outlive these lifecycle events.
+ * To target a meta node directly, call `meta.down(...)` on it.
+ */
+const META_FILTERED_TYPES = new Set([TEARDOWN, INVALIDATE, COMPLETE, ERROR]);
+
+/** Strip lifecycle-destructive messages; returns empty array when nothing remains. */
+function filterMetaMessages(messages: Messages): Messages {
+	const kept = messages.filter((m) => !META_FILTERED_TYPES.has(m[0]));
+	return kept as unknown as Messages;
 }
 
 /** TEARDOWN every node in a mounted graph tree (depth-first into mounts). */
@@ -191,7 +201,7 @@ function teardownMountedGraph(root: Graph): void {
  * import { Graph, state } from "@graphrefly/graphrefly-ts";
  *
  * const g = new Graph("app");
- * g.register("counter", state(0));
+ * g.add("counter", state(0));
  * ```
  *
  * @category graph
@@ -638,14 +648,14 @@ export class Graph {
 		const downOpts: NodeTransportOptions = internal
 			? { internal: true }
 			: { actor: opts.actor, delivery: "signal" };
+		const metaMessages = filterMetaMessages(messages);
 		for (const localName of [...this._nodes.keys()].sort()) {
 			const n = this._nodes.get(localName)!;
 			if (vis.has(n)) continue;
 			vis.add(n);
 			n.down(messages, downOpts);
-			// Avoid double TEARDOWN: primary's down() already cascades TEARDOWN to meta companions.
-			if (isTeardownOnlyBatch(messages)) continue;
-			this._signalMetaSubtree(n, messages, vis, downOpts);
+			if (metaMessages.length === 0) continue;
+			this._signalMetaSubtree(n, metaMessages, vis, downOpts);
 		}
 	}
 
@@ -660,7 +670,6 @@ export class Graph {
 			if (vis.has(mnode)) continue;
 			vis.add(mnode);
 			mnode.down(messages, downOpts);
-			if (isTeardownOnlyBatch(messages)) continue;
 			this._signalMetaSubtree(mnode, messages, vis, downOpts);
 		}
 	}
@@ -840,7 +849,14 @@ export class Graph {
 	 */
 	snapshot(): GraphPersistSnapshot {
 		const d = this.describe();
-		return { version: 1, ...d };
+		// Explicit key sorting for deterministic output — don't rely on
+		// describe() iteration order (audit batch-3, §3.8).
+		const sortedNodes: Record<string, DescribeNodeOutput> = {};
+		for (const key of Object.keys(d.nodes).sort()) {
+			sortedNodes[key] = d.nodes[key]!;
+		}
+		const sortedSubgraphs = [...d.subgraphs].sort();
+		return { ...d, version: 1, nodes: sortedNodes, subgraphs: sortedSubgraphs };
 	}
 
 	/**
@@ -949,7 +965,7 @@ export class Graph {
 	 * For a single UTF-8 string with a trailing newline (convenient for git), use {@link Graph.toJSONString}.
 	 */
 	toJSON(): GraphPersistSnapshot {
-		return sortJsonValue(this.snapshot()) as GraphPersistSnapshot;
+		return this.snapshot();
 	}
 
 	/**

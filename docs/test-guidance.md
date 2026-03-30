@@ -1,13 +1,13 @@
 # Test guidance (graphrefly-ts)
 
-Guidelines for writing, organizing, and maintaining tests. Read this before adding tests. **Behavioral authority:** `docs/GRAPHREFLY-SPEC.md` (and `docs/roadmap.md` for scope).
+Guidelines for writing, organizing, and maintaining tests. Read this before adding tests. **Behavioral authority:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (and `docs/roadmap.md` for scope).
 
 ---
 
 ## Guiding principles
 
 1. **Verify before fixing.** Every "bug" is a hypothesis until a test fails. Write the test first when possible.
-2. **Source + spec over old tests.** If a test disagrees with `GRAPHREFLY-SPEC.md` or the implementation’s intended semantics, fix the test or the code — the spec wins for GraphReFly.
+2. **Source + spec over old tests.** If a test disagrees with `~/src/graphrefly/GRAPHREFLY-SPEC.md` or the implementation’s intended semantics, fix the test or the code — the spec wins for GraphReFly.
 3. **Test what the code should do.** Express correct semantics; failures are real bugs or spec gaps.
 4. **One concern per test.** Each `it()` should assert one behavior; avoid bundling unrelated scenarios.
 5. **Protocol-level assertions.** Prefer helpers that record **`[[Type, Data?], ...]`** sequences (and, when implemented, **`Graph.observe()`**) over ad-hoc sinks. See §Observation below.
@@ -129,7 +129,7 @@ Do not delete regression tests without explicit reason.
 
 ## Authority hierarchy (tests)
 
-1. **`docs/GRAPHREFLY-SPEC.md`**
+1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`**
 2. **`docs/roadmap.md`** (scope / phase)
 3. Implementation in `src/` when spec is silent — then consider spec clarification
 

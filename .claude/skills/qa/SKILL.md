@@ -29,7 +29,7 @@ Launch these as parallel Agent calls. Each receives the diff and the context fro
 > You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one errors, race conditions, resource leaks, missing error handling, security issues, dead code, unreachable branches. Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail**. Be adversarial — assume bugs exist.
 
 **Subagent 2: Edge Case Hunter** — Has project read access:
-> You are an Edge Case Hunter. Review this diff in the context of **GraphReFly** (`docs/GRAPHREFLY-SPEC.md`): unhandled message sequences (DIRTY without follow-up, DATA vs RESOLVED), diamond resolution (recompute once), COMPLETE/ERROR terminal rules, forward-unknown-types, batch semantics (DATA deferred, DIRTY not), reconnect/teardown leaks, meta companion nodes, and graph mount/signal propagation when `Graph` is in scope. For each finding: **title** | **trigger_condition** | **potential_consequence** | **location** | **suggested_guard**.
+> You are an Edge Case Hunter. Review this diff in the context of **GraphReFly** (`~/src/graphrefly/GRAPHREFLY-SPEC.md`): unhandled message sequences (DIRTY without follow-up, DATA vs RESOLVED), diamond resolution (recompute once), COMPLETE/ERROR terminal rules, forward-unknown-types, batch semantics (DATA deferred, DIRTY not), reconnect/teardown leaks, meta companion nodes, and graph mount/signal propagation when `Graph` is in scope. For each finding: **title** | **trigger_condition** | **potential_consequence** | **location** | **suggested_guard**.
 
 ### 1c. Triage findings
 
@@ -39,7 +39,7 @@ Classify each finding into:
 - **reject** — false positive or noise. Drop silently.
 
 For each **patch** and **defer** finding, evaluate fix priority (most to least important):
-1. **Spec alignment** — matches `docs/GRAPHREFLY-SPEC.md`
+1. **Spec alignment** — matches `~/src/graphrefly/GRAPHREFLY-SPEC.md`
 2. **Semantic correctness** — protocol and node contract
 3. **Completeness** — edge cases covered
 4. **Consistency** — patterns elsewhere in graphrefly-ts
@@ -92,7 +92,7 @@ If a failure is related to an implementation design question, **HALT** and raise
 Update documentation when behavior or public API changed:
 
 - **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
-- **`docs/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
+- **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
 - **`docs/optimizations.md`** — when this review records **open architectural decisions** or cross-language parity notes; mirror substantive entries to **`graphrefly-py/docs/optimizations.md`** if that repo is in the workspace
 - **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages)
 - **New public symbols** — barrel export + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI)

@@ -11,13 +11,18 @@ export type ReactiveLogSnapshot<T> = Versioned<{ entries: readonly T[] }>;
 
 export type ReactiveLogOptions = {
 	name?: string;
+	maxSize?: number;
 };
 
 export type ReactiveLogBundle<T> = {
 	/** Emits {@link ReactiveLogSnapshot} on each append/clear (two-phase). */
 	readonly entries: Node<ReactiveLogSnapshot<T>>;
 	append: (value: T) => void;
+	/** Push all values, trim once, emit one snapshot. */
+	appendMany: (values: readonly T[]) => void;
 	clear: () => void;
+	/** Remove the first `n` entries; emits snapshot. */
+	trimHead: (n: number) => void;
 	/** Last `n` entries (or fewer); updates when the log changes. */
 	tail: (n: number) => Node<readonly T[]>;
 };
@@ -59,8 +64,14 @@ export function reactiveLog<T>(
 	initial?: readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLogBundle<T> {
-	const { name } = options;
+	const { name, maxSize } = options;
+	if (maxSize !== undefined && maxSize < 1) {
+		throw new RangeError("maxSize must be >= 1");
+	}
 	const buf: T[] = initial ? [...initial] : [];
+	if (maxSize !== undefined && buf.length > maxSize) {
+		buf.splice(0, buf.length - maxSize);
+	}
 	let current: ReactiveLogSnapshot<T> =
 		buf.length > 0 ? { version: 1, value: { entries: [...buf] } } : emptySnapshot();
 
@@ -78,17 +89,45 @@ export function reactiveLog<T>(
 		});
 	}
 
+	function trimBuf(): void {
+		if (maxSize !== undefined && buf.length > maxSize) {
+			buf.splice(0, buf.length - maxSize);
+		}
+	}
+
 	const bundle: ReactiveLogBundle<T> = {
 		entries,
 
 		append(value: T): void {
 			buf.push(value);
+			trimBuf();
+			pushSnapshot();
+		},
+
+		appendMany(values: readonly T[]): void {
+			if (values.length === 0) return;
+			buf.push(...values);
+			trimBuf();
 			pushSnapshot();
 		},
 
 		clear(): void {
 			if (buf.length === 0) return;
 			buf.length = 0;
+			pushSnapshot();
+		},
+
+		trimHead(n: number): void {
+			if (n < 0) {
+				throw new RangeError("n must be >= 0");
+			}
+			if (n === 0) return;
+			if (n >= buf.length) {
+				if (buf.length === 0) return;
+				buf.length = 0;
+			} else {
+				buf.splice(0, n);
+			}
 			pushSnapshot();
 		},
 

@@ -37,8 +37,9 @@ m.node.subscribe((msgs) => {
 
 - **TTL:** Expiry is checked on `get`, `has`, `size`, `pruneExpired`, and before each
 snapshot emission (expired keys are pruned first). There is no
-background timer; wall-clock–expired keys may still appear in the last-emitted
+background timer; monotonic-clock–expired keys may still appear in the last-emitted
 snapshot on `node` until a read or `pruneExpired` removes them.
+Uses `performance.now()` (monotonic in Node.js) — immune to wall-clock adjustments.
 
 **LRU:** Uses native `Map` insertion order — `get` / `has` refreshes position; under
 `maxSize` pressure the first key in iteration order is evicted. When `maxSize` is

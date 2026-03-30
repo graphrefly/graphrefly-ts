@@ -41,8 +41,8 @@ const b = node([a], ([x]) => (x as number) + 1);
 
 ## Behavior Details
 
-- **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `GRAPHREFLY-SPEC.md`.
+- **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
 
 ## See Also
 
-- [GRAPHREFLY-SPEC.md](/spec)
+- [Specification](/spec)

@@ -469,13 +469,13 @@ As observability/debug hooks are added, a build-time stripped entry point could 
 
 ## Open design decisions (needs product/spec call)
 
-These came out of QA review; behavior is **not** “wrong” until aligned with `docs/GRAPHREFLY-SPEC.md` and roadmap intent.
+These came out of QA review; behavior is **not** “wrong” until aligned with `~/src/graphrefly/GRAPHREFLY-SPEC.md` and roadmap intent.
 
 ### A. `COMPLETE` when all dependencies complete
 
 **Current behavior:** A node with dependencies and a compute `fn` may emit `[[COMPLETE]]` when **every** upstream dependency has emitted `COMPLETE`.
 
-**Spec note:** `GRAPHREFLY-SPEC.md` §1.3.5 states that **effect** nodes complete when all deps complete — it does not necessarily require the same rule for derived/operator-style nodes.
+**Spec note:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` §1.3.5 states that **effect** nodes complete when all deps complete — it does not necessarily require the same rule for derived/operator-style nodes.
 
 **Decision needed:** Should auto-completion apply only to side-effect nodes (`fn` returns nothing), always, never, or behind an explicit option (e.g. `completeWhenDepsComplete`)?
 
@@ -489,7 +489,7 @@ These came out of QA review; behavior is **not** “wrong” until aligned with 
 
 **Why:** Dependencies are fixed when the node is created. True single-edge removal would require core APIs (partial upstream unsubscribe, bitmask width and diamond invariants, thread-safety on the Python side, etc.).
 
-**Decision needed:** Is registry-only `disconnect` the long-term contract (documentation + `describe()` as source of truth), or should a later phase add **dynamic topology** so `disconnect` (or a new API) actually detaches one dep? Align with `GRAPHREFLY-SPEC.md` §3.3 when the spec is tightened.
+**Decision needed:** Is registry-only `disconnect` the long-term contract (documentation + `describe()` as source of truth), or should a later phase add **dynamic topology** so `disconnect` (or a new API) actually detaches one dep? Align with `~/src/graphrefly/GRAPHREFLY-SPEC.md` §3.3 when the spec is tightened.
 
 ### D. Tier-2 time operators — `asyncio` vs wall-clock timers
 

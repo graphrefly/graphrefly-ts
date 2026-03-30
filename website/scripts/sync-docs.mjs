@@ -12,8 +12,8 @@ const checkMode = process.argv.includes("--check");
 
 /**
  * Sources:
- *   - SHARED: pulled from ~/src/graphrefly (canonical spec repo)
- *   - LOCAL:  pulled from this repo's docs/
+ *   - SHARED: `GRAPHREFLY-SPEC.md` from ~/src/graphrefly only (sibling `graphrefly` repo)
+ *   - LOCAL: other markdown from this repo's docs/
  *
  * Format: [sourceDir, srcName, destName, title]
  */
@@ -85,13 +85,10 @@ mkdirSync(outDir, { recursive: true });
 
 let stale = 0;
 
-// Shared spec from canonical repo
+// Shared spec from canonical repo (no in-repo docs/ copy)
 for (const [srcName, destName, defaultTitle] of SHARED_FILES) {
 	const srcPath = join(specRepo, srcName);
-	// Fallback: if shared repo not found, try local docs/
-	const fallbackPath = join(repoDocs, srcName);
-	const path = existsSync(srcPath) ? srcPath : fallbackPath;
-	if (syncFile(path, destName, defaultTitle)) stale++;
+	if (syncFile(srcPath, destName, defaultTitle)) stale++;
 }
 
 // Local docs from this repo

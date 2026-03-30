@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
-import { pipe, producer, state } from "../../core/sugar.js";
+import { producer, state } from "../../core/sugar.js";
 import {
 	constant,
 	decorrelatedJitter,
@@ -130,7 +130,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ resubscribable: true },
 			);
-			const out = retry({ count: 0 })(src);
+			const out = retry(src, { count: 0 });
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
 			unsub();
@@ -150,7 +150,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ resubscribable: true },
 			);
-			const out = retry({ count: 2, backoff: constant(0) })(src);
+			const out = retry(src, { count: 2, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -293,7 +293,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
 			vi.useFakeTimers();
 			const s = state(0);
-			const out = rateLimiter(1, 1 * NS_PER_SEC)(s);
+			const out = rateLimiter(s, 1, 1 * NS_PER_SEC);
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 1]]);
 			s.down([[DATA, 2]]);
@@ -389,7 +389,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 	describe("pipe composition", () => {
 		it("pipe accepts retry operator", () => {
 			const s = state(1);
-			const out = pipe(s, retry({ count: 0 }));
+			const out = retry(s, { count: 0 });
 			expect(out.get()).toBe(1);
 		});
 	});

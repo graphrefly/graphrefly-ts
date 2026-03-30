@@ -4,7 +4,7 @@
 import { batch } from "../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
-import { type PipeOperator, producer } from "../core/sugar.js";
+import { producer } from "../core/sugar.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
@@ -43,10 +43,11 @@ export type RetryOptions = {
 };
 
 /**
- * Returns a {@link PipeOperator} that resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
+ * Resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
  *
+ * @param source - Upstream node (should use `resubscribable: true`).
  * @param opts - `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name).
- * @returns Unary operator suitable for {@link pipe}.
+ * @returns Node that retries on error.
  *
  * @remarks
  * **Resubscribable sources:** The upstream should use `resubscribable: true` if it must emit again after `ERROR`.
@@ -62,12 +63,12 @@ export type RetryOptions = {
  *   },
  *   { resubscribable: true },
  * );
- * pipe(src, retry({ count: 2, backoff: constant(0.25 * NS_PER_SEC) }));
+ * const out = retry(src, { count: 2, backoff: constant(0.25 * NS_PER_SEC) });
  * ```
  *
  * @category extra
  */
-export function retry(opts?: RetryOptions): PipeOperator {
+export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 	const count = opts?.count;
 	const backoffOpt = opts?.backoff;
 	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
@@ -80,89 +81,87 @@ export function retry(opts?: RetryOptions): PipeOperator {
 				? resolveBackoffPreset(backoffOpt)
 				: backoffOpt;
 
-	return function retryOperator<T>(source: Node<T>): Node<T> {
-		return producer<T>(
-			(_d, a) => {
-				let attempt = 0;
-				let stopped = false;
-				let prevDelay: number | null = null;
-				let unsub: (() => void) | undefined;
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				let timerGen = 0;
+	return producer<T>(
+		(_d, a) => {
+			let attempt = 0;
+			let stopped = false;
+			let prevDelay: number | null = null;
+			let unsub: (() => void) | undefined;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			let timerGen = 0;
 
-				function cancelTimer(): void {
-					if (timer !== undefined) {
-						clearTimeout(timer);
-						timer = undefined;
+			function cancelTimer(): void {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+					timer = undefined;
+				}
+			}
+
+			function disconnectUpstream(): void {
+				unsub?.();
+				unsub = undefined;
+			}
+
+			function scheduleRetryOrFinish(err: unknown): void {
+				if (stopped) return;
+				if (attempt >= maxRetries) {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
+				const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
+				const delayNs = coerceDelayNs(raw === undefined ? null : raw);
+				prevDelay = delayNs;
+				attempt += 1;
+				timerGen += 1;
+				const gen = timerGen;
+				disconnectUpstream();
+				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
+
+				timer = setTimeout(() => {
+					timer = undefined;
+					if (stopped || gen !== timerGen) return;
+					connect();
+				}, delayMs);
+			}
+
+			function connect(): void {
+				cancelTimer();
+				disconnectUpstream();
+				unsub = source.subscribe((msgs) => {
+					for (const m of msgs) {
+						const t = m[0];
+						if (t === DIRTY) a.down([[DIRTY]]);
+						else if (t === DATA) {
+							attempt = 0;
+							prevDelay = null;
+							a.emit(m[1] as T);
+						} else if (t === RESOLVED) a.down([[RESOLVED]]);
+						else if (t === COMPLETE) {
+							disconnectUpstream();
+							a.down([[COMPLETE]]);
+						} else if (t === ERROR) {
+							scheduleRetryOrFinish(msgVal(m));
+							return;
+						} else a.down([m]);
 					}
-				}
+				});
+			}
 
-				function disconnectUpstream(): void {
-					unsub?.();
-					unsub = undefined;
-				}
+			connect();
 
-				function scheduleRetryOrFinish(err: unknown): void {
-					if (stopped) return;
-					if (attempt >= maxRetries) {
-						disconnectUpstream();
-						a.down([[ERROR, err]]);
-						return;
-					}
-					const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
-					const delayNs = coerceDelayNs(raw === undefined ? null : raw);
-					prevDelay = delayNs;
-					attempt += 1;
-					timerGen += 1;
-					const gen = timerGen;
-					disconnectUpstream();
-					const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
-
-					timer = setTimeout(() => {
-						timer = undefined;
-						if (stopped || gen !== timerGen) return;
-						connect();
-					}, delayMs);
-				}
-
-				function connect(): void {
-					cancelTimer();
-					disconnectUpstream();
-					unsub = source.subscribe((msgs) => {
-						for (const m of msgs) {
-							const t = m[0];
-							if (t === DIRTY) a.down([[DIRTY]]);
-							else if (t === DATA) {
-								attempt = 0;
-								prevDelay = null;
-								a.emit(m[1] as T);
-							} else if (t === RESOLVED) a.down([[RESOLVED]]);
-							else if (t === COMPLETE) {
-								disconnectUpstream();
-								a.down([[COMPLETE]]);
-							} else if (t === ERROR) {
-								scheduleRetryOrFinish(msgVal(m));
-								return;
-							} else a.down([m]);
-						}
-					});
-				}
-
-				connect();
-
-				return () => {
-					stopped = true;
-					timerGen += 1;
-					cancelTimer();
-					disconnectUpstream();
-				};
-			},
-			{
-				...operatorOpts(),
-				initial: source.get(),
-			},
-		);
-	};
+			return () => {
+				stopped = true;
+				timerGen += 1;
+				cancelTimer();
+				disconnectUpstream();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: source.get(),
+		},
+	);
 }
 
 export type CircuitState = "closed" | "open" | "half-open";
@@ -453,101 +452,100 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 }
 
 /**
- * Returns a {@link PipeOperator} that enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
+ * Enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
  *
+ * @param source - Upstream node.
  * @param maxEvents - Maximum `DATA` emissions per window (must be positive).
  * @param windowNs - Window length in nanoseconds (must be positive).
- * @returns Unary operator; excess values queue FIFO until a slot frees.
+ * @returns Node that queues excess values FIFO until a slot frees.
  *
  * @remarks
  * **Terminal:** `COMPLETE` / `ERROR` cancel timers, drop pending queue, and clear window state.
  *
  * @category extra
  */
-export function rateLimiter(maxEvents: number, windowNs: number): PipeOperator {
+export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): Node<T> {
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
 	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
 	const windowMs = windowNs / NS_PER_MS;
 
-	return function rateLimitOperator<T>(source: Node<T>): Node<T> {
-		return producer<T>(
-			(_d, a) => {
-				const times: number[] = [];
-				const pending: T[] = [];
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				let timerGen = 0;
+	return producer<T>(
+		(_d, a) => {
+			const times: number[] = [];
+			const pending: T[] = [];
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			let timerGen = 0;
 
-				function cancelTimer(): void {
-					if (timer !== undefined) {
-						clearTimeout(timer);
-						timer = undefined;
-					}
+			function cancelTimer(): void {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+					timer = undefined;
 				}
+			}
 
-				function prune(now: number): void {
-					const boundary = now - windowMs;
-					while (times.length > 0 && times[0] <= boundary) times.shift();
-				}
+			function prune(now: number): void {
+				const boundary = now - windowMs;
+				while (times.length > 0 && times[0] <= boundary) times.shift();
+			}
 
-				function tryEmit(): void {
-					while (pending.length > 0) {
-						const now = performance.now();
-						prune(now);
-						if (times.length < maxEvents) {
-							times.push(now);
-							a.emit(pending.shift() as T);
-						} else {
-							const oldest = times[0];
-							cancelTimer();
-							timerGen += 1;
-							const gen = timerGen;
-							const delay = Math.max(0, oldest + windowMs - performance.now());
-							timer = setTimeout(() => {
-								timer = undefined;
-								if (gen !== timerGen) return;
-								tryEmit();
-							}, delay);
-							return;
-						}
-					}
-				}
-
-				const unsub = source.subscribe((msgs) => {
-					for (const m of msgs) {
-						const t = m[0];
-						if (t === DIRTY) a.down([[DIRTY]]);
-						else if (t === DATA) {
-							pending.push(m[1] as T);
+			function tryEmit(): void {
+				while (pending.length > 0) {
+					const now = performance.now();
+					prune(now);
+					if (times.length < maxEvents) {
+						times.push(now);
+						a.emit(pending.shift() as T);
+					} else {
+						const oldest = times[0];
+						cancelTimer();
+						timerGen += 1;
+						const gen = timerGen;
+						const delay = Math.max(0, oldest + windowMs - performance.now());
+						timer = setTimeout(() => {
+							timer = undefined;
+							if (gen !== timerGen) return;
 							tryEmit();
-						} else if (t === RESOLVED) a.down([[RESOLVED]]);
-						else if (t === COMPLETE) {
-							timerGen += 1;
-							cancelTimer();
-							pending.length = 0;
-							times.length = 0;
-							a.down([[COMPLETE]]);
-						} else if (t === ERROR) {
-							timerGen += 1;
-							cancelTimer();
-							pending.length = 0;
-							times.length = 0;
-							a.down([m]);
-						} else a.down([m]);
+						}, delay);
+						return;
 					}
-				});
+				}
+			}
 
-				return () => {
-					timerGen += 1;
-					cancelTimer();
-					unsub();
-				};
-			},
-			{
-				...operatorOpts(),
-				initial: source.get(),
-			},
-		);
-	};
+			const unsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DIRTY) a.down([[DIRTY]]);
+					else if (t === DATA) {
+						pending.push(m[1] as T);
+						tryEmit();
+					} else if (t === RESOLVED) a.down([[RESOLVED]]);
+					else if (t === COMPLETE) {
+						timerGen += 1;
+						cancelTimer();
+						pending.length = 0;
+						times.length = 0;
+						a.down([[COMPLETE]]);
+					} else if (t === ERROR) {
+						timerGen += 1;
+						cancelTimer();
+						pending.length = 0;
+						times.length = 0;
+						a.down([m]);
+					} else a.down([m]);
+				}
+			});
+
+			return () => {
+				timerGen += 1;
+				cancelTimer();
+				unsub();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: source.get(),
+		},
+	);
 }
 
 export type StatusValue = "pending" | "active" | "completed" | "errored";

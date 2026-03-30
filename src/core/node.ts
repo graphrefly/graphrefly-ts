@@ -592,8 +592,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 			if (t === INVALIDATE) {
 				// GRAPHREFLY-SPEC §1.2: clear cached state; do not auto-emit from here.
-				this._cleanup?.();
+				const cleanupFn = this._cleanup;
 				this._cleanup = undefined;
+				cleanupFn?.();
 				this._cached = undefined;
 				this._lastDepValues = undefined;
 			}
@@ -605,6 +606,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				if (this._opts.resetOnTeardown) {
 					this._cached = undefined;
 				}
+				// Invoke cleanup for compute nodes (deps+fn) — spec §2.4
+				// requires cleanup on teardown, not just before next invocation.
+				// _stopProducer handles cleanup for producer nodes separately.
+				const teardownCleanup = this._cleanup;
+				this._cleanup = undefined;
+				teardownCleanup?.();
 				// Propagate TEARDOWN to companion meta nodes so their
 				// subscribers are notified and resources released (§5.1).
 				// COMPLETE/ERROR are intentionally NOT propagated — meta
@@ -668,8 +675,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					return;
 				}
 			}
-			this._cleanup?.();
+			const prevCleanup = this._cleanup;
 			this._cleanup = undefined;
+			prevCleanup?.();
 			this._manualEmitUsed = false;
 			this._lastDepValues = depValues;
 			const out = this._fn(depValues, this._actions);
@@ -809,8 +817,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_stopProducer(): void {
 		if (!this._producerStarted) return;
 		this._producerStarted = false;
-		this._cleanup?.();
+		const producerCleanup = this._cleanup;
 		this._cleanup = undefined;
+		producerCleanup?.();
 	}
 
 	_startProducer(): void {
@@ -844,7 +853,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
  * @returns `Node<T>` - Configured node instance (lazy until subscribed).
  *
  * @remarks
- * **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `GRAPHREFLY-SPEC.md`.
+ * **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
  *
  * @example
  * ```ts
@@ -854,7 +863,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
  * const b = node([a], ([x]) => (x as number) + 1);
  * ```
  *
- * @seeAlso [GRAPHREFLY-SPEC.md](/spec)
+ * @seeAlso [Specification](/spec)
  *
  * @category core
  */

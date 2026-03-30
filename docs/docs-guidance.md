@@ -18,7 +18,7 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 
 | Tier | What | Where it lives | Flows to |
 |------|------|----------------|----------|
-| **0 — Protocol spec** | `GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` (canonical) | Both sites via `sync-docs.mjs` |
+| **0 — Protocol spec** | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` repo (sibling checkout) | Both sites via `sync-docs.mjs` |
 | **1 — JSDoc** | Structured doc blocks on exports | `src/**/*.ts` | Generated API pages via `gen-api-docs.mjs` → `website/src/content/docs/api/` |
 | **2 — Runnable examples** | Self-contained scripts using public imports | `examples/*.ts` | Imported by recipes + demos |
 | **3 — Recipes / guides** | Long-form Starlight pages with context | `website/src/content/docs/recipes/` | Pull code from `examples/` via Starlight file imports |
@@ -62,7 +62,7 @@ pnpm --filter @graphrefly/docs-site sync-docs --check      # CI dry-run — exit
 
 | Source | Origin |
 |--------|--------|
-| `GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` (shared spec repo) with fallback to `docs/` |
+| `~/src/graphrefly/GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` repo only (no in-repo copy) |
 | `roadmap.md`, `optimizations.md`, etc. | `docs/` (this repo) |
 
 Both `sync-docs` and `docs:gen` run automatically on `pnpm dev` and `pnpm build` (via `predev`/`prebuild` hooks).
@@ -140,7 +140,6 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | What | Where | Editable? |
 |------|-------|-----------|
 | Canonical spec | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Yes — coordinate across repos |
-| Local spec copy | `docs/GRAPHREFLY-SPEC.md` | Synced — prefer editing canonical |
 | Source of truth (JSDoc) | `src/core/*.ts`, `src/extra/*.ts`, `src/graph/*.ts` | Yes — primary edit target |
 | API doc generator | `website/scripts/gen-api-docs.mjs` | Yes — add new entries to REGISTRY |
 | Generated API pages | `website/src/content/docs/api/*.md` | **No** — regenerated from JSDoc |

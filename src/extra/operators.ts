@@ -722,7 +722,7 @@ export function withLatestFrom<A, B>(
  * @returns `Node<T>` - Merged stream.
  *
  * @remarks
- * **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `GRAPHREFLY-SPEC.md`.
+ * **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
  *
  * @example
  * ```ts

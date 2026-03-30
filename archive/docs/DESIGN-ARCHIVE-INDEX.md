@@ -39,7 +39,7 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Validated scenarios:** LLM cost control, security policy, human-in-the-loop, Excel calculations, multi-agent routing, LLM graph building, git versioning.
 
-**Outcome:** `docs/GRAPHREFLY-SPEC.md` (v0.1.0), `docs/roadmap.md`, new repo decision.
+**Outcome:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (v0.1.0), `docs/roadmap.md`, new repo decision.
 
 ### Session web3-integration-research (March 27-28) — Web3 Integration Sketch: Security, OMS, Agent Commerce
 **Topic:** Research into how GraphReFly maps onto Web3 security monitoring ($3.4B lost in 2025), AI agent commerce (x402/ERC-8004/ERC-8183), and the missing reactive order management layer for decentralized systems.
@@ -80,7 +80,7 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 ## Reading Guide
 
-**For architecture newcomers:** Start with the spec (`docs/GRAPHREFLY-SPEC.md`), then this session.
+**For architecture newcomers:** Start with the spec (`~/src/graphrefly/GRAPHREFLY-SPEC.md`), then this session.
 
 **For callbag-recharge context:** Read the predecessor archive index in the callbag-recharge repo, focusing on the sessions listed above.
 

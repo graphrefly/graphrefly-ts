@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Spec:** [GRAPHREFLY-SPEC.md](GRAPHREFLY-SPEC.md)
+> **Spec:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical; not vendored in this repo)
 >
 > **Guidance:** [docs-guidance.md](docs-guidance.md) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
 >
@@ -14,7 +14,7 @@
 ### 0.1 — Project scaffold
 
 - [x] Repository setup: pnpm, tsup, vitest, biome
-- [x] `GRAPHREFLY-SPEC.md` in docs
+- [x] Behavioral spec read from `~/src/graphrefly/GRAPHREFLY-SPEC.md` only (no `docs/` copy)
 - [x] Folder structure: `src/core/`, `src/extra/`, `src/graph/`
 - [x] Package config: `@graphrefly/graphrefly-ts`, ESM + CJS + .d.ts
 
@@ -184,6 +184,43 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 - [x] `reactiveList` (positional operations)
 - [x] `pubsub` (lazy topic stores)
 
+### 3.3 — Inspector (graph-native debugging for humans & AI)
+
+Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). In GraphReFly the graph IS the introspection layer — these extend `describe()` and `observe()` rather than adding a separate object. Needed before Phase 4: orchestration and agent loops are impractical to debug without causal tracing and structured observation.
+
+**Predecessor reference:** `~/src/callbag-recharge/src/core/inspector.ts`
+
+#### Structured observation (extend `observe`)
+
+- [ ] `observe()` returns `ObserveResult` object: `{ values, dirtyCount, resolvedCount, events, completedCleanly, errored, dispose }` — not just a raw stream
+- [ ] `observe(name, { timeline: true })` — timestamped events with batch context (`{ timestamp, type, data, inBatch }`)
+- [ ] `observe(name, { causal: true })` — which dep triggered recomputation: `{ triggerDepIndex, triggerDepName, depValues }`
+- [ ] `observe(name, { derived: true })` — per-evaluation dep snapshots for derived/compute nodes
+
+#### Graph queries (extend `describe`)
+
+- [ ] `graph.query(filter)` — filtered describe: `graph.query({ status: "errored" })`, `graph.query({ type: "state", meta: { access: "both" } })`
+- [ ] `graph.diff(snapshotA, snapshotB)` — structural + value diff between two snapshots (nodes changed, edges added/removed, values changed)
+
+#### Reasoning trace (AI agent observability)
+
+- [ ] `graph.annotate(name, reason)` — attach a reasoning annotation to a node (why an AI made a decision)
+- [ ] `graph.traceLog()` — chronological log of all annotations (ring buffer, configurable size)
+
+#### Diagram export
+
+- [ ] `graph.toMermaid(opts?)` — Mermaid flowchart (TD/LR/BT/RL directions)
+- [ ] `graph.toD2(opts?)` — D2 diagram
+
+#### Performance gating
+
+- [ ] `Graph.inspectorEnabled` flag — all structured observation, timeline, causal trace, and annotation have zero overhead when disabled (default: enabled outside production)
+
+#### Convenience
+
+- [ ] `graph.spy(name?)` — observe + console/logger output (for quick debugging)
+- [ ] `graph.dumpGraph()` — pretty-print topology with values and statuses (CLI-friendly)
+
 ---
 
 ## Phase 4: Domain Layers (Graph Factories)
@@ -196,7 +233,6 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 - [ ] `task()`, `branch()`, `gate()`, `approval()`
 - [ ] `forEach()`, `join()`, `loop()`, `subPipeline()`
 - [ ] `sensor()`, `wait()`, `onFailure()`
-- [ ] `toMermaid()` / `toD2()` diagram export
 
 ### 4.2 — Messaging
 

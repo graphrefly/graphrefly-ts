@@ -6,7 +6,7 @@
 
 | Doc | Role |
 |-----|------|
-| `docs/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
+| `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
 | `docs/roadmap.md` | Phased implementation checklist |
 | `docs/docs-guidance.md` | How to document APIs and long-form docs |
 | `docs/test-guidance.md` | How to write and organize tests |
@@ -20,7 +20,7 @@ The **callbag-recharge** codebase at **`~/src/callbag-recharge`** is the mature 
 - **Test** structure inspiration (adapt to GraphReFly APIs and message tuples)
 - **Documentation** pipeline ideas (`docs/docs-guidance.md` defers to that repo where graphrefly-ts has not yet added the same tooling)
 
-**Do not** treat callbag-recharge as the authority for GraphReFly behavior. Always reconcile with `docs/GRAPHREFLY-SPEC.md`.
+**Do not** treat callbag-recharge as the authority for GraphReFly behavior. Always reconcile with `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
 
 ## Layout
 

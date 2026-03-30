@@ -1,5 +1,5 @@
 /**
- * GraphReFly message protocol — §1 `docs/GRAPHREFLY-SPEC.md`.
+ * GraphReFly message protocol — §1 `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
  * Emissions are always `[[Type, Data?], ...]` (no single-tuple shorthand).
  */
 

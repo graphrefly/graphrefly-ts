@@ -44,30 +44,18 @@ export type EventTargetLike = {
 };
 
 function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void): Node<T> {
-	return {
-		get name() {
-			return inner.name;
-		},
-		get status() {
-			return inner.status;
-		},
-		get meta() {
-			return inner.meta;
-		},
-		get: () => inner.get(),
-		down: (messages, options) => inner.down(messages, options),
-		subscribe(sink, hints) {
-			before(sink);
-			return inner.subscribe(sink, hints);
-		},
-		up: inner.up,
-		unsubscribe: inner.unsubscribe,
-		get lastMutation() {
-			return inner.lastMutation;
-		},
-		allowsObserve: (actor) => inner.allowsObserve(actor),
-		hasGuard: () => inner.hasGuard(),
+	// Create a real NodeImpl (via `node()`) so the wrapper works with Graph.add()
+	// and Graph.connect() which require `instanceof NodeImpl`.
+	const wrapper = node<T>([inner], ([val]) => val as T, {
+		describeKind: "operator",
+		initial: inner.get(),
+	});
+	const origSubscribe = wrapper.subscribe.bind(wrapper);
+	(wrapper as { subscribe: typeof wrapper.subscribe }).subscribe = (sink, hints) => {
+		before(sink);
+		return origSubscribe(sink, hints);
 	};
+	return wrapper;
 }
 
 /**

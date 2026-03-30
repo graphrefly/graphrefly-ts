@@ -18,7 +18,7 @@ Determine scope from $ARGUMENTS:
 - If `full`, scan all implemented phases in both roadmaps.
 
 Read in parallel:
-- **This repo:** `docs/optimizations.md` (cross-language notes + gaps), `docs/roadmap.md`, `docs/GRAPHREFLY-SPEC.md` (relevant sections)
+- **This repo:** `docs/optimizations.md` (cross-language notes + gaps), `docs/roadmap.md`, `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
 - **Sibling repo:** `~/src/graphrefly-py/docs/optimizations.md`, `~/src/graphrefly-py/docs/roadmap.md`
 - Source files in the scoped area from **both** repos
 - Test files in the scoped area from **both** repos
@@ -50,7 +50,7 @@ For unintentional gaps found in Phase 2, dig deeper:
 
 1. Read the **implementation** on both sides
 2. Read the **tests** on both sides
-3. Identify the **spec-correct** behavior per `docs/GRAPHREFLY-SPEC.md`
+3. Identify the **spec-correct** behavior per `~/src/graphrefly/GRAPHREFLY-SPEC.md`
 4. For items not covered by the spec, check `docs/optimizations.md` open design decisions
 
 For each gap, classify:
@@ -76,7 +76,7 @@ Each subagent receives the diffs from **both** repos plus the cross-language not
 > You are a Parity Semantic Hunter reviewing **two implementations** of the same reactive graph protocol (graphrefly-ts and graphrefly-py). Both repos just had independent `/dev-dispatch` + `/qa` runs. Review the diffs side by side for: message ordering mismatches between ports, settlement/batch timing differences, edge cases where one port handles a scenario the other doesn't, validation rules present in one but missing from the other, test coverage asymmetry (scenario tested on one side but not the other), naming or path convention drift. For each finding: **title** | **severity** (critical/major/minor) | **which repo** | **detail** | **suggested fix**.
 
 **Subagent 2: Spec Conformance Hunter** — Has read access to both repos + spec:
-> You are a Spec Conformance Hunter. Read `docs/GRAPHREFLY-SPEC.md` and both diffs. Check whether either implementation drifted from the spec during implementation: incorrect message ordering, wrong terminal behavior, batch semantics that don't match spec §2, node lifecycle violations, graph composition contracts (§3) not met, `describe`/`observe` output that doesn't match Appendix B. Also check whether `docs/optimizations.md` cross-language decisions are actually implemented correctly on both sides. For each finding: **title** | **severity** | **spec section** | **which repo(s)** | **detail**.
+> You are a Spec Conformance Hunter. Read `~/src/graphrefly/GRAPHREFLY-SPEC.md` and both diffs. Check whether either implementation drifted from the spec during implementation: incorrect message ordering, wrong terminal behavior, batch semantics that don't match spec §2, node lifecycle violations, graph composition contracts (§3) not met, `describe`/`observe` output that doesn't match Appendix B. Also check whether `docs/optimizations.md` cross-language decisions are actually implemented correctly on both sides. For each finding: **title** | **severity** | **spec section** | **which repo(s)** | **detail**.
 
 ### 4c. Triage QA findings
 

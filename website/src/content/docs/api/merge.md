@@ -32,4 +32,4 @@ const n = merge([state(1), state(2)]);
 
 ## Behavior Details
 
-- **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `GRAPHREFLY-SPEC.md`.
+- **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
