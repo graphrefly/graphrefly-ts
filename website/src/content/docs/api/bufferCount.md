@@ -17,7 +17,7 @@ function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `count` | `number` | Buffer size before emit; must be &gt; 0. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

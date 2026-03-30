@@ -8,15 +8,14 @@ First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-
 ## Signature
 
 ```ts
-function race<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
+function race<T>(...sources: readonly Node<T>[]): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `readonly Node&lt;T&gt;[]` | Contestants (empty completes immediately; one node is identity). |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `sources` | `readonly Node&lt;T&gt;[]` | Contestants (variadic; empty completes immediately; one node is identity). |
 
 ## Returns
 
@@ -27,5 +26,5 @@ function race<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
 ```ts
 import { race, state } from "@graphrefly/graphrefly-ts";
 
-const n = race([state(1), state(2)]);
+const n = race(state(1), state(2));
 ```

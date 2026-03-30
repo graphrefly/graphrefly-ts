@@ -21,7 +21,7 @@ function distinctUntilChanged<T>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `equals` | `(a: T, b: T) =&gt; boolean` | Optional equality for consecutive values. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

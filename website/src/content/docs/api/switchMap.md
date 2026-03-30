@@ -21,7 +21,7 @@ function switchMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

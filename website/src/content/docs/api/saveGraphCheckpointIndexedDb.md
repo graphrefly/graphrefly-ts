@@ -1,17 +1,17 @@
 ---
 title: "saveGraphCheckpointIndexedDb()"
-description: "Persists  under `spec.key` (browser IndexedDB)."
+description: "Persists Graph.snapshot under `spec.key` (browser IndexedDB)."
 ---
 
-Persists  under `spec.key` (browser IndexedDB).
+Persists Graph.snapshot under `spec.key` (browser IndexedDB).
 
 ## Signature
 
 ```ts
-async function saveGraphCheckpointIndexedDb(
+function saveGraphCheckpointIndexedDb(
 	graph: Graph,
 	spec: IndexedDbCheckpointSpec,
-): Promise<void>
+): Node<void>
 ```
 
 ## Parameters
@@ -21,6 +21,10 @@ async function saveGraphCheckpointIndexedDb(
 | `graph` | `Graph` | Graph to snapshot. |
 | `spec` | `IndexedDbCheckpointSpec` | Database name, object store name, optional `key` and schema `version`. |
 
+## Returns
+
+A reactive `Node&lt;void&gt;` that emits `DATA` (`undefined`) then `COMPLETE` on success, or `ERROR` on failure.
+
 ## Behavior Details
 
-- **Environment:** Throws if `indexedDB` is undefined (Node tests).
+- **Environment:** Emits `ERROR` if `indexedDB` is undefined (e.g. Node without a polyfill).

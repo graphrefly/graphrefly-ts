@@ -1,9 +1,9 @@
 ---
 title: "restoreGraphCheckpoint()"
-description: "Loads a snapshot via `adapter.load` and applies  when data exists."
+description: "Loads a snapshot via `adapter.load` and applies Graph.restore when data exists."
 ---
 
-Loads a snapshot via `adapter.load` and applies  when data exists.
+Loads a snapshot via `adapter.load` and applies Graph.restore when data exists.
 
 ## Signature
 

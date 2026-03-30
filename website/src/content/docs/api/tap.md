@@ -1,14 +1,21 @@
 ---
 title: "tap()"
-description: "Invokes `fn` for side effects; values pass through unchanged."
+description: "Invokes side effects; values pass through unchanged.\n\nAccepts either a function (called on each DATA) or an observer object\n`{ data?, error?, complete? }` for l"
 ---
 
-Invokes `fn` for side effects; values pass through unchanged.
+Invokes side effects; values pass through unchanged.
+
+Accepts either a function (called on each DATA) or an observer object
+`{ data?, error?, complete? }` for lifecycle-aware side effects.
 
 ## Signature
 
 ```ts
-function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): Node<T>
+function tap<T>(
+	source: Node<T>,
+	fnOrObserver: ((value: T) => void) | TapObserver<T>,
+	opts?: ExtraOpts,
+): Node<T>
 ```
 
 ## Parameters
@@ -16,8 +23,8 @@ function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): Node
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `fn` | `(value: T) =&gt; void` | Side effect per value. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `fnOrObserver` | `((value: T) =&gt; void) | TapObserver&lt;T&gt;` | Side effect function or observer object. |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 
@@ -28,5 +35,9 @@ function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): Node
 ```ts
 import { tap, state } from "@graphrefly/graphrefly-ts";
 
-const n = tap(state(1), (x) => console.log(x));
+// Function form (DATA only)
+tap(state(1), (x) => console.log(x));
+
+// Observer form (DATA + ERROR + COMPLETE)
+tap(state(1), { data: console.log, error: console.error, complete: () => console.log("done") });
 ```

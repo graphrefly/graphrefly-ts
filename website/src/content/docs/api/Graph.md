@@ -22,5 +22,5 @@ class Graph
 import { Graph, state } from "@graphrefly/graphrefly-ts";
 
 const g = new Graph("app");
-g.register("counter", state(0));
+g.add("counter", state(0));
 ```

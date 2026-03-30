@@ -1,9 +1,9 @@
 ---
 title: "pubsub()"
-description: "Creates an empty  for lazy topic nodes."
+description: "Creates an empty PubSubHub for lazy topic nodes."
 ---
 
-Creates an empty  for lazy topic nodes.
+Creates an empty PubSubHub for lazy topic nodes.
 
 ## Signature
 
@@ -13,7 +13,7 @@ function pubsub(): PubSubHub
 
 ## Returns
 
-A new hub with no topics until  or  runs.
+A new hub with no topics until PubSubHub.topic or PubSubHub.publish runs.
 
 ## Basic Usage
 
@@ -24,4 +24,5 @@ const hub = pubsub();
 const t = hub.topic("events");
 t.subscribe((msgs) => console.log(msgs));
 hub.publish("events", { ok: true });
+hub.removeTopic("events"); // tears down the node
 ```

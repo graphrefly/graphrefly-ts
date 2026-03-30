@@ -20,4 +20,4 @@ function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC): Back
 
 ## Returns
 
-`BackoffStrategy` for .
+`BackoffStrategy` for retry.

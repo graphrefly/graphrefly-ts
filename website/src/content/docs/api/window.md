@@ -21,8 +21,16 @@ function window<T>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `notifier` | `Node&lt;unknown&gt;` | Each `DATA` from `notifier` closes the current window and opens a new one. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 
 `Node&lt;Node&lt;T&gt;&gt;` - Each emission is a sub-node carrying that window's values.
+
+## Basic Usage
+
+```ts
+import { state, window } from "@graphrefly/graphrefly-ts";
+
+window(state(0), state(0));
+```

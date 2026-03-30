@@ -1,9 +1,9 @@
 ---
 title: "mergeMap()"
-description: "Subscribes to every inner in parallel and merges outputs (`mergeMap` / `flatMap`)."
+description: "Subscribes to inner nodes in parallel (up to `concurrent`) and merges outputs (`mergeMap` / `flatMap`)."
 ---
 
-Subscribes to every inner in parallel and merges outputs (`mergeMap` / `flatMap`).
+Subscribes to inner nodes in parallel (up to `concurrent`) and merges outputs (`mergeMap` / `flatMap`).
 
 ## Signature
 
@@ -11,7 +11,7 @@ Subscribes to every inner in parallel and merges outputs (`mergeMap` / `flatMap`
 function mergeMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => Node<R>,
-	opts?: ExtraOpts,
+	opts?: MergeMapOptions,
 ): Node<R>
 ```
 
@@ -21,7 +21,7 @@ function mergeMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `MergeMapOptions` | Optional options including `concurrent` limit. |
 
 ## Returns
 
@@ -32,5 +32,9 @@ function mergeMap<T, R>(
 ```ts
 import { mergeMap, state } from "@graphrefly/graphrefly-ts";
 
+// Unbounded (default)
 mergeMap(state(0), (n) => state((n as number) + 1));
+
+// Limited concurrency
+mergeMap(state(0), (n) => state((n as number) + 1), { concurrent: 3 });
 ```

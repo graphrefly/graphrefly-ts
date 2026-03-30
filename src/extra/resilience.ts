@@ -452,6 +452,19 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 }
 
 /**
+ * Same behavior as {@link tokenBucket}. Exposed for naming parity with graphrefly-py (`token_tracker`).
+ *
+ * @param capacity - Maximum tokens (must be positive).
+ * @param refillPerSecond - Tokens added per elapsed second (non-negative).
+ * @returns A {@link TokenBucket} instance.
+ *
+ * @category extra
+ */
+export function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket {
+	return tokenBucket(capacity, refillPerSecond);
+}
+
+/**
  * Enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
  *
  * @param source - Upstream node.

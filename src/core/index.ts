@@ -3,6 +3,7 @@
  */
 export * from "./actor.js";
 export * from "./batch.js";
+export * from "./dynamic-node.js";
 export * from "./guard.js";
 export * from "./messages.js";
 export * from "./meta.js";

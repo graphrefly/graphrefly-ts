@@ -204,7 +204,7 @@ describe("P0: merge ALL-complete semantics", () => {
 	it("completes only after ALL sources complete", () => {
 		const s1 = state(1);
 		const s2 = state(2);
-		const m = merge([s1, s2]);
+		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
 		s1.down([[COMPLETE]]);
@@ -218,7 +218,7 @@ describe("P0: merge ALL-complete semantics", () => {
 	it("error from one source propagates immediately", () => {
 		const s1 = state(1);
 		const s2 = state(2);
-		const m = merge([s1, s2]);
+		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
 		s1.down([[ERROR, new Error("fail")]]);
@@ -229,7 +229,7 @@ describe("P0: merge ALL-complete semantics", () => {
 	it("forwards values from each source independently", () => {
 		const s1 = state(0);
 		const s2 = state(0);
-		const m = merge([s1, s2]);
+		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
 		batch(() => {
@@ -310,7 +310,7 @@ describe("P1: diamond glitch-freedom", () => {
 		const root = state(1);
 		const left = map(root, (x) => (x as number) * 2);
 		const right = map(root, (x) => (x as number) + 10);
-		const joined = combine([left, right] as const);
+		const joined = combine(left, right);
 
 		const snapshots: unknown[] = [];
 		const unsub = joined.subscribe((batchMsgs: Messages) => {
@@ -403,7 +403,7 @@ describe("P1: combine edge cases", () => {
 	it("error from any source propagates", () => {
 		const s1 = state(1);
 		const s2 = state(2);
-		const c = combine([s1, s2]);
+		const c = combine(s1, s2);
 		const { batches, unsub } = collect(c);
 
 		s1.down([[ERROR, new Error("boom")]]);
@@ -413,7 +413,7 @@ describe("P1: combine edge cases", () => {
 
 	it("single source combine works", () => {
 		const s = state(42);
-		const c = combine([s]);
+		const c = combine(s);
 		const { batches, unsub } = collect(c);
 
 		expect(dataValues(batches).length).toBeGreaterThanOrEqual(1);

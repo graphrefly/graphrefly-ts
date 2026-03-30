@@ -17,7 +17,7 @@ function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `ms` | `number` | Window in milliseconds after each `DATA`. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

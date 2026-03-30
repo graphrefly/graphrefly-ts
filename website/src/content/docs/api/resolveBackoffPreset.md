@@ -1,9 +1,9 @@
 ---
 title: "resolveBackoffPreset()"
-description: "Maps a preset name to a concrete  with library-default parameters."
+description: "Maps a preset name to a concrete BackoffStrategy with library-default parameters."
 ---
 
-Maps a preset name to a concrete  with library-default parameters.
+Maps a preset name to a concrete BackoffStrategy with library-default parameters.
 
 ## Signature
 

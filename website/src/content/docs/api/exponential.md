@@ -19,7 +19,7 @@ function exponential(options?: ExponentialBackoffOptions): BackoffStrategy
 
 ## Returns
 
-`BackoffStrategy` for .
+`BackoffStrategy` for retry.
 
 ## Behavior Details
 

@@ -1,6 +1,15 @@
 import type { Actor } from "../core/actor.js";
 import { GuardDenied } from "../core/guard.js";
-import { COMPLETE, DATA, ERROR, INVALIDATE, type Messages, TEARDOWN } from "../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	INVALIDATE,
+	type Messages,
+	RESOLVED,
+	TEARDOWN,
+} from "../core/messages.js";
 import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
 import { type Node, NodeImpl, type NodeSink, type NodeTransportOptions } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
@@ -16,6 +25,11 @@ export const GRAPH_META_SEGMENT = "__meta__";
 
 /** Options for {@link Graph} (reserved for future hooks). */
 export type GraphOptions = Record<string, unknown>;
+
+/** Filter for {@link Graph.describe} — object-style partial match or predicate. */
+export type DescribeFilter =
+	| Partial<Pick<DescribeNodeOutput, "type" | "status">>
+	| ((node: DescribeNodeOutput) => boolean);
 
 /** Options for {@link Graph.signal} and {@link Graph.set} (actor context, internal lifecycle). */
 export type GraphActorOptions = {
@@ -107,6 +121,42 @@ export type GraphObserveOne = {
  */
 export type GraphObserveAll = {
 	subscribe(sink: (nodePath: string, messages: Messages) => void): () => void;
+};
+
+/** Options for structured observation modes on {@link Graph.observe}. */
+export type ObserveOptions = {
+	actor?: Actor;
+	/** Return an {@link ObserveResult} accumulator instead of a raw stream. */
+	structured?: boolean;
+	/** Include causal trace info (which dep triggered each recomputation). */
+	causal?: boolean;
+	/** Include timestamps and batch context on each event. */
+	timeline?: boolean;
+};
+
+/** Accumulated observation result (structured mode). */
+export type ObserveResult<T = unknown> = {
+	/** All DATA values received so far. */
+	readonly values: T[];
+	/** Number of DIRTY messages received. */
+	readonly dirtyCount: number;
+	/** Number of RESOLVED messages received. */
+	readonly resolvedCount: number;
+	/** All events in order. */
+	readonly events: ObserveEvent[];
+	/** True if COMPLETE received without prior ERROR. */
+	readonly completedCleanly: boolean;
+	/** True if ERROR received. */
+	readonly errored: boolean;
+	/** Stop observing. */
+	dispose(): void;
+};
+
+/** A single event in the structured observation log. */
+export type ObserveEvent = {
+	type: "data" | "dirty" | "resolved" | "complete" | "error";
+	data?: unknown;
+	timestamp?: number;
 };
 
 function assertLocalName(name: string, graphName: string, label: string): void {
@@ -215,6 +265,10 @@ export class Graph {
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
 
+	/**
+	 * @param name - Non-empty graph id (must not contain `::`).
+	 * @param opts - Reserved for future hooks; currently unused.
+	 */
 	constructor(name: string, opts?: GraphOptions) {
 		if (name === "") {
 			throw new Error("Graph name must be non-empty");
@@ -289,8 +343,11 @@ export class Graph {
 	// ——————————————————————————————————————————————————————————————
 
 	/**
-	 * Register a node under a local name. Fails if the name is already used,
+	 * Registers a node under a local name. Fails if the name is already used,
 	 * reserved by a mount, or the same node instance is already registered.
+	 *
+	 * @param name - Local key (no `::`).
+	 * @param node - Node instance to own.
 	 */
 	add(name: string, node: Node): void {
 		assertLocalName(name, this.name, "add");
@@ -316,8 +373,10 @@ export class Graph {
 	}
 
 	/**
-	 * Unregister a node or unmount a subgraph, drop incident edges, and send
+	 * Unregisters a node or unmounts a subgraph, drops incident edges, and sends
 	 * `[[TEARDOWN]]` to the removed node or recursively through the mounted subtree (§3.2).
+	 *
+	 * @param name - Local mount or node name.
 	 */
 	remove(name: string): void {
 		assertLocalName(name, this.name, "remove");
@@ -353,8 +412,10 @@ export class Graph {
 	}
 
 	/**
-	 * Return a node by local name or `::` qualified path.
+	 * Returns a node by local name or `::` qualified path.
 	 * Local names are looked up directly; paths with `::` delegate to {@link resolve}.
+	 *
+	 * @param name - Local name or qualified path.
 	 */
 	node(name: string): Node {
 		if (name === "") {
@@ -370,13 +431,22 @@ export class Graph {
 		return n;
 	}
 
-	/** Current value: `graph.node(name).get()` — accepts `::` qualified paths (§3.2). */
+	/**
+	 * Reads `graph.node(name).get()` — accepts `::` qualified paths (§3.2).
+	 *
+	 * @param name - Local name or qualified path.
+	 * @returns Cached value or `undefined`.
+	 */
 	get(name: string): unknown {
 		return this.node(name).get();
 	}
 
 	/**
 	 * Shorthand for `graph.node(name).down([[DATA, value]], { actor })` — accepts `::` qualified paths (§3.2).
+	 *
+	 * @param name - Local name or qualified path.
+	 * @param value - Next `DATA` payload.
+	 * @param options - Optional `actor` and `internal` guard bypass.
 	 */
 	set(name: string, value: unknown, options?: GraphActorOptions): void {
 		const internal = options?.internal === true;
@@ -398,6 +468,9 @@ export class Graph {
 	 *
 	 * Same-owner edges are stored on the owning child graph; cross-subgraph edges
 	 * are stored on this (parent) graph's registry.
+	 *
+	 * @param fromPath - Source endpoint (local or qualified).
+	 * @param toPath - Target endpoint whose deps already include the source node.
 	 */
 	connect(fromPath: string, toPath: string): void {
 		if (!fromPath || !toPath) {
@@ -438,6 +511,9 @@ export class Graph {
 	/**
 	 * Remove a registered edge (§3.3). Accepts local names or `::` qualified paths.
 	 * Does **not** change constructor-time deps; drops the registry record only.
+	 *
+	 * @param fromPath - Registered edge tail.
+	 * @param toPath - Registered edge head.
 	 */
 	disconnect(fromPath: string, toPath: string): void {
 		if (!fromPath || !toPath) {
@@ -463,7 +539,9 @@ export class Graph {
 	}
 
 	/**
-	 * Registered `[from, to]` edge pairs (read-only snapshot).
+	 * Returns registered `[from, to]` edge pairs (read-only snapshot).
+	 *
+	 * @returns Edge pairs recorded on this graph instance’s local `_edges` set.
 	 */
 	edges(): ReadonlyArray<[string, string]> {
 		const result: [string, string][] = [];
@@ -484,6 +562,9 @@ export class Graph {
 	 *
 	 * Rejects: same name as existing node or mount, self-mount, mount cycles,
 	 * and the same child graph instance mounted twice on one parent.
+	 *
+	 * @param name - Local mount point.
+	 * @param child - Nested `Graph` instance.
 	 */
 	mount(name: string, child: Graph): void {
 		assertLocalName(name, this.name, "mount");
@@ -517,6 +598,9 @@ export class Graph {
 	 *
 	 * If the first segment equals this graph's {@link Graph.name}, it is stripped
 	 * (so `root.resolve("app::a")` works when `root.name === "app"`).
+	 *
+	 * @param path - Qualified `::` path or local name.
+	 * @returns The resolved `Node`.
 	 */
 	resolve(path: string): Node {
 		let segments = splitPath(path, this.name);
@@ -635,6 +719,9 @@ export class Graph {
 	 * Companion `meta` nodes receive the same batch for control-plane types (e.g.
 	 * PAUSE) that the primary does not forward. **TEARDOWN-only** batches skip the
 	 * extra meta pass — the primary’s `down()` already cascades TEARDOWN to meta.
+	 *
+	 * @param messages - Batch to deliver to every registered node (and mounts, recursively).
+	 * @param options - Optional `actor` / `internal` for transport.
 	 */
 	signal(messages: Messages, options?: GraphActorOptions): void {
 		this._signalDeliver(messages, options ?? {}, new Set());
@@ -676,9 +763,21 @@ export class Graph {
 
 	/**
 	 * Static structure snapshot: qualified node keys, edges, mount names (GRAPHREFLY-SPEC §3.6, Appendix B).
+	 *
+	 * @param options - Optional `actor` for guard-scoped visibility and/or `filter` for selective output.
+	 * @returns JSON-shaped describe payload for this graph tree.
+	 *
+	 * @example
+	 * ```ts
+	 * graph.describe()                                         // full snapshot
+	 * graph.describe({ actor: llm })                           // guard-scoped
+	 * graph.describe({ filter: { status: "errored" } })        // only errored nodes
+	 * graph.describe({ filter: (n) => n.type === "state" })    // predicate filter
+	 * ```
 	 */
-	describe(options?: { actor?: Actor }): GraphDescribeOutput {
+	describe(options?: { actor?: Actor; filter?: DescribeFilter }): GraphDescribeOutput {
 		const actor = options?.actor;
+		const filter = options?.filter;
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
 		const nodeToPath = new Map<Node, string>();
@@ -692,11 +791,26 @@ export class Graph {
 			const deps =
 				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d) ?? d.name ?? "") : [];
 			const { name: _name, ...rest } = raw;
-			nodes[p] = { ...rest, deps };
+			const entry: DescribeNodeOutput = { ...rest, deps };
+			if (filter != null) {
+				if (typeof filter === "function") {
+					if (!filter(entry)) continue;
+				} else {
+					let match = true;
+					for (const [fk, fv] of Object.entries(filter)) {
+						if ((entry as Record<string, unknown>)[fk] !== fv) {
+							match = false;
+							break;
+						}
+					}
+					if (!match) continue;
+				}
+			}
+			nodes[p] = entry;
 		}
 		const nodeKeys = new Set(Object.keys(nodes));
 		let edges = this._collectAllEdges("");
-		if (actor != null) {
+		if (actor != null || filter != null) {
 			edges = edges.filter((e) => nodeKeys.has(e.from) && nodeKeys.has(e.to));
 		}
 		edges.sort((a, b) => {
@@ -705,7 +819,7 @@ export class Graph {
 		});
 		const allSubgraphs = this._collectSubgraphs("");
 		const subgraphs =
-			actor != null
+			actor != null || filter != null
 				? allSubgraphs.filter((sg) => {
 						const prefix = `${sg}${PATH_SEP}`;
 						return [...nodeKeys].some((k) => k === sg || k.startsWith(prefix));
@@ -772,16 +886,23 @@ export class Graph {
 	}
 
 	/**
-	 * Live message stream from one node or meta path, or from the whole graph (§3.6).
+	 * Live message stream from one node (or meta path), or from the whole graph (§3.6).
 	 *
-	 * `observe()` subscribes in **sorted path order** (`localeCompare`); causal emission order may differ.
+	 * Overloads: `(path, options?)` for one node; `(options?)` for all nodes. Whole-graph mode
+	 * subscribes in **sorted path order** (`localeCompare`). With `{ structured: true }` on a single
+	 * path, returns an {@link ObserveResult} — requires {@link Graph.inspectorEnabled} for structured extras.
+	 *
+	 * @param pathOrOpts - Qualified `path` string, or omit and pass only `options` for graph-wide observation.
+	 * @param options - Optional `actor`, `structured`, `causal`, `timeline` (inspector-gated).
+	 * @returns `GraphObserveOne`, `GraphObserveAll`, or `ObserveResult` depending on overload/options.
 	 */
-	observe(path: string, options?: { actor?: Actor }): GraphObserveOne;
-	observe(options?: { actor?: Actor }): GraphObserveAll;
+	observe(path: string, options?: ObserveOptions & { structured: true }): ObserveResult;
+	observe(path: string, options?: ObserveOptions): GraphObserveOne;
+	observe(options?: ObserveOptions): GraphObserveAll;
 	observe(
-		pathOrOpts?: string | { actor?: Actor },
-		options?: { actor?: Actor },
-	): GraphObserveOne | GraphObserveAll {
+		pathOrOpts?: string | ObserveOptions,
+		options?: ObserveOptions,
+	): GraphObserveOne | GraphObserveAll | ObserveResult {
 		if (typeof pathOrOpts === "string") {
 			const path = pathOrOpts;
 			const actor = options?.actor;
@@ -789,13 +910,16 @@ export class Graph {
 			if (actor != null && !target.allowsObserve(actor)) {
 				throw new GuardDenied({ actor, action: "observe", nodeName: path });
 			}
+			if (options?.structured && Graph.inspectorEnabled) {
+				return this._createObserveResult(target);
+			}
 			return {
 				subscribe(sink: NodeSink) {
 					return target.subscribe(sink);
 				},
 			};
 		}
-		const actor = pathOrOpts?.actor;
+		const actor = (pathOrOpts as ObserveOptions | undefined)?.actor;
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
 				const targets: [string, Node][] = [];
@@ -815,12 +939,76 @@ export class Graph {
 		};
 	}
 
+	private _createObserveResult<T>(target: Node<T>): ObserveResult<T> {
+		const result: {
+			values: T[];
+			dirtyCount: number;
+			resolvedCount: number;
+			events: ObserveEvent[];
+			completedCleanly: boolean;
+			errored: boolean;
+		} = {
+			values: [],
+			dirtyCount: 0,
+			resolvedCount: 0,
+			events: [],
+			completedCleanly: false,
+			errored: false,
+		};
+
+		const unsub = target.subscribe((msgs) => {
+			for (const m of msgs) {
+				const t = m[0];
+				if (t === DATA) {
+					result.values.push(m[1] as T);
+					result.events.push({ type: "data", data: m[1], timestamp: Date.now() });
+				} else if (t === DIRTY) {
+					result.dirtyCount++;
+					result.events.push({ type: "dirty", timestamp: Date.now() });
+				} else if (t === RESOLVED) {
+					result.resolvedCount++;
+					result.events.push({ type: "resolved", timestamp: Date.now() });
+				} else if (t === COMPLETE) {
+					if (!result.errored) result.completedCleanly = true;
+					result.events.push({ type: "complete", timestamp: Date.now() });
+				} else if (t === ERROR) {
+					result.errored = true;
+					result.events.push({ type: "error", data: m[1], timestamp: Date.now() });
+				}
+			}
+		});
+
+		return {
+			get values() {
+				return result.values;
+			},
+			get dirtyCount() {
+				return result.dirtyCount;
+			},
+			get resolvedCount() {
+				return result.resolvedCount;
+			},
+			get events() {
+				return result.events;
+			},
+			get completedCleanly() {
+				return result.completedCleanly;
+			},
+			get errored() {
+				return result.errored;
+			},
+			dispose() {
+				unsub();
+			},
+		};
+	}
+
 	// ——————————————————————————————————————————————————————————————
 	//  Lifecycle & persistence (§3.7–§3.8)
 	// ——————————————————————————————————————————————————————————————
 
 	/**
-	 * Send `[[TEARDOWN]]` to all nodes, then clear registries on this graph and every
+	 * Sends `[[TEARDOWN]]` to all nodes, then clears registries on this graph and every
 	 * mounted subgraph (§3.7). The instance is left empty and may be reused with {@link Graph.add}.
 	 */
 	destroy(): void {
@@ -844,8 +1032,10 @@ export class Graph {
 	}
 
 	/**
-	 * Serialize structure and current values to JSON-shaped data (§3.8). Same information
+	 * Serializes structure and current values to JSON-shaped data (§3.8). Same information
 	 * as {@link Graph.describe} plus a `version` field for format evolution.
+	 *
+	 * @returns Persistable snapshot with sorted keys.
 	 */
 	snapshot(): GraphPersistSnapshot {
 		const d = this.describe();
@@ -865,6 +1055,7 @@ export class Graph {
 	 * `value` field are written; `derived` / `operator` / `effect` are skipped so deps
 	 * drive recomputation. Unknown paths are ignored.
 	 *
+	 * @param data - Snapshot envelope with matching `name` and node slices.
 	 * @throws If `data.name` does not equal {@link Graph.name}.
 	 */
 	restore(data: GraphPersistSnapshot): void {
@@ -889,8 +1080,12 @@ export class Graph {
 	}
 
 	/**
-	 * Create a graph named from the snapshot, optionally run `build` to register nodes
+	 * Creates a graph named from the snapshot, optionally runs `build` to register nodes
 	 * and mounts, then {@link Graph.restore} values (§3.8).
+	 *
+	 * @param data - Snapshot envelope (`version` checked).
+	 * @param build - Optional callback to construct topology before values are applied.
+	 * @returns Hydrated `Graph` instance.
 	 */
 	static fromSnapshot(data: GraphPersistSnapshot, build?: (g: Graph) => void): Graph {
 		parseSnapshotEnvelope(data);
@@ -963,6 +1158,8 @@ export class Graph {
 	 * ECMAScript `JSON.stringify(graph)` invokes this method; it must return a plain object, not an
 	 * already-stringified JSON string (otherwise the graph would be double-encoded).
 	 * For a single UTF-8 string with a trailing newline (convenient for git), use {@link Graph.toJSONString}.
+	 *
+	 * @returns Same object as {@link Graph.snapshot}.
 	 */
 	toJSON(): GraphPersistSnapshot {
 		return this.snapshot();
@@ -970,8 +1167,119 @@ export class Graph {
 
 	/**
 	 * Deterministic JSON **text**: `JSON.stringify` of {@link Graph.toJSON} plus a trailing newline (§3.8).
+	 *
+	 * @returns Stable string suitable for diffs.
 	 */
 	toJSONString(): string {
 		return stableJsonStringify(this.snapshot());
 	}
+
+	// ——————————————————————————————————————————————————————————————
+	//  Inspector (§3.3) — reasoning trace, overhead gating
+	// ——————————————————————————————————————————————————————————————
+
+	/**
+	 * When `false`, structured observation options (`causal`, `timeline`),
+	 * `annotate()`, and `traceLog()` are no-ops. Raw `observe()` always works.
+	 *
+	 * Default: `true` outside production (`process.env.NODE_ENV !== "production"`).
+	 */
+	static inspectorEnabled = !(
+		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
+	);
+
+	private _annotations = new Map<string, string>();
+	private _traceRingBuffer: TraceEntry[] = [];
+	private _traceMaxSize = 256;
+
+	/**
+	 * Attaches a reasoning annotation to a node — captures *why* an AI agent set a value.
+	 *
+	 * No-op when {@link Graph.inspectorEnabled} is `false`.
+	 *
+	 * @param path - Qualified node path.
+	 * @param reason - Free-text note stored in the trace ring buffer.
+	 */
+	annotate(path: string, reason: string): void {
+		if (!Graph.inspectorEnabled) return;
+		this.resolve(path); // validate path exists
+		this._annotations.set(path, reason);
+		const entry: TraceEntry = { node: path, reason, timestamp: Date.now() };
+		this._traceRingBuffer.push(entry);
+		if (this._traceRingBuffer.length > this._traceMaxSize) {
+			this._traceRingBuffer.shift();
+		}
+	}
+
+	/**
+	 * Returns a chronological log of all reasoning annotations (ring buffer).
+	 *
+	 * @returns `[]` when {@link Graph.inspectorEnabled} is `false`.
+	 */
+	traceLog(): readonly TraceEntry[] {
+		if (!Graph.inspectorEnabled) return [];
+		return [...this._traceRingBuffer];
+	}
+
+	/**
+	 * Computes structural + value diff between two {@link Graph.describe} snapshots.
+	 *
+	 * @param a - Earlier describe output.
+	 * @param b - Later describe output.
+	 * @returns Added/removed nodes, changed fields, and edge deltas.
+	 */
+	static diff(a: GraphDescribeOutput, b: GraphDescribeOutput): GraphDiffResult {
+		const aKeys = new Set(Object.keys(a.nodes));
+		const bKeys = new Set(Object.keys(b.nodes));
+
+		const nodesAdded = [...bKeys].filter((k) => !aKeys.has(k)).sort();
+		const nodesRemoved = [...aKeys].filter((k) => !bKeys.has(k)).sort();
+		const nodesChanged: GraphDiffChange[] = [];
+
+		for (const key of aKeys) {
+			if (!bKeys.has(key)) continue;
+			const na = a.nodes[key];
+			const nb = b.nodes[key];
+			for (const field of ["type", "status", "value"] as const) {
+				const va = (na as Record<string, unknown>)[field];
+				const vb = (nb as Record<string, unknown>)[field];
+				if (!Object.is(va, vb) && JSON.stringify(va) !== JSON.stringify(vb)) {
+					nodesChanged.push({ path: key, field, from: va, to: vb });
+				}
+			}
+		}
+
+		const edgeKey = (e: { from: string; to: string }) => `${e.from}\t${e.to}`;
+		const aEdges = new Set(a.edges.map(edgeKey));
+		const bEdges = new Set(b.edges.map(edgeKey));
+
+		const edgesAdded = b.edges.filter((e) => !aEdges.has(edgeKey(e)));
+		const edgesRemoved = a.edges.filter((e) => !bEdges.has(edgeKey(e)));
+
+		return { nodesAdded, nodesRemoved, nodesChanged, edgesAdded, edgesRemoved };
+	}
 }
+
+/** Entry in the reasoning trace ring buffer (§3.3). */
+export type TraceEntry = {
+	node: string;
+	reason: string;
+	timestamp: number;
+};
+
+/** Result of {@link Graph.diff}. */
+export type GraphDiffResult = {
+	nodesAdded: string[];
+	nodesRemoved: string[];
+	nodesChanged: GraphDiffChange[];
+	edgesAdded: Array<{ from: string; to: string }>;
+	edgesRemoved: Array<{ from: string; to: string }>;
+};
+
+/** A single field change within a diff. */
+export type GraphDiffChange = {
+	path: string;
+	field: string;
+	from: unknown;
+	to: unknown;
+};

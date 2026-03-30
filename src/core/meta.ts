@@ -58,14 +58,22 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
 }
 
 /**
- * Single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).
+ * Builds a single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).
  * Parity with graphrefly-py `describe_node`.
  *
  * `type` is inferred from factory configuration, optional `describeKind` in node options,
  * and the last `manualEmitUsed` hint (operator vs derived). {@link effect} sets
- * `describeKind: "effect"`.
+ * `describeKind: "effect"`. Nodes not created by {@link node} fall back to `type: "state"` and empty `deps`.
  *
- * Nodes not created by {@link node} fall back to `type: "state"` and empty `deps`.
+ * @param node - Any `Node` to introspect.
+ * @returns `DescribeNodeOutput` suitable for merging into graph describe maps.
+ *
+ * @example
+ * ```ts
+ * import { describeNode, state } from "@graphrefly/graphrefly-ts";
+ *
+ * describeNode(state(0));
+ * ```
  */
 export function describeNode(node: Node): DescribeNodeOutput {
 	const meta: Record<string, unknown> = { ...metaSnapshot(node) };

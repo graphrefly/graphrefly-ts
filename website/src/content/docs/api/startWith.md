@@ -17,7 +17,7 @@ function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Node<T>
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `initial` | `T` | Value emitted before upstream. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

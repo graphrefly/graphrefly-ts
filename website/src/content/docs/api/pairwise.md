@@ -16,7 +16,7 @@ function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

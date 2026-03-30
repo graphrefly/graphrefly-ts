@@ -1,17 +1,17 @@
 ---
 title: "restoreGraphCheckpointIndexedDb()"
-description: "Loads a snapshot from IndexedDB and applies  when present."
+description: "Loads a snapshot from IndexedDB and applies Graph.restore when present."
 ---
 
-Loads a snapshot from IndexedDB and applies  when present.
+Loads a snapshot from IndexedDB and applies Graph.restore when present.
 
 ## Signature
 
 ```ts
-async function restoreGraphCheckpointIndexedDb(
+function restoreGraphCheckpointIndexedDb(
 	graph: Graph,
 	spec: IndexedDbCheckpointSpec,
-): Promise<boolean>
+): Node<boolean>
 ```
 
 ## Parameters
@@ -23,4 +23,4 @@ async function restoreGraphCheckpointIndexedDb(
 
 ## Returns
 
-`true` if a value existed and was restored.
+A reactive `Node&lt;boolean&gt;`: emits `true` if a snapshot was restored, `false` if missing or not a plain object, then `COMPLETE`; or `ERROR` on I/O failure.

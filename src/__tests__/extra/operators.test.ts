@@ -50,14 +50,42 @@ function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) 
 }
 
 describe("extra operators (Tier 1)", () => {
-	it("map / filter / tap", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — derived map forwards DATA through the protocol.
+	it("map doubles values for downstream subscribers", () => {
 		const s = state(1);
 		const m = map(s, (n) => n * 2);
-		const f = filter(m, (n) => n > 2);
+		const { batches, unsub } = collect(m);
+		s.down([[DATA, 2]]);
+		expect(batches.some((b) => b.some((x) => x[0] === DATA && x[1] === 4))).toBe(true);
+		unsub();
+	});
+
+	// Regression: GRAPHREFLY-SPEC §1.3 — filter is a derived gate on settled values.
+	it("filter passes only values matching the predicate", () => {
+		const s = state(1);
+		const f = filter(
+			map(s, (n) => n * 2),
+			(n) => n > 2,
+		);
+		const { batches, unsub } = collect(f);
+		s.down([[DATA, 2]]);
+		expect(batches.some((b) => b.some((x) => x[0] === DATA && x[1] === 4))).toBe(true);
+		unsub();
+	});
+
+	// Regression: GRAPHREFLY-SPEC §2.6 — tap observes without changing the stream shape.
+	it("tap runs side effects for each forwarded DATA", () => {
+		const s = state(1);
 		const seen: number[] = [];
-		const t = tap(f, (n) => {
-			seen.push(n);
-		});
+		const t = tap(
+			filter(
+				map(s, (n) => n * 2),
+				(n) => n > 2,
+			),
+			(n) => {
+				seen.push(n);
+			},
+		);
 		const { batches, unsub } = collect(t);
 		s.down([[DATA, 2]]);
 		expect(seen.filter((n) => n === 4).length).toBeGreaterThanOrEqual(1);
@@ -65,7 +93,8 @@ describe("extra operators (Tier 1)", () => {
 		unsub();
 	});
 
-	it("scan and reduce", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — scan accumulates on each DATA/RESOLVED cycle.
+	it("scan folds successive DATA into an accumulator", () => {
 		const s = state(0);
 		const sc = scan(s, (a, x) => a + (x as number), 0);
 		const { batches: bs } = collect(sc);
@@ -73,7 +102,10 @@ describe("extra operators (Tier 1)", () => {
 		s.down([[DATA, 2]]);
 		expect(sc.get()).toBe(3);
 		expect(bs.length).toBeGreaterThan(0);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.5 — reduce emits once when upstream completes.
+	it("reduce emits aggregated DATA on upstream COMPLETE", () => {
 		const sR = state(0);
 		const r = reduce(sR, (a, x) => a + (x as number), 0);
 		const { batches: br } = collect(r);
@@ -83,6 +115,7 @@ describe("extra operators (Tier 1)", () => {
 		expect(br.some((b) => b.some((m) => m[0] === COMPLETE))).toBe(true);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — take counts DATA emissions (RESOLVED does not advance).
 	it("take counts only DATA (composes with skip)", () => {
 		const s = state(0);
 		const out = take(skip(s, 1), 2);
@@ -98,6 +131,7 @@ describe("extra operators (Tier 1)", () => {
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — non-positive take completes immediately (terminal).
 	it("take(0) completes without DATA", () => {
 		const s = state(1);
 		const out = take(s, 0);
@@ -106,7 +140,8 @@ describe("extra operators (Tier 1)", () => {
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 	});
 
-	it("takeWhile and first", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — takeWhile completes when predicate fails.
+	it("takeWhile forwards DATA until predicate is false", () => {
 		const s = state(1);
 		const tw = takeWhile(s, (n) => (n as number) < 3);
 		const { batches } = collect(tw);
@@ -117,7 +152,10 @@ describe("extra operators (Tier 1)", () => {
 			.filter((m) => m[0] === DATA)
 			.map((m) => m[1]);
 		expect(dataVals).toEqual([1, 2]);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — first is take(1); terminal after one DATA.
+	it("first emits a single DATA then completes", () => {
 		const s2 = state(9);
 		const f2 = first(s2);
 		const { batches: bf2 } = collect(f2);
@@ -125,7 +163,8 @@ describe("extra operators (Tier 1)", () => {
 		expect(bf2.flat().filter((m) => m[0] === DATA).length).toBe(1);
 	});
 
-	it("takeUntil, distinctUntilChanged, pairwise", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3.5 — takeUntil completes when notifier matches predicate.
+	it("takeUntil completes when notifier emits matching DATA", () => {
 		const s = state(0);
 		const stop = state(0);
 		const tu = takeUntil(s, stop);
@@ -133,7 +172,10 @@ describe("extra operators (Tier 1)", () => {
 		s.down([[DATA, 1]]);
 		stop.down([[DATA, 1]]);
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.3 — distinctUntilChanged suppresses unchanged consecutive values.
+	it("distinctUntilChanged does not repeat DATA for identical consecutive values", () => {
 		const s2 = state(1);
 		const d = distinctUntilChanged(s2);
 		const { batches: bd } = collect(d);
@@ -141,7 +183,10 @@ describe("extra operators (Tier 1)", () => {
 		s2.down([[DATA, 1]]);
 		const dataCount = bd.flat().filter((m) => m[0] === DATA).length;
 		expect(dataCount).toBe(1);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — pairwise needs two source emissions before first tuple.
+	it("pairwise emits a tuple of the last two DATA values", () => {
 		const s3 = state(0);
 		const p = pairwise(s3);
 		const { batches: bp } = collect(p);
@@ -154,38 +199,51 @@ describe("extra operators (Tier 1)", () => {
 		expect(lastData).toEqual([1, 2]);
 	});
 
-	it("combine, zip, merge, concat, race", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — combine is multi-dep derived (latest tuple).
+	it("combine reflects latest value from each source", () => {
 		const a = state(1);
 		const b = state(2);
-		const c = combine([a, b] as const);
+		const c = combine(a, b);
 		collect(c);
 		a.down([[DATA, 10]]);
 		expect(c.get()).toEqual([10, 2]);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — zip pairs DATA in lockstep.
+	it("zip emits when each source has produced a value", () => {
 		const x = state(1);
 		const y = state(2);
-		const z = zip([x, y] as const);
+		const z = zip(x, y);
 		const { batches: bz } = collect(z);
 		x.down([[DATA, 3]]);
 		y.down([[DATA, 4]]);
 		expect(bz.flat().some((m) => m[0] === DATA)).toBe(true);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — merge forwards any source DATA.
+	it("merge forwards DATA from the first source that emits", () => {
 		const m1 = state(1);
 		const m2 = state(2);
-		const mg = merge([m1, m2]);
+		const mg = merge(m1, m2);
 		const { batches: bm } = collect(mg);
 		m1.down([[DATA, 5]]);
 		expect(bm.length).toBeGreaterThan(0);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.5 — merge completes only after all sources complete.
+	it("merge completes only after every source has completed", () => {
 		const e1 = state(0);
 		const e2 = state(0);
-		const mgc = merge([e1, e2]);
+		const mgc = merge(e1, e2);
 		const { batches: bmc } = collect(mgc);
 		e1.down([[COMPLETE]]);
 		expect(bmc.flat().some((m) => m[0] === COMPLETE)).toBe(false);
 		e2.down([[COMPLETE]]);
 		expect(bmc.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — concat serializes sources after the first completes.
+	it("concat forwards second source only after the first completes", () => {
 		const f = state(1);
 		const sec = state(2);
 		const co = concat(f, sec);
@@ -199,16 +257,20 @@ describe("extra operators (Tier 1)", () => {
 			.map((m) => m[1]);
 		expect(concatData).toContain(7);
 		expect(concatData).toContain(8);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — race mirrors first winning DATA source.
+	it("race forwards DATA from whichever source wins", () => {
 		const r1 = state(1);
 		const r2 = state(2);
-		const rc = race([r1, r2]);
+		const rc = race(r1, r2);
 		const { batches: br } = collect(rc);
 		r1.down([[DATA, 11]]);
 		expect(br.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("startWith, elementAt, find, last", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — startWith prepends an initial DATA.
+	it("startWith emits seed before upstream DATA", () => {
 		const s = state(0);
 		const sw = startWith(s, -1);
 		const { batches: bsw } = collect(sw);
@@ -219,7 +281,10 @@ describe("extra operators (Tier 1)", () => {
 				.filter((m) => m[0] === DATA)
 				.map((m) => m[1]),
 		).toContain(-1);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — elementAt is indexed take-after-skip.
+	it("elementAt emits the nth DATA (zero-based index)", () => {
 		const s2 = state(0);
 		const ea = elementAt(s2, 2);
 		const { batches: bea } = collect(ea);
@@ -227,14 +292,20 @@ describe("extra operators (Tier 1)", () => {
 		s2.down([[DATA, 20]]);
 		s2.down([[DATA, 30]]);
 		expect(bea.flat().find((m) => m[0] === DATA)?.[1]).toBe(30);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — find is filter + take(1).
+	it("find completes on first value matching the predicate", () => {
 		const s3 = state(0);
 		const fd = find(s3, (n) => (n as number) >= 2);
 		const { batches: bfd } = collect(fd);
 		s3.down([[DATA, 1]]);
 		s3.down([[DATA, 2]]);
 		expect(bfd.flat().find((m) => m[0] === DATA)?.[1]).toBe(2);
+	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.5 — last emits on upstream COMPLETE (or default).
+	it("last emits the final DATA when upstream completes", () => {
 		const s4 = state(0);
 		const la = last(s4, { defaultValue: 99 });
 		const { batches: bla } = collect(la);
@@ -243,6 +314,7 @@ describe("extra operators (Tier 1)", () => {
 		expect(bla.flat().find((m) => m[0] === DATA)?.[1]).toBe(42);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — withLatestFrom pairs primary with latest secondary.
 	it("withLatestFrom forwards primary with secondary snapshot", () => {
 		const p = state(1);
 		const q = state(2);
@@ -254,10 +326,11 @@ describe("extra operators (Tier 1)", () => {
 		expect(dataMsg?.[1]).toEqual([10, 20]);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — race winner keeps streaming; loser ignored after pick.
 	it("race continues forwarding from winner (not just first DATA)", () => {
 		const a = state(0);
 		const b = state(0);
-		const rc = race([a, b]);
+		const rc = race(a, b);
 		const { batches } = collect(rc);
 		a.down([[DATA, 1]]);
 		a.down([[DATA, 2]]);
@@ -269,16 +342,18 @@ describe("extra operators (Tier 1)", () => {
 		expect(dataVals).toEqual([1, 2]);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.2 — diamond: phase-1 completes before phase-2 recompute.
 	it("map through diamond topology", () => {
 		const src = state(1);
 		const left = map(src, (n) => (n as number) * 2);
 		const right = map(src, (n) => (n as number) + 10);
-		const combo = combine([left, right] as const);
+		const combo = combine(left, right);
 		collect(combo);
 		src.down([[DATA, 3]]);
 		expect(combo.get()).toEqual([6, 13]);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.5 — reduce aggregates until COMPLETE, then emits once.
 	it("reduce emits only on COMPLETE", () => {
 		const s = state(0);
 		const r = reduce(s, (a, x) => a + (x as number), 0);
@@ -295,6 +370,7 @@ describe("extra operators (Tier 1)", () => {
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — concat may buffer second source until first completes.
 	it("concat buffers second-source DATA during phase 0", () => {
 		const a = state(0);
 		const b = state(0);
@@ -315,6 +391,7 @@ describe("extra operators (Tier 2)", () => {
 		vi.useRealTimers();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2 — switchMap tears down previous inner subscription on new outer DATA.
 	it("switchMap unsubscribes prior inner", () => {
 		const src = state(0);
 		const innerA = state(100);
@@ -335,6 +412,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.3 — exhaustMap may emit RESOLVED while inner is busy.
 	it("exhaustMap drops outer DATA while inner active", () => {
 		const src = state(0);
 		const inner = state(10);
@@ -349,6 +427,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2 — concatMap waits for inner COMPLETE before next outer value.
 	it("concatMap runs inners sequentially", () => {
 		const src = state(0);
 		const a = state(100);
@@ -379,6 +458,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2 — mergeMap multiplexes concurrent inner subscriptions.
 	it("mergeMap keeps multiple inners active", () => {
 		const src = state(0);
 		const inner1 = state(1);
@@ -407,6 +487,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — debounce delays phase-2 until quiet window (timers).
 	it("debounce emits once after quiet window (fake timers)", () => {
 		vi.useFakeTimers();
 		const s = state(0);
@@ -421,6 +502,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — delay forwards DIRTY immediately; DATA after timeout.
 	it("delay shifts DATA by ms (fake timers)", () => {
 		vi.useFakeTimers();
 		const s = state(0);
@@ -433,6 +515,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — timeout emits ERROR when no DATA resets the timer.
 	it("timeout errors when idle (fake timers)", () => {
 		vi.useFakeTimers();
 		const s = state(0);
@@ -443,6 +526,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — throttle rate-limits DATA (leading edge).
 	it("throttle leading edge passes first emission", () => {
 		vi.useFakeTimers();
 		const s = state(0);
@@ -455,6 +539,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — sample pulls latest source value on notifier DATA.
 	it("sample emits when notifier settles", () => {
 		const src = state(1);
 		const tick = state(0);
@@ -466,6 +551,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — bufferCount emits fixed-size arrays of DATA.
 	it("bufferCount batches DATA", () => {
 		const s = state(1);
 		const out = bufferCount(s, 2);
@@ -475,6 +561,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — rescue converts ERROR into downstream DATA.
 	it("rescue maps ERROR to value", () => {
 		const s = state(0);
 		const out = rescue(s, () => 42);
@@ -484,6 +571,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — rescue recovery failure propagates ERROR.
 	it("rescue forwards ERROR when recover throws", () => {
 		const s = state(0);
 		const boom = new Error("recover");
@@ -497,6 +585,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.2 — PAUSE buffers; RESUME flushes pending protocol messages.
 	it("pausable buffers then flushes on RESUME", () => {
 		const s = state(0);
 		const out = pausable(s);
@@ -509,6 +598,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2.1 — interval producer emits on timer while subscribed.
 	it("interval ticks via producer (fake timers)", () => {
 		vi.useFakeTimers();
 		const tick = interval(100);
@@ -522,6 +612,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2 — repeat resubscribes to source for N terminal rounds.
 	it("repeat completes after N rounds", () => {
 		const s = state(1, { resubscribable: true });
 		const out = repeat(s, 2);
@@ -532,6 +623,7 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §1.3 — audit samples latest after window (trailing edge).
 	it("audit emits trailing-only after timer (fake timers)", () => {
 		vi.useFakeTimers();
 		const s = state(0);
@@ -548,11 +640,13 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: operator validates repeat count > 0.
 	it("repeat throws on count <= 0", () => {
 		const s = state(0);
 		expect(() => repeat(s, 0)).toThrow(RangeError);
 	});
 
+	// Regression: operator validates bufferCount count > 0.
 	it("bufferCount throws on count <= 0", () => {
 		const s = state(0);
 		expect(() => bufferCount(s, 0)).toThrow(RangeError);

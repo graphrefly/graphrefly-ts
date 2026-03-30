@@ -1,9 +1,9 @@
 ---
 title: "saveGraphCheckpoint()"
-description: "Writes  through `adapter.save`."
+description: "Writes Graph.snapshot through `adapter.save`."
 ---
 
-Writes  through `adapter.save`.
+Writes Graph.snapshot through `adapter.save`.
 
 ## Signature
 

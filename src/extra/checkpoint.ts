@@ -7,7 +7,9 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { COMPLETE, DATA, ERROR } from "../core/messages.js";
 import type { Node } from "../core/node.js";
+import { producer } from "../core/sugar.js";
 import type { Graph, GraphPersistSnapshot } from "../graph/graph.js";
 
 function sortJsonValue(value: unknown): unknown {
@@ -26,7 +28,20 @@ function sortJsonValue(value: unknown): unknown {
 	return out;
 }
 
+function warnNonJsonValues(data: GraphPersistSnapshot): void {
+	for (const [path, node] of Object.entries(data.nodes)) {
+		const v = node.value;
+		if (v === undefined || v === null) continue;
+		if (typeof v === "function" || typeof v === "symbol" || typeof v === "bigint") {
+			console.warn(
+				`checkpoint: node "${path}" has non-JSON-serializable value (${typeof v}); it will be lost on round-trip`,
+			);
+		}
+	}
+}
+
 function stableSnapshotJson(data: GraphPersistSnapshot): string {
+	warnNonJsonValues(data);
 	return `${JSON.stringify(sortJsonValue(data), undefined, 0)}\n`;
 }
 
@@ -227,34 +242,97 @@ export type IndexedDbCheckpointSpec = {
 	version?: number;
 };
 
-function idbRequest<T>(req: IDBRequest<T>): Promise<T> {
-	return new Promise((resolve, reject) => {
-		req.onsuccess = () => resolve(req.result);
-		req.onerror = () => reject(req.error ?? new Error("IndexedDB request failed"));
+/**
+ * Wraps an `IDBRequest` as a one-shot reactive source.
+ *
+ * @param req - Request whose callbacks are converted to protocol messages.
+ * @returns `Node<T>` that emits `DATA` once on success, then `COMPLETE`; emits `ERROR` on failure.
+ *
+ * @category extra
+ */
+export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
+	return producer<T>((_d, a) => {
+		let done = false;
+		const clear = () => {
+			req.onsuccess = null;
+			req.onerror = null;
+		};
+		req.onsuccess = () => {
+			if (done) return;
+			done = true;
+			clear();
+			a.down([[DATA, req.result], [COMPLETE]]);
+		};
+		req.onerror = () => {
+			if (done) return;
+			done = true;
+			clear();
+			a.down([[ERROR, req.error ?? new Error("IndexedDB request failed")]]);
+		};
+		return () => {
+			done = true;
+			clear();
+		};
 	});
 }
 
-function idbTxComplete(tx: IDBTransaction): Promise<void> {
-	return new Promise((resolve, reject) => {
-		tx.oncomplete = () => resolve();
-		tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
-		tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+/**
+ * Wraps an `IDBTransaction` terminal lifecycle as a one-shot reactive source.
+ *
+ * @param tx - Transaction to observe.
+ * @returns `Node<void>` that emits `DATA` (`undefined`) then `COMPLETE` on success; emits `ERROR` on `error`/`abort`.
+ *
+ * @category extra
+ */
+export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
+	return producer<void>((_d, a) => {
+		let done = false;
+		const clear = () => {
+			tx.oncomplete = null;
+			tx.onerror = null;
+			tx.onabort = null;
+		};
+		tx.oncomplete = () => {
+			if (done) return;
+			done = true;
+			clear();
+			a.down([[DATA, undefined], [COMPLETE]]);
+		};
+		tx.onerror = () => {
+			if (done) return;
+			done = true;
+			clear();
+			a.down([[ERROR, tx.error ?? new Error("IndexedDB transaction failed")]]);
+		};
+		tx.onabort = () => {
+			if (done) return;
+			done = true;
+			clear();
+			a.down([[ERROR, tx.error ?? new Error("IndexedDB transaction aborted")]]);
+		};
+		return () => {
+			done = true;
+			clear();
+		};
 	});
 }
 
-function openIdb(dbName: string, storeName: string, version: number): Promise<IDBDatabase> {
-	if (typeof indexedDB === "undefined") {
-		return Promise.reject(new TypeError("indexedDB is not available in this environment"));
-	}
-	return new Promise((resolve, reject) => {
+function openIdbNode(dbName: string, storeName: string, version: number): Node<IDBDatabase> {
+	return producer<IDBDatabase>((_d, a) => {
+		if (typeof indexedDB === "undefined") {
+			a.down([[ERROR, new TypeError("indexedDB is not available in this environment")]]);
+			return undefined;
+		}
 		const req = indexedDB.open(dbName, version);
-		req.onerror = () => reject(req.error ?? new Error("indexedDB.open failed"));
-		req.onsuccess = () => resolve(req.result);
 		req.onupgradeneeded = () => {
 			const db = req.result;
 			if (!db.objectStoreNames.contains(storeName)) {
 				db.createObjectStore(storeName);
 			}
+		};
+		const unsub = fromIDBRequest(req).subscribe((msgs) => a.down(msgs));
+		return () => {
+			unsub();
 		};
 	});
 }
@@ -264,27 +342,99 @@ function openIdb(dbName: string, storeName: string, version: number): Promise<ID
  *
  * @param graph - Graph to snapshot.
  * @param spec - Database name, object store name, optional `key` and schema `version`.
+ * @returns A reactive `Node<void>` that emits `DATA` (`undefined`) then `COMPLETE` on success, or `ERROR` on failure.
  *
  * @remarks
- * **Environment:** Throws if `indexedDB` is undefined (Node tests).
+ * **Environment:** Emits `ERROR` if `indexedDB` is undefined (e.g. Node without a polyfill).
  *
  * @category extra
  */
-export async function saveGraphCheckpointIndexedDb(
+export function saveGraphCheckpointIndexedDb(
 	graph: Graph,
 	spec: IndexedDbCheckpointSpec,
-): Promise<void> {
+): Node<void> {
 	const key = spec.key ?? "graphrefly_checkpoint";
-	const db = await openIdb(spec.dbName, spec.storeName, spec.version ?? 1);
-	try {
-		const tx = db.transaction(spec.storeName, "readwrite");
-		const store = tx.objectStore(spec.storeName);
-		const done = idbTxComplete(tx);
-		await idbRequest(store.put(graph.snapshot(), key));
-		await done;
-	} finally {
-		db.close();
-	}
+	return producer<void>((_d, a) => {
+		let db: IDBDatabase | undefined;
+		let opUnsub: (() => void) | undefined;
+		let done = false;
+		const close = () => {
+			if (db === undefined) return;
+			db.close();
+			db = undefined;
+		};
+		const finishWith = (msgs: [symbol, unknown?][]) => {
+			if (done) return;
+			done = true;
+			a.down(msgs);
+			opUnsub?.();
+			opUnsub = undefined;
+			openUnsub();
+			close();
+		};
+		const startWrite = () => {
+			if (db === undefined || opUnsub !== undefined) return;
+			const tx = db.transaction(spec.storeName, "readwrite");
+			const store = tx.objectStore(spec.storeName);
+			let reqDone = false;
+			let txDone = false;
+			let reqError: unknown;
+			let unsubReq: (() => void) | undefined;
+			let unsubTx: (() => void) | undefined;
+			const maybeFinish = () => {
+				if (reqError !== undefined) {
+					finishWith([[ERROR, reqError]]);
+					return;
+				}
+				if (!reqDone || !txDone) return;
+				finishWith([[DATA, undefined], [COMPLETE]]);
+			};
+			unsubReq = fromIDBRequest(store.put(graph.snapshot(), key)).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === ERROR) reqError = m[1];
+					if (m[0] === COMPLETE || m[0] === ERROR) reqDone = true;
+				}
+				maybeFinish();
+			});
+			unsubTx = fromIDBTransaction(tx).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === ERROR) {
+						finishWith([[ERROR, m[1]]]);
+						return;
+					}
+					if (m[0] === COMPLETE) txDone = true;
+				}
+				maybeFinish();
+			});
+			opUnsub = () => {
+				unsubReq?.();
+				unsubReq = undefined;
+				unsubTx?.();
+				unsubTx = undefined;
+			};
+		};
+		const openUnsub = openIdbNode(spec.dbName, spec.storeName, spec.version ?? 1).subscribe(
+			(msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						db = m[1] as IDBDatabase;
+						startWrite();
+						continue;
+					}
+					if (m[0] === ERROR) {
+						finishWith([[ERROR, m[1]]]);
+						return;
+					}
+				}
+			},
+		);
+		return () => {
+			opUnsub?.();
+			opUnsub = undefined;
+			openUnsub();
+			close();
+		};
+	});
 }
 
 /**
@@ -292,27 +442,102 @@ export async function saveGraphCheckpointIndexedDb(
  *
  * @param graph - Graph whose topology matches the stored snapshot.
  * @param spec - Same `dbName` / `storeName` / `key` / `version` as save.
- * @returns `true` if a value existed and was restored.
+ * @returns A reactive `Node<boolean>`: emits `true` if a snapshot was restored, `false` if missing or not a plain object, then `COMPLETE`; or `ERROR` on I/O failure.
  *
  * @category extra
  */
-export async function restoreGraphCheckpointIndexedDb(
+export function restoreGraphCheckpointIndexedDb(
 	graph: Graph,
 	spec: IndexedDbCheckpointSpec,
-): Promise<boolean> {
+): Node<boolean> {
 	const key = spec.key ?? "graphrefly_checkpoint";
-	const db = await openIdb(spec.dbName, spec.storeName, spec.version ?? 1);
-	try {
-		const tx = db.transaction(spec.storeName, "readonly");
-		const store = tx.objectStore(spec.storeName);
-		const done = idbTxComplete(tx);
-		const raw = await idbRequest(store.get(key));
-		await done;
-		if (raw === undefined || raw === null) return false;
-		if (typeof raw !== "object" || Array.isArray(raw)) return false;
-		graph.restore(raw as GraphPersistSnapshot);
-		return true;
-	} finally {
-		db.close();
-	}
+	return producer<boolean>((_d, a) => {
+		let db: IDBDatabase | undefined;
+		let reqUnsub: (() => void) | undefined;
+		let txUnsub: (() => void) | undefined;
+		let done = false;
+		let txDone = false;
+		let requestDone = false;
+		let requestValue: unknown;
+		let requestError: unknown;
+		const close = () => {
+			if (db === undefined) return;
+			db.close();
+			db = undefined;
+		};
+		const finishWith = (msgs: [symbol, unknown?][]) => {
+			if (done) return;
+			done = true;
+			a.down(msgs);
+			reqUnsub?.();
+			reqUnsub = undefined;
+			txUnsub?.();
+			txUnsub = undefined;
+			openUnsub();
+			close();
+		};
+		const maybeEmitResult = () => {
+			if (!requestDone || !txDone) return;
+			if (requestError !== undefined) {
+				finishWith([[ERROR, requestError]]);
+				return;
+			}
+			if (requestValue === undefined || requestValue === null) {
+				finishWith([[DATA, false], [COMPLETE]]);
+				return;
+			}
+			if (typeof requestValue !== "object" || Array.isArray(requestValue)) {
+				finishWith([[DATA, false], [COMPLETE]]);
+				return;
+			}
+			graph.restore(requestValue as GraphPersistSnapshot);
+			finishWith([[DATA, true], [COMPLETE]]);
+		};
+		const startRead = () => {
+			if (db === undefined || reqUnsub !== undefined || txUnsub !== undefined) return;
+			const tx = db.transaction(spec.storeName, "readonly");
+			const store = tx.objectStore(spec.storeName);
+			reqUnsub = fromIDBRequest(store.get(key)).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) requestValue = m[1];
+					if (m[0] === ERROR) requestError = m[1];
+					if (m[0] === COMPLETE || m[0] === ERROR) requestDone = true;
+				}
+				maybeEmitResult();
+			});
+			txUnsub = fromIDBTransaction(tx).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === ERROR) {
+						finishWith([[ERROR, m[1]]]);
+						return;
+					}
+					if (m[0] === COMPLETE) txDone = true;
+				}
+				maybeEmitResult();
+			});
+		};
+		const openUnsub = openIdbNode(spec.dbName, spec.storeName, spec.version ?? 1).subscribe(
+			(msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						db = m[1] as IDBDatabase;
+						startRead();
+						continue;
+					}
+					if (m[0] === ERROR) {
+						finishWith([[ERROR, m[1]]]);
+						return;
+					}
+				}
+			},
+		);
+		return () => {
+			reqUnsub?.();
+			reqUnsub = undefined;
+			txUnsub?.();
+			txUnsub = undefined;
+			openUnsub();
+			close();
+		};
+	});
 }

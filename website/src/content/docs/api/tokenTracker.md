@@ -1,9 +1,9 @@
 ---
 title: "tokenTracker()"
-description: "Alias for `new TokenBucket(capacity, refillPerSecond)` (parity with graphrefly-py `token_tracker`)."
+description: "Same behavior as tokenBucket. Exposed for naming parity with graphrefly-py (`token_tracker`)."
 ---
 
-Alias for `new TokenBucket(capacity, refillPerSecond)` (parity with graphrefly-py `token_tracker`).
+Same behavior as tokenBucket. Exposed for naming parity with graphrefly-py (`token_tracker`).
 
 ## Signature
 
@@ -20,4 +20,4 @@ function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket
 
 ## Returns
 
-A new .
+A TokenBucket instance.

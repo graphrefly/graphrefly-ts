@@ -19,7 +19,7 @@ function logSlice<T>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `log` | `ReactiveLogBundle&lt;T&gt;` | Log from . |
+| `log` | `ReactiveLogBundle&lt;T&gt;` | Log from reactiveLog. |
 | `start` | `number` | Start index (must be `&gt;= 0`). |
 | `stop` | `number` | End index (exclusive); omit to slice to the end. |
 

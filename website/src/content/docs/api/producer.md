@@ -15,8 +15,8 @@ function producer<T = unknown>(fn: NodeFn<T>, opts?: NodeOptions): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `NodeFn&lt;T&gt;` | Receives deps (empty) and ; use `emit` / `down` to push. |
-| `opts` | `NodeOptions` | Optional . |
+| `fn` | `NodeFn&lt;T&gt;` | Receives deps (empty) and NodeActions; use `emit` / `down` to push. |
+| `opts` | `NodeOptions` | Optional NodeOptions. |
 
 ## Returns
 

@@ -17,7 +17,7 @@ function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node to replay. |
 | `count` | `number` | Number of subscription rounds. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

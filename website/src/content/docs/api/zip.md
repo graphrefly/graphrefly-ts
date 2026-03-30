@@ -9,8 +9,7 @@ Zips one **`DATA`** from each source per cycle into a tuple. Only **`DATA`** enq
 
 ```ts
 function zip<const T extends readonly unknown[]>(
-	sources: { [K in keyof T]: Node<T[K]> },
-	opts?: ExtraOpts,
+	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T>
 ```
 
@@ -18,8 +17,7 @@ function zip<const T extends readonly unknown[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Tuple of nodes. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Nodes to zip (variadic). |
 
 ## Returns
 
@@ -30,5 +28,5 @@ function zip<const T extends readonly unknown[]>(
 ```ts
 import { state, zip } from "@graphrefly/graphrefly-ts";
 
-const n = zip([state(1), state(2)] as const);
+const n = zip(state(1), state(2));
 ```

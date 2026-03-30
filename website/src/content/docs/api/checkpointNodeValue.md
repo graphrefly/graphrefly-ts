@@ -15,8 +15,8 @@ function checkpointNodeValue<T>(n: Node<T>): { version: number; value: T | undef
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `n` | `Node&lt;T&gt;` | Any . |
+| `n` | `Node&lt;T&gt;` | Any Node. |
 
 ## Returns
 
-`{ version: 1, value }` from .
+`{ version: 1, value }` from Node.get.

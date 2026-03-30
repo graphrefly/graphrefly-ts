@@ -12,6 +12,7 @@ import {
 	type Message,
 	type Messages,
 	PAUSE,
+	propagatesToMeta,
 	RESOLVED,
 	RESUME,
 	TEARDOWN,
@@ -85,6 +86,11 @@ export interface NodeOptions {
 	meta?: Record<string, unknown>;
 	/** Allow fresh subscriptions after COMPLETE/ERROR. */
 	resubscribable?: boolean;
+	/**
+	 * Invoked when a new {@link Node.subscribe} clears a terminal state on a
+	 * resubscribable node — reset operator-local counters/accumulators here.
+	 */
+	onResubscribe?: () => void;
 	/** Clear cached value on TEARDOWN. */
 	resetOnTeardown?: boolean;
 	/**
@@ -488,6 +494,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		if (this._terminal && this._opts.resubscribable) {
 			this._terminal = false;
 			this._status = this._hasDeps ? "disconnected" : "settled";
+			this._opts.onResubscribe?.();
 		}
 
 		this._sinkCount += 1;
@@ -612,23 +619,27 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				const teardownCleanup = this._cleanup;
 				this._cleanup = undefined;
 				teardownCleanup?.();
-				// Propagate TEARDOWN to companion meta nodes so their
-				// subscribers are notified and resources released (§5.1).
-				// COMPLETE/ERROR are intentionally NOT propagated — meta
-				// stores outlive the parent's terminal state to allow
-				// post-mortem writes (e.g. setting meta.error after ERROR).
 				try {
-					for (const metaNode of Object.values(this.meta)) {
-						try {
-							(metaNode as NodeImpl)._downInternal([[TEARDOWN]]);
-						} catch {
-							/* best-effort: other meta nodes still receive TEARDOWN */
-						}
-					}
+					this._propagateToMeta(t);
 				} finally {
 					this._disconnectUpstream();
 					this._stopProducer();
 				}
+			}
+			// Propagate other meta-eligible signals (centralized in messages.ts).
+			if (t !== TEARDOWN && propagatesToMeta(t)) {
+				this._propagateToMeta(t);
+			}
+		}
+	}
+
+	/** Propagate a signal to all companion meta nodes (best-effort). */
+	_propagateToMeta(t: symbol): void {
+		for (const metaNode of Object.values(this.meta)) {
+			try {
+				(metaNode as NodeImpl)._downInternal([[t]]);
+			} catch {
+				/* best-effort: other meta nodes still receive the signal */
 			}
 		}
 	}

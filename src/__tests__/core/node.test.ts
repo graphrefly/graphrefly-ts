@@ -73,15 +73,70 @@ describe("node primitive", () => {
 			throw new Error("boom");
 		});
 		const seen: symbol[] = [];
+		const payloads: unknown[] = [];
 		const unsub = broken.subscribe((messages) => {
 			for (const m of messages) {
 				seen.push(m[0] as symbol);
+				if (m[0] === ERROR) payloads.push(m[1]);
 			}
 		});
 
 		source.down([[DATA, 1]]);
 		expect(broken.status).toBe("errored");
 		expect(seen).toContain(ERROR);
+		expect(payloads[0]).toBeInstanceOf(Error);
+		expect((payloads[0] as Error).message).toBe("boom");
+		unsub();
+	});
+
+	// Regression: GRAPHREFLY-SPEC §1.3.3 — RESOLVED enables transitive skip (leaf fn not re-run).
+	it("RESOLVED on mid skips leaf compute when value unchanged", () => {
+		const source = node<number>({ initial: 0 });
+		const mid = node([source], ([v]) => ((v as number) > 0 ? "p" : "n"), {
+			equals: (a, b) => a === b,
+		});
+		let leafRuns = 0;
+		const leaf = node([mid], ([m]) => {
+			leafRuns += 1;
+			return m;
+		});
+		const unsub = leaf.subscribe(() => undefined);
+		const afterConnect = leafRuns;
+
+		source.down([[DIRTY], [DATA, 1]]);
+		const afterFirstPush = leafRuns;
+		expect(afterFirstPush).toBeGreaterThan(afterConnect);
+
+		source.down([[DIRTY], [DATA, 2]]);
+		expect(leafRuns).toBe(afterFirstPush);
+		unsub();
+	});
+
+	// Regression: GRAPHREFLY-SPEC §1.3.4 — ERROR is terminal (no further downstream messages).
+	it("after ERROR, non-resubscribable node does not emit to sinks again", () => {
+		const source = node<number>({ initial: 0 });
+		const broken = node([source], () => {
+			throw new Error("boom");
+		});
+		let deliveries = 0;
+		const unsub = broken.subscribe(() => {
+			deliveries += 1;
+		});
+
+		source.down([[DATA, 1]]);
+		expect(deliveries).toBe(1);
+
+		source.down([[DIRTY], [DATA, 2]]);
+		expect(deliveries).toBe(1);
+		unsub();
+	});
+
+	it("resetOnTeardown clears cached value on TEARDOWN", () => {
+		const n = node<number>({ initial: 42, resetOnTeardown: true });
+		const unsub = n.subscribe(() => undefined);
+		expect(n.get()).toBe(42);
+		n.down([[TEARDOWN]]);
+		expect(n.get()).toBeUndefined();
 		unsub();
 	});
 

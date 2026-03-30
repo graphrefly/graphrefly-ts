@@ -1031,6 +1031,83 @@ IMPORTANT: Write your complete findings to ~/src/graphrefly-ts/docs/batch-review
 
 ---
 
+## Phase H — Reactive Output Consistency
+
+### Batch 17: Output Type Consistency (TS + Py)
+
+**Directory:** `~/src/graphrefly-ts`
+
+```
+You are auditing both GraphReFly implementations for output type consistency. The design invariant (established in callbag-recharge SESSION-callbag-native-promise-elimination.md and reinforced by GraphReFly spec §5.6 "Everything is a node") is:
+
+  **Every public function in the library returns Node<T>, Graph, void, or a plain synchronous value — never Promise<T>, Future, Awaitable, or async.**
+
+Promise/Future bridges exist only for end-users exiting reactive-land (e.g., firstValueFrom). Internally, system boundary calls (IndexedDB, fetch, fs) should be wrapped into reactive sources immediately.
+
+READ FIRST:
+- ~/src/graphrefly/GRAPHREFLY-SPEC.md §5.6 ("Everything is a node")
+- ~/src/callbag-recharge/src/archive/docs/SESSION-callbag-native-promise-elimination.md (predecessor precedent)
+- docs/batch-review/batch-4.md and batch-5.md (prior pattern consistency findings, if they exist)
+
+THEN AUDIT ALL EXPORTS in both repos:
+
+**TypeScript** — read every exported function/class in:
+- src/core/node.ts, sugar.ts, batch.ts, messages.ts, meta.ts, guard.ts, actor.ts
+- src/graph/graph.ts
+- src/extra/operators.ts, sources.ts, resilience.ts, backoff.ts, checkpoint.ts, cron.ts, pubsub.ts, reactive-base.ts, reactive-map.ts, reactive-log.ts, reactive-index.ts, reactive-list.ts
+- src/index.ts, src/core/index.ts, src/graph/index.ts, src/extra/index.ts
+
+**Python** — read every public function/class in:
+- src/graphrefly/core/node.py, sugar.py, protocol.py, meta.py, guard.py, subgraph_locks.py
+- src/graphrefly/graph/graph.py
+- src/graphrefly/extra/tier1.py, tier2.py, sources.py, resilience.py, backoff.py, checkpoint.py, data_structures.py, cron.py
+- src/graphrefly/__init__.py, src/graphrefly/core/__init__.py, src/graphrefly/graph/__init__.py, src/graphrefly/extra/__init__.py
+
+CHECKLIST — cite file:line for each finding:
+
+1. PUBLIC RETURN TYPES — For every exported function, classify its return type:
+   - Node<T> / Node[T] → CORRECT (reactive output)
+   - Graph → CORRECT (container)
+   - void / None → CORRECT (fire-and-forget effect or mutation)
+   - Plain synchronous value (string, number, object) → CORRECT for pure queries (get(), snapshot(), describe(), toJSON())
+   - Promise<T> / async function → VIOLATION
+   - Awaitable / Coroutine / Future → VIOLATION (Python)
+   List ALL violations.
+
+2. ADAPTER INTERFACES — Check any adapter interface types (CheckpointAdapter, future adapter contracts):
+   - Do method signatures return Node<T> or void? Or Promise<T>?
+   - Are callbacks typed to accept reactive returns?
+
+3. INTERNAL PROMISE USAGE — Even if the public API is correct, check for internal `new Promise()`, `Promise.resolve()`, `await`, `async def`, `asyncio.Future()` usage:
+   - System boundary wrapping (IDB, fetch, fs) → FLAG but acceptable IF wrapped in fromPromise/producer at the call site
+   - Reactive coordination (waiting for a node to settle, racing subscriptions) → VIOLATION
+   - Classify each occurrence as BOUNDARY (acceptable) or COORDINATION (violation)
+
+4. CALLBACK PARAMETER TYPES — For functions that accept user callbacks:
+   - Does the type allow sync, Promise, Node, and AsyncIterable returns? (maximum flexibility via fromAny pattern)
+   - Or does it restrict to Promise-only or sync-only?
+
+5. CROSS-REPO CONSISTENCY — For equivalent features in TS and Py:
+   - Do both return the same category (reactive vs async vs sync)?
+   - Any cases where TS returns Node<T> but Py returns Awaitable, or vice versa?
+
+6. FIRSTVALUEFROM / TO-PROMISE ESCAPE HATCH:
+   - Does it exist as a user-facing export? (CORRECT — user escape hatch)
+   - Is it used internally in any production code? (VIOLATION)
+
+OUTPUT FORMAT:
+For each finding:
+- CORRECT (file:line) — return type is reactive/sync as appropriate
+- VIOLATION (file:line) — returns Promise/Future/Awaitable when it should return Node<T>
+- BOUNDARY (file:line) — internal Promise for system boundary, acceptable but should be wrapped
+- INCONSISTENCY (TS file:line vs Py file:line) — cross-repo divergence
+- CONCERN — type allows too-narrow callback inputs (should use fromAny pattern)
+
+IMPORTANT: Write your complete findings to ~/src/graphrefly-ts/docs/batch-review/batch-17.md
+```
+
+---
+
 ## Execution Summary
 
 | Phase | Batches | Can parallelize? | Est. tokens per batch |
@@ -1042,12 +1119,14 @@ IMPORTANT: Write your complete findings to ~/src/graphrefly-ts/docs/batch-review
 | **E** | 11, 12 | Yes (both) | ~60-80k read |
 | **F** | 13, 14, 15 | Yes (all 3) | ~60-90k read |
 | **G** | 16 | After all others | ~40-60k read (mostly findings) |
+| **H** | 17 | After Option C refactor | ~60-80k read |
 
-**Total: 16 sessions, 7 phases.**
+**Total: 17 sessions, 8 phases.**
 
 - Phases A-E: Original audit (spec compliance, patterns, predecessor lessons, docs, tests)
 - Phase F: Design fitness for AI ergonomics and Phase 4 readiness (superset deps, RxJS alignment, AI tooling)
 - Phase G: Integration stress test using findings from all prior batches
+- Phase H: Reactive output consistency — no Promise/Future in public APIs (both repos)
 
 Each batch writes findings directly to `~/src/graphrefly-ts/docs/batch-review/batch-N.md`.
 
@@ -1056,13 +1135,12 @@ Each batch writes findings directly to `~/src/graphrefly-ts/docs/batch-review/ba
 ```
 Phase A (1,2,3) ──┐
 Phase B (4,5) ─────┤
-Phase C (6,7,8) ───┼── can overlap ──→ Phase F (13,14,15) ──→ Phase G (16)
-Phase D (9,10) ────┤
-Phase E (11,12) ───┘
+Phase C (6,7,8) ───┼── can overlap ──→ Phase F (13,14,15) ──→ Option C refactor ──→ Phase H (17) ──→ Inspector (3.3) ──→ Phase D (10) + Phase E (12) + Phase G (16)
+Phase D (9) ───────┤
+Phase E (11) ──────┘
 ```
 
 Phase F can start as soon as Phase A and C are done (they provide context for the design questions).
-Phase G should run last — it synthesizes all prior findings.
 
 Run Phase A (1,2,3) ──→ Hand in ──→ Fix spec violations + ambiguities
                                       (these are foundational — everything else depends on them)
@@ -1070,11 +1148,20 @@ Run Phase A (1,2,3) ──→ Hand in ──→ Fix spec violations + ambiguitie
 Run Phase B+C (4-8)  ──→ Hand in ──→ Fix pattern inconsistencies + missing optimizations
                                       (now the core is solid, clean up the surface)
 
-Run Phase D+E (9-12) ──→ Hand in ──→ Fix doc gaps + test gaps
+Run Phase D(9)+E(11) ──→ Hand in ──→ Fix doc gaps + test gaps (TS only)
                                       (docs and tests for the now-correct code)
 
-Run Phase F (13-15)  ──→ Hand in ──→ Address design fitness + build Inspector (3.3)
-                                      (pre-Phase 4 gate)
+Run Phase F (13-15)  ──→ Hand in ──→ Address design fitness findings
 
-Run Phase G (16)     ──→ Hand in ──→ Write integration tests for cross-layer scenarios
-                                      (final confidence check)
+**Option C refactor** ──→ Eliminate all Promise returns from public APIs (checkpoint.ts + any others).
+                          Build fromIDBRequest, fromIDBTransaction reactive primitives.
+                          Update adapter interfaces to return Node<T>.
+                          Apply same treatment to graphrefly-py (asyncio → Node).
+
+Run Phase H (17)     ──→ Hand in ──→ Verify reactive output consistency across both repos
+                                      (confirms Option C refactor is complete)
+
+Build Inspector (3.3) remaining items ──→ timeline, causal, diagram, spy, dumpGraph
+
+Run Phase D(10)+E(12)+G(16) ──→ Hand in ──→ Py docs + Py tests + integration stress
+                                              (final passes, now everything is reactive-clean)

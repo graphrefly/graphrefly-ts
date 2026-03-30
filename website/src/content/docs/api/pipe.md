@@ -1,9 +1,9 @@
 ---
 title: "pipe()"
-description: "Composes unary operators left-to-right; returns the final node. Does not register a ."
+description: "Composes unary operators left-to-right; returns the final node. Does not register a Graph."
 ---
 
-Composes unary operators left-to-right; returns the final node. Does not register a .
+Composes unary operators left-to-right; returns the final node. Does not register a Graph.
 
 ## Signature
 

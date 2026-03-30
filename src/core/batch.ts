@@ -1,8 +1,17 @@
-import { DATA, isPhase2Message, type Message, type Messages, RESOLVED } from "./messages.js";
+import {
+	DATA,
+	isPhase2Message,
+	isTerminalMessage,
+	type Message,
+	type Messages,
+	RESOLVED,
+} from "./messages.js";
 
 /**
  * §1.3.7 — Inside a batch, DIRTY propagates immediately; DATA and RESOLVED are
- * deferred until the outermost `batch()` callback returns.
+ * deferred until the outermost `batch()` callback returns. Terminal signals
+ * (COMPLETE, ERROR) are delivered after phase-2 messages in the same batch
+ * (see canonical ordering in `messages.ts`).
  */
 
 const MAX_DRAIN_ITERATIONS = 1000;
@@ -20,6 +29,15 @@ const pendingPhase2: Array<() => void> = [];
  * bugs when callbacks trigger further DATA/RESOLVED.
  *
  * @returns `true` while inside `batch()` or while the drain loop is running.
+ *
+ * @example
+ * ```ts
+ * import { batch, isBatching } from "@graphrefly/graphrefly-ts";
+ *
+ * batch(() => {
+ *   console.log(isBatching()); // true
+ * });
+ * ```
  *
  * @category core
  */
@@ -117,41 +135,64 @@ function drainPending(): void {
 }
 
 /**
- * Splits a message array into immediate vs phase-2 tuples (`DATA`, `RESOLVED`).
- * Used by `emitWithBatch` and for tests.
+ * Splits a message array into three groups by signal tier (see `messages.ts`):
  *
- * @param messages — One `down()` payload; order within each group is preserved.
- * @returns `immediate` (non-phase-2) and `deferred` (phase-2) tuples.
+ * - **immediate** — tier 0–1: DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN, unknown
+ * - **deferred** — tier 2: DATA, RESOLVED (phase-2, deferred inside `batch()`)
+ * - **terminal** — tier 3: COMPLETE, ERROR (delivered after phase-2)
+ *
+ * Order within each group is preserved.
+ *
+ * @param messages — One `down()` payload.
+ * @returns Three groups in canonical delivery order.
+ *
+ * @example
+ * ```ts
+ * import { DATA, DIRTY, COMPLETE, partitionForBatch } from "@graphrefly/graphrefly-ts";
+ *
+ * partitionForBatch([[DIRTY], [DATA, 1], [COMPLETE]]);
+ * // { immediate: [[DIRTY]], deferred: [[DATA, 1]], terminal: [[COMPLETE]] }
+ * ```
  *
  * @category core
  */
 export function partitionForBatch(messages: Messages): {
 	immediate: Messages;
 	deferred: Messages;
+	terminal: Messages;
 } {
 	const immediate: Message[] = [];
 	const deferred: Message[] = [];
+	const terminal: Message[] = [];
 	for (const m of messages) {
 		if (isPhase2Message(m)) {
 			deferred.push(m);
+		} else if (isTerminalMessage(m[0])) {
+			terminal.push(m);
 		} else {
 			immediate.push(m);
 		}
 	}
-	return { immediate, deferred };
+	return { immediate, deferred, terminal };
 }
 
 /**
- * Delivers messages through `emit`, applying batch semantics: non-phase-2 runs
- * immediately; `DATA` and `RESOLVED` are deferred until the outermost `batch()`
- * completes successfully (in registration order).
+ * Delivers messages through `emit`, applying batch semantics and canonical
+ * tier-based ordering (see `messages.ts`):
  *
- * Phase-2 messages are deferred whenever `isBatching()` is true — i.e. while
- * inside a `batch()` scope **or** while the drain loop is running. This matches
- * Python's `defer_when="batching"` semantics and prevents ordering issues when
- * deferred callbacks trigger further emissions.
+ * 1. **Immediate** (tier 0–1, 4): DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN,
+ *    unknown — emitted synchronously.
+ * 2. **Phase-2** (tier 2): DATA, RESOLVED — deferred while `isBatching()`.
+ * 3. **Terminal** (tier 3): COMPLETE, ERROR — always delivered after phase-2.
+ *    When batching, terminal is queued after deferred phase-2 in the pending list.
+ *    When not batching, terminal is emitted after phase-2 synchronously.
  *
- * @param emit — Sink (e.g. subscriber or internal forwarder). Called one or two times per invocation when not batching, or once for immediate plus once when the batch flushes.
+ * This ordering prevents the "COMPLETE-before-DATA" class of bugs: terminal
+ * signals never make a node terminal before phase-2 values reach sinks,
+ * regardless of how the source assembled the message array.
+ *
+ * @param emit — Sink callback. May be called up to three times per invocation
+ *   (immediate, deferred, terminal) when not batching.
  * @param messages — Full `[[Type, Data?], ...]` array for one emission.
  *
  * @example
@@ -172,28 +213,50 @@ export function emitWithBatch(emit: (messages: Messages) => void, messages: Mess
 	if (messages.length === 1) {
 		const t = messages[0][0];
 		if (t === DATA || t === RESOLVED) {
+			// Phase-2: defer when batching.
+			if (isBatching()) {
+				pendingPhase2.push(() => emit(messages));
+			} else {
+				emit(messages);
+			}
+		} else if (isTerminalMessage(t)) {
+			// Terminal single message: defer when batching so any preceding
+			// phase-2 in the queue flushes first.
 			if (isBatching()) {
 				pendingPhase2.push(() => emit(messages));
 			} else {
 				emit(messages);
 			}
 		} else {
+			// Immediate: emit synchronously.
 			emit(messages);
 		}
 		return;
 	}
-	// Multi-message: partition into immediate and deferred to preserve
-	// two-phase ordering (DIRTY propagates before DATA for diamond settlement).
-	const { immediate, deferred } = partitionForBatch(messages);
+	// Multi-message: three-way partition by tier.
+	const { immediate, deferred, terminal } = partitionForBatch(messages);
+
+	// 1. Immediate signals (tier 0–1, 4) — emit synchronously now.
 	if (immediate.length > 0) {
 		emit(immediate);
 	}
-	if (deferred.length === 0) {
-		return;
-	}
+
+	// 2. Phase-2 (tier 2) + 3. Terminal (tier 3) — canonical order preserved.
 	if (isBatching()) {
-		pendingPhase2.push(() => emit(deferred));
+		// Both deferred and terminal go into the pending queue, in order.
+		if (deferred.length > 0) {
+			pendingPhase2.push(() => emit(deferred));
+		}
+		if (terminal.length > 0) {
+			pendingPhase2.push(() => emit(terminal));
+		}
 	} else {
-		emit(deferred);
+		// Not batching: emit synchronously in tier order.
+		if (deferred.length > 0) {
+			emit(deferred);
+		}
+		if (terminal.length > 0) {
+			emit(terminal);
+		}
 	}
 }

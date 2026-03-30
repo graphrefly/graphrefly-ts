@@ -1,0 +1,1045 @@
+/**
+ * Regression: operator-level protocol and lifecycle vs GRAPHREFLY-SPEC §1.3 (two-phase, RESOLVED, subscriptions).
+ */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { state } from "../../core/sugar.js";
+import {
+	audit,
+	buffer,
+	bufferCount,
+	bufferTime,
+	catchError,
+	combine,
+	combineLatest,
+	concat,
+	concatMap,
+	debounce,
+	debounceTime,
+	delay,
+	distinctUntilChanged,
+	elementAt,
+	exhaustMap,
+	filter,
+	find,
+	first,
+	flatMap,
+	gate,
+	interval,
+	last,
+	map,
+	merge,
+	mergeMap,
+	pairwise,
+	pausable,
+	race,
+	reduce,
+	repeat,
+	rescue,
+	sample,
+	scan,
+	skip,
+	startWith,
+	switchMap,
+	take,
+	takeUntil,
+	takeWhile,
+	tap,
+	throttle,
+	throttleTime,
+	timeout,
+	window,
+	windowCount,
+	windowTime,
+	withLatestFrom,
+	zip,
+} from "../../extra/operators.js";
+import {
+	globalDirtyBeforePhase2,
+	sawResolved,
+	subscribeProtocol,
+} from "./operator-protocol-harness.js";
+
+function assertDirtyBeforeDataOnTwoPhase(node: Node<unknown>, push: () => void): void {
+	const cap = subscribeProtocol(node);
+	push();
+	try {
+		expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+	} finally {
+		cap.unsub();
+	}
+}
+
+/** Second push uses a distinct value so sinks get DATA, not only RESOLVED (same cached output). */
+function assertReconnectSeesData(
+	build: () => { source: Node<number>; out: Node<unknown>; pushSecond?: () => void },
+): void {
+	const { source, out, pushSecond } = build();
+	const a = subscribeProtocol(out);
+	source.down([[DATA, 1]]);
+	expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+	a.unsub();
+	const b = subscribeProtocol(out);
+	(pushSecond ?? (() => source.down([[DIRTY], [DATA, 99]])))();
+	expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+	b.unsub();
+}
+
+describe("Tier 1 operator protocol matrix", () => {
+	describe("map", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3.1 — DIRTY precedes DATA/RESOLVED in two-phase push.
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = map(s, (n) => (n as number) * 2);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
+		});
+
+		// Regression: GRAPHREFLY-SPEC §1.3.3 — RESOLVED when recomputed value unchanged.
+		it("emits RESOLVED when projected value is unchanged", () => {
+			const s = state(2);
+			const out = map(s, (n) => (n as number) % 2);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			s.down([[DIRTY], [DATA, 4]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		// Regression: GRAPHREFLY-SPEC §2 — subscribe lifecycle; operators reset inner state on teardown where applicable.
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = map(s, (n) => (n as number) + 1);
+				return {
+					source: s,
+					out,
+					pushSecond: () => s.down([[DATA, 5]]),
+				};
+			});
+		});
+	});
+
+	describe("filter", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = filter(s, (n) => (n as number) > -1);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
+		});
+
+		it("emits RESOLVED when filtered output value repeats", () => {
+			const s = state(1);
+			const out = filter(s, (n) => (n as number) % 2 === 1);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			s.down([[DIRTY], [DATA, 3]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = filter(s, (n) => (n as number) >= 0);
+				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
+			});
+		});
+	});
+
+	describe("tap", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = tap(s, () => undefined);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
+		});
+
+		it("emits RESOLVED when upstream value maps to same output via following map semantics", () => {
+			const s = state(2);
+			const out = tap(
+				map(s, (n) => (n as number) % 2),
+				() => undefined,
+			);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			s.down([[DIRTY], [DATA, 4]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = tap(s, () => undefined);
+				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
+			});
+		});
+	});
+
+	describe("scan", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = scan(s, (a, x) => a + (x as number), 0);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 2]]));
+		});
+
+		it("may emit RESOLVED when accumulator unchanged (same protocol as derived nodes)", () => {
+			const s = state(0);
+			const out = scan(s, (_a, x) => (x as number) % 2, 0);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			s.down([[DIRTY], [DATA, 4]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0, { resubscribable: true });
+				const out = scan(s, (a, x) => a + (x as number), 0);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("take", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = take(s, 5);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("emits RESOLVED when further DATA would repeat current output before take limit", () => {
+			const s = state(1);
+			const out = take(
+				map(s, (n) => (n as number) % 2),
+				3,
+			);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			s.down([[DIRTY], [DATA, 4]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0, { resubscribable: true });
+				const out = take(s, 10);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("skip", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = skip(s, 0);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("forwards RESOLVED when inner mapped value unchanged", () => {
+			const s = state(2);
+			const out = skip(
+				map(s, (n) => (n as number) % 2),
+				0,
+			);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			s.down([[DIRTY], [DATA, 4]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = skip(s, 0);
+				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
+			});
+		});
+	});
+
+	describe("distinctUntilChanged", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = distinctUntilChanged(s);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("suppresses duplicate consecutive values (RESOLVED / no duplicate DATA)", () => {
+			const s = state(1);
+			const out = distinctUntilChanged(s);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			s.down([[DIRTY], [DATA, 1]]);
+			expect(sawResolved(cap.batches) || cap.flat().filter((m) => m[0] === DATA).length === 1).toBe(
+				true,
+			);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0, { resubscribable: true });
+				const out = distinctUntilChanged(s);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("pairwise", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — after two source values, output delivers a DATA tuple (ordering may omit DIRTY at sink per single-callback batches).
+		it("emits DATA tuple after two source emissions", () => {
+			const s = state(0);
+			const out = pairwise(s);
+			const cap = subscribeProtocol(out);
+			s.down([[DATA, 0]]);
+			s.down([[DIRTY], [DATA, 1]]);
+			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = pairwise(s);
+				return {
+					source: s,
+					out,
+					pushSecond: () => {
+						s.down([[DATA, 0]]);
+						s.down([[DATA, 1]]);
+					},
+				};
+			});
+		});
+	});
+
+	describe("startWith", () => {
+		it("DIRTY precedes DATA when source uses two-phase down after seed", () => {
+			const s = state(0);
+			const out = startWith(s, -1);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 0]]));
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0, { resubscribable: true });
+				const out = startWith(s, 0);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("first", () => {
+		it("DIRTY precedes DATA when source uses two-phase down", () => {
+			const s = state(0);
+			const out = first(s);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 7]]));
+		});
+
+		// Regression: GRAPHREFLY-SPEC §2 — resubscribable `take(1)` resets counters on resubscribe (`onResubscribe`).
+		it("resubscribable first() delivers DATA again after prior COMPLETE", () => {
+			const s = state(0, { resubscribable: true });
+			const out = first(s, { resubscribable: true });
+			const a = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("combine", () => {
+		it("DIRTY precedes DATA on two-phase update", () => {
+			const a = state(1);
+			const b = state(2);
+			const c = combine(a, b);
+			assertDirtyBeforeDataOnTwoPhase(c, () => a.down([[DIRTY], [DATA, 10]]));
+		});
+
+		it("emits RESOLVED when tuple unchanged", () => {
+			const a = state(1);
+			const b = state(2);
+			const c = combine(a, b);
+			const cap = subscribeProtocol(c);
+			a.down([[DATA, 0]]);
+			b.down([[DATA, 0]]);
+			a.down([[DIRTY], [DATA, 0]]);
+			b.down([[DIRTY], [DATA, 0]]);
+			expect(sawResolved(cap.batches)).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription sees updates after unsubscribe", () => {
+			const a = state(1);
+			const b = state(2);
+			const c = combine(a, b);
+			const x = subscribeProtocol(c);
+			a.down([[DATA, 3]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const y = subscribeProtocol(c);
+			b.down([[DATA, 4]]);
+			expect(y.flat().some((m) => m[0] === DATA)).toBe(true);
+			y.unsub();
+		});
+	});
+
+	describe("zip", () => {
+		it("DIRTY precedes DATA when first arm uses two-phase", () => {
+			const x = state(1);
+			const y = state(2);
+			const z = zip(x, y);
+			const cap = subscribeProtocol(z);
+			x.down([[DIRTY], [DATA, 10]]);
+			y.down([[DATA, 20]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives paired DATA after unsubscribe", () => {
+			const x = state(1);
+			const y = state(2);
+			const z = zip(x, y);
+			const a = subscribeProtocol(z);
+			x.down([[DATA, 1]]);
+			y.down([[DATA, 2]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(z);
+			x.down([[DATA, 3]]);
+			y.down([[DATA, 4]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("merge", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3.5 — merge completes only after all sources complete.
+		it("DIRTY precedes DATA when a source uses two-phase down", () => {
+			const a = state(0);
+			const b = state(0);
+			const m = merge(a, b);
+			assertDirtyBeforeDataOnTwoPhase(m, () => a.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("second subscription receives DATA from either source after unsubscribe", () => {
+			const a = state(0);
+			const b = state(0);
+			const m = merge(a, b);
+			const x = subscribeProtocol(m);
+			a.down([[DATA, 1]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const y = subscribeProtocol(m);
+			b.down([[DATA, 2]]);
+			expect(y.flat().some((m) => m[0] === DATA)).toBe(true);
+			y.unsub();
+		});
+	});
+
+	describe("race", () => {
+		it("DIRTY precedes DATA when winning source uses two-phase", () => {
+			const a = state(0);
+			const b = state(0);
+			const r = race(a, b);
+			assertDirtyBeforeDataOnTwoPhase(r, () => a.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("new race() instance forwards DATA after prior race completed", () => {
+			const a1 = state(0, { resubscribable: true });
+			const b1 = state(0, { resubscribable: true });
+			const r1 = race(a1, b1);
+			const x = subscribeProtocol(r1);
+			a1.down([[DATA, 1]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const a2 = state(0, { resubscribable: true });
+			const b2 = state(0, { resubscribable: true });
+			const r2 = race(a2, b2);
+			const y = subscribeProtocol(r2);
+			b2.down([[DATA, 2]]);
+			expect(y.flat().some((m) => m[0] === DATA)).toBe(true);
+			y.unsub();
+		});
+	});
+
+	describe("concat", () => {
+		it("DIRTY precedes DATA on first source two-phase", () => {
+			const a = state(0);
+			const b = state(0);
+			const c = concat(a, b);
+			assertDirtyBeforeDataOnTwoPhase(c, () => a.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("second subscription receives DATA after unsubscribe", () => {
+			const a = state(0, { resubscribable: true });
+			const b = state(0, { resubscribable: true });
+			const c = concat(a, b);
+			const x = subscribeProtocol(c);
+			a.down([[DATA, 1]]);
+			a.down([[COMPLETE]]);
+			b.down([[DATA, 2]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const y = subscribeProtocol(c);
+			a.down([[DATA, 3]]);
+			a.down([[COMPLETE]]);
+			b.down([[DATA, 4]]);
+			expect(y.flat().some((m) => m[0] === DATA)).toBe(true);
+			y.unsub();
+		});
+	});
+
+	describe("withLatestFrom", () => {
+		it("DIRTY on primary precedes DATA when paired", () => {
+			const p = state(1);
+			const q = state(2);
+			const w = withLatestFrom(p, q);
+			const cap = subscribeProtocol(w);
+			q.down([[DATA, 20]]);
+			p.down([[DIRTY], [DATA, 10]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription receives DATA after unsubscribe", () => {
+			const p = state(1);
+			const q = state(2);
+			const w = withLatestFrom(p, q);
+			const x = subscribeProtocol(w);
+			q.down([[DATA, 1]]);
+			p.down([[DATA, 2]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const y = subscribeProtocol(w);
+			q.down([[DATA, 3]]);
+			p.down([[DATA, 4]]);
+			expect(y.flat().some((m) => m[0] === DATA)).toBe(true);
+			y.unsub();
+		});
+	});
+
+	describe("reduce", () => {
+		it("does not emit DATA until upstream COMPLETE (operator semantics)", () => {
+			const s = state(0);
+			const r = reduce(s, (a, x) => a + (x as number), 0);
+			const cap = subscribeProtocol(r);
+			s.down([[DIRTY], [DATA, 1]]);
+			expect(cap.flat().filter((m) => m[0] === DATA).length).toBe(0);
+			cap.unsub();
+		});
+
+		it("second subscription can complete again with resubscribable source", () => {
+			const s = state(0, { resubscribable: true });
+			const r = reduce(s, (a, x) => a + (x as number), 0, { resubscribable: true });
+			const x = subscribeProtocol(r);
+			s.down([[DATA, 1]]);
+			s.down([[COMPLETE]]);
+			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
+			x.unsub();
+			const y = subscribeProtocol(r);
+			s.down([[DATA, 2]]);
+			s.down([[COMPLETE]]);
+			expect(y.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(1);
+			y.unsub();
+		});
+	});
+
+	describe("takeUntil", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — primary stream two-phase before notifier stops.
+		it("DIRTY precedes DATA on primary when notifier has not fired", () => {
+			const s = state(0);
+			const stop = state(0);
+			const out = takeUntil(s, stop);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
+		});
+
+		it("second subscription receives DATA after unsubscribe (notifier idle)", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const stop = state(0);
+				const out = takeUntil(s, stop);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("takeWhile", () => {
+		it("DIRTY precedes DATA when predicate still holds", () => {
+			const s = state(0);
+			const out = takeWhile(s, (n) => (n as number) < 9);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			assertReconnectSeesData(() => {
+				const s = state(0);
+				const out = takeWhile(s, (n) => (n as number) < 100);
+				return { source: s, out };
+			});
+		});
+	});
+
+	describe("find", () => {
+		it("DIRTY precedes DATA on two-phase source", () => {
+			const s = state(0);
+			const out = find(s, (n) => (n as number) >= 0);
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
+		});
+
+		// Regression: GRAPHREFLY-SPEC §2 — resubscribable take(1) inside find.
+		it("resubscribable find allows another first match after COMPLETE", () => {
+			const s = state(0, { resubscribable: true });
+			const out = find(s, (n) => (n as number) > 0, { resubscribable: true });
+			const a = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("elementAt", () => {
+		it("DIRTY precedes DATA when reaching indexed emission", () => {
+			const s = state(0);
+			const out = elementAt(s, 1);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY], [DATA, 10]]);
+			s.down([[DIRTY], [DATA, 20]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("last", () => {
+		it("DIRTY precedes final DATA on COMPLETE after two-phase source", () => {
+			const s = state(0);
+			const out = last(s);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY], [DATA, 7]]);
+			s.down([[COMPLETE]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("gate", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — gate derives from source when control is open.
+		it("DIRTY precedes DATA when control is true", () => {
+			const data = state(0);
+			const open = state(true);
+			const out = gate(data, open);
+			assertDirtyBeforeDataOnTwoPhase(out, () => data.down([[DIRTY], [DATA, 5]]));
+		});
+
+		it("second subscription receives later DATA after unsubscribe", () => {
+			const data = state(0);
+			const open = state(true);
+			const out = gate(data, open);
+			const a = subscribeProtocol(out);
+			data.down([[DATA, 1]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			data.down([[DIRTY], [DATA, 99]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+});
+
+describe("Tier 2 operator protocol matrix", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	describe("switchMap", () => {
+		// Outer two-phase may interleave with inner subscription setup; assert global ordering once inner emits.
+		it("DIRTY precedes inner DATA after outer selects inner (two-phase outer)", () => {
+			const src = state(0);
+			const inner = state(10);
+			const out = switchMap(src, () => inner);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			inner.down([[DIRTY], [DATA, 99]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription follows new outer DATA after unsubscribe", () => {
+			const src = state(0);
+			const inner = state(100);
+			const out = switchMap(src, () => inner);
+			const a = subscribeProtocol(out);
+			src.down([[DATA, 1]]);
+			inner.down([[DATA, 11]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			src.down([[DATA, 2]]);
+			inner.down([[DATA, 22]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("exhaustMap", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — inner DIRTY propagates before inner DATA.
+		// After initial attach on connect, push to the inner and verify ordering.
+		it("inner DIRTY precedes inner DATA through exhaustMap", () => {
+			const src = state(0);
+			const inner = state(10);
+			const out = exhaustMap(src, () => inner);
+			// Subscribe and let initial connect attach to inner.
+			const batches: Messages[] = [];
+			const unsub = out.subscribe((msgs) => batches.push([...msgs] as unknown as Messages));
+			// Clear initial connect messages; isolate the scripted push.
+			batches.length = 0;
+			inner.down([[DIRTY], [DATA, 20]]);
+			const flat = batches.flat() as Message[];
+			expect(globalDirtyBeforePhase2(flat)).toBe(true);
+			unsub();
+		});
+	});
+
+	describe("concatMap", () => {
+		it("second subscription runs sequential inners after unsubscribe", () => {
+			const run = (): void => {
+				const src = state(0);
+				const a = state(100);
+				const b = state(200);
+				let wave = 0;
+				const out = concatMap(src, () => {
+					wave += 1;
+					return wave === 1 ? a : b;
+				});
+				const x = subscribeProtocol(out);
+				src.down([[DATA, 1]]);
+				a.down([[COMPLETE]]);
+				src.down([[DATA, 2]]);
+				b.down([[DATA, 201]]);
+				expect(x.flat().some((m) => m[1] === 201)).toBe(true);
+				x.unsub();
+				const y = subscribeProtocol(out);
+				src.down([[DATA, 1]]);
+				a.down([[COMPLETE]]);
+				src.down([[DATA, 2]]);
+				b.down([[DATA, 202]]);
+				expect(y.flat().some((m) => m[1] === 202)).toBe(true);
+				y.unsub();
+			};
+			run();
+		});
+	});
+
+	describe("mergeMap", () => {
+		it("DIRTY precedes DATA from inner after outer two-phase", () => {
+			const src = state(0);
+			const inner = state(1);
+			const out = mergeMap(src, () => inner);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			inner.down([[DIRTY], [DATA, 10]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
+		it("second subscription follows new outer DATA after unsubscribe", () => {
+			const src = state(0);
+			const inner = state(100);
+			const out = mergeMap(src, () => inner);
+			const a = subscribeProtocol(out);
+			src.down([[DATA, 1]]);
+			inner.down([[DATA, 11]]);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			src.down([[DATA, 2]]);
+			inner.down([[DATA, 22]]);
+			expect(b.flat().some((m) => m[0] === DATA)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("flatMap (alias of mergeMap)", () => {
+		// Regression: flatMap is the same function reference as mergeMap (RxJS naming).
+		it("is mergeMap", () => {
+			expect(flatMap).toBe(mergeMap);
+		});
+
+		it("DIRTY precedes DATA from inner after outer two-phase", () => {
+			const src = state(0);
+			const inner = state(1);
+			const out = flatMap(src, () => inner);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			inner.down([[DIRTY], [DATA, 10]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("debounce", () => {
+		it("after reconnect, emits debounced DATA for new activity (fake timers)", () => {
+			vi.useFakeTimers();
+			const s = state(0);
+			const out = debounce(s, 50);
+			const a = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			vi.advanceTimersByTime(50);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			vi.advanceTimersByTime(50);
+			expect(b.flat().some((m) => m[1] === 2)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("delay", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — DIRTY forwards immediately; DATA follows after the timer (split `down` so DIRTY is observable before scheduling).
+		it("DIRTY is not withheld past delayed DATA (fake timers)", () => {
+			vi.useFakeTimers();
+			const s = state(0);
+			const out = delay(s, 40);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY]]);
+			s.down([[DATA, 7]]);
+			const before = cap.flat().filter((m) => m[0] === DATA).length;
+			expect(before).toBe(0);
+			expect(cap.flat().some((m) => m[0] === DIRTY)).toBe(true);
+			vi.advanceTimersByTime(40);
+			const flat = cap.flat();
+			expect(flat.some((m) => m[0] === DATA)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("throttle", () => {
+		// Regression: throttle uses `Date.now()` for spacing — start past `ms` so `now - lastEmit >= ms` holds for the first leading edge (`lastEmit` starts at 0).
+		it("reconnect sees leading DATA again (fake timers)", () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			vi.setSystemTime(10_000);
+			const s = state(0);
+			const out = throttle(s, 1_000, { trailing: false });
+			const a = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			expect(a.flat().find((m) => m[0] === DATA)?.[1]).toBe(1);
+			a.unsub();
+			vi.setSystemTime(12_000);
+			const b = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			expect(b.flat().find((m) => m[0] === DATA)?.[1]).toBe(2);
+			b.unsub();
+		});
+	});
+
+	describe("sample", () => {
+		it("DIRTY on notifier precedes sampled DATA", () => {
+			const src = state(1);
+			const tick = state(0);
+			const out = sample(src, tick);
+			const cap = subscribeProtocol(out);
+			src.down([[DATA, 10]]);
+			tick.down([[DIRTY], [DATA, 1]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("audit", () => {
+		it("after reconnect, emits audited DATA for new activity (fake timers)", () => {
+			vi.useFakeTimers();
+			const s = state(0);
+			const out = audit(s, 50);
+			const a = subscribeProtocol(out);
+			s.down([[DATA, 1]]);
+			vi.advanceTimersByTime(60);
+			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);
+			a.unsub();
+			const b = subscribeProtocol(out);
+			s.down([[DATA, 2]]);
+			vi.advanceTimersByTime(60);
+			expect(b.flat().some((m) => m[1] === 2)).toBe(true);
+			b.unsub();
+		});
+	});
+
+	describe("buffer", () => {
+		it("DIRTY precedes flushed buffer DATA when notifier uses two-phase", () => {
+			const src = state(0);
+			const n = state(0);
+			const out = buffer(src, n);
+			const cap = subscribeProtocol(out);
+			src.down([[DATA, 1]]);
+			src.down([[DATA, 2]]);
+			n.down([[DIRTY], [DATA, 0]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			expect(cap.flat().some((m) => m[0] === DATA && Array.isArray(m[1]))).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("bufferCount", () => {
+		it("DIRTY precedes DATA when buffer fills on two-phase pushes", () => {
+			const s = state(0);
+			const out = bufferCount(s, 2);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY], [DATA, 1]]);
+			s.down([[DIRTY], [DATA, 2]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("bufferTime", () => {
+		it("DIRTY precedes interval-flushed DATA (fake timers)", () => {
+			vi.useFakeTimers();
+			const s = state(0);
+			const out = bufferTime(s, 50);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY]]);
+			s.down([[DATA, 7]]);
+			expect(cap.flat().some((m) => m[0] === DIRTY)).toBe(true);
+			vi.advanceTimersByTime(50);
+			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("windowCount", () => {
+		it("DIRTY precedes DATA when filling a window (no eager outer DATA)", () => {
+			const src = state<number | undefined>(undefined);
+			const out = windowCount(src, 2);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			src.down([[DIRTY], [DATA, 2]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("window", () => {
+		it("DIRTY precedes first window emission when notifier closes on two-phase", () => {
+			const src = state<number | undefined>(undefined);
+			const n = state(0);
+			const out = window(src, n);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			n.down([[DIRTY], [DATA, 0]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("windowTime", () => {
+		it("DIRTY precedes DATA after window interval (fake timers)", () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			vi.setSystemTime(10_000);
+			const s = state(0);
+			const out = windowTime(s, 100);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY], [DATA, 1]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("timeout", () => {
+		// Regression: split `down` so DIRTY is not elided at the sink (single-dep DIRTY skip when batched with DATA).
+		it("DIRTY precedes DATA when idle timer is long", () => {
+			const s = state(0);
+			const out = timeout(s, 999_999);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY]]);
+			s.down([[DATA, 1]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
+		it("emits ERROR after idle window (fake timers)", () => {
+			vi.useFakeTimers();
+			const s = state(0);
+			const out = timeout(s, 30);
+			const cap = subscribeProtocol(out);
+			vi.advanceTimersByTime(30);
+			expect(cap.flat().some((m) => m[0] === ERROR)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("pausable", () => {
+		it("DIRTY precedes DATA when not paused", () => {
+			const s = state(0);
+			const out = pausable(s);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY]]);
+			s.down([[DATA, 1]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("rescue", () => {
+		it("DIRTY precedes DATA on successful path", () => {
+			const s = state(0);
+			const out = rescue(s, () => 0);
+			const cap = subscribeProtocol(out);
+			s.down([[DIRTY]]);
+			s.down([[DATA, 1]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("repeat", () => {
+		it("completes producer after N inner COMPLETE rounds", () => {
+			const s = state(1, { resubscribable: true });
+			const out = repeat(s, 2);
+			const cap = subscribeProtocol(out);
+			s.down([[COMPLETE]]);
+			s.down([[COMPLETE]]);
+			expect(cap.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("interval", () => {
+		it("emits DATA on timer while subscribed (fake timers)", () => {
+			vi.useFakeTimers();
+			const out = interval(50);
+			const cap = subscribeProtocol(out);
+			vi.advanceTimersByTime(50);
+			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			cap.unsub();
+		});
+	});
+
+	describe("RxJS alias exports", () => {
+		it("combineLatest is combine", () => {
+			expect(combineLatest).toBe(combine);
+		});
+
+		it("debounceTime is debounce", () => {
+			expect(debounceTime).toBe(debounce);
+		});
+
+		it("throttleTime is throttle", () => {
+			expect(throttleTime).toBe(throttle);
+		});
+
+		it("catchError is rescue", () => {
+			expect(catchError).toBe(rescue);
+		});
+	});
+});

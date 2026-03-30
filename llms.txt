@@ -1,0 +1,20 @@
+# GraphReFly — @graphrefly/graphrefly-ts
+
+GraphReFly is a reactive graph protocol for human + LLM co-operation. This repository is the TypeScript implementation.
+
+## Authoritative behavior
+
+- Shared normative spec: the `GRAPHREFLY-SPEC.md` file in the **graphrefly** spec repository (sibling to this package in the GraphReFly workspace). Implementations must match that document, not legacy callbag-only behavior.
+
+## Where to read in this repo
+
+- `docs/roadmap.md` — phased implementation status
+- `docs/docs-guidance.md` — how API docs and examples are maintained
+- `docs/test-guidance.md` — how tests are organized
+- `website/src/content/docs/api/` — generated API pages (from `website/scripts/gen-api-docs.mjs` and source JSDoc)
+- `examples/` — small runnable sketches (verify against current exports before copy-paste)
+
+## Imports
+
+- Main entry: `@graphrefly/graphrefly-ts` (re-exports core, extra, graph)
+- Subpaths: `@graphrefly/graphrefly-ts/core`, `/extra`, `/graph`

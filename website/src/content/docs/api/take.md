@@ -17,7 +17,7 @@ function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T>
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `count` | `number` | Maximum `DATA` emissions (≤0 completes immediately). |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

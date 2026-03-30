@@ -21,7 +21,7 @@ function derived<T = unknown>(
 |-----------|------|-------------|
 | `deps` | `readonly Node[]` | Upstream nodes. |
 | `fn` | `NodeFn&lt;T&gt;` | Compute function; return value is emitted, or use `actions` explicitly. |
-| `opts` | `NodeOptions` | Optional . |
+| `opts` | `NodeOptions` | Optional NodeOptions. |
 
 ## Returns
 

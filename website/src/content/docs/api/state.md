@@ -1,9 +1,9 @@
 ---
 title: "state()"
-description: "Creates a manual source with no upstream deps. Emit values with .\n\nSpec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §2.7)."
+description: "Creates a manual source with no upstream deps. Emit values with Node.down.\n\nSpec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §"
 ---
 
-Creates a manual source with no upstream deps. Emit values with .
+Creates a manual source with no upstream deps. Emit values with Node.down.
 
 Spec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §2.7).
 
@@ -18,7 +18,7 @@ function state<T>(initial: T, opts?: Omit<NodeOptions, "initial">): Node<T>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `initial` | `T` | Initial cached value. |
-| `opts` | `Omit&lt;NodeOptions, "initial"&gt;` | Optional  (excluding `initial`). |
+| `opts` | `Omit&lt;NodeOptions, "initial"&gt;` | Optional NodeOptions (excluding `initial`). |
 
 ## Returns
 

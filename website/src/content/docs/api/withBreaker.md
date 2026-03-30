@@ -1,9 +1,9 @@
 ---
 title: "withBreaker()"
-description: "Returns a unary wrapper that gates upstream `DATA` through a ."
+description: "Returns a unary wrapper that gates upstream `DATA` through a CircuitBreaker."
 ---
 
-Returns a unary wrapper that gates upstream `DATA` through a .
+Returns a unary wrapper that gates upstream `DATA` through a CircuitBreaker.
 
 ## Signature
 
@@ -19,7 +19,7 @@ function withBreaker<T>(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `breaker` | `CircuitBreaker` | Shared breaker instance (typically one per resource). |
-| `options` | `{ onOpen?: "skip" | "error" }` | `onOpen: "skip"` emits `RESOLVED` when open; `"error"` emits . |
+| `options` | `{ onOpen?: "skip" | "error" }` | `onOpen: "skip"` emits `RESOLVED` when open; `"error"` emits CircuitOpenError. |
 
 ## Returns
 
@@ -37,4 +37,4 @@ const { node, breakerState } = withBreaker(b)(s);
 
 ## Behavior Details
 
-- **Success path:** `COMPLETE` calls . **Failure path:** upstream `ERROR` calls  and is forwarded.
+- **Success path:** `COMPLETE` calls CircuitBreaker.recordSuccess. **Failure path:** upstream `ERROR` calls CircuitBreaker.recordFailure and is forwarded.

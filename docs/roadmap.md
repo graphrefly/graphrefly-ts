@@ -37,6 +37,15 @@
 - [x] Error handling: fn throws → `[[ERROR, err]]` downstream
 - [x] `resubscribable` and `resetOnTeardown` options
 
+### 0.3b — Dynamic node primitive
+
+- [x] `dynamicNode(trackingFn, opts?)` — runtime dep tracking with diamond resolution
+- [x] Tracking `get()` proxy: deps discovered during fn execution, re-tracked each recompute
+- [x] Dep diffing + rewire: disconnect removed deps, connect new deps, rebuild bitmask
+- [x] Re-entrancy guard during rewire (suppress signals from newly-connected deps)
+- [x] Full two-phase (DIRTY/RESOLVED) participation across dynamically-tracked deps
+- [x] Tests: conditional deps, dep set changes, diamond resolution with dynamic deps, rewire correctness
+
 ### 0.4 — Meta (companion stores)
 
 - [x] `meta` option: each key becomes a subscribable node
@@ -78,7 +87,7 @@
 ### 1.2 — Composition
 
 - [x] `graph.mount(name, childGraph)` — subgraph embedding
-- [x] Colon-delimited namespace: `"parent:child:node"`
+- [x] Double-colon qualified paths: `"parent::child::node"` (see GRAPHREFLY-SPEC)
 - [x] `graph.resolve(path)` — node lookup by qualified path
 - [x] Lifecycle signal propagation through mount hierarchy
 
@@ -172,9 +181,24 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 - [x] `retry`, `backoff` (exponential, linear, fibonacci)
 - [x] `withBreaker` (circuit breaker)
-- [x] `rateLimiter`, `tokenTracker`
+- [x] `rateLimiter`, `tokenBucket` / `tokenTracker` (Python parity name)
 - [x] `withStatus` (now: sugar for meta companion stores)
 - [x] `checkpoint` + adapters (file, SQLite, IndexedDB)
+
+### 3.1b — Reactive output consistency (no Promise in public APIs)
+
+Design invariant: every public function returns `Node<T>`, `Graph`, `void`, or a plain synchronous value — never `Promise<T>`. Predecessor precedent: `~/src/callbag-recharge/src/archive/docs/SESSION-callbag-native-promise-elimination.md`.
+
+- [x] `fromIDBRequest<T>(req)` → `Node<T>` — reactive primitive wrapping `IDBRequest` callbacks via `producer()`
+- [x] `fromIDBTransaction(tx)` → `Node<void>` — reactive primitive wrapping `IDBTransaction` completion
+- [x] Refactor `saveGraphCheckpointIndexedDb` → returns `Node<void>` (not `Promise<void>`)
+- [x] Refactor `restoreGraphCheckpointIndexedDb` → returns `Node<boolean>` (not `Promise<boolean>`)
+- [ ] Refactor `SqliteCheckpointAdapter` methods → return `Node<T>` or `void` (not `Promise<T>`)
+- [ ] Audit all remaining exports for `Promise<T>` return types — fix any found
+- [ ] Update adapter interface types: methods return `Node<T>` or `void`
+- [ ] Callback parameter types accept sync, Promise, Node, AsyncIterable via `fromAny` pattern
+- [ ] `firstValueFrom` exported for end-users only — not used internally
+- [ ] **Python parity:** same treatment in `graphrefly-py` — no `async def` / `Awaitable` / `Future` in public APIs; wrap `asyncio` calls in reactive sources
 
 ### 3.2 — Data structures
 
@@ -192,20 +216,20 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 
 #### Structured observation (extend `observe`)
 
-- [ ] `observe()` returns `ObserveResult` object: `{ values, dirtyCount, resolvedCount, events, completedCleanly, errored, dispose }` — not just a raw stream
+- [x] `observe(name, { structured: true })` returns `ObserveResult` object: `{ values, dirtyCount, resolvedCount, events, completedCleanly, errored, dispose }` — options bag on existing `observe()`
 - [ ] `observe(name, { timeline: true })` — timestamped events with batch context (`{ timestamp, type, data, inBatch }`)
 - [ ] `observe(name, { causal: true })` — which dep triggered recomputation: `{ triggerDepIndex, triggerDepName, depValues }`
 - [ ] `observe(name, { derived: true })` — per-evaluation dep snapshots for derived/compute nodes
 
 #### Graph queries (extend `describe`)
 
-- [ ] `graph.query(filter)` — filtered describe: `graph.query({ status: "errored" })`, `graph.query({ type: "state", meta: { access: "both" } })`
-- [ ] `graph.diff(snapshotA, snapshotB)` — structural + value diff between two snapshots (nodes changed, edges added/removed, values changed)
+- [x] `graph.describe({ filter })` — filtered describe via options bag: `graph.describe({ filter: { status: "errored" } })`, `graph.describe({ filter: (n) => n.type === "state" })`
+- [x] `Graph.diff(snapshotA, snapshotB)` — static method, structural + value diff between two snapshots (nodes changed, edges added/removed, values changed)
 
 #### Reasoning trace (AI agent observability)
 
-- [ ] `graph.annotate(name, reason)` — attach a reasoning annotation to a node (why an AI made a decision)
-- [ ] `graph.traceLog()` — chronological log of all annotations (ring buffer, configurable size)
+- [x] `graph.annotate(name, reason)` — attach a reasoning annotation to a node (why an AI made a decision)
+- [x] `graph.traceLog()` — chronological log of all annotations (ring buffer, configurable size)
 
 #### Diagram export
 
@@ -214,12 +238,20 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 
 #### Performance gating
 
-- [ ] `Graph.inspectorEnabled` flag — all structured observation, timeline, causal trace, and annotation have zero overhead when disabled (default: enabled outside production)
+- [x] `Graph.inspectorEnabled` flag — all structured observation, timeline, causal trace, and annotation have zero overhead when disabled (default: enabled outside production)
 
 #### Convenience
 
 - [ ] `graph.spy(name?)` — observe + console/logger output (for quick debugging)
 - [ ] `graph.dumpGraph()` — pretty-print topology with values and statuses (CLI-friendly)
+
+#### RxJS compatibility (AI ergonomics)
+
+- [x] RxJS name aliases: `combineLatest`, `debounceTime`, `throttleTime`, `shareReplay`, `catchError`
+- [x] Variadic API for `merge`, `combine`, `zip`, `race` (matches RxJS convention)
+- [x] `tap` observer shape: `{ data, error, complete }` (matches RxJS tap)
+- [x] `mergeMap` concurrent option: `mergeMap(source, fn, { concurrent: 3 })`
+- [x] `docs/coming-from-rxjs.md` migration guide
 
 ---
 
@@ -379,7 +411,7 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 ## Phase 7: Polish & Launch
 
 - [ ] README with "graph + re + fly" tagline
-- [ ] `llms.txt` for AI agent discovery
+- [x] `llms.txt` for AI agent discovery (`llms.txt`, `website/public/llms.txt`)
 - [ ] Showcase demos (markdown editor, workflow builder, AI assistant)
 - [ ] npm publish: `@graphrefly/graphrefly-ts`
 - [ ] Docs site

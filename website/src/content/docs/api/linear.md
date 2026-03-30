@@ -20,4 +20,4 @@ function linear(baseNs: number, stepNs?: number): BackoffStrategy
 
 ## Returns
 
-`BackoffStrategy` for .
+`BackoffStrategy` for retry.

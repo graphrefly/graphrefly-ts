@@ -67,13 +67,19 @@ export type PolicyDeny = (
 ) => void;
 
 /**
- * Declarative guard builder. Rules run in registration order; the first matching rule wins.
- * If no rule matches, the guard returns `true` (permit).
- */
-/**
- * Declarative guard builder. Precedence: any matching **deny** blocks even if
- * an allow also matches. If no rule matches, the guard returns `false` (deny).
- * Aligned with graphrefly-py `policy()`.
+ * Declarative guard builder. Precedence: any matching **deny** blocks even if an allow also matches.
+ * If no rule matches, the guard returns `false` (deny-by-default). Aligned with graphrefly-py `policy()`.
+ *
+ * @param build - Callback that registers `allow(...)` / `deny(...)` rules in order.
+ * @returns A `NodeGuard` for use as `node({ guard })`.
+ *
+ * @example
+ * ```ts
+ * const guard = policy((allow, deny) => {
+ *   allow("observe");
+ *   deny("write", { where: (a) => a.type === "llm" });
+ * });
+ * ```
  */
 export function policy(build: (allow: PolicyAllow, deny: PolicyDeny) => void): NodeGuard {
 	const rules: Rule[] = [];

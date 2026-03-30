@@ -23,7 +23,7 @@ function reactiveLog<T>(
 
 ## Returns
 
-Bundle with `entries` (state node), `append`, `clear`, and .
+Bundle with `entries` (state node), `append`, `clear`, and ReactiveLogBundle.tail.
 
 ## Basic Usage
 
@@ -37,6 +37,6 @@ lg.entries.subscribe((msgs) => console.log(msgs));
 
 ## Behavior Details
 
-- **Derived views:**  and  install an internal noop subscription so
+- **Derived views:** tail and logSlice install an internal noop subscription so
 `get()` stays wired without an external sink; creating very many disposable derived nodes can
 retain subscriptions until the log bundle is unreachable.

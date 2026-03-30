@@ -1,9 +1,9 @@
 ---
 title: "exhaustMap()"
-description: "Like , but ignores outer `DATA` while an inner subscription is active (`exhaustMap`)."
+description: "Like switchMap, but ignores outer `DATA` while an inner subscription is active (`exhaustMap`)."
 ---
 
-Like , but ignores outer `DATA` while an inner subscription is active (`exhaustMap`).
+Like switchMap, but ignores outer `DATA` while an inner subscription is active (`exhaustMap`).
 
 ## Signature
 
@@ -21,7 +21,7 @@ function exhaustMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

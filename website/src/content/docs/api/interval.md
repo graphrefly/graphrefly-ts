@@ -1,9 +1,9 @@
 ---
 title: "interval()"
-description: "Increments on each tick (`interval`); uses `setInterval` via ."
+description: "Increments on each tick (`interval`); uses `setInterval` via producer."
 ---
 
-Increments on each tick (`interval`); uses `setInterval` via .
+Increments on each tick (`interval`); uses `setInterval` via producer.
 
 ## Signature
 
@@ -16,7 +16,7 @@ function interval(periodMs: number, opts?: ExtraOpts): Node<number>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `periodMs` | `number` | Time between ticks. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

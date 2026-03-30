@@ -17,7 +17,7 @@ function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts):
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; R` | Transform for each value. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

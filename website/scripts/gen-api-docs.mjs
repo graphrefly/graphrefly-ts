@@ -38,6 +38,7 @@ const REGISTRY = {
 
 	// Core — batch
 	batch: "src/core/batch.ts",
+	dynamicNode: "src/core/dynamic-node.ts",
 
 	// Extra — operators
 	map: "src/extra/operators.ts",
@@ -75,11 +76,19 @@ const REGISTRY = {
 	buffer: "src/extra/operators.ts",
 	bufferCount: "src/extra/operators.ts",
 	bufferTime: "src/extra/operators.ts",
-	window: "src/extra/operators.ts",
-	interval: "src/extra/operators.ts",
+		window: "src/extra/operators.ts",
+		windowCount: "src/extra/operators.ts",
+		windowTime: "src/extra/operators.ts",
+		gate: "src/extra/operators.ts",
+		interval: "src/extra/operators.ts",
 	repeat: "src/extra/operators.ts",
 	pausable: "src/extra/operators.ts",
 	rescue: "src/extra/operators.ts",
+	flatMap: "src/extra/operators.ts",
+	combineLatest: "src/extra/operators.ts",
+	debounceTime: "src/extra/operators.ts",
+	throttleTime: "src/extra/operators.ts",
+	catchError: "src/extra/operators.ts",
 
 	// Extra — backoff + resilience + checkpoint (roadmap §3.1)
 	constant: "src/extra/backoff.ts",
@@ -88,9 +97,9 @@ const REGISTRY = {
 	fibonacci: "src/extra/backoff.ts",
 	resolveBackoffPreset: "src/extra/backoff.ts",
 	retry: "src/extra/resilience.ts",
-	CircuitBreaker: "src/extra/resilience.ts",
+	circuitBreaker: "src/extra/resilience.ts",
 	CircuitOpenError: "src/extra/resilience.ts",
-	TokenBucket: "src/extra/resilience.ts",
+	tokenBucket: "src/extra/resilience.ts",
 	tokenTracker: "src/extra/resilience.ts",
 	rateLimiter: "src/extra/resilience.ts",
 	withBreaker: "src/extra/resilience.ts",
@@ -104,6 +113,8 @@ const REGISTRY = {
 	checkpointNodeValue: "src/extra/checkpoint.ts",
 	saveGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
 	restoreGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
+	fromIDBRequest: "src/extra/checkpoint.ts",
+	fromIDBTransaction: "src/extra/checkpoint.ts",
 
 	// Extra — data structures (roadmap §3.2)
 	reactiveMap: "src/extra/reactive-map.ts",
@@ -112,7 +123,26 @@ const REGISTRY = {
 	reactiveIndex: "src/extra/reactive-index.ts",
 	reactiveList: "src/extra/reactive-list.ts",
 	pubsub: "src/extra/pubsub.ts",
-	PubSubHub: "src/extra/pubsub.ts",
+
+	// Extra — sources
+	fromTimer: "src/extra/sources.ts",
+	fromCron: "src/extra/sources.ts",
+	fromPromise: "src/extra/sources.ts",
+	fromIter: "src/extra/sources.ts",
+	fromAsyncIter: "src/extra/sources.ts",
+	of: "src/extra/sources.ts",
+	empty: "src/extra/sources.ts",
+	never: "src/extra/sources.ts",
+	throwError: "src/extra/sources.ts",
+	cached: "src/extra/sources.ts",
+	replay: "src/extra/sources.ts",
+	share: "src/extra/sources.ts",
+	fromEvent: "src/extra/sources.ts",
+	fromAny: "src/extra/sources.ts",
+	forEach: "src/extra/sources.ts",
+	toArray: "src/extra/sources.ts",
+	firstValueFrom: "src/extra/sources.ts",
+	shareReplay: "src/extra/sources.ts",
 
 	// Graph container
 	Graph: "src/graph/graph.ts",
@@ -165,7 +195,61 @@ function findExportedClass(sourceFile, name) {
 	return cls;
 }
 
+/**
+ * `export const foo = bar` where `bar` is an identifier — reuse `bar`'s signature for docs.
+ */
+function findExportedConstAlias(sourceFile, name) {
+	let hit = null;
+	function walk(node) {
+		if (hit != null) return;
+		if (ts.isVariableStatement(node)) {
+			const isExported = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+			if (isExported) {
+				for (const d of node.declarationList.declarations) {
+					if (!ts.isIdentifier(d.name) || d.name.text !== name) continue;
+					const init = d.initializer;
+					if (init && ts.isIdentifier(init)) {
+						hit = { statement: node, declaration: d, targetName: init.text };
+						return;
+					}
+				}
+			}
+		}
+		ts.forEachChild(node, walk);
+	}
+	walk(sourceFile);
+	return hit;
+}
+
 // ─── JSDoc extraction ───────────────────────────────────────────────────────
+
+/**
+ * Turn TypeScript-parsed JSDoc comment parts into plain text.
+ * `{@link Foo}` is stored as link nodes with empty `.text` in some positions; joining `.text`
+ * only produced broken markdown ("Creates a reactive —").
+ */
+function flattenJSDocComment(comment) {
+	if (comment == null) return "";
+	if (typeof comment === "string") return comment;
+	if (!Array.isArray(comment)) return "";
+	const parts = [];
+	for (const c of comment) {
+		if (typeof c === "string") {
+			parts.push(c);
+		} else if (c.kind === ts.SyntaxKind.JSDocText) {
+			parts.push(c.text);
+		} else if (
+			c.kind === ts.SyntaxKind.JSDocLink ||
+			c.kind === ts.SyntaxKind.JSDocLinkCode ||
+			c.kind === ts.SyntaxKind.JSDocLinkPlain
+		) {
+			const tail = (c.text ?? "").trim();
+			if (tail.length > 0) parts.push(tail);
+			else if (c.name) parts.push(c.name.getText());
+		}
+	}
+	return parts.join("");
+}
 
 function getJSDoc(node) {
 	const jsDocs = node.jsDoc;
@@ -217,20 +301,14 @@ function extractJSDocData(jsDoc) {
 	if (!jsDoc) return result;
 
 	if (jsDoc.comment) {
-		result.description =
-			typeof jsDoc.comment === "string"
-				? jsDoc.comment
-				: jsDoc.comment.map((c) => c.text || "").join("");
+		result.description = flattenJSDocComment(jsDoc.comment);
 	}
 
 	if (!jsDoc.tags) return result;
 
 	for (const tag of jsDoc.tags) {
 		const tagName = tag.tagName.text;
-		const comment =
-			typeof tag.comment === "string"
-				? tag.comment
-				: tag.comment?.map((c) => c.text || "").join("") || "";
+		const comment = flattenJSDocComment(tag.comment);
 
 		switch (tagName) {
 			case "param": {
@@ -481,7 +559,16 @@ function generateMarkdown(name, data) {
 
 function processFunction(name, filePath) {
 	const { sourceFile, source } = parseSource(filePath);
-	const { implementation, overloads } = findExportedFunction(sourceFile, name);
+	let { implementation, overloads } = findExportedFunction(sourceFile, name);
+	let alias = null;
+	if (!implementation && overloads.length === 0) {
+		alias = findExportedConstAlias(sourceFile, name);
+		if (alias) {
+			const inner = findExportedFunction(sourceFile, alias.targetName);
+			implementation = inner.implementation;
+			overloads = inner.overloads;
+		}
+	}
 
 	const primaryNode = implementation || overloads[overloads.length - 1];
 	if (!primaryNode) {
@@ -508,8 +595,25 @@ function processFunction(name, filePath) {
 		return null;
 	}
 
-	const jsDoc = getJSDoc(primaryNode);
-	const jsdocData = extractJSDocData(jsDoc);
+	const implJsDoc = getJSDoc(primaryNode);
+	const implDoc = extractJSDocData(implJsDoc);
+	let jsdocData = implDoc;
+	if (alias) {
+		const aliasJs = getJSDoc(alias.declaration) ?? getJSDoc(alias.statement);
+		const aliasDoc = extractJSDocData(aliasJs);
+		jsdocData = {
+			description: aliasDoc.description || implDoc.description,
+			params: implDoc.params,
+			returns: aliasDoc.returns || implDoc.returns,
+			remarks: aliasDoc.remarks.length > 0 ? aliasDoc.remarks : implDoc.remarks,
+			examples: aliasDoc.examples.length > 0 ? aliasDoc.examples : implDoc.examples,
+			seeAlso: aliasDoc.seeAlso.length > 0 ? aliasDoc.seeAlso : implDoc.seeAlso,
+			optionsRows: implDoc.optionsRows,
+			optionsType: implDoc.optionsType,
+			returnsTable: implDoc.returnsTable,
+			category: aliasDoc.category || implDoc.category,
+		};
+	}
 
 	let signatures;
 	if (overloads.length > 0) {

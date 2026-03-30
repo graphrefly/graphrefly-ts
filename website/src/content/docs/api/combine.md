@@ -9,8 +9,7 @@ Combines the latest value from each dependency whenever any dep settles (combine
 
 ```ts
 function combine<const T extends readonly unknown[]>(
-	sources: { [K in keyof T]: Node<T[K]> },
-	opts?: ExtraOpts,
+	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T>
 ```
 
@@ -18,8 +17,7 @@ function combine<const T extends readonly unknown[]>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Tuple of nodes (fixed arity preserves tuple type). |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `sources` | `{ [K in keyof T]: Node&lt;T[K]&gt; }` | Nodes to combine (variadic). |
 
 ## Returns
 
@@ -30,5 +28,10 @@ function combine<const T extends readonly unknown[]>(
 ```ts
 import { combine, state } from "@graphrefly/graphrefly-ts";
 
-const n = combine([state(1), state("a")] as const);
+const n = combine(state(1), state("a"));
 ```
+
+## Behavior Details
+
+- Unlike RxJS `combineLatest`, this is named `combine`. Use the combineLatest alias
+if you prefer the RxJS name. Seed is always required for `scan`/`reduce` (no seedless mode).

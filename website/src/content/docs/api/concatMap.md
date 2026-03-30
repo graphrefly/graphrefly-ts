@@ -21,7 +21,7 @@ function concatMap<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
-| `opts` | `ExtraOpts & { maxBuffer?: number }` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts & { maxBuffer?: number }` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

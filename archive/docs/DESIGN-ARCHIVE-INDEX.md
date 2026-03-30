@@ -76,6 +76,47 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-access-control-actor-guard.md`
 
+### Session cross-repo-implementation-audit (March 29) — Spec Compliance, Patterns, callbag-recharge Parity, Tooling Gaps
+**Topic:** Structured 16-batch audit (`docs/audit-plan.md`) of graphrefly-ts and graphrefly-py against `GRAPHREFLY-SPEC.md`, internal API consistency, callbag-recharge lessons, operator/data-structure edge cases, and AI-facing introspection. Findings are stored per batch under `docs/batch-review/`.
+
+**Completed reports (as of session date):** batches 1–8, roll-up `batch-4-8-processed-result.md`, batches 13–15. Batches 9–12 and 16 not yet run.
+
+**Key outcomes:**
+- Phase A (batches 1–3): strong PASS on core protocol, node, and Graph; **open** TS vs Py batch-drain deferral inconsistency; **spec ambiguity** on §1.4 direction enforcement vs lifecycle forwarding.
+- Phases B–C (4–8): pattern and pitfall audits; **documented fixes** (PubSub `removeTopic`, reactive log bounds, direct `retry`/`rateLimiter`, NodeImpl export hygiene, replay nodes, Py drain guard, edge-case tests); **Py xfail** marks remaining operator gaps.
+- Batch 13: superset-deps pattern **correct** but may recompute on irrelevant dep changes vs predecessor `dynamicDerived`.
+- Batch 14: RxJS alignment **mostly good**; document TS `merge([...])` shape, missing `mergeMap` concurrency, naming divergences for LLM ergonomics.
+- Batch 15: `describe()`/`observe()` **insufficient** for causal debugging; proposes structured inspect / timestamps / batch context for Phase 4.
+
+**Files:** `archive/docs/SESSION-cross-repo-implementation-audit.md` — canonical log; `docs/batch-review/*.md` — evidence; `docs/audit-plan.md` — batch definitions.
+
+### Session reactive-issue-tracker-design (March 30) — Reactive Issue Tracker: Dogfooding GraphReFly for Project Management
+**Topic:** Designing a reactive issue tracker / agentic knowledge graph that uses graphrefly-ts to solve its own project management pain — tracking roadmap items, audit findings, design invariants, RxJS/callbag parity, cross-repo consistency, and pitfall relationships as **live verifiable assertions** rather than status cards.
+
+**Key decisions:**
+- **Issues are live assertions, not status cards** — every issue carries a `verify()` function that programmatically checks whether the issue still holds (via test runs, grep, LLM analysis)
+- **"Fixed" ≠ "verified"** — the graph re-runs verifiers and only transitions to "verified" on evidence; failed verification reopens the issue
+- **Regression detection via reactive propagation** — file/git changes trigger re-verification of affected issues; regressions reopen automatically with evidence
+- **Typed relationships** (`affects`, `blockedBy`, `relatedTo`) enable graph queries: "what invariants break if I change operators.ts?"
+- **AI-native via `observe()` + `annotate()`** — agents subscribe, get pushed updates, annotate reasoning; `traceLog()` persists across sessions
+
+**Comparison vs. existing tools:** Identified 7 differentiators over Linear/Notion/GitHub Issues — reactive propagation, live verification, regression detection, typed semantic relationships, AI-native observability, computation as first-class, cross-system coherence.
+
+**Missing pieces:** `collection()` factory (Phase 4.3), `verifiable()` pattern, `fromFSWatch()`/`fromGitHook()` sources, `fromLLM()` adapter (Phase 4.4), transitive dependency query, CLI/MCP tool for agent interaction.
+
+**Files:** `archive/docs/SESSION-reactive-issue-tracker-design.md`
+
+### Session tier2-parity-nonlocal-forward-inner (March 30) — Tier 2 Operator Parity: forwardInner, nonlocal, sample Architecture
+**Topic:** Cross-repo parity analysis and fixes for three divergences in Python's Tier 2 operators discovered during `/parity` run after the COMPLETE-before-DATA batch ordering fix. Establishes Tier 2 operator regression testing as the highest-priority testing gap.
+
+**Key decisions:**
+- **`_forward_inner` emitted flag** — prevents double-DATA when inner emits during subscribe (Python subscribe doesn't auto-emit initial DATA like TS)
+- **`nonlocal` replaces `[value]` list-boxing** — idiomatic Python 3 across all 18 operators; eliminates misleading ruff lints and aligns closure patterns with TS
+- **`sample` rewritten to dep+onMessage** — eliminates mirror node; uses `node([src, notifier], compute, on_message=...)` matching TS exactly
+- **Tier 2 regression testing is the top testing priority** — composite message ordering, void sources, PAUSE/RESUME/INVALIDATE through dynamic inners, timer callbacks during batch drain — all untested combinatorial surfaces that RxJS/callbag never had to handle
+
+**Files:** `archive/docs/SESSION-tier2-parity-nonlocal-forward-inner.md`
+
 ---
 
 ## Reading Guide
@@ -99,5 +140,5 @@ Each session file contains:
 ---
 
 **Created:** March 27, 2026
-**Updated:** March 28, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control
+**Updated:** March 30, 2026
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity

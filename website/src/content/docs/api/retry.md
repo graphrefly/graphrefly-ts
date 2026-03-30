@@ -1,25 +1,26 @@
 ---
 title: "retry()"
-description: "Returns a  that resubscribes to the upstream node after each terminal `ERROR`, after an optional delay."
+description: "Resubscribes to the upstream node after each terminal `ERROR`, after an optional delay."
 ---
 
-Returns a  that resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
+Resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
 
 ## Signature
 
 ```ts
-function retry(opts?: RetryOptions): PipeOperator
+function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `source` | `Node&lt;T&gt;` | Upstream node (should use `resubscribable: true`). |
 | `opts` | `RetryOptions` | `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name). |
 
 ## Returns
 
-Unary operator suitable for .
+Node that retries on error.
 
 ## Basic Usage
 
@@ -32,7 +33,7 @@ const src = producer(
   },
 { resubscribable: true },
 );
-pipe(src, retry({ count: 2, backoff: constant(0.25 * NS_PER_SEC) }));
+const out = retry(src, { count: 2, backoff: constant(0.25 * NS_PER_SEC) });
 ```
 
 ## Behavior Details

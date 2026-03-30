@@ -21,7 +21,7 @@ function withLatestFrom<A, B>(
 |-----------|------|-------------|
 | `primary` | `Node&lt;A&gt;` | Main stream. |
 | `secondary` | `Node&lt;B&gt;` | Latest value is paired on each primary emission. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

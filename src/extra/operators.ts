@@ -79,9 +79,12 @@ export function filter<T>(
 /**
  * Folds each upstream value into an accumulator; emits the new accumulator every time.
  *
+ * Unlike RxJS, `seed` is always required — there is no seedless mode where the first
+ * value silently becomes the accumulator.
+ *
  * @param source - Upstream node.
  * @param reducer - `(acc, value) => nextAcc`.
- * @param seed - Initial accumulator.
+ * @param seed - Initial accumulator (required).
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<R>` - Scan node.
  *
@@ -114,9 +117,12 @@ export function scan<T, R>(
 /**
  * Reduces to one value emitted when `source` completes; if no `DATA` arrived, emits `seed`.
  *
+ * Unlike RxJS, `seed` is always required. If the source completes without emitting
+ * DATA, the seed value is emitted (RxJS would throw without a seed).
+ *
  * @param source - Upstream node.
  * @param reducer - `(acc, value) => nextAcc`.
- * @param seed - Empty-completion default and initial accumulator.
+ * @param seed - Empty-completion default and initial accumulator (required).
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<R>` - Node that emits once on completion.
  *
@@ -147,6 +153,13 @@ export function reduce<T, R>(
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			onResubscribe:
+				opts?.resubscribable === true
+					? () => {
+							acc = seed;
+							sawData = false;
+						}
+					: undefined,
 			onMessage(msg: Message, _i: number, a) {
 				if (msg[0] === COMPLETE) {
 					if (!sawData) acc = seed;
@@ -208,6 +221,13 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			onResubscribe:
+				opts?.resubscribable === true
+					? () => {
+							taken = 0;
+							done = false;
+						}
+					: undefined,
 			onMessage(msg, _i, a) {
 				if (msg[0] === DIRTY) return false;
 				if (done) {
@@ -541,10 +561,22 @@ export function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Nod
 }
 
 /**
- * Invokes `fn` for side effects; values pass through unchanged.
+ * Observer shape for {@link tap} — side effects for data, error, and/or complete.
+ */
+export type TapObserver<T> = {
+	data?: (value: T) => void;
+	error?: (err: unknown) => void;
+	complete?: () => void;
+};
+
+/**
+ * Invokes side effects; values pass through unchanged.
+ *
+ * Accepts either a function (called on each DATA) or an observer object
+ * `{ data?, error?, complete? }` for lifecycle-aware side effects.
  *
  * @param source - Upstream node.
- * @param fn - Side effect per value.
+ * @param fnOrObserver - Side effect function or observer object.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<T>` - Passthrough node.
  *
@@ -552,19 +584,55 @@ export function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Nod
  * ```ts
  * import { tap, state } from "@graphrefly/graphrefly-ts";
  *
- * const n = tap(state(1), (x) => console.log(x));
+ * // Function form (DATA only)
+ * tap(state(1), (x) => console.log(x));
+ *
+ * // Observer form (DATA + ERROR + COMPLETE)
+ * tap(state(1), { data: console.log, error: console.error, complete: () => console.log("done") });
  * ```
  *
  * @category extra
  */
-export function tap<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): Node<T> {
-	return derived(
+export function tap<T>(
+	source: Node<T>,
+	fnOrObserver: ((value: T) => void) | TapObserver<T>,
+	opts?: ExtraOpts,
+): Node<T> {
+	if (typeof fnOrObserver === "function") {
+		return derived(
+			[source as Node],
+			([v]) => {
+				fnOrObserver(v as T);
+				return v as T;
+			},
+			operatorOpts(opts),
+		);
+	}
+	const obs = fnOrObserver;
+	return node<T>(
 		[source as Node],
 		([v]) => {
-			fn(v as T);
+			obs.data?.(v as T);
 			return v as T;
 		},
-		operatorOpts(opts),
+		{
+			...operatorOpts(opts),
+			completeWhenDepsComplete: false,
+			onMessage(msg, _i, a) {
+				const t = msg[0];
+				if (t === ERROR) {
+					obs.error?.(msg[1]);
+					a.down([msg]);
+					return true;
+				}
+				if (t === COMPLETE) {
+					obs.complete?.();
+					a.down([msg]);
+					return true;
+				}
+				return false;
+			},
+		},
 	);
 }
 
@@ -636,25 +704,27 @@ export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T
 /**
  * Combines the latest value from each dependency whenever any dep settles (combineLatest).
  *
- * @param sources - Tuple of nodes (fixed arity preserves tuple type).
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @param sources - Nodes to combine (variadic).
  * @returns `Node<T>` - Tuple of latest values.
  *
  * @example
  * ```ts
  * import { combine, state } from "@graphrefly/graphrefly-ts";
  *
- * const n = combine([state(1), state("a")] as const);
+ * const n = combine(state(1), state("a"));
  * ```
+ *
+ * @remarks
+ * Unlike RxJS `combineLatest`, this is named `combine`. Use the {@link combineLatest} alias
+ * if you prefer the RxJS name. Seed is always required for `scan`/`reduce` (no seedless mode).
  *
  * @category extra
  */
 export function combine<const T extends readonly unknown[]>(
-	sources: { [K in keyof T]: Node<T[K]> },
-	opts?: ExtraOpts,
+	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const deps = [...sources] as unknown as Node[];
-	return node<T>(deps, (vals) => vals as unknown as T, operatorOpts(opts));
+	return node<T>(deps, (vals) => vals as unknown as T, operatorOpts());
 }
 
 /**
@@ -717,8 +787,7 @@ export function withLatestFrom<A, B>(
 /**
  * Merges **`DATA`** from any source with correct two-phase dirty tracking. **`COMPLETE`** after **all** sources complete (spec §1.3.5).
  *
- * @param sources - Nodes to merge (empty completes immediately).
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @param sources - Nodes to merge (variadic; empty completes immediately).
  * @returns `Node<T>` - Merged stream.
  *
  * @remarks
@@ -728,17 +797,17 @@ export function withLatestFrom<A, B>(
  * ```ts
  * import { merge, state } from "@graphrefly/graphrefly-ts";
  *
- * const n = merge([state(1), state(2)]);
+ * const n = merge(state(1), state(2));
  * ```
  *
  * @category extra
  */
-export function merge<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T> {
+export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
 		return producer<T>((_d, a) => {
 			a.down([[COMPLETE]]);
 			return undefined;
-		}, operatorOpts(opts));
+		}, operatorOpts());
 	}
 	const deps = sources as unknown as Node[];
 	const n = deps.length;
@@ -746,7 +815,7 @@ export function merge<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
 	let dirtyMask = 0n;
 	let anyData = false;
 	return node<T>(deps, () => undefined, {
-		...operatorOpts(opts),
+		...operatorOpts(),
 		completeWhenDepsComplete: false,
 		onMessage(msg, i, a) {
 			const t = msg[0];
@@ -796,26 +865,24 @@ export function merge<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T>
 /**
  * Zips one **`DATA`** from each source per cycle into a tuple. Only **`DATA`** enqueues (spec §1.3.3).
  *
- * @param sources - Tuple of nodes.
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @param sources - Nodes to zip (variadic).
  * @returns `Node<T>` - Zipped tuples.
  *
  * @example
  * ```ts
  * import { state, zip } from "@graphrefly/graphrefly-ts";
  *
- * const n = zip([state(1), state(2)] as const);
+ * const n = zip(state(1), state(2));
  * ```
  *
  * @category extra
  */
 export function zip<const T extends readonly unknown[]>(
-	sources: { [K in keyof T]: Node<T[K]> },
-	opts?: ExtraOpts,
+	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const n = sources.length;
 	if (n === 0) {
-		return node<T>([], () => [] as unknown as T, operatorOpts(opts));
+		return node<T>([], () => [] as unknown as T, operatorOpts());
 	}
 	const deps = [...sources] as unknown as Node[];
 	const queues: unknown[][] = Array.from({ length: n }, () => []);
@@ -831,7 +898,7 @@ export function zip<const T extends readonly unknown[]>(
 	}
 
 	return node<T>(deps, () => undefined, {
-		...operatorOpts(opts),
+		...operatorOpts(),
 		completeWhenDepsComplete: false,
 		onMessage(msg, i, a) {
 			const t = msg[0];
@@ -944,33 +1011,32 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 /**
  * First source to emit **`DATA`** wins; later traffic follows only the winner (Rx-style `race`).
  *
- * @param sources - Contestants (empty completes immediately; one node is identity).
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @param sources - Contestants (variadic; empty completes immediately; one node is identity).
  * @returns `Node<T>` - Winning stream.
  *
  * @example
  * ```ts
  * import { race, state } from "@graphrefly/graphrefly-ts";
  *
- * const n = race([state(1), state(2)]);
+ * const n = race(state(1), state(2));
  * ```
  *
  * @category extra
  */
-export function race<T>(sources: readonly Node<T>[], opts?: ExtraOpts): Node<T> {
+export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
 		return producer<T>((_d, a) => {
 			a.down([[COMPLETE]]);
 			return undefined;
-		}, operatorOpts(opts));
+		}, operatorOpts());
 	}
 	if (sources.length === 1) {
-		return node<T>([sources[0] as Node], ([v]) => v as T, operatorOpts(opts));
+		return node<T>([sources[0] as Node], ([v]) => v as T, operatorOpts());
 	}
 	const deps = sources as unknown as Node[];
 	let winner: number | null = null;
 	return node<T>(deps, () => undefined, {
-		...operatorOpts(opts),
+		...operatorOpts(),
 		completeWhenDepsComplete: false,
 		onMessage(msg, i, a) {
 			const t = msg[0];
@@ -1063,6 +1129,7 @@ export function switchMap<T, R>(
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
+	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1070,6 +1137,7 @@ export function switchMap<T, R>(
 	}
 
 	function attach(v: T, a: NodeActions): void {
+		attached = true;
 		clearInner();
 		innerUnsub = forwardInner(project(v), a, () => {
 			clearInner();
@@ -1080,7 +1148,8 @@ export function switchMap<T, R>(
 	return node<R>(
 		[source as Node],
 		([v], a) => {
-			if (v !== undefined) attach(v as T, a);
+			// Skip if onMessage already handled the initial DATA during connect.
+			if (!attached) attach(v as T, a);
 			return clearInner;
 		},
 		{
@@ -1139,6 +1208,7 @@ export function exhaustMap<T, R>(
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
+	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1146,6 +1216,7 @@ export function exhaustMap<T, R>(
 	}
 
 	function attach(v: T, a: NodeActions): void {
+		attached = true;
 		innerUnsub = forwardInner(project(v), a, () => {
 			clearInner();
 			if (sourceDone) a.down([[COMPLETE]]);
@@ -1155,7 +1226,7 @@ export function exhaustMap<T, R>(
 	return node<R>(
 		[source as Node],
 		([v], a) => {
-			if (v !== undefined && innerUnsub === undefined) attach(v as T, a);
+			if (!attached && innerUnsub === undefined) attach(v as T, a);
 			return clearInner;
 		},
 		{
@@ -1220,6 +1291,7 @@ export function concatMap<T, R>(
 	const queue: T[] = [];
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
+	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1240,6 +1312,7 @@ export function concatMap<T, R>(
 	}
 
 	function enqueue(v: T, a: NodeActions): void {
+		attached = true;
 		if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
 		queue.push(v);
 		tryPump(a);
@@ -1248,7 +1321,7 @@ export function concatMap<T, R>(
 	return node<R>(
 		[source as Node],
 		([v], a) => {
-			if (v !== undefined) enqueue(v as T, a);
+			if (!attached) enqueue(v as T, a);
 			return clearInner;
 		},
 		{
@@ -1285,18 +1358,28 @@ export function concatMap<T, R>(
 	);
 }
 
+/** Options for {@link mergeMap}. */
+export type MergeMapOptions = ExtraOpts & {
+	/** Maximum number of concurrent inner subscriptions. Default: `Infinity` (unbounded). */
+	concurrent?: number;
+};
+
 /**
- * Subscribes to every inner in parallel and merges outputs (`mergeMap` / `flatMap`).
+ * Subscribes to inner nodes in parallel (up to `concurrent`) and merges outputs (`mergeMap` / `flatMap`).
  *
  * @param source - Upstream node.
  * @param project - Maps each outer value to an inner node.
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
+ * @param opts - Optional options including `concurrent` limit.
  * @returns `Node<R>` - Merged output of all active inners; completes when the outer and every inner complete.
  * @example
  * ```ts
  * import { mergeMap, state } from "@graphrefly/graphrefly-ts";
  *
+ * // Unbounded (default)
  * mergeMap(state(0), (n) => state((n as number) + 1));
+ *
+ * // Limited concurrency
+ * mergeMap(state(0), (n) => state((n as number) + 1), { concurrent: 3 });
  * ```
  *
  * @category extra
@@ -1304,14 +1387,18 @@ export function concatMap<T, R>(
 export function mergeMap<T, R>(
 	source: Node<T>,
 	project: (value: T) => Node<R>,
-	opts?: ExtraOpts,
+	opts?: MergeMapOptions,
 ): Node<R> {
+	const { concurrent: concurrentOpt, ...mergeNodeOpts } = opts ?? {};
+	const maxConcurrent =
+		concurrentOpt != null && concurrentOpt > 0 ? concurrentOpt : Number.POSITIVE_INFINITY;
 	let active = 0;
 	let sourceDone = false;
 	const innerStops = new Set<() => void>();
+	const buffer: T[] = [];
 
 	function tryComplete(a: NodeActions): void {
-		if (sourceDone && active === 0) a.down([[COMPLETE]]);
+		if (sourceDone && active === 0 && buffer.length === 0) a.down([[COMPLETE]]);
 	}
 
 	function spawn(v: T, a: NodeActions): void {
@@ -1334,26 +1421,47 @@ export function mergeMap<T, R>(
 			if (sawComplete) {
 				runStop();
 				active--;
+				drainBuffer(a);
 				tryComplete(a);
 			}
 		});
 		innerStops.add(stop);
 	}
 
+	function drainBuffer(a: NodeActions): void {
+		while (buffer.length > 0 && active < maxConcurrent) {
+			spawn(buffer.shift()!, a);
+		}
+	}
+
+	function enqueue(v: T, a: NodeActions): void {
+		if (active < maxConcurrent) {
+			spawn(v, a);
+		} else {
+			buffer.push(v);
+		}
+	}
+
 	function clearAll(): void {
 		for (const u of innerStops) u();
 		innerStops.clear();
 		active = 0;
+		buffer.length = 0;
 	}
+
+	let attached = false;
 
 	return node<R>(
 		[source as Node],
 		([v], a) => {
-			if (v !== undefined) spawn(v as T, a);
+			if (!attached) {
+				attached = true;
+				enqueue(v as T, a);
+			}
 			return clearAll;
 		},
 		{
-			...operatorOpts(opts),
+			...operatorOpts(mergeNodeOpts),
 			completeWhenDepsComplete: false,
 			onMessage(msg, _i, a) {
 				const t = msg[0];
@@ -1376,7 +1484,7 @@ export function mergeMap<T, R>(
 					return true;
 				}
 				if (t === DATA) {
-					spawn(msg[1] as T, a);
+					enqueue(msg[1] as T, a);
 					return true;
 				}
 				return false;
@@ -1385,7 +1493,23 @@ export function mergeMap<T, R>(
 	);
 }
 
-/** @alias mergeMap */
+/**
+ * RxJS-named alias for {@link mergeMap} — projects each `DATA` to an inner node and merges outputs.
+ *
+ * @param source - Upstream node.
+ * @param project - Returns an inner `Node<R>` per value.
+ * @param opts - Optional concurrency cap and node options (excluding `describeKind`).
+ * @returns Merged projection; behavior matches `mergeMap`.
+ *
+ * @example
+ * ```ts
+ * import { flatMap, state } from "@graphrefly/graphrefly-ts";
+ *
+ * flatMap(state(0), (n) => state(n));
+ * ```
+ *
+ * @category extra
+ */
 export const flatMap = mergeMap;
 
 /**
@@ -1495,11 +1619,7 @@ export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node
 				return true;
 			}
 			if (t === RESOLVED) {
-				clearTimer();
-				timer = setTimeout(() => {
-					timer = undefined;
-					a.down([[RESOLVED]]);
-				}, ms);
+				a.down([[RESOLVED]]);
 				return true;
 			}
 			a.down([msg]);
@@ -1535,7 +1655,7 @@ export function throttle<T>(
 	const leading = leadingOpt !== false;
 	const trailing = trailingOpt === true;
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	let lastEmit = 0;
+	let lastEmit = -Infinity;
 	let pending: T | undefined;
 	let hasPending = false;
 
@@ -1647,9 +1767,9 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 				return true;
 			}
 			if (i === 1 && t === DATA) {
-				const v = (source as Node<T>).get();
-				if (v !== undefined) a.emit(v as T);
-				else a.down([[RESOLVED]]);
+				// Emit the latest source value when notifier fires.
+				// `undefined` is a valid value (Node<void>); always emit.
+				a.emit((source as Node<T>).get() as T);
 				return true;
 			}
 			if (i === 1 && t === RESOLVED) {
@@ -1873,10 +1993,13 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T[]> {
 	if (count <= 0) throw new RangeError("bufferCount expects count > 0");
 	const buf: T[] = [];
+	let started = false;
 	return node<T[]>(
 		[source as Node],
 		([v], a) => {
-			if (v !== undefined) {
+			// onMessage intercepts subsequent DATA; compute fn only runs on initial connect.
+			if (!started) {
+				started = true;
 				buf.push(v as T);
 				if (buf.length >= count) {
 					a.emit(buf.splice(0, buf.length));
@@ -1927,6 +2050,13 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  * @param count - Items per window.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<Node<T>>` - Each emission is a sub-node carrying that window's values.
+ *
+ * @example
+ * ```ts
+ * import { windowCount, state } from "@graphrefly/graphrefly-ts";
+ *
+ * windowCount(state(0), 3);
+ * ```
  *
  * @category extra
  */
@@ -2065,6 +2195,13 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<Node<T>>` - Each emission is a sub-node carrying that window's values.
  *
+ * @example
+ * ```ts
+ * import { windowTime, state } from "@graphrefly/graphrefly-ts";
+ *
+ * windowTime(state(0), 500);
+ * ```
+ *
  * @category extra
  */
 export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<Node<T>> {
@@ -2141,6 +2278,13 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  * @param notifier - Each `DATA` from `notifier` closes the current window and opens a new one.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<Node<T>>` - Each emission is a sub-node carrying that window's values.
+ *
+ * @example
+ * ```ts
+ * import { state, window } from "@graphrefly/graphrefly-ts";
+ *
+ * window(state(0), state(0));
+ * ```
  *
  * @category extra
  */
@@ -2379,8 +2523,24 @@ export function rescue<T>(
 }
 
 /**
- * Forward DATA only when `control` is truthy; otherwise emit RESOLVED.
- * Value-level gate (boolean control signal). See `pausable` for protocol-level PAUSE/RESUME.
+ * Forwards upstream `DATA` only while `control.get()` is truthy; when closed, emits `RESOLVED`
+ * instead of repeating the last value (value-level gate). For protocol pause/resume, use {@link pausable}.
+ *
+ * @param source - Upstream value node.
+ * @param control - Boolean node; when falsy, output stays “closed” for that tick.
+ * @param opts - Optional node options (excluding `describeKind`).
+ * @returns `Node<T>` gated by `control`.
+ *
+ * @example
+ * ```ts
+ * import { gate, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const data = state(1);
+ * const open = state(true);
+ * gate(data, open);
+ * ```
+ *
+ * @category extra
  */
 export function gate<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
 	return node<T>(
@@ -2397,3 +2557,81 @@ export function gate<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpt
 		operatorOpts(opts),
 	);
 }
+
+// ——————————————————————————————————————————————————————————————
+//  RxJS-compatible aliases — improve AI code-generation accuracy
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * RxJS-named alias for {@link combine} — emits when any dep updates with latest tuple of values.
+ *
+ * @param sources - Upstream nodes as separate arguments (same calling shape as `combine`).
+ * @returns Combined node; signature matches `combine`.
+ *
+ * @example
+ * ```ts
+ * import { combineLatest, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const n = combineLatest(state(1), state("a"));
+ * ```
+ *
+ * @category extra
+ */
+export const combineLatest = combine;
+
+/**
+ * RxJS-named alias for {@link debounce} — drops rapid `DATA` until `ms` of quiet.
+ *
+ * @param source - Upstream node.
+ * @param ms - Quiet period in milliseconds.
+ * @param opts - Optional node options (excluding `describeKind`).
+ * @returns Debounced node; behavior matches `debounce`.
+ *
+ * @example
+ * ```ts
+ * import { debounceTime, state } from "@graphrefly/graphrefly-ts";
+ *
+ * debounceTime(state(0), 100);
+ * ```
+ *
+ * @category extra
+ */
+export const debounceTime = debounce;
+
+/**
+ * RxJS-named alias for {@link throttle} — emits on leading/trailing edges within `ms`.
+ *
+ * @param source - Upstream node.
+ * @param ms - Minimum spacing in milliseconds.
+ * @param opts - Optional throttle shape (`leading` / `trailing`) and node options.
+ * @returns Throttled node; behavior matches `throttle`.
+ *
+ * @example
+ * ```ts
+ * import { throttleTime, state } from "@graphrefly/graphrefly-ts";
+ *
+ * throttleTime(state(0), 100);
+ * ```
+ *
+ * @category extra
+ */
+export const throttleTime = throttle;
+
+/**
+ * RxJS-named alias for {@link rescue} — replaces upstream `ERROR` with a recovered value.
+ *
+ * @param source - Upstream node.
+ * @param recover - Maps error payload to replacement value.
+ * @param opts - Optional node options (excluding `describeKind`).
+ * @returns Recovered stream; behavior matches `rescue`.
+ *
+ * @example
+ * ```ts
+ * import { catchError, state } from "@graphrefly/graphrefly-ts";
+ *
+ * catchError(state(0), () => 0);
+ * ```
+ *
+ * @category extra
+ */
+export const catchError = rescue;

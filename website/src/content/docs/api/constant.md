@@ -19,12 +19,12 @@ function constant(delayNs: number): BackoffStrategy
 
 ## Returns
 
-`BackoffStrategy` for use with  or custom timers.
+`BackoffStrategy` for use with retry or custom timers.
 
 ## Basic Usage
 
 ```ts
 import { constant, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
 
-const op = retry({ count: 3, backoff: constant(0.25 * NS_PER_SEC) });
+const out = retry(source, { count: 3, backoff: constant(0.25 * NS_PER_SEC) });
 ```

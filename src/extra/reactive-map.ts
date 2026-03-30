@@ -151,6 +151,9 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		set(key: K, value: V, setOpts?: { ttlMs?: number }): void {
 			pruneExpiredInternal();
 			const ttlMs = setOpts?.ttlMs ?? defaultTtlMs;
+			if (ttlMs !== undefined && ttlMs <= 0) {
+				throw new RangeError(`reactiveMap: ttlMs must be positive (got ${ttlMs})`);
+			}
 			const expiresAt = ttlMs !== undefined ? performance.now() + ttlMs : undefined;
 			if (store.has(key)) store.delete(key);
 			store.set(key, { value, expiresAt });

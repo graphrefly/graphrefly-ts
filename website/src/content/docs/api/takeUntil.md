@@ -21,7 +21,7 @@ function takeUntil<T>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Main upstream. |
 | `notifier` | `Node` | Triggers completion when `predicate(msg)` is true. |
-| `opts` | `ExtraOpts & { predicate?: (msg: Message) =&gt; boolean }` | Optional , plus `predicate` for custom notifier matching. |
+| `opts` | `ExtraOpts & { predicate?: (msg: Message) =&gt; boolean }` | Optional NodeOptions, plus `predicate` for custom notifier matching. |
 
 ## Returns
 

@@ -1,9 +1,9 @@
 ---
 title: "withStatus()"
-description: "Wraps `src` with `status` and `error`  companions for UI or meta snapshots."
+description: "Wraps `src` with `status` and `error` state companions for UI or meta snapshots."
 ---
 
-Wraps `src` with `status` and `error`  companions for UI or meta snapshots.
+Wraps `src` with `status` and `error` state companions for UI or meta snapshots.
 
 ## Signature
 
@@ -27,4 +27,4 @@ function withStatus<T>(
 
 ## Behavior Details
 
-- **Recovery:** After `errored`, the next `DATA` clears `error` and sets `active` inside  (matches graphrefly-py).
+- **Recovery:** After `errored`, the next `DATA` clears `error` and sets `active` inside batch (matches graphrefly-py).

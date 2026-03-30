@@ -1,9 +1,9 @@
 ---
 title: "node()"
-description: "Creates a reactive  — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).\n\nTypical shapes: `node([])` / `node([], opts)` for a manual source; `node(producerFn"
+description: "Creates a reactive Node — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).\n\nTypical shapes: `node([])` / `node([], opts)` for a manual source; `node(produc"
 ---
 
-Creates a reactive  — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).
+Creates a reactive Node — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).
 
 Typical shapes: `node([])` / `node([], opts)` for a manual source; `node(producerFn, opts)` for a
 producer; `node(deps, computeFn, opts)` for derived nodes and operators.
@@ -22,7 +22,7 @@ function node<T = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `depsOrFn` | `readonly Node[] | NodeFn&lt;T&gt; | NodeOptions` | Dependency nodes, a  (producer), or  alone. |
+| `depsOrFn` | `readonly Node[] | NodeFn&lt;T&gt; | NodeOptions` | Dependency nodes, a NodeFn (producer), or NodeOptions alone. |
 | `fnOrOpts` | `NodeFn&lt;T&gt; | NodeOptions` | With deps: compute function or options. Omitted for producer-only form. |
 | `optsArg` | `NodeOptions` | Options when both `deps` and `fn` are provided. |
 

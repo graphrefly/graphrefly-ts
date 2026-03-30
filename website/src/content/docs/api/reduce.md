@@ -1,9 +1,12 @@
 ---
 title: "reduce()"
-description: "Reduces to one value emitted when `source` completes; if no `DATA` arrived, emits `seed`."
+description: "Reduces to one value emitted when `source` completes; if no `DATA` arrived, emits `seed`.\n\nUnlike RxJS, `seed` is always required. If the source completes witho"
 ---
 
 Reduces to one value emitted when `source` completes; if no `DATA` arrived, emits `seed`.
+
+Unlike RxJS, `seed` is always required. If the source completes without emitting
+DATA, the seed value is emitted (RxJS would throw without a seed).
 
 ## Signature
 
@@ -22,8 +25,8 @@ function reduce<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `reducer` | `(acc: R, value: T) =&gt; R` | `(acc, value) =&gt; nextAcc`. |
-| `seed` | `R` | Empty-completion default and initial accumulator. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `seed` | `R` | Empty-completion default and initial accumulator (required). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

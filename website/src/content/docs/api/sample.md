@@ -17,7 +17,7 @@ function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): 
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Node whose latest value is sampled. |
 | `notifier` | `Node&lt;unknown&gt;` | When this node settles (`DATA` / `RESOLVED`), a sample is taken. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 

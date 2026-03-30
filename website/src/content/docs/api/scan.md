@@ -1,9 +1,12 @@
 ---
 title: "scan()"
-description: "Folds each upstream value into an accumulator; emits the new accumulator every time."
+description: "Folds each upstream value into an accumulator; emits the new accumulator every time.\n\nUnlike RxJS, `seed` is always required — there is no seedless mode where t"
 ---
 
 Folds each upstream value into an accumulator; emits the new accumulator every time.
+
+Unlike RxJS, `seed` is always required — there is no seedless mode where the first
+value silently becomes the accumulator.
 
 ## Signature
 
@@ -22,8 +25,8 @@ function scan<T, R>(
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
 | `reducer` | `(acc: R, value: T) =&gt; R` | `(acc, value) =&gt; nextAcc`. |
-| `seed` | `R` | Initial accumulator. |
-| `opts` | `ExtraOpts` | Optional  (excluding `describeKind`). |
+| `seed` | `R` | Initial accumulator (required). |
+| `opts` | `ExtraOpts` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns
 
