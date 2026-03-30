@@ -1,3 +1,141 @@
+# Batch 11 Coverage Audit — graphrefly-ts
+
+Scope: `docs/audit-plan.md` Batch 11 checklist and `docs/test-guidance.md`.
+
+Reviewed files:
+
+- `src/__tests__/core/node.test.ts`
+- `src/__tests__/core/sugar.test.ts`
+- `src/__tests__/core/protocol.test.ts`
+- `src/__tests__/core/lifecycle.test.ts`
+- `src/__tests__/core/on-message.test.ts`
+- `src/__tests__/core/perf-smoke.test.ts`
+- `src/__tests__/exports.test.ts`
+- `src/__tests__/graph/graph.test.ts`
+- `src/__tests__/graph/validate-describe-appendix-b.ts`
+- `src/__tests__/extra/operators.test.ts`
+- `src/__tests__/extra/sources.test.ts`
+- `src/__tests__/extra/reactive-data-structures.test.ts`
+- `src/__tests__/extra/reactive-map.test.ts`
+- `src/__tests__/extra/resilience.test.ts`
+- `src/__tests__/extra/checkpoint.test.ts`
+
+---
+
+## CORE PROTOCOL & NODE (§1, §2)
+
+- **COVERED** — Message shape: emissions are arrays of tuples (no shorthand at API boundaries).  
+  Evidence: `src/__tests__/core/protocol.test.ts:26`, `src/__tests__/core/protocol.test.ts:27`
+
+- **COVERED** — DIRTY before DATA/RESOLVED in two-phase push.  
+  Evidence: `src/__tests__/core/protocol.test.ts:44`, `src/__tests__/core/protocol.test.ts:53`, `src/__tests__/core/lifecycle.test.ts:97`
+
+- **COVERED** — Batch defers DATA, not DIRTY.  
+  Evidence: `src/__tests__/core/protocol.test.ts:32`, `src/__tests__/core/protocol.test.ts:33`, `src/__tests__/core/protocol.test.ts:68`
+
+- **COVERED** — RESOLVED when value unchanged per equals; downstream skips recompute (counter asserted).  
+  Evidence: `src/__tests__/core/node.test.ts:92`, `src/__tests__/core/node.test.ts:98`, `src/__tests__/core/node.test.ts:111`
+
+- **COVERED** — Diamond: shared ancestor derived runs once per change; count and value both asserted.  
+  Evidence: `src/__tests__/core/node.test.ts:50`, `src/__tests__/core/node.test.ts:66`, `src/__tests__/core/node.test.ts:67`
+
+- **COVERED** — ERROR from fn emits `[[ERROR, err]]` downstream.  
+  Evidence: `src/__tests__/core/node.test.ts:70`, `src/__tests__/core/node.test.ts:86`, `src/__tests__/core/node.test.ts:88`
+
+- **COVERED** — COMPLETE/ERROR terminal: no further messages.  
+  Evidence: `src/__tests__/core/node.test.ts:115`, `src/__tests__/core/node.test.ts:130`, `src/__tests__/core/node.test.ts:752`
+
+- **COVERED** — Unknown types forward (forward-compat).  
+  Evidence: `src/__tests__/core/node.test.ts:163`, `src/__tests__/core/protocol.test.ts:114`, `src/__tests__/core/on-message.test.ts:57`
+
+- **COVERED** — Meta keys are subscribable nodes.  
+  Evidence: `src/__tests__/core/node.test.ts:788`, `src/__tests__/core/node.test.ts:799`
+
+- **COVERED** — onMessage: return true consumes, return false forwards, throw emits ERROR.  
+  Evidence: `src/__tests__/core/on-message.test.ts:12`, `src/__tests__/core/on-message.test.ts:37`, `src/__tests__/core/on-message.test.ts:244`
+
+- **COVERED** — Resubscribable: reconnection after COMPLETE.  
+  Evidence: `src/__tests__/core/node.test.ts:143`, `src/__tests__/core/node.test.ts:155`
+
+- **COVERED** — resetOnTeardown clears cached value.  
+  Evidence: `src/__tests__/core/node.test.ts:134`, `src/__tests__/core/node.test.ts:139`
+
+---
+
+## GRAPH (§3)
+
+- **COVERED** — add/remove/connect/disconnect.  
+  Evidence: `src/__tests__/graph/graph.test.ts:23`, `src/__tests__/graph/graph.test.ts:61`, `src/__tests__/graph/graph.test.ts:68`
+
+- **WEAK** — Edges are wires only (no transforms).  
+  Current tests validate dep membership and connect behavior, but do not directly assert transform rejection/impossibility at the edge boundary.  
+  Evidence: `src/__tests__/graph/graph.test.ts:91`
+
+- **COVERED** — describe() matches Appendix B JSON schema.  
+  Evidence: `src/__tests__/graph/graph.test.ts:1003`, `src/__tests__/graph/graph.test.ts:1015`, `src/__tests__/graph/validate-describe-appendix-b.ts:12`
+
+- **COVERED** — observe(name?) message stream.  
+  Evidence: `src/__tests__/graph/graph.test.ts:1027`, `src/__tests__/graph/graph.test.ts:1041`, `src/__tests__/graph/graph.test.ts:1158`
+
+- **COVERED** — Mount and namespace resolution.  
+  Evidence: `src/__tests__/graph/graph.test.ts:175`, `src/__tests__/graph/graph.test.ts:185`, `src/__tests__/graph/graph.test.ts:297`
+
+- **COVERED** — signal() and destroy().  
+  Evidence: `src/__tests__/graph/graph.test.ts:243`, `src/__tests__/graph/graph.test.ts:787`
+
+- **WEAK** — Snapshot round-trip (same state -> same JSON).  
+  Determinism and restore wiring are tested, but no explicit snapshot->restore->snapshot exact-equality assertion in one scenario.  
+  Evidence: `src/__tests__/graph/graph.test.ts:815`, `src/__tests__/graph/graph.test.ts:826`, `src/__tests__/graph/graph.test.ts:1061`
+
+- **COVERED** — fromSnapshot() constructs working graph.  
+  Evidence: `src/__tests__/graph/graph.test.ts:862`, `src/__tests__/graph/graph.test.ts:1210`
+
+- **COVERED** — Guard enforcement (implemented path).  
+  Evidence: `src/__tests__/graph/graph.test.ts:890`, `src/__tests__/graph/graph.test.ts:911`, `src/__tests__/graph/graph.test.ts:922`, `src/__tests__/graph/graph.test.ts:982`
+
+---
+
+## OPERATORS
+
+- **WEAK** — Tier 1 operator matrix completeness (happy path + DIRTY + RESOLVED suppression + error/complete propagation + reconnect for each operator).  
+  Coverage is broad but not uniformly full-matrix per operator.  
+  Evidence: `src/__tests__/extra/operators.test.ts:56`
+
+- **COVERED** — merge: COMPLETE only after ALL sources complete (not ANY).  
+  Evidence: `src/__tests__/extra/operators.test.ts:237`, `src/__tests__/extra/operators.test.ts:244`, `src/__tests__/extra/operators.test.ts:246`
+
+- **WEAK** — Tier 2 matrix completeness including teardown (timers/inner subs), reconnect freshness, and races.  
+  Good behavior tests exist, but explicit teardown-resource and reconnect-freshness assertions are sparse.  
+  Evidence: `src/__tests__/extra/operators.test.ts:398`, `src/__tests__/extra/operators.test.ts:434`, `src/__tests__/extra/operators.test.ts:570`, `src/__tests__/extra/operators.test.ts:598`
+
+- **WEAK** — Diamond resolution through operator chains.  
+  Value output is tested, but recompute count assertion ("once per upstream change") is not explicit.  
+  Evidence: `src/__tests__/extra/operators.test.ts:349`
+
+---
+
+## GENERAL
+
+- **WEAK** — One concern per test.  
+  Many tests are focused, but several combine multiple concerns in one `it()`.  
+  Evidence: `src/__tests__/exports.test.ts:52`, `src/__tests__/graph/graph.test.ts:517`
+
+- **COVERED** — Protocol-level assertions (message sequences, not only final values).  
+  Evidence: `src/__tests__/core/protocol.test.ts:53`, `src/__tests__/core/node.test.ts:30`, `src/__tests__/graph/graph.test.ts:1049`
+
+- **WEAK** — Regression tests with explicit spec references.  
+  Present in portions of core/operators, but inconsistent across other suites.  
+  Evidence: `src/__tests__/core/node.test.ts:92`, `src/__tests__/core/protocol.test.ts:20`, `src/__tests__/extra/operators.test.ts:57`, absence trend in `src/__tests__/extra/sources.test.ts`, `src/__tests__/extra/checkpoint.test.ts`
+
+---
+
+## Highest-Risk Gaps
+
+1. Operator test matrix incompleteness for Tier 1/Tier 2 (DIRTY/RESOLVED/error/complete/reconnect per operator).
+2. Tier 2 teardown and reconnect freshness under async races are not consistently asserted.
+3. No strict snapshot->restore->snapshot equality test for graph state determinism.
+4. Wire-only edge invariant lacks a direct negative assertion.
+5. Operator-chain diamond tests do not assert recompute counts, only value correctness.
 # Batch 11 — TypeScript test suite coverage audit
 
 Audit of `graphrefly-ts` tests against `docs/test-guidance.md` checklists and `~/src/graphrefly/GRAPHREFLY-SPEC.md`. Files read: `docs/test-guidance.md`, spec (§1–2), and every test file listed in `docs/audit-plan.md` (lines 640–655). `src/__tests__/extra/edge-cases.test.ts` is **not** in that list but is cited where it clearly closes a gap (e.g. `merge`).

@@ -10,7 +10,7 @@ Subscribes to inner nodes in parallel (up to `concurrent`) and merges outputs (`
 ```ts
 function mergeMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: MergeMapOptions,
 ): Node<R>
 ```
@@ -20,7 +20,7 @@ function mergeMap<T, R>(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
+| `project` | `(value: T) =&gt; NodeInput&lt;R&gt;` | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
 | `opts` | `MergeMapOptions` | Optional options including `concurrent` limit. |
 
 ## Returns

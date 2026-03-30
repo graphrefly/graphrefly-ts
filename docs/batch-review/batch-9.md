@@ -1,165 +1,185 @@
-# Batch 9: TypeScript documentation audit (docs-guidance + registry + examples + roadmap + spec)
+# Batch 9: TypeScript documentation audit rerun
 
-**Scope:** Per `docs/audit-plan.md` §514–565 — JSDoc on listed modules, `gen-api-docs.mjs` REGISTRY, generated API pages, `examples/`, `docs/roadmap.md`, `~/src/graphrefly/GRAPHREFLY-SPEC.md`, `llms.txt`  
-**Date:** 2026-03-29  
-**Standards read:** `docs/docs-guidance.md`, `docs/roadmap.md` (Phase 0–3 sections)
+Read first:
+- `docs/docs-guidance.md`
+- `docs/roadmap.md`
 
----
-
-## Executive verdict
-
-**NOT COMPLETE** — does not meet `docs-guidance.md` Tier 1 requirements for all audited exports. Additional issues: **REGISTRY drift** (dead and mismatched entries), **generator limitations** (`{@link}` stripped to empty text in `.md`), **stale or phantom API pages**, **broken runnable example**, **roadmap typo vs spec**, **`llms.txt` absent** (roadmap still unchecked).
-
----
-
-## 1. JSDoc completeness (audited files)
-
-`docs-guidance.md` requires, for exported functions: verb-led description, `@param` per parameter, `@returns`, and at least one `@example` with a ` ```ts ` block. The audit plan extends this to “every export”; **types, interfaces, and symbol constants** typically only have short line or block comments (no `@param` / `@returns` / `@example`), which is a **partial** match to the letter of the checklist.
-
-### 1.1 Strong coverage (representative)
-
-- `src/core/sugar.ts` — `state`, `producer`, `derived`, `effect`, `pipe`: structured JSDoc with `@param`, `@returns`, `@example`.
-- `src/core/node.ts` — `node()`: full structured JSDoc + example (see §3 for generator artifact on `{@link}`).
-- `src/core/dynamic-node.ts` — `dynamicNode`: meets Tier 1 (not in the audit-plan file list but is a **public** export via `src/core/index.ts`).
-- Many `src/extra/operators.ts` entries registered in REGISTRY: generally have `@param` / `@returns`; some lack `@example` (e.g. `window`, `gate`).
-
-### 1.2 MISSING or weak vs docs-guidance (functions / classes)
-
-| Location | Export | Gap |
-|----------|--------|-----|
-| `src/core/batch.ts` | `isBatching` | No `@example`; description does not start with a verb (“Returns …” is acceptable as verb-led; still missing example per strict checklist). |
-| `src/core/batch.ts` | `partitionForBatch` | No `@example`. |
-| `src/core/messages.ts` | `isPhase2Message` | Has `@param`; **no `@returns`** in JSDoc. |
-| `src/core/meta.ts` | `describeNode` | Prose block only — **no `@param` / `@returns` / `@example`**. |
-| `src/core/guard.ts` | `policy` | Duplicate adjacent comment blocks; the first claims default **permit**, the second **deny**. Code returns **`false` when no rule matches** (`allowed` stays false). **no `@param` / `@returns` / `@example`**. |
-| `src/core/guard.ts` | `accessHintForGuard` | No `@param` / `@returns` / `@example`. |
-| `src/core/guard.ts` | `GuardDenied` | Class lacks full Tier-1 style table (no `@example`). |
-| `src/core/actor.ts` | `normalizeActor` | **No JSDoc**. |
-| `src/graph/graph.ts` | `Graph` | Class has one `@example`; **individual public methods** are not documented to Tier 1 (no per-method `@param` / `@returns` / `@example`). |
-| `src/extra/operators.ts` | `gate` | One-line description; **no `@param`, `@returns`, `@example`**. |
-| `src/extra/operators.ts` | `window` | **No `@example`**. |
-| `src/extra/operators.ts` | `flatMap`, `combineLatest`, `debounceTime`, `throttleTime`, `catchError` | Alias **const** exports — one-line only; no examples. |
-| `src/extra/sources.ts` | `fromTimer`, `fromIter`, `fromPromise`, `fromAsyncIter`, `of`, `empty`, `never`, `throwError`, `cached`, `shareReplay` | Mostly **one-line** descriptions; **missing structured `@param` / `@returns` / `@example`** (several have richer prose but still not Tier 1). |
-| `src/extra/backoff.ts` | `decorrelatedJitter`, `withMaxAttempts` | Not in REGISTRY; JSDoc depth not verified to full Tier 1 in this pass. |
-| `src/extra/cron.ts` | `parseCron`, `matchesCron` | Need spot-check for `@example` (not exhaustively verified here). |
-| `src/extra/resilience.ts` | `circuitBreaker`, `tokenBucket`, `withBreaker`, etc. | Mixed; **interfaces** `CircuitBreaker`, `TokenBucket` are documented as types, not as generator targets. |
-
-### 1.3 Types / symbols (checklist “N/A” or abbreviated)
-
-- `src/core/node.ts` — Large set of exported **types** (`Node`, `NodeOptions`, `NodeFn`, …) and **`NodeImpl`**: not documented to the same standard as functions.
-- `src/core/messages.ts` — **Symbol** constants use short `/** … */` lines — no `@example`.
-- `src/graph/graph.ts` — Many exported **types** (`GraphDescribeOutput`, `ObserveResult`, …): brief or inline comments only.
+Also checked:
+- `website/scripts/gen-api-docs.mjs`
+- `examples/basic-counter.ts`
+- `website/src/content/docs/api/*` (spot-check + generator check)
+- `src/` exports in batch scope
+- `../graphrefly/GRAPHREFLY-SPEC.md`
+- `llms.txt` and `website/public/llms.txt`
 
 ---
 
-## 2. GEN-API-DOCS REGISTRY (`website/scripts/gen-api-docs.mjs`)
+## JSDoc completeness (required tags)
 
-The generator only resolves **exported function declarations** or **exported classes**. It does **not** resolve **interfaces**, **type-only** symbols, or **missing** names.
+Interpretation used for this rerun:
+- Required tags (`@param`, `@returns`, `@example`) were enforced for exported functions.
+- Exported classes were checked for class-level description/example presence; constructor params are partially documented in some classes but not always in structured class-level tags.
 
-### 2.1 Registered but **not** found in source (warnings on `node scripts/gen-api-docs.mjs`)
+COMPLETE — strong coverage in:
+- `src/core/sugar.ts`
+- `src/core/meta.ts`
+- Most operator/source APIs in `src/extra/operators.ts` and `src/extra/sources.ts`
+- `src/extra/reactive-map.ts`, `src/extra/reactive-log.ts` (except `logSlice`), `src/extra/reactive-index.ts`, `src/extra/reactive-list.ts`, `src/extra/pubsub.ts`
+- `src/core/node.ts` `node`
+- `src/graph/graph.ts` `Graph` has description + example
 
-| REGISTRY key | Issue |
-|--------------|--------|
-| `CircuitBreaker` | Exported as **`interface`**, not `class` — `findExportedClass` never matches. |
-| `TokenBucket` | Same — **`interface`**. |
-| `tokenTracker` | **No such export** in `src/extra/resilience.ts` (implementation is `tokenBucket` only). |
-| `PubSubHub` | **Interface** only; factory is `pubsub()`. |
+MISSING (`src/core/batch.ts:batch`) — missing `@returns`.
 
-For these keys, `processFunction` returns `null` and **does not write** output — leaving **stale** `website/src/content/docs/api/*.md` files on disk if they pre-existed.
+MISSING (`src/core/batch.ts:emitWithBatch`) — missing `@returns`.
 
-### 2.2 Public APIs **not** in REGISTRY (no generated page)
+MISSING (`src/core/messages.ts:isKnownMessageType`) — missing `@example`.
 
-Non-exhaustive list of notable gaps:
+MISSING (`src/core/messages.ts:messageTier`) — missing `@example`.
 
-- **`dynamicNode`** (`src/core/dynamic-node.ts`) — exported from package, good JSDoc, **not registered**.
-- **`src/extra/sources.ts`** — **entire module** absent from REGISTRY (`fromTimer`, `fromCron`, `share`, …).
-- **Operators:** `gate`, `windowCount`, `windowTime`, alias exports (`flatMap`, `combineLatest`, …).
-- **Backoff:** `decorrelatedJitter`, `withMaxAttempts`.
-- **Core:** `isBatching`, `partitionForBatch`, `emitWithBatch`, `metaSnapshot`, `describeNode`, `policy`, …
+MISSING (`src/core/messages.ts:isPhase2Message`) — missing `@example`.
 
-### 2.3 Registry naming vs exports
+MISSING (`src/core/messages.ts:isTerminalMessage`) — missing `@example`.
 
-- `MemoryCheckpointAdapter` / `DictCheckpointAdapter` / … — registered as **classes**; verify each is a real `export class` (checkpoint module uses classes — OK).
+MISSING (`src/core/messages.ts:propagatesToMeta`) — missing `@example`.
 
----
+MISSING (`src/core/guard.ts:GuardDenied`) — no class-level structured JSDoc (description/tags/example).
 
-## 3. Generated API pages (spot-check vs JSDoc)
+MISSING (`src/core/guard.ts:accessHintForGuard`) — missing structured tags (`@param`, `@returns`, `@example`).
 
-Checked under `website/src/content/docs/api/` after understanding generator behavior.
+MISSING (`src/graph/graph.ts:reachable`) — missing `@example`.
 
-| File | Assessment |
-|------|------------|
-| `node.md` | **STALE / corrupted display**: JSDoc uses `{@link Node}`; plain-text extraction leaves **empty tokens** → “Creates a reactive —” and parameter descriptions like “a (producer)”. Fix: generator should strip or resolve `{@link …}`, or authors should avoid `{@link}` in sentences meant for markdown. |
-| `tokenTracker.md` | **STALE / orphan**: source has no `tokenTracker`; Returns section degrades to “A new .”. Should be removed or registry should point at a real `export function tokenTracker` alias. |
-| `TokenBucket.md` / `CircuitBreaker.md` | **STALE**: generator cannot bind to interfaces; content is not maintained from current TS. |
-| `map.md` (typical operator) | Generally **aligned** with source when the export is a function with full JSDoc. |
-| `pubsub.md` vs `PubSubHub.md` | **`pubsub()`** regenerates; **`PubSubHub.md`** is not produced by current run (interface key). |
+MISSING (`src/extra/resilience.ts:tokenBucket`) — missing `@example`.
 
-**Recommendation:** Run `pnpm --filter @graphrefly/docs-site docs:gen:check` in CI; fix REGISTRY keys; delete or replace phantom pages; harden `extractJSDocData` for `{@link}`.
+MISSING (`src/extra/resilience.ts:tokenTracker`) — missing `@example`.
 
----
+MISSING (`src/extra/resilience.ts:rateLimiter`) — missing `@example`.
 
-## 4. Examples
+MISSING (`src/extra/resilience.ts:withStatus`) — missing `@example`.
 
-### 4.1 `examples/basic-counter.ts` — **does not match current public API**
+MISSING (`src/extra/backoff.ts:linear`) — missing `@example`.
 
-- Uses **`doubled.sinks.add(...)`**. The public `Node` interface exposes **`subscribe(sink, hints?)`**, not `sinks` (internal storage is `_sinks`).
-- Uses **`type === 1`** for DATA instead of the **`DATA`** symbol from `messages` / documented protocol.
+MISSING (`src/extra/backoff.ts:exponential`) — missing `@example`.
 
-So the file is **misleading for copy-paste** even though it may sit outside `tsconfig` `include` and skip typechecking.
+MISSING (`src/extra/backoff.ts:fibonacci`) — missing `@example`.
 
-### 4.2 Features without dedicated examples
+MISSING (`src/extra/backoff.ts:decorrelatedJitter`) — missing `@example`.
 
-- **`dynamicNode`** — warrants a small `examples/` script (roadmap 0.3b is checked).
-- **Graph + guard + actor** — no dedicated example in `examples/` visible in this audit.
-- **Sources** (`fromCron`, `fromPromise`, …) — no Tier-2/3 examples folder entries beyond what recipes might import.
+MISSING (`src/extra/backoff.ts:withMaxAttempts`) — missing `@example`.
 
----
+MISSING (`src/extra/backoff.ts:resolveBackoffPreset`) — missing `@example`.
 
-## 5. Roadmap accuracy (`docs/roadmap.md`)
+MISSING (`src/extra/checkpoint.ts:saveGraphCheckpoint`) — missing `@returns`, missing `@example`.
 
-- **Phase 0.3b (`dynamicNode`)** — Checked **done**; implementation exists (`src/core/dynamic-node.ts`, tests). **Aligned.**
-- **Phase 3.1 `tokenTracker`** — Checked **done**; **no `tokenTracker` symbol in TS source** (only `tokenBucket`). **Misaligned** with code unless alias is added or roadmap wording is corrected to `tokenBucket` / “parity alias planned”.
-- **Phase 1.2 “Colon-delimited namespace: `parent:child:node`”** — **Wrong vs code and spec**: `src/graph/graph.ts` and **`GRAPHREFLY-SPEC.md`** use **`::`** (double-colon) paths. **Roadmap should say `parent::child::node`.**
+MISSING (`src/extra/checkpoint.ts:restoreGraphCheckpoint`) — missing `@example`.
 
-Otherwise, high-level Phase 0–2 checkboxes appear consistent with `src/` at a coarse level (this audit did not re-run the full test suite).
+MISSING (`src/extra/checkpoint.ts:checkpointNodeValue`) — missing `@example`.
 
----
+MISSING (`src/extra/checkpoint.ts:fromIDBRequest`) — missing `@example`.
 
-## 6. Spec alignment (`~/src/graphrefly/GRAPHREFLY-SPEC.md`)
+MISSING (`src/extra/checkpoint.ts:fromIDBTransaction`) — missing `@example`.
 
-- **Qualified paths:** Implementation uses **`::`**; spec § (paths) documents **double-colon** — **aligned**. Roadmap line above is the **documentation divergence**, not the implementation.
-- **Batch / two-phase protocol:** Core `batch.ts` and tests are written against spec language — no contradiction flagged in this pass.
-- **Intentional omissions** (roadmap 0.5): `subscribe` / `operator` sugar omitted in TS — **documented** in roadmap.
+MISSING (`src/extra/checkpoint.ts:saveGraphCheckpointIndexedDb`) — missing `@example`.
 
-No separate “optimizations” doc cross-check was performed in this batch.
+MISSING (`src/extra/checkpoint.ts:restoreGraphCheckpointIndexedDb`) — missing `@example`.
+
+MISSING (`src/extra/cron.ts:parseCron`) — missing structured tags (`@param`, `@returns`, `@example`).
+
+MISSING (`src/extra/cron.ts:matchesCron`) — missing structured tags (`@param`, `@returns`, `@example`).
+
+MISSING (`src/extra/reactive-log.ts:logSlice`) — missing `@example`.
+
+Note: `fromCron` overload declarations are not separate docs targets; implementation-level JSDoc is present.
 
 ---
 
-## 7. `llms.txt`
+## `gen-api-docs` registry coverage
 
-- **Does not exist** in repo root or `website/public/` (search in `graphrefly-ts`).
-- `docs/roadmap.md` lists **`llms.txt` for AI agent discovery** as **unchecked** — **consistent** with absence.
-- `docs-guidance.md` still describes Tier 5 as future maintenance when primitives are added.
+`website/scripts/gen-api-docs.mjs` REGISTRY was compared against real exports in mapped files.
+
+COMPLETE — no stale/extra REGISTRY keys were found (every registered key maps to an existing export in its configured file).
+
+MISSING (registry coverage vs exports) — many exported symbols in audited files are not registered. Key callable/class gaps:
+- `src/core/guard.ts:policy`
+- `src/core/guard.ts:GuardDenied`
+- `src/core/guard.ts:accessHintForGuard`
+- `src/core/batch.ts:isBatching`
+- `src/core/batch.ts:partitionForBatch`
+- `src/core/batch.ts:emitWithBatch`
+- `src/core/meta.ts:metaSnapshot`
+- `src/core/meta.ts:describeNode`
+- `src/extra/backoff.ts:decorrelatedJitter`
+- `src/extra/backoff.ts:withMaxAttempts`
+- `src/extra/cron.ts:parseCron`
+- `src/extra/cron.ts:matchesCron`
+- `src/graph/graph.ts:reachable`
+
+(Type-only exports/constants are also unregistered; list above is focused on callable/class docs pages.)
 
 ---
 
-## Output format summary
+## Generated API pages staleness (spot-check + check run)
 
-| Tag | Finding |
-|-----|---------|
-| **COMPLETE** | Subset only: e.g. `sugar.ts` factories, many registered operators, `pubsub()`. |
-| **MISSING** | See §1.2 table; plus wholesale **sources.ts** Tier 1 gap; **Graph** method docs; **REGISTRY** gaps for `dynamicNode`, sources, etc. |
-| **STALE** | `tokenTracker.md`, `CircuitBreaker.md`, `TokenBucket.md`, `PubSubHub.md`; any `{@link}`-damaged pages; phantom pages when `processFunction` returns null. |
-| **DIVERGENCE** | Roadmap **§1.2 path separator** vs **spec + `graph.ts`** (`:` vs `::`); roadmap **`tokenTracker`** vs **code** (`tokenBucket` only). |
+`pnpm --filter @graphrefly/docs-site docs:gen:check` reports 8 stale generated pages.
+
+STALE (`website/src/content/docs/api/switchMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/exhaustMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/concatMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/mergeMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/flatMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/circuitBreaker.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/reactiveMap.md`) — flagged stale by generator.
+
+STALE (`website/src/content/docs/api/fromAny.md`) — flagged stale by generator.
+
+Spot-checked pages (5 requested): `switchMap.md`, `mergeMap.md`, `circuitBreaker.md`, `reactiveMap.md`, `fromAny.md`; all are stale per generator check and need regeneration.
 
 ---
 
-## Suggested next actions (priority)
+## Example audit (`examples/basic-counter.ts`)
 
-1. Fix **REGISTRY**: remove or replace `tokenTracker`, `CircuitBreaker`, `TokenBucket`, `PubSubHub`; register **`circuitBreaker`**, **`tokenBucket`**, **`pubsub`** (or document interfaces differently).
-2. Add **`export const tokenTracker = tokenBucket`** (or update roadmap) for py parity.
-3. Repair **`examples/basic-counter.ts`** to use **`subscribe`** and **`DATA`**.
-4. Normalize **roadmap** path wording to **`::`**.
-5. Implement or generate **`llms.txt`** when ready; uncheck remains accurate until then.
-6. Harden **gen-api-docs** `{@link}` handling and fail CI if REGISTRY keys miss exports.
+COMPLETE — `examples/basic-counter.ts` uses current public API shape correctly:
+- imports `DATA`, `state`, `derived`
+- uses `node.subscribe(...)`
+- emits via `count.push(...)`
+
+MISSING (`examples/`) — areas that likely warrant dedicated runnable examples:
+- `Graph` guard/actor-scoped `describe` + `observe`
+- checkpoint adapters (`FileCheckpointAdapter`, `SqliteCheckpointAdapter`, IndexedDB helpers)
+- structured observe/timeline/causal inspector options
+- reactive data structures beyond counter-level quickstarts
+
+---
+
+## Roadmap checkboxes vs implementation state
+
+COMPLETE — sampled checked roadmap items align with implementation:
+- Phase 0.3b `dynamicNode` exists (`src/core/dynamic-node.ts` + tests)
+- Graph persistence/introspection APIs exist (`snapshot`, `restore`, `fromSnapshot`, `toJSON`, `toJSONString`, `observe`, `describe`)
+- Inspector gating exists (`Graph.inspectorEnabled`)
+- `llms.txt` checked item aligns with files present
+
+No clear false-positive checked item was found during this rerun in sampled implementation verification.
+
+---
+
+## Spec alignment (docs-relevant)
+
+DIVERGENCE — no direct implementation-vs-spec divergences were identified in this rerun that require documentation correction beyond normal regeneration/doc coverage work.
+
+Noted for doc context: spec and implementation both use `::` path qualification; no mismatch found in current `docs/roadmap.md` wording for that item.
+
+---
+
+## `llms.txt` existence and currency
+
+COMPLETE — `llms.txt` exists at repo root and `website/public/llms.txt`.
+
+STALE (`llms.txt`) — content is minimal and likely behind current user-facing surface (newer APIs/features are not enumerated; mostly pointer text).
+
+STALE (`website/public/llms.txt`) — same content/currency concern as root file.

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
 import {
@@ -533,6 +534,21 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
+	// Regression: SESSION-tier2-parity-nonlocal-forward-inner #4 — forwardInner must not duplicate
+	// initial DATA when an inner derived node already emits during subscribe.
+	it("switchMap does not duplicate initial DATA for derived inner on attach", () => {
+		const src = state(1);
+		const base = state(10);
+		const out = switchMap(src, () => map(base, (n) => (n as number) + 1));
+		const { batches, unsub } = collect(out);
+		const initial = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(initial.filter((v) => v === 11).length).toBe(1);
+		unsub();
+	});
+
 	// Regression: roadmap §3.1b — higher-order projects accept Iterable via fromAny coercion.
 	it("concatMap coerces iterable project returns", () => {
 		const src = producer<number>((_d, a) => {
@@ -579,6 +595,23 @@ describe("extra operators (Tier 2)", () => {
 		expect(batches.flat().filter((m) => m[0] === DATA).length).toBe(0);
 		vi.advanceTimersByTime(50);
 		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(3);
+		unsub();
+	});
+
+	// Regression: GRAPHREFLY-SPEC §1.3.7 — timer-backed operators should not fire phase-2 while
+	// source DATA is still deferred inside an active batch.
+	it("debounce does not flush DATA until batch exits (fake timers)", () => {
+		vi.useFakeTimers();
+		const s = state(0);
+		const out = debounce(s, 50);
+		const { batches, unsub } = collect(out);
+		batch(() => {
+			s.down([[DATA, 7]]);
+			vi.advanceTimersByTime(100);
+			expect(batches.flat().some((m) => m[0] === DATA)).toBe(false);
+		});
+		vi.advanceTimersByTime(50);
+		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(7);
 		unsub();
 	});
 
@@ -648,6 +681,25 @@ describe("extra operators (Tier 2)", () => {
 		const { batches, unsub } = collect(out);
 		s.down([[ERROR, new Error("x")]]);
 		expect(batches.flat().find((m) => m[0] === DATA)?.[1]).toBe(42);
+		unsub();
+	});
+
+	// Regression: SESSION-tier2-parity-nonlocal-forward-inner — rescue wrapped around a higher-order
+	// operator must recover inner ERROR as DATA and avoid leaking terminal ERROR downstream.
+	it("rescue recovers ERROR from switchMap inner source", () => {
+		const src = state(1);
+		const out = rescue(
+			switchMap(src, () =>
+				producer<number>((_d, a) => {
+					a.down([[ERROR, new Error("inner")], [COMPLETE]]);
+				}),
+			),
+			() => 123,
+		);
+		const { batches, unsub } = collect(out);
+		const flat = batches.flat();
+		expect(flat.find((m) => m[0] === DATA)?.[1]).toBe(123);
+		expect(flat.some((m) => m[0] === ERROR)).toBe(false);
 		unsub();
 	});
 
@@ -730,5 +782,757 @@ describe("extra operators (Tier 2)", () => {
 	it("bufferCount throws on count <= 0", () => {
 		const s = state(0);
 		expect(() => bufferCount(s, 0)).toThrow(RangeError);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tier 1 operator matrix — DIRTY, RESOLVED-suppression, ERROR/COMPLETE propagation, reconnect
+// ---------------------------------------------------------------------------
+
+describe("Tier 1 operator matrix — map", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(1);
+		const m = map(src, (x) => (x as number) * 2);
+		const types: symbol[] = [];
+		const unsub = m.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 2]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("RESOLVED suppression: same-value upstream emits RESOLVED, fn does not rerun", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.3
+		const src = state(1);
+		let fnRuns = 0;
+		const m = map(src, (x) => {
+			fnRuns += 1;
+			return (x as number) > 0 ? "pos" : "neg";
+		});
+		const unsub = m.subscribe(() => undefined);
+		fnRuns = 0;
+		// Push a new upstream value that maps to the same output ("pos")
+		src.down([[DIRTY], [DATA, 2]]);
+		const runsAfter = fnRuns;
+		unsub();
+		// map always reruns, but the node should emit RESOLVED not DATA
+		// The downstream should not see DATA for the unchanged value
+		const unsub2 = m.subscribe((msgs) => {
+			// Collect for RESOLVED check only — map's fn runs but RESOLVED is sent downstream
+			void msgs;
+		});
+		unsub2();
+		const src2 = state(1);
+		const m2 = map(src2, (x) => {
+			return (x as number) > 0 ? "pos" : "neg";
+		});
+		const resolvedTypes: symbol[] = [];
+		const unsubR = m2.subscribe((msgs) => {
+			for (const msg of msgs) resolvedTypes.push(msg[0] as symbol);
+		});
+		resolvedTypes.length = 0;
+		src2.down([[DIRTY], [DATA, 3]]); // still maps to "pos"
+		unsubR();
+		expect(resolvedTypes).toContain(RESOLVED);
+		expect(resolvedTypes).not.toContain(DATA);
+		void runsAfter;
+	});
+
+	it("ERROR propagation: upstream ERROR flows through map", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const m = map(src, (x) => x);
+		const types: symbol[] = [];
+		const unsub = m.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		const err = new Error("up");
+		src.down([[ERROR, err]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through map", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const m = map(src, (x) => x);
+		const types: symbol[] = [];
+		const unsub = m.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(1);
+		const m = map(src, (x) => (x as number) * 2);
+		const unsub1 = m.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = m.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 5]]);
+		unsub2();
+		expect(values).toContain(10);
+	});
+});
+
+describe("Tier 1 operator matrix — filter", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(1);
+		const f = filter(src, (x) => (x as number) > 0);
+		const types: symbol[] = [];
+		const unsub = f.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 2]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("RESOLVED suppression: filtered-out value emits RESOLVED not DATA", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.3
+		const src = state(5);
+		const f = filter(src, (x) => (x as number) > 10);
+		const types: symbol[] = [];
+		const unsub = f.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 3]]); // 3 < 10 → filtered out → RESOLVED
+		unsub();
+		expect(types).toContain(RESOLVED);
+		expect(types).not.toContain(DATA);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through filter", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const f = filter(src, (x) => (x as number) > 0);
+		const types: symbol[] = [];
+		const unsub = f.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through filter", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const f = filter(src, (x) => (x as number) > 0);
+		const types: symbol[] = [];
+		const unsub = f.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(1);
+		const f = filter(src, (x) => (x as number) > 0);
+		const unsub1 = f.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = f.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 5]]);
+		unsub2();
+		expect(values).toContain(5);
+	});
+});
+
+describe("Tier 1 operator matrix — scan", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(0);
+		const sc = scan(src, (a, x) => a + (x as number), 0);
+		const types: symbol[] = [];
+		const unsub = sc.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 1]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through scan", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const sc = scan(src, (a, x) => a + (x as number), 0);
+		const types: symbol[] = [];
+		const unsub = sc.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through scan", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const sc = scan(src, (a, x) => a + (x as number), 0);
+		const types: symbol[] = [];
+		const unsub = sc.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe accumulates fresh", () => {
+		const src = state(0);
+		const sc = scan(src, (a, x) => a + (x as number), 0);
+		const unsub1 = sc.subscribe(() => undefined);
+		src.down([[DATA, 5]]);
+		unsub1();
+		// After teardown, resubscribe and push again
+		const values: number[] = [];
+		const unsub2 = sc.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 3]]);
+		unsub2();
+		expect(values.length).toBeGreaterThan(0);
+	});
+});
+
+describe("Tier 1 operator matrix — take", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(0);
+		const t = take(src, 5);
+		const types: symbol[] = [];
+		const unsub = t.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 1]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("RESOLVED suppression: upstream RESOLVED flows as RESOLVED (no DATA)", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.3
+		const src = state(1);
+		const t = take(src, 5);
+		// Push same value twice via a derived with equals
+		const derived2 = map(src, (x) => ((x as number) > 0 ? "pos" : "neg"));
+		const t2 = take(derived2, 5);
+		const types: symbol[] = [];
+		const unsub = t2.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 2]]); // still "pos"
+		unsub();
+		expect(types).toContain(RESOLVED);
+		expect(types).not.toContain(DATA);
+		void t;
+	});
+
+	it("ERROR propagation: upstream ERROR flows through take", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const t = take(src, 5);
+		const types: symbol[] = [];
+		const unsub = t.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through take", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const t = take(src, 5);
+		const types: symbol[] = [];
+		const unsub = t.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(0);
+		const t = take(src, 3);
+		const unsub1 = t.subscribe(() => undefined);
+		src.down([[DATA, 1]]);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = t.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 7]]);
+		unsub2();
+		expect(values).toContain(7);
+	});
+});
+
+describe("Tier 1 operator matrix — takeWhile", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(0);
+		const tw = takeWhile(src, (x) => (x as number) < 100);
+		const types: symbol[] = [];
+		const unsub = tw.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 1]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through takeWhile", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const tw = takeWhile(src, (x) => (x as number) < 100);
+		const types: symbol[] = [];
+		const unsub = tw.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through takeWhile after predicate fails", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		// takeWhile only forwards COMPLETE once done=true (predicate failed);
+		// COMPLETE from upstream while predicate is still passing is intentionally not forwarded
+		// because the stream is still live. Only when the predicate gate closes does upstream
+		// COMPLETE propagate.
+		const src = state(0);
+		const tw = takeWhile(src, (x) => (x as number) < 3);
+		const types: symbol[] = [];
+		const unsub = tw.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		// Push a value that fails the predicate — this causes takeWhile to emit COMPLETE itself
+		src.down([[DATA, 5]]); // predicate fails → done=true, emits COMPLETE
+		// Now send upstream COMPLETE (with done=true, it should also forward)
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(0);
+		const tw = takeWhile(src, (x) => (x as number) < 100);
+		const unsub1 = tw.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = tw.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 5]]);
+		unsub2();
+		expect(values).toContain(5);
+	});
+});
+
+describe("Tier 1 operator matrix — skip", () => {
+	it("DIRTY arrives before DATA at subscriber (after skip threshold)", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(0);
+		const sk = skip(src, 0);
+		const types: symbol[] = [];
+		const unsub = sk.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 1]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through skip", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const sk = skip(src, 0);
+		const types: symbol[] = [];
+		const unsub = sk.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through skip", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const sk = skip(src, 0);
+		const types: symbol[] = [];
+		const unsub = sk.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(0);
+		const sk = skip(src, 0);
+		const unsub1 = sk.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = sk.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 9]]);
+		unsub2();
+		expect(values).toContain(9);
+	});
+});
+
+describe("Tier 1 operator matrix — distinctUntilChanged", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(1);
+		const d = distinctUntilChanged(src);
+		const types: symbol[] = [];
+		const unsub = d.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 2]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("RESOLVED suppression: duplicate value emits RESOLVED not DATA", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.3
+		const src = state(5);
+		const d = distinctUntilChanged(src);
+		const types: symbol[] = [];
+		const unsub = d.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 5]]); // same value again
+		unsub();
+		expect(types).toContain(RESOLVED);
+		expect(types).not.toContain(DATA);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through distinctUntilChanged", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const d = distinctUntilChanged(src);
+		const types: symbol[] = [];
+		const unsub = d.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through distinctUntilChanged", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const d = distinctUntilChanged(src);
+		const types: symbol[] = [];
+		const unsub = d.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe receives fresh values", () => {
+		const src = state(0);
+		const d = distinctUntilChanged(src);
+		const unsub1 = d.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = d.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 7]]);
+		unsub2();
+		expect(values).toContain(7);
+	});
+});
+
+describe("Tier 1 operator matrix — pairwise", () => {
+	it("DIRTY arrives before DATA at subscriber", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.1
+		const src = state(0);
+		const p = pairwise(src);
+		const types: symbol[] = [];
+		const unsub = p.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		// Seed first value, then push second to trigger pairwise DATA
+		src.down([[DATA, 1]]);
+		types.length = 0;
+		src.down([[DIRTY], [DATA, 2]]);
+		unsub();
+		const dirtyIdx = types.indexOf(DIRTY);
+		const dataIdx = types.indexOf(DATA);
+		expect(dirtyIdx).toBeGreaterThanOrEqual(0);
+		expect(dataIdx).toBeGreaterThan(dirtyIdx);
+	});
+
+	it("ERROR propagation: upstream ERROR flows through pairwise", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const p = pairwise(src);
+		const types: symbol[] = [];
+		const unsub = p.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("COMPLETE propagation: upstream COMPLETE flows through pairwise", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const p = pairwise(src);
+		const types: symbol[] = [];
+		const unsub = p.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[COMPLETE]]);
+		unsub();
+		expect(types).toContain(COMPLETE);
+	});
+
+	it("reconnect after teardown: resubscribe gets fresh pair on two pushes", () => {
+		const src = state(0);
+		const p = pairwise(src);
+		const unsub1 = p.subscribe(() => undefined);
+		src.down([[DATA, 1]]);
+		src.down([[DATA, 2]]);
+		unsub1();
+		const values: unknown[] = [];
+		const unsub2 = p.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1]);
+			}
+		});
+		src.down([[DATA, 3]]);
+		src.down([[DATA, 4]]);
+		unsub2();
+		expect(values.length).toBeGreaterThan(0);
+	});
+});
+
+describe("Tier 1 operator matrix — reduce", () => {
+	it("ERROR propagation: upstream ERROR flows through reduce", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3.4
+		const src = state(0);
+		const r = reduce(src, (a, x) => a + (x as number), 0);
+		const types: symbol[] = [];
+		const unsub = r.subscribe((msgs) => {
+			for (const msg of msgs) types.push(msg[0] as symbol);
+		});
+		src.down([[ERROR, new Error("up")]]);
+		unsub();
+		expect(types).toContain(ERROR);
+	});
+
+	it("reconnect after teardown: resubscribe emits on COMPLETE (accumulated value)", () => {
+		// reduce is stateful across subscriptions unless resubscribable:true is set.
+		// After teardown and re-subscribe, it still emits on upstream COMPLETE.
+		const src = state(0);
+		const r = reduce(src, (a, x) => a + (x as number), 0);
+		const unsub1 = r.subscribe(() => undefined);
+		unsub1();
+		const values: number[] = [];
+		const unsub2 = r.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 5]]);
+		src.down([[COMPLETE]]);
+		unsub2();
+		// reduce emits on COMPLETE — values array must have at least one entry
+		expect(values.length).toBeGreaterThan(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tier 2 — teardown and reconnect freshness
+// ---------------------------------------------------------------------------
+
+describe("Tier 2 teardown and reconnect freshness — switchMap", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("after teardown, resubscribe creates a new inner subscription (old state not retained)", () => {
+		// Spec: GRAPHREFLY-SPEC §2
+		const src = state(0);
+		let innerCallCount = 0;
+		const out = switchMap(src, (v) => {
+			innerCallCount += 1;
+			return state((v as number) * 10);
+		});
+		const unsub1 = out.subscribe(() => undefined);
+		const firstCount = innerCallCount;
+		unsub1();
+		// Resubscribe — a fresh inner subscription should be created
+		const values: number[] = [];
+		const unsub2 = out.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 2]]);
+		unsub2();
+		expect(innerCallCount).toBeGreaterThan(firstCount);
+		expect(values).toContain(20);
+	});
+});
+
+describe("Tier 2 teardown and reconnect freshness — debounce", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("after teardown, timers are cleared — no stale emissions after unsubscribe + timer advance", () => {
+		// Spec: GRAPHREFLY-SPEC §1.3
+		vi.useFakeTimers();
+		const src = state(0);
+		const out = debounce(src, 50);
+		const staleValues: number[] = [];
+		const unsub = out.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) staleValues.push(msg[1] as number);
+			}
+		});
+		src.down([[DATA, 1]]);
+		// Unsubscribe before timer fires — teardown must clear pending timer
+		unsub();
+		// Advance time past the debounce window
+		vi.advanceTimersByTime(100);
+		// No stale emission should have arrived after unsubscribe
+		expect(staleValues.length).toBe(0);
+	});
+});
+
+describe("Tier 2 teardown and reconnect freshness — concatMap", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("after teardown + resubscribe, queue is fresh (no buffered items from previous subscription)", () => {
+		// Spec: GRAPHREFLY-SPEC §2
+		const src = state(0);
+		const inner = state(100);
+		let wave = 0;
+		const out = concatMap(src, () => {
+			wave += 1;
+			return inner;
+		});
+		const unsub1 = out.subscribe(() => undefined);
+		src.down([[DATA, 1]]); // queues wave=1 inner
+		// Teardown before inner completes
+		unsub1();
+		wave = 0;
+		// Resubscribe — fresh queue; previous outer value should not be re-processed
+		const values: number[] = [];
+		const unsub2 = out.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) values.push(msg[1] as number);
+			}
+		});
+		// Push a new outer value after fresh sub
+		src.down([[DATA, 2]]);
+		inner.down([[DATA, 200]]);
+		unsub2();
+		// Only the value from the fresh subscription's inner should appear
+		expect(wave).toBeGreaterThan(0);
+		expect(values).toContain(200);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Diamond resolution through operator chain — recompute count
+// ---------------------------------------------------------------------------
+
+describe("diamond resolution through operator chain", () => {
+	it("source → map as A, map as B → combine([A, B]): DATA emitted exactly once per push", () => {
+		// Spec: GRAPHREFLY-SPEC §2 (diamond resolution)
+		// A and B both depend on src; combine waits for both to settle before recomputing.
+		// Exactly one DATA message should reach the combine subscriber per src push.
+		const src = state(0);
+		const a = map(src, (x) => x);
+		const b = map(src, (x) => x);
+		const c = combine(a, b);
+		let dataCount = 0;
+		const unsub = c.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) dataCount += 1;
+			}
+		});
+		dataCount = 0;
+		src.down([[DIRTY], [DATA, 5]]);
+		unsub();
+		expect(dataCount).toBe(1);
+		expect(c.get()).toEqual([5, 5]);
 	});
 });

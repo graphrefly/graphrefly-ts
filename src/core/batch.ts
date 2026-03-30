@@ -60,6 +60,8 @@ export function isBatching(): boolean {
  * have applied phase-2 — partial graph state is intentional (decision C1).
  *
  * @param fn — Synchronous work that may call `emitWithBatch` / `node.down()`.
+ * @returns `void` — all side-effects happen through `emitWithBatch` and the
+ *   phase-2 drain that runs after `fn` returns.
  *
  * @example
  * ```ts
@@ -194,6 +196,8 @@ export function partitionForBatch(messages: Messages): {
  * @param emit — Sink callback. May be called up to three times per invocation
  *   (immediate, deferred, terminal) when not batching.
  * @param messages — Full `[[Type, Data?], ...]` array for one emission.
+ * @returns `void` — delivery is performed through `emit` callbacks, synchronously
+ *   or deferred into the active batch queue.
  *
  * @example
  * ```ts

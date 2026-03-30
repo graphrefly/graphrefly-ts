@@ -38,7 +38,27 @@ function parseField(field: string, min: number, max: number): Set<number> {
 	return result;
 }
 
-/** Parses a standard 5-field cron expression. */
+/**
+ * Parses a standard 5-field cron expression into a {@link CronSchedule}.
+ *
+ * Supports `*`, ranges (`1-5`), steps (`*\/5`, `0-30/10`), and comma-separated
+ * lists. Fields are: minute (0–59), hour (0–23), day-of-month (1–31),
+ * month (1–12), day-of-week (0–6, Sunday = 0).
+ *
+ * @param expr - Five-field whitespace-separated cron string (e.g. `"0 9 * * 1-5"`).
+ * @returns Parsed {@link CronSchedule} with one `Set<number>` per field.
+ * @throws Error when the expression does not have exactly 5 fields, contains
+ *   out-of-range values, or uses an invalid step.
+ *
+ * @example
+ * ```ts
+ * import { parseCron } from "@graphrefly/graphrefly-ts";
+ *
+ * const sched = parseCron("0 9 * * 1-5"); // weekdays at 09:00
+ * sched.hours;      // Set { 9 }
+ * sched.daysOfWeek; // Set { 1, 2, 3, 4, 5 }
+ * ```
+ */
 export function parseCron(expr: string): CronSchedule {
 	const parts = expr.trim().split(/\s+/);
 	if (parts.length !== 5) throw new Error(`Invalid cron: expected 5 fields, got ${parts.length}`);
@@ -51,7 +71,22 @@ export function parseCron(expr: string): CronSchedule {
 	};
 }
 
-/** True if `date` matches every field of `schedule`. */
+/**
+ * Returns `true` if `date` satisfies every field of `schedule`.
+ *
+ * @param schedule - Parsed schedule from {@link parseCron}.
+ * @param date - Moment to test (local time via `getMinutes`, `getHours`, etc.).
+ * @returns `true` when all five cron fields match the given date.
+ *
+ * @example
+ * ```ts
+ * import { parseCron, matchesCron } from "@graphrefly/graphrefly-ts";
+ *
+ * const sched = parseCron("30 8 * * 1"); // Mondays at 08:30
+ * const monday = new Date("2026-03-30T08:30:00"); // a Monday
+ * matchesCron(sched, monday); // true
+ * ```
+ */
 export function matchesCron(schedule: CronSchedule, date: Date): boolean {
 	return (
 		schedule.minutes.has(date.getMinutes()) &&

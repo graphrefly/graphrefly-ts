@@ -28,6 +28,11 @@ function batch(fn: () => void): void
 |-----------|------|-------------|
 | `fn` | `() =&gt; void` | — Synchronous work that may call `emitWithBatch` / `node.down()`. |
 
+## Returns
+
+`void` — all side-effects happen through `emitWithBatch` and the
+phase-2 drain that runs after `fn` returns.
+
 ## Basic Usage
 
 ```ts

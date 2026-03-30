@@ -9,17 +9,14 @@ async iterable → fromAsyncIter, sync iterable → fromIter, else scalar → of
 ## Signature
 
 ```ts
-function fromAny<T>(
-	input: T,
-	opts?: AsyncSourceOpts,
-): Node<T extends Node<infer U> ? U : T>
+function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `input` | `T` | Any value to wrap. |
+| `input` | `NodeInput&lt;T&gt;` | Any value to wrap. |
 | `opts` | `AsyncSourceOpts` | Passed through when a Promise/async path is chosen. |
 
 ## Returns

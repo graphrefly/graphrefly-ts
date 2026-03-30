@@ -417,6 +417,15 @@ export interface TokenBucket {
  * @param refillPerSecond - Tokens added per elapsed second (non-negative).
  * @returns {@link TokenBucket} instance.
  *
+ * @example
+ * ```ts
+ * import { tokenBucket } from "@graphrefly/graphrefly-ts";
+ *
+ * const bucket = tokenBucket(10, 2); // capacity 10, refill 2 tokens/sec
+ * bucket.tryConsume(3); // true — 7 tokens remaining
+ * bucket.available();   // ~7 (plus any elapsed refill)
+ * ```
+ *
  * @category extra
  */
 export function tokenBucket(capacity: number, refillPerSecond: number): TokenBucket {
@@ -459,6 +468,14 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
  * @param refillPerSecond - Tokens added per elapsed second (non-negative).
  * @returns A {@link TokenBucket} instance.
  *
+ * @example
+ * ```ts
+ * import { tokenTracker } from "@graphrefly/graphrefly-ts";
+ *
+ * const tracker = tokenTracker(100, 10); // 100-token capacity, 10/sec refill
+ * tracker.tryConsume(5); // true
+ * ```
+ *
  * @category extra
  */
 export function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket {
@@ -475,6 +492,16 @@ export function tokenTracker(capacity: number, refillPerSecond: number): TokenBu
  *
  * @remarks
  * **Terminal:** `COMPLETE` / `ERROR` cancel timers, drop pending queue, and clear window state.
+ *
+ * @example
+ * ```ts
+ * import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * const src = state(0);
+ * // Allow at most 5 DATA values per second
+ * const limited = rateLimiter(src, 5, NS_PER_SEC);
+ * limited.subscribe((msgs) => console.log(msgs));
+ * ```
  *
  * @category extra
  */
@@ -577,6 +604,17 @@ export type WithStatusBundle<T> = {
  *
  * @remarks
  * **Recovery:** After `errored`, the next `DATA` clears `error` and sets `active` inside {@link batch} (matches graphrefly-py).
+ *
+ * @example
+ * ```ts
+ * import { withStatus, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const src = state<number>(0);
+ * const { node, status, error } = withStatus(src);
+ *
+ * status.subscribe((msgs) => console.log("status:", msgs));
+ * src.down([[DATA, 42]]); // status → "active"
+ * ```
  *
  * @category extra
  */

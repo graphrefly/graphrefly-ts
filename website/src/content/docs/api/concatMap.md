@@ -10,7 +10,7 @@ Enqueues each outer value and subscribes to inners one at a time (`concatMap`).
 ```ts
 function concatMap<T, R>(
 	source: Node<T>,
-	project: (value: T) => Node<R>,
+	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts & { maxBuffer?: number },
 ): Node<R>
 ```
@@ -20,7 +20,7 @@ function concatMap<T, R>(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `project` | `(value: T) =&gt; Node&lt;R&gt;` | Maps each outer value to an inner node. |
+| `project` | `(value: T) =&gt; NodeInput&lt;R&gt;` | Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via fromAny. |
 | `opts` | `ExtraOpts & { maxBuffer?: number }` | Optional NodeOptions (excluding `describeKind`). |
 
 ## Returns

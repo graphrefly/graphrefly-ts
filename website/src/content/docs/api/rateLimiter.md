@@ -23,6 +23,17 @@ function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): N
 
 Node that queues excess values FIFO until a slot frees.
 
+## Basic Usage
+
+```ts
+import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+
+const src = state(0);
+// Allow at most 5 DATA values per second
+const limited = rateLimiter(src, 5, NS_PER_SEC);
+limited.subscribe((msgs) => console.log(msgs));
+```
+
 ## Behavior Details
 
 - **Terminal:** `COMPLETE` / `ERROR` cancel timers, drop pending queue, and clear window state.

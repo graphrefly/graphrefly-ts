@@ -38,7 +38,19 @@ const REGISTRY = {
 
 	// Core — batch
 	batch: "src/core/batch.ts",
+	isBatching: "src/core/batch.ts",
+	partitionForBatch: "src/core/batch.ts",
+	emitWithBatch: "src/core/batch.ts",
 	dynamicNode: "src/core/dynamic-node.ts",
+
+	// Core — guard
+	policy: "src/core/guard.ts",
+	GuardDenied: "src/core/guard.ts",
+	accessHintForGuard: "src/core/guard.ts",
+
+	// Core — meta
+	metaSnapshot: "src/core/meta.ts",
+	describeNode: "src/core/meta.ts",
 
 	// Extra — operators
 	map: "src/extra/operators.ts",
@@ -95,6 +107,8 @@ const REGISTRY = {
 	linear: "src/extra/backoff.ts",
 	exponential: "src/extra/backoff.ts",
 	fibonacci: "src/extra/backoff.ts",
+	decorrelatedJitter: "src/extra/backoff.ts",
+	withMaxAttempts: "src/extra/backoff.ts",
 	resolveBackoffPreset: "src/extra/backoff.ts",
 	retry: "src/extra/resilience.ts",
 	circuitBreaker: "src/extra/resilience.ts",
@@ -124,6 +138,10 @@ const REGISTRY = {
 	reactiveList: "src/extra/reactive-list.ts",
 	pubsub: "src/extra/pubsub.ts",
 
+	// Extra — cron
+	parseCron: "src/extra/cron.ts",
+	matchesCron: "src/extra/cron.ts",
+
 	// Extra — sources
 	fromTimer: "src/extra/sources.ts",
 	fromCron: "src/extra/sources.ts",
@@ -146,6 +164,7 @@ const REGISTRY = {
 
 	// Graph container
 	Graph: "src/graph/graph.ts",
+	reachable: "src/graph/graph.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

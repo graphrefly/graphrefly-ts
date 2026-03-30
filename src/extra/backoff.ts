@@ -65,6 +65,14 @@ export function constant(delayNs: number): BackoffStrategy {
  * @param stepNs - Added per retry attempt in nanoseconds (clamped non-negative).
  * @returns `BackoffStrategy` for {@link retry}.
  *
+ * @example
+ * ```ts
+ * import { linear, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * // Attempt 0 → 1 s, attempt 1 → 2 s, attempt 2 → 3 s …
+ * const out = retry(source, { count: 4, backoff: linear(NS_PER_SEC) });
+ * ```
+ *
  * @category extra
  */
 export function linear(baseNs: number, stepNs?: number): BackoffStrategy {
@@ -88,6 +96,17 @@ export type ExponentialBackoffOptions = {
  *
  * @remarks
  * **Jitter:** `"full"` spreads delay across `[0, delay]`; `"equal"` uses `[delay/2, delay]`.
+ *
+ * @example
+ * ```ts
+ * import { exponential, retry, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * // 100 ms → 200 ms → 400 ms … capped at 30 s, with full jitter
+ * const out = retry(source, {
+ *   count: 5,
+ *   backoff: exponential({ baseNs: 100 * NS_PER_SEC / 1000, jitter: "full" }),
+ * });
+ * ```
  *
  * @category extra
  */
@@ -127,6 +146,14 @@ export function exponential(options?: ExponentialBackoffOptions): BackoffStrateg
  * @param maxDelayNs - Upper bound in nanoseconds (default `30s`).
  * @returns `BackoffStrategy` for {@link retry}.
  *
+ * @example
+ * ```ts
+ * import { fibonacci, retry, NS_PER_MS } from "@graphrefly/graphrefly-ts";
+ *
+ * // Delays: 100 ms, 200 ms, 300 ms, 500 ms, 800 ms … (× 100 ms base)
+ * const out = retry(source, { count: 5, backoff: fibonacci(100 * NS_PER_MS) });
+ * ```
+ *
  * @category extra
  */
 export function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC): BackoffStrategy {
@@ -161,6 +188,16 @@ export function fibonacci(baseNs = 100 * NS_PER_MS, maxDelayNs = 30 * NS_PER_SEC
  * @param maxNs - Ceiling cap (default `30s` in nanoseconds).
  * @returns `BackoffStrategy` for {@link retry}.
  *
+ * @example
+ * ```ts
+ * import { decorrelatedJitter, retry, NS_PER_MS, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * const out = retry(source, {
+ *   count: 6,
+ *   backoff: decorrelatedJitter(100 * NS_PER_MS, 10 * NS_PER_SEC),
+ * });
+ * ```
+ *
  * @category extra
  */
 export function decorrelatedJitter(
@@ -181,6 +218,14 @@ export function decorrelatedJitter(
  * @param maxAttempts - Maximum number of attempts (inclusive).
  * @returns Wrapped `BackoffStrategy`.
  *
+ * @example
+ * ```ts
+ * import { withMaxAttempts, exponential } from "@graphrefly/graphrefly-ts";
+ *
+ * const capped = withMaxAttempts(exponential(), 3);
+ * capped(3); // null — no more retries beyond attempt 3
+ * ```
+ *
  * @category extra
  */
 export function withMaxAttempts(strategy: BackoffStrategy, maxAttempts: number): BackoffStrategy {
@@ -196,6 +241,14 @@ export function withMaxAttempts(strategy: BackoffStrategy, maxAttempts: number):
  * @param name - One of `constant`, `linear`, `exponential`, `fibonacci`, or `decorrelatedJitter`.
  * @returns Configured strategy with default parameters.
  * @throws Error when `name` is not a known preset.
+ *
+ * @example
+ * ```ts
+ * import { resolveBackoffPreset, retry } from "@graphrefly/graphrefly-ts";
+ *
+ * const out = retry(source, { count: 3, backoff: resolveBackoffPreset("exponential") });
+ * // Equivalent to retry(source, { count: 3, backoff: exponential() })
+ * ```
  *
  * @category extra
  */

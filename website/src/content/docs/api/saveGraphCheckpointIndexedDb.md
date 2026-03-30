@@ -25,6 +25,19 @@ function saveGraphCheckpointIndexedDb(
 
 A reactive `Node&lt;void&gt;` that emits `DATA` (`undefined`) then `COMPLETE` on success, or `ERROR` on failure.
 
+## Basic Usage
+
+```ts
+import { saveGraphCheckpointIndexedDb, Graph } from "@graphrefly/graphrefly-ts";
+
+const g = new Graph("app");
+const save$ = saveGraphCheckpointIndexedDb(g, {
+    dbName: "myApp",
+    storeName: "checkpoints",
+  });
+save$.subscribe((msgs) => console.log("saved:", msgs));
+```
+
 ## Behavior Details
 
 - **Environment:** Emits `ERROR` if `indexedDB` is undefined (e.g. Node without a polyfill).

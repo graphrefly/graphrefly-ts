@@ -33,4 +33,4 @@ const b = circuitBreaker({
 
 ## Behavior Details
 
-- **Timing:** Uses `performance.now()` by default (milliseconds). Override `now` for tests.
+- **Timing:** Uses `monotonicNs()` by default (nanoseconds). Override `now` for tests.

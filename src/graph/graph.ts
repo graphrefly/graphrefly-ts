@@ -1969,6 +1969,19 @@ export type ReachableOptions = {
  * @param direction - Traversal direction.
  * @param options - Optional max depth bound.
  * @returns Sorted list of reachable paths (excluding `from`).
+ *
+ * @example
+ * ```ts
+ * import { Graph, reachable } from "@graphrefly/graphrefly-ts";
+ *
+ * const g = new Graph("app");
+ * const a = g.register("a");
+ * const b = g.register("b", [a]);
+ * const described = g.describe();
+ *
+ * reachable(described, "app.a", "downstream"); // ["app.b"]
+ * reachable(described, "app.b", "upstream");   // ["app.a"]
+ * ```
  */
 export function reachable(
 	described: GraphDescribeOutput,

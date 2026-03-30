@@ -21,3 +21,12 @@ function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket
 ## Returns
 
 A TokenBucket instance.
+
+## Basic Usage
+
+```ts
+import { tokenTracker } from "@graphrefly/graphrefly-ts";
+
+const tracker = tokenTracker(100, 10); // 100-token capacity, 10/sec refill
+tracker.tryConsume(5); // true
+```

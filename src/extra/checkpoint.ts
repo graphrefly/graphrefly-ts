@@ -199,6 +199,16 @@ export class SqliteCheckpointAdapter implements CheckpointAdapter {
  *
  * @param graph - Target graph instance.
  * @param adapter - Sync persistence backend.
+ * @returns `void` — side-effect only; the snapshot is written to `adapter`.
+ *
+ * @example
+ * ```ts
+ * import { saveGraphCheckpoint, MemoryCheckpointAdapter, Graph } from "@graphrefly/graphrefly-ts";
+ *
+ * const g = new Graph("app");
+ * const adapter = new MemoryCheckpointAdapter();
+ * saveGraphCheckpoint(g, adapter);
+ * ```
  *
  * @category extra
  */
@@ -212,6 +222,23 @@ export function saveGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): v
  * @param graph - Graph whose topology matches the snapshot.
  * @param adapter - Sync persistence backend.
  * @returns `true` if data was present and `restore` ran; `false` if `load()` returned `null`.
+ *
+ * @example
+ * ```ts
+ * import {
+ *   saveGraphCheckpoint,
+ *   restoreGraphCheckpoint,
+ *   MemoryCheckpointAdapter,
+ *   Graph,
+ * } from "@graphrefly/graphrefly-ts";
+ *
+ * const g = new Graph("app");
+ * const adapter = new MemoryCheckpointAdapter();
+ * saveGraphCheckpoint(g, adapter);
+ *
+ * const g2 = new Graph("app");
+ * restoreGraphCheckpoint(g2, adapter); // true
+ * ```
  *
  * @category extra
  */
@@ -227,6 +254,14 @@ export function restoreGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter)
  *
  * @param n - Any {@link Node}.
  * @returns `{ version: 1, value }` from {@link Node.get}.
+ *
+ * @example
+ * ```ts
+ * import { checkpointNodeValue, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const s = state(42);
+ * checkpointNodeValue(s); // { version: 1, value: 42 }
+ * ```
  *
  * @category extra
  */
@@ -247,6 +282,15 @@ export type IndexedDbCheckpointSpec = {
  *
  * @param req - Request whose callbacks are converted to protocol messages.
  * @returns `Node<T>` that emits `DATA` once on success, then `COMPLETE`; emits `ERROR` on failure.
+ *
+ * @example
+ * ```ts
+ * import { fromIDBRequest } from "@graphrefly/graphrefly-ts";
+ *
+ * const req = indexedDB.open("myDb", 1);
+ * fromIDBRequest(req).subscribe((msgs) => console.log(msgs));
+ * // Emits [[DATA, IDBDatabase], [COMPLETE]] on success
+ * ```
  *
  * @category extra
  */
@@ -281,6 +325,16 @@ export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
  *
  * @param tx - Transaction to observe.
  * @returns `Node<void>` that emits `DATA` (`undefined`) then `COMPLETE` on success; emits `ERROR` on `error`/`abort`.
+ *
+ * @example
+ * ```ts
+ * import { fromIDBTransaction } from "@graphrefly/graphrefly-ts";
+ *
+ * const db: IDBDatabase = ...; // obtained from indexedDB.open
+ * const tx = db.transaction("store", "readwrite");
+ * fromIDBTransaction(tx).subscribe((msgs) => console.log(msgs));
+ * // Emits [[DATA, undefined], [COMPLETE]] when the transaction commits
+ * ```
  *
  * @category extra
  */
@@ -346,6 +400,18 @@ function openIdbNode(dbName: string, storeName: string, version: number): Node<I
  *
  * @remarks
  * **Environment:** Emits `ERROR` if `indexedDB` is undefined (e.g. Node without a polyfill).
+ *
+ * @example
+ * ```ts
+ * import { saveGraphCheckpointIndexedDb, Graph } from "@graphrefly/graphrefly-ts";
+ *
+ * const g = new Graph("app");
+ * const save$ = saveGraphCheckpointIndexedDb(g, {
+ *   dbName: "myApp",
+ *   storeName: "checkpoints",
+ * });
+ * save$.subscribe((msgs) => console.log("saved:", msgs));
+ * ```
  *
  * @category extra
  */
@@ -443,6 +509,19 @@ export function saveGraphCheckpointIndexedDb(
  * @param graph - Graph whose topology matches the stored snapshot.
  * @param spec - Same `dbName` / `storeName` / `key` / `version` as save.
  * @returns A reactive `Node<boolean>`: emits `true` if a snapshot was restored, `false` if missing or not a plain object, then `COMPLETE`; or `ERROR` on I/O failure.
+ *
+ * @example
+ * ```ts
+ * import { restoreGraphCheckpointIndexedDb, Graph } from "@graphrefly/graphrefly-ts";
+ *
+ * const g = new Graph("app");
+ * const restore$ = restoreGraphCheckpointIndexedDb(g, {
+ *   dbName: "myApp",
+ *   storeName: "checkpoints",
+ * });
+ * restore$.subscribe((msgs) => console.log("restored:", msgs));
+ * // Emits [[DATA, true], [COMPLETE]] if a snapshot was found and applied
+ * ```
  *
  * @category extra
  */

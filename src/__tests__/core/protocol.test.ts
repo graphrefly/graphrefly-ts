@@ -14,7 +14,7 @@ import {
 	TEARDOWN,
 } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
-import { switchMap } from "../../extra/operators.js";
+import { concatMap, exhaustMap, mergeMap, switchMap } from "../../extra/operators.js";
 
 describe("message protocol", () => {
 	// Regression: GRAPHREFLY-SPEC §1.2 — known types are distinct symbols (open set for forward compat).
@@ -378,6 +378,69 @@ describe("integration: void sources and operator chains", () => {
 		const types = log.map((m) => m[0]);
 		expect(types).toContain(DATA);
 		// DATA should appear before any COMPLETE.
+		const dataIdx = types.indexOf(DATA);
+		const completeIdx = types.indexOf(COMPLETE);
+		if (completeIdx >= 0) {
+			expect(dataIdx).toBeLessThan(completeIdx);
+		}
+		unsub();
+	});
+
+	it("concatMap with void inner source receives DATA(undefined) before COMPLETE", () => {
+		const log: [symbol, unknown?][] = [];
+		const src = state(1);
+		const out = concatMap(src, () =>
+			producer<void>((_d, a) => {
+				a.down([[DATA, undefined], [COMPLETE]]);
+			}),
+		);
+		const unsub = out.subscribe((msgs: Messages) => {
+			for (const m of msgs) log.push([m[0], m[1]]);
+		});
+		const types = log.map((m) => m[0]);
+		expect(types).toContain(DATA);
+		const dataIdx = types.indexOf(DATA);
+		const completeIdx = types.indexOf(COMPLETE);
+		if (completeIdx >= 0) {
+			expect(dataIdx).toBeLessThan(completeIdx);
+		}
+		unsub();
+	});
+
+	it("mergeMap with void inner source receives DATA(undefined) before COMPLETE", () => {
+		const log: [symbol, unknown?][] = [];
+		const src = state(1);
+		const out = mergeMap(src, () =>
+			producer<void>((_d, a) => {
+				a.down([[DATA, undefined], [COMPLETE]]);
+			}),
+		);
+		const unsub = out.subscribe((msgs: Messages) => {
+			for (const m of msgs) log.push([m[0], m[1]]);
+		});
+		const types = log.map((m) => m[0]);
+		expect(types).toContain(DATA);
+		const dataIdx = types.indexOf(DATA);
+		const completeIdx = types.indexOf(COMPLETE);
+		if (completeIdx >= 0) {
+			expect(dataIdx).toBeLessThan(completeIdx);
+		}
+		unsub();
+	});
+
+	it("exhaustMap with void inner source receives DATA(undefined) before COMPLETE", () => {
+		const log: [symbol, unknown?][] = [];
+		const src = state(1);
+		const out = exhaustMap(src, () =>
+			producer<void>((_d, a) => {
+				a.down([[DATA, undefined], [COMPLETE]]);
+			}),
+		);
+		const unsub = out.subscribe((msgs: Messages) => {
+			for (const m of msgs) log.push([m[0], m[1]]);
+		});
+		const types = log.map((m) => m[0]);
+		expect(types).toContain(DATA);
 		const dataIdx = types.indexOf(DATA);
 		const completeIdx = types.indexOf(COMPLETE);
 		if (completeIdx >= 0) {

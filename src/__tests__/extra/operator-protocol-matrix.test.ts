@@ -712,6 +712,18 @@ describe("Tier 2 operator protocol matrix", () => {
 	});
 
 	describe("concatMap", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — inner two-phase ordering must survive queued higher-order dispatch.
+		it("DIRTY precedes DATA from active inner after outer two-phase", () => {
+			const src = state(0);
+			const inner = state(10);
+			const out = concatMap(src, () => inner);
+			const cap = subscribeProtocol(out);
+			src.down([[DIRTY], [DATA, 1]]);
+			inner.down([[DIRTY], [DATA, 77]]);
+			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
+			cap.unsub();
+		});
+
 		it("second subscription runs sequential inners after unsubscribe", () => {
 			const run = (): void => {
 				const src = state(0);

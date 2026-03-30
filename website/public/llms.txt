@@ -18,3 +18,140 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. This repos
 
 - Main entry: `@graphrefly/graphrefly-ts` (re-exports core, extra, graph)
 - Subpaths: `@graphrefly/graphrefly-ts/core`, `/extra`, `/graph`
+
+## Public API
+
+### core — node primitive + sugar constructors (`src/core/`)
+
+- `node(options)` — low-level reactive node factory; accepts `initial`, `fn`, `guard`, `meta`, `name`, `deps`
+- `state(initial)` — sugar: a writable state node
+- `producer(fn)` — sugar: a push-source node driven by its `fn`
+- `derived(deps, fn)` — sugar: a computed node that re-runs `fn` when deps change
+- `effect(deps, fn)` — sugar: a side-effect node (no value consumers)
+- `pipe(source, ...operators)` — sugar: chains operator functions onto a node
+- `dynamicNode(trackingFn)` — node that tracks its own reactive dependencies at runtime
+
+### core — batch (`src/core/batch.ts`)
+
+- `batch(fn)` — runs `fn` in a batch scope; defers DATA/RESOLVED until outermost batch returns
+- `isBatching()` — returns `true` while inside `batch()` or while the drain loop is running
+- `partitionForBatch(messages)` — splits a message array into immediate / deferred / terminal groups
+- `emitWithBatch(emit, messages)` — delivers messages respecting batch semantics and tier ordering
+
+### core — guard (`src/core/guard.ts`)
+
+- `policy(build)` — declarative guard builder; registers `allow()`/`deny()` rules, deny wins on conflict
+- `GuardDenied` — error class thrown when a guard denies an action
+- `accessHintForGuard(guard)` — probes a guard with standard actor types, returns a human-readable access hint string
+
+### core — meta (`src/core/meta.ts`)
+
+- `metaSnapshot(node)` — reads current cached values of all meta companion nodes; returns plain `{ key: value }` object
+- `describeNode(node)` — builds a `DescribeNodeOutput` slice (type, status, deps, meta, value) for one node
+
+### core — messages (`src/core/messages.ts`)
+
+- Message type constants: `DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`
+
+### core — actor (`src/core/actor.ts`)
+
+- `Actor` type — `{ type: string; id: string }` identity used by guards
+
+### core — clock (`src/core/clock.ts`)
+
+- `monotonicNs()` — monotonic nanosecond timestamp
+- `wallClockNs()` — wall-clock nanosecond timestamp
+
+### graph — Graph container (`src/graph/graph.ts`)
+
+- `Graph` — reactive node registry; methods: `register`, `resolve`, `describe`, `observe`, `snapshot`, `diff`, `diagram`, `spy`, `mount`, `unmount`, `teardown`
+- `reachable(graph, startPath, options?)` — returns the set of node paths reachable from `startPath` via dependency edges
+
+### extra — operators (`src/extra/operators.ts`)
+
+- `map(fn)`, `filter(pred)`, `scan(fn, seed)`, `reduce(fn, seed)` — transform
+- `take(n)`, `skip(n)`, `takeWhile(pred)`, `takeUntil(signal)` — limiting
+- `first()`, `last()`, `find(pred)`, `elementAt(i)` — selection
+- `startWith(...values)`, `tap(fn)`, `distinctUntilChanged(eq?)` — utility
+- `pairwise()` — emits `[prev, curr]` pairs
+- `combine(...nodes)`, `combineLatest(...nodes)`, `withLatestFrom(...nodes)` — combination
+- `merge(...nodes)`, `zip(...nodes)`, `concat(...nodes)`, `race(...nodes)` — merging
+- `switchMap(fn)`, `exhaustMap(fn)`, `concatMap(fn)`, `mergeMap(fn)`, `flatMap(fn)` — higher-order
+- `delay(ms)`, `debounce(ms)`, `debounceTime(ms)`, `throttle(ms)`, `throttleTime(ms)` — timing
+- `sample(signal)`, `audit(fn)`, `timeout(ms)` — sampling / timeout
+- `buffer(signal)`, `bufferCount(n)`, `bufferTime(ms)` — buffering
+- `window(signal)`, `windowCount(n)`, `windowTime(ms)` — windowing
+- `gate(signal)` — passes values only while gate node is truthy
+- `interval(ms)` — emits incrementing integers on a timer
+- `repeat(count?)` — resubscribes on COMPLETE
+- `pausable(pause$)` — gates emission on a pause signal
+- `rescue(fn)` / `catchError(fn)` — error recovery
+
+### extra — sources (`src/extra/sources.ts`)
+
+- `fromTimer(ms)` — emits on a recurring timer
+- `fromCron(expr)` — emits on a cron schedule
+- `fromPromise(p)` — wraps a Promise as a node
+- `fromIter(iter)` — synchronously emits all values from an iterable
+- `fromAsyncIter(iter)` — emits values from an async iterable
+- `fromEvent(target, event)` — wraps a DOM/Node.js event emitter
+- `fromAny(source)` — normalises any source (Promise, iterable, Node, etc.) into a node
+- `of(...values)` — emits given values then completes
+- `empty()` — completes immediately
+- `never()` — never emits or completes
+- `throwError(err)` — emits an error immediately
+- `cached(fn)` — memoised producer; shares a single subscription
+- `replay(n)` — replays last `n` values to new subscribers
+- `share()` / `shareReplay(n)` — multicast operators
+- `forEach(node, fn)` — subscribes and calls `fn` for each DATA value
+- `toArray(node)` — collects all values into an array (Promise)
+- `firstValueFrom(node)` — returns a Promise resolving to the first DATA value
+
+### extra — data structures (`src/extra/`)
+
+- `reactiveMap(initial?)` — reactive key→value map node (`src/extra/reactive-map.ts`)
+- `reactiveLog(options?)` — append-only reactive log node (`src/extra/reactive-log.ts`)
+- `logSlice(log, from, to?)` — derived slice of a reactive log (`src/extra/reactive-log.ts`)
+- `reactiveIndex(options)` — reactive inverted index over a reactive map (`src/extra/reactive-index.ts`)
+- `reactiveList(initial?)` — reactive ordered list node (`src/extra/reactive-list.ts`)
+- `pubsub(options?)` — topic-based publish/subscribe primitive (`src/extra/pubsub.ts`)
+
+### extra — resilience (`src/extra/resilience.ts`)
+
+- `retry(source, options)` — retries a failing source with configurable backoff
+- `circuitBreaker(options)` — circuit-breaker operator; opens after threshold failures
+- `CircuitOpenError` — error thrown when circuit is open
+- `tokenBucket(options)` — token-bucket rate-limiter node
+- `tokenTracker(options)` — tracks token usage against a budget
+- `rateLimiter(options)` — rate-limiter operator (wraps token bucket)
+- `withBreaker(breaker)` — operator that feeds into a circuit breaker
+- `withStatus(statusNode)` — operator that writes breaker/limiter status to a node
+
+### extra — backoff (`src/extra/backoff.ts`)
+
+- `constant(delayNs)` — strategy that always returns the same delay
+- `linear(baseNs, stepNs?)` — linearly increasing delay
+- `exponential(options?)` — exponentially increasing delay with optional jitter and cap
+- `fibonacci(baseNs?, maxNs?)` — Fibonacci-scaled delays
+- `decorrelatedJitter(baseNs?, maxNs?)` — AWS decorrelated-jitter strategy
+- `withMaxAttempts(strategy, maxAttempts)` — caps any strategy at a maximum attempt count
+- `resolveBackoffPreset(name)` — maps a preset name string to a concrete `BackoffStrategy`
+
+### extra — cron (`src/extra/cron.ts`)
+
+- `parseCron(expr)` — parses a 5-field cron expression into a `CronSchedule`
+- `matchesCron(schedule, date)` — returns `true` if `date` matches the schedule
+
+### extra — checkpoint (`src/extra/checkpoint.ts`)
+
+- `MemoryCheckpointAdapter` — in-memory checkpoint storage
+- `DictCheckpointAdapter` — plain-object checkpoint storage
+- `FileCheckpointAdapter` — file-system checkpoint storage
+- `SqliteCheckpointAdapter` — SQLite checkpoint storage
+- `saveGraphCheckpoint(graph, adapter)` — serialises graph state to an adapter
+- `restoreGraphCheckpoint(graph, adapter)` — restores graph state from an adapter
+- `checkpointNodeValue(node, adapter, key)` — checkpoints a single node value
+- `saveGraphCheckpointIndexedDb(graph, db)` — saves graph state to IndexedDB
+- `restoreGraphCheckpointIndexedDb(graph, db)` — restores graph state from IndexedDB
+- `fromIDBRequest(req)` — wraps an `IDBRequest` as a Promise-backed node
+- `fromIDBTransaction(tx)` — wraps an `IDBTransaction` completion as a node

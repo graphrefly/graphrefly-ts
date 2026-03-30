@@ -25,6 +25,18 @@ function withStatus<T>(
 
 `{ node, status, error }` where `error` holds the last `ERROR` payload.
 
+## Basic Usage
+
+```ts
+import { withStatus, state } from "@graphrefly/graphrefly-ts";
+
+const src = state<number>(0);
+const { node, status, error } = withStatus(src);
+
+status.subscribe((msgs) => console.log("status:", msgs));
+src.down([[DATA, 42]]); // status → "active"
+```
+
 ## Behavior Details
 
 - **Recovery:** After `errored`, the next `DATA` clears `error` and sets `active` inside batch (matches graphrefly-py).

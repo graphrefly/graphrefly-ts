@@ -20,3 +20,13 @@ function fromIDBRequest<T>(req: IDBRequest<T>): Node<T>
 ## Returns
 
 `Node&lt;T&gt;` that emits `DATA` once on success, then `COMPLETE`; emits `ERROR` on failure.
+
+## Basic Usage
+
+```ts
+import { fromIDBRequest } from "@graphrefly/graphrefly-ts";
+
+const req = indexedDB.open("myDb", 1);
+fromIDBRequest(req).subscribe((msgs) => console.log(msgs));
+// Emits [[DATA, IDBDatabase], [COMPLETE]] on success
+```

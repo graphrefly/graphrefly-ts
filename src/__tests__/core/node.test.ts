@@ -131,6 +131,30 @@ describe("node primitive", () => {
 		unsub();
 	});
 
+	// Spec: GRAPHREFLY-SPEC §1.3
+	it("ERROR message tuple contains the exact thrown Error instance as payload", () => {
+		const source = node<number>({ initial: 0 });
+		const theError = new Error("exact-instance");
+		const broken = node([source], () => {
+			throw theError;
+		});
+		const collected: unknown[][] = [];
+		const unsub = broken.subscribe((messages) => {
+			collected.push([...messages]);
+		});
+
+		source.down([[DATA, 1]]);
+		unsub();
+
+		// Find the ERROR message tuple across all collected batches
+		const errorMsg = collected.flat().find((m) => (m as unknown[])[0] === ERROR) as
+			| unknown[]
+			| undefined;
+		expect(errorMsg).toBeDefined();
+		expect(errorMsg?.[0]).toBe(ERROR);
+		expect(errorMsg?.[1]).toBe(theError);
+	});
+
 	it("resetOnTeardown clears cached value on TEARDOWN", () => {
 		const n = node<number>({ initial: 42, resetOnTeardown: true });
 		const unsub = n.subscribe(() => undefined);

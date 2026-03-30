@@ -76,6 +76,14 @@ export type Messages = readonly Message[];
  *
  * @param t — Message type symbol (unknown types are still valid; they must forward).
  * @returns `true` for `DATA`, `DIRTY`, `RESOLVED`, etc.
+ *
+ * @example
+ * ```ts
+ * import { DATA, DIRTY, isKnownMessageType } from "@graphrefly/graphrefly-ts";
+ *
+ * isKnownMessageType(DATA);             // true
+ * isKnownMessageType(Symbol("custom")); // false
+ * ```
  */
 export function isKnownMessageType(t: symbol): boolean {
 	return knownMessageTypes.includes(t);
@@ -93,6 +101,16 @@ export function isKnownMessageType(t: symbol): boolean {
  *
  * @param t — Message type symbol.
  * @returns Tier number (0–4).
+ *
+ * @example
+ * ```ts
+ * import { DATA, DIRTY, COMPLETE, TEARDOWN, messageTier } from "@graphrefly/graphrefly-ts";
+ *
+ * messageTier(DIRTY);    // 0
+ * messageTier(DATA);     // 2
+ * messageTier(COMPLETE); // 3
+ * messageTier(TEARDOWN); // 4
+ * ```
  */
 export function messageTier(t: symbol): number {
 	if (t === DIRTY || t === INVALIDATE) return 0;
@@ -108,6 +126,15 @@ export function messageTier(t: symbol): number {
  *
  * @param msg — Single message tuple.
  * @returns `true` if `msg` is `DATA` or `RESOLVED`.
+ *
+ * @example
+ * ```ts
+ * import { DATA, RESOLVED, DIRTY, isPhase2Message } from "@graphrefly/graphrefly-ts";
+ *
+ * isPhase2Message([DATA, 42]);   // true
+ * isPhase2Message([RESOLVED]);   // true
+ * isPhase2Message([DIRTY]);      // false
+ * ```
  */
 export function isPhase2Message(msg: Message): boolean {
 	const t = msg[0];
@@ -121,6 +148,15 @@ export function isPhase2Message(msg: Message): boolean {
  *
  * @param t — Message type symbol.
  * @returns `true` for `COMPLETE` or `ERROR`.
+ *
+ * @example
+ * ```ts
+ * import { COMPLETE, ERROR, DATA, isTerminalMessage } from "@graphrefly/graphrefly-ts";
+ *
+ * isTerminalMessage(COMPLETE); // true
+ * isTerminalMessage(ERROR);    // true
+ * isTerminalMessage(DATA);     // false
+ * ```
  */
 export function isTerminalMessage(t: symbol): boolean {
 	return t === COMPLETE || t === ERROR;
@@ -133,6 +169,15 @@ export function isTerminalMessage(t: symbol): boolean {
  *
  * @param t — Message type symbol.
  * @returns `true` if the signal should reach meta nodes.
+ *
+ * @example
+ * ```ts
+ * import { TEARDOWN, COMPLETE, ERROR, propagatesToMeta } from "@graphrefly/graphrefly-ts";
+ *
+ * propagatesToMeta(TEARDOWN); // true
+ * propagatesToMeta(COMPLETE); // false
+ * propagatesToMeta(ERROR);    // false
+ * ```
  */
 export function propagatesToMeta(t: symbol): boolean {
 	return t === TEARDOWN;

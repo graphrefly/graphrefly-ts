@@ -24,3 +24,17 @@ function restoreGraphCheckpointIndexedDb(
 ## Returns
 
 A reactive `Node&lt;boolean&gt;`: emits `true` if a snapshot was restored, `false` if missing or not a plain object, then `COMPLETE`; or `ERROR` on I/O failure.
+
+## Basic Usage
+
+```ts
+import { restoreGraphCheckpointIndexedDb, Graph } from "@graphrefly/graphrefly-ts";
+
+const g = new Graph("app");
+const restore$ = restoreGraphCheckpointIndexedDb(g, {
+    dbName: "myApp",
+    storeName: "checkpoints",
+  });
+restore$.subscribe((msgs) => console.log("restored:", msgs));
+// Emits [[DATA, true], [COMPLETE]] if a snapshot was found and applied
+```

@@ -15,11 +15,37 @@ export type GuardDeniedDetails = {
 	nodeName?: string;
 };
 
+/**
+ * Thrown when a {@link NodeGuard} denies an action for a given actor.
+ *
+ * Carries the rejected `actor`, `action`, and optional `nodeName` for diagnostic
+ * messages and middleware error handling.
+ *
+ * @example
+ * ```ts
+ * import { GuardDenied, policy } from "@graphrefly/graphrefly-ts";
+ *
+ * const guard = policy((allow) => { allow("observe"); });
+ * try {
+ *   if (!guard({ type: "llm", id: "agent-1" }, "write")) {
+ *     throw new GuardDenied(
+ *       { actor: { type: "llm", id: "agent-1" }, action: "write", nodeName: "userInput" },
+ *     );
+ *   }
+ * } catch (e) {
+ *   if (e instanceof GuardDenied) console.error(e.action, e.actor.type); // "write" "llm"
+ * }
+ * ```
+ */
 export class GuardDenied extends Error {
 	readonly actor: Actor;
 	readonly action: GuardAction;
 	readonly nodeName?: string;
 
+	/**
+	 * @param details - Actor, action, and optional node name for the denial.
+	 * @param message - Optional override for the default error message.
+	 */
 	constructor(details: GuardDeniedDetails, message?: string) {
 		super(
 			message ??
@@ -118,9 +144,27 @@ export function policy(build: (allow: PolicyAllow, deny: PolicyDeny) => void): N
 const STANDARD_WRITE_TYPES = ["human", "llm", "wallet", "system"] as const;
 
 /**
- * Best-effort `meta.access` string when a guard is present (roadmap 1.5).
- * Probes the guard with standard actor types for the `"write"` action.
- * Aligned with graphrefly-py `access_hint_for_guard`.
+ * Derives a best-effort `meta.access` hint string by probing `guard` with the
+ * standard actor types `human`, `llm`, `wallet`, `system` for the `"write"` action
+ * (roadmap 1.5). Aligned with graphrefly-py `access_hint_for_guard`.
+ *
+ * @param guard - Guard function to probe (typically from {@link policy}).
+ * @returns `"restricted"` when no standard type is allowed; `"both"` when both
+ *   `human` and `llm` are allowed (plus optionally `system`); the single allowed
+ *   type name when only one passes; or a `"+"` joined list otherwise.
+ *
+ * @example
+ * ```ts
+ * import { policy, accessHintForGuard } from "@graphrefly/graphrefly-ts";
+ *
+ * const guardBoth = policy((allow) => { allow("write"); });
+ * accessHintForGuard(guardBoth); // "both"
+ *
+ * const guardHuman = policy((allow) => {
+ *   allow("write", { where: (a) => a.type === "human" });
+ * });
+ * accessHintForGuard(guardHuman); // "human"
+ * ```
  */
 export function accessHintForGuard(guard: NodeGuard): string {
 	const allowed = STANDARD_WRITE_TYPES.filter((t) => guard({ type: t, id: "" }, "write"));

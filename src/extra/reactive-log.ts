@@ -162,6 +162,17 @@ export function reactiveLog<T>(
  * @param stop - End index (exclusive); omit to slice to the end.
  * @returns Derived node emitting the sliced readonly array.
  *
+ * @example
+ * ```ts
+ * import { reactiveLog, logSlice } from "@graphrefly/graphrefly-ts";
+ *
+ * const lg = reactiveLog<number>([10, 20, 30, 40, 50]);
+ * const slice$ = logSlice(lg, 1, 4); // reactive view of [20, 30, 40]
+ * slice$.subscribe((msgs) => console.log(msgs));
+ *
+ * lg.append(60); // slice$ now reflects [20, 30, 40] (indices 1–3 of updated log)
+ * ```
+ *
  * @category extra
  */
 export function logSlice<T>(

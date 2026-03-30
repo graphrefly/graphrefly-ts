@@ -20,3 +20,12 @@ function checkpointNodeValue<T>(n: Node<T>): { version: number; value: T | undef
 ## Returns
 
 `{ version: 1, value }` from Node.get.
+
+## Basic Usage
+
+```ts
+import { checkpointNodeValue, state } from "@graphrefly/graphrefly-ts";
+
+const s = state(42);
+checkpointNodeValue(s); // { version: 1, value: 42 }
+```
