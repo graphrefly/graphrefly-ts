@@ -53,3 +53,22 @@ For grouped ergonomic imports, namespace access is also supported:
 ```ts
 import { core } from "@graphrefly/graphrefly-ts";
 ```
+
+## Optional framework peers (compat adapters)
+
+Framework bindings under `@graphrefly/graphrefly-ts/compat/*` use optional peer dependencies.
+You only need to install the framework package(s) for the adapter you use:
+
+- `@graphrefly/graphrefly-ts/compat/react` -> `react`, `react-dom`
+- `@graphrefly/graphrefly-ts/compat/vue` -> `vue`
+- `@graphrefly/graphrefly-ts/compat/svelte` -> `svelte`
+- `@graphrefly/graphrefly-ts/compat/solid` -> `solid-js`
+
+Examples:
+
+```bash
+pnpm add react react-dom
+pnpm add vue
+pnpm add svelte
+pnpm add solid-js
+```

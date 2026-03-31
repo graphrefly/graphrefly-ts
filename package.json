@@ -78,6 +78,46 @@
 				"types": "./dist/compat/zustand/index.d.cts",
 				"default": "./dist/compat/zustand/index.cjs"
 			}
+		},
+		"./compat/react": {
+			"import": {
+				"types": "./dist/compat/react/index.d.ts",
+				"default": "./dist/compat/react/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/react/index.d.cts",
+				"default": "./dist/compat/react/index.cjs"
+			}
+		},
+		"./compat/vue": {
+			"import": {
+				"types": "./dist/compat/vue/index.d.ts",
+				"default": "./dist/compat/vue/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/vue/index.d.cts",
+				"default": "./dist/compat/vue/index.cjs"
+			}
+		},
+		"./compat/svelte": {
+			"import": {
+				"types": "./dist/compat/svelte/index.d.ts",
+				"default": "./dist/compat/svelte/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/svelte/index.d.cts",
+				"default": "./dist/compat/svelte/index.cjs"
+			}
+		},
+		"./compat/solid": {
+			"import": {
+				"types": "./dist/compat/solid/index.d.ts",
+				"default": "./dist/compat/solid/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/solid/index.d.cts",
+				"default": "./dist/compat/solid/index.cjs"
+			}
 		}
 	},
 	"files": [
@@ -102,12 +142,48 @@
 		"state"
 	],
 	"license": "MIT",
+	"peerDependencies": {
+		"react": ">=18",
+		"react-dom": ">=18",
+		"solid-js": ">=1",
+		"svelte": ">=4",
+		"vue": ">=3"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"react-dom": {
+			"optional": true
+		},
+		"solid-js": {
+			"optional": true
+		},
+		"svelte": {
+			"optional": true
+		},
+		"vue": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.6",
+		"@solidjs/testing-library": "^0.8.10",
+		"@testing-library/react": "^16.3.2",
+		"@testing-library/svelte": "^5.3.1",
+		"@testing-library/vue": "^8.1.0",
 		"@types/node": "^25.5.0",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"jsdom": "^29.0.1",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"solid-js": "^1.9.12",
+		"svelte": "^5.55.1",
 		"tsup": "^8.5.1",
 		"typescript": "^5.7.0",
-		"vitest": "^3.0.0"
+		"vitest": "^3.0.0",
+		"vue": "^3.5.31"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

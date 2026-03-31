@@ -1,3 +1,10 @@
+# Optimizations and Open Decisions
+
+## Open design decisions
+
+- Compat adapter write semantics: decide whether `useStore` setters in framework adapters must forward `DATA` when payload is `undefined` (for `Node<T | undefined>`) instead of dropping the write.
+- Compat adapter lifecycle semantics: decide whether subscriptions should auto-dispose on terminal messages (`COMPLETE`/`ERROR`) while the UI scope remains mounted, or remain mounted until framework teardown.
+- Compat adapter record-sync semantics: decide whether keyed record subscriptions should ignore phase-1 `DIRTY` waves and only resubscribe on settled phase-2 key updates (`DATA`/`RESOLVED`).
 # Optimizations
 
 `graphrefly-ts` currently prioritizes protocol correctness and phase-by-phase feature delivery. This document tracks built-in optimizations and concrete optimization opportunities in a format similar to callbag-recharge.
