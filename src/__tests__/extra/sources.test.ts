@@ -12,6 +12,7 @@ import {
 	fromAsyncIter,
 	fromCron,
 	fromEvent,
+	fromWebhook,
 	fromIter,
 	fromPromise,
 	fromTimer,
@@ -21,6 +22,7 @@ import {
 	share,
 	throwError,
 	toArray,
+	toSSE,
 } from "../../extra/sources.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */
@@ -34,6 +36,19 @@ function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) 
 		batches.push([...msgs]);
 	});
 	return { batches, unsub };
+}
+
+async function readSSE(stream: ReadableStream<Uint8Array>): Promise<string> {
+	const reader = stream.getReader();
+	const decoder = new TextDecoder();
+	let out = "";
+	while (true) {
+		const { value, done } = await reader.read();
+		if (done) break;
+		out += decoder.decode(value, { stream: true });
+	}
+	out += decoder.decode();
+	return out;
 }
 
 describe("extra sources & sinks (roadmap §2.3)", () => {
@@ -286,6 +301,41 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		unsub();
 	});
 
+	it("fromWebhook bridges callback payloads and cleanup", () => {
+		let hook:
+			| {
+					emit: (payload: { id: string }) => void;
+					error: (err: unknown) => void;
+					complete: () => void;
+			  }
+			| undefined;
+		let cleaned = false;
+		const node = fromWebhook<{ id: string }>((handlers) => {
+			hook = handlers;
+			return () => {
+				cleaned = true;
+			};
+		});
+		const { batches, unsub } = collect(node);
+		hook?.emit({ id: "evt-1" });
+		expect(
+			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { id: string }).id === "evt-1")),
+		).toBe(true);
+		unsub();
+		expect(cleaned).toBe(true);
+	});
+
+	it("fromWebhook forwards register errors as ERROR", () => {
+		const node = fromWebhook(() => {
+			throw new Error("register-failed");
+		});
+		const { batches, unsub } = collect(node);
+		expect(
+			batches.some((b) => b.some((m) => m[0] === ERROR && (m[1] as Error).message === "register-failed")),
+		).toBe(true);
+		unsub();
+	});
+
 	it("parseCron rejects bad expressions", () => {
 		expect(() => parseCron("bad")).toThrow();
 		expect(() => parseCron("* *")).toThrow();
@@ -312,6 +362,59 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("firstValueFrom rejects on empty", async () => {
 		await expect(firstValueFrom(empty())).rejects.toThrow("completed without DATA");
+	});
+
+	it("toSSE writes standard DATA and COMPLETE frames", async () => {
+		const text = await readSSE(toSSE(fromIter([1, 2])));
+		expect(text).toContain("event: data\ndata: 1\n\n");
+		expect(text).toContain("event: data\ndata: 2\n\n");
+		expect(text).toContain("event: complete\n\n");
+	});
+
+	it("toSSE writes ERROR frame and closes", async () => {
+		const text = await readSSE(toSSE(throwError(new Error("boom"))));
+		expect(text).toContain("event: error\n");
+		expect(text).toContain("data: boom");
+	});
+
+	it("toSSE supports custom serializer for Error payloads", async () => {
+		const text = await readSSE(
+			toSSE(throwError(new Error("boom")), {
+				serialize: (v) => (v instanceof Error ? v.message : JSON.stringify(v)),
+			}),
+		);
+		expect(text).toContain("event: error\ndata: boom\n\n");
+	});
+
+	it("toSSE abort closes without synthetic error frame", async () => {
+		const ac = new AbortController();
+		const stream = toSSE(never(), { signal: ac.signal });
+		ac.abort(new Error("stop"));
+		const text = await readSSE(stream);
+		expect(text).toBe("");
+	});
+
+	it("toSSE can include DIRTY and RESOLVED events", async () => {
+		const n = producer((_deps, a) => {
+			a.down([[DIRTY], [RESOLVED], [COMPLETE]]);
+			return () => {};
+		});
+		const text = await readSSE(toSSE(n, { includeDirty: true, includeResolved: true }));
+		expect(text).toContain(`event: ${String(DIRTY.description ?? "")}`);
+		expect(text).toContain(`event: ${String(RESOLVED.description ?? "")}`);
+	});
+
+	it("toSSE emits keepalive comments until abort", async () => {
+		const ac = new AbortController();
+		const stream = toSSE(never(), { keepAliveMs: 5, signal: ac.signal });
+		setTimeout(() => ac.abort(), 20);
+		const text = await readSSE(stream);
+		expect(text).toContain(": keepalive\n\n");
+	});
+
+	it("toSSE preserves trailing newline lines", async () => {
+		const text = await readSSE(toSSE(of("a\n")));
+		expect(text).toContain("event: data\ndata: a\ndata: \n\n");
 	});
 
 	it("gate forwards DATA when control is truthy", () => {

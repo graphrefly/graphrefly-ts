@@ -156,6 +156,7 @@ const REGISTRY = {
 	replay: "src/extra/sources.ts",
 	share: "src/extra/sources.ts",
 	fromEvent: "src/extra/sources.ts",
+	fromWebhook: "src/extra/sources.ts",
 	fromAny: "src/extra/sources.ts",
 	forEach: "src/extra/sources.ts",
 	toArray: "src/extra/sources.ts",

@@ -95,6 +95,7 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. This repos
 - `fromIter(iter)` — synchronously emits all values from an iterable
 - `fromAsyncIter(iter)` — emits values from an async iterable
 - `fromEvent(target, event)` — wraps a DOM/Node.js event emitter
+- `fromWebhook(register)` — bridges HTTP webhook callbacks into a node source
 - `fromAny(source)` — normalises any source (Promise, iterable, Node, etc.) into a node
 - `of(...values)` — emits given values then completes
 - `empty()` — completes immediately

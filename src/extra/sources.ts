@@ -3,7 +3,7 @@
  * {@link node}, {@link producer}, {@link derived}, or {@link effect} — no second protocol.
  */
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, ERROR, type Message } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, type Message } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
 import { type WithStatusBundle, withStatus } from "./resilience.js";
@@ -53,6 +53,16 @@ export type EventTargetLike = {
 		options?: boolean | { capture?: boolean; passive?: boolean; once?: boolean },
 	): void;
 };
+
+/** Registration callback for {@link fromWebhook}. */
+export type WebhookRegister<T> = (handlers: {
+	/** Push one webhook payload downstream as `[[DATA, payload]]`. */
+	emit: (payload: T) => void;
+	/** Push terminal error as `[[ERROR, err]]`. */
+	error: (err: unknown) => void;
+	/** Push terminal completion as `[[COMPLETE]]`. */
+	complete: () => void;
+}) => (() => void) | undefined;
 
 function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void): Node<T> {
 	// Create a real NodeImpl (via `node()`) so the wrapper works with Graph.add()
@@ -205,6 +215,100 @@ export function fromEvent<T = unknown>(
 		target.addEventListener(type, handler, options);
 		return () => target.removeEventListener(type, handler, options);
 	}, sourceOpts(rest));
+}
+
+/**
+ * Bridges HTTP webhook callbacks into a GraphReFly source.
+ *
+ * The `register` callback wires your runtime/framework callback to GraphReFly and may return a
+ * cleanup function. This keeps the adapter runtime-agnostic while following the same producer
+ * pattern as {@link fromEvent}.
+ *
+ * @param register - Registers webhook handlers (`emit`, `error`, `complete`) and optionally returns cleanup.
+ * @param opts - Optional producer options.
+ * @returns `Node<T>` — webhook payloads as `DATA`; teardown runs returned cleanup.
+ *
+ * @example
+ * ```ts
+ * import express from "express";
+ * import { fromWebhook } from "@graphrefly/graphrefly-ts";
+ *
+ * type HookPayload = { event: string; data: unknown };
+ * const app = express();
+ * app.use(express.json());
+ *
+ * const hook$ = fromWebhook<HookPayload>(({ emit, error }) => {
+ *   const handler = (req: express.Request, res: express.Response) => {
+ *     try {
+ *       emit(req.body as HookPayload);
+ *       res.status(200).send("ok");
+ *     } catch (e) {
+ *       error(e);
+ *       res.status(500).send("error");
+ *     }
+ *   };
+ *   app.post("/webhook", handler);
+ *   return () => {
+ *     // Express has no direct route-removal API in common use.
+ *     // Return a no-op cleanup unless your router abstraction supports unregister.
+ *   };
+ * });
+ * ```
+ *
+ * @example
+ * ```ts
+ * import Fastify from "fastify";
+ * import { fromWebhook } from "@graphrefly/graphrefly-ts";
+ *
+ * const fastify = Fastify();
+ * const hook$ = fromWebhook<any>(({ emit, error }) => {
+ *   const handler = async (req: any, reply: any) => {
+ *     try {
+ *       emit(req.body);
+ *       reply.code(200).send({ ok: true });
+ *     } catch (e) {
+ *       error(e);
+ *       reply.code(500).send({ ok: false });
+ *     }
+ *   };
+ *   fastify.post("/webhook", handler);
+ *   return () => {
+ *     // Fastify route removal is not dynamic by default; no-op cleanup.
+ *   };
+ * });
+ * ```
+ *
+ * @category extra
+ */
+export function fromWebhook<T = unknown>(register: WebhookRegister<T>, opts?: ExtraOpts): Node<T> {
+	return producer<T>((_d, a) => {
+		let active = true;
+		const emit = (payload: T) => {
+			if (!active) return;
+			a.emit(payload);
+		};
+		const error = (err: unknown) => {
+			if (!active) return;
+			a.down([[ERROR, err]]);
+		};
+		const complete = () => {
+			if (!active) return;
+			a.down([[COMPLETE]]);
+		};
+
+		try {
+			const cleanup = register({ emit, error, complete });
+			return () => {
+				active = false;
+				cleanup?.();
+			};
+		} catch (err) {
+			error(err);
+			return () => {
+				active = false;
+			};
+		}
+	}, sourceOpts(opts));
 }
 
 /**
@@ -432,6 +536,48 @@ export type HTTPBundle<T> = WithStatusBundle<T> & {
 	lastUpdated: Node<number>;
 };
 
+/** Options for {@link toSSE}. */
+export type ToSSEOptions = {
+	/** Custom payload serializer for non-string payloads. Default: `JSON.stringify` fallback to `String(value)`. */
+	serialize?: (value: unknown) => string;
+	/** Event name for DATA tuples. Default: `"data"`. */
+	dataEvent?: string;
+	/** Event name for ERROR tuples. Default: `"error"`. */
+	errorEvent?: string;
+	/** Event name for COMPLETE tuples. Default: `"complete"`. */
+	completeEvent?: string;
+	/** Emit `event: resolved` when RESOLVED arrives. Default: `false`. */
+	includeResolved?: boolean;
+	/** Emit `event: dirty` when DIRTY arrives. Default: `false`. */
+	includeDirty?: boolean;
+	/** Add SSE comment keepalive frames (`: keepalive`) on an interval. Disabled when unset. */
+	keepAliveMs?: number;
+	/** Optional abort signal to terminate the stream early. */
+	signal?: AbortSignal;
+	/** Maps custom message types to SSE event names. */
+	eventNameResolver?: (type: symbol) => string;
+};
+
+function messageTypeLabel(t: symbol): string {
+	return Symbol.keyFor(t) ?? t.description ?? "message";
+}
+
+function serializeSseData(value: unknown, serialize: (value: unknown) => string): string {
+	if (typeof value === "string") return value;
+	return serialize(value);
+}
+
+function sseFrame(event: string, data?: string): string {
+	let out = `event: ${event}\n`;
+	if (data !== undefined) {
+		const lines = data.split(/\r?\n/);
+		for (const line of lines) {
+			out += `data: ${line}\n`;
+		}
+	}
+	return `${out}\n`;
+}
+
 /**
  * Creates a one-shot fetch-based HTTP source with lifecycle tracking.
  *
@@ -527,6 +673,95 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 		fetchCount,
 		lastUpdated,
 	};
+}
+
+/**
+ * Creates a standard Server-Sent Events stream from node messages.
+ *
+ * DATA/ERROR/COMPLETE tuples are serialized into SSE frames and written to the returned
+ * `ReadableStream`. COMPLETE and ERROR both close the stream after their frame is written.
+ *
+ * @category extra
+ */
+export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<Uint8Array> {
+	const {
+		serialize = (value: unknown) => {
+			if (value instanceof Error) return value.message;
+			try {
+				return JSON.stringify(value);
+			} catch {
+				return String(value);
+			}
+		},
+		dataEvent = "data",
+		errorEvent = "error",
+		completeEvent = "complete",
+		includeResolved = false,
+		includeDirty = false,
+		keepAliveMs,
+		signal,
+		eventNameResolver = messageTypeLabel,
+	} = opts ?? {};
+	const encoder = new TextEncoder();
+	let stop: (() => void) | undefined;
+
+	return new ReadableStream<Uint8Array>({
+		start(controller) {
+			let closed = false;
+			let keepAlive: ReturnType<typeof setInterval> | undefined;
+			let unsub: () => void = () => {};
+			const close = () => {
+				if (closed) return;
+				closed = true;
+				if (keepAlive !== undefined) clearInterval(keepAlive);
+				signal?.removeEventListener("abort", onAbort);
+				unsub();
+				controller.close();
+			};
+			stop = close;
+			const write = (event: string, data?: string) => {
+				if (closed) return;
+				controller.enqueue(encoder.encode(sseFrame(event, data)));
+			};
+			const onAbort = () => {
+				if (closed) return;
+				close();
+			};
+			unsub = source.subscribe((msgs) => {
+				for (const msg of msgs) {
+					const t = msg[0];
+					if (t === DATA) {
+						write(dataEvent, serializeSseData(msg[1], serialize));
+						continue;
+					}
+					if (t === ERROR) {
+						write(errorEvent, serializeSseData(msg[1], serialize));
+						close();
+						return;
+					}
+					if (t === COMPLETE) {
+						write(completeEvent);
+						close();
+						return;
+					}
+					if (!includeResolved && t === RESOLVED) continue;
+					if (!includeDirty && t === DIRTY) continue;
+					write(eventNameResolver(t), msg.length > 1 ? serializeSseData(msg[1], serialize) : undefined);
+				}
+			});
+			if (keepAliveMs !== undefined && keepAliveMs > 0) {
+				keepAlive = setInterval(() => {
+					if (closed) return;
+					controller.enqueue(encoder.encode(": keepalive\n\n"));
+				}, keepAliveMs);
+			}
+			if (signal?.aborted) onAbort();
+			else signal?.addEventListener("abort", onAbort, { once: true });
+		},
+		cancel() {
+			stop?.();
+		},
+	});
 }
 
 /**

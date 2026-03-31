@@ -56,6 +56,7 @@ export default defineConfig({
 						{ label: "fromTimer()", link: "/api/fromTimer" },
 						{ label: "fromCron()", link: "/api/fromCron" },
 						{ label: "fromEvent()", link: "/api/fromEvent" },
+						{ label: "fromWebhook()", link: "/api/fromWebhook" },
 						{ label: "fromPromise()", link: "/api/fromPromise" },
 						{ label: "fromIter()", link: "/api/fromIter" },
 						{ label: "fromAsyncIter()", link: "/api/fromAsyncIter" },
