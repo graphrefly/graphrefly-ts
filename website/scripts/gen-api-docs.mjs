@@ -163,6 +163,11 @@ const REGISTRY = {
 	firstValueFrom: "src/extra/sources.ts",
 	shareReplay: "src/extra/sources.ts",
 
+	// Extra — worker bridge (roadmap §5.3)
+	workerBridge: "src/extra/worker/bridge.ts",
+	workerSelf: "src/extra/worker/self.ts",
+	createTransport: "src/extra/worker/transport.ts",
+
 	// Graph container
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",

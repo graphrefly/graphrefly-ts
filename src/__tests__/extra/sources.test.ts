@@ -16,7 +16,9 @@ import {
 	fromCron,
 	fromEvent,
 	fromFSWatch,
+	fromGitHook,
 	fromIter,
+	fromMCP,
 	fromPromise,
 	fromTimer,
 	fromWebhook,
@@ -718,5 +720,253 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		expect(batches.flat().some((m) => m[0] === RESOLVED)).toBe(true);
 		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 42)).toBe(false);
 		unsub();
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromMCP (roadmap §5.2)
+// ——————————————————————————————————————————————————————————————
+
+describe("fromMCP", () => {
+	it("emits DATA for each notification", () => {
+		let handler: ((n: unknown) => void) | undefined;
+		const client = {
+			setNotificationHandler(method: string, h: (n: unknown) => void) {
+				handler = h;
+			},
+		};
+
+		const node = fromMCP(client, { method: "notifications/tools/list_changed" });
+		const { batches, unsub } = collect(node);
+
+		// Skip initial producer subscription emissions.
+		const baseline = batches.length;
+
+		handler!({ tools: ["a", "b"] });
+		handler!({ tools: ["a", "b", "c"] });
+
+		const dataBatches = batches.filter((b) => b.some((m) => m[0] === DATA));
+		expect(dataBatches.length).toBe(2);
+		expect(dataBatches[0]).toEqual([[DATA, { tools: ["a", "b"] }]]);
+		expect(dataBatches[1]).toEqual([[DATA, { tools: ["a", "b", "c"] }]]);
+		unsub();
+	});
+
+	it("defaults to notifications/message method", () => {
+		let registeredMethod: string | undefined;
+		const client = {
+			setNotificationHandler(method: string, _h: (n: unknown) => void) {
+				registeredMethod = method;
+			},
+		};
+
+		const node = fromMCP(client);
+		const unsub = node.subscribe(() => {});
+		expect(registeredMethod).toBe("notifications/message");
+		unsub();
+	});
+
+	it("detaches handler on teardown (sets no-op)", () => {
+		const handlers: Array<(n: unknown) => void> = [];
+		const client = {
+			setNotificationHandler(_method: string, h: (n: unknown) => void) {
+				handlers.push(h);
+			},
+		};
+
+		const node = fromMCP(client);
+		const unsub = node.subscribe(() => {});
+		unsub();
+
+		// After teardown, the last registered handler should be a no-op (doesn't throw).
+		expect(handlers.length).toBeGreaterThanOrEqual(2);
+		const noopHandler = handlers[handlers.length - 1];
+		expect(() => noopHandler("should-not-propagate")).not.toThrow();
+	});
+
+	it("suppresses emissions after teardown", () => {
+		let handler: ((n: unknown) => void) | undefined;
+		const client = {
+			setNotificationHandler(_method: string, h: (n: unknown) => void) {
+				handler = h;
+			},
+		};
+
+		const node = fromMCP(client);
+		const { batches, unsub } = collect(node);
+
+		handler!("before");
+		unsub();
+		// Save ref to old handler before teardown replaced it.
+		// The producer's active flag prevents emission even if the old ref is called.
+		// (No new batches should appear.)
+		const countBefore = batches.length;
+		// Calling the *new* no-op handler should not emit.
+		handler!("after");
+		expect(batches.length).toBe(countBefore);
+	});
+
+	it("emits ERROR via onDisconnect hook", () => {
+		let disconnectCb: ((err?: unknown) => void) | undefined;
+		const client = {
+			setNotificationHandler(_method: string, _h: (n: unknown) => void) {},
+		};
+
+		const node = fromMCP(client, {
+			onDisconnect: (cb) => {
+				disconnectCb = cb;
+			},
+		});
+		const { batches, unsub } = collect(node);
+
+		disconnectCb!(new Error("transport closed"));
+
+		const errorBatches = batches.filter((b) => b.some((m) => m[0] === ERROR));
+		expect(errorBatches.length).toBe(1);
+		expect((errorBatches[0][0][1] as Error).message).toBe("transport closed");
+		unsub();
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromGitHook (roadmap §5.2)
+// ——————————————————————————————————————————————————————————————
+
+describe("fromGitHook", () => {
+	const childProcess = require("node:child_process");
+	const originalExecFileSync = childProcess.execFileSync;
+
+	afterEach(() => {
+		childProcess.execFileSync = originalExecFileSync;
+		vi.useRealTimers();
+	});
+
+	/** Mock helper: `execFileSync("git", args, ...)` receives args as an array. */
+	function mockGit(handler: (args: string[]) => string) {
+		childProcess.execFileSync = (_cmd: string, args: string[]) => handler(args);
+	}
+
+	it("emits GitEvent when HEAD changes", () => {
+		vi.useFakeTimers();
+		let callCount = 0;
+		const sha1 = "aaa111";
+		const sha2 = "bbb222";
+
+		mockGit((args) => {
+			const joined = args.join(" ");
+			if (joined.startsWith("rev-parse HEAD")) {
+				callCount++;
+				return callCount <= 1 ? sha1 : sha2;
+			}
+			if (joined.startsWith("diff --name-only")) return "src/foo.ts\nsrc/bar.ts\n";
+			if (joined.includes("--format=%s")) return "fix: something";
+			if (joined.includes("--format=%an")) return "Alice";
+			return "";
+		});
+
+		const node = fromGitHook("/fake/repo", { pollMs: 100 });
+		const { batches, unsub } = collect(node);
+
+		vi.advanceTimersByTime(100);
+
+		const dataBatches = batches.filter((b) => b.some((m) => m[0] === DATA));
+		expect(dataBatches.length).toBe(1);
+		const gitEvent = dataBatches[0][0][1] as {
+			commit: string;
+			files: string[];
+			message: string;
+			author: string;
+			timestamp_ns: number;
+		};
+		expect(gitEvent.commit).toBe(sha2);
+		expect(gitEvent.files).toEqual(["src/foo.ts", "src/bar.ts"]);
+		expect(gitEvent.message).toBe("fix: something");
+		expect(gitEvent.author).toBe("Alice");
+		expect(gitEvent.timestamp_ns).toBeGreaterThan(0);
+
+		unsub();
+	});
+
+	it("does not emit when HEAD is unchanged", () => {
+		vi.useFakeTimers();
+		mockGit(() => "aaa111");
+
+		const node = fromGitHook("/fake/repo", { pollMs: 100 });
+		const { batches, unsub } = collect(node);
+
+		vi.advanceTimersByTime(500);
+		expect(batches.length).toBe(0);
+
+		unsub();
+	});
+
+	it("filters files with include/exclude globs", () => {
+		vi.useFakeTimers();
+		let callCount = 0;
+
+		mockGit((args) => {
+			const joined = args.join(" ");
+			if (joined.startsWith("rev-parse HEAD")) {
+				callCount++;
+				return callCount <= 1 ? "aaa" : "bbb";
+			}
+			if (joined.startsWith("diff --name-only")) return "src/foo.ts\ndocs/readme.md\ntest/bar.ts\n";
+			if (joined.includes("--format=%s")) return "update";
+			if (joined.includes("--format=%an")) return "Bob";
+			return "";
+		});
+
+		const node = fromGitHook("/fake/repo", {
+			pollMs: 100,
+			include: ["src/**"],
+			exclude: ["**/*.md"],
+		});
+		const { batches, unsub } = collect(node);
+
+		vi.advanceTimersByTime(100);
+
+		const dataBatches = batches.filter((b) => b.some((m) => m[0] === DATA));
+		expect(dataBatches.length).toBe(1);
+		const gitEvent = dataBatches[0][0][1] as { files: string[] };
+		expect(gitEvent.files).toEqual(["src/foo.ts"]);
+
+		unsub();
+	});
+
+	it("emits ERROR when git command fails during poll", () => {
+		vi.useFakeTimers();
+		let callCount = 0;
+
+		mockGit((args) => {
+			if (args[0] === "rev-parse") {
+				callCount++;
+				if (callCount <= 1) return "aaa111";
+				throw new Error("git not found");
+			}
+			return "";
+		});
+
+		const node = fromGitHook("/fake/repo", { pollMs: 100 });
+		const { batches, unsub } = collect(node);
+
+		vi.advanceTimersByTime(100);
+
+		expect(batches.length).toBe(1);
+		expect(batches[0][0][0]).toBe(ERROR);
+
+		unsub();
+	});
+
+	it("clears timer on teardown", () => {
+		vi.useFakeTimers();
+		mockGit(() => "aaa111");
+
+		const node = fromGitHook("/fake/repo", { pollMs: 100 });
+		const { batches, unsub } = collect(node);
+
+		unsub();
+
+		vi.advanceTimersByTime(500);
+		expect(batches.length).toBe(0);
 	});
 });

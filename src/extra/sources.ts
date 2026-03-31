@@ -1444,6 +1444,219 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 }
 
 // ——————————————————————————————————————————————————————————————
+//  MCP & Git adapters (roadmap §5.2)
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Duck-typed MCP (Model Context Protocol) client — only the notification
+ * registration surface is required so callers are not coupled to a specific SDK.
+ */
+export type MCPClientLike = {
+	setNotificationHandler(method: string, handler: (notification: unknown) => void): void;
+};
+
+/** Options for {@link fromMCP}. */
+export type FromMCPOptions = ExtraOpts & {
+	/** MCP notification method to subscribe to. Default `"notifications/message"`. */
+	method?: string;
+	/**
+	 * Optional disconnect callback. If the MCP transport can signal disconnection,
+	 * wire it here — `fromMCP` will call `onDisconnect(cb)` with a callback that
+	 * emits `[[ERROR, err]]` and tears down the source. Without this, external
+	 * client disconnection is invisible to the graph.
+	 */
+	onDisconnect?: (cb: (err?: unknown) => void) => void;
+};
+
+/**
+ * Wraps an MCP client's server-push notifications as a reactive source.
+ *
+ * The caller owns the `Client` connection (`connect` / `close`). `fromMCP` only
+ * registers a notification handler for the chosen `method` and emits each
+ * notification payload as `DATA`.
+ *
+ * **Disconnect detection:** MCP SDK does not expose a built-in disconnect event.
+ * Pass `onDisconnect` in opts to wire an external signal (e.g. transport `close`
+ * event) so the source can emit `ERROR` and tear down reactively.
+ *
+ * @param client - Any object with a `setNotificationHandler(method, handler)` method.
+ * @param opts - Source options plus optional `method` (defaults to `"notifications/message"`).
+ * @returns `Node<T>` — emits one `DATA` per server notification; teardown detaches the handler.
+ *
+ * @example
+ * ```ts
+ * import { fromMCP } from "@graphrefly/graphrefly-ts";
+ *
+ * const tools$ = fromMCP(client, { method: "notifications/tools/list_changed" });
+ * ```
+ *
+ * @category extra
+ */
+export function fromMCP<T = unknown>(client: MCPClientLike, opts?: FromMCPOptions): Node<T> {
+	const { method = "notifications/message", onDisconnect, ...rest } = opts ?? {};
+	return producer<T>((_d, a) => {
+		let active = true;
+		client.setNotificationHandler(method, (notification) => {
+			if (!active) return;
+			a.emit(notification as T);
+		});
+		if (onDisconnect) {
+			onDisconnect((err?: unknown) => {
+				if (!active) return;
+				active = false;
+				a.down([[ERROR, err ?? new Error("MCP client disconnected")]]);
+			});
+		}
+		return () => {
+			active = false;
+			// Detach by installing a no-op handler (SDK has no unregister API).
+			client.setNotificationHandler(method, () => {});
+		};
+	}, sourceOpts(rest));
+}
+
+/** Git hook type for {@link fromGitHook}. */
+export type GitHookType = "post-commit" | "post-merge" | "post-checkout" | "post-rewrite";
+
+/** Structured git event emitted by {@link fromGitHook}. */
+export type GitEvent = {
+	hook: GitHookType;
+	commit: string;
+	files: string[];
+	message: string;
+	author: string;
+	timestamp_ns: number;
+};
+
+/** Options for {@link fromGitHook}. */
+export type FromGitHookOptions = ExtraOpts & {
+	/** Polling interval in ms. Default `5000`. */
+	pollMs?: number;
+	/** Glob patterns — only include matching changed files. */
+	include?: string[];
+	/** Glob patterns — exclude matching changed files. */
+	exclude?: string[];
+};
+
+/**
+ * Git change detection as a reactive source.
+ *
+ * Polls for new commits on an interval and emits a structured {@link GitEvent}
+ * whenever HEAD advances. Zero filesystem side effects — no hook script
+ * installation.
+ *
+ * **Limitations:** Polling cannot distinguish commit vs merge vs rebase — `hook`
+ * is always `"post-commit"`. When multiple commits land between polls, files are
+ * aggregated but `message`/`author` reflect only the latest commit.
+ *
+ * Cross-repo usage:
+ * ```ts
+ * merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])
+ * ```
+ *
+ * @param repoPath - Absolute path to the git repository root.
+ * @param opts - Polling interval, include/exclude file globs.
+ * @returns `Node<GitEvent>` — emits one `DATA` per new commit detected; teardown clears the timer.
+ *
+ * @example
+ * ```ts
+ * import { fromGitHook } from "@graphrefly/graphrefly-ts";
+ *
+ * const git$ = fromGitHook("/path/to/repo", { pollMs: 3000 });
+ * ```
+ *
+ * @category extra
+ */
+export function fromGitHook(repoPath: string, opts?: FromGitHookOptions): Node<GitEvent> {
+	const { pollMs = 5000, include, exclude, ...rest } = opts ?? {};
+	const includePatterns = include?.map(globToRegExp) ?? [];
+	const excludePatterns = exclude?.map(globToRegExp) ?? [];
+
+	return producer<GitEvent>((_d, a) => {
+		let active = true;
+		let lastSeen: string;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+
+		// Lazy import to keep module loadable in browser bundles (git sources are Node-only).
+		const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+
+		const git = (...args: string[]): string => {
+			try {
+				return execFileSync("git", args, { cwd: repoPath, encoding: "utf-8" }).trim();
+			} catch (err) {
+				if (!active) return "";
+				a.down([[ERROR, err]]);
+				cleanup();
+				return "";
+			}
+		};
+
+		const cleanup = () => {
+			active = false;
+			if (timer !== undefined) clearTimeout(timer);
+			timer = undefined;
+		};
+
+		// Seed with current HEAD so we don't emit on first poll.
+		lastSeen = git("rev-parse", "HEAD");
+		if (!active) return () => {};
+
+		const schedule = () => {
+			if (!active) return;
+			timer = setTimeout(check, pollMs);
+		};
+
+		const check = () => {
+			if (!active) return;
+			const head = git("rev-parse", "HEAD");
+			if (!active || !head || head === lastSeen) {
+				schedule();
+				return;
+			}
+
+			let files = git("diff", "--name-only", `${lastSeen}..${head}`).split("\n").filter(Boolean);
+			if (!active) {
+				schedule();
+				return;
+			}
+
+			// Apply include/exclude glob filters.
+			if (includePatterns.length > 0) {
+				files = files.filter((f) => matchesAnyPattern(f, includePatterns));
+			}
+			if (excludePatterns.length > 0) {
+				files = files.filter((f) => !matchesAnyPattern(f, excludePatterns));
+			}
+
+			const message = git("log", "-1", "--format=%s", head);
+			if (!active) {
+				schedule();
+				return;
+			}
+			const author = git("log", "-1", "--format=%an", head);
+			if (!active) {
+				schedule();
+				return;
+			}
+
+			a.emit({
+				hook: "post-commit" as GitHookType,
+				commit: head,
+				files,
+				message,
+				author,
+				timestamp_ns: wallClockNs(),
+			});
+			lastSeen = head;
+			schedule();
+		};
+
+		schedule();
+		return cleanup;
+	}, sourceOpts(rest));
+}
+
+// ——————————————————————————————————————————————————————————————
 //  RxJS-compatible aliases
 // ——————————————————————————————————————————————————————————————
 

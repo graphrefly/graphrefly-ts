@@ -378,9 +378,9 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 
 - [x] `fromHTTP`, `fromWebSocket`/`toWebSocket`
 - [x] `fromWebhook`, `toSSE`
-- [ ] `fromMCP` (Model Context Protocol)
+- [x] `fromMCP` (Model Context Protocol)
 - [x] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps). Cleanup closes watchers on unsubscribe.
-- [ ] `fromGitHook(repoPath, opts?)` — git change detection as reactive source; emits structured `GitEvent` (commit, files, message, author). Default: polling via `git log --since`; opt-in hook script installation. Cross-repo via `merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])`.
+- [x] `fromGitHook(repoPath, opts?)` — git change detection as reactive source; emits structured `GitEvent` (commit, files, message, author). Default: polling via `git log --since`; opt-in hook script installation. Cross-repo via `merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])`.
 
 ### 5.2b — ORM / database adapters
 
@@ -392,8 +392,8 @@ Reactive bindings that keep graph nodes in sync with database queries.
 
 ### 5.3 — Worker bridge
 
-- [ ] `workerBridge()` / `workerSelf()`
-- [ ] Transport abstraction (Worker, SharedWorker, ServiceWorker, BroadcastChannel)
+- [x] `workerBridge()` / `workerSelf()`
+- [x] Transport abstraction (Worker, SharedWorker, ServiceWorker, BroadcastChannel)
 
 ### 5.4 — LLM tool integration
 

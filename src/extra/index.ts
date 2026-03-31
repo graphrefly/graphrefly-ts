@@ -13,3 +13,4 @@ export * from "./reactive-log.js";
 export * from "./reactive-map.js";
 export * from "./resilience.js";
 export * from "./sources.js";
+export * from "./worker/index.js";

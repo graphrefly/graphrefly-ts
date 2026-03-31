@@ -820,7 +820,12 @@ export class Graph {
 
 	/**
 	 * Remove a registered edge (§3.3). Accepts local names or `::` qualified paths.
-	 * Does **not** change constructor-time deps; drops the registry record only.
+	 *
+	 * **Registry-only (§C resolved):** This drops the edge from the graph's edge
+	 * registry only. It does **not** mutate the target node's constructor-time
+	 * dependency list, bitmasks, or upstream subscriptions. Message flow follows
+	 * constructor-time deps, not the edge registry. For runtime dep rewiring, use
+	 * {@link dynamicNode}.
 	 *
 	 * @param fromPath - Registered edge tail.
 	 * @param toPath - Registered edge head.
