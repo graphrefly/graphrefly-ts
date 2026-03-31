@@ -117,6 +117,38 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-tier2-parity-nonlocal-forward-inner.md`
 
+### Session snapshot-hydration-design (March 30) — Seamless Snapshot/Hydration: Auto-Checkpoint & Node Factory Registry
+**Topic:** Designing zero-friction resume for dynamic graphs — auto-checkpoint (reactive persistence wired to `observe()`) and node factory registry (`Graph.registerFactory()` for `fromSnapshot` reconstruction of runtime-added nodes). Motivated by reactive issue tracker, agent memory (`distill()`), and security policy hot-reload use cases.
+
+**Key decisions:**
+- **Auto-checkpoint fires after settlement** — filter to DATA/RESOLVED (phase-2 messages), debounce ~500ms; snapshotting mid-DIRTY produces inconsistent state
+- **Incremental snapshots** via `Graph.diff()` — reduces I/O from O(graph_size) to O(changed_nodes) per mutation; periodic full snapshot compaction
+- **Factory registry by name glob pattern** — not by node type (too coarse) or custom meta field (pollutes snapshot); global registry solves chicken-and-egg with `fromSnapshot`
+- **Guards reconstruct from data** — `policyFromRules(snap.value.rules)` rebuilds guard fns from persisted policy rules; security policies are fully dynamic (add/remove at runtime, persist, restore with enforcement)
+- **Topological reconstruction order** — mounts → state/producer → derived/operator/effect → edges → restore values
+
+**Roadmap impact:** New Phase 1.4b (Seamless Persistence) with 8 items.
+
+**Files:** `archive/docs/SESSION-snapshot-hydration-design.md`
+
+### Session demo-test-strategy (March 30) — Demo & Test Strategy: 4 Demos, GraphReFly-Powered Shell, Inspection-as-Test-Harness
+**Topic:** Designing the demo and test strategy for Phase 4 domain layers. Four demos (Order Pipeline, Agent Task Board, Monitoring Dashboard, AI Docs Assistant) each exercising 3+ domain layers with 10–12 numbered acceptance criteria to prevent AI descoping. The three-pane demo shell (visual, code, graph) is itself a `Graph("demo-shell")` — dogfooding reactive coordination for cross-highlighting.
+
+**Key decisions:**
+- **Three-pane shell IS a GraphReFly graph** — hover/target state → derived scroll/highlight/selector → effects. Shell bugs are library bugs.
+- **Acceptance criteria prevent descoping** — 10–12 specific, testable ACs per demo (lesson from callbag-recharge H2/H4 staying backlog)
+- **Inspection layer IS the test harness** — every `observe()`, `describe()`, `toMermaid()` in demos simultaneously showcases, stress-tests, and validates the inspection tools
+- **Four-layer test strategy** — unit (per-factory), scenario (headless demo ACs), inspection stress, adversarial
+- **Seven foreseen building blocks** — reactive cursor, streaming convention, factory helper, cross-island bridge, guard-aware describe, mock LLM, time simulation
+- **Non-LLM demos first** — Demo 1 and 3 ship before Demo 2 and 4 (no WebLLM dependency)
+- **WebLLM for browser demos** — Qwen3 via WebGPU, zero API keys, graceful degradation to pre-recorded traces
+
+**Predecessor lessons incorporated:** callbag-recharge demo architecture (store.ts + component), H2 AI Docs Assistant design, agentic memory research, switchMap footgun / streamFrom pattern, 5-tier documentation model, descoping problem.
+
+**Roadmap impact:** New Phase 7.1–7.5 in both TS and PY repos.
+
+**Files:** `archive/docs/SESSION-demo-test-strategy.md`, `docs/demo-and-test-strategy.md`
+
 ---
 
 ## Reading Guide
@@ -141,4 +173,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** March 30, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy

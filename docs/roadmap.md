@@ -105,6 +105,19 @@
 - [x] `graph.snapshot()` / `graph.restore(data)` / `Graph.fromSnapshot(data)`
 - [x] `graph.toJSON()` — deterministic serialization
 
+### 1.4b — Seamless persistence
+
+Auto-checkpoint and node factory registry for zero-friction resume of dynamic graphs. Design reference: `archive/docs/SESSION-snapshot-hydration-design.md`
+
+- [ ] `graph.autoCheckpoint(adapter, opts?)` — debounced reactive persistence wired to `observe()`; fires after settlement (phase-2 messages only); returns disposable effect node
+- [ ] Incremental snapshots — diff-based persistence via `Graph.diff()`, periodic full snapshot compaction
+- [ ] Selective checkpoint filter — `{ filter: (name, described) => boolean }` to control which nodes trigger saves
+- [ ] `Graph.registerFactory(pattern, factory)` — register node factory by name glob pattern for `fromSnapshot` reconstruction
+- [ ] `Graph.unregisterFactory(pattern)` — remove registered factory
+- [ ] `Graph.fromSnapshot(data)` registry integration — auto-reconstruct dynamic graphs (runtime-added nodes) without `build` callback; topological dep resolution
+- [ ] `restore(data, { only })` — selective restore (partial hydration by node name pattern)
+- [ ] Guard reconstruction from data — `policyFromRules()` pattern for rebuilding guard fns from persisted policy rules
+
 ### 1.5 — Actor & Guard (access control)
 
 Built-in ABAC at the node level. Replaces external authz libraries (e.g. CASL) — the graph is the single enforcement point.
@@ -426,10 +439,64 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 - [ ] README with "graph + re + fly" tagline
 - [x] `llms.txt` for AI agent discovery (`llms.txt`, `website/public/llms.txt`)
-- [ ] Showcase demos (markdown editor, workflow builder, AI assistant)
 - [ ] npm publish: `@graphrefly/graphrefly-ts`
 - [ ] Docs site
 - [ ] Community launch (HN, Reddit, dev.to)
+
+### 7.1 — Three-pane demo shell (built with GraphReFly)
+
+The demo shell is itself a `Graph("demo-shell")` — dogfooding reactive coordination for synchronized cross-highlighting. Design reference: `docs/demo-and-test-strategy.md`.
+
+- [ ] Shell graph: `state("hover/target")`, `state("hover/source")`, `state("pane/sizes")`, `state("code/source")`, `state("code/line-map")`
+- [ ] Derived nodes: `code/scroll-target`, `graph/highlight-set` (node + direct deps/dependents), `visual/highlight-selector`, `graph/mermaid` (from demo graph `describe()`)
+- [ ] Effect nodes: `code/scroll`, `visual/highlight`, `graph/highlight`, `graph/mermaid-render`
+- [ ] Inspect panel: `state("inspect/selected-node")` → `derived("inspect/node-detail")` via `describeNode()` + `observe({ structured: true })`
+- [ ] `derived("inspect/trace-log")` — formatted `traceLog()` from demo graph
+- [ ] Meta debug toggle: shell's own `toMermaid()` renders recursively (GraphReFly graph visualizing another GraphReFly graph)
+- [ ] Zero framework dependency in shell graph logic; framework bindings wrap pane components only
+
+### 7.2 — Showcase demos
+
+Each demo uses the three-pane shell (7.1) and exercises 3+ domain layers. Detailed ACs in `docs/demo-and-test-strategy.md`.
+
+- [ ] **Demo 1: Order Processing Pipeline** — 4.1 + 4.2 + 4.5 + 1.5 + 3.3 (vanilla JS, 10 ACs)
+- [ ] **Demo 2: Multi-Agent Task Board** — 4.1 + 4.3 + 4.4 + 3.2b + 1.5 (React, WebLLM, 11 ACs)
+- [ ] **Demo 3: Real-Time Monitoring Dashboard** — 4.1 + 4.2 + 4.3 + 3.1 + 3.2 (Vue, 12 ACs)
+- [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 3.2b + 3.2 + 3.1 (Preact, WebLLM, 12 ACs)
+
+### 7.3 — Scenario tests (headless demo logic)
+
+Each demo has a headless scenario test that mirrors its AC list — no DOM, no WebLLM (stubbed).
+
+- [ ] `src/__tests__/scenarios/order-pipeline.test.ts`
+- [ ] `src/__tests__/scenarios/agent-task-board.test.ts`
+- [ ] `src/__tests__/scenarios/monitoring-dashboard.test.ts`
+- [ ] `src/__tests__/scenarios/docs-assistant.test.ts`
+
+### 7.4 — Inspection stress & adversarial tests
+
+- [ ] `describe()` consistency during batch drain
+- [ ] `observe({ structured/causal/timeline: true })` correctness under concurrent updates
+- [ ] `Graph.diff()` performance on 500-node graphs (<10ms)
+- [ ] `toMermaid()` output validity (parseable by mermaid-js)
+- [ ] `traceLog()` ring buffer wrap correctness
+- [ ] Cross-factory composition: mounted subgraphs don't interfere
+- [ ] Guard bypass attempts (`.down()` without actor)
+- [ ] `snapshot()` during batch drain (consistent, never partial)
+- [ ] `subscription()` added mid-drain (correct offset)
+- [ ] `collection()` eviction during derived read (no stale refs)
+
+### 7.5 — Foreseen building blocks (to be exposed by demos)
+
+Items expected to emerge during demo implementation. Validate need, then add to the appropriate phase.
+
+- [ ] **Reactive cursor** (shared by `subscription()` + `jobQueue()`) — cursor advancing through `reactiveLog`; likely 3.2 primitive or helper
+- [ ] **Streaming node convention** — partial value emission for `chatStream()`/`fromLLM()` token-by-token output; options: (a) `reactiveLog` internally, (b) `DATA` with `{ partial, chunk }`, (c) `streamFrom` pattern (designed in callbag-recharge, not implemented)
+- [ ] **Factory composition helper** — shared pattern/utility for 4.x graph factory boilerplate (create Graph, add nodes, wire edges, set meta)
+- [ ] **Cross-island state bridge** — shared graph state across Astro islands; options: (a) global graph + subgraph subscribe, (b) `observe()` → custom events, (c) SharedWorker
+- [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant showing hidden nodes with `{ denied: true, reason }` for "what can this actor do?" display
+- [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()` that replays deterministic canned responses with optional streaming delay
+- [ ] **Time simulation** — `monotonicNs()` test-mode override for `vi.useFakeTimers()` integration with `fromTimer`/`fromCron`/`wait`
 
 ---
 
