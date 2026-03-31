@@ -16,9 +16,12 @@ The user's task/context is: $ARGUMENTS
 3. **Follow existing patterns.** Before writing new code, find the closest existing pattern in this repo and follow it. If you can't find one, say so in Phase 2.
 4. **No Promise<T> in public APIs.** All public functions return `Node<T>`, `Graph`, `void`, or a plain synchronous value. Never `Promise<T>`.
 5. **No Date.now() or performance.now().** Use `monotonicNs()` or `wallClockNs()` from `src/core/clock.ts`.
-6. **Messages are always `[[Type, Data?], ...]`.** No single-tuple shorthand at API boundaries.
-7. **Unknown message types forward.** Do not swallow unrecognized tuples.
-8. **Run tests before reporting done.** `pnpm test` must pass.
+6. **All durations and timestamps are nanoseconds.** Backoff strategies return `number` (ns). Use `NS_PER_MS` / `NS_PER_SEC` from `src/extra/backoff.ts` for conversions. Convert to ms only at `setTimeout`/`setInterval` call sites.
+7. **Messages are always `[[Type, Data?], ...]`.** No single-tuple shorthand at API boundaries.
+8. **Unknown message types forward.** Do not swallow unrecognized tuples.
+9. **No imperative polling or internal timers for composition.** Sources like `fromHTTP` must be one-shot reactive. If users need periodic behavior, they compose with `interval()`/`fromTimer()` externally. Only time-domain primitives (`fromTimer`, `interval`, `debounce`, `throttle`, `delay`, `timeout`, `bufferTime`, `windowTime`) and resilience retry/rate-limiting may use raw `setTimeout`/`setInterval`.
+10. **No imperative triggers in public APIs.** Use reactive `NodeInput` signals instead of imperative `.trigger()` or `.set()` methods where possible.
+11. **Run tests before reporting done.** `pnpm test` must pass.
 
 ---
 
@@ -128,6 +131,8 @@ Before reporting done, verify:
 - [ ] Your tests cover the scenarios you listed in Phase 2f
 - [ ] No `Promise<T>` in return types
 - [ ] No `Date.now()` / `performance.now()` usage
+- [ ] All durations/timestamps use nanoseconds; ms only at setTimeout call sites
+- [ ] No internal polling loops — sources are one-shot reactive, compose with interval() for periodic
 - [ ] Messages are `[[Type, Data?], ...]` — no shorthand
 
 Report:

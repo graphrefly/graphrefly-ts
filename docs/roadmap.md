@@ -353,7 +353,7 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 
 ### 5.2 — Adapters
 
-- [ ] `fromHTTP`, `fromWebSocket`/`toWebSocket`
+- [x] `fromHTTP`, `fromWebSocket`/`toWebSocket`
 - [ ] `fromWebhook`, `toSSE`
 - [ ] `fromMCP` (Model Context Protocol)
 - [ ] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps); optional `fromChokidar()` for production. Cleanup closes watchers on unsubscribe.

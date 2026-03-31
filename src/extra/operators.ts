@@ -16,6 +16,8 @@ import {
 import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
 import { fromAny, type NodeInput } from "./sources.js";
+import { monotonicNs } from "../core/clock.js";
+import { NS_PER_MS } from "./backoff.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -1670,7 +1672,8 @@ export function throttle<T>(
 	const leading = leadingOpt !== false;
 	const trailing = trailingOpt === true;
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	let lastEmit = -Infinity;
+	const windowNs = ms * NS_PER_MS;
+	let lastEmitNs = -Infinity;
 	let pending: T | undefined;
 	let hasPending = false;
 
@@ -1707,16 +1710,16 @@ export function throttle<T>(
 				}
 				if (t === DATA) {
 					const v = msg[1] as T;
-					const now = performance.now();
-					if (leading && now - lastEmit >= ms) {
-						lastEmit = now;
+					const nowNs = monotonicNs();
+					if (leading && nowNs - lastEmitNs >= windowNs) {
+						lastEmitNs = nowNs;
 						a.emit(v);
 						clearTimer();
 						if (trailing) {
 							timer = setTimeout(() => {
 								timer = undefined;
 								if (hasPending) {
-									lastEmit = performance.now();
+									lastEmitNs = monotonicNs();
 									a.emit(pending as T);
 									hasPending = false;
 								}
@@ -1728,16 +1731,17 @@ export function throttle<T>(
 						pending = v;
 						hasPending = true;
 						if (timer === undefined) {
+							const elapsedMs = (nowNs - lastEmitNs) / NS_PER_MS;
 							timer = setTimeout(
 								() => {
 									timer = undefined;
 									if (hasPending) {
-										lastEmit = performance.now();
+										lastEmitNs = monotonicNs();
 										a.emit(pending as T);
 										hasPending = false;
 									}
 								},
-								Math.max(0, ms - (now - lastEmit)),
+								Math.max(0, ms - elapsedMs),
 							);
 						}
 					}

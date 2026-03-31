@@ -5,8 +5,11 @@
 import { wallClockNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR, type Message } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { producer, state } from "../core/sugar.js";
+import { type WithStatusBundle, withStatus } from "./resilience.js";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
+import { batch } from "../core/batch.js";
+import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -397,6 +400,133 @@ export function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T>
 	}
 	// scalar fallback
 	return of(input as T);
+}
+
+/**
+ * Options for {@link fromHTTP}.
+ *
+ * @category extra
+ */
+export interface FromHTTPOptions extends AsyncSourceOpts {
+	/** HTTP method. Default: `"GET"`. */
+	method?: string;
+	/** Request headers. */
+	headers?: Record<string, string>;
+	/** Request body (for POST/PUT/PATCH). */
+	body?: any;
+	/** Transform the Response before emitting. Default: `response.json()`. */
+	transform?: (response: Response) => any | Promise<any>;
+	/** Request timeout in **nanoseconds**. Default: `30s` (30 * NS_PER_SEC). */
+	timeoutNs?: number;
+}
+
+/**
+ * Result of {@link fromHTTP}: main source plus status, error, and fetch count companions.
+ *
+ * @category extra
+ */
+export type HTTPBundle<T> = WithStatusBundle<T> & {
+	/** Number of successful fetches. */
+	fetchCount: Node<number>;
+	/** Nanosecond wall-clock timestamp of the last successful fetch. */
+	lastUpdated: Node<number>;
+};
+
+/**
+ * Creates a one-shot fetch-based HTTP source with lifecycle tracking.
+ *
+ * Performs a single fetch when subscribed. For periodic fetching, compose
+ * with `switchMap` and a time source — the source itself has no polling.
+ *
+ * @param url - The URL to fetch.
+ * @param opts - Timeout and fetch configuration.
+ * @returns {@link HTTPBundle} wrapping the primary node and its companion status nodes.
+ *
+ * @example
+ * ```ts
+ * import { fromHTTP, switchMap, fromTimer } from "@graphrefly/graphrefly-ts";
+ *
+ * // One-shot:
+ * const api = fromHTTP("https://api.example.com/status");
+ *
+ * // Periodic polling via reactive composition:
+ * const polled = switchMap(fromTimer(0, { periodMs: 5000 }), () => fromHTTP(url));
+ * ```
+ *
+ * @category extra
+ */
+export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBundle<T> {
+	const {
+		method = "GET",
+		headers,
+		body: bodyOpt,
+		transform = (r: Response) => r.json(),
+		timeoutNs = 30 * NS_PER_SEC,
+		signal: externalSignal,
+		...rest
+	} = opts ?? {};
+
+	const fetchCount = state(0, { name: `${rest.name ?? "http"}/fetchCount` });
+	const lastUpdated = state(0, { name: `${rest.name ?? "http"}/lastUpdated` });
+
+	const sourceNode = producer<T>((_d, a) => {
+		let active = true;
+		const abort = new AbortController();
+
+		if (externalSignal?.aborted) {
+			a.down([[ERROR, externalSignal.reason ?? new Error("Aborted")]]);
+			return () => {};
+		}
+		externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), { once: true });
+
+		const timeoutId = setTimeout(() => abort.abort(new Error("Request timeout")), Math.ceil(timeoutNs / NS_PER_MS));
+
+		const body =
+			bodyOpt !== undefined
+				? typeof bodyOpt === "string"
+					? bodyOpt
+					: JSON.stringify(bodyOpt)
+				: undefined;
+
+		fetch(url, { method, headers, body, signal: abort.signal })
+			.then(async (res) => {
+				clearTimeout(timeoutId);
+				if (!active) return;
+
+				if (!res.ok) {
+					throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+				}
+
+				const data = await transform(res);
+				if (!active) return;
+
+				batch(() => {
+					fetchCount.down([[DATA, (fetchCount.get() ?? 0) + 1]]);
+					lastUpdated.down([[DATA, wallClockNs()]]);
+					a.emit(data as T);
+				});
+				a.down([[COMPLETE]]);
+			})
+			.catch((err) => {
+				clearTimeout(timeoutId);
+				if (!active) return;
+				if (err.name === "AbortError") return;
+				a.down([[ERROR, err]]);
+			});
+
+		return () => {
+			active = false;
+			abort.abort();
+		};
+	}, sourceOpts(rest));
+
+	const tracked = withStatus(sourceNode);
+
+	return {
+		...tracked,
+		fetchCount,
+		lastUpdated,
+	};
 }
 
 /**
