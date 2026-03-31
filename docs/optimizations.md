@@ -584,6 +584,18 @@ These came out of QA review; behavior is **not** “wrong” until aligned with 
 
 **Parity note:** `describe().nodes[*].meta` now uses canonical key `orchestration_type` in both ports for orchestration step metadata.
 
+### G. Phase 4.1 `loop(iterations)` coercion contract
+
+**Resolved:** Orchestration `loop` uses a shared **permissive numeric parse + truncate** rule in both ports:
+
+- Parse iteration input permissively (numeric values and numeric-like strings).
+- Truncate toward zero.
+- Clamp negatives to `0`.
+- If parse is non-finite/invalid, default to `1`.
+- Empty string and `null`/`None` normalize to `0`.
+
+**Rationale:** Keeps orchestration ergonomics AI-friendly while preserving deterministic cross-language behavior.
+
 ---
 
 ## Deferred follow-ups (QA)

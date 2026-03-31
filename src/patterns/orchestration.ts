@@ -6,7 +6,7 @@
  * Phase 2 operator names (for example `gate`, `forEach`).
  */
 
-import { RESOLVED } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, RESOLVED, type Message, type Messages } from "../core/messages.js";
 import { type Node, type NodeActions, type NodeFn, type NodeOptions, node } from "../core/node.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
 
@@ -26,6 +26,21 @@ export type BranchResult<T> = {
 	branch: "then" | "else";
 	value: T;
 };
+
+export type SensorControls<T> = {
+	node: Node<T>;
+	push(value: T): void;
+	error(err: unknown): void;
+	complete(): void;
+};
+
+export type LoopOptions = Omit<OrchestrationStepOptions, "deps"> & {
+	iterations?: number | StepRef;
+};
+
+export type WaitOptions = Omit<OrchestrationStepOptions, "deps">;
+
+export type SubPipelineBuilder = (sub: Graph) => void;
 
 function resolveDep(graph: Graph, dep: StepRef): { node: Node<unknown>; path?: string } {
 	if (typeof dep === "string") {
@@ -72,6 +87,24 @@ function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, 
 		orchestration_type: kind,
 		...(meta ?? {}),
 	};
+}
+
+function coerceLoopIterations(raw: unknown): number {
+	const parseString = (value: string): number => {
+		const trimmed = value.trim();
+		if (trimmed.length === 0) return 0;
+		return Number(trimmed);
+	};
+	let parsed: number;
+	if (typeof raw === "string") {
+		parsed = parseString(raw);
+	} else if (raw === null) {
+		parsed = 0;
+	} else {
+		parsed = Number(raw);
+	}
+	if (!Number.isFinite(parsed)) return 1;
+	return Math.max(0, Math.trunc(parsed));
 }
 
 /**
@@ -217,5 +250,278 @@ export function approval<T>(
 		step as unknown as Node<unknown>,
 		[src.path, ctrl.path].filter((v): v is string => typeof v === "string"),
 	);
+	return step;
+}
+
+/**
+ * Registers a workflow side-effect step. The step remains graph-observable and forwards messages.
+ */
+export function forEach<T>(
+	graph: Graph,
+	name: string,
+	source: StepRef,
+	run: (value: T, actions: NodeActions) => void,
+	opts?: Omit<OrchestrationStepOptions, "deps">,
+): Node<T> {
+	const src = resolveDep(graph, source);
+	let terminated = false;
+	const step = node<T>([src.node], () => undefined, {
+		...opts,
+		name,
+		describeKind: "effect",
+		completeWhenDepsComplete: false,
+		meta: baseMeta("forEach", opts?.meta),
+		onMessage(msg: Message, depIndex: number, actions: NodeActions) {
+			if (terminated) return true;
+			if (depIndex !== 0) {
+				actions.down([msg] satisfies Messages);
+				if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
+				return true;
+			}
+			if (msg[0] === DATA) {
+				try {
+					run(msg[1] as T, actions);
+					actions.down([msg] satisfies Messages);
+				} catch (err) {
+					terminated = true;
+					actions.down([[ERROR, err]] satisfies Messages);
+				}
+				return true;
+			}
+			actions.down([msg] satisfies Messages);
+			if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
+			return true;
+		},
+	});
+	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
+	return step;
+}
+
+/**
+ * Registers a join step that emits a tuple of latest dependency values.
+ */
+export function join<T extends readonly unknown[]>(
+	graph: Graph,
+	name: string,
+	deps: { [K in keyof T]: StepRef },
+	opts?: Omit<OrchestrationStepOptions, "deps">,
+): Node<T> {
+	const resolved = deps.map((dep) => resolveDep(graph, dep));
+	const step = node<T>(
+		resolved.map((d) => d.node),
+		(values) => values as T,
+		{
+			...opts,
+			name,
+			describeKind: "derived",
+			meta: baseMeta("join", opts?.meta),
+		},
+	);
+	registerStep(
+		graph,
+		name,
+		step as unknown as Node<unknown>,
+		resolved.flatMap((d) => (d.path ? [d.path] : [])),
+	);
+	return step;
+}
+
+/**
+ * Registers a loop step that applies `iterate` to each source value N times.
+ */
+export function loop<T>(
+	graph: Graph,
+	name: string,
+	source: StepRef,
+	iterate: (value: T, iteration: number, actions: NodeActions) => T,
+	opts?: LoopOptions,
+): Node<T> {
+	const src = resolveDep(graph, source);
+	const iterRef = opts?.iterations;
+	const iterDep = typeof iterRef === "number" || iterRef === undefined ? undefined : resolveDep(graph, iterRef);
+	const staticIterations = typeof iterRef === "number" ? iterRef : undefined;
+	const step = node<T>(
+		iterDep ? [src.node, iterDep.node] : [src.node],
+		(_deps, actions) => {
+			let current = src.node.get() as T;
+			const rawCount = staticIterations ?? iterDep?.node.get() ?? 1;
+			const count = coerceLoopIterations(rawCount);
+			for (let i = 0; i < count; i += 1) {
+				current = iterate(current, i, actions);
+			}
+			return current;
+		},
+		{
+			...opts,
+			name,
+			describeKind: "derived",
+			meta: baseMeta("loop", opts?.meta),
+		},
+	);
+	registerStep(
+		graph,
+		name,
+		step as unknown as Node<unknown>,
+		[src.path, iterDep?.path].filter((v): v is string => typeof v === "string"),
+	);
+	return step;
+}
+
+/**
+ * Mounts and returns a child workflow graph.
+ */
+export function subPipeline(
+	graph: Graph,
+	name: string,
+	childOrBuild?: Graph | SubPipelineBuilder,
+	opts?: GraphOptions,
+): Graph {
+	const child =
+		childOrBuild instanceof Graph ? childOrBuild : pipeline(name, opts);
+	if (typeof childOrBuild === "function") {
+		childOrBuild(child);
+	}
+	graph.mount(name, child);
+	return child;
+}
+
+/**
+ * Registers a producer-style sensor source and returns imperative controls.
+ */
+export function sensor<T>(
+	graph: Graph,
+	name: string,
+	initial?: T,
+	opts?: Omit<NodeOptions, "name" | "describeKind" | "meta"> & {
+		meta?: Record<string, unknown>;
+	},
+): SensorControls<T> {
+	const source = node<T>([], () => undefined, {
+		...opts,
+		name,
+		initial,
+		describeKind: "producer",
+		meta: baseMeta("sensor", opts?.meta),
+	});
+	registerStep(graph, name, source as unknown as Node<unknown>, []);
+	return {
+		node: source,
+		push(value: T) {
+			source.down([[DATA, value]] satisfies Messages);
+		},
+		error(err: unknown) {
+			source.down([[ERROR, err]] satisfies Messages);
+		},
+		complete() {
+			source.down([[COMPLETE]] satisfies Messages);
+		},
+	};
+}
+
+/**
+ * Registers a delayed-forwarding step (value-level wait).
+ */
+export function wait<T>(
+	graph: Graph,
+	name: string,
+	source: StepRef,
+	ms: number,
+	opts?: WaitOptions,
+): Node<T> {
+	const src = resolveDep(graph, source);
+	const timers = new Set<ReturnType<typeof setTimeout>>();
+	let terminated = false;
+	let completed = false;
+	const step = node<T>([src.node], () => {
+		for (const id of timers) clearTimeout(id);
+		timers.clear();
+		return () => {
+			for (const id of timers) clearTimeout(id);
+			timers.clear();
+			terminated = true;
+		};
+	}, {
+		...opts,
+		name,
+		initial: src.node.get() as T,
+		describeKind: "operator",
+		completeWhenDepsComplete: false,
+		meta: baseMeta("wait", opts?.meta),
+		onMessage(msg: Message, depIndex: number, actions: NodeActions) {
+			if (terminated) return true;
+			if (depIndex !== 0) {
+				actions.down([msg] satisfies Messages);
+				if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
+				return true;
+			}
+			if (msg[0] === DATA) {
+				const id = setTimeout(() => {
+					timers.delete(id);
+					actions.down([msg] satisfies Messages);
+					if (completed && timers.size === 0) {
+						actions.down([[COMPLETE]] satisfies Messages);
+					}
+				}, ms);
+				timers.add(id);
+				return true;
+			}
+			if (msg[0] === COMPLETE) {
+				terminated = true;
+				completed = true;
+				if (timers.size === 0) {
+					actions.down([[COMPLETE]] satisfies Messages);
+				}
+				return true;
+			}
+			if (msg[0] === ERROR) {
+				terminated = true;
+				for (const id of timers) clearTimeout(id);
+				timers.clear();
+				actions.down([msg] satisfies Messages);
+				return true;
+			}
+			actions.down([msg] satisfies Messages);
+			return true;
+		},
+	});
+	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
+	return step;
+}
+
+/**
+ * Registers an error-recovery step for a source.
+ */
+export function onFailure<T>(
+	graph: Graph,
+	name: string,
+	source: StepRef,
+	recover: (err: unknown, actions: NodeActions) => T,
+	opts?: Omit<OrchestrationStepOptions, "deps">,
+): Node<T> {
+	const src = resolveDep(graph, source);
+	let terminated = false;
+	const step = node<T>([src.node], () => undefined, {
+		...opts,
+		name,
+		describeKind: "operator",
+		completeWhenDepsComplete: false,
+		meta: baseMeta("onFailure", opts?.meta),
+		onMessage(msg: Message, _depIndex: number, actions: NodeActions) {
+			if (terminated) return true;
+			if (msg[0] === ERROR) {
+				try {
+					actions.emit(recover(msg[1], actions));
+				} catch (err) {
+					terminated = true;
+					actions.down([[ERROR, err]] satisfies Messages);
+				}
+				return true;
+			}
+			actions.down([msg] satisfies Messages);
+			if (msg[0] === COMPLETE) terminated = true;
+			return true;
+		},
+	});
+	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }

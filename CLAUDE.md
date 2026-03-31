@@ -28,6 +28,13 @@ The **callbag-recharge** codebase at **`~/src/callbag-recharge`** is the mature 
 - `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
 - `src/extra/` — operators and sources (Phase 2+)
 
+## Time utility rule
+
+- Use `src/core/clock.ts` utilities for all timestamps.
+- Internal/event-order durations must use `monotonicNs()`.
+- Wall-clock attribution payloads must use `wallClockNs()`.
+- Do not call `Date.now()` / `performance.now()` directly outside `core/clock.ts`.
+
 ## Commands
 
 ```bash

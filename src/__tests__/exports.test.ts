@@ -45,6 +45,13 @@ describe("graphrefly", () => {
 		expect(typeof patterns.orchestration.branch).toBe("function");
 		expect(typeof patterns.orchestration.gate).toBe("function");
 		expect(typeof patterns.orchestration.approval).toBe("function");
+		expect(typeof patterns.orchestration.forEach).toBe("function");
+		expect(typeof patterns.orchestration.join).toBe("function");
+		expect(typeof patterns.orchestration.loop).toBe("function");
+		expect(typeof patterns.orchestration.subPipeline).toBe("function");
+		expect(typeof patterns.orchestration.sensor).toBe("function");
+		expect(typeof patterns.orchestration.wait).toBe("function");
+		expect(typeof patterns.orchestration.onFailure).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {

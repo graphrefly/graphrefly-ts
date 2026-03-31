@@ -271,10 +271,10 @@ Each returns a `Graph` — uniform introspection, lifecycle, persistence.
 
 ### 4.1 — Orchestration
 
-- [ ] `pipeline()` → Graph
-- [ ] `task()`, `branch()`, `gate()`, `approval()`
-- [ ] `forEach()`, `join()`, `loop()`, `subPipeline()`
-- [ ] `sensor()`, `wait()`, `onFailure()`
+- [x] `pipeline()` → Graph
+- [x] `task()`, `branch()`, `gate()`, `approval()`
+- [x] `forEach()`, `join()`, `loop()`, `subPipeline()`
+- [x] `sensor()`, `wait()`, `onFailure()`
 
 ### 4.2 — Messaging
 
