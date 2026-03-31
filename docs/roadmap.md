@@ -348,13 +348,13 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 
 - [x] Jotai: `atom` (primitive, derived, writable-derived)
 - [x] Zustand: `create` (set/get contract)
-- [ ] Nanostores: `atom`, `computed`, `map`
-- [ ] TC39 Signals: `Signal.State`, `Signal.Computed`, `Signal.subtle.Watcher`
+- [x] Nanostores: `atom`, `computed`, `map`
+- [x] TC39 Signals: `Signal.State`, `Signal.Computed`, `Signal.sub` backed by core
 
 ### 5.2 — Adapters
 
 - [x] `fromHTTP`, `fromWebSocket`/`toWebSocket`
-- [ ] `fromWebhook`, `toSSE`
+- [x] `fromWebhook`, `toSSE`
 - [ ] `fromMCP` (Model Context Protocol)
 - [ ] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps); optional `fromChokidar()` for production. Cleanup closes watchers on unsubscribe.
 - [ ] `fromGitHook(repoPath, opts?)` — git change detection as reactive source; emits structured `GitEvent` (commit, files, message, author). Default: polling via `git log --since`; opt-in hook script installation. Cross-repo via `merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])`.

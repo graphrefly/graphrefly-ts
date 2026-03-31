@@ -1,5 +1,5 @@
 import { batch } from "../../core/batch.js";
-import { dynamicNode, type DynGet } from "../../core/dynamic-node.js";
+import { type DynGet, dynamicNode } from "../../core/dynamic-node.js";
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";

@@ -3,4 +3,5 @@
  */
 export * as jotai from "./jotai/index.js";
 export * as nanostores from "./nanostores/index.js";
+export * as signals from "./signals/index.js";
 export * as zustand from "./zustand/index.js";

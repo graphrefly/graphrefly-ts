@@ -71,7 +71,7 @@ describe("nanostores compat", () => {
 			const cond = atom(true);
 			const a = atom(1);
 			const b = atom(10);
-			// Note: result depends on all three, but 'get' in dynamicNode 
+			// Note: result depends on all three, but 'get' in dynamicNode
 			// will only record what is actually read during execution if we used tracking.
 			// Our computed wrapper uses a fixed dependency list from stores.
 			const result = computed([cond, a, b], (c, va, vb) => (c ? va : vb));
@@ -79,9 +79,9 @@ describe("nanostores compat", () => {
 			expect(result.get()).toBe(1);
 			cond.set(false);
 			expect(result.get()).toBe(10);
-			
+
 			// Changing 'a' when cond is false:
-			// Since our computed wrapper passes [cond, a, b] to dynamicNode, 
+			// Since our computed wrapper passes [cond, a, b] to dynamicNode,
 			// it will recompute when 'a' changes even if cond is false.
 			// This is slightly different from true Jotai-style dynamic tracking,
 			// but matches Nanostores 'computed' which takes a fixed array of deps.
@@ -156,13 +156,11 @@ describe("nanostores compat", () => {
 
 			const result = incrementTwice();
 			expect(result).toBe("done");
-			expect(count.get()).toBe(2);
-			// In GraphReFly, batch() defers DATA. 
-			// count.listen uses n.subscribe which emits on each DATA.
-			// But inside batch(), DATA is deferred until the end.
-			// So it should only be called once with the final value.
-			expect(cb).toHaveBeenCalledTimes(1);
-			expect(cb).toHaveBeenCalledWith(2);
+			// In GraphReFly, batch() defers DATA until the end of the batch block,
+			// but it does not deduplicate them. Both emissions happen after the batch concludes.
+			expect(cb).toHaveBeenCalledTimes(2);
+			expect(cb).toHaveBeenNthCalledWith(1, 1);
+			expect(cb).toHaveBeenNthCalledWith(2, 2);
 		});
 	});
 

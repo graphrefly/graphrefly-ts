@@ -2,6 +2,8 @@
  * Tier 1 sync operators (roadmap §2.1) and Tier 2 async/dynamic operators (roadmap §2.2) —
  * each returns a {@link Node} built with {@link node} (or {@link producer} for cold sources).
  */
+
+import { monotonicNs } from "../core/clock.js";
 import {
 	COMPLETE,
 	DATA,
@@ -15,9 +17,8 @@ import {
 } from "../core/messages.js";
 import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
-import { fromAny, type NodeInput } from "./sources.js";
-import { monotonicNs } from "../core/clock.js";
 import { NS_PER_MS } from "./backoff.js";
+import { fromAny, type NodeInput } from "./sources.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 

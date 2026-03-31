@@ -12,10 +12,11 @@ import {
 	fromAsyncIter,
 	fromCron,
 	fromEvent,
-	fromWebhook,
 	fromIter,
 	fromPromise,
 	fromTimer,
+	fromWebhook,
+	fromWebSocket,
 	never,
 	of,
 	replay,
@@ -23,6 +24,7 @@ import {
 	throwError,
 	toArray,
 	toSSE,
+	toWebSocket,
 } from "../../extra/sources.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */
@@ -331,9 +333,233 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		});
 		const { batches, unsub } = collect(node);
 		expect(
-			batches.some((b) => b.some((m) => m[0] === ERROR && (m[1] as Error).message === "register-failed")),
+			batches.some((b) =>
+				b.some((m) => m[0] === ERROR && (m[1] as Error).message === "register-failed"),
+			),
 		).toBe(true);
 		unsub();
+	});
+
+	it("fromWebSocket forwards message and close tuples", () => {
+		type WsEvent = { data?: unknown; error?: unknown };
+		class FakeWebSocket {
+			private readonly listeners = new Map<string, Set<(ev: unknown) => void>>();
+			removed = 0;
+			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {}
+			close() {}
+			addEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void) {
+				const set = this.listeners.get(type) ?? new Set<(ev: unknown) => void>();
+				set.add(listener);
+				this.listeners.set(type, set);
+			}
+			removeEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void) {
+				this.listeners.get(type)?.delete(listener);
+				this.removed += 1;
+			}
+			emit(type: "message" | "error" | "close", event: WsEvent) {
+				for (const listener of this.listeners.get(type) ?? []) listener(event);
+			}
+		}
+		const ws = new FakeWebSocket();
+		const node = fromWebSocket<{ id: string }>(ws, {
+			parse: (payload) => payload as { id: string },
+		});
+		const { batches, unsub } = collect(node);
+		ws.emit("message", { data: { id: "m1" } });
+		ws.emit("close", {});
+		expect(
+			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { id: string }).id === "m1")),
+		).toBe(true);
+		expect(batches.some((b) => b.some((m) => m[0] === COMPLETE))).toBe(true);
+		expect(ws.removed).toBe(3);
+		ws.emit("message", { data: { id: "m2" } });
+		expect(
+			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { id: string }).id === "m2")),
+		).toBe(false);
+		unsub();
+	});
+
+	it("fromWebSocket supports register-style wiring and raw payload fallback", () => {
+		let emitFn: ((payload: unknown) => void) | undefined;
+		let completeFn: (() => void) | undefined;
+		let cleaned = false;
+		const node = fromWebSocket<{ id: string }>(
+			(emit, _error, complete) => {
+				emitFn = emit;
+				completeFn = complete;
+				return () => {
+					cleaned = true;
+				};
+			},
+			{ parse: (payload) => payload as { id: string } },
+		);
+		const { batches, unsub } = collect(node);
+		emitFn?.({ id: "direct" });
+		completeFn?.();
+		expect(
+			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { id: string }).id === "direct")),
+		).toBe(true);
+		expect(batches.some((b) => b.some((m) => m[0] === COMPLETE))).toBe(true);
+		unsub();
+		expect(cleaned).toBe(true);
+	});
+
+	it("fromWebSocket emits ERROR when register throws", () => {
+		const node = fromWebSocket(() => {
+			throw new Error("register-failed");
+		});
+		const { batches, unsub } = collect(node);
+		expect(
+			batches.some((b) =>
+				b.some((m) => m[0] === ERROR && (m[1] as Error).message === "register-failed"),
+			),
+		).toBe(true);
+		unsub();
+	});
+
+	it("fromWebSocket enforces register cleanup contract", () => {
+		const node = fromWebSocket(
+			((_emit, _error, _complete) => undefined) as unknown as (
+				emit: (payload: { id: string }) => void,
+				error: (err: unknown) => void,
+				complete: () => void,
+			) => () => void,
+		);
+		const { batches, unsub } = collect(node);
+		expect(
+			batches.some((b) =>
+				b.some(
+					(m) =>
+						m[0] === ERROR && String(m[1]).includes("fromWebSocket register contract violation"),
+				),
+			),
+		).toBe(true);
+		unsub();
+	});
+
+	it("fromWebSocket forwards error tuple", () => {
+		class FakeWebSocket {
+			private readonly listeners = new Map<string, Set<(ev: unknown) => void>>();
+			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {}
+			close() {}
+			addEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void) {
+				const set = this.listeners.get(type) ?? new Set<(ev: unknown) => void>();
+				set.add(listener);
+				this.listeners.set(type, set);
+			}
+			removeEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void) {
+				this.listeners.get(type)?.delete(listener);
+			}
+			emit(type: "message" | "error" | "close", event: { data?: unknown; error?: unknown }) {
+				for (const listener of this.listeners.get(type) ?? []) listener(event);
+			}
+		}
+		const ws = new FakeWebSocket();
+		const node = fromWebSocket(ws);
+		const { batches, unsub } = collect(node);
+		ws.emit("error", { error: "boom" });
+		expect(batches.some((b) => b.some((m) => m[0] === ERROR))).toBe(true);
+		unsub();
+	});
+
+	it("toWebSocket sends DATA and closes on COMPLETE", () => {
+		class FakeWebSocket {
+			sent: unknown[] = [];
+			closed = 0;
+			send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+				this.sent.push(data);
+			}
+			close() {
+				this.closed += 1;
+			}
+			addEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+		}
+		const ws = new FakeWebSocket();
+		const unsub = toWebSocket(fromIter([1, 2]), ws, { serialize: (v) => `n:${v}` });
+		expect(ws.sent).toEqual(["n:1", "n:2"]);
+		expect(ws.closed).toBe(1);
+		unsub();
+	});
+
+	it("toWebSocket stringifies unsupported serialized undefined payloads", () => {
+		class FakeWebSocket {
+			sent: unknown[] = [];
+			send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+				this.sent.push(data);
+			}
+			close() {}
+			addEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+		}
+		const ws = new FakeWebSocket();
+		const unsub = toWebSocket(fromIter([1]), ws, { serialize: () => undefined as never });
+		expect(ws.sent).toEqual(["1"]);
+		unsub();
+	});
+
+	it("toWebSocket reports structured send failures", () => {
+		const errors: Array<{ stage: string; error: Error; message: [symbol, unknown?] | undefined }> =
+			[];
+		class FakeWebSocket {
+			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+				throw new Error("send-failed");
+			}
+			close(_code?: number, _reason?: string) {}
+			addEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+		}
+		const ws = new FakeWebSocket();
+		expect(() =>
+			toWebSocket(fromIter([1]), ws, {
+				closeOnComplete: false,
+				onTransportError: (event) =>
+					errors.push({
+						stage: event.stage,
+						error: event.error,
+						message: event.message as [symbol, unknown?] | undefined,
+					}),
+			}),
+		).not.toThrow();
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.stage).toBe("send");
+		expect(errors[0]?.error.message).toBe("send-failed");
+		expect(errors[0]?.message?.[0]).toBe(DATA);
+	});
+
+	it("toWebSocket reports close failure and closes idempotently", () => {
+		const errors: Array<{ stage: string; error: Error; message: [symbol, unknown?] | undefined }> =
+			[];
+		const repeatedTerminal = producer((_deps, a) => {
+			a.down([[COMPLETE], [ERROR, new Error("late")]]);
+			return () => {};
+		});
+		class FakeWebSocket {
+			closed = 0;
+			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {}
+			close(_code?: number, _reason?: string) {
+				this.closed += 1;
+				throw new Error("close-failed");
+			}
+			addEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
+		}
+		const ws = new FakeWebSocket();
+		expect(() =>
+			toWebSocket(repeatedTerminal, ws, {
+				onTransportError: (event) =>
+					errors.push({
+						stage: event.stage,
+						error: event.error,
+						message: event.message as [symbol, unknown?] | undefined,
+					}),
+			}),
+		).not.toThrow();
+		expect(ws.closed).toBe(1);
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.stage).toBe("close");
+		expect(errors[0]?.error.message).toBe("close-failed");
+		expect(errors[0]?.message?.[0]).toBe(COMPLETE);
 	});
 
 	it("parseCron rejects bad expressions", () => {

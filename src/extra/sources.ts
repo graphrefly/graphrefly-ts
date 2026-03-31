@@ -2,14 +2,15 @@
  * Sources and sinks (roadmap §2.3). Each API returns a {@link Node} built with
  * {@link node}, {@link producer}, {@link derived}, or {@link effect} — no second protocol.
  */
+
+import { batch } from "../core/batch.js";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, type Message } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
-import { type WithStatusBundle, withStatus } from "./resilience.js";
-import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
-import { batch } from "../core/batch.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
+import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
+import { type WithStatusBundle, withStatus } from "./resilience.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -53,6 +54,21 @@ export type EventTargetLike = {
 		options?: boolean | { capture?: boolean; passive?: boolean; once?: boolean },
 	): void;
 };
+
+/** WebSocket-like transport accepted by {@link fromWebSocket} / {@link toWebSocket}. */
+export type WebSocketLike = {
+	send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void;
+	close(code?: number, reason?: string): void;
+	addEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void): void;
+	removeEventListener(type: "message" | "error" | "close", listener: (ev: unknown) => void): void;
+};
+
+export type WebSocketMessageEventLike = { data: unknown };
+export type WebSocketRegister<T> = (
+	emit: (payload: T) => void,
+	error: (err: unknown) => void,
+	complete: () => void,
+) => () => void;
 
 /** Registration callback for {@link fromWebhook}. */
 export type WebhookRegister<T> = (handlers: {
@@ -214,6 +230,106 @@ export function fromEvent<T = unknown>(
 		const options = { capture, passive, once };
 		target.addEventListener(type, handler, options);
 		return () => target.removeEventListener(type, handler, options);
+	}, sourceOpts(rest));
+}
+
+/**
+ * Wraps a WebSocket as a GraphReFly producer source.
+ *
+ * Incoming socket messages are emitted as `DATA`; socket `error` emits `ERROR`; socket `close`
+ * emits `COMPLETE`. Teardown detaches listeners and optionally closes the socket.
+ *
+ * @category extra
+ */
+export function fromWebSocket<T = unknown>(
+	socket: WebSocketLike,
+	opts?: ExtraOpts & {
+		parse?: (payload: unknown, event: unknown) => T;
+		closeOnTeardown?: boolean;
+	},
+): Node<T>;
+export function fromWebSocket<T = unknown>(
+	register: WebSocketRegister<T>,
+	opts?: ExtraOpts & {
+		parse?: (payload: unknown, event: unknown) => T;
+		closeOnTeardown?: boolean;
+	},
+): Node<T>;
+export function fromWebSocket<T = unknown>(
+	socketOrRegister: WebSocketLike | WebSocketRegister<T>,
+	opts?: ExtraOpts & {
+		parse?: (payload: unknown, event: unknown) => T;
+		closeOnTeardown?: boolean;
+	},
+): Node<T> {
+	const { parse, closeOnTeardown = false, ...rest } = opts ?? {};
+	return producer<T>((_d, a) => {
+		let active = true;
+		let cleanup: (() => void) | undefined;
+		const runCleanup = () => {
+			const fn = cleanup;
+			cleanup = undefined;
+			fn?.();
+		};
+		const terminate = (message: Message) => {
+			if (!active) return;
+			active = false;
+			a.down([message]);
+			runCleanup();
+		};
+		const emit = (raw: unknown, event: unknown = raw) => {
+			if (!active) return;
+			try {
+				const payload =
+					raw !== null && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
+						? (raw as WebSocketMessageEventLike).data
+						: raw;
+				const parsed = parse ? parse(payload, event) : (payload as T);
+				a.emit(parsed);
+			} catch (err) {
+				terminate([ERROR, err]);
+			}
+		};
+		const error = (err: unknown) => {
+			terminate([ERROR, err]);
+		};
+		const complete = () => {
+			terminate([COMPLETE]);
+		};
+		if (typeof socketOrRegister === "function") {
+			try {
+				cleanup = socketOrRegister(emit, error, complete);
+				if (typeof cleanup !== "function") {
+					throw new Error(
+						"fromWebSocket register contract violation: register must return cleanup callable",
+					);
+				}
+			} catch (err) {
+				terminate([ERROR, err]);
+			}
+			return () => {
+				active = false;
+				runCleanup();
+			};
+		}
+
+		const ws = socketOrRegister;
+		const onMessage = (event: unknown) => emit(event, event);
+		const onError = (event: unknown) => error(event);
+		const onClose = () => complete();
+		ws.addEventListener("message", onMessage);
+		ws.addEventListener("error", onError);
+		ws.addEventListener("close", onClose);
+		cleanup = () => {
+			ws.removeEventListener("message", onMessage);
+			ws.removeEventListener("error", onError);
+			ws.removeEventListener("close", onClose);
+			if (closeOnTeardown) ws.close();
+		};
+		return () => {
+			active = false;
+			runCleanup();
+		};
 	}, sourceOpts(rest));
 }
 
@@ -558,6 +674,28 @@ export type ToSSEOptions = {
 	eventNameResolver?: (type: symbol) => string;
 };
 
+/** Options for {@link toWebSocket}. */
+export type ToWebSocketOptions<T> = {
+	/** Serialize DATA payloads before `socket.send(...)`. */
+	serialize?: (value: T) => string | ArrayBufferLike | Blob | ArrayBufferView;
+	/** Close socket when upstream emits COMPLETE. Default: `true`. */
+	closeOnComplete?: boolean;
+	/** Close socket when upstream emits ERROR. Default: `true`. */
+	closeOnError?: boolean;
+	/** Optional close code used when close is triggered by terminal tuples. */
+	closeCode?: number;
+	/** Optional close reason used when close is triggered by terminal tuples. */
+	closeReason?: string;
+	/** Structured callback for serialize/send/close transport failures. */
+	onTransportError?: (event: ToWebSocketTransportError) => void;
+};
+
+export type ToWebSocketTransportError = {
+	stage: "serialize" | "send" | "close";
+	error: Error;
+	message: Message | undefined;
+};
+
 function messageTypeLabel(t: symbol): string {
 	return Symbol.keyFor(t) ?? t.description ?? "message";
 }
@@ -623,9 +761,14 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 			a.down([[ERROR, externalSignal.reason ?? new Error("Aborted")]]);
 			return () => {};
 		}
-		externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), { once: true });
+		externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), {
+			once: true,
+		});
 
-		const timeoutId = setTimeout(() => abort.abort(new Error("Request timeout")), Math.ceil(timeoutNs / NS_PER_MS));
+		const timeoutId = setTimeout(
+			() => abort.abort(new Error("Request timeout")),
+			Math.ceil(timeoutNs / NS_PER_MS),
+		);
 
 		const body =
 			bodyOpt !== undefined
@@ -746,7 +889,10 @@ export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<U
 					}
 					if (!includeResolved && t === RESOLVED) continue;
 					if (!includeDirty && t === DIRTY) continue;
-					write(eventNameResolver(t), msg.length > 1 ? serializeSseData(msg[1], serialize) : undefined);
+					write(
+						eventNameResolver(t),
+						msg.length > 1 ? serializeSseData(msg[1], serialize) : undefined,
+					);
 				}
 			});
 			if (keepAliveMs !== undefined && keepAliveMs > 0) {
@@ -762,6 +908,97 @@ export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<U
 			stop?.();
 		},
 	});
+}
+
+/**
+ * Forwards upstream `DATA` payloads to a WebSocket via `send`.
+ *
+ * Terminal tuples can optionally close the socket. Returns an unsubscribe function.
+ *
+ * @category extra
+ */
+export function toWebSocket<T>(
+	source: Node<T>,
+	socket: WebSocketLike,
+	opts?: ToWebSocketOptions<T>,
+): () => void {
+	const {
+		serialize = (value: T) => {
+			if (
+				typeof value === "string" ||
+				value instanceof Blob ||
+				value instanceof ArrayBuffer ||
+				ArrayBuffer.isView(value)
+			) {
+				return value as string | ArrayBufferLike | Blob | ArrayBufferView;
+			}
+			try {
+				return JSON.stringify(value);
+			} catch {
+				return String(value);
+			}
+		},
+		closeOnComplete = true,
+		closeOnError = true,
+		closeCode,
+		closeReason,
+		onTransportError,
+	} = opts ?? {};
+	let closed = false;
+	const toError = (err: unknown): Error => (err instanceof Error ? err : new Error(String(err)));
+	const reportTransportError = (
+		stage: "serialize" | "send" | "close",
+		error: unknown,
+		message: Message | undefined,
+	) => {
+		if (!onTransportError) return;
+		try {
+			onTransportError({ stage, error: toError(error), message });
+		} catch {
+			/* user-provided hook should not throw into graph path */
+		}
+	};
+	const closeSocket = (message: Message) => {
+		if (closed) return;
+		closed = true;
+		try {
+			socket.close(closeCode, closeReason);
+		} catch (err) {
+			reportTransportError("close", err, message);
+		}
+	};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				let serialized: string | ArrayBufferLike | Blob | ArrayBufferView;
+				try {
+					serialized = serialize(msg[1] as T);
+				} catch (err) {
+					reportTransportError("serialize", err, msg);
+					return true;
+				}
+				try {
+					socket.send(serialized === undefined ? String(msg[1] as T) : serialized);
+				} catch (err) {
+					reportTransportError("send", err, msg);
+					return true;
+				}
+				return true;
+			}
+			if (msg[0] === COMPLETE && closeOnComplete) {
+				closeSocket(msg);
+				return true;
+			}
+			if (msg[0] === ERROR && closeOnError) {
+				closeSocket(msg);
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
 }
 
 /**
