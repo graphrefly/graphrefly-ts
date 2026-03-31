@@ -9,6 +9,7 @@ import {
 	ERROR,
 	INVALIDATE,
 	type Messages,
+	messageTier,
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
@@ -76,6 +77,36 @@ export type GraphDescribeOutput = {
  */
 export type GraphPersistSnapshot = GraphDescribeOutput & {
 	version?: number;
+};
+
+export type GraphFactoryContext = {
+	path: string;
+	type: DescribeNodeOutput["type"];
+	value: unknown;
+	meta: Record<string, unknown>;
+	deps: readonly string[];
+	resolvedDeps: readonly Node[];
+};
+
+export type GraphNodeFactory = (name: string, context: GraphFactoryContext) => Node;
+
+export type AutoCheckpointAdapter = {
+	save(data: unknown): void;
+};
+
+export type GraphCheckpointRecord =
+	| { mode: "full"; snapshot: GraphPersistSnapshot; seq: number }
+	| { mode: "diff"; diff: GraphDiffResult; snapshot: GraphPersistSnapshot; seq: number };
+
+export type GraphAutoCheckpointOptions = {
+	debounceMs?: number;
+	compactEvery?: number;
+	filter?: (name: string, described: DescribeNodeOutput) => boolean;
+	onError?: (error: unknown) => void;
+};
+
+export type GraphAutoCheckpointHandle = {
+	dispose(): void;
 };
 
 /** Direction options for diagram export helpers. */
@@ -191,6 +222,41 @@ function normalizeDiagramDirection(direction: unknown): GraphDiagramDirection {
 	throw new Error(
 		`invalid diagram direction ${String(direction)}; expected one of: TD, LR, BT, RL`,
 	);
+}
+
+function escapeRegexLiteral(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function globToRegex(pattern: string): RegExp {
+	let re = "^";
+	for (let i = 0; i < pattern.length; i += 1) {
+		const ch = pattern[i]!;
+		if (ch === "*") {
+			re += ".*";
+			continue;
+		}
+		if (ch === "?") {
+			re += ".";
+			continue;
+		}
+		if (ch === "[") {
+			const end = pattern.indexOf("]", i + 1);
+			if (end <= i + 1) {
+				re += "\\[";
+				continue;
+			}
+			let cls = pattern.slice(i + 1, end);
+			if (cls.startsWith("!")) cls = `^${cls.slice(1)}`;
+			cls = cls.replace(/\\/g, "\\\\");
+			re += `[${cls}]`;
+			i = end;
+			continue;
+		}
+		re += escapeRegexLiteral(ch);
+	}
+	re += "$";
+	return new RegExp(re);
 }
 
 /** Fixed-capacity ring buffer — O(1) push and eviction. */
@@ -458,6 +524,12 @@ function teardownMountedGraph(root: Graph): void {
  * @category graph
  */
 export class Graph {
+	private static readonly _factories: Array<{
+		pattern: string;
+		re: RegExp;
+		factory: GraphNodeFactory;
+	}> = [];
+
 	readonly name: string;
 	readonly opts: Readonly<GraphOptions>;
 	/** @internal — exposed for {@link teardownMountedGraph} and cross-graph helpers. */
@@ -465,6 +537,20 @@ export class Graph {
 	private readonly _edges = new Set<string>();
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
+	private readonly _autoCheckpointDisposers = new Set<() => void>();
+
+	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
+		if (!pattern) {
+			throw new Error("Graph.registerFactory requires a non-empty pattern");
+		}
+		Graph.unregisterFactory(pattern);
+		Graph._factories.push({ pattern, re: globToRegex(pattern), factory });
+	}
+
+	static unregisterFactory(pattern: string): void {
+		const i = Graph._factories.findIndex((entry) => entry.pattern === pattern);
+		if (i >= 0) Graph._factories.splice(i, 1);
+	}
 
 	/**
 	 * @param name - Non-empty graph id (must not contain `::`).
@@ -479,6 +565,29 @@ export class Graph {
 		}
 		this.name = name;
 		this.opts = opts ?? {};
+	}
+
+	private static _factoryForPath(path: string): GraphNodeFactory | undefined {
+		for (let i = Graph._factories.length - 1; i >= 0; i -= 1) {
+			const entry = Graph._factories[i]!;
+			if (entry.re.test(path)) return entry.factory;
+		}
+		return undefined;
+	}
+
+	private static _ownerForPath(root: Graph, path: string): [Graph, string] {
+		const segments = path.split(PATH_SEP);
+		const local = segments.pop();
+		if (local == null || local.length === 0) {
+			throw new Error(`invalid snapshot path "${path}"`);
+		}
+		let owner = root;
+		for (const seg of segments) {
+			const next = owner._mounts.get(seg);
+			if (!next) throw new Error(`unknown mount "${seg}" in path "${path}"`);
+			owner = next;
+		}
+		return [owner, local];
 	}
 
 	/**
@@ -1622,6 +1731,14 @@ export class Graph {
 	 */
 	destroy(): void {
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
+		for (const dispose of [...this._autoCheckpointDisposers]) {
+			try {
+				dispose();
+			} catch {
+				/* ignore */
+			}
+		}
+		this._autoCheckpointDisposers.clear();
 		for (const child of [...this._mounts.values()]) {
 			child._destroyClearOnly();
 		}
@@ -1667,14 +1784,19 @@ export class Graph {
 	 * @param data - Snapshot envelope with matching `name` and node slices.
 	 * @throws If `data.name` does not equal {@link Graph.name}.
 	 */
-	restore(data: GraphPersistSnapshot): void {
+	restore(data: GraphPersistSnapshot, options?: { only?: string | readonly string[] }): void {
 		parseSnapshotEnvelope(data);
 		if (data.name !== this.name) {
 			throw new Error(
 				`Graph "${this.name}": restore snapshot name "${data.name}" does not match this graph`,
 			);
 		}
+		const onlyPatterns =
+			options?.only == null
+				? null
+				: (Array.isArray(options.only) ? options.only : [options.only]).map((p) => globToRegex(p));
 		for (const path of Object.keys(data.nodes).sort()) {
+			if (onlyPatterns !== null && !onlyPatterns.some((re) => re.test(path))) continue;
 			const slice = data.nodes[path];
 			if (slice === undefined || slice.value === undefined) continue;
 			if (slice.type === "derived" || slice.type === "operator" || slice.type === "effect") {
@@ -1704,24 +1826,6 @@ export class Graph {
 			g.restore(data);
 			return g;
 		}
-		// Without build: reject edges and non-state nodes (aligned with Python).
-		if (data.edges.length > 0) {
-			throw new Error(
-				"Graph.fromSnapshot does not support non-empty edges without a build callback; " +
-					"node functions cannot be reconstructed from JSON. Build the graph in code and " +
-					"use graph.restore(snapshot) to apply values, or pass a build callback.",
-			);
-		}
-		for (const path of Object.keys(data.nodes).sort()) {
-			const slice = data.nodes[path];
-			if (!slice || path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
-			if (slice.type !== "state") {
-				throw new Error(
-					`Graph.fromSnapshot only supports state nodes without a build callback ` +
-						`(got type "${slice.type}" at "${path}")`,
-				);
-			}
-		}
 		// Auto-create mount hierarchy from subgraphs.
 		for (const mount of [...data.subgraphs].sort((a, b) => {
 			const da = a.split(PATH_SEP).length;
@@ -1737,26 +1841,57 @@ export class Graph {
 				target = target._mounts.get(seg)!;
 			}
 		}
-		// Register state nodes and meta.
-		for (const path of Object.keys(data.nodes).sort()) {
-			const slice = data.nodes[path];
-			if (!slice) continue;
-			if (path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
-			const meta: Record<string, unknown> = {};
-			if (slice.meta) {
-				for (const [k, v] of Object.entries(slice.meta)) {
-					meta[k] = v;
+
+		const primaryEntries = Object.entries(data.nodes)
+			.filter(([path]) => !path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`))
+			.sort((a, b) => a[0].localeCompare(b[0]));
+		const pending = new Map(primaryEntries);
+		const created = new Map<string, Node>();
+
+		let progressed = true;
+		while (pending.size > 0 && progressed) {
+			progressed = false;
+			for (const [path, slice] of [...pending.entries()]) {
+				const deps = slice?.deps ?? [];
+				if (!deps.every((dep) => created.has(dep))) continue;
+				const [owner, localName] = Graph._ownerForPath(g, path);
+				const meta: Record<string, unknown> = { ...(slice?.meta ?? {}) };
+				const factory = Graph._factoryForPath(path);
+				let node: Node;
+				if (slice?.type === "state") {
+					node = stateNode(slice.value, { meta });
+				} else {
+					if (factory == null) continue;
+					node = factory(localName, {
+						path,
+						type: slice.type,
+						value: slice.value,
+						meta,
+						deps,
+						resolvedDeps: deps.map((dep) => created.get(dep)!),
+					});
 				}
+				owner.add(localName, node);
+				created.set(path, node);
+				pending.delete(path);
+				progressed = true;
 			}
-			// Find owner graph and local name.
-			const segments = path.split(PATH_SEP);
-			const localName = segments.pop()!;
-			let owner: Graph = g;
-			for (const seg of segments) {
-				owner = owner._mounts.get(seg)!;
-			}
-			owner.add(localName, stateNode(slice.value, { meta }));
 		}
+		if (pending.size > 0) {
+			const unresolved = [...pending.keys()].sort().join(", ");
+			throw new Error(
+				`Graph.fromSnapshot could not reconstruct nodes without build callback: ${unresolved}. ` +
+					`Register matching factories with Graph.registerFactory(pattern, factory).`,
+			);
+		}
+		for (const edge of data.edges) {
+			try {
+				g.connect(edge.from, edge.to);
+			} catch {
+				/* ignore malformed or non-reconstructable edge */
+			}
+		}
+		g.restore(data);
 		return g;
 	}
 
@@ -1781,6 +1916,78 @@ export class Graph {
 	 */
 	toJSONString(): string {
 		return stableJsonStringify(this.snapshot());
+	}
+
+	/**
+	 * Debounced persistence wired to graph-wide observe stream (spec §3.8 auto-checkpoint).
+	 *
+	 * Checkpoint trigger uses {@link messageTier}: only batches containing tier >= 2 messages
+	 * schedule a save (`DATA`/`RESOLVED`/terminal/destruction), never pure tier-0/1 control waves.
+	 */
+	autoCheckpoint(
+		adapter: AutoCheckpointAdapter,
+		options: GraphAutoCheckpointOptions = {},
+	): GraphAutoCheckpointHandle {
+		const debounceMs = Math.max(0, options.debounceMs ?? 500);
+		const compactEvery = Math.max(1, options.compactEvery ?? 10);
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let seq = 0;
+		let pending = false;
+		let lastDescribe: GraphDescribeOutput | undefined;
+
+		const flush = () => {
+			timer = undefined;
+			if (!pending) return;
+			pending = false;
+			try {
+				const described = this.describe();
+				const snapshot = { ...described, version: SNAPSHOT_VERSION };
+				seq += 1;
+				const shouldCompact = lastDescribe == null || seq % compactEvery === 0;
+				if (shouldCompact) {
+					adapter.save({ mode: "full", snapshot, seq } satisfies GraphCheckpointRecord);
+				} else {
+					const previous = lastDescribe;
+					if (previous == null) return;
+					adapter.save({
+						mode: "diff",
+						diff: Graph.diff(previous, described),
+						snapshot,
+						seq,
+					} satisfies GraphCheckpointRecord);
+				}
+				lastDescribe = described;
+			} catch (error) {
+				options.onError?.(error);
+			}
+		};
+
+		const schedule = () => {
+			pending = true;
+			if (timer !== undefined) clearTimeout(timer);
+			timer = setTimeout(flush, debounceMs);
+		};
+
+		const off = this.observe().subscribe((path, messages) => {
+			const triggeredByTier = messages.some((m) => messageTier(m[0]) >= 2);
+			if (!triggeredByTier) return;
+			if (options.filter) {
+				const described = this.describe().nodes[path];
+				if (described == null || !options.filter(path, described)) return;
+			}
+			schedule();
+		});
+
+		const dispose = () => {
+			off();
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				timer = undefined;
+			}
+			this._autoCheckpointDisposers.delete(dispose);
+		};
+		this._autoCheckpointDisposers.add(dispose);
+		return { dispose };
 	}
 
 	/**
@@ -1919,8 +2126,20 @@ export class Graph {
 
 		const edgesAdded = b.edges.filter((e) => !aEdges.has(edgeKey(e)));
 		const edgesRemoved = a.edges.filter((e) => !bEdges.has(edgeKey(e)));
+		const aSubgraphs = new Set(a.subgraphs);
+		const bSubgraphs = new Set(b.subgraphs);
+		const subgraphsAdded = [...bSubgraphs].filter((s) => !aSubgraphs.has(s)).sort();
+		const subgraphsRemoved = [...aSubgraphs].filter((s) => !bSubgraphs.has(s)).sort();
 
-		return { nodesAdded, nodesRemoved, nodesChanged, edgesAdded, edgesRemoved };
+		return {
+			nodesAdded,
+			nodesRemoved,
+			nodesChanged,
+			edgesAdded,
+			edgesRemoved,
+			subgraphsAdded,
+			subgraphsRemoved,
+		};
 	}
 }
 
@@ -1938,6 +2157,8 @@ export type GraphDiffResult = {
 	nodesChanged: GraphDiffChange[];
 	edgesAdded: Array<{ from: string; to: string }>;
 	edgesRemoved: Array<{ from: string; to: string }>;
+	subgraphsAdded: string[];
+	subgraphsRemoved: string[];
 };
 
 /** A single field change within a diff. */

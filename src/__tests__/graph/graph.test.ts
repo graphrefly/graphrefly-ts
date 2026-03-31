@@ -885,6 +885,62 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		g1.restore(snap);
 		expect(g1.get(metaPath)).toBe("hi");
 	});
+
+	it("autoCheckpoint triggers only for messageTier >= 2", async () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		const saves: unknown[] = [];
+		const h = g.autoCheckpoint(
+			{
+				save(data: unknown) {
+					saves.push(data);
+				},
+			},
+			{ debounceMs: 5, compactEvery: 2 },
+		);
+		g.signal([[PAUSE, "lock"]]);
+		await new Promise((r) => setTimeout(r, 15));
+		expect(saves.length).toBe(0);
+		g.set("a", 1);
+		await new Promise((r) => setTimeout(r, 15));
+		expect(saves.length).toBe(1);
+		h.dispose();
+	});
+
+	it("restore supports selective hydration via only pattern", () => {
+		const g = new Graph("g");
+		g.add("a", state(1, { name: "a" }));
+		g.add("b", state(2, { name: "b" }));
+		const snap = g.snapshot();
+		g.set("a", 10);
+		g.set("b", 20);
+		g.restore(snap, { only: "a" });
+		expect(g.get("a")).toBe(1);
+		expect(g.get("b")).toBe(20);
+	});
+
+	it("fromSnapshot reconstructs dynamic nodes via registerFactory", () => {
+		const g0 = new Graph("g");
+		const a = state(1, { name: "a" });
+		const sum = derived([a], ([v]) => (v as number) + 1, { name: "sum" });
+		g0.add("a", a);
+		g0.add("sum", sum);
+		g0.connect("a", "sum");
+		sum.subscribe(() => {});
+		const snap = g0.snapshot();
+		Graph.registerFactory("sum", (name, ctx) =>
+			derived(ctx.resolvedDeps, ([v]) => (v as number) + 1, { name }),
+		);
+		try {
+			const g1 = Graph.fromSnapshot(snap);
+			const s = g1.node("sum");
+			s.subscribe(() => {});
+			g1.set("a", 5);
+			expect(g1.get("sum")).toBe(6);
+		} finally {
+			Graph.unregisterFactory("sum");
+		}
+	});
 });
 
 describe("Graph guard (Phase 1.5)", () => {
@@ -1193,7 +1249,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		g.add("b", b);
 		g.connect("a", "b");
 		const snap = g.snapshot();
-		expect(() => Graph.fromSnapshot(snap)).toThrow(/edges/);
+		expect(() => Graph.fromSnapshot(snap)).toThrow(/could not reconstruct/);
 	});
 
 	it("fromSnapshot without build rejects non-state nodes", () => {
@@ -1204,7 +1260,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 			edges: [],
 			subgraphs: [],
 		};
-		expect(() => Graph.fromSnapshot(snap)).toThrow(/state/);
+		expect(() => Graph.fromSnapshot(snap)).toThrow(/could not reconstruct/);
 	});
 
 	it("fromSnapshot without build auto-creates mounts and state nodes", () => {

@@ -131,21 +131,22 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-snapshot-hydration-design.md`
 
-### Session demo-test-strategy (March 30) — Demo & Test Strategy: 4 Demos, GraphReFly-Powered Shell, Inspection-as-Test-Harness
-**Topic:** Designing the demo and test strategy for Phase 4 domain layers. Four demos (Order Pipeline, Agent Task Board, Monitoring Dashboard, AI Docs Assistant) each exercising 3+ domain layers with 10–12 numbered acceptance criteria to prevent AI descoping. The three-pane demo shell (visual, code, graph) is itself a `Graph("demo-shell")` — dogfooding reactive coordination for cross-highlighting.
+### Session demo-test-strategy (March 30) — Demo & Test Strategy: 4 Demos, GraphReFly-Powered Shell, Reactive Layout, Inspection-as-Test-Harness
+**Topic:** Designing the demo and test strategy for Phase 4 domain layers. Four demos (Order Pipeline, Agent Task Board, Monitoring Dashboard, AI Docs Assistant) each exercising 3+ domain layers with 10–12 numbered acceptance criteria to prevent AI descoping. The three-pane demo shell (visual main, graph+code side) is itself a `Graph("demo-shell")` — dogfooding reactive coordination for cross-highlighting. Layout powered by a Pretext-inspired reactive text measurement engine rebuilt as a GraphReFly graph.
 
 **Key decisions:**
-- **Three-pane shell IS a GraphReFly graph** — hover/target state → derived scroll/highlight/selector → effects. Shell bugs are library bugs.
+- **Three-pane shell IS a GraphReFly graph** (main/side split) — hover/target state → derived scroll/highlight/selector → effects. Shell bugs are library bugs. Each pane has full-screen toggle.
+- **Reactive layout engine (Pretext-on-GraphReFly)** — DOM-free text measurement rebuilt as `state → derived` pipeline instead of wrapping Pretext library. Layout is inspectable (`describe()`), snapshotable, extractable as standalone pattern. Used for graph node sizing, code virtual scroll, adaptive pane widths.
 - **Acceptance criteria prevent descoping** — 10–12 specific, testable ACs per demo (lesson from callbag-recharge H2/H4 staying backlog)
 - **Inspection layer IS the test harness** — every `observe()`, `describe()`, `toMermaid()` in demos simultaneously showcases, stress-tests, and validates the inspection tools
 - **Four-layer test strategy** — unit (per-factory), scenario (headless demo ACs), inspection stress, adversarial
-- **Seven foreseen building blocks** — reactive cursor, streaming convention, factory helper, cross-island bridge, guard-aware describe, mock LLM, time simulation
+- **Eight foreseen building blocks** — reactive layout, reactive cursor, streaming convention, factory helper, cross-island bridge, guard-aware describe, mock LLM, time simulation
 - **Non-LLM demos first** — Demo 1 and 3 ship before Demo 2 and 4 (no WebLLM dependency)
 - **WebLLM for browser demos** — Qwen3 via WebGPU, zero API keys, graceful degradation to pre-recorded traces
 
-**Predecessor lessons incorporated:** callbag-recharge demo architecture (store.ts + component), H2 AI Docs Assistant design, agentic memory research, switchMap footgun / streamFrom pattern, 5-tier documentation model, descoping problem.
+**Predecessor lessons incorporated:** callbag-recharge demo architecture (store.ts + component), H2 AI Docs Assistant design, agentic memory research, switchMap footgun / streamFrom pattern, 5-tier documentation model, descoping problem. [Pretext](https://github.com/chenglou/pretext) (Cheng Lou) inspired the reactive layout engine.
 
-**Roadmap impact:** New Phase 7.1–7.5 in both TS and PY repos.
+**Roadmap impact:** New Phase 7.1–7.6 in TS repo, 7.1–7.4 in PY repo.
 
 **Files:** `archive/docs/SESSION-demo-test-strategy.md`, `docs/demo-and-test-strategy.md`
 

@@ -2,16 +2,22 @@
  * Graph container: registry, wiring, introspection (Phase 1).
  */
 export {
+	type AutoCheckpointAdapter,
 	type DescribeFilter,
 	GRAPH_META_SEGMENT,
 	Graph,
 	type GraphActorOptions,
+	type GraphAutoCheckpointHandle,
+	type GraphAutoCheckpointOptions,
+	type GraphCheckpointRecord,
 	type GraphDescribeOutput,
 	type GraphDiagramDirection,
 	type GraphDiagramOptions,
 	type GraphDiffChange,
 	type GraphDiffResult,
 	type GraphDumpOptions,
+	type GraphFactoryContext,
+	type GraphNodeFactory,
 	type GraphObserveAll,
 	type GraphObserveOne,
 	type GraphOptions,

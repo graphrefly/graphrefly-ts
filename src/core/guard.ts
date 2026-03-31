@@ -92,6 +92,14 @@ export type PolicyDeny = (
 	opts?: { where?: Where },
 ) => void;
 
+export type PolicyRuleData = {
+	effect: "allow" | "deny";
+	action: GuardAction | readonly GuardAction[];
+	actorType?: string | readonly string[];
+	actorId?: string | readonly string[];
+	claims?: Record<string, unknown>;
+};
+
 /**
  * Declarative guard builder. Precedence: any matching **deny** blocks even if an allow also matches.
  * If no rule matches, the guard returns `false` (deny-by-default). Aligned with graphrefly-py `policy()`.
@@ -139,6 +147,40 @@ export function policy(build: (allow: PolicyAllow, deny: PolicyDeny) => void): N
 		if (denied) return false;
 		return allowed;
 	};
+}
+
+/**
+ * Rebuild a declarative guard from persisted policy data (snapshot-safe).
+ *
+ * Rules are deny-overrides, same semantics as {@link policy}.
+ */
+export function policyFromRules(rules: readonly PolicyRuleData[]): NodeGuard {
+	return policy((allow, deny) => {
+		for (const rule of rules) {
+			const actorTypes =
+				rule.actorType == null
+					? null
+					: new Set(Array.isArray(rule.actorType) ? rule.actorType : [rule.actorType]);
+			const actorIds =
+				rule.actorId == null
+					? null
+					: new Set(Array.isArray(rule.actorId) ? rule.actorId : [rule.actorId]);
+			const claimEntries = Object.entries(rule.claims ?? {});
+			const where: Where = (actor) => {
+				if (actorTypes !== null && !actorTypes.has(String(actor.type))) return false;
+				if (actorIds !== null && !actorIds.has(String(actor.id ?? ""))) return false;
+				for (const [key, value] of claimEntries) {
+					if ((actor as Record<string, unknown>)[key] !== value) return false;
+				}
+				return true;
+			};
+			if (rule.effect === "deny") {
+				deny(rule.action, { where });
+			} else {
+				allow(rule.action, { where });
+			}
+		}
+	});
 }
 
 const STANDARD_WRITE_TYPES = ["human", "llm", "wallet", "system"] as const;

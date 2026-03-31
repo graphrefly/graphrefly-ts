@@ -235,7 +235,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **`destroy()`** | Both: `signal([[TEARDOWN]])` then clear all registries recursively through mounts. |
 | **`snapshot()`** | Both: `{ version: 1, ...describe() }` — flat `version` field, sorted `nodes` keys. |
 | **`restore(data)`** | Both: validate `data.name` matches graph name; skip `derived`/`operator`/`effect` types; silently ignore unknown/failing paths. |
-| **`fromSnapshot(data, build?)`** | Both: optional `build` callback registers topology before `restore()` applies values. Without `build`, only all-state zero-edge graphs are supported. |
+| **`fromSnapshot(data, build?)`** | Both: optional `build` callback registers topology before `restore()` applies values. Without `build`, both use registry-based reconstruction (mounts → topo node creation via factories → edges → restore). |
 | **`toJSON()` / `to_json()`** | TS returns a plain sorted-key **object** (for `JSON.stringify(graph)`); Python returns a compact JSON **string** with trailing newline. Language-appropriate. |
 | **`toJSONString()`** | TS only — `JSON.stringify(toJSON()) + "\n"`. Python's `to_json()` serves the same role. |
 
@@ -359,6 +359,37 @@ Python has no precision limitations (arbitrary-precision `int`).
 **Ring buffer (TS):** Trace log uses a fixed-capacity `RingBuffer<TraceEntry>` (default 1000) for O(1) push + eviction. Python uses `collections.deque(maxlen=1000)`.
 
 **Diagram export — deps + edges:** Both `toMermaid`/`to_mermaid` and `toD2`/`to_d2` now render arrows from **both** constructor `deps` and explicit `connect()` edges, deduplicated by `(from, to)` pair.
+
+### 22. Phase 4.2 messaging patterns parity (`topic`, `subscription`, `jobQueue`)
+
+Both repos now ship a Pulsar-inspired messaging domain layer under `patterns.messaging`:
+
+| Topic | TypeScript | Python | Notes |
+|-------|------------|--------|-------|
+| Namespace | `patterns.messaging` | `graphrefly.patterns.messaging` | Aligned |
+| Topic factory | `topic(name, { retainedLimit?, graph? })` | `topic(name, retained_limit=, opts=)` | Naming differs by language convention |
+| Subscription factory | `subscription(name, topicGraph, { cursor?, graph? })` | `subscription(name, topic_graph, cursor=, opts=)` | Cursor-based consumer on retained topic log |
+| Job queue factory | `jobQueue(name, { graph? })` | `job_queue(name, opts=)` | Same queue behavior; naming differs by language convention |
+| Job flow factory | `jobFlow(name, { stages?, maxPerPump?, graph? })` | `job_flow(name, stages=, max_per_pump=, opts=)` | Autonomous multi-stage queue chaining |
+| Topic bridge factory | `topicBridge(name, sourceTopic, targetTopic, { cursor?, maxPerPump?, map?, graph? })` | `topic_bridge(name, source_topic, target_topic, cursor=, max_per_pump=, map_fn=, opts=)` | Autonomous cursor-based topic relay |
+| Queue controls | `enqueue`, `claim`, `ack`, `nack` | `enqueue`, `claim`, `ack`, `nack` | `nack(requeue=false)` drops the job on both |
+| Metadata capture | `Object.freeze({...metadata})` | `MappingProxyType(dict(metadata))` | Immutable snapshot at enqueue time on both |
+| Return shape (imperative helpers) | Arrays (`readonly T[]`) | Tuples (`tuple[...]`) | Intentional language idiom; reactive node outputs remain protocol-driven in both |
+
+**Design note:** helper methods like `pull()` / `retained()` return local collection snapshots for ergonomics. Reactive protocol semantics still flow through node outputs and `Graph.observe()` (messages are always `[[Type, Data?], ...]`). `jobFlow` and `topicBridge` use keepalive-backed effect pumps (Option B) so forwarding/advancement runs autonomously after graph construction.
+
+#### 3.1 Composition strategy: explicit topology via `mount()`
+
+`subscription(name, topicGraph, ...)` now mounts the topic graph under `topic` and wires `topic::events -> source` via explicit graph edges.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Direct cross-graph dep | Minimal API surface; easy to compose quickly. | Topology/ownership is implicit; edge registry cannot fully represent the dependency. |
+| `mount()` + explicit edge (current) | Topology ownership and dependency edges are explicit (`topic::events -> source`), aligned with graph composition semantics. | Slightly more internal wiring. |
+
+**Recommendation (current contract):** keep explicit topology (`mount` + explicit edge) for messaging composition.
+
+**Supported counteract:** when lightweight composition is desired, use `topicBridge` and `jobFlow` helpers that still preserve explicit topology internally.
 
 ### 6. Resilience & checkpoint (roadmap 3.1) — parity (2026-03-29)
 

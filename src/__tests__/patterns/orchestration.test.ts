@@ -139,13 +139,7 @@ describe("patterns.orchestration", () => {
 		const g = pipeline("wf");
 		const input = state(2);
 		g.add("input", input);
-		const l = loop<number>(
-			g,
-			"pow2x3",
-			"input",
-			(value) => value * 2,
-			{ iterations: 3 },
-		);
+		const l = loop<number>(g, "pow2x3", "input", (value) => value * 2, { iterations: 3 });
 		l.subscribe(() => undefined);
 		expect(g.get("pow2x3")).toBe(16);
 	});
@@ -249,15 +243,10 @@ describe("patterns.orchestration", () => {
 			{ deps: ["src"] },
 		);
 		let recoverCalls = 0;
-		const recovered = onFailure<number>(
-			g,
-			"recovered",
-			failing,
-			() => {
-				recoverCalls += 1;
-				throw new Error("recover-failed");
-			},
-		);
+		const recovered = onFailure<number>(g, "recovered", failing, () => {
+			recoverCalls += 1;
+			throw new Error("recover-failed");
+		});
 		recovered.subscribe(() => undefined);
 		g.set("src", 1);
 		g.set("src", 2);

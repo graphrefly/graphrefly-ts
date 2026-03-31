@@ -18,9 +18,9 @@ Phase 4 domain layers (4.1 orchestration complete, 4.2–4.5 in progress in both
 
 ## KEY DECISIONS
 
-### 1. The three-pane shell IS a GraphReFly graph
+### 1. The three-pane shell IS a GraphReFly graph (main/side split layout)
 
-The synchronized demo shell (visual pane, code pane, graph pane) is itself built as `Graph("demo-shell")`. The cross-highlighting is a reactive coordination problem:
+The synchronized demo shell (visual pane, code pane, graph pane) is itself built as `Graph("demo-shell")` in a main/side split layout (visual dominates left ~60-70%, graph+code stacked on right ~30-40%). Each pane has full-screen toggle. The cross-highlighting is a reactive coordination problem:
 
 ```
 hover/target (state) → code/scroll-target (derived) → code/scroll (effect)
@@ -69,7 +69,18 @@ Every demo embeds `describe()`, `observe()`, `toMermaid()`, `traceLog()` as visi
 
 Scenario tests stub LLM responses with `mockLLM(responses[])`.
 
-### 6. Seven foreseen building blocks
+### 6. Reactive layout engine (Pretext-on-GraphReFly)
+
+Inspired by [Pretext](https://github.com/chenglou/pretext) (Cheng Lou's DOM-free text measurement engine), rebuilt as a GraphReFly graph rather than wrapping the library:
+
+- `state("text")` → `derived("segments")` via Canvas `measureText()` (cached) → `derived("line-breaks")` (pure arithmetic) → `derived("height")`
+- The layout is inspectable (`describe()`), snapshotable, debuggable via `observe()`
+- Used in the demo shell for: graph node label sizing, code pane virtual scroll, adaptive side pane width
+- Extractable as standalone `reactive-layout` pattern
+
+**Why rebuild instead of wrapping:** Pretext is a black box (opaque `PreparedText`). As a GraphReFly graph, the layout engine's internals are transparent — you can `describe()` cached segment widths, `observe()` layout recalculations, and `snapshot()` measurements for server-side use (Python reconstructs layout from hydrated measurements without a Canvas).
+
+### 7. Seven more foreseen building blocks
 
 Items expected to emerge during demo implementation:
 
@@ -135,12 +146,13 @@ Top-down stub-first approach surfaces API shape issues early. Building factories
 ## ROADMAP IMPACT
 
 ### graphrefly-ts (`docs/roadmap.md`)
-- New Phase 7.1: Three-pane demo shell (built with GraphReFly)
-- New Phase 7.2: Showcase demos (4 demos with AC references)
-- New Phase 7.3: Scenario tests (headless demo logic)
-- New Phase 7.4: Inspection stress & adversarial tests
-- New Phase 7.5: Foreseen building blocks
-- Phase 7 "Showcase demos" line replaced by structured 7.1–7.5
+- New Phase 7.1: Reactive layout engine (Pretext-on-GraphReFly)
+- New Phase 7.2: Three-pane demo shell (built with GraphReFly, main/side split)
+- New Phase 7.3: Showcase demos (4 demos with AC references)
+- New Phase 7.4: Scenario tests (headless demo logic)
+- New Phase 7.5: Inspection stress & adversarial tests
+- New Phase 7.6: Foreseen building blocks
+- Phase 7 "Showcase demos" line replaced by structured 7.1–7.6
 
 ### graphrefly-py (`docs/roadmap.md`)
 - New Phase 7.1: Showcase demos (Pyodide/WASM lab, 4 demos)

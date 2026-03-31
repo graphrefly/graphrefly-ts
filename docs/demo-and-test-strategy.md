@@ -19,18 +19,31 @@ Every demo embeds GraphReFly's own introspection (3.3) as a visible panel. This 
 
 ### 2. Three synchronized views per demo
 
-Every demo renders three interactive panes:
+Every demo renders three interactive panes in a main/side split. Each pane can be toggled to full-screen.
 
 ```
-┌─────────────────┬─────────────────┬─────────────────┐
-│   Visual View   │   Code Pane     │  Graph View     │
-│                 │                 │                 │
-│  The "app" UI   │  Source code    │  Live graph via │
-│  users interact │  with line      │  describe() +   │
-│  with directly  │  highlighting   │  observe() +    │
-│                 │                 │  toMermaid()    │
-└─────────────────┴─────────────────┴─────────────────┘
+┌───────────────────────────┬──────────────────┐
+│                           │   Graph View     │
+│    Visual View (main)     │   describe() +   │
+│                           │   observe() +    │
+│    The "app" UI users     │   toMermaid()    │
+│    interact with directly │                  │
+│                           ├──────────────────┤
+│                           │   Code Pane      │
+│                           │   source code    │
+│                           │   with line      │
+│                           │   highlighting   │
+└───────────────────────────┴──────────────────┘
+      ~60-70% width              ~30-40% width
+      (content-dependent)
 ```
+
+**Layout behavior:**
+- Main pane (visual) dominates — this is the "app" the user interacts with
+- Side pane stacks graph view (top) and code pane (bottom); ratio adjustable by dragging
+- Each pane has a full-screen toggle (click to expand, click again to restore)
+- Side pane width adapts to content: wider when graph is complex, narrower for simple topologies
+- Mobile: panes stack vertically with tab switcher (Visual | Graph | Code)
 
 **Cross-highlighting contract:**
 - Hover on visual element → code pane scrolls to the `state()`/`derived()`/`effect()` that backs it → graph highlights the corresponding node(s) and edges
@@ -38,6 +51,37 @@ Every demo renders three interactive panes:
 - Hover on code line → if it references a node, visual + graph highlight
 
 **Implementation:** Each demo's `store.ts` exports a `nodeRegistry: Map<string, { codeLine: number, visualSelector: string }>` that the three-pane shell uses for cross-referencing. The graph view reads `describe()` output and matches by node path.
+
+### 2b. Reactive layout engine (Pretext-on-GraphReFly)
+
+The demo shell's layout — pane sizing, graph node sizing, text measurement for code pane line heights — is powered by a reactive layout primitive built on the [Pretext](https://github.com/chenglou/pretext) concept: pure-math text measurement without DOM layout thrashing.
+
+**Why build it ourselves instead of wrapping Pretext:**
+- Pretext is a black box (`PreparedText` opaque object). Rebuilding it as a GraphReFly graph means the layout itself is inspectable via `describe()`, snapshotable via `snapshot()`, and debuggable via `observe()`.
+- Graph node sizing requires knowing text dimensions *before* rendering. Pretext's `prepare()` → `layout()` split maps directly to `state` → `derived`.
+- The layout engine becomes a standalone reusable pattern (`graphrefly-layout`) that works in both browser (Canvas measurement) and server (snapshot hydration of measurements).
+
+**Architecture:**
+
+```
+Graph("reactive-layout")
+├── state("text")                    — input text content
+├── state("font")                    — font family, size, weight
+├── state("max-width")               — container constraint
+├── derived("segments")              — text → segments (words, glyphs, emoji)
+│                                      uses Canvas measureText() for widths (cached)
+├── derived("line-breaks")           — segments + max-width → pure arithmetic line breaking
+├── derived("height")                — line-breaks → total height
+├── derived("char-positions")        — per-character x,y for hit testing (click → line number)
+└── meta: { cache-hit-rate, segment-count, layout-time-ns }
+```
+
+**Usage in the demo shell:**
+- **Graph pane node sizing:** each graph node's label runs through the layout engine to compute width/height before Mermaid renders — no "jumps" on re-render
+- **Code pane line heights:** variable-height lines (long lines wrapping) computed instantly for virtual scroll
+- **Pane size calculation:** side pane width derives from the graph pane's content width (how wide is the widest node label + padding?)
+
+**Standalone value:** This pattern is useful beyond demos — anyone building reactive UIs with dynamic text (chat interfaces, editors, dashboards) needs DOM-free text measurement. It's a showcase of GraphReFly solving a real problem that React/Vue don't.
 
 ### 3. Acceptance criteria prevent descoping
 
@@ -503,9 +547,26 @@ The three-pane shell is itself a GraphReFly graph. This is not a cosmetic choice
 
 ```
 Graph("demo-shell")
+│
+│ ── Layout ──
+├── state("pane/main-ratio")           — main pane width ratio (0.6–0.7, content-dependent)
+├── state("pane/side-split")           — graph/code split ratio within side pane (0.5 default)
+├── state("pane/fullscreen")           — which pane is fullscreen (null | "visual" | "graph" | "code")
+├── state("viewport/width")            — window width (updated on resize)
+├── derived("pane/main-width")         — viewport × main-ratio (or 100% if fullscreen=visual)
+├── derived("pane/side-width")         — viewport × (1 - main-ratio) (or 100% if fullscreen=graph|code)
+│
+│ ── Reactive layout engine (Pretext-on-GraphReFly) ──
+├── state("layout/font")               — code + graph label font config
+├── derived("layout/graph-labels")      — measures all graph node labels via Canvas measureText()
+│                                         (cached segments, pure-arithmetic width/height per label)
+├── derived("layout/code-lines")        — measures code pane line heights for virtual scroll
+│                                         (handles line wrapping at current pane width)
+├── derived("layout/side-width-hint")   — suggests side pane width from widest graph label + padding
+│
+│ ── Cross-highlighting ──
 ├── state("hover/target")              — currently hovered node path (null when idle)
 ├── state("hover/source")              — which pane originated the hover ("visual" | "code" | "graph")
-├── state("pane/sizes")                — [number, number, number] pane widths
 ├── state("code/source")               — source code string
 ├── state("code/line-map")             — Map<nodePath, { startLine, endLine }>
 ├── derived("code/scroll-target")      — derives scroll line from hover/target + code/line-map
@@ -518,6 +579,8 @@ Graph("demo-shell")
 ├── effect("code/scroll")              — calls codePane.scrollToLine() when scroll-target changes
 ├── effect("visual/highlight")         — adds/removes CSS highlight class on visual elements
 ├── effect("graph/highlight")          — adds/removes CSS highlight class on Mermaid SVG nodes
+│
+│ ── Inspection ──
 ├── state("inspect/selected-node")     — node selected for detail panel (click, not hover)
 ├── derived("inspect/node-detail")     — describeNode() + observe({ structured: true }) for selected
 ├── derived("inspect/trace-log")       — traceLog() from demo graph, formatted for display
@@ -554,12 +617,15 @@ All derived nodes use `equals` option for RESOLVED optimization — if hover/tar
 
 ### Acceptance criteria for the shell itself
 
-- **Shell-AC-1:** The shell graph has ≤15 nodes. `describe()` output is clean and understandable. Verify: `Object.keys(shellGraph.describe().nodes).length <= 15`.
-- **Shell-AC-2:** All three panes render simultaneously without layout shift. Initial render completes within 100ms of graph construction.
+- **Shell-AC-1:** The shell graph has ≤25 nodes. `describe()` output is clean and understandable. Verify: `Object.keys(shellGraph.describe().nodes).length <= 25`.
+- **Shell-AC-2:** All panes render simultaneously without layout shift. Initial render completes within 100ms of graph construction. The layout engine computes all text dimensions before the first paint.
 - **Shell-AC-3:** Cross-highlighting latency < 16ms (one frame). Measured: time from `shell.set("hover/target")` to last `effect` firing. Verify via `observe("hover/target", { timeline: true })` — delta between DATA timestamp and subsequent effect timestamps.
 - **Shell-AC-4:** Graph pane re-renders Mermaid within 100ms of demo graph state change. `derived("graph/mermaid")` recomputes only when `describe()` topology actually changes (not on every DATA).
-- **Shell-AC-5:** Code pane scroll-to-line works for files up to 500 lines. Smooth scroll animation, not jump.
-- **Shell-AC-6:** Resizable panes (drag borders) — pane sizes stored in `state("pane/sizes")`, persisted via `autoCheckpoint` (optional, nice-to-have).
-- **Shell-AC-7:** Mobile: panes stack vertically with tab switcher. Cross-highlighting still works via tap (same `hover/target` state, different input method).
-- **Shell-AC-8:** The shell graph itself is visible in a "meta" debug toggle — click "Show shell graph" and the shell's own `toMermaid()` renders, demonstrating recursion (a GraphReFly graph visualizing another GraphReFly graph).
-- **Shell-AC-9:** Zero framework dependency in the shell graph logic. The `Graph("demo-shell")` + all derived/effect nodes are pure GraphReFly. Only the DOM effects (scroll, CSS class toggle, mermaid.render) touch the browser. Framework bindings (React/Vue/Preact) wrap the pane components, not the shell graph.
+- **Shell-AC-5:** Code pane scroll-to-line works for files up to 500 lines. Smooth scroll animation, not jump. Virtual scroll uses `derived("layout/code-lines")` heights — no DOM measurement on scroll.
+- **Shell-AC-6:** Full-screen toggle: click expand icon on any pane → that pane fills the viewport. `state("pane/fullscreen")` drives the transition. Other panes collapse with animation. Click again or press Escape → restores previous layout from `state("pane/main-ratio")` + `state("pane/side-split")`.
+- **Shell-AC-7:** Main/side ratio is draggable. Side pane graph/code split is draggable. Both stored in state nodes. Side pane width defaults to `derived("layout/side-width-hint")` (computed from graph label widths) but user can override by dragging.
+- **Shell-AC-8:** Mobile: panes stack vertically with tab switcher (Visual | Graph | Code). Cross-highlighting still works via tap (same `hover/target` state, different input method).
+- **Shell-AC-9:** The shell graph itself is visible in a "meta" debug toggle — click "Show shell graph" and the shell's own `toMermaid()` renders, demonstrating recursion (a GraphReFly graph visualizing another GraphReFly graph).
+- **Shell-AC-10:** Zero framework dependency in the shell graph logic. The `Graph("demo-shell")` + all derived/effect nodes are pure GraphReFly. Only the DOM effects (scroll, CSS class toggle, mermaid.render) touch the browser. Framework bindings (React/Vue/Preact) wrap the pane components, not the shell graph.
+- **Shell-AC-11:** Reactive layout engine: graph node labels are measured via `derived("layout/graph-labels")` using Canvas `measureText()`. Node dimensions in the Mermaid diagram match the measured text — no clipping, no overflow. Measurement cache invalidates only when font or text changes (RESOLVED optimization).
+- **Shell-AC-12:** Layout engine is extractable as a standalone pattern (`reactive-layout`). The `prepare → segments → line-breaks → height` pipeline is a self-contained Graph that other projects can use independently of the demo shell.

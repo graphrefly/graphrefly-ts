@@ -6,7 +6,7 @@
  * Phase 2 operator names (for example `gate`, `forEach`).
  */
 
-import { COMPLETE, DATA, ERROR, RESOLVED, type Message, type Messages } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Message, type Messages, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeActions, type NodeFn, type NodeOptions, node } from "../core/node.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
 
@@ -338,7 +338,8 @@ export function loop<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	const iterRef = opts?.iterations;
-	const iterDep = typeof iterRef === "number" || iterRef === undefined ? undefined : resolveDep(graph, iterRef);
+	const iterDep =
+		typeof iterRef === "number" || iterRef === undefined ? undefined : resolveDep(graph, iterRef);
 	const staticIterations = typeof iterRef === "number" ? iterRef : undefined;
 	const step = node<T>(
 		iterDep ? [src.node, iterDep.node] : [src.node],
@@ -376,8 +377,7 @@ export function subPipeline(
 	childOrBuild?: Graph | SubPipelineBuilder,
 	opts?: GraphOptions,
 ): Graph {
-	const child =
-		childOrBuild instanceof Graph ? childOrBuild : pipeline(name, opts);
+	const child = childOrBuild instanceof Graph ? childOrBuild : pipeline(name, opts);
 	if (typeof childOrBuild === "function") {
 		childOrBuild(child);
 	}
@@ -432,58 +432,62 @@ export function wait<T>(
 	const timers = new Set<ReturnType<typeof setTimeout>>();
 	let terminated = false;
 	let completed = false;
-	const step = node<T>([src.node], () => {
-		for (const id of timers) clearTimeout(id);
-		timers.clear();
-		return () => {
+	const step = node<T>(
+		[src.node],
+		() => {
 			for (const id of timers) clearTimeout(id);
 			timers.clear();
-			terminated = true;
-		};
-	}, {
-		...opts,
-		name,
-		initial: src.node.get() as T,
-		describeKind: "operator",
-		completeWhenDepsComplete: false,
-		meta: baseMeta("wait", opts?.meta),
-		onMessage(msg: Message, depIndex: number, actions: NodeActions) {
-			if (terminated) return true;
-			if (depIndex !== 0) {
-				actions.down([msg] satisfies Messages);
-				if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
-				return true;
-			}
-			if (msg[0] === DATA) {
-				const id = setTimeout(() => {
-					timers.delete(id);
-					actions.down([msg] satisfies Messages);
-					if (completed && timers.size === 0) {
-						actions.down([[COMPLETE]] satisfies Messages);
-					}
-				}, ms);
-				timers.add(id);
-				return true;
-			}
-			if (msg[0] === COMPLETE) {
-				terminated = true;
-				completed = true;
-				if (timers.size === 0) {
-					actions.down([[COMPLETE]] satisfies Messages);
-				}
-				return true;
-			}
-			if (msg[0] === ERROR) {
-				terminated = true;
+			return () => {
 				for (const id of timers) clearTimeout(id);
 				timers.clear();
+				terminated = true;
+			};
+		},
+		{
+			...opts,
+			name,
+			initial: src.node.get() as T,
+			describeKind: "operator",
+			completeWhenDepsComplete: false,
+			meta: baseMeta("wait", opts?.meta),
+			onMessage(msg: Message, depIndex: number, actions: NodeActions) {
+				if (terminated) return true;
+				if (depIndex !== 0) {
+					actions.down([msg] satisfies Messages);
+					if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
+					return true;
+				}
+				if (msg[0] === DATA) {
+					const id = setTimeout(() => {
+						timers.delete(id);
+						actions.down([msg] satisfies Messages);
+						if (completed && timers.size === 0) {
+							actions.down([[COMPLETE]] satisfies Messages);
+						}
+					}, ms);
+					timers.add(id);
+					return true;
+				}
+				if (msg[0] === COMPLETE) {
+					terminated = true;
+					completed = true;
+					if (timers.size === 0) {
+						actions.down([[COMPLETE]] satisfies Messages);
+					}
+					return true;
+				}
+				if (msg[0] === ERROR) {
+					terminated = true;
+					for (const id of timers) clearTimeout(id);
+					timers.clear();
+					actions.down([msg] satisfies Messages);
+					return true;
+				}
 				actions.down([msg] satisfies Messages);
 				return true;
-			}
-			actions.down([msg] satisfies Messages);
-			return true;
+			},
 		},
-	});
+	);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }

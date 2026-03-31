@@ -35,6 +35,11 @@ The **callbag-recharge** codebase at **`~/src/callbag-recharge`** is the mature 
 - Wall-clock attribution payloads must use `wallClockNs()`.
 - Do not call `Date.now()` / `performance.now()` directly outside `core/clock.ts`.
 
+## Auto-checkpoint trigger rule
+
+- For persistence auto-checkpoint behavior, gate saves by `messageTier >= 2`.
+- Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
+
 ## Commands
 
 ```bash
