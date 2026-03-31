@@ -360,6 +360,22 @@ Python has no precision limitations (arbitrary-precision `int`).
 
 **Diagram export — deps + edges:** Both `toMermaid`/`to_mermaid` and `toD2`/`to_d2` now render arrows from **both** constructor `deps` and explicit `connect()` edges, deduplicated by `(from, to)` pair.
 
+### 22b. Phase 4.3 `vectorIndex` backend seam (optional HNSW dependency)
+
+| Topic | TypeScript | Python |
+|-------|------------|--------|
+| Default backend | `backend: "flat"` exact cosine search (no external dependency). | `backend="flat"` exact cosine search (no external dependency). |
+| HNSW backend | `backend: "hnsw"` requires an injected optional adapter (`hnswFactory`). Missing adapter throws a clear configuration error. | `backend="hnsw"` requires an injected optional adapter (`hnsw_factory`). Missing adapter raises a clear configuration error. |
+| Product contract | Stable `vectorIndex` API now; production HNSW can be enabled later without changing the public API. | Same contract for cross-language parity. |
+
+### 22c. Phase 4.3 memory patterns — Graph extension style, variable-length vectors, snapshot immutability
+
+**Graph extension style (parity note):** TypeScript factories typically build a `Graph`, then attach domain methods with `Object.assign(graph, { ... })` so call sites get a single object with both `Graph` APIs and helpers. Python factories use a **`Graph` subclass** (for example `CollectionGraph`, `KnowledgeGraph`) with the same surface methods. Behavior is aligned; the difference is idiomatic typing and ergonomics in each language.
+
+**Variable-length vectors (when `dimension` is omitted):** Stored rows and queries may differ in length. Flat cosine similarity **implicitly zero-pads both sides to `max(len(query), len(row))`** so ranking matches across TypeScript and Python. When `dimension` is set, vectors must match that length (unchanged).
+
+**Snapshot immutability:** Memory-pattern derived snapshots follow the same spirit as messaging metadata: Python uses `MappingProxyType` / tuples for adjacency lists; TypeScript exposes **frozen** arrays for per-node edge lists in `knowledgeGraph` adjacency so callers do not accidentally mutate derived state.
+
 ### 22. Phase 4.2 messaging patterns parity (`topic`, `subscription`, `jobQueue`)
 
 Both repos now ship a Pulsar-inspired messaging domain layer under `patterns.messaging`:

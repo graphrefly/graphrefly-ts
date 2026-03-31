@@ -54,6 +54,15 @@ describe("graphrefly", () => {
 		expect(typeof patterns.orchestration.onFailure).toBe("function");
 	});
 
+	it("exports memory patterns namespace", () => {
+		expect(typeof patterns.memory).toBe("object");
+		expect(typeof patterns.memory.collection).toBe("function");
+		expect(typeof patterns.memory.lightCollection).toBe("function");
+		expect(typeof patterns.memory.vectorIndex).toBe("function");
+		expect(typeof patterns.memory.knowledgeGraph).toBe("function");
+		expect(typeof patterns.memory.decay).toBe("function");
+	});
+
 	it("exports messaging patterns namespace", () => {
 		expect(typeof patterns.messaging).toBe("object");
 		expect(typeof patterns.messaging.topic).toBe("function");

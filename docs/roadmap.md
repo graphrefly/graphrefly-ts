@@ -301,11 +301,11 @@ Pulsar-inspired messaging features for topic retention, cursor consumers, and qu
 
 ### 4.3 — Memory
 
-- [ ] `collection()` → Graph (reactive node set with eviction)
-- [ ] `lightCollection()` (FIFO/LRU, no reactive scoring)
-- [ ] `vectorIndex()` (HNSW)
-- [ ] `knowledgeGraph()` → Graph
-- [ ] `decay()` scoring
+- [x] `collection()` → Graph (reactive node set with eviction)
+- [x] `lightCollection()` (FIFO/LRU, no reactive scoring)
+- [x] `vectorIndex()` (HNSW)
+- [x] `knowledgeGraph()` → Graph
+- [x] `decay()` scoring
 
 ### 4.4 — AI surface
 
