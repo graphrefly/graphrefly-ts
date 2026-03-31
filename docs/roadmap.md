@@ -309,14 +309,37 @@ Pulsar-inspired messaging features for topic retention, cursor consumers, and qu
 
 ### 4.4 — AI surface
 
+Design reference: `archive/docs/SESSION-agentic-memory-research.md`
+
 - [ ] `chatStream()` → Graph
 - [ ] `agentLoop()` → Graph
 - [ ] `fromLLM()` (adapter)
 - [ ] `toolRegistry()` → Graph
-- [ ] `agentMemory()` → Graph — composes `distill()` (3.2b) + tracker-specific scoring/eviction
-- [ ] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — handles structured and unstructured LLM output, deduplicates against existing memories
-- [ ] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — clusters and merges related memories via LLM
 - [ ] `systemPromptBuilder()`
+
+#### `agentMemory(name, opts?)` → Graph — default strategy for agentic memory
+
+Composes `distill()` (3.2b) + `knowledgeGraph()` + `vectorIndex()` + `collection()` + `decay()` + `autoCheckpoint()` into a pre-wired memory graph with opinionated defaults. Every component is overridable for advanced users.
+
+**Default admission:** 3D filtering funnel — persistence × structure × personal value. Encoded in `extractFn` scoring (LLM system prompt or rule-based predicates).
+
+**Default storage:** 3-tier hot/cold with forgetting:
+1. Core profile (`permanent: true`) — user identity, preferences, long-term goals. Never evicted.
+2. Active memories — `decay()` with OpenViking formula: `sigmoid(log1p(access_count)) * exp_decay(age, half_life=7d)`.
+3. Archived — low-score memories persisted to checkpoint adapter, evicted from in-memory store. Retrievable on-demand via vector search against cold store.
+
+**Default retrieval:** Vector search → graph adjacency expansion → decay ranking → budget packing.
+
+**Default reflection:** Periodic `llmConsolidator` via `consolidateTrigger: fromTimer(intervalMs)` — clusters related memories, produces higher-level insights.
+
+- [ ] `agentMemory(name, opts?)` → Graph — top-level factory wiring distill + knowledgeGraph + vectorIndex + collection + decay + autoCheckpoint
+- [ ] 3D admission filter: `admissionFilter?: (candidate) => boolean` with default persistence × structure × personalValue scoring
+- [ ] 3-tier storage: permanent core profile, active with decay, archived to checkpoint adapter
+- [ ] Default retrieval pipeline: vector search → knowledgeGraph adjacency expansion → decay ranking → budget packing
+- [ ] Default reflection: periodic LLM consolidation via `consolidateTrigger`; configurable interval (default 5min)
+- [ ] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — handles structured and unstructured LLM output, deduplicates against existing memories, routes entities to knowledgeGraph
+- [ ] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — clusters and merges related memories via LLM; tracks reflection depth via `meta.consolidation_count`
+- [ ] Memory observability: retrieval traces answering "why this memory surfaced" (query plan, candidates, score propagation) via `observe({ causal: true })`
 
 ### 4.5 — CQRS
 
@@ -337,10 +360,10 @@ Composition layer over 3.2 (`reactiveLog`), 4.1 (sagas), 4.2 (event bus), 4.3 (p
 
 ### 5.1 — Framework bindings
 
-- [ ] React: `useStore`, `useSubscribe`, `useSubscribeRecord`
-- [ ] Vue: `useStore`, `useSubscribe`, `useSubscribeRecord`
-- [ ] Svelte: `useSubscribe`, `useSubscribeRecord`
-- [ ] Solid: `useSubscribe`, `useSubscribeRecord`
+- [x] React: `useStore`, `useSubscribe`, `useSubscribeRecord`
+- [x] Vue: `useStore`, `useSubscribe`, `useSubscribeRecord`
+- [x] Svelte: `useSubscribe`, `useSubscribeRecord`
+- [x] Solid: `useSubscribe`, `useSubscribeRecord`
 
 ### 5.1b — State-management compat layers
 
@@ -356,7 +379,7 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 - [x] `fromHTTP`, `fromWebSocket`/`toWebSocket`
 - [x] `fromWebhook`, `toSSE`
 - [ ] `fromMCP` (Model Context Protocol)
-- [ ] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps); optional `fromChokidar()` for production. Cleanup closes watchers on unsubscribe.
+- [x] `fromFSWatch(paths, opts?)` — file system watcher as reactive source; debounced, glob include/exclude, recursive. Uses `fs.watch` (zero deps). Cleanup closes watchers on unsubscribe.
 - [ ] `fromGitHook(repoPath, opts?)` — git change detection as reactive source; emits structured `GitEvent` (commit, files, message, author). Default: polling via `git log --since`; opt-in hook script installation. Cross-repo via `merge([fromGitHook(tsRepo), fromGitHook(pyRepo)])`.
 
 ### 5.2b — ORM / database adapters
@@ -449,11 +472,32 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 Reactive text measurement and layout without DOM thrashing. Inspired by [Pretext](https://github.com/chenglou/pretext) but rebuilt as a GraphReFly graph — the layout is inspectable (`describe()`), snapshotable, and debuggable. Standalone reusable pattern, also powers the demo shell (7.2). Design reference: `docs/demo-and-test-strategy.md` §2b.
 
-- [ ] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji); uses Canvas `measureText()` for segment widths, cached
+Two-tier DX: out-of-the-box `reactiveLayout(text, font, lineHeight, maxWidth)` for common cases; advanced `MeasurementAdapter` interface for custom content types and environments.
+
+#### Text layout (Pretext parity)
+
+- [ ] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji via `Intl.Segmenter`); uses Canvas `measureText()` for segment widths, cached per `Map<font, Map<segment, metrics>>`
 - [ ] `derived("line-breaks")` — segments + max-width → pure-arithmetic line breaking (no DOM)
 - [ ] `derived("height")`, `derived("char-positions")` — total height, per-character x/y for hit testing
 - [ ] Measurement cache with RESOLVED optimization — unchanged text/font → no re-measure
 - [ ] `meta: { cache-hit-rate, segment-count, layout-time-ns }` for observability
+
+#### MeasurementAdapter interface (pluggable backends)
+
+- [ ] `MeasurementAdapter` interface: `measureSegment(text, font) → { width, height }`, `clearCache?()`
+- [ ] `CanvasMeasureAdapter` (default, browser) — OffscreenCanvas `measureText()`, emoji correction cache
+- [ ] `NodeCanvasMeasureAdapter` (Node/CLI) — `@napi-rs/canvas` or `skia-canvas` auto-detection
+- [ ] `PrecomputedAdapter` (server/snapshot) — reads from pre-computed metrics JSON, zero measurement at runtime
+
+#### Multi-content blocks (SVG, images, mixed)
+
+- [ ] `reactiveBlockLayout(blocks, maxWidth, adapters)` — mixed content layout: text + image + SVG blocks with per-type measurement
+- [ ] `SvgBoundsAdapter` — browser: one-shot `getBBox()` cached; Node: viewBox arithmetic from parsed SVG
+- [ ] `ImageSizeAdapter` — browser: `Image.onload` natural dimensions; Node: `image-size` package (sync, zero-dep)
+- [ ] Block flow algorithm: vertical stacking, inline flow with wrap, purely arithmetic over child sizes
+
+#### Standalone extraction
+
 - [ ] Extractable as standalone pattern (`reactive-layout`) independent of demo shell
 
 ### 7.2 — Three-pane demo shell (built with GraphReFly)

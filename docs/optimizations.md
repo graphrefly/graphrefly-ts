@@ -705,6 +705,18 @@ These came out of QA review; behavior is **not** “wrong” until aligned with 
 
 **Decision needed:** Define one canonical adapter contract and enforce it with mirrored tests in both repos before marking this seam fully closed.
 
+### L. `fromFSWatch` / `from_fs_watch` event contract and path matching
+
+**Resolved (2026-03-31):** Cross-language adapter contract for filesystem watch sources now standardizes on:
+
+1. **Debounce-only, no polling fallback** (event-driven watcher backends only),
+2. **Dual-path glob matching** against both absolute path and watch-root-relative path,
+3. **Expanded payload shape** with `path`, `root`, `relative_path`, `timestamp_ns`,
+4. **Rename-aware payloads** (TS classifies `fs.watch` rename notifications with best-effort `create`/`delete` and preserves `rename` fallback; Py preserves move/rename semantics and includes `src_path`/`dest_path` when available),
+5. **Watcher error handling via protocol** (`[[ERROR, err]]`) with teardown-latched cleanup.
+
+**Rationale:** Prevent silent filter mismatches, preserve rename semantics, and keep lifecycle/error behavior inside GraphReFly message protocol without violating the no-polling invariant.
+
 ---
 
 ## Deferred follow-ups (QA)

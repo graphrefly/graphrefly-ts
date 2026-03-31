@@ -150,6 +150,21 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-demo-test-strategy.md`, `docs/demo-and-test-strategy.md`
 
+### Session agentic-memory-research (March 31) — Agentic Memory SOTA Synthesis + Default agentMemory() Strategy
+
+**Topic:** Synthesizing SOTA agentic memory research (Letta/MemGPT, Mem0, Zep/Graphiti, Cognee, MemOS, MAGMA, A-Mem, OpenViking), AI tool full-chain analysis, and advanced memory write strategies into a concrete default strategy for `agentMemory()` (Phase 4.4). Adapted from predecessor research (`~/src/callbag-recharge/src/archive/docs/SESSION-agentic-memory-research.md`, March 17–26 2026).
+
+**Key decisions:**
+- **Four strategies map to existing primitives** — 3D filtering funnel (`extractFn` scoring), GraphRAG (`knowledgeGraph` + `vectorIndex`), dynamic reflection (`distill` consolidation), hot/cold tiers (`decay` + `autoCheckpoint`) — no new core concepts
+- **`agentMemory()` is composition, not a new primitive** — wires `distill()` + `knowledgeGraph()` + `vectorIndex()` + `collection()` + `decay()` + `autoCheckpoint()`
+- **Default strategy is opinionated but overridable** — OpenViking decay formula (`sigmoid(log1p(count)) * exp_decay(age, 7d)`), 3-tier storage (permanent/active/archived), periodic LLM reflection, 3D admission filter
+- **LLM extraction/consolidation stays in userland adapters** (`llmExtractor`, `llmConsolidator`), never inside core primitives
+- **Five unique advantages over all existing systems** — reactive/push-based memory, in-process zero-serialization, diamond-safe coordination, transport agnosticism, first-class observability
+
+**Predecessor research:** 8 leading architectures surveyed, CoALA taxonomy, 5 biggest pain points, performance benchmarks (10ns vs 50-500μs), OpenClaw/Mem0 integration analysis, OpenViking L0/L1/L2 progressive loading.
+
+**Files:** `archive/docs/SESSION-agentic-memory-research.md`
+
 ---
 
 ## Reading Guide
@@ -173,5 +188,5 @@ Each session file contains:
 ---
 
 **Created:** March 27, 2026
-**Updated:** March 30, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy
+**Updated:** March 31, 2026
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research

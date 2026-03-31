@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
@@ -12,6 +15,7 @@ import {
 	fromAsyncIter,
 	fromCron,
 	fromEvent,
+	fromFSWatch,
 	fromIter,
 	fromPromise,
 	fromTimer,
@@ -301,6 +305,60 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			batches.some((b) => b.some((m) => m[0] === DATA && (m[1] as { x: number }).x === 1)),
 		).toBe(true);
 		unsub();
+	});
+
+	it("fromFSWatch emits debounced filesystem changes without polling", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "graphrefly-fswatch-"));
+		try {
+			const fileTs = join(dir, "alpha.ts");
+			const fileTxt = join(dir, "ignore.txt");
+			const fsNode = fromFSWatch(dir, {
+				debounce: 25,
+				recursive: true,
+				include: ["**/*.ts"],
+			});
+			const { batches, unsub } = collect(fsNode);
+			await writeFile(fileTs, "v1");
+			await writeFile(fileTs, "v2");
+			await writeFile(fileTxt, "nope");
+			await tick(200);
+			const events = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map(
+					(m) =>
+						m[1] as {
+							type: "change" | "create" | "delete" | "rename";
+							path: string;
+							root: string;
+							relative_path: string;
+							timestamp_ns: number;
+						},
+				);
+			expect(events.some((evt) => evt.path.endsWith("alpha.ts"))).toBe(true);
+			expect(events.some((evt) => evt.path.endsWith("ignore.txt"))).toBe(false);
+			expect(events.length).toBeGreaterThanOrEqual(1);
+			expect(events[0]?.root).toContain("graphrefly-fswatch-");
+			expect(events[0]?.relative_path).toBe("alpha.ts");
+			expect(["change", "create", "delete", "rename"]).toContain(events[0]?.type);
+			expect(typeof events[0]?.timestamp_ns).toBe("number");
+			unsub();
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("fromFSWatch surfaces watcher setup failures as ERROR tuples", async () => {
+		const badPath = join(tmpdir(), "graphrefly-fswatch-missing", `${Date.now()}`);
+		const node = fromFSWatch(badPath, { debounce: 5 });
+		const { batches, unsub } = collect(node);
+		await tick(50);
+		expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
+		unsub();
+	});
+
+	it("fromFSWatch rejects empty path list", () => {
+		expect(() => fromFSWatch([])).toThrow("at least one path");
 	});
 
 	it("fromWebhook bridges callback payloads and cleanup", () => {
