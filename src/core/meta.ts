@@ -1,3 +1,4 @@
+import { DynamicNodeImpl } from "./dynamic-node.js";
 import { accessHintForGuard } from "./guard.js";
 import { type Node, NodeImpl } from "./node.js";
 
@@ -77,15 +78,25 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
  */
 export function describeNode(node: Node): DescribeNodeOutput {
 	const meta: Record<string, unknown> = { ...metaSnapshot(node) };
-	if (node instanceof NodeImpl && node._guard != null && meta.access === undefined) {
-		meta.access = accessHintForGuard(node._guard);
+
+	// Guard-derived access hint (NodeImpl or DynamicNodeImpl)
+	const guard =
+		(node instanceof NodeImpl && node._guard) ||
+		(node instanceof DynamicNodeImpl && node._guard) ||
+		undefined;
+	if (guard != null && meta.access === undefined) {
+		meta.access = accessHintForGuard(guard);
 	}
+
 	let type: DescribeNodeOutput["type"] = "state";
 	let deps: string[] = [];
 
 	if (node instanceof NodeImpl) {
 		type = inferDescribeType(node);
 		deps = node._deps.map((d) => d.name ?? "");
+	} else if (node instanceof DynamicNodeImpl) {
+		type = node._describeKind ?? "derived";
+		deps = [];
 	}
 
 	const out: DescribeNodeOutput = {

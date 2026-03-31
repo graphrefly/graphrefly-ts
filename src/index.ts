@@ -3,6 +3,8 @@
  */
 export const version = "0.0.0";
 
+export * from "./compat/index.js";
+export * as compat from "./compat/index.js";
 // Named re-exports enable finer-grained tree-shaking for consumers.
 export * from "./core/index.js";
 // Keep namespace exports for ergonomic grouped imports.

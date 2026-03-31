@@ -8,20 +8,41 @@
  *
  * This ports callbag-recharge's `dynamicDerived` pattern to GraphReFly's protocol.
  */
+import type { Actor } from "./actor.js";
+import { normalizeActor } from "./actor.js";
 import { emitWithBatch } from "./batch.js";
+import { wallClockNs } from "./clock.js";
+import type { GuardAction, NodeGuard } from "./guard.js";
+import { GuardDenied } from "./guard.js";
 import {
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
 	INVALIDATE,
+	type Message,
 	type Messages,
 	PAUSE,
+	propagatesToMeta,
 	RESOLVED,
 	RESUME,
 	TEARDOWN,
 } from "./messages.js";
-import type { Node, NodeOptions, NodeSink, NodeStatus, SubscribeHints } from "./node.js";
+import {
+	node as createNode,
+	type Node,
+	type NodeActions,
+	type NodeDescribeKind,
+	type NodeImpl,
+	type NodeInspectorHook,
+	type NodeInspectorHookEvent,
+	type NodeOptions,
+	type NodeSink,
+	type NodeStatus,
+	type NodeTransportOptions,
+	type OnMessageHandler,
+	type SubscribeHints,
+} from "./node.js";
 
 /**
  * The tracking `get` function passed to `dynamicNode`'s compute function.
@@ -38,7 +59,16 @@ export type DynamicNodeFn<T> = (get: DynGet) => T;
 /** Options for `dynamicNode`. */
 export type DynamicNodeOptions = Pick<
 	NodeOptions,
-	"name" | "equals" | "meta" | "resubscribable" | "resetOnTeardown"
+	| "name"
+	| "equals"
+	| "meta"
+	| "resubscribable"
+	| "resetOnTeardown"
+	| "guard"
+	| "onMessage"
+	| "onResubscribe"
+	| "completeWhenDepsComplete"
+	| "describeKind"
 >;
 
 /**
@@ -79,14 +109,32 @@ export function dynamicNode<T = unknown>(fn: DynamicNodeFn<T>, opts?: DynamicNod
 	return new DynamicNodeImpl<T>(fn, opts ?? {});
 }
 
-class DynamicNodeImpl<T = unknown> implements Node<T> {
+/** @internal — exported for {@link describeNode} `instanceof` check. */
+export class DynamicNodeImpl<T = unknown> implements Node<T> {
 	private readonly _optsName: string | undefined;
 	private _registryName: string | undefined;
+	readonly _describeKind: NodeDescribeKind | undefined;
 	readonly meta: Record<string, Node>;
 	private readonly _fn: DynamicNodeFn<T>;
 	private readonly _equals: (a: unknown, b: unknown) => boolean;
 	private readonly _resubscribable: boolean;
 	private readonly _resetOnTeardown: boolean;
+	private readonly _autoComplete: boolean;
+	private readonly _onMessage: OnMessageHandler | undefined;
+	private readonly _onResubscribe: (() => void) | undefined;
+	/** @internal — read by {@link describeNode} for `accessHintForGuard`. */
+	readonly _guard: NodeGuard | undefined;
+	private _lastMutation: { actor: Actor; timestamp_ns: number } | undefined;
+	private _inspectorHook: NodeInspectorHook | undefined;
+
+	// Sink tracking
+	private _sinkCount = 0;
+	private _singleDepSinkCount = 0;
+	private _singleDepSinks = new WeakSet<NodeSink>();
+
+	// Actions object (for onMessage handler)
+	private readonly _actions: NodeActions;
+	private readonly _boundEmitToSinks: (messages: Messages) => void;
 
 	// Mutable state
 	private _cached: T | undefined;
@@ -109,15 +157,47 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 	constructor(fn: DynamicNodeFn<T>, opts: DynamicNodeOptions) {
 		this._fn = fn;
 		this._optsName = opts.name;
+		this._describeKind = opts.describeKind;
 		this._equals = opts.equals ?? Object.is;
 		this._resubscribable = opts.resubscribable ?? false;
 		this._resetOnTeardown = opts.resetOnTeardown ?? false;
+		this._autoComplete = opts.completeWhenDepsComplete ?? true;
+		this._onMessage = opts.onMessage;
+		this._onResubscribe = opts.onResubscribe;
+		this._guard = opts.guard;
+		this._inspectorHook = undefined;
 
-		// Build companion meta nodes
+		// Build companion meta nodes (same pattern as NodeImpl)
 		const meta: Record<string, Node> = {};
-		// dynamicNode doesn't support meta yet — keep empty for interface compliance
+		for (const [k, v] of Object.entries(opts.meta ?? {})) {
+			meta[k] = createNode({
+				initial: v,
+				name: `${opts.name ?? "dynamicNode"}:meta:${k}`,
+				describeKind: "state",
+				...(opts.guard != null ? { guard: opts.guard } : {}),
+			});
+		}
 		Object.freeze(meta);
 		this.meta = meta;
+
+		// Actions object: created once, references `this` methods.
+		const self = this;
+		this._actions = {
+			down(messages): void {
+				self._downInternal(messages);
+			},
+			emit(value): void {
+				self._emitAutoValue(value);
+			},
+			up(messages): void {
+				for (const dep of self._deps) {
+					dep.up?.(messages, { internal: true });
+				}
+			},
+		};
+
+		// Bind commonly detached protocol methods
+		this._boundEmitToSinks = this._emitToSinks.bind(this);
 	}
 
 	get name(): string | undefined {
@@ -130,45 +210,114 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 		this._registryName = localName;
 	}
 
+	/**
+	 * @internal Attach/remove inspector hook for graph-level observability.
+	 * Returns a disposer that restores the previous hook.
+	 */
+	_setInspectorHook(hook?: NodeInspectorHook): () => void {
+		const prev = this._inspectorHook;
+		this._inspectorHook = hook;
+		return () => {
+			if (this._inspectorHook === hook) {
+				this._inspectorHook = prev;
+			}
+		};
+	}
+
 	get status(): NodeStatus {
 		return this._status;
 	}
 
-	get lastMutation(): undefined {
-		return undefined;
+	get lastMutation(): Readonly<{ actor: Actor; timestamp_ns: number }> | undefined {
+		return this._lastMutation;
 	}
 
 	hasGuard(): boolean {
-		return false;
+		return this._guard != null;
 	}
 
-	allowsObserve(_actor: unknown): boolean {
-		return true;
+	allowsObserve(actor: Actor): boolean {
+		if (this._guard == null) return true;
+		return this._guard(normalizeActor(actor), "observe");
 	}
 
 	get(): T | undefined {
 		return this._cached;
 	}
 
-	down(messages: Messages): void {
+	down(messages: Messages, options?: NodeTransportOptions): void {
+		if (messages.length === 0) return;
+		if (!options?.internal && this._guard != null) {
+			const actor = normalizeActor(options?.actor);
+			const delivery = options?.delivery ?? "write";
+			const action: GuardAction = delivery === "signal" ? "signal" : "write";
+			if (!this._guard(actor, action)) {
+				throw new GuardDenied({ actor, action, nodeName: this.name });
+			}
+			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
+		}
 		this._downInternal(messages);
 	}
 
 	private _downInternal(messages: Messages): void {
 		if (messages.length === 0) return;
+		let sinkMessages = messages;
 		if (this._terminal && !this._resubscribable) {
 			const pass = messages.filter((m) => m[0] === TEARDOWN || m[0] === INVALIDATE);
 			if (pass.length === 0) return;
-			messages = pass as Messages;
+			sinkMessages = pass as Messages;
 		}
-		this._handleLocalLifecycle(messages);
-		this._emitToSinks(messages);
+		this._handleLocalLifecycle(sinkMessages);
+		// Single-dep optimization: skip DIRTY to sinks when sole subscriber is single-dep
+		// AND the batch contains a phase-2 message (DATA/RESOLVED). Standalone DIRTY
+		// (without follow-up) must pass through so downstream is notified.
+		if (this._canSkipDirty()) {
+			// Inline check: does the batch contain DATA or RESOLVED?
+			let hasPhase2 = false;
+			for (let i = 0; i < sinkMessages.length; i++) {
+				const t = sinkMessages[i][0];
+				if (t === DATA || t === RESOLVED) {
+					hasPhase2 = true;
+					break;
+				}
+			}
+			if (hasPhase2) {
+				// Inline filter: remove DIRTY messages
+				const filtered: Message[] = [];
+				for (let i = 0; i < sinkMessages.length; i++) {
+					if (sinkMessages[i][0] !== DIRTY) filtered.push(sinkMessages[i]);
+				}
+				if (filtered.length > 0) {
+					emitWithBatch(this._boundEmitToSinks, filtered);
+				}
+				return;
+			}
+		}
+		emitWithBatch(this._boundEmitToSinks, sinkMessages);
 	}
 
-	subscribe(sink: NodeSink, _hints?: SubscribeHints): () => void {
+	private _canSkipDirty(): boolean {
+		return this._sinkCount === 1 && this._singleDepSinkCount === 1;
+	}
+
+	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void {
+		if (hints?.actor != null && this._guard != null) {
+			const actor = normalizeActor(hints.actor);
+			if (!this._guard(actor, "observe")) {
+				throw new GuardDenied({ actor, action: "observe", nodeName: this.name });
+			}
+		}
+
 		if (this._terminal && this._resubscribable) {
 			this._terminal = false;
 			this._status = "disconnected";
+			this._onResubscribe?.();
+		}
+
+		this._sinkCount += 1;
+		if (hints?.singleDep) {
+			this._singleDepSinkCount += 1;
+			this._singleDepSinks.add(sink);
 		}
 
 		if (this._sinks == null) {
@@ -187,6 +336,11 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 		return () => {
 			if (removed) return;
 			removed = true;
+			this._sinkCount -= 1;
+			if (this._singleDepSinks.has(sink)) {
+				this._singleDepSinkCount -= 1;
+				this._singleDepSinks.delete(sink);
+			}
 			if (this._sinks == null) return;
 			if (typeof this._sinks === "function") {
 				if (this._sinks === sink) this._sinks = null;
@@ -205,9 +359,23 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 		};
 	}
 
-	// dynamicNode doesn't support up() — no deps array at construction
-	up = undefined;
-	unsubscribe = undefined;
+	up(messages: Messages, options?: NodeTransportOptions): void {
+		if (this._deps.length === 0) return;
+		if (!options?.internal && this._guard != null) {
+			const actor = normalizeActor(options?.actor);
+			if (!this._guard(actor, "write")) {
+				throw new GuardDenied({ actor, action: "write", nodeName: this.name });
+			}
+			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
+		}
+		for (const dep of this._deps) {
+			dep.up?.(messages, options);
+		}
+	}
+
+	unsubscribe(): void {
+		this._disconnect();
+	}
 
 	// --- Private methods ---
 
@@ -243,7 +411,26 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 			}
 			if (t === TEARDOWN) {
 				if (this._resetOnTeardown) this._cached = undefined;
-				this._disconnect();
+				try {
+					this._propagateToMeta(t);
+				} finally {
+					this._disconnect();
+				}
+			}
+			// Propagate other meta-eligible signals (centralized in messages.ts).
+			if (t !== TEARDOWN && propagatesToMeta(t)) {
+				this._propagateToMeta(t);
+			}
+		}
+	}
+
+	/** Propagate a signal to all companion meta nodes (best-effort). */
+	private _propagateToMeta(t: symbol): void {
+		for (const metaNode of Object.values(this.meta)) {
+			try {
+				metaNode.down([[t]], { internal: true });
+			} catch {
+				/* best-effort: other meta nodes still receive the signal */
 			}
 		}
 	}
@@ -299,6 +486,13 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 		};
 
 		try {
+			// Collect dep values for inspector hook
+			const depValues: unknown[] = [];
+			for (const dep of this._deps) {
+				depValues.push(dep.get());
+			}
+			this._inspectorHook?.({ kind: "run", depValues });
+
 			const result = this._fn(get);
 			this._rewire(trackedDeps);
 			if (result === undefined) return;
@@ -363,20 +557,30 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 		if (this._rewiring) return; // suppress signals during rewire
 
 		for (const msg of messages) {
+			this._inspectorHook?.({ kind: "dep_message", depIndex: index, message: msg });
 			const t = msg[0];
+			// User-defined message handler gets first look (spec §2.6).
+			if (this._onMessage) {
+				try {
+					if (this._onMessage(msg, index, this._actions)) continue;
+				} catch (err) {
+					this._downInternal([[ERROR, err]]);
+					return;
+				}
+			}
 			if (t === DIRTY) {
 				this._dirtyBits.add(index);
 				this._settledBits.delete(index);
 				if (this._dirtyBits.size === 1) {
 					// First dirty — propagate
-					emitWithBatch(this._emitToSinks.bind(this), [[DIRTY]]);
+					emitWithBatch(this._boundEmitToSinks, [[DIRTY]]);
 				}
 				continue;
 			}
 			if (t === DATA || t === RESOLVED) {
 				if (!this._dirtyBits.has(index)) {
 					this._dirtyBits.add(index);
-					emitWithBatch(this._emitToSinks.bind(this), [[DIRTY]]);
+					emitWithBatch(this._boundEmitToSinks, [[DIRTY]]);
 				}
 				this._settledBits.add(index);
 				if (this._allDirtySettled()) {
@@ -395,7 +599,11 @@ class DynamicNodeImpl<T = unknown> implements Node<T> {
 					this._settledBits.clear();
 					this._runFn();
 				}
-				if (this._completeBits.size >= this._deps.length && this._deps.length > 0) {
+				if (
+					this._autoComplete &&
+					this._completeBits.size >= this._deps.length &&
+					this._deps.length > 0
+				) {
 					this._downInternal([[COMPLETE]]);
 				}
 				continue;

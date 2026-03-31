@@ -48,6 +48,26 @@
 				"types": "./dist/graph/index.d.cts",
 				"default": "./dist/graph/index.cjs"
 			}
+		},
+		"./compat": {
+			"import": {
+				"types": "./dist/compat/index.d.ts",
+				"default": "./dist/compat/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/index.d.cts",
+				"default": "./dist/compat/index.cjs"
+			}
+		},
+		"./compat/jotai": {
+			"import": {
+				"types": "./dist/compat/jotai/index.d.ts",
+				"default": "./dist/compat/jotai/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/jotai/index.d.cts",
+				"default": "./dist/compat/jotai/index.cjs"
+			}
 		}
 	},
 	"files": [
