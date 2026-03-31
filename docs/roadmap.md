@@ -346,8 +346,8 @@ Composition layer over 3.2 (`reactiveLog`), 4.1 (sagas), 4.2 (event bus), 4.3 (p
 
 Thin wrappers that let users keep familiar APIs while backed by GraphReFly primitives.
 
-- [ ] Jotai: `atom` (primitive, derived, writable-derived)
-- [ ] Zustand: `create` (set/get contract)
+- [x] Jotai: `atom` (primitive, derived, writable-derived)
+- [x] Zustand: `create` (set/get contract)
 - [ ] Nanostores: `atom`, `computed`, `map`
 - [ ] TC39 Signals: `Signal.State`, `Signal.Computed`, `Signal.subtle.Watcher`
 

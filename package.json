@@ -68,6 +68,16 @@
 				"types": "./dist/compat/jotai/index.d.cts",
 				"default": "./dist/compat/jotai/index.cjs"
 			}
+		},
+		"./compat/zustand": {
+			"import": {
+				"types": "./dist/compat/zustand/index.d.ts",
+				"default": "./dist/compat/zustand/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/zustand/index.d.cts",
+				"default": "./dist/compat/zustand/index.cjs"
+			}
 		}
 	},
 	"files": [
