@@ -14,6 +14,7 @@ import {
 	graph,
 	map,
 	mergeMap,
+	patterns,
 	policy,
 	replay,
 	rescue,
@@ -32,8 +33,18 @@ describe("graphrefly", () => {
 		expect(typeof core).toBe("object");
 		expect(typeof graph).toBe("object");
 		expect(typeof extra).toBe("object");
+		expect(typeof patterns).toBe("object");
 		expect(typeof graph.Graph).toBe("function");
 		expect(typeof map).toBe("function");
+	});
+
+	it("exports orchestration patterns namespace", () => {
+		expect(typeof patterns.orchestration).toBe("object");
+		expect(typeof patterns.orchestration.pipeline).toBe("function");
+		expect(typeof patterns.orchestration.task).toBe("function");
+		expect(typeof patterns.orchestration.branch).toBe("function");
+		expect(typeof patterns.orchestration.gate).toBe("function");
+		expect(typeof patterns.orchestration.approval).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {

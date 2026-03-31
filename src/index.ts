@@ -11,3 +11,5 @@ export * from "./extra/index.js";
 export * as extra from "./extra/index.js";
 export * from "./graph/index.js";
 export * as graph from "./graph/index.js";
+export * from "./patterns/index.js";
+export * as patterns from "./patterns/index.js";
