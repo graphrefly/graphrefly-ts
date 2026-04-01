@@ -324,14 +324,14 @@ Design reference: `archive/docs/SESSION-agentic-memory-research.md`
 **Design targets** (research): `archive/docs/SESSION-agentic-memory-research.md` — 3-tier storage, retrieval pipeline, 3D admission scoring.
 
 - [x] `agentMemory(name, opts?)` → Graph — factory wiring `distill()` + registered `store` / `compact` / `size` nodes
-- [ ] In-factory composition: `knowledgeGraph()` + `vectorIndex()` + `collection()` + `decay()` + `autoCheckpoint()` (compose externally or extend factory)
-- [ ] 3D admission filter with default persistence × structure × personalValue scoring
-- [ ] 3-tier storage: permanent core profile, active with decay, archived to checkpoint adapter
-- [ ] Default retrieval pipeline: vector search → knowledgeGraph adjacency expansion → decay ranking → budget packing
-- [ ] Default reflection: periodic LLM consolidation via built-in `consolidateTrigger` interval (e.g. `fromTimer`)
+- [x] In-factory composition: `knowledgeGraph()` + `vectorIndex()` + `lightCollection()` + `decay()` + `autoCheckpoint()` — opt-in via `vectorDimensions`/`embedFn`, `enableKnowledgeGraph`/`entityFn`, `tiers` options
+- [x] 3D admission filter: `admissionFilter3D({ scoreFn, persistenceThreshold, personalValueThreshold, requireStructured })` — pluggable into `admissionFilter`
+- [x] 3-tier storage: permanent (`lightCollection`, `permanentFilter`), active (with `decay()` scoring + `maxActive`), archived (`autoCheckpoint` adapter)
+- [x] Default retrieval pipeline: vector search → knowledgeGraph adjacency expansion → decay ranking → budget packing — reactive derived node via `retrieve(query)`
+- [x] Default reflection: periodic LLM consolidation via built-in `consolidateTrigger` from `fromTimer(interval)` when `consolidateFn` provided and `reflection.enabled !== false`
 - [x] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — structured JSON extraction; key sampling for dedup
 - [x] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — cluster/merge memories via LLM
-- [ ] Memory observability: retrieval traces answering "why this memory surfaced" (query plan, candidates, score propagation) via `observe({ causal: true })`
+- [x] Memory observability: `retrievalTrace` node captures pipeline stages (vectorCandidates, graphExpanded, ranked, packed) per retrieval run
 
 ### 4.5 — CQRS
 
@@ -488,7 +488,7 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 Reactive text measurement and layout without DOM thrashing. Inspired by [Pretext](https://github.com/chenglou/pretext) but rebuilt as a GraphReFly graph — the layout is inspectable (`describe()`), snapshotable, and debuggable. Standalone reusable pattern, also powers the demo shell (7.2). Design reference: `docs/demo-and-test-strategy.md` §2b.
 
-Two-tier DX: out-of-the-box `reactiveLayout(text, font, lineHeight, maxWidth)` for common cases; advanced `MeasurementAdapter` interface for custom content types and environments.
+Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` for common cases; advanced `MeasurementAdapter` interface for custom content types and environments.
 
 #### Text layout (Pretext parity)
 
@@ -499,7 +499,7 @@ Two-tier DX: out-of-the-box `reactiveLayout(text, font, lineHeight, maxWidth)` f
 - [x] `derived("height")`, `derived("char-positions")` — total height, per-character `{ x, y, width, height }` for hit testing
 - [x] Measurement cache with RESOLVED optimization — unchanged text/font → no re-measure
 - [x] `meta: { cache-hit-rate, segment-count, layout-time-ns }` for observability
-- [x] `reactiveLayout(text, font, lineHeight, maxWidth, opts?)` → Graph — convenience factory
+- [x] `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` → `ReactiveLayoutBundle` — convenience factory
 
 #### MeasurementAdapter implementations (pluggable backends)
 

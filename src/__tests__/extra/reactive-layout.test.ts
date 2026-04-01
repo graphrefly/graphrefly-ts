@@ -7,13 +7,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	analyzeAndMeasure,
-	type CharPosition,
 	computeCharPositions,
 	computeLineBreaks,
 	type LineBreaksResult,
 	type MeasurementAdapter,
 	type PreparedSegment,
 	reactiveLayout,
+	type SegmentMeasureStats,
 } from "../../extra/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +27,6 @@ function mockAdapter(): MeasurementAdapter {
 		measureSegment(text: string, _font: string) {
 			return { width: text.length * CHAR_WIDTH };
 		},
-		clearCache() {},
 	};
 }
 
@@ -114,6 +113,18 @@ describe("analyzeAndMeasure", () => {
 		const segs = analyzeAndMeasure("auto\u00ADmatic", "16px mono", adapter, new Map());
 		const kinds = segs.map((s) => s.kind);
 		expect(kinds).toContain("soft-hyphen");
+	});
+
+	it("optional stats bag records hits and misses for cache ratio", () => {
+		const cache = new Map<string, Map<string, number>>();
+		const stats: SegmentMeasureStats = { hits: 0, misses: 0 };
+		analyzeAndMeasure("aa", "16px mono", adapter, cache, stats);
+		expect(stats.misses).toBeGreaterThan(0);
+		const missesAfterFirst = stats.misses;
+		const hitsAfterFirst = stats.hits;
+		analyzeAndMeasure("aa", "16px mono", adapter, cache, stats);
+		expect(stats.hits).toBeGreaterThan(hitsAfterFirst);
+		expect(stats.misses).toBe(missesAfterFirst);
 	});
 });
 
@@ -215,7 +226,6 @@ describe("computeLineBreaks", () => {
 // ---------------------------------------------------------------------------
 
 describe("computeCharPositions", () => {
-	const adapter = mockAdapter();
 	const lineHeight = 20;
 
 	it("computes x,y for single-line text", () => {
@@ -307,6 +317,24 @@ describe("computeCharPositions", () => {
 		const line2Pos = positions.filter((p) => p.line === 1);
 		expect(line2Pos.length).toBe(2);
 		expect(line2Pos[0]!.y).toBe(20);
+	});
+
+	it("skips empty TEXT segments without dividing by zero", () => {
+		const segs: PreparedSegment[] = [{ text: "", width: 0, kind: "text", graphemeWidths: null }];
+		const lb: LineBreaksResult = {
+			lineCount: 1,
+			lines: [
+				{
+					text: "",
+					width: 0,
+					startSegment: 0,
+					startGrapheme: 0,
+					endSegment: 1,
+					endGrapheme: 0,
+				},
+			],
+		};
+		expect(computeCharPositions(lb, segs, 20)).toEqual([]);
 	});
 });
 
@@ -459,5 +487,31 @@ describe("reactiveLayout", () => {
 		});
 		const desc = layout.graph.describe();
 		expect(desc.edges.length).toBeGreaterThan(0);
+	});
+
+	it("meta companion DATA runs after segments DATA (microtask ordering)", async () => {
+		layout = reactiveLayout({
+			adapter: mockAdapter(),
+			text: "a",
+			maxWidth: 200,
+		});
+		const order: string[] = [];
+		const u1 = layout.segments.subscribe(() => {
+			order.push("segments");
+		});
+		const u2 = layout.segments.meta?.["cache-hit-rate"]?.subscribe(() => {
+			order.push("meta");
+		});
+		const start = order.length;
+		layout.setText("b");
+		const afterSync = order.length;
+		// DIRTY/DATA or RESOLVED can invoke the sink more than once; meta must not run yet.
+		expect(order.slice(start, afterSync).every((x) => x === "segments")).toBe(true);
+		await Promise.resolve();
+		const metaChunk = order.slice(afterSync);
+		expect(metaChunk.length).toBeGreaterThanOrEqual(1);
+		expect(metaChunk.every((x) => x === "meta")).toBe(true);
+		u1();
+		u2?.();
 	});
 });

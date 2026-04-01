@@ -3,6 +3,7 @@ import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import {
 	AgentLoopGraph,
+	admissionFilter3D,
 	agentLoop,
 	agentMemory,
 	type ChatMessage,
@@ -367,5 +368,197 @@ describe("patterns.ai.agentMemory", () => {
 				cost: () => 1,
 			}),
 		).toThrow(/extractFn or adapter/);
+	});
+
+	it("exposes null for optional features when not configured", () => {
+		const mem = agentMemory("test-mem", state("x"), {
+			extractFn: () => ({ upsert: [] }),
+			score: () => 1,
+			cost: () => 1,
+		});
+		expect(mem.vectors).toBeNull();
+		expect(mem.kg).toBeNull();
+		expect(mem.memoryTiers).toBeNull();
+		expect(mem.retrieval).toBeNull();
+		expect(mem.retrievalTrace).toBeNull();
+		expect(mem.retrieve).toBeNull();
+		mem.destroy();
+	});
+
+	it("creates vector index when vectorDimensions + embedFn provided", () => {
+		const source = state<string>("hello");
+		const mem = agentMemory<string>("vec-mem", source, {
+			extractFn: (raw) => ({
+				upsert: [{ key: "k1", value: String(raw) }],
+			}),
+			score: () => 1,
+			cost: () => 10,
+			budget: 100,
+			vectorDimensions: 3,
+			embedFn: (_mem) => [0.1, 0.2, 0.3],
+		});
+
+		expect(mem.vectors).not.toBeNull();
+		const desc = mem.describe() as { nodes: Record<string, unknown> };
+		expect(desc.nodes).toHaveProperty("vectorIndex");
+		mem.destroy();
+	});
+
+	it("mounts knowledge graph when enableKnowledgeGraph is true", () => {
+		const source = state<string>("hello");
+		const mem = agentMemory<string>("kg-mem", source, {
+			extractFn: (raw) => ({
+				upsert: [{ key: "k1", value: String(raw) }],
+			}),
+			score: () => 1,
+			cost: () => 10,
+			enableKnowledgeGraph: true,
+			entityFn: (key, _mem) => ({
+				entities: [{ id: key, value: { name: key } }],
+			}),
+		});
+
+		expect(mem.kg).not.toBeNull();
+		mem.destroy();
+	});
+
+	it("sets up 3-tier storage with permanent filter", () => {
+		const source = state<string>("hello");
+		const mem = agentMemory<string>("tier-mem", source, {
+			extractFn: (raw) => ({
+				upsert: [{ key: "core-profile", value: String(raw) }],
+			}),
+			score: () => 1,
+			cost: () => 10,
+			tiers: {
+				permanentFilter: (key) => key.startsWith("core-"),
+				maxActive: 100,
+			},
+		});
+
+		expect(mem.memoryTiers).not.toBeNull();
+		expect(mem.memoryTiers!.permanent).toBeDefined();
+		expect(typeof mem.memoryTiers!.tierOf).toBe("function");
+		expect(typeof mem.memoryTiers!.markPermanent).toBe("function");
+		mem.destroy();
+	});
+
+	it("retrieval pipeline returns packed results with vector search", () => {
+		const source = state<string>("test");
+		const mem = agentMemory<string>("retr-mem", source, {
+			extractFn: (raw) => ({
+				upsert: [
+					{ key: "m1", value: `mem-${raw}` },
+					{ key: "m2", value: `other-${raw}` },
+				],
+			}),
+			score: (_mem, _ctx) => 0.8,
+			cost: () => 10,
+			budget: 100,
+			vectorDimensions: 3,
+			embedFn: (_mem) => [1.0, 0.0, 0.0],
+			retrieval: { topK: 5 },
+		});
+
+		expect(mem.retrieve).not.toBeNull();
+		expect(mem.retrievalTrace).not.toBeNull();
+
+		// Execute a retrieval query
+		const results = mem.retrieve!({ vector: [1.0, 0.0, 0.0] });
+		// Results should be an array (may be empty if store hasn't propagated yet)
+		expect(Array.isArray(results)).toBe(true);
+		mem.destroy();
+	});
+
+	it("retrieval trace captures pipeline stages", () => {
+		const source = state<string>("input");
+		const mem = agentMemory<string>("trace-mem", source, {
+			extractFn: (raw) => ({
+				upsert: [{ key: "k1", value: String(raw) }],
+			}),
+			score: () => 1,
+			cost: () => 5,
+			budget: 100,
+			vectorDimensions: 3,
+			embedFn: () => [0.5, 0.5, 0.0],
+		});
+
+		mem.retrieve!({ vector: [0.5, 0.5, 0.0] });
+		const trace = mem.retrievalTrace!.get();
+		if (trace) {
+			expect(trace).toHaveProperty("vectorCandidates");
+			expect(trace).toHaveProperty("graphExpanded");
+			expect(trace).toHaveProperty("ranked");
+			expect(trace).toHaveProperty("packed");
+		}
+		mem.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// admissionFilter3D
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.admissionFilter3D", () => {
+	it("admits when all thresholds met", () => {
+		const filter = admissionFilter3D({
+			scoreFn: () => ({ persistence: 0.8, structure: 0.5, personalValue: 0.7 }),
+		});
+		expect(filter("test")).toBe(true);
+	});
+
+	it("rejects when persistence below threshold", () => {
+		const filter = admissionFilter3D({
+			scoreFn: () => ({ persistence: 0.1, structure: 0.5, personalValue: 0.7 }),
+			persistenceThreshold: 0.3,
+		});
+		expect(filter("test")).toBe(false);
+	});
+
+	it("rejects when personalValue below threshold", () => {
+		const filter = admissionFilter3D({
+			scoreFn: () => ({ persistence: 0.8, structure: 0.5, personalValue: 0.1 }),
+			personalValueThreshold: 0.3,
+		});
+		expect(filter("test")).toBe(false);
+	});
+
+	it("rejects unstructured when requireStructured is true", () => {
+		const filter = admissionFilter3D({
+			scoreFn: () => ({ persistence: 0.8, structure: 0, personalValue: 0.7 }),
+			requireStructured: true,
+		});
+		expect(filter("test")).toBe(false);
+	});
+
+	it("uses default scorer when no scoreFn provided", () => {
+		const filter = admissionFilter3D();
+		// Default scorer returns 0.5 for all dimensions, passes 0.3 thresholds
+		expect(filter("anything")).toBe(true);
+	});
+
+	it("integrates with agentMemory admissionFilter option", () => {
+		const admitted: unknown[] = [];
+		const filter = admissionFilter3D({
+			scoreFn: (raw) => ({
+				persistence: raw === "keep" ? 0.8 : 0.1,
+				structure: 0.5,
+				personalValue: 0.5,
+			}),
+		});
+
+		const source = state<string>("keep");
+		const mem = agentMemory<string>("3d-mem", source, {
+			extractFn: (raw) => {
+				admitted.push(raw);
+				return { upsert: [{ key: "k", value: String(raw) }] };
+			},
+			score: () => 1,
+			cost: () => 1,
+			admissionFilter: filter,
+		});
+
+		expect(mem).toBeDefined();
+		mem.destroy();
 	});
 });

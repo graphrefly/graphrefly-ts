@@ -6,8 +6,8 @@
  * GraphReFly graph — inspectable via `describe()`, snapshotable, debuggable.
  *
  * Two-tier DX:
- * - `reactiveLayout(text, font, lineHeight, maxWidth)` — convenience factory
- * - `MeasurementAdapter` interface — pluggable backends for different environments
+ * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
+ * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
 import { monotonicNs } from "../core/clock.js";
 import { DATA } from "../core/messages.js";
@@ -22,8 +22,12 @@ import { Graph } from "../graph/graph.js";
 /** Pluggable measurement backend. */
 export interface MeasurementAdapter {
 	measureSegment(text: string, font: string): { width: number };
+	/** Optional; adapters may omit for read-only / stateless measurement. */
 	clearCache?(): void;
 }
+
+/** Mutable counters for `analyzeAndMeasure` cache hit ratio (hits / (hits + misses)). */
+export type SegmentMeasureStats = { hits: number; misses: number };
 
 /** Break kind for each segment (ported from Pretext analysis.ts). */
 export type SegmentBreakKind = "text" | "space" | "zero-width-break" | "soft-hyphen" | "hard-break";
@@ -220,6 +224,7 @@ export function analyzeAndMeasure(
 	font: string,
 	adapter: MeasurementAdapter,
 	cache: Map<string, Map<string, number>>,
+	stats?: SegmentMeasureStats,
 ): PreparedSegment[] {
 	const normalized = normalizeWhitespace(text);
 	if (normalized.length === 0) return [];
@@ -292,8 +297,11 @@ export function analyzeAndMeasure(
 	function measureCached(seg: string): number {
 		let w = fontCache!.get(seg);
 		if (w === undefined) {
+			if (stats) stats.misses += 1;
 			w = adapter.measureSegment(seg, font).width;
 			fontCache!.set(seg, w);
+		} else if (stats) {
+			stats.hits += 1;
 		}
 		return w;
 	}
@@ -634,6 +642,7 @@ export function computeCharPositions(
 			}
 
 			const graphemes = [...graphemeSegmenter.segment(seg.text)].map((g) => g.segment);
+			if (graphemes.length === 0) continue;
 			const startG = si === line.startSegment ? line.startGrapheme : 0;
 
 			// Determine how many graphemes of this segment belong to this line
@@ -665,7 +674,7 @@ export function computeCharPositions(
 // ---------------------------------------------------------------------------
 
 export type ReactiveLayoutOptions = {
-	/** Custom measurement adapter. If omitted, a default adapter must be provided. */
+	/** Measurement backend (required). */
 	adapter: MeasurementAdapter;
 	/** Graph name (default: "reactive-layout"). */
 	name?: string;
@@ -718,22 +727,29 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		[textNode, fontNode],
 		([textVal, fontVal]) => {
 			const t0 = monotonicNs();
-			// Snapshot cache size before to compute hits/misses
-			let cacheEntriesBefore = 0;
-			for (const fc of measureCache.values()) cacheEntriesBefore += fc.size;
-
-			const result = analyzeAndMeasure(textVal as string, fontVal as string, adapter, measureCache);
+			const measureStats: SegmentMeasureStats = { hits: 0, misses: 0 };
+			const result = analyzeAndMeasure(
+				textVal as string,
+				fontVal as string,
+				adapter,
+				measureCache,
+				measureStats,
+			);
 			const elapsed = monotonicNs() - t0;
 
-			// Compute cache delta to derive hits/misses
-			let cacheEntriesAfter = 0;
-			for (const fc of measureCache.values()) cacheEntriesAfter += fc.size;
-			const newEntries = cacheEntriesAfter - cacheEntriesBefore;
-			const hitRate = newEntries === 0 ? 1 : 0;
+			const lookups = measureStats.hits + measureStats.misses;
+			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
 
-			segmentsNode.meta?.["cache-hit-rate"]?.down([[DATA, hitRate]]);
-			segmentsNode.meta?.["segment-count"]?.down([[DATA, result.length]]);
-			segmentsNode.meta?.["layout-time-ns"]?.down([[DATA, elapsed]]);
+			// After parent `segments` auto-emits DATA/RESOLVED, so observers see metrics second
+			// (parity with Python `defer_down` on meta companions).
+			const meta = segmentsNode.meta;
+			if (meta) {
+				queueMicrotask(() => {
+					meta["cache-hit-rate"]?.down([[DATA, hitRate]]);
+					meta["segment-count"]?.down([[DATA, result.length]]);
+					meta["layout-time-ns"]?.down([[DATA, elapsed]]);
+				});
+			}
 
 			return result;
 		},

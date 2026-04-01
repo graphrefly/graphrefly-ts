@@ -8,6 +8,12 @@
 
 - **Streaming token delivery (Phase 4.4, resolved 2026-03-31 — option (a) `reactiveLog` internally):** `fromLLMStream(adapter, messages)` returns `Node<ReactiveLogSnapshot<string>>`, accumulating tokens via `reactiveLog` internally. This reuses the existing Phase 3.2 data structure; `tail()` / `logSlice()` give natural windowed views; fully reactive (no polling); `describe()` / `observe()` / inspector work out of the box. Rejected alternatives: (b) `DATA` with `{ partial, chunk }` — loses composability and version dedup; (c) `streamFrom` pattern — premature abstraction for a single use case.
 
+- **Retrieval pipeline reactivity model (Phase 4.4, resolved 2026-03-31 — option (b) persistent derived node):** `agentMemory`'s retrieval is a persistent derived node that re-runs when store, query, or context change. The `query` input is a `state` node updated via `retrieve(query)`. This fits GraphReFly's reactive model: memory context auto-updates as conversation evolves. Rejected: (a) method that creates a derived node on-demand — doesn't compose reactively, loses `observe()` introspection.
+
+- **`agentMemory` in-factory composition scope (Phase 4.4, resolved 2026-03-31):** All primitives (`vectorIndex`, `knowledgeGraph`, `lightCollection`, `decay`, `autoCheckpoint`) are opt-in via options. Vector + KG indexing happens in a reactive `effect` that observes the distill store. Tier classification runs in a separate `effect`. This avoids monolithic coupling while keeping the factory ergonomic. Cross-language parity: TS uses `fromTimer(ms)` for reflection trigger, PY uses `from_timer(seconds)`.
+
+- **Reactive layout (roadmap §7.1, resolved 2026-03-31):** Cross-language parity target is **same graph shape + shared tests for ASCII/Latin** (not full ICU / `Intl` segmentation parity). Whitespace normalization matches TypeScript: collapse `[\t\n\r\f ]+` to a single ASCII space, then strip **at most one** leading and one trailing ASCII space (Python does **not** use full-Unicode `str.strip()`). The `segments` meta field **`cache-hit-rate`** is `hits / (hits + misses)` over `measureSegment` / `measure_segment` lookups in that recompute (`1` when there were zero lookups). Companion meta **`DATA`** for layout metrics is delivered **after** the parent `segments` node settles: Python uses `defer_down`; TypeScript schedules meta `.down` via `queueMicrotask` after synchronous `_emitAutoValue`. **`MeasurementAdapter`:** `clearCache` / `clear_cache` is optional on both sides.
+
 ## Implementation anti-patterns
 
 Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LLM adapters, and tool handlers). **Keep this table identical in both repos’ `docs/optimizations.md`.**
@@ -767,6 +773,13 @@ Cross-language notes for `patterns.ai` / `graphrefly.patterns.ai`. **Keep this s
 | **`toolRegistry` / `tool_registry` — handler output** | Handlers may return plain values, Promise-like values, or reactive `NodeInput`. **TypeScript:** `execute` awaits Promise-likes, then resolves **only** `Node` / `AsyncIterable` via `fromAny` + first `DATA` (do **not** pass arbitrary strings through `fromAny` — it treats strings as iterables and emits per character). **Python:** `execute` uses `from_any` + `first_value_from` only for awaitables, async iterables, or `Node`; plain values return as-is. |
 | **`agentMemory` / `agent_memory` — factory scope** | The shipped factory wires `distill()` and registers `store` / `compact` / `size` (and optional LLM hooks). **In-factory** wiring of `knowledgeGraph` / `vectorIndex` / `collection` / `decay` / `autoCheckpoint` is **not** implemented yet; roadmap and docstrings describe that as follow-up. |
 
+### AI surface (Phase 4.4) — parity follow-ups (pending)
+
+| # | Topic | Notes |
+|---|--------|-------|
+| **3** | **`_invoke_llm` / `_invokeLLM` defensive alignment** | **TypeScript** (`_invokeLLM`): rejects `null`/`undefined` and plain `str` before `fromAny` (strings would iterate per character); accepts sync plain objects with `content` when not a Promise/`Node`. **Python** (`_invoke_llm`): should mirror those guards — reject `None`; reject `str`; do not pass raw `dict`/`Mapping` through `from_any` without normalizing to `LLMResponse` (iterating a `dict` yields keys). **Status:** pending implementation in `graphrefly-py`. |
+| **4** | **`LLMInvokeOptions` + cooperative cancellation** | **TypeScript:** `LLMInvokeOptions.signal` (`AbortSignal`) is passed from `AgentLoopGraph` into `adapter.invoke()` so long-running adapters can cancel cooperatively. **Python:** `LLMInvokeOptions` has no equivalent yet; `agent_loop` does not pass an abort handle into `invoke`. **Target parity:** optional field on `LLMInvokeOptions` (e.g. `threading.Event` or a small protocol adapters can poll) and wire from `AgentLoopGraph`. **Status:** pending. |
+
 Normative anti-patterns table: [**Implementation anti-patterns**](#implementation-anti-patterns) (top of this document).
 
 ### AI surface (Phase 4.4) — resolved follow-ups (2026-03-31)
@@ -776,6 +789,14 @@ Normative anti-patterns table: [**Implementation anti-patterns**](#implementatio
 | **keepalive subscription cleanup on destroy** | `ChatStreamGraph`, `ToolRegistryGraph`, and `systemPromptBuilder` create keepalive subscriptions (`n.subscribe(() => {})`) that are never cleaned up. **Auto-fixable:** add `destroy()` methods that unsubscribe keepalive sinks to prevent leaks in long-lived processes. |
 | **`AgentLoopGraph.destroy()` does not cancel running loop (resolved — internal abort signal)** | `destroy()` sets an internal `AbortController` signal; the `run()` loop checks it between iterations. Composes with existing `fromPromise({ signal })`. No polling — reactive cancellation via abort signal. Rejected: (b) reject-only (doesn't stop the LLM call); (c) document-as-limitation (violates `destroy()` safety contract). |
 | **`chatStream.clear()` + `append()` race (resolved — serialize via `batch()`)** | Both `clear()` and `append()` internally use `batch()` so they are atomic within a reactive cycle. Callers who need deterministic ordering across multiple mutations use `batch(() => { stream.clear(); stream.append(msg); })`. No new mechanism needed — uses existing protocol. Rejected: (b) arbitrary "clear wins" rule; (c) microtask queue (fights the reactive-not-queued invariant). |
+
+### AI surface (Phase 4.4) — deferred optimizations (QA 2026-03-31)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **Re-indexes entire store on every change** | Deferred | The vector/KG indexing effect runs on every store change and re-indexes **all** entries (O(N) per insertion). A diffing strategy that only indexes new/changed entries is a future optimization — current N is small enough that full re-index is acceptable. |
+| **Budget packing always includes first item** | Documented behavior | The retrieval budget packer always includes the first ranked result even if it exceeds `maxTokens`. This is intentional "never return empty" semantics — a query that matches at least one entry always returns something. Callers who need strict budget enforcement should post-filter. |
+| **Retrieval pipeline auto-wires when vectors/KG enabled** | Documented behavior | When `embedFn` or `enableKnowledgeGraph` is set, the retrieval pipeline automatically wires vector search and KG expansion into the retrieval derived node. There is no explicit opt-in/opt-out per retrieval stage — the presence of the capability implies its use. Callers who need selective retrieval should use the individual nodes directly. |
 
 ### Tier 1 extra operators (roadmap 2.1) — resolved semantics (2026-03-31)
 
