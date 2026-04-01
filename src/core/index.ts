@@ -22,3 +22,15 @@ export {
 	type SubscribeHints,
 } from "./node.js";
 export * from "./sugar.js";
+export {
+	advanceVersion,
+	createVersioning,
+	defaultHash,
+	type HashFn,
+	isV1,
+	type NodeVersionInfo,
+	type V0,
+	type V1,
+	type VersioningLevel,
+	type VersioningOptions,
+} from "./versioning.js";

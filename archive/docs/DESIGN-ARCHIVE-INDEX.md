@@ -184,6 +184,22 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-universal-reduction-layer.md`
 
+### Session serialization-memory-footprint (March 31) — Adoption Blockers: Memory Footprint, DAG-CBOR Codec, Tiered Representation, NodeV0 Promotion
+**Topic:** Follow-on from the universal reduction layer session, investigating the biggest practical blockers for adoption at scale: runtime memory footprint, serialization overhead (JSON bloat), hydration latency, and the observation that `src/core/versioning.ts` (NodeV0/V1) exists but is unused. Establishes that serialization, memory, and hydration form an integrated cycle that must be designed together.
+
+**Key decisions:**
+- **DAG-CBOR as default codec** — replaces JSON for wire/checkpoint. Already validated in callbag-recharge (`SESSION-universal-data-structure-research.md`). ~40-50% smaller, deterministic encoding for CID/hash-compare, COSE signing support. With zstd: 80-90% smaller than JSON
+- **Tiered representation** — hot (JS objects), warm (DAG-CBOR + lazy hydration), cold (Arrow/Parquet + compression), peek (FlatBuffers zero-copy). Tier transitions can be reactive
+- **Five memory tuning strategies** — lazy meta materialization (~35% per-node savings), structural sharing for values, bounded history (ring buffers), struct-of-arrays for homogeneous pipelines (~50 bytes vs ~800 bytes per node), dormant subgraph eviction
+- **Delta checkpoints are more impactful than any format choice** — at steady state ~0.5% of nodes change per cycle; ~400x smaller than full snapshots
+- **NodeV0 should move from Phase 6 to Phase 3.x** — it's the minimum enabler for delta checkpoints, wire-efficient sync, LLM-friendly diffing, and dormant eviction. Effectively free (<5% overhead). V1 (CID + prev) can stay in Phase 6
+
+**The integrated cycle:** Better serialization → cheaper hydration → more aggressive eviction → lower memory → more nodes feasible. Cheap hydration (DAG-CBOR/FlatBuffers) unlocks low memory.
+
+**Roadmap impact:** `GraphCodec` interface (pluggable serialization), delta checkpoint primitive, lazy hydration API, dormant subgraph eviction policy, NodeV0 promotion to earlier phase.
+
+**Files:** `archive/docs/SESSION-serialization-memory-footprint.md`
+
 ---
 
 ## Reading Guide
@@ -208,4 +224,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** March 31, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint

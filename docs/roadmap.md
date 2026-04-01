@@ -411,11 +411,11 @@ Connectors for the universal reduction layer (Phase 8). Each wraps an external p
 
 ### 5.4 — LLM tool integration
 
-- [ ] `knobsAsTools(graph, actor?)` → OpenAI/MCP tool schemas from scoped describe()
-- [ ] `gaugesAsContext(graph, actor?)` → formatted gauge values for system prompts
-- [ ] Graph builder validation (validate LLM-generated graph defs)
-- [ ] `graphFromSpec(naturalLanguage, adapter, opts?)` → LLM composes a Graph from natural language; validates topology; returns runnable graph
-- [ ] `suggestStrategy(graph, problem, adapter)` → LLM analyzes current graph + problem, suggests operator/topology changes
+- [x] `knobsAsTools(graph, actor?)` → OpenAI/MCP tool schemas from scoped describe()
+- [x] `gaugesAsContext(graph, actor?)` → formatted gauge values for system prompts
+- [x] Graph builder validation (validate LLM-generated graph defs)
+- [x] `graphFromSpec(naturalLanguage, adapter, opts?)` → LLM composes a Graph from natural language; validates topology; returns runnable graph
+- [x] `suggestStrategy(graph, problem, adapter)` → LLM analyzes current graph + problem, suggests operator/topology changes
 
 ### 5.5 — NestJS integration
 
@@ -468,10 +468,70 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 ## Phase 6: Node Versioning
 
-- [ ] V0: id + version (recommended minimum)
-- [ ] V1: + cid + prev (content addressing, linked history)
-- [ ] V2: + schema (type validation)
-- [ ] V3: + caps (serialized guard policy) + refs (cross-graph references) — runtime enforcement already in Phase 1.5; V3 adds the serialization/transport format
+Design reference: `archive/docs/SESSION-serialization-memory-footprint.md`, `~/src/callbag-recharge/src/archive/docs/SESSION-universal-data-structure-research.md`.
+
+### 6.0 — V0: id + version (done)
+
+Promoted from original Phase 6 placement. V0 is the minimum enabler for delta checkpoints, wire-efficient sync, LLM-friendly diffing, and dormant subgraph eviction. Effectively free (~16 bytes/node, counter bump on DATA).
+
+- [x] Wire `createVersioning(0, ...)` into `node()` when `opts.versioning` provided
+- [x] `advanceVersion()` call on every DATA emission (value changed)
+- [x] `describeNode()` includes `{ id, version }` when V0 active
+- [x] `graph.snapshot()` includes per-node `{ id, version }` — enables delta restore
+- [ ] `Graph.diff()` uses version counters to skip unchanged nodes — O(changes) not O(graph_size)
+- [ ] `graph.setVersioning(level)` — set default versioning level for all new nodes in this graph
+
+#### 6.0b — V0 backfill (post-implementation)
+
+Backfill V0 integration into already-shipped phases. Each item enables version-aware behavior in existing code.
+
+- [ ] **Phase 1.4b** (autoCheckpoint / incremental snapshots): use V0 version counters for true delta checkpoints — only serialize nodes with `version > lastCheckpointVersion`. Currently `Graph.diff()` compares two full snapshots; V0 makes this O(changes).
+- [ ] **Phase 3.2** (data structures): `reactiveMap`, `reactiveLog`, `reactiveIndex`, `reactiveList` entries carry V0 identity. Enables diff-friendly observation of collection changes ("which entries changed?") and dedup across snapshots.
+- [ ] **Phase 3.2b** (verifiable / distill): `verifiable()` verification results carry V0 for "which version was verified?" tracking. `distill()` memory entries carry V0 for dedup and consolidation identity.
+- [ ] **Phase 3.3** (Inspector): `Graph.diff()` upgrade to version-gated O(changes) diffing. `observe({ causal: true })` includes triggering node's version. `describe()` output includes V0 fields when active.
+- [ ] **Phase 4.2** (Messaging): `topic()` messages, `subscription()` cursors, and `jobQueue()` jobs carry V0 identity. Enables exactly-once delivery via version dedup and cursor-by-version.
+- [ ] **Phase 4.3** (Memory): `collection()` and `lightCollection()` entries carry V0 for identity-based dedup and version-aware eviction. `knowledgeGraph()` entity/relation identity.
+- [ ] **Phase 4.4** (AI surface): `agentMemory()` memory entries carry V0. LLM context can send delta — "nodes with version > lastSeen" — instead of full `describe()`, saving context window tokens. `chatStream()` message identity.
+- [ ] **Phase 4.5** (CQRS): events carry V0 identity (required for replay dedup). Projections track version for rebuild skip ("already at version N"). Commands carry version for optimistic concurrency.
+- [ ] **Phase 5.3** (workerBridge): wire sync uses version counters — only transfer nodes with `version > peerLastSeen`. Enables delta-based cross-worker sync instead of full snapshot transfer.
+- [ ] **Phase 5.4** (LLM tool integration): `gaugesAsContext()` sends only changed nodes (by version) to LLM system prompts. `knobsAsTools()` includes version for conflict detection. **Appendix B** (`describe()` JSON schema): add optional `v` when versioning is in use (same tranche as 6.0b tooling).
+
+### 6.1 — V1: + cid + prev (content addressing, linked history)
+
+Opt-in, real compute cost (~1μs SHA-256 per value change). Lazy CID computation (on access, not on set). DAG-CBOR deterministic encoding needed for CID.
+
+- [x] V1: + cid + prev (content addressing, linked history)
+- [ ] Lazy CID computation — `node.cid` computed on first access after value change, not on every DATA
+
+> **Where V1 adds value in earlier phases:**
+> - *Phase 1.4b* (autoCheckpoint): content-addressed snapshots — hash-compare for dedup without content diff; snapshot integrity verification
+> - *Phase 4.5* (CQRS): events are content-addressed — tamper-evident event log; replay integrity
+> - *Phase 5.2d* (storage sinks): content-addressed dedup in `toS3`, `toClickHouse` — don't write identical data twice
+> - *Phase 8.3* (GraphSpec): spec diffing via CID — structural comparison without serializing both specs
+> - *Phase 8.4* (audit/compliance): integrity chain — `complianceSnapshot` with CID proves unmodified; `explainPath` can verify each node's derivation
+
+### 6.2 — V2: + schema (type validation)
+
+- [ ] V2: + schema (type validation at node boundaries)
+
+> **Where V2 adds value:**
+> - *Phase 5.2c/d* (ingest/sink adapters): schema validation on system boundaries — reject malformed OTel spans, validate Kafka message shape before graph entry
+> - *Phase 8.2* (domain templates): typed domain nodes — `observabilityGraph` enforces span/metric/log schemas
+> - *Phase 8.3* (LLM graph composition): validate LLM-generated node configs against declared schemas before `compileSpec()`
+
+### 6.3 — V3: + caps + refs (serialized capabilities, cross-graph references)
+
+Runtime enforcement already in Phase 1.5; V3 adds the serialization/transport format.
+
+- [ ] V3: + caps (serialized guard policy) + refs (cross-graph references)
+
+> **Where V3 adds value:**
+> - *Phase 1.5* (Actor/Guard): serialized guard policy enables persist/restore of access rules; currently guards are runtime functions only
+> - *Phase 5.4* (LLM tool integration): capability tokens control what an LLM agent can access across sessions
+> - *Phase 5.5* (NestJS): JWT → Actor → caps serialization for cross-request guard continuity
+> - *Phase 8.4* (audit/compliance): capability chain in `auditTrail` — who had what permissions when
+> - *Phase 8.5* (peerGraph): cross-graph `refs` enable node references across process/network boundaries without copying data
+
 - [ ] ~~Attribution~~ → Phase 1.5 (`node.lastMutation`)
 
 ---
@@ -635,6 +695,66 @@ Safety layer: every reduction decision is traceable and explainable.
 - [ ] Benchmark suite: 10K nodes, 100K msgs/sec, measure propagation latency, memory footprint, GC pressure. Target: <1ms p99 per hop.
 - [ ] `shardedGraph(shardFn, opts?)` — partition large graphs across workers (5.3 workerBridge). Transparent to consumers.
 - [ ] Adaptive sampling — built-in operator that adjusts sample rate based on downstream backpressure + budget constraints. No config, just wiring.
+
+### 8.6 — GraphCodec (pluggable serialization)
+
+Design reference: `archive/docs/SESSION-serialization-memory-footprint.md`. Replaces hardcoded JSON with a pluggable codec system. Prerequisite: V0 (6.0) for delta checkpoints.
+
+- [ ] `GraphCodec` interface: `encode(snapshot) → Uint8Array`, `decode(buffer) → GraphPersistSnapshot`, `contentType: string`
+- [ ] `JsonCodec` — default, human-readable, current behavior wrapped in interface
+- [ ] `DagCborCodec` — DAG-CBOR via `@ipld/dag-cbor`; ~40-50% smaller than JSON, deterministic encoding, CID links native
+- [ ] `DagCborZstdCodec` — DAG-CBOR + zstd compression; ~80-90% smaller than JSON
+- [ ] `graph.snapshot({ codec })` / `Graph.fromSnapshot(buffer, { codec })` — codec-aware serialization
+- [ ] `autoCheckpoint` codec option — checkpoint adapter receives `Uint8Array` instead of JSON when codec specified
+- [ ] Codec negotiation for `peerGraph` — peers agree on codec during handshake
+
+### 8.7 — Delta checkpoints & WAL
+
+Requires V0 (6.0). Track dirty nodes via bitset, serialize only changes, append to write-ahead log. At steady state (50 nodes changing/sec out of 10K), each checkpoint is ~12 KB instead of multi-MB full snapshot.
+
+- [ ] `graph.checkpoint()` → `DeltaCheckpoint` — returns only nodes with `version > lastCheckpoint`. Bitset-tracked from propagation.
+- [ ] WAL (write-ahead log) append mode — `autoCheckpoint` appends deltas; periodic full snapshot compaction
+- [ ] `Graph.fromWAL(entries[], opts?)` — reconstruct graph from WAL replay (full snapshot + deltas)
+- [ ] Delta-aware `peerGraph` sync — only transfer nodes with `version > peerLastSeen`
+
+### 8.8 — Memory optimization & tiered representation
+
+Strategies for reducing runtime memory footprint. Design reference: `archive/docs/SESSION-serialization-memory-footprint.md`.
+
+#### Lazy meta materialization
+
+- [ ] Meta companion objects allocated on first access (`.meta` getter), not at node construction. Cuts per-node memory ~35% for nodes nobody inspects.
+- [ ] `describe()` and `observe()` trigger materialization; hot-path propagation does not
+
+#### Bounded history
+
+- [ ] Ring buffer option for `reactiveLog` history — `{ maxEntries }` circular buffer, constant memory (extend existing reactiveLog bounded mode)
+- [ ] Time-based eviction — `{ maxAge }` for history entries
+- [ ] Spill-to-disk for evicted history — evicted entries serialize to codec buffer on disk, queryable by time range
+
+#### Structural sharing
+
+- [ ] Value dedup — when a node's new value is structurally identical to old value, reuse the existing object reference (avoid allocation even when RESOLVED skip fires)
+- [ ] Shared meta schemas — nodes with identical meta key sets share a single hidden class / prototype
+
+#### Node pooling (struct-of-arrays)
+
+- [ ] `NodePool(capacity)` — struct-of-arrays layout for homogeneous pipelines: `Uint32Array` for ids, packed adjacency list for deps, shared typed arrays. ~50 bytes/node vs ~800 bytes/node for structural parts.
+- [ ] Transparent to consumers — `pool.get(index)` returns a proxy that reads from arrays
+- [ ] Ideal for reduction pipelines (Phase 8.1) where thousands of intermediate nodes share the same shape
+
+#### Dormant subgraph eviction
+
+- [ ] `graph.setEvictionPolicy({ idleTimeout, tier })` — subgraphs with no propagation for `idleTimeout` serialize to codec buffer and release JS objects
+- [ ] Re-hydrate on next read/propagation — cost depends on codec (JSON: slow, DAG-CBOR: fast, FlatBuffers: near-zero)
+- [ ] `graph.evict(subgraphName)` — manual eviction for programmatic control
+- [ ] Eviction metrics in `describe()` — `{ evicted: true, lastActive, serializedSize }`
+
+#### Lazy hydration
+
+- [ ] `Graph.fromBuffer(buffer, { codec, lazy: true })` — parse envelope only; decode individual nodes on first access
+- [ ] FlatBuffers zero-copy option — mmap buffer, read fields directly, never allocate JS objects for unaccessed nodes
+- [ ] Warm-up hint: `graph.warmup(nodeNames[])` — pre-decode specific nodes expected to be accessed soon
 
 ---
 

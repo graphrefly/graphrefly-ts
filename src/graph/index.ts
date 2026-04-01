@@ -1,6 +1,20 @@
 /**
  * Graph container: registry, wiring, introspection (Phase 1).
  */
+
+export {
+	createDagCborCodec,
+	createDagCborZstdCodec,
+	type DeltaCheckpoint,
+	type EvictedSubgraphInfo,
+	type EvictionPolicy,
+	type GraphCodec,
+	JsonCodec,
+	type LazyGraphCodec,
+	negotiateCodec,
+	replayWAL,
+	type WALEntry,
+} from "./codec.js";
 export {
 	type AutoCheckpointAdapter,
 	type DescribeFilter,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { derived, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
 import {
 	AgentLoopGraph,
 	admissionFilter3D,
@@ -11,14 +12,19 @@ import {
 	chatStream,
 	fromLLM,
 	fromLLMStream,
+	gaugesAsContext,
+	graphFromSpec,
+	knobsAsTools,
 	type LLMAdapter,
 	type LLMResponse,
 	llmConsolidator,
 	llmExtractor,
+	suggestStrategy,
 	systemPromptBuilder,
 	type ToolDefinition,
 	ToolRegistryGraph,
 	toolRegistry,
+	validateGraphDef,
 } from "../../patterns/ai.js";
 
 // ---------------------------------------------------------------------------
@@ -674,5 +680,350 @@ describe("patterns.ai.admissionFilter3D", () => {
 
 		expect(mem).toBeDefined();
 		mem.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// knobsAsTools (5.4)
+// ---------------------------------------------------------------------------
+
+describe("knobsAsTools", () => {
+	it("generates tool schemas from state nodes with meta", () => {
+		const g = new Graph("test");
+		const temp = state(72, {
+			name: "temperature",
+			meta: {
+				description: "Room temperature",
+				type: "number",
+				range: [60, 90],
+				unit: "°F",
+				access: "both",
+			},
+		});
+		const mode = state("auto", {
+			name: "mode",
+			meta: {
+				description: "HVAC mode",
+				type: "enum",
+				values: ["auto", "cool", "heat", "off"],
+				access: "llm",
+			},
+		});
+		// Derived node should NOT appear as a tool
+		const summary = derived([temp, mode], ([t, m]) => `${m}: ${t}`, {
+			name: "summary",
+			meta: { description: "Summary display" },
+		});
+		g.add("temperature", temp);
+		g.add("mode", mode);
+		g.add("summary", summary);
+		g.connect("temperature", "summary");
+		g.connect("mode", "summary");
+
+		const result = knobsAsTools(g);
+
+		expect(result.openai).toHaveLength(2);
+		expect(result.mcp).toHaveLength(2);
+		expect(result.definitions).toHaveLength(2);
+
+		// Check OpenAI schema shape
+		const tempTool = result.openai.find((t) => t.function.name === "temperature");
+		expect(tempTool).toBeDefined();
+		expect(tempTool!.type).toBe("function");
+		expect(tempTool!.function.description).toBe("Room temperature");
+		expect(tempTool!.function.parameters).toEqual({
+			type: "object",
+			required: ["value"],
+			properties: {
+				value: {
+					type: "number",
+					minimum: 60,
+					maximum: 90,
+					description: "Unit: °F",
+				},
+			},
+			additionalProperties: false,
+		});
+
+		// Check MCP schema shape
+		const modeMcp = result.mcp.find((t) => t.name === "mode");
+		expect(modeMcp).toBeDefined();
+		expect(modeMcp!.description).toBe("HVAC mode");
+		expect((modeMcp!.inputSchema.properties as Record<string, unknown>).value).toEqual({
+			type: "string",
+			enum: ["auto", "cool", "heat", "off"],
+		});
+
+		// Handler calls graph.set
+		const tempDef = result.definitions.find((d) => d.name === "temperature");
+		tempDef!.handler({ value: 80 });
+		expect(temp.get()).toBe(80);
+
+		g.destroy();
+	});
+
+	it("excludes state nodes with access=human", () => {
+		const g = new Graph("test");
+		const secret = state("pw", {
+			name: "secret",
+			meta: { description: "Human-only secret", access: "human" },
+		});
+		g.add("secret", secret);
+
+		const result = knobsAsTools(g);
+		expect(result.openai).toHaveLength(0);
+		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// gaugesAsContext (5.4)
+// ---------------------------------------------------------------------------
+
+describe("gaugesAsContext", () => {
+	it("formats gauge nodes as context string", () => {
+		const g = new Graph("dashboard");
+		const revenue = state(1234.5, {
+			name: "revenue",
+			meta: { description: "Monthly revenue", format: "currency", tags: ["finance"] },
+		});
+		const growth = state(0.15, {
+			name: "growth",
+			meta: { description: "Growth rate", format: "percentage", tags: ["finance"] },
+		});
+		const status = state("healthy", {
+			name: "status",
+			meta: { description: "System status", format: "status" },
+		});
+		g.add("revenue", revenue);
+		g.add("growth", growth);
+		g.add("status", status);
+
+		const ctx = gaugesAsContext(g);
+
+		expect(ctx).toContain("Monthly revenue: $1234.50");
+		expect(ctx).toContain("Growth rate: 15.0%");
+		expect(ctx).toContain("System status: healthy");
+		// Finance group should be grouped together
+		expect(ctx).toContain("[finance]");
+		g.destroy();
+	});
+
+	it("returns empty string when no gauges", () => {
+		const g = new Graph("empty");
+		const plain = state(42, { name: "plain" });
+		g.add("plain", plain);
+
+		expect(gaugesAsContext(g)).toBe("");
+		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateGraphDef (5.4)
+// ---------------------------------------------------------------------------
+
+describe("validateGraphDef", () => {
+	it("accepts a valid graph definition", () => {
+		const def = {
+			name: "test",
+			nodes: {
+				input: { type: "state", status: "settled", deps: [], meta: {} },
+				compute: { type: "derived", status: "settled", deps: ["input"], meta: {} },
+			},
+			edges: [{ from: "input", to: "compute" }],
+			subgraphs: [],
+		};
+		const result = validateGraphDef(def);
+		expect(result.valid).toBe(true);
+		expect(result.errors).toHaveLength(0);
+	});
+
+	it("rejects missing name", () => {
+		const result = validateGraphDef({ nodes: {}, edges: [] });
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("name"))).toBe(true);
+	});
+
+	it("rejects invalid node type", () => {
+		const result = validateGraphDef({
+			name: "test",
+			nodes: { a: { type: "unknown_type", deps: [], meta: {} } },
+			edges: [],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("invalid type"))).toBe(true);
+	});
+
+	it("rejects edges referencing nonexistent nodes", () => {
+		const result = validateGraphDef({
+			name: "test",
+			nodes: { a: { type: "state", deps: [], meta: {} } },
+			edges: [{ from: "a", to: "missing" }],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("missing"))).toBe(true);
+	});
+
+	it("detects duplicate edges", () => {
+		const result = validateGraphDef({
+			name: "test",
+			nodes: {
+				a: { type: "state", deps: [], meta: {} },
+				b: { type: "derived", deps: ["a"], meta: {} },
+			},
+			edges: [
+				{ from: "a", to: "b" },
+				{ from: "a", to: "b" },
+			],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("duplicate"))).toBe(true);
+	});
+
+	it("rejects non-object input", () => {
+		expect(validateGraphDef(null).valid).toBe(false);
+		expect(validateGraphDef("string").valid).toBe(false);
+		expect(validateGraphDef(42).valid).toBe(false);
+	});
+
+	it("rejects deps referencing nonexistent nodes", () => {
+		const result = validateGraphDef({
+			name: "test",
+			nodes: {
+				a: { type: "derived", deps: ["nonexistent"], meta: {} },
+			},
+			edges: [],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("nonexistent"))).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// graphFromSpec (5.4)
+// ---------------------------------------------------------------------------
+
+describe("graphFromSpec", () => {
+	it("constructs a graph from LLM-generated JSON", async () => {
+		const graphDef = {
+			name: "calculator",
+			nodes: {
+				a: { type: "state", value: 10, deps: [], meta: { description: "Input A" } },
+				b: { type: "state", value: 20, deps: [], meta: { description: "Input B" } },
+			},
+			edges: [],
+			subgraphs: [],
+		};
+
+		const adapter = mockAdapter([{ content: JSON.stringify(graphDef), finishReason: "end_turn" }]);
+
+		const g = await graphFromSpec("Build a calculator with two inputs", adapter);
+		expect(g.name).toBe("calculator");
+		expect(g.get("a")).toBe(10);
+		expect(g.get("b")).toBe(20);
+		g.destroy();
+	});
+
+	it("strips markdown fences from LLM response", async () => {
+		const graphDef = {
+			name: "simple",
+			nodes: {
+				x: { type: "state", value: 1, deps: [], meta: { description: "X" } },
+			},
+			edges: [],
+			subgraphs: [],
+		};
+
+		const adapter = mockAdapter([
+			{
+				content: "```json\n" + JSON.stringify(graphDef) + "\n```",
+				finishReason: "end_turn",
+			},
+		]);
+
+		const g = await graphFromSpec("simple graph", adapter);
+		expect(g.name).toBe("simple");
+		g.destroy();
+	});
+
+	it("throws on invalid JSON from LLM", async () => {
+		const adapter = mockAdapter([{ content: "not json at all!", finishReason: "end_turn" }]);
+
+		await expect(graphFromSpec("bad", adapter)).rejects.toThrow("not valid JSON");
+	});
+
+	it("throws on validation failure", async () => {
+		const adapter = mockAdapter([
+			{
+				content: JSON.stringify({ nodes: {}, edges: [] }),
+				finishReason: "end_turn",
+			},
+		]);
+
+		await expect(graphFromSpec("missing name", adapter)).rejects.toThrow(
+			"invalid graph definition",
+		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// suggestStrategy (5.4)
+// ---------------------------------------------------------------------------
+
+describe("suggestStrategy", () => {
+	it("returns a structured strategy plan", async () => {
+		const plan = {
+			summary: "Add a rate limiter node",
+			reasoning: "The API calls node has no rate limiting, which could cause throttling.",
+			operations: [
+				{
+					type: "add_node",
+					name: "rate_limiter",
+					nodeType: "derived",
+					meta: { description: "Rate limiter" },
+				},
+				{ type: "connect", from: "rate_limiter", to: "api_calls" },
+				{ type: "set_value", name: "max_rate", value: 100 },
+			],
+		};
+
+		const adapter = mockAdapter([{ content: JSON.stringify(plan), finishReason: "end_turn" }]);
+
+		const g = new Graph("api");
+		const maxRate = state(50, { name: "max_rate", meta: { description: "Max rate" } });
+		g.add("max_rate", maxRate);
+
+		const result = await suggestStrategy(g, "API calls are being throttled", adapter);
+
+		expect(result.summary).toBe("Add a rate limiter node");
+		expect(result.reasoning).toContain("rate limiting");
+		expect(result.operations).toHaveLength(3);
+		expect(result.operations[0]).toEqual({
+			type: "add_node",
+			name: "rate_limiter",
+			nodeType: "derived",
+			meta: { description: "Rate limiter" },
+		});
+
+		g.destroy();
+	});
+
+	it("throws on invalid LLM response", async () => {
+		const adapter = mockAdapter([{ content: "just some text", finishReason: "end_turn" }]);
+
+		const g = new Graph("test");
+		await expect(suggestStrategy(g, "problem", adapter)).rejects.toThrow("not valid JSON");
+		g.destroy();
+	});
+
+	it("throws on missing required fields", async () => {
+		const adapter = mockAdapter([
+			{ content: JSON.stringify({ operations: [] }), finishReason: "end_turn" },
+		]);
+
+		const g = new Graph("test");
+		await expect(suggestStrategy(g, "problem", adapter)).rejects.toThrow("missing 'summary'");
+		g.destroy();
 	});
 });

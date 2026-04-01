@@ -10,6 +10,8 @@ export type DescribeNodeOutput = {
 	meta: Record<string, unknown>;
 	name?: string;
 	value?: unknown;
+	/** Node versioning info (GRAPHREFLY-SPEC §7). Present only when versioning is enabled. */
+	v?: { id: string; version: number; cid?: string; prev?: string | null };
 };
 
 function inferDescribeType(n: NodeImpl): DescribeNodeOutput["type"] {
@@ -114,6 +116,16 @@ export function describeNode(node: Node): DescribeNodeOutput {
 		out.value = node.get();
 	} catch {
 		/* omit value */
+	}
+
+	// Versioning (GRAPHREFLY-SPEC §7)
+	if (node.v != null) {
+		const vInfo: DescribeNodeOutput["v"] = { id: node.v.id, version: node.v.version };
+		if ("cid" in node.v) {
+			vInfo!.cid = (node.v as { cid: string }).cid;
+			vInfo!.prev = (node.v as { prev: string | null }).prev;
+		}
+		out.v = vInfo;
 	}
 
 	return out;

@@ -18,6 +18,8 @@ import {
 	RESUME,
 	TEARDOWN,
 } from "./messages.js";
+import type { HashFn, NodeVersionInfo, VersioningLevel } from "./versioning.js";
+import { advanceVersion, createVersioning, defaultHash } from "./versioning.js";
 
 /** Lifecycle status of a node. */
 export type NodeStatus =
@@ -122,6 +124,16 @@ export interface NodeOptions {
 	 * Companion {@link NodeOptions.meta | meta} nodes inherit this guard from the primary.
 	 */
 	guard?: NodeGuard;
+	/**
+	 * Opt-in versioning level (GRAPHREFLY-SPEC §7).
+	 * - `0` (V0): `id` + `version` — identity & change detection.
+	 * - `1` (V1): + `cid` + `prev` — content addressing & linked history.
+	 */
+	versioning?: VersioningLevel;
+	/** Override auto-generated versioning id. */
+	versioningId?: string;
+	/** Custom hash function for V1 cid computation. */
+	versioningHash?: HashFn;
 }
 
 /**
@@ -186,6 +198,8 @@ export interface Node<T = unknown> {
 	allowsObserve(actor: Actor): boolean;
 	/** Whether a {@link NodeOptions.guard | guard} is installed. */
 	hasGuard(): boolean;
+	/** Versioning info (GRAPHREFLY-SPEC §7). `undefined` when versioning is not enabled. */
+	readonly v: Readonly<NodeVersionInfo> | undefined;
 }
 
 // --- Bitmask helpers: integer for <=31 deps, Uint32Array for >31 ---
@@ -347,6 +361,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_actions: NodeActions;
 	_boundEmitToSinks: (messages: Messages) => void;
 	private _inspectorHook: NodeInspectorHook | undefined;
+	private _versioning: NodeVersionInfo | undefined;
+	private _hashFn: HashFn;
 
 	constructor(deps: readonly Node[], fn: NodeFn<T> | undefined, opts: NodeOptions) {
 		this._deps = deps;
@@ -363,6 +379,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		this._cached = opts.initial as T | undefined;
 		this._status = this._hasDeps ? "disconnected" : "settled";
+
+		// Versioning (GRAPHREFLY-SPEC §7)
+		this._hashFn = opts.versioningHash ?? defaultHash;
+		this._versioning =
+			opts.versioning != null
+				? createVersioning(opts.versioning, this._cached, {
+						id: opts.versioningId,
+						hash: this._hashFn,
+					})
+				: undefined;
 
 		this._depDirtyMask = createBitSet(deps.length);
 		this._depSettledMask = createBitSet(deps.length);
@@ -441,6 +467,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	get lastMutation(): Readonly<{ actor: Actor; timestamp_ns: number }> | undefined {
 		return this._lastMutation;
+	}
+
+	get v(): Readonly<NodeVersionInfo> | undefined {
+		return this._versioning;
 	}
 
 	hasGuard(): boolean {
@@ -622,6 +652,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			const t = m[0];
 			if (t === DATA) {
 				this._cached = m[1] as T;
+				if (this._versioning != null) {
+					advanceVersion(this._versioning, m[1], this._hashFn);
+				}
 			}
 			if (t === INVALIDATE) {
 				// GRAPHREFLY-SPEC §1.2: clear cached state; do not auto-emit from here.

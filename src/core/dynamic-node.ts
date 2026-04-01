@@ -230,6 +230,11 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 		return this._lastMutation;
 	}
 
+	/** Versioning not yet supported on DynamicNodeImpl. */
+	get v(): undefined {
+		return undefined;
+	}
+
 	hasGuard(): boolean {
 		return this._guard != null;
 	}

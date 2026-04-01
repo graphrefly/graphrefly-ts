@@ -5,6 +5,7 @@
  * agentic memory. Composed from core + extra + Phase 3–4.3 primitives.
  */
 
+import type { Actor } from "../core/actor.js";
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
@@ -29,6 +30,7 @@ import {
 	type GraphAutoCheckpointHandle,
 	type GraphAutoCheckpointOptions,
 	type GraphOptions,
+	type GraphPersistSnapshot,
 } from "../graph/graph.js";
 import {
 	decay,
@@ -1530,4 +1532,610 @@ export class AgentLoopGraph extends Graph {
 
 export function agentLoop(name: string, opts: AgentLoopOptions): AgentLoopGraph {
 	return new AgentLoopGraph(name, opts);
+}
+
+// ---------------------------------------------------------------------------
+// 5.4 — LLM tool integration
+// ---------------------------------------------------------------------------
+
+/** OpenAI function-calling tool schema. */
+export type OpenAIToolSchema = {
+	readonly type: "function";
+	readonly function: {
+		readonly name: string;
+		readonly description: string;
+		readonly parameters: Record<string, unknown>;
+	};
+};
+
+/** MCP (Model Context Protocol) tool schema. */
+export type McpToolSchema = {
+	readonly name: string;
+	readonly description: string;
+	readonly inputSchema: Record<string, unknown>;
+};
+
+/** Result of {@link knobsAsTools}. */
+export type KnobsAsToolsResult = {
+	/** OpenAI function-calling tool schemas. */
+	readonly openai: readonly OpenAIToolSchema[];
+	/** MCP tool schemas. */
+	readonly mcp: readonly McpToolSchema[];
+	/** GraphReFly ToolDefinitions with handlers that call `graph.set()`. */
+	readonly definitions: readonly ToolDefinition[];
+};
+
+/**
+ * Build a JSON Schema `properties.value` descriptor from a node's meta fields.
+ *
+ * Maps `meta.type`, `meta.range`, `meta.values`, `meta.format`, and `meta.unit`
+ * to a JSON Schema property definition.
+ */
+function metaToJsonSchema(meta: Record<string, unknown>): Record<string, unknown> {
+	const schema: Record<string, unknown> = {};
+
+	const metaType = meta.type as string | undefined;
+	if (metaType === "enum" && Array.isArray(meta.values)) {
+		schema.type = "string";
+		schema.enum = meta.values;
+	} else if (metaType === "integer") {
+		schema.type = "integer";
+	} else if (metaType === "number") {
+		schema.type = "number";
+	} else if (metaType === "boolean") {
+		schema.type = "boolean";
+	} else if (metaType === "string") {
+		schema.type = "string";
+	} else {
+		// Unknown or unspecified — accept anything
+		schema.type = ["string", "number", "boolean"];
+	}
+
+	if (Array.isArray(meta.range) && meta.range.length === 2) {
+		schema.minimum = meta.range[0];
+		schema.maximum = meta.range[1];
+	}
+
+	if (typeof meta.format === "string") {
+		schema.description = `Format: ${meta.format}`;
+	}
+
+	if (typeof meta.unit === "string") {
+		if (schema.description) {
+			schema.description += ` (${meta.unit})`;
+		} else {
+			schema.description = `Unit: ${meta.unit}`;
+		}
+	}
+
+	return schema;
+}
+
+/**
+ * Derive tool schemas from a graph's writable (knob) nodes.
+ *
+ * Knobs are state nodes whose `meta.access` is `"llm"`, `"both"`, or absent
+ * (default: writable). Each knob becomes a tool that calls `graph.set()`.
+ *
+ * Speaks **domain language** (spec §5.4): the returned schemas use node names
+ * and meta descriptions — no protocol internals exposed.
+ *
+ * @param graph - The graph to introspect.
+ * @param actor - Optional actor for guard-scoped describe.
+ * @returns OpenAI, MCP, and GraphReFly tool schemas.
+ */
+export function knobsAsTools(graph: Graph, actor?: Actor): KnobsAsToolsResult {
+	const described = graph.describe({ actor });
+	const openai: OpenAIToolSchema[] = [];
+	const mcp: McpToolSchema[] = [];
+	const definitions: ToolDefinition[] = [];
+
+	for (const [path, node] of Object.entries(described.nodes)) {
+		// Only state nodes are writable knobs
+		if (node.type !== "state") continue;
+
+		// Skip meta companion nodes (§2.3)
+		if (path.includes("::__meta__::")) continue;
+
+		// Skip terminal-state nodes (§1.3.4 — no further messages after COMPLETE/ERROR)
+		if (node.status === "completed" || node.status === "errored") continue;
+
+		// Skip if access explicitly excludes LLM
+		const access = node.meta.access as string | undefined;
+		if (access === "human" || access === "system") continue;
+
+		const description = (node.meta.description as string) ?? `Set the value of ${path}`;
+		const valueSchema = metaToJsonSchema(node.meta);
+
+		const parameterSchema: Record<string, unknown> = {
+			type: "object",
+			required: ["value"],
+			properties: {
+				value: valueSchema,
+			},
+			additionalProperties: false,
+		};
+
+		// OpenAI requires [a-zA-Z0-9_-] in function names; sanitize :: separators
+		const sanitizedName = path.replace(/::/g, "__");
+
+		openai.push({
+			type: "function",
+			function: {
+				name: sanitizedName,
+				description,
+				parameters: parameterSchema,
+			},
+		});
+
+		mcp.push({
+			name: path,
+			description,
+			inputSchema: parameterSchema,
+		});
+
+		const graphRef = graph;
+		const actorRef = actor;
+		definitions.push({
+			name: path,
+			description,
+			parameters: parameterSchema,
+			handler(args: Record<string, unknown>) {
+				graphRef.set(path, args.value, actorRef ? { actor: actorRef } : undefined);
+				return args.value;
+			},
+		});
+	}
+
+	return { openai, mcp, definitions };
+}
+
+// ---------------------------------------------------------------------------
+// gaugesAsContext
+// ---------------------------------------------------------------------------
+
+export type GaugesAsContextOptions = {
+	/** Group gauges by `meta.tags` (default true). */
+	groupByTags?: boolean;
+	/** Separator between gauge lines (default "\n"). */
+	separator?: string;
+};
+
+/**
+ * Format a graph's readable (gauge) nodes as a context string for LLM
+ * system prompts.
+ *
+ * Gauges are nodes with `meta.description` or `meta.format`. Values are
+ * formatted using `meta.format` and `meta.unit` hints.
+ *
+ * @param graph - The graph to introspect.
+ * @param actor - Optional actor for guard-scoped describe.
+ * @param options - Formatting options.
+ * @returns A formatted string ready for system prompt injection.
+ */
+export function gaugesAsContext(
+	graph: Graph,
+	actor?: Actor,
+	options?: GaugesAsContextOptions,
+): string {
+	const described = graph.describe({ actor });
+	const groupByTags = options?.groupByTags ?? true;
+	const separator = options?.separator ?? "\n";
+
+	type GaugeEntry = { path: string; description: string; formatted: string };
+	const entries: GaugeEntry[] = [];
+
+	for (const [path, node] of Object.entries(described.nodes)) {
+		const desc = node.meta.description as string | undefined;
+		const format = node.meta.format as string | undefined;
+		// Must have description or format to be a gauge
+		if (!desc && !format) continue;
+
+		const label = desc ?? path;
+		const value = node.value;
+		const unit = node.meta.unit as string | undefined;
+
+		let formatted: string;
+		if (format === "currency" && typeof value === "number") {
+			formatted = `$${value.toFixed(2)}`;
+		} else if (format === "percentage" && typeof value === "number") {
+			formatted = `${(value * 100).toFixed(1)}%`;
+		} else if (value === undefined || value === null) {
+			formatted = "(no value)";
+		} else {
+			formatted = String(value);
+		}
+
+		if (unit && format !== "currency" && format !== "percentage") {
+			formatted = `${formatted} ${unit}`;
+		}
+
+		entries.push({ path, description: label, formatted });
+	}
+
+	if (entries.length === 0) return "";
+
+	if (groupByTags) {
+		const tagGroups = new Map<string, GaugeEntry[]>();
+		const ungrouped: GaugeEntry[] = [];
+
+		for (const entry of entries) {
+			const node = described.nodes[entry.path]!;
+			const tags = node.meta.tags as string[] | undefined;
+			if (tags && tags.length > 0) {
+				// Use first tag for grouping to avoid duplicating entries across groups
+				const tag = tags[0]!;
+				let group = tagGroups.get(tag);
+				if (!group) {
+					group = [];
+					tagGroups.set(tag, group);
+				}
+				group.push(entry);
+			} else {
+				ungrouped.push(entry);
+			}
+		}
+
+		if (tagGroups.size === 0) {
+			return entries.map((e) => `- ${e.description}: ${e.formatted}`).join(separator);
+		}
+
+		const sections: string[] = [];
+		for (const [tag, group] of [...tagGroups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+			sections.push(
+				`[${tag}]${separator}${group.map((e) => `- ${e.description}: ${e.formatted}`).join(separator)}`,
+			);
+		}
+		if (ungrouped.length > 0) {
+			sections.push(ungrouped.map((e) => `- ${e.description}: ${e.formatted}`).join(separator));
+		}
+		return sections.join(separator + separator);
+	}
+
+	return entries.map((e) => `- ${e.description}: ${e.formatted}`).join(separator);
+}
+
+// ---------------------------------------------------------------------------
+// validateGraphDef
+// ---------------------------------------------------------------------------
+
+/** Validation result from {@link validateGraphDef}. */
+export type GraphDefValidation = {
+	readonly valid: boolean;
+	readonly errors: readonly string[];
+};
+
+const VALID_NODE_TYPES = new Set(["state", "derived", "producer", "operator", "effect"]);
+
+/**
+ * Validate an LLM-generated graph definition before passing to
+ * `Graph.fromSnapshot()`.
+ *
+ * Checks:
+ * - Required fields: `name`, `nodes`, `edges`
+ * - Node types are valid enum values
+ * - Edge `from`/`to` reference existing nodes
+ * - No duplicate edge entries
+ *
+ * @param def - The graph definition to validate (parsed JSON).
+ * @returns Validation result with errors array.
+ */
+export function validateGraphDef(def: unknown): GraphDefValidation {
+	const errors: string[] = [];
+
+	if (def == null || typeof def !== "object") {
+		return { valid: false, errors: ["Definition must be a non-null object"] };
+	}
+
+	const d = def as Record<string, unknown>;
+
+	if (typeof d.name !== "string" || d.name.length === 0) {
+		errors.push("Missing or empty 'name' field");
+	}
+
+	if (d.nodes == null || typeof d.nodes !== "object" || Array.isArray(d.nodes)) {
+		errors.push("Missing or invalid 'nodes' field (must be an object)");
+		return { valid: false, errors };
+	}
+
+	const nodeNames = new Set(Object.keys(d.nodes as object));
+
+	for (const [name, raw] of Object.entries(d.nodes as Record<string, unknown>)) {
+		if (raw == null || typeof raw !== "object") {
+			errors.push(`Node "${name}": must be an object`);
+			continue;
+		}
+		const node = raw as Record<string, unknown>;
+		if (typeof node.type !== "string" || !VALID_NODE_TYPES.has(node.type)) {
+			errors.push(
+				`Node "${name}": invalid type "${String(node.type)}" (expected: ${[...VALID_NODE_TYPES].join(", ")})`,
+			);
+		}
+		if (Array.isArray(node.deps)) {
+			for (const dep of node.deps) {
+				if (typeof dep === "string" && !nodeNames.has(dep)) {
+					errors.push(`Node "${name}": dep "${dep}" does not reference an existing node`);
+				}
+			}
+		}
+	}
+
+	if (!Array.isArray(d.edges)) {
+		if (d.edges !== undefined) {
+			errors.push("'edges' must be an array");
+		}
+		// edges are optional — no error if absent
+	} else {
+		const seen = new Set<string>();
+		for (let i = 0; i < (d.edges as unknown[]).length; i++) {
+			const edge = (d.edges as unknown[])[i];
+			if (edge == null || typeof edge !== "object") {
+				errors.push(`Edge [${i}]: must be an object`);
+				continue;
+			}
+			const e = edge as Record<string, unknown>;
+			if (typeof e.from !== "string" || !nodeNames.has(e.from)) {
+				errors.push(`Edge [${i}]: 'from' "${String(e.from)}" does not reference an existing node`);
+			}
+			if (typeof e.to !== "string" || !nodeNames.has(e.to)) {
+				errors.push(`Edge [${i}]: 'to' "${String(e.to)}" does not reference an existing node`);
+			}
+			const key = `${e.from}->${e.to}`;
+			if (seen.has(key)) {
+				errors.push(`Edge [${i}]: duplicate edge ${key}`);
+			}
+			seen.add(key);
+		}
+	}
+
+	return { valid: errors.length === 0, errors };
+}
+
+// ---------------------------------------------------------------------------
+// graphFromSpec
+// ---------------------------------------------------------------------------
+
+export type GraphFromSpecOptions = {
+	model?: string;
+	temperature?: number;
+	maxTokens?: number;
+	/** Callback to construct topology before values are applied (passed to `Graph.fromSnapshot`). */
+	build?: (g: Graph) => void;
+	/** Extra instructions appended to the system prompt. */
+	systemPromptExtra?: string;
+};
+
+/** Strip markdown code fences, handling trailing commentary after closing fence. */
+function stripFences(text: string): string {
+	const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```[\s\S]*$/);
+	return match ? match[1]! : text;
+}
+
+const GRAPH_FROM_SPEC_SYSTEM_PROMPT = `You are a graph architect for GraphReFly, a reactive graph protocol.
+
+Given a natural-language description, produce a JSON graph definition with this structure:
+
+{
+  "name": "<graph_name>",
+  "nodes": {
+    "<node_name>": {
+      "type": "state" | "derived" | "producer" | "operator" | "effect",
+      "value": <initial_value_or_null>,
+      "deps": ["<dep_node_name>", ...],
+      "meta": {
+        "description": "<human-readable purpose>",
+        "type": "string" | "number" | "boolean" | "integer" | "enum",
+        "range": [min, max],
+        "values": ["a", "b"],
+        "format": "currency" | "percentage" | "status",
+        "access": "human" | "llm" | "both" | "system",
+        "unit": "<unit>",
+        "tags": ["<tag>"]
+      }
+    }
+  },
+  "edges": [
+    { "from": "<source_node>", "to": "<target_node>" }
+  ]
+}
+
+Rules:
+- "state" nodes have no deps and hold user/LLM-writable values (knobs).
+- "derived" nodes have deps and compute from them.
+- "effect" nodes have deps but produce side effects (no return value).
+- "producer" nodes have no deps but generate values asynchronously.
+- Edges wire output of one node as input to another. They must match deps.
+- meta.description is required for every node.
+- Return ONLY valid JSON, no markdown fences or commentary.`;
+
+/**
+ * Ask an LLM to compose a Graph from a natural-language description.
+ *
+ * The LLM returns a JSON graph definition which is validated and then
+ * constructed via `Graph.fromSnapshot()`.
+ *
+ * @param naturalLanguage - The problem/use-case description.
+ * @param adapter - LLM adapter for the generation call.
+ * @param opts - Model options and optional `build` callback for node factories.
+ * @returns A constructed Graph.
+ * @throws On invalid LLM output or validation failure.
+ */
+export async function graphFromSpec(
+	naturalLanguage: string,
+	adapter: LLMAdapter,
+	opts?: GraphFromSpecOptions,
+): Promise<Graph> {
+	const systemPrompt = opts?.systemPromptExtra
+		? `${GRAPH_FROM_SPEC_SYSTEM_PROMPT}\n\n${opts.systemPromptExtra}`
+		: GRAPH_FROM_SPEC_SYSTEM_PROMPT;
+
+	const messages: ChatMessage[] = [
+		{ role: "system", content: systemPrompt },
+		{ role: "user", content: naturalLanguage },
+	];
+
+	const rawResult = adapter.invoke(messages, {
+		model: opts?.model,
+		temperature: opts?.temperature ?? 0,
+		maxTokens: opts?.maxTokens,
+	});
+
+	const response = (await resolveToolHandlerResult(rawResult)) as LLMResponse;
+	let content = response.content.trim();
+
+	// Strip markdown fences if present (handles trailing commentary after ```)
+	if (content.startsWith("```")) {
+		content = stripFences(content);
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(content);
+	} catch {
+		throw new Error(`graphFromSpec: LLM response is not valid JSON: ${content.slice(0, 200)}`);
+	}
+
+	const validation = validateGraphDef(parsed);
+	if (!validation.valid) {
+		throw new Error(`graphFromSpec: invalid graph definition:\n${validation.errors.join("\n")}`);
+	}
+
+	const def = parsed as Record<string, unknown>;
+	// Ensure version field is present for fromSnapshot envelope check
+	if (def.version === undefined) def.version = 1;
+	if (!Array.isArray(def.subgraphs)) def.subgraphs = [];
+	return Graph.fromSnapshot(def as GraphPersistSnapshot, opts?.build);
+}
+
+// ---------------------------------------------------------------------------
+// suggestStrategy
+// ---------------------------------------------------------------------------
+
+/** A single operation in a strategy plan. */
+export type StrategyOperation =
+	| {
+			readonly type: "add_node";
+			readonly name: string;
+			readonly nodeType: string;
+			readonly meta?: Record<string, unknown>;
+			readonly initial?: unknown;
+	  }
+	| { readonly type: "remove_node"; readonly name: string }
+	| { readonly type: "connect"; readonly from: string; readonly to: string }
+	| { readonly type: "disconnect"; readonly from: string; readonly to: string }
+	| { readonly type: "set_value"; readonly name: string; readonly value: unknown }
+	| {
+			readonly type: "update_meta";
+			readonly name: string;
+			readonly key: string;
+			readonly value: unknown;
+	  };
+
+/** Structured strategy plan returned by {@link suggestStrategy}. */
+export type StrategyPlan = {
+	readonly summary: string;
+	readonly operations: readonly StrategyOperation[];
+	readonly reasoning: string;
+};
+
+export type SuggestStrategyOptions = {
+	model?: string;
+	temperature?: number;
+	maxTokens?: number;
+	actor?: Actor;
+};
+
+const SUGGEST_STRATEGY_SYSTEM_PROMPT = `You are a reactive graph optimizer for GraphReFly.
+
+Given a graph's current structure (from describe()) and a problem statement, suggest topology and parameter changes to solve the problem.
+
+Return ONLY valid JSON with this structure:
+{
+  "summary": "<one-line summary of the strategy>",
+  "reasoning": "<explanation of why these changes help>",
+  "operations": [
+    { "type": "add_node", "name": "<name>", "nodeType": "state|derived|effect|producer|operator", "meta": {...}, "initial": <value> },
+    { "type": "remove_node", "name": "<name>" },
+    { "type": "connect", "from": "<source>", "to": "<target>" },
+    { "type": "disconnect", "from": "<source>", "to": "<target>" },
+    { "type": "set_value", "name": "<name>", "value": <new_value> },
+    { "type": "update_meta", "name": "<name>", "key": "<meta_key>", "value": <new_value> }
+  ]
+}
+
+Rules:
+- Only suggest operations that reference existing nodes (for remove/disconnect/set_value/update_meta) or new nodes you define (for add_node).
+- Keep changes minimal — prefer the smallest set of operations that solves the problem.
+- Return ONLY valid JSON, no markdown fences or commentary.`;
+
+/**
+ * Ask an LLM to analyze a graph and suggest topology/parameter changes
+ * to solve a stated problem.
+ *
+ * Returns a structured plan — does NOT auto-apply. The caller reviews
+ * and selectively applies operations.
+ *
+ * @param graph - The graph to analyze.
+ * @param problem - Natural-language problem statement.
+ * @param adapter - LLM adapter for the analysis call.
+ * @param opts - Model and actor options.
+ * @returns A structured strategy plan.
+ * @throws On invalid LLM output.
+ */
+export async function suggestStrategy(
+	graph: Graph,
+	problem: string,
+	adapter: LLMAdapter,
+	opts?: SuggestStrategyOptions,
+): Promise<StrategyPlan> {
+	const described = graph.describe({ actor: opts?.actor });
+
+	const messages: ChatMessage[] = [
+		{ role: "system", content: SUGGEST_STRATEGY_SYSTEM_PROMPT },
+		{
+			role: "user",
+			content: JSON.stringify({
+				graph: described,
+				problem,
+			}),
+		},
+	];
+
+	const rawResult = adapter.invoke(messages, {
+		model: opts?.model,
+		temperature: opts?.temperature ?? 0,
+		maxTokens: opts?.maxTokens,
+	});
+
+	const response = (await resolveToolHandlerResult(rawResult)) as LLMResponse;
+	let content = response.content.trim();
+
+	if (content.startsWith("```")) {
+		content = content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(content);
+	} catch {
+		throw new Error(`suggestStrategy: LLM response is not valid JSON: ${content.slice(0, 200)}`);
+	}
+
+	const plan = parsed as Record<string, unknown>;
+
+	if (typeof plan.summary !== "string") {
+		throw new Error("suggestStrategy: missing 'summary' in response");
+	}
+	if (typeof plan.reasoning !== "string") {
+		throw new Error("suggestStrategy: missing 'reasoning' in response");
+	}
+	if (!Array.isArray(plan.operations)) {
+		throw new Error("suggestStrategy: missing 'operations' array in response");
+	}
+
+	return {
+		summary: plan.summary,
+		reasoning: plan.reasoning,
+		operations: plan.operations as readonly StrategyOperation[],
+	};
 }
