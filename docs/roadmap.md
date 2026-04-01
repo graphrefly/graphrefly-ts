@@ -478,23 +478,23 @@ Promoted from original Phase 6 placement. V0 is the minimum enabler for delta ch
 - [x] `advanceVersion()` call on every DATA emission (value changed)
 - [x] `describeNode()` includes `{ id, version }` when V0 active
 - [x] `graph.snapshot()` includes per-node `{ id, version }` — enables delta restore
-- [ ] `Graph.diff()` uses version counters to skip unchanged nodes — O(changes) not O(graph_size)
-- [ ] `graph.setVersioning(level)` — set default versioning level for all new nodes in this graph
+- [x] `Graph.diff()` uses version counters to skip unchanged nodes — O(changes) not O(graph_size)
+- [x] `graph.setVersioning(level)` — set default versioning level for all new nodes in this graph
 
 #### 6.0b — V0 backfill (post-implementation)
 
 Backfill V0 integration into already-shipped phases. Each item enables version-aware behavior in existing code.
 
-- [ ] **Phase 1.4b** (autoCheckpoint / incremental snapshots): use V0 version counters for true delta checkpoints — only serialize nodes with `version > lastCheckpointVersion`. Currently `Graph.diff()` compares two full snapshots; V0 makes this O(changes).
-- [ ] **Phase 3.2** (data structures): `reactiveMap`, `reactiveLog`, `reactiveIndex`, `reactiveList` entries carry V0 identity. Enables diff-friendly observation of collection changes ("which entries changed?") and dedup across snapshots.
-- [ ] **Phase 3.2b** (verifiable / distill): `verifiable()` verification results carry V0 for "which version was verified?" tracking. `distill()` memory entries carry V0 for dedup and consolidation identity.
-- [ ] **Phase 3.3** (Inspector): `Graph.diff()` upgrade to version-gated O(changes) diffing. `observe({ causal: true })` includes triggering node's version. `describe()` output includes V0 fields when active.
-- [ ] **Phase 4.2** (Messaging): `topic()` messages, `subscription()` cursors, and `jobQueue()` jobs carry V0 identity. Enables exactly-once delivery via version dedup and cursor-by-version.
-- [ ] **Phase 4.3** (Memory): `collection()` and `lightCollection()` entries carry V0 for identity-based dedup and version-aware eviction. `knowledgeGraph()` entity/relation identity.
-- [ ] **Phase 4.4** (AI surface): `agentMemory()` memory entries carry V0. LLM context can send delta — "nodes with version > lastSeen" — instead of full `describe()`, saving context window tokens. `chatStream()` message identity.
-- [ ] **Phase 4.5** (CQRS): events carry V0 identity (required for replay dedup). Projections track version for rebuild skip ("already at version N"). Commands carry version for optimistic concurrency.
-- [ ] **Phase 5.3** (workerBridge): wire sync uses version counters — only transfer nodes with `version > peerLastSeen`. Enables delta-based cross-worker sync instead of full snapshot transfer.
-- [ ] **Phase 5.4** (LLM tool integration): `gaugesAsContext()` sends only changed nodes (by version) to LLM system prompts. `knobsAsTools()` includes version for conflict detection. **Appendix B** (`describe()` JSON schema): add optional `v` when versioning is in use (same tranche as 6.0b tooling).
+- [x] **Phase 1.4b** (autoCheckpoint / incremental snapshots): use V0 version counters for true delta checkpoints — only serialize nodes with `version > lastCheckpointVersion`. Currently `Graph.diff()` compares two full snapshots; V0 makes this O(changes).
+- [x] **Phase 3.2** (data structures): `reactiveMap`, `reactiveLog`, `reactiveIndex`, `reactiveList` entries carry V0 identity. Enables diff-friendly observation of collection changes ("which entries changed?") and dedup across snapshots.
+- [x] **Phase 3.2b** (verifiable / distill): `verifiable()` verification results carry V0 for "which version was verified?" tracking. `distill()` memory entries carry V0 for dedup and consolidation identity.
+- [x] **Phase 3.3** (Inspector): `Graph.diff()` upgrade to version-gated O(changes) diffing. `observe({ causal: true })` includes triggering node's version. `describe()` output includes V0 fields when active.
+- [x] **Phase 4.2** (Messaging): `topic()` messages, `subscription()` cursors, and `jobQueue()` jobs carry V0 identity. Enables exactly-once delivery via version dedup and cursor-by-version.
+- [x] **Phase 4.3** (Memory): `collection()` and `lightCollection()` entries carry V0 for identity-based dedup and version-aware eviction. `knowledgeGraph()` entity/relation identity.
+- [x] **Phase 4.4** (AI surface): `agentMemory()` memory entries carry V0. LLM context can send delta — "nodes with version > lastSeen" — instead of full `describe()`, saving context window tokens. `chatStream()` message identity.
+- [x] **Phase 4.5** (CQRS): events carry V0 identity (required for replay dedup). Projections track version for rebuild skip ("already at version N"). Commands carry version for optimistic concurrency.
+- [x] **Phase 5.3** (workerBridge): wire sync uses version counters — only transfer nodes with `version > peerLastSeen`. Enables delta-based cross-worker sync instead of full snapshot transfer.
+- [x] **Phase 5.4** (LLM tool integration): `gaugesAsContext()` sends only changed nodes (by version) to LLM system prompts. `knobsAsTools()` includes version for conflict detection. **Appendix B** (`describe()` JSON schema): add optional `v` when versioning is in use (same tranche as 6.0b tooling).
 
 ### 6.1 — V1: + cid + prev (content addressing, linked history)
 

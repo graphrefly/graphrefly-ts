@@ -11,6 +11,7 @@ import {
 	isV1,
 	type V1,
 } from "../../core/versioning.js";
+import { Graph } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------
 // Unit: versioning module
@@ -266,5 +267,120 @@ describe("versioning with effect nodes", () => {
 		// Effects don't emit DATA, so version doesn't advance
 		expect(e.v!.version).toBe(0);
 		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 6.0: _applyVersioning
+// ---------------------------------------------------------------------------
+
+describe("_applyVersioning", () => {
+	it("retroactively adds V0 to a node without versioning", () => {
+		const s = state(42);
+		expect(s.v).toBeUndefined();
+		// Apply versioning via internal API
+		(s as any)._applyVersioning(0);
+		expect(s.v).toBeDefined();
+		expect(s.v!.version).toBe(0);
+		expect(s.v!.id).toBeTypeOf("string");
+	});
+
+	it("is no-op when versioning already enabled", () => {
+		const s = state(42, { versioning: 0, versioningId: "keep-me" });
+		(s as any)._applyVersioning(0, { id: "overwrite" });
+		expect(s.v!.id).toBe("keep-me");
+	});
+
+	it("V1 retroactive apply includes cid", () => {
+		const s = state("hello");
+		(s as any)._applyVersioning(1);
+		expect(s.v).toBeDefined();
+		expect(isV1(s.v!)).toBe(true);
+		expect((s.v as V1).cid).toBeTypeOf("string");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 6.0: Graph.setVersioning + Graph.diff version-aware
+// ---------------------------------------------------------------------------
+
+describe("Graph.setVersioning", () => {
+	it("retroactively applies versioning to existing nodes", () => {
+		const g = new Graph("test");
+		const a = state(1, { name: "a" });
+		const b = state(2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		expect(a.v).toBeUndefined();
+		expect(b.v).toBeUndefined();
+
+		g.setVersioning(0);
+
+		expect(a.v).toBeDefined();
+		expect(a.v!.version).toBe(0);
+		expect(b.v).toBeDefined();
+	});
+
+	it("auto-applies versioning to newly added nodes", () => {
+		const g = new Graph("test");
+		g.setVersioning(0);
+
+		const c = state(3, { name: "c" });
+		expect(c.v).toBeUndefined();
+		g.add("c", c);
+		expect(c.v).toBeDefined();
+	});
+});
+
+describe("Graph.diff V0 optimization", () => {
+	it("skips value comparison when versions match", () => {
+		const nodeA = {
+			type: "state",
+			status: "settled",
+			value: { big: "object" },
+			deps: [],
+			meta: {},
+			v: { id: "x", version: 5 },
+		};
+		const a = { name: "g", nodes: { n: nodeA }, edges: [], subgraphs: [] };
+		const b = { name: "g", nodes: { n: { ...nodeA } }, edges: [], subgraphs: [] };
+		const result = Graph.diff(a, b);
+		expect(result.nodesChanged).toEqual([]);
+	});
+
+	it("detects value change when versions differ", () => {
+		const a = {
+			name: "g",
+			nodes: {
+				n: {
+					type: "state",
+					status: "settled",
+					value: 1,
+					deps: [],
+					meta: {},
+					v: { id: "x", version: 1 },
+				},
+			},
+			edges: [],
+			subgraphs: [],
+		};
+		const b = {
+			name: "g",
+			nodes: {
+				n: {
+					type: "state",
+					status: "settled",
+					value: 2,
+					deps: [],
+					meta: {},
+					v: { id: "x", version: 2 },
+				},
+			},
+			edges: [],
+			subgraphs: [],
+		};
+		const result = Graph.diff(a, b);
+		expect(result.nodesChanged).toHaveLength(1);
+		expect(result.nodesChanged[0].field).toBe("value");
 	});
 });

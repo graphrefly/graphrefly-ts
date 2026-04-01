@@ -112,6 +112,7 @@ export function workerBridge<
 
 	// -- Proxy nodes for imports (worker -> main) ------------------------------
 	const proxyNodes = new Map<string, Node<any>>();
+	const lastSeenImportVersions = new Map<string, number>();
 	for (const name of importNames) {
 		const proxy = state(undefined, { name: `${bridgeName}::${name}` });
 		proxyNodes.set(name, proxy);
@@ -150,7 +151,15 @@ export function workerBridge<
 				if (fn) transferList.push(...fn(updates[name]));
 			}
 
-			const msg: BatchMessage = { t: "b", u: updates };
+			// V0 delta sync: include version counters when available (§6.0b).
+			let versions: Record<string, number> | undefined;
+			for (const [name, n] of exposeEntries) {
+				if (name in updates && n.v != null) {
+					if (versions == null) versions = {};
+					versions[name] = n.v.version;
+				}
+			}
+			const msg: BatchMessage = { t: "b", u: updates, ...(versions ? { v: versions } : {}) };
 			try {
 				transport.post(msg, transferList.length > 0 ? transferList : undefined);
 			} catch (err) {
@@ -201,6 +210,12 @@ export function workerBridge<
 			case "b": {
 				batch(() => {
 					for (const [name, value] of Object.entries(msg.u)) {
+						const incomingVersion = msg.v?.[name];
+						if (incomingVersion != null) {
+							const lastSeen = lastSeenImportVersions.get(name);
+							if (lastSeen != null && incomingVersion <= lastSeen) continue;
+							lastSeenImportVersions.set(name, incomingVersion);
+						}
 						const proxy = proxyNodes.get(name);
 						if (proxy) proxy.down([[DATA, value]]);
 					}
@@ -303,6 +318,7 @@ export function workerBridge<
 		statusNode.down([[DATA, "closed"]]);
 
 		lastSent.clear();
+		lastSeenImportVersions.clear();
 		proxyNodes.clear();
 	}
 

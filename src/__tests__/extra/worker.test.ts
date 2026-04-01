@@ -233,6 +233,23 @@ describe("workerBridge + workerSelf", () => {
 		expect((batchMessages[0][0] as any).u).toEqual({ a: 1, b: 2 });
 	});
 
+	it("ignores stale batch updates when versions regress", async () => {
+		const [mainTransport, workerTransport] = transportPair();
+		const bridge = workerBridge(mainTransport, {
+			import: ["counter"] as const,
+		});
+		bridges.push(bridge);
+
+		workerTransport.post({ t: "b", u: { counter: 2 }, v: { counter: 2 } });
+		await tick(20);
+		expect(bridge.counter.get()).toBe(2);
+
+		// Stale update with older version must be ignored.
+		workerTransport.post({ t: "b", u: { counter: 1 }, v: { counter: 1 } });
+		await tick(20);
+		expect(bridge.counter.get()).toBe(2);
+	});
+
 	it("forwards COMPLETE from worker to main proxy", async () => {
 		const [mainTransport, workerTransport] = transportPair();
 

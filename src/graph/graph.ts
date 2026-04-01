@@ -22,6 +22,7 @@ import {
 	type NodeTransportOptions,
 } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
+import type { VersioningLevel } from "../core/versioning.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
@@ -384,6 +385,12 @@ export type ObserveEvent = {
 	in_batch?: boolean;
 	trigger_dep_index?: number;
 	trigger_dep_name?: string;
+	/**
+	 * V0 version of the triggering dep at observation time (§6.0b).
+	 * This is the dep's post-emission version (after its own `advanceVersion`),
+	 * not the pre-emission version that caused this node's recomputation.
+	 */
+	trigger_version?: { id: string; version: number };
 	dep_values?: unknown[];
 };
 
@@ -538,6 +545,7 @@ export class Graph {
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
+	private _defaultVersioningLevel: VersioningLevel | undefined;
 
 	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
 		if (!pattern) {
@@ -679,6 +687,30 @@ export class Graph {
 		this._nodes.set(name, node);
 		if (node instanceof NodeImpl) {
 			node._assignRegistryName(name);
+			if (this._defaultVersioningLevel != null) {
+				node._applyVersioning(this._defaultVersioningLevel);
+			}
+		}
+	}
+
+	/**
+	 * Set a default versioning level for all nodes added to this graph (roadmap §6.0).
+	 *
+	 * Nodes already registered are retroactively upgraded. Nodes added later via
+	 * {@link add} will inherit this level unless they already have versioning.
+	 *
+	 * **Scope:** Does not propagate to mounted subgraphs. Call `setVersioning`
+	 * on each child graph separately if needed.
+	 *
+	 * @param level - `0` for V0, `1` for V1, or `undefined` to clear.
+	 */
+	setVersioning(level: VersioningLevel | undefined): void {
+		this._defaultVersioningLevel = level;
+		if (level == null) return;
+		for (const n of this._nodes.values()) {
+			if (n instanceof NodeImpl) {
+				n._applyVersioning(level);
+			}
 		}
 	}
 
@@ -1357,16 +1389,21 @@ export class Graph {
 				const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
 				const withCausal =
 					causal && lastRunDepValues != null
-						? {
-								trigger_dep_index: lastTriggerDepIndex,
-								trigger_dep_name:
+						? (() => {
+								const triggerDep =
 									lastTriggerDepIndex != null &&
 									lastTriggerDepIndex >= 0 &&
 									target instanceof NodeImpl
-										? target._deps[lastTriggerDepIndex]?.name
-										: undefined,
-								dep_values: [...lastRunDepValues],
-							}
+										? target._deps[lastTriggerDepIndex]
+										: undefined;
+								const tv = triggerDep?.v;
+								return {
+									trigger_dep_index: lastTriggerDepIndex,
+									trigger_dep_name: triggerDep?.name,
+									...(tv != null ? { trigger_version: { id: tv.id, version: tv.version } } : {}),
+									dep_values: [...lastRunDepValues],
+								};
+							})()
 						: {};
 				if (t === DATA) {
 					result.values[path] = m[1] as T;
@@ -2122,6 +2159,20 @@ export class Graph {
 			if (!bKeys.has(key)) continue;
 			const na = a.nodes[key];
 			const nb = b.nodes[key];
+			// V0 optimization: skip value comparison when both nodes have matching versions.
+			const av = na.v;
+			const bv = nb.v;
+			if (av != null && bv != null && av.id === bv.id && av.version === bv.version) {
+				// Version unchanged — only check type/status (cheap string compare).
+				for (const field of ["type", "status"] as const) {
+					const va = (na as Record<string, unknown>)[field];
+					const vb = (nb as Record<string, unknown>)[field];
+					if (va !== vb) {
+						nodesChanged.push({ path: key, field, from: va, to: vb });
+					}
+				}
+				continue;
+			}
 			for (const field of ["type", "status", "value"] as const) {
 				const va = (na as Record<string, unknown>)[field];
 				const vb = (nb as Record<string, unknown>)[field];

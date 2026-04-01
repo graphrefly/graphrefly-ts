@@ -119,7 +119,8 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		pruneExpiredInternal();
 		const now = monotonicNs();
 		const map = buildMap(store, now) as ReadonlyMap<K, V>;
-		current = bumpVersion(current, { map });
+		const nv = n.v;
+		current = bumpVersion(current, { map }, nv ? { id: nv.id, version: nv.version } : undefined);
 		batch(() => {
 			n.down([[DIRTY]]);
 			n.down([[DATA, current]]);

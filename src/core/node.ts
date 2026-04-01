@@ -473,6 +473,24 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return this._versioning;
 	}
 
+	/**
+	 * Retroactively apply versioning to a node that was created without it.
+	 * No-op if versioning is already enabled.
+	 *
+	 * Version starts at 0 regardless of prior DATA emissions — it tracks
+	 * changes from the moment versioning is enabled, not historical ones.
+	 *
+	 * @internal — used by {@link Graph.setVersioning}.
+	 */
+	_applyVersioning(level: VersioningLevel, opts?: { id?: string; hash?: HashFn }): void {
+		if (this._versioning != null) return;
+		this._hashFn = opts?.hash ?? this._hashFn;
+		this._versioning = createVersioning(level, this._cached, {
+			id: opts?.id,
+			hash: this._hashFn,
+		});
+	}
+
 	hasGuard(): boolean {
 		return this._guard != null;
 	}

@@ -53,6 +53,8 @@ export interface InitMessage {
 export interface BatchMessage {
 	t: "b";
 	u: Record<string, unknown>;
+	/** V0 versions per node for delta sync — peer skips if version <= lastSeen (§6.0b). */
+	v?: Record<string, number>;
 }
 
 /** Error payload — serialized since Error objects don't survive structured clone. */

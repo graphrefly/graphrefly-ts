@@ -124,6 +124,22 @@ describe("cqrs — roadmap §4.5", () => {
 		app.destroy();
 	});
 
+	it("events carry v0 identity when event log node is versioned", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		((app as any)._eventLogs.get("orderPlaced").log.entries as any)._applyVersioning(0);
+		app.command("placeOrder", (payload: any, { emit }) => {
+			emit("orderPlaced", payload);
+		});
+		app.dispatch("placeOrder", { id: "1" });
+		const snap = app.event("orderPlaced").get() as {
+			value: { entries: CqrsEvent[] };
+		};
+		expect(snap.value.entries[0].v0).toBeDefined();
+		expect(snap.value.entries[0].v0!.id).toBeTypeOf("string");
+		app.destroy();
+	});
+
 	it("seq increments monotonically across dispatches", () => {
 		const app = cqrs("test");
 		app.event("a");

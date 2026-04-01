@@ -94,6 +94,11 @@ export type ToolDefinition = {
 	readonly description: string;
 	readonly parameters: Record<string, unknown>; // JSON Schema
 	readonly handler: (args: Record<string, unknown>) => NodeInput<unknown>;
+	/**
+	 * V0 version of the backing node at `knobsAsTools()` call time (§6.0b).
+	 * Snapshot — re-call `knobsAsTools()` to refresh.
+	 */
+	readonly version?: { id: string; version: number };
 };
 
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
@@ -1676,6 +1681,7 @@ export function knobsAsTools(graph: Graph, actor?: Actor): KnobsAsToolsResult {
 
 		const graphRef = graph;
 		const actorRef = actor;
+		const nv = node.v;
 		definitions.push({
 			name: path,
 			description,
@@ -1684,6 +1690,7 @@ export function knobsAsTools(graph: Graph, actor?: Actor): KnobsAsToolsResult {
 				graphRef.set(path, args.value, actorRef ? { actor: actorRef } : undefined);
 				return args.value;
 			},
+			...(nv != null ? { version: { id: nv.id, version: nv.version } } : {}),
 		});
 	}
 
@@ -1699,6 +1706,15 @@ export type GaugesAsContextOptions = {
 	groupByTags?: boolean;
 	/** Separator between gauge lines (default "\n"). */
 	separator?: string;
+	/**
+	 * V0 delta mode (§6.0b): only include nodes whose `v.version` exceeds
+	 * the corresponding entry in this map. Nodes without V0 or not in the
+	 * map are always included. Callers maintain this map across calls.
+	 *
+	 * The `id` field guards against node replacement: if a node is removed
+	 * and re-added under the same name (new id), it is always included.
+	 */
+	sinceVersion?: ReadonlyMap<string, { id: string; version: number }>;
 };
 
 /**
@@ -1725,11 +1741,18 @@ export function gaugesAsContext(
 	type GaugeEntry = { path: string; description: string; formatted: string };
 	const entries: GaugeEntry[] = [];
 
+	const sinceVersion = options?.sinceVersion;
 	for (const [path, node] of Object.entries(described.nodes)) {
 		const desc = node.meta.description as string | undefined;
 		const format = node.meta.format as string | undefined;
 		// Must have description or format to be a gauge
 		if (!desc && !format) continue;
+		// V0 delta filter: skip nodes unchanged since last seen version (§6.0b).
+		if (sinceVersion != null && node.v != null) {
+			const lastSeen = sinceVersion.get(path);
+			if (lastSeen != null && lastSeen.id === node.v.id && node.v.version <= lastSeen.version)
+				continue;
+		}
 
 		const label = desc ?? path;
 		const value = node.value;

@@ -59,7 +59,12 @@ export function reactiveList<T>(
 	});
 
 	function pushSnapshot(): void {
-		current = bumpVersion(current, { items: [...buf] });
+		const iv = items.v;
+		current = bumpVersion(
+			current,
+			{ items: [...buf] },
+			iv ? { id: iv.id, version: iv.version } : undefined,
+		);
 		batch(() => {
 			items.down([[DIRTY]]);
 			items.down([[DATA, current]]);

@@ -774,6 +774,22 @@ describe("knobsAsTools", () => {
 		expect(result.openai).toHaveLength(0);
 		g.destroy();
 	});
+
+	it("includes V0 version metadata for knob definitions", () => {
+		const g = new Graph("versioned-knobs");
+		const knob = state(1, {
+			name: "knob",
+			versioning: 0,
+			meta: { description: "Versioned knob", access: "both" },
+		});
+		g.add("knob", knob);
+
+		const result = knobsAsTools(g);
+		const def = result.definitions.find((d) => d.name === "knob");
+		expect(def).toBeDefined();
+		expect(def!.version).toEqual({ id: knob.v!.id, version: knob.v!.version });
+		g.destroy();
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -815,6 +831,25 @@ describe("gaugesAsContext", () => {
 		g.add("plain", plain);
 
 		expect(gaugesAsContext(g)).toBe("");
+		g.destroy();
+	});
+
+	it("supports V0 delta filtering via sinceVersion", () => {
+		const g = new Graph("delta");
+		const metric = state(1, {
+			name: "metric",
+			versioning: 0,
+			meta: { description: "Metric", access: "both" },
+		});
+		g.add("metric", metric);
+
+		const since = new Map<string, { id: string; version: number }>();
+		since.set("metric", { id: metric.v!.id, version: metric.v!.version });
+		expect(gaugesAsContext(g, undefined, { sinceVersion: since })).toBe("");
+
+		metric.down([[DATA, 2]]);
+		const ctx = gaugesAsContext(g, undefined, { sinceVersion: since });
+		expect(ctx).toContain("Metric: 2");
 		g.destroy();
 	});
 });

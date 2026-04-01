@@ -89,7 +89,12 @@ export function reactiveLog<T>(
 	});
 
 	function pushSnapshot(): void {
-		current = bumpVersion(current, { entries: [...buf] });
+		const ev = entries.v;
+		current = bumpVersion(
+			current,
+			{ entries: [...buf] },
+			ev ? { id: ev.id, version: ev.version } : undefined,
+		);
 		batch(() => {
 			entries.down([[DIRTY]]);
 			entries.down([[DATA, current]]);

@@ -76,6 +76,8 @@ export type CqrsEvent<T = unknown> = {
 	timestampNs: number;
 	/** Monotonic sequence within this CqrsGraph instance. */
 	seq: number;
+	/** V0 identity of the event log node at append time (§6.0b). */
+	v0?: { id: string; version: number };
 };
 
 // ---------------------------------------------------------------------------
@@ -223,11 +225,13 @@ export class CqrsGraph extends Graph {
 			this.event(eventName);
 			entry = this._eventLogs.get(eventName)!;
 		}
+		const nv = entry.log.entries.v;
 		const evt: CqrsEvent = {
 			type: eventName,
 			payload,
 			timestampNs: wallClockNs(),
 			seq: ++this._seq,
+			...(nv != null ? { v0: { id: nv.id, version: nv.version } } : {}),
 		};
 		entry.log.append(evt);
 		if (this._eventStore) {

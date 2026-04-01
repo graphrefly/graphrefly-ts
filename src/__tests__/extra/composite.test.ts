@@ -50,6 +50,22 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 		expect(bundle.trigger).not.toBe(null);
 		expect(bundle.verified.get()).toBe(30);
 	});
+
+	it("stamps sourceVersion meta when source node has V0", () => {
+		const source = state(2, { versioning: 0 });
+		const trigger = state(0);
+		const bundle = verifiable(source, (value) => ({ checked: value }), {
+			trigger,
+			autoVerify: false,
+		});
+		trigger.down([[DATA, 1]]);
+		const sv = (bundle.verified.meta as any).sourceVersion.get() as {
+			id: string;
+			version: number;
+		};
+		expect(sv.id).toBe(source.v!.id);
+		expect(sv.version).toBe(source.v!.version);
+	});
 });
 
 describe("extra composite distill (roadmap §3.2b)", () => {

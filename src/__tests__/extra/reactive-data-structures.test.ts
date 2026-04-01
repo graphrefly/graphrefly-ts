@@ -74,6 +74,19 @@ describe("extra reactiveList (roadmap §3.2)", () => {
 		expect(lst.pop()).toBe(1);
 		expect((lst.items.get() as { value: { items: readonly number[] } }).value.items).toEqual([0]);
 	});
+
+	it("embeds v0 identity in snapshots when backing node is versioned", () => {
+		const lst = reactiveList<number>();
+		(lst.items as any)._applyVersioning(0);
+		lst.append(1);
+		const snap = lst.items.get() as {
+			version: number;
+			value: { items: readonly number[] };
+			v0?: { id: string; version: number };
+		};
+		expect(snap.v0).toBeDefined();
+		expect(snap.v0!.id).toBeTypeOf("string");
+	});
 });
 
 describe("extra pubsub (roadmap §3.2)", () => {

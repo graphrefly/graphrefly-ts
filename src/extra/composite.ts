@@ -60,7 +60,10 @@ export function verifiable<T, TVerify = VerifyValue>(
 	opts?: VerifiableOptions<TVerify>,
 ): VerifiableBundle<T, TVerify> {
 	const sourceNode = fromAny(source);
-	const verified = state<TVerify | null>(opts?.initialVerified ?? null);
+	const hasSourceVersioning = sourceNode.v != null;
+	const verified = state<TVerify | null>(opts?.initialVerified ?? null, {
+		...(hasSourceVersioning ? { meta: { sourceVersion: null } } : {}),
+	});
 	const hasTrigger = opts?.trigger !== undefined && opts.trigger !== null;
 
 	let triggerNode: Node<unknown> | null = null;
@@ -75,7 +78,16 @@ export function verifiable<T, TVerify = VerifyValue>(
 	if (triggerNode !== null) {
 		const verifyStream = switchMap(triggerNode, () => verifyFn(sourceNode.get() as T));
 		forEach(verifyStream, (value) => {
-			verified.down([[DATA, value]]);
+			batch(() => {
+				verified.down([[DATA, value]]);
+				// V0 backfill: stamp which source version was verified (§6.0b).
+				if (hasSourceVersioning) {
+					const sv = sourceNode.v;
+					if (sv != null) {
+						verified.meta.sourceVersion.down([[DATA, { id: sv.id, version: sv.version }]]);
+					}
+				}
+			});
 		});
 	}
 

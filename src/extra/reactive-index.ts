@@ -127,7 +127,12 @@ export function reactiveIndex<K, V = unknown>(
 	keepaliveDerived(byPrimary);
 
 	function pushSnapshot(): void {
-		current = bumpVersion(current, { rows: [...buf] });
+		const ov = ordered.v;
+		current = bumpVersion(
+			current,
+			{ rows: [...buf] },
+			ov ? { id: ov.id, version: ov.version } : undefined,
+		);
 		batch(() => {
 			ordered.down([[DIRTY]]);
 			ordered.down([[DATA, current]]);
