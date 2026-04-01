@@ -10,6 +10,7 @@ import {
 	ChatStreamGraph,
 	chatStream,
 	fromLLM,
+	fromLLMStream,
 	type LLMAdapter,
 	type LLMResponse,
 	llmConsolidator,
@@ -24,13 +25,21 @@ import {
 // Mock LLM adapter
 // ---------------------------------------------------------------------------
 
-function mockAdapter(responses: LLMResponse[]): LLMAdapter {
+function mockAdapter(responses: LLMResponse[], streamChunks?: string[][]): LLMAdapter {
 	let idx = 0;
+	let streamIdx = 0;
 	return {
 		invoke(_messages, _opts) {
 			const resp = responses[idx] ?? responses[responses.length - 1]!;
 			idx++;
 			return resp;
+		},
+		async *stream(_messages, _opts) {
+			const chunks = streamChunks?.[streamIdx] ?? streamChunks?.[streamChunks.length - 1] ?? [];
+			streamIdx++;
+			for (const chunk of chunks) {
+				yield chunk;
+			}
 		},
 	};
 }
@@ -202,6 +211,111 @@ describe("patterns.ai.fromLLM", () => {
 		// switchMap nodes need a subscriber to activate
 		const unsub = result.subscribe(() => {});
 		expect(result.get()).toEqual(resp);
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// fromLLMStream
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.fromLLMStream", () => {
+	it("accumulates streamed tokens into a reactive log", async () => {
+		const chunks = ["Hello", " ", "world", "!"];
+		const adapter = mockAdapter([], [chunks]);
+		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
+		const result = fromLLMStream(adapter, msgs);
+
+		// Wait for the async iteration to complete
+		await new Promise<void>((resolve) => {
+			const unsub = result.subscribe((messages) => {
+				for (const msg of messages) {
+					if (msg[0] === DATA) {
+						const snapshot = msg[1] as { value: { entries: readonly string[] } };
+						if (snapshot.value.entries.length === chunks.length) {
+							expect(snapshot.value.entries).toEqual(chunks);
+							unsub();
+							resolve();
+						}
+					}
+				}
+			});
+		});
+	});
+
+	it("starts a fresh log on new messages input", async () => {
+		const chunks1 = ["first"];
+		const chunks2 = ["second"];
+		const adapter = mockAdapter([], [chunks1, chunks2]);
+		const msgs = state<ChatMessage[]>([{ role: "user", content: "one" }]);
+		const result = fromLLMStream(adapter, msgs);
+
+		// Single persistent subscription to capture all emissions
+		const allSnapshots: Array<{ entries: readonly string[] }> = [];
+		const unsub = result.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) {
+					const s = msg[1] as { value: { entries: readonly string[] } };
+					allSnapshots.push(s.value);
+				}
+			}
+		});
+
+		// Wait for first stream async iteration to complete
+		await new Promise((r) => setTimeout(r, 20));
+		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
+		const firstFinal = allSnapshots[allSnapshots.length - 1];
+		expect(firstFinal.entries).toEqual(["first"]);
+
+		// Trigger second stream — switchMap tears down old, creates fresh log
+		allSnapshots.length = 0;
+		msgs.down([[DATA, [{ role: "user", content: "two" }]]]);
+		await new Promise((r) => setTimeout(r, 20));
+
+		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
+		const secondFinal = allSnapshots[allSnapshots.length - 1];
+		// Fresh log: only "second", not ["first", "second"]
+		expect(secondFinal.entries).toEqual(["second"]);
+		unsub();
+	});
+
+	it("returns empty log for empty messages", () => {
+		const adapter = mockAdapter([], []);
+		const msgs = state<ChatMessage[]>([]);
+		const result = fromLLMStream(adapter, msgs);
+		const unsub = result.subscribe(() => {});
+		const snapshot = result.get() as { value: { entries: readonly string[] } } | null;
+		// Empty messages → cleared log
+		expect(snapshot === null || (snapshot?.value?.entries?.length ?? 0) === 0).toBe(true);
+		unsub();
+	});
+
+	it("absorbs adapter stream errors without crashing", async () => {
+		const errorAdapter: LLMAdapter = {
+			invoke: () => ({ content: "" }),
+			async *stream() {
+				yield "partial";
+				throw new Error("stream broke");
+			},
+		};
+		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
+		const result = fromLLMStream(errorAdapter, msgs);
+
+		const snapshots: Array<{ entries: readonly string[] }> = [];
+		const unsub = result.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) {
+					const s = msg[1] as { value: { entries: readonly string[] } };
+					snapshots.push(s.value);
+				}
+			}
+		});
+
+		await new Promise((r) => setTimeout(r, 20));
+		// Should have received at least the "partial" chunk before the error
+		expect(snapshots.length).toBeGreaterThanOrEqual(1);
+		expect(snapshots[0].entries).toContain("partial");
+		// Log node is still alive (not terminated) — can receive new streams
 		unsub();
 	});
 });

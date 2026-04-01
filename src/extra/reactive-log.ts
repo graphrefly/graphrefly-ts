@@ -31,10 +31,17 @@ function emptySnapshot<T>(): ReactiveLogSnapshot<T> {
 	return { version: 0, value: { entries: [] } };
 }
 
-function keepaliveDerived(n: Node<unknown>): void {
-	void n.subscribe(() => {
-		/* keep dep wiring alive for get() without a user sink (parity with graphrefly-py) */
-	});
+/**
+ * Keep a derived node's dep wiring alive for `get()` without a user sink.
+ * Returns the unsubscribe handle so callers can clean up.
+ *
+ * @remarks Derived views (`tail`, `logSlice`) install this so `get()` stays
+ * wired without an external sink. The returned disposer is currently not
+ * exposed on the bundle — subscriptions are released when the log bundle
+ * becomes unreachable and the GC collects the closure.
+ */
+function keepaliveDerived(n: Node<unknown>): () => void {
+	return n.subscribe(() => {});
 }
 
 /**

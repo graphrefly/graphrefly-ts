@@ -337,14 +337,14 @@ Design reference: `archive/docs/SESSION-agentic-memory-research.md`
 
 Composition layer over 3.2 (`reactiveLog`), 4.1 (sagas), 4.2 (event bus), 4.3 (projections). Guards (1.5) enforce command/query boundary.
 
-- [ ] `cqrs(name, definition)` → Graph — top-level factory
-- [ ] `command(name, handler)` — write-only node; guard rejects `observe`
-- [ ] `event(name)` — backed by `reactiveLog`; append-only, immutable
-- [ ] `projection(events, reducer)` — read-only derived node; guard rejects `write`
-- [ ] `saga(events, handler)` — event-driven side effects (delegates to `pipeline()`)
-- [ ] `eventStore` adapter interface — pluggable persistence (in-memory, SQLite, Postgres)
-- [ ] Projection rebuilding: replay events to reconstruct read models
-- [ ] `describe()` output distinguishes command / event / projection / saga node roles
+- [x] `cqrs(name, definition)` → Graph — top-level factory
+- [x] `command(name, handler)` — write-only node; guard rejects `observe`
+- [x] `event(name)` — backed by `reactiveLog`; append-only, immutable
+- [x] `projection(events, reducer)` — read-only derived node; guard rejects `write`
+- [x] `saga(events, handler)` — event-driven side effects
+- [x] `eventStore` adapter interface — pluggable persistence (in-memory default)
+- [x] Projection rebuilding: replay events to reconstruct read models
+- [x] `describe()` output distinguishes command / event / projection / saga node roles
 
 ---
 
@@ -576,7 +576,7 @@ Each demo has a headless scenario test that mirrors its AC list — no DOM, no W
 Items expected to emerge during demo implementation. Validate need, then add to the appropriate phase.
 
 - [ ] **Reactive cursor** (shared by `subscription()` + `jobQueue()`) — cursor advancing through `reactiveLog`; likely 3.2 primitive or helper
-- [ ] **Streaming node convention** — partial value emission for `chatStream()`/`fromLLM()` token-by-token output; options: (a) `reactiveLog` internally, (b) `DATA` with `{ partial, chunk }`, (c) `streamFrom` pattern (designed in callbag-recharge, not implemented)
+- [x] **Streaming node convention** — `fromLLMStream(adapter, messages)` returns `Node<ReactiveLogSnapshot<string>>` using option (a) `reactiveLog` internally; `LLMAdapter` extended with required `stream()` method
 - [ ] **Factory composition helper** — shared pattern/utility for 4.x graph factory boilerplate (create Graph, add nodes, wire edges, set meta)
 - [ ] **Cross-island state bridge** — shared graph state across Astro islands; options: (a) global graph + subgraph subscribe, (b) `observe()` → custom events, (c) SharedWorker
 - [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant showing hidden nodes with `{ denied: true, reason }` for "what can this actor do?" display

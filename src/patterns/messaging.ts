@@ -27,10 +27,12 @@ function requireNonNegativeInt(value: number, label: string): number {
 	return value;
 }
 
-function keepalive(n: Node<unknown>): void {
-	void n.subscribe(() => {
-		/* keep dep wiring alive for get() without a user sink */
-	});
+/**
+ * Keep a derived node's dep wiring alive for `get()` without a user sink.
+ * Returns the unsubscribe handle so callers can clean up.
+ */
+function keepalive(n: Node<unknown>): () => void {
+	return n.subscribe(() => {});
 }
 
 function messagingMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
@@ -48,6 +50,7 @@ export type TopicOptions = {
 
 export class TopicGraph<T> extends Graph {
 	private readonly _log;
+	private readonly _keepaliveDisposers: Array<() => void> = [];
 	readonly events: Node<ReactiveLogSnapshot<T>>;
 	readonly latest: Node<T | undefined>;
 
@@ -71,7 +74,13 @@ export class TopicGraph<T> extends Graph {
 		);
 		this.add("latest", this.latest);
 		this.connect("events", "latest");
-		keepalive(this.latest);
+		this._keepaliveDisposers.push(keepalive(this.latest));
+	}
+
+	override destroy(): void {
+		for (const dispose of this._keepaliveDisposers) dispose();
+		this._keepaliveDisposers.length = 0;
+		super.destroy();
 	}
 
 	publish(value: T): void {
@@ -90,6 +99,7 @@ export type SubscriptionOptions = {
 };
 
 export class SubscriptionGraph<T> extends Graph {
+	private readonly _keepaliveDisposers: Array<() => void> = [];
 	readonly source: Node<ReactiveLogSnapshot<T>>;
 	readonly cursor: Node<number>;
 	readonly available: Node<readonly T[]>;
@@ -130,8 +140,14 @@ export class SubscriptionGraph<T> extends Graph {
 		this.connect("topic::events", "source");
 		this.connect("source", "available");
 		this.connect("cursor", "available");
-		keepalive(this.source);
-		keepalive(this.available);
+		this._keepaliveDisposers.push(keepalive(this.source));
+		this._keepaliveDisposers.push(keepalive(this.available));
+	}
+
+	override destroy(): void {
+		for (const dispose of this._keepaliveDisposers) dispose();
+		this._keepaliveDisposers.length = 0;
+		super.destroy();
 	}
 
 	ack(count?: number): number {
@@ -176,6 +192,7 @@ export type JobQueueOptions = {
 export class JobQueueGraph<T> extends Graph {
 	private readonly _pending;
 	private readonly _jobs;
+	private readonly _keepaliveDisposers: Array<() => void> = [];
 	private _seq = 0;
 	readonly pending: Node<ReactiveListSnapshot<string>>;
 	readonly jobs: Node<ReactiveMapSnapshot<string, JobEnvelope<T>>>;
@@ -201,7 +218,13 @@ export class JobQueueGraph<T> extends Graph {
 		);
 		this.add("depth", this.depth);
 		this.connect("pending", "depth");
-		keepalive(this.depth);
+		this._keepaliveDisposers.push(keepalive(this.depth));
+	}
+
+	override destroy(): void {
+		for (const dispose of this._keepaliveDisposers) dispose();
+		this._keepaliveDisposers.length = 0;
+		super.destroy();
 	}
 
 	enqueue(payload: T, opts: { id?: string; metadata?: Record<string, unknown> } = {}): string {
@@ -272,6 +295,7 @@ export type JobFlowOptions = {
 export class JobFlowGraph<T> extends Graph {
 	private readonly _stageNames: readonly string[];
 	private readonly _queues = new Map<string, JobQueueGraph<T>>();
+	private readonly _keepaliveDisposers: Array<() => void> = [];
 	private readonly _completed;
 	readonly completed: Node<ReactiveLogSnapshot<JobEnvelope<T>>>;
 	readonly completedCount: Node<number>;
@@ -307,7 +331,7 @@ export class JobFlowGraph<T> extends Graph {
 		);
 		this.add("completedCount", this.completedCount);
 		this.connect("completed", "completedCount");
-		keepalive(this.completedCount);
+		this._keepaliveDisposers.push(keepalive(this.completedCount));
 
 		const maxPerPump = Math.max(
 			1,
@@ -349,8 +373,14 @@ export class JobFlowGraph<T> extends Graph {
 			);
 			this.add(`pump_${stage}`, pump);
 			this.connect(`${stage}::pending`, `pump_${stage}`);
-			keepalive(pump);
+			this._keepaliveDisposers.push(keepalive(pump));
 		}
+	}
+
+	override destroy(): void {
+		for (const dispose of this._keepaliveDisposers) dispose();
+		this._keepaliveDisposers.length = 0;
+		super.destroy();
 	}
 
 	stages(): readonly string[] {
@@ -383,6 +413,7 @@ export type TopicBridgeOptions<TIn, TOut> = {
 export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 	private readonly _sourceSub;
 	private readonly _target;
+	private readonly _keepaliveDisposers: Array<() => void> = [];
 	readonly bridgedCount: Node<number>;
 
 	constructor(
@@ -434,7 +465,13 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		);
 		this.add("pump", pump);
 		this.connect("subscription::available", "pump");
-		keepalive(pump);
+		this._keepaliveDisposers.push(keepalive(pump));
+	}
+
+	override destroy(): void {
+		for (const dispose of this._keepaliveDisposers) dispose();
+		this._keepaliveDisposers.length = 0;
+		super.destroy();
 	}
 }
 

@@ -74,6 +74,7 @@ export type LLMResponse = {
 /** Provider-agnostic LLM client adapter protocol. */
 export type LLMAdapter = {
 	invoke(messages: readonly ChatMessage[], opts?: LLMInvokeOptions): NodeInput<LLMResponse>;
+	stream(messages: readonly ChatMessage[], opts?: LLMInvokeOptions): AsyncIterable<string>;
 };
 
 export type LLMInvokeOptions = {
@@ -243,6 +244,70 @@ export function fromLLM(
 	});
 
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// fromLLMStream
+// ---------------------------------------------------------------------------
+
+export type FromLLMStreamOptions = FromLLMOptions;
+
+/**
+ * Streaming LLM invocation. Returns a `reactiveLog`-backed node that
+ * accumulates token chunks as they arrive from `adapter.stream()`.
+ *
+ * An `effect` watches the messages input; new values abort the in-flight
+ * stream and clear the log before starting a new one.
+ */
+export function fromLLMStream(
+	adapter: LLMAdapter,
+	messages: NodeInput<readonly ChatMessage[]>,
+	opts?: FromLLMStreamOptions,
+): Node<ReactiveLogSnapshot<string>> {
+	const msgsNode = fromAny(messages);
+	let controller: AbortController | undefined;
+
+	const log = reactiveLog<string>([], { name: opts?.name ?? "llmStream" });
+
+	const eff = effect([msgsNode], ([msgs]) => {
+		// Abort any in-flight stream
+		controller?.abort();
+		log.clear();
+
+		const chatMsgs = msgs as readonly ChatMessage[];
+		if (!chatMsgs || chatMsgs.length === 0) return;
+
+		controller = new AbortController();
+		const iter = adapter.stream(chatMsgs, {
+			model: opts?.model,
+			temperature: opts?.temperature,
+			maxTokens: opts?.maxTokens,
+			tools: opts?.tools,
+			systemPrompt: opts?.systemPrompt,
+			signal: controller.signal,
+		});
+		const ctrl = controller;
+		(async () => {
+			try {
+				for await (const chunk of iter) {
+					if (ctrl.signal.aborted) break;
+					log.append(chunk);
+				}
+			} catch (_err) {
+				// Stream errors are silently absorbed when aborted.
+				// Non-abort errors are also absorbed — surfacing ERROR on
+				// a state node (log.entries) would violate terminal semantics.
+				// Callers needing error visibility should wrap with a meta node.
+			}
+		})();
+
+		return () => {
+			ctrl.abort();
+		};
+	});
+	keepalive(eff);
+
+	return log.entries;
 }
 
 // ---------------------------------------------------------------------------

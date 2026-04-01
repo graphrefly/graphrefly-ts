@@ -338,7 +338,7 @@ export type GraphObserveOne = {
 
 /**
  * {@link Graph.observe} on the whole graph — sink receives each batch with the qualified source path.
- * Subscription order follows `localeCompare` on paths (mounts-first walk, then sorted locals/meta).
+ * Subscription order follows code-point sort on paths (mounts-first walk, then sorted locals/meta).
  */
 export type GraphObserveAll = {
 	subscribe(sink: (nodePath: string, messages: Messages) => void): () => void;
@@ -1152,8 +1152,11 @@ export class Graph {
 			edges = edges.filter((e) => nodeKeys.has(e.from) && nodeKeys.has(e.to));
 		}
 		edges.sort((a, b) => {
-			const c = a.from.localeCompare(b.from);
-			return c !== 0 ? c : a.to.localeCompare(b.to);
+			if (a.from < b.from) return -1;
+			if (a.from > b.from) return 1;
+			if (a.to < b.to) return -1;
+			if (a.to > b.to) return 1;
+			return 0;
 		});
 		const allSubgraphs = this._collectSubgraphs("");
 		const subgraphs =
@@ -1227,7 +1230,7 @@ export class Graph {
 	 * Live message stream from one node (or meta path), or from the whole graph (§3.6).
 	 *
 	 * Overloads: `(path, options?)` for one node; `(options?)` for all nodes. Whole-graph mode
-	 * subscribes in **sorted path order** (`localeCompare`). With structured options
+	 * subscribes in **sorted path order** (code-point order). With structured options
 	 * (`structured`, `timeline`, `causal`, `derived`), returns an {@link ObserveResult}.
 	 * Inspector-gated extras (`causal` / `derived`) require {@link Graph.inspectorEnabled}.
 	 *
@@ -1288,7 +1291,7 @@ export class Graph {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
 				const targets: [string, Node][] = [];
 				this._collectObserveTargets("", targets);
-				targets.sort((a, b) => a[0].localeCompare(b[0]));
+				targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 				const picked =
 					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
 				const unsubs = picked.map(([p, nd]) =>
@@ -1430,7 +1433,7 @@ export class Graph {
 		const actor = options.actor;
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
-		targets.sort((a, b) => a[0].localeCompare(b[0]));
+		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
 		const unsubs = picked.map(([path, nd]) =>
 			nd.subscribe((msgs) => {
@@ -1705,7 +1708,7 @@ export class Graph {
 		const lines: string[] = [];
 		lines.push(`Graph ${described.name}`);
 		lines.push("Nodes:");
-		for (const path of Object.keys(described.nodes).sort((a, b) => a.localeCompare(b))) {
+		for (const path of Object.keys(described.nodes).sort()) {
 			const n = described.nodes[path]!;
 			lines.push(`- ${path} (${n.type}/${n.status}): ${describeData(n.value)}`);
 		}
@@ -1835,7 +1838,10 @@ export class Graph {
 		for (const mount of [...data.subgraphs].sort((a, b) => {
 			const da = a.split(PATH_SEP).length;
 			const db = b.split(PATH_SEP).length;
-			return da - db || a.localeCompare(b);
+			if (da !== db) return da - db;
+			if (a < b) return -1;
+			if (a > b) return 1;
+			return 0;
 		})) {
 			const parts = mount.split(PATH_SEP);
 			let target: Graph = g;
@@ -1849,7 +1855,7 @@ export class Graph {
 
 		const primaryEntries = Object.entries(data.nodes)
 			.filter(([path]) => !path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`))
-			.sort((a, b) => a[0].localeCompare(b[0]));
+			.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 		const pending = new Map(primaryEntries);
 		const created = new Map<string, Node>();
 
@@ -2006,7 +2012,7 @@ export class Graph {
 	toMermaid(options?: GraphDiagramOptions): string {
 		const direction = normalizeDiagramDirection(options?.direction);
 		const described = this.describe();
-		const paths = Object.keys(described.nodes).sort((a, b) => a.localeCompare(b));
+		const paths = Object.keys(described.nodes).sort();
 		const ids = new Map<string, string>();
 		for (let i = 0; i < paths.length; i += 1) {
 			ids.set(paths[i]!, `n${i}`);
@@ -2036,7 +2042,7 @@ export class Graph {
 	toD2(options?: GraphDiagramOptions): string {
 		const direction = normalizeDiagramDirection(options?.direction);
 		const described = this.describe();
-		const paths = Object.keys(described.nodes).sort((a, b) => a.localeCompare(b));
+		const paths = Object.keys(described.nodes).sort();
 		const ids = new Map<string, string>();
 		for (let i = 0; i < paths.length; i += 1) {
 			ids.set(paths[i]!, `n${i}`);

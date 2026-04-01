@@ -2,7 +2,17 @@
 
 ## Open design decisions
 
-(None — all former open items resolved 2026-03-31.)
+- **`fromLLMStream` / `from_llm_stream` teardown (Phase 4.4, 2026-03-31):** The `fromLLMStream` helper keepalives an internal `effect` node but does not expose a dispose handle. The returned `log.entries` node has no teardown path — the effect + log live for the process lifetime. This matches `fromLLM` (also no teardown) and is acceptable pre-1.0. When a teardown API is needed (e.g. for long-lived apps that create/destroy streams), options: (a) return `Object.assign(node, { dispose })` like `systemPromptBuilder`; (b) require callers to use the node inside a `Graph` whose `destroy()` handles lifecycle. Cross-language: same pattern applies to Python `from_llm_stream`.
+
+- **CQRS terminal state handling (Phase 4.5, 2026-03-31):** The CQRS layer does not intercept or handle COMPLETE/ERROR on event streams. If an event node reaches a terminal state (e.g., via `graph.signal([[COMPLETE]])`), sagas and projections stop receiving updates but `dispatch()` still attempts to append (silently succeeding at the `reactiveLog` level). This is consistent with other pattern layers (messaging, orchestration) which also do not handle terminal states. A cross-cutting terminal-state strategy for pattern-layer graphs should be designed when needed — not piecemeal per pattern.
+
+- **CQRS dispatch-time persistence (Phase 4.5 — open):** TypeScript always calls `EventStoreAdapter.persist` from the append path (sync or returning a `Promise`). Returned promises are **not** awaited; rejections are not centrally handled — durability relative to `batch()` is undefined for async adapters unless you implement sync persistence or out-of-band flushing. Python calls **`persist_sync`** during `dispatch` only when the adapter defines that method; an adapter with **only** async `persist` is not invoked on the hot dispatch path (use `MemoryEventStore`, add `persist_sync`, or persist outside CQRS). **Decision pending:** whether to align via documented fire-and-forget tasks (Python), narrow TS to sync-only in the type surface, or add an explicit async flush lifecycle.
+
+- **CQRS saga vs projection event ordering (Phase 4.5 — open):** Projections merge all subscribed event streams and sort **globally** by `(timestampNs, seq)`. Sagas iterate streams in the order given to `saga(..., eventNames, ...)`, and within each stream only **new** tail entries since the last run — there is **no** global merge/sort before the handler. **Decision pending:** keep this intentional split (read models vs side-effect delivery) or introduce a shared ordering policy (e.g. collect-and-sort like projections).
+
+- **CQRS event store `since` / replay cursor (Phase 4.5 — open):** `loadEvents` / `load_events(..., since)` uses a **strict** lower bound: `timestampNs` / `timestamp_ns` **greater than** `since` (not `>=`). `seq` is not a store-level cursor. **Decision pending:** document-only vs extending the API with seq- or opaque-cursor replay.
+
+- **CQRS reactive log snapshot shape (Phase 4.5 — cross-language note):** The append-only log underneath CQRS events is `reactiveLog` in TypeScript (`Versioned<{ entries: readonly T[] }>`) and `reactive_log` in Python (`Versioned` wrapping a **tuple** of entries). The CQRS layer adapts locally when building projections and sagas. This is **not** a user-facing API mismatch for typical use.
 
 ## Resolved design decisions (streaming + AI lifecycle)
 
@@ -249,7 +259,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **`connect` / `disconnect`** | Paths whose `::` segments include `__meta__` are rejected (wires stay on registered primaries). **TypeScript:** `assertConnectPathNotMeta`. |
 | **`Graph.add` / registry name** | **TypeScript:** If the node has no `name` in options, `add(localName, node)` calls `NodeImpl._assignRegistryName(localName)` so `describe()` / `deps` match the registry (parity with Python setting `_name` on add). |
 | **`signal` → meta** | **TypeScript:** After each primary, deliver the batch to companion `meta` nodes (sorted by meta key), except **TEARDOWN-only** batches — primary `down()` already cascades TEARDOWN to meta, so the extra meta pass is skipped (no duplicate). **Python:** Same TEARDOWN rule in `_signal_node_subtree`; otherwise depth-first meta with sorted keys; `visited` on `id(node)` (see graphrefly-py `docs/optimizations.md` §15). |
-| **`observe()` all nodes** | **TypeScript:** One `subscribe` per primary + meta target; **subscription attach order** is `localeCompare` on the qualified path (deterministic; **not** causal emission order). Documented on `Graph.observe()`. **Python:** Mount-first sorted order matching `signal`, with **sorted meta keys** under each primary (same as `signal`→meta). Full-path sort order still differs from TS `localeCompare`. |
+| **`observe()` all nodes** | **Both:** One `subscribe` per primary + meta target; **subscription attach order** is full-path code-point sort on the qualified path (deterministic; **not** causal emission order). Resolved 2026-03-31: TS switched from `localeCompare` to plain string comparison; Python switched from per-level sort to full-path `sorted()`. Cross-language observe order is now identical. |
 | **Describe `type`** | Both: `describeKind` / `describe_kind` on `NodeOptions`; sugar constructors (`effect`, `producer`, `derived`) set it; `inferDescribeType` / `_infer_describe_type` prefers explicit kind when set. |
 | **`describe().nodes`** | Keys = same qualified targets as `_collect_observe_targets` (primary + recursive meta). | Same pattern. |
 
@@ -257,7 +267,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | **`describe().subgraphs`** | Both recursively collect all nested mount paths (e.g. `["sub", "sub::inner"]`). |
 | **`connect` self-loop** | Both reject `connect(x, x)` before dep validation. |
 
-**Docs:** `graphrefly-py/docs/optimizations.md` §15 — Python Phase 1.3 shipped (`GRAPH_META_SEGMENT`, `describe`, `observe`, `signal`→meta). Both ports now sort local nodes and mounts in `signal`, `_collect_observe_targets`, and `_collect_edges`. Intentional divergence: TS sorts observe targets by `localeCompare` on full path; Python sorts by name within each graph level.
+**Docs:** `graphrefly-py/docs/optimizations.md` §15 — Python Phase 1.3 shipped (`GRAPH_META_SEGMENT`, `describe`, `observe`, `signal`→meta). Both ports now sort local nodes and mounts in `signal`, `_collect_observe_targets`, and `_collect_edges`. **Resolved (2026-03-31):** Both ports now use full-path code-point sort for `observe()` target ordering. TS switched from `localeCompare` to plain string comparison; Python switched from per-level sort to full-path `sorted()`. Cross-language observe order is now identical for the same graph topology.
 
 ### 16. `Graph` Phase 1.4 lifecycle & persistence (`destroy`, `snapshot`, `restore`, `fromSnapshot`, `toJSON`)
 
@@ -308,7 +318,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 | `INVALIDATE` (§1.2) | Cleanup + clear `_cached` + `_last_dep_values`; terminal passthrough (§9); no auto recompute | Same |
 | `Graph` Phase 1.1 | `thread_safe` + `RLock`; TEARDOWN after unlock on `remove`; `disconnect` registry-only (§C resolved) | Registry only; `connect` / `disconnect` errors aligned; §C resolved |
 | `Graph` Phase 1.2 | Aligned: `::` path separator, mount `remove` + subtree TEARDOWN, qualified paths, `edges()`, signal mounts-first, `resolve` strips leading name, `:` in names OK; see §14 | Same; see §14 |
-| `Graph` Phase 1.3 | `describe`, `observe`, `GRAPH_META_SEGMENT`, `signal`→meta, `describe_kind` on sugar; see §15 | `describe()`, `observe()`, `GRAPH_META_SEGMENT`, `describeKind` on sugar, registry name on add; see §15 | `observe()` order: TS full-path `localeCompare` vs Py per-level sort (§15) |
+| `Graph` Phase 1.3 | `describe`, `observe`, `GRAPH_META_SEGMENT`, `signal`→meta, `describe_kind` on sugar; see §15 | `describe()`, `observe()`, `GRAPH_META_SEGMENT`, `describeKind` on sugar, registry name on add; see §15 | `observe()` order: both use full-path code-point sort (resolved 2026-03-31; see §15) |
 | `Graph` Phase 1.4 | `destroy`, `snapshot` (flat `version: 1`), `restore` (name check + type filter + silent catch), `from_snapshot(data, build=)`, `to_json()` → str + `\n`; see §16 | `destroy`, `snapshot`, `restore`, `fromSnapshot(data, build?)`, `toJSON()` → object, `toJSONString()` → str + `\n`; see §16 |
 | `Graph` Phase 1.5 | **Both:** actor/guard/`policy()`, scoped `describe`/`observe`, `set`/`signal`/`down`/`up` actor + delivery (`write` vs `signal`), `internal` lifecycle TEARDOWN, `meta.access` guarded hint, `GuardDenied` + `lastMutation`; non-transactional `signal` on first denial — see `graphrefly-py/docs/optimizations.md` built-in §8 | Same |
 | `policy()` semantics | Deny-overrides: any matching deny blocks; if no deny, any matching allow permits; no match → deny | Same (aligned from parity round) |
@@ -582,7 +592,7 @@ Both ports now align on the following:
    | `fromHTTP` external cancellation | No external signal (deferred); unsubscribe suppresses late emissions | Supports external `AbortSignal` via options | Language/runtime cancellation primitives |
    | AbortSignal on async sources | Not supported (deferred) | `signal` option on `fromTimer`, `fromPromise`, `fromAsyncIter` | TS has native AbortSignal; Py deferred |
 
-   **Deferred (2026-03-31):** Python AbortSignal equivalent — deferred until a concrete user hits the gap. Protocol-level `TEARDOWN` via unsubscribe already covers reactive cancellation. When implemented, `threading.Event` parameter is the recommended approach.
+   **Resolved (2026-03-31):** When implemented, async sources (`from_timer`, `from_awaitable`, `from_async_iter`) will accept the same `CancellationToken` protocol from parity follow-up #7 (a small interface with `.is_cancelled` property and `.on_cancel(fn)` callback registration, backed by `threading.Event`). `TEARDOWN`-via-unsubscribe remains the primary cancellation path; the token is for external/cooperative cancellation. Implementation deferred until a concrete user hits the gap, but the cancellation token design is settled.
 
 ### M. Worker bridge (roadmap §5.3) — TS-only, cross-language note
 
@@ -736,7 +746,7 @@ These came out of QA review. Most are now **resolved** (2026-03-31); remaining i
 3. **Sink transport failure handling:** Transport exceptions (`send`/`close` failures) surface as `[[ERROR, err]]` — never swallowed, never thrown to caller (see §J). Callback payloads are structured and non-throwing by contract.
 4. **Idempotency:** Repeated terminal input (multiple `COMPLETE`/`ERROR`) is idempotent — first terminal wins, subsequent are no-ops. Malformed input is ignored (no crash).
 
-**Action:** Define `ADAPTER-CONTRACT.md` in both repos (or a shared spec section) and enforce with mirrored integration tests.
+**Action (done):** `docs/ADAPTER-CONTRACT.md` defined in both repos with mirrored integration tests.
 
 ### L. `fromFSWatch` / `from_fs_watch` event contract and path matching
 
@@ -771,14 +781,14 @@ Cross-language notes for `patterns.ai` / `graphrefly.patterns.ai`. **Keep this s
 |-------|------------|
 | **`agent_loop` / `agentLoop` — LLM adapter output** | `invoke` may return a plain `LLMResponse`, or any `NodeInput` (including `Node`, awaitables, async iterables). Implementations coerce with `fromAny` / `from_any`, prefer a synchronous `get()` when it already holds an `LLMResponse`, then **block until the first settled `DATA`** (`subscribe` + `Promise` in TypeScript; `first_value_from` in Python). Do not unsubscribe immediately after `subscribe` without waiting for emissions. |
 | **`toolRegistry` / `tool_registry` — handler output** | Handlers may return plain values, Promise-like values, or reactive `NodeInput`. **TypeScript:** `execute` awaits Promise-likes, then resolves **only** `Node` / `AsyncIterable` via `fromAny` + first `DATA` (do **not** pass arbitrary strings through `fromAny` — it treats strings as iterables and emits per character). **Python:** `execute` uses `from_any` + `first_value_from` only for awaitables, async iterables, or `Node`; plain values return as-is. |
-| **`agentMemory` / `agent_memory` — factory scope** | The shipped factory wires `distill()` and registers `store` / `compact` / `size` (and optional LLM hooks). **In-factory** wiring of `knowledgeGraph` / `vectorIndex` / `collection` / `decay` / `autoCheckpoint` is **not** implemented yet; roadmap and docstrings describe that as follow-up. |
+| **`agentMemory` / `agent_memory` — factory scope** | **Resolved (2026-03-31):** Ship as-designed. The full in-factory composition (`knowledgeGraph` + `vectorIndex` + `lightCollection` + `decay` + `autoCheckpoint`, opt-in via options) will be implemented per the resolved design decision at the top of this document. A single `agentMemory(name, { vectorDimensions, embedFn, enableKnowledgeGraph })` call provides batteries-included memory. Implementation to follow. |
 
-### AI surface (Phase 4.4) — parity follow-ups (pending)
+### AI surface (Phase 4.4) — parity follow-ups
 
 | # | Topic | Notes |
 |---|--------|-------|
 | **3** | **`_invoke_llm` / `_invokeLLM` defensive alignment** | **TypeScript** (`_invokeLLM`): rejects `null`/`undefined` and plain `str` before `fromAny` (strings would iterate per character); accepts sync plain objects with `content` when not a Promise/`Node`. **Python** (`_invoke_llm`): should mirror those guards — reject `None`; reject `str`; do not pass raw `dict`/`Mapping` through `from_any` without normalizing to `LLMResponse` (iterating a `dict` yields keys). **Status:** pending implementation in `graphrefly-py`. |
-| **4** | **`LLMInvokeOptions` + cooperative cancellation** | **TypeScript:** `LLMInvokeOptions.signal` (`AbortSignal`) is passed from `AgentLoopGraph` into `adapter.invoke()` so long-running adapters can cancel cooperatively. **Python:** `LLMInvokeOptions` has no equivalent yet; `agent_loop` does not pass an abort handle into `invoke`. **Target parity:** optional field on `LLMInvokeOptions` (e.g. `threading.Event` or a small protocol adapters can poll) and wire from `AgentLoopGraph`. **Status:** pending. |
+| **4** | **`LLMInvokeOptions` + cooperative cancellation** | **Resolved (2026-03-31):** Python will use a `CancellationToken` protocol — a small interface with `.is_cancelled` property and `.on_cancel(fn)` callback registration, backed internally by `threading.Event`. This mirrors TS's `AbortSignal` pattern. The token is passed from `AgentLoopGraph` into `adapter.invoke()`. Adapters react to cancellation via `.on_cancel()` callbacks (no polling — respects the reactive invariant). The protocol can be extended to `asyncio.Event` backing later. **TypeScript** retains `AbortSignal` via `LLMInvokeOptions.signal`. |
 
 Normative anti-patterns table: [**Implementation anti-patterns**](#implementation-anti-patterns) (top of this document).
 
@@ -794,7 +804,7 @@ Normative anti-patterns table: [**Implementation anti-patterns**](#implementatio
 
 | Item | Status | Notes |
 |------|--------|-------|
-| **Re-indexes entire store on every change** | Deferred | The vector/KG indexing effect runs on every store change and re-indexes **all** entries (O(N) per insertion). A diffing strategy that only indexes new/changed entries is a future optimization — current N is small enough that full re-index is acceptable. |
+| **Re-indexes entire store on every change** | Deferred | Decision: diff-based indexing using `Versioned` snapshot version field to track indexed entries. Deferred to after Phase 6 — current N is small enough that full re-index is acceptable pre-1.0. |
 | **Budget packing always includes first item** | Documented behavior | The retrieval budget packer always includes the first ranked result even if it exceeds `maxTokens`. This is intentional "never return empty" semantics — a query that matches at least one entry always returns something. Callers who need strict budget enforcement should post-filter. |
 | **Retrieval pipeline auto-wires when vectors/KG enabled** | Documented behavior | When `embedFn` or `enableKnowledgeGraph` is set, the retrieval pipeline automatically wires vector search and KG expansion into the retrieval derived node. There is no explicit opt-in/opt-out per retrieval stage — the presence of the capability implies its use. Callers who need selective retrieval should use the individual nodes directly. |
 
