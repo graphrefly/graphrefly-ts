@@ -1,5 +1,25 @@
 # Optimizations and Open Decisions
 
+## Open design decisions
+
+(None — all former open items resolved 2026-03-31.)
+
+## Resolved design decisions (streaming + AI lifecycle)
+
+- **Streaming token delivery (Phase 4.4, resolved 2026-03-31 — option (a) `reactiveLog` internally):** `fromLLMStream(adapter, messages)` returns `Node<ReactiveLogSnapshot<string>>`, accumulating tokens via `reactiveLog` internally. This reuses the existing Phase 3.2 data structure; `tail()` / `logSlice()` give natural windowed views; fully reactive (no polling); `describe()` / `observe()` / inspector work out of the box. Rejected alternatives: (b) `DATA` with `{ partial, chunk }` — loses composability and version dedup; (c) `streamFrom` pattern — premature abstraction for a single use case.
+
+## Implementation anti-patterns
+
+Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LLM adapters, and tool handlers). **Keep this table identical in both repos’ `docs/optimizations.md`.**
+
+| Anti-pattern | Do this instead |
+|--------------|-----------------|
+| **Polling** | Do not busy-loop on `node.get()` or use ad-hoc timers to poll for completion. Wait for protocol delivery: `subscribe` / `first_value_from` / `firstValueFrom` patterns on the node produced by `fromAny` / `from_any`. |
+| **Non-central time** | Do not schedule periodic work with raw `setTimeout` / `setInterval` / `time.sleep` for graph-aligned sampling. Use `fromTimer` / `from_timer` (or other documented `extra` time sources) and compose reactively. |
+| **Bypassing `fromAny` / `from_any` for async** | Do not one-off `asyncio.run`, bare `.then` chains, or manual thread sleeps to bridge coroutines / async iterables / Promises into the graph. Route unknown shapes through `fromAny` / `from_any` so `DATA` / `ERROR` / `COMPLETE` stay consistent end-to-end. |
+| **`Node` resolution without `get()`** | When blocking until first `DATA`, prefer `node.get()` when it already holds a settled value, then subscribe only if still pending — avoids hangs when the node does not replay `DATA` to new subscribers. |
+| **Passing plain strings through `fromAny` (TypeScript)** | `fromAny` treats strings as iterables (one `DATA` per character). For tool handlers that return plain strings, return the string directly; use `fromAny` only for `Node` / `AsyncIterable` / Promise-like after await. |
+
 ## Resolved design decisions (compat adapters)
 
 - **Compat adapter write semantics (resolved 2026-03-31):** `useStore` setters in framework adapters **must forward** `DATA` when payload is `undefined` (for `Node<T | undefined>`). `undefined` is a valid `T`; dropping writes silently loses data.
@@ -556,7 +576,7 @@ Both ports now align on the following:
    | `fromHTTP` external cancellation | No external signal (deferred); unsubscribe suppresses late emissions | Supports external `AbortSignal` via options | Language/runtime cancellation primitives |
    | AbortSignal on async sources | Not supported (deferred) | `signal` option on `fromTimer`, `fromPromise`, `fromAsyncIter` | TS has native AbortSignal; Py deferred |
 
-   **Open:** Python AbortSignal equivalent (e.g. `threading.Event` signal parameter) — deferred to future parity round.
+   **Deferred (2026-03-31):** Python AbortSignal equivalent — deferred until a concrete user hits the gap. Protocol-level `TEARDOWN` via unsubscribe already covers reactive cancellation. When implemented, `threading.Event` parameter is the recommended approach.
 
 ### M. Worker bridge (roadmap §5.3) — TS-only, cross-language note
 
@@ -732,21 +752,41 @@ Non-blocking items tracked for later; not optimizations per se. Keep this sectio
 
 | Item | Notes |
 |------|-------|
-| **`lastDepValues` + `Object.is` / referential equality** | Skips `fn` when dep snapshots are referentially equal. Fine for immutable values; misleading if deps are mutated in place. |
+| **`lastDepValues` + `Object.is` / referential equality (resolved 2026-03-31 — keep + document)** | Default `Object.is` identity check is correct for the common immutable-value case. The `node({ equals })` option already exists for custom comparison. Document clearly that mutable dep values should use a custom `equals` function. No code change needed. |
 | **`sideEffects: false` in `package.json`** | TypeScript package only. Safe while the library has no import-time side effects. Revisit if global registration or polyfills are added at module load. |
 | **JSDoc / docstrings on `node()` and public APIs** | `docs/docs-guidance.md`: JSDoc on new TS exports; docstrings on new Python public APIs. |
 | **Roadmap §0.3 checkboxes** | Mark Phase 0.3 items when the team agrees the milestone is complete. |
 
-### Tier 1 extra operators (roadmap 2.1) — deferred semantics (QA)
+### AI surface (Phase 4.4) — behavioral semantics parity (resolved 2026-03-31)
+
+Cross-language notes for `patterns.ai` / `graphrefly.patterns.ai`. **Keep this subsection aligned in both repos’ `docs/optimizations.md`.**
+
+| Topic | Resolution |
+|-------|------------|
+| **`agent_loop` / `agentLoop` — LLM adapter output** | `invoke` may return a plain `LLMResponse`, or any `NodeInput` (including `Node`, awaitables, async iterables). Implementations coerce with `fromAny` / `from_any`, prefer a synchronous `get()` when it already holds an `LLMResponse`, then **block until the first settled `DATA`** (`subscribe` + `Promise` in TypeScript; `first_value_from` in Python). Do not unsubscribe immediately after `subscribe` without waiting for emissions. |
+| **`toolRegistry` / `tool_registry` — handler output** | Handlers may return plain values, Promise-like values, or reactive `NodeInput`. **TypeScript:** `execute` awaits Promise-likes, then resolves **only** `Node` / `AsyncIterable` via `fromAny` + first `DATA` (do **not** pass arbitrary strings through `fromAny` — it treats strings as iterables and emits per character). **Python:** `execute` uses `from_any` + `first_value_from` only for awaitables, async iterables, or `Node`; plain values return as-is. |
+| **`agentMemory` / `agent_memory` — factory scope** | The shipped factory wires `distill()` and registers `store` / `compact` / `size` (and optional LLM hooks). **In-factory** wiring of `knowledgeGraph` / `vectorIndex` / `collection` / `decay` / `autoCheckpoint` is **not** implemented yet; roadmap and docstrings describe that as follow-up. |
+
+Normative anti-patterns table: [**Implementation anti-patterns**](#implementation-anti-patterns) (top of this document).
+
+### AI surface (Phase 4.4) — resolved follow-ups (2026-03-31)
+
+| Item | Resolution |
+|------|------------|
+| **keepalive subscription cleanup on destroy** | `ChatStreamGraph`, `ToolRegistryGraph`, and `systemPromptBuilder` create keepalive subscriptions (`n.subscribe(() => {})`) that are never cleaned up. **Auto-fixable:** add `destroy()` methods that unsubscribe keepalive sinks to prevent leaks in long-lived processes. |
+| **`AgentLoopGraph.destroy()` does not cancel running loop (resolved — internal abort signal)** | `destroy()` sets an internal `AbortController` signal; the `run()` loop checks it between iterations. Composes with existing `fromPromise({ signal })`. No polling — reactive cancellation via abort signal. Rejected: (b) reject-only (doesn't stop the LLM call); (c) document-as-limitation (violates `destroy()` safety contract). |
+| **`chatStream.clear()` + `append()` race (resolved — serialize via `batch()`)** | Both `clear()` and `append()` internally use `batch()` so they are atomic within a reactive cycle. Callers who need deterministic ordering across multiple mutations use `batch(() => { stream.clear(); stream.append(msg); })`. No new mechanism needed — uses existing protocol. Rejected: (b) arbitrary "clear wins" rule; (c) microtask queue (fights the reactive-not-queued invariant). |
+
+### Tier 1 extra operators (roadmap 2.1) — resolved semantics (2026-03-31)
 
 Applies to `src/extra/operators.ts` and `graphrefly.extra.tier1`. **Keep the table below identical in both repos’ `docs/optimizations.md`.**
 
-| Item | Notes |
-|------|-------|
-| **`takeUntil` / `take_until` + notifier `DIRTY`** | Decide whether the first notifier signal that ends the primary should be any protocol tuple (e.g. a lone `DIRTY`) or only phase-2 / `DATA` (Rx-style “next”). Implementations may differ until aligned. |
-| **`zip` + partial queues** | When one inner source completes, buffered values that never formed a full tuple are dropped; downstream then completes. Document if stricter Rx parity is required. |
-| **`concat` + `ERROR` on the second source before the first completes** | Phase gating ignores the second source until the first completes; an `ERROR` on the second during phase 0 may be swallowed until phase 1. Decide whether tail-source errors should short-circuit early. |
-| **`race` + pre-winner `DIRTY`** | Before the first winning `DATA`, `DIRTY` (and other tuples) may be forwarded from more than one inner source (TypeScript: `take(merge(...), 1)`; Python: multi-dep `on_message`). JSDoc on TS `race` notes this; a stricter “winner-only” behavior would need a different implementation in either port. |
+| Item | Resolution |
+|------|------------|
+| **`takeUntil` / `take_until` + notifier `DIRTY` (resolved — DATA-only trigger)** | The notifier must emit **`DATA`** to terminate the primary. `DIRTY` is phase-1 transient signaling; termination is permanent and must only trigger on settled phase-2 data. Aligns with compat adapter rule (ignore DIRTY waves). A notifier that only sends DIRTY+RESOLVED (no payload change) never triggers — by design. |
+| **`zip` + partial queues (resolved — drop + document)** | When one inner source completes, buffered values that never formed a full tuple are **dropped**; downstream then completes. This matches RxJS behavior and the zip contract (all slots always filled). Callers who need all values should use `combineLatest` or `merge`. Document in JSDoc/docstrings. |
+| **`concat` + `ERROR` on the second source before the first completes (resolved — fail-fast short-circuit)** | `ERROR` from **any** source (even buffered/inactive) immediately terminates `concat`. Silent error swallowing is a bug magnet; fail-fast is the safer pre-1.0 default. Callers who need “ignore inactive source errors” can wrap source 2 in `retry` or `catchError`. |
+| **`race` + pre-winner `DIRTY` (resolved — keep current + document)** | Before the first winning `DATA`, `DIRTY` from multiple sources **may** forward downstream. This is transient and harmless — downstream handles it via normal settlement. A stricter “winner-only” implementation adds complexity for minimal gain. Document the behavior clearly in JSDoc/docstrings. |
 
 ### Tier 2 extra operators (roadmap 2.2) — deferred semantics (QA)
 

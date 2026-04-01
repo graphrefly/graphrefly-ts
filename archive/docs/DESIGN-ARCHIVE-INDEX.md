@@ -165,6 +165,25 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-agentic-memory-research.md`
 
+### Session universal-reduction-layer (March 31) — Universal Reduction Layer: Massive Info → Actionable Items via LLM-Composable Reactive Graphs
+**Topic:** Generalizing GraphReFly from domain-specific tools (issue tracker, observability) to a universal reactive reduction layer for any "massive info → actionable items" pattern. Research into the observability/telemetry landscape (OpenTelemetry, Datadog, Grafana stack pain points and 2026 trends) revealed that the library's reactive graph primitives solve structural problems across many domains — and LLMs are the missing piece that makes composing these graphs practical at scale.
+
+**Key decisions:**
+- **GraphReFly is not an observability tool or an issue tracker — it's the reactive computation layer** between any massive information source and human-actionable output
+- **Three things LLMs unlock:** (1) composing the graph itself from natural language, (2) operating inside nodes for semantic reduction, (3) auditing and explaining the graph's decisions
+- **Stratified reduction is the killer differentiator** — apply 4 layers on noisy signals, 1 on critical errors, cycles for feedback loops, zero filtering on audit-required data, all in the same graph
+- **"CICD moment for information processing"** — continuous (reactive push), integrated (one graph), composable (swap strategies live), deliverable (prioritized output)
+- **10 concrete advantages** documented: lightweight/reactive, stratified reduction, extensible/no vendor lock-in, rich metadata, reactive prioritization, LLM training at scale, composable plugins, LLM co-operation, constraint wiring for experimentation, auto-regression detection
+
+**Comparison vs alternatives:**
+- vs neural networks: dynamic topology, heterogeneous strategies per branch, inspectable/auditable, composable, runtime cycles
+- vs workflow engines (n8n, Airflow): truly dynamic, reactive not scheduled, composable subgraphs, lightweight
+- vs agentic frameworks (LangChain, CrewAI): domain-focused, less prescriptive, built-in reactivity, security by design
+
+**Roadmap impact:** New Phase 5.2c (ingest adapters), 5.2d (storage/sink adapters), Phase 8 (Universal Reduction Layer: 8.1 reduction primitives, 8.2 domain templates, 8.3 LLM graph composition, 8.4 audit & accountability, 8.5 performance & scale), Phase 7.3b (3 universal reduction demos).
+
+**Files:** `archive/docs/SESSION-universal-reduction-layer.md`
+
 ---
 
 ## Reading Guide
@@ -189,4 +208,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** March 31, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer

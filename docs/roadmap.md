@@ -311,34 +311,26 @@ Pulsar-inspired messaging features for topic retention, cursor consumers, and qu
 
 Design reference: `archive/docs/SESSION-agentic-memory-research.md`
 
-- [ ] `chatStream()` → Graph
-- [ ] `agentLoop()` → Graph
-- [ ] `fromLLM()` (adapter)
-- [ ] `toolRegistry()` → Graph
-- [ ] `systemPromptBuilder()`
+- [x] `chatStream()` → Graph
+- [x] `agentLoop()` → Graph
+- [x] `fromLLM()` (adapter)
+- [x] `toolRegistry()` → Graph
+- [x] `systemPromptBuilder()`
 
-#### `agentMemory(name, opts?)` → Graph — default strategy for agentic memory
+#### `agentMemory(name, opts?)` → Graph — distill-first agentic memory
 
-Composes `distill()` (3.2b) + `knowledgeGraph()` + `vectorIndex()` + `collection()` + `decay()` + `autoCheckpoint()` into a pre-wired memory graph with opinionated defaults. Every component is overridable for advanced users.
+**Shipped:** `distill()` (3.2b) with `store` / `compact` / `size` nodes; optional `llmExtractor` / `llmConsolidator`; optional `admissionFilter`; optional `consolidateTrigger` (caller supplies e.g. `fromTimer` — not wired by default).
 
-**Default admission:** 3D filtering funnel — persistence × structure × personal value. Encoded in `extractFn` scoring (LLM system prompt or rule-based predicates).
+**Design targets** (research): `archive/docs/SESSION-agentic-memory-research.md` — 3-tier storage, retrieval pipeline, 3D admission scoring.
 
-**Default storage:** 3-tier hot/cold with forgetting:
-1. Core profile (`permanent: true`) — user identity, preferences, long-term goals. Never evicted.
-2. Active memories — `decay()` with OpenViking formula: `sigmoid(log1p(access_count)) * exp_decay(age, half_life=7d)`.
-3. Archived — low-score memories persisted to checkpoint adapter, evicted from in-memory store. Retrievable on-demand via vector search against cold store.
-
-**Default retrieval:** Vector search → graph adjacency expansion → decay ranking → budget packing.
-
-**Default reflection:** Periodic `llmConsolidator` via `consolidateTrigger: fromTimer(intervalMs)` — clusters related memories, produces higher-level insights.
-
-- [ ] `agentMemory(name, opts?)` → Graph — top-level factory wiring distill + knowledgeGraph + vectorIndex + collection + decay + autoCheckpoint
-- [ ] 3D admission filter: `admissionFilter?: (candidate) => boolean` with default persistence × structure × personalValue scoring
+- [x] `agentMemory(name, opts?)` → Graph — factory wiring `distill()` + registered `store` / `compact` / `size` nodes
+- [ ] In-factory composition: `knowledgeGraph()` + `vectorIndex()` + `collection()` + `decay()` + `autoCheckpoint()` (compose externally or extend factory)
+- [ ] 3D admission filter with default persistence × structure × personalValue scoring
 - [ ] 3-tier storage: permanent core profile, active with decay, archived to checkpoint adapter
 - [ ] Default retrieval pipeline: vector search → knowledgeGraph adjacency expansion → decay ranking → budget packing
-- [ ] Default reflection: periodic LLM consolidation via `consolidateTrigger`; configurable interval (default 5min)
-- [ ] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — handles structured and unstructured LLM output, deduplicates against existing memories, routes entities to knowledgeGraph
-- [ ] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — clusters and merges related memories via LLM; tracks reflection depth via `meta.consolidation_count`
+- [ ] Default reflection: periodic LLM consolidation via built-in `consolidateTrigger` interval (e.g. `fromTimer`)
+- [x] `llmExtractor(systemPrompt, opts)` → `extractFn` for `distill()` — structured JSON extraction; key sampling for dedup
+- [x] `llmConsolidator(systemPrompt, opts)` → `consolidateFn` for `distill()` — cluster/merge memories via LLM
 - [ ] Memory observability: retrieval traces answering "why this memory surfaced" (query plan, candidates, score propagation) via `observe({ causal: true })`
 
 ### 4.5 — CQRS
@@ -390,6 +382,28 @@ Reactive bindings that keep graph nodes in sync with database queries.
 - [ ] Drizzle: `fromDrizzle` (live query → node)
 - [ ] Kysely: `fromKysely` (type-safe query → node)
 
+### 5.2c — Ingest adapters (universal source layer)
+
+Connectors for the universal reduction layer (Phase 8). Each wraps an external protocol/system as a reactive `producer` node.
+
+- [ ] `fromOTel(opts?)` — OTLP/HTTP receiver; accepts traces, metrics, logs as nodes
+- [ ] `fromSyslog(opts?)` — RFC 5424 syslog receiver (UDP/TCP)
+- [ ] `fromStatsD(opts?)` — StatsD/DogStatsD UDP receiver
+- [ ] `fromPrometheus(endpoint, opts?)` — scrape Prometheus /metrics as reactive source
+- [ ] `fromKafka(topic, opts?)` / `toKafka(topic, opts?)` — Kafka consumer/producer
+- [ ] `fromRedisStream(key, opts?)` / `toRedisStream(key, opts?)` — Redis Streams
+- [ ] `fromCSV(path, opts?)` / `fromNDJSON(stream)` — file/stream ingest for batch replay
+- [ ] `fromClickHouseWatch(query, opts?)` — live materialized view as reactive source
+
+### 5.2d — Storage & sink adapters
+
+- [ ] `toClickHouse(table, opts?)` — buffered batch insert sink
+- [ ] `toS3(bucket, opts?)` — object storage sink (Parquet/NDJSON, partitioned)
+- [ ] `toPostgres(table, opts?)` / `toMongo(collection, opts?)` — document/relational sink
+- [ ] `toLoki(opts?)` / `toTempo(opts?)` — Grafana stack sinks
+- [ ] `checkpointToS3(bucket, opts?)` — graph snapshot persistence to object storage
+- [ ] `checkpointToRedis(prefix, opts?)` — fast checkpoint for ephemeral infra
+
 ### 5.3 — Worker bridge
 
 - [x] `workerBridge()` / `workerSelf()`
@@ -400,6 +414,8 @@ Reactive bindings that keep graph nodes in sync with database queries.
 - [ ] `knobsAsTools(graph, actor?)` → OpenAI/MCP tool schemas from scoped describe()
 - [ ] `gaugesAsContext(graph, actor?)` → formatted gauge values for system prompts
 - [ ] Graph builder validation (validate LLM-generated graph defs)
+- [ ] `graphFromSpec(naturalLanguage, adapter, opts?)` → LLM composes a Graph from natural language; validates topology; returns runnable graph
+- [ ] `suggestStrategy(graph, problem, adapter)` → LLM analyzes current graph + problem, suggests operator/topology changes
 
 ### 5.5 — NestJS integration
 
@@ -476,16 +492,18 @@ Two-tier DX: out-of-the-box `reactiveLayout(text, font, lineHeight, maxWidth)` f
 
 #### Text layout (Pretext parity)
 
-- [ ] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji via `Intl.Segmenter`); uses Canvas `measureText()` for segment widths, cached per `Map<font, Map<segment, metrics>>`
-- [ ] `derived("line-breaks")` — segments + max-width → pure-arithmetic line breaking (no DOM)
-- [ ] `derived("height")`, `derived("char-positions")` — total height, per-character x/y for hit testing
-- [ ] Measurement cache with RESOLVED optimization — unchanged text/font → no re-measure
-- [ ] `meta: { cache-hit-rate, segment-count, layout-time-ns }` for observability
+- [x] `MeasurementAdapter` interface: `measureSegment(text, font) → { width }`, `clearCache?()` — pluggable measurement backend; tests use `MockMeasureAdapter` with deterministic widths
+- [x] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji via `Intl.Segmenter`); adapter `measureSegment()` for segment widths, cached per `Map<font, Map<segment, width>>`
+- [x] Text analysis pipeline (ported from Pretext): whitespace normalization, word segmentation, punctuation merging, CJK per-grapheme splitting, URL/numeric run merging, soft-hyphen/hard-break support
+- [x] `derived("line-breaks")` — segments + max-width → greedy line breaking (no DOM): trailing-space hang, `overflow-wrap: break-word` via grapheme widths, soft hyphens, hard breaks
+- [x] `derived("height")`, `derived("char-positions")` — total height, per-character `{ x, y, width, height }` for hit testing
+- [x] Measurement cache with RESOLVED optimization — unchanged text/font → no re-measure
+- [x] `meta: { cache-hit-rate, segment-count, layout-time-ns }` for observability
+- [x] `reactiveLayout(text, font, lineHeight, maxWidth, opts?)` → Graph — convenience factory
 
-#### MeasurementAdapter interface (pluggable backends)
+#### MeasurementAdapter implementations (pluggable backends)
 
-- [ ] `MeasurementAdapter` interface: `measureSegment(text, font) → { width, height }`, `clearCache?()`
-- [ ] `CanvasMeasureAdapter` (default, browser) — OffscreenCanvas `measureText()`, emoji correction cache
+- [ ] `CanvasMeasureAdapter` (default, browser) — OffscreenCanvas `measureText()`, emoji correction cache (Chrome/Firefox canvas inflation vs DOM)
 - [ ] `NodeCanvasMeasureAdapter` (Node/CLI) — `@napi-rs/canvas` or `skia-canvas` auto-detection
 - [ ] `PrecomputedAdapter` (server/snapshot) — reads from pre-computed metrics JSON, zero measurement at runtime
 
@@ -523,6 +541,14 @@ Each demo uses the three-pane shell (7.2) and exercises 3+ domain layers. Detail
 - [ ] **Demo 3: Real-Time Monitoring Dashboard** — 4.1 + 4.2 + 4.3 + 3.1 + 3.2 (Vue, 12 ACs)
 - [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 3.2b + 3.2 + 3.1 (Preact, WebLLM, 12 ACs)
 
+### 7.3b — Universal reduction demos
+
+Demos exercising the Phase 8 reduction layer patterns. Design reference: `archive/docs/SESSION-universal-reduction-layer.md`.
+
+- [ ] **Demo 5: Observability Pipeline** — 5.2c + 8.1 + 8.4 + 3.2b (fromOTel → stratify errors/traces/metrics → LLM correlation → SLO verifiable → Grafana sink). Shows "OTel Collector replacement" story.
+- [ ] **Demo 6: AI Agent Observatory** — 4.4 + 8.1 + 8.4 + 3.3 (instrument agentLoop with full token/latency/decision tracing → LLM distills "why agent went off-track"). Shows LLM-observing-LLM story.
+- [ ] **Demo 7: Log Reduction Pipeline** — 5.2c + 8.1 + 8.2 (fromSyslog 10K lines/sec → 4-layer reduction: dedup → classify → summarize → score → human gets 5 prioritized items/minute). Shows "massive → actionable" story.
+
 ### 7.4 — Scenario tests (headless demo logic)
 
 Each demo has a headless scenario test that mirrors its AC list — no DOM, no WebLLM (stubbed).
@@ -556,6 +582,59 @@ Items expected to emerge during demo implementation. Validate need, then add to 
 - [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant showing hidden nodes with `{ denied: true, reason }` for "what can this actor do?" display
 - [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()` that replays deterministic canned responses with optional streaming delay
 - [ ] **Time simulation** — `monotonicNs()` test-mode override for `vi.useFakeTimers()` integration with `fromTimer`/`fromCron`/`wait`
+
+---
+
+## Phase 8: Universal Reduction Layer (Info → Action)
+
+Reusable patterns for taking heterogeneous massive inputs and producing prioritized, auditable, human-actionable output. Every pattern is a Graph factory — uniform introspection, lifecycle, persistence. Design reference: `archive/docs/SESSION-universal-reduction-layer.md`.
+
+### 8.1 — Reduction primitives
+
+Composable building blocks between sources and sinks.
+
+- [ ] `stratify(source, rules)` → Graph — route input to different reduction branches based on classifier fn. Each branch gets independent operator chains (4 layers on branch A, 1 on branch B). Rules are reactive — an LLM can rewrite them at runtime.
+- [ ] `funnel(sources[], stages[])` → Graph — multi-source merge with sequential reduction stages. Each stage is a named subgraph (dedup → enrich → score → pack). Stages are pluggable — swap a stage by graph composition.
+- [ ] `feedback(graph, condition, reentry)` → Graph — introduce a cycle: when condition node fires, route output back to reentry point. Bounded by configurable max iterations + budget constraints.
+- [ ] `budgetGate(source, constraints)` → Node — pass-through that respects reactive constraint nodes (token budget, network IO, cost ceiling). Backpressure via PAUSE/RESUME when budget exhausted.
+- [ ] `scorer(sources[], weights)` → Node — reactive multi-signal scoring. Weights are nodes (LLM or human can adjust live). Output: sorted, prioritized items with full score breakdown in meta.
+
+### 8.2 — Domain templates (opinionated Graph factories)
+
+Pre-wired graphs for common "info → action" domains. Each is a working vertical that demonstrates the reduction layer patterns. Users fork/extend.
+
+- [ ] `observabilityGraph(opts)` → Graph — OTel ingest → stratified reduction → correlation engine → SLO verification → alert prioritization → dashboard sink. Exercises: fromOTel, stratify, scorer, verifiable, feedback.
+- [ ] `issueTrackerGraph(opts)` → Graph — findings ingest → extraction → verifiable assertions → regression detection → memory distillation → prioritized queue. Exercises: fromGitHook, fromFSWatch, verifiable, distill, feedback.
+- [ ] `contentModerationGraph(opts)` → Graph — multimedia/text ingest → LLM classification → human review queue → feedback on false positives → policy refinement. Exercises: stratify, agentLoop, feedback, scorer.
+- [ ] `dataQualityGraph(opts)` → Graph — database/API ingest → schema validation → anomaly detection → drift alerting → auto-remediation suggestions. Exercises: fromPrisma/fromKysely, verifiable, feedback.
+
+### 8.3 — LLM graph composition
+
+The "LLM designs the graph" capability. Design reference: `archive/docs/SESSION-universal-reduction-layer.md`.
+
+- [ ] `GraphSpec` schema — JSON schema for declarative graph topology (nodes, edges, operator configs, constraints). Serializable, diffable.
+- [ ] `compileSpec(spec)` → Graph — instantiate a Graph from a GraphSpec
+- [ ] `decompileGraph(graph)` → GraphSpec — extract spec from running graph
+- [ ] `llmCompose(problem, adapter, opts?)` → GraphSpec — LLM generates a GraphSpec from natural language problem description. Validates against available operators/sources/sinks. Returns spec for human review before compilation.
+- [ ] `llmRefine(graph, feedback, adapter)` → GraphSpec — LLM modifies existing graph topology based on performance feedback or changed requirements
+- [ ] `specDiff(specA, specB)` — structural diff between two GraphSpecs (what changed, why it matters, estimated impact)
+
+### 8.4 — Audit & accountability
+
+Safety layer: every reduction decision is traceable and explainable.
+
+- [ ] `auditTrail(graph, opts?)` → Graph — wraps any graph with a reactiveLog that records every node mutation, actor, timestamp, and causal chain. Queryable by time range, actor, node.
+- [ ] `explainPath(graph, from, to)` — given an output, walk backward through the graph to explain how it was derived. Returns human-readable + LLM-parseable causal chain.
+- [ ] `policyEnforcer(graph, policies)` — reactive constraint enforcement. Policies are nodes (can be LLM-updated). Violations emit to an alert subgraph. Exercises: guard (1.5), budgetGate, feedback.
+- [ ] `complianceSnapshot(graph)` — point-in-time export of full graph state + audit trail for regulatory/compliance archival.
+
+### 8.5 — Performance & scale
+
+- [ ] Backpressure protocol — formalize PAUSE/RESUME for throughput control across graph boundaries (local + distributed via peerGraph)
+- [ ] `peerGraph(transport, opts?)` — federate graphs across processes/services. Transport: WebSocket (existing), gRPC, NATS, Redis pub/sub. Subset of describe() crosses boundary; node subscriptions are proxied.
+- [ ] Benchmark suite: 10K nodes, 100K msgs/sec, measure propagation latency, memory footprint, GC pressure. Target: <1ms p99 per hop.
+- [ ] `shardedGraph(shardFn, opts?)` — partition large graphs across workers (5.3 workerBridge). Transparent to consumers.
+- [ ] Adaptive sampling — built-in operator that adjusts sample rate based on downstream backpressure + budget constraints. No config, just wiring.
 
 ---
 

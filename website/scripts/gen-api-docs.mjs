@@ -163,6 +163,12 @@ const REGISTRY = {
 	firstValueFrom: "src/extra/sources.ts",
 	shareReplay: "src/extra/sources.ts",
 
+	// Extra — reactive layout (roadmap §7.1)
+	reactiveLayout: "src/extra/reactive-layout.ts",
+	analyzeAndMeasure: "src/extra/reactive-layout.ts",
+	computeLineBreaks: "src/extra/reactive-layout.ts",
+	computeCharPositions: "src/extra/reactive-layout.ts",
+
 	// Extra — worker bridge (roadmap §5.3)
 	workerBridge: "src/extra/worker/bridge.ts",
 	workerSelf: "src/extra/worker/self.ts",
