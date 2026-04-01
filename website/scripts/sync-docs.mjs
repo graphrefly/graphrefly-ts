@@ -9,6 +9,8 @@ const specRepo = join(websiteRoot, "..", "..", "graphrefly");
 const outDir = join(websiteRoot, "src", "content", "docs");
 
 const checkMode = process.argv.includes("--check");
+const SPEC_RAW_URL =
+	"https://raw.githubusercontent.com/graphrefly/graphrefly/main/GRAPHREFLY-SPEC.md";
 
 /**
  * Sources:
@@ -45,14 +47,33 @@ ${body.replace(/^\ufeff/, "")}
 `;
 }
 
-function syncFile(srcPath, destName, defaultTitle) {
-	let body;
+async function readBodyWithFallback(srcPath, destName) {
 	try {
-		body = readFileSync(srcPath, "utf8");
+		return readFileSync(srcPath, "utf8");
 	} catch {
-		console.warn(`[sync-docs] skip (missing): ${srcPath}`);
-		return false;
+		if (destName !== "spec.md") {
+			console.warn(`[sync-docs] skip (missing): ${srcPath}`);
+			return null;
+		}
+		console.warn(`[sync-docs] missing local spec at: ${srcPath}`);
+		console.log(`[sync-docs] fetching shared spec: ${SPEC_RAW_URL}`);
+		try {
+			const res = await fetch(SPEC_RAW_URL);
+			if (!res.ok) {
+				console.warn(`[sync-docs] skip (fetch failed ${res.status}): ${SPEC_RAW_URL}`);
+				return null;
+			}
+			return await res.text();
+		} catch {
+			console.warn(`[sync-docs] skip (fetch error): ${SPEC_RAW_URL}`);
+			return null;
+		}
 	}
+}
+
+async function syncFile(srcPath, destName, defaultTitle) {
+	const body = await readBodyWithFallback(srcPath, destName);
+	if (body === null) return false;
 	const title = defaultTitle || titleFromBody(body);
 	const desc =
 		destName === "spec.md"
@@ -88,13 +109,13 @@ let stale = 0;
 // Shared spec from canonical repo (no in-repo docs/ copy)
 for (const [srcName, destName, defaultTitle] of SHARED_FILES) {
 	const srcPath = join(specRepo, srcName);
-	if (syncFile(srcPath, destName, defaultTitle)) stale++;
+	if (await syncFile(srcPath, destName, defaultTitle)) stale++;
 }
 
 // Local docs from this repo
 for (const [srcName, destName, defaultTitle] of LOCAL_FILES) {
 	const srcPath = join(repoDocs, srcName);
-	if (syncFile(srcPath, destName, defaultTitle)) stale++;
+	if (await syncFile(srcPath, destName, defaultTitle)) stale++;
 }
 
 if (checkMode) {
