@@ -19,6 +19,7 @@ const MAX_DRAIN_ITERATIONS = 1000;
 let batchDepth = 0;
 let flushInProgress = false;
 const pendingPhase2: Array<() => void> = [];
+const pendingPhase3: Array<() => void> = [];
 
 /**
  * Returns whether the current call stack is inside a batch scope **or** while
@@ -89,6 +90,7 @@ export function batch(fn: () => void): void {
 				// Do not wipe the outer drain's queue (decision A4).
 				if (!flushInProgress) {
 					pendingPhase2.length = 0;
+					pendingPhase3.length = 0;
 				}
 			} else {
 				drainPending();
@@ -106,22 +108,51 @@ function drainPending(): void {
 	let hasError = false;
 	try {
 		let iterations = 0;
-		while (pendingPhase2.length > 0) {
-			iterations += 1;
-			if (iterations > MAX_DRAIN_ITERATIONS) {
-				pendingPhase2.length = 0;
-				throw new Error(
-					`batch drain exceeded ${MAX_DRAIN_ITERATIONS} iterations — likely a reactive cycle`,
-				);
+		// Drain phase-2 first, then phase-3. If phase-3 callbacks enqueue new
+		// phase-2 work, the outer loop catches it and drains phase-2 again
+		// before re-entering phase-3.
+		while (pendingPhase2.length > 0 || pendingPhase3.length > 0) {
+			// Phase-2 (DATA/RESOLVED) — parent node values settle here.
+			while (pendingPhase2.length > 0) {
+				iterations += 1;
+				if (iterations > MAX_DRAIN_ITERATIONS) {
+					pendingPhase2.length = 0;
+					pendingPhase3.length = 0;
+					throw new Error(
+						`batch drain exceeded ${MAX_DRAIN_ITERATIONS} iterations — likely a reactive cycle`,
+					);
+				}
+				const ops = pendingPhase2.splice(0);
+				for (const run of ops) {
+					try {
+						run();
+					} catch (e) {
+						if (!hasError) {
+							firstError = e;
+							hasError = true;
+						}
+					}
+				}
 			}
-			const ops = pendingPhase2.splice(0);
-			for (const run of ops) {
-				try {
-					run();
-				} catch (e) {
-					if (!hasError) {
-						firstError = e;
-						hasError = true;
+			// Phase-3 — meta companion emissions that must follow parent settlement.
+			if (pendingPhase3.length > 0) {
+				iterations += 1;
+				if (iterations > MAX_DRAIN_ITERATIONS) {
+					pendingPhase2.length = 0;
+					pendingPhase3.length = 0;
+					throw new Error(
+						`batch drain exceeded ${MAX_DRAIN_ITERATIONS} iterations — likely a reactive cycle`,
+					);
+				}
+				const ops = pendingPhase3.splice(0);
+				for (const run of ops) {
+					try {
+						run();
+					} catch (e) {
+						if (!hasError) {
+							firstError = e;
+							hasError = true;
+						}
 					}
 				}
 			}
@@ -208,18 +239,23 @@ export function partitionForBatch(messages: Messages): {
  *
  * @category core
  */
-export function emitWithBatch(emit: (messages: Messages) => void, messages: Messages): void {
+export function emitWithBatch(
+	emit: (messages: Messages) => void,
+	messages: Messages,
+	phase: 2 | 3 = 2,
+): void {
 	if (messages.length === 0) {
 		return;
 	}
+	const queue = phase === 3 ? pendingPhase3 : pendingPhase2;
+
 	// Fast path: single-message batches (most common in graph-internal propagation)
 	// skip partitionForBatch allocation entirely.
 	if (messages.length === 1) {
 		const t = messages[0][0];
 		if (t === DATA || t === RESOLVED) {
-			// Phase-2: defer when batching.
 			if (isBatching()) {
-				pendingPhase2.push(() => emit(messages));
+				queue.push(() => emit(messages));
 			} else {
 				emit(messages);
 			}
@@ -227,7 +263,7 @@ export function emitWithBatch(emit: (messages: Messages) => void, messages: Mess
 			// Terminal single message: defer when batching so any preceding
 			// phase-2 in the queue flushes first.
 			if (isBatching()) {
-				pendingPhase2.push(() => emit(messages));
+				queue.push(() => emit(messages));
 			} else {
 				emit(messages);
 			}
@@ -245,17 +281,15 @@ export function emitWithBatch(emit: (messages: Messages) => void, messages: Mess
 		emit(immediate);
 	}
 
-	// 2. Phase-2 (tier 2) + 3. Terminal (tier 3) — canonical order preserved.
+	// 2. Deferred (tier 2) + Terminal (tier 3) — canonical order preserved.
 	if (isBatching()) {
-		// Both deferred and terminal go into the pending queue, in order.
 		if (deferred.length > 0) {
-			pendingPhase2.push(() => emit(deferred));
+			queue.push(() => emit(deferred));
 		}
 		if (terminal.length > 0) {
-			pendingPhase2.push(() => emit(terminal));
+			queue.push(() => emit(terminal));
 		}
 	} else {
-		// Not batching: emit synchronously in tier order.
 		if (deferred.length > 0) {
 			emit(deferred);
 		}

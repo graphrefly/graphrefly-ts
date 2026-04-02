@@ -751,18 +751,17 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
 
 			// After parent `segments` auto-emits DATA/RESOLVED, deliver metrics
-			// via batch deferral so observers see the main value first.
-			// Uses emitWithBatch (phase-2 deferral) instead of queueMicrotask
-			// — keeps ordering inside the reactive batch system, not the
-			// platform microtask queue (parity with Python `defer_down`).
+			// via phase-3 deferral so observers see the parent value first.
+			// Phase-3 drains after all phase-2 work (parent settlements) completes
+			// (parity with Python `defer_down` → `emit_with_batch_phase3`).
 			const meta = segmentsNode.meta;
 			if (meta) {
 				const hr = hitRate;
 				const len = result.length;
 				const el = elapsed;
-				emitWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]]);
-				emitWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]]);
-				emitWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]]);
+				emitWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], 3);
+				emitWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], 3);
+				emitWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], 3);
 			}
 
 			return result;

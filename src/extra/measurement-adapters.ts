@@ -276,6 +276,12 @@ export class CanvasMeasureAdapter implements MeasurementAdapter {
 
 	private getContext(): OffscreenCanvasRenderingContext2D {
 		if (!this.ctx) {
+			if (typeof OffscreenCanvas === "undefined") {
+				throw new Error(
+					"CanvasMeasureAdapter requires a browser environment with OffscreenCanvas support. " +
+						"Use CliMeasureAdapter or NodeCanvasMeasureAdapter for Node.js.",
+				);
+			}
 			const canvas = new OffscreenCanvas(0, 0);
 			const ctx = canvas.getContext("2d");
 			if (!ctx) throw new Error("CanvasMeasureAdapter: failed to get 2d context");

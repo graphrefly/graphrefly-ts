@@ -137,8 +137,16 @@ export class MemoryEventStore implements EventStoreAdapter {
 
 	loadEvents(eventType: string, cursor?: EventStoreCursor): LoadEventsResult {
 		const list = this._store.get(eventType) ?? [];
-		const since = (cursor as { timestampNs?: number } | undefined)?.timestampNs;
-		const events = since == null ? [...list] : list.filter((e) => e.timestampNs > since);
+		const sinceTs = (cursor as { timestampNs?: number } | undefined)?.timestampNs;
+		const sinceSeq = (cursor as { seq?: number } | undefined)?.seq;
+		const events =
+			sinceTs == null
+				? [...list]
+				: list.filter(
+						(e) =>
+							e.timestampNs > sinceTs ||
+							(e.timestampNs === sinceTs && e.seq > (sinceSeq ?? -1)),
+					);
 		const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
 		return {
 			events,

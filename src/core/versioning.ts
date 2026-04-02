@@ -73,8 +73,12 @@ export function canonicalizeForHash(value: unknown): unknown {
 		if (!Number.isFinite(value)) {
 			throw new TypeError(`Cannot hash non-finite number: ${value}`);
 		}
-		// Normalize integer-valued floats: 1.0 → 1 (JS does this natively,
-		// but be explicit for cross-language clarity)
+		if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+			throw new TypeError(
+				`Cannot hash integer outside safe range (|n| > 2^53-1): ${value}. ` +
+					"Cross-language cid parity is not guaranteed for unsafe integers.",
+			);
+		}
 		return value;
 	}
 	if (typeof value === "string" || typeof value === "boolean" || value === null) {

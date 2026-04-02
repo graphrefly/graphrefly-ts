@@ -8,7 +8,7 @@
 import type { Actor } from "../core/actor.js";
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
-import { COMPLETE, DATA, ERROR } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, TEARDOWN } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
 import {
@@ -332,6 +332,7 @@ export function fromLLMStream(
 		dispose() {
 			controller?.abort();
 			unsub();
+			eff.down([[TEARDOWN]]);
 		},
 	};
 }

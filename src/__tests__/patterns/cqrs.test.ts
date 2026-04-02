@@ -395,7 +395,7 @@ describe("cqrs — roadmap §4.5", () => {
 		const all = store.loadEvents("a");
 		expect(all.events).toHaveLength(2);
 
-		const recent = store.loadEvents("a", { timestampNs: t1 });
+		const recent = store.loadEvents("a", { timestampNs: t1, seq: 1 });
 		expect(recent.events).toHaveLength(1);
 		expect(recent.events[0].payload).toBe(2);
 	});
