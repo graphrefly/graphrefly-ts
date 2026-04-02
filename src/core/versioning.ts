@@ -57,24 +57,51 @@ export interface VersioningOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Default content hash: SHA-256 of deterministic JSON, truncated to 16 hex chars (~64-bit).
- * Uses Node.js `crypto` (sync). Browser fallback can be added later.
+ * Canonicalize a value for deterministic cross-language hashing.
+ *
+ * - Integer-valued floats normalize to integer strings (`1.0` → `1`).
+ * - `NaN`, `Infinity`, `-Infinity` are rejected (no JSON equivalent).
+ * - `undefined` normalizes to `null`.
+ * - Object keys are sorted lexicographically.
+ *
+ * This ensures TS `JSON.stringify` and Python `json.dumps(sort_keys=True)`
+ * produce identical output for the same logical value.
  */
-export function defaultHash(value: unknown): string {
-	const json = JSON.stringify(value ?? null, replacer);
-	return createHash("sha256").update(json).digest("hex").slice(0, 16);
-}
-
-/** JSON.stringify replacer that sorts object keys for deterministic output. */
-function replacer(_key: string, value: unknown): unknown {
-	if (value != null && typeof value === "object" && !Array.isArray(value)) {
+export function canonicalizeForHash(value: unknown): unknown {
+	if (value === undefined) return null;
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) {
+			throw new TypeError(`Cannot hash non-finite number: ${value}`);
+		}
+		// Normalize integer-valued floats: 1.0 → 1 (JS does this natively,
+		// but be explicit for cross-language clarity)
+		return value;
+	}
+	if (typeof value === "string" || typeof value === "boolean" || value === null) {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value.map(canonicalizeForHash);
+	}
+	if (typeof value === "object" && value !== null) {
 		const sorted: Record<string, unknown> = {};
 		for (const k of Object.keys(value as Record<string, unknown>).sort()) {
-			sorted[k] = (value as Record<string, unknown>)[k];
+			sorted[k] = canonicalizeForHash((value as Record<string, unknown>)[k]);
 		}
 		return sorted;
 	}
-	return value;
+	// Fallback: coerce to null (bigint, symbol, function)
+	return null;
+}
+
+/**
+ * Default content hash: SHA-256 of deterministic JSON, truncated to 16 hex chars (~64-bit).
+ * Uses {@link canonicalizeForHash} for cross-language parity with Python `default_hash`.
+ */
+export function defaultHash(value: unknown): string {
+	const canonical = canonicalizeForHash(value ?? null);
+	const json = JSON.stringify(canonical);
+	return createHash("sha256").update(json).digest("hex").slice(0, 16);
 }
 
 // ---------------------------------------------------------------------------

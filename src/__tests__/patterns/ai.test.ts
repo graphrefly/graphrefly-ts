@@ -230,7 +230,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		const chunks = ["Hello", " ", "world", "!"];
 		const adapter = mockAdapter([], [chunks]);
 		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
-		const result = fromLLMStream(adapter, msgs);
+		const { node: result, dispose } = fromLLMStream(adapter, msgs);
 
 		// Wait for the async iteration to complete
 		await new Promise<void>((resolve) => {
@@ -241,6 +241,7 @@ describe("patterns.ai.fromLLMStream", () => {
 						if (snapshot.value.entries.length === chunks.length) {
 							expect(snapshot.value.entries).toEqual(chunks);
 							unsub();
+							dispose();
 							resolve();
 						}
 					}
@@ -254,7 +255,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		const chunks2 = ["second"];
 		const adapter = mockAdapter([], [chunks1, chunks2]);
 		const msgs = state<ChatMessage[]>([{ role: "user", content: "one" }]);
-		const result = fromLLMStream(adapter, msgs);
+		const { node: result, dispose } = fromLLMStream(adapter, msgs);
 
 		// Single persistent subscription to capture all emissions
 		const allSnapshots: Array<{ entries: readonly string[] }> = [];
@@ -283,17 +284,19 @@ describe("patterns.ai.fromLLMStream", () => {
 		// Fresh log: only "second", not ["first", "second"]
 		expect(secondFinal.entries).toEqual(["second"]);
 		unsub();
+		dispose();
 	});
 
 	it("returns empty log for empty messages", () => {
 		const adapter = mockAdapter([], []);
 		const msgs = state<ChatMessage[]>([]);
-		const result = fromLLMStream(adapter, msgs);
+		const { node: result, dispose } = fromLLMStream(adapter, msgs);
 		const unsub = result.subscribe(() => {});
 		const snapshot = result.get() as { value: { entries: readonly string[] } } | null;
 		// Empty messages → cleared log
 		expect(snapshot === null || (snapshot?.value?.entries?.length ?? 0) === 0).toBe(true);
 		unsub();
+		dispose();
 	});
 
 	it("absorbs adapter stream errors without crashing", async () => {
@@ -305,7 +308,7 @@ describe("patterns.ai.fromLLMStream", () => {
 			},
 		};
 		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
-		const result = fromLLMStream(errorAdapter, msgs);
+		const { node: result, dispose } = fromLLMStream(errorAdapter, msgs);
 
 		const snapshots: Array<{ entries: readonly string[] }> = [];
 		const unsub = result.subscribe((messages) => {
@@ -323,6 +326,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		expect(snapshots[0].entries).toContain("partial");
 		// Log node is still alive (not terminated) — can receive new streams
 		unsub();
+		dispose();
 	});
 });
 

@@ -563,9 +563,10 @@ Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?
 
 #### MeasurementAdapter implementations (pluggable backends)
 
-- [ ] `CanvasMeasureAdapter` (default, browser) — OffscreenCanvas `measureText()`, emoji correction cache (Chrome/Firefox canvas inflation vs DOM)
-- [ ] `NodeCanvasMeasureAdapter` (Node/CLI) — `@napi-rs/canvas` or `skia-canvas` auto-detection
-- [ ] `PrecomputedAdapter` (server/snapshot) — reads from pre-computed metrics JSON, zero measurement at runtime
+- [x] `CanvasMeasureAdapter` (default, browser) — OffscreenCanvas `measureText()`, emoji correction option (Chrome/Firefox canvas inflation vs DOM)
+- [x] `NodeCanvasMeasureAdapter` (Node/CLI) — injected canvas module (`@napi-rs/canvas` or `skia-canvas`) via DI, no async auto-detection
+- [x] `PrecomputedAdapter` (server/snapshot) — reads from pre-computed metrics JSON, zero measurement at runtime; per-char fallback or strict error mode
+- [x] `CliMeasureAdapter` (terminal) — monospace cell counting (CJK/fullwidth = 2 cells), configurable `cellPx`, no external deps
 
 #### Multi-content blocks (SVG, images, mixed)
 

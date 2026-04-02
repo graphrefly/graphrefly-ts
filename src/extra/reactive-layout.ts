@@ -9,8 +9,9 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
+import { emitWithBatch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
-import { DATA } from "../core/messages.js";
+import { DATA, INVALIDATE } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 import { Graph } from "../graph/graph.js";
@@ -723,6 +724,15 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	});
 
 	// --- Derived: segments (text + font → PreparedSegment[]) ---
+	function graphemeWidthsEqual(a: number[] | null, b: number[] | null): boolean {
+		if (a === null || b === null) return a === b;
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]!) return false;
+		}
+		return true;
+	}
+
 	const segmentsNode = derived<PreparedSegment[]>(
 		[textNode, fontNode],
 		([textVal, fontVal]) => {
@@ -740,15 +750,19 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			const lookups = measureStats.hits + measureStats.misses;
 			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
 
-			// After parent `segments` auto-emits DATA/RESOLVED, so observers see metrics second
-			// (parity with Python `defer_down` on meta companions).
+			// After parent `segments` auto-emits DATA/RESOLVED, deliver metrics
+			// via batch deferral so observers see the main value first.
+			// Uses emitWithBatch (phase-2 deferral) instead of queueMicrotask
+			// — keeps ordering inside the reactive batch system, not the
+			// platform microtask queue (parity with Python `defer_down`).
 			const meta = segmentsNode.meta;
 			if (meta) {
-				queueMicrotask(() => {
-					meta["cache-hit-rate"]?.down([[DATA, hitRate]]);
-					meta["segment-count"]?.down([[DATA, result.length]]);
-					meta["layout-time-ns"]?.down([[DATA, elapsed]]);
-				});
+				const hr = hitRate;
+				const len = result.length;
+				const el = elapsed;
+				emitWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]]);
+				emitWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]]);
+				emitWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]]);
 			}
 
 			return result;
@@ -760,13 +774,30 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				"segment-count": 0,
 				"layout-time-ns": 0,
 			},
+			onMessage(msg) {
+				if (msg[0] === INVALIDATE) {
+					// Spec: INVALIDATE clears cached state. Our measurement cache lives
+					// in a closure, so we must clear it explicitly.
+					measureCache.clear();
+					adapter.clearCache?.();
+				}
+				return false;
+			},
 			equals: (a, b) => {
 				const sa = a as PreparedSegment[] | null;
 				const sb = b as PreparedSegment[] | null;
 				if (sa == null || sb == null) return sa === sb;
 				if (sa.length !== sb.length) return false;
 				for (let i = 0; i < sa.length; i++) {
-					if (sa[i]!.text !== sb[i]!.text || sa[i]!.width !== sb[i]!.width) return false;
+					const pa = sa[i]!;
+					const pb = sb[i]!;
+					if (
+						pa.text !== pb.text ||
+						pa.width !== pb.width ||
+						pa.kind !== pb.kind ||
+						!graphemeWidthsEqual(pa.graphemeWidths ?? null, pb.graphemeWidths ?? null)
+					)
+						return false;
 				}
 				return true;
 			},
@@ -795,7 +826,15 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				for (let i = 0; i < la.lines.length; i++) {
 					const lineA = la.lines[i]!;
 					const lineB = lb.lines[i]!;
-					if (lineA.text !== lineB.text || lineA.width !== lineB.width) return false;
+					if (
+						lineA.text !== lineB.text ||
+						lineA.width !== lineB.width ||
+						lineA.startSegment !== lineB.startSegment ||
+						lineA.startGrapheme !== lineB.startGrapheme ||
+						lineA.endSegment !== lineB.endSegment ||
+						lineA.endGrapheme !== lineB.endGrapheme
+					)
+						return false;
 				}
 				return true;
 			},

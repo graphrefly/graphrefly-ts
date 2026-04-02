@@ -260,17 +260,30 @@ export function fromLLM(
 export type FromLLMStreamOptions = FromLLMOptions;
 
 /**
- * Streaming LLM invocation. Returns a `reactiveLog`-backed node that
- * accumulates token chunks as they arrive from `adapter.stream()`.
+ * Bundle returned by {@link fromLLMStream}. `node` is the reactive log of
+ * token chunks; `dispose` tears down the internal effect and log.
+ */
+export type LLMStreamHandle = {
+	/** Reactive log node accumulating token chunks. */
+	node: Node<ReactiveLogSnapshot<string>>;
+	/** Tear down the internal effect, abort any in-flight stream, and release resources. */
+	dispose: () => void;
+};
+
+/**
+ * Streaming LLM invocation. Returns a `{ node, dispose }` bundle where
+ * `node` is a `reactiveLog`-backed node that accumulates token chunks as
+ * they arrive from `adapter.stream()`.
  *
  * An `effect` watches the messages input; new values abort the in-flight
- * stream and clear the log before starting a new one.
+ * stream and clear the log before starting a new one. Call `dispose()` to
+ * tear down the effect and release resources.
  */
 export function fromLLMStream(
 	adapter: LLMAdapter,
 	messages: NodeInput<readonly ChatMessage[]>,
 	opts?: FromLLMStreamOptions,
-): Node<ReactiveLogSnapshot<string>> {
+): LLMStreamHandle {
 	const msgsNode = fromAny(messages);
 	let controller: AbortController | undefined;
 
@@ -312,9 +325,15 @@ export function fromLLMStream(
 			ctrl.abort();
 		};
 	});
-	keepalive(eff);
+	const unsub = keepalive(eff);
 
-	return log.entries;
+	return {
+		node: log.entries,
+		dispose() {
+			controller?.abort();
+			unsub();
+		},
+	};
 }
 
 // ---------------------------------------------------------------------------

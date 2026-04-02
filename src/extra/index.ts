@@ -5,6 +5,7 @@ export * from "./backoff.js";
 export * from "./checkpoint.js";
 export * from "./composite.js";
 export * from "./cron.js";
+export * from "./measurement-adapters.js";
 export * from "./operators.js";
 export * from "./pubsub.js";
 export * from "./reactive-index.js";

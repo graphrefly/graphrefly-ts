@@ -85,17 +85,42 @@ export type CqrsEvent<T = unknown> = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Opaque replay cursor returned by `loadEvents`. Pass it back to
+ * `loadEvents` to resume from the last position.
+ */
+export type EventStoreCursor = {
+	readonly __brand?: "EventStoreCursor";
+	[key: string]: unknown;
+};
+
+/**
+ * Result of `loadEvents` — events plus an opaque cursor for resumption.
+ */
+export type LoadEventsResult = {
+	events: CqrsEvent[];
+	cursor: EventStoreCursor | undefined;
+};
+
+/**
  * Pluggable persistence for CQRS events.
  *
- * **`persist`:** Invoked synchronously from the append path after each event.
- * If you return a `Promise`, it is **not** awaited and rejections are not
- * centrally observed — use a synchronous `persist` body, or handle durability
- * out-of-band (e.g. queue + background flush).
+ * **`persist`:** Must be synchronous. Called from the dispatch path inside
+ * `batch()`. Adapters that need async I/O should buffer internally and
+ * expose a `flush()` method for explicit drain.
  */
 export interface EventStoreAdapter {
-	persist(event: CqrsEvent): void | Promise<void>;
-	/** Returns events with `timestampNs` **strictly greater than** `since` when `since` is provided. */
-	loadEvents(eventType: string, since?: number): CqrsEvent[] | Promise<CqrsEvent[]>;
+	persist(event: CqrsEvent): void;
+	/**
+	 * Load persisted events. When `cursor` is provided, returns only events
+	 * after that position. The returned `cursor` should be passed to the next
+	 * `loadEvents` call for incremental replay.
+	 */
+	loadEvents(
+		eventType: string,
+		cursor?: EventStoreCursor,
+	): LoadEventsResult | Promise<LoadEventsResult>;
+	/** Optional explicit flush for adapters with async I/O. */
+	flush?(): Promise<void>;
 }
 
 export class MemoryEventStore implements EventStoreAdapter {
@@ -110,10 +135,15 @@ export class MemoryEventStore implements EventStoreAdapter {
 		list.push(event);
 	}
 
-	loadEvents(eventType: string, since?: number): CqrsEvent[] {
+	loadEvents(eventType: string, cursor?: EventStoreCursor): LoadEventsResult {
 		const list = this._store.get(eventType) ?? [];
-		if (since == null) return [...list];
-		return list.filter((e) => e.timestampNs > since);
+		const since = (cursor as { timestampNs?: number } | undefined)?.timestampNs;
+		const events = since == null ? [...list] : list.filter((e) => e.timestampNs > since);
+		const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
+		return {
+			events,
+			cursor: lastEvent ? { timestampNs: lastEvent.timestampNs, seq: lastEvent.seq } : cursor,
+		};
 	}
 
 	clear(): void {
@@ -225,6 +255,12 @@ export class CqrsGraph extends Graph {
 			this.event(eventName);
 			entry = this._eventLogs.get(eventName)!;
 		}
+		// Guard: reject dispatch to terminated event streams
+		if (entry.node.status === "completed" || entry.node.status === "errored") {
+			throw new Error(
+				`Cannot dispatch to terminated event stream "${eventName}" (status: ${entry.node.status}).`,
+			);
+		}
 		const nv = entry.log.entries.v;
 		const evt: CqrsEvent = {
 			type: eventName,
@@ -235,7 +271,7 @@ export class CqrsGraph extends Graph {
 		};
 		entry.log.append(evt);
 		if (this._eventStore) {
-			void this._eventStore.persist(evt);
+			this._eventStore.persist(evt);
 		}
 	}
 
@@ -422,8 +458,8 @@ export class CqrsGraph extends Graph {
 		}
 		const allEvents: CqrsEvent[] = [];
 		for (const eName of eventNames) {
-			const events = await this._eventStore.loadEvents(eName);
-			allEvents.push(...events);
+			const result = await this._eventStore.loadEvents(eName);
+			allEvents.push(...result.events);
 		}
 		allEvents.sort((a, b) => a.timestampNs - b.timestampNs || a.seq - b.seq);
 		return reducer(initial, allEvents);

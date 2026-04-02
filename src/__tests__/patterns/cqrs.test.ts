@@ -353,8 +353,8 @@ describe("cqrs — roadmap §4.5", () => {
 		app.dispatch("placeOrder", { id: "2" });
 
 		const persisted = store.loadEvents("orderPlaced");
-		expect(persisted).toHaveLength(2);
-		expect(persisted[0].payload).toEqual({ id: "1" });
+		expect(persisted.events).toHaveLength(2);
+		expect(persisted.events[0].payload).toEqual({ id: "1" });
 		app.destroy();
 	});
 
@@ -385,7 +385,7 @@ describe("cqrs — roadmap §4.5", () => {
 
 	// -- MemoryEventStore -----------------------------------------------------
 
-	it("MemoryEventStore loadEvents with since filter", () => {
+	it("MemoryEventStore loadEvents with cursor filter", () => {
 		const store = new MemoryEventStore();
 		const t1 = Date.now() * 1_000_000 - 100_000_000;
 		const t2 = Date.now() * 1_000_000;
@@ -393,17 +393,17 @@ describe("cqrs — roadmap §4.5", () => {
 		store.persist({ type: "a", payload: 2, timestampNs: t2, seq: 2 });
 
 		const all = store.loadEvents("a");
-		expect(all).toHaveLength(2);
+		expect(all.events).toHaveLength(2);
 
-		const recent = store.loadEvents("a", t1);
-		expect(recent).toHaveLength(1);
-		expect(recent[0].payload).toBe(2);
+		const recent = store.loadEvents("a", { timestampNs: t1 });
+		expect(recent.events).toHaveLength(1);
+		expect(recent.events[0].payload).toBe(2);
 	});
 
 	it("MemoryEventStore clear() removes all events", () => {
 		const store = new MemoryEventStore();
 		store.persist({ type: "a", payload: 1, timestampNs: 0, seq: 1 });
 		store.clear();
-		expect(store.loadEvents("a")).toHaveLength(0);
+		expect(store.loadEvents("a").events).toHaveLength(0);
 	});
 });
