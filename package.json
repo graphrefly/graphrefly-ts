@@ -141,7 +141,8 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"LICENSE"
 	],
 	"scripts": {
 		"docs:dev": "pnpm --dir website dev",

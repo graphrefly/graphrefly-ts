@@ -43,6 +43,44 @@ export const INTERVAL_HANDLERS = new Map<Function, GraphIntervalMeta[]>();
 export const CRON_HANDLERS = new Map<Function, GraphCronMeta[]>();
 
 // ---------------------------------------------------------------------------
+// CQRS decorator metadata & registries (Phase 5.5 — CQRS replacement)
+// ---------------------------------------------------------------------------
+
+export interface CommandHandlerMeta {
+	cqrsName: string;
+	commandName: string;
+	methodKey: string | symbol;
+}
+
+export interface EventHandlerMeta {
+	cqrsName: string;
+	eventName: string;
+	methodKey: string | symbol;
+}
+
+export interface QueryHandlerMeta {
+	cqrsName: string;
+	projectionName: string;
+	methodKey: string | symbol;
+}
+
+export interface SagaHandlerMeta {
+	cqrsName: string;
+	eventNames: readonly string[];
+	sagaName: string;
+	methodKey: string | symbol;
+}
+
+/** Registry: constructor → command handler metadata. */
+export const COMMAND_HANDLERS = new Map<Function, CommandHandlerMeta[]>();
+/** Registry: constructor → event handler metadata. */
+export const CQRS_EVENT_HANDLERS = new Map<Function, EventHandlerMeta[]>();
+/** Registry: constructor → query handler metadata. */
+export const QUERY_HANDLERS = new Map<Function, QueryHandlerMeta[]>();
+/** Registry: constructor → saga handler metadata. */
+export const SAGA_HANDLERS = new Map<Function, SagaHandlerMeta[]>();
+
+// ---------------------------------------------------------------------------
 // DI decorators
 // ---------------------------------------------------------------------------
 
@@ -67,6 +105,28 @@ export const CRON_HANDLERS = new Map<Function, GraphCronMeta[]>();
 export function InjectGraph(name?: string): ParameterDecorator & PropertyDecorator {
 	if (name === "request") return Inject(GRAPHREFLY_REQUEST_GRAPH);
 	return Inject(name ? getGraphToken(name) : GRAPHREFLY_ROOT_GRAPH);
+}
+
+/**
+ * Inject a `CqrsGraph` instance into a NestJS service or controller.
+ *
+ * Typed alternative to `@InjectGraph(name)` — returns `CqrsGraph` instead of `Graph`,
+ * giving access to `.command()`, `.dispatch()`, `.event()`, `.projection()`, `.saga()`.
+ *
+ * @param name - The CQRS graph name (from `forCqrs({ name })`).
+ *
+ * @example
+ * ```ts
+ * @Injectable()
+ * export class OrderService {
+ *   constructor(@InjectCqrsGraph("orders") private orders: CqrsGraph) {
+ *     orders.dispatch("placeOrder", { id: "1" }); // fully typed
+ *   }
+ * }
+ * ```
+ */
+export function InjectCqrsGraph(name: string): ParameterDecorator & PropertyDecorator {
+	return Inject(getGraphToken(name));
 }
 
 /**
@@ -187,6 +247,152 @@ export function GraphCron(
 			const existing = CRON_HANDLERS.get(ctor) ?? [];
 			existing.push({ expr, methodKey });
 			CRON_HANDLERS.set(ctor, existing);
+		});
+	};
+}
+
+// ---------------------------------------------------------------------------
+// CQRS method decorators (Phase 5.5 — CQRS replacement)
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a method as a CQRS command handler — replaces `@CommandHandler()` from `@nestjs/cqrs`.
+ *
+ * The method receives `(payload, { emit })` — same signature as `CqrsGraph.command()` handlers.
+ * Wired reactively via the explorer on module init.
+ *
+ * @param cqrsName - Name of the CQRS graph (from `forCqrs({ name })`).
+ * @param commandName - Command to handle.
+ *
+ * @example
+ * ```ts
+ * @Injectable()
+ * export class OrderService {
+ *   @CommandHandler("orders", "placeOrder")
+ *   handlePlace(payload: PlaceOrderDto, { emit }: CommandActions) {
+ *     emit("orderPlaced", { orderId: payload.id, amount: payload.amount });
+ *   }
+ * }
+ * ```
+ */
+export function CommandHandler(
+	cqrsName: string,
+	commandName: string,
+): (value: Function, context: ClassMethodDecoratorContext) => void {
+	return (_value: Function, context: ClassMethodDecoratorContext) => {
+		const methodKey = context.name;
+		context.addInitializer(function (this: unknown) {
+			const ctor = (this as { constructor: Function }).constructor;
+			const existing = COMMAND_HANDLERS.get(ctor) ?? [];
+			existing.push({ cqrsName, commandName, methodKey });
+			COMMAND_HANDLERS.set(ctor, existing);
+		});
+	};
+}
+
+/**
+ * Subscribe a method to CQRS event stream DATA — replaces `@EventsHandler()` from `@nestjs/cqrs`.
+ *
+ * The method receives each `CqrsEvent` envelope as events arrive. Subscription is reactive
+ * via `graph.observe()` — actor guards are respected.
+ *
+ * @param cqrsName - Name of the CQRS graph.
+ * @param eventName - Event stream to subscribe to.
+ *
+ * @example
+ * ```ts
+ * @Injectable()
+ * export class NotificationService {
+ *   @EventHandler("orders", "orderPlaced")
+ *   onOrderPlaced(event: CqrsEvent<{ orderId: string }>) {
+ *     console.log("Order placed:", event.payload.orderId);
+ *   }
+ * }
+ * ```
+ */
+export function EventHandler(
+	cqrsName: string,
+	eventName: string,
+): (value: Function, context: ClassMethodDecoratorContext) => void {
+	return (_value: Function, context: ClassMethodDecoratorContext) => {
+		const methodKey = context.name;
+		context.addInitializer(function (this: unknown) {
+			const ctor = (this as { constructor: Function }).constructor;
+			const existing = CQRS_EVENT_HANDLERS.get(ctor) ?? [];
+			existing.push({ cqrsName, eventName, methodKey });
+			CQRS_EVENT_HANDLERS.set(ctor, existing);
+		});
+	};
+}
+
+/**
+ * Subscribe a method to CQRS projection changes — replaces `@QueryHandler()` from `@nestjs/cqrs`.
+ *
+ * The method is called reactively whenever the projection's value changes (DATA emission).
+ * This is push-based, not request-response — the projection recomputes on upstream events.
+ *
+ * @param cqrsName - Name of the CQRS graph.
+ * @param projectionName - Projection to observe.
+ *
+ * @example
+ * ```ts
+ * @Injectable()
+ * export class DashboardService {
+ *   @QueryHandler("orders", "orderCount")
+ *   onCountChanged(count: number) {
+ *     this.broadcast({ type: "orderCount", value: count });
+ *   }
+ * }
+ * ```
+ */
+export function QueryHandler(
+	cqrsName: string,
+	projectionName: string,
+): (value: Function, context: ClassMethodDecoratorContext) => void {
+	return (_value: Function, context: ClassMethodDecoratorContext) => {
+		const methodKey = context.name;
+		context.addInitializer(function (this: unknown) {
+			const ctor = (this as { constructor: Function }).constructor;
+			const existing = QUERY_HANDLERS.get(ctor) ?? [];
+			existing.push({ cqrsName, projectionName, methodKey });
+			QUERY_HANDLERS.set(ctor, existing);
+		});
+	};
+}
+
+/**
+ * Register a method as a CQRS saga — replaces RxJS saga streams from `@nestjs/cqrs`.
+ *
+ * The method receives each new `CqrsEvent` from the specified event streams. Backed by
+ * `CqrsGraph.saga()` — tracks last-processed entry, only delivers new events.
+ *
+ * @param cqrsName - Name of the CQRS graph.
+ * @param sagaName - Name for this saga node in the graph.
+ * @param eventNames - Event streams to react to.
+ *
+ * @example
+ * ```ts
+ * @Injectable()
+ * export class FulfillmentService {
+ *   @SagaHandler("orders", "fulfillment", ["orderPlaced", "paymentConfirmed"])
+ *   onOrderFlow(event: CqrsEvent) {
+ *     if (event.type === "paymentConfirmed") this.shipOrder(event.payload);
+ *   }
+ * }
+ * ```
+ */
+export function SagaHandler(
+	cqrsName: string,
+	sagaName: string,
+	eventNames: readonly string[],
+): (value: Function, context: ClassMethodDecoratorContext) => void {
+	return (_value: Function, context: ClassMethodDecoratorContext) => {
+		const methodKey = context.name;
+		context.addInitializer(function (this: unknown) {
+			const ctor = (this as { constructor: Function }).constructor;
+			const existing = SAGA_HANDLERS.get(ctor) ?? [];
+			existing.push({ cqrsName, eventNames, sagaName, methodKey });
+			SAGA_HANDLERS.set(ctor, existing);
 		});
 	};
 }

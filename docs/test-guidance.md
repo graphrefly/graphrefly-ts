@@ -50,6 +50,14 @@ From **GRAPHREFLY-SPEC** §1 and §2:
 - [ ] **Unknown types** forward (forward-compat).
 - [ ] **Meta** keys behave as subscribable nodes when present.
 
+### Design invariant violations
+
+From **GRAPHREFLY-SPEC §5.8–5.12**:
+
+- [ ] **No polling:** Operators and sources must not use `setInterval` or timer loops to poll node values. Test that reactive push propagation is the only update mechanism.
+- [ ] **No leaked internals:** Phase 4+ APIs must not expose protocol internals (`DIRTY`, `RESOLVED`, bitmask) in error messages or return types visible to end users.
+- [ ] **Async boundary isolation:** Async boundaries (timers, I/O, promises) belong in sources and runners, never inside node `fn` callbacks. Test that node fns remain synchronous.
+
 ---
 
 ## What to test — Graph

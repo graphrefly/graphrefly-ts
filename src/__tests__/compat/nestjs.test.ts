@@ -5,8 +5,12 @@ import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ACTOR_KEY,
+	COMMAND_HANDLERS,
+	CommandHandler,
+	CQRS_EVENT_HANDLERS,
 	CRON_HANDLERS,
 	EVENT_HANDLERS,
+	EventHandler,
 	fromHeader,
 	fromJwtPayload,
 	GRAPHREFLY_ROOT_GRAPH,
@@ -24,6 +28,10 @@ import {
 	OnGraphEvent,
 	observeSSE,
 	observeSubscription,
+	QUERY_HANDLERS,
+	QueryHandler,
+	SAGA_HANDLERS,
+	SagaHandler,
 } from "../../compat/nestjs/index.js";
 import { type Actor, DEFAULT_ACTOR } from "../../core/actor.js";
 import { GuardDenied, policy } from "../../core/guard.js";
@@ -32,6 +40,7 @@ import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { observeGraph$, observeNode$, toMessages$, toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
+import type { CqrsEvent, CqrsGraph } from "../../patterns/cqrs.js";
 
 // ---------------------------------------------------------------------------
 // RxJS bridge
@@ -1364,5 +1373,528 @@ describe("nestjs compat — TEARDOWN handling", () => {
 		const r3 = await iter.next();
 		expect(r3.done).toBe(true);
 		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS replacement — forCqrs
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — GraphReflyModule.forCqrs", () => {
+	beforeEach(() => {
+		EVENT_HANDLERS.clear();
+		INTERVAL_HANDLERS.clear();
+		CRON_HANDLERS.clear();
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("creates CqrsGraph and mounts into root", async () => {
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "orders",
+					build: (g) => {
+						g.event("orderPlaced");
+						g.command("placeOrder", (_payload, { emit }) => {
+							emit("orderPlaced", { id: "1" });
+						});
+					},
+				}),
+			],
+		}).compile();
+
+		const root = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
+		const cqrsGraph = module.get<CqrsGraph>(getGraphToken("orders"));
+		expect(cqrsGraph).toBeDefined();
+		expect(cqrsGraph.name).toBe("orders");
+
+		// Mounted into root — visible via qualified path
+		const desc = root.describe();
+		expect(desc.subgraphs).toContain("orders");
+
+		cqrsGraph.dispatch("placeOrder", { id: "1" });
+		await module.close();
+	});
+
+	it("build callback registers commands, events, projections", async () => {
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "shop",
+					build: (g) => {
+						g.event("itemAdded");
+						g.command("addItem", (payload, { emit }) => {
+							emit("itemAdded", payload);
+						});
+						g.projection("itemCount", ["itemAdded"], (_s, events) => events.length, 0);
+					},
+				}),
+			],
+		}).compile();
+
+		const cqrsGraph = module.get<CqrsGraph>(getGraphToken("shop"));
+		cqrsGraph.dispatch("addItem", { name: "widget" });
+		cqrsGraph.dispatch("addItem", { name: "gadget" });
+
+		expect(cqrsGraph.get("itemCount")).toBe(2);
+		await module.close();
+	});
+
+	it("exposes node paths as injectable providers", async () => {
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "inv",
+					build: (g) => {
+						g.event("added");
+						g.projection("total", ["added"], (_s, evts) => evts.length, 0);
+					},
+					nodes: ["total"],
+				}),
+			],
+		}).compile();
+
+		const totalNode = module.get<Node<number>>(getNodeToken("inv::total"));
+		expect(totalNode.get()).toBe(0);
+
+		await module.close();
+	});
+
+	it("teardown cascades from root on module close", async () => {
+		const teardownSpy = vi.fn();
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "temp",
+					build: (g) => {
+						const evNode = g.event("ev");
+						evNode.subscribe((msgs) => {
+							for (const m of msgs) {
+								if (m[0] === TEARDOWN) teardownSpy();
+							}
+						});
+					},
+				}),
+			],
+		}).compile();
+
+		await module.init();
+		await module.close();
+		expect(teardownSpy).toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS replacement — @CommandHandler decorator
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — @CommandHandler", () => {
+	beforeEach(() => {
+		EVENT_HANDLERS.clear();
+		INTERVAL_HANDLERS.clear();
+		CRON_HANDLERS.clear();
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("registers method as command handler, invoked via dispatch", async () => {
+		const payloads: unknown[] = [];
+
+		@Injectable()
+		class OrderService {
+			@CommandHandler("orders", "placeOrder")
+			handlePlace(payload: { id: string }, { emit }: { emit: Function }) {
+				payloads.push(payload);
+				emit("orderPlaced", payload);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "orders",
+					build: (g) => {
+						g.event("orderPlaced");
+					},
+				}),
+			],
+			providers: [OrderService],
+		}).compile();
+
+		await module.init();
+
+		const cqrsGraph = module.get<CqrsGraph>(getGraphToken("orders"));
+		cqrsGraph.dispatch("placeOrder", { id: "o1" });
+
+		expect(payloads).toEqual([{ id: "o1" }]);
+		await module.close();
+	});
+
+	it("multiple commands on same class", async () => {
+		const placed: unknown[] = [];
+		const cancelled: unknown[] = [];
+
+		@Injectable()
+		class OrderService {
+			@CommandHandler("orders", "place")
+			handlePlace(p: unknown) {
+				placed.push(p);
+			}
+
+			@CommandHandler("orders", "cancel")
+			handleCancel(p: unknown) {
+				cancelled.push(p);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [GraphReflyModule.forRoot(), GraphReflyModule.forCqrs({ name: "orders" })],
+			providers: [OrderService],
+		}).compile();
+
+		await module.init();
+
+		const g = module.get<CqrsGraph>(getGraphToken("orders"));
+		g.dispatch("place", { id: "1" });
+		g.dispatch("cancel", { id: "2" });
+
+		expect(placed).toEqual([{ id: "1" }]);
+		expect(cancelled).toEqual([{ id: "2" }]);
+
+		await module.close();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS replacement — @EventHandler decorator
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — @EventHandler", () => {
+	beforeEach(() => {
+		EVENT_HANDLERS.clear();
+		INTERVAL_HANDLERS.clear();
+		CRON_HANDLERS.clear();
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("delivers new CqrsEvent envelopes to decorated method", async () => {
+		const received: CqrsEvent[] = [];
+
+		@Injectable()
+		class NotifyService {
+			@EventHandler("orders", "orderPlaced")
+			onPlaced(event: CqrsEvent) {
+				received.push(event);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "orders",
+					build: (g) => {
+						g.event("orderPlaced");
+						g.command("place", (_p, { emit }) => {
+							emit("orderPlaced", { id: _p.id });
+						});
+					},
+				}),
+			],
+			providers: [NotifyService],
+		}).compile();
+
+		await module.init();
+
+		const g = module.get<CqrsGraph>(getGraphToken("orders"));
+		g.dispatch("place", { id: "o1" });
+		g.dispatch("place", { id: "o2" });
+
+		expect(received).toHaveLength(2);
+		expect(received[0].type).toBe("orderPlaced");
+		expect(received[0].payload).toEqual({ id: "o1" });
+		expect(received[1].payload).toEqual({ id: "o2" });
+
+		await module.close();
+	});
+
+	it("only delivers new events, not historical", async () => {
+		const received: CqrsEvent[] = [];
+
+		@Injectable()
+		class Listener {
+			@EventHandler("shop", "itemAdded")
+			onItem(event: CqrsEvent) {
+				received.push(event);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "shop",
+					build: (g) => {
+						g.event("itemAdded");
+						g.command("add", (_p, { emit }) => emit("itemAdded", _p));
+					},
+				}),
+			],
+			providers: [Listener],
+		}).compile();
+
+		// Dispatch before init — events land in the log but handler isn't wired yet
+		const g = module.get<CqrsGraph>(getGraphToken("shop"));
+		g.dispatch("add", { name: "pre-init" });
+
+		await module.init();
+
+		// After init, new events should arrive
+		g.dispatch("add", { name: "post-init" });
+
+		// Only post-init event delivered
+		expect(received).toHaveLength(1);
+		expect(received[0].payload).toEqual({ name: "post-init" });
+
+		await module.close();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS replacement — @QueryHandler decorator
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — @QueryHandler", () => {
+	beforeEach(() => {
+		EVENT_HANDLERS.clear();
+		INTERVAL_HANDLERS.clear();
+		CRON_HANDLERS.clear();
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("pushes projection value changes to decorated method", async () => {
+		const values: number[] = [];
+
+		@Injectable()
+		class DashboardService {
+			@QueryHandler("shop", "itemCount")
+			onCountChanged(count: number) {
+				values.push(count);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "shop",
+					build: (g) => {
+						g.event("itemAdded");
+						g.command("add", (_p, { emit }) => emit("itemAdded", _p));
+						g.projection("itemCount", ["itemAdded"], (_s, evts) => evts.length, 0);
+					},
+				}),
+			],
+			providers: [DashboardService],
+		}).compile();
+
+		await module.init();
+
+		const g = module.get<CqrsGraph>(getGraphToken("shop"));
+		g.dispatch("add", { name: "a" });
+		g.dispatch("add", { name: "b" });
+
+		expect(values).toEqual([1, 2]);
+
+		await module.close();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS replacement — @SagaHandler decorator
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — @SagaHandler", () => {
+	beforeEach(() => {
+		EVENT_HANDLERS.clear();
+		INTERVAL_HANDLERS.clear();
+		CRON_HANDLERS.clear();
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("registers saga subgraph, delivers new events", async () => {
+		const processed: CqrsEvent[] = [];
+
+		@Injectable()
+		class FulfillmentService {
+			@SagaHandler("orders", "fulfillment", ["orderPlaced"])
+			onOrder(event: CqrsEvent) {
+				processed.push(event);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "orders",
+					build: (g) => {
+						g.event("orderPlaced");
+						g.command("place", (_p, { emit }) => emit("orderPlaced", _p));
+					},
+				}),
+			],
+			providers: [FulfillmentService],
+		}).compile();
+
+		await module.init();
+
+		const g = module.get<CqrsGraph>(getGraphToken("orders"));
+		g.dispatch("place", { id: "o1" });
+		g.dispatch("place", { id: "o2" });
+
+		expect(processed).toHaveLength(2);
+		expect(processed[0].type).toBe("orderPlaced");
+		expect(processed[0].payload).toEqual({ id: "o1" });
+		expect(processed[1].payload).toEqual({ id: "o2" });
+
+		await module.close();
+	});
+
+	it("saga listens to multiple event streams", async () => {
+		const processed: CqrsEvent[] = [];
+
+		@Injectable()
+		class MultiSaga {
+			@SagaHandler("shop", "monitor", ["orderPlaced", "orderCancelled"])
+			onAny(event: CqrsEvent) {
+				processed.push(event);
+			}
+		}
+
+		const module = await Test.createTestingModule({
+			imports: [
+				GraphReflyModule.forRoot(),
+				GraphReflyModule.forCqrs({
+					name: "shop",
+					build: (g) => {
+						g.event("orderPlaced");
+						g.event("orderCancelled");
+						g.command("place", (_p, { emit }) => emit("orderPlaced", _p));
+						g.command("cancel", (_p, { emit }) => emit("orderCancelled", _p));
+					},
+				}),
+			],
+			providers: [MultiSaga],
+		}).compile();
+
+		await module.init();
+
+		const g = module.get<CqrsGraph>(getGraphToken("shop"));
+		g.dispatch("place", { id: "1" });
+		g.dispatch("cancel", { id: "2" });
+
+		expect(processed).toHaveLength(2);
+		expect(processed.map((e) => e.type)).toEqual(["orderPlaced", "orderCancelled"]);
+
+		await module.close();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// CQRS decorator metadata — unit tests
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — CQRS decorators (metadata)", () => {
+	beforeEach(() => {
+		COMMAND_HANDLERS.clear();
+		CQRS_EVENT_HANDLERS.clear();
+		QUERY_HANDLERS.clear();
+		SAGA_HANDLERS.clear();
+	});
+
+	it("@CommandHandler stores metadata after instantiation", () => {
+		@Injectable()
+		class Svc {
+			@CommandHandler("orders", "place")
+			handle() {}
+		}
+
+		new Svc();
+		const metas = COMMAND_HANDLERS.get(Svc);
+		expect(metas).toHaveLength(1);
+		expect(metas![0]).toMatchObject({
+			cqrsName: "orders",
+			commandName: "place",
+			methodKey: "handle",
+		});
+	});
+
+	it("@EventHandler stores metadata after instantiation", () => {
+		@Injectable()
+		class Svc {
+			@EventHandler("orders", "placed")
+			on() {}
+		}
+
+		new Svc();
+		const metas = CQRS_EVENT_HANDLERS.get(Svc);
+		expect(metas).toHaveLength(1);
+		expect(metas![0]).toMatchObject({ cqrsName: "orders", eventName: "placed", methodKey: "on" });
+	});
+
+	it("@QueryHandler stores metadata after instantiation", () => {
+		@Injectable()
+		class Svc {
+			@QueryHandler("orders", "count")
+			on() {}
+		}
+
+		new Svc();
+		const metas = QUERY_HANDLERS.get(Svc);
+		expect(metas).toHaveLength(1);
+		expect(metas![0]).toMatchObject({
+			cqrsName: "orders",
+			projectionName: "count",
+			methodKey: "on",
+		});
+	});
+
+	it("@SagaHandler stores metadata after instantiation", () => {
+		@Injectable()
+		class Svc {
+			@SagaHandler("orders", "mySaga", ["placed", "shipped"])
+			handle() {}
+		}
+
+		new Svc();
+		const metas = SAGA_HANDLERS.get(Svc);
+		expect(metas).toHaveLength(1);
+		expect(metas![0]).toMatchObject({
+			cqrsName: "orders",
+			sagaName: "mySaga",
+			eventNames: ["placed", "shipped"],
+			methodKey: "handle",
+		});
 	});
 });

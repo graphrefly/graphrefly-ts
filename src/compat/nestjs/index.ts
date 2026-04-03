@@ -14,17 +14,30 @@ export { observeGraph$, observeNode$, toMessages$, toObservable } from "../../ex
 
 // Decorators
 export {
+	COMMAND_HANDLERS,
+	CommandHandler,
+	type CommandHandlerMeta,
+	CQRS_EVENT_HANDLERS,
 	CRON_HANDLERS,
 	EVENT_HANDLERS,
+	EventHandler,
+	type EventHandlerMeta,
 	GraphCron,
 	type GraphCronMeta,
 	GraphInterval,
 	type GraphIntervalMeta,
 	INTERVAL_HANDLERS,
+	InjectCqrsGraph,
 	InjectGraph,
 	InjectNode,
 	OnGraphEvent,
 	type OnGraphEventMeta,
+	QUERY_HANDLERS,
+	QueryHandler,
+	type QueryHandlerMeta,
+	SAGA_HANDLERS,
+	SagaHandler,
+	type SagaHandlerMeta,
 } from "./decorators.js";
 // Explorer (event/schedule discovery)
 export { GraphReflyEventExplorer } from "./explorer.js";
@@ -51,6 +64,7 @@ export {
 } from "./guard.js";
 // Module & DI
 export {
+	type GraphReflyCqrsOptions,
 	type GraphReflyFeatureOptions,
 	GraphReflyModule,
 	type GraphReflyRootOptions,

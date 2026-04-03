@@ -20,6 +20,12 @@ import {
 } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import { Graph, type GraphPersistSnapshot } from "../../graph/graph.js";
+import {
+	type CqrsGraph,
+	type CqrsOptions,
+	cqrs,
+	type EventStoreAdapter,
+} from "../../patterns/cqrs.js";
 import { GraphReflyEventExplorer } from "./explorer.js";
 import {
 	GRAPHREFLY_REQUEST_GRAPH,
@@ -43,6 +49,22 @@ export interface GraphReflyRootOptions {
 	nodes?: readonly string[];
 	/** Enable a request-scoped graph (injectable via `@InjectGraph("request")`). */
 	requestScope?: boolean;
+}
+
+export interface GraphReflyCqrsOptions {
+	/** Feature name — becomes the mount name in the root graph. */
+	name: string;
+	/** CQRS graph options (forwarded to `cqrs()` factory). */
+	cqrs?: CqrsOptions;
+	/** Build callback — registers commands, events, projections, sagas on the CqrsGraph. */
+	build?: (graph: CqrsGraph) => void;
+	/** Event store adapter for persistence (wired via `useEventStore()`). */
+	eventStore?: EventStoreAdapter;
+	/**
+	 * Node paths (local to this feature) to expose as injectable providers.
+	 * Tokens are auto-qualified as `featureName::path`.
+	 */
+	nodes?: readonly string[];
 }
 
 export interface GraphReflyFeatureOptions {
@@ -196,6 +218,62 @@ export class GraphReflyModule {
 
 		// Node factory providers for feature-scoped nodes.
 		// Tokens are qualified as `featureName::path` to avoid cross-feature collisions.
+		if (opts.nodes) {
+			for (const path of opts.nodes) {
+				providers.push({
+					provide: getNodeToken(`${opts.name}::${path}`),
+					useFactory: (graph: Graph) => graph.resolve(path),
+					inject: [getGraphToken(opts.name)],
+				});
+			}
+		}
+
+		return {
+			module: GraphReflyModule,
+			providers,
+			exports: [
+				getGraphToken(opts.name),
+				...(opts.nodes ?? []).map((p) => getNodeToken(`${opts.name}::${p}`)),
+			],
+		};
+	}
+
+	/**
+	 * Register a CQRS subgraph that auto-mounts into the root graph.
+	 *
+	 * Creates a `CqrsGraph` via the `cqrs()` factory (roadmap §4.5), mounts it
+	 * into the root graph, and exposes it for DI via `@InjectGraph(name)`.
+	 *
+	 * CQRS decorators (`@CommandHandler`, `@EventHandler`, `@QueryHandler`,
+	 * `@SagaHandler`) are discovered by the explorer and wired to this graph
+	 * on module init.
+	 *
+	 * @example
+	 * ```ts
+	 * GraphReflyModule.forCqrs({
+	 *   name: "orders",
+	 *   build: (g) => {
+	 *     g.event("orderPlaced");
+	 *     g.projection("orderCount", ["orderPlaced"], (_s, evts) => evts.length, 0);
+	 *   },
+	 * })
+	 * ```
+	 */
+	static forCqrs(opts: GraphReflyCqrsOptions): DynamicModule {
+		const providers: Provider[] = [
+			{
+				provide: getGraphToken(opts.name),
+				useFactory: (rootGraph: Graph) => {
+					const g = cqrs(opts.name, opts.cqrs);
+					if (opts.eventStore) g.useEventStore(opts.eventStore);
+					if (opts.build) opts.build(g);
+					rootGraph.mount(opts.name, g);
+					return g;
+				},
+				inject: [GRAPHREFLY_ROOT_GRAPH],
+			},
+		];
+
 		if (opts.nodes) {
 			for (const path of opts.nodes) {
 				providers.push({

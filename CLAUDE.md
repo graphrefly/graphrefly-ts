@@ -26,7 +26,19 @@ The **callbag-recharge** codebase at **`~/src/callbag-recharge`** is the mature 
 
 - `src/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
 - `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-- `src/extra/` — operators and sources (Phase 2+)
+- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3)
+- `src/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
+- `src/compat/` — framework adapters: NestJS (Phase 5+)
+
+## Design invariants (spec §5.8–5.12)
+
+These are non-negotiable across all implementations. Validate every change against them.
+
+1. **No polling.** State changes propagate reactively via messages. Never poll a node's value on a timer or busy-wait for status. Use reactive timer sources (`fromTimer`, `fromCron`) instead.
+2. **No imperative triggers.** All coordination uses reactive `NodeInput` signals and message flow through topology. No event emitters, callbacks, or `setTimeout` + `set()` workarounds. If you need a trigger, it's a reactive source node.
+3. **No raw Promises or microtasks.** Do not use bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick` to schedule reactive work. Async boundaries belong in sources (`fromPromise`, `fromAsyncIter`) and the runner layer, not in node fns or operators.
+4. **Central timer and `messageTier` utilities.** Use `clock.ts` for all timestamps (see rule below). Use `messageTier` utilities for tier classification — never hardcode type checks for checkpoint or batch gating.
+5. **Phase 4+ APIs must be developer-friendly.** Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) use sensible defaults, minimal boilerplate, and clear errors. Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface in primary APIs — accessible via `.node()` or `inner` when needed.
 
 ## Time utility rule
 

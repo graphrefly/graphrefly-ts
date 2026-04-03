@@ -1,6 +1,8 @@
 # graphrefly-ts
 
-TypeScript package for **GraphRefly** (`@graphrefly/graphrefly-ts` on npm).
+TypeScript implementation of **GraphReFly** — reactive graph protocol for human + LLM co-operation.
+
+`@graphrefly/graphrefly-ts` on npm.
 
 ## Prerequisites
 
@@ -30,9 +32,13 @@ corepack enable && pnpm install
 
 ## Layout
 
-- `src/` — library source
-- `docs/` — documentation
-- `archive/docs/` — archived design/session notes
+- `src/core/` — message protocol, node primitive, batch, sugar constructors
+- `src/graph/` — Graph container, describe/observe, snapshot, persistence
+- `src/extra/` — operators, sources, data structures, resilience, checkpoint
+- `src/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout
+- `src/compat/` — framework adapters (NestJS)
+- `docs/` — documentation and guidance
+- `website/` — Astro + Starlight docs site
 
 ## Tree-shaking imports
 

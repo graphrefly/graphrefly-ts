@@ -163,11 +163,25 @@ const REGISTRY = {
 	firstValueFrom: "src/extra/sources.ts",
 	shareReplay: "src/extra/sources.ts",
 
-	// Extra — reactive layout (roadmap §7.1)
-	reactiveLayout: "src/extra/reactive-layout.ts",
-	analyzeAndMeasure: "src/extra/reactive-layout.ts",
-	computeLineBreaks: "src/extra/reactive-layout.ts",
-	computeCharPositions: "src/extra/reactive-layout.ts",
+	// Extra — composite (roadmap §3.2b)
+	verifiable: "src/extra/composite.ts",
+	distill: "src/extra/composite.ts",
+
+	// Extra — backpressure (roadmap §5.1)
+	createWatermarkController: "src/extra/backpressure.ts",
+
+	// Extra — observable (RxJS interop)
+	toObservable: "src/extra/observable.ts",
+	toMessages$: "src/extra/observable.ts",
+	observeNode$: "src/extra/observable.ts",
+	observeGraph$: "src/extra/observable.ts",
+
+	// Patterns — reactive layout (roadmap §7.1)
+	reactiveLayout: "src/patterns/reactive-layout/reactive-layout.ts",
+	analyzeAndMeasure: "src/patterns/reactive-layout/reactive-layout.ts",
+	computeLineBreaks: "src/patterns/reactive-layout/reactive-layout.ts",
+	computeCharPositions: "src/patterns/reactive-layout/reactive-layout.ts",
+	reactiveBlockLayout: "src/patterns/reactive-layout/reactive-block-layout.ts",
 
 	// Extra — worker bridge (roadmap §5.3)
 	workerBridge: "src/extra/worker/bridge.ts",

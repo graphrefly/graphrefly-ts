@@ -17,14 +17,24 @@ import type { ModuleRef } from "@nestjs/core";
 import { DATA, type Messages } from "../../core/messages.js";
 import { fromCron, fromTimer } from "../../extra/sources.js";
 import type { Graph, GraphObserveOne } from "../../graph/graph.js";
+import type { CqrsGraph } from "../../patterns/cqrs.js";
 import {
+	COMMAND_HANDLERS,
+	type CommandHandlerMeta,
+	CQRS_EVENT_HANDLERS,
 	CRON_HANDLERS,
 	EVENT_HANDLERS,
+	type EventHandlerMeta,
 	type GraphCronMeta,
 	type GraphIntervalMeta,
 	INTERVAL_HANDLERS,
 	type OnGraphEventMeta,
+	QUERY_HANDLERS,
+	type QueryHandlerMeta,
+	SAGA_HANDLERS,
+	type SagaHandlerMeta,
 } from "./decorators.js";
+import { getGraphToken } from "./tokens.js";
 
 /** Monotonic counter for schedule node name disambiguation. */
 let scheduleSeq = 0;
@@ -42,6 +52,10 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		this.wireEvents();
 		this.wireIntervals();
 		this.wireCrons();
+		this.wireCqrsCommands();
+		this.wireCqrsEvents();
+		this.wireCqrsQueries();
+		this.wireCqrsSagas();
 	}
 
 	onModuleDestroy(): void {
@@ -166,12 +180,171 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	// -----------------------------------------------------------------------
+	// @CommandHandler — register method as CqrsGraph command handler
+	// -----------------------------------------------------------------------
+
+	private wireCqrsCommands(): void {
+		for (const [ctor, metas] of COMMAND_HANDLERS) {
+			const instance = this.resolveInstance(ctor);
+			if (!instance) continue;
+
+			for (const meta of metas) {
+				this.wireCqrsCommand(instance, meta);
+			}
+		}
+	}
+
+	private wireCqrsCommand(instance: object, meta: CommandHandlerMeta): void {
+		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		if (typeof method !== "function") return;
+
+		const bound = method.bind(instance);
+		const cqrsGraph = this.resolveCqrsGraph(meta.cqrsName);
+		if (!cqrsGraph) return;
+
+		cqrsGraph.command(meta.commandName, bound);
+	}
+
+	// -----------------------------------------------------------------------
+	// @EventHandler — subscribe method to CQRS event stream
+	// -----------------------------------------------------------------------
+
+	private wireCqrsEvents(): void {
+		for (const [ctor, metas] of CQRS_EVENT_HANDLERS) {
+			const instance = this.resolveInstance(ctor);
+			if (!instance) continue;
+
+			for (const meta of metas) {
+				this.wireCqrsEventHandler(instance, meta);
+			}
+		}
+	}
+
+	private wireCqrsEventHandler(instance: object, meta: EventHandlerMeta): void {
+		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		if (typeof method !== "function") return;
+
+		const bound = method.bind(instance);
+		const cqrsGraph = this.resolveCqrsGraph(meta.cqrsName);
+		if (!cqrsGraph) return;
+
+		// Ensure the event stream exists.
+		cqrsGraph.event(meta.eventName);
+
+		// Snapshot the highest seq already in the log so we only deliver new events.
+		// Tracking by seq (monotonic per-graph) is robust against reactive log trim.
+		const eventNode = cqrsGraph.resolve(meta.eventName);
+		const currentSnap = eventNode.get() as
+			| { value: { entries: readonly { seq: number }[] } }
+			| undefined;
+		const existingEntries = currentSnap?.value?.entries;
+		let lastSeq =
+			existingEntries && existingEntries.length > 0
+				? existingEntries[existingEntries.length - 1].seq
+				: 0;
+
+		// Subscribe reactively via graph.observe() — respects actor guards.
+		const handle = this.observeNodeOn(cqrsGraph, meta.eventName);
+		const unsub = handle.subscribe((msgs: Messages) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					const snap = m[1] as { value: { entries: readonly { seq: number }[] } };
+					for (const entry of snap.value.entries) {
+						if (entry.seq > lastSeq) {
+							bound(entry);
+							lastSeq = entry.seq;
+						}
+					}
+				}
+			}
+		});
+		this.disposers.push(unsub);
+	}
+
+	// -----------------------------------------------------------------------
+	// @QueryHandler — subscribe method to CQRS projection changes
+	// -----------------------------------------------------------------------
+
+	private wireCqrsQueries(): void {
+		for (const [ctor, metas] of QUERY_HANDLERS) {
+			const instance = this.resolveInstance(ctor);
+			if (!instance) continue;
+
+			for (const meta of metas) {
+				this.wireCqrsQuery(instance, meta);
+			}
+		}
+	}
+
+	private wireCqrsQuery(instance: object, meta: QueryHandlerMeta): void {
+		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		if (typeof method !== "function") return;
+
+		const bound = method.bind(instance);
+		const cqrsGraph = this.resolveCqrsGraph(meta.cqrsName);
+		if (!cqrsGraph) return;
+
+		// Subscribe reactively to the projection node — push on every DATA.
+		const handle = this.observeNodeOn(cqrsGraph, meta.projectionName);
+		const unsub = handle.subscribe((msgs: Messages) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					bound(m[1]);
+				}
+			}
+		});
+		this.disposers.push(unsub);
+	}
+
+	// -----------------------------------------------------------------------
+	// @SagaHandler — register method as CqrsGraph saga (subgraph side effect)
+	// -----------------------------------------------------------------------
+
+	private wireCqrsSagas(): void {
+		for (const [ctor, metas] of SAGA_HANDLERS) {
+			const instance = this.resolveInstance(ctor);
+			if (!instance) continue;
+
+			for (const meta of metas) {
+				this.wireCqrsSaga(instance, meta);
+			}
+		}
+	}
+
+	private wireCqrsSaga(instance: object, meta: SagaHandlerMeta): void {
+		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		if (typeof method !== "function") return;
+
+		const bound = method.bind(instance);
+		const cqrsGraph = this.resolveCqrsGraph(meta.cqrsName);
+		if (!cqrsGraph) return;
+
+		cqrsGraph.saga(meta.sagaName, meta.eventNames, bound);
+	}
+
+	// -----------------------------------------------------------------------
 	// Helpers
 	// -----------------------------------------------------------------------
 
 	private observeNode(name: string): GraphObserveOne {
 		// Overload resolution picks ObserveResult; cast to the correct single-node type.
 		return this.graph.observe(name) as unknown as GraphObserveOne;
+	}
+
+	private observeNodeOn(graph: Graph, name: string): GraphObserveOne {
+		return graph.observe(name) as unknown as GraphObserveOne;
+	}
+
+	private resolveCqrsGraph(name: string): CqrsGraph | null {
+		try {
+			return this.moduleRef.get(getGraphToken(name), { strict: false }) as CqrsGraph;
+		} catch {
+			console.warn(
+				`[GraphReFly] CqrsGraph "${name}" not found in DI — ` +
+					`did you import GraphReflyModule.forCqrs({ name: "${name}" })?`,
+			);
+			return null;
+		}
 	}
 
 	private resolveInstance(ctor: Function): object | null {

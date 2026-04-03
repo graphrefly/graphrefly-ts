@@ -155,3 +155,85 @@ GraphReFly is a reactive graph protocol for human + LLM co-operation. This repos
 - `restoreGraphCheckpointIndexedDb(graph, db)` — restores graph state from IndexedDB
 - `fromIDBRequest(req)` — wraps an `IDBRequest` as a Promise-backed node
 - `fromIDBTransaction(tx)` — wraps an `IDBTransaction` completion as a node
+
+### extra — composite (`src/extra/composite.ts`)
+
+- `verifiable(source, options)` — wraps a node with verification tracking (checks, assertions)
+- `distill(raw, extract, options)` — memory-efficient extraction: compacts raw data into a budget-bounded summary
+
+### extra — backpressure (`src/extra/backpressure.ts`)
+
+- `createWatermarkController(sendUp, options)` — creates a PAUSE/RESUME watermark controller for flow control
+
+### extra — observable interop (`src/extra/observable.ts`)
+
+- `toObservable(node)` — converts a GraphReFly node to an RxJS-compatible Observable (DATA values)
+- `toMessages$(node)` — converts a node to an Observable of raw message arrays
+- `observeNode$(node)` — observe a single node as an Observable stream
+- `observeGraph$(graph)` — observe all graph events as an Observable stream
+
+### patterns — orchestration (`src/patterns/orchestration.ts`)
+
+- `pipeline(name, opts?)` — creates an orchestration pipeline Graph
+- `task(name, fn, opts?)` — adds a processing step to a pipeline
+- `branch(name, condition, opts?)` — conditional routing in a pipeline
+- `gate(name, signal, opts?)` — pauses pipeline flow until signal is truthy
+- `approval(name, opts?)` — human-in-the-loop approval gate
+- `forEach(name, fn)` — iterate over pipeline items
+- `join(name, ...sources)` — merge multiple pipeline branches
+- `loop(name, condition, opts?)` — repeat pipeline steps while condition holds
+- `subPipeline(name, parent)` — nest a child pipeline
+- `sensor(name, fn)` — monitoring node in a pipeline
+- `wait(name, fn)` — async wait step
+- `onFailure(name, fn)` — error handler for pipeline failures
+
+### patterns — messaging (`src/patterns/messaging.ts`)
+
+- `topic(name, opts?)` — creates a pub/sub topic Graph
+- `subscription(topic, name, opts?)` — subscribes to a topic
+- `jobQueue(name, opts?)` — creates a work queue Graph with workers
+- `jobFlow(name, opts?)` — creates a job flow Graph with stages
+- `topicBridge(from, to, opts?)` — bridges two topics with optional transform
+
+### patterns — memory (`src/patterns/memory.ts`)
+
+- `collection(name, opts?)` — reactive document collection with CRUD operations
+- `lightCollection(opts?)` — lightweight in-memory collection bundle
+- `vectorIndex(opts?)` — reactive vector similarity index
+- `knowledgeGraph(opts?)` — reactive knowledge graph with entities and relations
+- `decay(source, opts)` — time-based value decay
+
+### patterns — AI (`src/patterns/ai.ts`)
+
+- `fromLLM(opts)` — wraps an LLM API call as a reactive node
+- `fromLLMStream(opts)` — wraps a streaming LLM API as a reactive node
+- `chatStream(name, opts?)` — creates a chat-style streaming Graph
+- `toolRegistry(name, opts?)` — reactive tool/function registry for agents
+- `systemPromptBuilder(opts)` — reactive system prompt composition
+- `llmExtractor(opts)` — LLM-powered extraction pipeline
+- `llmConsolidator(opts)` — LLM-powered consolidation pipeline
+- `agentMemory(opts)` — reactive agent memory with retrieval and consolidation
+- `agentLoop(name, opts)` — full agent loop Graph (observe → think → act → memory)
+- `knobsAsTools(graph, actor?)` — exposes graph knobs as LLM-callable tools
+- `gaugesAsContext(graph, opts?)` — formats graph gauges as LLM context
+- `validateGraphDef(def)` — validates a graph definition object
+
+### patterns — CQRS (`src/patterns/cqrs.ts`)
+
+- `cqrs(name, opts?)` — creates a CQRS Graph (commands, events, projections, sagas)
+
+### patterns — reactive layout (`src/patterns/reactive-layout/`)
+
+- `reactiveLayout(opts)` — creates a reactive text layout engine Graph
+- `reactiveBlockLayout(opts)` — creates a reactive block/mixed-content layout Graph
+- `analyzeAndMeasure(text, adapter)` — measures text segments for line breaking
+- `computeLineBreaks(prepared, maxWidth, opts?)` — computes optimal line breaks (Knuth-Plass)
+- `computeCharPositions(lines, opts?)` — computes per-character positions from line breaks
+
+## Design invariants (spec §5.8–5.12)
+
+- No polling — use reactive timer sources, never busy-wait on node values
+- No imperative triggers — all coordination via reactive signals and message flow
+- No raw Promises/microtasks — async boundaries belong in sources and runner layer
+- Central timer (`core/clock.ts`) and `messageTier` utilities — never hardcode type checks
+- Phase 4+ APIs are developer-friendly — protocol internals never surface in primary APIs

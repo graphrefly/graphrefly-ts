@@ -451,9 +451,9 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### CQRS replacement
 
-- [ ] Integrates with 4.5 CQRS graph factory — `cqrs()` graphs register as feature modules
-- [ ] `@CommandHandler` / `@EventHandler` / `@QueryHandler` decorator equivalents backed by graph nodes
-- [ ] Sagas as subgraphs (replaces RxJS saga streams)
+- [x] Integrates with 4.5 CQRS graph factory — `cqrs()` graphs register as feature modules
+- [x] `@CommandHandler` / `@EventHandler` / `@QueryHandler` decorator equivalents backed by graph nodes
+- [x] Sagas as subgraphs (replaces RxJS saga streams)
 
 #### Gateway helpers
 

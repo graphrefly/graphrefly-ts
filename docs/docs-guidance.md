@@ -14,6 +14,14 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 
 ---
 
+## Design invariant documentation
+
+- When documenting Phase 4+ APIs, never expose protocol internals (`DIRTY`, `RESOLVED`, bitmask) in primary API docs — use domain language (e.g. "the value updates reactively" not "emits DIRTY then DATA").
+- JSDoc `@example` blocks should demonstrate reactive patterns, not polling or imperative triggers.
+- Reference the design invariants in **GRAPHREFLY-SPEC §5.8–5.12** when reviewing doc changes for Phase 4+ features.
+
+---
+
 ## Documentation tiers
 
 | Tier | What | Where it lives | Flows to |

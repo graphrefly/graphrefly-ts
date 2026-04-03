@@ -31,12 +31,17 @@ Read in parallel:
 **Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
 
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):
-- **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (`~/src/graphrefly/GRAPHREFLY-SPEC.md` §5.1).
+- **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (spec §5.1).
 - **Messages are always** `[[Type, Data?], ...]` — no single-message shorthand.
 - **DIRTY before DATA/RESOLVED** in the same logical update where two-phase push applies; **batch** defers DATA, not DIRTY.
 - **Unknown message types forward** — do not swallow unrecognized tuples.
 - Prefer **composition (nodes + edges)** over monolithic configuration objects.
 - For **diamond** topologies, recomputation happens once per upstream change after all deps settle.
+- **No polling** — never poll node values on a timer or busy-wait. Use reactive sources (`fromTimer`, `fromCron`) instead (spec §5.8).
+- **No imperative triggers** — no event emitters, callbacks, or `setTimeout` + `set()` workarounds. All coordination uses reactive `NodeInput` signals (spec §5.9).
+- **No raw Promises or microtasks** — no bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick` for reactive work. Async belongs in sources and the runner layer (spec §5.10).
+- **Central timer and `messageTier`** — use `core/clock.ts` for timestamps, `messageTier` for tier classification. Never hardcode type checks (spec §5.11).
+- **Phase 4+ APIs must be developer-friendly** — sensible defaults, minimal boilerplate, clear errors. Protocol internals never surface in primary APIs (spec §5.12).
 
 Do NOT start implementing yet.
 
