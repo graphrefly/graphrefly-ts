@@ -10,6 +10,7 @@
 
 import type { Actor } from "../../core/actor.js";
 import { COMPLETE, DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
+import { createWatermarkController, type WatermarkController } from "../../extra/backpressure.js";
 import type { Graph, GraphObserveOne } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,8 @@ import type { Graph, GraphObserveOne } from "../../graph/graph.js";
  */
 export type ObserveWsCommand =
 	| { type: "subscribe"; path: string }
-	| { type: "unsubscribe"; path: string };
+	| { type: "unsubscribe"; path: string }
+	| { type: "ack"; path: string; count?: number };
 
 /**
  * Server-to-client messages for the WebSocket observe protocol.
@@ -43,6 +45,10 @@ export type ObserveSSEOptions = {
 	serialize?: (value: unknown) => string;
 	keepAliveMs?: number;
 	signal?: AbortSignal;
+	/** Pending DATA count at which PAUSE is sent upstream. Enables backpressure when set. */
+	highWaterMark?: number;
+	/** Pending DATA count at which RESUME is sent upstream. Defaults to `Math.floor(highWaterMark / 2)`. */
+	lowWaterMark?: number;
 };
 
 /**
@@ -73,10 +79,21 @@ export function observeSSE(
 	const { actor, serialize = defaultSerialize, keepAliveMs, signal } = opts ?? {};
 	const encoder = new TextEncoder();
 	let stop: (() => void) | undefined;
+	const useBackpressure = opts?.highWaterMark != null;
+
+	// When backpressure is enabled, buffer encoded frames and drain via pull().
+	const buf: Uint8Array[] = [];
+	let wm: WatermarkController | undefined;
+	let pullResolve: (() => void) | undefined;
+
+	// When backpressure is enabled we tag buffered entries so pull() only calls
+	// onDequeue for DATA frames (not keepalive, ERROR, or COMPLETE frames).
+	type BufEntry = { frame: Uint8Array; counted: boolean };
+	const taggedBuf: BufEntry[] = [];
+	let closed = false;
 
 	return new ReadableStream<Uint8Array>({
 		start(controller) {
-			let closed = false;
 			let keepAlive: ReturnType<typeof setInterval> | undefined;
 			let unsub: () => void = () => {};
 			const close = () => {
@@ -84,28 +101,65 @@ export function observeSSE(
 				closed = true;
 				if (keepAlive !== undefined) clearInterval(keepAlive);
 				signal?.removeEventListener("abort", onAbort);
+				// Unsub first to prevent further sink callbacks during dispose.
 				unsub();
+				wm?.dispose();
+				// Resolve any parked pull() promise so the stream can finish.
+				pullResolve?.();
+				pullResolve = undefined;
+				// Flush remaining buffered frames before closing.
+				for (const entry of taggedBuf) controller.enqueue(entry.frame);
+				taggedBuf.length = 0;
 				controller.close();
 			};
 			stop = close;
-			const write = (event: string, data?: string) => {
-				if (closed) return;
-				controller.enqueue(encoder.encode(sseFrame(event, data)));
-			};
 			const onAbort = () => close();
 
 			const handle = graph.observe(path, { actor }) as unknown as GraphObserveOne;
+
+			if (useBackpressure) {
+				wm = createWatermarkController((msgs) => handle.up(msgs), {
+					highWaterMark: opts!.highWaterMark!,
+					lowWaterMark: opts!.lowWaterMark ?? Math.floor(opts!.highWaterMark! / 2),
+				});
+			}
+
 			unsub = handle.subscribe((msgs: Messages) => {
 				for (const msg of msgs) {
+					if (closed) return;
 					const t = msg[0];
 					if (t === DATA) {
-						write("data", serialize(msg[1]));
+						const frame = encoder.encode(sseFrame("data", serialize(msg[1])));
+						if (useBackpressure) {
+							taggedBuf.push({ frame, counted: true });
+							wm!.onEnqueue();
+							pullResolve?.();
+							pullResolve = undefined;
+						} else {
+							controller.enqueue(frame);
+						}
 					} else if (t === ERROR) {
-						write("error", serialize(msg[1]));
+						const frame = encoder.encode(sseFrame("error", serialize(msg[1])));
+						if (useBackpressure) {
+							taggedBuf.push({ frame, counted: false });
+							pullResolve?.();
+							pullResolve = undefined;
+						} else {
+							controller.enqueue(frame);
+						}
 						close();
 						return;
 					} else if (t === COMPLETE || t === TEARDOWN) {
-						if (t === COMPLETE) write("complete");
+						if (t === COMPLETE) {
+							const frame = encoder.encode(sseFrame("complete"));
+							if (useBackpressure) {
+								taggedBuf.push({ frame, counted: false });
+								pullResolve?.();
+								pullResolve = undefined;
+							} else {
+								controller.enqueue(frame);
+							}
+						}
 						close();
 						return;
 					}
@@ -116,11 +170,32 @@ export function observeSSE(
 			if (keepAliveMs !== undefined && keepAliveMs > 0) {
 				keepAlive = setInterval(() => {
 					if (closed) return;
-					controller.enqueue(encoder.encode(": keepalive\n\n"));
+					if (useBackpressure) {
+						// Keepalive frames bypass watermark accounting entirely.
+						taggedBuf.push({ frame: encoder.encode(": keepalive\n\n"), counted: false });
+						pullResolve?.();
+						pullResolve = undefined;
+					} else {
+						controller.enqueue(encoder.encode(": keepalive\n\n"));
+					}
 				}, keepAliveMs);
 			}
 			if (signal?.aborted) onAbort();
 			else signal?.addEventListener("abort", onAbort, { once: true });
+		},
+		pull(controller) {
+			if (!useBackpressure) return;
+			if (closed) return;
+			if (taggedBuf.length > 0) {
+				const entry = taggedBuf.shift()!;
+				controller.enqueue(entry.frame);
+				if (entry.counted) wm!.onDequeue();
+				return;
+			}
+			// No data available — park until the sink callback pushes more.
+			return new Promise<void>((resolve) => {
+				pullResolve = resolve;
+			});
 		},
 		cancel() {
 			// Guard against double-close (cancel may fire after COMPLETE/ERROR already closed).
@@ -139,7 +214,20 @@ export function observeSSE(
 
 export type ObserveSubscriptionOptions<T = unknown> = {
 	actor?: Actor;
+	/**
+	 * Optional value filter. Only matching DATA values are enqueued.
+	 *
+	 * **Note:** `filter` and `highWaterMark` are semantically decoupled — the
+	 * watermark counts items that pass the filter, not total upstream work.
+	 * If the filter rejects most items, backpressure may never engage despite
+	 * high upstream throughput. For upstream-level resource protection, place a
+	 * filtering derived node in the graph before the observe point instead.
+	 */
 	filter?: (value: T) => boolean;
+	/** Pending DATA count at which PAUSE is sent upstream. Enables backpressure when set. */
+	highWaterMark?: number;
+	/** Pending DATA count at which RESUME is sent upstream. Defaults to `Math.floor(highWaterMark / 2)`. */
+	lowWaterMark?: number;
 };
 
 /**
@@ -184,9 +272,20 @@ export function observeSubscription<T = unknown>(
 	}> = [];
 	let disposed = false;
 
+	const handle = graph.observe(path, { actor }) as unknown as GraphObserveOne;
+
+	const wm =
+		opts?.highWaterMark != null
+			? createWatermarkController((msgs) => handle.up(msgs), {
+					highWaterMark: opts.highWaterMark,
+					lowWaterMark: opts.lowWaterMark ?? Math.floor(opts.highWaterMark / 2),
+				})
+			: undefined;
+
 	const dispose = () => {
 		if (disposed) return;
 		disposed = true;
+		wm?.dispose();
 		unsub();
 	};
 
@@ -197,12 +296,13 @@ export function observeSubscription<T = unknown>(
 			if (item.done && item.error) w.reject(item.error);
 			else if (item.done) w.resolve({ done: true, value: undefined });
 			else w.resolve({ done: false, value: item.value as T });
+			// Direct handoff to waiter — no queue growth, no watermark increment.
 		} else {
 			queue.push(item);
+			if (!item.done) wm?.onEnqueue();
 		}
 	};
 
-	const handle = graph.observe(path, { actor }) as unknown as GraphObserveOne;
 	const unsub = handle.subscribe((msgs: Messages) => {
 		for (const msg of msgs) {
 			const t = msg[0];
@@ -227,6 +327,7 @@ export function observeSubscription<T = unknown>(
 		next(): Promise<IteratorResult<T>> {
 			if (queue.length > 0) {
 				const item = queue.shift()!;
+				if (!item.done) wm?.onDequeue();
 				if (item.done && item.error) return Promise.reject(item.error);
 				return Promise.resolve(
 					item.done ? { done: true, value: undefined } : { done: false, value: item.value as T },
@@ -263,6 +364,10 @@ export function observeSubscription<T = unknown>(
 export type ObserveGatewayOptions = {
 	extractActor?: (client: unknown) => Actor | undefined;
 	parse?: (data: string) => ObserveWsCommand;
+	/** Pending DATA count per subscription at which PAUSE is sent upstream. Enables backpressure when set. */
+	highWaterMark?: number;
+	/** Pending DATA count per subscription at which RESUME is sent upstream. Defaults to `Math.floor(highWaterMark / 2)`. */
+	lowWaterMark?: number;
 };
 
 /**
@@ -296,9 +401,14 @@ export type ObserveGatewayOptions = {
  * ```
  */
 export class ObserveGateway {
-	private readonly clients = new Map<unknown, Map<string, () => void>>();
+	private readonly clients = new Map<
+		unknown,
+		Map<string, { unsub: () => void; wm?: WatermarkController }>
+	>();
 	private readonly extractActor: (client: unknown) => Actor | undefined;
 	private readonly parse: (data: string) => ObserveWsCommand;
+	private readonly highWaterMark: number | undefined;
+	private readonly lowWaterMark: number | undefined;
 
 	constructor(
 		private readonly graph: Graph,
@@ -306,6 +416,8 @@ export class ObserveGateway {
 	) {
 		this.extractActor = opts?.extractActor ?? (() => undefined);
 		this.parse = opts?.parse ?? defaultParseCommand;
+		this.highWaterMark = opts?.highWaterMark;
+		this.lowWaterMark = opts?.lowWaterMark;
 	}
 
 	/**
@@ -323,12 +435,15 @@ export class ObserveGateway {
 	handleDisconnect(client: unknown): void {
 		const subs = this.clients.get(client);
 		if (!subs) return;
-		for (const unsub of subs.values()) unsub();
+		for (const entry of subs.values()) {
+			entry.wm?.dispose();
+			entry.unsub();
+		}
 		this.clients.delete(client);
 	}
 
 	/**
-	 * Handle an incoming client message (subscribe/unsubscribe command).
+	 * Handle an incoming client message (subscribe/unsubscribe/ack command).
 	 *
 	 * @param client - The WebSocket client reference.
 	 * @param raw - Raw message data (string or parsed object).
@@ -349,6 +464,8 @@ export class ObserveGateway {
 			this.subscribe(client, cmd.path, sender);
 		} else if (cmd.type === "unsubscribe") {
 			this.unsubscribe(client, cmd.path, sender);
+		} else if (cmd.type === "ack") {
+			this.ack(client, cmd.path, cmd.count ?? 1);
 		} else {
 			sender({ type: "err", message: `unknown command type: ${(cmd as { type: string }).type}` });
 		}
@@ -395,7 +512,16 @@ export class ObserveGateway {
 			return;
 		}
 
+		const wm =
+			this.highWaterMark != null
+				? createWatermarkController((msgs) => handle.up(msgs), {
+						highWaterMark: this.highWaterMark,
+						lowWaterMark: this.lowWaterMark ?? Math.floor(this.highWaterMark / 2),
+					})
+				: undefined;
+
 		const cleanup = () => {
+			wm?.dispose();
 			unsub();
 			subs!.delete(path);
 		};
@@ -404,6 +530,7 @@ export class ObserveGateway {
 			for (const msg of msgs) {
 				const t = msg[0];
 				if (t === DATA) {
+					wm?.onEnqueue();
 					trySend(send, { type: "data", path, value: msg[1] });
 				} else if (t === ERROR) {
 					const errMsg = msg[1] instanceof Error ? msg[1].message : String(msg[1]);
@@ -419,18 +546,26 @@ export class ObserveGateway {
 			}
 		});
 
-		subs.set(path, unsub);
+		subs.set(path, { unsub, wm });
 		send({ type: "subscribed", path });
 	}
 
 	private unsubscribe(client: unknown, path: string, send: (msg: ObserveWsMessage) => void): void {
 		const subs = this.clients.get(client);
-		const unsub = subs?.get(path);
-		if (unsub) {
-			unsub();
+		const entry = subs?.get(path);
+		if (entry) {
+			entry.wm?.dispose();
+			entry.unsub();
 			subs!.delete(path);
 		}
 		send({ type: "unsubscribed", path });
+	}
+
+	private ack(client: unknown, path: string, count: number): void {
+		const entry = this.clients.get(client)?.get(path);
+		if (!entry?.wm) return;
+		const n = Math.min(Math.max(0, Math.floor(count)), 1024);
+		for (let i = 0; i < n; i++) entry.wm.onDequeue();
 	}
 }
 

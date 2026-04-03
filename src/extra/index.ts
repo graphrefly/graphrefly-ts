@@ -2,6 +2,7 @@
  * Extra layer: operators, sources, sinks (Phase 2+).
  */
 export * from "./backoff.js";
+export * from "./backpressure.js";
 export * from "./checkpoint.js";
 export * from "./composite.js";
 export * from "./cron.js";

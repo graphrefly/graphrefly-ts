@@ -335,6 +335,8 @@ function resolveSpyTheme(theme: GraphSpyOptions["theme"]): Required<GraphSpyThem
 /** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
 export type GraphObserveOne = {
 	subscribe(sink: NodeSink): () => void;
+	/** Send messages upstream toward the observed node's sources (e.g. PAUSE/RESUME). */
+	up(messages: Messages): void;
 };
 
 /**
@@ -343,6 +345,8 @@ export type GraphObserveOne = {
  */
 export type GraphObserveAll = {
 	subscribe(sink: (nodePath: string, messages: Messages) => void): () => void;
+	/** Send messages upstream toward a specific observed node's sources (e.g. PAUSE/RESUME). */
+	up(path: string, messages: Messages): void;
 };
 
 /** Options for structured observation modes on {@link Graph.observe}. */
@@ -1307,6 +1311,14 @@ export class Graph {
 				subscribe(sink: NodeSink) {
 					return target.subscribe(sink);
 				},
+				up(messages: Messages) {
+					try {
+						target.up?.(messages);
+					} catch (err) {
+						if (err instanceof GuardDenied) return; // silently drop — guard denied flow control
+						throw err;
+					}
+				},
 			};
 		}
 		const opts = pathOrOpts as ObserveOptions | undefined;
@@ -1334,6 +1346,15 @@ export class Graph {
 				return () => {
 					for (const u of unsubs) u();
 				};
+			},
+			up: (upPath: string, messages: Messages) => {
+				try {
+					const nd = this.resolve(upPath);
+					nd.up?.(messages);
+				} catch (err) {
+					if (err instanceof GuardDenied) return; // silently drop — guard denied flow control
+					throw err;
+				}
 			},
 		};
 	}

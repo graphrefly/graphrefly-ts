@@ -100,9 +100,10 @@ Python demos use Pyodide/WASM lab in `graphrefly-py/website/`.
 ### 5. LLM demos use WebLLM
 
 No API keys required. Following callbag-recharge's H2 design:
-- Qwen3 (0.6B or 1.7B) via WebGPU, in-browser inference
+- **Gemma 4** (instruction-tuned **E2B** / **E4B** sizes) via WebLLM and WebGPU, in-browser inference — aligns with Google’s April 2026 open release (Apache 2.0, agentic / edge focus; see [Gemma 4 overview](https://ai.google.dev/gemma/docs/core/model_card_4))
 - Web Worker for inference, SharedWorker for memory state, Service Worker for model cache
 - Graceful degradation: if no WebGPU, show pre-recorded traces with a "requires WebGPU" banner
+- **Pinning models:** pass the exact `model_id` string accepted by `CreateMLCEngine()` from the installed `@mlc-ai/web-llm` package’s `prebuiltAppConfig.model_list`. MLC Hugging Face artifacts for Gemma 4 may land shortly after each Google drop; until a Gemma 4 entry appears there, use the newest compatible prebuilt in that list (do not hardcode a stale Qwen-only assumption in new demo code)
 
 ---
 
@@ -168,7 +169,7 @@ pipeline("order-flow")
 
 **Framework:** React island
 
-**LLM:** WebLLM (Qwen3-0.6B) — no API key. Fallback: pre-recorded traces.
+**LLM:** WebLLM (**Gemma 4 E2B** IT, smallest edge-sized checkpoint) — no API key. Fallback: pre-recorded traces.
 
 ### Architecture
 
@@ -291,7 +292,7 @@ pipeline("monitor")
 
 **Framework:** Preact island (lightweight, embedded in docs site)
 
-**LLM:** WebLLM (Qwen3-1.7B) with graceful degradation to FTS5 search
+**LLM:** WebLLM (**Gemma 4 E4B** IT) with graceful degradation to FTS5 search
 
 **Predecessor:** callbag-recharge H2 design (WebLLM, three workers, FTS5 fallback)
 

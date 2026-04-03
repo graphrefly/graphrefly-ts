@@ -599,9 +599,9 @@ The demo shell is itself a `Graph("demo-shell")` — dogfooding reactive coordin
 Each demo uses the three-pane shell (7.2) and exercises 3+ domain layers. Detailed ACs in `docs/demo-and-test-strategy.md`.
 
 - [ ] **Demo 1: Order Processing Pipeline** — 4.1 + 4.2 + 4.5 + 1.5 + 3.3 (vanilla JS, 10 ACs)
-- [ ] **Demo 2: Multi-Agent Task Board** — 4.1 + 4.3 + 4.4 + 3.2b + 1.5 (React, WebLLM, 11 ACs)
+- [ ] **Demo 2: Multi-Agent Task Board** — 4.1 + 4.3 + 4.4 + 3.2b + 1.5 (React, WebLLM + Gemma 4 E2B, 11 ACs)
 - [ ] **Demo 3: Real-Time Monitoring Dashboard** — 4.1 + 4.2 + 4.3 + 3.1 + 3.2 (Vue, 12 ACs)
-- [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 3.2b + 3.2 + 3.1 (Preact, WebLLM, 12 ACs)
+- [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 3.2b + 3.2 + 3.1 (Preact, WebLLM + Gemma 4 E4B, 12 ACs)
 
 ### 7.3b — Universal reduction demos
 
@@ -692,7 +692,7 @@ Safety layer: every reduction decision is traceable and explainable.
 
 ### 8.5 — Performance & scale
 
-- [ ] Backpressure protocol — formalize PAUSE/RESUME for throughput control across graph boundaries (local + distributed via peerGraph)
+- [x] Backpressure protocol — formalize PAUSE/RESUME for throughput control across graph boundaries (local). `GraphObserveOne`/`GraphObserveAll` expose `up()` for upstream signaling. `WatermarkController` (extra/backpressure) provides reactive watermark-based PAUSE/RESUME. Gateway helpers (`observeSSE`, `observeSubscription`, `ObserveGateway`) accept `highWaterMark`/`lowWaterMark` options. Distributed backpressure via peerGraph deferred.
 - [ ] `peerGraph(transport, opts?)` — federate graphs across processes/services. Transport: WebSocket (existing), gRPC, NATS, Redis pub/sub. Subset of describe() crosses boundary; node subscriptions are proxied.
 - [ ] Benchmark suite: 10K nodes, 100K msgs/sec, measure propagation latency, memory footprint, GC pressure. Target: <1ms p99 per hop.
 - [ ] `shardedGraph(shardFn, opts?)` — partition large graphs across workers (5.3 workerBridge). Transparent to consumers.
