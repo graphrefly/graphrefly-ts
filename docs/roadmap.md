@@ -436,8 +436,8 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### Actor bridge
 
-- [ ] NestJS `@Guard()` / `ExecutionContext` → GraphReFly `Actor` mapping
-- [ ] `@GraphReflyGuard()` — decorator that extracts JWT/session → Actor, passes to graph guards (1.5)
+- [x] NestJS `@Guard()` / `ExecutionContext` → GraphReFly `Actor` mapping
+- [x] `@GraphReflyGuard()` — decorator that extracts JWT/session → Actor, passes to graph guards (1.5)
 
 #### EventEmitter replacement
 
@@ -457,9 +457,9 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### Gateway helpers
 
-- [ ] `observe()` → WebSocket gateway (real-time node streams to clients)
-- [ ] `observe()` → SSE controller
-- [ ] `observe()` → GraphQL subscription resolver
+- [x] `observe()` → WebSocket gateway (real-time node streams to clients)
+- [x] `observe()` → SSE controller
+- [x] `observe()` → GraphQL subscription resolver
 
 #### Example: full-stack NestJS + GraphReFly
 

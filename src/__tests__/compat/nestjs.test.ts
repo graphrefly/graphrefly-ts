@@ -4,17 +4,29 @@ import { Test, type TestingModule } from "@nestjs/testing";
 import { firstValueFrom as rxFirstValueFrom, take, toArray } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	ACTOR_KEY,
 	CRON_HANDLERS,
 	EVENT_HANDLERS,
+	fromHeader,
+	fromJwtPayload,
 	GRAPHREFLY_ROOT_GRAPH,
 	GraphCron,
 	GraphInterval,
+	GraphReflyGuard,
+	GraphReflyGuardImpl,
 	GraphReflyModule,
+	getActor,
 	getGraphToken,
 	getNodeToken,
 	INTERVAL_HANDLERS,
+	ObserveGateway,
+	type ObserveWsMessage,
 	OnGraphEvent,
+	observeSSE,
+	observeSubscription,
 } from "../../compat/nestjs/index.js";
+import { type Actor, DEFAULT_ACTOR } from "../../core/actor.js";
+import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
@@ -771,5 +783,586 @@ describe("nestjs compat — @GraphCron", () => {
 
 		await module.close();
 		vi.useRealTimers();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Actor bridge (Phase 5.1)
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — actor bridge", () => {
+	function fakeExecutionContext(req: Record<string, unknown>) {
+		return {
+			switchToHttp: () => ({
+				getRequest: () => req,
+				getResponse: () => ({}),
+			}),
+			switchToWs: () => ({ getClient: () => ({}), getData: () => ({}) }),
+			switchToRpc: () => ({ getContext: () => ({}), getData: () => ({}) }),
+			getClass: () => Object,
+			getHandler: () => () => {},
+			getArgs: () => [req],
+			getArgByIndex: (i: number) => [req][i],
+			getType: () => "http" as const,
+		} as any;
+	}
+
+	it("fromJwtPayload: extracts actor from req.user", () => {
+		const extractor = fromJwtPayload();
+		const actor = extractor(fakeExecutionContext({ user: { type: "human", id: "u1" } }));
+		expect(actor).toEqual({ type: "human", id: "u1" });
+	});
+
+	it("fromJwtPayload: returns undefined when no user", () => {
+		const extractor = fromJwtPayload();
+		expect(extractor(fakeExecutionContext({}))).toBeUndefined();
+	});
+
+	it("fromJwtPayload: custom mapping", () => {
+		const extractor = fromJwtPayload((payload: any) => ({
+			type: payload.role === "admin" ? "human" : "llm",
+			id: payload.sub,
+		}));
+		const actor = extractor(fakeExecutionContext({ user: { role: "admin", sub: "u42" } }));
+		expect(actor).toEqual({ type: "human", id: "u42" });
+	});
+
+	it("fromHeader: extracts actor from JSON header", () => {
+		const extractor = fromHeader("x-actor");
+		const actor = extractor(
+			fakeExecutionContext({
+				headers: { "x-actor": JSON.stringify({ type: "llm", id: "agent-1" }) },
+			}),
+		);
+		expect(actor).toEqual({ type: "llm", id: "agent-1" });
+	});
+
+	it("fromHeader: returns undefined for missing header", () => {
+		const extractor = fromHeader();
+		expect(extractor(fakeExecutionContext({ headers: {} }))).toBeUndefined();
+	});
+
+	it("fromHeader: returns undefined for invalid JSON", () => {
+		const extractor = fromHeader();
+		const result = extractor(
+			fakeExecutionContext({ headers: { "x-graphrefly-actor": "not json" } }),
+		);
+		expect(result).toBeUndefined();
+	});
+
+	it("GraphReflyGuard: attaches actor to request", () => {
+		const guard = GraphReflyGuard(fromJwtPayload());
+		const req: Record<string, unknown> = { user: { type: "human", id: "u1" } };
+		const ctx = fakeExecutionContext(req);
+
+		const result = guard.canActivate(ctx);
+		expect(result).toBe(true);
+		expect(req[ACTOR_KEY]).toMatchObject({ type: "human", id: "u1" });
+	});
+
+	it("GraphReflyGuard: defaults to DEFAULT_ACTOR when extractor returns undefined", () => {
+		const guard = GraphReflyGuard(fromJwtPayload());
+		const req: Record<string, unknown> = {};
+		guard.canActivate(fakeExecutionContext(req));
+		expect(req[ACTOR_KEY]).toEqual(DEFAULT_ACTOR);
+	});
+
+	it("GraphReflyGuard: default factory uses fromJwtPayload", () => {
+		const guard = GraphReflyGuard();
+		const req: Record<string, unknown> = { user: { type: "wallet", id: "0xabc" } };
+		guard.canActivate(fakeExecutionContext(req));
+		expect(req[ACTOR_KEY]).toMatchObject({ type: "wallet", id: "0xabc" });
+	});
+
+	it("getActor: reads actor from request", () => {
+		const req = { [ACTOR_KEY]: { type: "human", id: "u1" } };
+		const actor = getActor(req);
+		expect(actor).toEqual({ type: "human", id: "u1" });
+	});
+
+	it("getActor: returns DEFAULT_ACTOR when not attached", () => {
+		expect(getActor({})).toEqual(DEFAULT_ACTOR);
+		expect(getActor(undefined)).toEqual(DEFAULT_ACTOR);
+	});
+
+	it("GraphReflyGuardImpl is a CanActivate", () => {
+		const impl = new GraphReflyGuardImpl(() => ({ type: "system", id: "test" }));
+		expect(typeof impl.canActivate).toBe("function");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Gateway helpers (Phase 5.1)
+// ---------------------------------------------------------------------------
+
+describe("nestjs compat — observeSSE", () => {
+	it("streams DATA values as SSE frames", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sse-test");
+		g.add("counter", s);
+
+		const stream = observeSSE(g, "counter");
+		const reader = stream.getReader();
+		const decoder = new TextDecoder();
+
+		s.down([[DATA, 42]]);
+		s.down([[DATA, 99]]);
+		s.down([[COMPLETE]]);
+
+		const chunks: string[] = [];
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(decoder.decode(value));
+		}
+
+		const text = chunks.join("");
+		expect(text).toContain("event: data\ndata: 42\n\n");
+		expect(text).toContain("event: data\ndata: 99\n\n");
+		expect(text).toContain("event: complete\n\n");
+		g.destroy();
+	});
+
+	it("closes on ERROR", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sse-err");
+		g.add("n", s);
+
+		const stream = observeSSE(g, "n");
+		const reader = stream.getReader();
+		const decoder = new TextDecoder();
+
+		s.down([[ERROR, new Error("boom")]]);
+
+		const chunks: string[] = [];
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(decoder.decode(value));
+		}
+
+		expect(chunks.join("")).toContain("event: error\ndata: boom\n\n");
+		g.destroy();
+	});
+
+	it("respects actor guard on observe", () => {
+		const s = state(0, {
+			guard: policy((allow) => {
+				allow("observe", { where: (a) => a.type === "human" });
+			}),
+		});
+		const g = new Graph("sse-guard");
+		g.add("guarded", s);
+
+		// LLM actor should be denied
+		expect(() => observeSSE(g, "guarded", { actor: { type: "llm", id: "a1" } })).toThrow(
+			GuardDenied,
+		);
+
+		// Human actor should work
+		const stream = observeSSE(g, "guarded", { actor: { type: "human", id: "u1" } });
+		expect(stream).toBeInstanceOf(ReadableStream);
+		stream.cancel();
+		g.destroy();
+	});
+
+	it("supports keepAlive", async () => {
+		vi.useFakeTimers();
+		const s = state<number>(0);
+		const g = new Graph("sse-ka");
+		g.add("n", s);
+
+		const ac = new AbortController();
+		const stream = observeSSE(g, "n", { keepAliveMs: 100, signal: ac.signal });
+		const reader = stream.getReader();
+		const decoder = new TextDecoder();
+
+		vi.advanceTimersByTime(150);
+		ac.abort();
+
+		const chunks: string[] = [];
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(decoder.decode(value));
+		}
+
+		expect(chunks.join("")).toContain(": keepalive");
+		g.destroy();
+		vi.useRealTimers();
+	});
+});
+
+describe("nestjs compat — observeSubscription", () => {
+	it("yields DATA values as async iterator", async () => {
+		const s = state<string>("");
+		const g = new Graph("sub-test");
+		g.add("msg", s);
+
+		const iter = observeSubscription<string>(g, "msg");
+
+		s.down([[DATA, "hello"]]);
+		s.down([[DATA, "world"]]);
+		s.down([[COMPLETE]]);
+
+		const results: string[] = [];
+		for await (const value of iter) {
+			results.push(value);
+		}
+
+		expect(results).toEqual(["hello", "world"]);
+		g.destroy();
+	});
+
+	it("rejects on ERROR", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sub-err");
+		g.add("n", s);
+
+		const iter = observeSubscription<number>(g, "n");
+		s.down([[ERROR, new Error("fail")]]);
+
+		await expect(iter.next()).rejects.toThrow("fail");
+		g.destroy();
+	});
+
+	it("supports filter option", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sub-filter");
+		g.add("n", s);
+
+		const iter = observeSubscription<number>(g, "n", {
+			filter: (v) => v > 5,
+		});
+
+		s.down([[DATA, 1]]);
+		s.down([[DATA, 10]]);
+		s.down([[COMPLETE]]);
+
+		const result = await iter.next();
+		expect(result).toEqual({ done: false, value: 10 });
+
+		const end = await iter.next();
+		expect(end.done).toBe(true);
+		g.destroy();
+	});
+
+	it("return() disposes the subscription", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sub-return");
+		g.add("n", s);
+
+		const iter = observeSubscription<number>(g, "n");
+		s.down([[DATA, 1]]);
+
+		await iter.next();
+		const ret = await iter.return!();
+		expect(ret.done).toBe(true);
+
+		// Further next() after return should be done
+		const after = await iter.next();
+		expect(after.done).toBe(true);
+		g.destroy();
+	});
+
+	it("respects actor guard", () => {
+		const s = state(0, {
+			guard: policy((_allow) => {
+				// no observe allowed
+			}),
+		});
+		const g = new Graph("sub-guard");
+		g.add("n", s);
+
+		expect(() => observeSubscription(g, "n", { actor: { type: "human", id: "u1" } })).toThrow(
+			GuardDenied,
+		);
+		g.destroy();
+	});
+});
+
+describe("nestjs compat — ObserveGateway", () => {
+	function makeMockClient(): { send: ReturnType<typeof vi.fn>; id: string } {
+		return { send: vi.fn(), id: Math.random().toString(36) };
+	}
+
+	it("subscribe and receive DATA", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-test");
+		g.add("counter", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(client, { type: "subscribe", path: "counter" }, (msg) => sent.push(msg));
+
+		expect(sent).toContainEqual({ type: "subscribed", path: "counter" });
+		expect(gw.subscriptionCount(client)).toBe(1);
+
+		s.down([[DATA, 42]]);
+
+		gw.handleMessage(client, { type: "subscribe", path: "counter" }, (msg) => sent.push(msg));
+		// Already subscribed — no duplicate
+
+		gw.handleDisconnect(client);
+		expect(gw.subscriptionCount(client)).toBe(0);
+		g.destroy();
+	});
+
+	it("unsubscribe removes subscription", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-unsub");
+		g.add("n", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		const send = (msg: ObserveWsMessage) => sent.push(msg);
+		gw.handleMessage(client, { type: "subscribe", path: "n" }, send);
+		expect(gw.subscriptionCount(client)).toBe(1);
+
+		gw.handleMessage(client, { type: "unsubscribe", path: "n" }, send);
+		expect(sent).toContainEqual({ type: "unsubscribed", path: "n" });
+		expect(gw.subscriptionCount(client)).toBe(0);
+
+		g.destroy();
+	});
+
+	it("forwards DATA to client via default send", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-send");
+		g.add("n", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		// Use default send (client.send)
+		gw.handleMessage(client, JSON.stringify({ type: "subscribe", path: "n" }));
+
+		s.down([[DATA, 7]]);
+
+		expect(client.send).toHaveBeenCalled();
+		const lastCall = client.send.mock.calls.find((c: string[]) => c[0].includes('"data"'));
+		expect(lastCall).toBeDefined();
+		const msg = JSON.parse(lastCall![0]);
+		expect(msg).toMatchObject({ type: "data", path: "n", value: 7 });
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("handles invalid command gracefully", () => {
+		const g = new Graph("gw-invalid");
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(client, "not json {{{", (msg) => sent.push(msg));
+		expect(sent).toContainEqual({ type: "err", message: "invalid command" });
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("handles unknown command type", () => {
+		const g = new Graph("gw-unknown");
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(client, { type: "ping" } as any, (msg) => sent.push(msg));
+		expect(sent[0]).toMatchObject({ type: "err" });
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("respects actor guard via extractActor", () => {
+		const s = state(0, {
+			guard: policy((allow) => {
+				allow("observe", { where: (a) => a.type === "human" });
+			}),
+		});
+		const g = new Graph("gw-guard");
+		g.add("guarded", s);
+
+		const gw = new ObserveGateway(g, {
+			extractActor: (client: any) => client.actor,
+		});
+
+		// LLM client — guard should deny
+		const llmClient = { ...makeMockClient(), actor: { type: "llm", id: "a1" } };
+		gw.handleConnection(llmClient);
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(llmClient, { type: "subscribe", path: "guarded" }, (msg) => sent.push(msg));
+		expect(sent.some((m) => m.type === "err")).toBe(true);
+		expect(gw.subscriptionCount(llmClient)).toBe(0);
+
+		// Human client — should succeed
+		const humanClient = { ...makeMockClient(), actor: { type: "human", id: "u1" } };
+		gw.handleConnection(humanClient);
+		const hSent: ObserveWsMessage[] = [];
+		gw.handleMessage(humanClient, { type: "subscribe", path: "guarded" }, (msg) => hSent.push(msg));
+		expect(hSent).toContainEqual({ type: "subscribed", path: "guarded" });
+		expect(gw.subscriptionCount(humanClient)).toBe(1);
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("disconnect disposes all client subscriptions", () => {
+		const g = new Graph("gw-disc");
+		g.add("a", state(1));
+		g.add("b", state(2));
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const noop = () => {};
+		gw.handleMessage(client, { type: "subscribe", path: "a" }, noop);
+		gw.handleMessage(client, { type: "subscribe", path: "b" }, noop);
+		expect(gw.subscriptionCount(client)).toBe(2);
+
+		gw.handleDisconnect(client);
+		expect(gw.subscriptionCount(client)).toBe(0);
+
+		g.destroy();
+	});
+
+	it("forwards ERROR and COMPLETE to client", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-term");
+		g.add("n", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(client, { type: "subscribe", path: "n" }, (msg) => sent.push(msg));
+
+		s.down([[ERROR, new Error("oops")]]);
+
+		expect(sent).toContainEqual(expect.objectContaining({ type: "error", path: "n" }));
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("COMPLETE auto-cleans subscription — allows resubscribe", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-resub");
+		g.add("n", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		const send = (msg: ObserveWsMessage) => sent.push(msg);
+		gw.handleMessage(client, { type: "subscribe", path: "n" }, send);
+		expect(gw.subscriptionCount(client)).toBe(1);
+
+		s.down([[COMPLETE]]);
+		expect(sent).toContainEqual({ type: "complete", path: "n" });
+		// Subscription should be auto-cleaned
+		expect(gw.subscriptionCount(client)).toBe(0);
+
+		gw.destroy();
+		g.destroy();
+	});
+
+	it("TEARDOWN closes WS subscription", () => {
+		const s = state<number>(0);
+		const g = new Graph("gw-td");
+		g.add("n", s);
+
+		const gw = new ObserveGateway(g);
+		const client = makeMockClient();
+		gw.handleConnection(client);
+
+		const sent: ObserveWsMessage[] = [];
+		gw.handleMessage(client, { type: "subscribe", path: "n" }, (msg) => sent.push(msg));
+		expect(gw.subscriptionCount(client)).toBe(1);
+
+		s.down([[TEARDOWN]]);
+		expect(sent).toContainEqual({ type: "complete", path: "n" });
+		expect(gw.subscriptionCount(client)).toBe(0);
+
+		gw.destroy();
+		g.destroy();
+	});
+});
+
+describe("nestjs compat — TEARDOWN handling", () => {
+	it("observeSSE closes on TEARDOWN", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sse-td");
+		g.add("n", s);
+
+		const stream = observeSSE(g, "n");
+		const reader = stream.getReader();
+		const decoder = new TextDecoder();
+
+		s.down([[DATA, 1]]);
+		s.down([[TEARDOWN]]);
+
+		const chunks: string[] = [];
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			chunks.push(decoder.decode(value));
+		}
+
+		expect(chunks.join("")).toContain("event: data\ndata: 1\n\n");
+		g.destroy();
+	});
+
+	it("observeSubscription completes on TEARDOWN", async () => {
+		const s = state<string>("");
+		const g = new Graph("sub-td");
+		g.add("n", s);
+
+		const iter = observeSubscription<string>(g, "n");
+
+		s.down([[DATA, "val"]]);
+		s.down([[TEARDOWN]]);
+
+		const results: string[] = [];
+		for await (const v of iter) {
+			results.push(v);
+		}
+
+		expect(results).toEqual(["val"]);
+		g.destroy();
+	});
+
+	it("observeSubscription disposes subscription on COMPLETE", async () => {
+		const s = state<number>(0);
+		const g = new Graph("sub-dispose");
+		g.add("n", s);
+
+		const iter = observeSubscription<number>(g, "n");
+		s.down([[DATA, 1]]);
+		s.down([[COMPLETE]]);
+
+		const r1 = await iter.next();
+		expect(r1).toEqual({ done: false, value: 1 });
+
+		const r2 = await iter.next();
+		expect(r2.done).toBe(true);
+
+		// Further calls should also be done (subscription disposed)
+		const r3 = await iter.next();
+		expect(r3.done).toBe(true);
+		g.destroy();
 	});
 });

@@ -28,6 +28,27 @@ export {
 } from "./decorators.js";
 // Explorer (event/schedule discovery)
 export { GraphReflyEventExplorer } from "./explorer.js";
+// Gateway helpers (Phase 5.1)
+export {
+	ObserveGateway,
+	type ObserveGatewayOptions,
+	type ObserveSSEOptions,
+	type ObserveSubscriptionOptions,
+	type ObserveWsCommand,
+	type ObserveWsMessage,
+	observeSSE,
+	observeSubscription,
+} from "./gateway.js";
+// Actor bridge (Phase 5.1)
+export {
+	ACTOR_KEY,
+	type ActorExtractor,
+	fromHeader,
+	fromJwtPayload,
+	GraphReflyGuard,
+	GraphReflyGuardImpl,
+	getActor,
+} from "./guard.js";
 // Module & DI
 export {
 	type GraphReflyFeatureOptions,

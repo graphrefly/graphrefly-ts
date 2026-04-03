@@ -2,7 +2,9 @@
 
 ## Open design decisions
 
-*(No open decisions at this time.)*
+- **Gateway helpers: unbounded async iterator queue (Phase 5.1, noted 2026-04-02):** `observeSubscription` uses an unbounded `QueueItem[]` between the graph push and the consumer's `next()` pull. If the producer emits faster than the consumer drains, memory grows without bound. Standard async iterator limitation in JS — no backpressure primitive available. Options: (a) add `maxQueue` option that drops oldest items (lossy), (b) propagate PAUSE upstream when queue exceeds threshold (requires `observe()` to support upstream signaling), (c) accept and document. Current decision: accept and document.
+- **Gateway helpers: custom message types not forwarded to clients (Phase 5.1, noted 2026-04-02):** `observeSSE`, `observeSubscription`, and `ObserveGateway` only forward DATA/ERROR/COMPLETE/TEARDOWN to clients. User-defined message types (spec §1.2, "open type set") are silently dropped. This is intentional per spec §5.4 ("High-level APIs speak domain language") — gateways are client-facing transports. Future option: add `forwardUnknown?: boolean` to gateway options that sends unknown types as generic events. TS-only (NestJS integration), no PY parity needed.
+- **Gateway helpers: no WebSocket backpressure (Phase 5.1, noted 2026-04-02):** `ObserveGateway` calls `send()` synchronously for each DATA message. Fast-producing nodes can overwhelm the WebSocket send buffer. Options: buffer with flush interval, propagate PAUSE upstream, or document that hot nodes should be throttled (e.g., via `throttle` operator) before observation. Current decision: document.
 
 ## Cross-language implementation notes
 
