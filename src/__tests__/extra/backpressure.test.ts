@@ -5,9 +5,9 @@ import {
 	observeSSE,
 	observeSubscription,
 } from "../../compat/nestjs/gateway.js";
-import { COMPLETE, DATA, type Messages, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
+import { COMPLETE, DATA, type Messages, PAUSE, RESUME } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
-import { createWatermarkController, type WatermarkController } from "../../extra/backpressure.js";
+import { createWatermarkController } from "../../extra/backpressure.js";
 import { Graph } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------

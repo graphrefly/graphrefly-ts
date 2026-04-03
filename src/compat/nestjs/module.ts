@@ -105,7 +105,9 @@ class GraphReflyRequestLifecycle implements OnModuleDestroy {
 // Module
 // ---------------------------------------------------------------------------
 
+// NestJS dynamic modules convention: static `forRoot` / `forFeature` factories on a `@Module` class.
 @Module({})
+// biome-ignore lint/complexity/noStaticOnlyClass: NestJS `DynamicModule` pattern (`@Module` + static factories)
 export class GraphReflyModule {
 	/**
 	 * Register the root `Graph` singleton in the NestJS DI container.
@@ -265,6 +267,8 @@ export class GraphReflyModule {
 				provide: getGraphToken(opts.name),
 				useFactory: (rootGraph: Graph) => {
 					const g = cqrs(opts.name, opts.cqrs);
+					// `useEventStore` is CqrsGraph API, not a React hook (Biome false positive).
+					// biome-ignore lint/correctness/useHookAtTopLevel: not React; Nest provider factory
 					if (opts.eventStore) g.useEventStore(opts.eventStore);
 					if (opts.build) opts.build(g);
 					rootGraph.mount(opts.name, g);

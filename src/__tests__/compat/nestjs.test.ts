@@ -33,14 +33,14 @@ import {
 	SAGA_HANDLERS,
 	SagaHandler,
 } from "../../compat/nestjs/index.js";
-import { type Actor, DEFAULT_ACTOR } from "../../core/actor.js";
+import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { observeGraph$, observeNode$, toMessages$, toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
-import type { CqrsEvent, CqrsGraph } from "../../patterns/cqrs.js";
+import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs.js";
 
 // ---------------------------------------------------------------------------
 // RxJS bridge
@@ -1513,7 +1513,7 @@ describe("nestjs compat — @CommandHandler", () => {
 		@Injectable()
 		class OrderService {
 			@CommandHandler("orders", "placeOrder")
-			handlePlace(payload: { id: string }, { emit }: { emit: Function }) {
+			handlePlace(payload: { id: string }, { emit }: CommandActions) {
 				payloads.push(payload);
 				emit("orderPlaced", payload);
 			}

@@ -81,8 +81,6 @@ export function observeSSE(
 	let stop: (() => void) | undefined;
 	const useBackpressure = opts?.highWaterMark != null;
 
-	// When backpressure is enabled, buffer encoded frames and drain via pull().
-	const buf: Uint8Array[] = [];
 	let wm: WatermarkController | undefined;
 	let pullResolve: (() => void) | undefined;
 

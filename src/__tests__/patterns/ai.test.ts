@@ -976,7 +976,7 @@ describe("graphFromSpec", () => {
 
 		const adapter = mockAdapter([
 			{
-				content: "```json\n" + JSON.stringify(graphDef) + "\n```",
+				content: `\`\`\`json\n${JSON.stringify(graphDef)}\n\`\`\``,
 				finishReason: "end_turn",
 			},
 		]);

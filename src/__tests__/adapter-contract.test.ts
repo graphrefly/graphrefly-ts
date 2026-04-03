@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import type { WebSocketRegister } from "../extra/adapters.js";
 import { COMPLETE, DATA, ERROR, fromWebhook, fromWebSocket, type Message } from "../index.js";
 
 // ---------------------------------------------------------------------------
@@ -60,10 +61,7 @@ describe("Pillar 1: register callback expectations", () => {
 	});
 
 	it("fromWebSocket: register returning non-function triggers ERROR", () => {
-		const n = fromWebSocket(
-			// biome-ignore lint/suspicious/noExplicitAny: testing contract violation
-			(() => undefined) as any,
-		);
+		const n = fromWebSocket((() => undefined) as unknown as WebSocketRegister<unknown>);
 		const { messages, unsub } = collect(n);
 		const errorMsg = messages.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();

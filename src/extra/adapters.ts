@@ -12,8 +12,6 @@
  * fromClickHouseWatch.
  */
 
-import { existsSync } from "node:fs";
-import { resolve as resolvePath } from "node:path";
 import { batch } from "../core/batch.js";
 import { wallClockNs } from "../core/clock.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
@@ -22,7 +20,7 @@ import { producer, state } from "../core/sugar.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import { type WithStatusBundle, withStatus } from "./resilience.js";
 import type { AsyncSourceOpts } from "./sources.js";
-import { escapeRegexChar, globToRegExp, matchesAnyPattern } from "./sources.js";
+import { globToRegExp, matchesAnyPattern } from "./sources.js";
 
 /** Structured callback for sink transport failures (Kafka, Redis, etc.). */
 export type SinkTransportError = {
@@ -646,7 +644,7 @@ export type FromGitHookOptions = ExtraOpts & {
 	exclude?: string[];
 };
 
-// escapeRegexChar, globToRegExp, matchesAnyPattern imported from ./sources.js
+// globToRegExp, matchesAnyPattern imported from ./sources.js
 
 /**
  * Git change detection as a reactive source.
@@ -1299,9 +1297,10 @@ export function parsePrometheusText(text: string): PrometheusMetric[] {
 function parsePrometheusLabels(str: string): Record<string, string> {
 	const labels: Record<string, string> = {};
 	const re = /(\w+)="((?:[^"\\]|\\.)*)"/g;
-	let m: RegExpExecArray | null;
-	while ((m = re.exec(str)) !== null) {
+	let m: RegExpExecArray | null = re.exec(str);
+	while (m !== null) {
 		labels[m[1]] = m[2].replace(/\\(.)/g, "$1");
+		m = re.exec(str);
 	}
 	return labels;
 }

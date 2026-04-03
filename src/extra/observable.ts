@@ -13,7 +13,6 @@
 // ---------------------------------------------------------------------------
 
 import { Observable } from "rxjs";
-import type { Actor } from "../core/actor.js";
 import { COMPLETE, DATA, ERROR, type Messages } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import type { Graph, GraphObserveAll, GraphObserveOne, ObserveOptions } from "../graph/graph.js";

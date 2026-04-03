@@ -31,7 +31,8 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 | **2 — Runnable examples** | Self-contained scripts using public imports | `examples/*.ts` | Imported by recipes + demos |
 | **3 — Recipes / guides** | Long-form Starlight pages with context | `website/src/content/docs/recipes/` | Pull code from `examples/` via Starlight file imports |
 | **4 — Interactive demos** | Astro/Starlight components with live UI | `website/src/components/examples/` | Import stores from `examples/`, handle UI only |
-| **5 — `llms.txt`** | AI-readable docs | repo root + `website/public/` | Updated when adding user-facing primitives |
+| **5 — `llms.txt`** | AI-readable docs | repo root → `website/public/` via `sync-docs.mjs` | Updated when adding user-facing primitives |
+| **6 — `robots.txt`** | Search engine / AI crawler directives | repo root → `website/public/` via `sync-docs.mjs` | Updated when site structure changes |
 
 ### Unified code location rule
 
@@ -72,8 +73,22 @@ pnpm --filter @graphrefly/docs-site sync-docs --check      # CI dry-run — exit
 |--------|--------|
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` repo only (no in-repo copy) |
 | `roadmap.md`, `optimizations.md`, etc. | `docs/` (this repo) |
+| `robots.txt`, `llms.txt` | repo root → `website/public/` |
 
 Both `sync-docs` and `docs:gen` run automatically on `pnpm dev` and `pnpm build` (via `predev`/`prebuild` hooks).
+
+---
+
+## Site architecture & domains
+
+| Domain | Repo | Framework | Content |
+|--------|------|-----------|---------|
+| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | TS API docs, spec, blog, comparisons |
+| `py.graphrefly.dev` | graphrefly-py | Astro/Starlight | Python API docs, spec, Pyodide lab |
+
+Both sites share the same Starlight theme with a `[TS] [PY]` language switcher in the header nav. DNS is on Cloudflare (proxy + CDN); hosting is GitHub Pages with GitHub Actions deployment.
+
+**Single source of truth for public assets:** `robots.txt` and `llms.txt` live at the repo root and are copied to `website/public/` by `sync-docs.mjs`. Do not edit the copies in `website/public/` — they are gitignored and regenerated on every build.
 
 ---
 
@@ -126,7 +141,10 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc |
 | New runnable example | `examples/<name>.ts` + optional recipe page |
 | Phase completed | `docs/roadmap.md` checkboxes |
-| AI / LLM discovery | `llms.txt` when introduced |
+| AI / LLM discovery | `llms.txt` (repo root) — synced to `website/public/` by build |
+| Crawler directives | `robots.txt` (repo root) — synced to `website/public/` by build |
+| GitHub repo metadata | `gh repo edit` — description, topics, homepage URL |
+| npm metadata | `package.json` — description, keywords |
 
 ---
 

@@ -23,6 +23,8 @@ import {
 	type CommandHandlerMeta,
 	CQRS_EVENT_HANDLERS,
 	CRON_HANDLERS,
+	type DecoratorBoundMethod,
+	type DecoratorHostConstructor,
 	EVENT_HANDLERS,
 	type EventHandlerMeta,
 	type GraphCronMeta,
@@ -88,7 +90,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private wireEventHandler(instance: object, meta: OnGraphEventMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -120,8 +122,12 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
-	private wireIntervalHandler(instance: object, ctor: Function, meta: GraphIntervalMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+	private wireIntervalHandler(
+		instance: object,
+		ctor: DecoratorHostConstructor,
+		meta: GraphIntervalMeta,
+	): void {
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -157,8 +163,12 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
-	private wireCronHandler(instance: object, ctor: Function, meta: GraphCronMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+	private wireCronHandler(
+		instance: object,
+		ctor: DecoratorHostConstructor,
+		meta: GraphCronMeta,
+	): void {
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -195,7 +205,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private wireCqrsCommand(instance: object, meta: CommandHandlerMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -221,7 +231,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private wireCqrsEventHandler(instance: object, meta: EventHandlerMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -277,7 +287,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private wireCqrsQuery(instance: object, meta: QueryHandlerMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -312,7 +322,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private wireCqrsSaga(instance: object, meta: SagaHandlerMeta): void {
-		const method = (instance as Record<string | symbol, Function>)[meta.methodKey];
+		const method = (instance as Record<string | symbol, DecoratorBoundMethod>)[meta.methodKey];
 		if (typeof method !== "function") return;
 
 		const bound = method.bind(instance);
@@ -347,7 +357,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
-	private resolveInstance(ctor: Function): object | null {
+	private resolveInstance(ctor: DecoratorHostConstructor): object | null {
 		try {
 			return this.moduleRef.get(ctor, { strict: false });
 		} catch {

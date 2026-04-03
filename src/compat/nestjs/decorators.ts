@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // NOTE: esbuild (used by vitest/vite) uses TC39 Stage 3 decorators, not
 // legacy TypeScript experimental decorators. Method decorators receive
-// (value: Function, context: ClassMethodDecoratorContext). We use
+// (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext). We use
 // context.addInitializer() to register metadata when the class instance is
 // created, which runs before NestJS lifecycle hooks.
 // ---------------------------------------------------------------------------
@@ -15,6 +15,15 @@ import {
 	getGraphToken,
 	getNodeToken,
 } from "./tokens.js";
+
+/** Class constructor key for decorator registries and Nest `ModuleRef.get()`. */
+export type DecoratorHostConstructor = abstract new (...args: unknown[]) => unknown;
+
+/**
+ * TC39 Stage 3 class method decorator first argument (the method itself).
+ * Narrower than `Function` for Biome `noBannedTypes`.
+ */
+export type DecoratorBoundMethod = (...args: unknown[]) => unknown;
 
 // ---------------------------------------------------------------------------
 // Global registries (populated by decorator initializers, read by explorer)
@@ -36,11 +45,11 @@ export interface GraphCronMeta {
 }
 
 /** Registry: constructor → event handler metadata. */
-export const EVENT_HANDLERS = new Map<Function, OnGraphEventMeta[]>();
+export const EVENT_HANDLERS = new Map<DecoratorHostConstructor, OnGraphEventMeta[]>();
 /** Registry: constructor → interval metadata. */
-export const INTERVAL_HANDLERS = new Map<Function, GraphIntervalMeta[]>();
+export const INTERVAL_HANDLERS = new Map<DecoratorHostConstructor, GraphIntervalMeta[]>();
 /** Registry: constructor → cron metadata. */
-export const CRON_HANDLERS = new Map<Function, GraphCronMeta[]>();
+export const CRON_HANDLERS = new Map<DecoratorHostConstructor, GraphCronMeta[]>();
 
 // ---------------------------------------------------------------------------
 // CQRS decorator metadata & registries (Phase 5.5 — CQRS replacement)
@@ -72,13 +81,13 @@ export interface SagaHandlerMeta {
 }
 
 /** Registry: constructor → command handler metadata. */
-export const COMMAND_HANDLERS = new Map<Function, CommandHandlerMeta[]>();
+export const COMMAND_HANDLERS = new Map<DecoratorHostConstructor, CommandHandlerMeta[]>();
 /** Registry: constructor → event handler metadata. */
-export const CQRS_EVENT_HANDLERS = new Map<Function, EventHandlerMeta[]>();
+export const CQRS_EVENT_HANDLERS = new Map<DecoratorHostConstructor, EventHandlerMeta[]>();
 /** Registry: constructor → query handler metadata. */
-export const QUERY_HANDLERS = new Map<Function, QueryHandlerMeta[]>();
+export const QUERY_HANDLERS = new Map<DecoratorHostConstructor, QueryHandlerMeta[]>();
 /** Registry: constructor → saga handler metadata. */
-export const SAGA_HANDLERS = new Map<Function, SagaHandlerMeta[]>();
+export const SAGA_HANDLERS = new Map<DecoratorHostConstructor, SagaHandlerMeta[]>();
 
 // ---------------------------------------------------------------------------
 // DI decorators
@@ -177,11 +186,11 @@ export function InjectNode(path: string): ParameterDecorator & PropertyDecorator
  */
 export function OnGraphEvent(
 	nodeName: string,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = EVENT_HANDLERS.get(ctor) ?? [];
 			existing.push({ nodeName, methodKey });
 			EVENT_HANDLERS.set(ctor, existing);
@@ -208,11 +217,11 @@ export function OnGraphEvent(
  */
 export function GraphInterval(
 	ms: number,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = INTERVAL_HANDLERS.get(ctor) ?? [];
 			existing.push({ ms, methodKey });
 			INTERVAL_HANDLERS.set(ctor, existing);
@@ -239,11 +248,11 @@ export function GraphInterval(
  */
 export function GraphCron(
 	expr: string,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = CRON_HANDLERS.get(ctor) ?? [];
 			existing.push({ expr, methodKey });
 			CRON_HANDLERS.set(ctor, existing);
@@ -278,11 +287,11 @@ export function GraphCron(
 export function CommandHandler(
 	cqrsName: string,
 	commandName: string,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = COMMAND_HANDLERS.get(ctor) ?? [];
 			existing.push({ cqrsName, commandName, methodKey });
 			COMMAND_HANDLERS.set(ctor, existing);
@@ -313,11 +322,11 @@ export function CommandHandler(
 export function EventHandler(
 	cqrsName: string,
 	eventName: string,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = CQRS_EVENT_HANDLERS.get(ctor) ?? [];
 			existing.push({ cqrsName, eventName, methodKey });
 			CQRS_EVENT_HANDLERS.set(ctor, existing);
@@ -348,11 +357,11 @@ export function EventHandler(
 export function QueryHandler(
 	cqrsName: string,
 	projectionName: string,
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = QUERY_HANDLERS.get(ctor) ?? [];
 			existing.push({ cqrsName, projectionName, methodKey });
 			QUERY_HANDLERS.set(ctor, existing);
@@ -385,11 +394,11 @@ export function SagaHandler(
 	cqrsName: string,
 	sagaName: string,
 	eventNames: readonly string[],
-): (value: Function, context: ClassMethodDecoratorContext) => void {
-	return (_value: Function, context: ClassMethodDecoratorContext) => {
+): (value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => void {
+	return (_value: DecoratorBoundMethod, context: ClassMethodDecoratorContext) => {
 		const methodKey = context.name;
 		context.addInitializer(function (this: unknown) {
-			const ctor = (this as { constructor: Function }).constructor;
+			const ctor = (this as { constructor: DecoratorHostConstructor }).constructor;
 			const existing = SAGA_HANDLERS.get(ctor) ?? [];
 			existing.push({ cqrsName, eventNames, sagaName, methodKey });
 			SAGA_HANDLERS.set(ctor, existing);

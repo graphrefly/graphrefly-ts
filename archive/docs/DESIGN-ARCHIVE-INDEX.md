@@ -200,6 +200,21 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-serialization-memory-footprint.md`
 
+### Session marketing-promotion-strategy (April 3) — Marketing, Promotion & Domain Strategy
+**Topic:** Comprehensive marketing strategy for GraphReFly — package descriptions/keywords, domain setup (graphrefly.dev + py.graphrefly.dev), Cloudflare configuration, site architecture decisions, AI discoverability (robots.txt + llms.txt), callbag-recharge deprecation plan, and phased promotion roadmap.
+
+**Key decisions:**
+- **Single Starlight site per language** — `graphrefly.dev` (TS) and `py.graphrefly.dev` (PY) with cross-linking header nav; rejected separate apex site and subpath approaches
+- **Three positioning pillars** — "The Missing Middle" (signals + streams), "Durable by Default" (resumable LLM streaming), "Inspectable AI Orchestration" (observable agent state)
+- **AI-permissive crawling** — explicit `robots.txt` allowing GPTBot/ClaudeBot/PerplexityBot + `llms.txt` for LLM ingestion; Block AI Bots OFF on Cloudflare
+- **Phased promotion** — Foundation (domain/org/README) → Soft Launch (npm publish, HN, Reddit) → Growth (AI communities, Discord, comparison pages) → Sustained (blog cadence, conferences, PH at v1.0)
+- **callbag-recharge deprecation** — npm deprecate, README banner, blog migration (reframe 30 chronicle posts), archive repo
+- **Public asset pipeline** — `robots.txt` and `llms.txt` at repo root as single source of truth, synced to `website/public/` by `sync-docs.mjs`
+
+**Predecessor research incorporated:** callbag-recharge Gemini marketing research (March 21), blog strategy doc (30-post plan, growth flywheel).
+
+**Files:** `archive/docs/SESSION-marketing-promotion-strategy.md`
+
 ---
 
 ## Reading Guide
@@ -223,5 +238,5 @@ Each session file contains:
 ---
 
 **Created:** March 27, 2026
-**Updated:** March 31, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint
+**Updated:** April 3, 2026
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy
