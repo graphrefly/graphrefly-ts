@@ -4,6 +4,14 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
+import {
+	fromGitHook,
+	fromMCP,
+	fromWebhook,
+	fromWebSocket,
+	toSSE,
+	toWebSocket,
+} from "../../extra/adapters.js";
 import { parseCron } from "../../extra/cron.js";
 import { gate } from "../../extra/operators.js";
 import {
@@ -16,21 +24,15 @@ import {
 	fromCron,
 	fromEvent,
 	fromFSWatch,
-	fromGitHook,
 	fromIter,
-	fromMCP,
 	fromPromise,
 	fromTimer,
-	fromWebhook,
-	fromWebSocket,
 	never,
 	of,
 	replay,
 	share,
 	throwError,
 	toArray,
-	toSSE,
-	toWebSocket,
 } from "../../extra/sources.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */
@@ -731,16 +733,13 @@ describe("fromMCP", () => {
 	it("emits DATA for each notification", () => {
 		let handler: ((n: unknown) => void) | undefined;
 		const client = {
-			setNotificationHandler(method: string, h: (n: unknown) => void) {
+			setNotificationHandler(_method: string, h: (n: unknown) => void) {
 				handler = h;
 			},
 		};
 
 		const node = fromMCP(client, { method: "notifications/tools/list_changed" });
 		const { batches, unsub } = collect(node);
-
-		// Skip initial producer subscription emissions.
-		const baseline = batches.length;
 
 		handler!({ tools: ["a", "b"] });
 		handler!({ tools: ["a", "b", "c"] });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fromHTTP } from "../../extra/sources.js";
+import { fromHTTP } from "../../extra/adapters.js";
 
 describe("fromHTTP", () => {
 	const originalFetch = global.fetch;

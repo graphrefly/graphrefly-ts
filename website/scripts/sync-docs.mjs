@@ -4,9 +4,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const websiteRoot = join(__dirname, "..");
-const repoDocs = join(websiteRoot, "..", "docs");
-const specRepo = join(websiteRoot, "..", "..", "graphrefly");
+const repoRoot = join(websiteRoot, "..");
+const repoDocs = join(repoRoot, "docs");
+const specRepo = join(repoRoot, "..", "graphrefly");
 const outDir = join(websiteRoot, "src", "content", "docs");
+const publicDir = join(websiteRoot, "public");
 
 const checkMode = process.argv.includes("--check");
 const SPEC_RAW_URL =
@@ -116,6 +118,37 @@ for (const [srcName, destName, defaultTitle] of SHARED_FILES) {
 for (const [srcName, destName, defaultTitle] of LOCAL_FILES) {
 	const srcPath = join(repoDocs, srcName);
 	if (await syncFile(srcPath, destName, defaultTitle)) stale++;
+}
+
+// ── Public assets: copy repo-root files into website/public/ ───────────────
+
+const PUBLIC_FILES = ["robots.txt", "llms.txt"];
+
+for (const name of PUBLIC_FILES) {
+	const src = join(repoRoot, name);
+	const dest = join(publicDir, name);
+	if (!existsSync(src)) {
+		console.log(`[sync-docs] skip public/${name} (not found at repo root)`);
+		continue;
+	}
+	const content = readFileSync(src, "utf8");
+	if (checkMode) {
+		if (existsSync(dest)) {
+			const existing = readFileSync(dest, "utf8");
+			if (existing !== content) {
+				console.log(`  ⚠ public/${name} is stale`);
+				stale++;
+			} else {
+				console.log(`  ✓ public/${name} is up to date`);
+			}
+		} else {
+			console.log(`  ⚠ public/${name} does not exist`);
+			stale++;
+		}
+	} else {
+		writeFileSync(dest, content, "utf8");
+		console.log(`[sync-docs] public/${name}`);
+	}
 }
 
 if (checkMode) {

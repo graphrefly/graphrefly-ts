@@ -24,6 +24,10 @@ const apiHref = `${base}api/node/`;
 			<a href={`${base}spec/`} class="gr-docs-nav-link">SPEC</a>
 			<a href={apiHref} class="gr-docs-nav-link">API</a>
 		</nav>
+		<nav class="gr-lang-nav sl-flex" aria-label="Language">
+			<span class="gr-lang-link gr-lang-active">TS</span>
+			<a href="https://py.graphrefly.dev/" class="gr-lang-link">PY</a>
+		</nav>
 		<div class="sub-right sl-hidden md:sl-flex">
 			<div class="sl-flex social-icons">
 				<SocialIcons />
@@ -74,6 +78,38 @@ const apiHref = `${base}api/node/`;
 		.gr-docs-nav-link:hover,
 		.gr-docs-nav-link:focus-visible {
 			color: var(--sl-color-text-accent);
+		}
+
+		.gr-lang-nav {
+			gap: 0.25rem;
+			align-items: center;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 0.375rem;
+			padding: 0.15em 0.15em;
+		}
+
+		.gr-lang-link {
+			font-size: var(--sl-text-xs);
+			font-weight: 700;
+			letter-spacing: 0.05em;
+			text-decoration: none;
+			color: var(--sl-color-gray-3);
+			padding: 0.2em 0.45em;
+			border-radius: 0.25rem;
+		}
+
+		.gr-lang-link:hover,
+		.gr-lang-link:focus-visible {
+			color: var(--sl-color-text-accent);
+		}
+
+		.gr-lang-active {
+			background: var(--sl-color-text-accent);
+			color: var(--sl-color-black);
+		}
+
+		.gr-lang-active:hover {
+			color: var(--sl-color-black);
 		}
 
 		.social-icons::after {

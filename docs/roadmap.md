@@ -381,19 +381,23 @@ Reactive bindings that keep graph nodes in sync with database queries.
 - [ ] Prisma: `fromPrisma` (live query → node)
 - [ ] Drizzle: `fromDrizzle` (live query → node)
 - [ ] Kysely: `fromKysely` (type-safe query → node)
+- [ ] `fromSqlite(db, query, opts?)` / `toSqlite(db, table, opts?)` — SQLite via `better-sqlite3` interface (optional dep, user provides)
 
 ### 5.2c — Ingest adapters (universal source layer)
 
-Connectors for the universal reduction layer (Phase 8). Each wraps an external protocol/system as a reactive `producer` node.
+Connectors for the universal reduction layer (Phase 8). Each wraps an external protocol/system as a reactive `producer` node. All adapters live in `src/extra/adapters.ts`.
 
-- [ ] `fromOTel(opts?)` — OTLP/HTTP receiver; accepts traces, metrics, logs as nodes
-- [ ] `fromSyslog(opts?)` — RFC 5424 syslog receiver (UDP/TCP)
-- [ ] `fromStatsD(opts?)` — StatsD/DogStatsD UDP receiver
-- [ ] `fromPrometheus(endpoint, opts?)` — scrape Prometheus /metrics as reactive source
-- [ ] `fromKafka(topic, opts?)` / `toKafka(topic, opts?)` — Kafka consumer/producer
-- [ ] `fromRedisStream(key, opts?)` / `toRedisStream(key, opts?)` — Redis Streams
-- [ ] `fromCSV(path, opts?)` / `fromNDJSON(stream)` — file/stream ingest for batch replay
-- [ ] `fromClickHouseWatch(query, opts?)` — live materialized view as reactive source
+- [x] `fromOTel(register, opts?)` — OTLP/HTTP receiver; returns `{ traces, metrics, logs }` bundle
+- [x] `fromSyslog(register, opts?)` — RFC 5424 syslog receiver (UDP/TCP); includes `parseSyslog` helper
+- [x] `fromStatsD(register, opts?)` — StatsD/DogStatsD UDP receiver; includes `parseStatsD` helper
+- [x] `fromPrometheus(endpoint, opts?)` — scrape Prometheus /metrics on reactive timer interval; includes `parsePrometheusText` helper
+- [x] `fromKafka(consumer, topic, opts?)` / `toKafka(source, producer, topic, opts?)` — Kafka consumer/producer (KafkaJS-compatible interface; works with Pulsar KoP)
+- [x] `fromRedisStream(client, key, opts?)` / `toRedisStream(source, client, key, opts?)` — Redis Streams (ioredis/redis-compatible interface)
+- [x] `fromCSV(source, opts?)` / `fromNDJSON(source, opts?)` — async iterable ingest for batch replay
+- [x] `fromClickHouseWatch(client, query, opts?)` — live materialized view as reactive source
+- [ ] `fromPulsar(consumer, topic, opts?)` / `toPulsar(source, producer, topic, opts?)` — Apache Pulsar native client
+- [ ] `fromNATS(client, subject, opts?)` / `toNATS(source, client, subject, opts?)` — NATS consumer/producer
+- [ ] `fromRabbitMQ(channel, queue, opts?)` / `toRabbitMQ(source, channel, exchange, opts?)` — RabbitMQ consumer/producer
 
 ### 5.2d — Storage & sink adapters
 
@@ -403,6 +407,8 @@ Connectors for the universal reduction layer (Phase 8). Each wraps an external p
 - [ ] `toLoki(opts?)` / `toTempo(opts?)` — Grafana stack sinks
 - [ ] `checkpointToS3(bucket, opts?)` — graph snapshot persistence to object storage
 - [ ] `checkpointToRedis(prefix, opts?)` — fast checkpoint for ephemeral infra
+- [ ] `toFile(path, opts?)` — file sink (append/overwrite modes)
+- [ ] `toCSV(path, opts?)` — CSV file sink with header management
 
 ### 5.3 — Worker bridge
 

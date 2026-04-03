@@ -20,7 +20,11 @@ regardless of how the source assembled the message array.
 ## Signature
 
 ```ts
-function emitWithBatch(emit: (messages: Messages) => void, messages: Messages): void
+function emitWithBatch(
+	emit: (messages: Messages) => void,
+	messages: Messages,
+	phase: 2 | 3 = 2,
+): void
 ```
 
 ## Parameters
@@ -30,6 +34,7 @@ function emitWithBatch(emit: (messages: Messages) => void, messages: Messages): 
 | `emit` | `(messages: Messages) =&gt; void` | — Sink callback. May be called up to three times per invocation
 (immediate, deferred, terminal) when not batching. |
 | `messages` | `Messages` | — Full `[[Type, Data?], ...]` array for one emission. |
+| `phase` | `2 | 3` |  |
 
 ## Returns
 

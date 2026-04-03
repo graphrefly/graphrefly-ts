@@ -1,4 +1,4 @@
-# Deploy Starlight docs to GitHub Pages (project site: /<repo>/).
+# Deploy Starlight docs to GitHub Pages (custom domain: graphrefly.dev).
 # Repo → Settings → Pages → Build: GitHub Actions (first run may require approval).
 
 name: Deploy docs to GitHub Pages
@@ -45,8 +45,8 @@ jobs:
       - name: Build Astro site
         run: pnpm --dir website run build
         env:
-          ASTRO_SITE_URL: https://${{ github.repository_owner }}.github.io
-          ASTRO_BASE_PATH: /${{ github.event.repository.name }}/
+          ASTRO_SITE_URL: https://graphrefly.dev
+          ASTRO_BASE_PATH: /
 
       - uses: actions/upload-pages-artifact@v3
         with:

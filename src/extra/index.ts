@@ -1,6 +1,8 @@
 /**
  * Extra layer: operators, sources, sinks (Phase 2+).
  */
+
+export * from "./adapters.js";
 export * from "./backoff.js";
 export * from "./backpressure.js";
 export * from "./checkpoint.js";
