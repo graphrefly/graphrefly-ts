@@ -9,12 +9,12 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
-import { emitWithBatch } from "../core/batch.js";
-import { monotonicNs } from "../core/clock.js";
-import { DATA, INVALIDATE } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
-import { Graph } from "../graph/graph.js";
+import { emitWithBatch } from "../../core/batch.js";
+import { monotonicNs } from "../../core/clock.js";
+import { DATA, INVALIDATE } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { derived, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------
 // Types

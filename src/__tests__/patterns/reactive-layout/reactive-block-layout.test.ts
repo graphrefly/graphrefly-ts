@@ -5,8 +5,11 @@
  * fixed sizes for images/SVGs) so tests are environment-independent.
  */
 import { describe, expect, it } from "vitest";
-import { INVALIDATE } from "../../core/messages.js";
-import { ImageSizeAdapter, SvgBoundsAdapter } from "../../extra/measurement-adapters.js";
+import { INVALIDATE } from "../../../core/messages.js";
+import {
+	ImageSizeAdapter,
+	SvgBoundsAdapter,
+} from "../../../patterns/reactive-layout/measurement-adapters.js";
 import {
 	type BlockAdapters,
 	type ContentBlock,
@@ -17,8 +20,8 @@ import {
 	measureBlocks,
 	type PositionedBlock,
 	reactiveBlockLayout,
-} from "../../extra/reactive-block-layout.js";
-import type { MeasurementAdapter } from "../../extra/reactive-layout.js";
+} from "../../../patterns/reactive-layout/reactive-block-layout.js";
+import type { MeasurementAdapter } from "../../../patterns/reactive-layout/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapters

@@ -8,9 +8,12 @@ import {
 	CliMeasureAdapter,
 	NodeCanvasMeasureAdapter,
 	PrecomputedAdapter,
-} from "../../extra/measurement-adapters.js";
-import type { MeasurementAdapter } from "../../extra/reactive-layout.js";
-import { analyzeAndMeasure, reactiveLayout } from "../../extra/reactive-layout.js";
+} from "../../../patterns/reactive-layout/measurement-adapters.js";
+import type { MeasurementAdapter } from "../../../patterns/reactive-layout/reactive-layout.js";
+import {
+	analyzeAndMeasure,
+	reactiveLayout,
+} from "../../../patterns/reactive-layout/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
 // CliMeasureAdapter

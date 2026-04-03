@@ -423,15 +423,16 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### Module & DI
 
-- [ ] `GraphReflyModule.forRoot(opts?)` — root `Graph` singleton in NestJS DI container
-- [ ] `GraphReflyModule.forFeature(opts)` — feature subgraph, auto-mounted into root (`root:featureName:*`)
-- [ ] `@InjectGraph(name?)` / `@InjectNode(path)` — decorators for DI into services/controllers
+- [x] `GraphReflyModule.forRoot(opts?)` — root `Graph` singleton in NestJS DI container
+- [x] `GraphReflyModule.forFeature(opts)` — feature subgraph, auto-mounted into root (`root::featureName::*`)
+- [x] `@InjectGraph(name?)` / `@InjectNode(path)` — decorators for DI into services/controllers
+- [x] RxJS bridge: `toObservable(node)`, `toMessages$(node)`, `observeNode$(graph, path)`, `observeGraph$(graph)` — reactive all the way
 
 #### Lifecycle
 
-- [ ] Module init → `Graph.fromSnapshot()` (optional hydration)
-- [ ] Module destroy → `graph.destroy()` (TEARDOWN propagation)
-- [ ] REQUEST / TRANSIENT scope → graph-per-request option
+- [x] Module init → `graph.restore(snapshot)` (optional hydration via `forRoot({ snapshot })`)
+- [x] Module destroy → `graph.destroy()` (TEARDOWN propagation)
+- [x] REQUEST / TRANSIENT scope → `requestScope: true` option, `@InjectGraph("request")` for per-request graph
 
 #### Actor bridge
 
@@ -440,13 +441,13 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### EventEmitter replacement
 
-- [ ] `@OnGraphEvent(nodeName)` — decorator equivalent of `@OnEvent()`, backed by `graph.observe()`
-- [ ] `graph.set()` / `graph.signal()` replaces `eventEmitter.emit()` — events become inspectable nodes
+- [x] `@OnGraphEvent(nodeName)` — decorator equivalent of `@OnEvent()`, backed by `graph.observe()` with DATA filtering
+- [x] `graph.set()` / `graph.signal()` replaces `eventEmitter.emit()` — events become inspectable nodes
 
 #### Schedule replacement
 
-- [ ] `@GraphInterval(ms)` / `@GraphCron(expr)` — decorators backed by `fromTimer()` / `fromCron()` nodes
-- [ ] Scheduled work visible in `graph.describe()`, pausable via PAUSE/RESUME signals
+- [x] `@GraphInterval(ms)` / `@GraphCron(expr)` — decorators backed by `fromTimer()` / `fromCron()` nodes
+- [x] Scheduled work visible in `graph.describe()`, pausable via PAUSE/RESUME signals
 
 #### CQRS replacement
 
@@ -577,7 +578,7 @@ Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?
 
 #### Standalone extraction
 
-- [ ] Extractable as standalone pattern (`reactive-layout`) independent of demo shell
+- [x] Extractable as standalone pattern (`reactive-layout`) independent of demo shell — moved to `src/patterns/reactive-layout/`, subpath export `@graphrefly/graphrefly-ts/reactive-layout`
 
 ### 7.2 — Three-pane demo shell (built with GraphReFly)
 

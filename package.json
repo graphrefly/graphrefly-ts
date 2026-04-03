@@ -118,6 +118,26 @@
 				"types": "./dist/compat/solid/index.d.cts",
 				"default": "./dist/compat/solid/index.cjs"
 			}
+		},
+		"./compat/nestjs": {
+			"import": {
+				"types": "./dist/compat/nestjs/index.d.ts",
+				"default": "./dist/compat/nestjs/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/nestjs/index.d.cts",
+				"default": "./dist/compat/nestjs/index.cjs"
+			}
+		},
+		"./reactive-layout": {
+			"import": {
+				"types": "./dist/patterns/reactive-layout/index.d.ts",
+				"default": "./dist/patterns/reactive-layout/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/reactive-layout/index.d.cts",
+				"default": "./dist/patterns/reactive-layout/index.cjs"
+			}
 		}
 	},
 	"files": [
@@ -147,7 +167,9 @@
 		"react-dom": ">=18",
 		"solid-js": ">=1",
 		"svelte": ">=4",
-		"vue": ">=3"
+		"vue": ">=3",
+		"@nestjs/common": ">=10",
+		"rxjs": ">=7"
 	},
 	"peerDependenciesMeta": {
 		"react": {
@@ -164,10 +186,19 @@
 		},
 		"vue": {
 			"optional": true
+		},
+		"@nestjs/common": {
+			"optional": true
+		},
+		"rxjs": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.6",
+		"@nestjs/common": "^11.1.17",
+		"@nestjs/core": "^11.1.17",
+		"@nestjs/testing": "^11.1.17",
 		"@solidjs/testing-library": "^0.8.10",
 		"@testing-library/react": "^16.3.2",
 		"@testing-library/svelte": "^5.3.1",
@@ -178,6 +209,8 @@
 		"jsdom": "^29.0.1",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2",
 		"solid-js": "^1.9.12",
 		"svelte": "^5.55.1",
 		"tsup": "^8.5.1",

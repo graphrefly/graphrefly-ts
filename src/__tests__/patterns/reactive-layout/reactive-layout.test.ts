@@ -5,7 +5,7 @@
  * so tests are environment-independent (no Canvas/DOM).
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { INVALIDATE } from "../../core/messages.js";
+import { INVALIDATE } from "../../../core/messages.js";
 import {
 	analyzeAndMeasure,
 	computeCharPositions,
@@ -15,7 +15,7 @@ import {
 	type PreparedSegment,
 	reactiveLayout,
 	type SegmentMeasureStats,
-} from "../../extra/reactive-layout.js";
+} from "../../../patterns/reactive-layout/reactive-layout.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter: 8px per character (deterministic, no Canvas)

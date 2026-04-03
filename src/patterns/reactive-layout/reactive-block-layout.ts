@@ -16,12 +16,12 @@
  * └── meta: { block-count, layout-time-ns }
  * ```
  */
-import { emitWithBatch } from "../core/batch.js";
-import { monotonicNs } from "../core/clock.js";
-import { DATA, INVALIDATE } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
-import { Graph } from "../graph/graph.js";
+import { emitWithBatch } from "../../core/batch.js";
+import { monotonicNs } from "../../core/clock.js";
+import { DATA, INVALIDATE } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { derived, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
 import {
 	analyzeAndMeasure,
 	type CharPosition,

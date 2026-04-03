@@ -9,6 +9,7 @@
  */
 export * as jotai from "./jotai/index.js";
 export * as nanostores from "./nanostores/index.js";
+export * as nestjs from "./nestjs/index.js";
 export * as react from "./react/index.js";
 export * as signals from "./signals/index.js";
 export * as solid from "./solid/index.js";
