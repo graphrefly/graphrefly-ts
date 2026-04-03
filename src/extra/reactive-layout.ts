@@ -685,7 +685,7 @@ export type ReactiveLayoutOptions = {
 	font?: string;
 	/** Initial line height in px. */
 	lineHeight?: number;
-	/** Initial max width in px. */
+	/** Initial max width in px (clamped to ≥ 0). */
 	maxWidth?: number;
 };
 
@@ -719,7 +719,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	const lineHeightNode = state<number>(opts.lineHeight ?? 20, {
 		name: "line-height",
 	});
-	const maxWidthNode = state<number>(opts.maxWidth ?? 800, {
+	const maxWidthNode = state<number>(Math.max(0, opts.maxWidth ?? 800), {
 		name: "max-width",
 	});
 
@@ -896,7 +896,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		setText: (text: string) => g.set("text", text),
 		setFont: (font: string) => g.set("font", font),
 		setLineHeight: (lh: number) => g.set("line-height", lh),
-		setMaxWidth: (mw: number) => g.set("max-width", mw),
+		setMaxWidth: (mw: number) => g.set("max-width", Math.max(0, mw)),
 		segments: segmentsNode,
 		lineBreaks: lineBreaksNode,
 		height: heightNode,

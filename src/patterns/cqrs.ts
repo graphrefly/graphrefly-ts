@@ -144,8 +144,7 @@ export class MemoryEventStore implements EventStoreAdapter {
 				? [...list]
 				: list.filter(
 						(e) =>
-							e.timestampNs > sinceTs ||
-							(e.timestampNs === sinceTs && e.seq > (sinceSeq ?? -1)),
+							e.timestampNs > sinceTs || (e.timestampNs === sinceTs && e.seq > (sinceSeq ?? -1)),
 					);
 		const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
 		return {

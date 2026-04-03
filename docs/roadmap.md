@@ -546,14 +546,14 @@ Runtime enforcement already in Phase 1.5; V3 adds the serialization/transport fo
 
 ### 7.1 — Reactive layout engine (Pretext-on-GraphReFly)
 
-Reactive text measurement and layout without DOM thrashing. Inspired by [Pretext](https://github.com/chenglou/pretext) but rebuilt as a GraphReFly graph — the layout is inspectable (`describe()`), snapshotable, and debuggable. Standalone reusable pattern, also powers the demo shell (7.2). Design reference: `docs/demo-and-test-strategy.md` §2b.
+Reactive text measurement and layout without DOM thrashing. Inspired by [Pretext](https://github.com/chenglou/pretext) but rebuilt as a GraphReFly graph — the layout is inspectable (`describe()`), snapshotable, and debuggable. Standalone reusable pattern; powers the three-pane demo shell (7.2). Python port: `graphrefly-py` roadmap §7.1 (same graph shape and algorithms; default measurement is Pillow/server-side). Design reference: `docs/demo-and-test-strategy.md` §2b.
 
 Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` for common cases; advanced `MeasurementAdapter` interface for custom content types and environments.
 
 #### Text layout (Pretext parity)
 
-- [x] `MeasurementAdapter` interface: `measureSegment(text, font) → { width }`, `clearCache?()` — pluggable measurement backend; tests use `MockMeasureAdapter` with deterministic widths
-- [x] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji via `Intl.Segmenter`); adapter `measureSegment()` for segment widths, cached per `Map<font, Map<segment, width>>`
+- [x] `MeasurementAdapter` interface: `measureSegment(text, font) → { width }`, optional `clearCache()` — pluggable measurement backend; tests use deterministic mock adapters
+- [x] `state("text")` → `derived("segments")` — text segmentation (words, glyphs, emoji via `Intl.Segmenter` word granularity); adapter `measureSegment()` for segment widths, cached per `Map<font, Map<segment, width>>` — **Py port:** Unicode `\w` word-token segmentation + grapheme merge (pipeline parity; not byte-identical boundaries)
 - [x] Text analysis pipeline (ported from Pretext): whitespace normalization, word segmentation, punctuation merging, CJK per-grapheme splitting, URL/numeric run merging, soft-hyphen/hard-break support
 - [x] `derived("line-breaks")` — segments + max-width → greedy line breaking (no DOM): trailing-space hang, `overflow-wrap: break-word` via grapheme widths, soft hyphens, hard breaks
 - [x] `derived("height")`, `derived("char-positions")` — total height, per-character `{ x, y, width, height }` for hit testing
@@ -570,10 +570,10 @@ Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?
 
 #### Multi-content blocks (SVG, images, mixed)
 
-- [ ] `reactiveBlockLayout(blocks, maxWidth, adapters)` — mixed content layout: text + image + SVG blocks with per-type measurement
-- [ ] `SvgBoundsAdapter` — browser: one-shot `getBBox()` cached; Node: viewBox arithmetic from parsed SVG
-- [ ] `ImageSizeAdapter` — browser: `Image.onload` natural dimensions; Node: `image-size` package (sync, zero-dep)
-- [ ] Block flow algorithm: vertical stacking, inline flow with wrap, purely arithmetic over child sizes
+- [x] `reactiveBlockLayout({ adapters, blocks?, maxWidth?, gap?, name?, defaultFont?, defaultLineHeight? })` — mixed content layout: text + image + SVG blocks with per-type measurement (**Py:** `reactive_block_layout(adapters, *, blocks=..., max_width=..., gap=...)`)
+- [x] `SvgBoundsAdapter` — viewBox/width/height parsing from SVG string (pure regex, no DOM); browser users pre-measure via `getBBox()`
+- [x] `ImageSizeAdapter` — pre-registered dimensions by src key (sync lookup); browser users pre-measure via `Image.onload`
+- [x] Block flow algorithm: vertical stacking with configurable gap, purely arithmetic over child sizes
 
 #### Standalone extraction
 

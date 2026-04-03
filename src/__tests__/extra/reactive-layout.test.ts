@@ -417,6 +417,17 @@ describe("reactiveLayout", () => {
 		unsub();
 	});
 
+	it("clamps negative maxWidth to 0 on init and setMaxWidth", () => {
+		layout = reactiveLayout({
+			adapter: mockAdapter(),
+			text: "hi",
+			maxWidth: -50,
+		});
+		expect(layout.graph.get("max-width")).toBe(0);
+		layout.setMaxWidth(-20);
+		expect(layout.graph.get("max-width")).toBe(0);
+	});
+
 	it("segments node has meta for observability", () => {
 		layout = reactiveLayout({
 			adapter: mockAdapter(),

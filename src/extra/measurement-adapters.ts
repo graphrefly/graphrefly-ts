@@ -4,6 +4,7 @@
  * All adapters implement {@link MeasurementAdapter} from `reactive-layout.ts`.
  * Sync constructors, sync `measureSegment()` — no async, no polling.
  */
+
 import type { MeasurementAdapter } from "./reactive-layout.js";
 
 // ---------------------------------------------------------------------------
@@ -371,5 +372,92 @@ export class NodeCanvasMeasureAdapter implements MeasurementAdapter {
 
 	clearCache(): void {
 		this.currentFont = "";
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SvgBoundsAdapter
+// ---------------------------------------------------------------------------
+
+/**
+ * SVG measurement adapter — extracts dimensions from `viewBox` attribute
+ * or explicit `width`/`height` attributes in the SVG string.
+ *
+ * Pure arithmetic: parses the SVG string for dimension attributes.
+ * No DOM required. Works in any JS environment.
+ *
+ * Browser users who need `getBBox()` should pre-measure and pass explicit
+ * `viewBox` on the content block instead.
+ */
+export class SvgBoundsAdapter {
+	measureSvg(content: string): { width: number; height: number } {
+		// Try viewBox first: viewBox="minX minY width height"
+		const viewBoxMatch = content.match(/viewBox\s*=\s*["']([^"']+)["']/);
+		if (viewBoxMatch) {
+			const parts = viewBoxMatch[1]!.trim().split(/[\s,]+/);
+			if (parts.length >= 4) {
+				const w = Number.parseFloat(parts[2]!);
+				const h = Number.parseFloat(parts[3]!);
+				if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+					return { width: w, height: h };
+				}
+				throw new Error(
+					"SvgBoundsAdapter: viewBox width/height are missing, non-finite, or not positive",
+				);
+			}
+		}
+
+		// Fall back to explicit width/height attributes
+		const widthMatch = content.match(/<svg[^>]*\bwidth\s*=\s*["']?([\d.]+)/);
+		const heightMatch = content.match(/<svg[^>]*\bheight\s*=\s*["']?([\d.]+)/);
+		if (widthMatch && heightMatch) {
+			const w = Number.parseFloat(widthMatch[1]!);
+			const h = Number.parseFloat(heightMatch[1]!);
+			if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+				return { width: w, height: h };
+			}
+			throw new Error(
+				"SvgBoundsAdapter: svg width/height attributes are non-finite or not positive",
+			);
+		}
+
+		throw new Error(
+			"SvgBoundsAdapter: cannot determine dimensions — SVG has no viewBox or width/height attributes",
+		);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ImageSizeAdapter
+// ---------------------------------------------------------------------------
+
+/**
+ * Image measurement adapter — returns pre-registered dimensions by src key.
+ *
+ * Sync-only: dimensions must be provided upfront via the `sizes` map.
+ * No I/O, no polling, no async. For browser use, pre-measure via
+ * `Image.onload` and pass natural dimensions on the content block directly,
+ * or register them here.
+ *
+ * ```ts
+ * const adapter = new ImageSizeAdapter({
+ *   "hero.png": { width: 1200, height: 630 },
+ *   "logo.svg": { width: 120, height: 40 },
+ * });
+ * ```
+ */
+export class ImageSizeAdapter {
+	private readonly sizes: Map<string, { width: number; height: number }>;
+
+	constructor(sizes: Record<string, { width: number; height: number }>) {
+		this.sizes = new Map(Object.entries(sizes));
+	}
+
+	measureImage(src: string): { width: number; height: number } {
+		const dims = this.sizes.get(src);
+		if (!dims) {
+			throw new Error(`ImageSizeAdapter: no dimensions registered for ${JSON.stringify(src)}`);
+		}
+		return dims;
 	}
 }
