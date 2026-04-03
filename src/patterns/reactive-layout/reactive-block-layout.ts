@@ -18,7 +18,7 @@
  */
 import { emitWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
-import { DATA, INVALIDATE } from "../../core/messages.js";
+import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
@@ -322,7 +322,9 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			name: "measured-blocks",
 			meta: { "block-count": 0, "layout-time-ns": 0 },
 			onMessage(msg, _depIndex, _actions) {
-				if (msg[0] === INVALIDATE) {
+				if (msg[0] === INVALIDATE || msg[0] === TEARDOWN) {
+					// Local side-effect only; return false so default dispatch
+					// still propagates the message (TEARDOWN → meta/downstream).
 					measureCache.clear();
 					adapters.text.clearCache?.();
 				}

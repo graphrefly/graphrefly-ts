@@ -458,6 +458,6 @@ export class ImageSizeAdapter {
 		if (!dims) {
 			throw new Error(`ImageSizeAdapter: no dimensions registered for ${JSON.stringify(src)}`);
 		}
-		return dims;
+		return { width: dims.width, height: dims.height };
 	}
 }

@@ -11,7 +11,7 @@
  */
 import { emitWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
-import { DATA, INVALIDATE } from "../../core/messages.js";
+import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
@@ -774,9 +774,11 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				"layout-time-ns": 0,
 			},
 			onMessage(msg) {
-				if (msg[0] === INVALIDATE) {
-					// Spec: INVALIDATE clears cached state. Our measurement cache lives
-					// in a closure, so we must clear it explicitly.
+				if (msg[0] === INVALIDATE || msg[0] === TEARDOWN) {
+					// Local side-effect: clear closure-held cache that the node
+					// cannot reach via its normal lifecycle. Return false so the
+					// message still propagates via default dispatch (TEARDOWN
+					// forwarding to meta/downstream, INVALIDATE clearing _cached).
 					measureCache.clear();
 					adapter.clearCache?.();
 				}

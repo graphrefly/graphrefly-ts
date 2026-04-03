@@ -3,7 +3,7 @@
 ## Open design decisions
 
 - **Gateway helpers: async iterator queue backpressure (Phase 5.1, noted 2026-04-02, resolved 2026-04-02):** `observeSubscription` uses a `QueueItem[]` between the graph push and the consumer's `next()` pull. Resolved with option (b): `GraphObserveOne` now exposes `up(messages)` for upstream signaling, and `observeSubscription` accepts `highWaterMark`/`lowWaterMark` options that create a `WatermarkController`. When the queue depth exceeds `highWaterMark`, `PAUSE` is sent upstream; when the consumer drains below `lowWaterMark` via `next()`, `RESUME` is sent. Dispose sends `RESUME` to prevent permanent upstream stall. Each controller uses a unique lockId so multiple consumers on the same node do not collide.
-- **Gateway helpers: custom message types not forwarded to clients (Phase 5.1, noted 2026-04-02):** `observeSSE`, `observeSubscription`, and `ObserveGateway` only forward DATA/ERROR/COMPLETE/TEARDOWN to clients. User-defined message types (spec §1.2, "open type set") are silently dropped. This is intentional per spec §5.4 ("High-level APIs speak domain language") — gateways are client-facing transports. Future option: add `forwardUnknown?: boolean` to gateway options that sends unknown types as generic events. TS-only (NestJS integration), no PY parity needed.
+- **Gateway helpers: custom message types not forwarded to clients (Phase 5.1, noted 2026-04-02, resolved 2026-04-03):** `observeSSE`, `observeSubscription`, and `ObserveGateway` only forward DATA/ERROR/COMPLETE/TEARDOWN to clients. Resolved with option (c): add `forwardTypes?: MessageType[]` allowlist to gateway options (default `[]`). Types in the allowlist are forwarded as generic events alongside the standard set. Self-documenting, type-safe, cheap Set lookup. TS-only (NestJS integration), no PY parity needed.
 - **Gateway helpers: WebSocket backpressure (Phase 5.1, noted 2026-04-02, resolved 2026-04-02):** `ObserveGateway` now accepts `highWaterMark`/`lowWaterMark` options. Each per-client subscription creates a `WatermarkController`. DATA sends increment the pending count; the client sends `{ type: "ack", path, count }` to decrement. PAUSE is sent upstream when pending exceeds `highWaterMark`; RESUME when drained below `lowWaterMark`. Disconnect disposes all controllers (sends RESUME). SSE (`observeSSE`) also supports watermarks via a pull-based `ReadableStream` model — DATA is buffered internally and drained via `pull()`, with `onDequeue` triggering RESUME.
 
 ## Cross-language implementation notes
@@ -13,7 +13,7 @@
 - **Block content model divergence (Phase 7.1, 2026-04-02):** TS uses discriminated union `ContentBlock = { type: "text" | "image" | "svg", ... }` with optional inline fields. PY uses typed dataclasses `TextBlock`, `ImageBlock`, `SvgBlock` with `ContentBlock = TextBlock | ImageBlock | SvgBlock`. SVG dimensions: TS uses `viewBox?: { width, height }` object, PY uses `view_box?: tuple[float, float]`. Image dimensions: TS uses `naturalWidth?/naturalHeight?`, PY uses `natural_width?/natural_height?`. These are language-idiomatic adaptations, not behavioral differences.
 - **SvgBoundsAdapter validation (Phase 7.1, resolved 2026-04-02):** Parsed viewBox width/height and fallback `<svg>` width/height must be finite and positive (`Number.isFinite` / Python `math.isfinite`). Invalid numerics raise a message distinct from the “no viewBox or width/height attributes” case.
 - **Block layout INVALIDATE + text adapter cache (Phase 7.1, resolved 2026-04-02):** PY `reactive_block_layout` invokes `clear_cache` only when `callable(getattr(adapters.text, "clear_cache", None))`, matching `reactive_layout` and TS `clearCache?.()`.
-- **Block layout deferred items (Phase 7.1, noted 2026-04-02):** (1) Adapter throw inside `derived("measured-blocks")` fn produces terminal `[[ERROR, err]]` with no recovery — same pre-existing pattern as `reactiveLayout`; adding `resubscribable: true` across all extra factories is a broader concern for a future pass. (2) Closure-held `measureCache` (and adapter refs) survives `graph.destroy()` — same as `reactiveLayout`; adding TEARDOWN cleanup to `onMessage` is deferred as a batch improvement. (3) `SvgBoundsAdapter` regex may match nested `<svg>` elements or content inside XML comments/CDATA — inherent regex limitation; document that input should be a single root SVG element. (4) `ImageSizeAdapter` / `SvgBoundsAdapter` return mutable references — same pattern as `PrecomputedAdapter`; immutable return is deferred.
+- **Block layout deferred items (Phase 7.1, noted 2026-04-02, partially resolved 2026-04-03):** (1) Adapter throw inside `derived("measured-blocks")` fn produces terminal `[[ERROR, err]]` with no recovery — resolved: add per-factory `resubscribable?: boolean` option (default `false`) to `reactiveLayout` / `reactiveBlockLayout`. When true, adapter errors emit ERROR but the node can be re-triggered via INVALIDATE. (2) ~~Closure-held `measureCache` survives `graph.destroy()`~~ — **resolved 2026-04-03:** `onMessage` now clears `measureCache` and calls `clearCache?.()` on both INVALIDATE and TEARDOWN. (3) `SvgBoundsAdapter` regex may match nested `<svg>` elements or content inside XML comments/CDATA — resolved: strip `<!--...-->` and `<![CDATA[...]]>` before viewBox extraction; document single-root-SVG constraint; expose `SvgParserAdapter` interface so users can opt in their own parser. (4) ~~`ImageSizeAdapter` returns mutable references~~ — **resolved 2026-04-03:** `measureImage` now returns a shallow copy (`{ width, height }` spread).
 
 ## Resolved design decisions (streaming + AI lifecycle)
 
@@ -636,6 +636,16 @@ Worker bridges (`workerBridge` / `workerSelf`) are JavaScript/browser-specific (
 
 **Python parity:** If `graphrefly-py` adds a thread/process bridge, reuse the same wire protocol message types (`"v"`, `"b"`, `"r"`, `"i"`, `"s"`, `"e"`) and handshake sequence. Transport layer will differ (no `postMessage`).
 
+## Resolved design decisions (cross-language, 2026-04-03)
+
+- **Per-factory `resubscribable` option (Phase 7.1+, resolved 2026-04-03 — option (b) per-factory opt-in):** Add `resubscribable?: boolean` to `reactiveLayout` / `reactiveBlockLayout` options (default `false`). When true, adapter errors emit ERROR but the node can be re-triggered via INVALIDATE. Broader audit across all extra factories deferred — apply the option incrementally as use cases arise. Pre-1.0, no backward compat concern.
+
+- **`SvgBoundsAdapter` regex hardening (Phase 7.1, resolved 2026-04-03):** Strip `<!--...-->` and `<![CDATA[...]]>` from SVG content before viewBox/width/height extraction. Document that input should be a single root SVG element. Additionally, expose an `SvgParserAdapter` interface so users can opt in their own parser for complex SVG inputs (e.g. DOMParser-based). Default: built-in regex parser. Cross-language: PY exposes equivalent `SvgParser` protocol.
+
+- **`sample` + `undefined` as `T` (Tier 2, resolved 2026-04-03 — no action):** Documented limitation. TypeScript emits RESOLVED instead of DATA when cache holds `undefined`. Python does not have this ambiguity. No sentinel needed.
+
+- **`mergeMap` + `ERROR` cascading (Tier 2, resolved 2026-04-03 — no action):** Documented limitation. Inner errors do not cascade to siblings. Current behavior (independent inner lifecycles) is more useful for parallel work. Document in JSDoc.
+
 ---
 
 ## Potential optimizations
@@ -666,11 +676,11 @@ Dirty/settled/completion tracking uses a `BitSet` abstraction: integer masks for
 
 ### 3. Optional production-time debug stripping
 
-**Status:** Not implemented  
-**Impact:** Low-medium (bundle + minor runtime)  
+**Status:** Resolved (2026-04-03) — infrastructure already in place
+**Impact:** Low-medium (bundle + minor runtime)
 **Priority:** Low
 
-As observability/debug hooks are added, a build-time stripped entry point could remove debug-only branches for production.
+`package.json` declares `"sideEffects": false` and the inspector gate uses standard `process.env.NODE_ENV === "production"` checks. Consumer bundlers (webpack, esbuild, Vite) automatically dead-code-eliminate these branches in production mode. No library-level `define` override needed — that would bake in a specific NODE_ENV at library build time, which is incorrect for a published package.
 
 ---
 
@@ -869,6 +879,6 @@ Applies to `src/extra/operators.ts` and `graphrefly.extra.tier2`. **Keep the tab
 | Batch drain resilience | Built-in | Fault-tolerant drain, correct nested deferral, cycle detection | All batch usage |
 | Sink snapshot during delivery | Built-in | Correct delivery when sinks mutate mid-iteration | Multi-subscriber nodes |
 | DIRTY→COMPLETE settlement | Built-in | Prevents stuck dirty status | Multi-dep nodes where a dep completes without settling |
-| Production debug stripping | Potential | Smaller bundle / less branch overhead | Production builds |
+| Production debug stripping | Resolved (§3) | `sideEffects: false` + `process.env.NODE_ENV` gate; consumer bundlers strip | Production builds |
 | COMPLETE-all-deps semantics | Resolved (§A) | Effect/operator default true; derived default false | `completeWhenDepsComplete` option |
 | `graph.disconnect` vs `NodeImpl` deps | Resolved (§C) | Registry-only is the long-term contract | Use `dynamicNode` for runtime rewiring |
