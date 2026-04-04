@@ -4,7 +4,7 @@
 
 One primitive. Zero dependencies. Composable nodes with glitch-free diamond resolution, two-phase push propagation, durable streaming, and framework adapters for React, Vue, Svelte, Solid, and NestJS.
 
-[![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly-ts?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly-ts)
+[![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
 
 [Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python](https://py.graphrefly.dev) | [API Reference](https://graphrefly.dev/api/node/)
@@ -14,11 +14,11 @@ One primitive. Zero dependencies. Composable nodes with glitch-free diamond reso
 ## Quick start
 
 ```bash
-npm install @graphrefly/graphrefly-ts
+npm install @graphrefly/graphrefly
 ```
 
 ```ts
-import { state, derived, effect } from "@graphrefly/graphrefly-ts";
+import { state, derived, effect } from "@graphrefly/graphrefly";
 
 const count = state(0);
 const doubled = derived([count], ([c]) => c * 2);
@@ -50,7 +50,7 @@ Most state libraries solve **one** problem well. GraphReFly solves the space bet
 Everything is a `node`. Sugar constructors give you the right shape:
 
 ```ts
-import { state, derived, producer, effect, pipe } from "@graphrefly/graphrefly-ts";
+import { state, derived, producer, effect, pipe } from "@graphrefly/graphrefly";
 
 // Writable state
 const name = state("world");
@@ -76,7 +76,7 @@ const delayed = pipe(clock, delay(500), map(([, ts]) => new Date(ts)));
 70+ operators — transform, combine, buffer, window, rate-limit, retry, circuit-break:
 
 ```ts
-import { pipe, merge, switchMap, debounceTime, retry } from "@graphrefly/graphrefly-ts";
+import { pipe, merge, switchMap, debounceTime, retry } from "@graphrefly/graphrefly";
 
 const search = pipe(
   input,
@@ -91,7 +91,7 @@ const search = pipe(
 Register nodes in a `Graph` for introspection, snapshot, and persistence:
 
 ```ts
-import { Graph, state, derived } from "@graphrefly/graphrefly-ts";
+import { Graph, state, derived } from "@graphrefly/graphrefly";
 
 const g = new Graph("pricing");
 const price = g.register("price", state(100));
@@ -108,7 +108,7 @@ g.observe((e) => console.log(e));  // → live change stream
 First-class patterns for LLM streaming, agent loops, and human-in-the-loop workflows:
 
 ```ts
-import { chatStream, agentLoop, toolRegistry } from "@graphrefly/graphrefly-ts";
+import { chatStream, agentLoop, toolRegistry } from "@graphrefly/graphrefly";
 
 // Streaming chat with tool use
 const chat = chatStream("assistant", {
@@ -129,23 +129,23 @@ Drop-in bindings — your framework, your way:
 
 ```tsx
 // React
-import { useNode } from "@graphrefly/graphrefly-ts/compat/react";
+import { useNode } from "@graphrefly/graphrefly/compat/react";
 const [value, setValue] = useNode(count);
 
 // Vue
-import { useNode } from "@graphrefly/graphrefly-ts/compat/vue";
+import { useNode } from "@graphrefly/graphrefly/compat/vue";
 const value = useNode(count);  // → Ref<number>
 
 // Svelte
-import { toStore } from "@graphrefly/graphrefly-ts/compat/svelte";
+import { toStore } from "@graphrefly/graphrefly/compat/svelte";
 const value = toStore(count);  // → Svelte store
 
 // Solid
-import { useNode } from "@graphrefly/graphrefly-ts/compat/solid";
+import { useNode } from "@graphrefly/graphrefly/compat/solid";
 const value = useNode(count);  // → Signal<number>
 
 // NestJS
-import { GraphReflyModule } from "@graphrefly/graphrefly-ts/compat/nestjs";
+import { GraphReflyModule } from "@graphrefly/graphrefly/compat/nestjs";
 @Module({ imports: [GraphReflyModule.forRoot()] })
 ```
 
@@ -154,15 +154,15 @@ import { GraphReflyModule } from "@graphrefly/graphrefly-ts/compat/nestjs";
 Prefer subpath imports for minimal bundle:
 
 ```ts
-import { node, batch, DATA } from "@graphrefly/graphrefly-ts/core";
-import { map, switchMap } from "@graphrefly/graphrefly-ts/extra";
-import { Graph } from "@graphrefly/graphrefly-ts/graph";
+import { node, batch, DATA } from "@graphrefly/graphrefly/core";
+import { map, switchMap } from "@graphrefly/graphrefly/extra";
+import { Graph } from "@graphrefly/graphrefly/graph";
 ```
 
 The root entry re-exports everything:
 
 ```ts
-import { node, map, Graph } from "@graphrefly/graphrefly-ts";
+import { node, map, Graph } from "@graphrefly/graphrefly";
 ```
 
 ## Resilience & checkpoints
@@ -170,7 +170,7 @@ import { node, map, Graph } from "@graphrefly/graphrefly-ts";
 Built-in retry, circuit breakers, rate limiters, and persistent checkpoints:
 
 ```ts
-import { retry, circuitBreaker, saveGraphCheckpoint, FileCheckpointAdapter } from "@graphrefly/graphrefly-ts";
+import { retry, circuitBreaker, saveGraphCheckpoint, FileCheckpointAdapter } from "@graphrefly/graphrefly";
 
 // Retry with exponential backoff
 const resilient = pipe(source, retry({ strategy: "exponential" }));
