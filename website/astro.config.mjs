@@ -1,5 +1,6 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
+import starlightBlog from "starlight-blog";
 
 /** GitHub Project Pages: set to `/repo-name/` (trailing slash). Root site: `'/'`. */
 const base = process.env.ASTRO_BASE_PATH ?? "/";
@@ -9,6 +10,17 @@ export default defineConfig({
 	base,
 	integrations: [
 		starlight({
+			plugins: [
+				starlightBlog({
+					title: "Blog",
+					authors: {
+						david: {
+							name: "David Chen",
+							title: "GraphReFly creator",
+						},
+					},
+				}),
+			],
 			title: "GraphReFly",
 			description: "Reactive graph protocol for human + LLM co-operation — TypeScript and Python.",
 			components: {
@@ -249,6 +261,18 @@ export default defineConfig({
 					label: "API — Graph",
 					collapsed: true,
 					items: [{ label: "Graph", link: "/api/graph" }],
+				},
+				{
+					label: "Comparisons",
+					items: [
+						{ label: "vs Zustand", link: "/comparisons/zustand" },
+						{ label: "vs Jotai", link: "/comparisons/jotai" },
+						{ label: "vs RxJS", link: "/comparisons/rxjs" },
+						{ label: "vs LangGraph.js", link: "/comparisons/langgraph" },
+						{ label: "vs Vercel AI SDK", link: "/comparisons/vercel-ai-sdk" },
+						{ label: "vs n8n", link: "/comparisons/n8n" },
+						{ label: "vs Apache Airflow", link: "/comparisons/airflow" },
+					],
 				},
 			],
 		}),
