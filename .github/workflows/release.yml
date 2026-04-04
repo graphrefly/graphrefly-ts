@@ -1,6 +1,11 @@
 # Publishes to npm when conventional commits on main warrant a release.
-# Add repo secret: NPM_TOKEN (automation token with publish access for @graphrefly).
-# Ensure GitHub Actions has workflow "Read and write" permissions (repo Settings → Actions → General).
+#
+# Auth today: repo secret NPM_TOKEN (automation token with publish for this package scope).
+# Later: switch to npm trusted publishing (OIDC from GitHub Actions) and remove NPM_TOKEN —
+# https://docs.npmjs.com/trusted-publishers
+#
+# Repo Settings → Actions → General: workflow permissions must allow read/write for releases.
+# id-token: write is kept for when OIDC publishing (and optional provenance) is configured.
 name: Release
 
 on:

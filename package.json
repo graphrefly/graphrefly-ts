@@ -145,8 +145,7 @@
 		"LICENSE"
 	],
 	"publishConfig": {
-		"access": "public",
-		"provenance": true
+		"access": "public"
 	},
 	"scripts": {
 		"prepublishOnly": "pnpm run build",
