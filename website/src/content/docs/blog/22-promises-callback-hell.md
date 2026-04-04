@@ -1,7 +1,7 @@
 ---
 title: "Promises Are the New Callback Hell"
 description: "How we eliminated every internal Promise from GraphReFly and replaced them with pure reactive sources - the patterns, the pitfalls, and why it matters."
-date: 2026-03-25
+date: 2026-03-25T12:00:00
 authors: [david]
 tags: [design-philosophy, correctness, architecture]
 ---

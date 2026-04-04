@@ -1,7 +1,7 @@
 ---
 title: "Why Signals Aren't Enough for AI Streaming"
 description: "Signals are great for local UI state, but AI streaming needs orchestration, cancellation, and durable flow semantics across system boundaries."
-date: 2026-03-25
+date: 2026-03-25T16:00:00
 authors: [david]
 tags: [design-philosophy, architecture]
 ---

@@ -1,6 +1,6 @@
 ---
 title: "From Zustand to Reactive Orchestration"
-date: 2026-03-25
+date: 2026-03-25T15:00:00
 authors: [david]
 tags: [migration, compat, zustand, adoption]
 ---

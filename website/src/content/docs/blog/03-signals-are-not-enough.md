@@ -1,7 +1,7 @@
 ---
 title: "Signals Are Not Enough"
 description: "TC39 Signals handle UI state beautifully. But streaming, orchestration, and diamond correctness need more. Here's where Signals stop and where GraphReFly begins."
-date: 2026-03-21
+date: 2026-03-21T13:00:00
 authors: [david]
 tags: [architecture, design-philosophy]
 ---

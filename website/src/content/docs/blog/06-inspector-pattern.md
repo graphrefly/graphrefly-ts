@@ -1,7 +1,7 @@
 ---
 title: "The Inspector Pattern: Observability as a First-Class Citizen"
 description: "GraphReFly keeps stores as plain { get, set?, source } objects. Names, edges, and debug hooks live in WeakMaps — so you only pay for observability when you use it."
-date: 2026-03-22
+date: 2026-03-22T13:00:00
 authors: [david]
 tags: [architecture, performance]
 ---

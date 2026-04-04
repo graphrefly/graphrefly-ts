@@ -1,7 +1,7 @@
 ---
 title: "Push Dirty, Pull Values: Our First Diamond Solution"
 description: "Before type 3 and RESOLVED, GraphReFly's predecessor solved the diamond problem with a simpler split: invalidate in one phase, compute in another. Here's how push-then-pull worked — and what it cost."
-date: 2026-03-22
+date: 2026-03-22T09:00:00
 authors: [david]
 tags: [architecture, correctness]
 ---

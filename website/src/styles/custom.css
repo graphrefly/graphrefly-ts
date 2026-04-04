@@ -181,3 +181,24 @@ body::before {
 	background-repeat: repeat;
 	background-size: 256px 256px;
 }
+
+/* ─── Blog date badges in sidebar ─── */
+.gr-date-badge {
+	font-size: 0.65rem;
+	font-family: var(--sl-font-system-mono, monospace);
+	opacity: 0.55;
+	margin-inline-start: auto;
+	padding: 0.1em 0.35em;
+	border: none;
+	background: transparent;
+	color: var(--sl-color-gray-3);
+	flex-shrink: 0;
+}
+
+/* ─── Blog sidebar: truncate long titles to 2 lines ─── */
+a:has(> .gr-date-badge) > span:first-child {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}

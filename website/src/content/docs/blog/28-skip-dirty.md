@@ -1,7 +1,7 @@
 ---
 title: "Skip DIRTY: How We Halved Dispatch for Single-Dep Paths"
 description: "How single-dependency optimization removed unnecessary DIRTY propagation and significantly reduced dispatch overhead in common linear paths."
-date: 2026-03-25
+date: 2026-03-25T17:00:00
 authors: [david]
 tags: [performance, correctness]
 ---

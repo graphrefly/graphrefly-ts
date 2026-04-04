@@ -1,6 +1,6 @@
 ---
 title: "The Road to GraphReFly"
-date: 2026-03-21
+date: 2026-03-21T09:00:00
 authors: [david]
 tags: [origins, design-philosophy, architecture]
 ---

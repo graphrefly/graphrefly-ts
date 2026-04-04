@@ -1,6 +1,6 @@
 ---
 title: "Protocol-First Thinking"
-date: 2026-03-21
+date: 2026-03-21T11:00:00
 authors: [david]
 tags: [architecture, design-philosophy, protocol]
 ---

@@ -1,6 +1,6 @@
 ---
 title: "Why Our Computed States Are Eagerly Reactive"
-date: 2026-03-25
+date: 2026-03-25T14:00:00
 authors: [david]
 tags: [architecture, correctness, performance]
 ---

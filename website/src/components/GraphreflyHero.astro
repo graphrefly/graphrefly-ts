@@ -572,15 +572,19 @@ const base = import.meta.env.BASE_URL;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--gr-muted);
-		margin-bottom: 16px;
+		margin-top: 0 !important;
+		margin-bottom: 8px !important;
+		text-align: center;
 	}
 	.gr-section-title {
 		font-size: clamp(2rem, 4vw, 3rem);
 		font-weight: 700;
 		letter-spacing: -0.02em;
 		line-height: 1.15;
-		margin-bottom: 20px;
+		margin-top: 0 !important;
+		margin-bottom: 12px !important;
 		color: var(--gr-text);
+		text-align: center;
 	}
 	.gr-section-sub {
 		font-size: 1.05rem;
@@ -731,7 +735,8 @@ const base = import.meta.env.BASE_URL;
 		font-size: clamp(2rem, 4vw, 3rem);
 		font-weight: 700;
 		letter-spacing: -0.02em;
-		margin-bottom: 16px;
+		margin-top: 0 !important;
+		margin-bottom: 12px !important;
 		color: var(--gr-text);
 	}
 	.gr-prism-title span {
@@ -767,28 +772,35 @@ const base = import.meta.env.BASE_URL;
 	.gr-code-card-top {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 14px 24px;
+		gap: 6px;
+		padding: 10px 16px;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 	}
 	.gr-code-dot {
-		width: 10px;
-		height: 10px;
+		width: 12px;
+		height: 12px;
 		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.12);
 		flex-shrink: 0;
+		margin-top: 0 !important;
+		margin-bottom: 0 !important;
 	}
+	.gr-code-card-top .gr-code-dot:nth-child(1) { background: #ff5f56; }
+	.gr-code-card-top .gr-code-dot:nth-child(2) { background: #ffbd2e; }
+	.gr-code-card-top .gr-code-dot:nth-child(3) { background: #27c93f; }
 	.gr-code-card-top span {
 		margin-left: auto;
 		font-size: 0.75rem;
 		color: var(--gr-muted);
 		font-family: 'Fira Code', monospace;
+		margin-top: 0 !important;
+		margin-bottom: 0 !important;
 	}
 	.gr-code-body {
 		padding: 28px 28px;
 		background: rgba(6, 6, 18, 0.6);
 		display: flex;
 		justify-content: center;
+		margin-top: 0 !important;
 	}
 	.gr-code-body pre {
 		margin: 0;
@@ -799,6 +811,10 @@ const base = import.meta.env.BASE_URL;
 		text-align: left;
 		max-width: 520px;
 		width: 100%;
+		padding: 0;
+		background: transparent;
+		border: none;
+		box-shadow: none;
 	}
 	.gr-code-body .kw { color: var(--gr-purple); }
 	.gr-code-body .fn { color: var(--gr-aqua); }

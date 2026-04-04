@@ -1,7 +1,7 @@
 ---
 title: "Output Slot: How null->fn->Set Saves 90% Memory"
 description: "How GraphReFly moved from eager Set allocation to a null->fn->Set output slot model and cut memory overhead for sparse reactive graphs."
-date: 2026-03-25
+date: 2026-03-25T08:00:00
 authors: [david]
 tags: [performance, architecture]
 ---

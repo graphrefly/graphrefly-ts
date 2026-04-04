@@ -1,6 +1,6 @@
 ---
 title: "Why Control Signals Don't Belong in the Data Stream"
-date: 2026-03-24
+date: 2026-03-24T11:00:00
 authors: [david]
 tags: [architecture, protocol, invariants]
 ---

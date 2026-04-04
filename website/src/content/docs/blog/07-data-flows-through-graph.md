@@ -1,6 +1,6 @@
 ---
 title: "Data Should Flow Through the Graph, Not Around It"
-date: 2026-03-23
+date: 2026-03-23T09:00:00
 authors: [david]
 tags: [architecture, two-phase-push, design-philosophy]
 ---

@@ -1,7 +1,7 @@
 ---
 title: "RESOLVED: The Signal That Skips Entire Subtrees"
 description: "After DIRTY, not every node emits DATA. RESOLVED completes the wave with no new value — clearing bitmasks and letting memoization skip work that would otherwise rerun."
-date: 2026-03-24
+date: 2026-03-24T13:00:00
 authors: [david]
 tags: [architecture, performance, correctness]
 ---

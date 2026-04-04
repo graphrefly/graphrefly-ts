@@ -1,7 +1,7 @@
 ---
 title: "Bitmask Flag Packing in TypeScript"
 description: "Why GraphReFly packs status and lifecycle flags into a single integer field, and how that improves object shape stability and hot-path performance."
-date: 2026-03-25
+date: 2026-03-25T09:00:00
 authors: [david]
 tags: [performance, architecture]
 ---

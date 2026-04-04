@@ -1,6 +1,6 @@
 ---
 title: "The Cost of Correctness"
-date: 2026-03-25
+date: 2026-03-25T11:00:00
 authors: [david]
 tags: [performance, correctness, benchmarks]
 ---

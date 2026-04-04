@@ -1,7 +1,7 @@
 ---
 title: "Why Explicit Dependencies Beat Magic Tracking"
 description: "Jotai and Signals auto-discover what you read. GraphReFly wires deps up front. That looks like boilerplate — until you debug a production graph."
-date: 2026-03-22
+date: 2026-03-22T11:00:00
 authors: [david]
 tags: [design-philosophy, correctness]
 ---

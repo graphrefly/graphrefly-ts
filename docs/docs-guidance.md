@@ -145,6 +145,40 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | Crawler directives | `robots.txt` (repo root) — synced to `website/public/` by build |
 | GitHub repo metadata | `gh repo edit` — description, topics, homepage URL |
 | npm metadata | `package.json` — description, keywords |
+| New blog post | `website/src/content/docs/blog/<slug>.md` — see blog post format below |
+
+---
+
+## Blog posts
+
+Blog posts live in `website/src/content/docs/blog/` and use the `starlight-blog` plugin (v0.25.x).
+
+### Frontmatter format
+
+```yaml
+---
+title: "Post Title"
+date: 2026-04-03T14:00:00
+authors: [david]
+tags: [architecture, performance]
+---
+```
+
+### Date field rules
+
+- **Always include a time component** (`T09:00:00`) in the `date` field — not just a bare date.
+- Posts with the same date sort by time. The filename number (e.g. `14-output-slot.md`) implies publication order; the time must match that order.
+- The sidebar and blog listing display **date only** (`MM/DD`) — the time is used solely for sort stability.
+- When adding a new post on a date that already has posts, pick a time that slots it in the correct order relative to existing posts on that date.
+
+### Naming convention
+
+- Filename: `<number>-<short-slug>.md` (e.g. `26-missing-middle.md`)
+- The number prefix preserves the chronicle order from the original callbag-recharge blog series. New posts continue the sequence.
+
+### Tags
+
+Use consistent tags across posts: `architecture`, `performance`, `correctness`, `design-philosophy`, `origins`, `announcements`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: "One Primitive, Two Tiers, Zero Schedulers"
-date: 2026-03-24
+date: 2026-03-24T15:00:00
 authors: [david]
 tags: [architecture, design-philosophy, primitives]
 ---

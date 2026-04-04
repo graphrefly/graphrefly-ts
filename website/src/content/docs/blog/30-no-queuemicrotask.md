@@ -1,7 +1,7 @@
 ---
 title: "Why We Don't Use queueMicrotask (And Neither Should You)"
 description: "Why GraphReFly avoids queueMicrotask for reactive coordination and prefers graph-native propagation to preserve glitch-free guarantees."
-date: 2026-03-25
+date: 2026-03-25T18:00:00
 authors: [david]
 tags: [correctness, design-philosophy]
 ---

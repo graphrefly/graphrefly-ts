@@ -3,6 +3,7 @@ import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter';
 import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro';
 import SidebarSublist from '@astrojs/starlight/components/SidebarSublist.astro';
 import type { SidebarEntry } from '@astrojs/starlight/utils/routing/types';
+import { getCollection } from 'astro:content';
 
 const { sidebar } = Astro.locals.starlightRoute;
 
@@ -15,12 +16,13 @@ if (base !== '/') {
 if (!pathname.startsWith('/')) pathname = `/${pathname}`;
 pathname = pathname.replace(/\/$/, '') || '/';
 
-type Mode = 'spec' | 'api' | 'comparisons' | 'blog' | 'lab' | 'all';
+type Mode = 'spec' | 'api' | 'comparisons' | 'recipes' | 'blog' | 'lab' | 'all';
 
 function routeMode(path: string): Mode {
 	if (path === '/spec' || path.startsWith('/spec/')) return 'spec';
 	if (path.startsWith('/api')) return 'api';
 	if (path.startsWith('/comparisons')) return 'comparisons';
+	if (path.startsWith('/recipes')) return 'recipes';
 	if (path.startsWith('/blog')) return 'blog';
 	if (path.startsWith('/lab')) return 'lab';
 	return 'all';
@@ -35,12 +37,95 @@ function groupMatchesPrefix(entry: SidebarEntry, prefix: string): boolean {
 
 function filterSidebar(entries: SidebarEntry[], m: Mode): SidebarEntry[] {
 	if (m === 'all') return entries;
-	if (m === 'blog') return []; // blog uses its own layout from the plugin
-	const prefix = m === 'spec' ? '/spec' : m === 'api' ? '/api/' : m === 'comparisons' ? '/comparisons/' : m === 'lab' ? '/lab/' : '/';
+	if (m === 'blog') return []; // handled separately below
+	const prefix = m === 'spec' ? '/spec' : m === 'api' ? '/api/' : m === 'comparisons' ? '/comparisons/' : m === 'recipes' ? '/recipes/' : m === 'lab' ? '/lab/' : '/';
 	return entries.filter((e) => groupMatchesPrefix(e, prefix));
 }
 
-const sublist = filterSidebar(sidebar, routeMode(pathname));
+// ── Blog sidebar: dynamic date-grouped entries ─────────────────────────────
+
+const mode = routeMode(pathname);
+let blogSublist: SidebarEntry[] = [];
+
+if (mode === 'blog') {
+	const now = new Date();
+	const allDocs = await getCollection('docs');
+
+	// Filter blog posts (have a date field, path starts with blog/)
+	const blogPosts = allDocs
+		.filter((doc) => {
+			const isBlog = doc.id.startsWith('blog/');
+			const hasDate = doc.data?.date;
+			const isWelcome = doc.id === 'blog/welcome';
+			return isBlog && hasDate && !isWelcome;
+		})
+		.map((doc) => ({
+			id: doc.id,
+			title: doc.data.title as string,
+			date: new Date(doc.data.date as string | Date),
+			slug: doc.id.replace(/^blog\//, '').replace(/\.mdx?$/, ''),
+		}))
+		.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+	// Relative date buckets
+	const dayMs = 86400000;
+	const fiveDaysAgo = new Date(now.getTime() - 5 * dayMs);
+	const thirtyDaysAgo = new Date(now.getTime() - 30 * dayMs);
+	const oneYearAgo = new Date(now.getTime() - 365 * dayMs);
+
+	type Bucket = { label: string; posts: typeof blogPosts };
+	const buckets: Bucket[] = [
+		{ label: 'Last 5 days', posts: [] },
+		{ label: 'Last 30 days', posts: [] },
+		{ label: 'Last year', posts: [] },
+		{ label: 'Older', posts: [] },
+	];
+
+	for (const post of blogPosts) {
+		if (post.date >= fiveDaysAgo) buckets[0].posts.push(post);
+		else if (post.date >= thirtyDaysAgo) buckets[1].posts.push(post);
+		else if (post.date >= oneYearAgo) buckets[2].posts.push(post);
+		else buckets[3].posts.push(post);
+	}
+
+	// Overview link (the welcome post serves as the blog overview)
+	const overviewEntry: SidebarEntry = {
+		type: 'link',
+		label: 'Overview',
+		href: `${base}blog/welcome/`,
+		isCurrent: pathname === '/blog/welcome',
+		badge: undefined,
+		attrs: {},
+	};
+
+	blogSublist.push(overviewEntry);
+
+	function formatDate(d: Date): string {
+		return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+	}
+
+	// Build sidebar groups from non-empty buckets
+	for (const bucket of buckets) {
+		if (bucket.posts.length === 0) continue;
+		const entries: SidebarEntry[] = bucket.posts.map((post) => ({
+			type: 'link' as const,
+			label: post.title,
+			href: `${base}blog/${post.slug}/`,
+			isCurrent: pathname === `/blog/${post.slug}`,
+			badge: { text: formatDate(post.date), variant: 'note' as const, class: 'gr-date-badge' },
+			attrs: {},
+		}));
+		blogSublist.push({
+			type: 'group',
+			label: `${bucket.label} (${bucket.posts.length})`,
+			entries,
+			collapsed: blogSublist.length > 2, // collapse all but first non-empty bucket
+			badge: undefined,
+		});
+	}
+}
+
+const sublist = mode === 'blog' ? blogSublist : filterSidebar(sidebar, mode);
 ---
 
 <SidebarPersister>

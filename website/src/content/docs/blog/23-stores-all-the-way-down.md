@@ -1,6 +1,6 @@
 ---
 title: "Stores All the Way Down"
-date: 2026-03-25
+date: 2026-03-25T13:00:00
 authors: [david]
 tags: [architecture, design-philosophy, state]
 ---

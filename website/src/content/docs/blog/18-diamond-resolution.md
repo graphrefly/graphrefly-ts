@@ -1,7 +1,7 @@
 ---
 title: "Diamond Resolution Without Pull-Phase Computation"
 description: "How push-phase memoization and DIRTY/RESOLVED control signals solve diamond graphs without reintroducing pull-phase recomputation."
-date: 2026-03-25
+date: 2026-03-25T10:00:00
 authors: [david]
 tags: [correctness, architecture]
 ---

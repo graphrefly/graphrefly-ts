@@ -1,7 +1,7 @@
 ---
 title: "Two-Phase Push: DIRTY First, Values Second"
 description: "Phase 1 marks the graph; phase 2 delivers values through the same callbag sinks. Here's how pending counts, diamonds, and batching compose in GraphReFly — without a second data plane."
-date: 2026-03-23
+date: 2026-03-23T11:00:00
 authors: [david]
 tags: [architecture, correctness]
 ---

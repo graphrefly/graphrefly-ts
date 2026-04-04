@@ -1,6 +1,6 @@
 ---
 title: "The Day We Read the Spec (Again)"
-date: 2026-03-24
+date: 2026-03-24T09:00:00
 authors: [david]
 tags: [architecture, protocol, lessons-learned]
 ---

@@ -274,6 +274,12 @@ export default defineConfig({
 						{ label: "vs Apache Airflow", link: "/comparisons/airflow" },
 					],
 				},
+				{
+					label: "Recipes",
+					items: [
+						{ label: "From callbag-recharge", link: "/recipes/from-callbag-recharge" },
+					],
+				},
 			],
 		}),
 	],
