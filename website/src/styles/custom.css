@@ -10,7 +10,7 @@
 	--gr-surface: #0e1020;
 	--gr-surface-raised: #14162a;
 	--gr-text: #f0f4ff;
-	--gr-text-muted: #8899b0;
+	--gr-text-muted: #a0b3c8;
 	--gr-accent-warm: #f0a858;
 	--gr-border: #1e2444;
 	--gr-border-subtle: #161a32;
@@ -21,8 +21,8 @@
 	--sl-color-white: #f0f4ff;
 	--sl-color-gray-1: var(--gr-text);
 	--sl-color-gray-2: var(--gr-text-muted);
-	--sl-color-gray-3: #6b7f99;
-	--sl-color-gray-4: #4a5f7a;
+	--sl-color-gray-3: #8095ad;
+	--sl-color-gray-4: #5e7a96;
 	--sl-color-gray-5: var(--gr-border);
 	--sl-color-gray-6: var(--gr-surface-raised);
 	--sl-color-black: var(--gr-deep);

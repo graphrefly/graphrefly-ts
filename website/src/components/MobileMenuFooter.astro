@@ -1,8 +1,22 @@
 ---
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
 import SocialIcons from 'virtual:starlight/components/SocialIcons';
+
+const base = import.meta.env.BASE_URL;
+const apiHref = `${base}api/node/`;
 ---
 
+<nav class="gr-mobile-nav" aria-label="Quick links">
+	<a href={`${base}spec/`} class="gr-mobile-nav-link">SPEC</a>
+	<a href={apiHref} class="gr-mobile-nav-link">API</a>
+	<a href={`${base}comparisons/zustand/`} class="gr-mobile-nav-link">COMPARE</a>
+	<a href={`${base}recipes/from-callbag-recharge/`} class="gr-mobile-nav-link">RECIPES</a>
+	<a href={`${base}blog/welcome/`} class="gr-mobile-nav-link">BLOG</a>
+</nav>
+<nav class="gr-mobile-lang" aria-label="Language">
+	<span class="gr-mobile-lang-link gr-mobile-lang-active">TS</span>
+	<a href="https://py.graphrefly.dev/" class="gr-mobile-lang-link">PY</a>
+</nav>
 <div class="mobile-preferences sl-flex">
 	<div class="social-icons">
 		<SocialIcons />
@@ -12,6 +26,54 @@ import SocialIcons from 'virtual:starlight/components/SocialIcons';
 
 <style>
 	@layer starlight.core {
+		.gr-mobile-nav {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem;
+			padding: 0.75rem 0;
+			border-top: 1px solid var(--sl-color-gray-6);
+		}
+		.gr-mobile-nav-link {
+			font-size: var(--sl-text-xs);
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			text-decoration: none;
+			color: var(--sl-color-gray-2);
+			padding: 0.4em 0.6em;
+			border-radius: 0.375rem;
+			border: 1px solid var(--sl-color-gray-5);
+		}
+		.gr-mobile-nav-link:hover {
+			color: var(--sl-color-text-accent);
+			border-color: var(--sl-color-text-accent);
+		}
+		.gr-mobile-lang {
+			display: flex;
+			gap: 0.25rem;
+			align-items: center;
+			padding: 0.5rem 0;
+		}
+		.gr-mobile-lang-link {
+			font-size: var(--sl-text-xs);
+			font-weight: 700;
+			letter-spacing: 0.05em;
+			text-decoration: none;
+			color: var(--sl-color-gray-3);
+			padding: 0.25em 0.6em;
+			border-radius: 0.25rem;
+			border: 1px solid var(--sl-color-gray-5);
+		}
+		.gr-mobile-lang-link:hover {
+			color: var(--sl-color-text-accent);
+		}
+		.gr-mobile-lang-active {
+			background: var(--sl-color-text-accent);
+			color: var(--sl-color-black);
+			border-color: var(--sl-color-text-accent);
+		}
+		.gr-mobile-lang-active:hover {
+			color: var(--sl-color-black);
+		}
 		.social-icons {
 			display: flex;
 			margin-inline-end: auto;

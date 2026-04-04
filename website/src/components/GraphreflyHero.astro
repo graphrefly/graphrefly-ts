@@ -275,7 +275,7 @@ const base = import.meta.env.BASE_URL;
 		--gr-glass-border: rgba(255,255,255,0.08);
 		--gr-glass-border-hover: rgba(255,255,255,0.18);
 		--gr-text: #f0f4ff;
-		--gr-muted: #8899b0;
+		--gr-muted: #a0b3c8;
 		--gr-bg-start: #0a0a1a;
 		--gr-bg-mid: #0d1525;
 		--gr-bg-end: #0a1628;
@@ -503,7 +503,7 @@ const base = import.meta.env.BASE_URL;
 		border: none;
 		border-left: 1px solid rgba(255, 255, 255, 0.1);
 		background: rgba(255, 255, 255, 0.06);
-		color: var(--gr-muted);
+		color: var(--gr-text);
 		font-size: 0.75rem;
 		font-weight: 600;
 		letter-spacing: 0.06em;
@@ -575,8 +575,8 @@ const base = import.meta.env.BASE_URL;
 
 	.gr-btn-ghost {
 		background: rgba(255,255,255,0.05);
-		border: 1px solid rgba(255,255,255,0.1);
-		color: var(--gr-muted);
+		border: 1px solid rgba(255,255,255,0.12);
+		color: var(--gr-text);
 		backdrop-filter: blur(12px);
 	}
 	.gr-btn-ghost:hover {
@@ -848,9 +848,9 @@ const base = import.meta.env.BASE_URL;
 	.gr-code-body .fn { color: var(--gr-aqua); }
 	.gr-code-body .str { color: var(--gr-pink); }
 	.gr-code-body .num { color: var(--gr-amber); }
-	.gr-code-body .cm { color: #5a6a80; font-style: italic; }
-	.gr-code-body .br { color: rgba(255,255,255,0.35); }
-	.gr-code-body .op { color: rgba(255,255,255,0.5); }
+	.gr-code-body .cm { color: #7a8ea4; font-style: italic; }
+	.gr-code-body .br { color: rgba(255,255,255,0.5); }
+	.gr-code-body .op { color: rgba(255,255,255,0.65); }
 	.gr-code-body .pr { color: var(--gr-text); }
 	.gr-code-body .type { color: #7dd3fc; }
 
@@ -1063,23 +1063,62 @@ const base = import.meta.env.BASE_URL;
 
 	/* ── RESPONSIVE ── */
 	@media (max-width: 768px) {
-		.gr-hero { padding: 56px 20px 60px; }
-		.gr-features-grid { grid-template-columns: 1fr; }
+		.gr-hero { padding: 56px 16px 60px; min-height: 90vh; }
+		.gr-hero-inner { max-width: 100%; padding: 0 4px; }
+		.gr-title { font-size: clamp(2.4rem, 10vw, 3.5rem); margin-bottom: 16px; }
+		.gr-tagline { font-size: 1rem; margin-bottom: 32px; }
+		.gr-kicker { font-size: 0.7rem; padding: 6px 14px; margin-bottom: 24px; }
+
+		.gr-hero-buttons { max-width: 100%; }
+		.gr-hero-row { flex-direction: column; align-items: stretch; }
+		.gr-install-box { max-width: 100%; flex: 1 1 auto; }
+		.gr-hero-gh { min-width: auto; }
+		.gr-hero-row--cta { flex-direction: row; }
+		.gr-hero-row--cta .gr-btn { flex: 1 1 0; padding: 12px 16px; font-size: 0.85rem; text-align: center; justify-content: center; }
+
+		.gr-features-grid { grid-template-columns: 1fr; gap: 16px; margin-top: 40px; }
+		.gr-feature-card { padding: 28px 24px; }
+		.gr-feature-card p { font-size: 0.88rem; }
+
+		.gr-prism-visual { height: 200px; margin-bottom: 32px; }
+
+		.gr-code-card { margin-top: 32px; border-radius: 16px; }
+		.gr-code-body { padding: 20px 16px; }
+		.gr-code-body pre { font-size: 0.75rem; line-height: 1.7; }
+
 		.gr-impl-grid {
 			grid-template-columns: 1fr;
-			max-width: 400px;
+			max-width: 100%;
+			gap: 20px;
 		}
+		.gr-impl-card { padding: 36px 24px; }
 		.gr-impl-connector {
 			flex-direction: row;
 			width: 100%;
 			justify-content: center;
 		}
 		.gr-impl-line { width: 40px; height: 2px; }
-		.gr-usecases-grid { flex-direction: column; align-items: center; }
+
+		.gr-usecases-grid { flex-direction: column; align-items: stretch; gap: 12px; margin-top: 40px; }
+		.gr-usecase-card { max-width: 100%; flex: none; }
 		.gr-usecase-card:nth-child(even) { transform: none; }
 		.gr-usecase-card:nth-child(even).visible { transform: none; }
 		.gr-usecase-card:nth-child(even):hover { transform: translateY(-4px); }
-		.gr-home section { padding: 80px 20px; }
+
+		.gr-home section { padding: 64px 16px; }
+		.gr-section-title { font-size: clamp(1.6rem, 5vw, 2.2rem); }
+		.gr-section-sub { font-size: 0.95rem; }
+	}
+
+	/* Small phones */
+	@media (max-width: 400px) {
+		.gr-hero { padding: 48px 12px 48px; }
+		.gr-title { font-size: 2.2rem; }
+		.gr-hero-row--cta { flex-direction: column; }
+		.gr-hero-row--cta .gr-btn { flex: none; }
+		.gr-feature-card { padding: 24px 20px; }
+		.gr-code-body pre { font-size: 0.7rem; }
+		.gr-home section { padding: 48px 12px; }
 	}
 </style>
 

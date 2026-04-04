@@ -395,20 +395,20 @@ Connectors for the universal reduction layer (Phase 8). Each wraps an external p
 - [x] `fromRedisStream(client, key, opts?)` / `toRedisStream(source, client, key, opts?)` — Redis Streams (ioredis/redis-compatible interface)
 - [x] `fromCSV(source, opts?)` / `fromNDJSON(source, opts?)` — async iterable ingest for batch replay
 - [x] `fromClickHouseWatch(client, query, opts?)` — live materialized view as reactive source
-- [ ] `fromPulsar(consumer, topic, opts?)` / `toPulsar(source, producer, topic, opts?)` — Apache Pulsar native client
-- [ ] `fromNATS(client, subject, opts?)` / `toNATS(source, client, subject, opts?)` — NATS consumer/producer
-- [ ] `fromRabbitMQ(channel, queue, opts?)` / `toRabbitMQ(source, channel, exchange, opts?)` — RabbitMQ consumer/producer
+- [x] `fromPulsar(consumer, opts?)` / `toPulsar(source, producer, opts?)` — Apache Pulsar native client
+- [x] `fromNATS(client, subject, opts?)` / `toNATS(source, client, subject, opts?)` — NATS consumer/producer
+- [x] `fromRabbitMQ(channel, queue, opts?)` / `toRabbitMQ(source, channel, exchange, opts?)` — RabbitMQ consumer/producer
 
 ### 5.2d — Storage & sink adapters
 
-- [ ] `toClickHouse(table, opts?)` — buffered batch insert sink
-- [ ] `toS3(bucket, opts?)` — object storage sink (Parquet/NDJSON, partitioned)
-- [ ] `toPostgres(table, opts?)` / `toMongo(collection, opts?)` — document/relational sink
-- [ ] `toLoki(opts?)` / `toTempo(opts?)` — Grafana stack sinks
-- [ ] `checkpointToS3(bucket, opts?)` — graph snapshot persistence to object storage
-- [ ] `checkpointToRedis(prefix, opts?)` — fast checkpoint for ephemeral infra
-- [ ] `toFile(path, opts?)` — file sink (append/overwrite modes)
-- [ ] `toCSV(path, opts?)` — CSV file sink with header management
+- [x] `toClickHouse(table, opts?)` — buffered batch insert sink
+- [x] `toS3(bucket, opts?)` — object storage sink (NDJSON/JSON, partitioned)
+- [x] `toPostgres(table, opts?)` / `toMongo(collection, opts?)` — document/relational sink
+- [x] `toLoki(opts?)` / `toTempo(opts?)` — Grafana stack sinks
+- [x] `checkpointToS3(bucket, opts?)` — graph snapshot persistence to object storage
+- [x] `checkpointToRedis(prefix, opts?)` — fast checkpoint for ephemeral infra
+- [x] `toFile(path, opts?)` — file sink (append/overwrite modes)
+- [x] `toCSV(path, opts?)` — CSV file sink with header management
 
 ### 5.3 — Worker bridge
 

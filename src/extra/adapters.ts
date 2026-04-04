@@ -9,12 +9,21 @@
  *
  * **New (5.2c):** fromOTel, fromSyslog, fromStatsD, fromPrometheus,
  * fromKafka/toKafka, fromRedisStream/toRedisStream, fromCSV, fromNDJSON,
- * fromClickHouseWatch.
+ * fromClickHouseWatch, fromPulsar/toPulsar, fromNATS/toNATS,
+ * fromRabbitMQ/toRabbitMQ.
  */
 
 import { batch } from "../core/batch.js";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Message,
+	RESOLVED,
+	TEARDOWN,
+} from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
@@ -24,7 +33,7 @@ import { globToRegExp, matchesAnyPattern } from "./sources.js";
 
 /** Structured callback for sink transport failures (Kafka, Redis, etc.). */
 export type SinkTransportError = {
-	stage: "serialize" | "send";
+	stage: "serialize" | "send" | "routing_key";
 	error: Error;
 	value: unknown;
 };
@@ -2066,4 +2075,1517 @@ export function fromClickHouseWatch(
 			externalSignal?.removeEventListener("abort", onAbort);
 		};
 	}, sourceOpts(rest));
+}
+
+// ——— Apache Pulsar (native client) ———
+
+/** Duck-typed Pulsar consumer (compatible with pulsar-client). */
+export type PulsarConsumerLike = {
+	receive(): Promise<{
+		getData(): Buffer;
+		getMessageId(): { toString(): string };
+		getPartitionKey(): string;
+		getProperties(): Record<string, string>;
+		getPublishTimestamp(): number;
+		getEventTimestamp(): number;
+		getTopicName(): string;
+	}>;
+	acknowledge(msg: unknown): Promise<void>;
+	close(): Promise<void>;
+};
+
+/** Duck-typed Pulsar producer. */
+export type PulsarProducerLike = {
+	send(msg: {
+		data: Buffer;
+		partitionKey?: string;
+		properties?: Record<string, string>;
+	}): Promise<void>;
+	close(): Promise<void>;
+};
+
+/** Structured Pulsar message. */
+export type PulsarMessage<T = unknown> = {
+	topic: string;
+	messageId: string;
+	key: string;
+	value: T;
+	properties: Record<string, string>;
+	publishTime: number;
+	eventTime: number;
+	timestampNs: number;
+};
+
+/** Options for {@link fromPulsar}. */
+export type FromPulsarOptions = ExtraOpts & {
+	/** Deserialize message data. Default: `JSON.parse(buffer.toString())`. */
+	deserialize?: (data: Buffer) => unknown;
+	/** Acknowledge messages automatically. Default: `true`. */
+	autoAck?: boolean;
+};
+
+/**
+ * Apache Pulsar consumer as a reactive source (native client).
+ *
+ * Wraps a `pulsar-client`-compatible consumer. Each message becomes a `DATA` emission.
+ * For Kafka-on-Pulsar (KoP), use {@link fromKafka} instead.
+ *
+ * @param consumer - Pulsar consumer instance (caller owns create/close lifecycle).
+ * @param opts - Deserialization and source options.
+ * @returns `Node<PulsarMessage<T>>` — one `DATA` per Pulsar message.
+ *
+ * @remarks
+ * Teardown sets an internal flag but cannot interrupt a pending `consumer.receive()`.
+ * The loop exits on the next message or when the consumer is closed externally.
+ * Callers should call `consumer.close()` after unsubscribing for prompt cleanup.
+ *
+ * @example
+ * ```ts
+ * import Pulsar from "pulsar-client";
+ * import { fromPulsar } from "@graphrefly/graphrefly-ts";
+ *
+ * const client = new Pulsar.Client({ serviceUrl: "pulsar://localhost:6650" });
+ * const consumer = await client.subscribe({ topic: "events", subscription: "my-sub" });
+ * const events$ = fromPulsar(consumer);
+ * ```
+ *
+ * @category extra
+ */
+export function fromPulsar<T = unknown>(
+	consumer: PulsarConsumerLike,
+	opts?: FromPulsarOptions,
+): Node<PulsarMessage<T>> {
+	const {
+		autoAck = true,
+		deserialize = (buf: Buffer) => {
+			try {
+				return JSON.parse(buf.toString());
+			} catch {
+				return buf.toString();
+			}
+		},
+		...rest
+	} = opts ?? {};
+
+	return producer<PulsarMessage<T>>((_d, a) => {
+		let active = true;
+
+		const loop = async () => {
+			while (active) {
+				try {
+					const msg = await consumer.receive();
+					if (!active) return;
+					a.emit({
+						topic: msg.getTopicName(),
+						messageId: msg.getMessageId().toString(),
+						key: msg.getPartitionKey(),
+						value: deserialize(msg.getData()) as T,
+						properties: msg.getProperties(),
+						publishTime: msg.getPublishTimestamp(),
+						eventTime: msg.getEventTimestamp(),
+						timestampNs: wallClockNs(),
+					});
+					if (autoAck) await consumer.acknowledge(msg);
+				} catch (err) {
+					if (active) a.down([[ERROR, err]]);
+					return;
+				}
+			}
+		};
+
+		void loop();
+
+		return () => {
+			active = false;
+		};
+	}, sourceOpts(rest));
+}
+
+/** Options for {@link toPulsar}. */
+export type ToPulsarOptions<T> = ExtraOpts & {
+	/** Serialize value for Pulsar. Default: `JSON.stringify` → Buffer. */
+	serialize?: (value: T) => Buffer;
+	/** Extract partition key from value. Default: none. */
+	keyExtractor?: (value: T) => string | undefined;
+	/** Extract properties from value. */
+	propertiesExtractor?: (value: T) => Record<string, string> | undefined;
+	/** Called on serialization or send failures. */
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * Pulsar producer sink — forwards upstream `DATA` to a Pulsar topic.
+ *
+ * @param source - Upstream node to forward.
+ * @param pulsarProducer - Pulsar producer instance (caller owns lifecycle).
+ * @param opts - Serialization options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toPulsar<T>(
+	source: Node<T>,
+	pulsarProducer: PulsarProducerLike,
+	opts?: ToPulsarOptions<T>,
+): () => void {
+	const {
+		serialize = (v: T) => Buffer.from(JSON.stringify(v)),
+		keyExtractor,
+		propertiesExtractor,
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let data: Buffer;
+				try {
+					data = serialize(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				void pulsarProducer
+					.send({
+						data,
+						partitionKey: keyExtractor?.(value),
+						properties: propertiesExtractor?.(value),
+					})
+					.catch((err: unknown) => {
+						onTransportError?.({
+							stage: "send",
+							error: err instanceof Error ? err : new Error(String(err)),
+							value,
+						});
+					});
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— NATS ———
+
+/** Duck-typed NATS subscription (compatible with nats.js). */
+export type NATSSubscriptionLike = AsyncIterable<{
+	subject: string;
+	data: Uint8Array;
+	headers?: { get(key: string): string; keys(): string[] };
+	reply?: string;
+	sid: number;
+}>;
+
+/** Duck-typed NATS client (compatible with nats.js). */
+export type NATSClientLike = {
+	subscribe(subject: string, opts?: { queue?: string }): NATSSubscriptionLike;
+	publish(subject: string, data?: Uint8Array, opts?: { headers?: unknown; reply?: string }): void;
+	drain(): Promise<void>;
+};
+
+/** Structured NATS message. */
+export type NATSMessage<T = unknown> = {
+	subject: string;
+	data: T;
+	headers: Record<string, string>;
+	reply: string | undefined;
+	sid: number;
+	timestampNs: number;
+};
+
+/** Options for {@link fromNATS}. */
+export type FromNATSOptions = ExtraOpts & {
+	/** Queue group name for load balancing. */
+	queue?: string;
+	/** Deserialize message data. Default: `JSON.parse(textDecoder.decode(data))`. */
+	deserialize?: (data: Uint8Array) => unknown;
+};
+
+/**
+ * NATS consumer as a reactive source.
+ *
+ * Wraps a `nats.js`-compatible client subscription. Each message becomes a `DATA` emission.
+ *
+ * @param client - NATS client instance (caller owns connect/drain lifecycle).
+ * @param subject - Subject to subscribe to (supports wildcards).
+ * @param opts - Queue group, deserialization, and source options.
+ * @returns `Node<NATSMessage<T>>` — one `DATA` per NATS message.
+ *
+ * @remarks
+ * Teardown sets an internal flag but cannot break the async iterator. The loop
+ * exits on the next message or when the subscription is drained/unsubscribed
+ * externally. Call `client.drain()` after unsubscribing for prompt cleanup.
+ *
+ * @example
+ * ```ts
+ * import { connect } from "nats";
+ * import { fromNATS } from "@graphrefly/graphrefly-ts";
+ *
+ * const nc = await connect({ servers: "localhost:4222" });
+ * const events$ = fromNATS(nc, "events.>");
+ * ```
+ *
+ * @category extra
+ */
+export function fromNATS<T = unknown>(
+	client: NATSClientLike,
+	subject: string,
+	opts?: FromNATSOptions,
+): Node<NATSMessage<T>> {
+	const decoder = new TextDecoder();
+	const {
+		queue,
+		deserialize = (data: Uint8Array) => {
+			const text = decoder.decode(data);
+			try {
+				return JSON.parse(text);
+			} catch {
+				return text;
+			}
+		},
+		...rest
+	} = opts ?? {};
+
+	return producer<NATSMessage<T>>((_d, a) => {
+		let active = true;
+		const sub = client.subscribe(subject, queue ? { queue } : undefined);
+
+		const loop = async () => {
+			try {
+				for await (const msg of sub) {
+					if (!active) return;
+					const headers: Record<string, string> = {};
+					if (msg.headers) {
+						for (const k of msg.headers.keys()) {
+							headers[k] = msg.headers.get(k);
+						}
+					}
+					a.emit({
+						subject: msg.subject,
+						data: deserialize(msg.data) as T,
+						headers,
+						reply: msg.reply,
+						sid: msg.sid,
+						timestampNs: wallClockNs(),
+					});
+				}
+				// Subscription closed (drain or unsubscribe) — complete.
+				if (active) a.down([[COMPLETE]]);
+			} catch (err) {
+				if (active) a.down([[ERROR, err]]);
+			}
+		};
+
+		void loop();
+
+		return () => {
+			active = false;
+		};
+	}, sourceOpts(rest));
+}
+
+/** Options for {@link toNATS}. */
+export type ToNATSOptions<T> = ExtraOpts & {
+	/** Serialize value for NATS. Default: `JSON.stringify` → Uint8Array. */
+	serialize?: (value: T) => Uint8Array;
+	/** Called on serialization failures. */
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * NATS publisher sink — forwards upstream `DATA` to a NATS subject.
+ *
+ * @param source - Upstream node to forward.
+ * @param client - NATS client instance.
+ * @param subject - Target subject.
+ * @param opts - Serialization options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toNATS<T>(
+	source: Node<T>,
+	client: NATSClientLike,
+	subject: string,
+	opts?: ToNATSOptions<T>,
+): () => void {
+	const encoder = new TextEncoder();
+	const {
+		serialize = (v: T) => encoder.encode(JSON.stringify(v)),
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let data: Uint8Array;
+				try {
+					data = serialize(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				try {
+					client.publish(subject, data);
+				} catch (err) {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				}
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— RabbitMQ ———
+
+/** Duck-typed RabbitMQ channel (compatible with amqplib). */
+export type RabbitMQChannelLike = {
+	consume(
+		queue: string,
+		onMessage: (
+			msg: {
+				content: Buffer;
+				fields: {
+					routingKey: string;
+					exchange: string;
+					deliveryTag: number;
+					redelivered: boolean;
+				};
+				properties: Record<string, unknown>;
+			} | null,
+		) => void,
+		opts?: { noAck?: boolean },
+	): Promise<{ consumerTag: string }>;
+	cancel(consumerTag: string): Promise<void>;
+	ack(msg: unknown): void;
+	publish(
+		exchange: string,
+		routingKey: string,
+		content: Buffer,
+		opts?: Record<string, unknown>,
+	): boolean;
+	sendToQueue(queue: string, content: Buffer, opts?: Record<string, unknown>): boolean;
+};
+
+/** Structured RabbitMQ message. */
+export type RabbitMQMessage<T = unknown> = {
+	queue: string;
+	routingKey: string;
+	exchange: string;
+	content: T;
+	properties: Record<string, unknown>;
+	deliveryTag: number;
+	redelivered: boolean;
+	timestampNs: number;
+};
+
+/** Options for {@link fromRabbitMQ}. */
+export type FromRabbitMQOptions = ExtraOpts & {
+	/** Deserialize message content. Default: `JSON.parse(buffer.toString())`. */
+	deserialize?: (content: Buffer) => unknown;
+	/** Auto-acknowledge messages. Default: `true`. */
+	autoAck?: boolean;
+};
+
+/**
+ * RabbitMQ consumer as a reactive source.
+ *
+ * Wraps an `amqplib`-compatible channel. Each message becomes a `DATA` emission.
+ *
+ * @param channel - AMQP channel instance (caller owns connection/channel lifecycle).
+ * @param queue - Queue to consume from.
+ * @param opts - Deserialization and acknowledgment options.
+ * @returns `Node<RabbitMQMessage<T>>` — one `DATA` per RabbitMQ message.
+ *
+ * @remarks
+ * When `autoAck` is `false`, the adapter opens the channel with `noAck: false`
+ * (broker requires acks) but does not call `channel.ack()`. The caller must ack
+ * messages externally using the `deliveryTag` from the emitted {@link RabbitMQMessage}:
+ * ```ts
+ * channel.ack({ fields: { deliveryTag: msg.deliveryTag } } as any);
+ * ```
+ *
+ * @example
+ * ```ts
+ * import amqplib from "amqplib";
+ * import { fromRabbitMQ } from "@graphrefly/graphrefly-ts";
+ *
+ * const conn = await amqplib.connect("amqp://localhost");
+ * const ch = await conn.createChannel();
+ * await ch.assertQueue("events");
+ * const events$ = fromRabbitMQ(ch, "events");
+ * ```
+ *
+ * @category extra
+ */
+export function fromRabbitMQ<T = unknown>(
+	channel: RabbitMQChannelLike,
+	queue: string,
+	opts?: FromRabbitMQOptions,
+): Node<RabbitMQMessage<T>> {
+	const {
+		autoAck = true,
+		deserialize = (buf: Buffer) => {
+			try {
+				return JSON.parse(buf.toString());
+			} catch {
+				return buf.toString();
+			}
+		},
+		...rest
+	} = opts ?? {};
+
+	return producer<RabbitMQMessage<T>>((_d, a) => {
+		let active = true;
+		let consumerTag: string | undefined;
+
+		const start = async () => {
+			try {
+				const result = await channel.consume(
+					queue,
+					(msg) => {
+						if (!active) return;
+						if (msg === null) {
+							// Broker cancelled the consumer (queue deleted, etc.).
+							if (active) a.down([[ERROR, new Error("Consumer cancelled by broker")]]);
+							return;
+						}
+						a.emit({
+							queue,
+							routingKey: msg.fields.routingKey,
+							exchange: msg.fields.exchange,
+							content: deserialize(msg.content) as T,
+							properties: msg.properties,
+							deliveryTag: msg.fields.deliveryTag,
+							redelivered: msg.fields.redelivered,
+							timestampNs: wallClockNs(),
+						});
+						if (autoAck) channel.ack(msg);
+					},
+					{ noAck: false },
+				);
+				consumerTag = result.consumerTag;
+			} catch (err) {
+				if (active) a.down([[ERROR, err]]);
+			}
+		};
+
+		void start();
+
+		return () => {
+			active = false;
+			if (consumerTag !== undefined) {
+				void channel.cancel(consumerTag);
+			}
+		};
+	}, sourceOpts(rest));
+}
+
+/** Options for {@link toRabbitMQ}. */
+export type ToRabbitMQOptions<T> = ExtraOpts & {
+	/** Serialize value for RabbitMQ. Default: `Buffer.from(JSON.stringify(value))`. */
+	serialize?: (value: T) => Buffer;
+	/** Extract routing key from value. Default: `""`. */
+	routingKeyExtractor?: (value: T) => string;
+	/** Called on serialization or send failures. */
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * RabbitMQ producer sink — forwards upstream `DATA` to a RabbitMQ exchange/queue.
+ *
+ * @param source - Upstream node to forward.
+ * @param channel - AMQP channel instance.
+ * @param exchange - Target exchange (use `""` for default exchange + queue routing).
+ * @param opts - Serialization and routing options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toRabbitMQ<T>(
+	source: Node<T>,
+	channel: RabbitMQChannelLike,
+	exchange: string,
+	opts?: ToRabbitMQOptions<T>,
+): () => void {
+	const {
+		serialize = (v: T) => Buffer.from(JSON.stringify(v)),
+		routingKeyExtractor = () => "",
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let routingKey: string;
+				try {
+					routingKey = routingKeyExtractor(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "routing_key",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				let content: Buffer;
+				try {
+					content = serialize(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				try {
+					channel.publish(exchange, routingKey, content);
+				} catch (err) {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				}
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——————————————————————————————————————————————————————————————
+//  Phase 5.2d — Storage & sink adapters
+// ——————————————————————————————————————————————————————————————
+
+/** Handle returned by buffered sinks. `flush()` drains remaining buffer. */
+export type BufferedSinkHandle = {
+	/** Stop the sink and cancel the flush timer. */
+	dispose: () => void;
+	/** Manually drain the internal buffer. */
+	flush: () => Promise<void>;
+};
+
+// ——— toFile ———
+
+/** Duck-typed writable file handle (compatible with `fs.createWriteStream`). */
+export type FileWriterLike = {
+	write(data: string | Uint8Array): boolean | void;
+	end(): void;
+};
+
+/** Options for {@link toFile}. */
+export type ToFileOptions<T> = ExtraOpts & {
+	/** Serialize a value to a string line. Default: `JSON.stringify(v) + "\n"`. */
+	serialize?: (value: T) => string;
+	/** `"append"` (default) or `"overwrite"` — controls initial file behavior hint. */
+	mode?: "append" | "overwrite";
+	/** Flush interval in ms. `0` = write-through (no buffering). Default: `0`. */
+	flushIntervalMs?: number;
+	/** Buffer size (item count) before auto-flush. Default: `Infinity` (timer only). */
+	batchSize?: number;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * File sink — writes upstream `DATA` values to a file-like writable.
+ *
+ * When `flushIntervalMs > 0` or `batchSize` is set, values are buffered and
+ * flushed in batches. Otherwise, each value is written immediately.
+ *
+ * @param source - Upstream node.
+ * @param writer - Writable file handle (e.g. `fs.createWriteStream(path, { flags: "a" })`).
+ * @param opts - Serialization, buffering, and mode options.
+ * @returns `BufferedSinkHandle` with `dispose()` and `flush()`.
+ *
+ * @category extra
+ */
+export function toFile<T>(
+	source: Node<T>,
+	writer: FileWriterLike,
+	opts?: ToFileOptions<T>,
+): BufferedSinkHandle {
+	const {
+		serialize = (v: T) => `${JSON.stringify(v)}\n`,
+		flushIntervalMs = 0,
+		batchSize = Number.POSITIVE_INFINITY,
+		onTransportError,
+		mode: _mode,
+		...rest
+	} = opts ?? {};
+
+	let buffer: string[] = [];
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	const doFlush = () => {
+		if (buffer.length === 0) return;
+		const chunk = buffer.join("");
+		buffer = [];
+		try {
+			writer.write(chunk);
+		} catch (err) {
+			onTransportError?.({
+				stage: "send",
+				error: err instanceof Error ? err : new Error(String(err)),
+				value: chunk,
+			});
+		}
+	};
+
+	const scheduleFlush = () => {
+		if (flushIntervalMs > 0 && timer === undefined) {
+			timer = setTimeout(() => {
+				timer = undefined;
+				doFlush();
+			}, flushIntervalMs);
+		}
+	};
+
+	const buffered = flushIntervalMs > 0 || batchSize < Number.POSITIVE_INFINITY;
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let line: string;
+				try {
+					line = serialize(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				if (buffered) {
+					buffer.push(line);
+					if (buffer.length >= batchSize) doFlush();
+					else scheduleFlush();
+				} else {
+					try {
+						writer.write(line);
+					} catch (err) {
+						onTransportError?.({
+							stage: "send",
+							error: err instanceof Error ? err : new Error(String(err)),
+							value,
+						});
+					}
+				}
+				return true;
+			}
+			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+				doFlush();
+			}
+			return false;
+		},
+	});
+
+	const unsub = inner.subscribe(() => {});
+
+	const dispose = () => {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			timer = undefined;
+		}
+		doFlush();
+		writer.end();
+		unsub();
+	};
+
+	return {
+		dispose,
+		flush: async () => {
+			doFlush();
+		},
+	};
+}
+
+// ——— toCSV ———
+
+/** Options for {@link toCSV}. */
+export type ToCSVOptions<T> = ExtraOpts & {
+	/** Column names. Required — determines header row and field order. */
+	columns: string[];
+	/** Column delimiter. Default: `","`. */
+	delimiter?: string;
+	/** Whether to write a header row on first flush. Default: `true`. */
+	writeHeader?: boolean;
+	/** Extract a cell value from the row object. Default: `String(row[col] ?? "")`. */
+	cellExtractor?: (row: T, column: string) => string;
+	/** Flush interval in ms. Default: `0` (write-through). */
+	flushIntervalMs?: number;
+	/** Buffer size before auto-flush. Default: `Infinity`. */
+	batchSize?: number;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+function escapeCSVField(value: string, delimiter: string): string {
+	if (value.includes(delimiter) || value.includes('"') || value.includes("\n")) {
+		return `"${value.replace(/"/g, '""')}"`;
+	}
+	return value;
+}
+
+/**
+ * CSV file sink — writes upstream `DATA` as CSV rows.
+ *
+ * @param source - Upstream node.
+ * @param writer - Writable file handle.
+ * @param opts - Column definition, delimiter, and buffering options.
+ * @returns `BufferedSinkHandle`.
+ *
+ * @category extra
+ */
+export function toCSV<T>(
+	source: Node<T>,
+	writer: FileWriterLike,
+	opts: ToCSVOptions<T>,
+): BufferedSinkHandle {
+	const {
+		columns,
+		delimiter = ",",
+		writeHeader = true,
+		cellExtractor = (row: T, col: string) => String((row as Record<string, unknown>)[col] ?? ""),
+		flushIntervalMs = 0,
+		batchSize = Number.POSITIVE_INFINITY,
+		onTransportError,
+		...rest
+	} = opts;
+
+	let headerWritten = false;
+
+	const serializeRow = (row: T): string => {
+		if (!headerWritten && writeHeader) {
+			headerWritten = true;
+			const header = columns.map((c) => escapeCSVField(c, delimiter)).join(delimiter);
+			const data = columns
+				.map((c) => escapeCSVField(cellExtractor(row, c), delimiter))
+				.join(delimiter);
+			return `${header}\n${data}\n`;
+		}
+		return `${columns.map((c) => escapeCSVField(cellExtractor(row, c), delimiter)).join(delimiter)}\n`;
+	};
+
+	return toFile<T>(source, writer, {
+		serialize: serializeRow,
+		flushIntervalMs,
+		batchSize,
+		onTransportError,
+		...rest,
+	});
+}
+
+// ——— toClickHouse ———
+
+/** Duck-typed ClickHouse client for batch inserts. */
+export type ClickHouseInsertClientLike = {
+	insert(params: { table: string; values: unknown[]; format?: string }): Promise<void>;
+};
+
+/** Options for {@link toClickHouse}. */
+export type ToClickHouseOptions<T> = ExtraOpts & {
+	/** Batch size before auto-flush. Default: `1000`. */
+	batchSize?: number;
+	/** Flush interval in ms. Default: `5000`. */
+	flushIntervalMs?: number;
+	/** Insert format. Default: `"JSONEachRow"`. */
+	format?: string;
+	/** Transform value before insert. Default: identity. */
+	transform?: (value: T) => unknown;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * ClickHouse buffered batch insert sink.
+ *
+ * Accumulates upstream `DATA` values and inserts in batches.
+ *
+ * @param source - Upstream node.
+ * @param client - ClickHouse client with `insert()`.
+ * @param table - Target table name.
+ * @param opts - Batch size, flush interval, and transform options.
+ * @returns `BufferedSinkHandle`.
+ *
+ * @category extra
+ */
+export function toClickHouse<T>(
+	source: Node<T>,
+	client: ClickHouseInsertClientLike,
+	table: string,
+	opts?: ToClickHouseOptions<T>,
+): BufferedSinkHandle {
+	const {
+		batchSize = 1000,
+		flushIntervalMs = 5000,
+		format = "JSONEachRow",
+		transform = (v: T) => v,
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	let buffer: unknown[] = [];
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let lastFlush: Promise<void> = Promise.resolve();
+
+	const doFlush = (): Promise<void> => {
+		if (buffer.length === 0) return Promise.resolve();
+		const batch = buffer;
+		buffer = [];
+		try {
+			const p = client.insert({ table, values: batch, format }).catch((err: unknown) => {
+				onTransportError?.({
+					stage: "send",
+					error: err instanceof Error ? err : new Error(String(err)),
+					value: batch,
+				});
+			});
+			lastFlush = p;
+			return p;
+		} catch (err) {
+			onTransportError?.({
+				stage: "send",
+				error: err instanceof Error ? err : new Error(String(err)),
+				value: batch,
+			});
+			return Promise.resolve();
+		}
+	};
+
+	const scheduleFlush = () => {
+		if (timer === undefined) {
+			timer = setTimeout(() => {
+				timer = undefined;
+				doFlush();
+			}, flushIntervalMs);
+		}
+	};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				try {
+					buffer.push(transform(value));
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				if (buffer.length >= batchSize) doFlush();
+				else scheduleFlush();
+				return true;
+			}
+			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+				doFlush();
+			}
+			return false;
+		},
+	});
+
+	const unsub = inner.subscribe(() => {});
+
+	const dispose = () => {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			timer = undefined;
+		}
+		doFlush();
+		unsub();
+	};
+
+	return {
+		dispose,
+		flush: () => doFlush().then(() => lastFlush),
+	};
+}
+
+// ——— toS3 ———
+
+/** Duck-typed S3 client (compatible with AWS SDK v3 `S3Client.send(PutObjectCommand(...))`). */
+export type S3ClientLike = {
+	putObject(params: {
+		Bucket: string;
+		Key: string;
+		Body: string | Uint8Array;
+		ContentType?: string;
+	}): Promise<unknown>;
+};
+
+/** Options for {@link toS3}. */
+export type ToS3Options<T> = ExtraOpts & {
+	/** Output format. Default: `"ndjson"`. */
+	format?: "ndjson" | "json";
+	/** Generate the S3 key for each batch. Receives `(seq, wallClockNs)`. Default: ISO timestamp + sequence. */
+	keyGenerator?: (seq: number, timestampNs: number) => string;
+	/** Batch size before auto-flush. Default: `1000`. */
+	batchSize?: number;
+	/** Flush interval in ms. Default: `10000`. */
+	flushIntervalMs?: number;
+	/** Transform value before serialization. Default: identity. */
+	transform?: (value: T) => unknown;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * S3 object storage sink — buffers values and uploads as NDJSON or JSON objects.
+ *
+ * @param source - Upstream node.
+ * @param client - S3-compatible client with `putObject()`.
+ * @param bucket - S3 bucket name.
+ * @param opts - Format, key generation, batching options.
+ * @returns `BufferedSinkHandle`.
+ *
+ * @category extra
+ */
+export function toS3<T>(
+	source: Node<T>,
+	client: S3ClientLike,
+	bucket: string,
+	opts?: ToS3Options<T>,
+): BufferedSinkHandle {
+	const {
+		format = "ndjson",
+		keyGenerator = (seq: number, timestampNs: number) => {
+			const ms = Math.floor(timestampNs / 1_000_000);
+			const ts = new Date(ms).toISOString().replace(/[:.]/g, "-");
+			return `data/${ts}-${seq}.${format === "ndjson" ? "ndjson" : "json"}`;
+		},
+		batchSize = 1000,
+		flushIntervalMs = 10000,
+		transform = (v: T) => v,
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	let buffer: unknown[] = [];
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let seq = 0;
+	let lastFlush: Promise<void> = Promise.resolve();
+
+	const doFlush = (): Promise<void> => {
+		if (buffer.length === 0) return Promise.resolve();
+		const batch = buffer;
+		buffer = [];
+		seq += 1;
+		const body =
+			format === "ndjson"
+				? `${batch.map((v) => JSON.stringify(v)).join("\n")}\n`
+				: JSON.stringify(batch);
+		const contentType = format === "ndjson" ? "application/x-ndjson" : "application/json";
+		const key = keyGenerator(seq, wallClockNs());
+		try {
+			const p: Promise<void> = client
+				.putObject({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
+				.then(() => {})
+				.catch((err: unknown) => {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value: batch,
+					});
+				});
+			lastFlush = p;
+			return p;
+		} catch (err) {
+			onTransportError?.({
+				stage: "send",
+				error: err instanceof Error ? err : new Error(String(err)),
+				value: batch,
+			});
+			return Promise.resolve();
+		}
+	};
+
+	const scheduleFlush = () => {
+		if (timer === undefined) {
+			timer = setTimeout(() => {
+				timer = undefined;
+				doFlush();
+			}, flushIntervalMs);
+		}
+	};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				try {
+					buffer.push(transform(value));
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				if (buffer.length >= batchSize) doFlush();
+				else scheduleFlush();
+				return true;
+			}
+			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+				doFlush();
+			}
+			return false;
+		},
+	});
+
+	const unsub = inner.subscribe(() => {});
+
+	const dispose = () => {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			timer = undefined;
+		}
+		doFlush();
+		unsub();
+	};
+
+	return {
+		dispose,
+		flush: () => doFlush().then(() => lastFlush),
+	};
+}
+
+// ——— toPostgres ———
+
+/** Duck-typed Postgres client (compatible with `pg.Client` / `pg.Pool`). */
+export type PostgresClientLike = {
+	query(sql: string, params?: unknown[]): Promise<unknown>;
+};
+
+/** Options for {@link toPostgres}. */
+export type ToPostgresOptions<T> = ExtraOpts & {
+	/** Build the SQL + params for an insert. Default: JSON insert into `table`. */
+	toSQL?: (value: T, table: string) => { sql: string; params: unknown[] };
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * PostgreSQL sink — inserts each upstream `DATA` value as a row.
+ *
+ * @param source - Upstream node.
+ * @param client - Postgres client with `query()`.
+ * @param table - Target table name.
+ * @param opts - SQL builder and error options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toPostgres<T>(
+	source: Node<T>,
+	client: PostgresClientLike,
+	table: string,
+	opts?: ToPostgresOptions<T>,
+): () => void {
+	const {
+		toSQL = (v: T, t: string) => ({
+			sql: `INSERT INTO "${t.replace(/"/g, '""')}" (data) VALUES ($1)`,
+			params: [JSON.stringify(v)],
+		}),
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let query: { sql: string; params: unknown[] };
+				try {
+					query = toSQL(value, table);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				void client.query(query.sql, query.params).catch((err: unknown) => {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				});
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— toMongo ———
+
+/** Duck-typed MongoDB collection (compatible with `mongodb` driver). */
+export type MongoCollectionLike = {
+	insertOne(doc: unknown): Promise<unknown>;
+};
+
+/** Options for {@link toMongo}. */
+export type ToMongoOptions<T> = ExtraOpts & {
+	/** Transform value to a MongoDB document. Default: identity. */
+	toDocument?: (value: T) => unknown;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * MongoDB sink — inserts each upstream `DATA` value as a document.
+ *
+ * @param source - Upstream node.
+ * @param collection - MongoDB collection with `insertOne()`.
+ * @param opts - Document transform and error options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toMongo<T>(
+	source: Node<T>,
+	collection: MongoCollectionLike,
+	opts?: ToMongoOptions<T>,
+): () => void {
+	const { toDocument = (v: T) => v, onTransportError, ...rest } = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let doc: unknown;
+				try {
+					doc = toDocument(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				void collection.insertOne(doc).catch((err: unknown) => {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				});
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— toLoki ———
+
+/** Loki log stream entry. */
+export type LokiStream = {
+	stream: Record<string, string>;
+	values: [string, string][];
+};
+
+/** Duck-typed Loki push client (HTTP push API). */
+export type LokiClientLike = {
+	push(streams: { streams: LokiStream[] }): Promise<unknown>;
+};
+
+/** Options for {@link toLoki}. */
+export type ToLokiOptions<T> = ExtraOpts & {
+	/** Static labels applied to every log entry. */
+	labels?: Record<string, string>;
+	/** Extract the log line from a value. Default: `JSON.stringify(v)`. */
+	toLine?: (value: T) => string;
+	/** Extract additional labels from a value. Default: none. */
+	toLabels?: (value: T) => Record<string, string>;
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * Grafana Loki sink — pushes upstream `DATA` values as log entries.
+ *
+ * @param source - Upstream node.
+ * @param client - Loki-compatible client with `push()`.
+ * @param opts - Label, serialization, and error options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toLoki<T>(
+	source: Node<T>,
+	client: LokiClientLike,
+	opts?: ToLokiOptions<T>,
+): () => void {
+	const {
+		labels = {},
+		toLine = (v: T) => JSON.stringify(v),
+		toLabels,
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let line: string;
+				try {
+					line = toLine(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				let streamLabels: Record<string, string>;
+				try {
+					streamLabels = toLabels ? { ...labels, ...toLabels(value) } : labels;
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				const ts = `${wallClockNs()}`;
+				void client
+					.push({ streams: [{ stream: streamLabels, values: [[ts, line]] }] })
+					.catch((err: unknown) => {
+						onTransportError?.({
+							stage: "send",
+							error: err instanceof Error ? err : new Error(String(err)),
+							value,
+						});
+					});
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— toTempo ———
+
+/** Duck-typed Tempo span push client (OTLP/HTTP shape). */
+export type TempoClientLike = {
+	push(payload: { resourceSpans: unknown[] }): Promise<unknown>;
+};
+
+/** Options for {@link toTempo}. */
+export type ToTempoOptions<T> = ExtraOpts & {
+	/** Transform a value into OTLP resourceSpans entries. */
+	toResourceSpans?: (value: T) => unknown[];
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * Grafana Tempo sink — pushes upstream `DATA` values as trace spans.
+ *
+ * @param source - Upstream node.
+ * @param client - Tempo-compatible client with `push()`.
+ * @param opts - Span transform and error options.
+ * @returns Unsubscribe function.
+ *
+ * @category extra
+ */
+export function toTempo<T>(
+	source: Node<T>,
+	client: TempoClientLike,
+	opts?: ToTempoOptions<T>,
+): () => void {
+	const { toResourceSpans = (v: T) => [v], onTransportError, ...rest } = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let spans: unknown[];
+				try {
+					spans = toResourceSpans(value);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				void client.push({ resourceSpans: spans }).catch((err: unknown) => {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				});
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
+}
+
+// ——— checkpointToS3 ———
+
+/** Options for {@link checkpointToS3}. */
+export type CheckpointToS3Options = {
+	/** S3 key prefix. Default: `"checkpoints/"`. */
+	prefix?: string;
+	/** Debounce ms for autoCheckpoint. Default: `500`. */
+	debounceMs?: number;
+	/** Full snapshot compaction interval. Default: `10`. */
+	compactEvery?: number;
+	onError?: (error: unknown) => void;
+};
+
+/**
+ * Wires `graph.autoCheckpoint()` to persist snapshots to S3.
+ *
+ * @param graph - Graph instance to checkpoint.
+ * @param client - S3-compatible client with `putObject()`.
+ * @param bucket - S3 bucket name.
+ * @param opts - Key prefix, debounce, and compaction options.
+ * @returns Dispose handle.
+ *
+ * @category extra
+ */
+export function checkpointToS3(
+	graph: {
+		autoCheckpoint: (adapter: { save(data: unknown): void }, opts?: unknown) => { dispose(): void };
+		name: string;
+	},
+	client: S3ClientLike,
+	bucket: string,
+	opts?: CheckpointToS3Options,
+): { dispose(): void } {
+	const { prefix = "checkpoints/", debounceMs, compactEvery, onError } = opts ?? {};
+	const adapter = {
+		save(data: unknown) {
+			const ms = Math.floor(wallClockNs() / 1_000_000);
+			const key = `${prefix}${graph.name}/checkpoint-${ms}.json`;
+			let body: string;
+			try {
+				body = JSON.stringify(data);
+			} catch (err) {
+				onError?.(err);
+				return;
+			}
+			void client
+				.putObject({
+					Bucket: bucket,
+					Key: key,
+					Body: body,
+					ContentType: "application/json",
+				})
+				.catch((err) => onError?.(err));
+		},
+	};
+	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });
+}
+
+// ——— checkpointToRedis ———
+
+/** Duck-typed Redis client for checkpoint storage. */
+export type RedisCheckpointClientLike = {
+	set(key: string, value: string): Promise<unknown>;
+	get(key: string): Promise<string | null>;
+};
+
+/** Options for {@link checkpointToRedis}. */
+export type CheckpointToRedisOptions = {
+	/** Key prefix. Default: `"graphrefly:checkpoint:"`. */
+	prefix?: string;
+	/** Debounce ms for autoCheckpoint. Default: `500`. */
+	debounceMs?: number;
+	/** Full snapshot compaction interval. Default: `10`. */
+	compactEvery?: number;
+	onError?: (error: unknown) => void;
+};
+
+/**
+ * Wires `graph.autoCheckpoint()` to persist snapshots to Redis.
+ *
+ * @param graph - Graph instance to checkpoint.
+ * @param client - Redis client with `set()`/`get()`.
+ * @param opts - Key prefix, debounce, and compaction options.
+ * @returns Dispose handle.
+ *
+ * @category extra
+ */
+export function checkpointToRedis(
+	graph: {
+		autoCheckpoint: (adapter: { save(data: unknown): void }, opts?: unknown) => { dispose(): void };
+		name: string;
+	},
+	client: RedisCheckpointClientLike,
+	opts?: CheckpointToRedisOptions,
+): { dispose(): void } {
+	const { prefix = "graphrefly:checkpoint:", debounceMs, compactEvery, onError } = opts ?? {};
+	const key = `${prefix}${graph.name}`;
+	const adapter = {
+		save(data: unknown) {
+			let body: string;
+			try {
+				body = JSON.stringify(data);
+			} catch (err) {
+				onError?.(err);
+				return;
+			}
+			void client.set(key, body).catch((err) => onError?.(err));
+		},
+	};
+	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });
 }
