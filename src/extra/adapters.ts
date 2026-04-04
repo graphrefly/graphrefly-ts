@@ -24,7 +24,7 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type Node, type NodeOptions, node } from "../core/node.js";
+import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import { type WithStatusBundle, withStatus } from "./resilience.js";
@@ -607,7 +607,7 @@ export function toWebSocket<T>(
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				let serialized: string | ArrayBufferLike | Blob | ArrayBufferView;
 				try {
@@ -1543,7 +1543,7 @@ export function toKafka<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				const key = keyExtractor?.(value) ?? null;
@@ -1723,7 +1723,7 @@ export function toRedisStream<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let fields: string[];
@@ -2239,7 +2239,7 @@ export function toPulsar<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let data: Buffer;
@@ -2428,7 +2428,7 @@ export function toNATS<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let data: Uint8Array;
@@ -2641,7 +2641,7 @@ export function toRabbitMQ<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let routingKey: string;
@@ -2775,7 +2775,7 @@ export function toFile<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let line: string;
@@ -2996,7 +2996,7 @@ export function toClickHouse<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				try {
@@ -3146,7 +3146,7 @@ export function toS3<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				try {
@@ -3230,7 +3230,7 @@ export function toPostgres<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let query: { sql: string; params: unknown[] };
@@ -3293,7 +3293,7 @@ export function toMongo<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let doc: unknown;
@@ -3372,7 +3372,7 @@ export function toLoki<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let line: string;
@@ -3449,7 +3449,7 @@ export function toTempo<T>(
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
 		...rest,
-		onMessage(msg: Message) {
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let spans: unknown[];
@@ -3588,4 +3588,165 @@ export function checkpointToRedis(
 		},
 	};
 	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });
+}
+
+// ——————————————————————————————————————————————————————————————
+//  SQLite adapters (roadmap §5.2b)
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Duck-typed synchronous SQLite database.
+ *
+ * Compatible with `better-sqlite3` (`.prepare().all()` / `.prepare().run()`)
+ * and Node.js `node:sqlite` `DatabaseSync`. The user wraps their driver behind
+ * this uniform contract — method name `query` matches the project-wide
+ * convention (`PostgresClientLike.query`, `ClickHouseClientLike.query`).
+ */
+export type SqliteDbLike = {
+	query(sql: string, params?: unknown[]): unknown[];
+};
+
+/** Options for {@link fromSqlite}. */
+export type FromSqliteOptions<T> = ExtraOpts & {
+	/** Map a raw row object to the desired type. Default: identity cast. */
+	mapRow?: (row: unknown) => T;
+	/** Bind parameters for the query. */
+	params?: unknown[];
+};
+
+/**
+ * One-shot SQLite query as a reactive source.
+ *
+ * Executes `query` synchronously via `db.query()`, emits one `DATA` per result
+ * row, then `COMPLETE`. Compose with `switchMap` + `fromTimer` / `fromFSWatch`
+ * for periodic or change-driven re-query.
+ *
+ * @param db - SQLite database (caller owns connection).
+ * @param query - SQL string to execute.
+ * @param opts - Row mapper, params, and node options.
+ * @returns `Node<T>` — one `DATA` per row, then `COMPLETE`.
+ *
+ * @example
+ * ```ts
+ * import Database from "better-sqlite3";
+ * import { fromSqlite } from "@graphrefly/graphrefly-ts";
+ *
+ * const raw = new Database("app.db");
+ * const db = { query: (sql, params) => raw.prepare(sql).all(...(params ?? [])) };
+ * const rows$ = fromSqlite(db, "SELECT * FROM users WHERE active = ?", { params: [1] });
+ * ```
+ *
+ * @category extra
+ */
+export function fromSqlite<T = unknown>(
+	db: SqliteDbLike,
+	query: string,
+	opts?: FromSqliteOptions<T>,
+): Node<T> {
+	const { mapRow = (r: unknown) => r as T, params, ...rest } = opts ?? {};
+
+	return producer<T>(
+		(_d, a) => {
+			let mapped: T[];
+			try {
+				const rows = db.query(query, params);
+				mapped = rows.map(mapRow);
+			} catch (err) {
+				a.down([[ERROR, err instanceof Error ? err : new Error(String(err))]]);
+				return undefined;
+			}
+			batch(() => {
+				for (const item of mapped) {
+					a.down([[DATA, item]]);
+				}
+				a.down([[COMPLETE]]);
+			});
+			return undefined;
+		},
+		{ describeKind: "producer", completeWhenDepsComplete: false, ...rest },
+	);
+}
+
+/** Options for {@link toSqlite}. */
+export type ToSqliteOptions<T> = ExtraOpts & {
+	/** Build SQL + params for an insert. Default: JSON insert into `(data)` column. */
+	toSQL?: (value: T, table: string) => { sql: string; params: unknown[] };
+	onTransportError?: (err: SinkTransportError) => void;
+};
+
+/**
+ * SQLite sink — inserts each upstream `DATA` value as a row.
+ *
+ * Follows the same pattern as {@link toPostgres} / {@link toMongo}. Since SQLite
+ * is synchronous, errors propagate immediately (no `void promise.catch`).
+ *
+ * @param source - Upstream node.
+ * @param db - SQLite database (caller owns connection).
+ * @param table - Target table name.
+ * @param opts - SQL builder and error options.
+ * @returns Unsubscribe function.
+ *
+ * @example
+ * ```ts
+ * import Database from "better-sqlite3";
+ * import { toSqlite, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const raw = new Database("app.db");
+ * const db = { query: (sql, params) => (raw.prepare(sql).run(...(params ?? [])), []) };
+ * const source = state({ name: "Alice", score: 42 });
+ * const unsub = toSqlite(source, db, "events");
+ * ```
+ *
+ * @category extra
+ */
+export function toSqlite<T>(
+	source: Node<T>,
+	db: SqliteDbLike,
+	table: string,
+	opts?: ToSqliteOptions<T>,
+): () => void {
+	if (table.includes("\0") || table.length === 0) {
+		throw new Error(`toSqlite: invalid table name: ${JSON.stringify(table)}`);
+	}
+	const {
+		toSQL = (v: T, t: string) => ({
+			sql: `INSERT INTO "${t.replace(/"/g, '""')}" (data) VALUES (?)`,
+			params: [JSON.stringify(v)],
+		}),
+		onTransportError,
+		...rest
+	} = opts ?? {};
+
+	const inner = node([source as Node], () => undefined, {
+		describeKind: "effect",
+		...rest,
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+			if (msg[0] === DATA) {
+				const value = msg[1] as T;
+				let query: { sql: string; params: unknown[] };
+				try {
+					query = toSQL(value, table);
+				} catch (err) {
+					onTransportError?.({
+						stage: "serialize",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+					return true;
+				}
+				try {
+					db.query(query.sql, query.params);
+				} catch (err) {
+					onTransportError?.({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value,
+					});
+				}
+				return true;
+			}
+			return false;
+		},
+	});
+	return inner.subscribe(() => {});
 }

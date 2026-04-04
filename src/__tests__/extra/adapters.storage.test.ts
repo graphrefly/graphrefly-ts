@@ -2,17 +2,19 @@
  * Tests for 5.2d storage & sink adapters (src/extra/adapters.ts).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DATA } from "../../core/messages.js";
+import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import {
 	type BufferedSinkHandle,
 	type ClickHouseInsertClientLike,
 	checkpointToRedis,
 	checkpointToS3,
 	type FileWriterLike,
+	fromSqlite,
 	type LokiClientLike,
 	type MongoCollectionLike,
 	type PostgresClientLike,
 	type S3ClientLike,
+	type SqliteDbLike,
 	type TempoClientLike,
 	toClickHouse,
 	toCSV,
@@ -21,6 +23,7 @@ import {
 	toMongo,
 	toPostgres,
 	toS3,
+	toSqlite,
 	toTempo,
 } from "../../extra/adapters.js";
 import { fromIter } from "../../extra/sources.js";
@@ -484,5 +487,176 @@ describe("checkpointToRedis", () => {
 		expect(saved).toHaveLength(1);
 		expect(saved[0].key).toBe("graphrefly:checkpoint:my-graph");
 		expect(JSON.parse(saved[0].value)).toEqual({ snapshot: true });
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromSqlite
+// ——————————————————————————————————————————————————————————————
+
+describe("fromSqlite", () => {
+	it("emits one DATA per row then COMPLETE", () => {
+		const rows = [
+			{ id: 1, name: "Alice" },
+			{ id: 2, name: "Bob" },
+		];
+		const db: SqliteDbLike = { query: () => rows };
+		const msgs: [symbol, unknown?][] = [];
+		fromSqlite(db, "SELECT * FROM users").subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		expect(msgs).toEqual([
+			[DATA, { id: 1, name: "Alice" }],
+			[DATA, { id: 2, name: "Bob" }],
+			[COMPLETE],
+		]);
+	});
+
+	it("passes params to db.query", () => {
+		let captured: unknown[] | undefined;
+		const db: SqliteDbLike = {
+			query: (_sql, params) => {
+				captured = params;
+				return [{ x: 1 }];
+			},
+		};
+		fromSqlite(db, "SELECT * FROM t WHERE id = ?", { params: [42] }).subscribe(() => {});
+		expect(captured).toEqual([42]);
+	});
+
+	it("applies mapRow to each row", () => {
+		const db: SqliteDbLike = { query: () => [{ v: 10 }, { v: 20 }] };
+		const values: number[] = [];
+		fromSqlite<number>(db, "SELECT v FROM t", {
+			mapRow: (r) => (r as { v: number }).v * 2,
+		}).subscribe((m) => {
+			for (const msg of m) if (msg[0] === DATA) values.push(msg[1] as number);
+		});
+		expect(values).toEqual([20, 40]);
+	});
+
+	it("emits ERROR when db.query throws", () => {
+		const db: SqliteDbLike = {
+			query: () => {
+				throw new Error("no such table");
+			},
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromSqlite(db, "SELECT * FROM missing").subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("no such table");
+	});
+
+	it("emits COMPLETE with zero rows", () => {
+		const db: SqliteDbLike = { query: () => [] };
+		const msgs: [symbol, unknown?][] = [];
+		fromSqlite(db, "SELECT * FROM empty").subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		expect(msgs).toEqual([[COMPLETE]]);
+	});
+
+	it("emits ERROR with no partial DATA when mapRow throws", () => {
+		let callCount = 0;
+		const db: SqliteDbLike = { query: () => [{ v: 1 }, { v: 2 }, { v: 3 }] };
+		const msgs: [symbol, unknown?][] = [];
+		fromSqlite(db, "SELECT v FROM t", {
+			mapRow: (r) => {
+				callCount++;
+				if (callCount === 2) throw new Error("bad row");
+				return r;
+			},
+		}).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		// Pre-map: error occurs before batch, so no partial DATA emitted
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("bad row");
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  toSqlite
+// ——————————————————————————————————————————————————————————————
+
+describe("toSqlite", () => {
+	it("inserts each value as a row", () => {
+		const queries: { sql: string; params: unknown[] }[] = [];
+		const db: SqliteDbLike = {
+			query: (sql, params) => {
+				queries.push({ sql, params: params ?? [] });
+				return [];
+			},
+		};
+		const src = fromIter([{ x: 1 }, { x: 2 }]);
+		const unsub = toSqlite(src, db, "events");
+		expect(queries).toHaveLength(2);
+		expect(queries[0].sql).toContain('INSERT INTO "events"');
+		expect(queries[0].params[0]).toBe(JSON.stringify({ x: 1 }));
+		unsub();
+	});
+
+	it("uses custom toSQL", () => {
+		const queries: { sql: string; params: unknown[] }[] = [];
+		const db: SqliteDbLike = {
+			query: (sql, params) => {
+				queries.push({ sql, params: params ?? [] });
+				return [];
+			},
+		};
+		const src = fromIter([42]);
+		const unsub = toSqlite(src, db, "nums", {
+			toSQL: (v, t) => ({ sql: `INSERT INTO "${t}" (n) VALUES (?)`, params: [v] }),
+		});
+		expect(queries[0].params).toEqual([42]);
+		unsub();
+	});
+
+	it("reports toSQL errors via onTransportError (serialize stage)", () => {
+		const errors: unknown[] = [];
+		const db: SqliteDbLike = { query: () => [] };
+		const src = fromIter([1]);
+		const unsub = toSqlite(src, db, "t", {
+			toSQL: () => {
+				throw new Error("bad sql");
+			},
+			onTransportError: (e) => errors.push(e),
+		});
+		expect(errors).toHaveLength(1);
+		expect((errors[0] as { stage: string }).stage).toBe("serialize");
+		unsub();
+	});
+
+	it("reports db.query errors via onTransportError (send stage)", () => {
+		const errors: unknown[] = [];
+		const db: SqliteDbLike = {
+			query: () => {
+				throw new Error("disk full");
+			},
+		};
+		const src = fromIter([1]);
+		const unsub = toSqlite(src, db, "t", {
+			onTransportError: (e) => errors.push(e),
+		});
+		expect(errors).toHaveLength(1);
+		expect((errors[0] as { stage: string }).stage).toBe("send");
+		expect((errors[0] as { error: Error }).error.message).toBe("disk full");
+		unsub();
+	});
+
+	it("rejects empty table name", () => {
+		const db: SqliteDbLike = { query: () => [] };
+		const src = fromIter([1]);
+		expect(() => toSqlite(src, db, "")).toThrow("invalid table name");
+	});
+
+	it("rejects table name with null byte", () => {
+		const db: SqliteDbLike = { query: () => [] };
+		const src = fromIter([1]);
+		expect(() => toSqlite(src, db, "foo\x00bar")).toThrow("invalid table name");
 	});
 });

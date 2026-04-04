@@ -381,7 +381,7 @@ Reactive bindings that keep graph nodes in sync with database queries.
 - [ ] Prisma: `fromPrisma` (live query → node)
 - [ ] Drizzle: `fromDrizzle` (live query → node)
 - [ ] Kysely: `fromKysely` (type-safe query → node)
-- [ ] `fromSqlite(db, query, opts?)` / `toSqlite(db, table, opts?)` — SQLite via `better-sqlite3` interface (optional dep, user provides)
+- [x] `fromSqlite(db, query, opts?)` / `toSqlite(db, table, opts?)` — SQLite via duck-typed `SqliteDbLike` (`query()` method); one-shot source + per-record sink; sync (no Promises)
 
 ### 5.2c — Ingest adapters (universal source layer)
 
