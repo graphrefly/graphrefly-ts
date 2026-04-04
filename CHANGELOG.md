@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.4.0...v0.5.0) (2026-04-04)
+
+
+### Features
+
+* fix website's contrast ([537de00](https://github.com/graphrefly/graphrefly-ts/commit/537de00cdfc1b569f9cacc4ed0505f56d0db2049))
+
 # [0.4.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.3.0...v0.4.0) (2026-04-04)
 
 
