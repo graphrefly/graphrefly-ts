@@ -50,7 +50,7 @@ const d = atom((get) => `${get(b)}-${get(c)}`);
 
 ```ts
 // GraphReFly — D always sees consistent (B_new, C_new)
-import { state, derived } from '@graphrefly/graphrefly-ts';
+import { state, derived } from '@graphrefly/graphrefly';
 
 const a = state(1);
 const b = derived([a], (a) => a * 2);
@@ -68,7 +68,7 @@ d.get(); // "4-6" — always consistent, never "4-3"
 For incremental migration, use the Jotai-compatible adapter:
 
 ```ts
-import { atom } from '@graphrefly/graphrefly-ts/compat/jotai';
+import { atom } from '@graphrefly/graphrefly/compat/jotai';
 
 const countAtom = atom(0);
 const doubledAtom = atom((get) => get(countAtom) * 2);
@@ -81,7 +81,7 @@ This preserves Jotai's `atom((get) => ...)` API while adding diamond resolution 
 GraphReFly offers two patterns for derived values:
 
 ```ts
-import { state, derived, dynamicNode } from '@graphrefly/graphrefly-ts';
+import { state, derived, dynamicNode } from '@graphrefly/graphrefly';
 
 const count = state(0);
 const multiplier = state(2);

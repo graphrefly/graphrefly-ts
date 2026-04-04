@@ -34,7 +34,7 @@ n8n is a platform for non-developers to automate workflows visually. GraphReFly 
 import {
   state, pipe, filter, switchMap, derived, effect,
   fromWebhook, retry
-} from "@graphrefly/graphrefly-ts";
+} from "@graphrefly/graphrefly";
 
 const webhook = fromWebhook('/api/incoming')
 const enriched = pipe(webhook, switchMap(payload =>

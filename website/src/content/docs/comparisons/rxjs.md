@@ -51,7 +51,7 @@ result$.subscribe(console.log);
 
 ```ts
 // GraphReFly — state is first-class
-import { state, derived } from '@graphrefly/graphrefly-ts';
+import { state, derived } from '@graphrefly/graphrefly';
 
 const count = state(0);
 const multiplier = state(2);
@@ -87,7 +87,7 @@ a$.next(2);
 
 ```ts
 // GraphReFly — no glitch
-import { state, derived } from '@graphrefly/graphrefly-ts';
+import { state, derived } from '@graphrefly/graphrefly';
 
 const a = state(1);
 const b = derived([a], (a) => a * 2);
@@ -103,8 +103,8 @@ d.get(); // "4-6" — always consistent, never "4-3"
 GraphReFly provides bidirectional interop with RxJS Observables:
 
 ```ts
-import { state } from '@graphrefly/graphrefly-ts';
-import { toObservable, fromAny } from '@graphrefly/graphrefly-ts/extra';
+import { state } from '@graphrefly/graphrefly';
+import { toObservable, fromAny } from '@graphrefly/graphrefly/extra';
 
 // GraphReFly → RxJS
 const count = state(0);

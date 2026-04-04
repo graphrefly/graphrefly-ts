@@ -34,7 +34,7 @@ const { messages, input, handleSubmit, isLoading } = useChat({
 })
 
 // GraphReFly — framework-agnostic reactive graph
-import { state, pipe, filter, switchMap, producer, scan, derived } from "@graphrefly/graphrefly-ts";
+import { state, pipe, filter, switchMap, producer, scan, derived } from "@graphrefly/graphrefly";
 
 const prompt = state('')
 const tokens = pipe(prompt, filter(p => p.length > 0), switchMap(p =>

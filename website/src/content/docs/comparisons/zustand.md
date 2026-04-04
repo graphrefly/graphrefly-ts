@@ -45,7 +45,7 @@ const doubled = useStore((s) => s.doubled());
 
 ```ts
 // GraphReFly — native
-import { state, derived } from '@graphrefly/graphrefly-ts';
+import { state, derived } from '@graphrefly/graphrefly';
 
 const count = state(0);
 const doubled = derived([count], (c) => c * 2); // diamond-safe, cached
@@ -64,7 +64,7 @@ doubled.get();  // 2 — automatically recomputed
 For incremental migration, use the Zustand-compatible adapter:
 
 ```ts
-import { create } from '@graphrefly/graphrefly-ts/compat/zustand';
+import { create } from '@graphrefly/graphrefly/compat/zustand';
 
 const useStore = create((set, get) => ({
   count: 0,

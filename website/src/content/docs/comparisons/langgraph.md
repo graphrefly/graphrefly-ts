@@ -65,9 +65,9 @@ const result = await graph.invoke({ input: 'Build a TODO app' });
 ### GraphReFly Approach
 
 ```ts
-import { state, derived, effect, dynamicNode } from '@graphrefly/graphrefly-ts';
-import { gate } from '@graphrefly/graphrefly-ts/extra';
-import { Graph } from '@graphrefly/graphrefly-ts';
+import { state, derived, effect, dynamicNode } from '@graphrefly/graphrefly';
+import { gate } from '@graphrefly/graphrefly/extra';
+import { Graph } from '@graphrefly/graphrefly';
 
 const g = new Graph('agent');
 
@@ -105,8 +105,8 @@ console.log(g.describe());
 LangGraph uses `interrupt()` with checkpoint persistence to pause graph execution and wait for human input. GraphReFly uses `gate()` — a reactive operator that holds a value until a control signal allows it through:
 
 ```ts
-import { state } from '@graphrefly/graphrefly-ts';
-import { gate } from '@graphrefly/graphrefly-ts/extra';
+import { state } from '@graphrefly/graphrefly';
+import { gate } from '@graphrefly/graphrefly/extra';
 
 const aiResult = state(''); // populated by AI
 const humanApproval = state(false); // human sets this
@@ -132,7 +132,7 @@ gatedResult.get(); // "Generated plan: step 1, step 2, step 3"
 LangGraph relies on LangSmith, a paid SaaS platform, for tracing and observability. GraphReFly includes observability as a built-in, free primitive:
 
 ```ts
-import { Graph } from '@graphrefly/graphrefly-ts';
+import { Graph } from '@graphrefly/graphrefly';
 
 const g = new Graph('agent');
 // ... add nodes ...

@@ -15,25 +15,29 @@ if (base !== '/') {
 if (!pathname.startsWith('/')) pathname = `/${pathname}`;
 pathname = pathname.replace(/\/$/, '') || '/';
 
-type Mode = 'spec' | 'api' | 'lab' | 'all';
+type Mode = 'spec' | 'api' | 'comparisons' | 'blog' | 'lab' | 'all';
 
 function routeMode(path: string): Mode {
 	if (path === '/spec' || path.startsWith('/spec/')) return 'spec';
 	if (path.startsWith('/api')) return 'api';
+	if (path.startsWith('/comparisons')) return 'comparisons';
+	if (path.startsWith('/blog')) return 'blog';
 	if (path.startsWith('/lab')) return 'lab';
 	return 'all';
 }
 
+/** Check if a sidebar group contains links matching the given path prefix. */
+function groupMatchesPrefix(entry: SidebarEntry, prefix: string): boolean {
+	if (entry.type === 'link') return entry.href.startsWith(prefix);
+	// group — check recursively
+	return entry.entries.some((child) => groupMatchesPrefix(child, prefix));
+}
+
 function filterSidebar(entries: SidebarEntry[], m: Mode): SidebarEntry[] {
 	if (m === 'all') return entries;
-	return entries.filter((e) => {
-		if (e.type !== 'group') return false;
-		const { label } = e;
-		if (m === 'spec') return label === 'Protocol';
-		if (m === 'api') return label === 'API' || label.startsWith('API ');
-		if (m === 'lab') return label === 'Labs';
-		return false;
-	});
+	if (m === 'blog') return []; // blog uses its own layout from the plugin
+	const prefix = m === 'spec' ? '/spec' : m === 'api' ? '/api/' : m === 'comparisons' ? '/comparisons/' : m === 'lab' ? '/lab/' : '/';
+	return entries.filter((e) => groupMatchesPrefix(e, prefix));
 }
 
 const sublist = filterSidebar(sidebar, routeMode(pathname));

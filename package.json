@@ -256,7 +256,9 @@
 	"pnpm": {
 		"onlyBuiltDependencies": [
 			"@biomejs/biome",
-			"esbuild"
+			"@nestjs/core",
+			"esbuild",
+			"sharp"
 		]
 	}
 }
