@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.5.0...v0.6.0) (2026-04-04)
+
+
+### Features
+
+* add more adapters ([4591f26](https://github.com/graphrefly/graphrefly-ts/commit/4591f26b619a530882dbb0f6421941cc4370a9a7))
+
 # [0.5.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.4.0...v0.5.0) (2026-04-04)
 
 
