@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.2.0...v0.3.0) (2026-04-04)
+
+
+### Features
+
+* separate build and publish ([4301e66](https://github.com/graphrefly/graphrefly-ts/commit/4301e6643eabcc75fd92fdbd97cec7603bbe573f))
+
 # [0.2.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.1.0...v0.2.0) (2026-04-04)
 
 
