@@ -49,14 +49,13 @@ const hook$ = fromWebhook<HookPayload>(({ emit, error }) => {
 app.post("/webhook", handler);
 return () => {
   // Express has no direct route-removal API in common use.
-  // Return a no-op cleanup unless your router abstraction supports unregister.
 };
 });
 ```
 
 ## Examples
 
-### Example 2
+### Fastify
 
 ```ts
 import Fastify from "fastify";
@@ -74,8 +73,6 @@ const hook$ = fromWebhook<any>(({ emit, error }) => {
     }
 };
 fastify.post("/webhook", handler);
-return () => {
-  // Fastify route removal is not dynamic by default; no-op cleanup.
-};
+return () => {};
 });
 ```
