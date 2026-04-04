@@ -10,6 +10,14 @@ const shouldRenderSearch =
 
 const base = import.meta.env.BASE_URL;
 const apiHref = `${base}api/node/`;
+
+const navLinks = [
+	{ href: `${base}spec/`, label: 'SPEC' },
+	{ href: apiHref, label: 'API' },
+	{ href: `${base}comparisons/zustand/`, label: 'COMPARE' },
+	{ href: `${base}recipes/from-callbag-recharge/`, label: 'RECIPES' },
+	{ href: `${base}blog/welcome/`, label: 'BLOG' },
+];
 ---
 
 <div class="header">
@@ -20,14 +28,12 @@ const apiHref = `${base}api/node/`;
 		{shouldRenderSearch && <Search />}
 	</div>
 	<div class="right-group sl-flex print:hidden">
-		<nav class="gr-docs-nav sl-flex" aria-label="Specification and API">
-			<a href={`${base}spec/`} class="gr-docs-nav-link">SPEC</a>
-			<a href={apiHref} class="gr-docs-nav-link">API</a>
-			<a href={`${base}comparisons/zustand/`} class="gr-docs-nav-link">COMPARE</a>
-			<a href={`${base}recipes/from-callbag-recharge/`} class="gr-docs-nav-link">RECIPES</a>
-			<a href={`${base}blog/welcome/`} class="gr-docs-nav-link">BLOG</a>
+		<nav class="gr-docs-nav" aria-label="Specification and API">
+			{navLinks.map(({ href, label }) => (
+				<a href={href} class="gr-docs-nav-link">{label}</a>
+			))}
 		</nav>
-		<nav class="gr-lang-nav sl-flex" aria-label="Language">
+		<nav class="gr-lang-nav" aria-label="Language">
 			<span class="gr-lang-link gr-lang-active">TS</span>
 			<a href="https://py.graphrefly.dev/" class="gr-lang-link">PY</a>
 		</nav>
@@ -37,6 +43,33 @@ const apiHref = `${base}api/node/`;
 			</div>
 			<LanguageSelect />
 		</div>
+
+		<!-- Mobile hamburger (visible < 50rem, only when Starlight's own toggle is absent) -->
+		<button
+			type="button"
+			class="gr-mobile-toggle print:hidden"
+			aria-label="Open navigation menu"
+			aria-expanded="false"
+			aria-controls="gr-mobile-drawer">
+			<svg class="gr-burger-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+			<svg class="gr-burger-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+		</button>
+	</div>
+</div>
+
+<!-- Mobile drawer (slides in from right) -->
+<div id="gr-mobile-drawer" class="gr-mobile-drawer print:hidden" aria-hidden="true">
+	<nav class="gr-drawer-nav" aria-label="Mobile navigation">
+		{navLinks.map(({ href, label }) => (
+			<a href={href} class="gr-drawer-link">{label}</a>
+		))}
+	</nav>
+	<nav class="gr-drawer-lang" aria-label="Language">
+		<span class="gr-drawer-lang-link gr-drawer-lang-active">TS</span>
+		<a href="https://py.graphrefly.dev/" class="gr-drawer-lang-link">PY</a>
+	</nav>
+	<div class="gr-drawer-social">
+		<SocialIcons />
 	</div>
 </div>
 
@@ -65,6 +98,7 @@ const apiHref = `${base}api/node/`;
 		}
 
 		.gr-docs-nav {
+			display: flex;
 			gap: 0.65rem;
 			align-items: center;
 		}
@@ -84,6 +118,7 @@ const apiHref = `${base}api/node/`;
 		}
 
 		.gr-lang-nav {
+			display: flex;
 			gap: 0.25rem;
 			align-items: center;
 			border: 1px solid var(--sl-color-gray-5);
@@ -121,11 +156,97 @@ const apiHref = `${base}api/node/`;
 			border-inline-end: 1px solid var(--sl-color-gray-5);
 		}
 
-		@media (max-width: 49.99rem) {
-			.gr-docs-nav,
-			.gr-lang-nav {
-				display: none;
-			}
+		/* ── Mobile hamburger button ── */
+		.gr-mobile-toggle {
+			display: none;
+			align-items: center;
+			justify-content: center;
+			width: 2.5rem;
+			height: 2.5rem;
+			padding: 0;
+			border: none;
+			background: none;
+			color: var(--sl-color-white);
+			cursor: pointer;
+			-webkit-tap-highlight-color: transparent;
+		}
+		.gr-mobile-toggle .gr-burger-close { display: none; }
+		.gr-mobile-toggle[aria-expanded="true"] .gr-burger-open { display: none; }
+		.gr-mobile-toggle[aria-expanded="true"] .gr-burger-close { display: block; }
+
+		/* ── Mobile drawer ── */
+		.gr-mobile-drawer {
+			display: none;
+			position: fixed;
+			top: var(--sl-nav-height);
+			right: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 100;
+			flex-direction: column;
+			gap: 1.5rem;
+			padding: 1.5rem;
+			background: rgba(10, 10, 26, 0.97);
+			backdrop-filter: blur(20px);
+			-webkit-backdrop-filter: blur(20px);
+			overflow-y: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+		.gr-mobile-drawer[aria-hidden="false"] {
+			display: flex;
+		}
+
+		.gr-drawer-nav {
+			display: flex;
+			flex-direction: column;
+			gap: 0.25rem;
+		}
+		.gr-drawer-link {
+			font-size: 0.9rem;
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			text-decoration: none;
+			color: var(--sl-color-gray-2);
+			padding: 0.75rem 1rem;
+			border-radius: 0.5rem;
+			transition: background 0.15s, color 0.15s;
+		}
+		.gr-drawer-link:hover {
+			color: var(--sl-color-text-accent);
+			background: rgba(255, 255, 255, 0.06);
+		}
+
+		.gr-drawer-lang {
+			display: flex;
+			gap: 0.5rem;
+			padding: 0 1rem;
+		}
+		.gr-drawer-lang-link {
+			font-size: var(--sl-text-xs);
+			font-weight: 700;
+			letter-spacing: 0.05em;
+			text-decoration: none;
+			color: var(--sl-color-gray-3);
+			padding: 0.35em 0.75em;
+			border-radius: 0.375rem;
+			border: 1px solid var(--sl-color-gray-5);
+		}
+		.gr-drawer-lang-link:hover {
+			color: var(--sl-color-text-accent);
+		}
+		.gr-drawer-lang-active {
+			background: var(--sl-color-text-accent);
+			color: var(--sl-color-black);
+			border-color: var(--sl-color-text-accent);
+		}
+		.gr-drawer-lang-active:hover {
+			color: var(--sl-color-black);
+		}
+
+		.gr-drawer-social {
+			display: flex;
+			gap: 1rem;
+			padding: 0 1rem;
 		}
 
 		@media (min-width: 50rem) {
@@ -156,4 +277,51 @@ const apiHref = `${base}api/node/`;
 			}
 		}
 	}
+
+	/* ── Mobile responsive (outside @layer to beat Starlight utility classes) ── */
+	@media (max-width: 49.99rem) {
+		.gr-docs-nav,
+		.gr-lang-nav {
+			display: none !important;
+		}
+		/* Show hamburger only when Starlight's own sidebar toggle is absent (no-sidebar pages) */
+		:global(:root:not([data-has-sidebar])) .gr-mobile-toggle {
+			display: flex !important;
+		}
+	}
+
+	@media (min-width: 50rem) {
+		.gr-mobile-toggle { display: none !important; }
+		.gr-mobile-drawer { display: none !important; }
+	}
 </style>
+
+<script>
+	const toggle = document.querySelector('.gr-mobile-toggle');
+	const drawer = document.getElementById('gr-mobile-drawer');
+	if (toggle && drawer) {
+		toggle.addEventListener('click', () => {
+			const open = toggle.getAttribute('aria-expanded') === 'true';
+			toggle.setAttribute('aria-expanded', String(!open));
+			drawer.setAttribute('aria-hidden', String(open));
+			document.body.style.overflow = open ? '' : 'hidden';
+		});
+		// Close on link click
+		drawer.querySelectorAll('a').forEach((link) => {
+			link.addEventListener('click', () => {
+				toggle.setAttribute('aria-expanded', 'false');
+				drawer.setAttribute('aria-hidden', 'true');
+				document.body.style.overflow = '';
+			});
+		});
+		// Close on Escape
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+				toggle.setAttribute('aria-expanded', 'false');
+				drawer.setAttribute('aria-hidden', 'true');
+				document.body.style.overflow = '';
+				toggle.focus();
+			}
+		});
+	}
+</script>
