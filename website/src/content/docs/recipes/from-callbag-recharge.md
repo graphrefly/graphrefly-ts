@@ -9,7 +9,7 @@ GraphReFly is the successor to callbag-recharge. The core reactive model (two-ph
 
 ## Install
 
-```bash
+```bash frame="none"
 # Remove the old package
 npm uninstall @callbag-recharge/callbag-recharge
 

@@ -69,22 +69,30 @@ const base = import.meta.env.BASE_URL;
 
 			<div class="gr-features-grid">
 				<div class="gr-feature-card gr-fc-amber" data-reveal>
-					<div class="gr-feature-icon">&#9672;</div>
+					<div class="gr-feature-icon">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h1m16 0h1M12 3v1m0 16v1M18.364 5.636l-.707.707m-11.314 0l.707.707m11.314 11.314l-.707-.707m-11.314 0l.707-.707"/></svg>
+					</div>
 					<h3>Reactive Precision</h3>
 					<p>Combining <strong>Callbag-ish</strong> minimalism with <strong>Diamond-safe</strong> correctness. A protocol small enough for an LLM to reason about, yet robust enough to eliminate race conditions through a rigorous <strong>two-phase push</strong> mechanism (<strong>DIRTY</strong> then <strong>DATA</strong>). Every flow is glitch-free, high-performance, and mathematically sound.</p>
 				</div>
 				<div class="gr-feature-card gr-fc-aqua" data-reveal>
-					<div class="gr-feature-icon">&#9830;</div>
+					<div class="gr-feature-icon">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+					</div>
 					<h3>Governed Integrity</h3>
 					<p>Trust is not an add-on; it is the protocol. With <strong>ABAC</strong> (Attribute-Based Access Control) and <strong>Versioning</strong> baked directly into both nodes and graphs, every state change is authorized, immutable, and auditable. Complex reactive systems remain stable, secure, and effortlessly reversible.</p>
 				</div>
 				<div class="gr-feature-card gr-fc-purple" data-reveal>
-					<div class="gr-feature-icon">&#9724;</div>
+					<div class="gr-feature-icon">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+					</div>
 					<h3>Living Blueprints</h3>
 					<p>Moving from ephemeral code to <strong>Introspectable Artifacts</strong>. Graphs are modular, pluggable solutions that encapsulate <strong>Values, Status, and Algorithm</strong> into a single, serializable unit. Through the <strong>Companion Store</strong>, every step is accountable and every metadata point is inspectable.</p>
 				</div>
 				<div class="gr-feature-card gr-fc-pink" data-reveal>
-					<div class="gr-feature-icon">&#9734;</div>
+					<div class="gr-feature-icon">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+					</div>
 					<h3>Agentic Co-operation</h3>
 					<p>A symbiotic workspace where <strong>Humans master the abstraction</strong> and <strong>AI masters the implementation</strong>. By unifying security, observability, and composability, GraphReFly provides the perfect arena for agents&mdash;human or LLM&mdash;to play to their strengths and rely on a shared, transparent logic.</p>
 				</div>
@@ -154,27 +162,37 @@ const base = import.meta.env.BASE_URL;
 
 			<div class="gr-usecases-grid">
 				<div class="gr-usecase-card" data-reveal>
-					<span class="gr-usecase-icon">&#9881;</span>
+					<span class="gr-usecase-icon">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+					</span>
 					<h4>Orchestration</h4>
 					<p>Coordinate multi-step workflows with observable state at every node.</p>
 				</div>
 				<div class="gr-usecase-card" data-reveal>
-					<span class="gr-usecase-icon">&#9993;</span>
+					<span class="gr-usecase-icon">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+					</span>
 					<h4>Message Queue</h4>
 					<p>Reactive pub/sub with backpressure, built on the same tuple protocol.</p>
 				</div>
 				<div class="gr-usecase-card" data-reveal>
-					<span class="gr-usecase-icon">&#9733;</span>
+					<span class="gr-usecase-icon">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+					</span>
 					<h4>AI Agentic Memory</h4>
 					<p>LLMs read and write graph nodes as persistent, inspectable memory.</p>
 				</div>
 				<div class="gr-usecase-card" data-reveal>
-					<span class="gr-usecase-icon">&#9888;</span>
+					<span class="gr-usecase-icon">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="M12 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M12 11v3"/></svg>
+					</span>
 					<h4>Security</h4>
 					<p>Audit trails and permission boundaries at the protocol level.</p>
 				</div>
 				<div class="gr-usecase-card" data-reveal>
-					<span class="gr-usecase-icon">&#9741;</span>
+					<span class="gr-usecase-icon">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+					</span>
 					<h4>Human + AI Ops</h4>
 					<p>Shared graphs where humans observe, approve, and intervene in real time.</p>
 				</div>
@@ -195,7 +213,12 @@ const base = import.meta.env.BASE_URL;
 					<h3>TypeScript</h3>
 					<p>First-class types, tree-shakeable, zero dependencies. Works everywhere JS runs.</p>
 					<a href="https://github.com/graphrefly/graphrefly-ts" class="gr-btn gr-btn-ghost gr-impl-gh-btn" target="_blank" rel="noopener noreferrer">View on Github</a>
-					<a href="https://github.com/graphrefly/graphrefly-ts" class="gr-btn gr-btn-ghost gr-impl-btn" target="_blank" rel="noopener noreferrer">npm i @graphrefly/graphrefly</a>
+					<button
+						type="button"
+						class="gr-btn gr-btn-ghost gr-impl-btn gr-impl-cmd gr-impl-cmd--ts"
+						data-copy-text="npm i @graphrefly/graphrefly"
+						data-default-label="npm i @graphrefly/graphrefly"
+						aria-label="Copy TypeScript install command">npm i @graphrefly/graphrefly</button>
 				</div>
 
 				<div class="gr-impl-connector">
@@ -209,7 +232,12 @@ const base = import.meta.env.BASE_URL;
 					<h3>Python</h3>
 					<p>Async-native, type-hinted, built for data pipelines and LLM agent frameworks.</p>
 					<a href="https://github.com/graphrefly/graphrefly-py" class="gr-btn gr-btn-ghost gr-impl-gh-btn gr-impl-gh-btn--py" target="_blank" rel="noopener noreferrer">View on Github</a>
-					<a href="https://github.com/graphrefly/graphrefly-py" class="gr-btn gr-btn-ghost gr-impl-btn gr-impl-btn--py" target="_blank" rel="noopener noreferrer">pip install graphrefly</a>
+					<button
+						type="button"
+						class="gr-btn gr-btn-ghost gr-impl-btn gr-impl-btn--py gr-impl-cmd gr-impl-cmd--py"
+						data-copy-text="pip install graphrefly"
+						data-default-label="pip install graphrefly"
+						aria-label="Copy Python install command">pip install graphrefly</button>
 				</div>
 			</div>
 		</div>
@@ -992,6 +1020,28 @@ const base = import.meta.env.BASE_URL;
 		color: #f5c47a;
 		border-color: rgba(240, 168, 88, 0.4);
 	}
+	.gr-impl-cmd {
+		font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', monospace;
+		font-size: 0.78rem !important;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+	}
+	.gr-impl-cmd--ts {
+		color: var(--gr-aqua);
+		border-color: rgba(77, 232, 194, 0.25);
+	}
+	.gr-impl-cmd--ts:hover {
+		color: #6ef0d4;
+		border-color: rgba(77, 232, 194, 0.4);
+		background: rgba(77, 232, 194, 0.06);
+	}
+	.gr-impl-cmd--py {
+		border-color: rgba(240, 168, 88, 0.28);
+	}
+	.gr-impl-cmd--py:hover {
+		border-color: rgba(240, 168, 88, 0.45);
+		background: rgba(240, 168, 88, 0.06);
+	}
 	.gr-impl-connector {
 		display: flex;
 		flex-direction: column;
@@ -1095,6 +1145,24 @@ const base = import.meta.env.BASE_URL;
 						lab.textContent = prev ?? 'Copy';
 					}, 1600);
 				}
+			} catch {
+				/* ignore */
+			}
+		});
+	});
+
+	document.querySelectorAll('.gr-impl-cmd[data-copy-text]').forEach((el) => {
+		el.addEventListener('click', async () => {
+			const btn = el as HTMLButtonElement;
+			const text = btn.dataset.copyText?.trim() ?? '';
+			if (!text) return;
+			try {
+				await navigator.clipboard.writeText(text);
+				const defaultLabel = btn.dataset.defaultLabel ?? btn.textContent ?? '';
+				btn.textContent = 'Copied!';
+				setTimeout(() => {
+					btn.textContent = defaultLabel;
+				}, 1500);
 			} catch {
 				/* ignore */
 			}

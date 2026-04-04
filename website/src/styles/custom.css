@@ -99,6 +99,15 @@ nav.sidebar .large {
 	color: #7df0d5;
 }
 
+/* Home implementations: PY card — match pip install (warm accent), not prose link aqua */
+.sl-markdown-content a.gr-impl-gh-btn--py {
+	color: var(--gr-accent-warm);
+}
+
+.sl-markdown-content a.gr-impl-gh-btn--py:hover {
+	color: #f5c47a;
+}
+
 .sl-markdown-content :not(pre) > code {
 	background: var(--gr-surface-raised);
 	border: 1px solid var(--gr-border-subtle);
