@@ -1,11 +1,21 @@
 # Publishes to npm when conventional commits on main warrant a release.
 #
-# Auth today: repo secret NPM_TOKEN (automation token with publish for this package scope).
-# Later: switch to npm trusted publishing (OIDC from GitHub Actions) and remove NPM_TOKEN —
+# GitHub API / git push: uses a GitHub App installation token (not the default GITHUB_TOKEN).
+# Organization (or repo) configuration — create these names or map your existing ones:
+#   Variable: GRAPHREFLY_WRITE_CONTENT_APP_ID        → numeric App ID
+#   Secret:   GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY → PEM private key (full key, including BEGIN/END lines)
+#
+# Install the app on the org (or this repo) with permissions semantic-release needs:
+#   Contents: Read and write  (push release commit, tags)
+#   Issues: Write             (release comments on issues)
+#   Pull requests: Write      (release comments on PRs)
+#   Metadata: Read            (default)
+#
+# npm Trusted Publishing: package settings on npmjs.com must list this repo + this workflow file.
+# Requires @semantic-release/npm ^13 and id-token: write. Optional secret NPM_TOKEN if not using OIDC.
 # https://docs.npmjs.com/trusted-publishers
 #
-# Repo Settings → Actions → General: workflow permissions must allow read/write for releases.
-# id-token: write is kept for when OIDC publishing (and optional provenance) is configured.
+# Repo Settings → Actions → General: allow workflows to create pull requests if your org policy blocks it.
 name: Release
 
 on:
@@ -25,16 +35,33 @@ jobs:
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
       id-token: write
     steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.GRAPHREFLY_WRITE_CONTENT_APP_ID }}
+          private-key: ${{ secrets.GRAPHREFLY_WRITE_CONTENT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: true
+
+      - name: Configure Git committer (GitHub App)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          user_id=$(gh api "users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
+          git config user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -56,6 +83,5 @@ jobs:
 
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: pnpm exec semantic-release
