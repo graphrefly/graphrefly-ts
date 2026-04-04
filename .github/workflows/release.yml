@@ -81,6 +81,13 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # Build once here; do not use prepublishOnly — npm publish would run a second full tsup+DTS
+      # build in a subprocess (OOM / flaky on runners). semantic-release prepare only bumps version.
+      - name: Build package
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: pnpm run build
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

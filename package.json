@@ -148,7 +148,6 @@
 		"access": "public"
 	},
 	"scripts": {
-		"prepublishOnly": "pnpm run build",
 		"docs:dev": "pnpm --dir website dev",
 		"docs:build": "pnpm --dir website build",
 		"docs:preview": "pnpm --dir website preview",
