@@ -215,6 +215,29 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-marketing-promotion-strategy.md`
 
+### Session first-principles-audit (April 4) — First-Principles Audit: Is GraphReFly Necessary?
+**Topic:** Deep self-examination of whether GraphReFly is over-engineered. Starting from "data flows from function output to function input — why add a reactive graph layer?", the session synthesizes web research (callbag history, reactive programming criticisms, signals vs observables landscape, HN feedback), internal design documents, and first-principles reasoning.
+
+**Key decisions:**
+- **GraphReFly is not over-engineered — it's optimized for a specific bet:** long-running human+LLM reactive co-operation will become the dominant software pattern
+- **Irreducible core is five things:** node, edge, propagation, describe/snapshot, GraphSpec. Remove any one and at least one of the four requirements (LLM-safe creation, human audit, security, human/LLM symmetry) fails
+- **Graph > functions for LLM composition** because it constrains error space — like SQL vs hand-written DB ops. LLMs make fewer mistakes in constrained systems
+- **Causal chain persistence is the killer argument** — not reactivity, not performance. Structural causality that persists and auto-invalidates enables progressive trust accumulation (anti-vibe-coding)
+- **No LoRA/SFT needed** if GraphSpec stays simple enough for zero-shot. Litmus test: if a junior dev can write it from a 1-page guide, an LLM can generate it zero-shot
+- **Demo 0 ("The Existential Demo")** designed: NL -> GraphSpec -> simplified flow view -> run -> persist -> causal explain. Proves the library's reason to exist
+- **Three-layer DX/UX strategy:** LLM-DX (schema + errors), Dev-DX (5-min onboard, progressive complexity), End-user UX (NL input, simplified flow view) — Layer 3 is the real moat
+- **Reposition public presence:** lead with user pain points (information overload, FOMO, attention protection), not architecture (two-phase push, diamond resolution)
+- **Value for ordinary people:** universal reduction engine protecting human attention/energy. Scenarios: personal knowledge management, finance/health monitoring, small business automation, adaptive learning
+
+**Research findings:**
+- Callbag (2018) had near-identical thesis, died from zero ecosystem and "no maintainers" philosophy
+- Industry converged on Signals for sync reactivity, Observables for async, plain functions for stateless transforms
+- All major frameworks (Angular, SolidJS, Preact) now treat glitch-free as table stakes
+- Virtual threads (Project Loom) killed server-side reactive in Java; GraphReFly's coordination-protocol positioning remains viable
+- HN feedback: "sounds good but don't understand the solution" — confirms architecture-first messaging fails
+
+**Files:** `archive/docs/SESSION-first-principles-audit.md`
+
 ---
 
 ## Reading Guide
@@ -238,5 +261,5 @@ Each session file contains:
 ---
 
 **Created:** March 27, 2026
-**Updated:** April 3, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy
+**Updated:** April 4, 2026
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit

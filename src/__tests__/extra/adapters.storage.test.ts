@@ -1,18 +1,24 @@
 /**
  * Tests for 5.2d storage & sink adapters (src/extra/adapters.ts).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
+import { describe, expect, it } from "vitest";
+import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
+import { state } from "../../core/sugar.js";
 import {
-	type BufferedSinkHandle,
 	type ClickHouseInsertClientLike,
 	checkpointToRedis,
 	checkpointToS3,
+	type DrizzleQueryLike,
 	type FileWriterLike,
+	fromDrizzle,
+	fromKysely,
+	fromPrisma,
 	fromSqlite,
+	type KyselyQueryLike,
 	type LokiClientLike,
 	type MongoCollectionLike,
 	type PostgresClientLike,
+	type PrismaModelLike,
 	type S3ClientLike,
 	type SqliteDbLike,
 	type TempoClientLike,
@@ -296,7 +302,7 @@ describe("toPostgres", () => {
 			},
 		};
 		const src = fromIter([{ x: 1 }, { x: 2 }]);
-		const unsub = toPostgres(src, client, "events");
+		const { dispose: unsub } = toPostgres(src, client, "events");
 		await tick();
 		expect(queries).toHaveLength(2);
 		expect(queries[0].sql).toContain('INSERT INTO "events"');
@@ -309,7 +315,7 @@ describe("toPostgres", () => {
 			query: async () => {},
 		};
 		const src = fromIter([1]);
-		const unsub = toPostgres(src, client, "t", {
+		const { dispose: unsub } = toPostgres(src, client, "t", {
 			toSQL: () => {
 				throw new Error("bad sql");
 			},
@@ -318,6 +324,20 @@ describe("toPostgres", () => {
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("serialize");
 		unsub();
+	});
+
+	it("errors node receives errors without callback", async () => {
+		const client: PostgresClientLike = {
+			query: async () => {
+				throw new Error("connection lost");
+			},
+		};
+		const src = fromIter([1]);
+		const handle = toPostgres(src, client, "t");
+		await tick();
+		expect(handle.errors.get()).not.toBeNull();
+		expect((handle.errors.get() as { stage: string }).stage).toBe("send");
+		handle.dispose();
 	});
 });
 
@@ -334,7 +354,7 @@ describe("toMongo", () => {
 			},
 		};
 		const src = fromIter([{ a: 1 }, { b: 2 }]);
-		const unsub = toMongo(src, collection);
+		const { dispose: unsub } = toMongo(src, collection);
 		await tick();
 		expect(docs).toEqual([{ a: 1 }, { b: 2 }]);
 		unsub();
@@ -348,7 +368,7 @@ describe("toMongo", () => {
 			},
 		};
 		const src = fromIter([1, 2]);
-		const unsub = toMongo(src, collection, {
+		const { dispose: unsub } = toMongo(src, collection, {
 			toDocument: (v) => ({ value: v, ts: "now" }),
 		});
 		await tick();
@@ -373,7 +393,7 @@ describe("toLoki", () => {
 			},
 		};
 		const src = fromIter(["log line 1"]);
-		const unsub = toLoki(src, client, {
+		const { dispose: unsub } = toLoki(src, client, {
 			labels: { job: "test" },
 			toLine: (v) => v,
 		});
@@ -395,7 +415,7 @@ describe("toLoki", () => {
 			},
 		};
 		const src = fromIter([{ level: "error", msg: "fail" }]);
-		const unsub = toLoki(src, client, {
+		const { dispose: unsub } = toLoki(src, client, {
 			labels: { job: "app" },
 			toLine: (v) => v.msg,
 			toLabels: (v) => ({ level: v.level }),
@@ -421,7 +441,7 @@ describe("toTempo", () => {
 		};
 		const span = { traceId: "abc", spans: [{ name: "op1" }] };
 		const src = fromIter([span]);
-		const unsub = toTempo(src, client);
+		const { dispose: unsub } = toTempo(src, client);
 		await tick();
 		expect(pushes).toHaveLength(1);
 		expect((pushes[0] as { resourceSpans: unknown[] }).resourceSpans).toEqual([span]);
@@ -593,7 +613,7 @@ describe("toSqlite", () => {
 			},
 		};
 		const src = fromIter([{ x: 1 }, { x: 2 }]);
-		const unsub = toSqlite(src, db, "events");
+		const { dispose: unsub } = toSqlite(src, db, "events");
 		expect(queries).toHaveLength(2);
 		expect(queries[0].sql).toContain('INSERT INTO "events"');
 		expect(queries[0].params[0]).toBe(JSON.stringify({ x: 1 }));
@@ -609,7 +629,7 @@ describe("toSqlite", () => {
 			},
 		};
 		const src = fromIter([42]);
-		const unsub = toSqlite(src, db, "nums", {
+		const { dispose: unsub } = toSqlite(src, db, "nums", {
 			toSQL: (v, t) => ({ sql: `INSERT INTO "${t}" (n) VALUES (?)`, params: [v] }),
 		});
 		expect(queries[0].params).toEqual([42]);
@@ -620,7 +640,7 @@ describe("toSqlite", () => {
 		const errors: unknown[] = [];
 		const db: SqliteDbLike = { query: () => [] };
 		const src = fromIter([1]);
-		const unsub = toSqlite(src, db, "t", {
+		const { dispose: unsub } = toSqlite(src, db, "t", {
 			toSQL: () => {
 				throw new Error("bad sql");
 			},
@@ -639,13 +659,26 @@ describe("toSqlite", () => {
 			},
 		};
 		const src = fromIter([1]);
-		const unsub = toSqlite(src, db, "t", {
+		const { dispose: unsub } = toSqlite(src, db, "t", {
 			onTransportError: (e) => errors.push(e),
 		});
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("send");
 		expect((errors[0] as { error: Error }).error.message).toBe("disk full");
 		unsub();
+	});
+
+	it("errors node receives errors without callback", () => {
+		const db: SqliteDbLike = {
+			query: () => {
+				throw new Error("disk full");
+			},
+		};
+		const src = fromIter([1]);
+		const handle = toSqlite(src, db, "t");
+		expect(handle.errors.get()).not.toBeNull();
+		expect((handle.errors.get() as { stage: string }).stage).toBe("send");
+		handle.dispose();
 	});
 
 	it("rejects empty table name", () => {
@@ -658,5 +691,461 @@ describe("toSqlite", () => {
 		const db: SqliteDbLike = { query: () => [] };
 		const src = fromIter([1]);
 		expect(() => toSqlite(src, db, "foo\x00bar")).toThrow("invalid table name");
+	});
+
+	it("batchInsert wraps inserts in a transaction", () => {
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql, _params) => {
+				queries.push(sql);
+				return [];
+			},
+		};
+		const src = fromIter([{ x: 1 }, { x: 2 }, { x: 3 }]);
+		const { dispose: unsub } = toSqlite(src, db, "events", { batchInsert: true });
+		// Should see: BEGIN, 3 inserts, COMMIT
+		expect(queries[0]).toBe("BEGIN");
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(3);
+		expect(queries[queries.length - 1]).toBe("COMMIT");
+		unsub();
+	});
+
+	it("batchInsert rolls back on first error and stops remaining inserts (EC4)", () => {
+		const queries: string[] = [];
+		const errors: unknown[] = [];
+		let callCount = 0;
+		const db: SqliteDbLike = {
+			query: (sql, _params) => {
+				queries.push(sql);
+				if (sql.includes("INSERT")) {
+					callCount++;
+					if (callCount === 2) throw new Error("constraint violation");
+				}
+				return [];
+			},
+		};
+		const src = fromIter([1, 2, 3]);
+		const { dispose: unsub } = toSqlite(src, db, "t", {
+			batchInsert: true,
+			onTransportError: (e) => errors.push(e),
+		});
+		expect(queries).toContain("BEGIN");
+		expect(queries).toContain("ROLLBACK");
+		expect(queries).not.toContain("COMMIT");
+		// EC4: only 2 INSERTs attempted (stops on first error, 3rd not attempted)
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(2);
+		expect(errors).toHaveLength(1);
+		expect((errors[0] as { stage: string }).stage).toBe("send");
+		unsub();
+	});
+
+	it("batchInsert with no DATA does not emit transaction statements", () => {
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql) => {
+				queries.push(sql);
+				return [];
+			},
+		};
+		const src = fromIter<number>([]);
+		const { dispose: unsub } = toSqlite(src, db, "t", { batchInsert: true });
+		expect(queries.filter((q) => q === "BEGIN")).toHaveLength(0);
+		unsub();
+	});
+
+	it("batchInsert reports BEGIN failure without losing pending data (P1)", () => {
+		const errors: unknown[] = [];
+		let beginFails = true;
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql) => {
+				queries.push(sql);
+				if (sql === "BEGIN" && beginFails) throw new Error("locked");
+				return [];
+			},
+		};
+		const src = fromIter([1]);
+		const handle = toSqlite(src, db, "t", {
+			batchInsert: true,
+			onTransportError: (e) => errors.push(e),
+		});
+		// COMPLETE triggered flush, BEGIN failed — error reported
+		expect(errors).toHaveLength(1);
+		expect((errors[0] as { error: Error }).error.message).toBe("locked");
+		// No INSERTs attempted since BEGIN failed
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(0);
+		// Manual flush after fixing the db succeeds — data was preserved
+		beginFails = false;
+		handle.flush!();
+		expect(queries).toContain("BEGIN");
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(1);
+		expect(queries[queries.length - 1]).toBe("COMMIT");
+		handle.dispose();
+	});
+
+	it("batchInsert auto-flushes at maxBatchSize (BH10)", () => {
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql) => {
+				queries.push(sql);
+				return [];
+			},
+		};
+		const src = fromIter([1, 2, 3, 4, 5]);
+		const { dispose: unsub } = toSqlite(src, db, "t", {
+			batchInsert: true,
+			maxBatchSize: 2,
+		});
+		// 2 transactions: [1,2] auto-flushed at maxBatchSize, [3,4] auto-flushed, [5] flushed on COMPLETE
+		const begins = queries.filter((q) => q === "BEGIN");
+		const commits = queries.filter((q) => q === "COMMIT");
+		expect(begins.length).toBe(3);
+		expect(commits.length).toBe(3);
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(5);
+		unsub();
+	});
+
+	it("batchInsert flushes remaining on dispose (P3)", () => {
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql) => {
+				queries.push(sql);
+				return [];
+			},
+		};
+		// Use a state source that doesn't complete, so dispose is the only flush trigger
+		const s = state(0);
+		const handle = toSqlite(s, db, "t", { batchInsert: true });
+		s.down([[DATA, 1]]);
+		s.down([[DATA, 2]]);
+		// 2 pending inserts, no terminal message → no flush yet
+		expect(queries.filter((q) => q === "BEGIN")).toHaveLength(0);
+		handle.dispose();
+		// dispose triggers final flush
+		expect(queries).toContain("BEGIN");
+		expect(queries).toContain("COMMIT");
+		expect(queries.filter((q) => q.includes("INSERT"))).toHaveLength(2);
+	});
+
+	it("batchInsert dispose is idempotent (BH6)", () => {
+		const queries: string[] = [];
+		const db: SqliteDbLike = {
+			query: (sql) => {
+				queries.push(sql);
+				return [];
+			},
+		};
+		const src = fromIter([1]);
+		const handle = toSqlite(src, db, "t", { batchInsert: true });
+		const countBefore = queries.length;
+		handle.dispose();
+		handle.dispose(); // second call should be no-op
+		expect(queries.length).toBe(countBefore);
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromPrisma
+// ——————————————————————————————————————————————————————————————
+
+describe("fromPrisma", () => {
+	it("emits DIRTY+DATA per row then COMPLETE", async () => {
+		const rows = [
+			{ id: 1, name: "Alice" },
+			{ id: 2, name: "Bob" },
+		];
+		const model: PrismaModelLike = { findMany: () => Promise.resolve(rows) };
+		const msgs: [symbol, unknown?][] = [];
+		fromPrisma(model).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		// a.emit() inside batch: DIRTY propagates immediately, DATA deferred.
+		// After batch drain: two DATA values, then COMPLETE (outside batch).
+		expect(msgs).toEqual([
+			[DIRTY],
+			[DIRTY],
+			[DATA, { id: 1, name: "Alice" }],
+			[DATA, { id: 2, name: "Bob" }],
+			[COMPLETE],
+		]);
+	});
+
+	it("forwards findMany args", async () => {
+		let captured: unknown;
+		const model: PrismaModelLike = {
+			findMany: (args) => {
+				captured = args;
+				return Promise.resolve([]);
+			},
+		};
+		fromPrisma(model, { args: { where: { active: true } } }).subscribe(() => {});
+		await tick();
+		expect(captured).toEqual({ where: { active: true } });
+	});
+
+	it("applies mapRow", async () => {
+		const model: PrismaModelLike<{ v: number }> = {
+			findMany: () => Promise.resolve([{ v: 10 }, { v: 20 }]),
+		};
+		const values: number[] = [];
+		fromPrisma<{ v: number }, number>(model, {
+			mapRow: (r) => r.v * 2,
+		}).subscribe((m) => {
+			for (const msg of m) if (msg[0] === DATA) values.push(msg[1] as number);
+		});
+		await tick();
+		expect(values).toEqual([20, 40]);
+	});
+
+	it("emits ERROR on query failure", async () => {
+		const model: PrismaModelLike = {
+			findMany: () => Promise.reject(new Error("connection lost")),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromPrisma(model).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("connection lost");
+	});
+
+	it("emits only COMPLETE for empty result", async () => {
+		const model: PrismaModelLike = { findMany: () => Promise.resolve([]) };
+		const msgs: [symbol, unknown?][] = [];
+		fromPrisma(model).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toEqual([[COMPLETE]]);
+	});
+
+	it("cleanup prevents late emission", async () => {
+		let resolveFn!: (v: unknown[]) => void;
+		const model: PrismaModelLike = {
+			findMany: () =>
+				new Promise((r) => {
+					resolveFn = r;
+				}),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		const n = fromPrisma(model);
+		const unsub = n.subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		unsub();
+		resolveFn([{ id: 1 }]);
+		await tick();
+		expect(msgs).toEqual([]);
+	});
+
+	it("emits ERROR when mapRow throws", async () => {
+		const model: PrismaModelLike = {
+			findMany: () => Promise.resolve([{ id: 1 }]),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromPrisma(model, {
+			mapRow: () => {
+				throw new Error("bad map");
+			},
+		}).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("bad map");
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromDrizzle
+// ——————————————————————————————————————————————————————————————
+
+describe("fromDrizzle", () => {
+	it("emits DIRTY+DATA per row then COMPLETE", async () => {
+		const rows = [{ id: 1 }, { id: 2 }];
+		const query: DrizzleQueryLike = { execute: () => Promise.resolve(rows) };
+		const msgs: [symbol, unknown?][] = [];
+		fromDrizzle(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toEqual([[DIRTY], [DIRTY], [DATA, { id: 1 }], [DATA, { id: 2 }], [COMPLETE]]);
+	});
+
+	it("applies mapRow", async () => {
+		const query: DrizzleQueryLike<{ v: number }> = {
+			execute: () => Promise.resolve([{ v: 5 }]),
+		};
+		const values: number[] = [];
+		fromDrizzle<{ v: number }, number>(query, {
+			mapRow: (r) => r.v + 1,
+		}).subscribe((m) => {
+			for (const msg of m) if (msg[0] === DATA) values.push(msg[1] as number);
+		});
+		await tick();
+		expect(values).toEqual([6]);
+	});
+
+	it("emits ERROR on query failure", async () => {
+		const query: DrizzleQueryLike = {
+			execute: () => Promise.reject(new Error("timeout")),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromDrizzle(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("timeout");
+	});
+
+	it("emits only COMPLETE for empty result", async () => {
+		const query: DrizzleQueryLike = { execute: () => Promise.resolve([]) };
+		const msgs: [symbol, unknown?][] = [];
+		fromDrizzle(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toEqual([[COMPLETE]]);
+	});
+
+	it("cleanup prevents late emission", async () => {
+		let resolveFn!: (v: unknown[]) => void;
+		const query: DrizzleQueryLike = {
+			execute: () =>
+				new Promise((r) => {
+					resolveFn = r;
+				}),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		const n = fromDrizzle(query);
+		const unsub = n.subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		unsub();
+		resolveFn([{ id: 1 }]);
+		await tick();
+		expect(msgs).toEqual([]);
+	});
+
+	it("emits ERROR when mapRow throws", async () => {
+		const query: DrizzleQueryLike = {
+			execute: () => Promise.resolve([{ id: 1 }]),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromDrizzle(query, {
+			mapRow: () => {
+				throw new Error("bad map");
+			},
+		}).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("bad map");
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  fromKysely
+// ——————————————————————————————————————————————————————————————
+
+describe("fromKysely", () => {
+	it("emits DIRTY+DATA per row then COMPLETE", async () => {
+		const rows = [{ name: "Alice" }, { name: "Bob" }];
+		const query: KyselyQueryLike = { execute: () => Promise.resolve(rows) };
+		const msgs: [symbol, unknown?][] = [];
+		fromKysely(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toEqual([
+			[DIRTY],
+			[DIRTY],
+			[DATA, { name: "Alice" }],
+			[DATA, { name: "Bob" }],
+			[COMPLETE],
+		]);
+	});
+
+	it("applies mapRow", async () => {
+		const query: KyselyQueryLike<{ score: number }> = {
+			execute: () => Promise.resolve([{ score: 100 }]),
+		};
+		const values: string[] = [];
+		fromKysely<{ score: number }, string>(query, {
+			mapRow: (r) => `score:${r.score}`,
+		}).subscribe((m) => {
+			for (const msg of m) if (msg[0] === DATA) values.push(msg[1] as string);
+		});
+		await tick();
+		expect(values).toEqual(["score:100"]);
+	});
+
+	it("emits ERROR on query failure", async () => {
+		const query: KyselyQueryLike = {
+			execute: () => Promise.reject(new Error("syntax error")),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromKysely(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("syntax error");
+	});
+
+	it("emits only COMPLETE for empty result", async () => {
+		const query: KyselyQueryLike = { execute: () => Promise.resolve([]) };
+		const msgs: [symbol, unknown?][] = [];
+		fromKysely(query).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toEqual([[COMPLETE]]);
+	});
+
+	it("cleanup prevents late emission", async () => {
+		let resolveFn!: (v: unknown[]) => void;
+		const query: KyselyQueryLike = {
+			execute: () =>
+				new Promise((r) => {
+					resolveFn = r;
+				}),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		const n = fromKysely(query);
+		const unsub = n.subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		unsub();
+		resolveFn([{ id: 1 }]);
+		await tick();
+		expect(msgs).toEqual([]);
+	});
+
+	it("emits ERROR when mapRow throws", async () => {
+		const query: KyselyQueryLike = {
+			execute: () => Promise.resolve([{ id: 1 }]),
+		};
+		const msgs: [symbol, unknown?][] = [];
+		fromKysely(query, {
+			mapRow: () => {
+				throw new Error("bad map");
+			},
+		}).subscribe((m) => {
+			for (const msg of m) msgs.push(msg);
+		});
+		await tick();
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0][0]).toBe(ERROR);
+		expect((msgs[0][1] as Error).message).toBe("bad map");
 	});
 });

@@ -276,6 +276,42 @@ Replaces callbag-recharge's standalone `Inspector` class (28 methods, 991 LOC). 
 - [x] `mergeMap` concurrent option: `mergeMap(source, fn, { concurrent: 3 })`
 - [x] `docs/coming-from-rxjs.md` migration guide
 
+### 3.3b — Progressive disclosure for `describe()` and `observe()`
+
+Current `describe()` returns all fields for every node (type, status, value, deps, meta, versioning). Current `observe()` uses binary flags (structured, causal, timeline, derived). Both are all-or-nothing — no control over *which fields per node* to include. For LLM context windows and human readability, this wastes tokens and attention. Design reference: `archive/docs/SESSION-first-principles-audit.md`.
+
+**Principle:** Like GraphQL's field selection or Claude Agent skills' progressive disclosure — only show what's needed, composable/upgradable on demand.
+
+#### `describe()` detail levels
+
+- [ ] `graph.describe({ detail: "minimal" })` — **default.** Nodes with `type` and `deps` only. No values, no meta, no status. The "GraphSpec-like" view for LLM composition and human overview:
+  ```jsonc
+  { "nodes": { "inbox": { "type": "producer" }, "classify": { "type": "derived", "deps": ["inbox"] } } }
+  ```
+- [ ] `graph.describe({ detail: "standard" })` — type, status, value, deps, meta. The previous default; opt-in when you need runtime state.
+- [ ] `graph.describe({ detail: "full" })` — standard + versioning (`v`), guard info, last mutation attribution, annotation count.
+
+#### `describe()` field selection (GraphQL-style)
+
+- [ ] `graph.describe({ fields: ["type", "deps"] })` — pick exactly which fields appear per node. Overrides `detail` level.
+- [ ] `graph.describe({ fields: ["type", "deps", "meta.label"] })` — dotted path for specific meta keys (avoid dumping entire meta object).
+- [ ] Type-safe field selection — `DescribeFields` type ensures only valid field names are accepted.
+
+#### `observe()` detail levels
+
+- [ ] `observe(name, { detail: "minimal" })` — DATA events only, no timestamps, no causal info. Lowest overhead.
+- [ ] `observe(name, { detail: "standard" })` — current default (DATA + DIRTY + RESOLVED + COMPLETE + ERROR events).
+- [ ] `observe(name, { detail: "full" })` — standard + timeline + causal + derived. Equivalent to `{ timeline: true, causal: true, derived: true }` but as a single toggle.
+
+#### Composable upgrades
+
+- [ ] `described.upgrade("full")` — from a minimal/standard describe result, fetch missing fields on demand (re-reads live graph). Avoids "fetch everything just in case."
+- [ ] `observed.upgrade({ causal: true })` — upgrade a running observation to include causal tracking without resubscribing.
+
+#### GraphSpec round-trip
+
+- [ ] `graph.describe({ format: "spec" })` — output in GraphSpec input format (no status, no value, `deps` as the edge representation, `fn` references). Directly usable by `llmRefine()`. Round-trips: `describe({ format: "spec" })` → edit → `compileSpec()`.
+
 ---
 
 ## Phase 4: Domain Layers (Graph Factories)
@@ -378,9 +414,9 @@ Thin wrappers that let users keep familiar APIs while backed by GraphReFly primi
 
 Reactive bindings that keep graph nodes in sync with database queries.
 
-- [ ] Prisma: `fromPrisma` (live query → node)
-- [ ] Drizzle: `fromDrizzle` (live query → node)
-- [ ] Kysely: `fromKysely` (type-safe query → node)
+- [x] Prisma: `fromPrisma(model, opts?)` — one-shot `findMany` → per-row DATA → COMPLETE; duck-typed `PrismaModelLike`
+- [x] Drizzle: `fromDrizzle(query, opts?)` — one-shot `execute()` → per-row DATA → COMPLETE; duck-typed `DrizzleQueryLike`
+- [x] Kysely: `fromKysely(query, opts?)` — one-shot `execute()` → per-row DATA → COMPLETE; duck-typed `KyselyQueryLike`
 - [x] `fromSqlite(db, query, opts?)` / `toSqlite(db, table, opts?)` — SQLite via duck-typed `SqliteDbLike` (`query()` method); one-shot source + per-record sink; sync (no Promises)
 
 ### 5.2c — Ingest adapters (universal source layer)
@@ -603,6 +639,24 @@ The demo shell is itself a `Graph("demo-shell")` — dogfooding reactive coordin
 ### 7.3 — Showcase demos
 
 Each demo uses the three-pane shell (7.2) and exercises 3+ domain layers. Detailed ACs in `docs/demo-and-test-strategy.md`.
+
+#### Demo 0: The Existential Demo — "NL -> Graph -> Flow -> Run -> Persist -> Explain"
+
+The demo that proves GraphReFly's reason to exist. Shows the complete cycle no other tool provides. Design reference: `archive/docs/SESSION-first-principles-audit.md`.
+
+**Scenario:** Personal email triage assistant. User describes rules in natural language, LLM composes graph, user reviews via simplified flow view (not raw graph), graph runs reactively, persists across restarts, and explains its decisions via causal chain.
+
+**Exercises:** `graphFromSpec()` (5.4) / `llmCompose()` (8.3), `describe()` -> simplified flow rendering, `llmRefine()` (8.3), `specDiff()` (8.3), `autoCheckpoint()` (1.4b), `explainPath()` (8.4), `fromWebhook()`, `stratify()` + `scorer()` (8.1).
+
+**Acceptance criteria:**
+1. NL input produces valid, runnable GraphSpec on first attempt (>80% success rate for reasonable descriptions)
+2. Flow view is understandable by non-technical user (no graph jargon, no raw node IDs)
+3. NL modification produces correct GraphSpec diff (no unrelated changes)
+4. App restart restores full graph state including in-flight processing
+5. Causal explanation is human-readable ("This email was marked urgent because sender matches team rule AND subject contains 'deadline'")
+6. End-to-end latency from email arrival to classification < 2s (excluding LLM inference)
+7. Graph topology visible in dev tools for engineers (parallel to simplified flow for end users)
+8. Works with zero configuration beyond Gmail OAuth + LLM API key
 
 - [ ] **Demo 1: Order Processing Pipeline** — 4.1 + 4.2 + 4.5 + 1.5 + 3.3 (vanilla JS, 10 ACs)
 - [ ] **Demo 2: Multi-Agent Task Board** — 4.1 + 4.3 + 4.4 + 3.2b + 1.5 (React, WebLLM + Gemma 4 E2B, 11 ACs)

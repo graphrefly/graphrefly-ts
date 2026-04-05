@@ -374,7 +374,7 @@ describe("toKafka", () => {
 			disconnect: vi.fn().mockResolvedValue(undefined),
 		};
 
-		const unsub = toKafka(fromIter(["hello"]), kafkaProducer, "output");
+		const { dispose: unsub } = toKafka(fromIter(["hello"]), kafkaProducer, "output");
 
 		await tick();
 
@@ -391,10 +391,15 @@ describe("toKafka", () => {
 			disconnect: vi.fn().mockResolvedValue(undefined),
 		};
 
-		const unsub = toKafka(fromIter([{ id: "abc", data: "xyz" }]), kafkaProducer, "output", {
-			keyExtractor: (v) => v.id,
-			serialize: (v) => JSON.stringify(v),
-		});
+		const { dispose: unsub } = toKafka(
+			fromIter([{ id: "abc", data: "xyz" }]),
+			kafkaProducer,
+			"output",
+			{
+				keyExtractor: (v) => v.id,
+				serialize: (v) => JSON.stringify(v),
+			},
+		);
 
 		await tick();
 
@@ -478,7 +483,7 @@ describe("toRedisStream", () => {
 			disconnect: vi.fn(),
 		};
 
-		const unsub = toRedisStream(fromIter([{ event: "click" }]), client, "mystream");
+		const { dispose: unsub } = toRedisStream(fromIter([{ event: "click" }]), client, "mystream");
 
 		await tick();
 
@@ -498,7 +503,9 @@ describe("toRedisStream", () => {
 			disconnect: vi.fn(),
 		};
 
-		const unsub = toRedisStream(fromIter(["test"]), client, "mystream", { maxLen: 1000 });
+		const { dispose: unsub } = toRedisStream(fromIter(["test"]), client, "mystream", {
+			maxLen: 1000,
+		});
 
 		await tick();
 
@@ -851,7 +858,7 @@ describe("toPulsar", () => {
 			close: vi.fn().mockResolvedValue(undefined),
 		};
 
-		const unsub = toPulsar(fromIter(["hello"]), pulsarProducer);
+		const { dispose: unsub } = toPulsar(fromIter(["hello"]), pulsarProducer);
 
 		await tick();
 
@@ -871,7 +878,7 @@ describe("toPulsar", () => {
 			close: vi.fn().mockResolvedValue(undefined),
 		};
 
-		const unsub = toPulsar(fromIter([{ id: "abc", data: "xyz" }]), pulsarProducer, {
+		const { dispose: unsub } = toPulsar(fromIter([{ id: "abc", data: "xyz" }]), pulsarProducer, {
 			keyExtractor: (v) => v.id,
 			propertiesExtractor: (v) => ({ type: typeof v.data }),
 		});
@@ -1011,7 +1018,7 @@ describe("toNATS", () => {
 			drain: vi.fn().mockResolvedValue(undefined),
 		};
 
-		const unsub = toNATS(fromIter(["hello"]), client, "events.out");
+		const { dispose: unsub } = toNATS(fromIter(["hello"]), client, "events.out");
 
 		await tick();
 
@@ -1137,7 +1144,7 @@ describe("toRabbitMQ", () => {
 			sendToQueue: vi.fn().mockReturnValue(true),
 		};
 
-		const unsub = toRabbitMQ(fromIter(["hello"]), channel, "my-exchange");
+		const { dispose: unsub } = toRabbitMQ(fromIter(["hello"]), channel, "my-exchange");
 
 		await tick();
 
@@ -1156,9 +1163,14 @@ describe("toRabbitMQ", () => {
 			sendToQueue: vi.fn().mockReturnValue(true),
 		};
 
-		const unsub = toRabbitMQ(fromIter([{ id: "abc", type: "click" }]), channel, "events", {
-			routingKeyExtractor: (v) => v.type,
-		});
+		const { dispose: unsub } = toRabbitMQ(
+			fromIter([{ id: "abc", type: "click" }]),
+			channel,
+			"events",
+			{
+				routingKeyExtractor: (v) => v.type,
+			},
+		);
 
 		await tick();
 

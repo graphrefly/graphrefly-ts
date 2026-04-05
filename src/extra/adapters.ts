@@ -21,6 +21,7 @@ import {
 	DIRTY,
 	ERROR,
 	type Message,
+	messageTier,
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
@@ -37,6 +38,37 @@ export type SinkTransportError = {
 	error: Error;
 	value: unknown;
 };
+
+/** Handle returned by per-record and buffered sinks. */
+export type SinkHandle = {
+	/** Stop the sink (unsubscribe from source). */
+	dispose: () => void;
+	/** Reactive node that emits the latest transport error (or `null`). */
+	errors: Node<SinkTransportError | null>;
+	/** Manually drain the internal buffer (buffered sinks only). */
+	flush?: () => Promise<void>;
+};
+
+/**
+ * Internal helper — creates a `state` node for transport errors and a handler
+ * that writes to it.  If the user supplied their own `onTransportError`, it is
+ * called first; the error is always forwarded to the companion node.
+ */
+function createSinkErrorHandler(userHandler?: (err: SinkTransportError) => void): {
+	errorsNode: Node<SinkTransportError | null>;
+	handler: (err: SinkTransportError) => void;
+} {
+	const errorsNode = state<SinkTransportError | null>(null);
+	const handler = (err: SinkTransportError): void => {
+		userHandler?.(err);
+		try {
+			errorsNode.down([[DATA, err]]);
+		} catch {
+			/* emitting error state during batch drain may re-enter; swallow */
+		}
+	};
+	return { errorsNode, handler };
+}
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -1532,13 +1564,14 @@ export function toKafka<T>(
 	kafkaProducer: KafkaProducerLike,
 	topic: string,
 	opts?: ToKafkaOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		serialize = (v: T) => JSON.stringify(v),
 		keyExtractor,
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -1551,7 +1584,7 @@ export function toKafka<T>(
 				try {
 					serialized = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -1564,7 +1597,7 @@ export function toKafka<T>(
 						messages: [{ key, value: Buffer.from(serialized as string) }],
 					})
 					.catch((err: unknown) => {
-						onTransportError?.({
+						handler({
 							stage: "send",
 							error: err instanceof Error ? err : new Error(String(err)),
 							value,
@@ -1575,7 +1608,14 @@ export function toKafka<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— Redis Streams ———
@@ -1712,13 +1752,14 @@ export function toRedisStream<T>(
 	client: RedisClientLike,
 	key: string,
 	opts?: ToRedisStreamOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		serialize = (v: T) => ["data", JSON.stringify(v)],
 		maxLen,
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -1730,7 +1771,7 @@ export function toRedisStream<T>(
 				try {
 					fields = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -1742,7 +1783,7 @@ export function toRedisStream<T>(
 						? client.xadd(key, "MAXLEN", "~", String(maxLen), "*", ...fields)
 						: client.xadd(key, "*", ...fields);
 				void send.catch((err: unknown) => {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -1753,7 +1794,14 @@ export function toRedisStream<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— CSV ingest ———
@@ -2227,7 +2275,7 @@ export function toPulsar<T>(
 	source: Node<T>,
 	pulsarProducer: PulsarProducerLike,
 	opts?: ToPulsarOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		serialize = (v: T) => Buffer.from(JSON.stringify(v)),
 		keyExtractor,
@@ -2235,6 +2283,7 @@ export function toPulsar<T>(
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -2246,7 +2295,7 @@ export function toPulsar<T>(
 				try {
 					data = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2260,7 +2309,7 @@ export function toPulsar<T>(
 						properties: propertiesExtractor?.(value),
 					})
 					.catch((err: unknown) => {
-						onTransportError?.({
+						handler({
 							stage: "send",
 							error: err instanceof Error ? err : new Error(String(err)),
 							value,
@@ -2271,7 +2320,14 @@ export function toPulsar<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— NATS ———
@@ -2417,13 +2473,14 @@ export function toNATS<T>(
 	client: NATSClientLike,
 	subject: string,
 	opts?: ToNATSOptions<T>,
-): () => void {
+): SinkHandle {
 	const encoder = new TextEncoder();
 	const {
 		serialize = (v: T) => encoder.encode(JSON.stringify(v)),
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -2435,7 +2492,7 @@ export function toNATS<T>(
 				try {
 					data = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2445,7 +2502,7 @@ export function toNATS<T>(
 				try {
 					client.publish(subject, data);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2456,7 +2513,14 @@ export function toNATS<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— RabbitMQ ———
@@ -2630,13 +2694,14 @@ export function toRabbitMQ<T>(
 	channel: RabbitMQChannelLike,
 	exchange: string,
 	opts?: ToRabbitMQOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		serialize = (v: T) => Buffer.from(JSON.stringify(v)),
 		routingKeyExtractor = () => "",
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -2648,7 +2713,7 @@ export function toRabbitMQ<T>(
 				try {
 					routingKey = routingKeyExtractor(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "routing_key",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2659,7 +2724,7 @@ export function toRabbitMQ<T>(
 				try {
 					content = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2669,7 +2734,7 @@ export function toRabbitMQ<T>(
 				try {
 					channel.publish(exchange, routingKey, content);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2680,7 +2745,14 @@ export function toRabbitMQ<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -2688,9 +2760,7 @@ export function toRabbitMQ<T>(
 // ——————————————————————————————————————————————————————————————
 
 /** Handle returned by buffered sinks. `flush()` drains remaining buffer. */
-export type BufferedSinkHandle = {
-	/** Stop the sink and cancel the flush timer. */
-	dispose: () => void;
+export type BufferedSinkHandle = SinkHandle & {
 	/** Manually drain the internal buffer. */
 	flush: () => Promise<void>;
 };
@@ -2699,7 +2769,7 @@ export type BufferedSinkHandle = {
 
 /** Duck-typed writable file handle (compatible with `fs.createWriteStream`). */
 export type FileWriterLike = {
-	write(data: string | Uint8Array): boolean | void;
+	write(data: string | Uint8Array): boolean | undefined;
 	end(): void;
 };
 
@@ -2742,9 +2812,11 @@ export function toFile<T>(
 		mode: _mode,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	let buffer: string[] = [];
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let disposed = false;
 
 	const doFlush = () => {
 		if (buffer.length === 0) return;
@@ -2753,7 +2825,7 @@ export function toFile<T>(
 		try {
 			writer.write(chunk);
 		} catch (err) {
-			onTransportError?.({
+			handler({
 				stage: "send",
 				error: err instanceof Error ? err : new Error(String(err)),
 				value: chunk,
@@ -2762,8 +2834,9 @@ export function toFile<T>(
 	};
 
 	const scheduleFlush = () => {
-		if (flushIntervalMs > 0 && timer === undefined) {
+		if (flushIntervalMs > 0 && timer === undefined && !disposed) {
 			timer = setTimeout(() => {
+				/* I/O flush timer — not reactive scheduling (§5.10) */
 				timer = undefined;
 				doFlush();
 			}, flushIntervalMs);
@@ -2782,7 +2855,7 @@ export function toFile<T>(
 				try {
 					line = serialize(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -2797,7 +2870,7 @@ export function toFile<T>(
 					try {
 						writer.write(line);
 					} catch (err) {
-						onTransportError?.({
+						handler({
 							stage: "send",
 							error: err instanceof Error ? err : new Error(String(err)),
 							value,
@@ -2806,7 +2879,7 @@ export function toFile<T>(
 				}
 				return true;
 			}
-			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+			if (messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
 			return false;
@@ -2816,19 +2889,27 @@ export function toFile<T>(
 	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
 		if (timer !== undefined) {
 			clearTimeout(timer);
 			timer = undefined;
 		}
 		doFlush();
-		writer.end();
+		try {
+			writer.end();
+		} catch {
+			/* writer may already be closed */
+		}
 		unsub();
+		errorsNode.down([[TEARDOWN]]);
 	};
 
 	return {
 		dispose,
+		errors: errorsNode,
 		flush: async () => {
-			doFlush();
+			if (!disposed) doFlush();
 		},
 	};
 }
@@ -2955,27 +3036,34 @@ export function toClickHouse<T>(
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	let buffer: unknown[] = [];
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	let lastFlush: Promise<void> = Promise.resolve();
+	let disposed = false;
+	const inFlight = new Set<Promise<void>>();
 
 	const doFlush = (): Promise<void> => {
 		if (buffer.length === 0) return Promise.resolve();
 		const batch = buffer;
 		buffer = [];
 		try {
-			const p = client.insert({ table, values: batch, format }).catch((err: unknown) => {
-				onTransportError?.({
-					stage: "send",
-					error: err instanceof Error ? err : new Error(String(err)),
-					value: batch,
+			const p: Promise<void> = client
+				.insert({ table, values: batch, format })
+				.catch((err: unknown) => {
+					handler({
+						stage: "send",
+						error: err instanceof Error ? err : new Error(String(err)),
+						value: batch,
+					});
+				})
+				.finally(() => {
+					inFlight.delete(p);
 				});
-			});
-			lastFlush = p;
+			inFlight.add(p);
 			return p;
 		} catch (err) {
-			onTransportError?.({
+			handler({
 				stage: "send",
 				error: err instanceof Error ? err : new Error(String(err)),
 				value: batch,
@@ -2985,8 +3073,9 @@ export function toClickHouse<T>(
 	};
 
 	const scheduleFlush = () => {
-		if (timer === undefined) {
+		if (timer === undefined && !disposed) {
 			timer = setTimeout(() => {
+				/* I/O flush timer — not reactive scheduling (§5.10) */
 				timer = undefined;
 				doFlush();
 			}, flushIntervalMs);
@@ -3002,7 +3091,7 @@ export function toClickHouse<T>(
 				try {
 					buffer.push(transform(value));
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3013,7 +3102,7 @@ export function toClickHouse<T>(
 				else scheduleFlush();
 				return true;
 			}
-			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+			if (messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
 			return false;
@@ -3023,17 +3112,24 @@ export function toClickHouse<T>(
 	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
 		if (timer !== undefined) {
 			clearTimeout(timer);
 			timer = undefined;
 		}
 		doFlush();
 		unsub();
+		errorsNode.down([[TEARDOWN]]);
 	};
 
 	return {
 		dispose,
-		flush: () => doFlush().then(() => lastFlush),
+		errors: errorsNode,
+		flush: () => {
+			const p = disposed ? Promise.resolve() : doFlush();
+			return p.then(() => Promise.all(inFlight)).then(() => {});
+		},
 	};
 }
 
@@ -3094,11 +3190,13 @@ export function toS3<T>(
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	let buffer: unknown[] = [];
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let seq = 0;
-	let lastFlush: Promise<void> = Promise.resolve();
+	let disposed = false;
+	const inFlight = new Set<Promise<void>>();
 
 	const doFlush = (): Promise<void> => {
 		if (buffer.length === 0) return Promise.resolve();
@@ -3116,16 +3214,19 @@ export function toS3<T>(
 				.putObject({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
 				.then(() => {})
 				.catch((err: unknown) => {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value: batch,
 					});
+				})
+				.finally(() => {
+					inFlight.delete(p);
 				});
-			lastFlush = p;
+			inFlight.add(p);
 			return p;
 		} catch (err) {
-			onTransportError?.({
+			handler({
 				stage: "send",
 				error: err instanceof Error ? err : new Error(String(err)),
 				value: batch,
@@ -3135,8 +3236,9 @@ export function toS3<T>(
 	};
 
 	const scheduleFlush = () => {
-		if (timer === undefined) {
+		if (timer === undefined && !disposed) {
 			timer = setTimeout(() => {
+				/* I/O flush timer — not reactive scheduling (§5.10) */
 				timer = undefined;
 				doFlush();
 			}, flushIntervalMs);
@@ -3152,7 +3254,7 @@ export function toS3<T>(
 				try {
 					buffer.push(transform(value));
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3163,7 +3265,7 @@ export function toS3<T>(
 				else scheduleFlush();
 				return true;
 			}
-			if (msg[0] === COMPLETE || msg[0] === TEARDOWN) {
+			if (messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
 			return false;
@@ -3173,17 +3275,24 @@ export function toS3<T>(
 	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
 		if (timer !== undefined) {
 			clearTimeout(timer);
 			timer = undefined;
 		}
 		doFlush();
 		unsub();
+		errorsNode.down([[TEARDOWN]]);
 	};
 
 	return {
 		dispose,
-		flush: () => doFlush().then(() => lastFlush),
+		errors: errorsNode,
+		flush: () => {
+			const p = disposed ? Promise.resolve() : doFlush();
+			return p.then(() => Promise.all(inFlight)).then(() => {});
+		},
 	};
 }
 
@@ -3217,7 +3326,7 @@ export function toPostgres<T>(
 	client: PostgresClientLike,
 	table: string,
 	opts?: ToPostgresOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		toSQL = (v: T, t: string) => ({
 			sql: `INSERT INTO "${t.replace(/"/g, '""')}" (data) VALUES ($1)`,
@@ -3226,6 +3335,7 @@ export function toPostgres<T>(
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -3237,7 +3347,7 @@ export function toPostgres<T>(
 				try {
 					query = toSQL(value, table);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3245,7 +3355,7 @@ export function toPostgres<T>(
 					return true;
 				}
 				void client.query(query.sql, query.params).catch((err: unknown) => {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3256,7 +3366,14 @@ export function toPostgres<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— toMongo ———
@@ -3287,8 +3404,9 @@ export function toMongo<T>(
 	source: Node<T>,
 	collection: MongoCollectionLike,
 	opts?: ToMongoOptions<T>,
-): () => void {
+): SinkHandle {
 	const { toDocument = (v: T) => v, onTransportError, ...rest } = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -3300,7 +3418,7 @@ export function toMongo<T>(
 				try {
 					doc = toDocument(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3308,7 +3426,7 @@ export function toMongo<T>(
 					return true;
 				}
 				void collection.insertOne(doc).catch((err: unknown) => {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3319,7 +3437,14 @@ export function toMongo<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— toLoki ———
@@ -3360,7 +3485,7 @@ export function toLoki<T>(
 	source: Node<T>,
 	client: LokiClientLike,
 	opts?: ToLokiOptions<T>,
-): () => void {
+): SinkHandle {
 	const {
 		labels = {},
 		toLine = (v: T) => JSON.stringify(v),
@@ -3368,6 +3493,7 @@ export function toLoki<T>(
 		onTransportError,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -3379,7 +3505,7 @@ export function toLoki<T>(
 				try {
 					line = toLine(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3390,7 +3516,7 @@ export function toLoki<T>(
 				try {
 					streamLabels = toLabels ? { ...labels, ...toLabels(value) } : labels;
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3401,7 +3527,7 @@ export function toLoki<T>(
 				void client
 					.push({ streams: [{ stream: streamLabels, values: [[ts, line]] }] })
 					.catch((err: unknown) => {
-						onTransportError?.({
+						handler({
 							stage: "send",
 							error: err instanceof Error ? err : new Error(String(err)),
 							value,
@@ -3412,7 +3538,14 @@ export function toLoki<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— toTempo ———
@@ -3443,8 +3576,9 @@ export function toTempo<T>(
 	source: Node<T>,
 	client: TempoClientLike,
 	opts?: ToTempoOptions<T>,
-): () => void {
+): SinkHandle {
 	const { toResourceSpans = (v: T) => [v], onTransportError, ...rest } = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -3456,7 +3590,7 @@ export function toTempo<T>(
 				try {
 					spans = toResourceSpans(value);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3464,7 +3598,7 @@ export function toTempo<T>(
 					return true;
 				}
 				void client.push({ resourceSpans: spans }).catch((err: unknown) => {
-					onTransportError?.({
+					handler({
 						stage: "send",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
@@ -3475,7 +3609,14 @@ export function toTempo<T>(
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	return {
+		dispose: () => {
+			unsub();
+			errorsNode.down([[TEARDOWN]]);
+		},
+		errors: errorsNode,
+	};
 }
 
 // ——— checkpointToS3 ———
@@ -3672,6 +3813,18 @@ export type ToSqliteOptions<T> = ExtraOpts & {
 	/** Build SQL + params for an insert. Default: JSON insert into `(data)` column. */
 	toSQL?: (value: T, table: string) => { sql: string; params: unknown[] };
 	onTransportError?: (err: SinkTransportError) => void;
+	/**
+	 * When `true`, buffer DATA values and execute all inserts inside a single
+	 * `BEGIN`/`COMMIT` transaction when the batch drains.  This avoids per-row
+	 * fsync overhead and dramatically reduces event-loop blocking for
+	 * high-throughput sources.  The first insert error stops the batch and
+	 * triggers a `ROLLBACK`; the error is reported via `onTransportError`.
+	 */
+	batchInsert?: boolean;
+	/** Auto-flush when buffer reaches this size. Default: `1000`. Only applies when `batchInsert` is `true`. */
+	maxBatchSize?: number;
+	/** Periodic flush interval in ms. `0` = no timer (flush on terminal messages only). Default: `0`. Only applies when `batchInsert` is `true`. */
+	flushIntervalMs?: number;
 };
 
 /**
@@ -3704,7 +3857,7 @@ export function toSqlite<T>(
 	db: SqliteDbLike,
 	table: string,
 	opts?: ToSqliteOptions<T>,
-): () => void {
+): SinkHandle {
 	if (table.includes("\0") || table.length === 0) {
 		throw new Error(`toSqlite: invalid table name: ${JSON.stringify(table)}`);
 	}
@@ -3714,8 +3867,72 @@ export function toSqlite<T>(
 			params: [JSON.stringify(v)],
 		}),
 		onTransportError,
+		batchInsert = false,
+		maxBatchSize = 1000,
+		flushIntervalMs = 0,
 		...rest
 	} = opts ?? {};
+	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
+
+	const pendingInserts: { sql: string; params: unknown[] }[] = [];
+	let flushing = false;
+	let disposed = false;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	function flushTransaction(): void {
+		if (pendingInserts.length === 0 || flushing) return;
+		flushing = true;
+		try {
+			db.query("BEGIN", []);
+		} catch (err) {
+			flushing = false;
+			handler({
+				stage: "send",
+				error: err instanceof Error ? err : new Error(String(err)),
+				value: undefined,
+			});
+			return;
+		}
+		const batch = pendingInserts.splice(0);
+		let firstError: Error | undefined;
+		for (const q of batch) {
+			try {
+				db.query(q.sql, q.params);
+			} catch (err) {
+				firstError = err instanceof Error ? err : new Error(String(err));
+				break;
+			}
+		}
+		if (firstError) {
+			try {
+				db.query("ROLLBACK", []);
+			} catch {
+				/* ROLLBACK failure — firstError already captured */
+			}
+			handler({ stage: "send", error: firstError, value: undefined });
+		} else {
+			try {
+				db.query("COMMIT", []);
+			} catch (err) {
+				handler({
+					stage: "send",
+					error: err instanceof Error ? err : new Error(String(err)),
+					value: undefined,
+				});
+			}
+		}
+		flushing = false;
+	}
+
+	const scheduleFlush = () => {
+		if (batchInsert && flushIntervalMs > 0 && timer === undefined && !disposed) {
+			timer = setTimeout(() => {
+				/* I/O flush timer — not reactive scheduling (§5.10) */
+				timer = undefined;
+				flushTransaction();
+			}, flushIntervalMs);
+		}
+	};
 
 	const inner = node([source as Node], () => undefined, {
 		describeKind: "effect",
@@ -3727,26 +3944,300 @@ export function toSqlite<T>(
 				try {
 					query = toSQL(value, table);
 				} catch (err) {
-					onTransportError?.({
+					handler({
 						stage: "serialize",
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
 					return true;
 				}
-				try {
-					db.query(query.sql, query.params);
-				} catch (err) {
-					onTransportError?.({
-						stage: "send",
-						error: err instanceof Error ? err : new Error(String(err)),
-						value,
-					});
+				if (batchInsert) {
+					pendingInserts.push(query);
+					if (pendingInserts.length >= maxBatchSize) flushTransaction();
+					else scheduleFlush();
+				} else {
+					try {
+						db.query(query.sql, query.params);
+					} catch (err) {
+						handler({
+							stage: "send",
+							error: err instanceof Error ? err : new Error(String(err)),
+							value,
+						});
+					}
 				}
 				return true;
+			}
+			if (batchInsert && messageTier(msg[0]) >= 3) {
+				flushTransaction();
 			}
 			return false;
 		},
 	});
-	return inner.subscribe(() => {});
+	const unsub = inner.subscribe(() => {});
+	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			timer = undefined;
+		}
+		if (batchInsert) flushTransaction();
+		unsub();
+		errorsNode.down([[TEARDOWN]]);
+	};
+	return {
+		dispose,
+		errors: errorsNode,
+		flush: batchInsert
+			? async () => {
+					if (!disposed) flushTransaction();
+				}
+			: undefined,
+	};
+}
+
+// ——————————————————————————————————————————————————————————————
+//  Prisma adapter (5.2b)
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Duck-typed Prisma model delegate.
+ *
+ * Compatible with any Prisma model's `findMany` method (e.g. `prisma.user`).
+ * The consumer passes the model delegate directly — no dependency on `@prisma/client`.
+ */
+export type PrismaModelLike<T = unknown> = {
+	findMany(args?: unknown): Promise<T[]>;
+};
+
+/** Options for {@link fromPrisma}. */
+export type FromPrismaOptions<T, U = T> = ExtraOpts & {
+	/** Prisma `findMany` args (where, orderBy, select, include, take, skip, etc.). */
+	args?: unknown;
+	/** Map each row to the desired shape. Default: identity cast. */
+	mapRow?: (row: T) => U;
+};
+
+/**
+ * One-shot Prisma query as a reactive source.
+ *
+ * Calls `model.findMany(args)`, emits one `DATA` per result row, then `COMPLETE`.
+ * Compose with `switchMap` + `fromTimer` for periodic re-query.
+ *
+ * @param model - Prisma model delegate (e.g. `prisma.user`).
+ * @param opts - `findMany` args, row mapper, and node options.
+ * @returns `Node<U>` — one `DATA` per row, then `COMPLETE`.
+ *
+ * @example
+ * ```ts
+ * import { PrismaClient } from "@prisma/client";
+ * import { fromPrisma } from "@graphrefly/graphrefly-ts";
+ *
+ * const prisma = new PrismaClient();
+ * const activeUsers = fromPrisma(prisma.user, {
+ *   args: { where: { active: true } },
+ * });
+ * ```
+ *
+ * @category extra
+ */
+export function fromPrisma<T = unknown, U = T>(
+	model: PrismaModelLike<T>,
+	opts?: FromPrismaOptions<T, U>,
+): Node<U> {
+	const { args, mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
+
+	return producer<U>(
+		(_d, a) => {
+			let active = true;
+
+			void model
+				.findMany(args)
+				.then((rows) => {
+					if (!active) return;
+					const mapped = rows.map(mapRow);
+					batch(() => {
+						for (const item of mapped) {
+							a.emit(item);
+						}
+					});
+					a.down([[COMPLETE]]);
+				})
+				.catch((err) => {
+					if (!active) return;
+					try {
+						a.down([[ERROR, err instanceof Error ? err : new Error(String(err))]]);
+					} catch {
+						/* node already torn down — swallow */
+					}
+				});
+
+			return () => {
+				active = false;
+			};
+		},
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+	);
+}
+
+// ——————————————————————————————————————————————————————————————
+//  Drizzle adapter (5.2b)
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Duck-typed Drizzle query builder result.
+ *
+ * Drizzle query builders (e.g. `db.select().from(users)`) expose `.execute()`
+ * which returns `Promise<T[]>`. This interface captures that contract without
+ * depending on `drizzle-orm`.
+ */
+export type DrizzleQueryLike<T = unknown> = {
+	execute(): Promise<T[]>;
+};
+
+/** Options for {@link fromDrizzle}. */
+export type FromDrizzleOptions<T, U = T> = ExtraOpts & {
+	/** Map each row to the desired shape. Default: identity cast. */
+	mapRow?: (row: T) => U;
+};
+
+/**
+ * One-shot Drizzle query as a reactive source.
+ *
+ * Calls `query.execute()`, emits one `DATA` per result row, then `COMPLETE`.
+ * Compose with `switchMap` + `fromTimer` for periodic re-query.
+ *
+ * @param query - Drizzle query builder (e.g. `db.select().from(users).where(...)`).
+ * @param opts - Row mapper and node options.
+ * @returns `Node<U>` — one `DATA` per row, then `COMPLETE`.
+ *
+ * @example
+ * ```ts
+ * import { drizzle } from "drizzle-orm/node-postgres";
+ * import { fromDrizzle } from "@graphrefly/graphrefly-ts";
+ *
+ * const db = drizzle(pool);
+ * const rows$ = fromDrizzle(db.select().from(users).where(eq(users.active, true)));
+ * ```
+ *
+ * @category extra
+ */
+export function fromDrizzle<T = unknown, U = T>(
+	query: DrizzleQueryLike<T>,
+	opts?: FromDrizzleOptions<T, U>,
+): Node<U> {
+	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
+
+	return producer<U>(
+		(_d, a) => {
+			let active = true;
+
+			void query
+				.execute()
+				.then((rows) => {
+					if (!active) return;
+					const mapped = rows.map(mapRow);
+					batch(() => {
+						for (const item of mapped) {
+							a.emit(item);
+						}
+					});
+					a.down([[COMPLETE]]);
+				})
+				.catch((err) => {
+					if (!active) return;
+					try {
+						a.down([[ERROR, err instanceof Error ? err : new Error(String(err))]]);
+					} catch {
+						/* node already torn down — swallow */
+					}
+				});
+
+			return () => {
+				active = false;
+			};
+		},
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+	);
+}
+
+// ——————————————————————————————————————————————————————————————
+//  Kysely adapter (5.2b)
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Duck-typed Kysely query builder result.
+ *
+ * Kysely query builders expose `.execute()` which returns `Promise<T[]>`.
+ * This interface captures that contract without depending on `kysely`.
+ */
+export type KyselyQueryLike<T = unknown> = {
+	execute(): Promise<T[]>;
+};
+
+/** Options for {@link fromKysely}. */
+export type FromKyselyOptions<T, U = T> = ExtraOpts & {
+	/** Map each row to the desired shape. Default: identity cast. */
+	mapRow?: (row: T) => U;
+};
+
+/**
+ * One-shot Kysely query as a reactive source.
+ *
+ * Calls `query.execute()`, emits one `DATA` per result row, then `COMPLETE`.
+ * Compose with `switchMap` + `fromTimer` for periodic re-query.
+ *
+ * @param query - Kysely query builder (e.g. `db.selectFrom("users").selectAll()`).
+ * @param opts - Row mapper and node options.
+ * @returns `Node<U>` — one `DATA` per row, then `COMPLETE`.
+ *
+ * @example
+ * ```ts
+ * import { Kysely, PostgresDialect } from "kysely";
+ * import { fromKysely } from "@graphrefly/graphrefly-ts";
+ *
+ * const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
+ * const rows$ = fromKysely(db.selectFrom("users").selectAll().where("active", "=", true));
+ * ```
+ *
+ * @category extra
+ */
+export function fromKysely<T = unknown, U = T>(
+	query: KyselyQueryLike<T>,
+	opts?: FromKyselyOptions<T, U>,
+): Node<U> {
+	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
+
+	return producer<U>(
+		(_d, a) => {
+			let active = true;
+
+			void query
+				.execute()
+				.then((rows) => {
+					if (!active) return;
+					const mapped = rows.map(mapRow);
+					batch(() => {
+						for (const item of mapped) {
+							a.emit(item);
+						}
+					});
+					a.down([[COMPLETE]]);
+				})
+				.catch((err) => {
+					if (!active) return;
+					try {
+						a.down([[ERROR, err instanceof Error ? err : new Error(String(err))]]);
+					} catch {
+						/* node already torn down — swallow */
+					}
+				});
+
+			return () => {
+				active = false;
+			};
+		},
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+	);
 }
