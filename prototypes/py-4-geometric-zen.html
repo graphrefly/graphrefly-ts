@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly Python — Geometric Zen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Karla:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0f0f14;
+    --bg-card: rgba(255, 255, 255, 0.02);
+    --text: #d4d2cb;
+    --text-dim: #7a7872;
+    --text-bright: #f0ede6;
+    --amber: #e8a849;
+    --teal: #4ecdc4;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover-amber: rgba(232, 168, 73, 0.5);
+    --border-hover-teal: rgba(78, 205, 196, 0.5);
+    --font-heading: 'Libre Baskerville', Georgia, serif;
+    --font-body: 'Karla', 'Helvetica Neue', sans-serif;
+    --font-code: 'Fira Code', 'Consolas', monospace;
+  }
+
+  html { font-size: 17px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--text);
+    background-color: var(--bg);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: var(--amber); text-decoration: none; transition: color 0.2s; }
+  a:hover { color: var(--teal); }
+
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  /* ---------- Sacred geometry background ---------- */
+  .geo-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .geo-bg svg {
+    width: 100%;
+    height: 100%;
+    opacity: 0.03;
+  }
+
+  .content { position: relative; z-index: 1; }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    position: relative;
+  }
+
+  .hero__mandala {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    opacity: 0.06;
+    animation: mandala-rotate 120s linear infinite;
+  }
+  @keyframes mandala-rotate {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  .hero__headline {
+    font-family: var(--font-heading);
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.25;
+    max-width: 600px;
+    margin-bottom: 1.2rem;
+    position: relative;
+  }
+
+  .hero__sub {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    max-width: 480px;
+    margin-bottom: 2.5rem;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  .hero__install {
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    padding: 0.7rem 2rem;
+    border-radius: 4px;
+    margin-bottom: 2rem;
+    user-select: all;
+    transition: border-color 0.3s;
+  }
+  .hero__install:hover { border-color: var(--amber); }
+  .hero__install .prompt { color: var(--teal); }
+
+  .hero__ctas {
+    display: flex;
+    gap: 1.5rem;
+  }
+  .hero__ctas a {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    transition: border-color 0.3s, color 0.3s;
+  }
+  .hero__ctas a:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* ---------- Section spacing ---------- */
+  .section {
+    padding: 5rem 0;
+  }
+  .section + .section {
+    border-top: 1px solid var(--border);
+  }
+
+  .section__label {
+    font-family: var(--font-code);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.8rem;
+  }
+  .section__title {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    color: var(--text-bright);
+    margin-bottom: 1.5rem;
+    line-height: 1.3;
+  }
+
+  /* ---------- Pillars ---------- */
+  .pillars {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.2rem;
+    margin-top: 2rem;
+  }
+  .pillar {
+    border: 1px solid var(--border);
+    padding: 1.8rem 1.4rem;
+    border-radius: 2px;
+    transition: border-color 0.4s ease, transform 0.3s ease;
+    background: var(--bg-card);
+  }
+  .pillar:hover {
+    transform: translateY(-2px);
+  }
+  .pillar:nth-child(1):hover { border-color: var(--border-hover-amber); }
+  .pillar:nth-child(2):hover { border-color: var(--border-hover-teal); }
+  .pillar:nth-child(3):hover { border-color: var(--border-hover-amber); }
+
+  .pillar__number {
+    font-family: var(--font-code);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: 0.8rem;
+  }
+  .pillar__title {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    color: var(--text-bright);
+    margin-bottom: 0.6rem;
+    line-height: 1.35;
+  }
+  .pillar__desc {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ---------- How It Works ---------- */
+  .how-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 3rem 0 1rem;
+  }
+  .how-step {
+    text-align: center;
+    flex: 0 0 auto;
+  }
+  .how-step__shape {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1rem;
+    position: relative;
+  }
+  .how-step__shape svg {
+    width: 100%;
+    height: 100%;
+  }
+  .how-step__label {
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-bright);
+    margin-bottom: 0.3rem;
+  }
+  .how-step__desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    max-width: 140px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  .how-connector {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), var(--text-dim), var(--border));
+    margin: 0 0.5rem;
+    margin-bottom: 3rem;
+  }
+
+  /* ---------- Scenarios ---------- */
+  .scenario-list {
+    list-style: none;
+    margin: 1.5rem 0;
+  }
+  .scenario-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.2rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .scenario-item:last-child { border-bottom: none; }
+  .scenario-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 0.9rem;
+    margin-top: 0.15rem;
+  }
+  .scenario-text__title {
+    font-weight: 600;
+    color: var(--text-bright);
+    font-size: 0.95rem;
+    margin-bottom: 0.2rem;
+  }
+  .scenario-text__desc {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ---------- Code centerpiece ---------- */
+  .code-showcase {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 2rem 0;
+  }
+  .code-showcase__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.01);
+  }
+  .code-showcase__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+  }
+  .code-showcase__filename {
+    font-family: var(--font-code);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-left: 0.5rem;
+  }
+  .code-showcase__body {
+    padding: 1.8rem 2rem;
+    font-family: var(--font-code);
+    font-size: 0.82rem;
+    line-height: 1.85;
+    overflow-x: auto;
+  }
+  .code-showcase__body .kw { color: #b4a0e5; }
+  .code-showcase__body .fn { color: var(--amber); }
+  .code-showcase__body .str { color: var(--teal); }
+  .code-showcase__body .num { color: #e07b7b; }
+  .code-showcase__body .cm { color: #555; font-style: italic; }
+  .code-showcase__body .op { color: var(--text-dim); }
+  .code-showcase__body .var { color: var(--text-bright); }
+
+  /* ---------- Implementations ---------- */
+  .impl-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: 2rem 0;
+  }
+  .impl-item {
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    border-radius: 2px;
+    transition: border-color 0.4s;
+    background: var(--bg-card);
+  }
+  .impl-item:first-child:hover { border-color: var(--border-hover-teal); }
+  .impl-item:last-child:hover { border-color: var(--border-hover-amber); }
+  .impl-item__tag {
+    font-family: var(--font-code);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+  .impl-item__name {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: var(--text-bright);
+    margin-bottom: 0.4rem;
+  }
+  .impl-item__desc {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+    margin-bottom: 1rem;
+  }
+  .impl-item__cmd {
+    font-family: var(--font-code);
+    font-size: 0.75rem;
+    color: var(--text);
+    background: rgba(0,0,0,0.3);
+    display: inline-block;
+    padding: 0.3rem 0.9rem;
+    border-radius: 2px;
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    text-align: center;
+    padding: 4rem 0;
+    border-top: 1px solid var(--border);
+  }
+  .footer__links {
+    font-size: 0.85rem;
+    margin-bottom: 0.8rem;
+  }
+  .footer__links a { margin: 0 0.8rem; }
+  .footer__copy {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 700px) {
+    .hero__headline { font-size: 1.8rem; }
+    .pillars { grid-template-columns: 1fr; }
+    .how-steps { flex-direction: column; }
+    .how-connector {
+      width: 1px;
+      height: 40px;
+      background: linear-gradient(180deg, var(--border), var(--text-dim), var(--border));
+      margin: 0.3rem 0;
+      margin-bottom: 0;
+    }
+    .impl-row { grid-template-columns: 1fr; }
+    .section__title { font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sacred geometry background pattern -->
+<div class="geo-bg">
+  <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <defs>
+      <pattern id="hex" width="60" height="52" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
+        <polygon points="30,2 55,15 55,37 30,50 5,37 5,15" fill="none" stroke="#fff" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#hex)"/>
+  </svg>
+</div>
+
+<div class="content">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <!-- Animated mandala -->
+    <svg class="hero__mandala" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#fff" stroke-width="0.6">
+        <!-- Outer ring -->
+        <circle cx="200" cy="200" r="180"/>
+        <circle cx="200" cy="200" r="160"/>
+        <circle cx="200" cy="200" r="120"/>
+        <!-- Flower of life (6 petals) -->
+        <circle cx="200" cy="140" r="60"/>
+        <circle cx="252" cy="170" r="60"/>
+        <circle cx="252" cy="230" r="60"/>
+        <circle cx="200" cy="260" r="60"/>
+        <circle cx="148" cy="230" r="60"/>
+        <circle cx="148" cy="170" r="60"/>
+        <circle cx="200" cy="200" r="60"/>
+        <!-- Hexagram -->
+        <polygon points="200,110 278,260 122,260"/>
+        <polygon points="200,290 122,140 278,140"/>
+        <!-- Inner geometry -->
+        <line x1="200" y1="80" x2="200" y2="320"/>
+        <line x1="96" y1="140" x2="304" y2="260"/>
+        <line x1="96" y1="260" x2="304" y2="140"/>
+      </g>
+    </svg>
+
+    <h1 class="hero__headline">
+      Describe what matters.<br>The graph handles the rest.
+    </h1>
+    <p class="hero__sub">
+      A reactive engine for human + LLM co-operation.
+      Zero dependencies. Traceable decisions. Persistent state.
+    </p>
+    <div class="hero__install">
+      <span class="prompt">$</span> pip install graphrefly
+    </div>
+    <div class="hero__ctas">
+      <a href="https://github.com/graphrefly/graphrefly-spec">Read the Spec</a>
+      <a href="https://github.com/graphrefly">GitHub</a>
+    </div>
+  </section>
+
+  <div class="container">
+
+    <!-- ============ PILLARS ============ -->
+    <section class="section">
+      <div class="section__label">Why GraphReFly</div>
+      <h2 class="section__title">Three problems. One protocol.</h2>
+
+      <div class="pillars">
+        <div class="pillar">
+          <div class="pillar__number">01</div>
+          <div class="pillar__title">Stop Drowning in Information</div>
+          <div class="pillar__desc">
+            Information arrives faster than you can reduce it.
+            GraphReFly turns every source into a reactive node
+            that filters, derives, and prioritizes &mdash;
+            so you see only what matters.
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar__number">02</div>
+          <div class="pillar__title">Trust AI by Understanding It</div>
+          <div class="pillar__desc">
+            Every node carries its lineage: which inputs,
+            which derivation, when. Decisions become
+            auditable causal chains, not black-box
+            suggestions you take on faith.
+          </div>
+        </div>
+        <div class="pillar">
+          <div class="pillar__number">03</div>
+          <div class="pillar__title">Describe It, Don't Code It</div>
+          <div class="pillar__desc">
+            State what you need in plain language.
+            An LLM composes the reactive graph. You review,
+            edit, and run it. No framework lock-in.
+            No hidden complexity.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section class="section">
+      <div class="section__label">Process</div>
+      <h2 class="section__title">How it works</h2>
+
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="how-step__shape">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#e8a849" stroke-width="1" opacity="0.6"/>
+              <text x="50" y="54" text-anchor="middle" fill="#e8a849" font-size="11" font-family="Fira Code, monospace">NL</text>
+            </svg>
+          </div>
+          <div class="how-step__label">Describe</div>
+          <div class="how-step__desc">Plain language intent. What do you need?</div>
+        </div>
+
+        <div class="how-connector"></div>
+
+        <div class="how-step">
+          <div class="how-step__shape">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#4ecdc4" stroke-width="1" opacity="0.6"/>
+              <text x="50" y="54" text-anchor="middle" fill="#4ecdc4" font-size="11" font-family="Fira Code, monospace">LLM</text>
+            </svg>
+          </div>
+          <div class="how-step__label">Compose</div>
+          <div class="how-step__desc">LLM builds the reactive graph. You review it.</div>
+        </div>
+
+        <div class="how-connector"></div>
+
+        <div class="how-step">
+          <div class="how-step__shape">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="none" stroke="#e8a849" stroke-width="1" opacity="0.6"/>
+              <text x="50" y="50" text-anchor="middle" fill="#e8a849" font-size="9" font-family="Fira Code, monospace">RUN</text>
+              <text x="50" y="62" text-anchor="middle" fill="#e8a849" font-size="7" font-family="Fira Code, monospace" opacity="0.6">trace</text>
+            </svg>
+          </div>
+          <div class="how-step__label">Run &amp; Trace</div>
+          <div class="how-step__desc">Reactive execution. Checkpoints. Full lineage.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCENARIOS ============ -->
+    <section class="section">
+      <div class="section__label">Applications</div>
+      <h2 class="section__title">Scenarios</h2>
+
+      <ul class="scenario-list">
+        <li class="scenario-item">
+          <div class="scenario-icon">&#9993;</div>
+          <div>
+            <div class="scenario-text__title">Email Triage</div>
+            <div class="scenario-text__desc">
+              Classify, prioritize, and route incoming messages reactively.
+              High-urgency surfaces instantly; newsletters batch for weekly review.
+              Every routing decision is traceable.
+            </div>
+          </div>
+        </li>
+        <li class="scenario-item">
+          <div class="scenario-icon">&#9888;</div>
+          <div>
+            <div class="scenario-text__title">Spending Alerts</div>
+            <div class="scenario-text__desc">
+              Transactions flow through derived nodes that track category totals,
+              detect anomalies, and alert on threshold breaches. No polling
+              &mdash; pure reactive propagation.
+            </div>
+          </div>
+        </li>
+        <li class="scenario-item">
+          <div class="scenario-icon">&#9733;</div>
+          <div>
+            <div class="scenario-text__title">Knowledge Management</div>
+            <div class="scenario-text__desc">
+              Notes, bookmarks, and research feed into a graph that clusters
+              by topic, surfaces connections, and produces weekly digests.
+              Your second brain, with receipts.
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ============ CODE ============ -->
+    <section class="section">
+      <div class="section__label">Quick Start</div>
+      <h2 class="section__title">The code</h2>
+
+      <div class="code-showcase">
+        <div class="code-showcase__bar">
+          <div class="code-showcase__dot"></div>
+          <div class="code-showcase__dot"></div>
+          <div class="code-showcase__dot"></div>
+          <span class="code-showcase__filename">demo.py</span>
+        </div>
+        <div class="code-showcase__body">
+<span class="kw">from</span> <span class="var">graphrefly</span> <span class="kw">import</span> <span class="var">state</span>, <span class="var">derived</span>, <span class="var">effect</span>, <span class="var">DATA</span>
+
+<span class="cm"># 1. Create a stateful node</span>
+<span class="var">count</span> <span class="op">=</span> <span class="fn">state</span>(<span class="num">0</span>)
+
+<span class="cm"># 2. Derive a computed value</span>
+<span class="var">doubled</span> <span class="op">=</span> <span class="fn">derived</span>([<span class="var">count</span>], <span class="kw">lambda</span> <span class="var">c</span>: <span class="var">c</span> <span class="op">*</span> <span class="num">2</span>)
+
+<span class="cm"># 3. React to changes</span>
+<span class="fn">effect</span>([<span class="var">doubled</span>], <span class="kw">lambda</span> <span class="var">d</span>: <span class="fn">print</span>(<span class="var">d</span>))
+
+<span class="cm"># 4. Push data &mdash; prints: 2</span>
+<span class="var">count</span>.<span class="fn">down</span>([(<span class="var">DATA</span>, <span class="num">1</span>)])
+        </div>
+      </div>
+
+      <p style="text-align: center; color: var(--text-dim); font-size: 0.85rem; margin-top: 1rem;">
+        State. Derivation. Effect. Data flows through messages &mdash;
+        no callbacks, no polling, no imperative triggers.
+      </p>
+    </section>
+
+    <!-- ============ IMPLEMENTATIONS ============ -->
+    <section class="section">
+      <div class="section__label">Ecosystem</div>
+      <h2 class="section__title">Implementations</h2>
+
+      <p style="margin-bottom: 1.5rem;">
+        GraphReFly is a protocol, not a language. Two reference implementations
+        share the same spec and message semantics.
+      </p>
+
+      <div class="impl-row">
+        <div class="impl-item">
+          <div class="impl-item__tag">Python</div>
+          <div class="impl-item__name">graphrefly</div>
+          <div class="impl-item__desc">
+            Zero-dependency reactive graph for Python 3.10+.
+            Async-ready. LLM-composable. Persistent checkpoints.
+          </div>
+          <div class="impl-item__cmd">pip install graphrefly</div>
+        </div>
+        <div class="impl-item">
+          <div class="impl-item__tag">TypeScript</div>
+          <div class="impl-item__name">@graphrefly/graphrefly-ts</div>
+          <div class="impl-item__desc">
+            TypeScript-first reactive graph. Tree-shakable.
+            NestJS adapter. Full message protocol.
+          </div>
+          <div class="impl-item__cmd">npm i graphrefly-ts</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer container">
+    <div class="footer__links">
+      <a href="https://graphrefly.dev">graphrefly.dev</a>
+      <a href="https://py.graphrefly.dev">py.graphrefly.dev</a>
+      <a href="https://github.com/graphrefly">GitHub</a>
+      <a href="https://github.com/graphrefly/graphrefly-spec">Spec</a>
+    </div>
+    <div class="footer__copy">
+      GraphReFly &mdash; reactive graph protocol for human + LLM co-operation
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>

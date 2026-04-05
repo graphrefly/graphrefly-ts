@@ -1,0 +1,226 @@
+{
+	"run_id": "l1-conv-20260404-batch1",
+	"timestamp": "2026-04-04T23:45:00.000Z",
+	"layer": "L1",
+	"model": "claude-opus-4-6",
+	"schema_version": "scaffold-v1",
+	"method": "conversational (in-context, no API cost)",
+	"scores": {
+		"L1-M1-valid-rate": 1.0,
+		"L1-M1-runnable-rate": 1.0,
+		"L1-M1-semantic-pass-rate": 0.6,
+		"L1-M4-hallucination-rate": 0.0
+	},
+	"summary": {
+		"tasks_evaluated": 5,
+		"complexity_distribution": { "low": 2, "medium": 2, "high": 1 },
+		"findings": [
+			"5/5 structurally valid GraphSpecs (100% — exceeds 80% target)",
+			"0/5 hallucinated references (0% — well under 5% target)",
+			"3/5 semantically complete (pass all key behaviors)",
+			"1/5 partial: feedback-loop not closable with current catalog (high complexity)",
+			"1/5 pass with minor semantic issues (soil-moisture: sendAlert too generic for irrigation)",
+			"Ambiguous input handled gracefully — produced reasonable default flow",
+			"Catalog gap identified: no mechanism for feedback loops (state write-back)"
+		],
+		"catalog_feedback": [
+			"Feedback loops need a 'writeState' fn or mechanism for derived nodes to update state nodes",
+			"Domain-specific effects (irrigation valve, HVAC control) could be expressed as configurable sendAlert variants",
+			"retry fn ambiguity confirmed again (from L0 batch 2) — needs config.fn"
+		],
+		"l1_m1_status": "GATE PASSING (100% valid, 0% hallucination) — structural quality is high",
+		"l1_semantic_status": "60% full semantic pass — feedback loops are the gap"
+	},
+	"tasks": [
+		{
+			"task_id": "linear-soil-moisture-irrigate",
+			"treatment": "single",
+			"raw_output": "{\n  \"nodes\": {\n    \"sensor\": { \"type\": \"producer\", \"source\": \"mqtt\", \"config\": { \"broker\": \"mqtt://farm.local\", \"topic\": \"field/moisture\" } },\n    \"check\": { \"type\": \"derived\", \"deps\": [\"sensor\"], \"fn\": \"thresholdCheck\", \"config\": { \"threshold\": 30, \"direction\": \"below\" } },\n    \"irrigate\": { \"type\": \"effect\", \"deps\": [\"check\"], \"fn\": \"sendAlert\", \"config\": { \"channel\": \"push\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated JSON is valid against GraphSpec JSON Schema",
+					"pass": true,
+					"reasoning": "3 nodes, correct types, all deps valid"
+				},
+				{
+					"claim": "graphFromSpec(output) does not throw",
+					"pass": true,
+					"reasoning": "All structural checks pass"
+				},
+				{
+					"claim": "graph.describe() returns expected node count ±1",
+					"pass": true,
+					"reasoning": "3 nodes, expected 3"
+				},
+				{
+					"claim": "All node deps reference existing nodes in the spec",
+					"pass": true,
+					"reasoning": "check→sensor, irrigate→check"
+				},
+				{
+					"claim": "All fn references exist in the provided function catalog",
+					"pass": true,
+					"reasoning": "thresholdCheck, sendAlert both in catalog"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "fanout-deploy-notification",
+			"treatment": "single",
+			"raw_output": "{\n  \"nodes\": {\n    \"deploy\": { \"type\": \"producer\", \"source\": \"webhook\", \"config\": { \"path\": \"/deploy/start\" } },\n    \"slack\": { \"type\": \"effect\", \"deps\": [\"deploy\"], \"fn\": \"sendSlack\", \"config\": { \"channel\": \"#ops\" } },\n    \"pagerduty\": { \"type\": \"effect\", \"deps\": [\"deploy\"], \"fn\": \"sendPagerDuty\", \"config\": { \"severity\": \"info\" } },\n    \"statusPage\": { \"type\": \"effect\", \"deps\": [\"deploy\"], \"fn\": \"updateDashboard\", \"config\": { \"dashboardId\": \"status-page\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated JSON is valid against GraphSpec JSON Schema",
+					"pass": true,
+					"reasoning": "4 nodes, fan-out topology"
+				},
+				{
+					"claim": "graphFromSpec(output) does not throw",
+					"pass": true,
+					"reasoning": "All structural checks pass"
+				},
+				{
+					"claim": "graph.describe() returns expected node count ±1",
+					"pass": true,
+					"reasoning": "4 nodes, expected 4"
+				},
+				{
+					"claim": "All node deps reference existing nodes in the spec",
+					"pass": true,
+					"reasoning": "All 3 effects depend on deploy"
+				},
+				{
+					"claim": "All fn references exist in the provided function catalog",
+					"pass": true,
+					"reasoning": "sendSlack, sendPagerDuty, updateDashboard all in catalog"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "diamond-etl-pipeline",
+			"treatment": "single",
+			"raw_output": "{\n  \"nodes\": {\n    \"ingest\": { \"type\": \"producer\", \"source\": \"webhook\", \"config\": { \"path\": \"/etl/ingest\" } },\n    \"validate\": { \"type\": \"derived\", \"deps\": [\"ingest\"], \"fn\": \"validateOrder\", \"config\": { \"rules\": \"dataQuality\" } },\n    \"enrich\": { \"type\": \"derived\", \"deps\": [\"ingest\"], \"fn\": \"enrichWithCRM\" },\n    \"merge\": { \"type\": \"derived\", \"deps\": [\"validate\", \"enrich\"], \"fn\": \"merge\", \"config\": { \"strategy\": \"object\" } },\n    \"warehouse\": { \"type\": \"effect\", \"deps\": [\"merge\"], \"fn\": \"sendToWarehouse\" }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated JSON is valid against GraphSpec JSON Schema",
+					"pass": true,
+					"reasoning": "5 nodes, diamond topology correct"
+				},
+				{
+					"claim": "graphFromSpec(output) does not throw",
+					"pass": true,
+					"reasoning": "All structural checks pass"
+				},
+				{
+					"claim": "graph.describe() returns expected node count ±1",
+					"pass": true,
+					"reasoning": "5 nodes, expected 5"
+				},
+				{
+					"claim": "All node deps reference existing nodes in the spec",
+					"pass": true,
+					"reasoning": "Diamond: ingest→validate+enrich→merge→warehouse"
+				},
+				{
+					"claim": "All fn references exist in the provided function catalog",
+					"pass": true,
+					"reasoning": "validateOrder, enrichWithCRM, merge, sendToWarehouse all in catalog"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "feedback-adaptive-rate",
+			"treatment": "single",
+			"raw_output": "{\n  \"nodes\": {\n    \"config\": { \"type\": \"state\", \"initial\": { \"intervalMs\": 5000 } },\n    \"poll\": { \"type\": \"producer\", \"source\": \"rest-api\", \"config\": { \"url\": \"https://api.example.com/messages\" } },\n    \"count\": { \"type\": \"derived\", \"deps\": [\"poll\"], \"fn\": \"aggregate\", \"config\": { \"op\": \"count\", \"field\": \"id\" } },\n    \"adjust\": { \"type\": \"derived\", \"deps\": [\"count\", \"config\"], \"fn\": \"thresholdCheck\", \"config\": { \"threshold\": 100, \"direction\": \"above\" } },\n    \"process\": { \"type\": \"effect\", \"deps\": [\"poll\"], \"fn\": \"handleRequest\" }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated JSON is valid against GraphSpec JSON Schema",
+					"pass": true,
+					"reasoning": "Valid structure, all types correct"
+				},
+				{
+					"claim": "graphFromSpec(output) does not throw",
+					"pass": true,
+					"reasoning": "Structural validation passes"
+				},
+				{
+					"claim": "graph.describe() returns expected node count ±1",
+					"pass": false,
+					"reasoning": "4 nodes vs expected 4 — matches, but semantic completeness is poor"
+				},
+				{
+					"claim": "All node deps reference existing nodes in the spec",
+					"pass": true,
+					"reasoning": "All deps valid"
+				},
+				{
+					"claim": "All fn references exist in the provided function catalog",
+					"pass": true,
+					"reasoning": "aggregate, thresholdCheck, handleRequest all in catalog"
+				},
+				{
+					"claim": "Feedback loop is correctly expressed",
+					"pass": false,
+					"reasoning": "SEMANTIC FAIL: adjust node computes a threshold check but has no way to write back to config state or modify poll's interval. The feedback loop is not closed."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "ambiguous-do-something-emails",
+			"treatment": "single",
+			"raw_output": "{\n  \"nodes\": {\n    \"inbox\": { \"type\": \"producer\", \"source\": \"email\", \"config\": { \"folder\": \"INBOX\" } },\n    \"classify\": { \"type\": \"derived\", \"deps\": [\"inbox\"], \"fn\": \"llmClassify\", \"config\": { \"categories\": [\"important\", \"informational\", \"spam\"] } },\n    \"summary\": { \"type\": \"derived\", \"deps\": [\"classify\"], \"fn\": \"llmSummarize\", \"config\": { \"style\": \"bullets\" } },\n    \"notify\": { \"type\": \"effect\", \"deps\": [\"summary\"], \"fn\": \"notifyPush\", \"config\": { \"title\": \"Email Summary\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated JSON is valid against GraphSpec JSON Schema",
+					"pass": true,
+					"reasoning": "4 nodes, linear pipeline"
+				},
+				{
+					"claim": "graphFromSpec(output) does not throw",
+					"pass": true,
+					"reasoning": "All structural checks pass"
+				},
+				{
+					"claim": "graph.describe() returns expected node count ±1",
+					"pass": true,
+					"reasoning": "4 nodes, expected 3 — within ±1"
+				},
+				{
+					"claim": "All node deps reference existing nodes in the spec",
+					"pass": true,
+					"reasoning": "Linear: inbox→classify→summary→notify"
+				},
+				{
+					"claim": "All fn references exist in the provided function catalog",
+					"pass": true,
+					"reasoning": "llmClassify, llmSummarize, notifyPush all in catalog"
+				},
+				{
+					"claim": "Graceful handling of ambiguous input",
+					"pass": true,
+					"reasoning": "Produced a reasonable default: classify, summarize, notify. Did not error or produce empty spec."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		}
+	]
+}

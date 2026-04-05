@@ -1,13 +1,25 @@
 # GraphReFly
 
-**Reactive graph protocol for human + LLM co-operation.**
+**Describe what matters. It watches, filters, and explains — persistently.**
 
-One primitive. Zero dependencies. Composable nodes with glitch-free diamond resolution, two-phase push propagation, durable streaming, and framework adapters for React, Vue, Svelte, Solid, and NestJS.
+You're buried under emails, alerts, feeds, and messages. You can't process it all. GraphReFly lets you describe automations in plain language, review them visually, run them persistently, and trace every decision back to its source.
 
 [![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
 
 [Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python](https://py.graphrefly.dev) | [API Reference](https://graphrefly.dev/api/node/)
+
+---
+
+<!-- TODO: Demo 0 GIF/video — NL → flow view → running → "why was this flagged?" -->
+
+## What can you do with it?
+
+**Email triage** — "Watch my inbox. Urgent emails from my team go to a priority list. Newsletters get summarized weekly. Everything else, count by sender." It watches, classifies, and alerts — and when you ask "why was this flagged?", it walks you through the reasoning.
+
+**Spending alerts** — Connect bank transactions to budget categories. Get a push notification when monthly dining exceeds your target. No polling, no manual checks — changes propagate the moment data arrives.
+
+**Knowledge management** — Notes, bookmarks, highlights flow in. Contradictions surface automatically. Related ideas link themselves. Your second brain stays current without you maintaining it.
 
 ---
 
@@ -30,20 +42,24 @@ count.set(3);
 // → doubled: 6
 ```
 
+## How it works
+
+You describe what you need — an LLM composes a reactive graph (like SQL for data flows). The graph runs persistently, checkpoints its state, and traces every decision through a causal chain. Ask "why?" at any point and get a human-readable explanation from source to conclusion.
+
 ## Why GraphReFly?
 
-Most state libraries solve **one** problem well. GraphReFly solves the space between them:
-
-|  | Zustand / Jotai | RxJS | XState | TC39 Signals | **GraphReFly** |
-|--|-----------------|------|--------|-------------|---------------|
-| Simple store API | yes | no | no | yes | **yes** |
-| Streaming operators | no | yes | no | no | **yes** |
-| Diamond resolution | no | n/a | n/a | partial | **glitch-free** |
-| Graph introspection | no | no | visual | no | **describe / observe / diagram** |
-| Durable checkpoints | no | no | persistence | no | **file / SQLite / IndexedDB** |
-| LLM orchestration | no | no | no | no | **agentLoop / chatStream / toolRegistry** |
-| Framework adapters | React | Angular | React / Vue | varies | **React / Vue / Svelte / Solid / NestJS** |
-| Dependencies | 0 | 0 | 0 | n/a | **0** |
+|  | Zustand / Jotai | RxJS | XState | LangGraph | TC39 Signals | **GraphReFly** |
+|--|-----------------|------|--------|-----------|-------------|---------------|
+| Simple store API | yes | no | no | no | yes | **yes** |
+| Streaming operators | no | yes | no | no | no | **yes** |
+| Diamond resolution | no | n/a | n/a | n/a | partial | **glitch-free** |
+| Graph introspection | no | no | visual | checkpoints | no | **describe / observe / diagram** |
+| Causal tracing | no | no | no | no | no | **explain every decision** |
+| Durable checkpoints | no | no | persistence | yes | no | **file / SQLite / IndexedDB** |
+| LLM orchestration | no | no | no | yes | no | **agentLoop / chatStream / toolRegistry** |
+| NL → graph composition | no | no | no | no | no | **graphFromSpec / llmCompose** |
+| Framework adapters | React | Angular | React / Vue | n/a | varies | **React / Vue / Svelte / Solid / NestJS** |
+| Dependencies | 0 | 0 | 0 | many | n/a | **0** |
 
 ## One primitive
 

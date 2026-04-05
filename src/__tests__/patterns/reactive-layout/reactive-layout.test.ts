@@ -434,7 +434,7 @@ describe("reactiveLayout", () => {
 			text: "hello world",
 			maxWidth: 200,
 		});
-		const desc = layout.graph.describe();
+		const desc = layout.graph.describe({ detail: "standard" });
 		const segDesc = desc.nodes.segments;
 		expect(segDesc).toBeDefined();
 		expect(segDesc!.meta).toBeDefined();

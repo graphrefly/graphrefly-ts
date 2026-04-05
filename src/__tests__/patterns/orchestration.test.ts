@@ -72,7 +72,7 @@ describe("patterns.orchestration", () => {
 		g.add("input", input);
 		task<number>(g, "t", ([v]) => v as number, { deps: ["input"] });
 		branch<number>(g, "b", "input", (v) => v > 0);
-		const desc = g.describe();
+		const desc = g.describe({ detail: "standard" });
 		const tKey = Object.keys(desc.nodes).find((k) => k === "t" || k.endsWith("::t"));
 		const bKey = Object.keys(desc.nodes).find((k) => k === "b" || k.endsWith("::b"));
 		expect(tKey).toBeDefined();

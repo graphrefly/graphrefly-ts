@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Reactive Graph Protocol for Python</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #0a0a0a;
+    --green: #33ff33;
+    --green-dim: #1a8c1a;
+    --green-dark: #0d4a0d;
+    --amber: #ffb000;
+    --red: #ff3333;
+    --gray: #2a2a2a;
+    --gray-light: #3a3a3a;
+    --text-dim: #1a6e1a;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--green);
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.15) 2px,
+      rgba(0, 0, 0, 0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* CRT vignette */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    box-shadow:
+      inset 0 0 120px rgba(0, 0, 0, 0.7),
+      inset 0 0 60px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* Glow utility */
+  .glow { text-shadow: 0 0 8px rgba(51, 255, 51, 0.5), 0 0 20px rgba(51, 255, 51, 0.2); }
+  .glow-amber { text-shadow: 0 0 8px rgba(255, 176, 0, 0.5), 0 0 20px rgba(255, 176, 0, 0.2); }
+
+  /* Nav */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 1000;
+    background: rgba(10, 10, 10, 0.95);
+    border-bottom: 1px solid var(--green-dark);
+    padding: 0 2rem;
+    height: 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  nav .logo {
+    color: var(--green);
+    font-weight: 700;
+  }
+  nav .logo .cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--green);
+    margin-left: 4px;
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+  }
+  nav .links { display: flex; gap: 1.5rem; }
+  nav .links a {
+    color: var(--green-dim);
+    text-decoration: none;
+    transition: color 0.2s, text-shadow 0.2s;
+  }
+  nav .links a:hover { color: var(--green); text-shadow: 0 0 8px rgba(51, 255, 51, 0.4); }
+
+  /* Sections */
+  section { position: relative; z-index: 1; padding: 0 2rem; }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  /* ===== BOOT SEQUENCE ===== */
+  .boot {
+    padding-top: 64px;
+    padding-bottom: 1rem;
+    font-size: 12px;
+    color: var(--green-dim);
+    line-height: 1.6;
+  }
+  .boot .line { opacity: 0; animation: bootLine 0.1s forwards; }
+  .boot .line:nth-child(1) { animation-delay: 0.2s; }
+  .boot .line:nth-child(2) { animation-delay: 0.5s; }
+  .boot .line:nth-child(3) { animation-delay: 0.8s; }
+  .boot .line:nth-child(4) { animation-delay: 1.1s; }
+  .boot .line:nth-child(5) { animation-delay: 1.4s; }
+  .boot .ok { color: var(--green); }
+  .boot .warn { color: var(--amber); }
+
+  @keyframes bootLine {
+    to { opacity: 1; }
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    padding: 2rem 2rem 4rem;
+    min-height: 70vh;
+    display: flex; align-items: center;
+  }
+  .hero-inner { width: 100%; }
+
+  .hero .prompt-line {
+    color: var(--green-dim);
+    margin-bottom: 0.5rem;
+    font-size: 13px;
+  }
+  .hero .prompt-line .path { color: var(--green); }
+
+  .typed-headline {
+    font-size: clamp(1.4rem, 3.5vw, 2.2rem);
+    font-weight: 700;
+    color: var(--green);
+    line-height: 1.3;
+    margin-bottom: 0.3rem;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 3px solid var(--green);
+    animation: typing 2.5s steps(38) 1.8s forwards, blinkCaret 0.7s step-end infinite;
+    width: 0;
+    max-width: 100%;
+  }
+
+  @keyframes typing {
+    to { width: 100%; }
+  }
+  @keyframes blinkCaret {
+    50% { border-color: transparent; }
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .hero .sub {
+    font-size: 1rem;
+    color: var(--green-dim);
+    margin-top: 1rem;
+    opacity: 0;
+    animation: fadeIn 0.5s 4.5s forwards;
+    max-width: 700px;
+    white-space: normal;
+    line-height: 1.8;
+  }
+  .hero .sub .hl { color: var(--green); }
+  .hero .sub .amber { color: var(--amber); }
+
+  .hero .install {
+    margin-top: 2rem;
+    opacity: 0;
+    animation: fadeIn 0.5s 5s forwards;
+  }
+  .hero .install code {
+    display: inline-block;
+    background: var(--gray);
+    border: 1px solid var(--green-dark);
+    padding: 0.6rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    color: var(--green);
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .hero .install code:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 15px rgba(51, 255, 51, 0.15);
+  }
+  .hero .install code .prompt { color: var(--green-dim); }
+  .hero .install .hint {
+    font-size: 11px;
+    color: var(--green-dark);
+    margin-top: 0.3rem;
+  }
+
+  .hero .cta-row {
+    margin-top: 1.5rem;
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    opacity: 0;
+    animation: fadeIn 0.5s 5.3s forwards;
+  }
+  .cta-green, .cta-dim {
+    display: inline-block;
+    padding: 0.5rem 1.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    font-family: 'Fira Code', monospace;
+    transition: all 0.2s;
+  }
+  .cta-green {
+    background: var(--green);
+    color: var(--black);
+    border: 1px solid var(--green);
+  }
+  .cta-green:hover { box-shadow: 0 0 20px rgba(51, 255, 51, 0.4); }
+  .cta-dim {
+    background: transparent;
+    color: var(--green-dim);
+    border: 1px solid var(--green-dark);
+  }
+  .cta-dim:hover { color: var(--green); border-color: var(--green-dim); }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* ===== SECTION HEADERS (terminal prompt style) ===== */
+  .term-header {
+    font-family: 'VT323', monospace;
+    font-size: 1.3rem;
+    color: var(--green-dim);
+    margin-bottom: 2rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--green-dark);
+    letter-spacing: 0.03em;
+  }
+  .term-header .user { color: var(--green); }
+  .term-header .cmd { color: var(--amber); }
+
+  /* ===== SEPARATOR ===== */
+  .sep {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--green-dark);
+    font-size: 12px;
+    letter-spacing: 0.5em;
+    user-select: none;
+  }
+
+  /* ===== PILLARS ===== */
+  .pillars { padding: 4rem 2rem; }
+  .pillar-blocks { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .pillar-block {
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid var(--green-dark);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .pillar-block:hover {
+    border-color: var(--green-dim);
+    box-shadow: 0 0 20px rgba(51, 255, 51, 0.05);
+  }
+  .pillar-block .block-header {
+    background: rgba(30, 30, 30, 0.9);
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--green-dark);
+    font-size: 12px;
+    color: var(--green-dim);
+    display: flex; align-items: center; gap: 0.8rem;
+  }
+  .pillar-block .block-header .label {
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .pillar-block .block-body {
+    padding: 1.2rem 1rem;
+  }
+  .pillar-block .block-body h3 {
+    color: var(--green);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .pillar-block .block-body .pain {
+    color: var(--amber);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+  .pillar-block .block-body p {
+    color: var(--green-dim);
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+  .pillar-block .block-body p .hl { color: var(--green); }
+
+  /* ===== HOW IT WORKS ===== */
+  .how-it-works { padding: 4rem 2rem; }
+  .pipeline {
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid var(--green-dark);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+  .pipeline .pipe-line {
+    color: var(--green-dim);
+    font-size: 0.85rem;
+    line-height: 2.2;
+    padding-left: 1rem;
+  }
+  .pipeline .pipe-line .cmd { color: var(--green); }
+  .pipeline .pipe-line .flag { color: var(--amber); }
+  .pipeline .pipe-line .comment { color: var(--text-dim); font-style: italic; }
+  .pipeline .pipe-line .pipe { color: var(--green); font-weight: 700; }
+
+  /* ===== SCENARIOS ===== */
+  .scenarios { padding: 4rem 2rem; }
+  .help-block {
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid var(--green-dark);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+  .help-block .help-line {
+    line-height: 2;
+    font-size: 0.85rem;
+  }
+  .help-block .flag { color: var(--amber); font-weight: 600; }
+  .help-block .desc { color: var(--green-dim); }
+  .help-block .example { color: var(--green); margin-left: 1.5rem; }
+  .help-block .section-label {
+    color: var(--green);
+    font-weight: 700;
+    margin-top: 0.8rem;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* ===== CODE ===== */
+  .code-section { padding: 4rem 2rem; }
+  .repl-block {
+    background: rgba(15, 15, 15, 0.9);
+    border: 1px solid var(--green-dark);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 1rem;
+  }
+  .repl-header {
+    background: rgba(30, 30, 30, 0.9);
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--green-dark);
+    font-size: 11px;
+    color: var(--green-dim);
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+  }
+  .repl-body {
+    padding: 1.2rem 1rem;
+    font-size: 0.88rem;
+    line-height: 2;
+  }
+  .repl-body .prompt { color: var(--green); font-weight: 700; }
+  .repl-body .kw { color: var(--amber); }
+  .repl-body .fn { color: var(--green); }
+  .repl-body .str { color: #88dd88; }
+  .repl-body .num { color: var(--amber); }
+  .repl-body .cmt { color: var(--text-dim); font-style: italic; }
+  .repl-body .output { color: var(--green-dim); padding-left: 0; }
+  .repl-body .output .val { color: var(--green); }
+
+  /* ===== IMPLEMENTATIONS ===== */
+  .implementations { padding: 4rem 2rem 5rem; }
+  .impl-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .impl-box {
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid var(--green-dark);
+    border-radius: 4px;
+    padding: 1.2rem;
+    transition: border-color 0.3s;
+  }
+  .impl-box:hover { border-color: var(--green-dim); }
+  .impl-box.primary { border-color: var(--green-dim); }
+  .impl-box .lang-name {
+    font-family: 'VT323', monospace;
+    font-size: 1.5rem;
+    color: var(--green);
+    margin-bottom: 0.2rem;
+  }
+  .impl-box .pkg-name {
+    color: var(--amber);
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  .impl-box .status-line {
+    font-size: 0.75rem;
+    color: var(--green-dim);
+  }
+  .impl-box .status-line .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .impl-box .status-line .dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .impl-box .status-line .dot.ref { background: var(--green-dim); }
+
+  /* ===== FOOTER ===== */
+  footer {
+    border-top: 1px solid var(--green-dark);
+    padding: 2rem;
+    text-align: center;
+    color: var(--green-dark);
+    font-size: 12px;
+  }
+  footer a { color: var(--green-dim); text-decoration: none; }
+  footer a:hover { color: var(--green); }
+  footer .copyright { margin-top: 0.5rem; }
+
+  /* ===== FADE IN on scroll ===== */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s, transform 0.5s;
+  }
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    nav .links a:not(:last-child) { display: none; }
+    .typed-headline {
+      white-space: normal;
+      border-right: none;
+      animation: fadeIn 0.5s 1.8s forwards;
+      width: auto;
+    }
+    .hero { min-height: auto; padding: 3rem 1rem; }
+    body { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="logo">graphrefly<span class="cursor"></span></div>
+  <div class="links">
+    <a href="#pillars">[pillars]</a>
+    <a href="#how-it-works">[how]</a>
+    <a href="#scenarios">[use-cases]</a>
+    <a href="#code">[code]</a>
+    <a href="https://github.com/graphrefly">[github]</a>
+  </div>
+</nav>
+
+<!-- Boot Sequence -->
+<section class="boot">
+  <div class="container">
+    <div class="line">GRAPHREFLY REACTIVE KERNEL v0.5.0</div>
+    <div class="line">Loading protocol layer... <span class="ok">[OK]</span></div>
+    <div class="line">Initializing graph runtime... <span class="ok">[OK]</span></div>
+    <div class="line">Mounting LLM bridge... <span class="ok">[OK]</span></div>
+    <div class="line">System ready. <span class="warn">WARNING: Your information streams are unmanaged.</span></div>
+  </div>
+</section>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="container hero-inner">
+    <div class="prompt-line"><span class="path">user@graphrefly</span>:~$ graphrefly --describe</div>
+    <div class="typed-headline glow">Stop drowning in information.</div>
+    <div class="sub">
+      <span class="hl">GraphReFly</span> is a reactive graph protocol that reduces
+      <span class="amber">massive information streams</span> into actionable items &mdash;
+      with full traceability so you (and your LLMs) know <span class="hl">why</span>
+      every decision was made.
+    </div>
+    <div class="install">
+      <code onclick="navigator.clipboard.writeText('pip install graphrefly')"><span class="prompt">$ </span>pip install graphrefly</code>
+      <div class="hint"># click to copy</div>
+    </div>
+    <div class="cta-row">
+      <a href="#code" class="cta-green">cat example.py</a>
+      <a href="#pillars" class="cta-dim">man graphrefly</a>
+    </div>
+  </div>
+</section>
+
+<div class="sep">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</div>
+
+<!-- Pillars -->
+<section class="pillars" id="pillars">
+  <div class="container">
+    <div class="term-header fade-in">
+      <span class="user">user@graphrefly</span>:~$ <span class="cmd">cat</span> pillars.md
+    </div>
+    <div class="pillar-blocks">
+      <div class="pillar-block fade-in">
+        <div class="block-header">
+          <span class="label">[PILLAR 1]</span>
+          <span>priority: critical</span>
+        </div>
+        <div class="block-body">
+          <div class="pain">>>> STOP DROWNING IN INFORMATION</div>
+          <h3>Universal Reduction Engine</h3>
+          <p>
+            Hundreds of emails, alerts, feeds, logs &mdash; every day.
+            GraphReFly's reactive graph <span class="hl">continuously reduces</span>
+            raw streams into the few items that actually matter, without polling
+            and without you writing the plumbing.
+          </p>
+        </div>
+      </div>
+      <div class="pillar-block fade-in">
+        <div class="block-header">
+          <span class="label">[PILLAR 2]</span>
+          <span>priority: critical</span>
+        </div>
+        <div class="block-body">
+          <div class="pain">>>> TRUST AI BY UNDERSTANDING IT</div>
+          <h3>Traceable Decisions &amp; Causal Chains</h3>
+          <p>
+            Every node <span class="hl">checkpoints its state</span>.
+            Every derivation records its causal chain. When an LLM recommends an action,
+            you can walk the graph backward and see exactly which inputs led to that conclusion.
+          </p>
+        </div>
+      </div>
+      <div class="pillar-block fade-in">
+        <div class="block-header">
+          <span class="label">[PILLAR 3]</span>
+          <span>priority: high</span>
+        </div>
+        <div class="block-body">
+          <div class="pain">>>> DESCRIBE IT, DON'T CODE IT</div>
+          <h3>NL &rarr; Graph &rarr; Run</h3>
+          <p>
+            Tell the system what you need in <span class="hl">plain language</span>.
+            The LLM composes the reactive graph &mdash; nodes, edges, effects &mdash;
+            and the runtime executes it. No boilerplate. No framework lock-in.
+            Just intent to action.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sep">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</div>
+
+<!-- How It Works -->
+<section class="how-it-works" id="how-it-works">
+  <div class="container">
+    <div class="term-header fade-in">
+      <span class="user">user@graphrefly</span>:~$ <span class="cmd">graphrefly</span> --pipeline
+    </div>
+    <div class="pipeline fade-in">
+      <div class="pipe-line">
+        <span class="comment"># Step 1: Describe your intent</span>
+      </div>
+      <div class="pipe-line">
+        <span class="cmd">echo</span> <span class="str">"Triage inbox, flag VIP deadlines"</span> <span class="pipe">\</span>
+      </div>
+      <div class="pipe-line" style="padding-left: 2rem;">
+        <span class="comment"># Step 2: LLM composes the reactive graph</span>
+      </div>
+      <div class="pipe-line" style="padding-left: 2rem;">
+        <span class="pipe">|</span> <span class="cmd">graphrefly</span> <span class="flag">compose</span> <span class="flag">--llm</span> gpt-4o <span class="pipe">\</span>
+      </div>
+      <div class="pipe-line" style="padding-left: 2rem;">
+        <span class="comment"># Step 3: Run reactively with checkpoints and traces</span>
+      </div>
+      <div class="pipe-line" style="padding-left: 2rem;">
+        <span class="pipe">|</span> <span class="cmd">graphrefly</span> <span class="flag">run</span> <span class="flag">--checkpoint</span> <span class="flag">--trace</span>
+      </div>
+      <div class="pipe-line" style="margin-top: 1rem;">
+        <span class="comment"># Output: only the items that need your attention,</span>
+      </div>
+      <div class="pipe-line">
+        <span class="comment"># with a full causal trace of why.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sep">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</div>
+
+<!-- Scenarios -->
+<section class="scenarios" id="scenarios">
+  <div class="container">
+    <div class="term-header fade-in">
+      <span class="user">user@graphrefly</span>:~$ <span class="cmd">graphrefly</span> --help examples
+    </div>
+    <div class="help-block fade-in">
+      <div class="section-label">SCENARIOS:</div>
+
+      <div class="help-line">
+        <span class="flag">  --email-triage</span>
+        <span class="desc">    Stream inbox through reactive classification</span>
+      </div>
+      <div class="help-line example">
+        Classifies urgency, extracts action items, surfaces only what needs<br>
+        your attention. Full trace of why each message was flagged.
+      </div>
+
+      <div class="help-line" style="margin-top: 0.8rem;">
+        <span class="flag">  --spending-alerts</span>
+        <span class="desc">  Connect transaction feeds to budget thresholds</span>
+      </div>
+      <div class="help-line example">
+        Reacts to every transaction, derives running totals, fires alerts<br>
+        when patterns emerge &mdash; not just when limits break.
+      </div>
+
+      <div class="help-line" style="margin-top: 0.8rem;">
+        <span class="flag">  --knowledge-mgmt</span>
+        <span class="desc">  Notes, bookmarks, highlights &rarr; graph</span>
+      </div>
+      <div class="help-line example">
+        Clusters, links, and distills your knowledge base. Ask "what do I<br>
+        know about X?" and get a traced, sourced answer.
+      </div>
+
+      <div class="help-line" style="margin-top: 1.2rem; color: var(--green-dim);">
+        See <span style="color: var(--amber);">graphrefly --docs</span> for full API reference.
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sep">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</div>
+
+<!-- Code -->
+<section class="code-section" id="code">
+  <div class="container">
+    <div class="term-header fade-in">
+      <span class="user">user@graphrefly</span>:~$ <span class="cmd">python3</span>
+    </div>
+    <div class="repl-block fade-in">
+      <div class="repl-header">Python 3.12.0 | GraphReFly Interactive Session</div>
+      <div class="repl-body">
+<span class="prompt">&gt;&gt;&gt; </span><span class="kw">from</span> graphrefly <span class="kw">import</span> <span class="fn">state</span>, <span class="fn">derived</span>, <span class="fn">effect</span>, DATA
+<span class="prompt">&gt;&gt;&gt; </span>
+<span class="prompt">&gt;&gt;&gt; </span>count   = <span class="fn">state</span>(<span class="num">0</span>)
+<span class="prompt">&gt;&gt;&gt; </span>doubled = <span class="fn">derived</span>([count], <span class="kw">lambda</span> c: c * <span class="num">2</span>)
+<span class="prompt">&gt;&gt;&gt; </span><span class="fn">effect</span>([doubled], <span class="kw">lambda</span> d: <span class="fn">print</span>(d))
+<span class="prompt">&gt;&gt;&gt; </span>
+<span class="prompt">&gt;&gt;&gt; </span>count.<span class="fn">down</span>([(DATA, <span class="num">1</span>)])
+<span class="output"><span class="val">2</span></span>
+<span class="prompt">&gt;&gt;&gt; </span>
+<span class="prompt">&gt;&gt;&gt; </span><span class="cmt"># That's it. State flows reactively.</span>
+<span class="prompt">&gt;&gt;&gt; </span><span class="cmt"># Every step is checkpointed and traceable.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sep">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</div>
+
+<!-- Implementations -->
+<section class="implementations" id="implementations">
+  <div class="container">
+    <div class="term-header fade-in">
+      <span class="user">user@graphrefly</span>:~$ <span class="cmd">graphrefly</span> --list-runtimes
+    </div>
+    <div class="impl-row fade-in">
+      <div class="impl-box primary">
+        <div class="lang-name">PYTHON</div>
+        <div class="pkg-name">$ pip install graphrefly</div>
+        <div class="status-line">
+          <span class="dot active"></span> active &mdash; py.graphrefly.dev
+        </div>
+      </div>
+      <div class="impl-box">
+        <div class="lang-name">TYPESCRIPT</div>
+        <div class="pkg-name">$ npm i @graphrefly/graphrefly-ts</div>
+        <div class="status-line">
+          <span class="dot ref"></span> reference impl &mdash; graphrefly.dev
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <a href="https://github.com/graphrefly">[github]</a> &middot;
+    <a href="https://graphrefly.dev">[docs]</a> &middot;
+    <a href="https://py.graphrefly.dev">[py.graphrefly.dev]</a>
+    <div class="copyright">
+      graphrefly &mdash; reactive graph protocol for human + LLM co-operation &mdash; MIT
+    </div>
+    <div style="margin-top: 0.5rem; color: var(--green-dark);">
+      EOF
+    </div>
+  </div>
+</footer>
+
+<script>
+// Intersection Observer for fade-in
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

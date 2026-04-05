@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Neon Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET & BASE ─── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:        #0a0e1a;
+  --bg-card:   #0d1224;
+  --cyan:      #00f0ff;
+  --cyan-dim:  #00f0ff44;
+  --cyan-glow: #00f0ff22;
+  --magenta:   #ff2d7b;
+  --amber:     #ffb800;
+  --green:     #00ff88;
+  --text:      #c8d6e5;
+  --text-dim:  #5a6a80;
+  --mono:      'JetBrains Mono', 'Space Mono', monospace;
+  --sans:      'IBM Plex Sans', system-ui, sans-serif;
+  --grid-line: rgba(0, 240, 255, 0.06);
+  --glow-sm:   0 0 6px var(--cyan-dim), 0 0 20px var(--cyan-glow);
+  --glow-md:   0 0 8px var(--cyan-dim), 0 0 30px var(--cyan-glow), 0 0 60px rgba(0,240,255,0.06);
+  --glow-lg:   0 0 12px var(--cyan-dim), 0 0 40px var(--cyan-glow), 0 0 80px rgba(0,240,255,0.08);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.65;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── BLUEPRINT GRID BG ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(0,240,255,0.12) 1px, transparent 0),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size:
+    24px 24px,
+    24px 24px,
+    24px 24px;
+}
+
+/* ─── SCANLINE OVERLAY ─── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* ─── LAYOUT ─── */
+.wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+section {
+  padding: 100px 0;
+}
+
+/* ─── ANNOTATIONS ─── */
+.annotation {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  opacity: 0.7;
+}
+
+.annotation::before {
+  content: '> ';
+  opacity: 0.5;
+}
+
+.coord {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+}
+
+/* ─── FLICKER ANIMATION ─── */
+@keyframes flicker {
+  0%   { opacity: 0; }
+  5%   { opacity: 0.8; }
+  10%  { opacity: 0.2; }
+  15%  { opacity: 0.9; }
+  20%  { opacity: 0.4; }
+  30%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes typeIn {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+@keyframes circuitDash {
+  to { stroke-dashoffset: -40; }
+}
+
+@keyframes scanDown {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(200vh); }
+}
+
+/* ─── SCROLL REVEAL ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal.visible .flicker-target {
+  animation: flicker 0.6s ease forwards;
+}
+
+/* stagger children */
+.reveal.visible .stagger:nth-child(1) { transition-delay: 0.1s; }
+.reveal.visible .stagger:nth-child(2) { transition-delay: 0.25s; }
+.reveal.visible .stagger:nth-child(3) { transition-delay: 0.4s; }
+
+.stagger {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.visible .stagger {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── NAV ─── */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.08);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--cyan);
+  text-decoration: none;
+  text-shadow: var(--glow-sm);
+}
+
+.nav-logo span { color: var(--text-dim); font-weight: 400; }
+
+.nav-links { display: flex; gap: 28px; }
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+
+.nav-links a:hover {
+  color: var(--cyan);
+  text-shadow: var(--glow-sm);
+}
+
+/* ─── HERO ─── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 80px;
+  position: relative;
+}
+
+.hero-annotation {
+  margin-bottom: 20px;
+  animation: flicker 0.8s ease forwards;
+}
+
+.hero h1 {
+  font-family: var(--mono);
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
+  max-width: 800px;
+  margin-bottom: 20px;
+}
+
+.hero h1 .glow {
+  color: var(--cyan);
+  text-shadow: var(--glow-md);
+}
+
+.hero-sub {
+  font-size: 18px;
+  color: var(--text);
+  max-width: 600px;
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.hero-sub-secondary {
+  font-size: 15px;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin-bottom: 36px;
+}
+
+/* install block */
+.install-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 240, 255, 0.04);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 32px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--cyan);
+  position: relative;
+}
+
+.install-block code {
+  user-select: all;
+}
+
+.install-block .prompt {
+  color: var(--text-dim);
+  user-select: none;
+}
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.copy-btn:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: var(--glow-sm);
+}
+
+/* CTAs */
+.cta-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 12px 28px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+  font-weight: 600;
+  border: none;
+  box-shadow: var(--glow-md);
+}
+
+.btn-primary:hover {
+  box-shadow: var(--glow-lg);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.btn-secondary:hover {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-sm);
+  transform: translateY(-1px);
+}
+
+/* hero coord marker */
+.hero-coords {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── SECTION HEADERS ─── */
+.section-header {
+  margin-bottom: 60px;
+}
+
+.section-header h2 {
+  font-family: var(--mono);
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 700;
+  color: #fff;
+  margin-top: 8px;
+}
+
+.section-header p {
+  margin-top: 12px;
+  color: var(--text-dim);
+  max-width: 560px;
+  font-size: 15px;
+}
+
+/* ─── MODULE CARDS (PILLARS) ─── */
+.modules-section {
+  position: relative;
+}
+
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  position: relative;
+  z-index: 2;
+}
+
+.module-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  border-radius: 12px;
+  padding: 32px 28px;
+  position: relative;
+  transition: border-color 0.4s, box-shadow 0.4s, transform 0.3s;
+}
+
+.module-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.module-card:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: var(--glow-md);
+  transform: translateY(-4px);
+}
+
+.module-card:hover::before {
+  opacity: 1;
+}
+
+.module-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--cyan);
+  opacity: 0.6;
+  margin-bottom: 6px;
+}
+
+.module-tag {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+  text-shadow: var(--glow-sm);
+  margin-bottom: 16px;
+}
+
+.module-card h3 {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.module-card p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* module icon glow */
+.module-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  font-size: 22px;
+  border: 1px solid;
+}
+
+.module-icon.reduce  { border-color: var(--cyan);    background: rgba(0,240,255,0.06);  color: var(--cyan); }
+.module-icon.trace   { border-color: var(--magenta); background: rgba(255,45,123,0.06); color: var(--magenta); }
+.module-icon.compose { border-color: var(--amber);   background: rgba(255,184,0,0.06);  color: var(--amber); }
+
+/* ─── CIRCUIT SVG ─── */
+.circuit-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.circuit-path {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.5;
+  stroke-dasharray: 8 12;
+  opacity: 0.25;
+  animation: circuitDash 2s linear infinite;
+}
+
+.circuit-dot {
+  fill: var(--cyan);
+  opacity: 0.6;
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* ─── PIPELINE ─── */
+.pipeline-track {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  position: relative;
+}
+
+.pipeline-stage {
+  flex: 1;
+  padding: 28px 24px;
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 240, 255, 0.08);
+  position: relative;
+}
+
+.pipeline-stage:first-child { border-radius: 12px 0 0 12px; }
+.pipeline-stage:last-child  { border-radius: 0 12px 12px 0; }
+
+.pipeline-stage + .pipeline-stage { border-left: none; }
+
+.stage-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--cyan);
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+.pipeline-stage h3 {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.pipeline-stage p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* arrows between stages */
+.pipeline-arrow {
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+  font-size: 14px;
+  font-family: var(--mono);
+}
+
+/* ─── SCENARIOS ─── */
+.scenarios-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.scenario-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 240, 255, 0.06);
+  border-radius: 10px;
+  padding: 28px 24px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.scenario-card:hover {
+  border-color: rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.05);
+}
+
+.scenario-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--green);
+  margin-bottom: 10px;
+}
+
+.scenario-card h3 {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.scenario-card p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+/* ─── CODE PREVIEW ─── */
+.terminal {
+  background: #080c16;
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--glow-md);
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(0, 240, 255, 0.03);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.08);
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0, 240, 255, 0.15);
+}
+
+.terminal-dot:nth-child(1) { background: #ff5f57; }
+.terminal-dot:nth-child(2) { background: #ffbd2e; }
+.terminal-dot:nth-child(3) { background: #28ca41; }
+
+.terminal-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+
+.terminal pre {
+  padding: 24px;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.75;
+  overflow-x: auto;
+  color: var(--text);
+}
+
+.terminal .kw   { color: var(--magenta); }
+.terminal .fn   { color: var(--amber); }
+.terminal .str  { color: var(--green); }
+.terminal .sym  { color: var(--cyan); }
+.terminal .cmt  { color: var(--text-dim); font-style: italic; }
+.terminal .num  { color: #c792ea; }
+
+/* ─── IMPLEMENTATIONS ─── */
+.impl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.impl-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 240, 255, 0.08);
+  border-radius: 10px;
+  padding: 28px;
+  text-align: center;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+
+.impl-card:hover {
+  border-color: rgba(0, 240, 255, 0.25);
+  box-shadow: var(--glow-sm);
+  transform: translateY(-2px);
+}
+
+.impl-lang {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.impl-pkg {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cyan);
+  margin-bottom: 10px;
+}
+
+.impl-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.impl-status.active  { color: var(--green); background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.15); }
+.impl-status.planned { color: var(--amber); background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.15); }
+
+/* ─── FOOTER ─── */
+footer {
+  padding: 48px 0;
+  border-top: 1px solid rgba(0, 240, 255, 0.06);
+  text-align: center;
+}
+
+footer p {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+footer a {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  .modules-grid,
+  .scenarios-grid { grid-template-columns: 1fr; }
+  .impl-grid { grid-template-columns: 1fr; }
+  .pipeline-track { flex-direction: column; }
+  .pipeline-stage { border-radius: 0 !important; border-left: 1px solid rgba(0,240,255,0.08) !important; }
+  .pipeline-stage:first-child { border-radius: 12px 12px 0 0 !important; }
+  .pipeline-stage:last-child  { border-radius: 0 0 12px 12px !important; }
+  .pipeline-arrow { display: none; }
+  .hero-coords { display: none; }
+  nav { padding: 12px 16px; }
+  .nav-links { gap: 16px; }
+  .nav-links a { font-size: 11px; }
+}
+
+@media (max-width: 560px) {
+  .nav-links { display: none; }
+  section { padding: 60px 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <a href="#" class="nav-logo">GraphReFly<span> .ts</span></a>
+  <div class="nav-links">
+    <a href="#modules">Modules</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#scenarios">Scenarios</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts" target="_blank">GitHub</a>
+  </div>
+</nav>
+
+<div class="wrapper">
+
+  <!-- ─── HERO ─── -->
+  <section class="hero">
+    <div class="hero-coords">
+      <span class="coord">x: 0.00</span>
+      <span class="coord">y: 0.00</span>
+      <span class="coord">z: ORIGIN</span>
+    </div>
+
+    <p class="annotation hero-annotation">SYSTEM_INIT v0.x</p>
+
+    <h1>
+      <span class="glow">Describe</span> automations<br>in plain language.
+    </h1>
+
+    <p class="hero-sub">
+      Review them visually. Run them persistently. Trace every decision.
+    </p>
+    <p class="hero-sub-secondary">
+      A reactive graph engine for human + LLM co-operation — zero dependencies.
+    </p>
+
+    <div class="install-block">
+      <span class="prompt">$</span>
+      <code>npm i @graphrefly/graphrefly</code>
+      <button class="copy-btn" onclick="copyInstall(this)">copy</button>
+    </div>
+
+    <div class="cta-row">
+      <a href="#" class="btn-primary">Read the Spec</a>
+      <a href="https://github.com/graphrefly/graphrefly-ts" target="_blank" class="btn-secondary">GitHub &rarr;</a>
+    </div>
+  </section>
+
+  <!-- ─── CORE MODULES ─── -->
+  <section id="modules" class="modules-section">
+    <div class="section-header reveal">
+      <p class="annotation">CORE_MODULES</p>
+      <h2>Three pillars. One graph.</h2>
+      <p>Every automation decomposes into information reduction, causal tracing, and natural-language composition.</p>
+    </div>
+
+    <div class="modules-grid reveal" style="position:relative;">
+      <!-- circuit SVG connecting cards -->
+      <svg class="circuit-svg" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true">
+        <!-- paths between module cards -->
+        <path class="circuit-path" d="M 200 200 C 300 120, 400 120, 500 200" />
+        <path class="circuit-path" d="M 500 200 C 600 280, 700 280, 800 200" style="animation-delay: 0.5s" />
+        <path class="circuit-path" d="M 800 200 C 900 120, 1000 120, 1100 200" style="animation-delay: 1s" />
+        <!-- junction dots -->
+        <circle class="circuit-dot" cx="200" cy="200" r="3" />
+        <circle class="circuit-dot" cx="500" cy="200" r="3" style="animation-delay: 0.5s" />
+        <circle class="circuit-dot" cx="800" cy="200" r="3" style="animation-delay: 1s" />
+        <circle class="circuit-dot" cx="1100" cy="200" r="3" style="animation-delay: 1.5s" />
+      </svg>
+
+      <div class="module-card stagger">
+        <div class="module-icon reduce">&#x25C9;</div>
+        <p class="module-id">NODE_01</p>
+        <p class="module-tag">INFORMATION_REDUCTION</p>
+        <h3>Stop Drowning in Information</h3>
+        <p>Universal reduction engine: describe what matters in plain language, and it watches, filters, prioritizes, and alerts — persistently and reactively.</p>
+        <br><span class="coord">lat: 41.40 &nbsp; lon: 2.17</span>
+      </div>
+
+      <div class="module-card stagger">
+        <div class="module-icon trace">&#x25CE;</div>
+        <p class="module-id">NODE_02</p>
+        <p class="module-tag">CAUSAL_TRACE</p>
+        <h3>Trust AI by Understanding It</h3>
+        <p>Every decision traceable. Ask "why was this flagged?" — get a causal chain from source to conclusion, not a log dump.</p>
+        <br><span class="coord">lat: 37.77 &nbsp; lon: -122.42</span>
+      </div>
+
+      <div class="module-card stagger">
+        <div class="module-icon compose">&#x25C7;</div>
+        <p class="module-id">NODE_03</p>
+        <p class="module-tag">NL_COMPOSITION</p>
+        <h3>Describe It, Don't Code It</h3>
+        <p>Tell an LLM what you need. It composes a graph — like SQL for data flows. You review a flow view. It runs. You tweak by talking.</p>
+        <br><span class="coord">lat: 35.68 &nbsp; lon: 139.69</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── EXECUTION PIPELINE ─── -->
+  <section id="pipeline">
+    <div class="section-header reveal">
+      <p class="annotation">EXECUTION_PIPELINE</p>
+      <h2>From words to running graphs.</h2>
+    </div>
+
+    <div class="pipeline-track reveal">
+      <div class="pipeline-stage stagger">
+        <p class="stage-num">STAGE_01</p>
+        <h3>Describe</h3>
+        <p>Tell the system what you want in natural language. "Watch my inbox, flag urgent items, summarize the rest."</p>
+        <div class="pipeline-arrow">&rarr;</div>
+      </div>
+      <div class="pipeline-stage stagger">
+        <p class="stage-num">STAGE_02</p>
+        <h3>LLM Composes Graph</h3>
+        <p>An LLM translates your intent into a reactive graph — nodes, edges, reduction rules. You review the visual flow.</p>
+        <div class="pipeline-arrow">&rarr;</div>
+      </div>
+      <div class="pipeline-stage stagger">
+        <p class="stage-num">STAGE_03</p>
+        <h3>Runs Reactively</h3>
+        <p>The graph executes, checkpoints state, traces every decision. Tweak by talking — no restart required.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── SCENARIOS ─── -->
+  <section id="scenarios">
+    <div class="section-header reveal">
+      <p class="annotation">SCENARIO_BANK</p>
+      <h2>What you can build.</h2>
+      <p>Real workflows, described in plain language, running as persistent reactive graphs.</p>
+    </div>
+
+    <div class="scenarios-grid reveal">
+      <div class="scenario-card stagger">
+        <p class="scenario-label">[SCENARIO_A]</p>
+        <h3>Email Triage</h3>
+        <p>Flag urgent messages, summarize the rest into a morning digest, auto-archive noise. Running 24/7 — adjust rules by talking.</p>
+      </div>
+      <div class="scenario-card stagger">
+        <p class="scenario-label">[SCENARIO_B]</p>
+        <h3>Spending Alerts</h3>
+        <p>Watch transactions in real-time, flag anomalies against your patterns, produce a weekly financial digest with traced reasoning.</p>
+      </div>
+      <div class="scenario-card stagger">
+        <p class="scenario-label">[SCENARIO_C]</p>
+        <h3>Knowledge Management</h3>
+        <p>Watch RSS feeds, research papers, and Slack channels. Extract insights, connect ideas, build a living knowledge graph.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CODE PREVIEW ─── -->
+  <section id="code">
+    <div class="section-header reveal" style="text-align:center;">
+      <p class="annotation">INTERFACE_PREVIEW</p>
+      <h2>Feels like this.</h2>
+      <p style="margin:12px auto 0;">Reactive primitives. No framework lock-in. Zero dependencies.</p>
+    </div>
+
+    <div class="reveal">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot"></span>
+          <span class="terminal-dot"></span>
+          <span class="terminal-dot"></span>
+          <span class="terminal-title">graph.ts</span>
+        </div>
+        <pre><span class="kw">const</span> <span class="sym">count</span>   = <span class="fn">state</span>(<span class="num">0</span>);
+<span class="kw">const</span> <span class="sym">doubled</span> = <span class="fn">derived</span>([<span class="sym">count</span>], (<span class="sym">c</span>) <span class="kw">=&gt;</span> <span class="sym">c</span> * <span class="num">2</span>);
+
+<span class="fn">effect</span>([<span class="sym">doubled</span>], (<span class="sym">d</span>) <span class="kw">=&gt;</span> console.<span class="fn">log</span>(<span class="sym">d</span>));
+
+<span class="sym">count</span>.<span class="fn">down</span>([[<span class="str">DATA</span>, <span class="num">1</span>]]);  <span class="cmt">// logs: 2</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── IMPLEMENTATIONS ─── -->
+  <section id="implementations">
+    <div class="section-header reveal" style="text-align:center;">
+      <p class="annotation">IMPL_MATRIX</p>
+      <h2>Implementations</h2>
+    </div>
+
+    <div class="impl-grid reveal">
+      <div class="impl-card stagger">
+        <p class="impl-lang">TypeScript</p>
+        <p class="impl-pkg">@graphrefly/graphrefly</p>
+        <span class="impl-status active">Active</span>
+      </div>
+      <div class="impl-card stagger">
+        <p class="impl-lang">Python</p>
+        <p class="impl-pkg">graphrefly</p>
+        <span class="impl-status planned">Planned</span>
+      </div>
+    </div>
+  </section>
+
+</div><!-- .wrapper -->
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="wrapper">
+    <p>
+      GraphReFly &mdash; reactive graph protocol for human + LLM co-operation.<br>
+      <a href="https://graphrefly.dev">graphrefly.dev</a> &nbsp;&middot;&nbsp;
+      <a href="https://github.com/graphrefly/graphrefly-ts">GitHub</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+/* ─── COPY INSTALL ─── */
+function copyInstall(btn) {
+  navigator.clipboard.writeText('npm i @graphrefly/graphrefly').then(() => {
+    btn.textContent = 'copied!';
+    setTimeout(() => btn.textContent = 'copy', 1800);
+  });
+}
+
+/* ─── INTERSECTION OBSERVER — SCROLL REVEAL ─── */
+const revealEls = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+revealEls.forEach(el => observer.observe(el));
+
+/* ─── HERO COORDINATE TRACKER (follows mouse) ─── */
+const coordEls = document.querySelectorAll('.hero-coords .coord');
+document.addEventListener('mousemove', (e) => {
+  const x = (e.clientX / window.innerWidth).toFixed(2);
+  const y = (e.clientY / window.innerHeight).toFixed(2);
+  if (coordEls[0]) coordEls[0].textContent = 'x: ' + x;
+  if (coordEls[1]) coordEls[1].textContent = 'y: ' + y;
+});
+
+/* ─── NAV SCROLL SHADOW ─── */
+const nav = document.querySelector('nav');
+window.addEventListener('scroll', () => {
+  nav.style.boxShadow = window.scrollY > 40
+    ? '0 4px 24px rgba(0,0,0,0.4)'
+    : 'none';
+}, { passive: true });
+</script>
+
+</body>
+</html>

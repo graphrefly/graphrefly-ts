@@ -460,6 +460,34 @@ Two comments:
 - `SESSION-marketing-promotion-strategy.md` — current positioning (to be revised based on this session)
 - `SESSION-demo-test-strategy.md` — existing demo plan (Demo 0 inserts before Demo 1)
 
+## EXTERNAL VALIDATION: 小红书 POST (April 4, 2026)
+
+A popular 小红书 post titled **"Agent Computer Interface 的终局，不会是 CLI"** (~4200 words) independently arrives at the same conclusions as this audit, from the ACI (Agent Computer Interface) angle:
+
+**Post's core argument:**
+- CLI gives agents **frozen snapshots** (transcript), not a **living workspace**
+- Every `ls -la` or `cat file.txt` appends a new observation without invalidating the old one — agents waste tokens reconstructing current state from stale snapshots
+- The industry confuses "command interface" (能发命令) with "work interface" (工作界面) — these are not the same thing
+- What agents need is a runtime that **holds live state, updates in-place, removes stale context, and manages object lifecycles** (open/update/close)
+- The post proposes "Agent Apps" as the missing layer: stateful objects, updatable views, lifecycle-managed context containers
+- Final judgment: **CLI as command layer, MCP as capability layer, Agent Apps as the real work layer**
+
+**Direct alignment with GraphReFly:**
+
+| Post's requirement | GraphReFly solution |
+|---|---|
+| No stale snapshots — state pushes reactively | Design invariant #1: no polling. Push-based propagation. |
+| Objects with lifecycle (open/update/close) | Node message tiers: DATA → RESOLVED → teardown |
+| Context stays clean (remove expired state) | Graph topology = only current state; no transcript accumulation |
+| Actions and state naturally aligned | Graph topology defines what depends on what |
+| Don't externalize state management to the model | Graph runtime manages consistency, not the LLM |
+
+**Strategic insight:** The post frames the problem from the consumer/practitioner perspective ("why does my agent keep re-reading files?") — exactly the pain-point-first framing the audit mandates. This is validation that the problem is felt by practitioners, not just theorized by library authors.
+
+**Marketing implication:** 小红书 is a viable channel for reaching Chinese-speaking AI practitioners. The pain-point framing resonates. Strategy: search for similar CLI-limitation / agent-workspace posts and reply with GraphReFly's claims. See SESSION-marketing-promotion-strategy.md §12.
+
+---
+
 ## FILES CHANGED
 
 - This file created: `archive/docs/SESSION-first-principles-audit.md`

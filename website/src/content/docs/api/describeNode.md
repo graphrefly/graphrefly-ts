@@ -1,35 +1,19 @@
 ---
 title: "describeNode()"
-description: "Builds a single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).\nParity with graphrefly-py `describe_node`.\n\n`type` is inferred from factory"
+description: "Builds a single-node slice for `Graph.describe()`."
 ---
 
-Builds a single-node slice of `Graph.describe()` JSON (structure + `meta` snapshot).
-Parity with graphrefly-py `describe_node`.
-
-`type` is inferred from factory configuration, optional `describeKind` in node options,
-and the last `manualEmitUsed` hint (operator vs derived). effect sets
-`describeKind: "effect"`. Nodes not created by node fall back to `type: "state"` and empty `deps`.
+Builds a single-node slice for `Graph.describe()`.
 
 ## Signature
 
 ```ts
-function describeNode(node: Node): DescribeNodeOutput
+function describeNode(node: Node, includeFields?: Set<string> | null): DescribeNodeOutput
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `node` | `Node` | Any `Node` to introspect. |
-
-## Returns
-
-`DescribeNodeOutput` suitable for merging into graph describe maps.
-
-## Basic Usage
-
-```ts
-import { describeNode, state } from "@graphrefly/graphrefly-ts";
-
-describeNode(state(0));
-```
+| `node` | `Node` | Node to introspect. |
+| `includeFields` | `Set&lt;string&gt; | null` | Set of fields to include, or `null` for all. When omitted, all fields are included (legacy behavior). |

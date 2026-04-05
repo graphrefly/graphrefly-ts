@@ -1650,7 +1650,7 @@ function metaToJsonSchema(meta: Record<string, unknown>): Record<string, unknown
  * @returns OpenAI, MCP, and GraphReFly tool schemas.
  */
 export function knobsAsTools(graph: Graph, actor?: Actor): KnobsAsToolsResult {
-	const described = graph.describe({ actor });
+	const described = graph.describe({ actor, detail: "full" });
 	const openai: OpenAIToolSchema[] = [];
 	const mcp: McpToolSchema[] = [];
 	const definitions: ToolDefinition[] = [];
@@ -1666,11 +1666,12 @@ export function knobsAsTools(graph: Graph, actor?: Actor): KnobsAsToolsResult {
 		if (node.status === "completed" || node.status === "errored") continue;
 
 		// Skip if access explicitly excludes LLM
-		const access = node.meta.access as string | undefined;
+		const meta = node.meta ?? {};
+		const access = meta.access as string | undefined;
 		if (access === "human" || access === "system") continue;
 
-		const description = (node.meta.description as string) ?? `Set the value of ${path}`;
-		const valueSchema = metaToJsonSchema(node.meta);
+		const description = (meta.description as string) ?? `Set the value of ${path}`;
+		const valueSchema = metaToJsonSchema(meta);
 
 		const parameterSchema: Record<string, unknown> = {
 			type: "object",
@@ -1754,7 +1755,7 @@ export function gaugesAsContext(
 	actor?: Actor,
 	options?: GaugesAsContextOptions,
 ): string {
-	const described = graph.describe({ actor });
+	const described = graph.describe({ actor, detail: "full" });
 	const groupByTags = options?.groupByTags ?? true;
 	const separator = options?.separator ?? "\n";
 
@@ -1763,8 +1764,9 @@ export function gaugesAsContext(
 
 	const sinceVersion = options?.sinceVersion;
 	for (const [path, node] of Object.entries(described.nodes)) {
-		const desc = node.meta.description as string | undefined;
-		const format = node.meta.format as string | undefined;
+		const meta = node.meta ?? {};
+		const desc = meta.description as string | undefined;
+		const format = meta.format as string | undefined;
 		// Must have description or format to be a gauge
 		if (!desc && !format) continue;
 		// V0 delta filter: skip nodes unchanged since last seen version (§6.0b).
@@ -1776,7 +1778,7 @@ export function gaugesAsContext(
 
 		const label = desc ?? path;
 		const value = node.value;
-		const unit = node.meta.unit as string | undefined;
+		const unit = meta.unit as string | undefined;
 
 		let formatted: string;
 		if (format === "currency" && typeof value === "number") {
@@ -1804,7 +1806,7 @@ export function gaugesAsContext(
 
 		for (const entry of entries) {
 			const node = described.nodes[entry.path]!;
-			const tags = node.meta.tags as string[] | undefined;
+			const tags = (node.meta ?? {}).tags as string[] | undefined;
 			if (tags && tags.length > 0) {
 				// Use first tag for grouping to avoid duplicating entries across groups
 				const tag = tags[0]!;
@@ -2131,7 +2133,7 @@ export async function suggestStrategy(
 	adapter: LLMAdapter,
 	opts?: SuggestStrategyOptions,
 ): Promise<StrategyPlan> {
-	const described = graph.describe({ actor: opts?.actor });
+	const { expand: _, ...described } = graph.describe({ actor: opts?.actor, detail: "standard" });
 
 	const messages: ChatMessage[] = [
 		{ role: "system", content: SUGGEST_STRATEGY_SYSTEM_PROMPT },

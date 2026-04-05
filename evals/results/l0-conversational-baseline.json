@@ -1,0 +1,231 @@
+{
+	"run_id": "l0-conv-20260404-batch1",
+	"timestamp": "2026-04-04T23:00:00.000Z",
+	"layer": "L0",
+	"model": "claude-opus-4-6",
+	"schema_version": "scaffold-v1",
+	"method": "conversational (in-context, no API cost)",
+	"scores": {
+		"L0-M1-graphspec-error-rate": 0.0,
+		"L0-M1-functions-error-rate": 0.33,
+		"L0-M1-ratio": 0.0,
+		"L0-M1-graphspec-hallucination-rate": 0.0,
+		"L0-M1-functions-hallucination-rate": 0.33,
+		"L0-M1-graphspec-all-behaviors": 1.0,
+		"L0-M1-functions-all-behaviors": 1.0,
+		"L0-M2-graphspec-bug-visibility": 1.0,
+		"L0-M2-functions-bug-visibility": 0.67
+	},
+	"summary": {
+		"tasks_evaluated": 3,
+		"complexity_distribution": { "low": 1, "medium": 1, "high": 1 },
+		"findings": [
+			"GraphSpec: 0 hallucinated references (catalog constraint effective)",
+			"Functions: 1/3 hallucinated references (task 2: validateSchema, normalizeFields not in utils)",
+			"GraphSpec: 1 semantic error caught via catalog inspection (batch vs sliding window in task 3)",
+			"Functions: 2 subtle bugs (alert-spam in task 3, ambiguous iteration in task 1)",
+			"Functions: 1 implicit dependency issue (mutable global state in task 3)",
+			"Both treatments produced functionally correct outputs for simple (low) tasks",
+			"Divergence appeared at medium and high complexity"
+		],
+		"g0_direction": "positive — catalog constraint prevents hallucination, structural deps prevent implicit state"
+	},
+	"tasks": [
+		{
+			"task_id": "linear-rss-filter-notify",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"feed\": { \"type\": \"producer\", \"source\": \"rss\", \"config\": { \"url\": \"https://example.com/feed.xml\" } },\n    \"filter\": { \"type\": \"derived\", \"deps\": [\"feed\"], \"fn\": \"filterBy\", \"config\": { \"field\": \"title\", \"op\": \"contains\", \"value\": \"AI\" } },\n    \"notify\": { \"type\": \"effect\", \"deps\": [\"filter\"], \"fn\": \"sendSlack\", \"config\": { \"channel\": \"#ai-news\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, correct node types, deps reference existing nodes, all fns in catalog"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Fetches RSS (rss source), filters by AI keyword (filterBy with contains), sends to Slack (sendSlack)"
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "rss in source catalog, filterBy and sendSlack in fn catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "filter depends on feed, notify depends on filter — correct linear chain"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "linear-rss-filter-notify",
+			"treatment": "functions",
+			"raw_output": "import { pollSource, filterBy, sendSlackMessage } from './utils';\n\nasync function main() {\n  for await (const articles of pollSource('https://example.com/feed.xml', 60000)) {\n    const matching = filterBy(articles, (a) => a.title.includes('AI'));\n    for (const article of matching) {\n      await sendSlackMessage('#ai-news', article.title);\n    }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS with async/await and imports"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Fetches RSS via pollSource, filters by AI, sends to Slack"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": true,
+					"reasoning": "pollSource, filterBy, sendSlackMessage all in declared utils"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Linear flow, but pollSource returns AsyncIterable — iteration semantics ambiguous (batch vs single item)"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "diamond-validate-transform-merge",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"input\": { \"type\": \"producer\", \"source\": \"webhook\", \"config\": { \"path\": \"/ingest\" } },\n    \"validate\": { \"type\": \"derived\", \"deps\": [\"input\"], \"fn\": \"validateOrder\", \"config\": { \"rules\": \"jsonSchema\" } },\n    \"normalize\": { \"type\": \"derived\", \"deps\": [\"input\"], \"fn\": \"normalize\" },\n    \"merged\": { \"type\": \"derived\", \"deps\": [\"validate\", \"normalize\"], \"fn\": \"merge\", \"config\": { \"strategy\": \"object\" } },\n    \"store\": { \"type\": \"effect\", \"deps\": [\"merged\"], \"fn\": \"writeToDB\", \"config\": { \"table\": \"ingested_data\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, all node types correct, diamond topology structurally sound"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Receives payload (webhook), validates (validateOrder), normalizes (normalize), merges (merge), stores (writeToDB)"
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "webhook in sources, validateOrder/normalize/merge/writeToDB all in fn catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Diamond: input→validate, input→normalize, both→merged→store. Parallel execution is structural."
+				},
+				{
+					"claim": "Parallel execution of validate and normalize is explicit",
+					"pass": true,
+					"reasoning": "Both depend on input independently — topology guarantees parallelism"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "diamond-validate-transform-merge",
+			"treatment": "functions",
+			"raw_output": "import { validateSchema, normalizeFields, writeToDB } from './utils';\n\nasync function handlePayload(payload: unknown) {\n  const [validation, normalized] = await Promise.all([\n    validateSchema(payload),\n    normalizeFields(payload),\n  ]);\n  const merged = { ...normalized, _validation: validation };\n  await writeToDB('ingested_data', merged);\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS with async/await"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Validates, normalizes in parallel, merges, stores"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": false,
+					"reasoning": "HALLUCINATION: validateSchema and normalizeFields are not in the declared utility list. Only writeToDB is valid."
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Promise.all handles parallelism correctly"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "stateful-running-average",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"sensor\": { \"type\": \"producer\", \"source\": \"temperature\", \"config\": { \"intervalMs\": 5000 } },\n    \"window\": { \"type\": \"derived\", \"deps\": [\"sensor\"], \"fn\": \"batchEvents\", \"config\": { \"size\": 10 } },\n    \"average\": { \"type\": \"derived\", \"deps\": [\"window\"], \"fn\": \"computeAverage\" },\n    \"check\": { \"type\": \"derived\", \"deps\": [\"average\"], \"fn\": \"thresholdCheck\", \"config\": { \"threshold\": 80, \"direction\": \"above\" } },\n    \"alert\": { \"type\": \"effect\", \"deps\": [\"check\"], \"fn\": \"sendAlert\", \"config\": { \"channel\": \"push\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, all types correct, all deps reference existing nodes"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Streams sensor data, windows last 10, computes average, checks threshold, alerts"
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "temperature source, batchEvents/computeAverage/thresholdCheck/sendAlert all in catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Linear: sensor→window→average→check→alert"
+				},
+				{
+					"claim": "Semantic correctness of fn choice",
+					"pass": false,
+					"reasoning": "SEMANTIC: batchEvents collects fixed-size chunks (emits batch then starts fresh), not a sliding window. rollingAvg would be more appropriate for 'last 10 readings' semantics. Functionally close but not exact."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "stateful-running-average",
+			"treatment": "functions",
+			"raw_output": "import { sendPushNotification } from './utils';\n\nconst WINDOW_SIZE = 10;\nconst readings: number[] = [];\n\nasync function onSensorReading(temp: number) {\n  readings.push(temp);\n  if (readings.length > WINDOW_SIZE) readings.shift();\n\n  const avg = readings.reduce((sum, r) => sum + r, 0) / readings.length;\n\n  if (avg > 80) {\n    await sendPushNotification(`Temperature alert: avg ${avg.toFixed(1)}°F exceeds 80°F`);\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Receives readings, maintains sliding window, computes average, alerts on threshold"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": true,
+					"reasoning": "sendPushNotification is in utils (as sendPushNotification)"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": false,
+					"reasoning": "BUG: module-level mutable state (readings array) — implicit shared dependency. Also alerts on EVERY reading while avg > 80 (no dedup/debounce)."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		}
+	]
+}

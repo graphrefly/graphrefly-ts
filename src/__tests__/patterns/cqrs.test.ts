@@ -47,7 +47,7 @@ describe("cqrs — roadmap §4.5", () => {
 		app.command("placeOrder", (_payload, { emit }) => {
 			emit("orderPlaced", { id: "1" });
 		});
-		const desc = app.describe();
+		const desc = app.describe({ detail: "standard" });
 		expect(desc.nodes.placeOrder).toBeDefined();
 		expect(desc.nodes.placeOrder.meta?.cqrs_type).toBe("command");
 		app.destroy();
@@ -88,7 +88,7 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("orderPlaced", { id: "1" });
 		});
 		app.dispatch("placeOrder", {});
-		const desc = app.describe();
+		const desc = app.describe({ detail: "standard" });
 		expect(desc.nodes.orderPlaced).toBeDefined();
 		expect(desc.nodes.orderPlaced.meta?.cqrs_type).toBe("event");
 		app.destroy();
@@ -317,7 +317,7 @@ describe("cqrs — roadmap §4.5", () => {
 		app.projection("orderCount", ["orderPlaced"], (_s, e) => e.length, 0);
 		app.saga("notifyShipping", ["orderPlaced"], () => {});
 
-		const desc = app.describe();
+		const desc = app.describe({ detail: "standard" });
 		expect(desc.nodes.placeOrder.meta?.cqrs_type).toBe("command");
 		expect(desc.nodes.orderPlaced.meta?.cqrs_type).toBe("event");
 		expect(desc.nodes.orderCount.meta?.cqrs_type).toBe("projection");

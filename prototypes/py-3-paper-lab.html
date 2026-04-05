@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly Python — Paper Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --paper: #f5f0e8;
+    --paper-alt: #efe9dd;
+    --ink: #1a1a2e;
+    --ink-light: #3d3d56;
+    --indigo: #3a36b0;
+    --indigo-light: #5955d4;
+    --red: #c0392b;
+    --red-light: #e74c3c;
+    --rule: rgba(26, 26, 46, 0.06);
+    --rule-dark: rgba(26, 26, 46, 0.12);
+    --margin-width: 220px;
+    --content-max: 720px;
+    --font-serif: 'Crimson Pro', 'Georgia', serif;
+    --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  }
+
+  html {
+    font-size: 18px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-serif);
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1.65rem,
+        var(--rule) 1.65rem,
+        var(--rule) calc(1.65rem + 1px)
+      ),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--indigo); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- Page wrapper ---------- */
+  .page {
+    max-width: calc(var(--content-max) + var(--margin-width) + 60px);
+    margin: 0 auto;
+    padding: 0 30px;
+    display: grid;
+    grid-template-columns: var(--content-max) 1fr;
+    gap: 0 40px;
+  }
+
+  .page > * { grid-column: 1; }
+  .page > .margin-note { grid-column: 2; }
+
+  /* ---------- Margin notes ---------- */
+  .margin-note {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--red);
+    line-height: 1.5;
+    padding-top: 0.15rem;
+    position: relative;
+  }
+  .margin-note::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 0.35rem;
+    width: 8px;
+    height: 8px;
+    border: 2px solid var(--red);
+    border-radius: 50%;
+  }
+
+  /* ---------- Title page / Hero ---------- */
+  .hero {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 5rem 0 3.5rem;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 2.5rem;
+  }
+  .hero__label {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 1.5rem;
+  }
+  .hero__title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1.25;
+    max-width: 640px;
+    margin: 0 auto 1rem;
+  }
+  .hero__authors {
+    font-size: 0.95rem;
+    color: var(--ink-light);
+    margin-bottom: 2rem;
+  }
+  .hero__authors a { color: var(--indigo); }
+
+  .abstract {
+    max-width: 560px;
+    margin: 0 auto 2.2rem;
+    font-size: 1.05rem;
+    font-style: italic;
+    font-weight: 300;
+    color: var(--ink-light);
+    line-height: 1.7;
+  }
+
+  .install-box {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 0.65rem 1.8rem;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    user-select: all;
+  }
+  .install-box span { color: #8b8bcd; }
+
+  /* ---------- Sections ---------- */
+  section {
+    margin-bottom: 3rem;
+  }
+  .section-num {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.78rem;
+    color: var(--indigo);
+    display: block;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.04em;
+  }
+  h2 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+    border-bottom: 1px solid var(--rule-dark);
+    padding-bottom: 0.4rem;
+  }
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 1.8rem 0 0.6rem;
+  }
+  .sub-num {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--indigo);
+    margin-right: 0.4rem;
+  }
+
+  p { margin-bottom: 1rem; }
+  p + p { text-indent: 1.5rem; }
+
+  /* ---------- Pull quote ---------- */
+  .pull-quote {
+    font-size: 1.35rem;
+    font-style: italic;
+    font-weight: 300;
+    color: var(--indigo);
+    border-left: 3px solid var(--indigo);
+    padding: 0.6rem 0 0.6rem 1.5rem;
+    margin: 2rem 0;
+    line-height: 1.55;
+  }
+
+  /* ---------- Figure ---------- */
+  .figure {
+    border: 2px dotted var(--rule-dark);
+    padding: 2rem 1.5rem 1.2rem;
+    margin: 2rem 0;
+    position: relative;
+  }
+  .figure__caption {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    margin-top: 1rem;
+    text-align: center;
+  }
+  .figure__caption strong { color: var(--ink); }
+
+  /* ---------- How it works steps ---------- */
+  .steps {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .step {
+    flex: 1;
+    min-width: 180px;
+    text-align: center;
+    padding: 1.2rem 0.8rem;
+  }
+  .step__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 2px solid var(--indigo);
+    border-radius: 50%;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--indigo);
+    margin-bottom: 0.8rem;
+  }
+  .step__title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0.35rem;
+  }
+  .step__desc {
+    font-size: 0.88rem;
+    color: var(--ink-light);
+    line-height: 1.55;
+  }
+  .step-arrow {
+    display: flex;
+    align-items: center;
+    padding-top: 1.2rem;
+    color: var(--rule-dark);
+    font-size: 1.3rem;
+  }
+
+  /* ---------- Scenarios ---------- */
+  .scenarios {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.2rem;
+    margin: 1.5rem 0;
+  }
+  .scenario {
+    border: 1px solid var(--rule-dark);
+    padding: 1.2rem;
+    background: var(--paper-alt);
+  }
+  .scenario__icon {
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+  }
+  .scenario__title {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .scenario__desc {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    line-height: 1.5;
+  }
+
+  /* ---------- Code block ---------- */
+  .code-block {
+    background: #1a1a2e;
+    color: #e0ddd4;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    padding: 1.5rem 1.8rem;
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+  .code-block .kw { color: #8b8bcd; }
+  .code-block .fn { color: #e8a849; }
+  .code-block .str { color: #6bbd6b; }
+  .code-block .num { color: #e07b7b; }
+  .code-block .cm { color: #6a6a8a; font-style: italic; }
+  .code-block .op { color: #c0b8a8; }
+
+  /* ---------- Footnote ---------- */
+  .footnote {
+    font-size: 0.78rem;
+    color: var(--ink-light);
+    border-top: 1px solid var(--rule-dark);
+    padding-top: 0.6rem;
+    margin-top: 2rem;
+    font-family: var(--font-mono);
+  }
+  .footnote sup { color: var(--red); font-weight: 500; }
+
+  /* ---------- Implementations ---------- */
+  .impl-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: 1.5rem 0;
+  }
+  .impl-card {
+    border: 1px solid var(--rule-dark);
+    padding: 1.5rem;
+    background: var(--paper-alt);
+    transition: border-color 0.2s;
+  }
+  .impl-card:hover { border-color: var(--indigo); }
+  .impl-card__lang {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--indigo);
+    margin-bottom: 0.4rem;
+  }
+  .impl-card__name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.3rem;
+  }
+  .impl-card__desc {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    margin-bottom: 0.8rem;
+    line-height: 1.5;
+  }
+  .impl-card__install {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: var(--ink);
+    color: var(--paper);
+    display: inline-block;
+    padding: 0.3rem 0.9rem;
+    border-radius: 2px;
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem 0 4rem;
+    border-top: 2px solid var(--ink);
+    margin-top: 1rem;
+  }
+  footer p {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    margin-bottom: 0.3rem;
+  }
+  footer a { color: var(--indigo); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 900px) {
+    .page {
+      grid-template-columns: 1fr;
+      max-width: 640px;
+    }
+    .page > .margin-note {
+      grid-column: 1;
+      border-left: 3px solid var(--red-light);
+      padding-left: 1rem;
+      margin: 0.8rem 0;
+    }
+    .margin-note::before { display: none; }
+    .scenarios { grid-template-columns: 1fr; }
+    .impl-grid { grid-template-columns: 1fr; }
+    .steps { flex-direction: column; align-items: center; }
+    .step-arrow { transform: rotate(90deg); padding: 0; }
+    .hero__title { font-size: 1.7rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ============ HERO / TITLE PAGE ============ -->
+  <header class="hero">
+    <div class="hero__label">Working Paper &mdash; py.graphrefly.dev</div>
+    <h1 class="hero__title">GraphReFly: A Reactive Graph Engine<br>for Human + LLM Co-operation</h1>
+    <div class="hero__authors">
+      <a href="https://graphrefly.dev">graphrefly.dev</a> &middot;
+      <a href="https://py.graphrefly.dev">py.graphrefly.dev</a> &middot;
+      <a href="https://github.com/graphrefly">GitHub</a>
+    </div>
+    <p class="abstract">
+      <strong>Abstract.</strong> &nbsp;
+      Describe automations in plain language. Review them visually.
+      Run them persistently. Trace every decision. GraphReFly turns
+      information overload into reactive, auditable workflows
+      that humans and LLMs co-author.
+    </p>
+    <div class="install-box"><span>$</span> pip install graphrefly</div>
+  </header>
+
+  <!-- ============ 1. PROBLEM STATEMENT ============ -->
+  <section>
+    <span class="section-num">Section 1</span>
+    <h2>Problem Statement</h2>
+
+    <p>
+      Modern knowledge workers and developers face a common crisis:
+      the volume of information, decisions, and automated actions
+      outpaces any individual's capacity to manage them.
+      Current tooling either demands extensive code or produces
+      opaque AI outputs that erode trust.
+    </p>
+
+    <h3><span class="sub-num">1.1</span> Stop Drowning in Information</h3>
+    <p>
+      Your inbox holds 147 unread messages. Three Slack channels need responses.
+      A dashboard shows 12 alerts. By the time you've triaged one source,
+      two more have escalated. The problem isn't laziness &mdash; it's that
+      information arrives faster than any human can reduce it.
+    </p>
+    <p>
+      GraphReFly treats every information source as a reactive node
+      in a graph. Nodes derive, filter, and prioritize automatically.
+      You see only what matters, the moment it matters.
+    </p>
+  </section>
+
+  <aside class="margin-note">
+    Key insight: the bottleneck is <em>reduction</em>, not access.
+    We have too many feeds, not too few.
+  </aside>
+
+  <section>
+    <h3><span class="sub-num">1.2</span> Trust AI by Understanding It</h3>
+    <p>
+      LLMs are powerful but opaque. When an AI assistant says
+      "you should cancel this subscription," why? Which data led to that?
+      Without causal traceability, every AI recommendation requires
+      a leap of faith.
+    </p>
+    <p>
+      Every node in a GraphReFly graph carries its lineage:
+      which inputs produced which outputs, when, and through what
+      derivation logic. Decisions become auditable chains, not
+      black-box suggestions.
+    </p>
+
+    <div class="pull-quote">
+      "If you can't trace the reasoning, you can't trust the result."
+    </div>
+  </section>
+
+  <aside class="margin-note">
+    cf. explainable AI (XAI) literature &mdash;
+    GraphReFly provides structural traceability rather than
+    post-hoc rationalization.
+  </aside>
+
+  <section>
+    <h3><span class="sub-num">1.3</span> Describe It, Don't Code It</h3>
+    <p>
+      Building an automation today means choosing a framework,
+      writing boilerplate, wiring event handlers, managing state.
+      Most people with the domain knowledge to design workflows
+      lack the engineering time to implement them.
+    </p>
+    <p>
+      GraphReFly inverts the model: describe what you want
+      in natural language, and an LLM composes the reactive graph.
+      The graph is inspectable, editable, and runnable &mdash;
+      no framework lock-in, no hidden complexity.
+    </p>
+
+    <div class="footnote">
+      <sup>1</sup> Natural language descriptions are compiled to graph
+      topology by an LLM composer. The resulting graph can be
+      inspected and hand-edited before execution.
+    </div>
+  </section>
+
+  <!-- ============ 2. APPROACH ============ -->
+  <section>
+    <span class="section-num">Section 2</span>
+    <h2>Approach</h2>
+
+    <p>
+      GraphReFly's workflow follows three stages, each observable
+      and interruptible by the human operator.
+    </p>
+
+    <div class="figure">
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__title">Describe</div>
+          <div class="step__desc">
+            State what you need in plain language.
+            "Alert me when recurring charges exceed $50."
+          </div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__title">LLM Composes</div>
+          <div class="step__desc">
+            An LLM translates intent into a reactive graph:
+            source nodes, derivations, effects. You review it.
+          </div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__title">Run &amp; Trace</div>
+          <div class="step__desc">
+            The graph runs reactively. State checkpoints persist.
+            Every decision is traceable through the causal chain.
+          </div>
+        </div>
+      </div>
+      <div class="figure__caption"><strong>Fig. 1:</strong> The Describe &rarr; Compose &rarr; Run pipeline.</div>
+    </div>
+  </section>
+
+  <aside class="margin-note">
+    Each stage produces an artifact: NL spec, graph topology JSON,
+    execution trace log. All are version-controllable.
+  </aside>
+
+  <!-- ============ 3. APPLICATIONS ============ -->
+  <section>
+    <span class="section-num">Section 3</span>
+    <h2>Applications</h2>
+
+    <p>
+      GraphReFly is domain-agnostic, but these scenarios illustrate
+      the reduction-engine pattern across personal and professional use.
+    </p>
+
+    <div class="scenarios">
+      <div class="scenario">
+        <div class="scenario__icon">&#9993;</div>
+        <div class="scenario__title">Email Triage</div>
+        <div class="scenario__desc">
+          Incoming messages are classified, prioritized, and routed
+          reactively. High-urgency items surface instantly;
+          newsletters batch for weekly review. Every routing
+          decision is traceable.
+        </div>
+      </div>
+      <div class="scenario">
+        <div class="scenario__icon">&#9888;</div>
+        <div class="scenario__title">Spending Alerts</div>
+        <div class="scenario__desc">
+          Transactions flow through derived nodes that track
+          category totals, detect anomalies, and alert when
+          thresholds are breached. No polling &mdash; pure
+          reactive propagation.
+        </div>
+      </div>
+      <div class="scenario">
+        <div class="scenario__icon">&#128218;</div>
+        <div class="scenario__title">Knowledge Management</div>
+        <div class="scenario__desc">
+          Notes, bookmarks, and research feed into a graph that
+          clusters by topic, surfaces connections, and produces
+          weekly digests. Your second brain, with receipts.
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <sup>2</sup> Scenarios demonstrate the pattern; actual integrations
+      (IMAP, Plaid, Notion) ship as source-node adapters.
+    </div>
+  </section>
+
+  <!-- ============ 4. QUICK START ============ -->
+  <section>
+    <span class="section-num">Section 4</span>
+    <h2>Quick Start</h2>
+
+    <p>
+      Install the Python package and define your first reactive graph
+      in under ten lines:
+    </p>
+
+    <div class="figure">
+      <div class="code-block"><span class="kw">from</span> graphrefly <span class="kw">import</span> state, derived, effect, DATA
+
+<span class="cm"># 1. Create a stateful node</span>
+count <span class="op">=</span> <span class="fn">state</span>(<span class="num">0</span>)
+
+<span class="cm"># 2. Derive a computed value</span>
+doubled <span class="op">=</span> <span class="fn">derived</span>([count], <span class="kw">lambda</span> c: c <span class="op">*</span> <span class="num">2</span>)
+
+<span class="cm"># 3. React to changes</span>
+<span class="fn">effect</span>([doubled], <span class="kw">lambda</span> d: <span class="fn">print</span>(d))
+
+<span class="cm"># 4. Push data &mdash; prints: 2</span>
+count.<span class="fn">down</span>([(DATA, <span class="num">1</span>)])</div>
+      <div class="figure__caption"><strong>Fig. 2:</strong> Minimal reactive graph &mdash; state, derivation, effect.</div>
+    </div>
+
+    <p>
+      The <code>state</code> node holds a value. <code>derived</code> recomputes
+      when dependencies change. <code>effect</code> observes and acts.
+      Data flows through messages &mdash; no callbacks, no polling,
+      no imperative triggers.
+    </p>
+  </section>
+
+  <aside class="margin-note">
+    The tuple <code>(DATA, 1)</code> is a message in GraphReFly's
+    protocol. Type <code>DATA = 1</code> signals a value update.
+  </aside>
+
+  <!-- ============ 5. IMPLEMENTATIONS ============ -->
+  <section>
+    <span class="section-num">Section 5</span>
+    <h2>Implementations</h2>
+
+    <p>
+      GraphReFly is a protocol, not a language. Two reference
+      implementations are available, sharing the same spec and
+      message semantics.
+    </p>
+
+    <div class="impl-grid">
+      <div class="impl-card">
+        <div class="impl-card__lang">Python</div>
+        <div class="impl-card__name">graphrefly</div>
+        <div class="impl-card__desc">
+          Zero-dependency reactive graph for Python 3.10+.
+          Async-ready. LLM-composable. Persistent checkpoints.
+        </div>
+        <div class="impl-card__install">pip install graphrefly</div>
+      </div>
+      <div class="impl-card">
+        <div class="impl-card__lang">TypeScript</div>
+        <div class="impl-card__name">@graphrefly/graphrefly-ts</div>
+        <div class="impl-card__desc">
+          TypeScript-first reactive graph. Tree-shakable.
+          NestJS adapter. Full message protocol.
+        </div>
+        <div class="impl-card__install">npm i graphrefly-ts</div>
+      </div>
+    </div>
+
+    <p>
+      Both implementations conform to the
+      <a href="https://github.com/graphrefly/graphrefly-spec">GraphReFly Spec</a>,
+      ensuring portable graph definitions and interoperable tooling.
+    </p>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <p>
+      <a href="https://graphrefly.dev">graphrefly.dev</a> &middot;
+      <a href="https://py.graphrefly.dev">py.graphrefly.dev</a> &middot;
+      <a href="https://github.com/graphrefly">GitHub</a> &middot;
+      <a href="https://github.com/graphrefly/graphrefly-spec">Spec</a>
+    </p>
+    <p style="font-size: 0.75rem; margin-top: 0.5rem;">
+      GraphReFly &mdash; reactive graph protocol for human + LLM co-operation
+    </p>
+  </footer>
+
+</div>
+
+</body>
+</html>

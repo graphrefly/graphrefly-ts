@@ -1,0 +1,232 @@
+{
+	"run_id": "l0-conv-20260404-batch2",
+	"timestamp": "2026-04-04T23:30:00.000Z",
+	"layer": "L0",
+	"model": "claude-opus-4-6",
+	"schema_version": "scaffold-v1",
+	"method": "conversational (in-context, no API cost)",
+	"scores": {
+		"L0-M1-graphspec-error-rate": 0.0,
+		"L0-M1-functions-error-rate": 0.0,
+		"L0-M1-ratio": 0.0,
+		"L0-M1-graphspec-hallucination-rate": 0.0,
+		"L0-M1-functions-hallucination-rate": 0.0,
+		"L0-M1-graphspec-all-behaviors": 0.83,
+		"L0-M1-functions-all-behaviors": 1.0,
+		"L0-M2-graphspec-bug-visibility": 1.0,
+		"L0-M2-functions-bug-visibility": 0.67,
+		"L0-reactivity-advantage": 0.33
+	},
+	"summary": {
+		"tasks_evaluated": 3,
+		"complexity_distribution": { "medium": 2, "high": 1 },
+		"findings": [
+			"GraphSpec: 0 hallucinated references across all 3 tasks",
+			"Functions: 0 hallucinated references (improvement over batch 1 — simpler tasks?)",
+			"Task 5 (fan-in): GraphSpec naturally reactive, functions treatment produced one-shot (not reactive) — strongest case for GraphReFly",
+			"Task 4 (fan-out): both treatments had bugs — GraphSpec missing filter, functions had mutable globals + separate cron",
+			"Task 6 (error-handling): GraphSpec exposed catalog gap — retry fn has nothing to retry. Actionable: catalog needs retrySource or retry.config.fn",
+			"Functions produced more complete error-handling code (retry loop, backoff, logging all inline)",
+			"GraphSpec bugs are structural and visible in topology; functions bugs are behavioral and hidden in logic"
+		],
+		"catalog_feedback": [
+			"retry fn needs config.fn or config.url to know what to retry — current catalog is ambiguous",
+			"Need a filterByCategory fn or filterBy with eq op for fan-out routing (classify → filter → effect)",
+			"Feedback loops (L1-Task 4) are not expressible with current catalog — need writeBack or state-update mechanism"
+		],
+		"g0_direction": "positive overall — GraphSpec wins on structure visibility and reactivity; functions win on error-handling completeness"
+	},
+	"tasks": [
+		{
+			"task_id": "fanout-email-classify",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"inbox\": { \"type\": \"producer\", \"source\": \"email\", \"config\": { \"folder\": \"INBOX\" } },\n    \"classify\": { \"type\": \"derived\", \"deps\": [\"inbox\"], \"fn\": \"llmClassify\", \"config\": { \"categories\": [\"urgent\", \"newsletter\", \"other\"] } },\n    \"urgent\": { \"type\": \"effect\", \"deps\": [\"classify\"], \"fn\": \"notifyPush\", \"config\": { \"title\": \"Priority Email\" } },\n    \"digest\": { \"type\": \"derived\", \"deps\": [\"classify\"], \"fn\": \"batchEvents\", \"config\": { \"size\": 50, \"intervalMs\": 604800000 } },\n    \"digestSend\": { \"type\": \"effect\", \"deps\": [\"digest\"], \"fn\": \"sendEmail\", \"config\": { \"to\": \"me@example.com\", \"subject\": \"Weekly Digest\" } },\n    \"countBySender\": { \"type\": \"derived\", \"deps\": [\"classify\"], \"fn\": \"groupBy\", \"config\": { \"field\": \"sender\" } },\n    \"countStore\": { \"type\": \"effect\", \"deps\": [\"countBySender\"], \"fn\": \"writeToDB\", \"config\": { \"table\": \"sender_counts\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, all node types correct, all deps reference existing nodes"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Classifies into 3 categories, routes urgent, batches newsletters, counts by sender"
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "email source, llmClassify/batchEvents/groupBy/notifyPush/sendEmail/writeToDB all in catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": false,
+					"reasoning": "BUG: urgent effect fires for ALL classify outputs, not just urgent ones. Needs a filterBy node between classify and urgent to route only urgent items."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "fanout-email-classify",
+			"treatment": "functions",
+			"raw_output": "import { watchEmail, llmClassify, sendPushNotification, sendEmail, writeToDatabase } from './utils';\n\nconst newsletters: any[] = [];\nconst senderCounts: Record<string, number> = {};\n\nasync function main() {\n  for await (const email of watchEmail({ filter: 'is:unread' })) {\n    const category = await llmClassify(email.body, ['urgent', 'newsletter', 'other']);\n    if (category === 'urgent') {\n      await sendPushNotification(`Priority: ${email.subject}`);\n    } else if (category === 'newsletter') {\n      newsletters.push(email);\n    } else {\n      senderCounts[email.from] = (senderCounts[email.from] || 0) + 1;\n    }\n  }\n}\n\nasync function sendWeeklyDigest() {\n  await sendEmail('me@example.com', 'Weekly Digest', newsletters.map(n => n.subject).join('\\n'));\n  newsletters.length = 0;\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS with async/await"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Classifies, routes urgent, collects newsletters, counts by sender"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": true,
+					"reasoning": "All imports are from declared utils"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": false,
+					"reasoning": "BUG: Two mutable globals (newsletters, senderCounts). sendWeeklyDigest is a separate function not connected to the main flow — requires external cron. If main() crashes, accumulated newsletters are lost."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "fanin-patient-summary",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"labs\": { \"type\": \"producer\", \"source\": \"rest-api\", \"config\": { \"url\": \"https://lims.hospital.org/api/results\", \"pollIntervalMs\": 300000 } },\n    \"meds\": { \"type\": \"producer\", \"source\": \"rest-api\", \"config\": { \"url\": \"https://pharmacy.hospital.org/api/active-meds\" } },\n    \"vitals\": { \"type\": \"producer\", \"source\": \"rest-api\", \"config\": { \"url\": \"https://nursing.hospital.org/api/vitals\" } },\n    \"summary\": { \"type\": \"derived\", \"deps\": [\"labs\", \"meds\", \"vitals\"], \"fn\": \"merge\", \"config\": { \"strategy\": \"object\" } },\n    \"deliver\": { \"type\": \"effect\", \"deps\": [\"summary\"], \"fn\": \"sendEmail\", \"config\": { \"to\": \"physician@hospital.org\", \"subject\": \"Pre-Visit Summary\" } }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, 3 producers + 1 derived + 1 effect"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Fetches 3 sources, merges, delivers to physician"
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "rest-api source, merge/sendEmail in catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Fan-in: 3 producers → summary (deps all 3) → deliver"
+				},
+				{
+					"claim": "Reactive: any source update triggers recomputation",
+					"pass": true,
+					"reasoning": "Graph topology ensures summary recomputes when any of the 3 sources updates"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "fanin-patient-summary",
+			"treatment": "functions",
+			"raw_output": "import { fetchFromApi, sendEmail } from './utils';\n\nasync function generatePreVisitSummary(patientId: string) {\n  const [labs, meds, vitals] = await Promise.all([\n    fetchFromApi(`https://lims.hospital.org/api/results?patient=${patientId}`),\n    fetchFromApi(`https://pharmacy.hospital.org/api/active-meds?patient=${patientId}`),\n    fetchFromApi(`https://nursing.hospital.org/api/vitals?patient=${patientId}`),\n  ]);\n  const summary = { labResults: labs, activeMedications: meds, recentVitals: vitals, generatedAt: new Date().toISOString() };\n  await sendEmail('physician@hospital.org', 'Pre-Visit Summary', JSON.stringify(summary));\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Fetches 3 sources in parallel, merges, sends email"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": true,
+					"reasoning": "fetchFromApi, sendEmail both in utils"
+				},
+				{
+					"claim": "Reactive: updates when sources change",
+					"pass": false,
+					"reasoning": "NOT REACTIVE: one-shot function, must be called explicitly. If lab results update after initial call, no recomputation occurs. Requires external polling/cron wrapper."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "graphspec",
+			"raw_output": "{\n  \"nodes\": {\n    \"trigger\": { \"type\": \"producer\", \"source\": \"timer\", \"config\": { \"intervalMs\": 60000 } },\n    \"fetchPrice\": { \"type\": \"derived\", \"deps\": [\"trigger\"], \"fn\": \"retry\", \"config\": { \"maxAttempts\": 3, \"backoff\": \"exponential\" } },\n    \"fallback\": { \"type\": \"derived\", \"deps\": [\"fetchPrice\"], \"fn\": \"fallback\", \"config\": { \"fallbackValue\": \"cached\" } },\n    \"log\": { \"type\": \"effect\", \"deps\": [\"fetchPrice\"], \"fn\": \"writeLog\", \"config\": { \"level\": \"info\" } },\n    \"output\": { \"type\": \"effect\", \"deps\": [\"fallback\"], \"fn\": \"updateDashboard\" }\n  }\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid JSON conforming to GraphSpec schema",
+					"pass": true,
+					"reasoning": "Valid JSON, all types correct"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": false,
+					"reasoning": "INCOMPLETE: retry fn has no config.url or config.fn — doesn't know what operation to retry. The actual pricing API call is missing."
+				},
+				{
+					"claim": "All references exist in the provided catalog",
+					"pass": true,
+					"reasoning": "timer source, retry/fallback/writeLog/updateDashboard all in catalog"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": true,
+					"reasoning": "Linear: trigger→fetchPrice→fallback→output, with log branch from fetchPrice"
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "functions",
+			"raw_output": "import { fetchFromApi, logToAudit } from './utils';\n\nlet cachedPrice: number | null = null;\n\nasync function fetchPriceWithRetry(): Promise<number> {\n  const maxRetries = 3;\n  for (let attempt = 1; attempt <= maxRetries; attempt++) {\n    try {\n      await logToAudit({ event: 'price_fetch_attempt', attempt });\n      const result = await fetchFromApi('https://pricing.example.com/api/current');\n      cachedPrice = result.price;\n      await logToAudit({ event: 'price_fetch_success', attempt, price: result.price });\n      return result.price;\n    } catch (err) {\n      await logToAudit({ event: 'price_fetch_failed', attempt, error: String(err) });\n      if (attempt < maxRetries) {\n        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));\n      }\n    }\n  }\n  await logToAudit({ event: 'price_fetch_exhausted', fallback: cachedPrice });\n  if (cachedPrice !== null) return cachedPrice;\n  throw new Error('No cached price available');\n}",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The output is syntactically valid TypeScript",
+					"pass": true,
+					"reasoning": "Valid TS"
+				},
+				{
+					"claim": "The output correctly implements all key behaviors",
+					"pass": true,
+					"reasoning": "Calls API, retries 3x with exponential backoff, falls back to cache, logs all attempts"
+				},
+				{
+					"claim": "All references exist in the provided utilities",
+					"pass": true,
+					"reasoning": "fetchFromApi, logToAudit in utils"
+				},
+				{
+					"claim": "All dependencies are correctly declared",
+					"pass": false,
+					"reasoning": "Mutable global cachedPrice. setTimeout for backoff (raw Promise). Throws if no cache — unhandled at call site."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": { "input": 0, "output": 0 }
+		}
+	]
+}

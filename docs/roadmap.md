@@ -198,6 +198,17 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 - [x] `withStatus` (now: sugar for meta companion stores)
 - [x] `checkpoint` + adapters (file, SQLite, IndexedDB)
 
+### 3.1c — Caching, fallback & composition sugar
+
+Resilience composition primitives missing from 3.1. Identified by LLM-DX eval (SESSION-dxux-benchmarks): LLMs reference `fallback` and `cache` as intuitive primitives — Tasks 5/6 failed because the GraphSpec schema lacked these. Predecessor reference: `~/src/callbag-recharge/src/utils/cascadingCache.ts`, `~/src/callbag-recharge/src/utils/tieredStorage.ts`.
+
+- [ ] `fallback<T>(source, fallbackValue | fallbackNode)` — on terminal ERROR, emit fallback value instead of propagating. Compose with `retry` for "retry then fallback" patterns.
+- [ ] `cache<T>(source, ttlNs)` — memoize last DATA value, re-emit on resubscription if within TTL. Stale-while-revalidate pattern.
+- [ ] `timeout<T>(source, timeoutNs)` — emit ERROR if no DATA within deadline. Common for API-call scenarios.
+- [ ] `cascadingCache<V>(tiers, opts?)` — N-tier cascading lookup; each entry is a `state()` node. Hits auto-promote to faster tiers. Supports eviction policy, write-through. Adapted from callbag-recharge to use GraphReFly `node`/`state` + message protocol.
+- [ ] `tieredStorage(adapters, opts?)` — reactive tiered cache backed by `CheckpointAdapter`s. Wraps N adapters as a `cascadingCache`. Adapted from callbag-recharge.
+- [ ] **Python parity:** same primitives in `graphrefly-py`
+
 ### 3.1b — Reactive output consistency (no Promise in public APIs)
 
 Design invariant: every public function returns `Node<T>`, `Graph`, `void`, or a plain synchronous value — never `Promise<T>`. Predecessor precedent: `~/src/callbag-recharge/src/archive/docs/SESSION-callbag-native-promise-elimination.md`.
@@ -284,33 +295,33 @@ Current `describe()` returns all fields for every node (type, status, value, dep
 
 #### `describe()` detail levels
 
-- [ ] `graph.describe({ detail: "minimal" })` — **default.** Nodes with `type` and `deps` only. No values, no meta, no status. The "GraphSpec-like" view for LLM composition and human overview:
+- [x] `graph.describe({ detail: "minimal" })` — **default.** Nodes with `type` and `deps` only. No values, no meta, no status. The "GraphSpec-like" view for LLM composition and human overview:
   ```jsonc
   { "nodes": { "inbox": { "type": "producer" }, "classify": { "type": "derived", "deps": ["inbox"] } } }
   ```
-- [ ] `graph.describe({ detail: "standard" })` — type, status, value, deps, meta. The previous default; opt-in when you need runtime state.
-- [ ] `graph.describe({ detail: "full" })` — standard + versioning (`v`), guard info, last mutation attribution, annotation count.
+- [x] `graph.describe({ detail: "standard" })` — type, status, value, deps, meta, versioning (`v`). The previous default; opt-in when you need runtime state.
+- [x] `graph.describe({ detail: "full" })` — standard + guard info, last mutation attribution.
 
 #### `describe()` field selection (GraphQL-style)
 
-- [ ] `graph.describe({ fields: ["type", "deps"] })` — pick exactly which fields appear per node. Overrides `detail` level.
-- [ ] `graph.describe({ fields: ["type", "deps", "meta.label"] })` — dotted path for specific meta keys (avoid dumping entire meta object).
-- [ ] Type-safe field selection — `DescribeFields` type ensures only valid field names are accepted.
+- [x] `graph.describe({ fields: ["type", "deps"] })` — pick exactly which fields appear per node. Overrides `detail` level.
+- [x] `graph.describe({ fields: ["type", "deps", "meta.label"] })` — dotted path for specific meta keys (avoid dumping entire meta object).
+- [x] Type-safe field selection — `DescribeFields` type ensures only valid field names are accepted.
 
 #### `observe()` detail levels
 
-- [ ] `observe(name, { detail: "minimal" })` — DATA events only, no timestamps, no causal info. Lowest overhead.
-- [ ] `observe(name, { detail: "standard" })` — current default (DATA + DIRTY + RESOLVED + COMPLETE + ERROR events).
-- [ ] `observe(name, { detail: "full" })` — standard + timeline + causal + derived. Equivalent to `{ timeline: true, causal: true, derived: true }` but as a single toggle.
+- [x] `observe(name, { detail: "minimal" })` — DATA events only, no timestamps, no causal info. Lowest overhead.
+- [x] `observe(name, { detail: "standard" })` — current default (DATA + DIRTY + RESOLVED + COMPLETE + ERROR events).
+- [x] `observe(name, { detail: "full" })` — standard + timeline + causal + derived. Equivalent to `{ timeline: true, causal: true, derived: true }` but as a single toggle.
 
 #### Composable upgrades
 
-- [ ] `described.upgrade("full")` — from a minimal/standard describe result, fetch missing fields on demand (re-reads live graph). Avoids "fetch everything just in case."
-- [ ] `observed.upgrade({ causal: true })` — upgrade a running observation to include causal tracking without resubscribing.
+- [x] `described.expand("full")` — from a minimal/standard describe result, fetch missing fields on demand (re-reads live graph). Avoids "fetch everything just in case."
+- [x] `observed.expand({ causal: true })` — upgrade a running observation to include causal tracking without resubscribing.
 
 #### GraphSpec round-trip
 
-- [ ] `graph.describe({ format: "spec" })` — output in GraphSpec input format (no status, no value, `deps` as the edge representation, `fn` references). Directly usable by `llmRefine()`. Round-trips: `describe({ format: "spec" })` → edit → `compileSpec()`.
+- [x] `graph.describe({ format: "spec" })` — output in GraphSpec input format (no status, no value, `deps` as the edge representation, `fn` references). Directly usable by `llmRefine()`. Round-trips: `describe({ format: "spec" })` → edit → `compileSpec()`.
 
 ---
 

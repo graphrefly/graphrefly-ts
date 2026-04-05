@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Stop Drowning in Information</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --base: #0c0015;
+  --aqua: #4de8c2;
+  --violet: #a78bfa;
+  --rose: #f472b6;
+  --amber: #f0a858;
+  --white: #ffffff;
+  --white-08: rgba(255,255,255,0.08);
+  --white-12: rgba(255,255,255,0.12);
+  --white-60: rgba(255,255,255,0.6);
+  --white-80: rgba(255,255,255,0.8);
+  --glass-bg: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.1);
+  --radius: 24px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter Tight', sans-serif;
+  background: var(--base);
+  color: var(--white);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; font-weight: 800; line-height: 1.1; }
+
+a { color: inherit; text-decoration: none; }
+
+/* ── Gradient mesh background ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 6rem 2rem 4rem;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(77,232,194,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 20%, rgba(167,139,250,0.4) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 60% 80%, rgba(244,114,182,0.3) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 60% at 10% 80%, rgba(240,168,88,0.25) 0%, transparent 55%);
+  animation: meshShift 12s ease-in-out infinite alternate;
+  z-index: 0;
+}
+
+@keyframes meshShift {
+  0% {
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 30%, rgba(77,232,194,0.35) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(167,139,250,0.4) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 60% 80%, rgba(244,114,182,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 60% at 10% 80%, rgba(240,168,88,0.25) 0%, transparent 55%);
+  }
+  33% {
+    background:
+      radial-gradient(ellipse 70% 70% at 50% 20%, rgba(77,232,194,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse 80% 60% at 20% 60%, rgba(167,139,250,0.35) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 70% at 85% 70%, rgba(244,114,182,0.35) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 40% 90%, rgba(240,168,88,0.3) 0%, transparent 55%);
+  }
+  66% {
+    background:
+      radial-gradient(ellipse 60% 80% at 75% 50%, rgba(77,232,194,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 50% at 30% 80%, rgba(167,139,250,0.3) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 60% at 50% 15%, rgba(244,114,182,0.35) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 70% at 80% 40%, rgba(240,168,88,0.3) 0%, transparent 55%);
+  }
+  100% {
+    background:
+      radial-gradient(ellipse 65% 65% at 40% 60%, rgba(77,232,194,0.35) 0%, transparent 60%),
+      radial-gradient(ellipse 75% 55% at 70% 40%, rgba(167,139,250,0.4) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 75% at 25% 25%, rgba(244,114,182,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 70% 45% at 60% 85%, rgba(240,168,88,0.3) 0%, transparent 55%);
+  }
+}
+
+.hero > * { position: relative; z-index: 1; }
+
+/* ── Stagger headline ── */
+.hero-headline {
+  font-size: clamp(3rem, 7vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.3ch;
+}
+
+.hero-headline .char {
+  display: inline-block;
+  opacity: 0;
+  animation: charReveal 0.5s ease forwards;
+}
+
+@keyframes charReveal {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.hero-headline .word { display: inline-flex; white-space: pre; }
+
+.hero-tagline {
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  color: var(--white-80);
+  max-width: 700px;
+  margin: 0 auto 2.5rem;
+  font-weight: 400;
+}
+
+.install-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 100px;
+  padding: 0.75rem 1.5rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.95rem;
+  color: var(--aqua);
+  margin-bottom: 2rem;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.install-cmd:hover { border-color: var(--aqua); }
+
+.install-cmd .prompt { color: var(--white-60); user-select: none; }
+
+.install-cmd .copy-icon {
+  width: 18px; height: 18px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.install-cmd:hover .copy-icon { opacity: 1; }
+
+.cta-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 2rem;
+  border-radius: 100px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn:hover { transform: translateY(-2px); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--aqua), var(--violet));
+  color: var(--base);
+  box-shadow: 0 4px 24px rgba(77,232,194,0.25);
+}
+
+.btn-primary:hover { box-shadow: 0 8px 32px rgba(77,232,194,0.35); }
+
+.btn-secondary {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--white);
+  backdrop-filter: blur(12px);
+}
+
+.btn-secondary:hover { border-color: var(--white-60); }
+
+/* ── Sections ── */
+section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 6rem 2rem;
+}
+
+.section-label {
+  font-family: 'Inter Tight', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--aqua);
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  margin-bottom: 1rem;
+}
+
+.section-sub {
+  font-size: 1.1rem;
+  color: var(--white-60);
+  max-width: 640px;
+  margin-bottom: 3rem;
+}
+
+/* ── Gradient divider ── */
+.gradient-divider {
+  height: 2px;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: linear-gradient(90deg, transparent, var(--aqua), var(--violet), var(--rose), var(--amber), transparent);
+  opacity: 0.4;
+}
+
+/* ── Glass cards ── */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2.5rem;
+  backdrop-filter: blur(16px);
+  transition: transform 0.3s, border-color 0.3s;
+}
+
+.glass-card:hover {
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-4px);
+}
+
+/* ── Pillars grid ── */
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+}
+
+.pillar-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.pillar-icon.aqua   { background: rgba(77,232,194,0.15); color: var(--aqua); }
+.pillar-icon.violet { background: rgba(167,139,250,0.15); color: var(--violet); }
+.pillar-icon.rose   { background: rgba(244,114,182,0.15); color: var(--rose); }
+
+.pillar-title {
+  font-size: 1.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.pillar-body {
+  color: var(--white-60);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* ── How It Works ── */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  counter-reset: step;
+}
+
+.step-card {
+  counter-increment: step;
+  position: relative;
+  padding-top: 1rem;
+}
+
+.step-card::before {
+  content: counter(step);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 4rem;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--aqua), var(--violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.step-title {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.step-body {
+  color: var(--white-60);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* ── Scenarios (parallax cards) ── */
+.scenarios-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.scenario-card {
+  will-change: transform;
+  transition: transform 0.1s linear;
+}
+
+.scenario-emoji {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.scenario-title {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.scenario-body {
+  color: var(--white-60);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.scenario-detail {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--white-08);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: var(--aqua);
+  opacity: 0.7;
+}
+
+/* ── Code preview ── */
+.code-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 6rem 2rem;
+}
+
+.code-block {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  overflow-x: auto;
+  backdrop-filter: blur(8px);
+}
+
+.code-block pre {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--white-80);
+}
+
+.code-block .kw  { color: var(--violet); }
+.code-block .fn  { color: var(--aqua); }
+.code-block .str { color: var(--amber); }
+.code-block .cm  { color: rgba(255,255,255,0.3); font-style: italic; }
+.code-block .num { color: var(--rose); }
+.code-block .op  { color: var(--white-60); }
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--white-08);
+}
+
+.code-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--white-12);
+}
+
+.code-dot:nth-child(1) { background: #ff5f57; }
+.code-dot:nth-child(2) { background: #febc2e; }
+.code-dot:nth-child(3) { background: #28c840; }
+
+.code-filename {
+  margin-left: 0.75rem;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--white-60);
+}
+
+/* ── Implementations ── */
+.impl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.impl-card {
+  text-align: center;
+  padding: 2rem;
+}
+
+.impl-lang {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.impl-status {
+  font-size: 0.85rem;
+  color: var(--white-60);
+}
+
+.impl-status.active { color: var(--aqua); }
+
+/* ── Footer ── */
+footer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-top: 1px solid var(--white-08);
+}
+
+footer .logo {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+
+footer .links {
+  display: flex;
+  gap: 2rem;
+}
+
+footer .links a {
+  color: var(--white-60);
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+footer .links a:hover { color: var(--white); }
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(16px);
+  background: rgba(12,0,21,0.6);
+  border-bottom: 1px solid var(--white-08);
+}
+
+nav .logo {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.2rem;
+  background: linear-gradient(135deg, var(--aqua), var(--violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+nav .nav-links {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+nav .nav-links a {
+  font-size: 0.9rem;
+  color: var(--white-60);
+  transition: color 0.2s;
+}
+
+nav .nav-links a:hover { color: var(--white); }
+
+nav .nav-btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 100px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+nav .nav-btn:hover { border-color: var(--aqua); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hero { padding: 8rem 1.5rem 4rem; }
+  section { padding: 4rem 1.5rem; }
+  .code-section { padding: 4rem 1.5rem; }
+  nav .nav-links a:not(.nav-btn) { display: none; }
+  footer { flex-direction: column; text-align: center; }
+  footer .links { justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Nav ─── -->
+<nav>
+  <a href="#" class="logo">GraphReFly</a>
+  <div class="nav-links">
+    <a href="#pillars">Why</a>
+    <a href="#how">How</a>
+    <a href="#scenarios">Use Cases</a>
+    <a href="#code">Code</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts" class="nav-btn">GitHub</a>
+  </div>
+</nav>
+
+<!-- ─── Hero ─── -->
+<section class="hero">
+  <h1 class="hero-headline" id="headline"></h1>
+  <p class="hero-tagline">
+    Reactive graph engine for human + LLM co-operation. Describe automations in plain language. Review them visually. Trace every decision. Zero dependencies.
+  </p>
+  <div class="install-cmd" onclick="navigator.clipboard.writeText('npm i @graphrefly/graphrefly')" title="Click to copy">
+    <span class="prompt">$</span>
+    <span>npm i @graphrefly/graphrefly</span>
+    <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+  </div>
+  <div class="cta-row">
+    <a href="https://github.com/graphrefly/graphrefly-ts" class="btn btn-primary">Get Started</a>
+    <a href="#how" class="btn btn-secondary">See How It Works</a>
+  </div>
+</section>
+
+<div class="gradient-divider"></div>
+
+<!-- ─── 3 Pillars ─── -->
+<section id="pillars">
+  <p class="section-label">Why GraphReFly</p>
+  <h2 class="section-title">Three problems, one protocol.</h2>
+  <p class="section-sub">Information overload, opaque AI, and boilerplate glue code. GraphReFly solves all three with a single reactive graph.</p>
+
+  <div class="pillars-grid">
+    <div class="glass-card">
+      <div class="pillar-icon aqua">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12A10 10 0 1112 2"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      </div>
+      <h3 class="pillar-title">Stop Drowning in Information</h3>
+      <p class="pillar-body">
+        Thousands of emails, alerts, feeds, and messages hit you every day. GraphReFly is a universal reduction engine: it ingests chaotic streams and outputs only what matters. Reactive nodes filter, aggregate, and prioritize automatically — no polling, no cron jobs, no glue scripts.
+      </p>
+    </div>
+    <div class="glass-card">
+      <div class="pillar-icon violet">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h3 class="pillar-title">Trust AI by Understanding It</h3>
+      <p class="pillar-body">
+        Every node in the graph is observable. Every derivation is a causal chain you can inspect, replay, and audit. Checkpoints persist state; traces show exactly why the AI made each decision. You don't have to blindly trust a black box — you can verify it.
+      </p>
+    </div>
+    <div class="glass-card">
+      <div class="pillar-icon rose">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </div>
+      <h3 class="pillar-title">Describe It, Don't Code It</h3>
+      <p class="pillar-body">
+        Write what you want in plain English. An LLM composes the reactive graph for you. The graph runs persistently, checkpoints automatically, and you can inspect or override any node at any time. No boilerplate. No framework lock-in. Zero dependencies.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="gradient-divider"></div>
+
+<!-- ─── How It Works ─── -->
+<section id="how">
+  <p class="section-label">How It Works</p>
+  <h2 class="section-title">Three steps. No magic.</h2>
+  <p class="section-sub">From a natural-language description to a running, traceable, persistent automation.</p>
+
+  <div class="steps-grid">
+    <div class="step-card glass-card">
+      <h3 class="step-title">Describe</h3>
+      <p class="step-body">
+        Tell the system what you want in plain language: "Triage my inbox — flag urgent items, summarize the rest into a daily digest, archive noise." That's your spec.
+      </p>
+    </div>
+    <div class="step-card glass-card">
+      <h3 class="step-title">LLM Composes Graph</h3>
+      <p class="step-body">
+        An LLM reads your description and emits a reactive graph: source nodes for email ingestion, derived nodes for classification and summarization, effect nodes for notifications. All wired together declaratively.
+      </p>
+    </div>
+    <div class="step-card glass-card">
+      <h3 class="step-title">Runs Reactively</h3>
+      <p class="step-body">
+        The graph runs persistently. State checkpoints automatically. Every derivation is traced. You can inspect, override, or extend any node — no restart required. Reactive propagation, not polling.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="gradient-divider"></div>
+
+<!-- ─── Scenarios ─── -->
+<section id="scenarios">
+  <p class="section-label">Scenarios</p>
+  <h2 class="section-title">Built for the real world.</h2>
+  <p class="section-sub">Every automation that drowns you in noise or hides decisions behind a black box is a GraphReFly use case.</p>
+
+  <div class="scenarios-wrap" id="scenarioCards">
+    <div class="scenario-card glass-card" data-depth="0.03">
+      <div class="scenario-emoji">&#9993;</div>
+      <h3 class="scenario-title">Email Triage</h3>
+      <p class="scenario-body">
+        Hundreds of emails a day. GraphReFly ingests them reactively, classifies urgency with an LLM node, routes action items to your task list, and compresses the rest into a one-paragraph daily digest. Every classification is traceable.
+      </p>
+      <p class="scenario-detail">sources: IMAP stream &rarr; derived: classify, summarize &rarr; effects: notify, archive</p>
+    </div>
+    <div class="scenario-card glass-card" data-depth="0.05">
+      <div class="scenario-emoji">&#128176;</div>
+      <h3 class="scenario-title">Spending Alerts</h3>
+      <p class="scenario-body">
+        Bank feeds, subscriptions, invoices — a firehose of financial data. A reactive graph watches thresholds, detects anomalies, and alerts you before your budget breaks. Causal traces show exactly which transactions triggered each alert.
+      </p>
+      <p class="scenario-detail">sources: bank API, invoices &rarr; derived: threshold, anomaly &rarr; effects: alert, report</p>
+    </div>
+    <div class="scenario-card glass-card" data-depth="0.04">
+      <div class="scenario-emoji">&#128218;</div>
+      <h3 class="scenario-title">Knowledge Management</h3>
+      <p class="scenario-body">
+        Notes, bookmarks, highlights, meeting transcripts — scattered across a dozen tools. GraphReFly unifies them into a reactive knowledge graph. New information auto-links to existing concepts. Stale nodes surface for review. Nothing falls through the cracks.
+      </p>
+      <p class="scenario-detail">sources: notes, bookmarks, transcripts &rarr; derived: link, cluster &rarr; effects: surface, prune</p>
+    </div>
+  </div>
+</section>
+
+<div class="gradient-divider"></div>
+
+<!-- ─── Code Preview ─── -->
+<div class="code-section" id="code">
+  <p class="section-label">Code Preview</p>
+  <h2 class="section-title" style="max-width:1200px;">Feels like state management.<br>Works like a reactive engine.</h2>
+  <p class="section-sub">Familiar primitives. Unfamiliar power.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-dot"></span>
+      <span class="code-dot"></span>
+      <span class="code-dot"></span>
+      <span class="code-filename">counter.ts</span>
+    </div>
+    <pre><span class="kw">import</span> { Graph } <span class="kw">from</span> <span class="str">'@graphrefly/graphrefly'</span>;
+<span class="kw">import</span> { state, derived, effect } <span class="kw">from</span> <span class="str">'@graphrefly/graphrefly/core'</span>;
+<span class="kw">import</span> { DATA } <span class="kw">from</span> <span class="str">'@graphrefly/graphrefly/protocol'</span>;
+
+<span class="cm">// 1. Create a reactive graph</span>
+<span class="kw">const</span> g <span class="op">=</span> <span class="kw">new</span> <span class="fn">Graph</span>();
+
+<span class="cm">// 2. State node — holds a value, pushes updates</span>
+<span class="kw">const</span> count <span class="op">=</span> g.<span class="fn">add</span>(<span class="fn">state</span>(<span class="num">0</span>));
+
+<span class="cm">// 3. Derived node — recomputes when count changes</span>
+<span class="kw">const</span> doubled <span class="op">=</span> g.<span class="fn">add</span>(<span class="fn">derived</span>(
+  [count],
+  (c) <span class="op">=></span> c <span class="op">*</span> <span class="num">2</span>
+));
+
+<span class="cm">// 4. Effect node — side-effect on every change</span>
+g.<span class="fn">add</span>(<span class="fn">effect</span>(
+  [doubled],
+  (d) <span class="op">=></span> console.<span class="fn">log</span>(<span class="str">`doubled: ${d}`</span>)
+));
+
+<span class="cm">// 5. Push an update — entire graph reacts</span>
+count.<span class="fn">down</span>([[DATA, <span class="num">1</span>]]);
+<span class="cm">// logs: doubled: 2</span></pre>
+  </div>
+</div>
+
+<div class="gradient-divider"></div>
+
+<!-- ─── Implementations ─── -->
+<section id="implementations">
+  <p class="section-label">Implementations</p>
+  <h2 class="section-title">One protocol. Many runtimes.</h2>
+  <p class="section-sub">GraphReFly is a protocol, not a framework. Implementations share the same message semantics and interop guarantees.</p>
+
+  <div class="impl-grid">
+    <div class="glass-card impl-card">
+      <p class="impl-lang">TypeScript</p>
+      <p class="impl-status active">v0.5 &middot; Active</p>
+    </div>
+    <div class="glass-card impl-card">
+      <p class="impl-lang">Rust</p>
+      <p class="impl-status">Planned</p>
+    </div>
+    <div class="glass-card impl-card">
+      <p class="impl-lang">Python</p>
+      <p class="impl-status">Planned</p>
+    </div>
+    <div class="glass-card impl-card">
+      <p class="impl-lang">Go</p>
+      <p class="impl-status">Planned</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─── -->
+<footer>
+  <span class="logo">GraphReFly</span>
+  <div class="links">
+    <a href="https://github.com/graphrefly/graphrefly-ts">GitHub</a>
+    <a href="https://graphrefly.dev">Docs</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts/issues">Issues</a>
+  </div>
+</footer>
+
+<script>
+// ── Stagger-reveal headline ──
+(() => {
+  const text = "Stop drowning in information.";
+  const el = document.getElementById('headline');
+  const words = text.split(' ');
+  let charIndex = 0;
+
+  words.forEach((word, wi) => {
+    const wordSpan = document.createElement('span');
+    wordSpan.className = 'word';
+    for (let i = 0; i < word.length; i++) {
+      const ch = document.createElement('span');
+      ch.className = 'char';
+      ch.textContent = word[i];
+      ch.style.animationDelay = (charIndex * 0.035) + 's';
+      wordSpan.appendChild(ch);
+      charIndex++;
+    }
+    el.appendChild(wordSpan);
+    if (wi < words.length - 1) {
+      const space = document.createElement('span');
+      space.innerHTML = '&nbsp;';
+      space.className = 'char';
+      space.style.animationDelay = (charIndex * 0.035) + 's';
+      el.appendChild(space);
+      charIndex++;
+    }
+  });
+})();
+
+// ── Parallax on scenario cards ──
+(() => {
+  const wrap = document.getElementById('scenarioCards');
+  if (!wrap) return;
+  const cards = wrap.querySelectorAll('.scenario-card');
+
+  document.addEventListener('mousemove', (e) => {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const dx = (e.clientX - cx) / cx;
+    const dy = (e.clientY - cy) / cy;
+
+    cards.forEach((card) => {
+      const depth = parseFloat(card.getAttribute('data-depth')) || 0.03;
+      const moveX = dx * depth * 100;
+      const moveY = dy * depth * 100;
+      card.style.transform = 'translate(' + moveX + 'px, ' + moveY + 'px)';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

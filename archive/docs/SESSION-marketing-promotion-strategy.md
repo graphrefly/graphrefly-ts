@@ -14,7 +14,10 @@ GraphReFly has two implementations (TypeScript, Python) approaching publishable 
 ### 1. Package & Repo Descriptions
 
 **npm (`@graphrefly/graphrefly-ts`):**
-> Reactive graph protocol for human + LLM co-operation. Composable nodes, glitch-free diamond resolution, two-phase push, framework adapters (React/Vue/Svelte/Solid/NestJS), durable streaming. Zero dependencies.
+> ~~Reactive graph protocol for human + LLM co-operation. Composable nodes, glitch-free diamond resolution, two-phase push, framework adapters (React/Vue/Svelte/Solid/NestJS), durable streaming. Zero dependencies.~~ *(original — architecture-first)*
+>
+> **Revised (per first-principles audit):**
+> Describe automations in plain language. Review them visually. Run them persistently. Trace every decision. A reactive graph engine for human + LLM co-operation — zero dependencies.
 
 **npm keywords (20):** reactive, graph, state-management, signals, streaming, llm, ai-agents, observable, derived-state, diamond-resolution, orchestration, durable-workflow, callbag, framework-agnostic, react, vue, svelte, solid, nestjs, zero-dependency.
 
@@ -65,11 +68,24 @@ Domain registered on Cloudflare. Key settings:
 
 `sync-docs.mjs` extended to copy `robots.txt` and `llms.txt` from repo root to `website/public/`. Both files gitignored in `website/.gitignore`. `--check` mode validates staleness in CI.
 
-### 6. Three Positioning Pillars
+### 6. Three Positioning Pillars *(revised per first-principles audit)*
 
-1. **"The Missing Middle"** — between simple signals (Jotai/Zustand) and heavy stream processors (RxJS/XState). GraphReFly gives composable reactive graphs with signal DX and stream power.
-2. **"Durable by Default"** — LLM token streams that survive network failures, checkpointable graph state, resumable workflows. No external infrastructure required.
-3. **"Inspectable AI Orchestration"** — every node has observable state. Debug multi-agent systems with granular transparency. The trust layer that agentic AI needs.
+> **Rationale for revision:** The original pillars were architecture-first ("The Missing Middle", "Durable by Default", "Inspectable AI Orchestration"). HN feedback confirmed this didn't land — "sounds like a good idea but I'm not sure I fully understand what the solution is." The audit (SESSION-first-principles-audit.md) mandates leading with user pain points, not protocol features.
+
+**Original pillars (archived):**
+1. ~~"The Missing Middle"~~ — architecture framing (signals vs streams)
+2. ~~"Durable by Default"~~ — infrastructure framing (checkpoints, resume)
+3. ~~"Inspectable AI Orchestration"~~ — developer tooling framing (observable state)
+
+**New pillars — pain-point-first:**
+
+1. **"Stop Drowning in Information"** — You're buried under emails, alerts, feeds, messages. You can't process it all and you're terrified of missing something important. GraphReFly is a **universal reduction engine**: describe what matters in plain language, and it watches, filters, prioritizes, and alerts — persistently and reactively. *(Targets: ordinary people, knowledge workers, small business owners. Maps to: Part 9 of audit — "protect attention via empowerment.")*
+
+2. **"Trust AI by Understanding It"** — You don't trust AI output because you can't explain *why* it decided something. GraphReFly makes every decision traceable: ask "why was this flagged?" and get a causal chain from source to conclusion — not a log dump, but structural causality that persists across sessions. *(Targets: both companies (compliance/audit) and individuals (understanding/trust). Maps to: Part 8 of audit — "causal chain persistence is the killer argument.")*
+
+3. **"Describe It, Don't Code It"** — Tell an LLM what you need in plain English. It composes a graph (like SQL for data flows). You review a simplified flow view (not code). It runs. You tweak by talking, not coding. GraphReFly constrains the LLM's error space to structural operations — like SQL constraining database operations — so it gets it right the first time. *(Targets: non-technical users AND developers. Maps to: Part 7 of audit — "Graph > Functions for LLM composition" and the SQL analogy.)*
+
+**Pillar hierarchy:** Lead with #1 (pain) in all consumer-facing copy. Lead with #3 (capability) in developer/HN contexts. #2 (trust) is the bridge between audiences.
 
 ### 7. callbag-recharge Deprecation Plan
 
@@ -80,15 +96,35 @@ Domain registered on Cloudflare. Key settings:
 | Blog migration | Port 30 chronicle posts to graphrefly.dev, reframe as "predecessor story leading to GraphReFly" |
 | GitHub archive | Archive repo (read-only) after migration guide published |
 
-### 8. Phased Promotion Roadmap
+### 8. Phased Promotion Roadmap *(revised per first-principles audit)*
 
-**Phase A (Foundation):** Domain, npm org (done), PyPI org (pending), GitHub org, killer README, `llms.txt`, docs site.
+> **Key change:** Demo 0 ("The Existential Demo": NL → Graph → Flow → Run → Persist → Explain) is now the promotional centerpiece. Nothing ships to HN/Reddit without a working Demo 0 video/GIF. The audit (Part 11) established: "If this works, the library justifies itself. If not, nothing else matters."
 
-**Phase B (Soft Launch):** npm publish v0.1.0, Show HN, Reddit (r/typescript, r/javascript, r/reactjs), Dev.to syndication, callbag-recharge deprecation.
+**Phase A (Foundation):**
+- Domain, npm org (done), PyPI org (pending), GitHub org, `llms.txt`, docs site
+- **NEW:** Rewrite README and landing page to lead with pain points (pillar #1), not architecture
+- **NEW:** Build Demo 0 (NL → GraphSpec → flow view → run → persist → explain) — this gates Phase B
 
-**Phase C (Growth):** AI-focused Reddit (r/AI_Agents, r/LangChain, r/LocalLLaMA), X threads, Discord server, comparison pages (vs Zustand/RxJS/XState/LangGraph), migration guide.
+**Phase B (Soft Launch — requires working Demo 0):**
+- npm publish v0.1.0
+- **NEW:** Show HN post leads with: "I built a tool that lets you describe automations in plain English, reviews them visually, runs them persistently, and explains every decision" — NOT "reactive graph protocol"
+- **NEW:** Demo 0 video/GIF embedded in HN post and README
+- Reddit: r/typescript, r/javascript — dev audience sees pillar #3 ("Describe it, don't code it")
+- Dev.to syndication, callbag-recharge deprecation
 
-**Phase D (Sustained):** Weekly blog cadence, compat wrappers as adoption Trojan horse, conference talks (TSConf, React Summit, ViteConf), Product Hunt at v1.0.
+**Phase C (Growth — two-track):**
+- **Developer track:** AI-focused Reddit (r/AI_Agents, r/LangChain, r/LocalLLaMA), X threads, Discord server, comparison pages (vs Zustand/RxJS/XState/LangGraph), migration guide. Lead with pillar #3 and the SQL analogy.
+- **NEW — Consumer track:** r/productivity, r/selfhosted, r/ADHD, r/personalfinance, r/SmallBusiness. Lead with pillar #1 ("Stop drowning in information"). Demo scenarios: email triage, spending alerts, personal knowledge management.
+- **NEW:** "Why was this flagged?" explainability demo for trust/compliance audiences (pillar #2)
+
+**Phase D (Sustained):**
+- Weekly blog cadence, compat wrappers as adoption Trojan horse
+- Conference talks (TSConf, React Summit, ViteConf) — **NEW:** also target AI/productivity conferences (AI Engineer, Productivity Summit)
+- Product Hunt at v1.0
+- **NEW:** Three-layer DX/UX as explicit roadmap milestones:
+  - Layer 1 (LLM-DX): GraphSpec schema docs, few-shot examples, validation tooling
+  - Layer 2 (Dev-DX): 5-min setup, sugar constructors, progressive complexity
+  - Layer 3 (End-user UX): NL → graph → simplified flow view — **this is the real moat**
 
 ## Predecessor Research Incorporated
 
@@ -126,24 +162,181 @@ Domain registered on Cloudflare. Key settings:
 
 **Migration execution order:** Comparison pages first → Tier 1 posts → Tier 2 posts → Recipes → Capstone post ("From callbag-recharge to GraphReFly: Why We Started Over").
 
-## 10. README Overhaul
+## 10. README Overhaul *(revised per first-principles audit)*
 
-New README structure (following XState/Zustand patterns):
-1. One-line tagline + badges (npm, license)
-2. Quick start (install + 6-line code example)
-3. Comparison table (vs Zustand/Jotai/RxJS/XState/Signals — 8 dimensions)
-4. One primitive — sugar constructors
-5. Streaming & operators
-6. Graph container
-7. AI & orchestration
-8. Framework adapters (React/Vue/Svelte/Solid/NestJS)
-9. Tree-shaking imports
-10. Resilience & checkpoints
-11. Project layout
-12. Scripts
-13. **Acknowledgments** — credits to Callbag (Staltz), callbag-recharge (predecessor), Pretext (Cheng Lou), OpenViking (decay formula), David Harel (statecharts), TC39 Signals Proposal
+> **Key change:** README must lead with *what users can do*, not protocol internals. The audit (Insight #6) established: "Callbag died from DX neglect. The protocol is necessary but not sufficient." Structure below front-loads pain points and Demo 0.
+
+New README structure:
+1. **One-line tagline** — pain-point-first: "Describe what matters. It watches, filters, and explains — persistently." + badges
+2. **NEW: Demo 0 GIF/video** — NL → flow view → running → "why was this flagged?" (the existential proof, above the fold)
+3. **NEW: Three scenarios** (30 words each) — email triage, spending alerts, knowledge management. Ordinary person can self-identify.
+4. Quick start (install + 6-line code example)
+5. **NEW: "How it works" (3 sentences)** — You describe. LLM composes a graph. Graph runs reactively, checkpoints state, traces every decision.
+6. Comparison table (vs Zustand/Jotai/RxJS/XState/LangGraph — **add LangGraph**, 8 dimensions)
+7. One primitive — sugar constructors
+8. Streaming & operators
+9. Graph container
+10. AI & orchestration
+11. Framework adapters (React/Vue/Svelte/Solid/NestJS)
+12. Tree-shaking imports
+13. Resilience & checkpoints
+14. Project layout
+15. Scripts
+16. **Acknowledgments** — credits to Callbag (Staltz), callbag-recharge (predecessor), Pretext (Cheng Lou), OpenViking (decay formula), David Harel (statecharts), TC39 Signals Proposal
 
 **Decision on credits:** Include them. Builds trust, shows landscape awareness, community goodwill, and potential amplification from cited project authors.
+
+## 11. Revision Summary (April 4, 2026 — per first-principles audit)
+
+**Trigger:** `SESSION-first-principles-audit.md` identified that the marketing strategy was architecture-first when it should be pain-point-first.
+
+**Sections revised:**
+- **§1 Package description** — new pain-point-first npm description drafted
+- **§6 Three Positioning Pillars** — replaced architecture pillars with pain-point pillars: (1) Stop Drowning in Information, (2) Trust AI by Understanding It, (3) Describe It, Don't Code It
+- **§8 Phased Promotion Roadmap** — Demo 0 gates Phase B; added consumer track in Phase C; two-audience strategy (developer + ordinary people)
+- **§10 README Overhaul** — Demo 0 GIF above fold, scenarios before code, "How it works" in 3 sentences
+
+**Not yet executed (requires separate sessions):**
+- Actual README rewrite
+- Landing page redesign
+- npm description update in `package.json`
+- Show HN draft rewrite
+- Demo 0 implementation (blocked on Phase 7.3 roadmap items)
+
+## 12. Pain-Point Reply Marketing — All Platforms (added April 4, 2026)
+
+### Core Strategy
+
+**Approach:** Proactively search social platforms for posts discussing problems GraphReFly solves. Reply with empathy + our specific claims. This is higher-ROI than cold posting because we're entering conversations where the pain is already articulated.
+
+**Principles:**
+- Lead with validation of the poster's insight ("this is exactly right")
+- Connect their pain to our specific solution — not architecture, but what it *does*
+- Keep it short, authentic, non-spammy — one reply per thread, no copy-paste blasts
+- Link to repo or demo, not landing page walls of text
+- Adapt tone to platform culture (HN: technical rigor; Reddit: casual + helpful; X: punchy; 小红书: analytical)
+
+### Platform-Specific Playbooks
+
+#### HN (Hacker News)
+
+**Search keywords:** "agent state management", "LLM context window", "agent memory", "CLI agent limitations", "vibe coding", "AI orchestration", "reactive AI", "agent workspace"
+
+**Where to reply:** Show HN threads for agent frameworks, "Ask HN" about agent architecture, comments on LangGraph/CrewAI/AutoGen posts, discussions about AI reliability/trust.
+
+**Reply template (adapt per thread):**
+
+> This hits on something we've been working on — the problem isn't the tools, it's the state model. CLI gives agents a transcript (frozen snapshots accumulating in context), not a workspace (live state that updates in-place).
+>
+> We built GraphReFly as a reactive graph runtime for this: state pushes downstream automatically (no re-reading), nodes have lifecycles (not infinite append), and every decision has a traceable causal chain. Describe what you want in NL → LLM composes the graph → runs persistently → you can ask "why was this flagged?"
+>
+> Open source, zero deps: github.com/graphrefly/graphrefly-ts
+
+#### Reddit
+
+**Subreddits & search keywords:**
+
+| Track | Subreddits | Keywords |
+|-------|-----------|----------|
+| Developer | r/AI_Agents, r/LangChain, r/LocalLLaMA, r/typescript, r/javascript, r/programming | "agent state", "LLM memory", "context window problem", "agent reliability", "vibe coding bad" |
+| Consumer | r/productivity, r/selfhosted, r/ADHD, r/personalfinance, r/SmallBusiness, r/Automate | "information overload", "too many notifications", "automation tool", "AI I can trust", "IFTTT alternative" |
+
+**Developer reply template:**
+
+> This is the exact problem we're trying to solve with GraphReFly. The core insight: agents shouldn't re-read the world every turn. State should push to dependents reactively.
+>
+> It's a reactive graph runtime — nodes with declared dependencies, automatic propagation, causal tracing. Think of it like SQL for data flows: constrain the LLM to structural composition so it gets things right the first time.
+>
+> github.com/graphrefly/graphrefly-ts — happy to answer questions.
+
+**Consumer reply template:**
+
+> I feel this. The problem is that every app is a silo — your emails, alerts, finances, notes don't talk to each other, so *you* become the integration layer.
+>
+> We're building something called GraphReFly that lets you describe what matters in plain language ("watch my inbox, flag urgent ones from my team, summarize newsletters weekly"), and it watches, filters, and explains persistently. You can ask "why was this flagged?" and get a real answer, not a black box.
+>
+> Still early but open source: github.com/graphrefly/graphrefly-ts
+
+#### X (Twitter)
+
+**Search keywords:** "agent memory problem", "CLI agent limits", "LLM state management", "vibe coding", "agent computer interface", "AI trust", "agent workspace"
+
+**Reply style:** Punchy, 1-2 tweets max. Quote-tweet or reply.
+
+> This. CLI gives agents a transcript, not a workspace. Every `cat file.txt` is a frozen snapshot — agents waste tokens reconstructing reality from stale output.
+>
+> We're building the reactive layer underneath: state pushes, nodes have lifecycles, every decision is traceable.
+>
+> github.com/graphrefly/graphrefly-ts
+
+### Cadence (all English platforms combined)
+
+| Phase | Activity |
+|-------|----------|
+| Phase B | 3-5 replies/week across HN + Reddit + X. Focus on high-relevance threads only. |
+| Phase C | Daily scanning. 5-10 replies/week. Start original posts on X (threads) and Reddit. |
+| Phase D | Delegate scanning to community members / automation. Focus on original thought-leadership content. |
+
+### Tracking
+
+Maintain a lightweight log of replies (platform, thread URL, date, engagement) to identify which pain points and framings resonate. Feed insights back into positioning pillars.
+
+---
+
+## 13. 小红书 / Chinese-Language Promotion (added April 4, 2026)
+
+**Trigger:** A viral 小红书 post ("Agent Computer Interface 的终局，不会是 CLI", ~4200 words) independently articulated the exact problem GraphReFly solves — CLI gives agents stale snapshots instead of a living workspace. This validates that the pain point resonates with Chinese-speaking AI practitioners.
+
+### 小红书 as a Channel
+
+| Aspect | Details |
+|--------|---------|
+| Audience | Chinese-speaking AI engineers, indie hackers, product managers, AI enthusiasts |
+| Format | Long-form image-text posts (fits our pain-point storytelling approach) |
+| Tone | Analytical, first-principles, opinionated — aligns with our audit-style content |
+| Strengths | High engagement on "insight" posts; comments are substantive; posts have long shelf life via search |
+
+### Strategy: Pain-Point Reply Marketing
+
+**Approach:** Search 小红书 for posts discussing these pain points, then reply with our claims/product description:
+
+**Search keywords:**
+- `Agent CLI 局限` / `Agent workspace`
+- `AI Agent 状态管理` / `Agent 上下文`
+- `LLM 工具调用` / `Agent Computer Interface`
+- `vibe coding 问题` / `AI 可信度`
+- `信息过载 自动化` / `个人知识管理`
+- `reactive programming AI` / `Agent App`
+
+**Reply template (adapt per post):**
+
+> 说得太对了。我们正在做的 GraphReFly 就是想解决这个问题 —— 一个 reactive graph runtime，让 Agent 工作在持续更新的状态图里，而不是不断重读冻结的快照。
+>
+> 核心区别：
+> - 状态是 push-based 的，变了自动通知下游，不需要反复 poll
+> - 节点有生命周期（创建→更新→销毁），不是无限追加的 transcript
+> - 每个决策都有因果链，可以追溯"为什么这样判断"
+> - 用自然语言描述需求 → LLM 组装图 → 可视化审查 → 持久运行
+>
+> 开源的：github.com/graphrefly/graphrefly-ts
+> 欢迎交流！
+
+**Cadence:**
+- Phase B: 1-2 replies/week on high-relevance posts + 1 original post (pain-point framing, not architecture)
+- Phase C: Weekly original posts, daily reply scanning
+- Original post topics: "为什么 CLI 不是 Agent 的终局" (our take), "信息过载的 reactive 解法", "LLM 写代码为什么需要图结构"
+
+### Also Post Original Content on 小红书
+
+Add 小红书 to the posting platforms alongside HN, Reddit, Dev.to:
+
+| Phase | 小红书 Action |
+|-------|-------------|
+| Phase B (Soft Launch) | Original post: pain-point framing + Demo 0 GIF. Reply to 3-5 relevant existing posts. |
+| Phase C (Growth) | Weekly original posts (Chinese). Cross-post translated versions of blog content. Engage in comments. |
+| Phase D (Sustained) | Build following. Community Q&A. Case study posts (Chinese users' automations). |
+
+---
 
 ## Files Changed
 

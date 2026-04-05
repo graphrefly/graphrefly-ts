@@ -9,6 +9,7 @@ import {
 	GRAPH_META_SEGMENT,
 	Graph,
 	type GraphPersistSnapshot,
+	type ObserveResult,
 	reachable,
 } from "../../graph/graph.js";
 import { assertDescribeMatchesAppendixB } from "./validate-describe-appendix-b.js";
@@ -404,17 +405,26 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const byDeps = g.describe({ filter: { depsIncludes: "a" } });
 		expect(Object.keys(byDeps.nodes)).toEqual(["b"]);
 
-		const byMeta = g.describe({ filter: { metaHas: "label" } });
+		const byMeta = g.describe({ detail: "standard", filter: { metaHas: "label" } });
 		expect(Object.keys(byMeta.nodes)).toContain("a");
 		const byDepsSnake = g.describe({ filter: { deps_includes: "a" } });
 		expect(Object.keys(byDepsSnake.nodes)).toEqual(["b"]);
-		const byMetaSnake = g.describe({ filter: { meta_has: "label" } });
+		const byMetaSnake = g.describe({ detail: "standard", filter: { meta_has: "label" } });
 		expect(Object.keys(byMetaSnake.nodes)).toContain("a");
 
 		const byPath = g.describe({
 			filter: (path, node) => path.startsWith("a") && node.type === "state",
 		});
 		expect(Object.keys(byPath.nodes)).toContain("a");
+	});
+
+	it("metaHas filter at minimal detail excludes all nodes (no meta at minimal)", () => {
+		const g = new Graph("g");
+		g.add("a", state(1, { name: "a", meta: { label: "input" } }));
+		// Default (minimal) detail omits meta, so metaHas filter matches nothing
+		const d = g.describe({ filter: { metaHas: "label" } });
+		expect(Object.keys(d.nodes)).toEqual([]);
+		g.destroy();
 	});
 
 	it("reachable traverses upstream via deps and incoming edges", () => {
@@ -495,7 +505,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const g = new Graph("g");
 		const n = node({ initial: 0, meta: { desc: "purpose" } });
 		g.add("n", n);
-		const d = g.describe();
+		const d = g.describe({ detail: "standard" });
 		const metaKey = `n::${GRAPH_META_SEGMENT}::desc`;
 		expect(d.nodes[metaKey]).toMatchObject({ type: "state" });
 		expect(d.nodes.n?.meta).toEqual({ desc: "purpose" });
@@ -1068,7 +1078,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		g.add("e", e);
 		g.connect("a", "b");
 		g.connect("a", "e");
-		assertDescribeMatchesAppendixB(g.describe());
+		assertDescribeMatchesAppendixB(g.describe({ detail: "standard" }));
 	});
 
 	it("describe() on nested mounts conforms to Appendix B", () => {
@@ -1077,7 +1087,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		const n = state(0, { name: "n" });
 		child.add("n", n);
 		root.mount("c", child);
-		assertDescribeMatchesAppendixB(root.describe());
+		assertDescribeMatchesAppendixB(root.describe({ detail: "standard" }));
 	});
 
 	it("observe(path) on state sees DATA when graph.set writes (DATA-only batch)", () => {
@@ -1273,5 +1283,275 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		const restored = Graph.fromSnapshot(wired);
 		expect(restored.name).toBe("app");
 		expect(restored.get("sub::x")).toBe(42);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3.3b — Progressive disclosure for describe() and observe()
+// ---------------------------------------------------------------------------
+
+describe("describe() detail levels (3.3b)", () => {
+	function makeGraph() {
+		const g = new Graph("test-detail");
+		const a = state(10, { name: "a", meta: { description: "source", access: "both" } });
+		const b = derived([a], (av) => av * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		return { g, a, b };
+	}
+
+	it("default (minimal) returns only type and deps", () => {
+		const { g } = makeGraph();
+		const d = g.describe();
+		const nodeA = d.nodes.a!;
+		expect(nodeA.type).toBe("state");
+		expect(nodeA.deps).toEqual([]);
+		expect(nodeA.status).toBeUndefined();
+		expect(nodeA.value).toBeUndefined();
+		expect(nodeA.meta).toBeUndefined();
+		expect(nodeA.v).toBeUndefined();
+
+		const nodeB = d.nodes.b!;
+		expect(nodeB.type).toBe("derived");
+		expect(nodeB.deps).toEqual(["a"]);
+		expect(nodeB.status).toBeUndefined();
+		g.destroy();
+	});
+
+	it('detail: "standard" includes type, status, value, deps, meta', () => {
+		const { g, b } = makeGraph();
+		// Subscribe to b so it connects and settles
+		const unsub = b.subscribe(() => {});
+		const d = g.describe({ detail: "standard" });
+		const nodeA = d.nodes.a!;
+		expect(nodeA.type).toBe("state");
+		expect(nodeA.status).toBe("settled");
+		expect(nodeA.value).toBe(10);
+		expect(nodeA.meta).toEqual(expect.objectContaining({ description: "source" }));
+		expect(nodeA.v).toBeUndefined(); // no versioning
+
+		const nodeB = d.nodes.b!;
+		expect(nodeB.status).toBe("settled");
+		expect(nodeB.value).toBe(20);
+		unsub();
+		g.destroy();
+	});
+
+	it('detail: "full" includes standard + versioning + guard + lastMutation', () => {
+		const tester = { type: "human", name: "tester" };
+		const g = new Graph("full-detail");
+		const a = state(5, {
+			name: "a",
+			versioning: 0,
+			guard: policy((allow) => {
+				allow("write");
+				allow("observe");
+			}),
+			meta: { description: "guarded" },
+		});
+		g.add("a", a);
+		// Trigger a mutation with actor to populate lastMutation
+		a.down([[DATA, 6]], { actor: tester });
+
+		const d = g.describe({ detail: "full" });
+		const nodeA = d.nodes.a!;
+		expect(nodeA.type).toBe("state");
+		expect(nodeA.status).toBe("settled");
+		expect(nodeA.value).toBe(6);
+		expect(nodeA.v).toBeDefined();
+		expect(nodeA.v!.version).toBeGreaterThanOrEqual(1);
+		expect(nodeA.guard).toBeDefined();
+		expect(nodeA.lastMutation).toBeDefined();
+		expect((nodeA.lastMutation!.actor as { name: string }).name).toBe("tester");
+		g.destroy();
+	});
+});
+
+describe("describe() field selection (3.3b)", () => {
+	it("fields override detail level", () => {
+		const g = new Graph("fields");
+		g.add("x", state(42, { name: "x", meta: { label: "X", extra: "e" } }));
+
+		const d = g.describe({ fields: ["type", "status"] });
+		const x = d.nodes.x!;
+		expect(x.type).toBe("state");
+		expect(x.status).toBe("settled");
+		expect(x.value).toBeUndefined();
+		expect(x.meta).toBeUndefined();
+		g.destroy();
+	});
+
+	it("dotted meta path selects specific meta keys", () => {
+		const g = new Graph("meta-dot");
+		g.add("x", state(1, { name: "x", meta: { label: "L", secret: "S", extra: "E" } }));
+
+		const d = g.describe({ fields: ["type", "meta.label"] });
+		const x = d.nodes.x!;
+		expect(x.type).toBe("state");
+		expect(x.meta).toEqual({ label: "L" });
+		expect(x.value).toBeUndefined();
+		g.destroy();
+	});
+
+	it("fields takes precedence over detail", () => {
+		const g = new Graph("precedence");
+		g.add("x", state(1, { name: "x" }));
+
+		// detail: "full" would include everything, but fields overrides
+		const d = g.describe({ detail: "full", fields: ["type"] });
+		expect(d.nodes.x!.status).toBeUndefined();
+		expect(d.nodes.x!.value).toBeUndefined();
+		g.destroy();
+	});
+});
+
+describe("describe() format: spec (3.3b)", () => {
+	it("returns minimal type + deps output usable by compileSpec", () => {
+		const g = new Graph("spec-format");
+		const a = state(1, { name: "a", meta: { description: "src" } });
+		const b = derived([a], (v) => v + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+
+		const d = g.describe({ format: "spec" });
+		// Spec format forces minimal — no status, no value, no meta
+		expect(d.nodes.a!.type).toBe("state");
+		expect(d.nodes.a!.status).toBeUndefined();
+		expect(d.nodes.a!.value).toBeUndefined();
+		expect(d.nodes.a!.meta).toBeUndefined();
+
+		expect(d.nodes.b!.type).toBe("derived");
+		expect(d.nodes.b!.deps).toEqual(["a"]);
+		g.destroy();
+	});
+});
+
+describe("describe() expand() (3.3b)", () => {
+	it("expand from minimal to standard re-reads live graph", () => {
+		const g = new Graph("expand");
+		const a = state(1, { name: "a", meta: { label: "A" } });
+		g.add("a", a);
+
+		const minimal = g.describe();
+		expect(minimal.nodes.a!.value).toBeUndefined();
+
+		// Mutate between describe and expand
+		g.set("a", 99);
+
+		const expanded = minimal.expand!("standard");
+		expect(expanded.nodes.a!.value).toBe(99); // live re-read
+		expect(expanded.nodes.a!.status).toBe("settled");
+		expect(expanded.nodes.a!.meta).toEqual(expect.objectContaining({ label: "A" }));
+		g.destroy();
+	});
+
+	it("expand with field array", () => {
+		const g = new Graph("expand-fields");
+		g.add("x", state(5, { name: "x" }));
+
+		const d = g.describe();
+		const expanded = d.expand!(["type", "value"]);
+		expect(expanded.nodes.x!.value).toBe(5);
+		expect(expanded.nodes.x!.status).toBeUndefined();
+		g.destroy();
+	});
+});
+
+describe("observe() detail levels (3.3b)", () => {
+	it('detail: "minimal" only includes DATA events', () => {
+		Graph.inspectorEnabled = true;
+		const g = new Graph("obs-min");
+		const a = state(1, { name: "a" });
+		const b = derived([a], (v) => v * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+
+		const obs = g.observe("b", { detail: "minimal" }) as ObserveResult;
+		// Initial DATA from subscription connect + update DATA
+		g.set("a", 2);
+
+		// All events should be DATA only — no DIRTY/RESOLVED
+		expect(obs.events.every((e) => e.type === "data")).toBe(true);
+		expect(obs.events.filter((e) => e.type === "dirty")).toHaveLength(0);
+		// But dirtyCount is still tracked internally
+		expect(obs.dirtyCount).toBeGreaterThanOrEqual(1);
+		expect(obs.values.b).toBe(4);
+		obs.dispose();
+		g.destroy();
+		Graph.inspectorEnabled = false;
+	});
+
+	it('detail: "full" enables timeline + causal + derived', () => {
+		Graph.inspectorEnabled = true;
+		const g = new Graph("obs-full");
+		const a = state(10, { name: "a" });
+		const b = derived([a], (v: number) => v * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+
+		const obs = g.observe("b", { detail: "full" }) as ObserveResult;
+		// Initial DATA on subscribe; trigger an update with causal info
+		g.set("a", 20);
+
+		// Find the DATA event from the update (last DATA has the post-update value)
+		const dataEvents = obs.events.filter((e) => e.type === "data");
+		expect(dataEvents.length).toBeGreaterThanOrEqual(2); // initial + update
+		const lastData = dataEvents[dataEvents.length - 1]!;
+		expect(lastData.data).toBe(40); // 20 * 2
+		expect(lastData.timestamp_ns).toBeDefined(); // timeline
+		expect(lastData.trigger_dep_name).toBe("a"); // causal
+
+		const derivedEvts = obs.events.filter((e) => e.type === "derived");
+		expect(derivedEvts.length).toBeGreaterThanOrEqual(1); // derived
+		const lastDerived = derivedEvts[derivedEvts.length - 1]!;
+		expect(lastDerived.dep_values).toEqual([20]);
+		obs.dispose();
+		g.destroy();
+		Graph.inspectorEnabled = false;
+	});
+
+	it('graph-wide detail: "minimal" filters non-DATA events', () => {
+		Graph.inspectorEnabled = true;
+		const g = new Graph("obs-all-min");
+		const a = state(1, { name: "a" });
+		const b = derived([a], (v) => v, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+
+		const obs = g.observe({ detail: "minimal" }) as ObserveResult;
+		g.set("a", 2);
+
+		expect(obs.events.every((e) => e.type === "data")).toBe(true);
+		expect(obs.dirtyCount).toBeGreaterThanOrEqual(1);
+		obs.dispose();
+		g.destroy();
+		Graph.inspectorEnabled = false;
+	});
+});
+
+describe("observe() expand() (3.3b)", () => {
+	it("expand upgrades observation from minimal to full", () => {
+		Graph.inspectorEnabled = true;
+		const g = new Graph("obs-expand");
+		const a = state(1, { name: "a" });
+		const b = derived([a], (v) => v + 10, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+
+		const minimal = g.observe("b", { detail: "minimal" }) as ObserveResult;
+		g.set("a", 2);
+		expect(minimal.events.filter((e) => e.type === "dirty")).toHaveLength(0);
+
+		// Expand to full — disposes old, creates new subscription
+		const full = minimal.expand("full");
+		g.set("a", 3);
+
+		const dataEvt = full.events.find((e) => e.type === "data");
+		expect(dataEvt).toBeDefined();
+		expect(dataEvt!.timestamp_ns).toBeDefined();
+		expect(dataEvt!.trigger_dep_name).toBe("a");
+		full.dispose();
+		g.destroy();
+		Graph.inspectorEnabled = false;
 	});
 });

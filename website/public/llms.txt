@@ -1,6 +1,8 @@
 # GraphReFly — @graphrefly/graphrefly-ts
 
-GraphReFly is a reactive graph protocol for human + LLM co-operation. This repository is the TypeScript implementation.
+Describe automations in plain language. Review them visually. Run them persistently. Trace every decision back to its source.
+
+GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM composes a reactive graph from a natural-language description (like SQL for data flows). The graph runs persistently, checkpoints state, and traces every decision through a causal chain — enabling explainability ("why was this flagged?"), auditability, and progressive trust accumulation. This repository is the TypeScript implementation. Zero dependencies.
 
 ## Authoritative behavior
 

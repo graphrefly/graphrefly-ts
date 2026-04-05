@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly Python — Reactive Graph Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0c0820;
+  --bg-raised: #120e2a;
+  --bg-card: rgba(20, 16, 48, 0.6);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-card: rgba(255, 255, 255, 0.08);
+
+  --text: #e8e4f0;
+  --text-dim: #9b93b4;
+  --text-muted: #6b6183;
+
+  --magenta: #ff3b8b;
+  --magenta-glow: rgba(255, 59, 139, 0.35);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59, 130, 246, 0.3);
+  --lime: #84cc16;
+  --lime-glow: rgba(132, 204, 22, 0.3);
+  --purple: #a855f7;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+
+  --heading: 'Lexend', sans-serif;
+  --body: 'Atkinson Hyperlegible', sans-serif;
+  --mono: 'Fira Code', monospace;
+
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--body);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Noise overlay ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px;
+}
+
+/* ── Layout ── */
+.container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(20px);
+  background: rgba(12, 8, 32, 0.7);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+nav .logo {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+nav .logo .py-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--magenta);
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+nav .nav-links {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  list-style: none;
+}
+
+nav .nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+nav .nav-links a:hover { color: var(--text); }
+
+nav .nav-links .btn-nav {
+  background: var(--magenta);
+  color: #fff;
+  padding: 0.45rem 1.1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-family: var(--heading);
+  font-size: 0.85rem;
+  transition: box-shadow 0.3s, transform 0.2s;
+}
+
+nav .nav-links .btn-nav:hover {
+  box-shadow: 0 0 20px var(--magenta-glow);
+  transform: translateY(-1px);
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rem 2rem 6rem;
+  overflow: hidden;
+}
+
+.hero canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 780px;
+}
+
+.hero .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--lime);
+  background: rgba(132, 204, 22, 0.08);
+  border: 1px solid rgba(132, 204, 22, 0.2);
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  margin-bottom: 2rem;
+  letter-spacing: 0.03em;
+}
+
+.hero .badge .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--lime-glow); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
+}
+
+.hero h1 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: clamp(2.8rem, 6vw, 4.2rem);
+  line-height: 1.1;
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
+.hero h1 .accent {
+  background: linear-gradient(135deg, var(--magenta), var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero .subline {
+  font-size: 1.15rem;
+  color: var(--text-dim);
+  max-width: 620px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.8;
+}
+
+.hero .install-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem 0.6rem 1.2rem;
+  margin-bottom: 2rem;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  color: var(--lime);
+}
+
+.hero .install-bar .prefix {
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.hero .install-bar .copy-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-card);
+  color: var(--text-dim);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--body);
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.hero .install-bar .copy-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text);
+}
+
+.hero .ctas {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 3.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--magenta);
+  padding: 0.75rem 1.6rem;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.3s;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 30px var(--magenta-glow), 0 4px 20px rgba(0,0,0,0.3);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-card);
+  padding: 0.75rem 1.6rem;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.15);
+  transform: translateY(-2px);
+}
+
+.hero .stats {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  flex-wrap: wrap;
+}
+
+.hero .stat {
+  text-align: center;
+}
+
+.hero .stat .stat-num {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 2.2rem;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.hero .stat:nth-child(1) .stat-num { color: var(--magenta); text-shadow: 0 0 20px var(--magenta-glow); }
+.hero .stat:nth-child(2) .stat-num { color: var(--blue); text-shadow: 0 0 20px var(--blue-glow); }
+.hero .stat:nth-child(3) .stat-num { color: var(--lime); text-shadow: 0 0 20px var(--lime-glow); }
+
+.hero .stat .stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Section shared ── */
+section {
+  padding: 7rem 0;
+  position: relative;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--magenta);
+  margin-bottom: 0.75rem;
+}
+
+.section-title {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  color: #fff;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.section-sub {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+/* ── Fade-in animations ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Why section ── */
+.why-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.why-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.why-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.why-card:nth-child(1)::before { background: linear-gradient(90deg, var(--magenta), var(--purple)); }
+.why-card:nth-child(2)::before { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+.why-card:nth-child(3)::before { background: linear-gradient(90deg, var(--lime), var(--amber)); }
+
+.why-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.why-card .card-icon {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 1.25rem;
+}
+
+.why-card:nth-child(1) .card-icon { background: rgba(255,59,139,0.12); color: var(--magenta); }
+.why-card:nth-child(2) .card-icon { background: rgba(59,130,246,0.12); color: var(--blue); }
+.why-card:nth-child(3) .card-icon { background: rgba(132,204,22,0.12); color: var(--lime); }
+
+.why-card .card-tag {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.5rem;
+}
+
+.why-card:nth-child(1) .card-tag { color: var(--magenta); }
+.why-card:nth-child(2) .card-tag { color: var(--blue); }
+.why-card:nth-child(3) .card-tag { color: var(--lime); }
+
+.why-card h3 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #fff;
+  margin-bottom: 0.75rem;
+}
+
+.why-card p {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* ── How it works ── */
+.flow-section {
+  background: linear-gradient(180deg, transparent, rgba(20, 16, 48, 0.4), transparent);
+}
+
+.flow-container {
+  position: relative;
+  margin-top: 3.5rem;
+}
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  position: relative;
+}
+
+.flow-step {
+  text-align: center;
+  position: relative;
+  padding: 2rem 1rem;
+}
+
+.flow-step .step-circle {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  position: relative;
+  z-index: 2;
+}
+
+.flow-step:nth-child(1) .step-circle { background: rgba(255,59,139,0.15); border: 2px solid var(--magenta); color: var(--magenta); box-shadow: 0 0 30px var(--magenta-glow); }
+.flow-step:nth-child(2) .step-circle { background: rgba(59,130,246,0.15); border: 2px solid var(--blue); color: var(--blue); box-shadow: 0 0 30px var(--blue-glow); }
+.flow-step:nth-child(3) .step-circle { background: rgba(132,204,22,0.15); border: 2px solid var(--lime); color: var(--lime); box-shadow: 0 0 30px var(--lime-glow); }
+.flow-step:nth-child(4) .step-circle { background: rgba(168,85,247,0.15); border: 2px solid var(--purple); color: var(--purple); box-shadow: 0 0 30px var(--purple-glow); }
+
+.flow-step h4 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff;
+  margin-bottom: 0.4rem;
+}
+
+.flow-step p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Animated connector line */
+.flow-line-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.flow-line-svg .flow-path {
+  stroke: url(#flow-gradient);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 8 4;
+  animation: dash-flow 1.5s linear infinite;
+}
+
+@keyframes dash-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+/* ── Use Cases ── */
+.cases-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.case-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  transition: transform 0.3s, box-shadow 0.3s;
+  overflow: hidden;
+}
+
+.case-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.case-card .mini-viz {
+  height: 100px;
+  margin-bottom: 1.25rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  overflow: hidden;
+}
+
+.case-card h3 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.case-card p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+/* Mini inbox viz */
+.mini-inbox {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-inbox .inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 0;
+}
+
+.mini-inbox .inbox-row .dot-ind {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mini-inbox .inbox-row .bar {
+  height: 4px;
+  border-radius: 2px;
+  opacity: 0.5;
+}
+
+.mini-inbox .inbox-row:nth-child(1) { background: rgba(255,59,139,0.08); }
+.mini-inbox .inbox-row:nth-child(1) .dot-ind { background: var(--magenta); }
+.mini-inbox .inbox-row:nth-child(1) .bar { background: var(--magenta); width: 60%; }
+
+.mini-inbox .inbox-row:nth-child(2) { background: rgba(59,130,246,0.06); }
+.mini-inbox .inbox-row:nth-child(2) .dot-ind { background: var(--blue); }
+.mini-inbox .inbox-row:nth-child(2) .bar { background: var(--blue); width: 80%; }
+
+.mini-inbox .inbox-row:nth-child(3) { background: rgba(132,204,22,0.06); }
+.mini-inbox .inbox-row:nth-child(3) .dot-ind { background: var(--lime); }
+.mini-inbox .inbox-row:nth-child(3) .bar { background: var(--lime); width: 45%; }
+
+.mini-inbox .inbox-row:nth-child(4) { background: rgba(168,85,247,0.06); }
+.mini-inbox .inbox-row:nth-child(4) .dot-ind { background: var(--purple); }
+.mini-inbox .inbox-row:nth-child(4) .bar { background: var(--purple); width: 70%; }
+
+.mini-inbox .inbox-row:nth-child(5) { background: rgba(255,255,255,0.03); }
+.mini-inbox .inbox-row:nth-child(5) .dot-ind { background: var(--text-muted); }
+.mini-inbox .inbox-row:nth-child(5) .bar { background: var(--text-muted); width: 55%; }
+
+/* Mini chart */
+.mini-chart-wrap {
+  padding: 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  height: 100%;
+}
+
+.mini-chart-wrap svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Mini graph */
+.mini-graph-wrap {
+  position: relative;
+  width: 100%; height: 100%;
+}
+
+.mini-graph-wrap canvas {
+  width: 100%; height: 100%;
+}
+
+/* ── Code section ── */
+.code-section {
+  background: linear-gradient(180deg, transparent, rgba(12, 8, 32, 0.5), transparent);
+}
+
+.code-block-wrapper {
+  max-width: 640px;
+  margin: 2.5rem auto 0;
+  background: rgba(8, 5, 20, 0.8);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.code-block-header .dot-r { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+.code-block-header .dot-y { width: 10px; height: 10px; border-radius: 50%; background: #febc2e; }
+.code-block-header .dot-g { width: 10px; height: 10px; border-radius: 50%; background: #28c840; }
+.code-block-header .file-name {
+  margin-left: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.code-block-body {
+  padding: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+
+.code-block-body .line-num {
+  display: inline-block;
+  width: 2rem;
+  color: var(--text-muted);
+  user-select: none;
+  opacity: 0.4;
+}
+
+.code-block-body .kw { color: var(--magenta); }
+.code-block-body .fn { color: var(--blue); }
+.code-block-body .num { color: var(--lime); }
+.code-block-body .str { color: var(--amber); }
+.code-block-body .param { color: var(--cyan); }
+.code-block-body .comment { color: var(--text-muted); font-style: italic; }
+.code-block-body .op { color: var(--text-dim); }
+
+/* ── Implementations ── */
+.impl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  max-width: 700px;
+  margin: 3rem auto 0;
+}
+
+.impl-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.impl-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.impl-card.primary {
+  border-color: rgba(255,59,139,0.3);
+  box-shadow: 0 0 40px rgba(255,59,139,0.08);
+}
+
+.impl-card .impl-badge {
+  position: absolute;
+  top: -10px;
+  right: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+}
+
+.impl-card.primary .impl-badge {
+  background: var(--magenta);
+  color: #fff;
+}
+
+.impl-card.secondary .impl-badge {
+  background: rgba(59,130,246,0.2);
+  color: var(--blue);
+  border: 1px solid rgba(59,130,246,0.3);
+}
+
+.impl-card .lang-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.impl-card h3 {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.impl-card .impl-install {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.impl-card .impl-link {
+  font-family: var(--heading);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.impl-card.primary .impl-link { color: var(--magenta); }
+.impl-card.primary .impl-link:hover { color: #ff6aa8; }
+.impl-card.secondary .impl-link { color: var(--blue); }
+.impl-card.secondary .impl-link:hover { color: #6ba3f7; }
+
+/* ── Footer ── */
+footer {
+  padding: 3rem 2rem;
+  text-align: center;
+  border-top: 1px solid var(--border-subtle);
+}
+
+footer p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+footer a {
+  color: var(--magenta);
+  text-decoration: none;
+}
+
+footer a:hover { text-decoration: underline; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .why-grid, .cases-grid, .flow-steps {
+    grid-template-columns: 1fr;
+  }
+  .impl-grid {
+    grid-template-columns: 1fr;
+    max-width: 380px;
+  }
+  .hero .stats {
+    gap: 2rem;
+  }
+  nav .nav-links { display: none; }
+  section { padding: 4rem 0; }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 2.2rem; }
+  .hero .subline { font-size: 1rem; }
+}
+
+/* ── Glow divider ── */
+.glow-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--magenta), var(--blue), var(--lime), transparent);
+  opacity: 0.3;
+  margin: 0 auto;
+  max-width: 600px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a class="logo" href="#">
+    GraphReFly <span class="py-tag">Python</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#why">Why</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#cases">Use Cases</a></li>
+    <li><a href="#code">Code</a></li>
+    <li><a href="https://github.com/graphrefly/graphrefly" class="btn-nav">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="hero-content">
+    <div class="badge"><span class="dot"></span> Open Source &middot; Zero Dependencies</div>
+    <h1>Stop drowning<br>in <span class="accent">information.</span></h1>
+    <p class="subline">
+      GraphReFly is a reactive graph engine that watches, filters, and explains — persistently. Describe automations in plain language. Review them visually. Trace every decision.
+    </p>
+    <div class="install-bar">
+      <span class="prefix">$</span> pip install graphrefly
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install graphrefly');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+    </div>
+    <div class="ctas">
+      <a href="#" class="btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
+        Read the Spec
+      </a>
+      <a href="https://github.com/graphrefly/graphrefly" class="btn-secondary">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num" data-target="1" data-suffix="">0</div>
+        <div class="stat-label">primitive</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" data-target="0" data-suffix="">0</div>
+        <div class="stat-label">dependencies</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" data-target="2" data-suffix="">0</div>
+        <div class="stat-label">languages</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- ── Why ── -->
+<section id="why">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">// why graphrefly</div>
+      <h2 class="section-title">Three pillars. One protocol.</h2>
+      <p class="section-sub">A reactive graph that reduces noise, builds trust in AI, and lets you describe rather than code.</p>
+    </div>
+    <div class="why-grid">
+      <div class="why-card reveal">
+        <div class="card-icon">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4h18M3 8h14M3 12h10M3 16h6"/></svg>
+        </div>
+        <div class="card-tag">Reduce</div>
+        <h3>Stop Drowning in Information</h3>
+        <p>Feeds, alerts, dashboards, inboxes. Each adds signal and noise. GraphReFly sits underneath and continuously reduces raw streams to the facts you actually need — reactively, not on a schedule.</p>
+      </div>
+      <div class="why-card reveal">
+        <div class="card-icon">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="card-tag">Trust</div>
+        <h3>Trust AI by Understanding It</h3>
+        <p>Every derived value carries its causal chain. Inspect which inputs changed, what the LLM saw, and why a decision was made. Traceable by default, not as an afterthought.</p>
+      </div>
+      <div class="why-card reveal">
+        <div class="card-icon">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="card-tag">Describe</div>
+        <h3>Describe It, Don't Code It</h3>
+        <p>Tell the graph what you want in natural language. GraphReFly compiles descriptions into reactive topology — like SQL for live data streams. The graph runs; you review.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- ── How it works ── -->
+<section id="how" class="flow-section">
+  <div class="container">
+    <div class="reveal" style="text-align:center;">
+      <div class="section-label">// how it works</div>
+      <h2 class="section-title">From description to trace in four steps.</h2>
+    </div>
+    <div class="flow-container reveal">
+      <div class="flow-steps">
+        <!-- SVG connector -->
+        <svg class="flow-line-svg" viewBox="0 0 1160 160" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="flow-gradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="var(--magenta)" />
+              <stop offset="33%" stop-color="var(--blue)" />
+              <stop offset="66%" stop-color="var(--lime)" />
+              <stop offset="100%" stop-color="var(--purple)" />
+            </linearGradient>
+          </defs>
+          <path class="flow-path" d="M145,65 C250,65 200,65 290,65 S435,65 435,65 C530,65 480,65 580,65 S725,65 725,65 C820,65 770,65 870,65 S1015,65 1015,65" />
+        </svg>
+        <div class="flow-step">
+          <div class="step-circle">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h4>Describe</h4>
+          <p>State your intent in plain language or structured config.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-circle">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </div>
+          <h4>Compose</h4>
+          <p>The engine builds a reactive graph of nodes and edges.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-circle">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <h4>Run</h4>
+          <p>Data flows through the topology. Nodes react in real time.</p>
+        </div>
+        <div class="flow-step">
+          <div class="step-circle">
+            <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h4>Trace</h4>
+          <p>Inspect every decision. Replay, audit, and understand.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- ── Use Cases ── -->
+<section id="cases">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">// use cases</div>
+      <h2 class="section-title">Real scenarios. Real relief.</h2>
+      <p class="section-sub">From inbox chaos to spending anomalies, GraphReFly tames streams you already have.</p>
+    </div>
+    <div class="cases-grid">
+      <div class="case-card reveal">
+        <div class="mini-viz mini-inbox">
+          <div class="inbox-row"><span class="dot-ind"></span><span class="bar"></span></div>
+          <div class="inbox-row"><span class="dot-ind"></span><span class="bar"></span></div>
+          <div class="inbox-row"><span class="dot-ind"></span><span class="bar"></span></div>
+          <div class="inbox-row"><span class="dot-ind"></span><span class="bar"></span></div>
+          <div class="inbox-row"><span class="dot-ind"></span><span class="bar"></span></div>
+        </div>
+        <h3>Email Triage</h3>
+        <p>Watch your inbox reactively. Auto-classify by urgency, extract action items, and surface only what matters — all described in a single graph.</p>
+      </div>
+      <div class="case-card reveal">
+        <div class="mini-viz mini-chart-wrap">
+          <svg viewBox="0 0 200 80" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,70 L20,60 L40,65 L60,40 L80,45 L100,20 L120,35 L140,15 L160,30 L180,10 L200,25" fill="none" stroke="var(--blue)" stroke-width="2"/>
+            <path d="M0,70 L20,60 L40,65 L60,40 L80,45 L100,20 L120,35 L140,15 L160,30 L180,10 L200,25 L200,80 L0,80Z" fill="url(#chartGrad)"/>
+            <!-- Threshold line -->
+            <line x1="0" y1="35" x2="200" y2="35" stroke="var(--magenta)" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+            <!-- Alert dot -->
+            <circle cx="140" cy="15" r="4" fill="var(--magenta)" opacity="0.9">
+              <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+        <h3>Spending Alerts</h3>
+        <p>Feed transaction streams into a reactive graph. Detect anomalies, threshold breaches, and category spikes — with full causal trace on every alert.</p>
+      </div>
+      <div class="case-card reveal">
+        <div class="mini-viz mini-graph-wrap">
+          <canvas id="miniGraphCanvas"></canvas>
+        </div>
+        <h3>Knowledge Management</h3>
+        <p>Connect notes, bookmarks, and highlights into a living graph. GraphReFly derives themes, surfaces connections, and keeps your knowledge base alive.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- ── Code ── -->
+<section id="code" class="code-section">
+  <div class="container">
+    <div class="reveal" style="text-align:center;">
+      <div class="section-label">// code</div>
+      <h2 class="section-title">Four lines. Full reactivity.</h2>
+      <p class="section-sub" style="margin: 0 auto;">One primitive. Compose it. Watch data cascade through the graph.</p>
+    </div>
+    <div class="code-block-wrapper reveal">
+      <div class="code-block-header">
+        <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+        <span class="file-name">example.py</span>
+      </div>
+      <div class="code-block-body">
+        <div><span class="line-num">1</span><span class="param">count</span> <span class="op">=</span> <span class="fn">state</span>(<span class="num">0</span>)</div>
+        <div><span class="line-num">2</span><span class="param">doubled</span> <span class="op">=</span> <span class="fn">derived</span>([<span class="param">count</span>], <span class="kw">lambda</span> <span class="param">c</span>: <span class="param">c</span> <span class="op">*</span> <span class="num">2</span>)</div>
+        <div><span class="line-num">3</span><span class="fn">effect</span>([<span class="param">doubled</span>], <span class="kw">lambda</span> <span class="param">d</span>: <span class="fn">print</span>(<span class="param">d</span>))</div>
+        <div><span class="line-num">4</span><span class="param">count</span>.<span class="fn">down</span>([(<span class="str">DATA</span>, <span class="num">1</span>)])  <span class="comment"># prints: 2</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- ── Implementations ── -->
+<section id="impl">
+  <div class="container">
+    <div class="reveal" style="text-align:center;">
+      <div class="section-label">// implementations</div>
+      <h2 class="section-title">One spec. Two runtimes.</h2>
+      <p class="section-sub" style="margin: 0 auto;">Same protocol, same message types, same invariants. Pick your language.</p>
+    </div>
+    <div class="impl-grid">
+      <div class="impl-card primary reveal">
+        <span class="impl-badge">Primary</span>
+        <div class="lang-icon">&#x1F40D;</div>
+        <h3>Python</h3>
+        <div class="impl-install">pip install graphrefly</div>
+        <a href="#" class="impl-link">py.graphrefly.dev &rarr;</a>
+      </div>
+      <div class="impl-card secondary reveal">
+        <span class="impl-badge">Available</span>
+        <div class="lang-icon">&#x1F7E6;</div>
+        <h3>TypeScript</h3>
+        <div class="impl-install">pnpm add graphrefly-ts</div>
+        <a href="#" class="impl-link">ts.graphrefly.dev &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>GraphReFly &mdash; reactive graph protocol for human + LLM co-operation. <a href="https://github.com/graphrefly/graphrefly">GitHub</a></p>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  Hero Canvas — Particle Graph Network
+// ════════════════════════════════════════════════════════
+(() => {
+  const canvas = document.getElementById('heroCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  let particles = [];
+  const PARTICLE_COUNT = 80;
+  const CONNECTION_DIST = 160;
+  const MOUSE_DIST = 200;
+  const mouse = { x: -9999, y: -9999 };
+
+  const COLORS = [
+    { r: 255, g: 59, b: 139 },   // magenta
+    { r: 59, g: 130, b: 246 },   // blue
+    { r: 132, g: 204, b: 22 },   // lime
+    { r: 168, g: 85, b: 247 },   // purple
+    { r: 6, g: 182, b: 212 },    // cyan
+  ];
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.parentElement.getBoundingClientRect();
+    w = rect.width;
+    h = rect.height;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function createParticle() {
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    return {
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 2.5 + 1,
+      color: color,
+      pulse: Math.random() * Math.PI * 2,
+    };
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push(createParticle());
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < CONNECTION_DIST) {
+          const alpha = (1 - dist / CONNECTION_DIST) * 0.15;
+          const c = particles[i].color;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw particles
+    for (const p of particles) {
+      p.pulse += 0.02;
+      const pulseR = p.r + Math.sin(p.pulse) * 0.5;
+      const c = p.color;
+
+      // Glow
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pulseR * 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.06)`;
+      ctx.fill();
+
+      // Core
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pulseR, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.8)`;
+      ctx.fill();
+
+      // Move
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Mouse interaction
+      const mdx = p.x - mouse.x;
+      const mdy = p.y - mouse.y;
+      const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+      if (mdist < MOUSE_DIST && mdist > 0) {
+        const force = (1 - mdist / MOUSE_DIST) * 0.02;
+        p.vx += (mdx / mdist) * force;
+        p.vy += (mdy / mdist) * force;
+      }
+
+      // Damping
+      p.vx *= 0.998;
+      p.vy *= 0.998;
+
+      // Bounds wrap
+      if (p.x < -10) p.x = w + 10;
+      if (p.x > w + 10) p.x = -10;
+      if (p.y < -10) p.y = h + 10;
+      if (p.y > h + 10) p.y = -10;
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', () => { resize(); });
+  canvas.parentElement.addEventListener('mousemove', (e) => {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+  });
+  canvas.parentElement.addEventListener('mouseleave', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+
+  init();
+  draw();
+})();
+
+// ════════════════════════════════════════════════════════
+//  Mini Knowledge Graph Canvas
+// ════════════════════════════════════════════════════════
+(() => {
+  const canvas = document.getElementById('miniGraphCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  const nodes = [
+    { x: 0.2, y: 0.3, r: 5, color: '#ff3b8b' },
+    { x: 0.5, y: 0.2, r: 7, color: '#3b82f6' },
+    { x: 0.8, y: 0.35, r: 4, color: '#84cc16' },
+    { x: 0.35, y: 0.7, r: 6, color: '#a855f7' },
+    { x: 0.65, y: 0.75, r: 5, color: '#06b6d4' },
+    { x: 0.15, y: 0.55, r: 3, color: '#f59e0b' },
+    { x: 0.85, y: 0.65, r: 4, color: '#ff3b8b' },
+  ];
+
+  const edges = [
+    [0,1],[1,2],[0,3],[3,4],[1,4],[2,6],[4,6],[5,0],[5,3]
+  ];
+
+  let t = 0;
+
+  function draw() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const cw = rect.width;
+    const ch = rect.height;
+    ctx.clearRect(0, 0, cw, ch);
+
+    // Draw edges
+    for (const [a, b] of edges) {
+      const na = nodes[a], nb = nodes[b];
+      ctx.beginPath();
+      ctx.moveTo(na.x * cw, na.y * ch);
+      ctx.lineTo(nb.x * cw, nb.y * ch);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Animate a pulse along some edges
+    const pulseEdge = edges[Math.floor(t / 60) % edges.length];
+    const progress = (t % 60) / 60;
+    const pa = nodes[pulseEdge[0]], pb = nodes[pulseEdge[1]];
+    const px = pa.x * cw + (pb.x * cw - pa.x * cw) * progress;
+    const py = pa.y * ch + (pb.y * ch - pa.y * ch) * progress;
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,59,139,0.7)';
+    ctx.fill();
+
+    // Draw nodes
+    for (const n of nodes) {
+      const wobble = Math.sin(t * 0.03 + n.x * 10) * 1;
+      ctx.beginPath();
+      ctx.arc(n.x * cw, n.y * ch + wobble, n.r, 0, Math.PI * 2);
+      ctx.fillStyle = n.color;
+      ctx.globalAlpha = 0.7;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Glow
+      ctx.beginPath();
+      ctx.arc(n.x * cw, n.y * ch + wobble, n.r * 2.5, 0, Math.PI * 2);
+      const g = ctx.createRadialGradient(n.x * cw, n.y * ch + wobble, n.r, n.x * cw, n.y * ch + wobble, n.r * 2.5);
+      g.addColorStop(0, n.color + '33');
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  draw();
+})();
+
+// ════════════════════════════════════════════════════════
+//  IntersectionObserver — reveal + counter animations
+// ════════════════════════════════════════════════════════
+(() => {
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        // Stagger children slightly
+        const delay = entry.target.dataset.delay || 0;
+        setTimeout(() => {
+          entry.target.classList.add('visible');
+        }, delay);
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  reveals.forEach((el, i) => {
+    el.dataset.delay = (i % 4) * 100;
+    revealObserver.observe(el);
+  });
+
+  // Counter animation
+  const counters = document.querySelectorAll('.stat-num');
+  let countersAnimated = false;
+
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !countersAnimated) {
+        countersAnimated = true;
+        counters.forEach(counter => {
+          const target = parseInt(counter.dataset.target);
+          const suffix = counter.dataset.suffix || '';
+          const duration = 1200;
+          const start = performance.now();
+
+          function tick(now) {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            // Ease out cubic
+            const ease = 1 - (1 - progress) ** 3;
+            const current = Math.round(ease * target);
+            counter.textContent = current + suffix;
+            if (progress < 1) requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+        });
+      }
+    });
+  }, { threshold: 0.5 });
+
+  counters.forEach(c => counterObserver.observe(c));
+})();
+</script>
+</body>
+</html>

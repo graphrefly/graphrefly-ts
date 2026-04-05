@@ -13,7 +13,13 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type DescribeNodeOutput, describeNode } from "../core/meta.js";
+import {
+	type DescribeDetail,
+	type DescribeField,
+	type DescribeNodeOutput,
+	describeNode,
+	resolveDescribeFields,
+} from "../core/meta.js";
 import {
 	type Node,
 	NodeImpl,
@@ -63,12 +69,48 @@ export type GraphActorOptions = {
 	internal?: boolean;
 };
 
+/** Options for {@link Graph.describe} (Phase 3.3b progressive disclosure). */
+export type GraphDescribeOptions = {
+	actor?: Actor;
+	/**
+	 * Node filter. Filters operate on whatever fields the chosen `detail` level
+	 * provides. For `metaHas` and `status` filters, use `detail: "standard"` or
+	 * higher — at `"minimal"` those fields are absent and the filter silently
+	 * excludes all nodes.
+	 */
+	filter?: DescribeFilter;
+	/**
+	 * Detail level (Phase 3.3b). Default: `"minimal"`.
+	 * - `"minimal"` — type + deps only
+	 * - `"standard"` — type, status, value, deps, meta, versioning (`v`)
+	 * - `"full"` — standard + guard, lastMutation
+	 */
+	detail?: DescribeDetail;
+	/**
+	 * Explicit field selection (GraphQL-style). Overrides `detail` when provided.
+	 * Dotted paths like `"meta.label"` select specific meta keys.
+	 */
+	fields?: DescribeField[];
+	/**
+	 * Output format (Phase 3.3b).
+	 * - `undefined` — normal describe output
+	 * - `"spec"` — GraphSpec input format (no status, no value, deps as edges, type labels)
+	 */
+	format?: "spec";
+};
+
 /** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
 export type GraphDescribeOutput = {
 	name: string;
 	nodes: Record<string, DescribeNodeOutput>;
 	edges: ReadonlyArray<{ from: string; to: string }>;
 	subgraphs: string[];
+	/**
+	 * Re-read the live graph with higher detail (Phase 3.3b).
+	 * Returns a new `GraphDescribeOutput`; the original remains a snapshot.
+	 * Present on live describe results; absent on deserialized snapshots.
+	 */
+	expand?: (detailOrFields: DescribeDetail | DescribeField[]) => GraphDescribeOutput;
 };
 
 /**
@@ -332,6 +374,25 @@ function resolveSpyTheme(theme: GraphSpyOptions["theme"]): Required<GraphSpyThem
 	};
 }
 
+/** Resolve observe `detail` level into effective boolean flags. */
+function resolveObserveDetail(opts?: ObserveOptions): ObserveOptions {
+	if (opts == null) return {};
+	const detail = opts.detail;
+	if (detail === "full") {
+		return {
+			...opts,
+			structured: opts.structured ?? true,
+			timeline: opts.timeline ?? true,
+			causal: opts.causal ?? true,
+			derived: opts.derived ?? true,
+		};
+	}
+	if (detail === "minimal") {
+		return { ...opts, structured: opts.structured ?? true };
+	}
+	return opts;
+}
+
 /** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
 export type GraphObserveOne = {
 	subscribe(sink: NodeSink): () => void;
@@ -349,6 +410,14 @@ export type GraphObserveAll = {
 	up(path: string, messages: Messages): void;
 };
 
+/**
+ * Detail level for `observe()` progressive disclosure (Phase 3.3b).
+ * - `"minimal"` — DATA events only, no timestamps, no causal info.
+ * - `"standard"` — all message types (DATA, DIRTY, RESOLVED, COMPLETE, ERROR).
+ * - `"full"` — standard + timeline + causal + derived.
+ */
+export type ObserveDetail = "minimal" | "standard" | "full";
+
 /** Options for structured observation modes on {@link Graph.observe}. */
 export type ObserveOptions = {
 	actor?: Actor;
@@ -360,6 +429,12 @@ export type ObserveOptions = {
 	timeline?: boolean;
 	/** Include per-evaluation dep snapshots for compute/derived nodes. */
 	derived?: boolean;
+	/**
+	 * Detail level (Phase 3.3b). Individual flags (`causal`, `timeline`, `derived`)
+	 * override. `"full"` implies all three plus structured.
+	 * `"minimal"` filters to DATA-only events.
+	 */
+	detail?: ObserveDetail;
 };
 
 /** Accumulated observation result (structured mode). */
@@ -378,6 +453,13 @@ export type ObserveResult<T = unknown> = {
 	readonly errored: boolean;
 	/** Stop observing. */
 	dispose(): void;
+	/**
+	 * Resubscribe with higher detail (Phase 3.3b).
+	 * Disposes current observation, returns new `ObserveResult` with merged options.
+	 */
+	expand(
+		extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
+	): ObserveResult<T>;
 };
 
 /** A single event in the structured observation log. */
@@ -1126,9 +1208,14 @@ export class Graph {
 	 * graph.describe({ filter: (n) => n.type === "state" })    // predicate filter
 	 * ```
 	 */
-	describe(options?: { actor?: Actor; filter?: DescribeFilter }): GraphDescribeOutput {
+	describe(options?: GraphDescribeOptions): GraphDescribeOutput {
 		const actor = options?.actor;
 		const filter = options?.filter;
+		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
+		const isSpec = options?.format === "spec";
+		// For spec format, force minimal fields (type + deps only, no status/value)
+		const effectiveFields = isSpec ? resolveDescribeFields("minimal") : includeFields;
+
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
 		const nodeToPath = new Map<Node, string>();
@@ -1138,7 +1225,7 @@ export class Graph {
 		const nodes: Record<string, DescribeNodeOutput> = {};
 		for (const [p, n] of targets) {
 			if (actor != null && !n.allowsObserve(actor)) continue;
-			const raw = describeNode(n);
+			const raw = describeNode(n, effectiveFields);
 			const deps =
 				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d) ?? d.name ?? "") : [];
 			const { name: _name, ...rest } = raw;
@@ -1166,7 +1253,7 @@ export class Graph {
 							continue;
 						}
 						if (normalizedKey === "metaHas") {
-							if (!Object.hasOwn(entry.meta, String(fv))) {
+							if (!Object.hasOwn(entry.meta ?? {}, String(fv))) {
 								match = false;
 								break;
 							}
@@ -1202,11 +1289,27 @@ export class Graph {
 						return [...nodeKeys].some((k) => k === sg || k.startsWith(prefix));
 					})
 				: allSubgraphs;
+
+		// Capture graph ref and base options for expand()
+		const graph = this;
+		const baseOpts = options;
+
 		return {
 			name: this.name,
 			nodes,
 			edges,
 			subgraphs,
+			expand(detailOrFields: DescribeDetail | DescribeField[]): GraphDescribeOutput {
+				const merged: GraphDescribeOptions = { ...baseOpts, format: undefined };
+				if (Array.isArray(detailOrFields)) {
+					merged.fields = detailOrFields;
+					merged.detail = undefined;
+				} else {
+					merged.detail = detailOrFields;
+					merged.fields = undefined;
+				}
+				return graph.describe(merged);
+			},
 		};
 	}
 
@@ -1294,18 +1397,21 @@ export class Graph {
 	): GraphObserveOne | GraphObserveAll | ObserveResult {
 		if (typeof pathOrOpts === "string") {
 			const path = pathOrOpts;
-			const actor = options?.actor;
+			const resolved = resolveObserveDetail(options);
+			const actor = resolved.actor;
 			const target = this.resolve(path);
 			if (actor != null && !target.allowsObserve(actor)) {
 				throw new GuardDenied({ actor, action: "observe", nodeName: path });
 			}
 			const wantsStructured =
-				options?.structured === true ||
-				options?.timeline === true ||
-				options?.causal === true ||
-				options?.derived === true;
+				resolved.structured === true ||
+				resolved.timeline === true ||
+				resolved.causal === true ||
+				resolved.derived === true ||
+				resolved.detail === "minimal" ||
+				resolved.detail === "full";
 			if (wantsStructured && Graph.inspectorEnabled) {
-				return this._createObserveResult(path, target, options);
+				return this._createObserveResult(path, target, resolved);
 			}
 			return {
 				subscribe(sink: NodeSink) {
@@ -1321,15 +1427,17 @@ export class Graph {
 				},
 			};
 		}
-		const opts = pathOrOpts as ObserveOptions | undefined;
-		const actor = opts?.actor;
+		const opts = resolveObserveDetail(pathOrOpts as ObserveOptions | undefined);
+		const actor = opts.actor;
 		const wantsStructured =
-			opts?.structured === true ||
-			opts?.timeline === true ||
-			opts?.causal === true ||
-			opts?.derived === true;
+			opts.structured === true ||
+			opts.timeline === true ||
+			opts.causal === true ||
+			opts.derived === true ||
+			opts.detail === "minimal" ||
+			opts.detail === "full";
 		if (wantsStructured && Graph.inspectorEnabled) {
-			return this._createObserveResultForAll(opts ?? {});
+			return this._createObserveResultForAll(opts);
 		}
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
@@ -1367,6 +1475,7 @@ export class Graph {
 		const timeline = options.timeline === true;
 		const causal = options.causal === true;
 		const derived = options.derived === true;
+		const minimal = options.detail === "minimal";
 		const result: {
 			values: Record<string, T>;
 			dirtyCount: number;
@@ -1429,6 +1538,12 @@ export class Graph {
 				if (t === DATA) {
 					result.values[path] = m[1] as T;
 					result.events.push({ type: "data", path, data: m[1], ...base, ...withCausal });
+				} else if (minimal) {
+					// minimal: track state but don't push non-DATA events
+					if (t === DIRTY) result.dirtyCount++;
+					else if (t === RESOLVED) result.resolvedCount++;
+					else if (t === COMPLETE && !result.errored) result.completedCleanly = true;
+					else if (t === ERROR) result.errored = true;
 				} else if (t === DIRTY) {
 					result.dirtyCount++;
 					result.events.push({ type: "dirty", path, ...base });
@@ -1444,6 +1559,9 @@ export class Graph {
 				}
 			}
 		});
+
+		const graph = this;
+		const basePath = path;
 
 		return {
 			get values() {
@@ -1468,11 +1586,30 @@ export class Graph {
 				unsub();
 				detachInspectorHook?.();
 			},
+			expand(
+				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
+			): ObserveResult<T> {
+				unsub();
+				detachInspectorHook?.();
+				const merged: ObserveOptions = { ...options };
+				if (typeof extra === "string") {
+					merged.detail = extra;
+				} else {
+					Object.assign(merged, extra);
+				}
+				const resolvedTarget = graph.resolve(basePath);
+				return graph._createObserveResult<T>(
+					basePath,
+					resolvedTarget as Node<T>,
+					resolveObserveDetail(merged),
+				);
+			},
 		};
 	}
 
 	private _createObserveResultForAll(options: ObserveOptions): ObserveResult {
 		const timeline = options.timeline === true;
+		const minimal = options.detail === "minimal";
 		const result: {
 			values: Record<string, unknown>;
 			dirtyCount: number;
@@ -1501,6 +1638,11 @@ export class Graph {
 					if (t === DATA) {
 						result.values[path] = m[1];
 						result.events.push({ type: "data", path, data: m[1], ...base });
+					} else if (minimal) {
+						if (t === DIRTY) result.dirtyCount++;
+						else if (t === RESOLVED) result.resolvedCount++;
+						else if (t === COMPLETE && !result.errored) result.completedCleanly = true;
+						else if (t === ERROR) result.errored = true;
 					} else if (t === DIRTY) {
 						result.dirtyCount++;
 						result.events.push({ type: "dirty", path, ...base });
@@ -1517,6 +1659,8 @@ export class Graph {
 				}
 			}),
 		);
+
+		const graph = this;
 		return {
 			get values() {
 				return result.values;
@@ -1538,6 +1682,18 @@ export class Graph {
 			},
 			dispose() {
 				for (const u of unsubs) u();
+			},
+			expand(
+				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
+			): ObserveResult {
+				for (const u of unsubs) u();
+				const merged: ObserveOptions = { ...options };
+				if (typeof extra === "string") {
+					merged.detail = extra;
+				} else {
+					Object.assign(merged, extra);
+				}
+				return graph._createObserveResultForAll(resolveObserveDetail(merged));
 			},
 		};
 	}
@@ -1628,6 +1784,9 @@ export class Graph {
 				},
 				dispose() {
 					stop();
+				},
+				expand() {
+					throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
 				},
 			};
 
@@ -1745,16 +1904,16 @@ export class Graph {
 	 * @returns Rendered graph text.
 	 */
 	dumpGraph(options: GraphDumpOptions = {}): string {
-		const described = this.describe({
+		const { expand: _, ...described } = this.describe({
 			actor: options.actor,
 			filter: options.filter,
+			detail: "standard",
 		});
 		const includeEdges = options.includeEdges ?? true;
 		const includeSubgraphs = options.includeSubgraphs ?? true;
 		if (options.format === "json") {
 			const payload: GraphDescribeOutput = {
-				name: described.name,
-				nodes: described.nodes,
+				...described,
 				edges: includeEdges ? described.edges : [],
 				subgraphs: includeSubgraphs ? described.subgraphs : [],
 			};
@@ -1830,12 +1989,15 @@ export class Graph {
 	 * @returns Persistable snapshot with sorted keys.
 	 */
 	snapshot(): GraphPersistSnapshot {
-		const d = this.describe();
+		const { expand: _, ...d } = this.describe({ detail: "full" });
 		// Explicit key sorting for deterministic output — don't rely on
 		// describe() iteration order (audit batch-3, §3.8).
+		// Strip non-restorable fields (runtime attribution) so snapshot → restore → snapshot
+		// is idempotent. Use describe({ detail: "full" }) for audit snapshots instead.
 		const sortedNodes: Record<string, DescribeNodeOutput> = {};
 		for (const key of Object.keys(d.nodes).sort()) {
-			sortedNodes[key] = d.nodes[key]!;
+			const { lastMutation: _lm, guard: _g, ...node } = d.nodes[key]!;
+			sortedNodes[key] = node;
 		}
 		const sortedSubgraphs = [...d.subgraphs].sort();
 		return { ...d, version: 1, nodes: sortedNodes, subgraphs: sortedSubgraphs };
@@ -2009,7 +2171,14 @@ export class Graph {
 			if (!pending) return;
 			pending = false;
 			try {
-				const described = this.describe();
+				const { expand: _expand, ...raw } = this.describe({ detail: "full" });
+				// Strip non-restorable fields for persistence idempotency
+				const cleanNodes: Record<string, DescribeNodeOutput> = {};
+				for (const [p, n] of Object.entries(raw.nodes)) {
+					const { lastMutation: _lm, guard: _g, ...node } = n!;
+					cleanNodes[p] = node;
+				}
+				const described = { ...raw, nodes: cleanNodes };
 				const snapshot = { ...described, version: SNAPSHOT_VERSION };
 				seq += 1;
 				const shouldCompact = lastDescribe == null || seq % compactEvery === 0;
@@ -2041,8 +2210,10 @@ export class Graph {
 			const triggeredByTier = messages.some((m) => messageTier(m[0]) >= 2);
 			if (!triggeredByTier) return;
 			if (options.filter) {
-				const described = this.describe().nodes[path];
-				if (described == null || !options.filter(path, described)) return;
+				const nd = this.resolve(path);
+				if (nd == null) return;
+				const described = describeNode(nd, resolveDescribeFields("standard"));
+				if (!options.filter(path, described)) return;
 			}
 			schedule();
 		});
