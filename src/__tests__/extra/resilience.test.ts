@@ -14,13 +14,18 @@ import {
 } from "../../extra/backoff.js";
 import {
 	CircuitOpenError,
+	cache,
 	circuitBreaker,
+	fallback,
 	rateLimiter,
 	retry,
+	TimeoutError,
+	timeout,
 	tokenBucket,
 	withBreaker,
 	withStatus,
 } from "../../extra/resilience.js";
+import { throwError } from "../../extra/sources.js";
 import { Graph } from "../../graph/graph.js";
 
 function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
@@ -391,6 +396,223 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = state(1);
 			const out = retry(s, { count: 0 });
 			expect(out.get()).toBe(1);
+		});
+	});
+
+	// ——————————————————————————————————————————————————————————————
+	//  §3.1c — fallback, timeout, cache
+	// ——————————————————————————————————————————————————————————————
+
+	describe("fallback", () => {
+		it("passes through DATA/COMPLETE from healthy source", () => {
+			const src = state(42);
+			const out = fallback(src, 0);
+			const { batches, unsub } = collect(out);
+			src.down([[DATA, 99]]);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
+				),
+			).toBe(true);
+			unsub();
+		});
+
+		it("emits fallback value on ERROR (value mode)", () => {
+			const src = throwError(new Error("boom"));
+			const out = fallback(src, "default");
+			const { batches, unsub } = collect(out);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === "default",
+				),
+			).toBe(true);
+			expect(flat.some((m) => (m as [symbol])[0] === COMPLETE)).toBe(true);
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			unsub();
+		});
+
+		it("switches to fallback node on ERROR (node mode)", () => {
+			const src = throwError(new Error("boom"));
+			const fb = state("fallback-value");
+			const out = fallback(src, fb);
+			const { batches, unsub } = collect(out);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) =>
+						(m as [symbol, unknown])[0] === DATA &&
+						(m as [symbol, unknown])[1] === "fallback-value",
+				),
+			).toBe(true);
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			unsub();
+		});
+
+		it("composes with retry: retry then fallback", async () => {
+			const src = producer(
+				(_d, a) => {
+					a.down([[ERROR, new Error("x")]]);
+				},
+				{ resubscribable: true },
+			);
+			// retry with count: 0 means no retries — ERROR propagates immediately
+			const out = fallback(retry(src, { count: 0 }), "safe");
+			const { batches, unsub } = collect(out);
+			await new Promise((r) => setTimeout(r, 20));
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === "safe",
+				),
+			).toBe(true);
+			unsub();
+		});
+	});
+
+	describe("timeout", () => {
+		it("throws RangeError for non-positive timeoutNs", () => {
+			expect(() => timeout(state(1), 0)).toThrow(RangeError);
+			expect(() => timeout(state(1), -1)).toThrow(RangeError);
+		});
+
+		it("emits TimeoutError when no DATA arrives", () => {
+			vi.useFakeTimers();
+			const src = producer(() => undefined); // never emits
+			const out = timeout(src, 100 * NS_PER_MS);
+			const { batches, unsub } = collect(out);
+			vi.advanceTimersByTime(150);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) =>
+						(m as [symbol, unknown])[0] === ERROR &&
+						(m as [symbol, unknown])[1] instanceof TimeoutError,
+				),
+			).toBe(true);
+			unsub();
+		});
+
+		it("DATA resets the timer", () => {
+			vi.useFakeTimers();
+			const src = state(0);
+			const out = timeout(src, 100 * NS_PER_MS);
+			const { batches, unsub } = collect(out);
+			vi.advanceTimersByTime(80);
+			src.down([[DATA, 1]]); // resets timer
+			vi.advanceTimersByTime(80);
+			// Should not have timed out yet (80 < 100 since reset)
+			const flat = batches.flat();
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			vi.advanceTimersByTime(30); // now 110ms since last DATA
+			const flat2 = batches.flat();
+			expect(flat2.some((m) => (m as [symbol])[0] === ERROR)).toBe(true);
+			unsub();
+		});
+
+		it("COMPLETE cancels the timer", () => {
+			vi.useFakeTimers();
+			const src = producer((_d, a) => {
+				a.down([[COMPLETE]]);
+			});
+			const out = timeout(src, 100 * NS_PER_MS);
+			const { batches, unsub } = collect(out);
+			vi.advanceTimersByTime(200);
+			const flat = batches.flat();
+			expect(flat.some((m) => (m as [symbol])[0] === COMPLETE)).toBe(true);
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			unsub();
+		});
+
+		it("passes DATA through on time", () => {
+			const src = state(42);
+			const out = timeout(src, 10 * NS_PER_SEC);
+			const { batches, unsub } = collect(out);
+			src.down([[DATA, 99]]);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
+				),
+			).toBe(true);
+			unsub();
+		});
+	});
+
+	describe("cache", () => {
+		it("throws RangeError for non-positive ttlNs", () => {
+			expect(() => cache(state(1), 0)).toThrow(RangeError);
+			expect(() => cache(state(1), -1)).toThrow(RangeError);
+		});
+
+		it("forwards DATA from source", () => {
+			const src = state(42);
+			const out = cache(src, 10 * NS_PER_SEC);
+			const { batches, unsub } = collect(out);
+			src.down([[DATA, 99]]);
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
+				),
+			).toBe(true);
+			unsub();
+		});
+
+		it("replays cached value to new subscribers within TTL", () => {
+			const src = state(42);
+			const out = cache(src, 10 * NS_PER_SEC);
+			// First subscriber
+			const { unsub: u1 } = collect(out);
+			src.down([[DATA, 100]]);
+			u1();
+
+			// Second subscriber should see cached value
+			const { batches: b2, unsub: u2 } = collect(out);
+			const flat = b2.flat();
+			expect(
+				flat.some(
+					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 100,
+				),
+			).toBe(true);
+			u2();
+		});
+
+		it("does not replay when TTL expired", () => {
+			vi.useFakeTimers();
+			const src = state(42);
+			const out = cache(src, 50 * NS_PER_MS);
+			const { unsub: u1 } = collect(out);
+			src.down([[DATA, 100]]);
+			u1();
+
+			vi.advanceTimersByTime(100); // TTL expired
+			const { batches: b2, unsub: u2 } = collect(out);
+			// Should not have the cached DATA replay
+			const flat = b2.flat();
+			const dataValues = flat
+				.filter((m) => (m as [symbol])[0] === DATA)
+				.map((m) => (m as [symbol, unknown])[1]);
+			expect(dataValues.includes(100)).toBe(false);
+			u2();
+		});
+
+		it("forwards live DATA from source", () => {
+			const src = state(0);
+			const out = cache(src, 10 * NS_PER_SEC);
+			const { batches, unsub } = collect(out);
+			src.down([[DATA, 1]]);
+			src.down([[DATA, 2]]);
+			src.down([[DATA, 3]]);
+			const dataValues = batches
+				.flat()
+				.filter((m) => (m as [symbol])[0] === DATA)
+				.map((m) => (m as [symbol, unknown])[1]);
+			expect(dataValues).toContain(1);
+			expect(dataValues).toContain(2);
+			expect(dataValues).toContain(3);
+			unsub();
 		});
 	});
 });

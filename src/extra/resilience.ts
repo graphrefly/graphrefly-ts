@@ -1,9 +1,18 @@
 /**
- * Resilience utilities — roadmap §3.1 (retry, breaker, rate limit, status companions).
+ * Resilience utilities — roadmap §3.1 + §3.1c (retry, breaker, rate limit, status,
+ * fallback, cache, timeout).
  */
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Message,
+	RESOLVED,
+	TEARDOWN,
+} from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
 import {
@@ -118,7 +127,8 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 				const gen = timerGen;
 				disconnectUpstream();
 				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
-
+				// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
+				// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
 				timer = setTimeout(() => {
 					timer = undefined;
 					if (stopped || gen !== timerGen) return;
@@ -540,6 +550,8 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 						timerGen += 1;
 						const gen = timerGen;
 						const delayNs = Math.max(0, oldest + windowNs - monotonicNs());
+						// §5.10: setTimeout (not fromTimer) — sliding-window schedule needs clearTimeout/setTimeout;
+						// fromTimer creates a new Node per reset, adding lifecycle overhead per window check.
 						timer = setTimeout(() => {
 							timer = undefined;
 							if (gen !== timerGen) return;
@@ -675,4 +687,250 @@ export function withStatus<T>(
 		status: out.meta.status as Node<StatusValue>,
 		error: out.meta.error as Node<unknown | null>,
 	};
+}
+
+// ——————————————————————————————————————————————————————————————
+//  §3.1c — Caching, fallback & composition sugar
+// ——————————————————————————————————————————————————————————————
+
+/**
+ * Thrown by {@link timeout} when no `DATA` arrives within the deadline.
+ *
+ * @category extra
+ */
+export class TimeoutError extends Error {
+	override name = "TimeoutError";
+	constructor(ns: number) {
+		super(`Timed out after ${ns / NS_PER_MS}ms`);
+	}
+}
+
+function isNode(x: unknown): x is Node {
+	return (
+		x != null &&
+		typeof (x as Node).subscribe === "function" &&
+		typeof (x as Node).get === "function"
+	);
+}
+
+/**
+ * On upstream terminal `ERROR`, emit a fallback value instead of propagating the error.
+ *
+ * If `fb` is a plain value, emits `[[DATA, fb], [COMPLETE]]` on error.
+ * If `fb` is a `Node`, switches to that node's stream on error (all further messages
+ * from the fallback node are forwarded).
+ *
+ * Composes naturally with {@link retry}: `pipe(source, retry({count:3}), fallback("default"))`.
+ *
+ * @param source - Upstream node.
+ * @param fb - Fallback value or fallback node to switch to on error.
+ * @returns Node that replaces errors with the fallback.
+ *
+ * @example
+ * ```ts
+ * import { fallback, throwError } from "@graphrefly/graphrefly-ts";
+ *
+ * const safe = fallback(throwError(new Error("boom")), "default");
+ * safe.get(); // "default" after subscribe
+ * ```
+ *
+ * @category extra
+ */
+export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
+	return producer<T>(
+		(_d, a) => {
+			let fallbackUnsub: (() => void) | undefined;
+			let sourceUnsub: (() => void) | undefined;
+
+			sourceUnsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DIRTY) a.down([[DIRTY]]);
+					else if (t === DATA) a.emit(m[1] as T);
+					else if (t === RESOLVED) a.down([[RESOLVED]]);
+					else if (t === COMPLETE) a.down([[COMPLETE]]);
+					else if (t === ERROR) {
+						sourceUnsub?.(); // release source subscription
+						if (isNode(fb)) {
+							fallbackUnsub = (fb as Node<T>).subscribe((fMsgs) => {
+								a.down(fMsgs);
+							});
+							const cur = (fb as Node<T>).get();
+							if (cur !== undefined) a.down([[DATA, cur]]);
+						} else {
+							a.emit(fb as T);
+							a.down([[COMPLETE]]);
+						}
+						return;
+					} else if (t === TEARDOWN) {
+						fallbackUnsub?.();
+						a.down([m]);
+						return;
+					} else a.down([m]);
+				}
+			});
+
+			return () => {
+				sourceUnsub?.();
+				fallbackUnsub?.();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: source.get(),
+		},
+	);
+}
+
+/**
+ * Emits `ERROR` with {@link TimeoutError} if no `DATA` arrives within the deadline.
+ *
+ * The timer starts on subscription and resets on each `DATA`. `DIRTY` does NOT reset
+ * the timer. Terminal messages (`COMPLETE`/`ERROR`) cancel the timer.
+ *
+ * @param source - Upstream node.
+ * @param timeoutNs - Deadline in nanoseconds.
+ * @returns Node that errors on timeout.
+ *
+ * @example
+ * ```ts
+ * import { timeout, never, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * const t = timeout(never(), 5 * NS_PER_SEC);
+ * // After 5 seconds with no DATA: [[ERROR, TimeoutError]]
+ * ```
+ *
+ * @category extra
+ */
+export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
+	if (timeoutNs <= 0) throw new RangeError("timeoutNs must be > 0");
+
+	return producer<T>(
+		(_d, a) => {
+			let stopped = false;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			let timerGen = 0;
+
+			function cancelTimer(): void {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+					timer = undefined;
+				}
+			}
+
+			function startTimer(): void {
+				cancelTimer();
+				timerGen += 1;
+				const gen = timerGen;
+				const delayMs = timeoutNs / NS_PER_MS;
+				// §5.10: setTimeout (not fromTimer) — resettable deadline needs clearTimeout/setTimeout; fromTimer creates a new Node per reset, adding lifecycle overhead on every DATA.
+				timer = setTimeout(() => {
+					timer = undefined;
+					if (stopped || gen !== timerGen) return;
+					stopped = true;
+					unsub();
+					a.down([[ERROR, new TimeoutError(timeoutNs)]]);
+				}, delayMs);
+			}
+
+			const unsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (stopped) return;
+					const t = m[0];
+					if (t === DIRTY) a.down([[DIRTY]]);
+					else if (t === DATA) {
+						startTimer();
+						a.emit(m[1] as T);
+					} else if (t === RESOLVED) a.down([[RESOLVED]]);
+					else if (t === COMPLETE) {
+						cancelTimer();
+						a.down([[COMPLETE]]);
+					} else if (t === ERROR) {
+						cancelTimer();
+						a.down([m]);
+					} else if (t === TEARDOWN) {
+						cancelTimer();
+						stopped = true;
+						a.down([m]);
+						return;
+					} else a.down([m]);
+				}
+			});
+
+			startTimer();
+
+			return () => {
+				stopped = true;
+				timerGen += 1;
+				cancelTimer();
+				unsub();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: source.get(),
+		},
+	);
+}
+
+/**
+ * Memoize the last `DATA` value with a TTL. On resubscription (or new subscriber),
+ * if a cached value exists within `ttlNs`, emit it immediately then forward live
+ * upstream messages.
+ *
+ * Stale-while-revalidate pattern: subscribers always get the cached value first
+ * (if within TTL), then see live updates as they arrive.
+ *
+ * @param source - Upstream node.
+ * @param ttlNs - Time-to-live in nanoseconds.
+ * @returns Node with TTL-based caching.
+ *
+ * @example
+ * ```ts
+ * import { cache, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
+ *
+ * const src = state(42);
+ * const c = cache(src, 10 * NS_PER_SEC);
+ * ```
+ *
+ * @category extra
+ */
+export function cache<T>(source: Node<T>, ttlNs: number): Node<T> {
+	if (ttlNs <= 0) throw new RangeError("ttlNs must be > 0");
+
+	let cachedValue: T | undefined;
+	let cachedAt = 0;
+	let hasCached = false;
+
+	return producer<T>(
+		(_d, a) => {
+			// Replay cached value within TTL on each (re)subscribe
+			if (hasCached && monotonicNs() - cachedAt < ttlNs) {
+				a.down([[DATA, cachedValue]]);
+			}
+
+			const unsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DATA) {
+						cachedValue = m[1] as T;
+						cachedAt = monotonicNs();
+						hasCached = true;
+						a.emit(cachedValue);
+					} else if (t === DIRTY) a.down([[DIRTY]]);
+					else if (t === RESOLVED) a.down([[RESOLVED]]);
+					else if (t === COMPLETE) a.down([[COMPLETE]]);
+					else if (t === ERROR) a.down([m]);
+					else a.down([m]);
+				}
+			});
+
+			return unsub;
+		},
+		{
+			...operatorOpts(),
+			resubscribable: true,
+			initial: source.get(),
+		},
+	);
 }

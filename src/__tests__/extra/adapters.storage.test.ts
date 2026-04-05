@@ -461,10 +461,10 @@ describe("checkpointToS3", () => {
 				saved.push(params);
 			},
 		};
-		let savedAdapter: { save(data: unknown): void } | undefined;
+		let savedAdapter: { save(key: string, data: unknown): void } | undefined;
 		const mockGraph = {
 			name: "test-graph",
-			autoCheckpoint: (adapter: { save(data: unknown): void }, _opts?: unknown) => {
+			autoCheckpoint: (adapter: { save(key: string, data: unknown): void }, _opts?: unknown) => {
 				savedAdapter = adapter;
 				return { dispose: () => {} };
 			},
@@ -472,7 +472,7 @@ describe("checkpointToS3", () => {
 		const handle = checkpointToS3(mockGraph, s3, "my-bucket", { prefix: "cp/" });
 		expect(handle.dispose).toBeTypeOf("function");
 		// Simulate the adapter being called
-		savedAdapter!.save({ snapshot: true });
+		savedAdapter!.save("test-graph", { snapshot: true });
 		expect(saved).toHaveLength(1);
 		const params = saved[0] as { Bucket: string; Key: string };
 		expect(params.Bucket).toBe("my-bucket");
@@ -493,17 +493,17 @@ describe("checkpointToRedis", () => {
 			},
 			get: async () => null,
 		};
-		let savedAdapter: { save(data: unknown): void } | undefined;
+		let savedAdapter: { save(key: string, data: unknown): void } | undefined;
 		const mockGraph = {
 			name: "my-graph",
-			autoCheckpoint: (adapter: { save(data: unknown): void }, _opts?: unknown) => {
+			autoCheckpoint: (adapter: { save(key: string, data: unknown): void }, _opts?: unknown) => {
 				savedAdapter = adapter;
 				return { dispose: () => {} };
 			},
 		};
 		const handle = checkpointToRedis(mockGraph, redis);
 		expect(handle.dispose).toBeTypeOf("function");
-		savedAdapter!.save({ snapshot: true });
+		savedAdapter!.save("my-graph", { snapshot: true });
 		expect(saved).toHaveLength(1);
 		expect(saved[0].key).toBe("graphrefly:checkpoint:my-graph");
 		expect(JSON.parse(saved[0].value)).toEqual({ snapshot: true });

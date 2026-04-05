@@ -3645,7 +3645,10 @@ export type CheckpointToS3Options = {
  */
 export function checkpointToS3(
 	graph: {
-		autoCheckpoint: (adapter: { save(data: unknown): void }, opts?: unknown) => { dispose(): void };
+		autoCheckpoint: (
+			adapter: { save(key: string, data: unknown): void },
+			opts?: unknown,
+		) => { dispose(): void };
 		name: string;
 	},
 	client: S3ClientLike,
@@ -3654,9 +3657,9 @@ export function checkpointToS3(
 ): { dispose(): void } {
 	const { prefix = "checkpoints/", debounceMs, compactEvery, onError } = opts ?? {};
 	const adapter = {
-		save(data: unknown) {
+		save(_key: string, data: unknown) {
 			const ms = Math.floor(wallClockNs() / 1_000_000);
-			const key = `${prefix}${graph.name}/checkpoint-${ms}.json`;
+			const s3Key = `${prefix}${graph.name}/checkpoint-${ms}.json`;
 			let body: string;
 			try {
 				body = JSON.stringify(data);
@@ -3667,7 +3670,7 @@ export function checkpointToS3(
 			void client
 				.putObject({
 					Bucket: bucket,
-					Key: key,
+					Key: s3Key,
 					Body: body,
 					ContentType: "application/json",
 				})
@@ -3708,16 +3711,19 @@ export type CheckpointToRedisOptions = {
  */
 export function checkpointToRedis(
 	graph: {
-		autoCheckpoint: (adapter: { save(data: unknown): void }, opts?: unknown) => { dispose(): void };
+		autoCheckpoint: (
+			adapter: { save(key: string, data: unknown): void },
+			opts?: unknown,
+		) => { dispose(): void };
 		name: string;
 	},
 	client: RedisCheckpointClientLike,
 	opts?: CheckpointToRedisOptions,
 ): { dispose(): void } {
 	const { prefix = "graphrefly:checkpoint:", debounceMs, compactEvery, onError } = opts ?? {};
-	const key = `${prefix}${graph.name}`;
+	const redisKey = `${prefix}${graph.name}`;
 	const adapter = {
-		save(data: unknown) {
+		save(_key: string, data: unknown) {
 			let body: string;
 			try {
 				body = JSON.stringify(data);
@@ -3725,7 +3731,7 @@ export function checkpointToRedis(
 				onError?.(err);
 				return;
 			}
-			void client.set(key, body).catch((err) => onError?.(err));
+			void client.set(redisKey, body).catch((err) => onError?.(err));
 		},
 	};
 	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });

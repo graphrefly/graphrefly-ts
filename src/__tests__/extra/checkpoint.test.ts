@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -132,12 +132,13 @@ describe("extra checkpoint (roadmap §3.1)", () => {
 		expect(g2.get("x")).toBe(7);
 	});
 
-	it("DictCheckpointAdapter uses storage key", () => {
+	it("DictCheckpointAdapter uses caller-provided key", () => {
 		const g = new Graph("app");
 		g.add("n", state("hi"));
 		const bag: Record<string, unknown> = {};
-		const ad = new DictCheckpointAdapter(bag, "ck");
+		const ad = new DictCheckpointAdapter(bag);
 		saveGraphCheckpoint(g, ad);
+		expect(bag.app).toBeDefined();
 		const g2 = new Graph("app");
 		g2.add("n", state(""));
 		expect(restoreGraphCheckpoint(g2, ad)).toBe(true);
@@ -146,12 +147,10 @@ describe("extra checkpoint (roadmap §3.1)", () => {
 
 	it("FileCheckpointAdapter writes atomically", () => {
 		const dir = join(tmpdir(), `grf-ckpt-${Date.now()}`);
-		mkdirSync(dir, { recursive: true });
-		const path = join(dir, "snap.json");
 		try {
 			const g = new Graph("g");
 			g.add("a", state(1));
-			const file = new FileCheckpointAdapter(path);
+			const file = new FileCheckpointAdapter(dir);
 			saveGraphCheckpoint(g, file);
 			const g2 = new Graph("g");
 			g2.add("a", state(0));
@@ -178,6 +177,14 @@ describe("extra checkpoint (roadmap §3.1)", () => {
 		} catch {
 			/* ignore */
 		}
+	});
+
+	it("CheckpointAdapter clear removes data", () => {
+		const mem = new MemoryCheckpointAdapter();
+		mem.save("k", { v: 1 });
+		expect(mem.load("k")).toEqual({ v: 1 });
+		mem.clear("k");
+		expect(mem.load("k")).toBeNull();
 	});
 
 	it("restore returns false when empty", () => {

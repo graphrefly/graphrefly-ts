@@ -238,6 +238,20 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-first-principles-audit.md`
 
+### Session deerflow-deepagents-comparison (April 5) — Competitive Analysis: DeerFlow 2.0 & Deep Agents vs GraphReFly
+**Topic:** Research-backed comparison of DeerFlow 2.0 (ByteDance, 32k stars) and LangChain Deep Agents (19.3k stars) against GraphReFly. Prompted by a popular 小红书 post analyzing DeerFlow's architectural evolution and "5 core design principles" of 2026 agent design.
+
+**Key findings:**
+- **DeerFlow's 1.0→2.0 evolution trajectory points at GraphReFly** — static→dynamic, shared→isolated, engineer→LLM are steps 1-3; the next steps (pull→push, no causality→causal chain, tool-level→topology-level) are steps 4-7 that GraphReFly already provides
+- **DeerFlow is a harness, GraphReFly is a protocol** — different abstraction layers, composable not competitive
+- **File system as state is 2026 consensus but has fundamental limits** — no consistency, no reactive propagation, no causal chain, no structural diffability
+- **"Tool-as-Agent" vs "Topology-as-Program"** is the core philosophical divide — DeerFlow gives LLMs better tools, GraphReFly lets LLMs define the computation structure
+- **Deep Agents validates the pattern** (planning + sub-agents + filesystem) without depth — Harrison Chase's weekend hack proving demand
+- **"Complementary" is market entry tactic, not architectural truth** — GraphReFly replaces coordination cores; host frameworks keep sandbox + IM + UI (commodity)
+- **Ecosystem infiltration via 3 entry points** — MCP Server (universal, highest priority), workspace bridge (zero-change for file agents), LangGraph adapter (largest ecosystem)
+
+**Files:** `archive/docs/SESSION-deerflow-deepagents-comparison.md`
+
 ---
 
 ## Reading Guide
@@ -262,4 +276,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** April 4, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit + DeerFlow/Deep Agents comparison

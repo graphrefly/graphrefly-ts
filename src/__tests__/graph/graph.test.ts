@@ -902,7 +902,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		const saves: unknown[] = [];
 		const h = g.autoCheckpoint(
 			{
-				save(data: unknown) {
+				save(_key: string, data: unknown) {
 					saves.push(data);
 				},
 			},

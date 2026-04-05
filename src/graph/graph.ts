@@ -133,8 +133,9 @@ export type GraphFactoryContext = {
 
 export type GraphNodeFactory = (name: string, context: GraphFactoryContext) => Node;
 
+/** @deprecated Use `CheckpointAdapter` from `extra/checkpoint` instead. */
 export type AutoCheckpointAdapter = {
-	save(data: unknown): void;
+	save(key: string, data: unknown): void;
 };
 
 export type GraphCheckpointRecord =
@@ -2183,11 +2184,11 @@ export class Graph {
 				seq += 1;
 				const shouldCompact = lastDescribe == null || seq % compactEvery === 0;
 				if (shouldCompact) {
-					adapter.save({ mode: "full", snapshot, seq } satisfies GraphCheckpointRecord);
+					adapter.save(this.name, { mode: "full", snapshot, seq } satisfies GraphCheckpointRecord);
 				} else {
 					const previous = lastDescribe;
 					if (previous == null) return;
-					adapter.save({
+					adapter.save(this.name, {
 						mode: "diff",
 						diff: Graph.diff(previous, described),
 						snapshot,

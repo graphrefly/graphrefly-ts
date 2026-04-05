@@ -28,29 +28,22 @@ function sortJsonValue(value: unknown): unknown {
 	return out;
 }
 
-function warnNonJsonValues(data: GraphPersistSnapshot): void {
-	for (const [path, node] of Object.entries(data.nodes)) {
-		const v = node.value;
-		if (v === undefined || v === null) continue;
-		if (typeof v === "function" || typeof v === "symbol" || typeof v === "bigint") {
-			console.warn(
-				`checkpoint: node "${path}" has non-JSON-serializable value (${typeof v}); it will be lost on round-trip`,
-			);
-		}
-	}
-}
-
-function stableSnapshotJson(data: GraphPersistSnapshot): string {
-	warnNonJsonValues(data);
+function stableJsonString(data: unknown): string {
 	return `${JSON.stringify(sortJsonValue(data), undefined, 0)}\n`;
 }
 
 /**
- * Persists {@link GraphPersistSnapshot} blobs (single save/load contract, roadmap §3.1).
+ * Key-value persistence contract (roadmap §3.1 + §3.1c).
+ *
+ * Each adapter stores opaque JSON-serializable blobs under caller-provided string keys.
+ * Used by {@link saveGraphCheckpoint}/{@link restoreGraphCheckpoint} (key = graph name),
+ * {@link Graph.autoCheckpoint} (key = graph name), and {@link cascadingCache}/{@link tieredStorage}
+ * (key = cache entry key).
  */
 export interface CheckpointAdapter {
-	save(data: GraphPersistSnapshot): void;
-	load(): GraphPersistSnapshot | null;
+	save(key: string, data: unknown): void;
+	load(key: string): unknown | null;
+	clear(key: string): void;
 }
 
 /**
@@ -59,69 +52,82 @@ export interface CheckpointAdapter {
  * @category extra
  */
 export class MemoryCheckpointAdapter implements CheckpointAdapter {
-	#data: GraphPersistSnapshot | null = null;
+	readonly #data = new Map<string, unknown>();
 
-	save(data: GraphPersistSnapshot): void {
-		this.#data = JSON.parse(JSON.stringify(data)) as GraphPersistSnapshot;
+	save(key: string, data: unknown): void {
+		this.#data.set(key, JSON.parse(JSON.stringify(data)));
 	}
 
-	load(): GraphPersistSnapshot | null {
-		return this.#data === null
-			? null
-			: (JSON.parse(JSON.stringify(this.#data)) as GraphPersistSnapshot);
+	load(key: string): unknown | null {
+		const v = this.#data.get(key);
+		return v === undefined ? null : JSON.parse(JSON.stringify(v));
+	}
+
+	clear(key: string): void {
+		this.#data.delete(key);
 	}
 }
 
 /**
- * Stores JSON-cloned snapshots under a key inside a caller-owned record (tests / embedding).
+ * Stores JSON-cloned values under caller keys inside a caller-owned record (tests / embedding).
  *
  * @category extra
  */
 export class DictCheckpointAdapter implements CheckpointAdapter {
 	readonly #storage: Record<string, unknown>;
-	readonly #key: string;
 
-	constructor(storage: Record<string, unknown>, key = "graphrefly_checkpoint") {
+	constructor(storage: Record<string, unknown>) {
 		this.#storage = storage;
-		this.#key = key;
 	}
 
-	save(data: GraphPersistSnapshot): void {
-		this.#storage[this.#key] = JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
+	save(key: string, data: unknown): void {
+		this.#storage[key] = JSON.parse(JSON.stringify(data));
 	}
 
-	load(): GraphPersistSnapshot | null {
-		const raw = this.#storage[this.#key];
-		return raw !== null && typeof raw === "object" && !Array.isArray(raw)
-			? (JSON.parse(JSON.stringify(raw)) as GraphPersistSnapshot)
-			: null;
+	load(key: string): unknown | null {
+		const raw = this.#storage[key];
+		return raw === undefined ? null : JSON.parse(JSON.stringify(raw));
+	}
+
+	clear(key: string): void {
+		delete this.#storage[key];
 	}
 }
 
 /**
- * Atomic JSON file persistence (temp file in the target directory, then `rename`).
+ * Atomic JSON file persistence (one file per key in a directory, temp + rename).
  *
  * @remarks
+ * **Key mapping:** keys are sanitized to filesystem-safe names (`[^a-zA-Z0-9_-]` → `_`).
  * **Errors:** `load()` returns `null` for missing files, empty files, or invalid JSON (no throw).
  *
  * @category extra
  */
 export class FileCheckpointAdapter implements CheckpointAdapter {
-	readonly #path: string;
+	readonly #dir: string;
 
-	constructor(path: string) {
-		this.#path = path;
+	constructor(dir: string) {
+		this.#dir = dir;
 	}
 
-	save(data: GraphPersistSnapshot): void {
-		const dir = dirname(this.#path);
-		mkdirSync(dir, { recursive: true });
-		const payload = stableSnapshotJson(data);
-		const base = basename(this.#path);
+	#pathFor(key: string): string {
+		const safeName = key.replace(
+			/[^a-zA-Z0-9_-]/g,
+			(c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
+		);
+		return join(this.#dir, `${safeName}.json`);
+	}
+
+	save(key: string, data: unknown): void {
+		mkdirSync(this.#dir, { recursive: true });
+		const filePath = this.#pathFor(key);
+		const payload = stableJsonString(data);
+		const base = basename(filePath);
+		const dir = dirname(filePath);
 		const tmp = join(dir, `.${base}.${randomBytes(8).toString("hex")}.tmp`);
 		try {
 			writeFileSync(tmp, payload, "utf8");
-			renameSync(tmp, this.#path);
+			renameSync(tmp, filePath);
 		} catch (e) {
 			try {
 				unlinkSync(tmp);
@@ -132,22 +138,27 @@ export class FileCheckpointAdapter implements CheckpointAdapter {
 		}
 	}
 
-	load(): GraphPersistSnapshot | null {
+	load(key: string): unknown | null {
 		try {
-			const text = readFileSync(this.#path, "utf8").trim();
+			const text = readFileSync(this.#pathFor(key), "utf8").trim();
 			if (!text) return null;
-			const data = JSON.parse(text) as unknown;
-			return data !== null && typeof data === "object" && !Array.isArray(data)
-				? (data as GraphPersistSnapshot)
-				: null;
+			return JSON.parse(text) as unknown;
 		} catch {
 			return null;
+		}
+	}
+
+	clear(key: string): void {
+		try {
+			unlinkSync(this.#pathFor(key));
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
 		}
 	}
 }
 
 /**
- * Persists one JSON blob under a fixed key using Node.js `node:sqlite` ({@link DatabaseSync}).
+ * Key-value persistence using Node.js `node:sqlite` ({@link DatabaseSync}).
  *
  * @remarks
  * **Runtime:** Requires Node 22.5+ with `node:sqlite` enabled (experimental in some releases). Call `close()` when discarding the adapter.
@@ -156,32 +167,31 @@ export class FileCheckpointAdapter implements CheckpointAdapter {
  */
 export class SqliteCheckpointAdapter implements CheckpointAdapter {
 	readonly #db: DatabaseSync;
-	readonly #key: string;
 
-	constructor(path: string, key = "graphrefly_checkpoint") {
+	constructor(path: string) {
 		this.#db = new DatabaseSync(path);
-		this.#key = key;
 		this.#db.exec(
 			`CREATE TABLE IF NOT EXISTS graphrefly_checkpoint (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
 		);
 	}
 
-	save(data: GraphPersistSnapshot): void {
-		const payload = stableSnapshotJson(data).trimEnd();
+	save(key: string, data: unknown): void {
+		const payload = stableJsonString(data).trimEnd();
 		this.#db
 			.prepare(`INSERT OR REPLACE INTO graphrefly_checkpoint (k, v) VALUES (?, ?)`)
-			.run(this.#key, payload);
+			.run(key, payload);
 	}
 
-	load(): GraphPersistSnapshot | null {
-		const row = this.#db
-			.prepare(`SELECT v FROM graphrefly_checkpoint WHERE k = ?`)
-			.get(this.#key) as { v: string } | undefined;
+	load(key: string): unknown | null {
+		const row = this.#db.prepare(`SELECT v FROM graphrefly_checkpoint WHERE k = ?`).get(key) as
+			| { v: string }
+			| undefined;
 		if (row === undefined || typeof row.v !== "string" || row.v.trim() === "") return null;
-		const parsed = JSON.parse(row.v) as unknown;
-		return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-			? (parsed as GraphPersistSnapshot)
-			: null;
+		return JSON.parse(row.v) as unknown;
+	}
+
+	clear(key: string): void {
+		this.#db.prepare(`DELETE FROM graphrefly_checkpoint WHERE k = ?`).run(key);
 	}
 
 	/** Close the underlying SQLite connection (safe to call more than once). */
@@ -195,10 +205,10 @@ export class SqliteCheckpointAdapter implements CheckpointAdapter {
 }
 
 /**
- * Writes {@link Graph.snapshot} through `adapter.save`.
+ * Writes {@link Graph.snapshot} through `adapter.save` using `graph.name` as key.
  *
  * @param graph - Target graph instance.
- * @param adapter - Sync persistence backend.
+ * @param adapter - Sync key-value persistence backend.
  * @returns `void` — side-effect only; the snapshot is written to `adapter`.
  *
  * @example
@@ -213,14 +223,14 @@ export class SqliteCheckpointAdapter implements CheckpointAdapter {
  * @category extra
  */
 export function saveGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): void {
-	adapter.save(graph.snapshot());
+	adapter.save(graph.name, graph.snapshot());
 }
 
 /**
- * Loads a snapshot via `adapter.load` and applies {@link Graph.restore} when data exists.
+ * Loads a snapshot via `adapter.load(graph.name)` and applies {@link Graph.restore} when data exists.
  *
  * @param graph - Graph whose topology matches the snapshot.
- * @param adapter - Sync persistence backend.
+ * @param adapter - Sync key-value persistence backend.
  * @returns `true` if data was present and `restore` ran; `false` if `load()` returned `null`.
  *
  * @example
@@ -243,9 +253,9 @@ export function saveGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): v
  * @category extra
  */
 export function restoreGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): boolean {
-	const data = adapter.load();
+	const data = adapter.load(graph.name);
 	if (data === null) return false;
-	graph.restore(data);
+	graph.restore(data as GraphPersistSnapshot);
 	return true;
 }
 

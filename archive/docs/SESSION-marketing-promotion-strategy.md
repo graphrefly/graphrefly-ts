@@ -338,6 +338,52 @@ Add 小红书 to the posting platforms alongside HN, Reddit, Dev.to:
 
 ---
 
+## 14. Ecosystem Infiltration Strategy (added April 5, 2026)
+
+**Trigger:** Competitive analysis of DeerFlow 2.0 and LangChain Deep Agents (`SESSION-deerflow-deepagents-comparison.md`) revealed that every major agent framework shares the same structural weakness: ad-hoc state coordination (shared state dicts, file systems, conversation threads). GraphReFly can enter through this gap.
+
+### Playbook: Adapter → Adoption → Substrate
+
+1. **Enter as adapter/plugin** — lightweight integration that adds reactive coordination to existing frameworks
+2. **Prove value on unsolvable pain points** — consistency between sub-agents, causal chain tracing, structural observability
+3. **Gradually replace internals** — file coordination → propagation, shared state → graph, skills → reactive skills
+4. **Host framework becomes thin shell** — execution sandbox + deployment channels over a GraphReFly coordination core
+
+### Priority entry points (highest ROI first)
+
+| Priority | Entry point | Target audience | Why |
+|---|---|---|---|
+| **1** | **MCP Server** (`graphrefly-mcp-server`) | All MCP clients (Claude Code, Cursor, Windsurf, DeerFlow, custom) | One implementation, universal reach. MCP is 2026's distribution wind. Zero-commitment trial. |
+| **2** | **Workspace bridge** (`fromWorkspace()`) | File-based agents (DeerFlow, Claude Code, Deep Agents) | Zero agent code changes. Silently adds causality + consistency to existing file coordination. |
+| **3** | **LangGraph adapter** (`graphrefly-langgraph`) | LangChain ecosystem (DeerFlow, Deep Agents, custom LangGraph agents) | Largest ecosystem. Agent sees tools, GraphReFly provides coordination underneath. |
+| **4** | **Framework-specific adapters** | CrewAI, OpenAI Agents SDK, AutoGen | Expand coverage after proving the pattern with LangGraph. |
+
+### Integration with promotion roadmap
+
+| Promotion phase | Infiltration action |
+|---|---|
+| **Phase A (Foundation)** | Build MCP Server alongside Demo 0 |
+| **Phase B (Soft Launch)** | Ship MCP Server. "Try it with Claude Code in 2 minutes" as onboarding hook. |
+| **Phase C (Growth)** | Ship `fromWorkspace()` bridge + `graphrefly-langgraph`. Target DeerFlow and LangChain community channels. |
+| **Phase D (Sustained)** | Framework-specific adapters. Standalone harness (GraphReFly + E2B + lightweight UI) proves independence. |
+
+### Positioning nuance
+
+**Public framing:** "GraphReFly works great with DeerFlow / LangGraph / Claude Code — add reactive coordination to your agents."
+
+**Architectural truth:** GraphReFly replaces the coordination core. Host frameworks retain execution sandbox + deployment channels + UI — commodity infrastructure, not moats.
+
+**Why the indirection matters:** Direct competition with 32k-star ByteDance projects is suicidal for a pre-1.0 library. Enter as complement, grow into substrate.
+
+### Key insight: MCP Server as strategic priority
+
+MCP Server should be built **alongside Demo 0**, not after it. Reasons:
+1. Demo 0 proves end-to-end value (NL → graph → run → persist → explain)
+2. MCP Server proves ecosystem fit (works with any agent, zero migration)
+3. Together they answer both questions: "why would I want this?" (Demo 0) and "how do I use this today?" (MCP Server)
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords

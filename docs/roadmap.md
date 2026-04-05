@@ -202,12 +202,12 @@ Port proven operators from callbag-recharge. Each is a function returning a node
 
 Resilience composition primitives missing from 3.1. Identified by LLM-DX eval (SESSION-dxux-benchmarks): LLMs reference `fallback` and `cache` as intuitive primitives — Tasks 5/6 failed because the GraphSpec schema lacked these. Predecessor reference: `~/src/callbag-recharge/src/utils/cascadingCache.ts`, `~/src/callbag-recharge/src/utils/tieredStorage.ts`.
 
-- [ ] `fallback<T>(source, fallbackValue | fallbackNode)` — on terminal ERROR, emit fallback value instead of propagating. Compose with `retry` for "retry then fallback" patterns.
-- [ ] `cache<T>(source, ttlNs)` — memoize last DATA value, re-emit on resubscription if within TTL. Stale-while-revalidate pattern.
-- [ ] `timeout<T>(source, timeoutNs)` — emit ERROR if no DATA within deadline. Common for API-call scenarios.
-- [ ] `cascadingCache<V>(tiers, opts?)` — N-tier cascading lookup; each entry is a `state()` node. Hits auto-promote to faster tiers. Supports eviction policy, write-through. Adapted from callbag-recharge to use GraphReFly `node`/`state` + message protocol.
-- [ ] `tieredStorage(adapters, opts?)` — reactive tiered cache backed by `CheckpointAdapter`s. Wraps N adapters as a `cascadingCache`. Adapted from callbag-recharge.
-- [ ] **Python parity:** same primitives in `graphrefly-py`
+- [x] `fallback<T>(source, fallbackValue | fallbackNode)` — on terminal ERROR, emit fallback value instead of propagating. Compose with `retry` for "retry then fallback" patterns.
+- [x] `cache<T>(source, ttlNs)` — memoize last DATA value, re-emit on resubscription if within TTL. Stale-while-revalidate pattern.
+- [x] `timeout<T>(source, timeoutNs)` — emit ERROR if no DATA within deadline. Common for API-call scenarios.
+- [x] `cascadingCache<V>(tiers, opts?)` — N-tier cascading lookup; each entry is a `state()` node. Hits auto-promote to faster tiers. Supports eviction policy, write-through. Adapted from callbag-recharge to use GraphReFly `node`/`state` + message protocol.
+- [x] `tieredStorage(adapters, opts?)` — reactive tiered cache backed by `CheckpointAdapter`s (key-value). Wraps N adapters as a `cascadingCache`. Adapted from callbag-recharge.
+- [x] **Python parity:** same primitives in `graphrefly-py`
 
 ### 3.1b — Reactive output consistency (no Promise in public APIs)
 
