@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEARDOWN } from "../../core/messages.js";
-import {
-	type CacheTier,
-	cascadingCache,
-	lru,
-	tieredStorage,
-} from "../../extra/cascading-cache.js";
+import { type CacheTier, cascadingCache, lru, tieredStorage } from "../../extra/cascading-cache.js";
 import { MemoryCheckpointAdapter } from "../../extra/checkpoint.js";
 
 describe("lru eviction policy", () => {

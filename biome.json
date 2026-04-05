@@ -8,7 +8,15 @@
 		}
 	},
 	"files": {
-		"includes": ["**", "!dist", "!node_modules", "!**/dist", "!benchmarks", "!website"]
+		"includes": [
+			"**",
+			"!dist",
+			"!node_modules",
+			"!**/dist",
+			"!benchmarks",
+			"!website",
+			"!examples/nestjs-*"
+		]
 	},
 	"linter": {
 		"enabled": true,

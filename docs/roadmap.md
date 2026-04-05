@@ -516,7 +516,7 @@ Full integration replacing `@nestjs/event-emitter`, `@nestjs/schedule`, and `@ne
 
 #### Example: full-stack NestJS + GraphReFly
 
-- [ ] Reference app demonstrating all integration points: module registration, Actor/guard from JWT, CQRS order flow (command → event → projection → saga), scheduled jobs as graph nodes, WebSocket observe, `graph.describe()` admin endpoint
+- [x] Reference app demonstrating all integration points: module registration, Actor/guard from JWT, CQRS order flow (command → event → projection → saga), scheduled jobs as graph nodes, WebSocket observe, `graph.describe()` admin endpoint
 
 ---
 
