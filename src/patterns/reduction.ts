@@ -361,7 +361,11 @@ export function feedback(
 	// Reset to 0 to allow more iterations.
 	const counterName = `__feedback_${condition}`;
 	const counter = state<number>(0, {
-		meta: baseMeta("feedback_counter", { maxIterations: maxIter }),
+		meta: baseMeta("feedback_counter", {
+			maxIterations: maxIter,
+			feedbackFrom: condition,
+			feedbackTo: reentry,
+		}),
 	});
 	graph.add(counterName, counter as Node<unknown>);
 
@@ -372,7 +376,16 @@ export function feedback(
 	// Feedback via subscribe: when condition emits DATA, route back to reentry.
 	// Subscribe-based (not effect-based) because the feedback must be
 	// immediately active — no lazy activation required.
-	condNode.subscribe((msgs: Messages) => {
+	let tornDown = false;
+	let unsubCounter: (() => void) | null = null;
+	const safeUnsub = (): void => {
+		if (tornDown) return;
+		tornDown = true;
+		unsub();
+		unsubCounter?.();
+	};
+
+	const unsub = condNode.subscribe((msgs: Messages) => {
 		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const currentCount = counter.get() as number;
@@ -381,6 +394,23 @@ export function feedback(
 				if (condValue == null) continue;
 				counter.down([[DATA, currentCount + 1]]);
 				reentryNode.down([[DATA, condValue]]);
+			} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
+				// Terminal on condition — finalize the feedback cycle.
+				// Forward terminal to counter so observers know the cycle is done.
+				const terminal: Message = msg[0] === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [msg[0]];
+				counter.down([terminal]);
+				safeUnsub();
+			}
+		}
+	});
+
+	// Register teardown: when graph destroys, clean up the subscription.
+	// Counter teardown acts as the cleanup trigger.
+	unsubCounter = counter.subscribe((msgs: Messages) => {
+		for (const msg of msgs) {
+			if (msg[0] === COMPLETE || msg[0] === ERROR) {
+				safeUnsub();
+				return;
 			}
 		}
 	});
@@ -431,6 +461,7 @@ export function budgetGate<T>(
 
 	let buffer: T[] = [];
 	let paused = false;
+	let pendingResolved = false;
 	const lockId = Symbol("budget-gate");
 
 	function checkBudget(): boolean {
@@ -441,6 +472,11 @@ export function budgetGate<T>(
 		while (buffer.length > 0 && checkBudget()) {
 			const item = buffer.shift()!;
 			actions.emit(item);
+		}
+		// Drain deferred RESOLVED once buffer is empty
+		if (buffer.length === 0 && pendingResolved) {
+			pendingResolved = false;
+			actions.down([[RESOLVED]]);
 		}
 	}
 
@@ -472,6 +508,9 @@ export function budgetGate<T>(
 				if (t === RESOLVED) {
 					if (buffer.length === 0) {
 						actions.down([[RESOLVED]]);
+					} else {
+						// Buffer non-empty: defer RESOLVED until buffer drains
+						pendingResolved = true;
 					}
 					return true;
 				}
@@ -481,6 +520,7 @@ export function budgetGate<T>(
 						actions.emit(item);
 					}
 					buffer = [];
+					pendingResolved = false;
 					// Release PAUSE lock before forwarding terminal
 					if (paused) {
 						paused = false;

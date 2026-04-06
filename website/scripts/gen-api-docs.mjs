@@ -191,6 +191,21 @@ const REGISTRY = {
 	workerSelf: "src/extra/worker/self.ts",
 	createTransport: "src/extra/worker/transport.ts",
 
+	// Patterns — reduction (roadmap §8.1)
+	stratify: "src/patterns/reduction.ts",
+	funnel: "src/patterns/reduction.ts",
+	feedback: "src/patterns/reduction.ts",
+	budgetGate: "src/patterns/reduction.ts",
+	scorer: "src/patterns/reduction.ts",
+
+	// Patterns — graphspec (roadmap §8.3)
+	validateSpec: "src/patterns/graphspec.ts",
+	compileSpec: "src/patterns/graphspec.ts",
+	decompileGraph: "src/patterns/graphspec.ts",
+	llmCompose: "src/patterns/graphspec.ts",
+	llmRefine: "src/patterns/graphspec.ts",
+	specDiff: "src/patterns/graphspec.ts",
+
 	// Graph container
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",

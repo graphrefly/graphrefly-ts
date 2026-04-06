@@ -1,0 +1,619 @@
+import { describe, expect, it } from "vitest";
+import { DATA, type Messages } from "../../core/messages.js";
+import { derived, effect, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai.js";
+import {
+	compileSpec,
+	decompileGraph,
+	type GraphSpec,
+	type GraphSpecCatalog,
+	llmCompose,
+	llmRefine,
+	specDiff,
+	validateSpec,
+} from "../../patterns/graphspec.js";
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+function mockAdapter(responses: LLMResponse[]): LLMAdapter {
+	let idx = 0;
+	return {
+		invoke(_msgs: readonly ChatMessage[], _opts?: unknown) {
+			return Promise.resolve(responses[idx++]!);
+		},
+		stream: (async function* () {})(),
+	} as LLMAdapter;
+}
+
+/** Catalog with simple fns for testing. */
+const testCatalog: GraphSpecCatalog = {
+	fns: {
+		double: (deps) => derived(deps, ([v]) => (v as number) * 2),
+		sum: (deps) => derived(deps, (vals) => (vals as number[]).reduce((a, b) => a + b, 0)),
+		logEffect: (deps) =>
+			effect(deps, () => {
+				/* side effect */
+			}),
+		identity: (deps) => derived(deps, ([v]) => v),
+		timeout: (deps, _config) => derived(deps, ([v]) => v), // simplified
+		retry: (deps, _config) => derived(deps, ([v]) => v), // simplified
+		fallback: (deps, _config) => derived(deps, ([v]) => v), // simplified
+	},
+	sources: {
+		"rest-api": (config) => state(null, { meta: { source: "rest-api", ...config } }),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// validateSpec
+// ---------------------------------------------------------------------------
+
+describe("graphspec.validateSpec", () => {
+	it("validates a minimal valid spec", () => {
+		const spec: GraphSpec = {
+			name: "test",
+			nodes: {
+				a: { type: "state", initial: 1 },
+			},
+		};
+		const result = validateSpec(spec);
+		expect(result.valid).toBe(true);
+		expect(result.errors).toEqual([]);
+	});
+
+	it("rejects null input", () => {
+		expect(validateSpec(null).valid).toBe(false);
+	});
+
+	it("rejects missing name", () => {
+		const result = validateSpec({ nodes: {} });
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("name");
+	});
+
+	it("rejects invalid node type", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: { x: { type: "bogus" } },
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("invalid type");
+	});
+
+	it("rejects dep referencing non-existent node", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: {
+				a: { type: "derived", deps: ["missing"] },
+			},
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("missing");
+	});
+
+	it("validates template refs", () => {
+		const spec = {
+			name: "t",
+			templates: {
+				resilient: {
+					params: ["$source"],
+					nodes: {
+						inner: { type: "derived", deps: ["$source"], fn: "identity" },
+					},
+					output: "inner",
+				},
+			},
+			nodes: {
+				src: { type: "state", initial: 0 },
+				wrapped: { type: "template", template: "resilient", bind: { $source: "src" } },
+			},
+		};
+		expect(validateSpec(spec).valid).toBe(true);
+	});
+
+	it("rejects template ref to non-existent template", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: {
+				wrapped: { type: "template", template: "missing", bind: {} },
+			},
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("not found");
+	});
+
+	it("validates feedback edges", () => {
+		const spec = {
+			name: "t",
+			nodes: {
+				interval: { type: "state", initial: 10000 },
+				compute: { type: "derived", deps: ["interval"], fn: "double" },
+			},
+			feedback: [{ from: "compute", to: "interval", maxIterations: 5 }],
+		};
+		expect(validateSpec(spec).valid).toBe(true);
+	});
+
+	it("rejects feedback edge referencing non-existent node", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: { a: { type: "state" } },
+			feedback: [{ from: "a", to: "missing" }],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("missing");
+	});
+
+	it("rejects template with bad output ref", () => {
+		const result = validateSpec({
+			name: "t",
+			templates: {
+				bad: { params: [], nodes: { x: { type: "state" } }, output: "nonexistent" },
+			},
+			nodes: {},
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("output");
+	});
+
+	it("rejects self-referencing deps", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: { a: { type: "derived", deps: ["a"] } },
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("self-referencing");
+	});
+
+	it("warns when derived/effect has no deps", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: { a: { type: "derived", fn: "identity" } },
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("should have");
+	});
+
+	it("rejects feedback to non-state node", () => {
+		const result = validateSpec({
+			name: "t",
+			nodes: {
+				a: { type: "state", initial: 0 },
+				b: { type: "derived", deps: ["a"], fn: "double" },
+			},
+			feedback: [{ from: "a", to: "b" }],
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toContain("must be a state node");
+	});
+
+	it("rejects incomplete template bind", () => {
+		const result = validateSpec({
+			name: "t",
+			templates: {
+				tmpl: { params: ["$a", "$b"], nodes: { x: { type: "state" } }, output: "x" },
+			},
+			nodes: {
+				src: { type: "state" },
+				inst: { type: "template", template: "tmpl", bind: { $a: "src" } },
+			},
+		});
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("$b") && e.includes("not bound"))).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// compileSpec
+// ---------------------------------------------------------------------------
+
+describe("graphspec.compileSpec", () => {
+	it("compiles a simple state + derived graph", () => {
+		const spec: GraphSpec = {
+			name: "calc",
+			nodes: {
+				a: { type: "state", initial: 5 },
+				b: { type: "derived", deps: ["a"], fn: "double" },
+			},
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		expect(g).toBeInstanceOf(Graph);
+		expect(g.name).toBe("calc");
+		expect(g.get("a")).toBe(5);
+
+		// Subscribe to activate derived
+		const seen: number[] = [];
+		g.observe("b").subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) seen.push(msg[1] as number);
+			}
+		});
+
+		g.set("a", 10);
+		expect(seen).toContain(20);
+		g.destroy();
+	});
+
+	it("compiles producer nodes from source catalog", () => {
+		const spec: GraphSpec = {
+			name: "api",
+			nodes: {
+				src: { type: "producer", source: "rest-api", config: { url: "https://example.com" } },
+			},
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		expect(g.node("src")).toBeDefined();
+		g.destroy();
+	});
+
+	it("compiles multi-dep derived nodes", () => {
+		const spec: GraphSpec = {
+			name: "multi",
+			nodes: {
+				x: { type: "state", initial: 3 },
+				y: { type: "state", initial: 7 },
+				total: { type: "derived", deps: ["x", "y"], fn: "sum" },
+			},
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		const seen: number[] = [];
+		g.observe("total").subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) seen.push(msg[1] as number);
+			}
+		});
+		g.set("x", 10);
+		expect(seen).toContain(17);
+		g.destroy();
+	});
+
+	it("compiles effect nodes", () => {
+		const spec: GraphSpec = {
+			name: "fx",
+			nodes: {
+				src: { type: "state", initial: 0 },
+				log: { type: "effect", deps: ["src"], fn: "logEffect" },
+			},
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		expect(g.node("log")).toBeDefined();
+		g.destroy();
+	});
+
+	it("throws on invalid spec", () => {
+		expect(() => compileSpec({ name: "", nodes: {} } as GraphSpec)).toThrow("invalid GraphSpec");
+	});
+
+	it("throws on unresolvable deps", () => {
+		const spec: GraphSpec = {
+			name: "bad",
+			nodes: {
+				a: { type: "derived", deps: ["b"], fn: "identity" },
+				b: { type: "derived", deps: ["a"], fn: "identity" },
+			},
+		};
+		// Mutual dependency without a state root — unresolvable
+		expect(() => compileSpec(spec, { catalog: testCatalog })).toThrow("unresolvable");
+	});
+
+	it("compiles template instantiations as mounted subgraphs", () => {
+		const spec: GraphSpec = {
+			name: "tmpl-test",
+			templates: {
+				resilientSource: {
+					params: ["$source"],
+					nodes: {
+						timed: {
+							type: "derived",
+							deps: ["$source"],
+							fn: "timeout",
+							config: { timeoutMs: 2000 },
+						},
+						retried: { type: "derived", deps: ["timed"], fn: "retry", config: { maxAttempts: 2 } },
+					},
+					output: "retried",
+				},
+			},
+			nodes: {
+				api1Source: { type: "state", initial: null },
+				api1: {
+					type: "template",
+					template: "resilientSource",
+					bind: { $source: "api1Source" },
+				},
+			},
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		expect(g).toBeInstanceOf(Graph);
+		// Template creates a mounted subgraph
+		const desc = g.describe({ detail: "standard" });
+		expect(desc.subgraphs).toContain("api1");
+		g.destroy();
+	});
+
+	it("wires feedback edges via reduction.feedback()", () => {
+		const spec: GraphSpec = {
+			name: "fb-test",
+			nodes: {
+				interval: { type: "state", initial: 10000 },
+				compute: { type: "derived", deps: ["interval"], fn: "double" },
+			},
+			feedback: [{ from: "compute", to: "interval", maxIterations: 3 }],
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		// Feedback counter node should exist
+		const desc = g.describe({ detail: "standard" });
+		const nodeNames = Object.keys(desc.nodes);
+		expect(nodeNames.some((n) => n.startsWith("__feedback_"))).toBe(true);
+		g.destroy();
+	});
+
+	it("creates placeholder for producer without catalog entry", () => {
+		const spec: GraphSpec = {
+			name: "placeholder",
+			nodes: {
+				src: { type: "producer", source: "unknown-source" },
+			},
+		};
+
+		const g = compileSpec(spec);
+		expect(g.node("src")).toBeDefined();
+		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// decompileGraph
+// ---------------------------------------------------------------------------
+
+describe("graphspec.decompileGraph", () => {
+	it("decompiles a simple graph", () => {
+		const g = new Graph("simple");
+		const a = state(42, { name: "a", meta: { description: "input" } });
+		g.add("a", a);
+
+		const spec = decompileGraph(g);
+		expect(spec.name).toBe("simple");
+		expect(spec.nodes.a).toBeDefined();
+		expect(spec.nodes.a!.type).toBe("state");
+		expect((spec.nodes.a as any).initial).toBe(42);
+		g.destroy();
+	});
+
+	it("decompiles a graph with derived node deps", () => {
+		const g = new Graph("deps");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		b.subscribe(() => {});
+
+		const spec = decompileGraph(g);
+		expect(spec.nodes.a!.type).toBe("state");
+		expect(spec.nodes.b!.type).toBe("derived");
+		expect((spec.nodes.b as any).deps).toEqual(["a"]);
+		g.destroy();
+	});
+
+	it("decompiles feedback edges from counter meta", () => {
+		const spec: GraphSpec = {
+			name: "fb-decompile",
+			nodes: {
+				interval: { type: "state", initial: 10000 },
+				compute: { type: "derived", deps: ["interval"], fn: "double" },
+			},
+			feedback: [{ from: "compute", to: "interval", maxIterations: 5 }],
+		};
+
+		const g = compileSpec(spec, { catalog: testCatalog });
+		// Activate the derived node
+		g.observe("compute").subscribe(() => {});
+
+		const decompiled = decompileGraph(g);
+		expect(decompiled.feedback).toBeDefined();
+		expect(decompiled.feedback!.length).toBe(1);
+		expect(decompiled.feedback![0]!.from).toBe("compute");
+		expect(decompiled.feedback![0]!.to).toBe("interval");
+		expect(decompiled.feedback![0]!.maxIterations).toBe(5);
+		g.destroy();
+	});
+
+	it("skips meta segment nodes", () => {
+		const g = new Graph("meta-skip");
+		const a = state(1, { name: "a", meta: { label: "test" } });
+		g.add("a", a);
+
+		const spec = decompileGraph(g);
+		const paths = Object.keys(spec.nodes);
+		expect(paths.every((p) => !p.includes("__meta__"))).toBe(true);
+		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// specDiff
+// ---------------------------------------------------------------------------
+
+describe("graphspec.specDiff", () => {
+	it("reports no changes for identical specs", () => {
+		const spec: GraphSpec = {
+			name: "same",
+			nodes: { a: { type: "state", initial: 1 } },
+		};
+		const result = specDiff(spec, spec);
+		expect(result.entries).toEqual([]);
+		expect(result.summary).toBe("no changes");
+	});
+
+	it("reports added nodes", () => {
+		const a: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const b: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+		};
+		const result = specDiff(a, b);
+		expect(result.entries.some((e) => e.type === "added" && e.path === "nodes.y")).toBe(true);
+	});
+
+	it("reports removed nodes", () => {
+		const a: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+		};
+		const b: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const result = specDiff(a, b);
+		expect(result.entries.some((e) => e.type === "removed" && e.path === "nodes.y")).toBe(true);
+	});
+
+	it("reports changed node config", () => {
+		const a: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "derived", fn: "a", config: { k: 1 } } },
+		};
+		const b: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "derived", fn: "b", config: { k: 2 } } },
+		};
+		const result = specDiff(a, b);
+		expect(result.entries.some((e) => e.type === "changed" && e.path === "nodes.x")).toBe(true);
+		expect(result.entries[0]!.detail).toContain("fn");
+	});
+
+	it("reports name change", () => {
+		const a: GraphSpec = { name: "old", nodes: {} };
+		const b: GraphSpec = { name: "new", nodes: {} };
+		const result = specDiff(a, b);
+		expect(result.entries[0]!.path).toBe("name");
+	});
+
+	it("reports template changes", () => {
+		const a: GraphSpec = {
+			name: "g",
+			nodes: {},
+			templates: {
+				tmpl: { params: ["$x"], nodes: { inner: { type: "state" } }, output: "inner" },
+			},
+		};
+		const b: GraphSpec = { name: "g", nodes: {} };
+		const result = specDiff(a, b);
+		expect(result.entries.some((e) => e.type === "removed" && e.path === "templates.tmpl")).toBe(
+			true,
+		);
+	});
+
+	it("reports feedback edge changes", () => {
+		const a: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			feedback: [{ from: "y", to: "x", maxIterations: 5 }],
+		};
+		const b: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			feedback: [{ from: "y", to: "x", maxIterations: 10 }],
+		};
+		const result = specDiff(a, b);
+		expect(result.entries.some((e) => e.type === "changed" && e.path.includes("feedback"))).toBe(
+			true,
+		);
+	});
+
+	it("generates human-readable summary", () => {
+		const a: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const b: GraphSpec = {
+			name: "g",
+			nodes: { x: { type: "state" }, y: { type: "state" } },
+		};
+		const result = specDiff(a, b);
+		expect(result.summary).toContain("1 added");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// llmCompose
+// ---------------------------------------------------------------------------
+
+describe("graphspec.llmCompose", () => {
+	it("generates GraphSpec from LLM response", async () => {
+		const spec: GraphSpec = {
+			name: "email_triage",
+			nodes: {
+				inbox: { type: "producer", source: "email", meta: { description: "Email inbox source" } },
+				classify: {
+					type: "derived",
+					deps: ["inbox"],
+					fn: "llmClassify",
+					meta: { description: "Classify emails" },
+				},
+			},
+		};
+
+		const adapter = mockAdapter([{ content: JSON.stringify(spec), finishReason: "end_turn" }]);
+
+		const result = await llmCompose("Build an email triage system", adapter);
+		expect(result.name).toBe("email_triage");
+		expect(result.nodes.inbox!.type).toBe("producer");
+		expect(result.nodes.classify!.type).toBe("derived");
+	});
+
+	it("strips markdown fences from LLM output", async () => {
+		const spec: GraphSpec = {
+			name: "test",
+			nodes: { a: { type: "state", initial: 1, meta: { description: "a" } } },
+		};
+
+		const adapter = mockAdapter([
+			{ content: `\`\`\`json\n${JSON.stringify(spec)}\n\`\`\``, finishReason: "end_turn" },
+		]);
+
+		const result = await llmCompose("test", adapter);
+		expect(result.name).toBe("test");
+	});
+
+	it("throws on invalid JSON", async () => {
+		const adapter = mockAdapter([{ content: "not json!", finishReason: "end_turn" }]);
+		await expect(llmCompose("bad", adapter)).rejects.toThrow("not valid JSON");
+	});
+
+	it("throws on invalid GraphSpec", async () => {
+		const adapter = mockAdapter([
+			{ content: JSON.stringify({ nodes: {} }), finishReason: "end_turn" },
+		]);
+		await expect(llmCompose("bad", adapter)).rejects.toThrow("invalid GraphSpec");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// llmRefine
+// ---------------------------------------------------------------------------
+
+describe("graphspec.llmRefine", () => {
+	it("modifies existing spec based on feedback", async () => {
+		const original: GraphSpec = {
+			name: "v1",
+			nodes: { a: { type: "state", initial: 1, meta: { description: "src" } } },
+		};
+		const refined: GraphSpec = {
+			name: "v2",
+			nodes: {
+				a: { type: "state", initial: 1, meta: { description: "src" } },
+				b: { type: "derived", deps: ["a"], fn: "double", meta: { description: "doubled" } },
+			},
+		};
+
+		const adapter = mockAdapter([{ content: JSON.stringify(refined), finishReason: "end_turn" }]);
+
+		const result = await llmRefine(original, "Add a doubling derived node", adapter);
+		expect(result.name).toBe("v2");
+		expect(result.nodes.b).toBeDefined();
+	});
+});

@@ -764,7 +764,7 @@ The "LLM designs the graph" capability. Design reference: `archive/docs/SESSION-
 
 #### GraphSpec schema
 
-- [ ] `GraphSpec` schema — JSON schema for declarative graph topology. Serializable, diffable. Three top-level keys: `nodes`, `templates`, `feedback`.
+- [x] `GraphSpec` schema — JSON schema for declarative graph topology. Serializable, diffable. Three top-level keys: `nodes`, `templates`, `feedback`.
 
 **`nodes`** — node declarations (existing concept from evals):
 ```jsonc
@@ -816,11 +816,11 @@ The "LLM designs the graph" capability. Design reference: `archive/docs/SESSION-
 
 #### Compiler & LLM APIs
 
-- [ ] `compileSpec(spec)` → Graph — instantiate a Graph from a GraphSpec. Handles: template expansion (mount subgraphs per instantiation, substitute `$params`), feedback wiring (via §8.1 `feedback()`), node factory lookup, topology validation (no undeclared deps, no unbounded cycles outside `feedback` edges).
-- [ ] `decompileGraph(graph)` → GraphSpec — extract spec from running graph. Detects mounted subgraphs → templates (if structurally identical). Detects `feedback()` cycles → `feedback` edges.
-- [ ] `llmCompose(problem, adapter, opts?)` → GraphSpec — LLM generates a GraphSpec from natural language problem description. System prompt includes available fn/source catalog (same concept as eval Treatment A). Validates against available operators/sources/sinks. Returns spec for human review before compilation.
-- [ ] `llmRefine(graph, feedback, adapter)` → GraphSpec — LLM modifies existing graph topology based on performance feedback or changed requirements
-- [ ] `specDiff(specA, specB)` — structural diff between two GraphSpecs (what changed, why it matters, estimated impact). Template-aware: reports "changed template definition" vs "changed instantiation bindings."
+- [x] `compileSpec(spec)` → Graph — instantiate a Graph from a GraphSpec. Handles: template expansion (mount subgraphs per instantiation, substitute `$params`), feedback wiring (via §8.1 `feedback()`), node factory lookup, topology validation (no undeclared deps, no unbounded cycles outside `feedback` edges).
+- [x] `decompileGraph(graph)` → GraphSpec — extract spec from running graph. Detects mounted subgraphs → templates (if structurally identical). Detects `feedback()` cycles → `feedback` edges.
+- [x] `llmCompose(problem, adapter, opts?)` → GraphSpec — LLM generates a GraphSpec from natural language problem description. System prompt includes available fn/source catalog (same concept as eval Treatment A). Validates against available operators/sources/sinks. Returns spec for human review before compilation.
+- [x] `llmRefine(graph, feedback, adapter)` → GraphSpec — LLM modifies existing graph topology based on performance feedback or changed requirements
+- [x] `specDiff(specA, specB)` — structural diff between two GraphSpecs (what changed, why it matters, estimated impact). Template-aware: reports "changed template definition" vs "changed instantiation bindings."
 
 ### 8.4 — Audit & accountability
 

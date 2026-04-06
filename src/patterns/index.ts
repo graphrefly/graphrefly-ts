@@ -5,6 +5,7 @@
 export * as ai from "./ai.js";
 export * as cqrs from "./cqrs.js";
 export * as demoShell from "./demo-shell.js";
+export * as graphspec from "./graphspec.js";
 export * as memory from "./memory.js";
 export * as messaging from "./messaging.js";
 export * as orchestration from "./orchestration.js";
