@@ -9,6 +9,21 @@
 
 ---
 
+## Hotfix: `equals` contract + error observability (both TS and PY)
+
+Must be done before any further feature work — LLM implementors will hit this repeatedly.
+
+- [x] **TS `_emitAutoValue` guard:** uses `_hasEmittedData` flag — first DATA always treated as changed; resets on INVALIDATE and TEARDOWN (resetOnTeardown). Fixed in `src/core/node.ts`.
+- [x] **Spec §2.5 `equals` contract:** documented that `equals` never receives `undefined`/`None`.
+- [x] **PY `_emit_auto_value` guard:** matching fix in `graphrefly-py/graphrefly/core/node.py` — uses `_has_emitted_data` flag (same as TS `_hasEmittedData`).
+- [ ] **Audit all custom `equals` in TS:** grep `src/` for `equals:` in node options. Verify none depend on seeing `undefined`. Remove any defensive `null`/`undefined` checks that are now unnecessary.
+- [ ] **Audit all custom `equals` in PY:** same for `graphrefly-py/graphrefly/`.
+- [x] **Wrap `equals` errors with node context (TS):** `_emitAutoValue` catches `equals` throws → `Error('Node "${name}": equals threw: ${msg}', { cause })` → `[[ERROR, wrapped]]`.
+- [x] **Wrap `equals` errors with node context (PY):** matching fix — `RuntimeError(f'Node "{name}": equals threw: {msg}')` with `__cause__`.
+- [x] **Emphasize `status` / `describe()` as primary diagnostic:** spec §2.2 updated — `get()` is a value accessor only, `status` is the source of truth. `test-guidance.md` updated with debugging section showing "check status first" pattern and status table. `graph.get()` behavior unchanged (by design — cached value only).
+
+---
+
 ## Phase 0: Foundation
 
 ### 0.1 — Project scaffold
@@ -637,15 +652,17 @@ Two-tier DX: out-of-the-box `reactiveLayout({ adapter, text?, font?, lineHeight?
 
 The demo shell is itself a `Graph("demo-shell")` — dogfooding reactive coordination for the main/side split layout with synchronized cross-highlighting. Design reference: `docs/demo-and-test-strategy.md`.
 
-- [ ] Layout: `state("pane/main-ratio")`, `state("pane/side-split")`, `state("pane/fullscreen")`, `state("viewport/width")` → derived pane widths
-- [ ] Layout engine integration: `derived("layout/graph-labels")` for node sizing, `derived("layout/code-lines")` for virtual scroll, `derived("layout/side-width-hint")` for adaptive side pane width
-- [ ] Cross-highlighting: `state("hover/target")` → derived scroll/highlight/selector → effects (code scroll, visual highlight, graph highlight)
-- [ ] `derived("graph/mermaid")` from demo graph `describe()` → `effect("graph/mermaid-render")`
-- [ ] Inspect panel: `state("inspect/selected-node")` → `derived("inspect/node-detail")` via `describeNode()` + `observe({ structured: true })`
-- [ ] `derived("inspect/trace-log")` — formatted `traceLog()` from demo graph
-- [ ] Full-screen toggle per pane; draggable main/side ratio and graph/code split
-- [ ] Meta debug toggle: shell's own `toMermaid()` renders recursively (GraphReFly graph visualizing another GraphReFly graph)
-- [ ] Zero framework dependency in shell graph logic; framework bindings wrap pane components only
+- [x] Layout: `state("pane/main-ratio")`, `state("pane/side-split")`, `state("pane/fullscreen")`, `state("viewport/width")` → derived pane widths
+- [x] Layout engine integration: `derived("layout/graph-labels")` for node sizing, `derived("layout/code-lines")` for virtual scroll, `derived("layout/side-width-hint")` for adaptive side pane width — requires `reactiveLayout`/`reactiveBlockLayout` measurement adapters (environment-specific). Opt-in via `adapter` option; uses `analyzeAndMeasure`/`computeLineBreaks` directly (no sub-graph per label).
+- [x] Cross-highlighting: `state("hover/target")` → derived scroll/highlight/selector → effects (code scroll, visual highlight, graph highlight) — derived targets done; effect nodes deferred (DOM/framework-dependent)
+- [x] Cross-highlighting effect nodes: `effect("highlight/apply-code-scroll")`, `effect("highlight/apply-visual")`, `effect("highlight/apply-graph")` — opt-in via `onHighlight` callbacks, visible in `describe()`/`toMermaid()`. Partial creation supported (provide only the callbacks you need).
+- [x] `derived("graph/mermaid")` from demo graph `describe()` → `effect("graph/mermaid-render")`
+- [x] Inspect panel: `state("inspect/selected-node")` → `derived("inspect/node-detail")` via `describeNode()` + `observe({ structured: true })`
+- [x] `derived("inspect/trace-log")` — formatted `traceLog()` from demo graph
+- [x] Full-screen toggle per pane; draggable main/side ratio and graph/code split
+- [x] Meta debug toggle: shell's own `toMermaid()` renders recursively (GraphReFly graph visualizing another GraphReFly graph)
+- [x] Zero framework dependency in shell graph logic; framework bindings wrap pane components only
+- [x] Batch helper on `DemoShellHandle`: expose `batch(fn)` convenience for atomic multi-set (e.g., setting viewport width + main ratio simultaneously without intermediate recomputes)
 
 ### 7.3 — Showcase demos
 

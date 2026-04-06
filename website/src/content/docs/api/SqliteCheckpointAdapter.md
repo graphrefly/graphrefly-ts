@@ -1,9 +1,9 @@
 ---
 title: "SqliteCheckpointAdapter()"
-description: "Persists one JSON blob under a fixed key using Node.js `node:sqlite` (DatabaseSync)."
+description: "Key-value persistence using Node.js `node:sqlite` (DatabaseSync)."
 ---
 
-Persists one JSON blob under a fixed key using Node.js `node:sqlite` (DatabaseSync).
+Key-value persistence using Node.js `node:sqlite` (DatabaseSync).
 
 ## Signature
 

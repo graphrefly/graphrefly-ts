@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphReFly — Stop Drowning in Information</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;700;900&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --black: #000000;
+  --white: #ffffff;
+  --accent: #c8ff00;
+  --red: #ff3b30;
+  --white-50: rgba(255,255,255,0.5);
+  --white-20: rgba(255,255,255,0.2);
+  --white-10: rgba(255,255,255,0.1);
+  --white-05: rgba(255,255,255,0.05);
+  --rule: 4px solid var(--white);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--black);
+  color: var(--white);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── Nav ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 1rem 2rem;
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--black);
+  border-bottom: 2px solid var(--white);
+}
+nav .logo { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 1.1rem; text-transform: uppercase; letter-spacing: -0.04em; }
+nav .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+nav .nav-links a { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--white-50); transition: color 0.15s; }
+nav .nav-links a:hover { color: var(--white); }
+nav .nav-btn { padding: 0.4rem 1rem; background: var(--accent); color: var(--black); font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border: none; cursor: pointer; transition: opacity 0.15s; }
+nav .nav-btn:hover { opacity: 0.8; }
+
+.rule { border-top: var(--rule); }
+
+.section-num { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--white-50); margin-bottom: 1rem; }
+.section-headline { font-size: clamp(2rem, 5vw, 4rem); margin-bottom: 0.8rem; }
+
+
+/* ═══════════════════════════════════════
+   SECTION 1: HERO
+   ═══════════════════════════════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 7rem 2rem 4rem;
+  max-width: 1400px; margin: 0 auto;
+}
+
+.hero-headline {
+  margin-bottom: 2rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.hero-headline .stop-word {
+  display: block;
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--red);
+  font-size: clamp(3.5rem, 9vw, 9rem);
+  line-height: 1;
+  margin-bottom: 0.15em;
+}
+
+/* ── Flip board ── */
+.flip-line {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Use a fixed pixel height computed from the font size.
+   clamp(3rem,8vw,8rem) → line-height 1.15 → height = font-size * 1.15
+   We use the same clamp for height so it tracks. */
+.flip-line,
+.flip-item {
+  font-family: 'Instrument Sans', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.06em;
+  font-size: clamp(3rem, 8vw, 8rem);
+  line-height: 1.15;
+}
+
+.flip-line {
+  height: calc(clamp(3rem, 8vw, 8rem) * 1.15);
+}
+
+.flip-track {
+  display: flex; flex-direction: column;
+  will-change: transform;
+}
+
+.flip-track.animate {
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.flip-track.no-transition {
+  transition: none !important;
+}
+
+.flip-item {
+  flex-shrink: 0;
+  display: flex; align-items: center;
+  height: calc(clamp(3rem, 8vw, 8rem) * 1.15);
+}
+
+.verb-word { color: var(--accent); }
+.noun-word { color: var(--white); }
+
+.hero-sub {
+  max-width: 680px;
+  font-size: 1rem;
+  color: var(--white-50);
+  margin-bottom: 2rem;
+  line-height: 1.7;
+}
+
+.hero-install {
+  display: inline-flex; align-items: center; gap: 0.8rem;
+  padding: 0.7rem 1.2rem;
+  border: 2px solid var(--white);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.hero-install:hover { background: var(--accent); color: var(--black); border-color: var(--accent); }
+.hero-install .prompt { color: var(--white-50); user-select: none; }
+.hero-install:hover .prompt { color: var(--black); opacity: 0.5; }
+
+
+/* ═══════════════════════════════════════
+   SECTION 2: THREE HEADACHES
+   ═══════════════════════════════════════ */
+.headaches-section {
+  max-width: 1400px; margin: 0 auto;
+  padding: 4rem 0;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+
+.headaches-header { padding: 0 2rem 2rem; }
+
+.headache-rows { flex: 1; display: flex; flex-direction: column; }
+
+.headache-row {
+  flex: 1;
+  border-top: 2px solid var(--white-20);
+  display: grid;
+  grid-template-columns: 1fr 0fr;
+  overflow: hidden;
+  transition: grid-template-columns 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.headache-row:last-child { border-bottom: 2px solid var(--white-20); }
+.headache-row.revealed { grid-template-columns: 1fr 1fr; }
+
+/* Pain — both sides align to flex-start */
+.headache-pain {
+  padding: 1.5rem 2rem;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  min-width: 0;
+  transition: background 0.8s;
+}
+.headache-row.revealed .headache-pain { background: rgba(255,59,48,0.03); }
+
+.headache-num {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 1.1rem; color: var(--white-20);
+  margin-bottom: 0.5rem; letter-spacing: 0.05em; text-transform: uppercase;
+  transition: color 0.8s;
+}
+.headache-row.revealed .headache-num { color: rgba(255,59,48,0.35); }
+
+.headache-title {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  text-transform: uppercase; letter-spacing: -0.03em;
+  margin-bottom: 0.5rem; line-height: 1.1;
+  transition: color 0.8s;
+}
+.headache-row.revealed .headache-title { color: var(--red); }
+
+.headache-desc {
+  font-size: 0.9rem; color: var(--white-50); line-height: 1.6; max-width: 520px;
+}
+.headache-desc strong { color: var(--white); }
+
+/* Solution — also flex-start */
+.headache-solution {
+  padding: 1.5rem 2rem;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  background: var(--accent); color: var(--black);
+  overflow: hidden; min-width: 0;
+  opacity: 0;
+  transition: opacity 0.5s 0.3s;
+}
+.headache-row.revealed .headache-solution { opacity: 1; }
+
+.solution-label {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 0.5rem; opacity: 0.45;
+}
+
+.solution-title {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  text-transform: uppercase; letter-spacing: -0.03em;
+  margin-bottom: 0.5rem; line-height: 1.1;
+  white-space: nowrap;
+}
+
+.solution-desc { font-size: 0.9rem; line-height: 1.6; opacity: 0.75; max-width: 460px; }
+
+.solution-demo {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  margin-top: 1rem; padding: 0.4rem 0.9rem;
+  border: 2px solid var(--black);
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+  cursor: pointer; transition: background 0.15s, color 0.15s; width: fit-content;
+}
+.solution-demo:hover { background: var(--black); color: var(--accent); }
+
+
+/* ═══════════════════════════════════════
+   SECTION 3: PYRAMID
+   ═══════════════════════════════════════ */
+.requirements-section {
+  padding: 4rem 2rem 3rem;
+  max-width: 1400px; margin: 0 auto;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+
+.requirements-intro {
+  max-width: 720px; font-size: 0.95rem; color: var(--white-50); line-height: 1.7; margin-bottom: 2rem;
+}
+.requirements-intro strong { color: var(--white); }
+
+.pyramid-wrap {
+  display: flex; gap: 3rem;
+  max-width: 1100px; margin: 0 auto; width: 100%;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+/* Pyramid: stacked rectangles with widening tiers */
+.pyramid {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  flex-shrink: 0; width: 520px;
+}
+
+.pyramid-tier { display: flex; justify-content: center; width: 100%; }
+
+/* Widening tiers */
+.pyramid-tier:nth-child(1) { max-width: 280px; }
+.pyramid-tier:nth-child(2) { max-width: 280px; } /* connector */
+.pyramid-tier:nth-child(3) { max-width: 420px; }
+.pyramid-tier:nth-child(4) { max-width: 420px; } /* connector */
+.pyramid-tier:nth-child(5) { max-width: 520px; }
+
+.pyramid-block {
+  flex: 1;
+  padding: 2rem 1.5rem;
+  border: 2px solid var(--white-20);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: var(--black);
+}
+
+.pyramid-block:hover { border-color: var(--accent); background: rgba(200,255,0,0.04); z-index: 1; }
+.pyramid-block.active { border-color: var(--accent); background: rgba(200,255,0,0.1); z-index: 2; }
+
+.pyramid-connector { width: 2px; height: 1.5rem; background: var(--white-20); margin: 0 auto; }
+
+.pyramid-block-title {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.02em;
+  transition: color 0.25s; line-height: 1.3; margin-bottom: 0.3rem;
+}
+
+.pyramid-block.active .pyramid-block-title { color: var(--accent); }
+
+.pyramid-block-sub {
+  font-size: 0.75rem; color: var(--white-50); line-height: 1.4;
+}
+
+/* Detail panel */
+.pyramid-detail {
+  flex: 1;
+  padding: 2rem;
+  border: 2px solid var(--accent);
+  background: rgba(200,255,0,0.03);
+  display: flex; flex-direction: column; justify-content: center;
+  min-height: 200px;
+}
+
+.pyramid-detail-title {
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 1.2rem; text-transform: uppercase; letter-spacing: -0.02em;
+  color: var(--accent); margin-bottom: 0.8rem;
+}
+
+.pyramid-detail-body { font-size: 0.95rem; color: var(--white-50); line-height: 1.7; }
+.pyramid-detail-body strong { color: var(--white); }
+
+
+/* ═══════════════════════════════════════
+   SECTION 4: SPEC — TOGGLEABLE
+   ═══════════════════════════════════════ */
+.core-section {
+  padding: 4rem 2rem;
+  max-width: 1400px; margin: 0 auto;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+
+.core-graph {
+  margin-top: 2rem;
+  max-width: 1100px;
+  margin-left: auto; margin-right: auto;
+  width: 100%;
+}
+
+.core-node-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 240px;
+  border-top: 2px solid var(--white-20);
+  align-items: stretch;
+}
+.core-node-row:last-child { border-bottom: 2px solid var(--white-20); }
+
+/* Column 1: icon + name */
+.core-node-toggle {
+  padding: 1.2rem 1.5rem;
+  display: flex; align-items: center; gap: 0.8rem;
+  border-right: 2px solid var(--white-20);
+  cursor: pointer; user-select: none;
+  transition: background 0.2s;
+}
+.core-node-toggle:hover { background: var(--white-05); }
+
+.core-node-icon {
+  font-size: 1rem;
+  width: 1.2em; text-align: center;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.core-node-row.active .core-node-icon { color: var(--accent); }
+.core-node-row:not(.active) .core-node-icon { color: var(--red); }
+
+.core-node-name {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9rem; font-weight: 700;
+  transition: color 0.2s, opacity 0.2s;
+}
+.core-node-row.active .core-node-name { color: var(--accent); }
+.core-node-row:not(.active) .core-node-name { color: var(--white-20); }
+
+/* Column 2: desc or broken */
+.core-node-content {
+  padding: 1.2rem 1.5rem;
+  font-size: 0.95rem; line-height: 1.5;
+  border-right: 2px solid var(--white-20);
+  display: flex; align-items: center;
+}
+
+.core-node-desc-text { color: var(--white-50); }
+.core-node-broken-text { color: var(--red); display: none; }
+.core-node-row:not(.active) .core-node-desc-text { display: none; }
+.core-node-row:not(.active) .core-node-broken-text { display: block; }
+
+/* Column 3: tags */
+.core-node-enables {
+  padding: 1.2rem 1.5rem;
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.enables-tag {
+  padding: 0.25rem 0.6rem;
+  font-family: 'Instrument Sans', sans-serif; font-weight: 700;
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;
+  border: 1px solid var(--white-20); color: var(--white-50);
+  transition: all 0.3s; white-space: nowrap;
+}
+.core-node-row.active .enables-tag { border-color: var(--accent); color: var(--accent); background: rgba(200,255,0,0.08); }
+.core-node-row:not(.active) .enables-tag { border-color: var(--red); color: var(--red); background: rgba(255,59,48,0.06); }
+
+
+/* ═══════════════════════════════════════
+   SECTION 5: CTA
+   ═══════════════════════════════════════ */
+.cta-section {
+  padding: 6rem 2rem;
+  max-width: 1400px; margin: 0 auto;
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+}
+
+.cta-headline { font-size: clamp(2.5rem, 5vw, 4rem); margin-bottom: 0.8rem; }
+.cta-sub { font-size: 1rem; color: var(--white-50); margin-bottom: 3rem; line-height: 1.7; max-width: 520px; }
+
+.cta-actions { display: flex; justify-content: center; gap: 0; }
+
+.cta-card {
+  width: 380px;
+  padding: 2rem 2.5rem;
+  border: 2px solid var(--white);
+  text-align: left;
+  display: flex; flex-direction: column; gap: 0.8rem;
+  transition: all 0.2s;
+}
+.cta-card + .cta-card { border-left: none; }
+
+.cta-card:hover { background: var(--accent); color: var(--black); border-color: var(--accent); }
+.cta-card:hover + .cta-card { border-left-color: var(--accent); }
+.cta-card:hover .cta-lang-label { color: var(--black); opacity: 0.5; }
+.cta-card:hover .cta-install-cmd .prompt { color: var(--black); opacity: 0.4; }
+.cta-card:hover .cta-github-btn { background: var(--black); color: var(--accent); border-color: var(--black); }
+
+.cta-lang-label { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--white-50); }
+
+.cta-install-cmd {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85rem; cursor: pointer;
+  white-space: nowrap;
+}
+.cta-install-cmd .prompt { color: var(--white-50); user-select: none; }
+
+.cta-github-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border: 2px solid var(--white-20);
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--white-50); transition: all 0.15s; width: fit-content; cursor: pointer;
+}
+.cta-github-btn:hover { border-color: var(--white); color: var(--white); }
+
+
+/* ── Footer ── */
+footer {
+  max-width: 1400px; margin: 0 auto; padding: 3rem 2rem;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+}
+footer .logo { font-family: 'Instrument Sans', sans-serif; font-weight: 900; font-size: 1rem; text-transform: uppercase; letter-spacing: -0.04em; }
+footer .links { display: flex; gap: 2rem; }
+footer .links a { font-size: 0.85rem; color: var(--white-50); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; transition: color 0.15s; }
+footer .links a:hover { color: var(--white); }
+
+/* ── Responsive ── */
+@media (max-width: 1000px) {
+  .pyramid-wrap { flex-direction: column; align-items: center; }
+  .pyramid { width: 100%; max-width: 480px; }
+  .pyramid-detail { width: 100%; }
+}
+
+@media (max-width: 900px) {
+  .headache-row, .headache-row.revealed { grid-template-columns: 1fr !important; }
+  .headache-solution { opacity: 0; max-height: 0; padding: 0 2rem; transition: max-height 0.6s, opacity 0.4s 0.2s, padding 0.6s; }
+  .headache-row.revealed .headache-solution { opacity: 1; max-height: 400px; padding: 1.5rem 2rem; }
+  .core-node-row { grid-template-columns: 1fr; }
+  .core-node-toggle { border-right: none; border-bottom: 1px solid var(--white-20); }
+  .core-node-content { border-right: none; border-bottom: 1px solid var(--white-20); }
+  .core-node-enables { justify-content: flex-start; }
+  .cta-actions { flex-direction: column; align-items: center; }
+  .cta-card + .cta-card { border-left: 2px solid var(--white); border-top: none; }
+  nav .nav-links a:not(.nav-btn) { display: none; }
+}
+
+@media (max-width: 600px) {
+  .hero { padding: 6rem 1.5rem 3rem; }
+  .headaches-section { padding: 3rem 0; }
+  .headaches-header { padding: 0 1.5rem 2rem; }
+  .headache-pain, .headache-solution { padding: 1.5rem; }
+  .requirements-section { padding: 3rem 1.5rem 2rem; }
+  .core-section { padding: 3rem 1.5rem; }
+  .cta-section { padding: 4rem 1.5rem; }
+  .cta-card { width: 100%; max-width: 380px; }
+  footer { flex-direction: column; align-items: flex-start; }
+}
+
+/* ── Toast ── */
+.copy-toast {
+  position: fixed; bottom: 2rem; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 0.8rem 1.5rem;
+  background: var(--accent); color: var(--black);
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;
+  opacity: 0; transition: all 0.3s ease; z-index: 200; pointer-events: none;
+}
+.copy-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="logo">GraphReFly</a>
+  <div class="nav-links">
+    <a href="#headaches">Problem</a>
+    <a href="#requirements">Vision</a>
+    <a href="#core">Spec</a>
+    <a href="#cta">Install</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts" class="nav-btn">GitHub</a>
+  </div>
+</nav>
+
+
+<!-- ═══ HERO ═══ -->
+<section class="hero" id="hero">
+  <h1 class="hero-headline">
+    <span class="stop-word">Stop</span>
+    <span class="flip-line" id="verb-line">
+      <span class="flip-track" id="verb-track"></span>
+    </span>
+    <span class="flip-line" id="noun-line">
+      <span class="flip-track" id="noun-track"></span>
+    </span>
+  </h1>
+  <p class="hero-sub">
+    You built automations that were supposed to help. Now they generate more noise than they filter. GraphReFly is the reactive graph engine that reduces chaos to signal — with every decision traceable and every node inspectable.
+  </p>
+  <div class="hero-install" onclick="copyInstall('npm i @graphrefly/graphrefly')" title="Click to copy">
+    <span class="prompt">$</span>
+    <span>npm i @graphrefly/graphrefly</span>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+
+<!-- ═══ HEADACHES ═══ -->
+<section class="headaches-section" id="headaches">
+  <div class="headaches-header">
+    <p class="section-num">The Problem</p>
+    <h2 class="section-headline">Three headaches.</h2>
+  </div>
+
+  <div class="headache-rows">
+    <div class="headache-row" data-index="0">
+      <div class="headache-pain">
+        <div class="headache-num">01</div>
+        <h3 class="headache-title">Volume Without Boundaries</h3>
+        <p class="headache-desc">Information multiplies across sources — email, Slack, feeds, APIs, logs. No single system sees it all. <strong>You become the integration layer.</strong></p>
+      </div>
+      <div class="headache-solution">
+        <p class="solution-label">GraphReFly</p>
+        <h3 class="solution-title">Distributed Reactive Graphs</h3>
+        <p class="solution-desc">A single reactive topology connects every source. Distributed graphs federate across services. One graph sees what ten dashboards can't.</p>
+        <div class="solution-demo">Demo: Email Triage &rarr;</div>
+      </div>
+    </div>
+
+    <div class="headache-row" data-index="1">
+      <div class="headache-pain">
+        <div class="headache-num">02</div>
+        <h3 class="headache-title">Velocity Without Rhythm</h3>
+        <p class="headache-desc">Markets move in milliseconds. Policies update quarterly. Emails arrive in bursts. Each source has its own clock — <strong>and your cron job missed the one that mattered.</strong></p>
+      </div>
+      <div class="headache-solution">
+        <p class="solution-label">GraphReFly</p>
+        <h3 class="solution-title">Push-Based Propagation</h3>
+        <p class="solution-desc">Each node reacts the instant its source changes. No polling intervals. No missed beats. No stale snapshots accumulating in context.</p>
+        <div class="solution-demo">Demo: Spending Alerts &rarr;</div>
+      </div>
+    </div>
+
+    <div class="headache-row" data-index="2">
+      <div class="headache-pain">
+        <div class="headache-num">03</div>
+        <h3 class="headache-title">Action Without Memory</h3>
+        <p class="headache-desc">You vibe-coded a fix. It worked. Next month, nobody knows why — or whether it's still correct. <strong>Disposable solutions you can't repeat, explain, or build upon.</strong></p>
+      </div>
+      <div class="headache-solution">
+        <p class="solution-label">GraphReFly</p>
+        <h3 class="solution-title">Persistent Causal Chain</h3>
+        <p class="solution-desc">Every decision traces back through a structural causal chain. Persistent, inspectable, composable. Change upstream — downstream knows it may no longer hold.</p>
+        <div class="solution-demo">Demo: Knowledge Graph &rarr;</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+
+<!-- ═══ PYRAMID ═══ -->
+<section class="requirements-section" id="requirements">
+  <p class="section-num">The Vision</p>
+  <h2 class="section-headline">Four requirements.</h2>
+  <p class="requirements-intro">
+    For human + LLM co-operation to work at scale, the system must satisfy all four. <strong>Miss one, the whole thing breaks.</strong>
+  </p>
+
+  <div class="pyramid-wrap">
+    <div class="pyramid">
+      <!-- Apex -->
+      <div class="pyramid-tier">
+        <div class="pyramid-block" data-req="symmetry" onclick="showRequirement(this)">
+          <div class="pyramid-block-title">Human / LLM Symmetry</div>
+          <div class="pyramid-block-sub">Either side composes, reviews, modifies</div>
+        </div>
+      </div>
+
+      <div class="pyramid-tier"><div class="pyramid-connector"></div></div>
+
+      <!-- Middle tier -->
+      <div class="pyramid-tier" style="gap: 0;">
+        <div class="pyramid-block" data-req="audit" onclick="showRequirement(this)" style="margin-right:-2px;">
+          <div class="pyramid-block-title">Human Audit</div>
+          <div class="pyramid-block-sub">Every decision traceable</div>
+        </div>
+        <div class="pyramid-block" data-req="creation" onclick="showRequirement(this)">
+          <div class="pyramid-block-title">LLM-Safe Creation</div>
+          <div class="pyramid-block-sub">Constrained error space</div>
+        </div>
+      </div>
+
+      <div class="pyramid-tier"><div class="pyramid-connector"></div></div>
+
+      <!-- Base -->
+      <div class="pyramid-tier">
+        <div class="pyramid-block" data-req="security" onclick="showRequirement(this)">
+          <div class="pyramid-block-title">Security</div>
+          <div class="pyramid-block-sub">Per-node access control. Multi-tenant isolation.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pyramid-detail" id="pyramid-detail">
+      <div class="pyramid-detail-title" id="detail-title">Click a block to explore</div>
+      <div class="pyramid-detail-body" id="detail-body">
+        Each requirement builds on the ones below. Security is the foundation — without it, nothing is trustworthy. LLM-safe creation and human audit sit in the middle — both require secure infrastructure. At the apex, human/LLM symmetry requires all three: safe creation, auditability, and enforced boundaries.
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+
+<!-- ═══ SPEC ═══ -->
+<section class="core-section" id="core">
+  <p class="section-num">The Spec</p>
+  <h2 class="section-headline">Five components.</h2>
+  <p class="requirements-intro" style="margin-bottom: 0;">
+    The irreducible core. Remove any one and at least one requirement fails. <strong>Click them to see what breaks.</strong>
+  </p>
+
+  <div class="core-graph">
+    <div class="core-node-row active" data-component="node">
+      <div class="core-node-toggle" onclick="toggleCore(this.parentElement)">
+        <span class="core-node-icon">&check;</span>
+        <span class="core-node-name">node</span>
+      </div>
+      <div class="core-node-content">
+        <span class="core-node-desc-text">Minimal compute unit with declared dependencies</span>
+        <span class="core-node-broken-text">LLM returns to writing arbitrary code. Error space is unbounded.</span>
+      </div>
+      <div class="core-node-enables">
+        <span class="enables-tag">LLM-Safe Creation</span>
+      </div>
+    </div>
+
+    <div class="core-node-row active" data-component="edge">
+      <div class="core-node-toggle" onclick="toggleCore(this.parentElement)">
+        <span class="core-node-icon">&check;</span>
+        <span class="core-node-name">edge</span>
+      </div>
+      <div class="core-node-content">
+        <span class="core-node-desc-text">Dependency as explicit data — the links between nodes</span>
+        <span class="core-node-broken-text">Dependencies are implicit. Causal chain breaks.</span>
+      </div>
+      <div class="core-node-enables">
+        <span class="enables-tag">Human Audit</span>
+      </div>
+    </div>
+
+    <div class="core-node-row active" data-component="propagation">
+      <div class="core-node-toggle" onclick="toggleCore(this.parentElement)">
+        <span class="core-node-icon">&check;</span>
+        <span class="core-node-name">propagation</span>
+      </div>
+      <div class="core-node-content">
+        <span class="core-node-desc-text">Change &rarr; downstream notified instantly, no stale state</span>
+        <span class="core-node-broken-text">Manual update coordination. Back to polling, back to vibe coding.</span>
+      </div>
+      <div class="core-node-enables">
+        <span class="enables-tag">LLM-Safe Creation</span>
+        <span class="enables-tag">Human Audit</span>
+      </div>
+    </div>
+
+    <div class="core-node-row active" data-component="describe">
+      <div class="core-node-toggle" onclick="toggleCore(this.parentElement)">
+        <span class="core-node-icon">&check;</span>
+        <span class="core-node-name">describe()</span>
+      </div>
+      <div class="core-node-content">
+        <span class="core-node-desc-text">Structure visible, persistable, diffable at any moment</span>
+        <span class="core-node-broken-text">Structure is invisible. Not persistable, not diffable.</span>
+      </div>
+      <div class="core-node-enables">
+        <span class="enables-tag">Human Audit</span>
+        <span class="enables-tag">Security</span>
+      </div>
+    </div>
+
+    <div class="core-node-row active" data-component="graphspec">
+      <div class="core-node-toggle" onclick="toggleCore(this.parentElement)">
+        <span class="core-node-icon">&check;</span>
+        <span class="core-node-name">GraphSpec</span>
+      </div>
+      <div class="core-node-content">
+        <span class="core-node-desc-text">Declarative, LLM-readable format for compose / review / modify</span>
+        <span class="core-node-broken-text">LLM can't structurally operate on the graph.</span>
+      </div>
+      <div class="core-node-enables">
+        <span class="enables-tag">Human / LLM Symmetry</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+
+<!-- ═══ CTA ═══ -->
+<section class="cta-section" id="cta">
+  <p class="section-num">Ship It</p>
+  <h2 class="section-headline">It exists.</h2>
+  <p class="cta-sub">
+    The TypeScript and Python implementations are live. Zero dependencies. Tree-shakeable. One primitive.
+  </p>
+
+  <div class="cta-actions">
+    <div class="cta-card" onclick="copyInstall('npm i @graphrefly/graphrefly')">
+      <p class="cta-lang-label">TypeScript</p>
+      <p class="cta-install-cmd"><span class="prompt">$ </span>npm i @graphrefly/graphrefly</p>
+      <a href="https://github.com/graphrefly/graphrefly-ts" class="cta-github-btn" onclick="event.stopPropagation()">View on GitHub &nearr;</a>
+    </div>
+    <div class="cta-card" onclick="copyInstall('pip install graphrefly')">
+      <p class="cta-lang-label">Python</p>
+      <p class="cta-install-cmd"><span class="prompt">$ </span>pip install graphrefly</p>
+      <a href="https://github.com/graphrefly/graphrefly-py" class="cta-github-btn" onclick="event.stopPropagation()">View on GitHub &nearr;</a>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<footer>
+  <span class="logo">GraphReFly</span>
+  <div class="links">
+    <a href="https://github.com/graphrefly/graphrefly-ts">GitHub</a>
+    <a href="https://graphrefly.dev">Docs</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts/issues">Issues</a>
+  </div>
+</footer>
+
+<div class="copy-toast" id="copy-toast">Copied to clipboard</div>
+
+
+<script>
+/* ═══ FLIP BOARD ═══ */
+const VERBS = [
+  'drowning in',
+  'chasing',
+  'losing sleep over',
+  'firefighting',
+  'second-guessing',
+  'babysitting',
+  're-reading',
+];
+
+const NOUNS = [
+  'emails.',
+  'alerts.',
+  'Slack threads.',
+  'dashboards.',
+  'pull requests.',
+  'market feeds.',
+  'incident tickets.',
+  'spreadsheets.',
+];
+
+function buildFlipTrack(items, className) {
+  const all = items.concat([items[0]]);
+  return all.map(text =>
+    `<span class="flip-item"><span class="${className}">${text}</span></span>`
+  ).join('');
+}
+
+const verbTrack = document.getElementById('verb-track');
+const nounTrack = document.getElementById('noun-track');
+verbTrack.innerHTML = buildFlipTrack(VERBS, 'verb-word');
+nounTrack.innerHTML = buildFlipTrack(NOUNS, 'noun-word');
+
+let verbIndex = 0, nounIndex = 0;
+
+function flipTo(track, index, totalItems) {
+  const pct = -(index * (100 / (totalItems + 1)));
+  track.classList.remove('no-transition');
+  track.classList.add('animate');
+  track.style.transform = `translateY(${pct}%)`;
+
+  if (index >= totalItems) {
+    setTimeout(() => {
+      track.classList.remove('animate');
+      track.classList.add('no-transition');
+      track.style.transform = 'translateY(0%)';
+      track.offsetHeight; // force reflow
+      track.classList.remove('no-transition');
+    }, 450);
+  }
+}
+
+setInterval(() => {
+  verbIndex++;
+  flipTo(verbTrack, verbIndex, VERBS.length);
+  if (verbIndex >= VERBS.length) verbIndex = 0;
+}, 2800);
+
+setTimeout(() => {
+  setInterval(() => {
+    nounIndex++;
+    flipTo(nounTrack, nounIndex, NOUNS.length);
+    if (nounIndex >= NOUNS.length) nounIndex = 0;
+  }, 1900);
+}, 800);
+
+
+/* ═══ HEADACHE SCROLL ═══ */
+const headacheObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && entry.intersectionRatio > 0.3) {
+      entry.target.classList.add('revealed');
+    }
+  });
+}, { threshold: [0.3], rootMargin: '0px 0px -5% 0px' });
+
+document.querySelectorAll('.headache-row').forEach(row => headacheObserver.observe(row));
+
+
+/* ═══ PYRAMID ═══ */
+const requirementData = {
+  creation: {
+    title: 'LLM-Safe Creation',
+    body: 'LLMs compose graphs structurally — like SQL for data flows — not arbitrary code. <strong>Constrained error space means the graph is correct on first pass</strong>, not after three debug cycles. Node-internal functions are simple and testable in isolation; composition bugs are the hard ones, and graph eliminates them structurally.'
+  },
+  audit: {
+    title: 'Human Audit',
+    body: 'Every node is observable. Every derivation has a causal chain. Ask "why was this flagged?" and get a <strong>structural answer — not a log dump, not "the model said so."</strong> Unlike OpenTelemetry (post-hoc), GraphReFly audit is live: inspect any node at any moment during runtime, not just after the fact.'
+  },
+  security: {
+    title: 'Security',
+    body: 'Per-node access control via Actor/Guard primitives. <strong>Multi-tenant, multi-agent isolation.</strong> Different agents see different subgraphs. The graph enforces boundaries the LLM cannot circumvent — even if the LLM tries to access nodes outside its permitted scope, the topology itself is the firewall.'
+  },
+  symmetry: {
+    title: 'Human / LLM Symmetry',
+    body: 'Either side can compose, review, or modify the graph. LLM composes &rarr; human reviews topology. Human composes &rarr; LLM audits correctness. LLM A composes &rarr; LLM B audits &rarr; human approves. <strong>Same structure, same tools, no translation layer.</strong> Reviewing a GraphSpec diff is easier than reviewing a code diff — for both humans and LLMs.'
+  }
+};
+
+function showRequirement(el) {
+  const req = el.dataset.req;
+  const data = requirementData[req];
+  if (!data) return;
+
+  document.querySelectorAll('.pyramid-block').forEach(z => z.classList.remove('active'));
+  el.classList.add('active');
+
+  document.getElementById('detail-title').innerHTML = data.title;
+  document.getElementById('detail-body').innerHTML = data.body;
+}
+
+
+/* ═══ CORE TOGGLES ═══ */
+function toggleCore(row) {
+  row.classList.toggle('active');
+  // Update icon
+  const icon = row.querySelector('.core-node-icon');
+  if (row.classList.contains('active')) {
+    icon.innerHTML = '&#10003;'; // checkmark
+  } else {
+    icon.innerHTML = '&#10007;'; // cross
+  }
+}
+
+
+/* ═══ CLIPBOARD ═══ */
+function copyInstall(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1800);
+  });
+}
+</script>
+
+</body>
+</html>

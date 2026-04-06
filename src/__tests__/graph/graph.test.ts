@@ -102,7 +102,7 @@ describe("Graph (Phase 1.1)", () => {
 	it("disconnect throws when edge missing", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const b = state(0, { name: "b" });
 		g.add("a", a);
 		g.add("b", b);
 		expect(() => g.disconnect("a", "b")).toThrow(/no registered edge/);
@@ -145,7 +145,9 @@ describe("Graph (Phase 1.1)", () => {
 		const b = derived([a], ([v]) => v, { name: "b" });
 		g.add("a", a);
 		g.add("b", b);
-		expect(g.edges()).toEqual([]);
+		// Auto-registered from constructor deps
+		expect(g.edges()).toEqual([["a", "b"]]);
+		// connect() is idempotent when edge already exists
 		g.connect("a", "b");
 		expect(g.edges()).toEqual([["a", "b"]]);
 		g.disconnect("a", "b");

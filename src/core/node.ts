@@ -345,6 +345,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_producerStarted = false;
 	_connecting = false;
 	_manualEmitUsed = false;
+	_hasEmittedData = false;
 	_sinkCount = 0;
 	_singleDepSinkCount = 0;
 
@@ -680,6 +681,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				this._cleanup = undefined;
 				cleanupFn?.();
 				this._cached = undefined;
+				this._hasEmittedData = false;
 				this._lastDepValues = undefined;
 			}
 			this._status = statusAfterMessage(this._status, m);
@@ -689,6 +691,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (t === TEARDOWN) {
 				if (this._opts.resetOnTeardown) {
 					this._cached = undefined;
+					this._hasEmittedData = false;
 				}
 				// Invoke cleanup for compute nodes (deps+fn) — spec §2.4
 				// requires cleanup on teardown, not just before next invocation.
@@ -727,7 +730,19 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	_emitAutoValue(value: unknown): void {
 		const wasDirty = this._status === "dirty";
-		const unchanged = this._equals(this._cached, value);
+		// §2.5: equals() only compares two real DATA values. _hasEmittedData
+		// disambiguates "never emitted" from "emitted undefined" and
+		// "reset via INVALIDATE/resetOnTeardown".
+		let unchanged: boolean;
+		try {
+			unchanged = this._hasEmittedData && this._equals(this._cached, value);
+		} catch (eqErr) {
+			const eqMsg = eqErr instanceof Error ? eqErr.message : String(eqErr);
+			const wrapped = new Error(`Node "${this.name}": equals threw: ${eqMsg}`, { cause: eqErr });
+			this._downInternal([[ERROR, wrapped]]);
+			return;
+		}
+		this._hasEmittedData = true;
 		if (unchanged) {
 			this._downInternal(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
 			return;
@@ -778,7 +793,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (out === undefined) return;
 			this._emitAutoValue(out);
 		} catch (err) {
-			this._downInternal([[ERROR, err]]);
+			const errMsg = err instanceof Error ? err.message : String(err);
+			const wrapped = new Error(`Node "${this.name}": fn threw: ${errMsg}`, { cause: err });
+			this._downInternal([[ERROR, wrapped]]);
 		}
 	}
 
@@ -822,7 +839,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				try {
 					if (this._onMessage(msg, index, this._actions)) continue;
 				} catch (err) {
-					this._downInternal([[ERROR, err]]);
+					const errMsg = err instanceof Error ? err.message : String(err);
+					const wrapped = new Error(`Node "${this.name}": onMessage threw: ${errMsg}`, {
+						cause: err,
+					});
+					this._downInternal([[ERROR, wrapped]]);
 					return;
 				}
 			}

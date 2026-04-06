@@ -98,6 +98,37 @@ Prefer **`graph.observe(name)`** (or per-node) for live streams — see **GRAPHR
 
 ---
 
+## Debugging: `describe()` and `status` first, `get()` second
+
+`node.get()` and `graph.get(name)` return the **cached value only** — they do not guarantee freshness, do not trigger computation, and return `undefined` for nodes that have never received DATA. This is by design (spec §2.2).
+
+**When a node returns an unexpected value, check its status before investigating the value:**
+
+```ts
+// Single node — use node.status directly
+const nd = graph.node("myNode");
+console.log(nd.status);  // "disconnected" | "dirty" | "settled" | "errored" | ...
+
+// All nodes at once — use describe()
+const desc = graph.describe({ detail: "standard" });
+// Each node in desc.nodes has { type, status, value, deps, ... }
+```
+
+| Status | `get()` returns | What it means |
+|--------|----------------|---------------|
+| `disconnected` | Last known value or `undefined` | Node has no subscribers — derived nodes are lazy |
+| `dirty` | Previous value (stale) | DIRTY received, waiting for DATA |
+| `settled` | Current value (fresh) | DATA received, value is current |
+| `resolved` | Current value (fresh) | Was dirty, value confirmed unchanged |
+| `errored` | Last good value or `undefined` | `fn` or `equals` threw — check `observe()` for the ERROR |
+| `completed` | Final value | Terminal — no further updates |
+
+**Common pitfall:** `get()` returning `undefined` on a derived node almost always means the node is `disconnected` (no subscribers activating it) or `errored` (computation threw). Both look identical from `get()` alone. `describe()` or `node.status` distinguishes them instantly.
+
+**In tests:** When asserting derived node values, always subscribe first (via `graph.observe(name).subscribe(...)` or an effect) to activate the lazy computation chain. Then check the value. If the value is still unexpected, assert on `status` to diagnose.
+
+---
+
 ## Diamond resolution pattern
 
 ```ts

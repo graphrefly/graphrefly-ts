@@ -4,6 +4,7 @@ import {
 	isTerminalMessage,
 	type Message,
 	type Messages,
+	messageTier,
 	RESOLVED,
 } from "./messages.js";
 
@@ -227,6 +228,9 @@ export function partitionForBatch(messages: Messages): {
  * @param emit — Sink callback. May be called up to three times per invocation
  *   (immediate, deferred, terminal) when not batching.
  * @param messages — Full `[[Type, Data?], ...]` array for one emission.
+ * @param phase — Starting delivery phase (`2` = data, `3` = terminal). Default `2`.
+ * @param options - Optional configuration.
+ * @option strategy | `"partition"` or `"sequential"` | `"partition"` | `"partition"` groups by tier; `"sequential"` preserves message order within each tier using `messageTier()` classification.
  * @returns `void` — delivery is performed through `emit` callbacks, synchronously
  *   or deferred into the active batch queue.
  *
@@ -243,10 +247,17 @@ export function emitWithBatch(
 	emit: (messages: Messages) => void,
 	messages: Messages,
 	phase: 2 | 3 = 2,
+	options?: { strategy?: "partition" | "sequential" },
 ): void {
 	if (messages.length === 0) {
 		return;
 	}
+
+	if (options?.strategy === "sequential") {
+		_emitSequential(emit, messages, phase);
+		return;
+	}
+
 	const queue = phase === 3 ? pendingPhase3 : pendingPhase2;
 
 	// Fast path: single-message batches (most common in graph-internal propagation)
@@ -295,6 +306,43 @@ export function emitWithBatch(
 		}
 		if (terminal.length > 0) {
 			emit(terminal);
+		}
+	}
+}
+
+/**
+ * Sequential strategy: walk messages one at a time. Phase-2 (DATA/RESOLVED) and
+ * terminal (COMPLETE/ERROR) messages are deferred while batching; immediate
+ * messages emit synchronously. Matches graphrefly-py `_emit_sequential`.
+ */
+function _emitSequential(
+	emit: (messages: Messages) => void,
+	messages: Messages,
+	phase: 2 | 3 = 2,
+): void {
+	const dataQueue = phase === 3 ? pendingPhase3 : pendingPhase2;
+	for (const msg of messages) {
+		const tier = messageTier(msg[0]);
+		if (tier === 2) {
+			// Phase-2 (DATA/RESOLVED): defer while batching.
+			if (isBatching()) {
+				const m = msg;
+				dataQueue.push(() => emit([m]));
+			} else {
+				emit([msg]);
+			}
+		} else if (tier >= 3) {
+			// Terminal (COMPLETE/ERROR/TEARDOWN): always defer to phase-3
+			// so all phase-2 work drains before terminals.
+			if (isBatching()) {
+				const m = msg;
+				pendingPhase3.push(() => emit([m]));
+			} else {
+				emit([msg]);
+			}
+		} else {
+			// Immediate (DIRTY, INVALIDATE, PAUSE, RESUME): emit synchronously.
+			emit([msg]);
 		}
 	}
 }

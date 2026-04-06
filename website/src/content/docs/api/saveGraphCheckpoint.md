@@ -1,9 +1,9 @@
 ---
 title: "saveGraphCheckpoint()"
-description: "Writes Graph.snapshot through `adapter.save`."
+description: "Writes Graph.snapshot through `adapter.save` using `graph.name` as key."
 ---
 
-Writes Graph.snapshot through `adapter.save`.
+Writes Graph.snapshot through `adapter.save` using `graph.name` as key.
 
 ## Signature
 
@@ -16,7 +16,7 @@ function saveGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): void
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `graph` | `Graph` | Target graph instance. |
-| `adapter` | `CheckpointAdapter` | Sync persistence backend. |
+| `adapter` | `CheckpointAdapter` | Sync key-value persistence backend. |
 
 ## Returns
 

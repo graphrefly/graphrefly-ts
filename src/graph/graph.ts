@@ -777,6 +777,25 @@ export class Graph {
 			if (this._defaultVersioningLevel != null) {
 				node._applyVersioning(this._defaultVersioningLevel);
 			}
+			// Auto-register edges from constructor deps (eliminates dual-bookkeeping).
+			// Forward: this node's deps → already-registered nodes.
+			if (node._deps.length > 0) {
+				for (const dep of node._deps) {
+					for (const [depName, depNode] of this._nodes) {
+						if (depNode === dep) {
+							this._edges.add(edgeKey(depName, name));
+							break;
+						}
+					}
+				}
+			}
+			// Reverse: already-registered nodes that depend on this newly added node.
+			for (const [otherName, otherNode] of this._nodes) {
+				if (otherName === name) continue;
+				if (otherNode instanceof NodeImpl && otherNode._deps.includes(node)) {
+					this._edges.add(edgeKey(name, otherName));
+				}
+			}
 		}
 	}
 

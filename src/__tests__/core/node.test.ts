@@ -85,7 +85,9 @@ describe("node primitive", () => {
 		expect(broken.status).toBe("errored");
 		expect(seen).toContain(ERROR);
 		expect(payloads[0]).toBeInstanceOf(Error);
-		expect((payloads[0] as Error).message).toBe("boom");
+		expect((payloads[0] as Error).message).toContain("fn threw");
+		expect((payloads[0] as Error).cause).toBeInstanceOf(Error);
+		expect(((payloads[0] as Error).cause as Error).message).toBe("boom");
 		unsub();
 	});
 
@@ -131,6 +133,27 @@ describe("node primitive", () => {
 		unsub();
 	});
 
+	// Regression: GRAPHREFLY-SPEC §2.5 — custom equals never receives undefined (initial cached state).
+	it("custom equals is not called with undefined on first computation", () => {
+		const source = node<number>({ initial: 1 });
+		let equalsCalled = false;
+		const mid = node([source], ([v]) => new Map([["k", v]]), {
+			equals: (a, b) => {
+				equalsCalled = true;
+				// This would crash if a were undefined: (a as Map<...>).size
+				return (a as Map<string, unknown>).size === (b as Map<string, unknown>).size;
+			},
+		});
+		const unsub = mid.subscribe(() => {});
+		// First computation should NOT call equals (cached is still undefined)
+		expect(equalsCalled).toBe(false);
+		// Change source value so fn re-runs with a different dep value
+		source.down([[DIRTY], [DATA, 2]]);
+		// Second computation should call equals (both sides are real Maps)
+		expect(equalsCalled).toBe(true);
+		unsub();
+	});
+
 	// Spec: GRAPHREFLY-SPEC §1.3
 	it("ERROR message tuple contains the exact thrown Error instance as payload", () => {
 		const source = node<number>({ initial: 0 });
@@ -152,7 +175,11 @@ describe("node primitive", () => {
 			| undefined;
 		expect(errorMsg).toBeDefined();
 		expect(errorMsg?.[0]).toBe(ERROR);
-		expect(errorMsg?.[1]).toBe(theError);
+		// Error is wrapped with node name context; original is in .cause
+		const wrapped = errorMsg?.[1] as Error;
+		expect(wrapped).toBeInstanceOf(Error);
+		expect(wrapped.message).toContain("fn threw");
+		expect(wrapped.cause).toBe(theError);
 	});
 
 	it("resetOnTeardown clears cached value on TEARDOWN", () => {

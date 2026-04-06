@@ -24,6 +24,7 @@ function emitWithBatch(
 	emit: (messages: Messages) => void,
 	messages: Messages,
 	phase: 2 | 3 = 2,
+	options?: { strategy?: "partition" | "sequential" },
 ): void
 ```
 
@@ -34,7 +35,14 @@ function emitWithBatch(
 | `emit` | `(messages: Messages) =&gt; void` | — Sink callback. May be called up to three times per invocation
 (immediate, deferred, terminal) when not batching. |
 | `messages` | `Messages` | — Full `[[Type, Data?], ...]` array for one emission. |
-| `phase` | `2 | 3` |  |
+| `phase` | `2 | 3` | — Starting delivery phase (`2` = data, `3` = terminal). Default `2`. |
+| `options` | `{ strategy?: "partition" | "sequential" }` | Optional configuration. |
+
+### 
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `strategy` | ``"partition"` or `"sequential"`` | ``"partition"`` | `"partition"` groups by tier; `"sequential"` preserves message order within each tier using `messageTier()` classification. |
 
 ## Returns
 

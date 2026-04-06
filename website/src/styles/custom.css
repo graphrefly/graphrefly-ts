@@ -123,12 +123,6 @@ nav.sidebar .large {
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 }
 
-/* Splash/home page — full-width, hide default title */
-.gr-home ~ footer,
-.gr-home ~ footer * {
-	border: none;
-}
-
 /* Splash: main column starts at the top; fixed header overlays the hero */
 html:not([data-has-sidebar]) .main-frame {
 	padding-top: 0 !important;

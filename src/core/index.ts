@@ -22,6 +22,7 @@ export {
 	type SubscribeHints,
 } from "./node.js";
 export * from "./sugar.js";
+export { ResettableTimer } from "./timer.js";
 export {
 	advanceVersion,
 	createVersioning,

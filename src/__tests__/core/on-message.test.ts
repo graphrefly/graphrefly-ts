@@ -263,7 +263,11 @@ describe("onMessage (spec §2.6)", () => {
 
 		const errorMsgs = downstream.filter((m) => m[0] === ERROR);
 		expect(errorMsgs).toHaveLength(1);
-		expect((errorMsgs[0][1] as Error).message).toBe("handler exploded");
+		const err = errorMsgs[0][1] as Error;
+		expect(err.message).toContain("onMessage threw");
+		expect(err.message).toContain("handler exploded");
+		expect(err.cause).toBeInstanceOf(Error);
+		expect((err.cause as Error).message).toBe("handler exploded");
 		expect(handler.status).toBe("errored");
 	});
 

@@ -1,9 +1,9 @@
 ---
 title: "restoreGraphCheckpoint()"
-description: "Loads a snapshot via `adapter.load` and applies Graph.restore when data exists."
+description: "Loads a snapshot via `adapter.load(graph.name)` and applies Graph.restore when data exists."
 ---
 
-Loads a snapshot via `adapter.load` and applies Graph.restore when data exists.
+Loads a snapshot via `adapter.load(graph.name)` and applies Graph.restore when data exists.
 
 ## Signature
 
@@ -16,7 +16,7 @@ function restoreGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter): boole
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `graph` | `Graph` | Graph whose topology matches the snapshot. |
-| `adapter` | `CheckpointAdapter` | Sync persistence backend. |
+| `adapter` | `CheckpointAdapter` | Sync key-value persistence backend. |
 
 ## Returns
 

@@ -25,6 +25,7 @@ export default defineConfig({
 			description: "Reactive graph protocol for human + LLM co-operation — TypeScript and Python.",
 			components: {
 				Header: "./src/components/Header.astro",
+				Footer: "./src/components/Footer.astro",
 				MobileMenuFooter: "./src/components/MobileMenuFooter.astro",
 				Sidebar: "./src/components/Sidebar.astro",
 			},
@@ -278,6 +279,7 @@ export default defineConfig({
 					label: "Recipes",
 					items: [
 						{ label: "From callbag-recharge", link: "/recipes/from-callbag-recharge" },
+						{ label: "NestJS Integration", link: "/recipes/nestjs-integration" },
 					],
 				},
 			],

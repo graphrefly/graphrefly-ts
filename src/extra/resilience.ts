@@ -15,6 +15,7 @@ import {
 } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
+import { ResettableTimer } from "../core/timer.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
@@ -97,15 +98,7 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 			let stopped = false;
 			let prevDelay: number | null = null;
 			let unsub: (() => void) | undefined;
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			let timerGen = 0;
-
-			function cancelTimer(): void {
-				if (timer !== undefined) {
-					clearTimeout(timer);
-					timer = undefined;
-				}
-			}
+			const timer = new ResettableTimer();
 
 			function disconnectUpstream(): void {
 				unsub?.();
@@ -123,23 +116,21 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 				const delayNs = coerceDelayNs(raw === undefined ? null : raw);
 				prevDelay = delayNs;
 				attempt += 1;
-				timerGen += 1;
-				const gen = timerGen;
 				disconnectUpstream();
 				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
 				// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
 				// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
-				timer = setTimeout(() => {
-					timer = undefined;
-					if (stopped || gen !== timerGen) return;
+				timer.start(delayMs, () => {
+					if (stopped) return;
 					connect();
-				}, delayMs);
+				});
 			}
 
 			function connect(): void {
-				cancelTimer();
+				timer.cancel();
 				disconnectUpstream();
 				unsub = source.subscribe((msgs) => {
+					if (stopped) return;
 					for (const m of msgs) {
 						const t = m[0];
 						if (t === DIRTY) a.down([[DIRTY]]);
@@ -163,8 +154,7 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 
 			return () => {
 				stopped = true;
-				timerGen += 1;
-				cancelTimer();
+				timer.cancel();
 				disconnectUpstream();
 			};
 		},
@@ -522,15 +512,7 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 		(_d, a) => {
 			const times: number[] = [];
 			const pending: T[] = [];
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			let timerGen = 0;
-
-			function cancelTimer(): void {
-				if (timer !== undefined) {
-					clearTimeout(timer);
-					timer = undefined;
-				}
-			}
+			const timer = new ResettableTimer();
 
 			function prune(now: number): void {
 				const boundary = now - windowNs;
@@ -546,17 +528,12 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 						a.emit(pending.shift() as T);
 					} else {
 						const oldest = times[0];
-						cancelTimer();
-						timerGen += 1;
-						const gen = timerGen;
 						const delayNs = Math.max(0, oldest + windowNs - monotonicNs());
 						// §5.10: setTimeout (not fromTimer) — sliding-window schedule needs clearTimeout/setTimeout;
 						// fromTimer creates a new Node per reset, adding lifecycle overhead per window check.
-						timer = setTimeout(() => {
-							timer = undefined;
-							if (gen !== timerGen) return;
+						timer.start(delayNs / NS_PER_MS, () => {
 							tryEmit();
-						}, delayNs / NS_PER_MS);
+						});
 						return;
 					}
 				}
@@ -571,14 +548,12 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 						tryEmit();
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
-						timerGen += 1;
-						cancelTimer();
+						timer.cancel();
 						pending.length = 0;
 						times.length = 0;
 						a.down([[COMPLETE]]);
 					} else if (t === ERROR) {
-						timerGen += 1;
-						cancelTimer();
+						timer.cancel();
 						pending.length = 0;
 						times.length = 0;
 						a.down([m]);
@@ -587,8 +562,7 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 			});
 
 			return () => {
-				timerGen += 1;
-				cancelTimer();
+				timer.cancel();
 				unsub();
 			};
 		},
@@ -808,29 +782,17 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 	return producer<T>(
 		(_d, a) => {
 			let stopped = false;
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			let timerGen = 0;
-
-			function cancelTimer(): void {
-				if (timer !== undefined) {
-					clearTimeout(timer);
-					timer = undefined;
-				}
-			}
+			const timer = new ResettableTimer();
 
 			function startTimer(): void {
-				cancelTimer();
-				timerGen += 1;
-				const gen = timerGen;
 				const delayMs = timeoutNs / NS_PER_MS;
 				// §5.10: setTimeout (not fromTimer) — resettable deadline needs clearTimeout/setTimeout; fromTimer creates a new Node per reset, adding lifecycle overhead on every DATA.
-				timer = setTimeout(() => {
-					timer = undefined;
-					if (stopped || gen !== timerGen) return;
+				timer.start(delayMs, () => {
+					if (stopped) return;
 					stopped = true;
 					unsub();
 					a.down([[ERROR, new TimeoutError(timeoutNs)]]);
-				}, delayMs);
+				});
 			}
 
 			const unsub = source.subscribe((msgs) => {
@@ -843,13 +805,17 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 						a.emit(m[1] as T);
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
-						cancelTimer();
+						timer.cancel();
+						stopped = true;
 						a.down([[COMPLETE]]);
+						return;
 					} else if (t === ERROR) {
-						cancelTimer();
+						timer.cancel();
+						stopped = true;
 						a.down([m]);
+						return;
 					} else if (t === TEARDOWN) {
-						cancelTimer();
+						timer.cancel();
 						stopped = true;
 						a.down([m]);
 						return;
@@ -861,8 +827,7 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 
 			return () => {
 				stopped = true;
-				timerGen += 1;
-				cancelTimer();
+				timer.cancel();
 				unsub();
 			};
 		},
