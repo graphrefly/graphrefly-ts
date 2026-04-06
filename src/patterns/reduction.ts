@@ -382,10 +382,10 @@ export function feedback(
 	const feedbackEffect = node([condNode], undefined, {
 		name: feedbackEffectName,
 		describeKind: "effect",
-		meta: baseMeta("feedback_effect", {
+		meta: { ...baseMeta("feedback_effect", {
 			feedbackFrom: condition,
 			feedbackTo: reentry,
-		}),
+		}), _internal: true },
 		onMessage(msg: Message, _depIndex: number, _actions: NodeActions): boolean {
 			const t = msg[0];
 			if (t === DATA) {

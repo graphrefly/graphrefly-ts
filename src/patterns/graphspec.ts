@@ -602,6 +602,9 @@ export function decompileGraph(graph: Graph): GraphSpec {
 	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
 		if (path.includes(metaSegment)) continue;
 		if (feedbackCounterPattern.test(path)) continue;
+		// Skip internal infrastructure nodes (bridge, feedback effect) via meta tag
+		if (nodeDesc.meta?._internal) continue;
+		// Legacy fallback: skip by naming convention
 		if (path.startsWith("__feedback_effect_")) continue;
 		if (path.startsWith("__bridge_")) continue;
 		// Skip subgraph-internal nodes (they belong to templates)

@@ -11,6 +11,7 @@ export * from "./messages.js";
 export * from "./meta.js";
 export {
 	type Node,
+	type CleanupResult,
 	type NodeActions,
 	type NodeDescribeKind,
 	type NodeFn,

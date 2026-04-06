@@ -156,5 +156,6 @@ export function bridge<T = unknown>(from: Node<T>, to: Node, opts?: BridgeOption
 		name: opts?.name,
 		describeKind: "effect",
 		onMessage,
+		meta: { _internal: true },
 	});
 }

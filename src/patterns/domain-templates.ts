@@ -14,8 +14,10 @@
  */
 
 import { DATA } from "../core/messages.js";
+import { batch } from "../core/batch.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
+import { reactiveLog, type ReactiveLogSnapshot } from "../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
 import { feedback, type StratifyRule, scorer, stratify } from "./reduction.js";
 
@@ -408,6 +410,9 @@ export type ContentModerationGraphOptions = GraphOptions & {
 
 	/** Max feedback iterations for policy refinement. Default: 5. */
 	maxFeedbackIterations?: number;
+
+	/** Max review queue size. When set, oldest entries are trimmed on overflow. */
+	maxQueueSize?: number;
 };
 
 /**
@@ -452,15 +457,12 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	]);
 	g.mount("stratify", strat);
 
-	// --- Review queue (human-writable state) ---
-	const reviewQueue = state<ModerationResult[]>([], {
-		meta: baseMeta("content_moderation", {
-			stage: "review_queue",
-			access: "both",
-			description: "Items awaiting human review",
-		}),
+	// --- Review queue (reactiveLog — O(1) append, bounded) ---
+	const reviewLog = reactiveLog<ModerationResult>([], {
+		name: "review_queue",
+		maxSize: opts.maxQueueSize,
 	});
-	g.add("review_queue", reviewQueue as Node<unknown>);
+	g.add("review_queue", reviewLog.entries as Node<unknown>);
 
 	// Bridge review branch → review queue accumulator
 	let reviewBranch: Node<unknown>;
@@ -473,8 +475,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	const reviewAccumulator = effect([reviewBranch], (vals) => {
 		const item = vals[0] as ModerationResult | null;
 		if (item) {
-			const current = reviewQueue.get() as ModerationResult[];
-			reviewQueue.down([[DATA, [...current, item]]]);
+			reviewLog.append(item);
 		}
 	});
 	g.add("__review_accumulator", reviewAccumulator as Node<unknown>);
@@ -532,11 +533,12 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	// Feedback condition: human marks a review item as false positive.
 	// When review_queue changes and policy exists, signal for update.
 	const fbCondition = derived<unknown>(
-		[reviewQueue as Node, policy as Node],
+		[reviewLog.entries as Node, policy as Node],
 		(vals) => {
-			const queue = vals[0] as ModerationResult[] | null;
-			if (queue && queue.length > 0) {
-				const latest = queue[queue.length - 1];
+			const snap = vals[0] as ReactiveLogSnapshot<ModerationResult> | null;
+			const entries = snap?.value?.entries;
+			if (entries && entries.length > 0) {
+				const latest = entries[entries.length - 1];
 				// Items explicitly marked as false positive feed back
 				if (latest && (latest as unknown as Record<string, unknown>).falsePositive) {
 					return latest;
@@ -674,7 +676,9 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 	const baselineUpdater = effect([validateNode as Node], (vals) => {
 		const result = vals[0] as ValidationResult;
 		if (result?.valid) {
-			baseline.down([[DATA, result.record]]);
+			batch(() => {
+				baseline.down([[DATA, result.record]]);
+			});
 		}
 	});
 	g.add("__baseline_updater", baselineUpdater as Node<unknown>);

@@ -298,6 +298,22 @@ const isNodeArray = (value: unknown): value is readonly Node[] => Array.isArray(
 const isNodeOptions = (value: unknown): value is NodeOptions =>
 	typeof value === "object" && value != null && !Array.isArray(value);
 
+/**
+ * Explicit cleanup wrapper. When a node fn returns `{ cleanup, value? }`,
+ * `cleanup` is registered as the teardown/recompute cleanup and `value`
+ * (if present) is emitted as data. This avoids the ambiguity where returning
+ * a plain function is silently consumed as cleanup instead of emitted as data.
+ *
+ * Plain function returns are still treated as cleanup for backward compatibility.
+ */
+export type CleanupResult<T = unknown> = { cleanup: () => void; value?: T };
+
+const isCleanupResult = (value: unknown): value is CleanupResult =>
+	typeof value === "object" &&
+	value !== null &&
+	"cleanup" in value &&
+	typeof (value as CleanupResult).cleanup === "function";
+
 const isCleanupFn = (value: unknown): value is () => void => typeof value === "function";
 
 const statusAfterMessage = (status: NodeStatus, msg: Message): NodeStatus => {
@@ -791,6 +807,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._lastDepValues = depValues;
 			this._inspectorHook?.({ kind: "run", depValues });
 			const out = this._fn(depValues, this._actions);
+			// Explicit cleanup wrapper: { cleanup, value? }
+			if (isCleanupResult(out)) {
+				this._cleanup = out.cleanup;
+				if (this._manualEmitUsed) return;
+				if ("value" in out) {
+					this._emitAutoValue(out.value);
+				}
+				return;
+			}
+			// Legacy: plain function return → cleanup (backward compat)
 			if (isCleanupFn(out)) {
 				this._cleanup = out;
 				return;
