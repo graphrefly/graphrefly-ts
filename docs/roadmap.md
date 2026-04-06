@@ -16,8 +16,8 @@ Must be done before any further feature work — LLM implementors will hit this 
 - [x] **TS `_emitAutoValue` guard:** uses `_hasEmittedData` flag — first DATA always treated as changed; resets on INVALIDATE and TEARDOWN (resetOnTeardown). Fixed in `src/core/node.ts`.
 - [x] **Spec §2.5 `equals` contract:** documented that `equals` never receives `undefined`/`None`.
 - [x] **PY `_emit_auto_value` guard:** matching fix in `graphrefly-py/graphrefly/core/node.py` — uses `_has_emitted_data` flag (same as TS `_hasEmittedData`).
-- [ ] **Audit all custom `equals` in TS:** grep `src/` for `equals:` in node options. Verify none depend on seeing `undefined`. Remove any defensive `null`/`undefined` checks that are now unnecessary.
-- [ ] **Audit all custom `equals` in PY:** same for `graphrefly-py/graphrefly/`.
+- [x] **Audit all custom `equals` in TS:** audited all custom `equals` in `src/`. No function depends on seeing `undefined`. The `null` checks in reactive-layout/demo-shell are domain-level guards (node fns legitimately return `null`), not protocol-level `undefined` guards. `snapshotEqualsVersion` has a defensive `null` fallback that is harmless. No changes needed.
+- [x] **Audit all custom `equals` in PY:** audited all custom `equals` in `graphrefly-py/src/graphrefly/`. No function depends on seeing sentinel/uninitialized state. The `None` checks in `reactive_block_layout.py` (`_measured_equals`, `_flow_equals`) are domain-level (node fns return `None`). `_versioned_equals` has an `isinstance` fallback — harmless. No changes needed.
 - [x] **Wrap `equals` errors with node context (TS):** `_emitAutoValue` catches `equals` throws → `Error('Node "${name}": equals threw: ${msg}', { cause })` → `[[ERROR, wrapped]]`.
 - [x] **Wrap `equals` errors with node context (PY):** matching fix — `RuntimeError(f'Node "{name}": equals threw: {msg}')` with `__cause__`.
 - [x] **Emphasize `status` / `describe()` as primary diagnostic:** spec §2.2 updated — `get()` is a value accessor only, `status` is the source of truth. `test-guidance.md` updated with debugging section showing "check status first" pattern and status table. `graph.get()` behavior unchanged (by design — cached value only).
@@ -745,7 +745,7 @@ Composable building blocks between sources and sinks.
 
 - [ ] `stratify(source, rules)` → Graph — route input to different reduction branches based on classifier fn. Each branch gets independent operator chains (4 layers on branch A, 1 on branch B). Rules are reactive — an LLM can rewrite them at runtime.
 - [ ] `funnel(sources[], stages[])` → Graph — multi-source merge with sequential reduction stages. Each stage is a named subgraph (dedup → enrich → score → pack). Stages are pluggable — swap a stage by graph composition.
-- [ ] `feedback(graph, condition, reentry)` → Graph — introduce a cycle: when condition node fires, route output back to reentry point. Bounded by configurable max iterations + budget constraints.
+- [ ] `feedback(graph, condition, reentry)` → Graph — introduce a cycle: when condition node fires, route output back to reentry point. Bounded by configurable max iterations + budget constraints. GraphSpec serialization: top-level `"feedback"` array in §8.3 schema — `compileSpec()` wires cycles from this; `decompileGraph()` detects cycles and emits them. Eval-motivated: T6 (adaptive polling) requires feedback to express "derived value writes back to state node" — the fn is a normal derived computation, the cycle is the `feedback` edge. See `evals/results/eval-analysis.md` and `evals/results/claude-web-2026-04-05-run2.md`.
 - [ ] `budgetGate(source, constraints)` → Node — pass-through that respects reactive constraint nodes (token budget, network IO, cost ceiling). Backpressure via PAUSE/RESUME when budget exhausted.
 - [ ] `scorer(sources[], weights)` → Node — reactive multi-signal scoring. Weights are nodes (LLM or human can adjust live). Output: sorted, prioritized items with full score breakdown in meta.
 
@@ -762,12 +762,65 @@ Pre-wired graphs for common "info → action" domains. Each is a working vertica
 
 The "LLM designs the graph" capability. Design reference: `archive/docs/SESSION-universal-reduction-layer.md`.
 
-- [ ] `GraphSpec` schema — JSON schema for declarative graph topology (nodes, edges, operator configs, constraints). Serializable, diffable.
-- [ ] `compileSpec(spec)` → Graph — instantiate a Graph from a GraphSpec
-- [ ] `decompileGraph(graph)` → GraphSpec — extract spec from running graph
-- [ ] `llmCompose(problem, adapter, opts?)` → GraphSpec — LLM generates a GraphSpec from natural language problem description. Validates against available operators/sources/sinks. Returns spec for human review before compilation.
+#### GraphSpec schema
+
+- [ ] `GraphSpec` schema — JSON schema for declarative graph topology. Serializable, diffable. Three top-level keys: `nodes`, `templates`, `feedback`.
+
+**`nodes`** — node declarations (existing concept from evals):
+```jsonc
+{
+  "nodes": {
+    "inbox": { "type": "producer", "source": "email", "config": { "folder": "INBOX" } },
+    "classify": { "type": "derived", "deps": ["inbox"], "fn": "llmClassify", "config": { "categories": [...] } },
+    "alert": { "type": "effect", "deps": ["classify"], "fn": "notifyPush" }
+  }
+}
+```
+
+**`templates`** — reusable subgraph patterns with parameter substitution. Eval-motivated: T8a (per-source resilience) requires applying the same resilience stack per API source. Without templates, LLMs either duplicate nodes correctly or share nodes incorrectly (Run 2 T8 bug). At compile time, each template instantiation becomes a mounted subgraph (`graph.mount()`). See `evals/results/claude-web-2026-04-05-run2.md` §Key Findings #3.
+```jsonc
+{
+  "templates": {
+    "resilientSource": {
+      "params": ["$source", "$cache"],
+      "nodes": {
+        "timed": { "type": "derived", "deps": ["$source"], "fn": "timeout", "config": { "timeoutMs": 2000 } },
+        "retried": { "type": "derived", "deps": ["timed"], "fn": "retry", "config": { "maxAttempts": 2, "backoff": "exponential" } },
+        "safe": { "type": "derived", "deps": ["retried", "$cache"], "fn": "fallback", "config": { "fallbackSource": "$cache" } }
+      },
+      "output": "safe"
+    }
+  },
+  "nodes": {
+    "api1Source": { "type": "producer", "source": "rest-api", "config": { "url": "..." } },
+    "api1Cache": { "type": "state", "initial": null },
+    "api1": { "type": "template", "template": "resilientSource", "bind": { "$source": "api1Source", "$cache": "api1Cache" } }
+  }
+}
+```
+
+**`feedback`** — declared cycles backed by §8.1 `feedback()` runtime. Eval-motivated: T6 (adaptive polling) requires "derived value writes back to state node." The fn is a normal derived computation; the cycle is the `feedback` edge. `compileSpec()` wires via `feedback(graph, condition, reentry)` with bounds. `decompileGraph()` detects cycles and emits them here. See `evals/results/eval-analysis.md`.
+```jsonc
+{
+  "nodes": {
+    "pollInterval": { "type": "state", "initial": 10000 },
+    "poller": { "type": "producer", "source": "rest-api", "config": { "url": "...", "pollIntervalMs": "pollInterval" } },
+    "countPerMinute": { "type": "derived", "deps": ["poller"], "fn": "aggregate", "config": { "op": "count" } },
+    "computeInterval": { "type": "derived", "deps": ["countPerMinute"], "fn": "computeAdaptiveRate" }
+  },
+  "feedback": [
+    { "from": "computeInterval", "to": "pollInterval", "maxIterations": 1 }
+  ]
+}
+```
+
+#### Compiler & LLM APIs
+
+- [ ] `compileSpec(spec)` → Graph — instantiate a Graph from a GraphSpec. Handles: template expansion (mount subgraphs per instantiation, substitute `$params`), feedback wiring (via §8.1 `feedback()`), node factory lookup, topology validation (no undeclared deps, no unbounded cycles outside `feedback` edges).
+- [ ] `decompileGraph(graph)` → GraphSpec — extract spec from running graph. Detects mounted subgraphs → templates (if structurally identical). Detects `feedback()` cycles → `feedback` edges.
+- [ ] `llmCompose(problem, adapter, opts?)` → GraphSpec — LLM generates a GraphSpec from natural language problem description. System prompt includes available fn/source catalog (same concept as eval Treatment A). Validates against available operators/sources/sinks. Returns spec for human review before compilation.
 - [ ] `llmRefine(graph, feedback, adapter)` → GraphSpec — LLM modifies existing graph topology based on performance feedback or changed requirements
-- [ ] `specDiff(specA, specB)` — structural diff between two GraphSpecs (what changed, why it matters, estimated impact)
+- [ ] `specDiff(specA, specB)` — structural diff between two GraphSpecs (what changed, why it matters, estimated impact). Template-aware: reports "changed template definition" vs "changed instantiation bindings."
 
 ### 8.4 — Audit & accountability
 

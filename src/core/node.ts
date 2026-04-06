@@ -21,6 +21,12 @@ import {
 import type { HashFn, NodeVersionInfo, VersioningLevel } from "./versioning.js";
 import { advanceVersion, createVersioning, defaultHash } from "./versioning.js";
 
+/**
+ * Internal sentinel value: "no cached value has been set or emitted."
+ * Used instead of `undefined` so that `undefined` can be a valid emitted value.
+ */
+export const NO_VALUE: unique symbol = Symbol.for("graphrefly/NO_VALUE");
+
 /** Lifecycle status of a node. */
 export type NodeStatus =
 	| "disconnected"
@@ -338,14 +344,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_isSingleDep: boolean;
 
 	// --- Mutable state ---
-	_cached: T | undefined;
+	_cached: T | typeof NO_VALUE;
 	_status: NodeStatus;
 	_terminal = false;
 	_connected = false;
 	_producerStarted = false;
 	_connecting = false;
 	_manualEmitUsed = false;
-	_hasEmittedData = false;
 	_sinkCount = 0;
 	_singleDepSinkCount = 0;
 
@@ -378,14 +383,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._autoComplete = opts.completeWhenDepsComplete ?? true;
 		this._isSingleDep = deps.length === 1 && fn != null;
 
-		this._cached = opts.initial as T | undefined;
+		this._cached = "initial" in opts ? (opts.initial as T) : NO_VALUE;
 		this._status = this._hasDeps ? "disconnected" : "settled";
 
 		// Versioning (GRAPHREFLY-SPEC §7)
 		this._hashFn = opts.versioningHash ?? defaultHash;
 		this._versioning =
 			opts.versioning != null
-				? createVersioning(opts.versioning, this._cached, {
+				? createVersioning(opts.versioning, this._cached === NO_VALUE ? undefined : this._cached, {
 						id: opts.versioningId,
 						hash: this._hashFn,
 					})
@@ -486,10 +491,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_applyVersioning(level: VersioningLevel, opts?: { id?: string; hash?: HashFn }): void {
 		if (this._versioning != null) return;
 		this._hashFn = opts?.hash ?? this._hashFn;
-		this._versioning = createVersioning(level, this._cached, {
-			id: opts?.id,
-			hash: this._hashFn,
-		});
+		this._versioning = createVersioning(
+			level,
+			this._cached === NO_VALUE ? undefined : this._cached,
+			{
+				id: opts?.id,
+				hash: this._hashFn,
+			},
+		);
 	}
 
 	hasGuard(): boolean {
@@ -502,7 +511,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	get(): T | undefined {
-		return this._cached;
+		return this._cached === NO_VALUE ? undefined : this._cached;
 	}
 
 	down(messages: Messages, options?: NodeTransportOptions): void {
@@ -568,6 +577,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		if (this._terminal && this._opts.resubscribable) {
 			this._terminal = false;
+			this._cached = NO_VALUE;
 			this._status = this._hasDeps ? "disconnected" : "settled";
 			this._opts.onResubscribe?.();
 		}
@@ -680,8 +690,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				const cleanupFn = this._cleanup;
 				this._cleanup = undefined;
 				cleanupFn?.();
-				this._cached = undefined;
-				this._hasEmittedData = false;
+				this._cached = NO_VALUE;
 				this._lastDepValues = undefined;
 			}
 			this._status = statusAfterMessage(this._status, m);
@@ -690,8 +699,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 			if (t === TEARDOWN) {
 				if (this._opts.resetOnTeardown) {
-					this._cached = undefined;
-					this._hasEmittedData = false;
+					this._cached = NO_VALUE;
 				}
 				// Invoke cleanup for compute nodes (deps+fn) — spec §2.4
 				// requires cleanup on teardown, not just before next invocation.
@@ -730,19 +738,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	_emitAutoValue(value: unknown): void {
 		const wasDirty = this._status === "dirty";
-		// §2.5: equals() only compares two real DATA values. _hasEmittedData
-		// disambiguates "never emitted" from "emitted undefined" and
-		// "reset via INVALIDATE/resetOnTeardown".
+		// §2.5: equals() only compares two real values. NO_VALUE sentinel means
+		// "never emitted / cache cleared" — first emission always treated as changed.
 		let unchanged: boolean;
 		try {
-			unchanged = this._hasEmittedData && this._equals(this._cached, value);
+			unchanged = this._cached !== NO_VALUE && this._equals(this._cached, value);
 		} catch (eqErr) {
 			const eqMsg = eqErr instanceof Error ? eqErr.message : String(eqErr);
 			const wrapped = new Error(`Node "${this.name}": equals threw: ${eqMsg}`, { cause: eqErr });
 			this._downInternal([[ERROR, wrapped]]);
 			return;
 		}
-		this._hasEmittedData = true;
 		if (unchanged) {
 			this._downInternal(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
 			return;

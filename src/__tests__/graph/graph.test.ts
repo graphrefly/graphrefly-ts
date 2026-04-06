@@ -824,7 +824,17 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(snap.nodes.z?.value).toBe(1);
 	});
 
-	it("toJSON + JSON.stringify is stable across key insertion order", () => {
+	it("toObject returns stable snapshot with sorted keys", () => {
+		const g = new Graph("g");
+		g.add("b", state(0));
+		g.add("a", state(0));
+		const o1 = g.toObject();
+		const o2 = g.toObject();
+		expect(JSON.stringify(o1)).toBe(JSON.stringify(o2));
+		expect(Object.keys(o1.nodes).sort()).toEqual(["a", "b"]);
+	});
+
+	it("JSON.stringify(graph) works via toJSON alias", () => {
 		const g = new Graph("g");
 		g.add("b", state(0));
 		g.add("a", state(0));

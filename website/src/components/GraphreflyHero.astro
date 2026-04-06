@@ -36,11 +36,13 @@ const base = import.meta.env.BASE_URL;
   <div class="gr-headache-rows">
     <div class="gr-headache-row" data-index="0">
       <div class="gr-headache-pain">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>
         <div class="gr-headache-num">01</div>
         <h3 class="gr-headache-title">Volume Without Boundaries</h3>
         <p class="gr-headache-desc">Information multiplies across sources — email, Slack, feeds, APIs, logs. No single system sees it all. <strong>You become the integration layer.</strong></p>
       </div>
       <div class="gr-headache-solution">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
         <h3 class="gr-solution-title">Distributed Reactive Graphs</h3>
         <p class="gr-solution-desc">A single reactive topology connects every source. Distributed graphs federate across services. One graph sees what ten dashboards can't.</p>
@@ -50,11 +52,13 @@ const base = import.meta.env.BASE_URL;
 
     <div class="gr-headache-row" data-index="1">
       <div class="gr-headache-pain">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
         <div class="gr-headache-num">02</div>
         <h3 class="gr-headache-title">Velocity Without Rhythm</h3>
         <p class="gr-headache-desc">Markets move in milliseconds. Policies update quarterly. Emails arrive in bursts. Each source has its own clock — <strong>and your cron job missed the one that mattered.</strong></p>
       </div>
       <div class="gr-headache-solution">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="1"/><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
         <h3 class="gr-solution-title">Push-Based Propagation</h3>
         <p class="gr-solution-desc">Each node reacts the instant its source changes. No polling intervals. No missed beats. No stale snapshots accumulating in context.</p>
@@ -64,11 +68,13 @@ const base = import.meta.env.BASE_URL;
 
     <div class="gr-headache-row" data-index="2">
       <div class="gr-headache-pain">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
         <div class="gr-headache-num">03</div>
         <h3 class="gr-headache-title">Action Without Memory</h3>
         <p class="gr-headache-desc">You vibe-coded a fix. It worked. Next month, nobody knows why — or whether it's still correct. <strong>Disposable solutions you can't repeat, explain, or build upon.</strong></p>
       </div>
       <div class="gr-headache-solution">
+        <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
         <h3 class="gr-solution-title">Persistent Causal Chain</h3>
         <p class="gr-solution-desc">Every decision traces back through a structural causal chain. Persistent, inspectable, composable. Change upstream — downstream knows it may no longer hold.</p>
@@ -354,6 +360,7 @@ const base = import.meta.env.BASE_URL;
 .gr-headache-row.gr-revealed { grid-template-columns: 1fr 1fr; }
 
 .gr-headache-pain {
+  position: relative; overflow: hidden; z-index: 1;
   padding: 1.5rem 2rem; display: flex; flex-direction: column;
   justify-content: flex-start; min-width: 0; transition: background 0.8s;
 }
@@ -378,11 +385,39 @@ const base = import.meta.env.BASE_URL;
 .gr-headache-desc strong { color: var(--gr-white); }
 
 .gr-headache-solution {
+  position: relative; overflow: hidden; z-index: 1;
   padding: 1.5rem 2rem; display: flex; flex-direction: column;
   justify-content: flex-start; background: var(--gr-accent); color: var(--gr-black);
-  overflow: hidden; min-width: 0; opacity: 0; transition: opacity 0.5s 0.3s;
+  min-width: 0; opacity: 0; transition: opacity 0.5s 0.3s;
 }
 .gr-headache-row.gr-revealed .gr-headache-solution { opacity: 1; }
+
+.gr-card-bg-icon {
+  position: absolute;
+  bottom: 5%;
+  right: 5%;
+  width: 140px;
+  height: 140px;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: -1;
+  transform: rotate(-10deg);
+  transform-origin: center;
+  transition: opacity 0.8s, transform 0.8s, color 0.8s;
+}
+.gr-headache-row.gr-revealed .gr-headache-pain .gr-card-bg-icon {
+  opacity: 0.12;
+  transform: rotate(0deg) scale(1.1);
+  color: var(--gr-red);
+}
+.gr-headache-solution .gr-card-bg-icon {
+  opacity: 0.1;
+  transform: rotate(10deg);
+}
+.gr-headache-row.gr-revealed .gr-headache-solution .gr-card-bg-icon {
+  opacity: 0.15;
+  transform: rotate(0deg) scale(1.1);
+}
 
 .gr-solution-label {
   font-family: 'Instrument Sans', sans-serif; font-weight: 900;

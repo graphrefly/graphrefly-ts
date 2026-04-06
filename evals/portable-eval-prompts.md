@@ -47,10 +47,14 @@ Available functions (use ONLY these):
 - llmSummarize: AI summarization. Config: { maxLength?, style?: "bullets"|"paragraph" }
 - llmExtract: AI extraction. Config: { schema }
 - thresholdCheck: Check value against threshold. Config: { threshold, direction: "above"|"below" }
-- retry: Retry on failure. Config: { maxAttempts, backoff?: "exponential"|"linear", fn?: "fnToRetry" }
-- fallback: Use fallback on error. Config: { fallbackValue? }
+- retry: Retry on failure. Config: { maxAttempts, backoff?: "exponential"|"linear"|"fibonacci", fn?: "fnToRetry" }
+- fallback: Use fallback on error. Config: { fallbackValue?, fallbackSource?: "<nodeName>" }
+- timeout: Error if no data within deadline. Config: { timeoutMs }
+- circuitBreaker: Gate requests through circuit breaker (closed/open/half-open). Config: { failureThreshold?, cooldownMs?, onOpen?: "skip"|"error" }
+- rateLimiter: Enforce rate limit on data flow. Config: { maxEvents, windowMs }
+- withStatus: Attach status/error companion metadata. Config: { initialStatus?: "pending"|"active"|"completed"|"errored" }
 - dedup: Deduplicate stream. Config: { key?, ttlMs? }
-- cache: Cache values. Config: { ttlMs? }
+- cache: Cache values with TTL. Config: { ttlMs }
 - sendEmail: Send email. Config: { to, subject? }
 - sendSlack: Post to Slack. Config: { channel }
 - sendAlert: Send alert. Config: { channel: "push"|"sms"|"email" }
@@ -131,6 +135,30 @@ to 2 seconds. If below 20/min, increase to 30 seconds. Default interval is
 Compose a GraphSpec for: "Do something useful with my emails."
 ```
 
+**Task 8a (high — per-source resilience):**
+```
+Compose a GraphSpec for: "Call three different stock-price APIs via REST.
+Each API has its OWN circuit breaker, rate limiter, and retry policy — one
+API's failures must NOT affect the others. Per API: timeout after 2 seconds,
+retry twice with exponential backoff, then fall back to a cached price.
+Each API's circuit breaker opens after 3 failures with a 30-second cooldown.
+Rate-limit each API independently to 5 calls per second. Merge the three
+prices, compute the median, and push it to a dashboard. Attach status
+metadata to each API node for a monitoring UI."
+```
+
+**Task 8b (high — shared resilience):**
+```
+Compose a GraphSpec for: "Poll a single upstream pricing API on a 10-second
+timer. The API returns prices for three stocks in one response. Apply a
+SHARED circuit breaker (open after 5 failures, 60-second cooldown) and a
+SHARED rate limiter (10 requests per second) to the single API source.
+On timeout (2 seconds) or failure, retry 3 times with exponential backoff,
+then fall back to cached prices. Split the response into per-stock derived
+nodes, compute a portfolio total, and push to a dashboard with status
+metadata showing whether the source is live or degraded."
+```
+
 ---
 
 ## TREATMENT B: Plain Functions Generation
@@ -160,6 +188,14 @@ declare function validateSchema(data: unknown, schema: object): { valid: boolean
 declare function normalizeFields(data: Record<string, any>): Record<string, any>;
 declare function classifyText(text: string, categories: string[]): Promise<string>;
 declare function summarizeText(text: string): Promise<string>;
+
+// Resilience
+declare function retry<T>(fn: () => Promise<T>, opts: { maxAttempts: number; backoff?: "exponential" | "linear" | "fibonacci" }): Promise<T>;
+declare function withFallback<T>(fn: () => Promise<T>, fallbackValue: T): Promise<T>;
+declare function withTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T>;
+declare function withCircuitBreaker<T>(fn: () => Promise<T>, opts: { failureThreshold?: number; cooldownMs?: number }): Promise<T>;
+declare function rateLimitCalls<T>(fn: () => Promise<T>, maxPerWindow: number, windowMs: number): Promise<T>;
+declare function cacheResult<T>(key: string, fn: () => Promise<T>, ttlMs: number): Promise<T>;
 
 // Effects
 declare function sendSlackMessage(channel: string, message: string): Promise<void>;
@@ -225,6 +261,30 @@ is 10 seconds."
 Write TypeScript functions that: "Do something useful with my emails."
 ```
 
+**Task 8a (high — per-source resilience):**
+```
+Write TypeScript functions that: "Call three different stock-price APIs via REST.
+Each API has its OWN circuit breaker, rate limiter, and retry policy — one
+API's failures must NOT affect the others. Per API: timeout after 2 seconds,
+retry twice with exponential backoff, then fall back to a cached price.
+Each API's circuit breaker opens after 3 failures with a 30-second cooldown.
+Rate-limit each API independently to 5 calls per second. Merge the three
+prices, compute the median, and push it to a dashboard. Attach status
+metadata to each API node for a monitoring UI."
+```
+
+**Task 8b (high — shared resilience):**
+```
+Write TypeScript functions that: "Poll a single upstream pricing API on a
+10-second timer. The API returns prices for three stocks in one response.
+Apply a SHARED circuit breaker (open after 5 failures, 60-second cooldown)
+and a SHARED rate limiter (10 requests per second) to the single API source.
+On timeout (2 seconds) or failure, retry 3 times with exponential backoff,
+then fall back to cached prices. Split the response into per-stock derived
+values, compute a portfolio total, and push to a dashboard with status
+metadata showing whether the source is live or degraded."
+```
+
 ---
 
 ## NEUTRAL SCORING RUBRIC
@@ -254,7 +314,7 @@ framework preferences, or architectural philosophy.
 
 ### Aggregate metrics
 
-After scoring all 7 tasks × 2 treatments:
+After scoring all 9 tasks × 2 treatments:
 
 | Metric | Formula |
 |--------|---------|
@@ -278,6 +338,150 @@ Task 4: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 5: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 6: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 7: C1=_ C2=_ C3=_ C4=_ C5=_
+Task 8a: C1=_ C2=_ C3=_ C4=_ C5=_
+Task 8b: C1=_ C2=_ C3=_ C4=_ C5=_
+
+Notes:
+```
+
+---
+
+## L1: DEBUG / MODIFY / EXPLAIN EVAL
+
+L0 (above) tests **generation** — can the LLM compose from scratch? L1 tests
+**comprehension** — can the LLM understand, modify, and reason about an existing
+graph? This is where GraphSpec's introspection advantages (describe, diff, causal
+chain) should differentiate.
+
+### How to use
+
+1. Paste the L1 system context (same as Treatment A above — same catalog)
+2. Paste the "Given graph" block for a task, then the task prompt
+3. Score using the L1 rubric below
+
+### Given graphs
+
+**Graph A — email triage (working, from L0 Task 4):**
+```json
+{
+  "nodes": {
+    "inbox": { "type": "producer", "source": "email", "config": { "folder": "INBOX" } },
+    "classify": { "type": "derived", "deps": ["inbox"], "fn": "llmClassify", "config": { "categories": ["urgent", "newsletter", "other"] } },
+    "urgent": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "urgent" } },
+    "newsletters": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "newsletter" } },
+    "other": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "other" } },
+    "pushUrgent": { "type": "effect", "deps": ["urgent"], "fn": "notifyPush", "config": { "title": "Urgent email" } },
+    "batchNewsletters": { "type": "derived", "deps": ["newsletters"], "fn": "batchEvents", "config": { "size": 50, "intervalMs": 604800000 } },
+    "digestEmail": { "type": "effect", "deps": ["batchNewsletters"], "fn": "sendEmail", "config": { "to": "me@example.com", "subject": "Weekly Newsletter Digest" } },
+    "countBySender": { "type": "derived", "deps": ["other"], "fn": "groupBy", "config": { "field": "sender" } },
+    "senderCounts": { "type": "derived", "deps": ["countBySender"], "fn": "aggregate", "config": { "op": "count", "field": "sender" } },
+    "storeOther": { "type": "effect", "deps": ["senderCounts"], "fn": "writeToDB", "config": { "table": "email_sender_counts" } }
+  }
+}
+```
+
+**Graph B — pricing pipeline (has bugs, from L0 Task 5):**
+```json
+{
+  "nodes": {
+    "tick": { "type": "producer", "source": "timer", "config": { "intervalMs": 60000 } },
+    "apiCall": { "type": "derived", "deps": ["tick"], "fn": "retry", "config": { "maxAttempts": 3, "backoff": "exponential", "fn": "fetchPrice" } },
+    "priceCache": { "type": "state", "initial": null },
+    "cachedFallback": { "type": "derived", "deps": ["apiCall", "priceCache"], "fn": "fallback", "config": { "fallbackSource": "priceCache" } },
+    "updateCache": { "type": "effect", "deps": ["cachedFallback"], "fn": "cache", "config": { "ttlMs": 300000 } },
+    "logAttempt": { "type": "effect", "deps": ["apiCall"], "fn": "writeToDB", "config": { "table": "pricing_log" } },
+    "dashboard": { "type": "effect", "deps": ["cachedFallback"], "fn": "updateDashboard", "config": { "dashboardId": "pricing" } }
+  }
+}
+```
+
+### L1 Task prompts
+
+**L1-1 (explain — trace a path):**
+```
+Here is an existing GraphSpec [paste Graph A]. Explain what happens step-by-step
+when an email arrives from "alice@team.com" with subject "Q3 deadline tomorrow".
+Trace the path from the inbox producer through every node it touches, and state
+what each node outputs.
+```
+
+**L1-2 (debug — find bugs):**
+```
+Here is a GraphSpec for a pricing pipeline [paste Graph B]. The intended behavior
+is: "On a 60-second timer, fetch a price from an API. Retry up to 3 times with
+exponential backoff. If all retries fail, use the last known cached price. Log
+every attempt. Send the final price to a dashboard."
+
+Find all bugs or design issues in this GraphSpec. For each issue, explain what's
+wrong and suggest a fix (as a modified node or new node).
+```
+
+**L1-3 (modify — add a feature):**
+```
+Here is an existing GraphSpec [paste Graph A]. The user wants to add this feature:
+"Also flag any email whose subject contains the word 'deadline', regardless of
+classification, and send those to a separate Slack channel #deadlines."
+
+Return the modified GraphSpec (full JSON). Only add or change what's needed —
+don't restructure existing nodes.
+```
+
+**L1-4 (diff — review a change):**
+```
+A teammate changed Graph A. Here is the BEFORE [paste Graph A] and AFTER:
+
+[paste Graph A with these changes: "urgent" filterBy value changed from "urgent"
+to "high-priority", new node "summarizeUrgent" (derived, deps: ["urgent"],
+fn: "llmSummarize", config: { style: "bullets" }), "pushUrgent" deps changed
+from ["urgent"] to ["summarizeUrgent"]]
+
+List every difference between BEFORE and AFTER. For each change, state whether
+it's correct, risky, or a bug, and why.
+```
+
+**L1-5 (explain — blast radius):**
+```
+Here is a GraphSpec [paste Graph A]. If the "classify" node starts returning
+errors (llmClassify API is down), which other nodes are affected? List every
+node that would stop producing correct output, and explain the propagation path.
+```
+
+**L1-6 (modify — resilience retrofit):**
+```
+Here is a GraphSpec [paste Graph A]. The llmClassify API has been unreliable.
+Add resilience: retry 2 times with linear backoff, then fall back to a simple
+keyword-based classification (use "filterBy" with contains checks as the
+fallback). The rest of the pipeline should work the same.
+
+Return the modified GraphSpec (full JSON).
+```
+
+---
+
+### L1 SCORING RUBRIC
+
+Score each L1 output on these criteria (1 = fail, 2 = partial, 3 = pass):
+
+| # | Criterion | How to judge |
+|---|-----------|-------------|
+| D1 | **Accurate reading** | Does the LLM correctly understand the existing graph's structure and data flow? No misidentified deps, no phantom nodes, no wrong types. |
+| D2 | **Complete identification** | For debug/explain tasks: did it find ALL bugs or trace ALL affected nodes? For modify tasks: did it change everything needed and nothing extra? |
+| D3 | **Correct fix/modification** | Is the proposed change valid GraphSpec JSON that would actually work? No hallucinated fns, no structural errors. |
+| D4 | **Minimal diff** | For modify tasks: did it avoid unnecessary restructuring? Changes should be surgical — only what the task requires. |
+| D5 | **Reasoning quality** | Is the explanation clear, specific, and actionable? Does it reference actual node names and data flow, not generic advice? |
+
+### L1 Recording template
+
+```
+AI: [model name]
+Date: [date]
+
+L1-1 (explain): D1=_ D2=_ D3=n/a D4=n/a D5=_
+L1-2 (debug):   D1=_ D2=_ D3=_ D4=n/a D5=_
+L1-3 (modify):  D1=_ D2=_ D3=_ D4=_ D5=_
+L1-4 (diff):    D1=_ D2=_ D3=n/a D4=n/a D5=_
+L1-5 (blast):   D1=_ D2=_ D3=n/a D4=n/a D5=_
+L1-6 (retrofit): D1=_ D2=_ D3=_ D4=_ D5=_
 
 Notes:
 ```

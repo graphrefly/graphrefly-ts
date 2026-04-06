@@ -5,7 +5,9 @@ import { type Node, type NodeFn, type NodeOptions, node } from "./node.js";
  *
  * Spec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §2.7).
  *
- * @param initial - Initial cached value.
+ * @param initial - Initial cached value. Because `initial` is provided, `equals` is
+ *   called on the first {@link Node.down | down()} emission — if the value matches
+ *   `initial`, the node emits `RESOLVED` instead of `DATA` (spec §2.5).
  * @param opts - Optional {@link NodeOptions} (excluding `initial`).
  * @returns `Node<T>` - Stateful node you drive imperatively.
  *

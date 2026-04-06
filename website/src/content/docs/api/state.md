@@ -17,7 +17,9 @@ function state<T>(initial: T, opts?: Omit<NodeOptions, "initial">): Node<T>
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `T` | Initial cached value. |
+| `initial` | `T` | Initial cached value. Because `initial` is provided, `equals` is
+called on the first | down() emission — if the value matches
+`initial`, the node emits `RESOLVED` instead of `DATA` (spec §2.5). |
 | `opts` | `Omit&lt;NodeOptions, "initial"&gt;` | Optional NodeOptions (excluding `initial`). |
 
 ## Returns

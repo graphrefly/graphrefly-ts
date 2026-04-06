@@ -141,8 +141,13 @@ express `pipe()`. This is a schema expressiveness gap.
 
 ## Action items
 
-1. **Run portable eval across 3+ AIs** with neutral rubric — get unbiased baseline
-2. **Propose `writes` field** for GraphSpec feedback loops (spec change, needs RFC)
-3. **Fix `retry` catalog entry** to require `config.fn`
-4. **Consider `wrappers` array** for resilience composition in GraphSpec
-5. **Re-run evals after fixes** to see if Task 5 and Task 6 improve
+1. ~~**Run portable eval across 3+ AIs** with neutral rubric — get unbiased baseline~~ → Run 2 completed (2026-04-05), see `claude-web-2026-04-05-run2.md`
+2. ~~**Propose `writes` field** for GraphSpec feedback loops~~ → decided against standalone `writeTo`; it's just `graph.set()` renamed. Feedback loops use §8.1 `feedback(graph, condition, reentry)` serialized as top-level `"feedback"` array in GraphSpec §8.3. The fn is a normal derived computation; the cycle is the `feedback` edge. No `conditionMap` catalog entry needed — if-else logic is just a derived fn.
+3. ~~**Fix `retry` catalog entry** to require `config.fn`~~ → done in catalog update (added fibonacci, updated config)
+4. ~~**Consider `wrappers` array** for resilience composition in GraphSpec~~ → replaced by `templates` in GraphSpec §8.3 (define-once subgraph pattern, instantiate per source via `"type": "template"` + `"bind"`)
+5. ~~**Re-run evals after fixes** to see if Task 5 and Task 6 improve~~ → T5 improved (+4 pts), T6 barely (+1 pt, schema gap confirmed)
+6. ~~**Schema: subgraph template / pattern reuse**~~ → added to roadmap §8.3 as `templates` top-level key. `compileSpec()` expands into `graph.mount()`. See roadmap for schema examples.
+7. **L1 eval tier added** — debug/modify/explain tasks in `portable-eval-prompts.md`, tests GraphSpec's introspection advantages
+8. **Task 8 split into 8a/8b** — 8a requires per-source isolation, 8b requires shared gating (tests whether LLM applies correct topology)
+9. **Run across more models** — GPT-4o, Gemini, smaller models to validate catalog sufficiency
+10. **Re-run L0 + L1 evals after §8.3 ships** — validate that `feedback` edges fix T6 and `templates` fix T8a

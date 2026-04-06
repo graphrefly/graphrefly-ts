@@ -115,7 +115,7 @@ export type GraphDescribeOutput = {
 
 /**
  * Persisted graph snapshot: {@link GraphDescribeOutput} plus optional format version
- * ({@link Graph.snapshot}, {@link Graph.restore}, {@link Graph.fromSnapshot}, {@link Graph.toJSON},
+ * ({@link Graph.snapshot}, {@link Graph.restore}, {@link Graph.fromSnapshot}, {@link Graph.toObject},
  * {@link Graph.toJSONString} — §3.8).
  */
 export type GraphPersistSnapshot = GraphDescribeOutput & {
@@ -2147,21 +2147,30 @@ export class Graph {
 	}
 
 	/**
-	 * Plain snapshot with **recursively sorted object keys** for deterministic serialization (§3.8).
+	 * Plain snapshot object with **recursively sorted object keys** for deterministic serialization (§3.8).
 	 *
 	 * @remarks
-	 * ECMAScript `JSON.stringify(graph)` invokes this method; it must return a plain object, not an
-	 * already-stringified JSON string (otherwise the graph would be double-encoded).
 	 * For a single UTF-8 string with a trailing newline (convenient for git), use {@link Graph.toJSONString}.
 	 *
 	 * @returns Same object as {@link Graph.snapshot}.
 	 */
-	toJSON(): GraphPersistSnapshot {
+	toObject(): GraphPersistSnapshot {
 		return this.snapshot();
 	}
 
 	/**
-	 * Deterministic JSON **text**: `JSON.stringify` of {@link Graph.toJSON} plus a trailing newline (§3.8).
+	 * ECMAScript `JSON.stringify` hook — delegates to {@link Graph.toObject}.
+	 *
+	 * @remarks
+	 * Must return a plain object (not a string) so `JSON.stringify(graph)` works correctly
+	 * without double-encoding.
+	 */
+	toJSON(): GraphPersistSnapshot {
+		return this.toObject();
+	}
+
+	/**
+	 * Deterministic JSON **text**: `JSON.stringify` of {@link Graph.toObject} plus a trailing newline (§3.8).
 	 *
 	 * @returns Stable string suitable for diffs.
 	 */

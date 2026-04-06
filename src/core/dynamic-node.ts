@@ -30,6 +30,7 @@ import {
 } from "./messages.js";
 import {
 	node as createNode,
+	NO_VALUE,
 	type Node,
 	type NodeActions,
 	type NodeDescribeKind,
@@ -135,7 +136,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 	private readonly _boundEmitToSinks: (messages: Messages) => void;
 
 	// Mutable state
-	private _cached: T | undefined;
+	private _cached: T | typeof NO_VALUE = NO_VALUE;
 	private _status: NodeStatus = "disconnected";
 	private _terminal = false;
 	private _connected = false;
@@ -245,7 +246,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 	}
 
 	get(): T | undefined {
-		return this._cached;
+		return this._cached === NO_VALUE ? undefined : this._cached;
 	}
 
 	down(messages: Messages, options?: NodeTransportOptions): void {
@@ -313,6 +314,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 
 		if (this._terminal && this._resubscribable) {
 			this._terminal = false;
+			this._cached = NO_VALUE;
 			this._status = "disconnected";
 			this._onResubscribe?.();
 		}
@@ -399,10 +401,13 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 			const t = m[0];
 			if (t === DATA) this._cached = m[1] as T;
 			if (t === INVALIDATE) {
-				this._cached = undefined;
+				this._cached = NO_VALUE;
+				this._status = "dirty";
 			}
-			if (t === DATA || t === RESOLVED) {
+			if (t === DATA) {
 				this._status = "settled";
+			} else if (t === RESOLVED) {
+				this._status = "resolved";
 			} else if (t === DIRTY) {
 				this._status = "dirty";
 			} else if (t === COMPLETE) {
@@ -413,7 +418,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 				this._terminal = true;
 			}
 			if (t === TEARDOWN) {
-				if (this._resetOnTeardown) this._cached = undefined;
+				if (this._resetOnTeardown) this._cached = NO_VALUE;
 				try {
 					this._propagateToMeta(t);
 				} finally {
@@ -440,7 +445,15 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 
 	private _emitAutoValue(value: unknown): void {
 		const wasDirty = this._status === "dirty";
-		const unchanged = this._equals(this._cached, value);
+		let unchanged: boolean;
+		try {
+			unchanged = this._cached !== NO_VALUE && this._equals(this._cached, value);
+		} catch (eqErr) {
+			const eqMsg = eqErr instanceof Error ? eqErr.message : String(eqErr);
+			const wrapped = new Error(`Node "${this.name}": equals threw: ${eqMsg}`, { cause: eqErr });
+			this._downInternal([[ERROR, wrapped]]);
+			return;
+		}
 		if (unchanged) {
 			this._downInternal(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
 			return;
