@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.7.0...v0.8.0) (2026-04-06)
+
+
+### Features
+
+* redesign initial and cached ([2ad7a00](https://github.com/graphrefly/graphrefly-ts/commit/2ad7a00c9db263a8281e27c7eb44e78bb63d2a3e))
+
 # [0.7.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.6.0...v0.7.0) (2026-04-06)
 
 
