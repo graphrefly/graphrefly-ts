@@ -22,7 +22,7 @@ export default defineConfig({
 				}),
 			],
 			title: "GraphReFly",
-			description: "Reactive graph protocol for human + LLM co-operation — TypeScript and Python.",
+			description: "Reactive harness layer for agent workflows. Describe automations in plain language, trace every decision, enforce policies, persist checkpoints. Zero dependencies.",
 			components: {
 				Header: "./src/components/Header.astro",
 				Footer: "./src/components/Footer.astro",

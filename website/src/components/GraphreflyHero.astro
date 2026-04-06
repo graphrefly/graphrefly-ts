@@ -16,7 +16,7 @@ const base = import.meta.env.BASE_URL;
     </span>
   </h1>
   <p class="gr-hero-sub">
-    You built automations that were supposed to help. Now they generate more noise than they filter. GraphReFly is the reactive graph engine that reduces chaos to signal — with every decision traceable and every node inspectable.
+    Describe agent workflows in plain language. Review them visually. Run them persistently. Trace every decision back to its cause. GraphReFly is the reactive harness layer between your LLM and production — causally explainable, policy-enforced, zero dependencies.
   </p>
   <div class="gr-hero-install" data-copy="npm i @graphrefly/graphrefly" title="Click to copy">
     <span class="gr-prompt">$</span>
@@ -30,7 +30,7 @@ const base = import.meta.env.BASE_URL;
 <section class="gr-headaches" id="gr-headaches">
   <div class="gr-headaches-header">
     <p class="gr-section-num">The Problem</p>
-    <h2 class="gr-section-headline">Three headaches.</h2>
+    <h2 class="gr-section-headline">Three harness gaps.</h2>
   </div>
 
   <div class="gr-headache-rows">
@@ -38,14 +38,14 @@ const base = import.meta.env.BASE_URL;
       <div class="gr-headache-pain">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>
         <div class="gr-headache-num">01</div>
-        <h3 class="gr-headache-title">Volume Without Boundaries</h3>
-        <p class="gr-headache-desc">Information multiplies across sources — email, Slack, feeds, APIs, logs. No single system sees it all. <strong>You become the integration layer.</strong></p>
+        <h3 class="gr-headache-title">Context Without Control</h3>
+        <p class="gr-headache-desc">Agent state is scattered across files, databases, and conversation transcripts. No single system sees it all. <strong>The agent becomes the integration layer — and fails.</strong></p>
       </div>
       <div class="gr-headache-solution">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Distributed Reactive Graphs</h3>
-        <p class="gr-solution-desc">A single reactive topology connects every source. Distributed graphs federate across services. One graph sees what ten dashboards can't.</p>
+        <h3 class="gr-solution-title">Reactive State Harness</h3>
+        <p class="gr-solution-desc">A single reactive topology connects every source. State pushes to dependents automatically — no re-reading, no stale snapshots. One graph sees what ten dashboards can't.</p>
         <div class="gr-solution-demo">Demo: Email Triage &rarr;</div>
       </div>
     </div>
@@ -54,14 +54,14 @@ const base = import.meta.env.BASE_URL;
       <div class="gr-headache-pain">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
         <div class="gr-headache-num">02</div>
-        <h3 class="gr-headache-title">Velocity Without Rhythm</h3>
-        <p class="gr-headache-desc">Markets move in milliseconds. Policies update quarterly. Emails arrive in bursts. Each source has its own clock — <strong>and your cron job missed the one that mattered.</strong></p>
+        <h3 class="gr-headache-title">Action Without Explanation</h3>
+        <p class="gr-headache-desc">Your agent flagged something. Why? You check logs — a wall of text. You check state — a snapshot, not a story. <strong>You can't explain the decision, so you can't trust it.</strong></p>
       </div>
       <div class="gr-headache-solution">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="1"/><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Push-Based Propagation</h3>
-        <p class="gr-solution-desc">Each node reacts the instant its source changes. No polling intervals. No missed beats. No stale snapshots accumulating in context.</p>
+        <h3 class="gr-solution-title">Causal Tracing</h3>
+        <p class="gr-solution-desc">Ask "why was this flagged?" and get a structural causal chain — from source to conclusion. Not a log dump, but traceable causality that persists across sessions.</p>
         <div class="gr-solution-demo">Demo: Spending Alerts &rarr;</div>
       </div>
     </div>
@@ -70,14 +70,14 @@ const base = import.meta.env.BASE_URL;
       <div class="gr-headache-pain">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
         <div class="gr-headache-num">03</div>
-        <h3 class="gr-headache-title">Action Without Memory</h3>
-        <p class="gr-headache-desc">You vibe-coded a fix. It worked. Next month, nobody knows why — or whether it's still correct. <strong>Disposable solutions you can't repeat, explain, or build upon.</strong></p>
+        <h3 class="gr-headache-title">Composition Without Guardrails</h3>
+        <p class="gr-headache-desc">LLMs compose agent workflows by writing arbitrary code. Error space is unbounded. One hallucination cascades through the pipeline. <strong>No policy enforcement, no safe rollback.</strong></p>
       </div>
       <div class="gr-headache-solution">
         <svg class="gr-card-bg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         <p class="gr-solution-label">GraphReFly</p>
-        <h3 class="gr-solution-title">Persistent Causal Chain</h3>
-        <p class="gr-solution-desc">Every decision traces back through a structural causal chain. Persistent, inspectable, composable. Change upstream — downstream knows it may no longer hold.</p>
+        <h3 class="gr-solution-title">Declarative GraphSpec</h3>
+        <p class="gr-solution-desc">Describe workflows in a declarative schema — like SQL for data flows. LLMs compose structurally, not imperatively. Policy enforcement, persistent checkpoints, safe rollback built in.</p>
         <div class="gr-solution-demo">Demo: Knowledge Graph &rarr;</div>
       </div>
     </div>
@@ -88,10 +88,10 @@ const base = import.meta.env.BASE_URL;
 
 <!-- ═══ PYRAMID ═══ -->
 <section class="gr-requirements" id="gr-requirements">
-  <p class="gr-section-num">The Vision</p>
+  <p class="gr-section-num">The Harness</p>
   <h2 class="gr-section-headline">Four requirements.</h2>
   <p class="gr-requirements-intro">
-    For human + LLM co-operation to work at scale, the system must satisfy all four. <strong>Miss one, the whole thing breaks.</strong>
+    A harness layer between your LLM and production must satisfy all four. <strong>Miss one, the whole thing breaks.</strong>
   </p>
 
   <div class="gr-pyramid-wrap">
@@ -202,7 +202,7 @@ const base = import.meta.env.BASE_URL;
   <p class="gr-section-num">Ship It</p>
   <h2 class="gr-section-headline">It exists.</h2>
   <p class="gr-cta-sub">
-    The TypeScript and Python implementations are live. Zero dependencies. Tree-shakeable. One primitive.
+    The reactive harness layer is live. TypeScript and Python. Zero dependencies. Tree-shakeable. One primitive.
   </p>
 
   <div class="gr-cta-actions">
@@ -868,8 +868,8 @@ const base = import.meta.env.BASE_URL;
 
 <script>
 /* ═══ FLIP BOARD ═══ */
-const VERBS = ['drowning in','chasing','losing sleep over','firefighting','second-guessing','babysitting','re-reading'];
-const NOUNS = ['emails.','alerts.','Slack threads.','dashboards.','pull requests.','market feeds.','incident tickets.','spreadsheets.'];
+const VERBS = ['debugging','re-reading','second-guessing','babysitting','firefighting','losing trust in','polling'];
+const NOUNS = ['agent state.','stale context.','LLM decisions.','agent workflows.','broken pipelines.','black-box outputs.','frozen snapshots.'];
 
 function buildFlipTrack(items, cls) {
   return items.concat([items[0]]).map(t => `<span class="gr-flip-item"><span class="${cls}">${t}</span></span>`).join('');
