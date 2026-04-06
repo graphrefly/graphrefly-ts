@@ -252,6 +252,24 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-deerflow-deepagents-comparison.md`
 
+### Session harness-engineering-strategy (April 6) — Harness Engineering Gap Analysis, Three-Wave Announcement Plan, Eval System Design, Ecosystem Infiltration
+**Topic:** Research-backed gap analysis between "harness engineering" (2026's defining trend, named by Mitchell Hashimoto, adopted by OpenAI/Anthropic/Fowler) and GraphReFly's existing architecture. Produced a three-wave announcement plan, two-tier eval system design, ecosystem infiltration strategy, and anti-stealth decision.
+
+**Key decisions:**
+- **Anti-stealth:** decided NOT to go stealth. The moat is category ownership (vocabulary + mindshare), not code secrecy. 20+ adapters already built; 30+ harness engineering articles published in 8 weeks — window to claim category is April-June 2026
+- **Three announcement waves:** Wave 1 (eval story — low risk, high credibility), Wave 2 (harness layer + MCP server + scorecard — claims category), Wave 3 (Demo 0 + Show HN + framework packages — full launch)
+- **Two-tier eval:** portable/manual (free, copy-paste into any chat) + automated/API (cheap models for dev, expensive for publish). `LLMProvider` interface makes model switching a config change
+- **MCP Server as primary infiltration vector** — one npm package reaches all MCP clients (Claude, Cursor, VS Code Copilot, ChatGPT, Cline, LangGraph, CrewAI, Vercel AI SDK)
+- **`explainPath` is THE differentiator** — causal walkback that no competitor has. Prioritized as P0 alongside `auditTrail`
+- **Reposition from "reactive graph engine" to "reactive harness layer for agent workflows"** — "Nobody buys an engine" (Aaron Levie)
+- **Consumer track deferred** — pillar #1 ("Stop Drowning in Information") revisited post-Wave 3
+
+**Roadmap impact:** New §9.1–9.7 in TS roadmap (eval harness, audit/accountability, MCP server, scorecard, Demo 0, framework packages, Demo 6). Matching §9.0/9.2/9.2b in PY roadmap. §15 added to marketing strategy. Deferred section for §8.5-8.8, §6.2-6.3, demos 1-4.
+
+**External research:** 30+ harness engineering articles (SearXNG, April 2026), Cursor export analysis, MCP ecosystem landscape (official registry, Cline Marketplace, PulseMCP), LangGraph/CrewAI/Vercel AI SDK integration mechanisms, A2A/ACP/ANP protocols.
+
+**Files:** `archive/docs/SESSION-harness-engineering-strategy.md`
+
 ---
 
 ## Reading Guide
@@ -275,5 +293,5 @@ Each session file contains:
 ---
 
 **Created:** March 27, 2026
-**Updated:** April 4, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit + DeerFlow/Deep Agents comparison
+**Updated:** April 6, 2026
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit + DeerFlow/Deep Agents comparison + harness engineering strategy

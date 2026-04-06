@@ -3,6 +3,7 @@
  */
 export * from "./actor.js";
 export * from "./batch.js";
+export { type BridgeOptions, bridge, DEFAULT_DOWN } from "./bridge.js";
 export { monotonicNs, wallClockNs } from "./clock.js";
 export * from "./dynamic-node.js";
 export * from "./guard.js";

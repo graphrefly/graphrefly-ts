@@ -579,7 +579,7 @@ export function decompileGraph(graph: Graph): GraphSpec {
 	const metaSegment = `::${GRAPH_META_SEGMENT}::`;
 
 	// Detect feedback counter nodes and extract feedback edges from meta
-	const feedbackCounterPattern = /^__feedback_(.+)$/;
+	const feedbackCounterPattern = /^__feedback_(?!effect_)(.+)$/;
 	const feedbackConditions = new Set<string>();
 
 	for (const path of Object.keys(desc.nodes)) {
@@ -598,10 +598,12 @@ export function decompileGraph(graph: Graph): GraphSpec {
 		}
 	}
 
-	// Build nodes map, skipping meta and feedback internals
+	// Build nodes map, skipping meta, feedback internals, and bridge nodes
 	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
 		if (path.includes(metaSegment)) continue;
 		if (feedbackCounterPattern.test(path)) continue;
+		if (path.startsWith("__feedback_effect_")) continue;
+		if (path.startsWith("__bridge_")) continue;
 		// Skip subgraph-internal nodes (they belong to templates)
 		if (path.includes("::")) continue;
 

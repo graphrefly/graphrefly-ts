@@ -9,6 +9,168 @@
 
 ---
 
+## Harness Engineering Sprint — Priority Build Order
+
+> **Context:** "Harness engineering" is the defining trend of 2026 (named by Mitchell Hashimoto ~Feb 2026, adopted by OpenAI, Anthropic, Martin Fowler). GraphReFly already covers the execution substrate — what's missing is proof artifacts, the audit/explain layer, ecosystem distribution, and public narrative. This sprint reorders remaining work into three announcement waves.
+>
+> **Design reference:** `archive/docs/SESSION-harness-engineering-strategy.md`
+
+### Wave 1: "The Eval Story" — publish engineering discipline (Weeks 1-3)
+
+Goal: establish credibility by showing eval → schema fix → re-eval feedback loop publicly. Low risk, no full architecture reveal.
+
+#### 9.1 — Eval harness (presentable) [NEW]
+
+The eval system has two tiers: **manual/portable** (copy-paste prompts into any LLM chat — free, instant, internal-first) and **automated/API** (multi-model matrix via API keys — quantifiable, composable, publishable). Both tiers share the same corpus and rubrics; they differ only in execution method.
+
+**LLM layer design:** The `llm-client.ts` adapter is provider-agnostic. Each provider implements `LLMProvider { generate(prompt, opts): Promise<LLMResponse> }`. Switch models by config, not code change. For cost control, prototype with cheap models (Haiku, GPT-4o-mini, Gemini Flash) and reserve expensive models (Opus, GPT-4o, Sonnet) for final publishable runs.
+
+##### Portable eval tier (manual, free)
+
+- [x] Copy-paste prompts: `portable-eval-prompts.md` (L0 + L1 rubrics, any AI)
+- [x] Neutral rubric: no GraphReFly context in prompts (unbiased)
+- [x] Recording template for manual scoring
+- [ ] L1 task prompts for comprehension eval (debug/modify/explain) — finalize 6 task prompts
+- [ ] "How to run a manual eval" one-pager (for contributors and blog readers)
+
+##### Automated eval tier (API, publishable)
+
+- [x] L0 contrastive runner (`pnpm eval:contrastive`) — Graph vs Functions, 8 tasks
+- [x] LLM-as-judge scoring (`lib/judge.ts`)
+- [x] Dev-DX vitest suite (`pnpm eval:dev-dx` — no LLM calls)
+- [x] Results comparison (`pnpm eval:compare`)
+- [ ] **Multi-provider LLM client** — extend `llm-client.ts` with `LLMProvider` interface: Anthropic (existing), OpenAI, Google. Env: `EVAL_PROVIDER`. Budget tier: Haiku/GPT-4o-mini/Gemini-Flash for dev; Sonnet/GPT-4o/Gemini-Pro for publish.
+- [ ] **L1 runner wired** — finish orchestration in `runner.ts` (currently scaffolded)
+- [ ] **Validator wired to `graphFromSpec()`** — real execution check, not just structure validation (8.3 → 9.1)
+- [ ] **Multi-model matrix runner** (`pnpm eval:matrix`) — runs L0+L1 across configured model list
+- [ ] **GitHub Actions `eval.yml`** — weekly scheduled + manual dispatch; commits results to `evals/results/`; secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
+- [ ] **Harness metrics module** (`lib/harness-metrics.ts`) — computes KPIs from run data: firstPassValidity, hallucinationRate, completeness, debugAccuracy, schemaGapsOpen/Resolved
+- [ ] **Scorecard generator** (`scripts/publish-scorecard.ts`) — outputs `evals/scorecard/latest.json` + `latest.md` from aggregated runs
+- [ ] **Regression gate** — fail CI if validity drops >5% from stored baseline
+- [ ] **Cost tracking** — per-run token counts → estimated $ (logged in results JSON)
+- [ ] 5+ automated runs across 2+ models with trend data committed
+
+##### Eval-driven schema fixes (feedback loop — the publishable story)
+
+- [x] T6 feedback loops → `feedback` edges in GraphSpec (8.1 → 8.3)
+- [x] T8 subgraph templates → `templates` in GraphSpec (8.3)
+- [x] T5/T8 resilience catalog gaps → `fallback`, `cache`, `timeout` added (3.1c)
+- [ ] Track schema gaps as running metric: gaps found → gaps resolved
+
+#### 9.1 deliverables for announcement
+
+- [ ] Blog post: "How our eval harness found two schema bugs LLMs couldn't work around"
+- [ ] Open-source the eval runner (already in repo — make it prominent)
+- [ ] Multi-model comparison results page
+- [ ] "Reproduce our evals" guide (portable prompts for anyone)
+
+---
+
+### Wave 2: "The Harness Layer" — claim the category (Weeks 4-9)
+
+Goal: ship the audit/explain layer + MCP server + scorecard. This is where GraphReFly explicitly becomes "harness engineering."
+
+#### 9.2 — Audit & accountability (8.4 → 9.2)
+
+The missing layer that makes "harness" real, not just "substrate."
+
+- [ ] `explainPath(graph, from, to)` — walk backward through graph derivation chain. Returns human-readable + LLM-parseable causal chain. THE harness differentiator. (8.4 → 9.2)
+- [ ] `auditTrail(graph, opts?)` → Graph — wraps any graph with `reactiveLog` recording every mutation, actor, timestamp, causal chain. Queryable by time range, actor, node. (8.4 → 9.2)
+- [ ] `policyEnforcer(graph, policies)` — reactive constraint enforcement. Policies are nodes (LLM-updatable). Violations emit to alert subgraph. (8.4 → 9.2)
+- [ ] `complianceSnapshot(graph)` — point-in-time export of full graph state + audit trail for regulatory archival. (8.4 → 9.2)
+
+#### 9.3 — MCP Server (`@graphrefly/mcp-server`) [NEW]
+
+Highest-leverage distribution move. One package reaches Claude, Cursor, VS Code Copilot, ChatGPT, Cline, LangGraph, CrewAI, Vercel AI SDK.
+
+- [ ] MCP Server package exposing GraphReFly operations as tools:
+  - `graphrefly_create` — create graph from GraphSpec JSON or natural language
+  - `graphrefly_observe` — observe node/graph state (progressive detail levels)
+  - `graphrefly_reduce` — run a reduction pipeline on input data
+  - `graphrefly_explain` — causal chain for a decision (requires 9.2 `explainPath`)
+  - `graphrefly_snapshot` — checkpoint/restore graph state
+  - `graphrefly_describe` — graph topology introspection
+- [ ] Publish to npm as `@graphrefly/mcp-server`
+- [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
+- [ ] "Try it with Claude Code in 2 minutes" quickstart
+
+#### 9.4 — Harness scorecard (public) [NEW]
+
+- [ ] Scorecard page at `graphrefly.dev/scorecard` (or docs section):
+  - First-pass GraphSpec validity rate (from 9.1 evals)
+  - Hallucination rate by model
+  - Schema gap count: open → resolved (with links to fixes)
+  - Causal trace completeness (from 9.2 `explainPath` coverage — added once 9.2 ships)
+  - Checkpoint restore integrity (from existing snapshot round-trip tests)
+  - Multi-model comparison trend lines
+- [ ] Updated weekly from CI eval runs
+- [ ] Machine-readable `scorecard/latest.json` for programmatic consumption
+
+#### 9.2 deliverables for announcement
+
+- [ ] `@graphrefly/mcp-server` on npm
+- [ ] Harness scorecard page live
+- [ ] "GraphReFly vs LangGraph" comparison page (reactive push vs static DAG, causal trace, glitch-free)
+- [ ] Blog: "Why agent harnesses need reactive graphs"
+- [ ] README/landing page rewrite with harness engineering vocabulary
+- [ ] npm keywords + GitHub topics updated: add `harness-engineering`, `agent-harness`, `causal-trace`
+
+---
+
+### Wave 3: "The Existential Demo" — prove the full vision (Weeks 10-15)
+
+Goal: Demo 0 + framework integrations. Unlocks HN launch.
+
+#### 9.5 — Demo 0 (7.3 → 9.5)
+
+NL → GraphSpec → flow view → run → persist → explain. The demo that proves the reason to exist.
+
+- [ ] Demo 0: Personal email triage (7.3 → 9.5, see §7.3 for full ACs)
+
+#### 9.6 — Framework infiltration packages [NEW]
+
+- [ ] **Vercel AI SDK middleware** (`@graphrefly/ai-sdk`) — `graphreflyMiddleware` wraps any model with reactive graph state. Intercepts calls to inject context, captures outputs as node updates.
+- [ ] **LangGraph TS tools** (`@graphrefly/langgraph`) — Zod-validated tools exposing graph operations. Note: LangGraph also consumes MCP natively, so 9.3 MCP server may suffice.
+- [ ] **3 golden template repos** — standalone starter projects:
+  - Incident triage reduction (observabilityGraph + fromOTel)
+  - Agent run observatory (agentLoop + tracing)
+  - Alert dedup/prioritization (funnel + scorer)
+
+#### 9.7 — Demo 6: AI Agent Observatory (7.3b → 9.7)
+
+The harness engineering showcase. Instrument agentLoop, LLM observes LLM, distills "why agent went off-track."
+
+- [ ] Demo 6 (7.3b → 9.7, see §7.3b for details)
+
+#### Wave 3 deliverables for announcement
+
+- [ ] Demo 0 video/GIF
+- [ ] Show HN: "GraphReFly — the reactive harness layer for agent workflows [harness scorecard inside]"
+- [ ] `@graphrefly/ai-sdk` and/or `@graphrefly/langgraph` on npm
+- [ ] 3 template repos public
+- [ ] Reddit posts: r/AI_Agents, r/typescript, r/ClaudeCode
+- [ ] 小红书 original post: "为什么 Agent Harness 需要 reactive graph"
+- [ ] Submit to harness-engineering.ai knowledge graph
+
+---
+
+### Deferred (post-Wave 3 / post-launch)
+
+Items not needed for harness engineering adoption. Build when demanded by users/pilots.
+
+- §8.5 `peerGraph(transport)`, `shardedGraph(shardFn)`, adaptive sampling — distributed scale
+- §8.6 GraphCodec (pluggable serialization) — performance optimization
+- §8.7 Delta checkpoints & WAL — persistence optimization
+- §8.8 Memory optimization (lazy meta, node pooling, dormant eviction) — scale optimization
+- §6.2 V2 schema validation, §6.3 V3 caps+refs — versioning depth
+- §7.3 Demos 1-4 — non-harness showcase demos
+- §7.3b Demo 5 (Observability Pipeline), Demo 7 (Log Reduction) — build after Demo 0 + Demo 6 prove the pattern
+- §7.4 Scenario tests — after demos ship
+- §7.5 Inspection stress tests — quality hardening
+- Consumer track (pillar #1 "Stop Drowning in Information") — revisit at v1.0
+
+---
+
 ## Hotfix: `equals` contract + error observability (both TS and PY)
 
 Must be done before any further feature work — LLM implementors will hit this repeatedly.
@@ -753,10 +915,10 @@ Composable building blocks between sources and sinks.
 
 Pre-wired graphs for common "info → action" domains. Each is a working vertical that demonstrates the reduction layer patterns. Users fork/extend.
 
-- [ ] `observabilityGraph(opts)` → Graph — OTel ingest → stratified reduction → correlation engine → SLO verification → alert prioritization → dashboard sink. Exercises: fromOTel, stratify, scorer, verifiable, feedback.
-- [ ] `issueTrackerGraph(opts)` → Graph — findings ingest → extraction → verifiable assertions → regression detection → memory distillation → prioritized queue. Exercises: fromGitHook, fromFSWatch, verifiable, distill, feedback.
-- [ ] `contentModerationGraph(opts)` → Graph — multimedia/text ingest → LLM classification → human review queue → feedback on false positives → policy refinement. Exercises: stratify, agentLoop, feedback, scorer.
-- [ ] `dataQualityGraph(opts)` → Graph — database/API ingest → schema validation → anomaly detection → drift alerting → auto-remediation suggestions. Exercises: fromPrisma/fromKysely, verifiable, feedback.
+- [x] `observabilityGraph(opts)` → Graph — OTel ingest → stratified reduction → correlation engine → SLO verification → alert prioritization → dashboard sink. Exercises: fromOTel, stratify, scorer, verifiable, feedback.
+- [x] `issueTrackerGraph(opts)` → Graph — findings ingest → extraction → verifiable assertions → regression detection → memory distillation → prioritized queue. Exercises: fromGitHook, fromFSWatch, verifiable, distill, feedback.
+- [x] `contentModerationGraph(opts)` → Graph — multimedia/text ingest → LLM classification → human review queue → feedback on false positives → policy refinement. Exercises: stratify, agentLoop, feedback, scorer.
+- [x] `dataQualityGraph(opts)` → Graph — database/API ingest → schema validation → anomaly detection → drift alerting → auto-remediation suggestions. Exercises: fromPrisma/fromKysely, verifiable, feedback.
 
 ### 8.3 — LLM graph composition
 

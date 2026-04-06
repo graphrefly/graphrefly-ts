@@ -8,16 +8,19 @@
  * @module
  */
 
+import { batch } from "../core/batch.js";
+import { bridge, DEFAULT_DOWN } from "../core/bridge.js";
 import {
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
+	INVALIDATE,
 	type Message,
-	type Messages,
 	PAUSE,
 	RESOLVED,
 	RESUME,
+	TEARDOWN,
 } from "../core/messages.js";
 import {
 	type Node,
@@ -81,6 +84,11 @@ function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, 
 		reduction_type: kind,
 		...(meta ?? {}),
 	};
+}
+
+/** Force-activate a lazy node so it receives messages immediately. */
+function keepalive(n: Node<unknown>): () => void {
+	return n.subscribe(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -290,27 +298,21 @@ export function funnel<T>(
 
 		g.mount(stage.name, sub);
 
-		// Bridge: subscribe prevOutput → forward messages to stage input.
-		// Forwards DIRTY, DATA, RESOLVED, COMPLETE, ERROR to preserve two-phase
-		// protocol across stages. TODO(8.2): replace with graph-visible bridge
-		// nodes once the core bridge() helper lands.
+		// Graph-visible bridge: forwards all standard types except TEARDOWN
+		// from the previous output to the next stage's input. TEARDOWN excluded
+		// because stage lifecycle is managed by the parent graph, not the
+		// upstream stage. Participates in two-phase push and shows up in describe().
 		const prevNode = g.resolve(prevOutputPath);
 		const stageInputPath = `${stage.name}::input`;
 		const stageInput = g.resolve(stageInputPath);
-		prevNode.subscribe((msgs: Messages) => {
-			for (const msg of msgs) {
-				const t = msg[0];
-				if (t === DATA) {
-					stageInput.down([[DATA, msg[1]]]);
-				} else if (t === DIRTY) {
-					stageInput.down([[DIRTY]]);
-				} else if (t === RESOLVED) {
-					stageInput.down([[RESOLVED]]);
-				} else if (t === COMPLETE || t === ERROR) {
-					stageInput.down([msg]);
-				}
-			}
+		const bridgeName = `__bridge_${prevOutputPath}→${stage.name}_input`;
+		const br = bridge(prevNode, stageInput, {
+			name: bridgeName,
+			down: DEFAULT_DOWN.filter((t) => t !== TEARDOWN),
 		});
+		g.add(bridgeName, br as Node<unknown>);
+		g.connect(prevOutputPath, bridgeName);
+		keepalive(br);
 
 		prevOutputPath = `${stage.name}::output`;
 	}
@@ -373,47 +375,46 @@ export function feedback(
 	const condNode = graph.resolve(condition);
 	const reentryNode = graph.resolve(reentry);
 
-	// Feedback via subscribe: when condition emits DATA, route back to reentry.
-	// Subscribe-based (not effect-based) because the feedback must be
-	// immediately active — no lazy activation required.
-	let tornDown = false;
-	let unsubCounter: (() => void) | null = null;
-	const safeUnsub = (): void => {
-		if (tornDown) return;
-		tornDown = true;
-		unsub();
-		unsubCounter?.();
-	};
-
-	const unsub = condNode.subscribe((msgs: Messages) => {
-		for (const msg of msgs) {
-			if (msg[0] === DATA) {
+	// Graph-visible feedback effect: intercepts condition DATA, routes back to
+	// reentry with iteration counting. Registered in the graph so it shows up
+	// in describe() and cleans up on graph.destroy().
+	const feedbackEffectName = `__feedback_effect_${condition}`;
+	const feedbackEffect = node([condNode], undefined, {
+		name: feedbackEffectName,
+		describeKind: "effect",
+		meta: baseMeta("feedback_effect", {
+			feedbackFrom: condition,
+			feedbackTo: reentry,
+		}),
+		onMessage(msg: Message, _depIndex: number, _actions: NodeActions): boolean {
+			const t = msg[0];
+			if (t === DATA) {
 				const currentCount = counter.get() as number;
-				if (currentCount >= maxIter) continue;
+				if (currentCount >= maxIter) return true;
 				const condValue = msg[1];
-				if (condValue == null) continue;
-				counter.down([[DATA, currentCount + 1]]);
-				reentryNode.down([[DATA, condValue]]);
-			} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
+				if (condValue == null) return true;
+				// Batch counter + reentry so both arrive atomically — no
+				// downstream listener sees the counter incremented while reentry
+				// still holds the old value (or vice versa).
+				batch(() => {
+					counter.down([[DATA, currentCount + 1]]);
+					reentryNode.down([[DATA, condValue]]);
+				});
+				return true;
+			}
+			if (t === COMPLETE || t === ERROR) {
 				// Terminal on condition — finalize the feedback cycle.
 				// Forward terminal to counter so observers know the cycle is done.
-				const terminal: Message = msg[0] === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [msg[0]];
+				const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];
 				counter.down([terminal]);
-				safeUnsub();
+				return true;
 			}
-		}
+			return false;
+		},
 	});
-
-	// Register teardown: when graph destroys, clean up the subscription.
-	// Counter teardown acts as the cleanup trigger.
-	unsubCounter = counter.subscribe((msgs: Messages) => {
-		for (const msg of msgs) {
-			if (msg[0] === COMPLETE || msg[0] === ERROR) {
-				safeUnsub();
-				return;
-			}
-		}
-	});
+	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
+	graph.connect(condition, feedbackEffectName);
+	keepalive(feedbackEffect);
 
 	return graph;
 }

@@ -384,6 +384,128 @@ MCP Server should be built **alongside Demo 0**, not after it. Reasons:
 
 ---
 
+## 15. Harness Engineering Wave Strategy (added April 6, 2026)
+
+**Trigger:** Research into "harness engineering" (the 2026 trend named by Mitchell Hashimoto, adopted by OpenAI/Anthropic/Fowler) revealed that GraphReFly already covers the execution substrate better than any competitor — but has zero mindshare in the conversation. The window to claim the category vocabulary is now, before LangGraph/CrewAI/OpenAI absorb it.
+
+**Key insight:** Don't announce "we built a harness." Announce **proof artifacts** that make the harness story self-evident. Three waves, each self-contained and publishable.
+
+### Wave-Based Announcement Plan
+
+#### Wave 1: "The Eval Story" (Weeks 1-3) — LOW RISK, HIGH CREDIBILITY
+
+**What to announce:** "We built an eval system that found real schema bugs — and we fixed them."
+
+**Why this first:** The harness engineering community is hungry for engineering discipline content. This doesn't reveal full architecture — it shows eval rigor. Safest possible first move.
+
+**Content deliverables:**
+- Blog post: "How our eval harness found two schema bugs LLMs couldn't work around" (the T6 feedback + T8 template story)
+- Open-source eval runner (already in repo — make prominent in README)
+- Multi-model comparison results (Claude vs GPT-4o vs Gemini)
+- "Reproduce our evals" guide using portable prompts (anyone can verify)
+- Multi-model comparison page
+
+**Channels:** Dev.to, HN comment replies (not Show HN yet), r/MachineLearning, r/AI_Agents, X thread. 小红书: "我们用 eval 发现了 LLM 的 schema 盲区" (analytical tone).
+
+**What NOT to reveal:** Full GraphReFly architecture, all 20+ adapters, domain templates.
+
+**Marketing actions during Wave 1:**
+- Begin reply marketing (§12) on harness engineering threads specifically — add keywords: "harness engineering", "agent harness", "agent reliability", "eval harness"
+- Update npm keywords: add `harness-engineering`, `agent-harness`, `causal-trace`
+- Update GitHub topics on all 3 repos
+- Update `llms.txt` with harness vocabulary
+
+#### Wave 2: "The Harness Layer" (Weeks 4-9) — CLAIMS THE CATEGORY
+
+**What to announce:** "GraphReFly: the reactive harness layer for agent workflows."
+
+**Why now:** Wave 1 established eval credibility. Now plant the flag.
+
+**Content deliverables:**
+- `@graphrefly/mcp-server` published on npm + submitted to MCP registry, Cline Marketplace, PulseMCP
+- Harness scorecard page at `graphrefly.dev/scorecard` (weekly-updated KPIs)
+- "GraphReFly vs LangGraph" comparison page
+- Blog: "Why agent harnesses need reactive graphs, not static DAGs"
+- "Try it with Claude Code in 2 minutes" MCP quickstart
+
+**Marketing actions at Wave 2 launch:**
+- **README rewrite** — change headline to harness engineering vocabulary: "GraphReFly makes agent workflows reactive, resumable, and causally explainable"
+- **Landing page redesign** — lead with harness engineering positioning, scorecard prominently linked
+- **npm description update**: "Reactive harness layer for agent workflows. Causal tracing, policy enforcement, persistent checkpoints. Zero dependencies."
+- **Website keywords/SEO** — target "harness engineering", "agent harness framework", "reactive agent orchestration"
+- Intensify reply marketing on harness engineering content (HN, Reddit, X, 小红书)
+- Submit GraphReFly to `harness-engineering.ai` knowledge graph (883 entities — get in it)
+
+**Channels:** HN comment replies (still not Show HN — save for Wave 3), r/AI_Agents, r/ClaudeCode, r/typescript. X original thread: "What harness engineering requires and why we built GraphReFly." 小红书: "Agent Harness 需要 reactive graph 的 5 个理由."
+
+#### Wave 3: "The Existential Demo" (Weeks 10-15) — FULL LAUNCH
+
+**What to announce:** "Describe an automation in English. Review it visually. Run it. Ask why."
+
+**Content deliverables:**
+- Demo 0 video/GIF (NL → flow view → running → "why was this flagged?")
+- `@graphrefly/ai-sdk` middleware (Vercel AI SDK)
+- `@graphrefly/langgraph` tools (if needed beyond MCP)
+- 3 golden template repos
+- Demo 6: AI Agent Observatory showcase
+
+**Marketing actions at Wave 3 launch:**
+- **Show HN** post: "Show HN: GraphReFly — describe automations in plain English, review visually, run persistently, trace every decision [harness scorecard inside]"
+  - Lead with Demo 0 GIF above the fold
+  - Link to scorecard, comparison page, template repos
+- **Reddit original posts:**
+  - r/AI_Agents: "We built a reactive harness layer for long-running agent workflows — here's our eval scorecard"
+  - r/typescript: "GraphReFly: reactive graph engine that makes agent workflows explainable and resumable"
+  - r/ClaudeCode: "MCP server that adds causal tracing to any Claude Code workflow"
+  - r/selfhosted: "Open-source tool: describe what matters in plain English, it watches and explains"
+- **小红书 original post:** "用自然语言描述自动化 → 可视化审查 → 持久运行 → 追溯因果链"
+- **X/Twitter thread:** Demo 0 walkthrough + scorecard highlights
+- **Product Hunt** — schedule for v1.0 milestone (post-Wave 3)
+- **Dev.to/Medium syndication** of all three wave blog posts
+- **Conference CFP submissions:** AI Engineer Summit, TSConf
+
+### Revised Promotion Phase Mapping
+
+| Old phase | New mapping | Gate |
+|---|---|---|
+| Phase A (Foundation) | Done — domain, npm org, robots.txt, llms.txt | — |
+| Phase B (Soft Launch) | **Wave 1** (eval story) + **Wave 2** (harness + MCP) | Eval CI running + MCP server shipped |
+| Phase C (Growth) | **Wave 3** (Demo 0 + Show HN + framework packages) | Demo 0 working + scorecard live |
+| Phase D (Sustained) | Post-Wave 3: conference talks, consumer track, community | 20+ design partner calls |
+
+### Revised Pillar Hierarchy (harness-first)
+
+The three positioning pillars from §6 remain valid. **New ordering for harness engineering audience:**
+
+1. **Lead with #3 ("Describe It, Don't Code It") in all developer/HN contexts** — this is the GraphSpec + LLM composition story. Harness engineering audience understands "declarative spec" value.
+2. **Follow with #2 ("Trust AI by Understanding It")** — the `explainPath` + causal trace + scorecard story. This is what "harness" means concretely.
+3. **Defer #1 ("Stop Drowning in Information")** — consumer track. Revisit post-Wave 3 when Demo 0 exists.
+
+### Ecosystem Infiltration Timing (update to §14)
+
+| Wave | Infiltration action | Distribution channel |
+|---|---|---|
+| Wave 1 | Update keywords/topics/llms.txt only | Search discoverability |
+| Wave 2 | **Ship MCP Server** — universal adapter reaching all MCP clients | npm + MCP registries (official, Cline, PulseMCP) |
+| Wave 2 | Reply marketing on harness engineering threads | HN, Reddit, X, 小红书 |
+| Wave 3 | **Ship `@graphrefly/ai-sdk`** middleware | npm, Vercel ecosystem |
+| Wave 3 | **Ship `@graphrefly/langgraph`** tools (if MCP insufficient) | npm, LangChain ecosystem |
+| Wave 3 | **Submit to `harness-engineering.ai`** knowledge graph | Direct community placement |
+| Wave 3 | **3 golden template repos** | GitHub discoverability |
+| Post-Wave 3 | CrewAI, OpenAI Agents SDK adapters | Expand as demanded by users |
+| Post-Wave 3 | A2A Agent Card (Google protocol) | Enterprise multi-agent positioning |
+
+### Anti-Stealth Rationale
+
+The idea of going stealth to prevent competitors from copying the reactive graph protocol was considered and rejected:
+
+1. **The code isn't copiable in meaningful timeframe** — Phases 0-8 represent 6+ months of focused work. 20+ adapters, domain templates, GraphSpec compiler, ABAC, CQRS, agent memory, reactive layout... someone reading the roadmap today couldn't replicate this in under a year.
+2. **The real moat isn't code — it's category ownership.** The harness engineering conversation is hardening RIGHT NOW (30+ articles in 8 weeks, March-April 2026). LangGraph, CrewAI, OpenAI are absorbing all search traffic. Every week of silence means the narrative sets without GraphReFly in it.
+3. **Integrations are already substantial.** `fromOTel`, `fromKafka`, `toPostgres`, `fromWebhook`, `toSSE`, `fromMCP`, `fromRedisStream`, `toClickHouse`, `toS3`, `fromPulsar`, `fromNATS`, `fromRabbitMQ`... the Cursor research recommended 5 integrations — we have 20+.
+4. **Stealth costs the only thing we're short on: mindshare.** Visibility is the gap, not code.
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords
