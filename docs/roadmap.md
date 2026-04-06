@@ -743,11 +743,11 @@ Reusable patterns for taking heterogeneous massive inputs and producing prioriti
 
 Composable building blocks between sources and sinks.
 
-- [ ] `stratify(source, rules)` → Graph — route input to different reduction branches based on classifier fn. Each branch gets independent operator chains (4 layers on branch A, 1 on branch B). Rules are reactive — an LLM can rewrite them at runtime.
-- [ ] `funnel(sources[], stages[])` → Graph — multi-source merge with sequential reduction stages. Each stage is a named subgraph (dedup → enrich → score → pack). Stages are pluggable — swap a stage by graph composition.
-- [ ] `feedback(graph, condition, reentry)` → Graph — introduce a cycle: when condition node fires, route output back to reentry point. Bounded by configurable max iterations + budget constraints. GraphSpec serialization: top-level `"feedback"` array in §8.3 schema — `compileSpec()` wires cycles from this; `decompileGraph()` detects cycles and emits them. Eval-motivated: T6 (adaptive polling) requires feedback to express "derived value writes back to state node" — the fn is a normal derived computation, the cycle is the `feedback` edge. See `evals/results/eval-analysis.md` and `evals/results/claude-web-2026-04-05-run2.md`.
-- [ ] `budgetGate(source, constraints)` → Node — pass-through that respects reactive constraint nodes (token budget, network IO, cost ceiling). Backpressure via PAUSE/RESUME when budget exhausted.
-- [ ] `scorer(sources[], weights)` → Node — reactive multi-signal scoring. Weights are nodes (LLM or human can adjust live). Output: sorted, prioritized items with full score breakdown in meta.
+- [x] `stratify(source, rules)` → Graph — route input to different reduction branches based on classifier fn. Each branch gets independent operator chains (4 layers on branch A, 1 on branch B). Rules are reactive — an LLM can rewrite them at runtime.
+- [x] `funnel(sources[], stages[])` → Graph — multi-source merge with sequential reduction stages. Each stage is a named subgraph (dedup → enrich → score → pack). Stages are pluggable — swap a stage by graph composition.
+- [x] `feedback(graph, condition, reentry)` → Graph — introduce a cycle: when condition node fires, route output back to reentry point. Bounded by configurable max iterations + budget constraints. GraphSpec serialization: top-level `"feedback"` array in §8.3 schema — `compileSpec()` wires cycles from this; `decompileGraph()` detects cycles and emits them. Eval-motivated: T6 (adaptive polling) requires feedback to express "derived value writes back to state node" — the fn is a normal derived computation, the cycle is the `feedback` edge. See `evals/results/eval-analysis.md` and `evals/results/claude-web-2026-04-05-run2.md`.
+- [x] `budgetGate(source, constraints)` → Node — pass-through that respects reactive constraint nodes (token budget, network IO, cost ceiling). Backpressure via PAUSE/RESUME when budget exhausted.
+- [x] `scorer(sources[], weights)` → Node — reactive multi-signal scoring. Weights are nodes (LLM or human can adjust live). Output: sorted, prioritized items with full score breakdown in meta.
 
 ### 8.2 — Domain templates (opinionated Graph factories)
 

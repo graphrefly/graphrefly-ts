@@ -9,3 +9,4 @@ export * as memory from "./memory.js";
 export * as messaging from "./messaging.js";
 export * as orchestration from "./orchestration.js";
 export * as layout from "./reactive-layout/index.js";
+export * as reduction from "./reduction.js";
