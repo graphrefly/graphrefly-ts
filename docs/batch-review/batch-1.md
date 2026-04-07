@@ -17,7 +17,7 @@ Both repos enforce `[[Type, Data?], ...]` (array of tuples) at all API boundarie
 
 ### 2. §1.3.1 DIRTY precedes DATA/RESOLVED — **PASS (both repos)**
 
-Both `_emitAutoValue`/`_emit_auto_value` correctly prepend DIRTY when the node is not already dirty:
+Both `_downAutoValue`/`_down_auto_value` correctly prepend DIRTY when the node is not already dirty:
 
 - **TS `node.ts:633-640`:** If `wasDirty`, emits `[[DATA, v]]` or `[[RESOLVED]]` alone (DIRTY already propagated). If not dirty, emits `[[DIRTY], [DATA, v]]` or `[[DIRTY], [RESOLVED]]`.
 - **Python `node.py:338-364`:** Identical logic.
@@ -42,7 +42,7 @@ Diamond resolution works correctly: D receives DIRTY from both B and C, then rec
 
 Two paths to RESOLVED:
 
-1. **Equality check on computed value:** `_emitAutoValue` / `_emit_auto_value` compares new value against cached using `equals` (defaults to `Object.is` / `operator.is_`). If unchanged → RESOLVED.
+1. **Equality check on computed value:** `_downAutoValue` / `_down_auto_value` compares new value against cached using `equals` (defaults to `Object.is` / `operator.is_`). If unchanged → RESOLVED.
    - TS `node.ts:635`: `const unchanged = this._equals(this._cached, value);`
    - Py `node.py:349`: `unchanged = self._equals(cached_snapshot, value)`
 
@@ -88,11 +88,11 @@ Passthrough nodes (no fn) forward all messages directly (including unknown types
 
 Both repos correctly defer DATA/RESOLVED and let DIRTY through immediately. However, they differ on **when phase-2 is deferred during drain**:
 
-- **TS `batch.ts:174-176,194`:** `emitWithBatch` defers phase-2 whenever `isBatching()` returns true, which is `batchDepth > 0 || flushInProgress` (`batch.ts:27`). During the drain loop, DATA is **still deferred** (re-queued for the next drain iteration).
+- **TS `batch.ts:174-176,194`:** `downWithBatch` defers phase-2 whenever `isBatching()` returns true, which is `batchDepth > 0 || flushInProgress` (`batch.ts:27`). During the drain loop, DATA is **still deferred** (re-queued for the next drain iteration).
 
-- **Python `node.py:700,708`:** The node's `_down_body` calls `emit_with_batch` with `defer_when="depth"`, which only defers when `bs.depth > 0` (`protocol.py:114-115`). During drain (`flush_in_progress=True` but `depth=0`), DATA is **NOT deferred** — it emits immediately.
+- **Python `node.py:700,708`:** The node's `_down_body` calls `down_with_batch` with `defer_when="depth"`, which only defers when `bs.depth > 0` (`protocol.py:114-115`). During drain (`flush_in_progress=True` but `depth=0`), DATA is **NOT deferred** — it emits immediately.
 
-The Python docstring at `protocol.py:199-201` claims `defer_when="depth"` "Matches TS `emitWithBatch`" — this is incorrect. The TS `emitWithBatch` uses the equivalent of `defer_when="batching"`.
+The Python docstring at `protocol.py:199-201` claims `defer_when="depth"` "Matches TS `downWithBatch`" — this is incorrect. The TS `downWithBatch` uses the equivalent of `defer_when="batching"`.
 
 **Impact:** During batch drain, if a deferred callback triggers further DATA emissions, TS re-defers them (preserving strict DIRTY-before-DATA across the entire drain), while Python delivers them immediately (potentially interleaving phase-1 and phase-2 across different nodes).
 

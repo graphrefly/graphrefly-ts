@@ -9,7 +9,7 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
-import { emitWithBatch } from "../../core/batch.js";
+import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
@@ -427,7 +427,7 @@ export function computeLineBreaks(
 		fontCache.set("-", hyphenWidth);
 	}
 
-	function emitLine(endSeg = lineEndSeg, endGrapheme = lineEndGrapheme, width = lineW) {
+	function flushLine(endSeg = lineEndSeg, endGrapheme = lineEndGrapheme, width = lineW) {
 		// Build line text
 		let text = "";
 		for (let i = lineStartSeg; i < endSeg; i++) {
@@ -505,7 +505,7 @@ export function computeLineBreaks(
 		// Hard break: emit current line, start fresh
 		if (seg.kind === "hard-break") {
 			if (hasContent) {
-				emitLine();
+				flushLine();
 			} else {
 				// Empty line
 				lines.push({
@@ -548,13 +548,13 @@ export function computeLineBreaks(
 				lineW += w;
 				lineEndSeg = i + 1;
 				lineEndGrapheme = 0;
-				emitLine(i + 1, 0, seg.kind === "space" ? lineW - w : lineW);
+				flushLine(i + 1, 0, seg.kind === "space" ? lineW - w : lineW);
 				continue;
 			}
 
 			if (pendingBreakSeg >= 0) {
 				// Break at last break opportunity
-				emitLine(pendingBreakSeg, 0, pendingBreakWidth);
+				flushLine(pendingBreakSeg, 0, pendingBreakWidth);
 				// Don't advance i — re-process current segment on new line
 				i--;
 				continue;
@@ -562,13 +562,13 @@ export function computeLineBreaks(
 
 			if (w > maxWidth && seg.graphemeWidths) {
 				// Break-word: split at grapheme level
-				emitLine();
+				flushLine();
 				appendBreakableSegment(i, 0, seg.graphemeWidths);
 				continue;
 			}
 
 			// No break opportunity: force break before this segment
-			emitLine();
+			flushLine();
 			i--;
 			continue;
 		}
@@ -585,7 +585,7 @@ export function computeLineBreaks(
 	}
 
 	if (hasContent) {
-		emitLine();
+		flushLine();
 	}
 
 	return { lines, lineCount: lines.length };
@@ -598,7 +598,7 @@ export function computeLineBreaks(
 				continue;
 			}
 			if (lineW + gw > maxWidth + 0.005) {
-				emitLine();
+				flushLine();
 				startLineAtGrapheme(segIdx, g, gw);
 			} else {
 				lineW += gw;
@@ -753,15 +753,15 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			// After parent `segments` auto-emits DATA/RESOLVED, deliver metrics
 			// via phase-3 deferral so observers see the parent value first.
 			// Phase-3 drains after all phase-2 work (parent settlements) completes
-			// (parity with Python `defer_down` → `emit_with_batch_phase3`).
+			// (parity with Python `defer_down` → `down_with_batch` phase 3).
 			const meta = segmentsNode.meta;
 			if (meta) {
 				const hr = hitRate;
 				const len = result.length;
 				const el = elapsed;
-				emitWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], 3);
-				emitWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], 3);
-				emitWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], 3);
+				downWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], 3);
+				downWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], 3);
+				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], 3);
 			}
 
 			return result;

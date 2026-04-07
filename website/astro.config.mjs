@@ -224,7 +224,7 @@ export default defineConfig({
 						items: [
 							{ label: "isBatching()", link: "/api/isbatching" },
 							{ label: "partitionForBatch()", link: "/api/partitionforbatch" },
-							{ label: "emitWithBatch()", link: "/api/emitwithbatch" },
+							{ label: "downWithBatch()", link: "/api/downwithbatch" },
 							{ label: "metaSnapshot()", link: "/api/metasnapshot" },
 							{ label: "describeNode()", link: "/api/describenode" },
 							{ label: "policy()", link: "/api/policy" },

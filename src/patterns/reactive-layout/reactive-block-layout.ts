@@ -16,7 +16,7 @@
  * └── meta: { block-count, layout-time-ns }
  * ```
  */
-import { emitWithBatch } from "../../core/batch.js";
+import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
@@ -312,8 +312,8 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			// Phase-3 meta deferral (parity with reactiveLayout)
 			const meta = measuredBlocksNode.meta;
 			if (meta) {
-				emitWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], 3);
-				emitWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], 3);
+				downWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], 3);
+				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], 3);
 			}
 
 			return result;

@@ -1,0 +1,14 @@
+{"id":"summary-1","optimization":"Output slot (`null -> fn -> Set`)","status":"Built-in","impact":"Lower memory in common fan-out case","when_to_use":"All node subscriptions"}
+{"id":"summary-2","optimization":"Batch phase split","status":"Built-in","impact":"Coalesced phase-2 propagation","when_to_use":"Multi-write updates"}
+{"id":"summary-3","optimization":"Diamond bitmask settlement","status":"Built-in","impact":"Single recompute per settled wave","when_to_use":"Multi-dep/diamond topologies"}
+{"id":"summary-4","optimization":"Lazy upstream connect/disconnect","status":"Built-in","impact":"Lower idle overhead","when_to_use":"Intermittently observed nodes"}
+{"id":"summary-5","optimization":">32 dep segmented bitmask","status":"Built-in","impact":"Scales fan-in tracking","when_to_use":"High-fan-in compute nodes"}
+{"id":"summary-6","optimization":"`completeWhenDepsComplete` opt-out","status":"Built-in","impact":"Configurable auto-COMPLETE","when_to_use":"Derived/operator nodes that should not auto-complete"}
+{"id":"summary-7","optimization":"Single-dep DIRTY skip","status":"Built-in","impact":"Fewer dispatches in hot chains","when_to_use":"Single-dep linear chains (auto-detected via subscribe hint)"}
+{"id":"summary-8","optimization":"Connect-order guard","status":"Built-in","impact":"Correct multi-dep initial compute","when_to_use":"Multi-dep nodes with eager-emit deps"}
+{"id":"summary-9","optimization":"Batch drain resilience","status":"Built-in","impact":"Fault-tolerant drain, correct nested deferral, cycle detection","when_to_use":"All batch usage"}
+{"id":"summary-10","optimization":"Sink snapshot during delivery","status":"Built-in","impact":"Correct delivery when sinks mutate mid-iteration","when_to_use":"Multi-subscriber nodes"}
+{"id":"summary-11","optimization":"DIRTY→COMPLETE settlement","status":"Built-in","impact":"Prevents stuck dirty status","when_to_use":"Multi-dep nodes where a dep completes without settling"}
+{"id":"summary-12","optimization":"Production debug stripping","status":"Resolved (§3)","impact":"`sideEffects: false` + `process.env.NODE_ENV` gate; consumer bundlers strip","when_to_use":"Production builds"}
+{"id":"summary-13","optimization":"COMPLETE-all-deps semantics","status":"Resolved (§A)","impact":"Effect/operator default true; derived default false","when_to_use":"`completeWhenDepsComplete` option"}
+{"id":"summary-14","optimization":"`graph.disconnect` vs `NodeImpl` deps","status":"Resolved (§C)","impact":"Registry-only is the long-term contract","when_to_use":"Use `dynamicNode` for runtime rewiring"}

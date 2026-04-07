@@ -126,6 +126,89 @@ Every exported function must have a structured JSDoc block. The generator reads 
 
 ---
 
+## Archive indexes (JSONL)
+
+`archive/optimizations/`, `archive/roadmap/`, and `archive/docs/` use JSONL as the machine-readable index format. One JSON object per line, searchable with `grep`, parseable with `jq` or `python3 -m json.tool --json-lines`.
+
+### Roadmap archive
+
+`docs/roadmap.md` contains **only active/open items**. All completed phases and items are archived to JSONL files in `archive/roadmap/`.
+
+| File | Content |
+|------|---------|
+| `phase-0-foundation.jsonl` | Phase 0: scaffold, message protocol, node primitive, dynamic node, meta, sugar, tests |
+| `phase-1-graph-container.jsonl` | Phase 1: Graph core, composition, introspection, lifecycle, persistence, actor/guard, tests |
+| `phase-2-extra.jsonl` | Phase 2: Tier 1/2 operators, sources & sinks |
+| `phase-3-resilience-data.jsonl` | Phase 3: resilience, caching, data structures, composite data, inspector, progressive disclosure |
+| `phase-4-domain-layers.jsonl` | Phase 4: orchestration, messaging, memory, AI surface, CQRS |
+| `phase-5-framework-distribution.jsonl` | Phase 5: framework bindings, compat layers, adapters, ORM, ingest, storage, worker bridge, LLM tools, NestJS |
+| `phase-6-versioning.jsonl` | Phase 6: V0 id+version, V0 backfill, V1 cid+prev |
+| `phase-7-polish.jsonl` | Phase 7: llms.txt, reactive layout, demo shell, streaming node convention |
+| `phase-8-reduction-layer.jsonl` | Phase 8: reduction primitives, domain templates, LLM graph composition, backpressure |
+| `phase-9-harness-sprint.jsonl` | Phase 9 + hotfix: collaboration loop primitives, eval tiers, schema fixes, rich catalog, harness sprint deliverables, equals/error hotfix |
+
+**JSONL schema:**
+
+```json
+{"id": "kebab-case-slug", "phase": "0.1", "title": "Short title", "items": ["completed item 1", "completed item 2"]}
+```
+
+**Workflow:**
+
+1. **New open items** go in `docs/roadmap.md` under the appropriate section.
+2. When a phase or item group is **completed**, move it from `docs/roadmap.md` to the appropriate `archive/roadmap/*.jsonl` file (append a new line).
+3. Items that remain open from completed phases stay in `docs/roadmap.md` under "Open items from completed phases."
+
+### Design decision archive
+
+`archive/docs/design-archive-index.jsonl` indexes all design session files (`SESSION-*.md`). See `archive/docs/DESIGN-ARCHIVE-INDEX.md` for schema and query examples.
+
+When a new design session is completed, append an entry to `design-archive-index.jsonl` with `id`, `date`, `title`, `file`, `topic`, `decisions`, and optional fields (`roadmap_impact`, `related_files`, `missing_pieces`, `research_findings`, `structural_gaps`).
+
+### Optimization decision log
+
+`docs/optimizations.md` contains **only active work items, anti-patterns, and deferred follow-ups**. All resolved decisions and reference material are archived to JSONL files in `archive/optimizations/`.
+
+### Archive structure
+
+| File | Content |
+|------|---------|
+| `resolved-decisions.jsonl` | All resolved design decisions (gateway, streaming, AI, compat, core, patterns, layout, etc.) |
+| `cross-language-notes.jsonl` | Cross-language implementation notes (§1–§22c): batch, settlement, concurrency, Graph phases, operators, etc. |
+| `parity-fixes.jsonl` | Cross-language parity fixes (one-time alignment fixes) |
+| `qa-design-decisions.jsonl` | QA review design decisions (A–L), resolved operator/source semantics, ingest adapter divergences |
+| `built-in-optimizations.jsonl` | Built-in optimization descriptions and summary table |
+| `summary-table.jsonl` | Cross-language summary comparison table |
+
+### JSONL schema
+
+Each `.jsonl` file has one JSON object per line. Common fields:
+
+```json
+{"id": "kebab-case-slug", "title": "Short title", "body": "Full markdown text"}
+```
+
+Additional fields vary by file: `phase`, `noted`, `resolved`, `section`, `status`.
+
+### Workflow for new decisions
+
+1. **New open decisions** go in `docs/optimizations.md` under "Active work items".
+2. When a decision is **resolved**, move it from `docs/optimizations.md` to the appropriate `archive/optimizations/*.jsonl` file (append a new line).
+3. If the sibling repo (`graphrefly-py` / `graphrefly-ts`) is available, mirror the entry to its `archive/optimizations/*.jsonl` too.
+4. The anti-patterns table and deferred follow-ups stay in `docs/optimizations.md` as living reference.
+
+### Reading archived decisions
+
+```bash
+# Search for a topic across all archives
+grep -i "batch" archive/optimizations/*.jsonl
+
+# Pretty-print a specific file
+cat archive/optimizations/resolved-decisions.jsonl | python3 -m json.tool --json-lines
+```
+
+---
+
 ## Spec vs code
 
 - If **implementation** intentionally differs from the spec, **fix the implementation** unless the spec is wrong — then update **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** with a version note (see spec §8).
@@ -140,7 +223,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | New public API | JSDoc + export from barrel + register in `gen-api-docs.mjs` REGISTRY |
 | Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc |
 | New runnable example | `examples/<name>.ts` + optional recipe page |
-| Phase completed | `docs/roadmap.md` checkboxes |
+| Phase completed | Archive done items to `archive/roadmap/*.jsonl`, update `docs/roadmap.md` |
 | AI / LLM discovery | `llms.txt` (repo root) — synced to `website/public/` by build |
 | Crawler directives | `robots.txt` (repo root) — synced to `website/public/` by build |
 | GitHub repo metadata | `gh repo edit` — description, topics, homepage URL |

@@ -54,15 +54,15 @@ export function isBatching(): boolean {
  * error. While the drain loop is running (`flushInProgress`), a nested `batch`
  * that throws must **not** clear the global queue (cross-language decision A4).
  *
- * During the drain loop, `isBatching()` remains true so nested `emitWithBatch`
+ * During the drain loop, `isBatching()` remains true so nested `downWithBatch`
  * calls still defer phase-2 messages. The drain loop runs until the queue is
  * quiescent (no pending work remains). Per-emission try/catch ensures one
  * throwing callback does not orphan remaining emissions; the first error is
  * re-thrown after all emissions drain. Callbacks that ran before the throw may
  * have applied phase-2 — partial graph state is intentional (decision C1).
  *
- * @param fn — Synchronous work that may call `emitWithBatch` / `node.down()`.
- * @returns `void` — all side-effects happen through `emitWithBatch` and the
+ * @param fn — Synchronous work that may call `downWithBatch` / `node.down()`.
+ * @returns `void` — all side-effects happen through `downWithBatch` and the
  *   phase-2 drain that runs after `fn` returns.
  *
  * @example
@@ -70,7 +70,7 @@ export function isBatching(): boolean {
  * import { core } from "@graphrefly/graphrefly-ts";
  *
  * core.batch(() => {
- *   core.emitWithBatch(sink, [[core.DATA, 1]]);
+ *   core.downWithBatch(sink, [[core.DATA, 1]]);
  * });
  * ```
  *
@@ -211,50 +211,53 @@ export function partitionForBatch(messages: Messages): {
 }
 
 /**
- * Delivers messages through `emit`, applying batch semantics and canonical
- * tier-based ordering (see `messages.ts`):
+ * Delivers messages downstream through `sink`, applying batch semantics and
+ * canonical tier-based ordering (see `messages.ts`):
  *
  * 1. **Immediate** (tier 0–1, 4): DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN,
- *    unknown — emitted synchronously.
+ *    unknown — delivered synchronously.
  * 2. **Phase-2** (tier 2): DATA, RESOLVED — deferred while `isBatching()`.
  * 3. **Terminal** (tier 3): COMPLETE, ERROR — always delivered after phase-2.
  *    When batching, terminal is queued after deferred phase-2 in the pending list.
- *    When not batching, terminal is emitted after phase-2 synchronously.
+ *    When not batching, terminal is delivered after phase-2 synchronously.
  *
  * This ordering prevents the "COMPLETE-before-DATA" class of bugs: terminal
  * signals never make a node terminal before phase-2 values reach sinks,
  * regardless of how the source assembled the message array.
  *
- * @param emit — Sink callback. May be called up to three times per invocation
+ * @param sink — Sink callback. May be called up to three times per invocation
  *   (immediate, deferred, terminal) when not batching.
- * @param messages — Full `[[Type, Data?], ...]` array for one emission.
+ * @param messages — Full `[[Type, Data?], ...]` array for one downstream delivery.
  * @param phase — Starting delivery phase (`2` = data, `3` = terminal). Default `2`.
  * @param options - Optional configuration.
  * @option strategy | `"partition"` or `"sequential"` | `"partition"` | `"partition"` groups by tier; `"sequential"` preserves message order within each tier using `messageTier()` classification.
- * @returns `void` — delivery is performed through `emit` callbacks, synchronously
+ * @returns `void` — delivery is performed through `sink` callbacks, synchronously
  *   or deferred into the active batch queue.
  *
  * @example
  * ```ts
  * import { core } from "@graphrefly/graphrefly-ts";
  *
- * core.emitWithBatch((msgs) => console.log(msgs), [[core.DIRTY], [core.DATA, 42]]);
+ * core.downWithBatch((msgs) => console.log(msgs), [[core.DIRTY], [core.DATA, 42]]);
  * ```
  *
  * @category core
  */
-export function emitWithBatch(
-	emit: (messages: Messages) => void,
+/** Delivery strategy for {@link downWithBatch}. Mirrors Python `DownStrategy`. */
+export type DownStrategy = "partition" | "sequential";
+
+export function downWithBatch(
+	sink: (messages: Messages) => void,
 	messages: Messages,
 	phase: 2 | 3 = 2,
-	options?: { strategy?: "partition" | "sequential" },
+	options?: { strategy?: DownStrategy },
 ): void {
 	if (messages.length === 0) {
 		return;
 	}
 
 	if (options?.strategy === "sequential") {
-		_emitSequential(emit, messages, phase);
+		_downSequential(sink, messages, phase);
 		return;
 	}
 
@@ -266,46 +269,46 @@ export function emitWithBatch(
 		const t = messages[0][0];
 		if (t === DATA || t === RESOLVED) {
 			if (isBatching()) {
-				queue.push(() => emit(messages));
+				queue.push(() => sink(messages));
 			} else {
-				emit(messages);
+				sink(messages);
 			}
 		} else if (isTerminalMessage(t)) {
 			// Terminal single message: defer when batching so any preceding
 			// phase-2 in the queue flushes first.
 			if (isBatching()) {
-				queue.push(() => emit(messages));
+				queue.push(() => sink(messages));
 			} else {
-				emit(messages);
+				sink(messages);
 			}
 		} else {
-			// Immediate: emit synchronously.
-			emit(messages);
+			// Immediate: deliver synchronously.
+			sink(messages);
 		}
 		return;
 	}
 	// Multi-message: three-way partition by tier.
 	const { immediate, deferred, terminal } = partitionForBatch(messages);
 
-	// 1. Immediate signals (tier 0–1, 4) — emit synchronously now.
+	// 1. Immediate signals (tier 0–1, 4) — deliver synchronously now.
 	if (immediate.length > 0) {
-		emit(immediate);
+		sink(immediate);
 	}
 
 	// 2. Deferred (tier 2) + Terminal (tier 3) — canonical order preserved.
 	if (isBatching()) {
 		if (deferred.length > 0) {
-			queue.push(() => emit(deferred));
+			queue.push(() => sink(deferred));
 		}
 		if (terminal.length > 0) {
-			queue.push(() => emit(terminal));
+			queue.push(() => sink(terminal));
 		}
 	} else {
 		if (deferred.length > 0) {
-			emit(deferred);
+			sink(deferred);
 		}
 		if (terminal.length > 0) {
-			emit(terminal);
+			sink(terminal);
 		}
 	}
 }
@@ -313,10 +316,10 @@ export function emitWithBatch(
 /**
  * Sequential strategy: walk messages one at a time. Phase-2 (DATA/RESOLVED) and
  * terminal (COMPLETE/ERROR) messages are deferred while batching; immediate
- * messages emit synchronously. Matches graphrefly-py `_emit_sequential`.
+ * messages deliver synchronously. Matches graphrefly-py `_down_sequential`.
  */
-function _emitSequential(
-	emit: (messages: Messages) => void,
+function _downSequential(
+	sink: (messages: Messages) => void,
 	messages: Messages,
 	phase: 2 | 3 = 2,
 ): void {
@@ -327,22 +330,23 @@ function _emitSequential(
 			// Phase-2 (DATA/RESOLVED): defer while batching.
 			if (isBatching()) {
 				const m = msg;
-				dataQueue.push(() => emit([m]));
+				dataQueue.push(() => sink([m]));
 			} else {
-				emit([msg]);
+				sink([msg]);
 			}
 		} else if (tier >= 3) {
-			// Terminal (COMPLETE/ERROR/TEARDOWN): always defer to phase-3
-			// so all phase-2 work drains before terminals.
+			// Terminal (COMPLETE/ERROR/TEARDOWN): always route to phase-3
+			// regardless of the caller's `phase` param — terminals must
+			// drain after all phase-2 work to prevent premature termination.
 			if (isBatching()) {
 				const m = msg;
-				pendingPhase3.push(() => emit([m]));
+				pendingPhase3.push(() => sink([m]));
 			} else {
-				emit([msg]);
+				sink([msg]);
 			}
 		} else {
-			// Immediate (DIRTY, INVALIDATE, PAUSE, RESUME): emit synchronously.
-			emit([msg]);
+			// Immediate (DIRTY, INVALIDATE, PAUSE, RESUME): deliver synchronously.
+			sink([msg]);
 		}
 	}
 }

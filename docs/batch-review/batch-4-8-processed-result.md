@@ -53,7 +53,7 @@ Standardized 5 plain-assignment type aliases to PEP 695 `type` statements (codeb
 - `node.py`: `NodeStatus = str` → `type NodeStatus = str`
 - `node.py`: `NodeFn = Callable[...]` → `type NodeFn = Callable[...]`
 - `guard.py`: `GuardAction = str` → `type GuardAction = str`
-- `protocol.py`: `EmitStrategy`, `DeferWhen` Literal aliases converted
+- `protocol.py`: `DownStrategy`, `DeferWhen` Literal aliases converted
 
 ### 8. Python missing `__all__` (Batch 5 §6b)
 

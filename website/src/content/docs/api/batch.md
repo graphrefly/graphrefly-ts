@@ -9,7 +9,7 @@ that **outer** `batch` frame are discarded — phase-2 is not flushed after an
 error. While the drain loop is running (`flushInProgress`), a nested `batch`
 that throws must **not** clear the global queue (cross-language decision A4).
 
-During the drain loop, `isBatching()` remains true so nested `emitWithBatch`
+During the drain loop, `isBatching()` remains true so nested `downWithBatch`
 calls still defer phase-2 messages. The drain loop runs until the queue is
 quiescent (no pending work remains). Per-emission try/catch ensures one
 throwing callback does not orphan remaining emissions; the first error is
@@ -26,11 +26,11 @@ function batch(fn: () => void): void
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `() =&gt; void` | — Synchronous work that may call `emitWithBatch` / `node.down()`. |
+| `fn` | `() =&gt; void` | — Synchronous work that may call `downWithBatch` / `node.down()`. |
 
 ## Returns
 
-`void` — all side-effects happen through `emitWithBatch` and the
+`void` — all side-effects happen through `downWithBatch` and the
 phase-2 drain that runs after `fn` returns.
 
 ## Basic Usage
@@ -39,6 +39,6 @@ phase-2 drain that runs after `fn` returns.
 import { core } from "@graphrefly/graphrefly-ts";
 
 core.batch(() => {
-    core.emitWithBatch(sink, [[core.DATA, 1]]);
+    core.downWithBatch(sink, [[core.DATA, 1]]);
   });
 ```

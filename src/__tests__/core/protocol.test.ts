@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batch, emitWithBatch, isBatching, partitionForBatch } from "../../core/batch.js";
+import { batch, downWithBatch, isBatching, partitionForBatch } from "../../core/batch.js";
 import {
 	COMPLETE,
 	DATA,
@@ -40,11 +40,11 @@ describe("message protocol", () => {
 	});
 });
 
-describe("emitWithBatch", () => {
+describe("downWithBatch", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.1 — outside a batch, DIRTY reaches sinks before DATA.
 	it("without batch: emits immediate then phase-2 in order", () => {
 		const log: symbol[][] = [];
-		emitWithBatch(
+		downWithBatch(
 			(msgs) => {
 				log.push(msgs.map((m) => m[0]));
 			},
@@ -54,9 +54,9 @@ describe("emitWithBatch", () => {
 	});
 
 	// Regression: phase-2 before terminal — COMPLETE alone would otherwise reach sinks before deferred DATA.
-	it("without batch: DATA then COMPLETE when both appear in one emitWithBatch", () => {
+	it("without batch: DATA then COMPLETE when both appear in one downWithBatch", () => {
 		const log: symbol[][] = [];
-		emitWithBatch(
+		downWithBatch(
 			(msgs) => {
 				log.push(msgs.map((m) => m[0]));
 			},
@@ -70,7 +70,7 @@ describe("emitWithBatch", () => {
 		const log: symbol[][] = [];
 		batch(() => {
 			expect(isBatching()).toBe(true);
-			emitWithBatch(
+			downWithBatch(
 				(msgs) => {
 					log.push(msgs.map((m) => m[0]));
 				},
@@ -86,7 +86,7 @@ describe("emitWithBatch", () => {
 	it("RESOLVED is deferred like DATA (phase 2)", () => {
 		const log: symbol[][] = [];
 		batch(() => {
-			emitWithBatch(
+			downWithBatch(
 				(msgs) => {
 					log.push(msgs.map((m) => m[0]));
 				},
@@ -101,9 +101,9 @@ describe("emitWithBatch", () => {
 	it("nested batch does not flush until outermost exits", () => {
 		const log: string[] = [];
 		batch(() => {
-			emitWithBatch((msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 1]]);
+			downWithBatch((msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 1]]);
 			batch(() => {
-				emitWithBatch((msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 2]]);
+				downWithBatch((msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 2]]);
 				expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
 			});
 			expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
@@ -116,7 +116,7 @@ describe("emitWithBatch", () => {
 		const CUSTOM = Symbol("custom.upstream");
 		const log: string[] = [];
 		batch(() => {
-			emitWithBatch(
+			downWithBatch(
 				(msgs) => {
 					log.push(String(msgs[0]?.[0]));
 				},
@@ -130,7 +130,7 @@ describe("emitWithBatch", () => {
 	// Regression: GRAPHREFLY-SPEC §1.1 — empty batches are ignored.
 	it("empty messages is a no-op", () => {
 		let n = 0;
-		emitWithBatch(() => {
+		downWithBatch(() => {
 			n += 1;
 		}, []);
 		expect(n).toBe(0);
@@ -141,7 +141,7 @@ describe("emitWithBatch", () => {
 		const log: symbol[][] = [];
 		expect(() =>
 			batch(() => {
-				emitWithBatch(
+				downWithBatch(
 					(msgs) => {
 						log.push(msgs.map((m) => m[0]));
 					},
@@ -158,7 +158,7 @@ describe("emitWithBatch", () => {
 		const log: symbol[][] = [];
 		expect(() =>
 			batch(() => {
-				emitWithBatch(
+				downWithBatch(
 					(msgs) => {
 						log.push(msgs.map((m) => m[0]));
 					},
@@ -180,13 +180,13 @@ describe("batch drain semantics", () => {
 		let batchingDuringDrain: boolean | undefined;
 
 		batch(() => {
-			emitWithBatch(
+			downWithBatch(
 				(_msgs) => {
 					// This runs during drain — isBatching should be true
 					batchingDuringDrain = isBatching();
 					log.push("first-drain");
 					// Nested emission during drain should be deferred
-					emitWithBatch(
+					downWithBatch(
 						(_msgs2) => {
 							log.push("nested-drain");
 						},
@@ -208,10 +208,10 @@ describe("batch drain semantics", () => {
 
 		expect(() =>
 			batch(() => {
-				emitWithBatch(() => {
+				downWithBatch(() => {
 					throw new Error("boom");
 				}, [[DATA, 1]]);
-				emitWithBatch(() => {
+				downWithBatch(() => {
 					log.push("second");
 				}, [[DATA, 2]]);
 			}),
@@ -224,7 +224,7 @@ describe("batch drain semantics", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.7 — after outermost batch exits, `isBatching` is false.
 	it("isBatching is false after drain completes", () => {
 		batch(() => {
-			emitWithBatch(() => undefined, [[DATA, 1]]);
+			downWithBatch(() => undefined, [[DATA, 1]]);
 		});
 		expect(isBatching()).toBe(false);
 	});
@@ -234,8 +234,8 @@ describe("batch drain semantics", () => {
 		const log: string[] = [];
 		expect(() =>
 			batch(() => {
-				emitWithBatch(() => {
-					emitWithBatch(() => {
+				downWithBatch(() => {
+					downWithBatch(() => {
 						log.push("deferred-from-callback");
 					}, [[DATA, 1]]);
 					batch(() => {
@@ -254,9 +254,9 @@ describe("D4: drain cycle detection", () => {
 		expect(() =>
 			batch(() => {
 				const cyclicEmit = (): void => {
-					emitWithBatch(() => {
+					downWithBatch(() => {
 						// re-enqueue indefinitely
-						emitWithBatch(() => cyclicEmit(), [[DATA, 1]]);
+						downWithBatch(() => cyclicEmit(), [[DATA, 1]]);
 					}, [[DATA, 0]]);
 				};
 				cyclicEmit();
@@ -271,7 +271,7 @@ describe("terminal and control messages are not phase-2", () => {
 		for (const t of [PAUSE, RESUME, TEARDOWN] as const) {
 			const log: symbol[] = [];
 			batch(() => {
-				emitWithBatch(
+				downWithBatch(
 					(msgs) => {
 						log.push(msgs[0]?.[0] as symbol);
 					},
@@ -289,7 +289,7 @@ describe("terminal and control messages are not phase-2", () => {
 		for (const t of [ERROR, COMPLETE] as const) {
 			const log: symbol[] = [];
 			batch(() => {
-				emitWithBatch(
+				downWithBatch(
 					(msgs) => {
 						log.push(msgs[0]?.[0] as symbol);
 					},
@@ -306,7 +306,7 @@ describe("terminal and control messages are not phase-2", () => {
 	// Canonical ordering: [[DATA, v], [COMPLETE]] delivers DATA before COMPLETE.
 	it("DATA before COMPLETE in composite batch (one-shot source pattern)", () => {
 		const log: symbol[][] = [];
-		emitWithBatch(
+		downWithBatch(
 			(msgs) => {
 				log.push(msgs.map((m) => m[0]));
 			},
@@ -318,7 +318,7 @@ describe("terminal and control messages are not phase-2", () => {
 	// Canonical ordering with all three tiers present.
 	it("DIRTY then DATA then COMPLETE in composite batch", () => {
 		const log: symbol[][] = [];
-		emitWithBatch(
+		downWithBatch(
 			(msgs) => {
 				log.push(msgs.map((m) => m[0]));
 			},
@@ -331,7 +331,7 @@ describe("terminal and control messages are not phase-2", () => {
 	it("inside batch: DIRTY immediate, DATA and COMPLETE deferred in order", () => {
 		const log: symbol[][] = [];
 		batch(() => {
-			emitWithBatch(
+			downWithBatch(
 				(msgs) => {
 					log.push(msgs.map((m) => m[0]));
 				},

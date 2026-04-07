@@ -31,7 +31,7 @@
 
 ### 2a. snake_case / PascalCase naming
 
-**CONSISTENT** — Functions use `snake_case` throughout (`emit_with_batch`, `distinct_until_changed`, `take_while`, `partition_for_batch`). Classes use `PascalCase` (`NodeImpl`, `Graph`, `MessageType`, `GuardDenied`, `ReactiveMapBundle`). Type aliases use `PascalCase` (`PipeOperator`, `NodeFn`, `BackoffStrategy`).
+**CONSISTENT** — Functions use `snake_case` throughout (`down_with_batch`, `distinct_until_changed`, `take_while`, `partition_for_batch`). Classes use `PascalCase` (`NodeImpl`, `Graph`, `MessageType`, `GuardDenied`, `ReactiveMapBundle`). Type aliases use `PascalCase` (`PipeOperator`, `NodeFn`, `BackoffStrategy`).
 
 ### 2b. `batch()` uses context manager
 
@@ -196,6 +196,6 @@ This is the spec-mandated divergence. Python's `StrEnum` provides `is`-comparabl
 ### Recommended Actions
 
 1. **Add `__all__`** to `graph/graph.py` and `extra/cron.py` — low effort, improves consistency
-2. **Standardize type aliases** on PEP 695 `type` statements (`NodeStatus`, `NodeFn`, `GuardAction`, `EmitStrategy`, `DeferWhen`) — the codebase already requires 3.12+
+2. **Standardize type aliases** on PEP 695 `type` statements (`NodeStatus`, `NodeFn`, `GuardAction`, `DownStrategy`, `DeferWhen`) — the codebase already requires 3.12+
 3. **Sort `__all__` in `core/__init__.py`** — move sugar exports into alphabetical position
 4. **Document bundle-returning operators** (`with_breaker`, `with_status`) as intentionally outside `PipeOperator` — they can't be used with `|` or `pipe()`

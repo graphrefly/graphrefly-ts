@@ -592,7 +592,7 @@ describe("reactiveLayout", () => {
 		});
 		const start = order.length;
 		layout.setText("b");
-		// Meta is delivered via batch deferral (emitWithBatch) — runs
+		// Meta is delivered via batch deferral (downWithBatch) — runs
 		// synchronously during the batch drain, after segments settles.
 		// All events should be delivered by the time setText returns.
 		const events = order.slice(start);

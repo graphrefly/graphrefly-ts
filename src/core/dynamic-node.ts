@@ -10,7 +10,7 @@
  */
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
-import { emitWithBatch } from "./batch.js";
+import { downWithBatch } from "./batch.js";
 import { wallClockNs } from "./clock.js";
 import type { GuardAction, NodeGuard } from "./guard.js";
 import { GuardDenied } from "./guard.js";
@@ -133,7 +133,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 
 	// Actions object (for onMessage handler)
 	private readonly _actions: NodeActions;
-	private readonly _boundEmitToSinks: (messages: Messages) => void;
+	private readonly _boundDownToSinks: (messages: Messages) => void;
 
 	// Mutable state
 	private _cached: T | typeof NO_VALUE = NO_VALUE;
@@ -186,7 +186,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 				self._downInternal(messages);
 			},
 			emit(value): void {
-				self._emitAutoValue(value);
+				self._downAutoValue(value);
 			},
 			up(messages): void {
 				for (const dep of self._deps) {
@@ -196,7 +196,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 		};
 
 		// Bind commonly detached protocol methods
-		this._boundEmitToSinks = this._emitToSinks.bind(this);
+		this._boundDownToSinks = this._downToSinks.bind(this);
 	}
 
 	get name(): string | undefined {
@@ -292,12 +292,12 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 					if (sinkMessages[i][0] !== DIRTY) filtered.push(sinkMessages[i]);
 				}
 				if (filtered.length > 0) {
-					emitWithBatch(this._boundEmitToSinks, filtered);
+					downWithBatch(this._boundDownToSinks, filtered);
 				}
 				return;
 			}
 		}
-		emitWithBatch(this._boundEmitToSinks, sinkMessages);
+		downWithBatch(this._boundDownToSinks, sinkMessages);
 	}
 
 	private _canSkipDirty(): boolean {
@@ -384,7 +384,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 
 	// --- Private methods ---
 
-	private _emitToSinks(messages: Messages): void {
+	private _downToSinks(messages: Messages): void {
 		if (this._sinks == null) return;
 		if (typeof this._sinks === "function") {
 			this._sinks(messages);
@@ -443,7 +443,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 		}
 	}
 
-	private _emitAutoValue(value: unknown): void {
+	private _downAutoValue(value: unknown): void {
 		const wasDirty = this._status === "dirty";
 		let unchanged: boolean;
 		try {
@@ -512,7 +512,7 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 			const result = this._fn(get);
 			this._rewire(trackedDeps);
 			if (result === undefined) return;
-			this._emitAutoValue(result);
+			this._downAutoValue(result);
 		} catch (err) {
 			this._downInternal([[ERROR, err]]);
 		}
@@ -589,14 +589,14 @@ export class DynamicNodeImpl<T = unknown> implements Node<T> {
 				this._settledBits.delete(index);
 				if (this._dirtyBits.size === 1) {
 					// First dirty — propagate
-					emitWithBatch(this._boundEmitToSinks, [[DIRTY]]);
+					downWithBatch(this._boundDownToSinks, [[DIRTY]]);
 				}
 				continue;
 			}
 			if (t === DATA || t === RESOLVED) {
 				if (!this._dirtyBits.has(index)) {
 					this._dirtyBits.add(index);
-					emitWithBatch(this._boundEmitToSinks, [[DIRTY]]);
+					downWithBatch(this._boundDownToSinks, [[DIRTY]]);
 				}
 				this._settledBits.add(index);
 				if (this._allDirtySettled()) {

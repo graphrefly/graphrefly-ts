@@ -38,7 +38,7 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 - `batch(fn)` — runs `fn` in a batch scope; defers DATA/RESOLVED until outermost batch returns
 - `isBatching()` — returns `true` while inside `batch()` or while the drain loop is running
 - `partitionForBatch(messages)` — splits a message array into immediate / deferred / terminal groups
-- `emitWithBatch(emit, messages)` — delivers messages respecting batch semantics and tier ordering
+- `downWithBatch(sink, messages)` — delivers messages downstream respecting batch semantics and tier ordering
 
 ### core — guard (`src/core/guard.ts`)
 

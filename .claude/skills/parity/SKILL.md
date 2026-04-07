@@ -18,8 +18,8 @@ Determine scope from $ARGUMENTS:
 - If `full`, scan all implemented phases in both roadmaps.
 
 Read in parallel:
-- **This repo:** `docs/optimizations.md` (cross-language notes + gaps), `docs/roadmap.md`, `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
-- **Sibling repo:** `~/src/graphrefly-py/docs/optimizations.md`, `~/src/graphrefly-py/docs/roadmap.md`
+- **This repo:** `docs/optimizations.md` (active items + deferred), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
+- **Sibling repo:** `~/src/graphrefly-py/docs/optimizations.md`, `~/src/graphrefly-py/archive/optimizations/*.jsonl`, `~/src/graphrefly-py/docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`)
 - Source files in the scoped area from **both** repos
 - Test files in the scoped area from **both** repos
 
@@ -117,8 +117,8 @@ After user approves:
    - Code + tests in `~/src/graphrefly-py/`
    - Run `cd ~/src/graphrefly-py && uv run pytest` — fix failures
 4. Update `docs/optimizations.md` in **both** repos:
-   - Remove resolved gaps from cross-language tables
-   - Add any new decisions to the appropriate section
+   - Add new open decisions under "Active work items"
+   - When decisions are resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"
 
 ---
 

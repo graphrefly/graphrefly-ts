@@ -39,7 +39,7 @@ passes through.
 - **TS:** `node.ts:636-638` — `_canSkipDirty()` returns true when
   `_sinkCount === 1 && _singleDepSinkCount === 1`.
   Applied in `_downInternal` (lines 455-476): inline check for phase-2, then filter
-  DIRTY messages out before `emitWithBatch`.
+  DIRTY messages out before `downWithBatch`.
 
 - **Python:** `node.py:342-343` — `_can_skip_dirty()` identical logic.
   Applied in `_down_body` (lines 696-713): same phase-2 check and filter.
@@ -57,15 +57,15 @@ The hint is set during `_connectUpstream` when `deps.length === 1 && fn != null`
 
 Both repos handle the state-vs-derived asymmetry correctly:
 
-**State nodes** (no deps, no fn beyond producer): `_emitAutoValue` checks `_equals`.
+**State nodes** (no deps, no fn beyond producer): `_downAutoValue` checks `_equals`.
 If unchanged and already dirty: emit `[[RESOLVED]]`. If unchanged and NOT dirty:
 emit `[[DIRTY], [RESOLVED]]`. Value never reaches sinks.
 
-- **TS:** `node.ts:640-649` — `_emitAutoValue` with `wasDirty` check.
-- **Python:** `node.py:345-371` — `_emit_auto_value` identical logic with thread-safe
+- **TS:** `node.ts:640-649` — `_downAutoValue` with `wasDirty` check.
+- **Python:** `node.py:345-371` — `_down_auto_value` identical logic with thread-safe
   `_cache_lock` reads.
 
-**Derived nodes** (deps + fn): `_runFn` computes dep values, then calls `_emitAutoValue`
+**Derived nodes** (deps + fn): `_runFn` computes dep values, then calls `_downAutoValue`
 for the return value. Additionally, if all dep values are identity-equal to previous,
 the fn is skipped entirely and RESOLVED is emitted (push-phase memoization).
 
@@ -142,11 +142,11 @@ The DIRTY-then-DATA/RESOLVED protocol is consistently enforced:
 - **Python:** `node.py:422-436` — identical bitmask logic.
 
 **No bypass paths found.** All `_downInternal` / `_down_body` calls go through
-`emitWithBatch`, which respects phase partitioning. The only message emission that skips
+`downWithBatch`, which respects phase partitioning. The only message emission that skips
 batch is passthrough for non-fn nodes forwarding lifecycle signals (TEARDOWN, PAUSE, etc.),
 which is correct — lifecycle signals are not phase-2.
 
-**One nuance worth noting:** In `_emitAutoValue`, when a node is NOT dirty and emits
+**One nuance worth noting:** In `_downAutoValue`, when a node is NOT dirty and emits
 unchanged value, it sends `[[DIRTY], [RESOLVED]]` as a single `_downInternal` call.
 Under batching, the partition splits this correctly — DIRTY goes immediately, RESOLVED
 defers. Both repos handle this identically.

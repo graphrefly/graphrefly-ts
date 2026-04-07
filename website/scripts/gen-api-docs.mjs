@@ -43,7 +43,7 @@ const REGISTRY = {
 	batch: "src/core/batch.ts",
 	isBatching: "src/core/batch.ts",
 	partitionForBatch: "src/core/batch.ts",
-	emitWithBatch: "src/core/batch.ts",
+	downWithBatch: "src/core/batch.ts",
 	dynamicNode: "src/core/dynamic-node.ts",
 
 	// Core — guard

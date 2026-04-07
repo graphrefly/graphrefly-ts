@@ -1,6 +1,6 @@
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
-import { emitWithBatch } from "./batch.js";
+import { downWithBatch } from "./batch.js";
 import { wallClockNs } from "./clock.js";
 import type { GuardAction, NodeGuard } from "./guard.js";
 import { GuardDenied } from "./guard.js";
@@ -408,7 +408,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_singleDepSinks = new WeakSet<NodeSink>();
 	_upstreamUnsubs: Array<() => void> = [];
 	_actions: NodeActions;
-	_boundEmitToSinks: (messages: Messages) => void;
+	_boundDownToSinks: (messages: Messages) => void;
 	private _inspectorHook: NodeInspectorHook | undefined;
 	private _versioning: NodeVersionInfo | undefined;
 	private _hashFn: HashFn;
@@ -468,7 +468,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			},
 			emit(value): void {
 				self._manualEmitUsed = true;
-				self._emitAutoValue(value);
+				self._downAutoValue(value);
 			},
 			up(messages): void {
 				self._upInternal(messages);
@@ -478,7 +478,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Bind commonly detached protocol methods
 		this.down = this.down.bind(this);
 		this.up = this.up.bind(this);
-		this._boundEmitToSinks = this._emitToSinks.bind(this);
+		this._boundDownToSinks = this._downToSinks.bind(this);
 	}
 
 	get name(): string | undefined {
@@ -602,12 +602,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					if (sinkMessages[i][0] !== DIRTY) filtered.push(sinkMessages[i]);
 				}
 				if (filtered.length > 0) {
-					emitWithBatch(this._boundEmitToSinks, filtered);
+					downWithBatch(this._boundDownToSinks, filtered);
 				}
 				return;
 			}
 		}
-		emitWithBatch(this._boundEmitToSinks, sinkMessages);
+		downWithBatch(this._boundDownToSinks, sinkMessages);
 	}
 
 	subscribe(sink: NodeSink, hints?: SubscribeHints): () => void {
@@ -705,7 +705,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	// --- Private methods (prototype, _ prefix) ---
 
-	_emitToSinks(messages: Messages): void {
+	_downToSinks(messages: Messages): void {
 		if (this._sinks == null) return;
 		if (typeof this._sinks === "function") {
 			this._sinks(messages);
@@ -779,7 +779,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return this._sinkCount === 1 && this._singleDepSinkCount === 1;
 	}
 
-	_emitAutoValue(value: unknown): void {
+	_downAutoValue(value: unknown): void {
 		const wasDirty = this._status === "dirty";
 		// §2.5: equals() only compares two real values. NO_VALUE sentinel means
 		// "never emitted / cache cleared" — first emission always treated as changed.
@@ -839,7 +839,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				this._cleanup = out.cleanup;
 				if (this._manualEmitUsed) return;
 				if ("value" in out) {
-					this._emitAutoValue(out.value);
+					this._downAutoValue(out.value);
 				}
 				return;
 			}
@@ -850,7 +850,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 			if (this._manualEmitUsed) return;
 			if (out === undefined) return;
-			this._emitAutoValue(out);
+			this._downAutoValue(out);
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			const wrapped = new Error(`Node "${this.name}": fn threw: ${errMsg}`, { cause: err });

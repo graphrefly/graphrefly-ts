@@ -59,7 +59,7 @@ Group findings:
 1. **Needs Decision** — architecture-affecting or ambiguous fixes
 2. **Auto-applicable** — clear fixes that follow existing patterns
 
-**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, note them in **`docs/optimizations.md`** (e.g. **Open design decisions** or **Cross-language implementation notes**). If **`graphrefly-py`** is available alongside this repo, add the same bullet to **`graphrefly-py/docs/optimizations.md`**. If not available, call out mirroring for the user.
+**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, add them to **`docs/optimizations.md`** under "Active work items". If **`graphrefly-py`** is available alongside this repo, add the same entry to **`graphrefly-py/docs/optimizations.md`**. If not available, call out mirroring for the user. When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
 
 **Wait for user decisions on group 1. Group 2 can be applied immediately if user approves the batch.**
 
@@ -93,11 +93,11 @@ Update documentation when behavior or public API changed:
 
 - **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
 - **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
-- **`docs/optimizations.md`** — when this review records **open architectural decisions** or cross-language parity notes; mirror substantive entries to **`graphrefly-py/docs/optimizations.md`** if that repo is in the workspace
+- **`docs/optimizations.md`** — add **new open decisions** under "Active work items"; when **resolved**, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"; mirror to **`graphrefly-py`** if in workspace
 - **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages)
 - **New public symbols** — barrel export + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI)
 - **`docs/test-guidance.md`** — if new test patterns are established
-- **`docs/roadmap.md`** — check off completed items when appropriate
+- **`docs/roadmap.md`** — check off completed items; when a phase/group is fully done, archive to `archive/roadmap/*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive"
 - **`CLAUDE.md`** — only if fundamental workflow/commands changed
 
 Do **not** hand-edit **`website/src/content/docs/api/*.md`** — regenerate from JSDoc via `docs:gen` per **`docs/docs-guidance.md`**.

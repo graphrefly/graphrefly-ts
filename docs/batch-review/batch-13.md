@@ -33,7 +33,7 @@ if (n > 0 && prev != null && prev.length === n) {
 **Scenario:** `node([A, B, C], fn)` where `fn` reads A and B initially, then A and C.
 
 - When C changes but `fn` only reads A and B: fn still runs because `depValues[2]` changed
-  (identity check fails). fn computes the same result → `_emitAutoValue` emits RESOLVED.
+  (identity check fails). fn computes the same result → `_downAutoValue` emits RESOLVED.
   Correct outcome, but fn ran unnecessarily.
 
 - When B changes but `fn` only reads A and C: same — fn runs, computes same result, RESOLVED.
@@ -63,7 +63,7 @@ value is unchanged.
    was dirty). Masks reset. `_runFn()` called.
 3. `_runFn` reads all dep values. `depValues[1]` changed → identity check fails → fn runs.
 4. fn reads only A and C (unchanged), returns same value.
-5. `_emitAutoValue`: `this._equals(cached, value)` → true → emits `[[RESOLVED]]`.
+5. `_downAutoValue`: `this._equals(cached, value)` → true → emits `[[RESOLVED]]`.
 
 Downstream skips recompute entirely. Correct behavior per spec §1.3.3.
 

@@ -15,7 +15,7 @@
  * |  3   | COMPLETE, ERROR        | Terminal lifecycle | Deferred to after phase-2           |
  * |  4   | TEARDOWN               | Destruction       | Immediate (usually sent alone)      |
  *
- * **Rule:** Within `emitWithBatch`, messages are partitioned by tier and delivered
+ * **Rule:** Within `downWithBatch`, messages are partitioned by tier and delivered
  * in tier order. This ensures phase-2 values (DATA/RESOLVED) reach sinks before
  * terminal signals (COMPLETE/ERROR) mark the node as done, preventing the
  * "COMPLETE-before-DATA" class of bugs. Sources that emit in canonical order

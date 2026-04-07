@@ -155,7 +155,7 @@ Audit of `graphrefly-ts` tests against `docs/test-guidance.md` checklists and `~
 
 ### Batch defers DATA, not DIRTY
 
-- **COVERED** — `src/__tests__/core/protocol.test.ts:27–33` (`partitionForBatch`); `48–62`, `64–76` (`emitWithBatch` inside `batch`).
+- **COVERED** — `src/__tests__/core/protocol.test.ts:27–33` (`partitionForBatch`); `48–62`, `64–76` (`downWithBatch` inside `batch`).
 
 ### RESOLVED when value unchanged per equals — downstream skips recompute (COUNTERS)
 

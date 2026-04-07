@@ -23,7 +23,7 @@ Py: `~/src/graphrefly-py/src/graphrefly/core/node.py`, `core/sugar.py`, `core/me
 ### Deps, fn returns value = reactive compute (`derived()`)
 
 **PASS (both repos)**
-- TS `sugar.ts:66-72`: `derived()` passes deps + fn. `_runFn()` (`node.ts:648-686`) auto-emits via `_emitAutoValue()` when fn returns a non-undefined, non-function value.
+- TS `sugar.ts:66-72`: `derived()` passes deps + fn. `_runFn()` (`node.ts:648-686`) auto-emits via `_downAutoValue()` when fn returns a non-undefined, non-function value.
 - Py `sugar.py:23-25`: same pattern. `_run_fn_body()` (`node.py:366-400`).
 
 ### Deps, fn uses `.down()` = custom transform (`operator()`)
@@ -126,8 +126,8 @@ Both implementations expose `up()` and `unsubscribe()` on ALL node instances reg
 ### Returns value -> cache + auto-emit [[DIRTY], [DATA, value]] or [[DIRTY], [RESOLVED]]
 
 **PASS (both repos)**
-- TS `node.ts:633-639` (`_emitAutoValue`): if unchanged per `_equals`, emits `[[RESOLVED]]` (when already dirty) or `[[DIRTY], [RESOLVED]]`. If changed, caches value, emits `[[DATA, value]]` or `[[DIRTY], [DATA, value]]`.
-- Py `node.py:342-364` (`_emit_auto_value`): identical logic.
+- TS `node.ts:633-639` (`_downAutoValue`): if unchanged per `_equals`, emits `[[RESOLVED]]` (when already dirty) or `[[DIRTY], [RESOLVED]]`. If changed, caches value, emits `[[DATA, value]]` or `[[DIRTY], [DATA, value]]`.
+- Py `node.py:342-364` (`_down_auto_value`): identical logic.
 
 ### Returns nothing -> side effect, no auto-emit
 
@@ -177,7 +177,7 @@ BUT for **compute nodes** (deps + fn), TEARDOWN does NOT call cleanup:
 
 ### equals
 
-**PASS (both repos)** — TS defaults to `Object.is` (`node.ts:339`), Py defaults to `operator.is_` (`node.py:205`). Used in `_emitAutoValue` for RESOLVED detection.
+**PASS (both repos)** — TS defaults to `Object.is` (`node.ts:339`), Py defaults to `operator.is_` (`node.py:205`). Used in `_downAutoValue` for RESOLVED detection.
 
 ### initial
 
