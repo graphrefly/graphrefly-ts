@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.13.0...v0.14.0) (2026-04-07)
+
+
+### Features
+
+* 9.0 wiring ([9ae60d3](https://github.com/graphrefly/graphrefly-ts/commit/9ae60d3406f0bdf279ce60dec0f77b5801bd4788))
+
 # [0.13.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.12.0...v0.13.0) (2026-04-07)
 
 
