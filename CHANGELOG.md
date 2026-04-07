@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.11.0...v0.12.0) (2026-04-07)
+
+
+### Features
+
+* 9.0 ([31f0807](https://github.com/graphrefly/graphrefly-ts/commit/31f080777d49eb9cd218a2c4fe90026c0562ddce))
+
 # [0.11.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.10.0...v0.11.0) (2026-04-07)
 
 
