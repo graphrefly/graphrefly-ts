@@ -54,7 +54,6 @@ export function resolveDescribeFields(
 			return new Set(["type", "status", "value", "deps", "meta", "v"]);
 		case "full":
 			return null; // null = include everything
-		case "minimal":
 		default:
 			return new Set(["type", "deps"]);
 	}

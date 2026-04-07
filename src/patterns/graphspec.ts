@@ -95,11 +95,286 @@ export type FnFactory = (deps: Node<unknown>[], config: Record<string, unknown>)
  */
 export type SourceFactory = (config: Record<string, unknown>) => Node<unknown>;
 
-/** Fn/source lookup table passed to compileSpec. */
-export type GraphSpecCatalog = {
-	fns?: Record<string, FnFactory>;
-	sources?: Record<string, SourceFactory>;
+// ---------------------------------------------------------------------------
+// Rich catalog entries (§9.1b — auto-prompt, catalog-aware validation)
+// ---------------------------------------------------------------------------
+
+/** Simple config field descriptor for LLM prompt generation and validation. */
+export type ConfigFieldSchema = {
+	/** Human-readable type: "string", "number", "boolean", "string[]", etc. */
+	type: string;
+	/** Whether this field is required (default: true). */
+	required?: boolean;
+	/** Allowed values (enum constraint). */
+	enum?: readonly (string | number | boolean)[];
+	/** Human-readable description for LLM context. */
+	description?: string;
+	/** Default value if omitted. */
+	default?: unknown;
 };
+
+/**
+ * Rich catalog entry: bundles a runtime factory with LLM-facing metadata.
+ *
+ * The metadata is used to:
+ * 1. Auto-generate prompt text for {@link llmCompose} (replaces manual `catalogDescription`)
+ * 2. Validate LLM output in {@link validateSpec} (catch wrong fn names, invalid config)
+ * 3. Provide actionable error messages for {@link llmRefine} feedback loops
+ *
+ * Developers register ONE object; the library handles prompt generation and validation.
+ */
+export type CatalogFnEntry = {
+	/** Runtime factory. */
+	factory: FnFactory;
+	/** One-line description for LLM prompt (what it does, not how). */
+	description: string;
+	/** Config field schemas. Keys are config field names. */
+	configSchema?: Record<string, ConfigFieldSchema>;
+	/** Example config objects (shown in prompt for complex fns). */
+	examples?: Record<string, unknown>[];
+	/** Category tags for grouping in prompt (e.g., "resilience", "reduction", "ai"). */
+	tags?: string[];
+};
+
+/** Rich catalog entry for producer sources. */
+export type CatalogSourceEntry = {
+	/** Runtime factory. */
+	factory: SourceFactory;
+	/** One-line description for LLM prompt. */
+	description: string;
+	/** Config field schemas. */
+	configSchema?: Record<string, ConfigFieldSchema>;
+	/** Example config objects. */
+	examples?: Record<string, unknown>[];
+	/** Category tags. */
+	tags?: string[];
+};
+
+/**
+ * Fn/source lookup table passed to compileSpec and llmCompose.
+ *
+ * Accepts both bare factories (backward-compatible) and rich {@link CatalogFnEntry}
+ * / {@link CatalogSourceEntry} objects. When rich entries are provided, the library
+ * auto-generates LLM prompts and validates LLM output against the catalog.
+ */
+export type GraphSpecCatalog = {
+	fns?: Record<string, FnFactory | CatalogFnEntry>;
+	sources?: Record<string, SourceFactory | CatalogSourceEntry>;
+};
+
+// ---------------------------------------------------------------------------
+// Catalog helpers
+// ---------------------------------------------------------------------------
+
+/** Type guard: is this a rich catalog fn entry (vs bare factory)? */
+export function isRichFnEntry(entry: FnFactory | CatalogFnEntry): entry is CatalogFnEntry {
+	return typeof entry === "object" && entry !== null && "factory" in entry;
+}
+
+/** Type guard: is this a rich catalog source entry (vs bare factory)? */
+export function isRichSourceEntry(
+	entry: SourceFactory | CatalogSourceEntry,
+): entry is CatalogSourceEntry {
+	return typeof entry === "object" && entry !== null && "factory" in entry;
+}
+
+/** Extract the runtime factory from a catalog entry (rich or bare). */
+export function extractFnFactory(entry: FnFactory | CatalogFnEntry): FnFactory {
+	return isRichFnEntry(entry) ? entry.factory : entry;
+}
+
+/** Extract the runtime factory from a catalog source entry (rich or bare). */
+export function extractSourceFactory(entry: SourceFactory | CatalogSourceEntry): SourceFactory {
+	return isRichSourceEntry(entry) ? entry.factory : entry;
+}
+
+/**
+ * Auto-generate catalog prompt text from rich catalog entries.
+ *
+ * Groups fns by tag, formats each as `- name: description. Config: { ... }`.
+ * Falls back to listing names only for bare factories.
+ */
+export function generateCatalogPrompt(catalog: GraphSpecCatalog): string {
+	const sections: string[] = [];
+
+	if (catalog.fns) {
+		// Group by first tag (or "Other")
+		const groups = new Map<string, string[]>();
+		for (const [name, entry] of Object.entries(catalog.fns)) {
+			const tag = isRichFnEntry(entry) ? (entry.tags?.[0] ?? "Other") : "Other";
+			if (!groups.has(tag)) groups.set(tag, []);
+			groups.get(tag)!.push(formatFnEntry(name, entry));
+		}
+		for (const [tag, lines] of groups) {
+			sections.push(`${tag}:\n${lines.join("\n")}`);
+		}
+	}
+
+	if (catalog.sources) {
+		const lines: string[] = [];
+		for (const [name, entry] of Object.entries(catalog.sources)) {
+			lines.push(formatSourceEntry(name, entry));
+		}
+		if (lines.length > 0) {
+			sections.push(`Sources:\n${lines.join("\n")}`);
+		}
+	}
+
+	return sections.join("\n\n");
+}
+
+function formatFnEntry(name: string, entry: FnFactory | CatalogFnEntry): string {
+	if (!isRichFnEntry(entry)) return `- ${name}`;
+	let line = `- ${name}: ${entry.description}`;
+	if (entry.configSchema) {
+		const fields = Object.entries(entry.configSchema).map(([k, v]) => {
+			let desc = `${k}: ${v.type}`;
+			if (v.enum) desc += ` (${v.enum.join("|")})`;
+			if (v.required === false) desc += "?";
+			return desc;
+		});
+		line += `. Config: { ${fields.join(", ")} }`;
+	}
+	return line;
+}
+
+function formatSourceEntry(name: string, entry: SourceFactory | CatalogSourceEntry): string {
+	if (!isRichSourceEntry(entry)) return `- ${name}`;
+	let line = `- ${name}: ${entry.description}`;
+	if (entry.configSchema) {
+		const fields = Object.entries(entry.configSchema).map(([k, v]) => {
+			let desc = `${k}: ${v.type}`;
+			if (v.required === false) desc += "?";
+			return desc;
+		});
+		line += `. Config: { ${fields.join(", ")} }`;
+	}
+	return line;
+}
+
+/**
+ * Validate a GraphSpec against a catalog.
+ *
+ * Checks that fn/source names reference actual catalog entries, and validates
+ * config fields against configSchema when rich entries are available.
+ * Returns additional errors beyond structural {@link validateSpec} checks.
+ */
+export function validateSpecAgainstCatalog(
+	spec: GraphSpec,
+	catalog: GraphSpecCatalog,
+): GraphSpecValidation {
+	const errors: string[] = [];
+	const fnNames = new Set(Object.keys(catalog.fns ?? {}));
+	const sourceNames = new Set(Object.keys(catalog.sources ?? {}));
+
+	for (const [nodeName, nodeRaw] of Object.entries(spec.nodes)) {
+		if (nodeRaw.type === "template") continue;
+		const node = nodeRaw as GraphSpecNode;
+
+		// Check fn name exists in catalog
+		if (node.fn && fnNames.size > 0 && !fnNames.has(node.fn)) {
+			// Check if they used a source name as fn
+			if (sourceNames.has(node.fn)) {
+				errors.push(
+					`Node "${nodeName}": fn "${node.fn}" is a source, not a function. ` +
+						`Use it as a producer source instead, or use a function from: ${[...fnNames].join(", ")}`,
+				);
+			} else {
+				const suggestion = findClosest(node.fn, fnNames);
+				errors.push(
+					`Node "${nodeName}": fn "${node.fn}" not found in catalog` +
+						(suggestion ? `. Did you mean "${suggestion}"?` : ""),
+				);
+			}
+		}
+
+		// Check source name exists in catalog
+		if (node.source && sourceNames.size > 0 && !sourceNames.has(node.source)) {
+			if (fnNames.has(node.source)) {
+				errors.push(
+					`Node "${nodeName}": source "${node.source}" is a function, not a source. ` +
+						`Use it as fn instead, or use a source from: ${[...sourceNames].join(", ")}`,
+				);
+			} else {
+				const suggestion = findClosest(node.source, sourceNames);
+				errors.push(
+					`Node "${nodeName}": source "${node.source}" not found in catalog` +
+						(suggestion ? `. Did you mean "${suggestion}"?` : ""),
+				);
+			}
+		}
+
+		// Validate config against schema (if rich entry)
+		if (node.fn && node.config && catalog.fns?.[node.fn]) {
+			const entry = catalog.fns[node.fn];
+			if (isRichFnEntry(entry) && entry.configSchema) {
+				for (const [field, schema] of Object.entries(entry.configSchema)) {
+					if (schema.required !== false && !(field in node.config)) {
+						errors.push(`Node "${nodeName}": config missing required field "${field}"`);
+					}
+					if (field in node.config && schema.enum) {
+						const val = node.config[field];
+						if (!schema.enum.includes(val as string | number | boolean)) {
+							errors.push(
+								`Node "${nodeName}": config.${field} = ${JSON.stringify(val)}, ` +
+									`expected one of: ${schema.enum.join(", ")}`,
+							);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Also check template inner nodes
+	if (spec.templates) {
+		for (const [tName, template] of Object.entries(spec.templates)) {
+			for (const [nodeName, node] of Object.entries(template.nodes)) {
+				if (node.fn && fnNames.size > 0 && !fnNames.has(node.fn)) {
+					const suggestion = findClosest(node.fn, fnNames);
+					errors.push(
+						`Template "${tName}" node "${nodeName}": fn "${node.fn}" not found in catalog` +
+							(suggestion ? `. Did you mean "${suggestion}"?` : ""),
+					);
+				}
+			}
+		}
+	}
+
+	return { valid: errors.length === 0, errors };
+}
+
+/** Simple Levenshtein-based closest match for "did you mean?" suggestions. */
+function findClosest(input: string, candidates: Set<string>): string | null {
+	let best: string | null = null;
+	let bestDist = Infinity;
+	const lower = input.toLowerCase();
+	for (const c of candidates) {
+		const dist = levenshtein(lower, c.toLowerCase());
+		if (dist < bestDist && dist <= Math.max(3, Math.floor(input.length / 2))) {
+			bestDist = dist;
+			best = c;
+		}
+	}
+	return best;
+}
+
+function levenshtein(a: string, b: string): number {
+	const m = a.length;
+	const n = b.length;
+	const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+		Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+	);
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			dp[i][j] =
+				a[i - 1] === b[j - 1]
+					? dp[i - 1][j - 1]
+					: 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+		}
+	}
+	return dp[m][n];
+}
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -341,6 +616,24 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 	const g = new Graph(spec.name);
 	const templates = spec.templates ?? {};
 
+	// Catalog-aware validation (when rich entries are available)
+	const catalogValidation = validateSpecAgainstCatalog(spec, catalog);
+	if (!catalogValidation.valid) {
+		throw new Error(
+			`compileSpec: catalog validation errors:\n${catalogValidation.errors.join("\n")}`,
+		);
+	}
+
+	// Helper: resolve fn/source factories from catalog (handles rich + bare entries)
+	const resolveFn = (fnName: string): FnFactory | undefined => {
+		const entry = catalog.fns?.[fnName];
+		return entry ? extractFnFactory(entry) : undefined;
+	};
+	const resolveSource = (sourceName: string): SourceFactory | undefined => {
+		const entry = catalog.sources?.[sourceName];
+		return entry ? extractSourceFactory(entry) : undefined;
+	};
+
 	// Phase 1: Create non-template nodes (state/producer first, then derived/effect/operator)
 	const created = new Map<string, Node<unknown>>();
 	const deferred: [string, GraphSpecNode][] = [];
@@ -357,8 +650,8 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			g.add(name, nd);
 			created.set(name, nd);
 		} else if (n.type === "producer") {
-			const sourceFactory = n.source ? catalog.sources?.[n.source] : undefined;
-			const fnFactory = n.fn ? catalog.fns?.[n.fn] : undefined;
+			const sourceFactory = n.source ? resolveSource(n.source) : undefined;
+			const fnFactory = n.fn ? resolveFn(n.fn) : undefined;
 			if (sourceFactory) {
 				const nd = sourceFactory(n.config ?? {});
 				g.add(name, nd);
@@ -391,7 +684,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			if (!deps.every((dep) => created.has(dep))) continue;
 
 			const resolvedDeps = deps.map((dep) => created.get(dep)!);
-			const fnFactory = n.fn ? catalog.fns?.[n.fn] : undefined;
+			const fnFactory = n.fn ? resolveFn(n.fn) : undefined;
 
 			let nd: Node<unknown>;
 			if (fnFactory) {
@@ -442,8 +735,8 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				subCreated.set(nName, nd);
 			} else if (nSpec.type === "producer") {
 				// Handle producer nodes inside templates
-				const sourceFactory = nSpec.source ? catalog.sources?.[nSpec.source] : undefined;
-				const fnFactory = nSpec.fn ? catalog.fns?.[nSpec.fn] : undefined;
+				const sourceFactory = nSpec.source ? resolveSource(nSpec.source) : undefined;
+				const fnFactory = nSpec.fn ? resolveFn(nSpec.fn) : undefined;
 				if (sourceFactory) {
 					const nd = sourceFactory(nSpec.config ?? {});
 					sub.add(nName, nd);
@@ -476,7 +769,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				if (!allReady) continue;
 
 				const resolvedDeps = deps.map((dep) => subCreated.get(dep) ?? created.get(dep)!);
-				const fnFactory = nSpec.fn ? catalog.fns?.[nSpec.fn] : undefined;
+				const fnFactory = nSpec.fn ? resolveFn(nSpec.fn) : undefined;
 
 				let nd: Node<unknown>;
 				if (fnFactory) {
@@ -557,6 +850,7 @@ const INTERNAL_META_KEYS = new Set([
 	"_templateBind",
 	"feedbackFrom",
 	"feedbackTo",
+	"_internal",
 ]);
 
 /**
@@ -989,8 +1283,24 @@ export type LLMComposeOptions = {
 	maxTokens?: number;
 	/** Extra instructions appended to the system prompt. */
 	systemPromptExtra?: string;
-	/** Available fn/source catalog names for the LLM to reference. */
+	/**
+	 * Available fn/source catalog names for the LLM to reference.
+	 * When omitted and `catalog` contains rich {@link CatalogFnEntry} entries,
+	 * the prompt is auto-generated via {@link generateCatalogPrompt}.
+	 */
 	catalogDescription?: string;
+	/**
+	 * Catalog for auto-prompt generation and catalog-aware validation.
+	 * When rich entries are provided, the catalog prompt is auto-generated
+	 * and LLM output is validated against fn/source names and config schemas.
+	 */
+	catalog?: GraphSpecCatalog;
+	/**
+	 * Max auto-refine attempts when the LLM output fails catalog validation.
+	 * Each attempt feeds the validation errors back to the LLM via llmRefine.
+	 * Default: 0 (no auto-refine). Set to 2-3 for production use.
+	 */
+	maxAutoRefine?: number;
 };
 
 const LLM_COMPOSE_SYSTEM_PROMPT = `You are a graph architect for GraphReFly, a reactive graph protocol.
@@ -1063,8 +1373,12 @@ export async function llmCompose(
 	opts?: LLMComposeOptions,
 ): Promise<GraphSpec> {
 	let systemPrompt = LLM_COMPOSE_SYSTEM_PROMPT;
-	if (opts?.catalogDescription) {
-		systemPrompt += `\n\nAvailable catalog:\n${opts.catalogDescription}`;
+
+	// Auto-generate catalog prompt from rich entries, or use manual description
+	const catalogPrompt =
+		opts?.catalogDescription ?? (opts?.catalog ? generateCatalogPrompt(opts.catalog) : undefined);
+	if (catalogPrompt) {
+		systemPrompt += `\n\nAvailable catalog (use ONLY these names):\n${catalogPrompt}`;
 	}
 	if (opts?.systemPromptExtra) {
 		systemPrompt += `\n\n${opts.systemPromptExtra}`;
@@ -1101,7 +1415,33 @@ export async function llmCompose(
 		throw new Error(`llmCompose: invalid GraphSpec:\n${validation.errors.join("\n")}`);
 	}
 
-	return parsed as GraphSpec;
+	let spec = parsed as GraphSpec;
+
+	// Catalog-aware validation + auto-refine loop
+	if (opts?.catalog) {
+		const maxRefine = opts.maxAutoRefine ?? 0;
+		for (let attempt = 0; attempt <= maxRefine; attempt++) {
+			const catalogValidation = validateSpecAgainstCatalog(spec, opts.catalog);
+			if (catalogValidation.valid) break;
+
+			if (attempt === maxRefine) {
+				// Last attempt failed — return with errors attached as meta
+				throw new Error(
+					`llmCompose: catalog validation failed after ${maxRefine} refine attempts:\n${catalogValidation.errors.join("\n")}`,
+				);
+			}
+
+			// Auto-refine: feed catalog errors back to LLM
+			spec = await llmRefine(
+				spec,
+				`Fix these catalog errors:\n${catalogValidation.errors.join("\n")}\n\nUse ONLY functions and sources from the catalog.`,
+				adapter,
+				{ ...opts, catalogDescription: catalogPrompt },
+			);
+		}
+	}
+
+	return spec;
 }
 
 // ---------------------------------------------------------------------------

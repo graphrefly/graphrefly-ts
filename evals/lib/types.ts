@@ -3,6 +3,8 @@
  * These are the TypeScript runtime representations.
  */
 
+import type { ProviderName } from "./llm-client.js";
+
 // --- Task types ---
 
 export type TaskCategory =
@@ -86,6 +88,7 @@ export interface TaskResult {
 		input: number;
 		output: number;
 	};
+	cost_usd?: number;
 }
 
 export type EvalLayer = "L0" | "L1" | "L2" | "L3";
@@ -95,9 +98,11 @@ export interface EvalRun {
 	timestamp: string;
 	layer: EvalLayer;
 	model: string;
+	provider: ProviderName;
 	schema_version: string;
 	scores: Record<string, number>;
 	tasks: TaskResult[];
+	total_cost_usd?: number;
 }
 
 // --- Rubric types ---
@@ -113,6 +118,7 @@ export interface RubricAssertion {
 // --- Runner config ---
 
 export interface EvalConfig {
+	provider: ProviderName;
 	model: string;
 	judgeModel: string;
 	specEvalsPath: string;
@@ -124,6 +130,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const DEFAULT_CONFIG: EvalConfig = {
+	provider: (process.env.EVAL_PROVIDER ?? "anthropic") as ProviderName,
 	model: process.env.EVAL_MODEL ?? "claude-sonnet-4-6",
 	judgeModel: process.env.EVAL_JUDGE_MODEL ?? "claude-sonnet-4-6",
 	specEvalsPath: process.env.SPEC_EVALS_PATH ?? join(homedir(), "src", "graphrefly", "evals"),

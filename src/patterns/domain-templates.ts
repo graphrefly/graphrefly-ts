@@ -13,11 +13,11 @@
  * @module
  */
 
-import { DATA } from "../core/messages.js";
 import { batch } from "../core/batch.js";
+import { DATA } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
-import { reactiveLog, type ReactiveLogSnapshot } from "../extra/reactive-log.js";
+import { type ReactiveLogSnapshot, reactiveLog } from "../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
 import { feedback, type StratifyRule, scorer, stratify } from "./reduction.js";
 
@@ -120,9 +120,13 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 		}
 	});
 	const correlateFn = opts.correlate ?? ((vals: unknown[]) => vals);
-	const correlateNode = derived<unknown>(branchNodes as Node[], (vals) => correlateFn(vals as unknown[]), {
-		meta: baseMeta("observability", { stage: "correlate" }),
-	});
+	const correlateNode = derived<unknown>(
+		branchNodes as Node[],
+		(vals) => correlateFn(vals as unknown[]),
+		{
+			meta: baseMeta("observability", { stage: "correlate" }),
+		},
+	);
 	g.add("correlate", correlateNode);
 	for (const b of branches) {
 		try {
@@ -323,7 +327,7 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 	});
 	const regressionSignal = derived<number>([regressionNode], (vals) => {
 		const r = vals[0] as Record<string, unknown> | null;
-		return r && r.regression ? 2 : 0;
+		return r?.regression ? 2 : 0;
 	});
 	g.add("__severity_signal", severitySignal as Node<unknown>);
 	g.add("__regression_signal", regressionSignal as Node<unknown>);
@@ -480,6 +484,11 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	});
 	g.add("__review_accumulator", reviewAccumulator as Node<unknown>);
 	keepalive(reviewAccumulator as Node<unknown>);
+	try {
+		g.connect("stratify::branch/review", "__review_accumulator");
+	} catch {
+		// fallback branch — no stratify edge to register
+	}
 
 	// --- Policy state (human/LLM writable) ---
 	const policy = state<Record<string, unknown>>(
@@ -738,7 +747,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		[anomalyNode as Node],
 		(vals) => {
 			const a = vals[0] as AnomalyResult | null;
-			if (a && a.anomaly) return a;
+			if (a?.anomaly) return a;
 			return null;
 		},
 		{

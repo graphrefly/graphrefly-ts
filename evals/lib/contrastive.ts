@@ -7,9 +7,10 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import { callLLM, extractJSON } from "./llm-client.js";
-import type { BugTask, EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
+import type { EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
 import { validateSpec } from "./validator.js";
 
 async function loadTemplate(name: string, config: EvalConfig): Promise<string> {
@@ -19,6 +20,12 @@ async function loadTemplate(name: string, config: EvalConfig): Promise<string> {
 async function loadCorpus<T>(name: string, config: EvalConfig): Promise<T[]> {
 	const raw = await readFile(join(config.specEvalsPath, "corpus", `${name}.json`), "utf-8");
 	return JSON.parse(raw);
+}
+
+function addCost(result: TaskResult, model: string): void {
+	if (result.token_count) {
+		result.cost_usd = estimateTokenCost(result.token_count.input, result.token_count.output, model);
+	}
 }
 
 /**
@@ -120,6 +127,10 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		const graphResult = await runGraphSpecTreatment(task, graphspecTemplate, config);
 		const funcResult = await runFunctionsTreatment(task, functionsTemplate, config);
 
+		// Add cost estimates
+		addCost(graphResult, config.model);
+		addCost(funcResult, config.model);
+
 		// Judge correctness for both
 		if (task.contrastive?.key_behaviors) {
 			for (const result of [graphResult, funcResult]) {
@@ -153,6 +164,7 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		timestamp: new Date().toISOString(),
 		layer: "L0",
 		model: config.model,
+		provider: config.provider,
 		schema_version: "scaffold",
 		scores: {
 			"L0-M1-graphspec-error-rate": graphErrorRate,
@@ -160,5 +172,6 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 			"L0-M1-ratio": funcErrorRate > 0 ? graphErrorRate / funcErrorRate : 0,
 		},
 		tasks: results,
+		total_cost_usd: totalCost(results.map((r) => r.cost_usd)),
 	};
 }

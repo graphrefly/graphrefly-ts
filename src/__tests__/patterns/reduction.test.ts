@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
@@ -95,6 +96,89 @@ describe("reduction.stratify", () => {
 
 		source.down([[COMPLETE]]);
 		expect(completed).toBe(true);
+	});
+
+	it("two-dep gating: batch source + rules uses settled rules", () => {
+		const source = state<string>("x");
+		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
+
+		const g = stratify("gate", source, rules);
+
+		const seen: string[] = [];
+		g.resolve("branch/match").subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) seen.push(msg[1] as string);
+			}
+		});
+
+		// Batch: update rules to match "b" AND send source "b" simultaneously.
+		// Without two-dep gating, classification would use old rules (match "a")
+		// and "b" would be dropped.  With gating, both settle first.
+		batch(() => {
+			g.set("rules", [{ name: "match", classify: (v: string) => v === "b" }]);
+			source.down([[DATA, "b"]]);
+		});
+
+		expect(seen).toEqual(["b"]);
+	});
+
+	it("source-only update still classifies correctly", () => {
+		const source = state<number>(0);
+		const rules: StratifyRule<number>[] = [{ name: "pos", classify: (v) => v > 0 }];
+
+		const g = stratify("src-only", source, rules);
+		const seen: number[] = [];
+		g.resolve("branch/pos").subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) seen.push(msg[1] as number);
+			}
+		});
+
+		source.down([[DATA, 5]]);
+		source.down([[DATA, -1]]);
+		source.down([[DATA, 3]]);
+		expect(seen).toEqual([5, 3]);
+	});
+
+	it("rules-only update produces no downstream emission", () => {
+		const source = state<string>("a");
+		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
+
+		const g = stratify("rules-only", source, rules);
+		const emissions: Messages = [];
+		g.resolve("branch/match").subscribe((msgs: Messages) => {
+			emissions.push(...msgs);
+		});
+
+		source.down([[DATA, "a"]]);
+		const initialCount = emissions.length;
+
+		// Change rules only — should NOT produce any new downstream messages
+		g.set("rules", [{ name: "match", classify: (v: string) => v === "b" }]);
+		expect(emissions.length).toBe(initialCount);
+	});
+
+	it("rules-only update after source settlement produces no spurious data", () => {
+		const source = state<string>("x");
+		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "x" }];
+
+		const g = stratify("resolved", source, rules);
+
+		const dataSeen: string[] = [];
+		g.resolve("branch/match").subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) dataSeen.push(msg[1] as string);
+			}
+		});
+
+		// Initial emission
+		source.down([[DATA, "x"]]);
+		expect(dataSeen).toEqual(["x"]);
+
+		// Update rules in isolation — source not involved
+		g.set("rules", [{ name: "match", classify: (v: string) => v === "y" }]);
+		// No new data should appear
+		expect(dataSeen).toEqual(["x"]);
 	});
 });
 

@@ -1806,7 +1806,7 @@ export function gaugesAsContext(
 
 		for (const entry of entries) {
 			const node = described.nodes[entry.path]!;
-			const tags = (node.meta ?? {}).tags as string[] | undefined;
+			const tags = node.meta?.tags as string[] | undefined;
 			if (tags && tags.length > 0) {
 				// Use first tag for grouping to avoid duplicating entries across groups
 				const tag = tags[0]!;

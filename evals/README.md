@@ -13,28 +13,49 @@ Can an LLM compose a correct graph/pipeline from a natural-language description?
 Two treatments: GraphSpec (declarative JSON) vs plain TypeScript functions. 9 tasks
 (T1–T7 + T8a/T8b) scored on validity, completion, hallucination, bugs, completeness.
 
+### L1 — Generation (NL → GraphSpec)
+
+Zero-shot composition accuracy: NL description → valid, runnable GraphSpec.
+Uses real `validateSpec()` and `compileSpec()` from `src/patterns/graphspec.ts`.
+
 ### L1 — Comprehension (debug / modify / explain)
 
-Can an LLM understand, modify, and reason about an *existing* GraphSpec? 6 tasks:
-explain a path, find bugs, add a feature, review a diff, assess blast radius,
-retrofit resilience. GraphSpec-only (no Functions treatment — tests introspection
-advantages). Scored on accurate reading, complete identification, correct fix,
-minimal diff, reasoning quality.
+Can an LLM understand, modify, and reason about an *existing* GraphSpec?
+Modification tasks (nl-mod corpus) and bug-finding tasks (contrastive-bugs corpus).
 
-Both tiers use portable copy-paste prompts (`portable-eval-prompts.md`) — no
-project context, any AI model, unbiased.
+### Dev-DX — Error quality
+
+Vitest suite — no LLM calls. Validates that `validateSpec()` produces actionable
+error messages for common developer mistakes.
+
+## Providers
+
+| Provider | SDK | Budget tier | Publish tier |
+|---|---|---|---|
+| `anthropic` (default) | `@anthropic-ai/sdk` | Haiku 4.5 | Sonnet/Opus 4.6 |
+| `openai` | `openai` | GPT-4o-mini | GPT-4o / GPT-4.1 |
+| `google` | `@google/genai` | Gemini Flash | Gemini Pro |
+| `local` | `openai` (Ollama) | Gemma 4 27B | — |
+
+Set `EVAL_PROVIDER` to switch. SDKs are dynamically imported — only install what you use.
 
 ## Quick start
 
 ```bash
-# Run all automated evals (requires ANTHROPIC_API_KEY)
+# Run all automated evals (requires API key for chosen provider)
 pnpm eval
 
 # Run only the Graph>Functions contrastive eval (L0)
 pnpm eval:contrastive
 
-# Run only the LLM-DX composition eval (L1)
+# Run L1 evals (generation + comprehension)
 pnpm eval:llm-dx
+
+# Run multi-model matrix eval
+pnpm eval:matrix
+
+# Generate publishable scorecard
+pnpm eval:scorecard
 
 # Run dev-DX tests (no LLM calls — vitest)
 pnpm eval:dev-dx
@@ -48,34 +69,37 @@ pnpm eval:compare evals/results/run-a.json evals/results/run-b.json
 ```
 evals/
 ├── portable-eval-prompts.md   L0 + L1 copy-paste prompts and rubrics
-├── lib/           Core eval infrastructure
-│   ├── types.ts       Shared type definitions
-│   ├── llm-client.ts  Thin LLM client wrapper
-│   ├── judge.ts       LLM-as-judge scoring
-│   ├── validator.ts   Runtime validation (validateSpec + graphFromSpec)
-│   ├── contrastive.ts A/B runner for Graph>Functions evals
-│   ├── reporter.ts    Result aggregation and formatting
-│   └── runner.ts      Core eval orchestrator
-├── dev-dx/        Vitest suites for developer experience
-├── scripts/       CLI entry points
-└── results/       Git-tracked eval results (one file per run)
+├── HOW-TO-EVAL.md             One-pager for running evals
+├── lib/                       Core eval infrastructure
+│   ├── types.ts               Shared type definitions
+│   ├── llm-client.ts          Multi-provider LLM client
+│   ├── cost.ts                Token → USD cost estimation
+│   ├── judge.ts               LLM-as-judge scoring
+│   ├── validator.ts           Wired to real validateSpec + compileSpec
+│   ├── contrastive.ts         A/B runner for Graph>Functions evals
+│   ├── harness-metrics.ts     KPI computation from run data
+│   ├── reporter.ts            Result aggregation and formatting
+│   └── runner.ts              Core eval orchestrator (generation + comprehension)
+├── dev-dx/                    Vitest suites for developer experience
+├── scripts/                   CLI entry points
+│   ├── run-all.ts             pnpm eval
+│   ├── run-l0.ts              pnpm eval:contrastive
+│   ├── run-l1.ts              pnpm eval:llm-dx
+│   ├── run-matrix.ts          pnpm eval:matrix
+│   ├── publish-scorecard.ts   pnpm eval:scorecard
+│   └── compare.ts             pnpm eval:compare
+├── scorecard/                 Generated scorecard (latest.json + latest.md)
+└── results/                   Git-tracked eval results (one file per run)
 ```
 
 ## Results
 
-| Run | Date | Model | L0 Tasks | Key findings |
-|-----|------|-------|----------|-------------|
-| [Run 1](results/claude-web-2026-04-05.md) | 2026-04-05 | Claude (web) | T1–T7 | Functions won; GraphSpec hallucination on T5/T6 (missing catalog entries) |
-| [Run 2](results/claude-web-2026-04-05-run2.md) | 2026-04-05 | Claude (web) | T1–T8 | Tie after catalog update; feedback loops (T6) and per-branch resilience (T8) confirmed as schema gaps |
+| Run | Date | Model | Key findings |
+|-----|------|-------|-------------|
+| [Run 1](results/claude-web-2026-04-05.md) | 2026-04-05 | Claude (web) | Functions won; GraphSpec hallucination on T5/T6 |
+| [Run 2](results/claude-web-2026-04-05-run2.md) | 2026-04-05 | Claude (web) | Tie after catalog update; feedback/resilience gaps confirmed |
 
 Analysis: [eval-analysis.md](results/eval-analysis.md)
-
-## Key schema gaps identified by evals
-
-Both gaps are addressed in roadmap §8.3 (GraphSpec schema):
-
-1. **Feedback loops (T6):** GraphSpec needs `"feedback"` edges to express bounded cycles. Runtime: §8.1 `feedback()`. No `writeTo` field — that's just `graph.set()` renamed.
-2. **Subgraph templates (T8a):** GraphSpec needs `"templates"` for reusable subgraph patterns. Runtime: `graph.mount()`. Without templates, LLMs duplicate or incorrectly share resilience stacks.
 
 ## Adding evals
 
@@ -85,7 +109,15 @@ Both gaps are addressed in roadmap §8.3 (GraphSpec schema):
 
 ## Environment variables
 
-- `ANTHROPIC_API_KEY` — required for LLM evals
-- `EVAL_MODEL` — model to evaluate (default: `claude-sonnet-4-6`)
-- `EVAL_JUDGE_MODEL` — model for LLM judge (default: `claude-sonnet-4-6`)
-- `SPEC_EVALS_PATH` — path to spec repo evals (default: `~/src/graphrefly/evals`)
+| Variable | Default | Purpose |
+|---|---|---|
+| `EVAL_PROVIDER` | `anthropic` | LLM provider |
+| `EVAL_MODEL` | `claude-sonnet-4-6` | Model for generation |
+| `EVAL_JUDGE_MODEL` | `claude-sonnet-4-6` | Model for LLM judge |
+| `EVAL_MODELS` | — | Comma-separated for matrix runs |
+| `EVAL_PROVIDERS` | — | Provider per model (matrix) |
+| `EVAL_LOCAL_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint |
+| `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Spec repo evals path |
+| `ANTHROPIC_API_KEY` | — | Anthropic provider |
+| `OPENAI_API_KEY` | — | OpenAI provider |
+| `GOOGLE_API_KEY` | — | Google provider |

@@ -17,21 +17,64 @@ unbiased eval data. Each prompt is self-contained — no project context needed.
 
 ```
 You are generating a declarative graph specification (GraphSpec) for a reactive
-data pipeline. A GraphSpec is a JSON object with a single "nodes" key.
+data pipeline. A GraphSpec is a JSON object with these top-level keys:
+
+  "nodes": { ... }           — required: node declarations keyed by name
+  "templates": { ... }       — optional: reusable subgraph patterns
+  "feedback": [ ... ]        — optional: bounded feedback edges (cycles)
 
 Each node has:
 - "type": One of "producer" (data source), "state" (mutable value),
-  "derived" (computed from deps), "effect" (side effect triggered by deps)
+  "derived" (computed from deps), "effect" (side effect triggered by deps),
+  "template" (instantiate a reusable template)
 - "deps": Array of node names this node depends on
   (required for derived and effect)
-- "fn": String reference to a function name (required for derived and effect)
+- "fn": String reference to a function name from the catalog below
+  (required for derived and effect — must be a catalog function, NOT a source)
 - "source": String reference to a data source name (required for producer)
 - "config": Optional freeform object for configuration
 - "initial": Optional initial value (for state nodes)
 
+Template nodes (type "template") have:
+- "template": Name of a template defined in the top-level "templates" object
+- "bind": Object mapping template parameter names to actual node names
+
+Templates (top-level "templates" object) define reusable subgraph patterns:
+  "templates": {
+    "myPattern": {
+      "params": ["$input"],
+      "nodes": {
+        "step1": { "type": "derived", "deps": ["$input"], "fn": "someFn" },
+        "step2": { "type": "derived", "deps": ["step1"], "fn": "otherFn" }
+      },
+      "output": "step2"
+    }
+  }
+Use templates when the same multi-node pattern must be applied to multiple
+inputs (e.g., per-source resilience stacks). Instantiate via template nodes.
+
+Feedback edges (top-level "feedback" array) express bounded cycles:
+  "feedback": [
+    { "from": "derivedNode", "to": "stateNode", "maxIterations": 3 }
+  ]
+"from" is a derived/effect node whose output feeds back to "to" (a state node).
+The cycle runs at most maxIterations times. Use this for adaptive loops,
+convergence, and iterative refinement — NOT inline config on a single node.
+
 Edges are implicit from deps. Do not include an edges array.
 
+Resilience ordering guidance: when composing resilience operators, the
+recommended order (outermost to innermost) is:
+  rateLimiter → circuitBreaker → retry → timeout(innerCall) → fallback
+This means rateLimiter wraps circuitBreaker wraps retry wraps timeout.
+
+Stratify routing: stratify classifies items and tags them with a branch name.
+Downstream nodes must use filterBy to select their branch from stratify's
+output (e.g., filterBy with field "branch", op "eq", value "P1").
+
 Available functions (use ONLY these):
+
+Transforms & filters:
 - filterBy: Filter items by condition. Config: { field, op: "eq"|"gt"|"lt"|"contains", value }
 - mapFields: Transform record fields. Config: { mapping: { out: "in" } }
 - normalize: Normalize data shape
@@ -39,22 +82,56 @@ Available functions (use ONLY these):
 - aggregate: Aggregate values. Config: { op: "sum"|"avg"|"count"|"min"|"max", field }
 - rollingAvg: Running average over window. Config: { windowSize }
 - computeAverage: Average of array
+- scan: Running accumulator over stream. Config: { fn, initial }
+- distinctUntilChanged: Skip consecutive duplicates. Config: { key? }
+- take: Take first N values then stop. Config: { count }
+- skip: Skip first N values. Config: { count }
+- delay: Delay each value. Config: { delayMs }
+- debounce: Debounce rapid values. Config: { waitMs }
+- throttle: Throttle values to interval. Config: { intervalMs }
 - batchEvents: Collect into batches. Config: { size, intervalMs }
 - merge: Combine multiple inputs. Config: { strategy: "concat"|"zip"|"object" }
+- dedup: Deduplicate stream. Config: { key?, ttlMs? }
+
+Formatting & reporting:
 - formatResults: Format data. Config: { format: "json"|"csv"|"markdown" }
 - generateReport: Generate report from data sources
+- distill: Extract and consolidate information. Config: { strategy: "latest"|"merge"|"summarize" }
+
+AI / LLM:
 - llmClassify: AI classification. Config: { categories: string[] }
 - llmSummarize: AI summarization. Config: { maxLength?, style?: "bullets"|"paragraph" }
 - llmExtract: AI extraction. Config: { schema }
+- llmScore: Score item with LLM rubric. Config: { rubric, scale?: [min, max] }
+
+Reduction (multi-source → signal):
+- stratify: Route inputs into priority branches by rules. Config: { rules: [{ match: { field, op, value }, branch: string }], default?: string }
+- funnel: Multi-stage filtering and consolidation. Config: { stages: [{ fn, config }] }
+- feedback: DEPRECATED as inline fn — use the top-level "feedback" array instead. Declare the computation as a normal derived node, then add a feedback edge from it to a state node. See schema description above.
+- scorer: Score and rank items by weighted fields. Config: { weights: { [field]: number }, normalize?: boolean }
+- budgetGate: Allow items through while within budget. Config: { budget, costField, resetIntervalMs? }
+
+Orchestration:
+- approval: Human or LLM approval gate. Config: { approver: "human"|"llm", prompt? }
+- branch: Route to named branches. Config: { condition, then: string, else?: string }
+- join: Wait for multiple deps and combine. Config: { strategy: "all"|"race" }
+
+Checks & validation:
 - thresholdCheck: Check value against threshold. Config: { threshold, direction: "above"|"below" }
-- retry: Retry on failure. Config: { maxAttempts, backoff?: "exponential"|"linear"|"fibonacci", fn?: "fnToRetry" }
+- validateSchema: Validate data against a JSON schema. Config: { schema, onInvalid?: "error"|"filter"|"tag" }
+
+Resilience:
+- retry: Retry on failure. Wraps the node's deps — retries fetching from upstream. Config: { maxAttempts, backoff?: "exponential"|"linear"|"fibonacci" }. Do NOT put a source name in fn — retry wraps whatever its deps produce.
 - fallback: Use fallback on error. Config: { fallbackValue?, fallbackSource?: "<nodeName>" }
 - timeout: Error if no data within deadline. Config: { timeoutMs }
 - circuitBreaker: Gate requests through circuit breaker (closed/open/half-open). Config: { failureThreshold?, cooldownMs?, onOpen?: "skip"|"error" }
 - rateLimiter: Enforce rate limit on data flow. Config: { maxEvents, windowMs }
+- tokenBucket: Token bucket rate limiter. Config: { capacity, refillRate, refillIntervalMs }
+- withBreaker: Attach circuit breaker to a node. Config: { failureThreshold, cooldownMs }
 - withStatus: Attach status/error companion metadata. Config: { initialStatus?: "pending"|"active"|"completed"|"errored" }
-- dedup: Deduplicate stream. Config: { key?, ttlMs? }
 - cache: Cache values with TTL. Config: { ttlMs }
+
+Effects (sinks):
 - sendEmail: Send email. Config: { to, subject? }
 - sendSlack: Post to Slack. Config: { channel }
 - sendAlert: Send alert. Config: { channel: "push"|"sms"|"email" }
@@ -66,6 +143,10 @@ Available functions (use ONLY these):
 - sendPagerDuty: PagerDuty alert. Config: { severity?: "info"|"warning"|"critical" }
 - createJiraTicket: Create Jira ticket. Config: { project }
 - processPayment: Process payment. Config: { gateway? }
+- toKafka: Publish to Kafka topic. Config: { topic }
+- toPostgres: Write to PostgreSQL. Config: { table }
+- toClickHouse: Write to ClickHouse. Config: { table }
+- toLoki: Push to Loki log aggregation. Config: { labels }
 
 Available sources (use ONLY these):
 - rest-api: Poll REST endpoint. Config: { url, pollIntervalMs? }
@@ -81,6 +162,13 @@ Available sources (use ONLY these):
 - prometheus: Query metrics. Config: { query }
 - mqtt: MQTT subscription. Config: { broker, topic }
 - github-events: GitHub webhooks. Config: { repo, events? }
+- otel: OpenTelemetry signals (spans, metrics, logs). Config: { signalType: "spans"|"metrics"|"logs", endpoint? }
+- redis-stream: Redis Stream consumer. Config: { stream, group?, consumer? }
+- nats: NATS subscriber. Config: { subject }
+- rabbitmq: RabbitMQ consumer. Config: { queue }
+- pulsar: Pulsar consumer. Config: { topic, subscription? }
+- syslog: Syslog receiver. Config: { port? }
+- mcp: MCP tool invocation source. Config: { server, tool }
 
 Return ONLY valid JSON. No explanation.
 ```
@@ -159,6 +247,40 @@ nodes, compute a portfolio total, and push to a dashboard with status
 metadata showing whether the source is live or degraded."
 ```
 
+**Task 9 (high — reduction pipeline):**
+```
+Compose a GraphSpec for: "Receive alerts from an OpenTelemetry pipeline.
+Stratify them by severity: critical alerts go to branch P1, warnings to P2,
+info to P3. For P1 and P2, deduplicate by alert name within a 5-minute
+window. Score remaining alerts by business impact using weighted fields
+(service_tier × 3, duration × 2, affected_users × 1). Gate notifications
+by a budget of 20 alerts per hour. Send P1 alerts to PagerDuty (critical),
+P2 to Slack, and log all P3 to ClickHouse."
+```
+
+**Task 10 (high — orchestration with approval):**
+```
+Compose a GraphSpec for: "Receive user-submitted content via webhook.
+Classify each submission with LLM as 'safe', 'review', or 'reject'.
+Route safe content directly to a PostgreSQL database. Route rejected
+content to a log with reason. For 'review' items, send to a human
+approval gate. Approved items go to the database; denied items go to
+the log. Generate a weekly report of all moderation decisions and
+send it via email."
+```
+
+**Task 11 (high — feedback with LLM):**
+```
+Compose a GraphSpec for: "Watch an RSS knowledge base for new articles.
+Extract key claims from each article using LLM extraction. Score each
+claim's novelty against existing claims stored in a database — high
+novelty (score > 0.7) stores the claim directly. Low novelty (score
+<= 0.7) merges it with the most similar existing claim using LLM
+summarization, then feeds the merged result back for re-scoring (max
+3 iterations via feedback loop). Push all newly stored claims to a
+Slack channel."
+```
+
 ---
 
 ## TREATMENT B: Plain Functions Generation
@@ -178,6 +300,14 @@ declare function connectWebSocket(url: string): AsyncIterable<any>;
 declare function watchEmail(config: { filter?: string }): AsyncIterable<any>;
 declare function pollSource(url: string, intervalMs: number): AsyncIterable<any>;
 declare function subscribeMQTT(broker: string, topic: string): AsyncIterable<any>;
+declare function subscribeOTel(signalType: "spans" | "metrics" | "logs", endpoint?: string): AsyncIterable<any>;
+declare function pollRSS(url: string): AsyncIterable<any>;
+declare function receiveWebhook(path: string): AsyncIterable<any>;
+declare function consumeKafka(topic: string, groupId?: string): AsyncIterable<any>;
+declare function consumeRedisStream(stream: string, group?: string): AsyncIterable<any>;
+declare function consumeNATS(subject: string): AsyncIterable<any>;
+declare function consumeRabbitMQ(queue: string): AsyncIterable<any>;
+declare function receiveSyslog(port?: number): AsyncIterable<any>;
 
 // Transformations
 declare function filterBy<T>(items: T[], predicate: (item: T) => boolean): T[];
@@ -188,6 +318,18 @@ declare function validateSchema(data: unknown, schema: object): { valid: boolean
 declare function normalizeFields(data: Record<string, any>): Record<string, any>;
 declare function classifyText(text: string, categories: string[]): Promise<string>;
 declare function summarizeText(text: string): Promise<string>;
+declare function extractClaims(text: string, schema: object): Promise<any>;
+declare function scoreItem(item: any, weights: Record<string, number>): number;
+declare function deduplicate<T>(items: T[], key: string, ttlMs?: number): T[];
+declare function batchItems<T>(items: T[], size: number): T[][];
+declare function scanAccumulate<T, U>(items: T[], fn: (acc: U, item: T) => U, initial: U): U;
+
+// Reduction & routing
+declare function routeByField<T>(item: T, field: string, routes: Record<string, (item: T) => void>): void;
+declare function budgetCheck(cost: number, budget: number, resetIntervalMs?: number): boolean;
+
+// Orchestration
+declare function requestApproval(item: any, prompt?: string): Promise<"approved" | "denied">;
 
 // Resilience
 declare function retry<T>(fn: () => Promise<T>, opts: { maxAttempts: number; backoff?: "exponential" | "linear" | "fibonacci" }): Promise<T>;
@@ -195,6 +337,7 @@ declare function withFallback<T>(fn: () => Promise<T>, fallbackValue: T): Promis
 declare function withTimeout<T>(fn: () => Promise<T>, timeoutMs: number): Promise<T>;
 declare function withCircuitBreaker<T>(fn: () => Promise<T>, opts: { failureThreshold?: number; cooldownMs?: number }): Promise<T>;
 declare function rateLimitCalls<T>(fn: () => Promise<T>, maxPerWindow: number, windowMs: number): Promise<T>;
+declare function tokenBucketLimit<T>(fn: () => Promise<T>, capacity: number, refillRate: number): Promise<T>;
 declare function cacheResult<T>(key: string, fn: () => Promise<T>, ttlMs: number): Promise<T>;
 
 // Effects
@@ -202,10 +345,14 @@ declare function sendSlackMessage(channel: string, message: string): Promise<voi
 declare function sendEmail(to: string, subject: string, body: string): Promise<void>;
 declare function sendPushNotification(message: string): Promise<void>;
 declare function writeToDatabase(table: string, data: any): Promise<void>;
+declare function writeToPostgres(table: string, data: any): Promise<void>;
+declare function writeToClickHouse(table: string, data: any): Promise<void>;
 declare function uploadToS3(bucket: string, key: string, data: any): Promise<void>;
 declare function logToAudit(entry: any): Promise<void>;
+declare function pushToLoki(labels: Record<string, string>, entry: any): Promise<void>;
 declare function updateDashboard(dashboardId: string, data: any): Promise<void>;
 declare function sendPagerDutyAlert(severity: string, message: string): Promise<void>;
+declare function publishToKafka(topic: string, data: any): Promise<void>;
 
 Return ONLY code. No explanation.
 ```
@@ -285,6 +432,40 @@ values, compute a portfolio total, and push to a dashboard with status
 metadata showing whether the source is live or degraded."
 ```
 
+**Task 9 (high — reduction pipeline):**
+```
+Write TypeScript functions that: "Receive alerts from an OpenTelemetry pipeline.
+Stratify them by severity: critical alerts go to branch P1, warnings to P2,
+info to P3. For P1 and P2, deduplicate by alert name within a 5-minute
+window. Score remaining alerts by business impact using weighted fields
+(service_tier × 3, duration × 2, affected_users × 1). Gate notifications
+by a budget of 20 alerts per hour. Send P1 alerts to PagerDuty (critical),
+P2 to Slack, and log all P3 to ClickHouse."
+```
+
+**Task 10 (high — orchestration with approval):**
+```
+Write TypeScript functions that: "Receive user-submitted content via webhook.
+Classify each submission with LLM as 'safe', 'review', or 'reject'.
+Route safe content directly to a PostgreSQL database. Route rejected
+content to a log with reason. For 'review' items, send to a human
+approval gate. Approved items go to the database; denied items go to
+the log. Generate a weekly report of all moderation decisions and
+send it via email."
+```
+
+**Task 11 (high — feedback with LLM):**
+```
+Write TypeScript functions that: "Watch an RSS knowledge base for new articles.
+Extract key claims from each article using LLM extraction. Score each
+claim's novelty against existing claims stored in a database — high
+novelty (score > 0.7) stores the claim directly. Low novelty (score
+<= 0.7) merges it with the most similar existing claim using LLM
+summarization, then feeds the merged result back for re-scoring (max
+3 iterations via feedback loop). Push all newly stored claims to a
+Slack channel."
+```
+
 ---
 
 ## NEUTRAL SCORING RUBRIC
@@ -314,7 +495,7 @@ framework preferences, or architectural philosophy.
 
 ### Aggregate metrics
 
-After scoring all 9 tasks × 2 treatments:
+After scoring all 12 tasks × 2 treatments:
 
 | Metric | Formula |
 |--------|---------|
@@ -340,6 +521,9 @@ Task 6: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 7: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 8a: C1=_ C2=_ C3=_ C4=_ C5=_
 Task 8b: C1=_ C2=_ C3=_ C4=_ C5=_
+Task 9: C1=_ C2=_ C3=_ C4=_ C5=_
+Task 10: C1=_ C2=_ C3=_ C4=_ C5=_
+Task 11: C1=_ C2=_ C3=_ C4=_ C5=_
 
 Notes:
 ```
@@ -391,6 +575,28 @@ chain) should differentiate.
     "updateCache": { "type": "effect", "deps": ["cachedFallback"], "fn": "cache", "config": { "ttlMs": 300000 } },
     "logAttempt": { "type": "effect", "deps": ["apiCall"], "fn": "writeToDB", "config": { "table": "pricing_log" } },
     "dashboard": { "type": "effect", "deps": ["cachedFallback"], "fn": "updateDashboard", "config": { "dashboardId": "pricing" } }
+  }
+}
+```
+
+**Graph C — alert reduction pipeline (working, uses Phase 8.x reduction):**
+```json
+{
+  "nodes": {
+    "alerts": { "type": "producer", "source": "otel", "config": { "signalType": "logs", "endpoint": "http://otel:4318" } },
+    "classify": { "type": "derived", "deps": ["alerts"], "fn": "stratify", "config": { "rules": [{ "match": { "field": "severity", "op": "eq", "value": "critical" }, "branch": "P1" }, { "match": { "field": "severity", "op": "eq", "value": "warning" }, "branch": "P2" }], "default": "P3" } },
+    "p1Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P1" } },
+    "p2Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P2" } },
+    "p3Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P3" } },
+    "dedupP1": { "type": "derived", "deps": ["p1Alerts"], "fn": "dedup", "config": { "key": "alertName", "ttlMs": 300000 } },
+    "dedupP2": { "type": "derived", "deps": ["p2Alerts"], "fn": "dedup", "config": { "key": "alertName", "ttlMs": 300000 } },
+    "scoreP1": { "type": "derived", "deps": ["dedupP1"], "fn": "scorer", "config": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } },
+    "scoreP2": { "type": "derived", "deps": ["dedupP2"], "fn": "scorer", "config": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } },
+    "gateP1": { "type": "derived", "deps": ["scoreP1"], "fn": "budgetGate", "config": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } },
+    "gateP2": { "type": "derived", "deps": ["scoreP2"], "fn": "budgetGate", "config": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } },
+    "pageP1": { "type": "effect", "deps": ["gateP1"], "fn": "sendPagerDuty", "config": { "severity": "critical" } },
+    "slackP2": { "type": "effect", "deps": ["gateP2"], "fn": "sendSlack", "config": { "channel": "#alerts-warning" } },
+    "logP3": { "type": "effect", "deps": ["p3Alerts"], "fn": "toClickHouse", "config": { "table": "info_alerts" } }
   }
 }
 ```
@@ -456,6 +662,25 @@ fallback). The rest of the pipeline should work the same.
 Return the modified GraphSpec (full JSON).
 ```
 
+**L1-7 (explain — reduction trace):**
+```
+Here is a GraphSpec for an alert reduction pipeline [paste Graph C]. A critical
+alert arrives with severity="critical", alertName="HighCPU", service_tier=3,
+duration=120, affected_users=500. Trace the path from the "alerts" producer
+through every node it touches. State what each node outputs and what the final
+effect is. Then: if 19 alerts have already been sent this hour, what happens
+to the 20th critical alert?
+```
+
+**L1-8 (modify — add feedback loop):**
+```
+Here is a GraphSpec for an alert reduction pipeline [paste Graph C]. The ops
+team wants to add automatic threshold adjustment: if more than 15 alerts pass
+the budget gate in an hour, increase the scorer weights for service_tier to 5
+(making it harder for low-tier alerts to pass). Use a feedback loop with max
+3 iterations to converge. Return the modified GraphSpec (full JSON).
+```
+
 ---
 
 ### L1 SCORING RUBRIC
@@ -482,6 +707,8 @@ L1-3 (modify):  D1=_ D2=_ D3=_ D4=_ D5=_
 L1-4 (diff):    D1=_ D2=_ D3=n/a D4=n/a D5=_
 L1-5 (blast):   D1=_ D2=_ D3=n/a D4=n/a D5=_
 L1-6 (retrofit): D1=_ D2=_ D3=_ D4=_ D5=_
+L1-7 (reduction trace): D1=_ D2=_ D3=n/a D4=n/a D5=_
+L1-8 (add feedback):    D1=_ D2=_ D3=_ D4=_ D5=_
 
 Notes:
 ```

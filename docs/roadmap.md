@@ -15,6 +15,45 @@
 >
 > **Design reference:** `archive/docs/SESSION-harness-engineering-strategy.md`
 
+### Wave 0: Reactive Collaboration Loop — dogfood infrastructure (Weeks 0-2)
+
+Goal: build the reactive collaboration harness and use it to manage the Wave 1 eval work. Static-topology loop with gates, promptNode, cursor-driven readers, and strategy tracking. Dogfooding validates the design; the eval experiment is the first real workload.
+
+**Design reference:** `archive/docs/SESSION-reactive-collaboration-harness.md`
+
+#### 9.0 — Reactive Collaboration Loop [NEW]
+
+The 7-stage loop: intake → triage → queue → gate → execute → verify → reflect. Static topology (channels don't change), flowing data (issues/findings move through channels), human gates (approve/reject/modify with structured judgment), and a strategy model that learns which interventions work.
+
+**Existing infrastructure (no new code):** `TopicGraph` + `SubscriptionGraph` (cursor-driven readers), `JobQueueGraph` (work queues), `bridge()` (cross-graph wiring), `distill()` + `agentMemory()` (memory), `decay()` (priority scoring), `reactiveLog`/`reactiveMap` (data structures).
+
+##### Primitives
+
+- [ ] Rename `gate` → `valve` in `src/extra/operators.ts` + `src/patterns/orchestration.ts` + all tests/exports (boolean control gate — opens/closes flow based on external signal)
+- [ ] Port `gate` from callbag-recharge → `src/patterns/orchestration.ts` — human approval gate with pending queue, `approve(n?)`, `reject(n?)`, `modify(fn, n?)` where fn signature is `(value: T, index: number, pending: readonly T[]) => T` (Array.map-style). Observable `pending: Node<T[]>`, `count: Node<number>`, `isOpen: Node<boolean>`. Options: `maxPending`, `startOpen`
+- [ ] `promptNode` factory → `src/patterns/ai.ts` — wraps LLM call in derived node. Accepts prompt (static or `(input) => string`), deps, model adapter, output format (json/text), retries, cache flag. Universal transform: triage, QA, hypothesis, parity — one factory
+
+##### Wiring
+
+- [ ] Eval→intake bridge — effect parsing `RunResult` into `IntakeItem[]` (per-criterion findings, not just per-task scores), publishes to intake topic
+- [ ] Strategy model — derived node over completed issues: `rootCause × intervention → { attempts, successes, successRate }`. Feeds back into triage promptNode for routing hints
+- [ ] Priority scoring template — configurable derived node using existing `decay()` from `src/patterns/memory.ts` + strategy model + developer-supplied signals (urgency, type bias, assignee load, etc.)
+- [ ] Fast-retry path (from Reflexion pattern) — conditional edge VERIFY→EXECUTE for self-correctable errors (config validation, parse failures), skipping full INTAKE→TRIAGE cycle. Max retries per item (default 2) to prevent loops
+- [ ] `harnessLoop()` factory — wires the static topology: intake topic → triage (promptNode) → 4 queue topics (auto-fix, needs-decision, investigation, backlog) → gates on configured channels → execute → verify (with fast-retry) → reflect (strategy model + hypothesis promptNode + distill via existing agentMemory)
+
+##### Dual composition mode
+
+Supports both graph-subgraph (tight coupling, same propagation cycle) and cursor-reading via `SubscriptionGraph` (降维 — dimensionality reduction, independent consumption pace). Developer picks per-branch. Same data can feed both modes.
+
+##### Dogfood on 9.1b
+
+- [ ] Wire 9.1b eval runs through the harness loop
+- [ ] Human steering through `gate.modify()` with structured `rootCause`/`intervention` metadata
+- [ ] Strategy model accumulates effectiveness data across treatments A→D
+- [ ] Retrospective distills into `agentMemory` for next session context
+
+---
+
 ### Wave 1: "The Eval Story" — publish engineering discipline (Weeks 1-3)
 
 Goal: establish credibility by showing eval → schema fix → re-eval feedback loop publicly. Low risk, no full architecture reveal.
@@ -30,8 +69,8 @@ The eval system has two tiers: **manual/portable** (copy-paste prompts into any 
 - [x] Copy-paste prompts: `portable-eval-prompts.md` (L0 + L1 rubrics, any AI)
 - [x] Neutral rubric: no GraphReFly context in prompts (unbiased)
 - [x] Recording template for manual scoring
-- [ ] L1 task prompts for comprehension eval (debug/modify/explain) — finalize 6 task prompts
-- [ ] "How to run a manual eval" one-pager (for contributors and blog readers)
+- [x] L1 task prompts for comprehension eval (debug/modify/explain) — 8 tasks finalized (6 against Graphs A/B + 2 against Graph C reduction pipeline)
+- [x] "How to run a manual eval" one-pager (`evals/HOW-TO-EVAL.md`)
 
 ##### Automated eval tier (API, publishable)
 
@@ -39,15 +78,15 @@ The eval system has two tiers: **manual/portable** (copy-paste prompts into any 
 - [x] LLM-as-judge scoring (`lib/judge.ts`)
 - [x] Dev-DX vitest suite (`pnpm eval:dev-dx` — no LLM calls)
 - [x] Results comparison (`pnpm eval:compare`)
-- [ ] **Multi-provider LLM client** — extend `llm-client.ts` with `LLMProvider` interface: Anthropic (existing), OpenAI, Google. Env: `EVAL_PROVIDER`. Budget tier: Haiku/GPT-4o-mini/Gemini-Flash for dev; Sonnet/GPT-4o/Gemini-Pro for publish.
-- [ ] **L1 runner wired** — finish orchestration in `runner.ts` (currently scaffolded)
-- [ ] **Validator wired to `graphFromSpec()`** — real execution check, not just structure validation (8.3 → 9.1)
-- [ ] **Multi-model matrix runner** (`pnpm eval:matrix`) — runs L0+L1 across configured model list
-- [ ] **GitHub Actions `eval.yml`** — weekly scheduled + manual dispatch; commits results to `evals/results/`; secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
-- [ ] **Harness metrics module** (`lib/harness-metrics.ts`) — computes KPIs from run data: firstPassValidity, hallucinationRate, completeness, debugAccuracy, schemaGapsOpen/Resolved
-- [ ] **Scorecard generator** (`scripts/publish-scorecard.ts`) — outputs `evals/scorecard/latest.json` + `latest.md` from aggregated runs
-- [ ] **Regression gate** — fail CI if validity drops >5% from stored baseline
-- [ ] **Cost tracking** — per-run token counts → estimated $ (logged in results JSON)
+- [x] **Multi-provider LLM client** — `LLMProvider` interface in `llm-client.ts`: Anthropic, OpenAI, Google, Local (Ollama/Gemma). Env: `EVAL_PROVIDER`. Budget tier: Haiku/GPT-4o-mini/Gemini-Flash/Gemma for dev; Sonnet/GPT-4o/Gemini-Pro for publish.
+- [x] **L1 runner wired** — `runComprehensionEval()` in `runner.ts`: modification tasks + bug-finding tasks
+- [x] **Validator wired to `compileSpec()`** — real `validateSpec()` + `compileSpec()` from `src/patterns/graphspec.ts`
+- [x] **Multi-model matrix runner** (`pnpm eval:matrix`) — runs L0+L1 across configured model list
+- [x] **GitHub Actions `eval.yml`** — weekly scheduled + manual dispatch; commits results to `evals/results/`; secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`
+- [x] **Harness metrics module** (`lib/harness-metrics.ts`) — computes KPIs from run data: firstPassValidity, hallucinationRate, completeness, debugAccuracy, schemaGapsOpen/Resolved
+- [x] **Scorecard generator** (`scripts/publish-scorecard.ts`) — outputs `evals/scorecard/latest.json` + `latest.md` from aggregated runs
+- [x] **Regression gate** — fail CI if validity drops >5% from stored baseline (in `eval.yml` + `compare.ts`)
+- [x] **Cost tracking** — per-run token counts → estimated $ via `lib/cost.ts` (logged in results JSON)
 - [ ] 5+ automated runs across 2+ models with trend data committed
 
 ##### Eval-driven schema fixes (feedback loop — the publishable story)
@@ -57,9 +96,75 @@ The eval system has two tiers: **manual/portable** (copy-paste prompts into any 
 - [x] T5/T8 resilience catalog gaps → `fallback`, `cache`, `timeout` added (3.1c)
 - [ ] Track schema gaps as running metric: gaps found → gaps resolved
 
+#### 9.1b — Catalog automation (the eval-proven product feature) [NEW]
+
+**Context:** Runs 1→4 proved that catalog documentation quality is the #1 lever for LLM output quality (+10 points, hallucination 25%→0% from catalog text changes alone). Every user of `llmCompose()` faces the same problem: writing good catalog descriptions is manual, error-prone, and the LLM can't use features it doesn't know about. Automating catalog generation and validation removes the biggest quality gap.
+
+**Eval story:** This is the publishable arc — "We discovered the problem through evals, proved it across models, then automated the fix."
+
+##### Rich catalog types (shipped)
+
+- [x] `CatalogFnEntry` / `CatalogSourceEntry` — bundle factory + description + configSchema + examples + tags
+- [x] Backward-compatible `GraphSpecCatalog` — accepts bare factories or rich entries
+- [x] `generateCatalogPrompt(catalog)` — auto-generates LLM prompt text from rich entries
+- [x] `validateSpecAgainstCatalog(spec, catalog)` — checks fn/source names against catalog, validates config shapes, "did you mean?" suggestions via Levenshtein
+- [x] `compileSpec` integration — runs catalog validation before compilation
+- [x] `llmCompose` integration — auto-generates prompt from catalog, auto-refine loop on catalog errors (`maxAutoRefine` option)
+
+##### Remaining gaps to close (identified Run 4, both models)
+
+- [ ] **Pre-built `resilientFetch` template** — correct resilience ordering (rateLimiter→breaker→retry→timeout→fallback→cache feedback→status). Closes T5/T8a/T8b ordering + cache bugs.
+- [ ] **Pre-built `adaptivePoller` template** — switchMap-based dynamic interval + feedback to interval state. Closes T6 producer-can't-read-state gap.
+- [ ] **`conditionalMap` catalog wrapper** — thin wrapper over `dynamicNode` (not a new primitive). Exposed as rich `CatalogFnEntry`. Closes T6 interval computation gap.
+- [ ] **`median` aggregate op** — add to `aggregate` fn config enum. Closes T8a "avg ≠ median" gap.
+- [ ] **`llmScore` description update** — add guidance: "When comparing against existing data, add a database producer node as a second dep." Closes T11 missing-DB-query gap.
+
+##### Eval validation: 4-treatment comparison (the 9.1b experiment)
+
+Four treatments, same 12 tasks, measuring delta at each automation step:
+
+| Treatment | Developer does | Library does | Measures |
+|-----------|---------------|-------------|----------|
+| A: Manual catalog | Writes `catalogDescription` string | Nothing | Baseline (Run 4: 173/180) |
+| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | Auto-prompt quality |
+| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Error self-correction |
+| D: + templates | Same as C + selects templates | + pre-built templates | Architectural gap closure |
+
+- [ ] Write `CatalogFnEntry` objects for all portable-eval catalog fns/sources
+- [ ] Run Treatment B (auto-gen prompt) — L0 across Claude + Gemini
+- [ ] Run Treatment C (auto-gen + refine) — L0 across Claude + Gemini, track refine counts
+- [ ] Build pre-built templates (`resilientFetch`, `adaptivePoller`)
+- [ ] Run Treatment D (auto-gen + refine + templates) — L0 across Claude + Gemini
+- [ ] Compare A→D progression, write up for blog
+- [ ] Cross-model validation: GPT-4o
+
+##### Decision framework: when to add vs when to prune
+
+The eval itself governs catalog growth. Decision rules:
+
+| Signal | Meaning | Action |
+|--------|---------|--------|
+| Score up, tokens flat | Good addition | Keep |
+| Score flat, tokens up | Bloat | Remove or merge entries |
+| Score up only with templates, not fns | Templates > fns for this gap | Invest in templates |
+| Hallucination rises with catalog size | Prompt overload | Implement catalog subsetting |
+| Auto-refine fixes same error repeatedly | Bad description | Fix description, don't rely on refine |
+| Per-task delta = 0 across A→D | Task at ceiling | Stop adding catalog for it |
+
+**Principle:** Add a catalog fn only when the operation genuinely doesn't exist. Add a template when the LLM composes correct fns in wrong structure. Add docs when the LLM doesn't reach for an existing fn. Add a catalog wrapper (not a primitive) when dynamicNode already supports the pattern. See session log `evals/results/session-2026-04-06-catalog-automation.md` §6 for full analysis.
+
+**Key metric: score per prompt token.** If this ratio declines, the catalog is growing faster than quality. Declining efficiency = time to prune or subset.
+
+##### Catalog quality telemetry (future)
+
+- [ ] Track common `validateSpecAgainstCatalog` errors across runs (which fns get hallucinated most?)
+- [ ] Surface "catalog improvement suggestions" from aggregated validation errors
+- [ ] Auto-suggest new catalog entries when LLMs consistently invent the same fn name
+- [ ] **Catalog subsetting** (Treatment E) — select only task-relevant fns/templates for the prompt. Hypothesis: for simple tasks, smaller catalog outperforms comprehensive one. Smart subsetting as the next automation layer after templates.
+
 #### 9.1 deliverables for announcement
 
-- [ ] Blog post: "How our eval harness found two schema bugs LLMs couldn't work around"
+- [ ] Blog post: "How our eval harness found two schema bugs LLMs couldn't work around" → updated narrative: "How evals proved catalog quality is the #1 lever, and we automated it"
 - [ ] Open-source the eval runner (already in repo — make it prominent)
 - [ ] Multi-model comparison results page
 - [ ] "Reproduce our evals" guide (portable prompts for anyone)
@@ -112,8 +217,8 @@ Highest-leverage distribution move. One package reaches Claude, Cursor, VS Code 
 - [ ] Harness scorecard page live
 - [ ] "GraphReFly vs LangGraph" comparison page (reactive push vs static DAG, causal trace, glitch-free)
 - [ ] Blog: "Why agent harnesses need reactive graphs"
-- [ ] README/landing page rewrite with harness engineering vocabulary
-- [ ] npm keywords + GitHub topics updated: add `harness-engineering`, `agent-harness`, `causal-trace`
+- [x] README/landing page rewrite with harness engineering vocabulary
+- [x] npm keywords + GitHub topics updated: add `harness-engineering`, `agent-harness`, `causal-trace`
 
 ---
 

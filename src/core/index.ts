@@ -10,8 +10,10 @@ export * from "./guard.js";
 export * from "./messages.js";
 export * from "./meta.js";
 export {
-	type Node,
+	CLEANUP_RESULT,
 	type CleanupResult,
+	cleanupResult,
+	type Node,
 	type NodeActions,
 	type NodeDescribeKind,
 	type NodeFn,

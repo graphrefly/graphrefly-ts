@@ -27,6 +27,13 @@ import { advanceVersion, createVersioning, defaultHash } from "./versioning.js";
  */
 export const NO_VALUE: unique symbol = Symbol.for("graphrefly/NO_VALUE");
 
+/**
+ * Branded symbol that marks a {@link CleanupResult} wrapper.
+ * Used internally by {@link cleanupResult} — prevents duck-type collisions
+ * with domain objects that happen to have a `cleanup` property.
+ */
+export const CLEANUP_RESULT: unique symbol = Symbol.for("graphrefly/CLEANUP_RESULT");
+
 /** Lifecycle status of a node. */
 export type NodeStatus =
 	| "disconnected"
@@ -304,15 +311,35 @@ const isNodeOptions = (value: unknown): value is NodeOptions =>
  * (if present) is emitted as data. This avoids the ambiguity where returning
  * a plain function is silently consumed as cleanup instead of emitted as data.
  *
+ * Use the {@link cleanupResult} factory to create instances — it stamps the
+ * branded {@link CLEANUP_RESULT} symbol so that domain objects with a `cleanup`
+ * property are never misinterpreted.
+ *
  * Plain function returns are still treated as cleanup for backward compatibility.
  */
-export type CleanupResult<T = unknown> = { cleanup: () => void; value?: T };
+export type CleanupResult<T = unknown> = {
+	readonly [CLEANUP_RESULT]: true;
+	cleanup: () => void;
+	value?: T;
+};
+
+/**
+ * Create a branded {@link CleanupResult}.
+ *
+ * ```ts
+ * node([dep], () => cleanupResult(() => release(), computedValue))
+ * ```
+ */
+export function cleanupResult<T>(cleanup: () => void): CleanupResult<T>;
+export function cleanupResult<T>(cleanup: () => void, value: T): CleanupResult<T>;
+export function cleanupResult<T>(cleanup: () => void, ...args: [] | [T]): CleanupResult<T> {
+	const r: CleanupResult<T> = { [CLEANUP_RESULT]: true, cleanup };
+	if (args.length > 0) r.value = args[0];
+	return r;
+}
 
 const isCleanupResult = (value: unknown): value is CleanupResult =>
-	typeof value === "object" &&
-	value !== null &&
-	"cleanup" in value &&
-	typeof (value as CleanupResult).cleanup === "function";
+	typeof value === "object" && value !== null && CLEANUP_RESULT in value;
 
 const isCleanupFn = (value: unknown): value is () => void => typeof value === "function";
 

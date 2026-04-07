@@ -19,8 +19,11 @@ export async function writeResults(run: EvalRun, outputPath: string): Promise<vo
 export function printSummary(run: EvalRun): void {
 	console.log(`\n${"=".repeat(60)}`);
 	console.log(`Eval Run: ${run.run_id}`);
-	console.log(`Layer: ${run.layer} | Model: ${run.model}`);
+	console.log(`Layer: ${run.layer} | Model: ${run.model} (${run.provider})`);
 	console.log(`Tasks: ${run.tasks.length} | Time: ${run.timestamp}`);
+	if (run.total_cost_usd != null) {
+		console.log(`Estimated cost: $${run.total_cost_usd.toFixed(4)}`);
+	}
 	console.log(`${"=".repeat(60)}`);
 
 	console.log("\nScores:");

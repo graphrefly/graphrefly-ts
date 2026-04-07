@@ -171,6 +171,8 @@
 		"eval:contrastive": "tsx evals/scripts/run-l0.ts",
 		"eval:llm-dx": "tsx evals/scripts/run-l1.ts",
 		"eval:compare": "tsx evals/scripts/compare.ts",
+		"eval:matrix": "tsx evals/scripts/run-matrix.ts",
+		"eval:scorecard": "tsx evals/scripts/publish-scorecard.ts",
 		"eval:dev-dx": "vitest run --config evals/vitest.config.ts"
 	},
 	"keywords": [

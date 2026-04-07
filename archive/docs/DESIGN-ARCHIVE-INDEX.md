@@ -270,6 +270,26 @@ Key sessions from the predecessor that directly informed GraphReFly:
 
 **Files:** `archive/docs/SESSION-harness-engineering-strategy.md`
 
+### Session reactive-collaboration-harness (April 6) — Reactive Collaboration Harness: Static-Topology Loop for Human+LLM Co-operation
+**Topic:** Designing a reactive collaboration harness — a 7-stage static-topology loop (intake → triage → queue → gate → execute → verify → reflect) for human+LLM co-operation. Synthesizes the reactive issue tracker, harness engineering strategy, and catalog automation sessions into a unified architecture with typed gates, promptNode transforms, cursor-driven readers, and strategy tracking.
+
+**Key decisions:**
+- **Static topology + flowing data** — the graph models the workflow (pipes), not the work items (water). No runtime topology changes needed. The Kafka/Pulsar insight: producers and consumers at different speeds, connected by a log
+- **`gate.modify()` IS structured human judgment** — ported from callbag-recharge with Array.map-style signature `(value, index, pending) => T`. No separate `steer()` API; the gate is the steering point
+- **Cursor reading as dimensionality reduction (降维)** — converts exponential graph branching into linear sequence consumption. Support both graph-subgraph (tight coupling) and cursor-reading (independent streams) modes
+- **`promptNode` factory** — universal LLM transform: any prompt + deps → processing node. Handles triage, QA, hypothesis generation, parity checking — one factory for all LLM-mediated steps
+- **Strategy model (intervention effectiveness)** — derived node tracking `rootCause×intervention → successRate`. Feeds back into triage for better routing. The genuine differentiator: human steering compounds over time
+- **distill() kept for memory, not replaced by promptNode** — promptNode plugs INTO distill as extractFn/consolidateFn. Don't rebuild the reactive plumbing
+- **Existing infrastructure covers ~70%** — TopicGraph, SubscriptionGraph, JobQueueGraph, distill, agentMemory, decay, bridge all already built. New work: gate port (~200 LOC), promptNode (~100 LOC), valve rename, wiring (~430 LOC)
+- **Boolean gate → `valve` rename** — frees `gate` for the real human-approval primitive
+- **Build as §9.0 before 9.1b** — dogfood the loop while running the 4-treatment eval experiment. Circular proof: the loop manages 9.1b, 9.1b validates the loop
+
+**Five structural gaps identified in original tracker design:** (1) no typed human judgment input, (2) no eval↔tracker reactive bridge, (3) no intervention effectiveness tracking, (4) no predictive assertions/hypotheses, (5) no attention decay tracking. All addressed by the 7-stage loop.
+
+**Generalizability:** The loop maps to any developer+LLM collaboration (solo dev, team, OSS project). What differs: which channels are gated, what priority signals, what prompts. What's the same: loop structure, primitives, strategy model, distillation.
+
+**Files:** `archive/docs/SESSION-reactive-collaboration-harness.md`
+
 ---
 
 ## Reading Guide
@@ -294,4 +314,4 @@ Each session file contains:
 
 **Created:** March 27, 2026
 **Updated:** April 6, 2026
-**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit + DeerFlow/Deep Agents comparison + harness engineering strategy
+**Archive Status:** Active — spec design + Web3 integration + access control + cross-repo implementation audit + reactive issue tracker design + Tier 2 parity + snapshot/hydration design + demo & test strategy + agentic memory research + universal reduction layer + serialization/memory footprint + marketing/promotion strategy + first-principles audit + DeerFlow/Deep Agents comparison + harness engineering strategy + reactive collaboration harness

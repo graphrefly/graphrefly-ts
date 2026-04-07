@@ -6,7 +6,6 @@ import {
 	demoShell,
 	type GraphLabelSize,
 	type HighlightCallbacks,
-	type HoverTarget,
 	type NodeRegistry,
 } from "../../patterns/demo-shell.js";
 import { CliMeasureAdapter } from "../../patterns/reactive-layout/measurement-adapters.js";

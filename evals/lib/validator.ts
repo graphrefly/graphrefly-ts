@@ -1,14 +1,18 @@
 /**
- * Runtime validator — uses graphrefly-ts APIs to validate and execute specs.
+ * Runtime validator — uses graphrefly-ts APIs for real validation and execution.
  *
- * Placeholder: actual implementation depends on graphFromSpec() and
- * validateSpec() being implemented (Phase A items A1-A3).
+ * Structure validation delegates to the real `validateSpec()` from graphspec.ts.
+ * Execution validation uses `compileSpec()` to actually instantiate the graph.
  */
 
-export interface ValidationResult {
-	valid: boolean;
-	errors: string[];
-}
+import {
+	compileSpec,
+	type GraphSpec,
+	type GraphSpecValidation,
+	validateSpec as realValidateSpec,
+} from "../../src/patterns/graphspec.js";
+
+export type { GraphSpecValidation as ValidationResult };
 
 export interface ExecutionResult {
 	runnable: boolean;
@@ -16,66 +20,36 @@ export interface ExecutionResult {
 }
 
 /**
- * Validate a GraphSpec JSON object against the schema.
- * TODO: Wire to actual validateSpec() once implemented.
+ * Validate a GraphSpec JSON object against the real schema.
+ *
+ * Delegates to `src/patterns/graphspec.ts → validateSpec()`.
  */
-export function validateSpec(spec: unknown): ValidationResult {
-	if (typeof spec !== "object" || spec === null) {
-		return { valid: false, errors: ["Output is not a JSON object"] };
-	}
-
-	const obj = spec as Record<string, unknown>;
-
-	if (!obj.nodes || typeof obj.nodes !== "object") {
-		return { valid: false, errors: ["Missing or invalid 'nodes' object"] };
-	}
-
-	const errors: string[] = [];
-	const nodes = obj.nodes as Record<string, Record<string, unknown>>;
-	const nodeNames = new Set(Object.keys(nodes));
-
-	for (const [name, node] of Object.entries(nodes)) {
-		const type = node.type;
-		if (!type || !["producer", "state", "derived", "effect", "operator"].includes(type as string)) {
-			errors.push(`Node '${name}': invalid type '${type}'`);
-		}
-
-		if (type === "derived" || type === "effect") {
-			if (!Array.isArray(node.deps)) {
-				errors.push(`Node '${name}': ${type} must have 'deps' array`);
-			} else {
-				for (const dep of node.deps as string[]) {
-					if (!nodeNames.has(dep)) {
-						errors.push(`Node '${name}': dep '${dep}' does not exist in spec`);
-					}
-				}
-			}
-			if (typeof node.fn !== "string") {
-				errors.push(`Node '${name}': ${type} must have 'fn' string`);
-			}
-		}
-
-		if (type === "producer" && typeof node.source !== "string") {
-			errors.push(`Node '${name}': producer must have 'source' string`);
-		}
-	}
-
-	return { valid: errors.length === 0, errors };
+export function validateSpec(spec: unknown): GraphSpecValidation {
+	return realValidateSpec(spec);
 }
 
 /**
- * Attempt to execute a GraphSpec.
- * TODO: Wire to actual graphFromSpec() once implemented.
+ * Attempt to compile a GraphSpec into a live Graph.
+ *
+ * Uses `compileSpec()` — catches instantiation errors (missing catalog entries,
+ * unresolvable deps, etc.) and reports them.
  */
-export async function executeSpec(spec: unknown): Promise<ExecutionResult> {
-	// Placeholder: for now, pass-through validation result
+export function executeSpec(spec: unknown): ExecutionResult {
 	const validation = validateSpec(spec);
 	if (!validation.valid) {
+		return { runnable: false, error: validation.errors.join("; ") };
+	}
+
+	try {
+		// compileSpec will throw on catalog misses, dep resolution failures, etc.
+		// We pass no catalog — this tests structural compilability, not runtime behavior.
+		const graph = compileSpec(spec as GraphSpec);
+		graph.destroy();
+		return { runnable: true };
+	} catch (err) {
 		return {
 			runnable: false,
-			error: validation.errors.join("; "),
+			error: err instanceof Error ? err.message : String(err),
 		};
 	}
-	// TODO: graphFromSpec(spec) → graph.start() → check for runtime errors
-	return { runnable: true };
 }
