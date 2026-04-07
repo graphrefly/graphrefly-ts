@@ -29,9 +29,9 @@ The 7-stage loop: intake → triage → queue → gate → execute → verify �
 
 ##### Primitives
 
-- [ ] Rename `gate` → `valve` in `src/extra/operators.ts` + `src/patterns/orchestration.ts` + all tests/exports (boolean control gate — opens/closes flow based on external signal)
-- [ ] Port `gate` from callbag-recharge → `src/patterns/orchestration.ts` — human approval gate with pending queue, `approve(n?)`, `reject(n?)`, `modify(fn, n?)` where fn signature is `(value: T, index: number, pending: readonly T[]) => T` (Array.map-style). Observable `pending: Node<T[]>`, `count: Node<number>`, `isOpen: Node<boolean>`. Options: `maxPending`, `startOpen`
-- [ ] `promptNode` factory → `src/patterns/ai.ts` — wraps LLM call in derived node. Accepts prompt (static or `(input) => string`), deps, model adapter, output format (json/text), retries, cache flag. Universal transform: triage, QA, hypothesis, parity — one factory
+- [x] Rename `gate` → `valve` in `src/extra/operators.ts` + `src/patterns/orchestration.ts` + all tests/exports (boolean control gate — opens/closes flow based on external signal)
+- [x] Port `gate` from callbag-recharge → `src/patterns/orchestration.ts` — human approval gate with pending queue, `approve(n?)`, `reject(n?)`, `modify(fn, n?)` where fn signature is `(value: T, index: number, pending: readonly T[]) => T` (Array.map-style). Observable `pending: Node<T[]>`, `count: Node<number>`, `isOpen: Node<boolean>`. Options: `maxPending`, `startOpen`
+- [x] `promptNode` factory → `src/patterns/ai.ts` — wraps LLM call in derived node. Accepts prompt (static or `(input) => string`), deps, model adapter, output format (json/text), retries, cache flag. Universal transform: triage, QA, hypothesis, parity — one factory
 
 ##### Wiring
 
@@ -168,6 +168,7 @@ The eval itself governs catalog growth. Decision rules:
 - [ ] Open-source the eval runner (already in repo — make it prominent)
 - [ ] Multi-model comparison results page
 - [ ] "Reproduce our evals" guide (portable prompts for anyone)
+- [ ] **Pre-launch outreach: 20-30 personalized "design partner" emails** (see marketing strategy §16A) — send 1-2 weeks before Wave 1 announcement. Target: harness engineering blog authors, LangGraph/CrewAI contributors, reactive programming maintainers, agent reliability researchers, MCP ecosystem builders
 
 ---
 
@@ -256,6 +257,86 @@ The harness engineering showcase. Instrument agentLoop, LLM observes LLM, distil
 - [ ] Reddit posts: r/AI_Agents, r/typescript, r/ClaudeCode
 - [ ] 小红书 original post: "为什么 Agent Harness 需要 reactive graph"
 - [ ] Submit to harness-engineering.ai knowledge graph
+
+---
+
+### Wave 2.5: Prompt & Catalog Optimization (Weeks 7-9)
+
+Goal: generalize the catalog auto-refine loop (9.1b) into a reactive prompt optimization framework. The optimization loop itself is a Graph — observable, checkpointable, causally traceable.
+
+**Competitive context:** Future AGI's `agent-opt` implements 6 prompt optimization algorithms (Random Search, Bayesian/Optuna, ProTeGi, Meta-Prompt, PromptWizard, GEPA). Their implementation has quality issues (hardcoded models, no parallelism, no caching, misleading Bayesian Search). Our advantage: optimization-as-a-graph — the trajectory is inspectable and resumable. See `archive/docs/SESSION-marketing-promotion-strategy.md` §17 for full algorithm analysis.
+
+#### 9.8 — Reactive optimization loop (`refineLoop`) [NEW]
+
+**Key insight:** All prompt optimization algorithms (Random Search, Bayesian, ProTeGi, Meta-Prompt, PromptWizard, GEPA) are the same feedback loop with different strategies at the feedback→generate step. BMAD-METHOD demonstrates this at the elicitation level — 50 heterogeneous strategies (Socratic questioning, Red Team, First Principles, 5 Whys, Tree of Thoughts, etc.) all plugged into one present→select→apply→approve loop via a CSV registry. We should provide the **loop infrastructure** (which we largely already have) and a **pluggable strategy interface** — not reimplement 6 algorithms. See marketing strategy §17 for the full competitive analysis.
+
+**The universal loop:**
+```
+candidates = seed(artifact)
+loop:
+  scores     = evaluate(candidates, dataset)      ← §9.1 eval runner / custom evaluator
+  feedback   = analyze(scores, errors)             ← RefineStrategy (pluggable)
+  candidates = generate(feedback, candidates)      ← RefineStrategy (pluggable)
+  if converged: break                              ← early stopping condition node
+return best(candidates)
+```
+
+**What we build (the loop):** Graph-native orchestration of the feedback cycle — budget gating, eval caching, parallel evaluation, causal tracing, multi-objective scoring, checkpoint/resume. This is infrastructure no existing tool provides.
+
+**What we don't build (the strategies):** Specific prompt rewriting heuristics (textual gradients, mutation styles, Bayesian example selection). These are thin prompt templates — users bring their own, use community strategies, or let an LLM pick from a registry. A few built-in strategies ship as examples, not as the product.
+
+##### Core API
+
+- [ ] `refineLoop(seed, evaluator, strategy, opts?)` → `RefineGraph` — the universal optimization loop as a Graph. `seed`: initial artifact (prompt string, GraphSpec, config object, etc.). `evaluator`: scores candidates. `strategy`: generates improved candidates from feedback. Returns graph with `best: Node<T>`, `history: Node<Iteration[]>`, `score: Node<number>`, `status: Node<"running"|"converged"|"budget"|"paused">`.
+- [ ] `RefineGraph` is a standard `Graph` — `describe()`, `observe()`, `snapshot()`/`restore()`, `autoCheckpoint()` all work. Pause via PAUSE signal, resume via RESUME. **The optimization trajectory is causally traceable** — `explainPath()` shows why each candidate was selected.
+- [ ] `Evaluator<T>` interface: `(candidate: T, dataset: DatasetItem[]) => Node<EvalResult[]>` — reactive, not Promise. Composes with existing eval runner (§9.1).
+
+##### RefineStrategy interface (the pluggable slot)
+
+- [ ] `RefineStrategy<T>` interface:
+  ```ts
+  {
+    name: string
+    analyze: (scores: EvalResult[], candidate: T) => Node<Feedback>    // errors → critique
+    generate: (feedback: Feedback, candidates: T[]) => Node<T[]>       // critique → improved candidates
+    select?: (scored: ScoredItem<T>[]) => T[]                          // beam/tournament/pareto selection (default: top-N)
+  }
+  ```
+- [ ] Strategies are plain objects — no base class, no registration. Users write them inline or import from a registry.
+
+##### Built-in strategies (examples, not the product)
+
+- [ ] **`blindVariation(teacher, opts?)`** — teacher generates N diverse candidates. No feedback analysis. (Random Search equivalent.) Cheapest; good for warm-start before switching strategy.
+- [ ] **`errorCritique(teacher, opts?)`** — identify errors, teacher generates critiques, apply critiques to produce improved candidates. (ProTeGi/Meta-Prompt equivalent.) Best cost/quality ratio.
+- [ ] **`mutateAndRefine(teacher, styles?, opts?)`** — mutation via configurable "thinking styles" (like BMAD's method registry), then critique + refine. (PromptWizard equivalent.) `styles` is an array of prompt fragments — user-extensible, not hardcoded.
+
+##### Strategy registry (BMAD-inspired)
+
+- [ ] `strategyRegistry(entries)` — a `reactiveMap` of named strategies with metadata (category, description, cost estimate, best-for hints). LLM or human can query the registry to pick the right strategy for the current optimization phase. Similar to BMAD's CSV method registry but reactive — add/remove strategies at runtime.
+- [ ] `autoSelectStrategy(registry, context)` — `promptNode` that picks the best strategy from the registry based on current scores, error patterns, and budget remaining. The "smart-select" from BMAD's elicitation loop.
+
+##### Loop infrastructure (graph-native, what competitors lack)
+
+- [ ] **Budget gating** — `budgetGate()` (§8.1) constrains total eval calls, teacher calls, and token spend. Pauses when exhausted, resumes when replenished.
+- [ ] **Eval caching** — `cascadingCache()` (§3.1c) memoizes candidate→score. Cache key: hash of (candidate, dataset_hash, evaluator_id).
+- [ ] **Parallel evaluation** — dataset eval via `funnel()` (§8.1) with configurable concurrency.
+- [ ] **Multi-objective scoring** — `scorer()` (§8.1) with reactive weights. Pareto front via derived node over history.
+- [ ] **Early stopping** — reactive condition node: patience, min_score, min_delta, max_evaluations. Customizable `derived()` over `history`.
+- [ ] **Checkpoint/resume** — `autoCheckpoint()`. Interrupt overnight, resume from exact state.
+- [ ] **Causal tracing** — every selection decision traceable: "This candidate was chosen because critique X identified error Y, refinement addressed it, score improved 0.6→0.85."
+
+##### Catalog-specific optimization (extends 9.1b)
+
+- [ ] `optimizeCatalog(catalog, dataset, opts?)` — wraps `refineLoop` for catalog description optimization. Evaluator: `validateSpecAgainstCatalog` + `llmCompose` success rate. Strategy: `errorCritique` by default. Target: auto-improve catalog descriptions until LLM first-pass validity reaches threshold.
+
+##### Future: workflow optimization (Phase 3 of optimization roadmap)
+
+Not yet scheduled. When `refineLoop` proves itself on prompts/catalogs, extend to full workflow topology optimization: `refineLoop(graphSpec, evaluator, topologyStrategy)` — mutations are structural (add/remove nodes, rewire edges, swap operators) via `compileSpec()` + `decompileGraph()`.
+
+##### Deliverables
+
+- [ ] Blog: "The feedback loop is the product — why we don't ship 6 optimization algorithms"
+- [ ] Comparison page: GraphReFly `refineLoop` vs DSPy vs agent-opt (reactive loop + pluggable strategies vs monolithic algorithms)
 
 ---
 

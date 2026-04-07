@@ -11,11 +11,12 @@ import {
 	ERROR,
 	type Message,
 	type Messages,
+	messageTier,
 	PAUSE,
 	RESOLVED,
 	RESUME,
 } from "../core/messages.js";
-import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
+import { NO_VALUE, type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
 import { NS_PER_MS } from "./backoff.js";
 import { fromAny, type NodeInput } from "./sources.js";
@@ -1756,13 +1757,17 @@ export function throttle<T>(
 }
 
 /**
- * Emits the most recent source value whenever `notifier` settles (`sample`).
+ * Emits the most recent source value whenever `notifier` emits `DATA` (`sample`).
+ *
+ * Source `COMPLETE` stops sampling (clears held value); notifier `COMPLETE` terminates the
+ * operator. `ERROR` from either dep terminates immediately. Unknown message types from
+ * either dep are forwarded per spec §1.3.6. At most one terminal message is emitted
+ * downstream (latch). Supports `resubscribable` — closure state resets on resubscribe.
  *
  * @param source - Node whose latest value is sampled.
- * @param notifier - When this node settles (`DATA` / `RESOLVED`), a sample is taken.
+ * @param notifier - When this node emits `DATA`, a sample is taken.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
  * @returns `Node<T>` - Sampled snapshots of `source`.
- * @remarks **Undefined payload:** If `T` includes `undefined`, `get() === undefined` is treated as “no snapshot” and the operator emits `RESOLVED` instead of `DATA`.
  * @example
  * ```ts
  * import { sample, state } from "@graphrefly/graphrefly-ts";
@@ -1773,32 +1778,69 @@ export function throttle<T>(
  * @category extra
  */
 export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T> {
+	let lastSourceValue: T | typeof NO_VALUE = NO_VALUE;
+	let terminated = false;
+	let sourceCompleted = false;
 	return node<T>([source as Node, notifier as Node], () => undefined, {
 		...operatorOpts(opts),
 		completeWhenDepsComplete: false,
+		onResubscribe:
+			opts?.resubscribable === true
+				? () => {
+						lastSourceValue = NO_VALUE;
+						terminated = false;
+						sourceCompleted = false;
+					}
+				: undefined,
 		onMessage(msg, i, a) {
+			if (terminated) return true;
 			const t = msg[0];
-			if (t === ERROR) {
+			const tier = messageTier(t);
+			// Terminal from either dep — latch so at most one terminal goes downstream.
+			if (tier >= 3) {
+				if (t === ERROR) {
+					terminated = true;
+					a.down([msg]);
+					return true;
+				}
+				if (t === COMPLETE) {
+					if (i === 0) {
+						// Source completed — stop sampling, clear held value.
+						sourceCompleted = true;
+						lastSourceValue = NO_VALUE;
+						return true;
+					}
+					// Notifier completed — terminal for sample.
+					terminated = true;
+					a.down([msg]);
+					return true;
+				}
+				// TEARDOWN — forward from either dep.
 				a.down([msg]);
 				return true;
 			}
-			if (t === COMPLETE) {
-				a.down([msg]);
-				return true;
-			}
-			if (i === 1 && t === DATA) {
-				// Emit the latest source value when notifier fires.
-				// `undefined` is a valid value (Node<void>); always emit.
-				a.emit((source as Node<T>).get() as T);
-				return true;
-			}
-			if (i === 1 && t === RESOLVED) {
-				return true;
-			}
+			// Source (dep 0): capture DATA, swallow known types, forward unknowns.
 			if (i === 0) {
+				if (t === DATA) {
+					lastSourceValue = msg[1] as T;
+					return true;
+				}
+				if (t === DIRTY || t === RESOLVED) return true;
+				// Unknown type from source — forward per spec §1.3.6.
+				a.down([msg]);
 				return true;
 			}
-			return false;
+			// Notifier (dep 1): trigger sampling on DATA.
+			if (t === DATA) {
+				if (lastSourceValue !== NO_VALUE && !sourceCompleted) {
+					a.emit(lastSourceValue);
+				}
+				return true;
+			}
+			if (t === RESOLVED) return true;
+			// Unknown notifier types — forward per spec §1.3.6.
+			a.down([msg]);
+			return true;
 		},
 	});
 }
@@ -2544,7 +2586,7 @@ export function rescue<T>(
 
 /**
  * Forwards upstream `DATA` only while `control.get()` is truthy; when closed, emits `RESOLVED`
- * instead of repeating the last value (value-level gate). For protocol pause/resume, use {@link pausable}.
+ * instead of repeating the last value (value-level valve). For protocol pause/resume, use {@link pausable}.
  *
  * @param source - Upstream value node.
  * @param control - Boolean node; when falsy, output stays “closed” for that tick.
@@ -2553,16 +2595,16 @@ export function rescue<T>(
  *
  * @example
  * ```ts
- * import { gate, state } from "@graphrefly/graphrefly-ts";
+ * import { valve, state } from “@graphrefly/graphrefly-ts”;
  *
  * const data = state(1);
  * const open = state(true);
- * gate(data, open);
+ * valve(data, open);
  * ```
  *
  * @category extra
  */
-export function gate<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
+export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
 	return node<T>(
 		[source as Node, control as Node],
 		(_deps, a) => {

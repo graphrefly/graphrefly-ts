@@ -19,6 +19,7 @@ import {
 	type LLMResponse,
 	llmConsolidator,
 	llmExtractor,
+	promptNode,
 	suggestStrategy,
 	systemPromptBuilder,
 	type ToolDefinition,
@@ -1064,5 +1065,89 @@ describe("suggestStrategy", () => {
 		const g = new Graph("test");
 		await expect(suggestStrategy(g, "problem", adapter)).rejects.toThrow("missing 'summary'");
 		g.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// promptNode
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.promptNode", () => {
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+
+	it("cache deduplicates identical invocations", async () => {
+		let callCount = 0;
+		const adapter: LLMAdapter = {
+			invoke(_messages, _opts) {
+				callCount++;
+				return { content: "result", finishReason: "end_turn" };
+			},
+			async *stream() {
+				yield "";
+			},
+		};
+
+		const dep = state("hello");
+		const pn = promptNode<string>(adapter, [dep], (v: string) => `summarize: ${v}`, {
+			cache: true,
+		});
+		const unsub = pn.subscribe(() => {});
+		await tick();
+
+		expect(pn.get()).toBe("result");
+		expect(callCount).toBe(1);
+
+		// Trigger re-evaluation with same dep value — should hit cache
+		dep.down([[DATA, "hello"]]);
+		await tick();
+		expect(pn.get()).toBe("result");
+		expect(callCount).toBe(1); // no additional call
+
+		// Change dep — different prompt text → different cache key
+		dep.down([[DATA, "world"]]);
+		await tick();
+		expect(pn.get()).toBe("result");
+		expect(callCount).toBe(2);
+
+		unsub();
+	});
+
+	it("strips markdown fences for JSON format", async () => {
+		const adapter: LLMAdapter = {
+			invoke() {
+				return { content: '```json\n{"key": "value"}\n```', finishReason: "end_turn" };
+			},
+			async *stream() {
+				yield "";
+			},
+		};
+
+		const dep = state("x");
+		const pn = promptNode<{ key: string }>(adapter, [dep], "extract", { format: "json" });
+		const unsub = pn.subscribe(() => {});
+		await tick();
+		expect(pn.get()).toEqual({ key: "value" });
+		unsub();
+	});
+
+	it("passes systemPrompt in invoke opts", async () => {
+		let receivedOpts: Record<string, unknown> = {};
+		const adapter: LLMAdapter = {
+			invoke(_messages, opts) {
+				receivedOpts = opts as Record<string, unknown>;
+				return { content: "ok", finishReason: "end_turn" };
+			},
+			async *stream() {
+				yield "";
+			},
+		};
+
+		const dep = state("x");
+		const pn = promptNode<string>(adapter, [dep], "test", { systemPrompt: "be helpful" });
+		const unsub = pn.subscribe(() => {});
+		await tick();
+		expect(pn.get()).toBe("ok");
+		expect(receivedOpts.systemPrompt).toBe("be helpful");
+		unsub();
 	});
 });

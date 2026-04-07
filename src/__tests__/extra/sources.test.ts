@@ -13,7 +13,7 @@ import {
 	toWebSocket,
 } from "../../extra/adapters.js";
 import { parseCron } from "../../extra/cron.js";
-import { gate } from "../../extra/operators.js";
+import { valve } from "../../extra/operators.js";
 import {
 	cached,
 	empty,
@@ -705,19 +705,19 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		expect(text).toContain("event: data\ndata: a\ndata: \n\n");
 	});
 
-	it("gate forwards DATA when control is truthy", () => {
+	it("valve forwards DATA when control is truthy", () => {
 		const src = state(42);
 		const ctrl = state(true);
-		const g = gate(src, ctrl);
+		const g = valve(src, ctrl);
 		const { batches, unsub } = collect(g);
 		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 42)).toBe(true);
 		unsub();
 	});
 
-	it("gate emits RESOLVED when control is falsy", () => {
+	it("valve emits RESOLVED when control is falsy", () => {
 		const src = state(42);
 		const ctrl = state(false);
-		const g = gate(src, ctrl);
+		const g = valve(src, ctrl);
 		const { batches, unsub } = collect(g);
 		expect(batches.flat().some((m) => m[0] === RESOLVED)).toBe(true);
 		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 42)).toBe(false);

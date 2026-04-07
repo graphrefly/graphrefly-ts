@@ -43,6 +43,7 @@ describe("graphrefly", () => {
 		expect(typeof patterns.orchestration.pipeline).toBe("function");
 		expect(typeof patterns.orchestration.task).toBe("function");
 		expect(typeof patterns.orchestration.branch).toBe("function");
+		expect(typeof patterns.orchestration.valve).toBe("function");
 		expect(typeof patterns.orchestration.gate).toBe("function");
 		expect(typeof patterns.orchestration.approval).toBe("function");
 		expect(typeof patterns.orchestration.forEach).toBe("function");

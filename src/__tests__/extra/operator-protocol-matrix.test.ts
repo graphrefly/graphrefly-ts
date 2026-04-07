@@ -25,7 +25,6 @@ import {
 	find,
 	first,
 	flatMap,
-	gate,
 	interval,
 	last,
 	map,
@@ -49,6 +48,7 @@ import {
 	throttle,
 	throttleTime,
 	timeout,
+	valve,
 	window,
 	windowCount,
 	windowTime,
@@ -632,19 +632,19 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 	});
 
-	describe("gate", () => {
-		// Regression: GRAPHREFLY-SPEC §1.3 — gate derives from source when control is open.
+	describe("valve", () => {
+		// Regression: GRAPHREFLY-SPEC §1.3 — valve derives from source when control is open.
 		it("DIRTY precedes DATA when control is true", () => {
 			const data = state(0);
 			const open = state(true);
-			const out = gate(data, open);
+			const out = valve(data, open);
 			assertDirtyBeforeDataOnTwoPhase(out, () => data.down([[DIRTY], [DATA, 5]]));
 		});
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			const data = state(0);
 			const open = state(true);
-			const out = gate(data, open);
+			const out = valve(data, open);
 			const a = subscribeProtocol(out);
 			data.down([[DATA, 1]]);
 			expect(a.flat().some((m) => m[0] === DATA)).toBe(true);

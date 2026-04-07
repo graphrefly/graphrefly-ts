@@ -44,6 +44,16 @@
 - **PY `stratify` `pending_dirty` not reset on TEARDOWN (Phase 8.1, noted 2026-04-06 QA, resolved 2026-04-06):** Added `MessageType.TEARDOWN` to the terminal handler in `on_message` that clears `pending_dirty`. PY only.
 - **PY drain cycle detection (cross-language, noted 2026-04-06, already present):** PY already has `_MAX_DRAIN_ITERATIONS = 1000` in `core/protocol.py`. Summary table updated.
 
+- **`gate` rename → `valve` + new human-approval `gate` (Phase 9.0, noted 2026-04-06):** The boolean-control `gate` operator (extra/operators, patterns/orchestration) renamed to `valve` across both TS and PY. A new `gate` primitive (queue-based human-in-the-loop approval with `pending`, `count`, `isOpen` reactive surfaces and `approve`/`reject`/`modify`/`open`/`close` controls) added to `patterns/orchestration` in both repos. Key decisions: (1) `modify(fn, n?)` signature is `(value, index, pending) → value` (Array.map-style), not the simpler callbag-recharge `(value) → value`. (2) Each approved/modified value emits as a separate `[[DATA, v]]` (not batched) — each approval is a separate reactive cycle, consistent with callbag-recharge's "Tier 2: cycle boundary" annotation. (3) Internal state nodes (`pending`, `isOpen`/`is_open`, `count`) registered via `graph.mount()` subgraph in both TS and PY (`${name}_state::pending`, etc.). Aligned 2026-04-07.
+- **`promptNode` / `prompt_node` factory (Phase 9.0, noted 2026-04-06, parity aligned 2026-04-07):** Universal LLM transform wrapping prompt template + adapter into a reactive derived node. Both TS and PY now use `switchMap` / `switch_map` internally — new dep values cancel stale in-flight LLM calls. Both create an intermediate `messages` derived node from deps, then `switchMap`/`switch_map` maps each message list to an LLM invocation. Supports `format: "json"` (auto-parse with markdown fence stripping in both ports), `retries`, `cache` (Map-keyed by serialized `[role, content]` tuples). Composes with existing `LLMAdapter` interface. TS returns `Node<T | null>`; PY returns `Node[Any]`. Both pass `systemPrompt`/`system_prompt` in adapter invoke options. Both have defensive response content extraction (handles `LLMResponse`, plain string, and fallback `String()` / `str()`).
+- **Parity fixes applied (Phase 9.0, 2026-04-07):** (1) TS `promptNode` now passes `systemPrompt` in adapter invoke opts (was missing). (2) TS `promptNode` now strips markdown fences before `JSON.parse` for `format: "json"` (aligned to PY `_extract_content`). (3) TS `promptNode` now uses defensive content extraction matching PY's multi-path approach. (4) TS cache key serialization aligned to PY: `JSON.stringify(msgs.map(m => [m.role, m.content]))` (explicit field extraction). (5) PY `valve` `describe_kind` changed from `"valve"` to `"operator"` (spec Appendix B compliance). (6) PY `gate` error messages now include method name (aligned to TS). (7) PY `gate` `_sync_reactive` split into `_sync_pending` / `_sync_open` to avoid unnecessary reactive cycles (aligned to TS pattern). (8) PY `GateController` type annotations fixed (`approve`/`reject` now `Callable[..., None]` reflecting optional `count` param).
+
+- **Whole-repo `emit` → `down` audit + `up` / backpressure / `messageTier` sweep (all phases, noted 2026-04-07):** Systematic audit across both TS and PY:
+  1. **Rename `emit`-named methods, variables, and keys to `down`** everywhere the operation only applies to the downstream direction. The `emit` naming creates a "fire and forget" mental model that obscures the bidirectional protocol and causes AI agents (and humans) to ignore `up()`. Exceptions: names that genuinely apply to both directions (e.g. `emitWithBatch` which orchestrates both phases) may keep their name if renaming is misleading.
+  2. **Re-examine `up()` handling in every operator, source, and pattern factory.** Verify that backpressure works: PAUSE/RESUME signals pass through and are processed (not swallowed). Verify that `up()` is a no-op or correctly forwarded — not silently dropped. Check for asymmetric treatment where `down()` gets full message handling but `up()` is ignored entirely.
+  3. **Use `messageTier()` / `message_tier()` for all tier-based gating** — no hardcoded type checks (`=== COMPLETE || === ERROR`). Replace with `messageTier(t) >= 3` for terminal checks, `>= 2` for phase-2 gating, etc.
+  Pre-1.0, no backward compat concern on any rename.
+
 ## Cross-language parity fixes (2026-04-05)
 
 - **~~PY error wrapping missing original message (resolved 2026-04-05):~~** PY `RuntimeError(f'Node "{name}": fn threw')` omitted the original error message. TS included it: `fn threw: ${errMsg}`. Fixed all 3 PY sites (`fn threw`, `equals threw`, `on_message threw`) to include `{err}` in the f-string. TS `onMessage` error was also not wrapped (raw error forwarded) — now wraps as `Node "${name}": onMessage threw: ${errMsg}` with `{ cause }`.
@@ -324,7 +334,7 @@ Both ports treat “`fn` returned a callable” as a **cleanup** (TS: `typeof ou
 
 | Topic | Python | TypeScript | Rationale |
 |-------|--------|------------|-----------|
-| `signal` node dedupe | No per-call dedupe (duplicate mount is forbidden, so unnecessary). | Shared `visited` `Set<Node>` across recursion. | TS keeps the dedupe as defense-in-depth. |
+| `signal` node dedupe | Shared `visited: set[int]` (`id(n)`) across recursion in `_signal_graph` / `_signal_node_subtree`. | Shared `visited` `Set<Node>` across recursion. | Both use per-call dedupe as defense-in-depth. Aligned. |
 
 **Docs:** `graphrefly-py/docs/roadmap.md` still lists `graph.signal` under Phase 1.4 unchecked while Phase 1.2 marks composition done; `signal` exists — checklist drift only.
 
@@ -703,7 +713,7 @@ Worker bridges (`workerBridge` / `workerSelf`) are JavaScript/browser-specific (
 
 - **`SvgBoundsAdapter` regex hardening (Phase 7.1, resolved 2026-04-03):** Strip `<!--...-->` and `<![CDATA[...]]>` from SVG content before viewBox/width/height extraction. Document that input should be a single root SVG element. Additionally, expose an `SvgParserAdapter` interface so users can opt in their own parser for complex SVG inputs (e.g. DOMParser-based). Default: built-in regex parser. Cross-language: PY exposes equivalent `SvgParser` protocol.
 
-- **`sample` + `undefined` as `T` (Tier 2, resolved 2026-04-03 — no action):** Documented limitation. TypeScript emits RESOLVED instead of DATA when cache holds `undefined`. Python does not have this ambiguity. No sentinel needed.
+- **~~`sample` + `undefined` as `T` (Tier 2, resolved 2026-04-07):~~** Fixed. `sample` now tracks source DATA values via a local `NO_VALUE` sentinel instead of reading `source.get()`. `undefined` as `T` correctly emits DATA. Python had no ambiguity.
 
 - **`mergeMap` + `ERROR` cascading (Tier 2, resolved 2026-04-03 — no action):** Documented limitation. Inner errors do not cascade to siblings. Current behavior (independent inner lifecycles) is more useful for parallel work. Document in JSDoc.
 
@@ -876,14 +886,14 @@ Cross-language notes for `patterns.ai` / `graphrefly.patterns.ai`. **Keep this s
 |-------|------------|
 | **`agent_loop` / `agentLoop` — LLM adapter output** | `invoke` may return a plain `LLMResponse`, or any `NodeInput` (including `Node`, awaitables, async iterables). Implementations coerce with `fromAny` / `from_any`, prefer a synchronous `get()` when it already holds an `LLMResponse`, then **block until the first settled `DATA`** (`subscribe` + `Promise` in TypeScript; `first_value_from` in Python). Do not unsubscribe immediately after `subscribe` without waiting for emissions. |
 | **`toolRegistry` / `tool_registry` — handler output** | Handlers may return plain values, Promise-like values, or reactive `NodeInput`. **TypeScript:** `execute` awaits Promise-likes, then resolves **only** `Node` / `AsyncIterable` via `fromAny` + first `DATA` (do **not** pass arbitrary strings through `fromAny` — it treats strings as iterables and emits per character). **Python:** `execute` uses `from_any` + `first_value_from` only for awaitables, async iterables, or `Node`; plain values return as-is. |
-| **`agentMemory` / `agent_memory` — factory scope** | **Resolved (2026-03-31):** Ship as-designed. The full in-factory composition (`knowledgeGraph` + `vectorIndex` + `lightCollection` + `decay` + `autoCheckpoint`, opt-in via options) will be implemented per the resolved design decision at the top of this document. A single `agentMemory(name, { vectorDimensions, embedFn, enableKnowledgeGraph })` call provides batteries-included memory. Implementation to follow. |
+| **~~`agentMemory` / `agent_memory` — factory scope (implemented, verified 2026-04-07)~~** | Fully wired in both TS and PY. All five primitives (`knowledgeGraph`/`knowledge_graph`, `vectorIndex`/`vector_index`, `lightCollection`/`light_collection`, `decay`, `autoCheckpoint`/`auto_checkpoint`) are opt-in via options. Retrieval pipeline (4-stage: vector search + KG expansion + scoring + budget packing) and periodic reflection also wired. |
 
 ### AI surface (Phase 4.4) — parity follow-ups
 
 | # | Topic | Notes |
 |---|--------|-------|
-| **3** | **`_invoke_llm` / `_invokeLLM` defensive alignment** | **TypeScript** (`_invokeLLM`): rejects `null`/`undefined` and plain `str` before `fromAny` (strings would iterate per character); accepts sync plain objects with `content` when not a Promise/`Node`. **Python** (`_invoke_llm`): should mirror those guards — reject `None`; reject `str`; do not pass raw `dict`/`Mapping` through `from_any` without normalizing to `LLMResponse` (iterating a `dict` yields keys). **Status:** pending implementation in `graphrefly-py`. |
-| **4** | **`LLMInvokeOptions` + cooperative cancellation** | **Resolved (2026-03-31):** Python will use a `CancellationToken` protocol — a small interface with `.is_cancelled` property and `.on_cancel(fn)` callback registration, backed internally by `threading.Event`. This mirrors TS's `AbortSignal` pattern. The token is passed from `AgentLoopGraph` into `adapter.invoke()`. Adapters react to cancellation via `.on_cancel()` callbacks (no polling — respects the reactive invariant). The protocol can be extended to `asyncio.Event` backing later. **TypeScript** retains `AbortSignal` via `LLMInvokeOptions.signal`. |
+| **3** | **~~`_invoke_llm` / `_invokeLLM` defensive alignment (resolved 2026-04-07 — already implemented)~~** | Both ports reject `None`/`null`, reject plain `str`, normalize `dict` with `content` key to `LLMResponse`, and route remaining shapes through `from_any` + `first_value_from`. Aligned. |
+| **4** | **~~`LLMInvokeOptions` + cooperative cancellation (implemented 2026-04-07)~~** | Both ports now wire cancellation from the agent loop into `adapter.invoke()`. **TS:** `AbortSignal` via `LLMInvokeOptions.signal`. **PY:** `CancellationToken` protocol (`core/cancellation.py`) with `.is_cancelled` + `.on_cancel(fn)`, backed by `threading.Event`; wired from `AgentLoopGraph._cancel_token` into `LLMInvokeOptions.cancellation_token`. |
 
 Normative anti-patterns table: [**Implementation anti-patterns**](#implementation-anti-patterns) (top of this document).
 
@@ -891,7 +901,7 @@ Normative anti-patterns table: [**Implementation anti-patterns**](#implementatio
 
 | Item | Resolution |
 |------|------------|
-| **keepalive subscription cleanup on destroy** | `ChatStreamGraph`, `ToolRegistryGraph`, and `systemPromptBuilder` create keepalive subscriptions (`n.subscribe(() => {})`) that are never cleaned up. **Auto-fixable:** add `destroy()` methods that unsubscribe keepalive sinks to prevent leaks in long-lived processes. |
+| **~~keepalive subscription cleanup on destroy (resolved 2026-04-07 — already implemented)~~** | `ChatStreamGraph`, `ToolRegistryGraph`, and `AgentMemoryGraph` all have `destroy()` methods that unsubscribe keepalive sinks. `systemPromptBuilder` returns a `SystemPromptHandle` with `dispose()`. No leak. |
 | **`AgentLoopGraph.destroy()` does not cancel running loop (resolved — internal abort signal)** | `destroy()` sets an internal `AbortController` signal; the `run()` loop checks it between iterations. Composes with existing `fromPromise({ signal })`. No polling — reactive cancellation via abort signal. Rejected: (b) reject-only (doesn't stop the LLM call); (c) document-as-limitation (violates `destroy()` safety contract). |
 | **`chatStream.clear()` + `append()` race (resolved — serialize via `batch()`)** | Both `clear()` and `append()` internally use `batch()` so they are atomic within a reactive cycle. Callers who need deterministic ordering across multiple mutations use `batch(() => { stream.clear(); stream.append(msg); })`. No new mechanism needed — uses existing protocol. Rejected: (b) arbitrary "clear wins" rule; (c) microtask queue (fights the reactive-not-queued invariant). |
 
@@ -920,7 +930,7 @@ Applies to `src/extra/operators.ts` and `graphrefly.extra.tier2`. **Keep the tab
 
 | Item | Status | Notes |
 |------|--------|-------|
-| **`sample` + `undefined` as `T`** | Documented limitation (2026-03-31) | Sampling uses the primary dep’s cached value (`get()`). If `T` allows `undefined`, a cache of `undefined` is indistinguishable from “no snapshot yet”; TypeScript currently emits `RESOLVED` instead of `DATA` in that case (JSDoc `@remarks`). This is a known TS-specific edge case (Python does not have the `undefined` ambiguity). Document in JSDoc; no sentinel needed. |
+| **~~`sample` + `undefined` as `T`~~** | Resolved (2026-04-07) | Fixed: `sample` now tracks source DATA via local `NO_VALUE` sentinel instead of `source.get()`. `undefined` as `T` correctly emits DATA. |
 | **`mergeMap` / `merge_map` + `ERROR`** | Documented limitation (2026-03-31) | When the outer stream or one inner emits `ERROR`, other inner subscriptions may keep running until they complete or unsubscribe. Rx-style “first error cancels all sibling inners” is **not** specified or implemented. Current behavior (inner errors don’t cascade) is arguably more useful for parallel work — no change needed. Document in JSDoc/docstrings. |
 
 ### Ingest adapters (roadmap 5.2c / 5.3b) — deferred items (QA)

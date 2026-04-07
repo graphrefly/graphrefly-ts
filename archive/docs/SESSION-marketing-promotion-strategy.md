@@ -495,6 +495,217 @@ The three positioning pillars from §6 remain valid. **New ordering for harness 
 | Post-Wave 3 | CrewAI, OpenAI Agents SDK adapters | Expand as demanded by users |
 | Post-Wave 3 | A2A Agent Card (Google protocol) | Enterprise multi-agent positioning |
 
+---
+
+## 16. Competitive Intelligence: Future AGI (added April 7, 2026)
+
+**Trigger:** Cold outreach email from Future AGI CEO (Nikhil Pareek) offering pre-launch repo access. Analyzed their open-source stack (`traceAI`, `ai-evaluation`, `agent-opt`, `futureagi-sdk`, `simulate-sdk`) and docs site (`docs.futureagi.com`) for marketing tactics and technical overlap.
+
+### What They Are
+
+Open-core AI agent reliability platform. Open-source libraries (tracing, evaluation, prompt optimization) feed into commercial platform at `app.futureagi.com`. India-based startup, small internal team (~6 contributors), ~370 total GitHub stars. Pre-public-launch as of April 2026.
+
+### Marketing Tactics Worth Adopting
+
+#### A. Pre-Launch Contributor Recruitment (Cold Email)
+
+Nikhil's email is a textbook play:
+
+| Tactic | How it works | Our adaptation |
+|---|---|---|
+| **Personalized GitHub stalking** | "I saw your work" — targets people whose repos overlap | Before Wave 1: identify 20-30 people from harness engineering blogs, LangGraph/CrewAI contributors, reactive programming maintainers (Staltz, RxJS team), agent reliability researchers. Send personalized emails referencing their specific repos/posts. |
+| **Exclusivity + scarcity** | "small group of contributors before it goes wide" | Create a "design partner" program pre-Wave 1: "We're giving early access to 15 people who understand reactive agent coordination." |
+| **Low-commitment ask** | "even a quick look and honest feedback" | Don't ask for PRs — ask for 15 minutes of feedback. Funnel: feedback → interest → contributor → advocate. |
+| **Urgency without pressure** | "about a week from public launch" | Time outreach 1-2 weeks before each Wave launch. |
+| **CEO-signed** | Personal authority, not a project account | David sends these personally, not from @graphrefly. |
+
+**Email template for Wave 1:**
+
+> Hi [name],
+>
+> I saw your [specific work — blog post / repo / talk]. That's directly relevant to what we're building.
+>
+> We're open-sourcing GraphReFly — a reactive graph runtime for agent workflows. It covers coordination, causal tracing, policy enforcement, and persistent checkpoints. We just published our first eval results showing how catalog quality is the #1 lever for LLM output quality.
+>
+> Before the public launch, we're giving early repo access to a small group of people whose work overlaps. Would love your honest feedback — even 15 minutes looking at the eval methodology would be valuable.
+>
+> [link to eval blog post / scorecard]
+>
+> No pressure at all.
+>
+> Cheers,
+> David
+
+**Target list (20-30 people):**
+- Harness engineering blog authors (check harness-engineering.ai knowledge graph)
+- LangGraph core contributors
+- CrewAI / AutoGen maintainers
+- André Staltz (callbag creator — predecessor story)
+- RxJS team members
+- Agent reliability researchers (Reflexion, LATS paper authors)
+- MCP ecosystem builders (Cline maintainers, PulseMCP)
+- DevRel at Anthropic/OpenAI who write about agent patterns
+
+#### B. Integration Pages as SEO Surface Area
+
+Future AGI has 30+ individual integration pages (one per framework: OpenAI, Anthropic, LangChain, etc.). Each page targets "[framework] + observability" keywords.
+
+**Our adaptation:** Create individual doc pages per adapter (`fromOTel`, `fromKafka`, `toPostgres`, `fromMCP`, etc.). We have 20+ adapters — each becomes a search landing page targeting "[system] + reactive" or "[system] + agent orchestration."
+
+#### C. "Quickstart in 2 Minutes" Gating
+
+traceAI's setup is 3 lines of code. Every README and landing page must have a "try in 2 minutes" path.
+
+**Our adaptation:** MCP Server (§9.3) quickstart must be ≤5 lines. Every doc page starts with a copy-pasteable example.
+
+#### D. Cookbooks/Templates as Discovery
+
+They have a separate `cookbooks` repo with example projects. Template repos are individually discoverable on GitHub.
+
+**Our adaptation:** Accelerate the 3 golden template repos from Wave 3 (§9.6). Consider shipping 1 template alongside Wave 1 to have something tangible.
+
+### Technical Overlap & Gaps
+
+| Capability | Future AGI | GraphReFly | Assessment |
+|---|---|---|---|
+| **Tracing** | traceAI: OTel-based, 50+ framework instrumentors | `fromOTel`, causal chain, `explainPath` | They: breadth. We: causal depth. |
+| **Evaluation** | ai-evaluation: 50+ metrics, guardrails, LLM-as-judge | Eval runner (T1-T20), multi-model matrix, schema bug detection | They: metric breadth. We: structural eval (graph correctness). |
+| **Optimization** | agent-opt: 6 algorithms (Random, Bayesian, ProTeGi, Meta-Prompt, PromptWizard, GEPA) | Catalog auto-generation + auto-refine (9.1b) | **Gap.** They have general prompt optimization. We have catalog-specific refinement. See §17 for algorithm analysis + roadmap item. |
+| **Guardrails** | ai-evaluation: jailbreak, PII, code injection scanners (<10ms) | `policyEnforcer` (§9.2, not yet shipped) | Parallel tracks — theirs is content-level, ours is structural/access-level. |
+| **Platform** | futureagi-sdk: datasets, prompts, knowledge base | MCP Server (§9.3), GraphSpec compiler | Different architectures. |
+
+### Their Weaknesses (Our Advantages)
+
+1. **No reactive coordination.** Passive observation, not active orchestration. They instrument — we orchestrate.
+2. **Weak community.** ~370 stars, all internal contributors. "Open source" as distribution, not community.
+3. **Licensing mess.** GPL-3.0 on ai-evaluation contaminates agent-opt (no license file). Enterprise-unfriendly.
+4. **Platform lock-in.** traceAI defaults to their endpoint, SDK requires API keys. Funnel, not product.
+5. **Superlative claims without proof.** "World's most accurate" — no benchmarks. Our eval story leads with reproducible results.
+
+### What NOT to Copy
+
+- Emoji-heavy READMEs (futureagi-sdk is over-decorated)
+- Superlative claims without proof ("world's most accurate")
+- GPL licensing on core libraries
+- Platform lock-in disguised as open source
+- Multi-language spread too thin (4 languages with small team)
+
+---
+
+## 17. Prompt Optimization Algorithms — Analysis & Roadmap (added April 7, 2026)
+
+**Trigger:** Future AGI's `agent-opt` repo implements 6 prompt optimization algorithms. Our catalog automation (§9.1b) covers catalog *description* quality, but not general prompt/instruction optimization. This section documents the algorithms and a roadmap for GraphReFly-native optimization.
+
+### The 6 Algorithms (from agent-opt source code analysis)
+
+#### 1. Random Search
+**Mechanism:** Teacher LLM generates N diverse prompt variations in one shot. Evaluate each, pick the best. No iteration.
+
+- **Best for:** Quick baselines, sanity checks
+- **Strengths:** Cheapest (one teacher call + N evaluations). Simple.
+- **Weaknesses:** No learning across iterations. No error analysis. Diversity depends entirely on teacher model creativity.
+- **Cost:** 1 teacher call + (N × dataset_size) eval calls
+
+#### 2. Bayesian Search (Optuna TPE)
+**Mechanism:** Uses Optuna's Tree-structured Parzen Estimator to optimize **few-shot example selection** — NOT the prompt text itself. Searches over which dataset examples to include as demonstrations and how many.
+
+- **Best for:** When instruction is good but few-shot examples need tuning. Classification tasks, QA.
+- **Strengths:** Principled Bayesian exploration vs exploitation. Supports eval subsetting for speed. Most configurable.
+- **Weaknesses:** Only optimizes example selection, not instruction text. If the instruction is bad, this cannot help.
+- **Reference:** Akiba et al., 2019 (Optuna)
+- **Cost:** N_trials × (subset_size) eval calls
+
+#### 3. ProTeGi (Textual Gradients + Beam Search)
+**Mechanism:** Iterative beam search where the teacher analyzes errors to produce "textual gradients" (critiques), then uses those critiques to generate improved prompts. Analog to gradient descent — error-driven refinement.
+
+- **Per round:** (1) Run prompt on 32 examples, identify errors (score < 0.5). (2) Teacher generates N critiques per prompt ("gradients"). (3) Teacher applies each critique to produce improved prompts. (4) Score all candidates, keep top beam_size.
+- **Best for:** Prompts that work partially but fail on specific patterns. Structured output tasks.
+- **Strengths:** Error-driven — focuses improvement where it matters. Beam maintains diversity. Interpretable critiques.
+- **Weaknesses:** Expensive per round. Inference model hardcoded (`gpt-4o-mini`). Error threshold (0.5) not configurable.
+- **Reference:** Pryzant et al., 2023 — "Automatic Prompt Optimization with 'Gradient Descent' and Beam Search"
+- **Cost:** rounds × (beam × 32 evals + beam gradient calls + beam × gradients apply calls + all_candidates × subset evals)
+
+#### 4. Meta-Prompt
+**Mechanism:** Single teacher model acts as prompt engineering expert. Each round: score current prompt → format annotated performance data (per-example scores + reasons) → teacher generates hypothesis + improved prompt. Failed attempts tracked to avoid repetition.
+
+- **Best for:** Complex tasks where error analysis matters more than search breadth. Works well with powerful teacher models.
+- **Strengths:** Simplest iterative approach. Rich performance data (scores + reasons). Hypothesis step forces structured reasoning. Low cost per round.
+- **Weaknesses:** Single-path search (no beam, no population). Can get stuck in local optima. Very dependent on teacher quality.
+- **Reference:** Related to Zhou et al., 2022 — "Large Language Models Are Human-Level Prompt Engineers"
+- **Cost:** rounds × (1 teacher call + subset_size eval calls)
+
+#### 5. PromptWizard (Mutation + Critique + Refinement)
+**Mechanism:** Three-phase pipeline: (1) Mutation via 8 "thinking styles" (step-by-step, critical thinking, systems thinking, etc.) generates diverse candidates. (2) Score and select top beam_size. (3) Critique errors, refine prompts based on critique.
+
+- **Best for:** Thorough exploration when budget allows. Complex tasks needing both structural and semantic improvements.
+- **Strengths:** Most comprehensive pipeline. Thinking styles inject cognitive diversity. Critique provides targeted feedback.
+- **Weaknesses:** Very expensive (mutation × scoring × critique × refinement). Default beam_size=1 loses diversity fast.
+- **Reference:** Microsoft Research, 2024 — "PromptWizard: Task-Aware Agent-Driven Prompt Optimization Framework"
+- **Cost:** iterations × (mutate_rounds × 8 mutations + all_candidates × subset evals + beam × critique + beam × refine)
+
+#### 6. GEPA (Genetic Evolution + Pareto Optimization)
+**Mechanism:** Delegates to external `gepa` library. Evolutionary/genetic approach with Pareto-based selection. Reflection model analyzes evaluation trajectories and generates mutations. Only algorithm supporting true multi-objective optimization.
+
+- **Best for:** Complex landscapes with multiple competing objectives. Large eval budgets.
+- **Strengths:** Population-based exploration. Pareto handles multi-objective. Reflection-guided mutation.
+- **Weaknesses:** Black-box external dependency. Most expensive (default 150 metric calls). Hard to debug.
+- **Reference:** "Genetic Evolution with Pareto Optimization for Automated Prompt Engineering"
+- **Cost:** up to max_metric_calls (default 150) evaluations
+
+### Implementation Quality Issues (agent-opt)
+
+1. **Hardcoded inference models:** ProTeGi, Meta-Prompt, PromptWizard hardcode `"gpt-4o-mini"` for scoring, ignoring user config
+2. **No parallelism:** All evaluation is sequential list comprehension — slow for large datasets
+3. **No caching:** Same prompt evaluated multiple times in beam search without memoization
+4. **Error threshold hardcoded:** ProTeGi and PromptWizard both use `score < 0.5` — not configurable
+5. **Bayesian Search is narrow:** Only few-shot selection, not instruction optimization (misleading name)
+
+### The Real Insight: The Loop Is the Product, Not the Strategies
+
+All 6 algorithms decompose to the same feedback loop:
+
+```
+candidates = seed(artifact)
+loop:
+  scores     = evaluate(candidates, dataset)
+  feedback   = analyze(scores, errors)         ← strategy (pluggable)
+  candidates = generate(feedback, candidates)  ← strategy (pluggable)
+  if converged: break
+return best(candidates)
+```
+
+BMAD-METHOD (github.com/bmad-code-org/BMAD-METHOD) proves this at scale — they have **50 heterogeneous elicitation strategies** (Socratic questioning, Red Team, First Principles, 5 Whys, Tree of Thoughts, etc.) all plugged into one present→select→apply→approve loop via a CSV registry. The strategies are just prompt templates + a selection heuristic. The loop is the infrastructure.
+
+**What we should build:** The reactive feedback loop as a Graph — budget gating, eval caching, parallel evaluation, causal tracing, multi-objective scoring, checkpoint/resume. This is infrastructure that `feedback()` + `scorer()` + `budgetGate()` + `autoCheckpoint()` already provide.
+
+**What we should NOT build:** 6 monolithic optimization algorithms. Instead, provide a `RefineStrategy` interface (analyze + generate) and a strategy registry (like BMAD's CSV but reactive). Ship 2-3 built-in strategies as examples. Let users/community/LLMs bring their own strategies — or pick from a registry at runtime.
+
+**The differentiator is not "we have ProTeGi too" — it's "our optimization trajectory is observable, resumable, budget-gated, and causally traceable."** No existing tool offers this.
+
+### GraphReFly Optimization Roadmap
+
+**Phase 1 — Catalog optimization (9.1b, in progress):**
+Already implemented: `generateCatalogPrompt()` → `llmCompose()` → `validateSpecAgainstCatalog()` → `maxAutoRefine` loop. This is already a Meta-Prompt-style feedback loop.
+
+**Phase 2 — General optimization loop (roadmap §9.8: `refineLoop`):**
+- `refineLoop(seed, evaluator, strategy, opts?)` → `RefineGraph` — the universal loop as a Graph
+- `RefineStrategy<T>` interface: `{ analyze, generate, select? }` — thin, pluggable
+- Built-in strategies as examples: `blindVariation` (Random Search), `errorCritique` (ProTeGi/Meta-Prompt), `mutateAndRefine` (PromptWizard)
+- Strategy registry: `reactiveMap` of named strategies with metadata, LLM can pick the right one per phase
+- Loop infrastructure leverages existing primitives: `feedback()`, `scorer()`, `budgetGate()`, `cascadingCache()`, `funnel()`, `autoCheckpoint()`
+
+**Phase 3 — Workflow topology optimization (future):**
+- `refineLoop(graphSpec, evaluator, topologyStrategy)` — mutations are structural (add/remove nodes, rewire edges, swap operators)
+- GraphSpec + `compileSpec()` + `decompileGraph()` become the optimization substrate
+
+### Revised Promotion Phase Mapping
+
+Add optimization to Wave 2-3 story:
+- **Wave 2:** Blog post: "The feedback loop is the product — why we don't ship 6 optimization algorithms"
+- **Wave 3:** Ship `refineLoop()` with 2-3 built-in strategies + strategy registry. Demo: catalog auto-optimization
+
+---
+
 ### Anti-Stealth Rationale
 
 The idea of going stealth to prevent competitors from copying the reactive graph protocol was considered and rejected:

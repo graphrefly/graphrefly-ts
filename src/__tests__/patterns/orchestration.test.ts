@@ -6,6 +6,7 @@ import {
 	approval,
 	branch,
 	forEach,
+	type GateController,
 	gate,
 	join,
 	loop,
@@ -14,6 +15,7 @@ import {
 	sensor,
 	subPipeline,
 	task,
+	valve,
 	wait,
 } from "../../patterns/orchestration.js";
 
@@ -85,7 +87,7 @@ describe("patterns.orchestration", () => {
 		expect(bNode?.meta?.orchestration_type).toBe("branch");
 	});
 
-	it("gate and approval hold value when control is false", () => {
+	it("valve and approval hold value when control is false", () => {
 		const g = pipeline("wf");
 		const input = state(1);
 		const open = state(true);
@@ -93,7 +95,7 @@ describe("patterns.orchestration", () => {
 		g.add("input", input);
 		g.add("open", open);
 		g.add("approved", approved);
-		const gated = gate<number>(g, "gated", "input", "open");
+		const gated = valve<number>(g, "gated", "input", "open");
 		const reviewed = approval<number>(g, "reviewed", gated, "approved");
 		gated.subscribe(() => undefined);
 		reviewed.subscribe(() => undefined);
@@ -268,5 +270,159 @@ describe("patterns.orchestration", () => {
 		expect(g.get("looped")).toBe(4);
 		g.set("iter", "");
 		expect(g.get("looped")).toBe(2);
+	});
+
+	// ---------------------------------------------------------------
+	// gate (human-in-the-loop approval queue)
+	// ---------------------------------------------------------------
+
+	it("gate queues values and approve forwards them", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input");
+
+		const approved: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
+		});
+
+		g.set("input", 1);
+		g.set("input", 2);
+		expect(ctrl.pending.get()).toEqual([1, 2]);
+		expect(ctrl.count.get()).toBe(2);
+		expect(approved).toEqual([]);
+
+		ctrl.approve();
+		expect(approved).toEqual([1]);
+		expect(ctrl.pending.get()).toEqual([2]);
+		expect(ctrl.count.get()).toBe(1);
+
+		ctrl.approve();
+		expect(approved).toEqual([1, 2]);
+		expect(ctrl.pending.get()).toEqual([]);
+	});
+
+	it("gate reject discards pending values", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input");
+		ctrl.node.subscribe(() => undefined);
+		g.set("input", 10);
+		g.set("input", 20);
+		expect(ctrl.pending.get()).toEqual([10, 20]);
+		ctrl.reject();
+		expect(ctrl.pending.get()).toEqual([20]);
+		ctrl.reject();
+		expect(ctrl.pending.get()).toEqual([]);
+	});
+
+	it("gate modify transforms and forwards", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input");
+
+		const approved: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
+		});
+
+		g.set("input", 5);
+		ctrl.modify((v, _i, _pending) => v * 10);
+		expect(approved).toEqual([50]);
+		expect(ctrl.pending.get()).toEqual([]);
+	});
+
+	it("gate open flushes pending and auto-approves future", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input");
+
+		const approved: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
+		});
+
+		g.set("input", 1);
+		g.set("input", 2);
+		ctrl.open();
+		expect(approved).toEqual([1, 2]);
+		expect(ctrl.isOpen.get()).toBe(true);
+
+		// Future values pass through immediately
+		g.set("input", 3);
+		expect(approved).toEqual([1, 2, 3]);
+	});
+
+	it("gate close re-enables manual gating", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input", { startOpen: true });
+
+		const approved: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
+		});
+
+		g.set("input", 1);
+		expect(approved).toEqual([1]);
+		ctrl.close();
+		g.set("input", 2);
+		expect(approved).toEqual([1]);
+		expect(ctrl.pending.get()).toEqual([2]);
+	});
+
+	it("gate maxPending drops oldest values (FIFO)", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input", { maxPending: 2 });
+		ctrl.node.subscribe(() => undefined);
+		g.set("input", 1);
+		g.set("input", 2);
+		g.set("input", 3);
+		expect(ctrl.pending.get()).toEqual([2, 3]);
+	});
+
+	it("gate approve(n) forwards multiple values", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		const ctrl = gate<number>(g, "gated", "input");
+
+		const approved: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
+		});
+
+		g.set("input", 1);
+		g.set("input", 2);
+		g.set("input", 3);
+		ctrl.approve(2);
+		expect(approved).toEqual([1, 2]);
+		expect(ctrl.pending.get()).toEqual([3]);
+	});
+
+	it("gate registers internal state nodes in graph", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		gate<number>(g, "gated", "input");
+		const desc = g.describe();
+		expect(desc.nodes).toHaveProperty("gated");
+		expect(desc.nodes).toHaveProperty("gated_state::pending");
+		expect(desc.nodes).toHaveProperty("gated_state::isOpen");
+		expect(desc.nodes).toHaveProperty("gated_state::count");
+	});
+
+	it("gate maxPending < 1 throws RangeError", () => {
+		const g = pipeline("wf");
+		const input = state(0);
+		g.add("input", input);
+		expect(() => gate<number>(g, "gated", "input", { maxPending: 0 })).toThrow(RangeError);
 	});
 });
