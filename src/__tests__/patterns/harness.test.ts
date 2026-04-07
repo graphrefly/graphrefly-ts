@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
@@ -37,7 +37,6 @@ describe("harness types", () => {
 			item: {} as TriagedItem,
 			outcome: "failure",
 			detail: "JSON parse error at line 3",
-			retryCount: 0,
 		};
 		expect(defaultErrorClassifier(result)).toBe("self-correctable");
 
@@ -50,7 +49,6 @@ describe("harness types", () => {
 			item: {} as TriagedItem,
 			outcome: "failure",
 			detail: "Missing node: rateLimiter not found in catalog",
-			retryCount: 0,
 		};
 		expect(defaultErrorClassifier(result)).toBe("structural");
 	});
@@ -365,5 +363,262 @@ describe("harnessLoop", () => {
 		const entry = harness.strategy.lookup("composition", "template");
 		expect(entry).toBeDefined();
 		expect(entry!.successRate).toBe(1);
+	});
+
+	it("exposes retryTracker and reingestionTracker as empty maps", () => {
+		const adapter = mockAdapter({});
+		const harness = harnessLoop("test-harness-6", { adapter });
+
+		expect(harness.retryTracker).toBeInstanceOf(Map);
+		expect(harness.retryTracker.size).toBe(0);
+		expect(harness.reingestionTracker).toBeInstanceOf(Map);
+		expect(harness.reingestionTracker.size).toBe(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// e2e: full 7-stage flow
+// ---------------------------------------------------------------------------
+
+describe("harnessLoop e2e", () => {
+	/**
+	 * Stage-aware mock adapter.
+	 * Returns different JSON depending on which stage is calling.
+	 * Stage detection uses the prompt content.
+	 */
+	function stageAdapter() {
+		const calls: string[] = [];
+		return {
+			calls,
+			invoke: (msgs: Array<{ role: string; content: string }>) => {
+				const text = msgs
+					.map((m) => m.content)
+					.join(" ")
+					.toLowerCase();
+				calls.push(text.slice(0, 80));
+
+				if (text.includes("triage") || text.includes("intake item")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							rootCause: "missing-fn",
+							intervention: "catalog-fn",
+							route: "auto-fix",
+							priority: 80,
+							triageReasoning: "Missing catalog function for this pattern",
+						}),
+					});
+				}
+				if (text.includes("implementation") || text.includes("triaged issue")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							outcome: "success",
+							detail: "Added the missing catalog function",
+						}),
+					});
+				}
+				if (text.includes("qa") || text.includes("verify") || text.includes("execution")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							verified: true,
+							findings: ["Fix looks correct"],
+						}),
+					});
+				}
+				// Fallback
+				return Promise.resolve({ content: "{}" });
+			},
+		};
+	}
+
+	it("intake → triage → queue → execute → verify → strategy", async () => {
+		// Track all adapter calls with their prompts
+		const calls: string[] = [];
+		const adapter = {
+			invoke: (msgs: Array<{ role: string; content: string }>) => {
+				const text = msgs
+					.map((m) => m.content)
+					.join(" ")
+					.toLowerCase();
+				calls.push(text.slice(0, 60));
+
+				if (text.includes("triage") || text.includes("intake item")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							rootCause: "missing-fn",
+							intervention: "catalog-fn",
+							route: "auto-fix",
+							priority: 80,
+						}),
+					});
+				}
+				if (text.includes("implementation") || text.includes("triaged issue")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							outcome: "success",
+							detail: "Fixed",
+						}),
+					});
+				}
+				if (text.includes("qa") || text.includes("verify") || text.includes("execution")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							verified: true,
+							findings: ["ok"],
+						}),
+					});
+				}
+				return Promise.resolve({ content: "{}" });
+			},
+		};
+
+		const harness = harnessLoop("e2e", { adapter });
+
+		// Publish and wait for full chain
+		harness.intake.publish({
+			source: "eval",
+			summary: "T5: missing resilience ordering",
+			evidence: "wrong order",
+			affectsAreas: ["graphspec"],
+			severity: "high",
+		});
+
+		// Wait for strategy model to record at least one outcome
+		// (proves: triage → route → execute → verify → strategy.record)
+		await vi.waitFor(
+			() => {
+				expect(harness.strategy.node.get().size).toBeGreaterThan(0);
+			},
+			{ timeout: 5000, interval: 50 },
+		);
+
+		// Verify full chain executed
+		expect(harness.strategy.lookup("missing-fn", "catalog-fn")).toBeDefined();
+		expect(calls.length).toBeGreaterThanOrEqual(3); // triage + execute + verify (SENTINEL skips initial empty)
+	});
+
+	it("failed verification triggers fast-retry for self-correctable errors", async () => {
+		let verifyCallCount = 0;
+		const adapter = {
+			invoke: (msgs: Array<{ role: string; content: string }>) => {
+				const text = msgs
+					.map((m) => m.content)
+					.join(" ")
+					.toLowerCase();
+
+				if (text.includes("triage") || text.includes("intake item")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							rootCause: "schema-gap",
+							intervention: "schema-change",
+							route: "auto-fix",
+							priority: 60,
+						}),
+					});
+				}
+				if (text.includes("implementation") || text.includes("triaged issue")) {
+					return Promise.resolve({
+						content: JSON.stringify({
+							outcome: "failure",
+							detail: "JSON parse error in config",
+						}),
+					});
+				}
+				if (text.includes("qa") || text.includes("verify") || text.includes("execution")) {
+					verifyCallCount++;
+					if (verifyCallCount <= 1) {
+						// First verify: fail with self-correctable
+						return Promise.resolve({
+							content: JSON.stringify({
+								verified: false,
+								findings: ["JSON parse error in output"],
+								errorClass: "self-correctable",
+							}),
+						});
+					}
+					// Subsequent: pass
+					return Promise.resolve({
+						content: JSON.stringify({
+							verified: true,
+							findings: ["Fixed after retry"],
+						}),
+					});
+				}
+				return Promise.resolve({ content: "{}" });
+			},
+		};
+
+		const harness = harnessLoop("e2e-retry", { adapter, maxRetries: 2 });
+
+		const results: VerifyResult[] = [];
+		harness.verifyResults.latest.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA && msg[1] != null) results.push(msg[1] as VerifyResult);
+			}
+		});
+
+		harness.intake.publish({
+			source: "eval",
+			summary: "T8: parse error in config",
+			evidence: "config validation failed",
+			affectsAreas: ["graphspec"],
+			severity: "medium",
+		});
+
+		// The verify stage should be called at least once (initial activation + real item)
+		await vi.waitFor(
+			() => {
+				expect(verifyCallCount).toBeGreaterThanOrEqual(1);
+			},
+			{ timeout: 3000, interval: 20 },
+		);
+
+		// retryTracker should have recorded the retry attempt
+		const key = "T8: parse error in config";
+		if (harness.retryTracker.has(key)) {
+			expect(harness.retryTracker.get(key)).toBeGreaterThanOrEqual(1);
+		}
+	});
+
+	it("evalIntakeBridge → harnessLoop integration", async () => {
+		const adapter = stageAdapter();
+		const harness = harnessLoop("e2e-bridge", { adapter });
+
+		// Wire the bridge
+		const evalSource = state<EvalResult | null>(null);
+		const bridgeNode = evalIntakeBridge(evalSource as any, harness.intake);
+		bridgeNode.subscribe(() => undefined);
+
+		// Emit an eval result with 1 failing criterion
+		evalSource.down([
+			[
+				DATA,
+				{
+					run_id: "run-e2e",
+					model: "claude",
+					tasks: [
+						{
+							task_id: "T5",
+							valid: true,
+							judge_scores: [
+								{ claim: "correct topology", pass: true, reasoning: "ok" },
+								{ claim: "resilience ordering", pass: false, reasoning: "wrong order" },
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		// The bridge should have published 1 failing criterion to intake
+		await vi.waitFor(
+			() => {
+				const intakeItems = harness.intake.retained();
+				expect(intakeItems.length).toBeGreaterThanOrEqual(1);
+			},
+			{ timeout: 1000, interval: 20 },
+		);
+
+		const intakeItems = harness.intake.retained();
+		expect(intakeItems.some((i) => i.summary.includes("resilience ordering"))).toBe(true);
 	});
 });

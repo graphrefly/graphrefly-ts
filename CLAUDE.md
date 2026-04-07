@@ -7,8 +7,9 @@
 | Doc | Role |
 |-----|------|
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
-| `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — 坑, patterns, recipes for Phase 4+ factory authors. Read before building factories that compose primitives. |
+| `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
 | `~/src/graphrefly/composition-guide.jsonl` | Machine-readable composition entries (appendable) |
+| `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes, proposed improvements. Check before introducing new optimizations or debugging perf issues. |
 | `docs/roadmap.md` | Phased implementation checklist |
 | `docs/docs-guidance.md` | How to document APIs and long-form docs |
 | `docs/test-guidance.md` | How to write and organize tests |

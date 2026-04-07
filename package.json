@@ -173,7 +173,8 @@
 		"eval:compare": "tsx evals/scripts/compare.ts",
 		"eval:matrix": "tsx evals/scripts/run-matrix.ts",
 		"eval:scorecard": "tsx evals/scripts/publish-scorecard.ts",
-		"eval:dev-dx": "vitest run --config evals/vitest.config.ts"
+		"eval:dev-dx": "vitest run --config evals/vitest.config.ts",
+		"eval:harness": "tsx evals/scripts/run-harness.ts"
 	},
 	"keywords": [
 		"reactive",

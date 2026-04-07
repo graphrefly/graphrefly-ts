@@ -389,7 +389,12 @@ export function promptNode<T = string>(
 	const messagesNode = derived<readonly ChatMessage[]>(
 		deps as Node<unknown>[],
 		(values) => {
+			// SENTINEL gate: if any dep is nullish, deps aren't ready yet.
+			// Return empty array → switchMap skips LLM call → emits null.
+			// This eliminates the need for null guards in every prompt function.
+			if (values.some((v) => v == null)) return [];
 			const text = typeof prompt === "string" ? prompt : prompt(...values);
+			if (!text) return [];
 			const msgs: ChatMessage[] = [];
 			if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
 			msgs.push({ role: "user", content: text });

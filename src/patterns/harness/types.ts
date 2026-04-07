@@ -92,12 +92,17 @@ export function strategyKey(rootCause: RootCause, intervention: Intervention): S
 // Execution & verification
 // ---------------------------------------------------------------------------
 
-/** Result of the EXECUTE stage. */
+/** LLM output shape from the EXECUTE stage (partial — lacks `item`). */
+export type ExecuteOutput = {
+	outcome: "success" | "failure" | "partial";
+	detail: string;
+};
+
+/** Full execution result assembled downstream (LLM output + context). */
 export interface ExecutionResult {
 	item: TriagedItem;
 	outcome: "success" | "failure" | "partial";
 	detail: string;
-	retryCount: number;
 }
 
 /** Whether an error is self-correctable (fast-retry) or structural (full loop). */

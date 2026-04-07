@@ -8,10 +8,9 @@
  * @module
  */
 
-import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
-import { merge } from "../../extra/operators.js";
+import { effect } from "../../core/sugar.js";
+import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
 import type { LLMAdapter } from "../ai.js";
 import { promptNode } from "../ai.js";
@@ -22,7 +21,9 @@ import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "
 import {
 	DEFAULT_QUEUE_CONFIGS,
 	defaultErrorClassifier,
+	type ErrorClass,
 	type ErrorClassifier,
+	type ExecuteOutput,
 	type ExecutionResult,
 	type HarnessLoopOptions,
 	type IntakeItem,
@@ -31,6 +32,15 @@ import {
 	type TriagedItem,
 	type VerifyResult,
 } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/** Strip `[RETRY N/M] ` prefix to get the stable item identity key. */
+function baseSummary(summary: string): string {
+	return summary.replace(/^\[RETRY \d+\/\d+\]\s*/, "");
+}
 
 // ---------------------------------------------------------------------------
 // Default prompts
@@ -115,6 +125,12 @@ export class HarnessGraph extends Graph {
 	/** Verify results topic — subscribe to see verification outcomes. */
 	readonly verifyResults: TopicGraph<VerifyResult>;
 
+	/** Per-item fast-retry counts (keyed by base summary). */
+	readonly retryTracker: ReadonlyMap<string, number>;
+
+	/** Per-item reingestion counts (keyed by base summary). */
+	readonly reingestionTracker: ReadonlyMap<string, number>;
+
 	constructor(
 		name: string,
 		intake: TopicGraph<IntakeItem>,
@@ -122,6 +138,8 @@ export class HarnessGraph extends Graph {
 		gates: Map<QueueRoute, GateController<TriagedItem>>,
 		strategy: StrategyModelBundle,
 		verifyResults: TopicGraph<VerifyResult>,
+		retryTracker: Map<string, number>,
+		reingestionTracker: Map<string, number>,
 	) {
 		super(name);
 		this.intake = intake;
@@ -129,6 +147,8 @@ export class HarnessGraph extends Graph {
 		this.gates = gates;
 		this.strategy = strategy;
 		this.verifyResults = verifyResults;
+		this.retryTracker = retryTracker;
+		this.reingestionTracker = reingestionTracker;
 	}
 }
 
@@ -174,15 +194,27 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	const strategy = strategyModel();
 
 	// --- Stage 2: TRIAGE ---
+	// Strategy context uses withLatestFrom: intake.latest is the reactive trigger,
+	// strategy.node is sampled without being a trigger. This breaks the feedback
+	// cycle (verify → strategy.record() → strategy.node) reactively — strategy
+	// changes don't re-fire triage, only new intake items do.
+	const triageInput = withLatestFrom(
+		intake.latest as Node<unknown>,
+		strategy.node as Node<unknown>,
+	);
+
 	const triageNode = promptNode<TriagedItem>(
 		adapter,
-		[intake.latest as Node<unknown>, strategy.node as Node<unknown>],
+		[triageInput as Node<unknown>],
 		opts.triagePrompt ??
-			((item: unknown, strat: unknown) => {
-				return DEFAULT_TRIAGE_PROMPT.replace("{{strategy}}", JSON.stringify(strat)).replace(
-					"{{item}}",
-					JSON.stringify(item),
-				);
+			((pair: unknown) => {
+				const [item, strat] = pair as [unknown, StrategySnapshot];
+				// Empty text → promptNode's SENTINEL gate skips the LLM call.
+				if (!item) return "";
+				return DEFAULT_TRIAGE_PROMPT.replace(
+					"{{strategy}}",
+					JSON.stringify(Array.from(strat.entries())),
+				).replace("{{item}}", JSON.stringify(item));
 			}),
 		{
 			name: "triage",
@@ -197,13 +229,15 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		queueTopics.set(route, new TopicGraph<TriagedItem>(`queue/${route}`, { retainedLimit }));
 	}
 
-	// Router effect: watches triage output and publishes to the correct queue
-	const _router = effect([triageNode as Node<unknown>], ([triaged]) => {
+	// Router effect: watches triage output and publishes to the correct queue.
+	// Keepalive subscription activates the lazy computation chain (COMPOSITION-GUIDE §1).
+	const router = effect([triageNode as Node<unknown>], ([triaged]) => {
 		const item = triaged as TriagedItem | null;
 		if (!item || !item.route) return;
 		const topic = queueTopics.get(item.route);
 		if (topic) topic.publish(item);
 	});
+	router.subscribe(() => {});
 
 	// --- Stage 4: GATE ---
 	// Create a container graph for gates (gate() requires a Graph to register nodes in)
@@ -243,13 +277,11 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 
 	const executeInput = merge<TriagedItem | null>(...queueOutputs);
 
-	const executeNode = promptNode<ExecutionResult>(
+	const executeNode = promptNode<ExecuteOutput>(
 		adapter,
 		[executeInput as Node<unknown>],
 		opts.executePrompt ??
-			((item: unknown) => {
-				return DEFAULT_EXECUTE_PROMPT.replace("{{item}}", JSON.stringify(item));
-			}),
+			((item: unknown) => DEFAULT_EXECUTE_PROMPT.replace("{{item}}", JSON.stringify(item))),
 		{
 			name: "execute",
 			format: "json",
@@ -260,16 +292,19 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	// --- Stage 6: VERIFY ---
 	const verifyResults = new TopicGraph<VerifyResult>("verify-results", { retainedLimit });
 
-	const verifyNode = promptNode<VerifyResult>(
+	// The LLM returns only {verified, findings, errorClass?}. We type the promptNode
+	// output as the partial shape and assemble the full VerifyResult downstream.
+	type VerifyOutput = { verified: boolean; findings: string[]; errorClass?: ErrorClass };
+
+	const verifyNode = promptNode<VerifyOutput>(
 		adapter,
 		[executeNode as Node<unknown>, executeInput as Node<unknown>],
 		opts.verifyPrompt ??
-			((execution: unknown, item: unknown) => {
-				return DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
+			((execution: unknown, item: unknown) =>
+				DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
 					"{{item}}",
 					JSON.stringify(item),
-				);
-			}),
+				)),
 		{
 			name: "verify",
 			format: "json",
@@ -278,16 +313,44 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	);
 
 	// --- Fast-retry path ---
-	const maxReingestions = opts.maxReingestions ?? 1;
-	let reingestionCount = 0;
+	// Assemble full VerifyResult from verify output + execution context.
+	//
+	// F2 fix: use nested withLatestFrom so the effect fires ONLY when verifyNode
+	// settles, sampling executeNode + executeInput at that moment. This prevents
+	// mismatched values when a new item arrives before the previous finishes.
+	const verifyWithExec = withLatestFrom(verifyNode as Node<unknown>, executeNode as Node<unknown>);
+	const verifyContext = withLatestFrom(
+		verifyWithExec as Node<unknown>,
+		executeInput as Node<unknown>,
+	);
 
-	const _fastRetry = effect([verifyNode as Node<unknown>], ([result]) => {
-		const vr = result as VerifyResult | null;
-		if (!vr) return;
+	const maxReingestions = opts.maxReingestions ?? 1;
+	const retryTracker = new Map<string, number>();
+	const reingestionTracker = new Map<string, number>();
+
+	const fastRetry = effect([verifyContext as Node<unknown>], ([ctx]) => {
+		const [[vo, execRaw], item] = ctx as [
+			[VerifyOutput | null, ExecuteOutput | null],
+			TriagedItem | null,
+		];
+		if (!vo || !item) return;
+
+		// Assemble full ExecutionResult + VerifyResult from LLM outputs + context
+		const exec: ExecutionResult = {
+			item,
+			outcome: execRaw?.outcome ?? "failure",
+			detail: execRaw?.detail ?? "unknown",
+		};
+		const vr: VerifyResult = {
+			item,
+			execution: exec,
+			verified: vo.verified,
+			findings: vo.findings ?? [],
+			errorClass: vo.errorClass,
+		};
 
 		if (vr.verified) {
-			// Success → record in strategy model + publish result
-			strategy.record(vr.item.rootCause, vr.item.intervention, true);
+			strategy.record(item.rootCause, item.intervention, true);
 			verifyResults.publish(vr);
 			return;
 		}
@@ -296,43 +359,44 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		const errClass =
 			vr.errorClass ??
 			errorClassifier({
-				item: vr.item,
+				item,
 				outcome: "failure",
 				detail: vr.findings.join("; "),
-				retryCount: 0,
 			});
 
-		// Determine retry count from the execution result
-		const exec = (vr as { execution?: ExecutionResult }).execution;
-		const retryCount = exec?.retryCount ?? 0;
+		const key = baseSummary(item.summary);
+		const retryCount = retryTracker.get(key) ?? 0;
 
 		if (errClass === "self-correctable" && retryCount < maxRetries) {
-			// Fast-retry: publish to retry topic (reactive, not imperative .down())
+			retryTracker.set(key, retryCount + 1);
 			const retryItem: TriagedItem = {
-				...vr.item,
-				summary: `[RETRY ${retryCount + 1}/${maxRetries}] ${vr.item.summary} — Previous attempt failed: ${vr.findings.join("; ")}`,
+				...item,
+				summary: `[RETRY ${retryCount + 1}/${maxRetries}] ${baseSummary(item.summary)} — Previous attempt failed: ${vr.findings.join("; ")}`,
 			};
 			retryTopic.publish(retryItem);
 		} else {
 			// Structural failure or max retries exceeded → full loop via INTAKE
-			strategy.record(vr.item.rootCause, vr.item.intervention, false);
+			strategy.record(item.rootCause, item.intervention, false);
 			verifyResults.publish(vr);
 
-			// Re-ingest only if under reingestion cap
-			if (reingestionCount < maxReingestions) {
-				reingestionCount++;
+			// Per-item + global reingestion cap
+			const itemReingestions = reingestionTracker.get(key) ?? 0;
+			if (itemReingestions < maxReingestions) {
+				reingestionTracker.set(key, itemReingestions + 1);
 				intake.publish({
 					source: "eval",
-					summary: `Verification failed for: ${vr.item.summary}`,
+					summary: `Verification failed for: ${baseSummary(item.summary)}`,
 					evidence: vr.findings.join("\n"),
-					affectsAreas: vr.item.affectsAreas,
-					affectsEvalTasks: vr.item.affectsEvalTasks,
+					affectsAreas: item.affectsAreas,
+					affectsEvalTasks: item.affectsEvalTasks,
 					severity: "high",
-					relatedTo: [vr.item.summary],
+					relatedTo: [baseSummary(item.summary)],
 				});
 			}
 		}
 	});
+
+	fastRetry.subscribe(() => {}); // keepalive (COMPOSITION-GUIDE §1)
 
 	// --- Stage 7: REFLECT ---
 	// Strategy model is already updated in the fast-retry/verify effect above.
@@ -347,6 +411,8 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		gateControllers,
 		strategy,
 		verifyResults,
+		retryTracker,
+		reingestionTracker,
 	);
 
 	// Mount subgraphs

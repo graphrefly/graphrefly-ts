@@ -26,14 +26,8 @@ Goal: build the reactive collaboration harness and use it to manage the Wave 1 e
 #### 9.0 — Reactive Collaboration Loop
 
 > **Primitives:** DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.0-primitives`).
-
-##### Wiring
-
-- [ ] Eval→intake bridge — effect parsing `RunResult` into `IntakeItem[]` (per-criterion findings, not just per-task scores), publishes to intake topic
-- [ ] Strategy model — derived node over completed issues: `rootCause × intervention → { attempts, successes, successRate }`. Feeds back into triage promptNode for routing hints
-- [ ] Priority scoring template — configurable derived node using existing `decay()` from `src/patterns/memory.ts` + strategy model + developer-supplied signals (urgency, type bias, assignee load, etc.)
-- [ ] Fast-retry path (from Reflexion pattern) — conditional edge VERIFY→EXECUTE for self-correctable errors (config validation, parse failures), skipping full INTAKE→TRIAGE cycle. Max retries per item (default 2) to prevent loops
-- [ ] `harnessLoop()` factory — wires the static topology: intake topic → triage (promptNode) → 4 queue topics (auto-fix, needs-decision, investigation, backlog) → gates on configured channels → execute → verify (with fast-retry) → reflect (strategy model + hypothesis promptNode + distill via existing agentMemory)
+>
+> **Wiring:** DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.0-wiring`).
 
 ##### Dual composition mode
 

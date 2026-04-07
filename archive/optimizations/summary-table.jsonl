@@ -12,3 +12,5 @@
 {"id":"summary-12","optimization":"Production debug stripping","status":"Resolved (§3)","impact":"`sideEffects: false` + `process.env.NODE_ENV` gate; consumer bundlers strip","when_to_use":"Production builds"}
 {"id":"summary-13","optimization":"COMPLETE-all-deps semantics","status":"Resolved (§A)","impact":"Effect/operator default true; derived default false","when_to_use":"`completeWhenDepsComplete` option"}
 {"id":"summary-14","optimization":"`graph.disconnect` vs `NodeImpl` deps","status":"Resolved (§C)","impact":"Registry-only is the long-term contract","when_to_use":"Use `dynamicNode` for runtime rewiring"}
+{"id":"summary-15","optimization":"Per-node resource tracking / subscriber audit","status":"Proposed","impact":"Detect orphan effects (subscriberCount=0), unbounded log growth, activation counts","when_to_use":"Debugging factories with lazy-activation bugs, memory profiling long-running harness loops"}
+{"id":"summary-16","optimization":"Graph resource profile","status":"Proposed","impact":"graph.resourceProfile() walks all nodes: per-node stats + aggregate memory estimate","when_to_use":"Reactive DevTools direction — inspection-as-test-harness"}
