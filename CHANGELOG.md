@@ -1,3 +1,13 @@
+# [0.11.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.10.0...v0.11.0) (2026-04-07)
+
+
+### Features
+
+* 8.2 ([386a745](https://github.com/graphrefly/graphrefly-ts/commit/386a74542081909a4d37f4f9d7073d518fce8617))
+* add eval ([87f98a7](https://github.com/graphrefly/graphrefly-ts/commit/87f98a7ffd2eafa07c051be84eed166b2c1b0a15))
+* address optimizations ([e89b458](https://github.com/graphrefly/graphrefly-ts/commit/e89b4585b1e4088bdfeb7b1de8c9c0fd8409ebbb))
+* update descriptions ([977d94e](https://github.com/graphrefly/graphrefly-ts/commit/977d94ec3d5aeb12a9182b9732e93397d420f03e))
+
 # [0.10.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.9.0...v0.10.0) (2026-04-06)
 
 
