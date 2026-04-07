@@ -1,0 +1,9 @@
+name = "graphrefly-py-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Route: only /py/* requests on graphrefly.dev hit this Worker.
+# Everything else falls through to GitHub Pages (graphrefly-ts) via DNS.
+routes = [
+  { pattern = "graphrefly.dev/py/*", zone_name = "graphrefly.dev" }
+]

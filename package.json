@@ -237,6 +237,7 @@
 	"devDependencies": {
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@biomejs/biome": "2.4.6",
+		"@google/genai": "^1.48.0",
 		"@nestjs/common": "^11.1.17",
 		"@nestjs/core": "^11.1.17",
 		"@nestjs/platform-express": "^11.1.18",
@@ -274,6 +275,7 @@
 			"@biomejs/biome",
 			"@nestjs/core",
 			"esbuild",
+			"protobufjs",
 			"sharp"
 		]
 	}

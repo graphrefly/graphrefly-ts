@@ -3,7 +3,7 @@
  * These are the TypeScript runtime representations.
  */
 
-import type { ProviderName } from "./llm-client.js";
+export type ProviderName = "anthropic" | "openai" | "google" | "local";
 
 // --- Task types ---
 
@@ -120,6 +120,7 @@ export interface RubricAssertion {
 export interface EvalConfig {
 	provider: ProviderName;
 	model: string;
+	judgeProvider: ProviderName;
 	judgeModel: string;
 	specEvalsPath: string;
 	temperature: number;
@@ -132,6 +133,7 @@ import { join } from "node:path";
 export const DEFAULT_CONFIG: EvalConfig = {
 	provider: (process.env.EVAL_PROVIDER ?? "anthropic") as ProviderName,
 	model: process.env.EVAL_MODEL ?? "claude-sonnet-4-6",
+	judgeProvider: (process.env.EVAL_JUDGE_PROVIDER ?? "anthropic") as ProviderName,
 	judgeModel: process.env.EVAL_JUDGE_MODEL ?? "claude-sonnet-4-6",
 	specEvalsPath: process.env.SPEC_EVALS_PATH ?? join(homedir(), "src", "graphrefly", "evals"),
 	temperature: 0,

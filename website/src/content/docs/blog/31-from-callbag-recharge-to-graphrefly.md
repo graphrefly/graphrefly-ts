@@ -107,7 +107,7 @@ Beyond the architectural cleanup, GraphReFly adds capabilities that callbag-rech
 - **Agent memory** — `agentMemory()` with time-based decay (inspired by [OpenViking](https://github.com/volcengine/openviking)), retrieval, and consolidation for long-running AI agents.
 - **Worker bridge** — `workerBridge()` / `workerSelf()` for transparent cross-thread node communication.
 - **Backpressure** — `createWatermarkController()` with PAUSE/RESUME flow control.
-- **Python implementation** — [graphrefly-py](https://py.graphrefly.dev) conforming to the same behavioral spec.
+- **Python implementation** — [graphrefly-py](https://graphrefly.dev/py/api/) conforming to the same behavioral spec.
 
 ## The chronicle continues
 

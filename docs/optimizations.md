@@ -6,6 +6,10 @@
 
 ## Active work items
 
+- **PY `ReactiveMapBundle` parity — `.get(key)`, `.has(key)`, `.size` (noted 2026-04-07):**
+  - **Level A: DONE (2026-04-07).** Added `.get(key)`, `.has(key)`, `.size` to PY `ReactiveMapBundle` matching TS signatures. PY harness `strategy.py` updated to use `.get(key)` instead of Versioned navigation.
+  - **Level B: Deferred (post-1.0).** `ReactiveMapBundle.node` (TS) / `.data` (PY) emits `Versioned<{ map: ReadonlyMap<K,V> }>` / `Versioned(version, MappingProxyType)`. The `Versioned` wrapper is a protocol optimization (efficient RESOLVED dedup via version comparison) that leaks into composition code when using the node as a derived dep. **Proposed fix:** `.node` / `.data` emits the unwrapped map directly; version-based equality handled internally via `equals` option on the state node. Consumers see `ReadonlyMap<K,V>` / `MappingProxyType`, not `Versioned`. Breaking change — defer to post-1.0 audit of all `Versioned` usage.
+
 - **Whole-repo `emit` → `down` audit + `up` / backpressure / `message_tier` sweep (all phases, noted 2026-04-07):**
   - **TS: DONE (2026-04-07).** Renames: `emitWithBatch` → `downWithBatch`, `_emitToSinks` → `_downToSinks`, `_emitAutoValue` → `_downAutoValue`, `_boundEmitToSinks` → `_boundDownToSinks`, `_emitSequential` → `_downSequential`, `emitLine` → `flushLine` (reactive-layout). Batch param `emit` → `sink`. `up()` audit: no asymmetries found — all operators/sources correctly forward or inherit. `messageTier()` audit: already clean, zero hardcoded type checks. `NodeActions.emit()` kept (different semantics from `actions.down()`). CQRS `CommandActions.emit()` kept (domain concept). Spec updated (`_emitAutoValue` → `_downAutoValue`).
   - **PY: DONE (2026-04-07).** Renames: `emit_with_batch` → `down_with_batch`, `_emit_to_sinks` → `_down_to_sinks`, `_emit_auto_value` → `_down_auto_value`, `_emit_partition` → `_down_partition`, `_emit_sequential` → `_down_sequential`, `EmitStrategy` → `DownStrategy`, `emit_line` → `flush_line` (reactive-layout), internal closures renamed. `up()` audit: no asymmetries. `message_tier()` audit: already clean. `NodeActions.emit()` kept. CQRS `CommandActions.emit()` kept. `_manual_emit_used` / `_manual_emit` kept.
@@ -64,3 +68,7 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 | **`fromRedisStream` / `from_redis_stream` never emits COMPLETE** | Documented limitation (2026-04-03) | Long-lived stream consumers intentionally never complete. The consumer loop runs until teardown. This is expected behavior for persistent stream sources (same as Kafka). Document in JSDoc/docstrings. |
 | **`fromRedisStream` / `from_redis_stream` does not disconnect client** | Documented limitation (2026-04-03) | The caller owns the Redis client lifecycle. The adapter does not call `disconnect()` on teardown — the caller is responsible for closing the connection. Same contract as `fromKafka` (caller owns `consumer.connect()`/`disconnect()`). |
 | **PY `from_csv` / `from_ndjson` thread not joined on cleanup** | Documented limitation (2026-04-03) | Python file-ingest adapters run in a daemon thread. On teardown, `active[0] = False` signals the thread to exit but does not `join()` it. The daemon flag ensures the thread does not block process exit. A future optimization could add optional `join(timeout)` on cleanup for stricter resource control. |
+
+### Intentional cross-language divergences
+
+Archived to `archive/optimizations/cross-language-notes.jsonl` (entries with `id` prefix `divergence-`). The `/parity` and `/qa` skills read the archive to avoid re-raising confirmed divergences.

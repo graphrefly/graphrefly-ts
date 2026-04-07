@@ -42,6 +42,7 @@ export async function judgeAssertion(
 			model: config.judgeModel,
 		},
 		config,
+		config.judgeProvider,
 	);
 
 	try {

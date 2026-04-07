@@ -81,12 +81,12 @@ Both `sync-docs` and `docs:gen` run automatically on `pnpm dev` and `pnpm build`
 
 ## Site architecture & domains
 
-| Domain | Repo | Framework | Content |
-|--------|------|-----------|---------|
-| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | TS API docs, spec, blog, comparisons |
-| `py.graphrefly.dev` | graphrefly-py | Astro/Starlight | Python API docs, spec, Pyodide lab |
+| URL | Repo | Framework | Content |
+|-----|------|-----------|---------|
+| `graphrefly.dev` | graphrefly-ts | Astro/Starlight | Unified site: homepage, TS API docs, spec, blog, comparisons |
+| `graphrefly.dev/py/` | graphrefly-py | Astro/Starlight | Python API docs, Pyodide lab (proxied via Cloudflare Worker) |
 
-Both sites share the same Starlight theme with a `[TS] [PY]` language switcher in the header nav. DNS is on Cloudflare (proxy + CDN); hosting is GitHub Pages with GitHub Actions deployment.
+One unified site at `graphrefly.dev`. The `[TS] [PY]` header nav links to `/py/api/` for Python-specific reference. The Python site is built from `graphrefly-py` with `base: /py/` and served via a Cloudflare Worker that proxies `/py/*` requests to `graphrefly-py`'s GitHub Pages. DNS is on Cloudflare (proxy + CDN); hosting is GitHub Pages with GitHub Actions deployment.
 
 **Single source of truth for public assets:** `robots.txt` and `llms.txt` live at the repo root and are copied to `website/public/` by `sync-docs.mjs`. Do not edit the copies in `website/public/` — they are gitignored and regenerated on every build.
 

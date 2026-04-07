@@ -18,9 +18,17 @@ const base = import.meta.env.BASE_URL;
   <p class="gr-hero-sub">
     Describe agent workflows in plain language. Review them visually. Run them persistently. Trace every decision back to its cause. GraphReFly is the reactive harness layer between your LLM and production — causally explainable, policy-enforced, zero dependencies.
   </p>
-  <div class="gr-hero-install" data-copy="npm i @graphrefly/graphrefly" title="Click to copy">
+  <div class="gr-hero-lang-switcher">
+    <button class="gr-lang-pill gr-lang-active" data-lang="ts">TypeScript</button>
+    <button class="gr-lang-pill" data-lang="py">Python</button>
+  </div>
+  <div class="gr-hero-install" data-copy="npm i @graphrefly/graphrefly" title="Click to copy" data-lang-target="ts">
     <span class="gr-prompt">$</span>
     <span>npm i @graphrefly/graphrefly</span>
+  </div>
+  <div class="gr-hero-install gr-hero-install--hidden" data-copy="pip install graphrefly" title="Click to copy" data-lang-target="py">
+    <span class="gr-prompt">$</span>
+    <span>pip install graphrefly</span>
   </div>
 </section>
 
@@ -202,7 +210,7 @@ const base = import.meta.env.BASE_URL;
   <p class="gr-section-num">Ship It</p>
   <h2 class="gr-section-headline">It exists.</h2>
   <p class="gr-cta-sub">
-    The reactive harness layer is live. TypeScript and Python. Zero dependencies. Tree-shakeable. One primitive.
+    One protocol. Two runtimes. TypeScript and Python, same spec, same guarantees. Zero dependencies. Tree-shakeable. One primitive.
   </p>
 
   <div class="gr-cta-actions">
@@ -225,7 +233,8 @@ const base = import.meta.env.BASE_URL;
 <footer class="gr-footer">
   <span class="gr-footer-logo">GraphReFly</span>
   <div class="gr-footer-links">
-    <a href="https://github.com/graphrefly/graphrefly-ts">GitHub</a>
+    <a href="https://github.com/graphrefly/graphrefly-ts">GitHub (TS)</a>
+    <a href="https://github.com/graphrefly/graphrefly-py">GitHub (PY)</a>
     <a href={`${base}spec/`}>Spec</a>
     <a href={`${base}api/node/`}>API</a>
   </div>
@@ -340,6 +349,24 @@ const base = import.meta.env.BASE_URL;
 .gr-hero-install:hover { background: var(--gr-accent); color: var(--gr-black); border-color: var(--gr-accent); }
 .gr-prompt { color: var(--gr-muted); user-select: none; }
 .gr-hero-install:hover .gr-prompt { color: var(--gr-black); opacity: 0.5; }
+.gr-hero-install--hidden { display: none !important; }
+
+.gr-hero-lang-switcher {
+  display: inline-flex; gap: 0; margin-bottom: 1rem;
+  border: 2px solid var(--gr-muted-20);
+}
+.gr-lang-pill {
+  padding: 0.45rem 1.2rem; border: none; background: transparent;
+  font-family: 'Instrument Sans', sans-serif; font-weight: 900;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--gr-muted); cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.gr-lang-pill:first-child { border-right: 2px solid var(--gr-muted-20); }
+.gr-lang-pill:hover { color: var(--gr-white); }
+.gr-lang-pill.gr-lang-active {
+  background: var(--gr-accent); color: var(--gr-black);
+}
 
 
 /* ═══ HEADACHES ═══ */
@@ -979,6 +1006,19 @@ document.querySelectorAll('.gr-core-row').forEach(row => {
     row.classList.toggle('active');
     const icon = row.querySelector('.gr-core-icon');
     if (icon) icon.innerHTML = row.classList.contains('active') ? '\u2713' : '\u2717';
+  });
+});
+
+
+/* ═══ LANG SWITCHER ═══ */
+document.querySelectorAll('.gr-lang-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const lang = pill.dataset.lang;
+    document.querySelectorAll('.gr-lang-pill').forEach(p => p.classList.remove('gr-lang-active'));
+    pill.classList.add('gr-lang-active');
+    document.querySelectorAll('[data-lang-target]').forEach(el => {
+      el.classList.toggle('gr-hero-install--hidden', el.dataset.langTarget !== lang);
+    });
   });
 });
 

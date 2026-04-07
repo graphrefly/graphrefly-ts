@@ -14,9 +14,9 @@
 
 import { join } from "node:path";
 import { runContrastiveEval } from "../lib/contrastive.js";
-import type { ProviderName } from "../lib/llm-client.js";
 import { printSummary, writeResults } from "../lib/reporter.js";
 import { runComprehensionEval, runLLMDXEval } from "../lib/runner.js";
+import type { ProviderName } from "../lib/types.js";
 import { DEFAULT_CONFIG, type EvalConfig } from "../lib/types.js";
 
 interface ModelEntry {

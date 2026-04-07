@@ -723,6 +723,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		for (const m of messages) {
 			const t = m[0];
 			if (t === DATA) {
+				if (m.length < 2) {
+					// GRAPHREFLY-SPEC §1.2: bare [DATA] without payload is a protocol violation.
+					continue;
+				}
 				this._cached = m[1] as T;
 				if (this._versioning != null) {
 					advanceVersion(this._versioning, m[1], this._hashFn);

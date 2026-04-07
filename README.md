@@ -7,7 +7,7 @@ You're buried under emails, alerts, feeds, and messages. You can't process it al
 [![npm](https://img.shields.io/npm/v/@graphrefly/graphrefly?color=blue)](https://www.npmjs.com/package/@graphrefly/graphrefly)
 [![license](https://img.shields.io/github/license/graphrefly/graphrefly-ts)](./LICENSE)
 
-[Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python](https://py.graphrefly.dev) | [API Reference](https://graphrefly.dev/api/node/)
+[Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python API](https://graphrefly.dev/py/api/) | [API Reference](https://graphrefly.dev/api/node/)
 
 ---
 

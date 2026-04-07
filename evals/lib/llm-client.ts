@@ -11,7 +11,7 @@
  *   - Local:     uses `openai` SDK with custom baseURL (Ollama-compatible)
  */
 
-import type { EvalConfig } from "./types.js";
+import type { EvalConfig, ProviderName } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -214,7 +214,8 @@ export class LocalProvider implements LLMProvider {
 // Factory
 // ---------------------------------------------------------------------------
 
-export type ProviderName = "anthropic" | "openai" | "google" | "local";
+// re-export for backward compat
+export type { ProviderName } from "./types.js";
 
 export function createProvider(config: EvalConfig): LLMProvider {
 	const name = config.provider;
@@ -236,16 +237,26 @@ export function createProvider(config: EvalConfig): LLMProvider {
 // Convenience wrapper (backward-compatible)
 // ---------------------------------------------------------------------------
 
-/** Provider instances cached per config identity. */
-let _cachedProvider: LLMProvider | undefined;
-let _cachedProviderName: string | undefined;
+/** Provider instances cached by provider name. */
+const _providerCache = new Map<string, LLMProvider>();
 
-export async function callLLM(req: LLMRequest, config: EvalConfig): Promise<LLMResponse> {
-	if (!_cachedProvider || _cachedProviderName !== config.provider) {
-		_cachedProvider = createProvider(config);
-		_cachedProviderName = config.provider;
+function getProvider(config: EvalConfig, providerName?: ProviderName): LLMProvider {
+	const name = providerName ?? config.provider;
+	let provider = _providerCache.get(name);
+	if (!provider) {
+		const overrideConfig = name === config.provider ? config : { ...config, provider: name };
+		provider = createProvider(overrideConfig);
+		_providerCache.set(name, provider);
 	}
-	return _cachedProvider.generate(req);
+	return provider;
+}
+
+export async function callLLM(
+	req: LLMRequest,
+	config: EvalConfig,
+	providerOverride?: ProviderName,
+): Promise<LLMResponse> {
+	return getProvider(config, providerOverride).generate(req);
 }
 
 // ---------------------------------------------------------------------------

@@ -78,8 +78,8 @@ pnpm eval:compare evals/results/baseline.json evals/results/current.json
 | Provider | Env var | SDK | Budget models | Publish models |
 |---|---|---|---|---|
 | `anthropic` (default) | `ANTHROPIC_API_KEY` | `@anthropic-ai/sdk` | Haiku 4.5 | Sonnet 4.6 / Opus 4.6 |
-| `openai` | `OPENAI_API_KEY` | `openai` | GPT-4o-mini | GPT-4o / GPT-4.1 |
-| `google` | `GOOGLE_API_KEY` | `@google/genai` | Gemini Flash | Gemini Pro |
+| `openai` | `OPENAI_API_KEY` | `openai` | gpt-5.4-mini | gpt-5.4 / gpt-4.1 |
+| `google` | `GOOGLE_API_KEY` | `@google/genai` | gemini-2.5-flash | gemini-2.5-pro / gemini-3.1-pro-preview |
 | `local` | — | `openai` (Ollama) | Gemma 4 12B | Gemma 4 27B |
 
 **Configuration (env vars):**
@@ -88,7 +88,8 @@ pnpm eval:compare evals/results/baseline.json evals/results/current.json
 |---|---|---|
 | `EVAL_PROVIDER` | `anthropic` | LLM provider |
 | `EVAL_MODEL` | `claude-sonnet-4-6` | Model for generation tasks |
-| `EVAL_JUDGE_MODEL` | (same as EVAL_MODEL) | Model for LLM-as-judge scoring |
+| `EVAL_JUDGE_PROVIDER` | `anthropic` | Provider for judge model (can differ from EVAL_PROVIDER) |
+| `EVAL_JUDGE_MODEL` | `claude-sonnet-4-6` | Model for LLM-as-judge scoring |
 | `EVAL_MODELS` | — | Comma-separated model list for matrix runs |
 | `EVAL_PROVIDERS` | — | Comma-separated provider per model (for matrix) |
 | `EVAL_LOCAL_BASE_URL` | `http://localhost:11434/v1` | Base URL for local provider (Ollama) |
@@ -101,7 +102,7 @@ Scorecards are written to `evals/scorecard/latest.{json,md}`.
 
 ```bash
 # Run across three providers
-EVAL_MODELS="claude-sonnet-4-6,gpt-4o-mini,gemma4:27b" \
+EVAL_MODELS="claude-sonnet-4-6,gpt-5.4-mini,gemma4:27b" \
 EVAL_PROVIDERS="anthropic,openai,local" \
 pnpm eval:matrix
 
@@ -171,7 +172,7 @@ pnpm eval
 ### What to expect
 
 - **Speed:** ~2-5x slower than cloud APIs on M1 Pro. Budget 10-30 min for a full run.
-- **Quality:** Local 27B models score lower than Sonnet/GPT-4o on structured JSON output,
+- **Quality:** Local 27B models score lower than Sonnet/GPT-4.1 on structured JSON output,
   but the eval harness handles this gracefully (invalid outputs are scored, not crashed).
 - **Cost:** $0. Token counts are tracked but cost is reported as $0.00 for local models.
 - **Judge model:** By default the same local model judges its own output. For higher-quality

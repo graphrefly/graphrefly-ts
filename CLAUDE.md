@@ -7,6 +7,8 @@
 | Doc | Role |
 |-----|------|
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
+| `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — 坑, patterns, recipes for Phase 4+ factory authors. Read before building factories that compose primitives. |
+| `~/src/graphrefly/composition-guide.jsonl` | Machine-readable composition entries (appendable) |
 | `docs/roadmap.md` | Phased implementation checklist |
 | `docs/docs-guidance.md` | How to document APIs and long-form docs |
 | `docs/test-guidance.md` | How to write and organize tests |

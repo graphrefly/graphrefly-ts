@@ -105,8 +105,7 @@ function drainPending(): void {
 	if (ownsFlush) {
 		flushInProgress = true;
 	}
-	let firstError: unknown;
-	let hasError = false;
+	const errors: unknown[] = [];
 	try {
 		let iterations = 0;
 		// Drain phase-2 first, then phase-3. If phase-3 callbacks enqueue new
@@ -128,10 +127,7 @@ function drainPending(): void {
 					try {
 						run();
 					} catch (e) {
-						if (!hasError) {
-							firstError = e;
-							hasError = true;
-						}
+						errors.push(e);
 					}
 				}
 			}
@@ -150,10 +146,7 @@ function drainPending(): void {
 					try {
 						run();
 					} catch (e) {
-						if (!hasError) {
-							firstError = e;
-							hasError = true;
-						}
+						errors.push(e);
 					}
 				}
 			}
@@ -163,8 +156,11 @@ function drainPending(): void {
 			flushInProgress = false;
 		}
 	}
-	if (hasError) {
-		throw firstError;
+	if (errors.length === 1) {
+		throw errors[0];
+	}
+	if (errors.length > 1) {
+		throw new AggregateError(errors, "batch drain: multiple callbacks threw");
 	}
 }
 
