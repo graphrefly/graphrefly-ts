@@ -35,10 +35,10 @@ Supports both graph-subgraph (tight coupling, same propagation cycle) and cursor
 
 ##### Dogfood on 9.1b
 
-- [ ] Wire 9.1b eval runs through the harness loop
-- [ ] Human steering through `gate.modify()` with structured `rootCause`/`intervention` metadata
-- [ ] Strategy model accumulates effectiveness data across treatments A→D
-- [ ] Retrospective distills into `agentMemory` for next session context
+- [x] Wire 9.1b eval runs through the harness loop
+- [x] Human steering through `gate.modify()` with structured `rootCause`/`intervention` metadata
+- [x] Strategy model accumulates effectiveness data across treatments A→D
+- [x] Retrospective distills into `agentMemory` for next session context
 
 ##### Closed-loop automation (eval → harness → implement → verify → re-eval)
 
@@ -162,6 +162,88 @@ This connects §9.0 (harness) with §9.8 (refineLoop) — the harness routes ite
 - [ ] **`refineExecutor(refineLoopFactory, opts?)`** — adapter that plugs a refineLoop into the EXECUTE slot of harnessLoop. Maps triaged item → seed, affected evals → evaluator, strategy model → refinement strategy selection.
 
 **Design principle:** each composition is 5-20 lines of wiring, not a new factory. The building blocks above are the nodes and edges; the user's `harnessLoop` config determines which are active. We provide the Lego pieces and a few pre-assembled models (our own dogfood). The user remixes for their domain.
+
+---
+
+### §9.0b — Mid-Level Harness Blocks (between Wave 0 and Wave 1)
+
+Goal: composed building blocks between raw primitives and `harnessLoop()`. Power users compose custom harness variants without wiring 5+ primitives per requirement. `harnessLoop()` uses these internally.
+
+**Design reference:** `archive/docs/SESSION-mid-level-harness-blocks.md`
+
+**Design principle:** The library produces structured, reactive data. It never generates natural language — that's the LLM's or UI's job. All block outputs are typed nodes, composable with any downstream consumer.
+
+#### graphLens() — reactive graph observability
+
+Small subgraph that rides on a target graph via `bridge()`. Each field is a reactive node — subscribable, composable with gates, alerts, memory.
+
+```typescript
+const lens = graphLens(graph)
+lens.topology   // Node<TopologyStats> — nodeCount, edgeCount, sources, sinks, depth, hasCycles
+lens.health     // Node<HealthReport> — { ok, problems: [{ node, status, since, upstreamCause? }] }
+lens.flow       // Node<FlowStats> — per-node throughput, lastUpdate, staleSince?, bottlenecks[]
+lens.why(node)  // Node<CausalChain> — reactive explainPath subscription (live, not one-shot)
+```
+
+- [ ] `TopologyStats` derived node — computed from `describe()`, pushes on topology change
+- [ ] `HealthReport` derived node — aggregates node statuses, identifies upstream causes
+- [ ] `FlowStats` derived node — rolling-window throughput per node, stale detection, bottleneck identification
+- [ ] `why(node)` — reactive `explainPath` wrapper. Works after §9.2 ships; topology/health/flow work without it
+- [ ] `graphLens()` factory — wires all four as a mounted subgraph via `bridge()`
+
+#### resilientPipeline() — resilience composition with correct ordering
+
+Encodes the nesting order discovered during eval runs: `rateLimiter → breaker → retry → timeout → fallback → cache feedback → status`.
+
+```typescript
+const step = resilientPipeline(graph, targetNode, {
+  retry: { max: 3 },
+  backoff: { strategy: 'exponential', base: 1000 },
+  breaker: { threshold: 5, resetAfter: 30_000 },
+  timeout: 10_000,
+  budget: { maxTokens: 50_000 },
+})
+```
+
+- [ ] `resilientPipeline()` factory — composes retry + backoff + withBreaker + timeout + budgetGate in correct order
+- [ ] All options optional with sensible defaults — omit what you don't need
+- [ ] Status node exposed: `step.status` — `Node<'ok' | 'retrying' | 'open-circuit' | 'timeout'>` for wiring into graphLens or dashboards
+- [ ] Subsumes `resilientFetch` template (§9.1b) — template becomes a preconfigured instance
+
+#### guardedExecution() — composable safety layer
+
+Wraps any subgraph with ABAC + policy + budgetGate. Returns scoped view (actor sees only what they're allowed to).
+
+```typescript
+const guarded = guardedExecution(graph, subgraph, {
+  actor: currentUser,
+  policies: [allow('read', '*'), deny('write', 'system:*')],
+  budget: { maxCost: 1.00 },
+})
+```
+
+- [ ] `guardedExecution()` factory — composes Actor/Guard + `policyFromRules()` + `budgetGate`
+- [ ] Scoped `describe()` — returns only nodes the actor can see
+- [ ] Violation events emitted to alert subgraph (composable with `graphLens().health`)
+- [ ] Depends on: Actor/Guard (Phase 1.5, done), `policyEnforcer` (§9.2)
+
+#### persistentState() — survive restarts in one call
+
+Bundles autoCheckpoint + snapshot + restore + incremental diff.
+
+```typescript
+const persistent = persistentState(graph, {
+  store: sqliteStore('./data/checkpoint.db'),
+  debounce: 500,
+  incremental: true,  // uses Graph.diff() for delta checkpoints
+})
+```
+
+- [ ] `persistentState()` factory — composes autoCheckpoint + snapshot + restore
+- [ ] Incremental mode using `Graph.diff()` for delta checkpoints (existing)
+- [ ] Auto-saves gated by `messageTier >= 2` (per CLAUDE.md auto-checkpoint rule)
+- [ ] `persistent.save()` / `persistent.restore()` for manual control
+- [ ] Depends on: autoCheckpoint (Phase 1.4b, done), Graph.diff() (done)
 
 ---
 
@@ -340,6 +422,130 @@ streamingPromptNode
 
 ---
 
+### Inspection Tool Consolidation (cross-cutting, TS + PY)
+
+Goal: reduce the inspection surface from 14+ exported tools to 9 with clear, non-overlapping responsibilities. Pre-1.0 — breaking changes, no aliases or legacy shims.
+
+**Design principle:** 3 verbs (`describe`, `observe`, `trace`), 2 profilers (`graphProfile`, `harnessProfile`), 2 analyzers (`diff`, `reachable`), 1 reactive primitive (`filter | take`), 1 harness helper (`harnessTrace`).
+
+#### TS consolidation (breaking)
+
+##### Merge `spy()` into `observe()`
+
+`spy()` is `observe({ structured: true })` + a pretty-print logger. Merge it as a format option on `observe()`.
+
+```ts
+// Before (two APIs):
+graph.spy({ path: "foo", format: "pretty" })
+graph.observe("foo", { structured: true, timeline: true })
+
+// After (one API):
+graph.observe("foo", { format: "pretty" })   // replaces spy()
+graph.observe("foo", { structured: true })    // existing
+```
+
+- [ ] Add `format?: "pretty" | "json"` option to `observe()` — when set, auto-enables structured mode and attaches logger
+- [ ] Remove `spy()` method from `Graph`
+- [ ] Update demo-shell + tests to use `observe({ format })` **S**
+
+##### Merge `annotate()` + `traceLog()` into `trace()`
+
+One method, two overloads: write annotations and read the ring buffer.
+
+```ts
+graph.trace("path", "reason")   // write (replaces annotate)
+graph.trace()                   // read all (replaces traceLog)
+```
+
+- [ ] Add `trace()` method with overloaded signature
+- [ ] Remove `annotate()` and `traceLog()` from `Graph`
+- [ ] Update demo-shell + tests **S**
+
+##### Consolidate RxJS observable bridge
+
+4 functions (`observeNode$`, `observeGraph$`, `toMessages$`, `toObservable`) doing the same thing with different output shapes. Consolidate to one:
+
+```ts
+toObservable(node)                    // values (default)
+toObservable(node, { raw: true })     // raw messages
+```
+
+Graph-level observation: `toObservable(graph.observe("*"))` — no separate `observeGraph$` needed.
+
+- [ ] Merge into single `toObservable(source, opts?)` in `extra/observable.ts`
+- [ ] Remove `observeNode$`, `observeGraph$`, `toMessages$`
+- [ ] Update nestjs compat to use consolidated API **S**
+
+##### Stop exporting internal plumbing
+
+- [ ] Remove `describeNode` and `metaSnapshot` from `core/index.ts` public exports (keep as internal, used only by `describe()`) **S**
+
+#### PY consolidation (match TS)
+
+Apply same merges to PY — `spy()` → `observe(format=)`, `trace_log()` → `trace()`, unexport `describe_node` / `meta_snapshot`.
+
+- [ ] Merge `spy()` into `observe(format=)` **S**
+- [ ] Add `trace()` (write + read overload), merge `trace_log()` into it **S**
+- [ ] Unexport `describe_node`, `meta_snapshot` from public API **S**
+
+#### PY new tools
+
+##### `Graph.diff()` — snapshot diffing (port from TS)
+
+Static method on `Graph`. Computes structural + value diff between two `describe()` snapshots. Returns `GraphDiffResult` with `nodes_added`, `nodes_removed`, `nodes_changed`, `edges_added`, `edges_removed`.
+
+- [ ] Port `Graph.diff()` from TS to PY **S**
+
+##### `harness_trace()` — pipeline stage trace
+
+Attaches reactive listeners (via `observe(format="pretty")`) to all 7 harness stages. One call gives full pipeline visibility:
+
+```
+[0.000s] INTAKE    ← "T5: resilience ordering wrong" (source=eval, severity=high)
+[0.312s] TRIAGE    → route=needs-decision, rootCause=unknown
+[0.312s] QUEUE     → needs-decision (depth: 1)
+[0.850s] GATE      ▶ modify() → rootCause=composition, intervention=template
+[1.102s] EXECUTE   → outcome=success
+[1.305s] VERIFY    → verified=true
+[1.305s] STRATEGY  → upsert composition→template (1/1 = 100%)
+```
+
+- [ ] Implement `harness_trace(harness, logger=print)` → `dispose()` — wires `observe()` to harness stage nodes **S**
+
+##### Runner `__repr__` — diagnostic visibility
+
+Add pending task counter and `__repr__` to runner implementations. Surfaces in assertion failure messages and `harness_profile()` output. No new exported function — just better diagnostics when things fail.
+
+- [ ] Add `_scheduled`/`_completed` counters + `__repr__` to `_ThreadRunner` and `AsyncioRunner` **S**
+
+#### TS new tools (parity)
+
+##### `harnessTrace()` — same as PY
+
+- [ ] Implement `harnessTrace(harness, logger?)` → `dispose()` in `src/patterns/harness/trace.ts` **S**
+
+##### Runner diagnostic `__repr__` / `toString()`
+
+- [ ] Add pending counters + `toString()` to TS runner implementations **S**
+
+#### Final surface (both languages)
+
+| Tool | Type | Responsibility |
+|------|------|----------------|
+| `describe()` | Graph method | Structure snapshot (topology, types, values) |
+| `observe()` | Graph method | Live events + pretty-print (absorbs spy) |
+| `trace()` | Graph method | Write reasoning annotations + read ring buffer (absorbs annotate + traceLog) |
+| `graphProfile()` | Function | Memory & connectivity profiling |
+| `harnessProfile()` | Function | Harness domain profiling (extends graphProfile) |
+| `diff()` | Static method | Compare two describe snapshots |
+| `reachable()` | Function | Upstream/downstream graph traversal |
+| `filter() \| take()` | Operators | Reactive composition for "first value where…" (replaces polling `_wait_for`) |
+| `harnessTrace()` | Function | Pipeline stage-level trace (wires observe to all stages) |
+
+9 tools, no overlaps, no memorization burden. Internals (`describeNode`, `metaSnapshot`, `sizeof`) stay internal.
+
+---
+
 ### Wave 2.5: Prompt & Catalog Optimization (Weeks 7-9)
 
 Goal: generalize the catalog auto-refine loop (9.1b) into a reactive prompt optimization framework. The optimization loop itself is a Graph — observable, checkpointable, causally traceable.
@@ -488,7 +694,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 - [ ] `observe({ structured/causal/timeline: true })` correctness under concurrent updates
 - [ ] `Graph.diff()` performance on 500-node graphs (<10ms)
 - [ ] `toMermaid()` output validity (parseable by mermaid-js)
-- [ ] `traceLog()` ring buffer wrap correctness
+- [ ] `trace()` ring buffer wrap correctness
 - [ ] Cross-factory composition: mounted subgraphs don't interfere
 - [ ] Guard bypass attempts (`.down()` without actor)
 - [ ] `snapshot()` during batch drain (consistent, never partial)
@@ -503,6 +709,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 - [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant
 - [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()`. **Partially done:** scenario-scripted `mockLLM` with stage detection, call recording, per-stage cycling, and `callsFor(stage)` inspection exists in `src/__tests__/helpers/mock-llm.ts`. Needs promotion to a public library export (e.g. `src/patterns/testing.ts` or `src/testing/mock-llm.ts`) so any developer testing AI patterns can use it.
 - [ ] **Time simulation** — `monotonicNs()` test-mode override for `vi.useFakeTimers()` integration
+- [ ] **`restoreGraphAutoCheckpoint(graph, adapter)`** — restore counterpart for `autoCheckpoint`. Currently `autoCheckpoint` saves `GraphCheckpointRecord` (`{mode, snapshot, seq}`) but `restoreGraphCheckpoint` expects bare `GraphPersistSnapshot` — the shapes are incompatible. Need a restore function that unwraps `GraphCheckpointRecord`, applies diff-mode records, and feeds the snapshot to `graph.restore()`. Discovered during QA of `run-harness.ts` where `tiers.archiveAdapter` + manual `saveGraphCheckpoint` created a dual-writer collision on the same key.
 
 ### Phase 8.4 — Audit & accountability
 

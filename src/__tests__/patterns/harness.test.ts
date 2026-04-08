@@ -969,6 +969,67 @@ describe("harnessLoop with mockLLM", () => {
 		);
 	});
 
+	it("gate.modify() overrides rootCause/intervention before forwarding", async () => {
+		const mock = mockLLM({
+			stages: {
+				triage: {
+					responses: [
+						{
+							rootCause: "unknown",
+							intervention: "investigate",
+							route: "needs-decision",
+							priority: 60,
+						},
+					],
+				},
+				execute: { responses: [{ outcome: "success", detail: "Fixed with template" }] },
+				verify: { responses: [{ verified: true, findings: ["ok"] }] },
+			},
+		});
+
+		const harness = harnessLoop("mock-gate-modify", { adapter: mock });
+
+		harness.intake.publish({
+			source: "eval",
+			summary: "T5: resilience ordering wrong",
+			evidence: "wrong order in retry stack",
+			affectsAreas: ["graphspec"],
+			severity: "high",
+		});
+
+		// Wait for the item to arrive at the needs-decision gate
+		await vi.waitFor(
+			() => {
+				const queue = harness.queues.get("needs-decision")!;
+				expect(queue.retained().length).toBeGreaterThanOrEqual(1);
+			},
+			{ timeout: 5000, interval: 50 },
+		);
+
+		const gateCtrl = harness.gates.get("needs-decision")!;
+
+		// Human steering: override triage classification with structured metadata
+		gateCtrl.modify((item: TriagedItem) => ({
+			...item,
+			rootCause: "composition",
+			intervention: "template",
+		}));
+
+		// Wait for modified item to flow through execute → verify → strategy.
+		// Check both presence of override AND absence of original in one predicate
+		// to avoid a race where the original entry is still in-flight.
+		await vi.waitFor(
+			() => {
+				expect(harness.strategy.lookup("composition", "template")).toBeDefined();
+				expect(harness.strategy.lookup("unknown", "investigate")).toBeUndefined();
+			},
+			{ timeout: 5000, interval: 50 },
+		);
+
+		const entry = harness.strategy.lookup("composition", "template")!;
+		expect(entry.successes).toBeGreaterThanOrEqual(1);
+	});
+
 	it("harnessProfile inspects node states and memory", async () => {
 		const mock = mockLLM({
 			stages: {

@@ -8,7 +8,7 @@
  * @module
  */
 
-import { DATA } from "../../core/messages.js";
+import { DATA, DIRTY } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
@@ -384,7 +384,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			itemRetries < maxRetries &&
 			(totalRetries.get() ?? 0) < maxTotalRetries
 		) {
-			totalRetries.down([[DATA, (totalRetries.get() ?? 0) + 1]]);
+			totalRetries.down([[DIRTY], [DATA, (totalRetries.get() ?? 0) + 1]]);
 			const key = trackingKey(item);
 			const retryItem: TriagedItem = {
 				...item,
@@ -404,7 +404,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 				itemReingestions < maxReingestions &&
 				(totalReingestions.get() ?? 0) < maxTotalReingestions
 			) {
-				totalReingestions.down([[DATA, (totalReingestions.get() ?? 0) + 1]]);
+				totalReingestions.down([[DIRTY], [DATA, (totalReingestions.get() ?? 0) + 1]]);
 				intake.publish({
 					source: "eval",
 					summary: `Verification failed for: ${key}`,
