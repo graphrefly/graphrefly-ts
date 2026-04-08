@@ -1,3 +1,10 @@
+# [0.17.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.16.0...v0.17.0) (2026-04-08)
+
+
+### Features
+
+* add tests for harness loop ([1885179](https://github.com/graphrefly/graphrefly-ts/commit/188517983c0d4eea9855ef4a35fcc31da6e92375))
+
 # [0.16.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.15.0...v0.16.0) (2026-04-08)
 
 
