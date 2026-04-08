@@ -17,8 +17,8 @@ describe("cqrs — roadmap §4.5", () => {
 		const app = cqrs("test");
 		const evtNode = app.event("orderPlaced");
 		expect(evtNode).toBeDefined();
-		const snap = evtNode.get() as { value: { entries: unknown[] } };
-		expect(snap.value.entries).toEqual([]);
+		const entries = evtNode.get() as readonly unknown[];
+		expect(entries).toEqual([]);
 		app.destroy();
 	});
 
@@ -73,12 +73,10 @@ describe("cqrs — roadmap §4.5", () => {
 		});
 		app.dispatch("placeOrder", { id: "order-1" });
 
-		const snap = app.event("orderPlaced").get() as {
-			value: { entries: CqrsEvent[] };
-		};
-		expect(snap.value.entries).toHaveLength(1);
-		expect(snap.value.entries[0].type).toBe("orderPlaced");
-		expect(snap.value.entries[0].payload).toEqual({ orderId: "order-1" });
+		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		expect(entries).toHaveLength(1);
+		expect(entries[0].type).toBe("orderPlaced");
+		expect(entries[0].payload).toEqual({ orderId: "order-1" });
 		app.destroy();
 	});
 
@@ -115,10 +113,8 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("orderPlaced", payload);
 		});
 		app.dispatch("placeOrder", { id: "1" });
-		const snap = app.event("orderPlaced").get() as {
-			value: { entries: CqrsEvent[] };
-		};
-		const evt = snap.value.entries[0];
+		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		const evt = entries[0];
 		expect(evt.timestampNs).toBeGreaterThan(0);
 		expect(evt.seq).toBe(1);
 		app.destroy();
@@ -132,11 +128,9 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("orderPlaced", payload);
 		});
 		app.dispatch("placeOrder", { id: "1" });
-		const snap = app.event("orderPlaced").get() as {
-			value: { entries: CqrsEvent[] };
-		};
-		expect(snap.value.entries[0].v0).toBeDefined();
-		expect(snap.value.entries[0].v0!.id).toBeTypeOf("string");
+		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		expect(entries[0].v0).toBeDefined();
+		expect(entries[0].v0!.id).toBeTypeOf("string");
 		app.destroy();
 	});
 
@@ -149,10 +143,10 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("b", 2);
 		});
 		app.dispatch("cmd", {});
-		const snapA = app.event("a").get() as { value: { entries: CqrsEvent[] } };
-		const snapB = app.event("b").get() as { value: { entries: CqrsEvent[] } };
-		expect(snapA.value.entries[0].seq).toBe(1);
-		expect(snapB.value.entries[0].seq).toBe(2);
+		const entriesA = app.event("a").get() as readonly CqrsEvent[];
+		const entriesB = app.event("b").get() as readonly CqrsEvent[];
+		expect(entriesA[0].seq).toBe(1);
+		expect(entriesB[0].seq).toBe(2);
 		app.destroy();
 	});
 

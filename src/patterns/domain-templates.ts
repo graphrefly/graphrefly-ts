@@ -17,7 +17,7 @@ import { batch } from "../core/batch.js";
 import { DATA } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
-import { type ReactiveLogSnapshot, reactiveLog } from "../extra/reactive-log.js";
+import { reactiveLog } from "../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
 import { feedback, type StratifyRule, scorer, stratify } from "./reduction.js";
 
@@ -483,7 +483,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		}
 	});
 	g.add("__review_accumulator", reviewAccumulator as Node<unknown>);
-	keepalive(reviewAccumulator as Node<unknown>);
+	g.addDisposer(keepalive(reviewAccumulator as Node<unknown>));
 	try {
 		g.connect("stratify::branch/review", "__review_accumulator");
 	} catch {
@@ -544,8 +544,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	const fbCondition = derived<unknown>(
 		[reviewLog.entries as Node, policy as Node],
 		(vals) => {
-			const snap = vals[0] as ReactiveLogSnapshot<ModerationResult> | null;
-			const entries = snap?.value?.entries;
+			const entries = vals[0] as readonly ModerationResult[] | null;
 			if (entries && entries.length > 0) {
 				const latest = entries[entries.length - 1];
 				// Items explicitly marked as false positive feed back

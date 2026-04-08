@@ -238,9 +238,9 @@ describe("patterns.ai.fromLLMStream", () => {
 			const unsub = result.subscribe((messages) => {
 				for (const msg of messages) {
 					if (msg[0] === DATA) {
-						const snapshot = msg[1] as { value: { entries: readonly string[] } };
-						if (snapshot.value.entries.length === chunks.length) {
-							expect(snapshot.value.entries).toEqual(chunks);
+						const entries = msg[1] as readonly string[];
+						if (entries.length === chunks.length) {
+							expect(entries).toEqual(chunks);
 							unsub();
 							dispose();
 							resolve();
@@ -259,12 +259,11 @@ describe("patterns.ai.fromLLMStream", () => {
 		const { node: result, dispose } = fromLLMStream(adapter, msgs);
 
 		// Single persistent subscription to capture all emissions
-		const allSnapshots: Array<{ entries: readonly string[] }> = [];
+		const allSnapshots: Array<readonly string[]> = [];
 		const unsub = result.subscribe((messages) => {
 			for (const msg of messages) {
 				if (msg[0] === DATA) {
-					const s = msg[1] as { value: { entries: readonly string[] } };
-					allSnapshots.push(s.value);
+					allSnapshots.push(msg[1] as readonly string[]);
 				}
 			}
 		});
@@ -273,7 +272,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		await new Promise((r) => setTimeout(r, 20));
 		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
 		const firstFinal = allSnapshots[allSnapshots.length - 1];
-		expect(firstFinal.entries).toEqual(["first"]);
+		expect(firstFinal).toEqual(["first"]);
 
 		// Trigger second stream — switchMap tears down old, creates fresh log
 		allSnapshots.length = 0;
@@ -283,7 +282,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
 		const secondFinal = allSnapshots[allSnapshots.length - 1];
 		// Fresh log: only "second", not ["first", "second"]
-		expect(secondFinal.entries).toEqual(["second"]);
+		expect(secondFinal).toEqual(["second"]);
 		unsub();
 		dispose();
 	});
@@ -311,12 +310,11 @@ describe("patterns.ai.fromLLMStream", () => {
 		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
 		const { node: result, dispose } = fromLLMStream(errorAdapter, msgs);
 
-		const snapshots: Array<{ entries: readonly string[] }> = [];
+		const snapshots: Array<readonly string[]> = [];
 		const unsub = result.subscribe((messages) => {
 			for (const msg of messages) {
 				if (msg[0] === DATA) {
-					const s = msg[1] as { value: { entries: readonly string[] } };
-					snapshots.push(s.value);
+					snapshots.push(msg[1] as readonly string[]);
 				}
 			}
 		});
@@ -324,7 +322,7 @@ describe("patterns.ai.fromLLMStream", () => {
 		await new Promise((r) => setTimeout(r, 20));
 		// Should have received at least the "partial" chunk before the error
 		expect(snapshots.length).toBeGreaterThanOrEqual(1);
-		expect(snapshots[0].entries).toContain("partial");
+		expect(snapshots[0]).toContain("partial");
 		// Log node is still alive (not terminated) — can receive new streams
 		unsub();
 		dispose();

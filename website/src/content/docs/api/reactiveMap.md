@@ -19,7 +19,7 @@ function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMapBundle<
 
 ## Returns
 
-`ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and a `node` emitting versioned readonly map snapshots.
+`ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and an `entries` node emitting `ReadonlyMap` snapshots.
 
 ## Basic Usage
 
@@ -28,7 +28,7 @@ import { reactiveMap } from "@graphrefly/graphrefly-ts";
 
 const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
 m.set("x", 1);
-m.node.subscribe((msgs) => {
+m.entries.subscribe((msgs) => {
     console.log(msgs);
   });
 ```

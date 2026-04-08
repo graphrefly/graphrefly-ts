@@ -10,12 +10,9 @@ import {
 	strategyModel,
 } from "../../patterns/harness/strategy.js";
 import {
-	DEFAULT_DECAY_RATE,
-	DEFAULT_SEVERITY_WEIGHTS,
 	defaultErrorClassifier,
 	type ExecutionResult,
 	type IntakeItem,
-	type StrategyEntry,
 	strategyKey,
 	type TriagedItem,
 	type VerifyResult,

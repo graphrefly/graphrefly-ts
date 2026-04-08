@@ -1,13 +1,13 @@
 /**
- * Reactive append-only log (roadmap §3.2) — versioned snapshots and derived tail / slice views.
+ * Reactive append-only log (roadmap §3.2) — emits `readonly T[]` snapshots directly.
+ *
+ * Internal version counter drives efficient equality without leaking `Versioned`
+ * into the public API (spec §5.12).
  */
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
-import { bumpVersion, snapshotEqualsVersion, type Versioned } from "./reactive-base.js";
-
-export type ReactiveLogSnapshot<T> = Versioned<{ entries: readonly T[] }>;
 
 export type ReactiveLogOptions = {
 	name?: string;
@@ -15,8 +15,8 @@ export type ReactiveLogOptions = {
 };
 
 export type ReactiveLogBundle<T> = {
-	/** Emits {@link ReactiveLogSnapshot} on each append/clear (two-phase). */
-	readonly entries: Node<ReactiveLogSnapshot<T>>;
+	/** Emits `readonly T[]` on each append/clear (two-phase). */
+	readonly entries: Node<readonly T[]>;
 	append: (value: T) => void;
 	/** Push all values, trim once, emit one snapshot. */
 	appendMany: (values: readonly T[]) => void;
@@ -26,10 +26,6 @@ export type ReactiveLogBundle<T> = {
 	/** Last `n` entries (or fewer); updates when the log changes. */
 	tail: (n: number) => Node<readonly T[]>;
 };
-
-function emptySnapshot<T>(): ReactiveLogSnapshot<T> {
-	return { version: 0, value: { entries: [] } };
-}
 
 /**
  * Keep a derived node's dep wiring alive for `get()` without a user sink.
@@ -45,7 +41,7 @@ function keepaliveDerived(n: Node<unknown>): () => void {
 }
 
 /**
- * Creates an append-only reactive log with versioned tuple snapshots.
+ * Creates an append-only reactive log with immutable array snapshots.
  *
  * @param initial - Optional seed entries (copied).
  * @param options - Optional `name` for `describe()` / debugging.
@@ -79,25 +75,18 @@ export function reactiveLog<T>(
 	if (maxSize !== undefined && buf.length > maxSize) {
 		buf.splice(0, buf.length - maxSize);
 	}
-	let current: ReactiveLogSnapshot<T> =
-		buf.length > 0 ? { version: 1, value: { entries: [...buf] } } : emptySnapshot();
 
-	const entries = state<ReactiveLogSnapshot<T>>(current, {
+	const entries = state<readonly T[]>(buf.length > 0 ? [...buf] : [], {
 		name,
 		describeKind: "state",
-		equals: snapshotEqualsVersion,
+		equals: (a, b) => a === b,
 	});
 
 	function pushSnapshot(): void {
-		const ev = entries.v;
-		current = bumpVersion(
-			current,
-			{ entries: [...buf] },
-			ev ? { id: ev.id, version: ev.version } : undefined,
-		);
+		const snapshot: readonly T[] = [...buf];
 		batch(() => {
 			entries.down([[DIRTY]]);
-			entries.down([[DATA, current]]);
+			entries.down([[DATA, snapshot]]);
 		});
 	}
 
@@ -147,13 +136,12 @@ export function reactiveLog<T>(
 			if (n < 0) {
 				throw new RangeError("n must be >= 0");
 			}
-			const snap = entries.get() as ReactiveLogSnapshot<T>;
-			const e = snap.value.entries;
+			const e = entries.get() as readonly T[];
 			const init = n === 0 ? [] : e.slice(Math.max(0, e.length - n));
 			const out = derived(
 				[entries],
 				([s]) => {
-					const list = (s as ReactiveLogSnapshot<T>).value.entries;
+					const list = s as readonly T[];
 					return n === 0 ? [] : list.slice(Math.max(0, list.length - n));
 				},
 				{ initial: init, describeKind: "derived" },
@@ -195,13 +183,12 @@ export function logSlice<T>(
 	if (start < 0) {
 		throw new RangeError("start must be >= 0");
 	}
-	const snap = log.entries.get() as ReactiveLogSnapshot<T>;
-	const e = snap.value.entries;
+	const e = log.entries.get() as readonly T[];
 	const init = stop === undefined ? e.slice(start) : e.slice(start, stop);
 	const out = derived(
 		[log.entries],
 		([s]) => {
-			const list = (s as ReactiveLogSnapshot<T>).value.entries;
+			const list = s as readonly T[];
 			return stop === undefined ? list.slice(start) : list.slice(start, stop);
 		},
 		{ initial: init, describeKind: "derived" },

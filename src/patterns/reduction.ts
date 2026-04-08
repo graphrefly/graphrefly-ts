@@ -318,7 +318,7 @@ export function funnel<T>(
 		});
 		g.add(bridgeName, br as Node<unknown>);
 		g.connect(prevOutputPath, bridgeName);
-		keepalive(br);
+		g.addDisposer(keepalive(br));
 
 		prevOutputPath = `${stage.name}::output`;
 	}
@@ -423,7 +423,7 @@ export function feedback(
 	});
 	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
 	graph.connect(condition, feedbackEffectName);
-	keepalive(feedbackEffect);
+	graph.addDisposer(keepalive(feedbackEffect));
 
 	return graph;
 }

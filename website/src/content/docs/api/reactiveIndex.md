@@ -21,7 +21,7 @@ function reactiveIndex<K, V = unknown>(
 
 ## Returns
 
-Bundle with `ordered` (versioned rows), `byPrimary` (map), and imperative `upsert` / `delete` / `clear`.
+Bundle with `ordered` (sorted rows), `byPrimary` (map), and imperative `upsert` / `delete` / `clear`.
 
 ## Basic Usage
 
@@ -37,4 +37,4 @@ idx.upsert("id2", 5, "row-b");
 
 - **Ordering:** `secondary` and `primary` are compared via a small total order: same primitive `typeof` uses
 numeric/string/boolean/bigint comparison; mixed or object keys fall back to `String(a).localeCompare(String(b))`
-(not identical to Python’s rich comparison for exotic types).
+(not identical to Python's rich comparison for exotic types).

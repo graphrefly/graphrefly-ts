@@ -1,33 +1,29 @@
 /**
- * Reactive positional list (roadmap §3.2) — tuple snapshot with append / insert / pop / clear.
+ * Reactive positional list (roadmap §3.2) — emits `readonly T[]` snapshots directly.
+ *
+ * Internal version counter drives efficient equality without leaking `Versioned`
+ * into the public API (spec §5.12).
  */
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { state } from "../core/sugar.js";
-import { bumpVersion, snapshotEqualsVersion, type Versioned } from "./reactive-base.js";
-
-export type ReactiveListSnapshot<T> = Versioned<{ items: readonly T[] }>;
 
 export type ReactiveListOptions = {
 	name?: string;
 };
 
 export type ReactiveListBundle<T> = {
-	/** Emits {@link ReactiveListSnapshot} on each structural change (two-phase). */
-	readonly items: Node<ReactiveListSnapshot<T>>;
+	/** Emits `readonly T[]` on each structural change (two-phase). */
+	readonly items: Node<readonly T[]>;
 	append: (value: T) => void;
 	insert: (index: number, value: T) => void;
 	pop: (index?: number) => T;
 	clear: () => void;
 };
 
-function emptySnapshot<T>(): ReactiveListSnapshot<T> {
-	return { version: 0, value: { items: [] } };
-}
-
 /**
- * Creates a reactive list with versioned immutable array snapshots.
+ * Creates a reactive list with immutable array snapshots.
  *
  * @param initial - Optional initial items (copied).
  * @param options - Optional `name` for `describe()` / debugging.
@@ -49,25 +45,18 @@ export function reactiveList<T>(
 ): ReactiveListBundle<T> {
 	const { name } = options;
 	const buf: T[] = initial ? [...initial] : [];
-	let current: ReactiveListSnapshot<T> =
-		buf.length > 0 ? { version: 1, value: { items: [...buf] } } : emptySnapshot();
 
-	const items = state<ReactiveListSnapshot<T>>(current, {
+	const items = state<readonly T[]>(buf.length > 0 ? [...buf] : [], {
 		name,
 		describeKind: "state",
-		equals: snapshotEqualsVersion,
+		equals: (a, b) => a === b,
 	});
 
 	function pushSnapshot(): void {
-		const iv = items.v;
-		current = bumpVersion(
-			current,
-			{ items: [...buf] },
-			iv ? { id: iv.id, version: iv.version } : undefined,
-		);
+		const snapshot: readonly T[] = [...buf];
 		batch(() => {
 			items.down([[DIRTY]]);
-			items.down([[DATA, current]]);
+			items.down([[DATA, snapshot]]);
 		});
 	}
 

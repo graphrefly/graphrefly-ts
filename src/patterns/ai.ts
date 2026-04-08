@@ -18,11 +18,7 @@ import {
 	type Extraction,
 } from "../extra/composite.js";
 import { switchMap } from "../extra/operators.js";
-import {
-	type ReactiveLogBundle,
-	type ReactiveLogSnapshot,
-	reactiveLog,
-} from "../extra/reactive-log.js";
+import { type ReactiveLogBundle, reactiveLog } from "../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../extra/sources.js";
 import {
 	type AutoCheckpointAdapter,
@@ -265,7 +261,7 @@ export type FromLLMStreamOptions = FromLLMOptions;
  */
 export type LLMStreamHandle = {
 	/** Reactive log node accumulating token chunks. */
-	node: Node<ReactiveLogSnapshot<string>>;
+	node: Node<readonly string[]>;
 	/** Tear down the internal effect, abort any in-flight stream, and release resources. */
 	dispose: () => void;
 };
@@ -467,8 +463,7 @@ export type ChatStreamOptions = {
 
 export class ChatStreamGraph extends Graph {
 	private readonly _log: ReactiveLogBundle<ChatMessage>;
-	private readonly _keepaliveSubs: Array<() => void> = [];
-	readonly messages: Node<ReactiveLogSnapshot<ChatMessage>>;
+	readonly messages: Node<readonly ChatMessage[]>;
 	readonly latest: Node<ChatMessage | undefined>;
 	readonly messageCount: Node<number>;
 
@@ -485,7 +480,7 @@ export class ChatStreamGraph extends Graph {
 		this.latest = derived<ChatMessage | undefined>(
 			[this.messages],
 			([snapshot]) => {
-				const entries = (snapshot as ReactiveLogSnapshot<ChatMessage>).value.entries;
+				const entries = snapshot as readonly ChatMessage[];
 				return entries.length === 0 ? undefined : entries[entries.length - 1];
 			},
 			{
@@ -497,11 +492,11 @@ export class ChatStreamGraph extends Graph {
 		);
 		this.add("latest", this.latest);
 		this.connect("messages", "latest");
-		this._keepaliveSubs.push(keepalive(this.latest));
+		this.addDisposer(keepalive(this.latest));
 
 		this.messageCount = derived<number>(
 			[this.messages],
-			([snapshot]) => (snapshot as ReactiveLogSnapshot<ChatMessage>).value.entries.length,
+			([snapshot]) => (snapshot as readonly ChatMessage[]).length,
 			{
 				name: "messageCount",
 				describeKind: "derived",
@@ -511,7 +506,7 @@ export class ChatStreamGraph extends Graph {
 		);
 		this.add("messageCount", this.messageCount);
 		this.connect("messages", "messageCount");
-		this._keepaliveSubs.push(keepalive(this.messageCount));
+		this.addDisposer(keepalive(this.messageCount));
 	}
 
 	append(role: ChatMessage["role"], content: string, extra?: Partial<ChatMessage>): void {
@@ -527,13 +522,7 @@ export class ChatStreamGraph extends Graph {
 	}
 
 	allMessages(): readonly ChatMessage[] {
-		return (this.messages.get() as ReactiveLogSnapshot<ChatMessage>).value.entries;
-	}
-
-	override destroy(): void {
-		for (const unsub of this._keepaliveSubs) unsub();
-		this._keepaliveSubs.length = 0;
-		super.destroy();
+		return this.messages.get() as readonly ChatMessage[];
 	}
 }
 
@@ -552,7 +541,6 @@ export type ToolRegistryOptions = {
 export class ToolRegistryGraph extends Graph {
 	readonly definitions: Node<ReadonlyMap<string, ToolDefinition>>;
 	readonly schemas: Node<readonly ToolDefinition[]>;
-	private readonly _keepaliveSubs: Array<() => void> = [];
 
 	constructor(name: string, opts: ToolRegistryOptions = {}) {
 		super(name, opts.graph);
@@ -576,7 +564,7 @@ export class ToolRegistryGraph extends Graph {
 		);
 		this.add("schemas", this.schemas);
 		this.connect("definitions", "schemas");
-		this._keepaliveSubs.push(keepalive(this.schemas));
+		this.addDisposer(keepalive(this.schemas));
 	}
 
 	register(tool: ToolDefinition): void {
@@ -604,12 +592,6 @@ export class ToolRegistryGraph extends Graph {
 
 	getDefinition(name: string): ToolDefinition | undefined {
 		return (this.definitions.get() as ReadonlyMap<string, ToolDefinition>).get(name);
-	}
-
-	override destroy(): void {
-		for (const unsub of this._keepaliveSubs) unsub();
-		this._keepaliveSubs.length = 0;
-		super.destroy();
 	}
 }
 
@@ -865,7 +847,7 @@ const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 86_400); // 7-day half-life
 export type MemoryTiersBundle<TMem> = {
 	/** Permanent tier: never evicted. */
 	readonly permanent: LightCollectionBundle<TMem>;
-	/** Active entries node (reactive, holds ReactiveMapSnapshot). */
+	/** Active entries node (reactive, holds ReadonlyMap). */
 	readonly activeEntries: Node<unknown>;
 	/** Archive checkpoint handle (null if no adapter). */
 	readonly archiveHandle: GraphAutoCheckpointHandle | null;
@@ -1010,21 +992,7 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 
 /** Extract the key→value map from a reactive_map snapshot. */
 function extractStoreMap<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
-	if (
-		snapshot &&
-		typeof snapshot === "object" &&
-		"value" in (snapshot as object) &&
-		typeof (snapshot as { value?: unknown }).value === "object" &&
-		(snapshot as { value?: unknown }).value !== null &&
-		"map" in ((snapshot as { value: object }).value as object)
-	) {
-		return (
-			((snapshot as { value: { map: ReadonlyMap<string, TMem> } }).value.map as ReadonlyMap<
-				string,
-				TMem
-			>) ?? new Map<string, TMem>()
-		);
-	}
+	if (snapshot instanceof Map) return snapshot as ReadonlyMap<string, TMem>;
 	return new Map<string, TMem>();
 }
 
@@ -1099,7 +1067,7 @@ export function agentMemory<TMem = unknown>(
 	};
 	const distillBundle = distill<unknown, TMem>(filteredSource, extractFn, distillOpts);
 
-	graph.add("store", distillBundle.store.node);
+	graph.add("store", distillBundle.store.entries);
 	graph.add("compact", distillBundle.compact);
 	graph.add("size", distillBundle.size);
 	graph.connect("store", "compact");
@@ -1137,7 +1105,7 @@ export function agentMemory<TMem = unknown>(
 
 		const tierOf = (key: string): MemoryTier => {
 			if (permanentKeys.has(key)) return "permanent";
-			const storeMap = extractStoreMap<TMem>(distillBundle.store.node.get());
+			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.get());
 			if (storeMap.has(key)) return "active";
 			return "archived";
 		};
@@ -1151,7 +1119,7 @@ export function agentMemory<TMem = unknown>(
 		const entryCreatedAtNs = new Map<string, number>();
 
 		// Post-extraction hook: classify into tiers and archive low-scored entries
-		const storeNode = distillBundle.store.node;
+		const storeNode = distillBundle.store.entries;
 		const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
 		const tierClassifier = effect([storeNode, contextNode], ([snapshot, ctx]) => {
 			const storeMap = extractStoreMap<TMem>(snapshot);
@@ -1239,7 +1207,7 @@ export function agentMemory<TMem = unknown>(
 	if (vectors || kg) {
 		const embedFn = opts.embedFn;
 		const entityFn = opts.entityFn;
-		const storeNode = distillBundle.store.node;
+		const storeNode = distillBundle.store.entries;
 
 		const indexer = effect([storeNode], ([snapshot]) => {
 			const storeMap = extractStoreMap<TMem>(snapshot);
@@ -1294,7 +1262,7 @@ export function agentMemory<TMem = unknown>(
 		graph.add("retrievalTrace", traceState);
 		retrievalTraceNode = traceState;
 
-		const storeNode = distillBundle.store.node;
+		const storeNode = distillBundle.store.entries;
 
 		// Last trace captured during retrieval (populated by retrieve())
 		let lastTrace: RetrievalTrace<TMem> | null = null;
@@ -1411,12 +1379,10 @@ export function agentMemory<TMem = unknown>(
 	}
 
 	// --- Cleanup ---
-	const origDestroy = graph.destroy.bind(graph);
-	graph.destroy = () => {
+	graph.addDisposer(() => {
 		for (const unsub of keepaliveSubs) unsub();
 		keepaliveSubs.length = 0;
-		origDestroy();
-	};
+	});
 
 	return Object.assign(graph, {
 		distillBundle,

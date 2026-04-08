@@ -1,11 +1,12 @@
 /**
  * Dual-key sorted index (roadmap §3.2) — unique primary key, rows ordered by `(secondary, primary)`.
+ *
+ * Emits `readonly IndexRow[]` snapshots directly — no `Versioned` wrapper (spec §5.12).
  */
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
-import { bumpVersion, snapshotEqualsVersion, type Versioned } from "./reactive-base.js";
 
 export type IndexRow<K, V = unknown> = {
 	readonly primary: K;
@@ -13,25 +14,19 @@ export type IndexRow<K, V = unknown> = {
 	readonly value: V;
 };
 
-export type ReactiveIndexSnapshot<K, V = unknown> = Versioned<{ rows: readonly IndexRow<K, V>[] }>;
-
 export type ReactiveIndexOptions = {
 	name?: string;
 };
 
 export type ReactiveIndexBundle<K, V = unknown> = {
-	/** Rows sorted by `(secondary, primary)`; versioned snapshots. */
-	readonly ordered: Node<ReactiveIndexSnapshot<K, V>>;
+	/** Rows sorted by `(secondary, primary)`. */
+	readonly ordered: Node<readonly IndexRow<K, V>[]>;
 	/** Map from primary key to stored value. */
 	readonly byPrimary: Node<ReadonlyMap<K, V>>;
 	upsert: (primary: K, secondary: unknown, value: V) => void;
 	delete: (primary: K) => void;
 	clear: () => void;
 };
-
-function emptySnapshot<K, V>(): ReactiveIndexSnapshot<K, V> {
-	return { version: 0, value: { rows: [] } };
-}
 
 function rowKey<K, V>(row: IndexRow<K, V>): [unknown, K] {
 	return [row.secondary, row.primary];
@@ -85,12 +80,12 @@ function keepaliveDerived(n: Node<unknown>): void {
  * Creates a reactive index: unique primary key per row, rows sorted by `(secondary, primary)` for ordered scans.
  *
  * @param options - Optional `name` for `describe()` / debugging.
- * @returns Bundle with `ordered` (versioned rows), `byPrimary` (map), and imperative `upsert` / `delete` / `clear`.
+ * @returns Bundle with `ordered` (sorted rows), `byPrimary` (map), and imperative `upsert` / `delete` / `clear`.
  *
  * @remarks
  * **Ordering:** `secondary` and `primary` are compared via a small total order: same primitive `typeof` uses
  * numeric/string/boolean/bigint comparison; mixed or object keys fall back to `String(a).localeCompare(String(b))`
- * (not identical to Python’s rich comparison for exotic types).
+ * (not identical to Python's rich comparison for exotic types).
  *
  * @example
  * ```ts
@@ -108,18 +103,17 @@ export function reactiveIndex<K, V = unknown>(
 ): ReactiveIndexBundle<K, V> {
 	const { name } = options;
 	const buf: IndexRow<K, V>[] = [];
-	let current = emptySnapshot<K, V>();
 
-	const ordered = state<ReactiveIndexSnapshot<K, V>>(current, {
+	const ordered = state<readonly IndexRow<K, V>[]>([], {
 		name,
 		describeKind: "state",
-		equals: snapshotEqualsVersion,
+		equals: (a, b) => a === b,
 	});
 
 	const byPrimary = derived(
 		[ordered],
 		([s]) => {
-			const rows = (s as ReactiveIndexSnapshot<K, V>).value.rows;
+			const rows = s as readonly IndexRow<K, V>[];
 			return byPrimaryMap(rows);
 		},
 		{ initial: new Map<K, V>(), describeKind: "derived" },
@@ -127,15 +121,10 @@ export function reactiveIndex<K, V = unknown>(
 	keepaliveDerived(byPrimary);
 
 	function pushSnapshot(): void {
-		const ov = ordered.v;
-		current = bumpVersion(
-			current,
-			{ rows: [...buf] },
-			ov ? { id: ov.id, version: ov.version } : undefined,
-		);
+		const snapshot: readonly IndexRow<K, V>[] = [...buf];
 		batch(() => {
 			ordered.down([[DIRTY]]);
-			ordered.down([[DATA, current]]);
+			ordered.down([[DATA, snapshot]]);
 		});
 	}
 

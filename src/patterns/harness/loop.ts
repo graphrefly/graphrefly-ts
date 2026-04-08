@@ -237,7 +237,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		const topic = queueTopics.get(item.route);
 		if (topic) topic.publish(item);
 	});
-	router.subscribe(() => {});
+	const routerUnsub = router.subscribe(() => {});
 
 	// --- Stage 4: GATE ---
 	// Create a container graph for gates (gate() requires a Graph to register nodes in)
@@ -396,7 +396,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		}
 	});
 
-	fastRetry.subscribe(() => {}); // keepalive (COMPOSITION-GUIDE §1)
+	const fastRetryUnsub = fastRetry.subscribe(() => {}); // keepalive (COMPOSITION-GUIDE §1)
 
 	// --- Stage 7: REFLECT ---
 	// Strategy model is already updated in the fast-retry/verify effect above.
@@ -414,6 +414,11 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		retryTracker,
 		reingestionTracker,
 	);
+
+	// Register disposers for unregistered internal nodes (D1/D2 fix)
+	harness.addDisposer(routerUnsub);
+	harness.addDisposer(fastRetryUnsub);
+	harness.addDisposer(strategy.dispose);
 
 	// Mount subgraphs
 	harness.mount("intake", intake);

@@ -1,9 +1,9 @@
 ---
 title: "reactiveList()"
-description: "Creates a reactive list with versioned immutable array snapshots."
+description: "Creates a reactive list with immutable array snapshots."
 ---
 
-Creates a reactive list with versioned immutable array snapshots.
+Creates a reactive list with immutable array snapshots.
 
 ## Signature
 

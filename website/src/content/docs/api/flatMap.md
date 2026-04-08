@@ -34,3 +34,12 @@ import { flatMap, state } from "@graphrefly/graphrefly-ts";
 
 flatMap(state(0), (n) => state(n));
 ```
+
+## Behavior Details
+
+- **ERROR handling:** An `ERROR` from the outer source cancels all active inner
+subscriptions and propagates the error downstream. An `ERROR` from an inner
+subscription propagates downstream immediately but does **not** cancel sibling
+inner subscriptions — other active inners continue until they complete or the
+outer errors/completes. This is intentional: for parallel work, isolating
+failures per-inner is more useful than Rx-style "first error cancels all."

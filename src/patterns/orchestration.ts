@@ -432,7 +432,7 @@ export function gate<T>(
 	};
 
 	// Activate count so it stays reactive
-	countNode.subscribe(() => undefined);
+	graph.addDisposer(countNode.subscribe(() => undefined));
 
 	// Register output + internal state as a mounted subgraph (aligned with PY)
 	registerStep(graph, name, output as unknown as Node<unknown>, src.path ? [src.path] : []);

@@ -7,9 +7,9 @@
  */
 
 import { monotonicNs } from "../../core/clock.js";
-import { type Node, node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
-import { type ReactiveMapBundle, reactiveMap } from "../../extra/reactive-map.js";
+import type { Node } from "../../core/node.js";
+import { derived } from "../../core/sugar.js";
+import { reactiveMap } from "../../extra/reactive-map.js";
 import { decay } from "../memory.js";
 
 import {
@@ -18,7 +18,6 @@ import {
 	type Intervention,
 	type PrioritySignals,
 	type RootCause,
-	type Severity,
 	type StrategyEntry,
 	type StrategyKey,
 	strategyKey,
@@ -42,6 +41,9 @@ export interface StrategyModelBundle {
 
 	/** Look up effectiveness for a specific pair. */
 	lookup(rootCause: RootCause, intervention: Intervention): StrategyEntry | undefined;
+
+	/** Tear down internal keepalive subscriptions. */
+	dispose(): void;
 }
 
 /**
@@ -55,10 +57,9 @@ export function strategyModel(): StrategyModelBundle {
 
 	// Derived node that projects the reactive map into a plain Map snapshot.
 	const snapshot = derived<StrategySnapshot>(
-		[_map.node],
+		[_map.entries],
 		([mapSnap]) => {
-			const raw = (mapSnap as { value: { map: ReadonlyMap<StrategyKey, StrategyEntry> } }).value
-				.map;
+			const raw = mapSnap as ReadonlyMap<StrategyKey, StrategyEntry>;
 			// Return a fresh frozen copy so consumers see a stable reference.
 			return new Map(raw);
 		},
@@ -98,7 +99,11 @@ export function strategyModel(): StrategyModelBundle {
 	// Keep the derived alive so get() works without an external subscriber.
 	const _unsub = snapshot.subscribe(() => {});
 
-	return { node: snapshot, record, lookup };
+	function dispose(): void {
+		_unsub();
+	}
+
+	return { node: snapshot, record, lookup, dispose };
 }
 
 // ---------------------------------------------------------------------------

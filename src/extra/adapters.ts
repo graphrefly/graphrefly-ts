@@ -1657,6 +1657,16 @@ export type FromRedisStreamOptions = ExtraOpts & {
  * @param opts - Block timeout, start ID, and parsing options.
  * @returns `Node<RedisStreamEntry<T>>` — one `DATA` per stream entry.
  *
+ * @remarks
+ * **COMPLETE:** This source never emits `COMPLETE` under normal operation — it
+ * is a long-lived stream consumer that runs until teardown or error, same as
+ * Kafka consumers. If you need a bounded read, wrap with `take()` or
+ * `takeUntil()`.
+ *
+ * **Client lifecycle:** The caller owns the Redis client connection. The adapter
+ * does not call `disconnect()` on teardown — the caller is responsible for
+ * closing the connection (same contract as `fromKafka`).
+ *
  * @category extra
  */
 export function fromRedisStream<T = unknown>(

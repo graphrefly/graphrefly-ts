@@ -121,22 +121,12 @@ function keepalive(node: Node): void {
 }
 
 function mapFromSnapshot<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
-	if (
-		typeof snapshot === "object" &&
-		snapshot !== null &&
-		"value" in snapshot &&
-		typeof (snapshot as { value?: unknown }).value === "object" &&
-		(snapshot as { value?: unknown }).value !== null &&
-		"map" in ((snapshot as { value?: unknown }).value as object)
-	) {
-		return ((snapshot as { value: { map: ReadonlyMap<string, TMem> } }).value.map ??
-			new Map<string, TMem>()) as ReadonlyMap<string, TMem>;
-	}
+	if (snapshot instanceof Map) return snapshot as ReadonlyMap<string, TMem>;
 	return new Map<string, TMem>();
 }
 
 function asReadonlyMap<TMem>(store: ReactiveMapBundle<string, TMem>): ReadonlyMap<string, TMem> {
-	return mapFromSnapshot<TMem>(store.node.get());
+	return mapFromSnapshot<TMem>(store.entries.get());
 }
 
 function applyExtraction<TMem>(
@@ -178,7 +168,7 @@ export function distill<TRaw, TMem>(
 	if (opts.evict) {
 		const evictionKeys = dynamicNode((get) => {
 			const out: string[] = [];
-			const snapshot = mapFromSnapshot<TMem>(get(store.node));
+			const snapshot = mapFromSnapshot<TMem>(get(store.entries));
 			for (const [key, mem] of snapshot) {
 				const verdict = opts.evict!(key, mem);
 				if (isNodeLike<boolean>(verdict)) {
@@ -210,7 +200,7 @@ export function distill<TRaw, TMem>(
 		});
 	}
 
-	const compact = derived([store.node, contextNode], ([snapshot, context]) => {
+	const compact = derived([store.entries, contextNode], ([snapshot, context]) => {
 		const entries = [...mapFromSnapshot<TMem>(snapshot).entries()].map(([key, value]) => ({
 			key,
 			value,
@@ -230,7 +220,7 @@ export function distill<TRaw, TMem>(
 		return packed;
 	});
 
-	const size = derived([store.node], ([snapshot]) => mapFromSnapshot<TMem>(snapshot).size);
+	const size = derived([store.entries], ([snapshot]) => mapFromSnapshot<TMem>(snapshot).size);
 	keepalive(compact);
 	keepalive(size);
 

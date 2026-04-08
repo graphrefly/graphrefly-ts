@@ -244,10 +244,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		// Snapshot the highest seq already in the log so we only deliver new events.
 		// Tracking by seq (monotonic per-graph) is robust against reactive log trim.
 		const eventNode = cqrsGraph.resolve(meta.eventName);
-		const currentSnap = eventNode.get() as
-			| { value: { entries: readonly { seq: number }[] } }
-			| undefined;
-		const existingEntries = currentSnap?.value?.entries;
+		const existingEntries = eventNode.get() as readonly { seq: number }[] | undefined;
 		let lastSeq =
 			existingEntries && existingEntries.length > 0
 				? existingEntries[existingEntries.length - 1].seq
@@ -258,8 +255,8 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		const unsub = handle.subscribe((msgs: Messages) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {
-					const snap = m[1] as { value: { entries: readonly { seq: number }[] } };
-					for (const entry of snap.value.entries) {
+					const entries = m[1] as readonly { seq: number }[];
+					for (const entry of entries) {
 						if (entry.seq > lastSeq) {
 							bound(entry);
 							lastSeq = entry.seq;

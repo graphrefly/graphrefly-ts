@@ -43,6 +43,12 @@ const b = node([a], ([x]) => (x as number) + 1);
 
 - **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
 
+**`equals` and mutable values:** The default `Object.is` identity check is
+correct for the common immutable-value case. If your node produces mutable
+objects (e.g. arrays or maps mutated in place), provide a custom `equals`
+function — otherwise `Object.is` will always return `true` for the same
+reference and the node will emit `RESOLVED` instead of `DATA`.
+
 ## See Also
 
 - [Specification](/spec)

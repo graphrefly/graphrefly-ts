@@ -21,8 +21,8 @@ import { DATA } from "../../src/core/messages.js";
 import type { Node } from "../../src/core/node.js";
 import { state } from "../../src/core/sugar.js";
 import { type EvalResult, evalIntakeBridge } from "../../src/patterns/harness/bridge.js";
-import { type HarnessGraph, harnessLoop } from "../../src/patterns/harness/loop.js";
-import type { IntakeItem, TriagedItem, VerifyResult } from "../../src/patterns/harness/types.js";
+import { harnessLoop } from "../../src/patterns/harness/loop.js";
+import type { TriagedItem, VerifyResult } from "../../src/patterns/harness/types.js";
 import type { EvalRun, ProviderName } from "../lib/types.js";
 import { DEFAULT_CONFIG, type EvalConfig } from "../lib/types.js";
 

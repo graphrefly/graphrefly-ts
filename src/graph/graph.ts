@@ -632,6 +632,7 @@ export class Graph {
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
+	private readonly _disposers = new Set<() => void>();
 	private _defaultVersioningLevel: VersioningLevel | undefined;
 
 	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
@@ -1971,10 +1972,37 @@ export class Graph {
 	// ——————————————————————————————————————————————————————————————
 
 	/**
-	 * Sends `[[TEARDOWN]]` to all nodes, then clears registries on this graph and every
-	 * mounted subgraph (§3.7). The instance is left empty and may be reused with {@link Graph.add}.
+	 * Register a cleanup function to be called on {@link Graph.destroy}.
+	 *
+	 * Factories use this to attach teardown logic for internal nodes, keepalive
+	 * subscriptions, or other resources that are not registered on the graph and
+	 * would otherwise leak on repeated create/destroy cycles.
+	 *
+	 * Returns a removal function — call it to unregister the disposer early.
+	 */
+	addDisposer(fn: () => void): () => void {
+		this._disposers.add(fn);
+		return () => {
+			this._disposers.delete(fn);
+		};
+	}
+
+	/**
+	 * Drains disposers (registered via {@link addDisposer}), then sends `[[TEARDOWN]]` to all
+	 * nodes and clears registries on this graph and every mounted subgraph (§3.7).
+	 * The instance is left empty and may be reused with {@link Graph.add}.
 	 */
 	destroy(): void {
+		// Drain disposers (keepalive unsubs etc.) BEFORE TEARDOWN so that
+		// internal effect nodes are disconnected before the cascade fires.
+		for (const dispose of [...this._disposers]) {
+			try {
+				dispose();
+			} catch {
+				/* ignore */
+			}
+		}
+		this._disposers.clear();
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
 		for (const dispose of [...this._autoCheckpointDisposers]) {
 			try {

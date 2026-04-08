@@ -8,9 +8,9 @@
  */
 
 import { DATA, derived, type Node, node, state } from "../core/index.js";
-import { type ReactiveListSnapshot, reactiveList } from "../extra/reactive-list.js";
-import { type ReactiveLogSnapshot, reactiveLog } from "../extra/reactive-log.js";
-import { type ReactiveMapSnapshot, reactiveMap } from "../extra/reactive-map.js";
+import { reactiveList } from "../extra/reactive-list.js";
+import { reactiveLog } from "../extra/reactive-log.js";
+import { reactiveMap } from "../extra/reactive-map.js";
 import { Graph, type GraphOptions } from "../graph/index.js";
 
 type MessagingMeta = {
@@ -50,8 +50,7 @@ export type TopicOptions = {
 
 export class TopicGraph<T> extends Graph {
 	private readonly _log;
-	private readonly _keepaliveDisposers: Array<() => void> = [];
-	readonly events: Node<ReactiveLogSnapshot<T>>;
+	readonly events: Node<readonly T[]>;
 	readonly latest: Node<T | undefined>;
 
 	constructor(name: string, opts: TopicOptions = {}) {
@@ -62,7 +61,7 @@ export class TopicGraph<T> extends Graph {
 		this.latest = derived<T | undefined>(
 			[this.events],
 			([snapshot]) => {
-				const entries = (snapshot as ReactiveLogSnapshot<T>).value.entries;
+				const entries = snapshot as readonly T[];
 				return entries.length === 0 ? undefined : entries[entries.length - 1];
 			},
 			{
@@ -74,13 +73,7 @@ export class TopicGraph<T> extends Graph {
 		);
 		this.add("latest", this.latest);
 		this.connect("events", "latest");
-		this._keepaliveDisposers.push(keepalive(this.latest));
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
+		this.addDisposer(keepalive(this.latest));
 	}
 
 	publish(value: T): void {
@@ -88,8 +81,7 @@ export class TopicGraph<T> extends Graph {
 	}
 
 	retained(): readonly T[] {
-		const snapshot = this.events.get() as ReactiveLogSnapshot<T>;
-		return snapshot.value.entries;
+		return this.events.get() as readonly T[];
 	}
 }
 
@@ -99,8 +91,7 @@ export type SubscriptionOptions = {
 };
 
 export class SubscriptionGraph<T> extends Graph {
-	private readonly _keepaliveDisposers: Array<() => void> = [];
-	readonly source: Node<ReactiveLogSnapshot<T>>;
+	readonly source: Node<readonly T[]>;
 	readonly cursor: Node<number>;
 	readonly available: Node<readonly T[]>;
 
@@ -109,11 +100,11 @@ export class SubscriptionGraph<T> extends Graph {
 		const initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
 		this.mount("topic", topicGraph);
 		const topicEvents = topicGraph.events;
-		this.source = derived([topicEvents], ([snapshot]) => snapshot as ReactiveLogSnapshot<T>, {
+		this.source = derived([topicEvents], ([snapshot]) => snapshot as readonly T[], {
 			name: "source",
 			describeKind: "derived",
 			meta: messagingMeta("subscription_source"),
-			initial: topicEvents.get() as ReactiveLogSnapshot<T>,
+			initial: topicEvents.get() as readonly T[],
 		});
 		this.add("source", this.source);
 		this.cursor = state(initialCursor, {
@@ -125,7 +116,7 @@ export class SubscriptionGraph<T> extends Graph {
 		this.available = derived(
 			[this.source, this.cursor],
 			([sourceSnapshot, cursor]) => {
-				const entries = (sourceSnapshot as ReactiveLogSnapshot<T>).value.entries;
+				const entries = sourceSnapshot as readonly T[];
 				const start = Math.max(0, Math.trunc((cursor as number) ?? 0));
 				return entries.slice(start);
 			},
@@ -140,14 +131,8 @@ export class SubscriptionGraph<T> extends Graph {
 		this.connect("topic::events", "source");
 		this.connect("source", "available");
 		this.connect("cursor", "available");
-		this._keepaliveDisposers.push(keepalive(this.source));
-		this._keepaliveDisposers.push(keepalive(this.available));
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
+		this.addDisposer(keepalive(this.source));
+		this.addDisposer(keepalive(this.available));
 	}
 
 	ack(count?: number): number {
@@ -192,10 +177,9 @@ export type JobQueueOptions = {
 export class JobQueueGraph<T> extends Graph {
 	private readonly _pending;
 	private readonly _jobs;
-	private readonly _keepaliveDisposers: Array<() => void> = [];
 	private _seq = 0;
-	readonly pending: Node<ReactiveListSnapshot<string>>;
-	readonly jobs: Node<ReactiveMapSnapshot<string, JobEnvelope<T>>>;
+	readonly pending: Node<readonly string[]>;
+	readonly jobs: Node<ReadonlyMap<string, JobEnvelope<T>>>;
 	readonly depth: Node<number>;
 
 	constructor(name: string, opts: JobQueueOptions = {}) {
@@ -203,28 +187,18 @@ export class JobQueueGraph<T> extends Graph {
 		this._pending = reactiveList<string>([], { name: "pending" });
 		this._jobs = reactiveMap<string, JobEnvelope<T>>({ name: "jobs" });
 		this.pending = this._pending.items;
-		this.jobs = this._jobs.node;
+		this.jobs = this._jobs.entries;
 		this.add("pending", this.pending);
 		this.add("jobs", this.jobs);
-		this.depth = derived(
-			[this.pending],
-			([snapshot]) => (snapshot as ReactiveListSnapshot<string>).value.items.length,
-			{
-				name: "depth",
-				describeKind: "derived",
-				meta: messagingMeta("queue_depth"),
-				initial: 0,
-			},
-		);
+		this.depth = derived([this.pending], ([snapshot]) => (snapshot as readonly string[]).length, {
+			name: "depth",
+			describeKind: "derived",
+			meta: messagingMeta("queue_depth"),
+			initial: 0,
+		});
 		this.add("depth", this.depth);
 		this.connect("pending", "depth");
-		this._keepaliveDisposers.push(keepalive(this.depth));
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
+		this.addDisposer(keepalive(this.depth));
 	}
 
 	enqueue(payload: T, opts: { id?: string; metadata?: Record<string, unknown> } = {}): string {
@@ -249,8 +223,7 @@ export class JobQueueGraph<T> extends Graph {
 		if (max === 0) return [];
 		const out: JobEnvelope<T>[] = [];
 		while (out.length < max) {
-			const snapshot = this.pending.get() as ReactiveListSnapshot<string>;
-			const ids = snapshot.value.items;
+			const ids = this.pending.get() as readonly string[];
 			if (ids.length === 0) break;
 			const id = this._pending.pop(0);
 			const job = this._jobs.get(id);
@@ -295,9 +268,8 @@ export type JobFlowOptions = {
 export class JobFlowGraph<T> extends Graph {
 	private readonly _stageNames: readonly string[];
 	private readonly _queues = new Map<string, JobQueueGraph<T>>();
-	private readonly _keepaliveDisposers: Array<() => void> = [];
 	private readonly _completed;
-	readonly completed: Node<ReactiveLogSnapshot<JobEnvelope<T>>>;
+	readonly completed: Node<readonly JobEnvelope<T>[]>;
 	readonly completedCount: Node<number>;
 
 	constructor(name: string, opts: JobFlowOptions = {}) {
@@ -321,7 +293,7 @@ export class JobFlowGraph<T> extends Graph {
 		this.add("completed", this.completed);
 		this.completedCount = derived(
 			[this.completed],
-			([snapshot]) => (snapshot as ReactiveLogSnapshot<JobEnvelope<T>>).value.entries.length,
+			([snapshot]) => (snapshot as readonly JobEnvelope<T>[]).length,
 			{
 				name: "completedCount",
 				describeKind: "derived",
@@ -331,7 +303,7 @@ export class JobFlowGraph<T> extends Graph {
 		);
 		this.add("completedCount", this.completedCount);
 		this.connect("completed", "completedCount");
-		this._keepaliveDisposers.push(keepalive(this.completedCount));
+		this.addDisposer(keepalive(this.completedCount));
 
 		const maxPerPump = Math.max(
 			1,
@@ -373,14 +345,8 @@ export class JobFlowGraph<T> extends Graph {
 			);
 			this.add(`pump_${stage}`, pump);
 			this.connect(`${stage}::pending`, `pump_${stage}`);
-			this._keepaliveDisposers.push(keepalive(pump));
+			this.addDisposer(keepalive(pump));
 		}
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
 	}
 
 	stages(): readonly string[] {
@@ -398,8 +364,7 @@ export class JobFlowGraph<T> extends Graph {
 	}
 
 	retainedCompleted(): readonly JobEnvelope<T>[] {
-		const snapshot = this.completed.get() as ReactiveLogSnapshot<JobEnvelope<T>>;
-		return snapshot.value.entries;
+		return this.completed.get() as readonly JobEnvelope<T>[];
 	}
 }
 
@@ -413,7 +378,6 @@ export type TopicBridgeOptions<TIn, TOut> = {
 export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 	private readonly _sourceSub;
 	private readonly _target;
-	private readonly _keepaliveDisposers: Array<() => void> = [];
 	readonly bridgedCount: Node<number>;
 
 	constructor(
@@ -465,13 +429,7 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		);
 		this.add("pump", pump);
 		this.connect("subscription::available", "pump");
-		this._keepaliveDisposers.push(keepalive(pump));
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
+		this.addDisposer(keepalive(pump));
 	}
 }
 

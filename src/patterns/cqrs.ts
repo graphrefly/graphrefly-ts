@@ -15,7 +15,7 @@ import { batch } from "../core/batch.js";
 import { wallClockNs } from "../core/clock.js";
 import { policy } from "../core/guard.js";
 import { DATA, derived, type Node, node, state } from "../core/index.js";
-import { type ReactiveLogSnapshot, reactiveLog } from "../extra/reactive-log.js";
+import { reactiveLog } from "../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../graph/index.js";
 
 // ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ export type CqrsOptions = {
 
 type EventEntry = {
 	log: ReturnType<typeof reactiveLog<CqrsEvent>>;
-	node: Node<ReactiveLogSnapshot<CqrsEvent>>;
+	node: Node<readonly CqrsEvent[]>;
 };
 
 export class CqrsGraph extends Graph {
@@ -232,21 +232,21 @@ export class CqrsGraph extends Graph {
 	 * Register a named event stream backed by `reactiveLog`.
 	 * Guard denies external `write` — only commands append internally.
 	 */
-	event(name: string): Node<ReactiveLogSnapshot<CqrsEvent>> {
+	event(name: string): Node<readonly CqrsEvent[]> {
 		const existing = this._eventLogs.get(name);
 		if (existing) return existing.node;
 
 		const log = reactiveLog<CqrsEvent>([], { name });
 		const entries = log.entries;
-		const guarded = derived<ReactiveLogSnapshot<CqrsEvent>>(
+		const guarded = derived<readonly CqrsEvent[]>(
 			[entries],
-			([snapshot]) => snapshot as ReactiveLogSnapshot<CqrsEvent>,
+			([snapshot]) => snapshot as readonly CqrsEvent[],
 			{
 				name,
 				describeKind: "state",
 				meta: cqrsMeta("event", { event_name: name }),
 				guard: EVENT_GUARD,
-				initial: entries.get() as ReactiveLogSnapshot<CqrsEvent>,
+				initial: entries.get() as readonly CqrsEvent[],
 			},
 		);
 		this.add(name, guarded);
@@ -357,8 +357,8 @@ export class CqrsGraph extends Graph {
 			(snapshots) => {
 				const allEvents: CqrsEvent[] = [];
 				for (const snapshot of snapshots) {
-					const snap = snapshot as ReactiveLogSnapshot<CqrsEvent>;
-					allEvents.push(...snap.value.entries);
+					const entries = snapshot as readonly CqrsEvent[];
+					allEvents.push(...entries);
 				}
 				allEvents.sort((a, b) => a.timestampNs - b.timestampNs || a.seq - b.seq);
 				return reducer(initial, allEvents);
@@ -409,9 +409,8 @@ export class CqrsGraph extends Graph {
 			(snapshots) => {
 				const errNode = sagaRef.n!.meta.error as Node<unknown>;
 				for (let i = 0; i < snapshots.length; i++) {
-					const snap = snapshots[i] as ReactiveLogSnapshot<CqrsEvent<T>>;
+					const entries = snapshots[i] as readonly CqrsEvent<T>[];
 					const eName = eventNames[i];
-					const entries = snap.value.entries;
 					const lastCount = lastCounts.get(eName) ?? 0;
 					if (entries.length > lastCount) {
 						const newEntries = entries.slice(lastCount);

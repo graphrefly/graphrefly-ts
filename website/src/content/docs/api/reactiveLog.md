@@ -1,9 +1,9 @@
 ---
 title: "reactiveLog()"
-description: "Creates an append-only reactive log with versioned tuple snapshots."
+description: "Creates an append-only reactive log with immutable array snapshots."
 ---
 
-Creates an append-only reactive log with versioned tuple snapshots.
+Creates an append-only reactive log with immutable array snapshots.
 
 ## Signature
 

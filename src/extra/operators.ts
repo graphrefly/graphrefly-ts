@@ -1390,6 +1390,15 @@ export type MergeMapOptions = ExtraOpts & {
  * @param project - Maps each outer value to an inner source shape (`Node`, scalar, `PromiseLike`, `Iterable`, or `AsyncIterable`) coerced via {@link fromAny}.
  * @param opts - Optional options including `concurrent` limit.
  * @returns `Node<R>` - Merged output of all active inners; completes when the outer and every inner complete.
+ *
+ * @remarks
+ * **ERROR handling:** An `ERROR` from the outer source cancels all active inner
+ * subscriptions and propagates the error downstream. An `ERROR` from an inner
+ * subscription propagates downstream immediately but does **not** cancel sibling
+ * inner subscriptions — other active inners continue until they complete or the
+ * outer errors/completes. This is intentional: for parallel work, isolating
+ * failures per-inner is more useful than Rx-style "first error cancels all."
+ *
  * @example
  * ```ts
  * import { mergeMap, state } from "@graphrefly/graphrefly-ts";

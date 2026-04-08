@@ -3,7 +3,7 @@
  *
  * graphrefly.dev/py/api/node  →  graphrefly.github.io/graphrefly-py/py/api/node
  *
- * The Python site builds with ASTRO_BASE_PATH=/py/, so paths already
+ * The Python site must build with base=/py/ so paths already
  * include the /py/ prefix in the built output. We forward the full path.
  */
 export default {

@@ -13,7 +13,7 @@ function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) 
 describe("extra reactiveMap (roadmap §3.2)", () => {
 	it("emits DIRTY then DATA with versioned snapshot on set", () => {
 		const m = reactiveMap<string, number>();
-		const { batches, unsub } = collect(m.node);
+		const { batches, unsub } = collect(m.entries);
 		m.set("a", 1);
 		unsub();
 		const flat = (batches as [symbol, unknown][][]).flat();
@@ -21,12 +21,8 @@ describe("extra reactiveMap (roadmap §3.2)", () => {
 		const iData = flat.findIndex((m) => m[0] === DATA);
 		expect(iDirty).toBeGreaterThanOrEqual(0);
 		expect(iData).toBeGreaterThan(iDirty);
-		const dataMsg = flat[iData] as [
-			symbol,
-			{ version: number; value: { map: ReadonlyMap<string, number> } },
-		];
-		expect(dataMsg[1].version).toBe(1);
-		expect(dataMsg[1].value.map.get("a")).toBe(1);
+		const dataMsg = flat[iData] as [symbol, ReadonlyMap<string, number>];
+		expect(dataMsg[1].get("a")).toBe(1);
 	});
 
 	it("get refreshes LRU order and returns value", () => {
@@ -76,7 +72,7 @@ describe("extra reactiveMap (roadmap §3.2)", () => {
 
 	it("delete and clear emit updates", () => {
 		const m = reactiveMap<string, number>();
-		const { batches, unsub } = collect(m.node);
+		const { batches, unsub } = collect(m.entries);
 		m.set("a", 1);
 		const afterSet = batches.length;
 		m.delete("a");

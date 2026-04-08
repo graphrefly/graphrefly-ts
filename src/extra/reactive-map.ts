@@ -1,17 +1,16 @@
 /**
- * Reactive key–value map (roadmap §3.2) — versioned snapshots (`reactive-base`) and a manual
- * {@link state} node.
+ * Reactive key–value map (roadmap §3.2) — emits `ReadonlyMap` snapshots directly.
+ *
+ * Internal version counter drives efficient equality without leaking `Versioned`
+ * into the public API (spec §5.12).
  */
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node, NodeOptions } from "../core/node.js";
 import { state } from "../core/sugar.js";
-import { bumpVersion, snapshotEqualsVersion, type Versioned } from "./reactive-base.js";
 
 type MapEntry<V> = { value: V; expiresAt?: number };
-
-export type ReactiveMapSnapshot<K, V> = Versioned<{ map: ReadonlyMap<K, V> }>;
 
 export type ReactiveMapOptions = {
 	/** Optional registry name for `describe()` / debugging. */
@@ -23,8 +22,8 @@ export type ReactiveMapOptions = {
 } & Omit<NodeOptions, "initial" | "describeKind" | "equals">;
 
 export type ReactiveMapBundle<K, V> = {
-	/** Emits {@link ReactiveMapSnapshot} on each structural change (two-phase). */
-	node: Node<ReactiveMapSnapshot<K, V>>;
+	/** Emits `ReadonlyMap<K, V>` on each structural change (two-phase). */
+	entries: Node<ReadonlyMap<K, V>>;
 	get: (key: K) => V | undefined;
 	set: (key: K, value: V, opts?: { ttl?: number }) => void;
 	delete: (key: K) => void;
@@ -34,10 +33,6 @@ export type ReactiveMapBundle<K, V> = {
 	/** Removes expired entries (monotonic clock), emitting if the visible map changes. */
 	pruneExpired: () => void;
 };
-
-function emptySnapshot<K, V>(): ReactiveMapSnapshot<K, V> {
-	return { version: 0, value: { map: new Map() } };
-}
 
 function isExpired(e: MapEntry<unknown>, now: number): boolean {
 	return e.expiresAt !== undefined && now >= e.expiresAt;
@@ -55,7 +50,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
  * Creates a reactive `Map` with optional per-key TTL and optional LRU max size.
  *
  * @param options - Node options plus `maxSize` / `defaultTtl` (seconds).
- * @returns `ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and a `node` emitting versioned readonly map snapshots.
+ * @returns `ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and an `entries` node emitting `ReadonlyMap` snapshots.
  *
  * @remarks
  * **TTL:** Expiry is checked on `get`, `has`, `size`, `pruneExpired`, and before each
@@ -74,7 +69,7 @@ function buildMap<K, V>(store: Map<K, MapEntry<V>>, now: number): Map<K, V> {
  *
  * const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
  * m.set("x", 1);
- * m.node.subscribe((msgs) => {
+ * m.entries.subscribe((msgs) => {
  *   console.log(msgs);
  * });
  * ```
@@ -85,13 +80,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	const { name, maxSize, defaultTtl, ...nodeOpts } = options;
 	const store = new Map<K, MapEntry<V>>();
 
-	let current = emptySnapshot<K, V>();
-
-	const n = state<ReactiveMapSnapshot<K, V>>(current, {
+	const n = state<ReadonlyMap<K, V>>(new Map<K, V>(), {
 		...nodeOpts,
 		name,
 		describeKind: "state",
-		equals: snapshotEqualsVersion,
+		equals: (a, b) => a === b, // identity; pushSnapshot always creates a new Map
 	});
 
 	function pruneExpiredInternal(): boolean {
@@ -119,11 +112,9 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 		pruneExpiredInternal();
 		const now = monotonicNs();
 		const map = buildMap(store, now) as ReadonlyMap<K, V>;
-		const nv = n.v;
-		current = bumpVersion(current, { map }, nv ? { id: nv.id, version: nv.version } : undefined);
 		batch(() => {
 			n.down([[DIRTY]]);
-			n.down([[DATA, current]]);
+			n.down([[DATA, map]]);
 		});
 	}
 
@@ -135,7 +126,7 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMap
 	}
 
 	const bundle: ReactiveMapBundle<K, V> = {
-		node: n,
+		entries: n,
 
 		get(key: K): V | undefined {
 			const now = monotonicNs();

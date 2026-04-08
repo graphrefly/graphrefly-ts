@@ -21,12 +21,8 @@ describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 		unsub();
 		const flat = (batches as [symbol, unknown][][]).flat();
 		expect(flat.some((m) => m[0] === DIRTY)).toBe(true);
-		const data = flat.find((m) => m[0] === DATA) as [
-			symbol,
-			{ version: number; value: { entries: readonly number[] } },
-		];
-		expect(data[1].version).toBe(1);
-		expect([...data[1].value.entries]).toEqual([1]);
+		const data = flat.find((m) => m[0] === DATA) as [symbol, readonly number[]];
+		expect([...data[1]]).toEqual([1]);
 	});
 
 	it("tail returns last n entries", () => {
@@ -55,8 +51,8 @@ describe("extra reactiveIndex (roadmap §3.2)", () => {
 				["p2", "b"],
 			]),
 		);
-		const ordered = idx.ordered.get() as { value: { rows: { primary: string }[] } };
-		expect(ordered.value.rows.map((r) => r.primary)).toEqual(["p2", "p1"]);
+		const ordered = idx.ordered.get() as readonly { primary: string }[];
+		expect(ordered.map((r) => r.primary)).toEqual(["p2", "p1"]);
 		idx.delete("p2");
 		const m = idx.byPrimary.get() as Map<string, string>;
 		expect([...m.keys()]).toEqual(["p1"]);
@@ -68,24 +64,9 @@ describe("extra reactiveList (roadmap §3.2)", () => {
 		const lst = reactiveList<number>();
 		lst.append(1);
 		lst.insert(0, 0);
-		expect((lst.items.get() as { value: { items: readonly number[] } }).value.items).toEqual([
-			0, 1,
-		]);
+		expect(lst.items.get()).toEqual([0, 1]);
 		expect(lst.pop()).toBe(1);
-		expect((lst.items.get() as { value: { items: readonly number[] } }).value.items).toEqual([0]);
-	});
-
-	it("embeds v0 identity in snapshots when backing node is versioned", () => {
-		const lst = reactiveList<number>();
-		(lst.items as any)._applyVersioning(0);
-		lst.append(1);
-		const snap = lst.items.get() as {
-			version: number;
-			value: { items: readonly number[] };
-			v0?: { id: string; version: number };
-		};
-		expect(snap.v0).toBeDefined();
-		expect(snap.v0!.id).toBeTypeOf("string");
+		expect(lst.items.get()).toEqual([0]);
 	});
 });
 
