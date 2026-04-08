@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 // RxJS bridge (re-exported from extra for convenience)
-export { observeGraph$, observeNode$, toMessages$, toObservable } from "../../extra/observable.js";
+export { type ToObservableOptions, toObservable } from "../../extra/observable.js";
 
 // Decorators
 export {

@@ -444,9 +444,9 @@ graph.observe("foo", { format: "pretty" })   // replaces spy()
 graph.observe("foo", { structured: true })    // existing
 ```
 
-- [ ] Add `format?: "pretty" | "json"` option to `observe()` — when set, auto-enables structured mode and attaches logger
-- [ ] Remove `spy()` method from `Graph`
-- [ ] Update demo-shell + tests to use `observe({ format })` **S**
+- [x] Add `format?: "pretty" | "json"` option to `observe()` — when set, auto-enables structured mode and attaches logger
+- [x] Remove `spy()` method from `Graph`
+- [x] Update demo-shell + tests to use `observe({ format })` **S**
 
 ##### Merge `annotate()` + `traceLog()` into `trace()`
 
@@ -457,9 +457,9 @@ graph.trace("path", "reason")   // write (replaces annotate)
 graph.trace()                   // read all (replaces traceLog)
 ```
 
-- [ ] Add `trace()` method with overloaded signature
-- [ ] Remove `annotate()` and `traceLog()` from `Graph`
-- [ ] Update demo-shell + tests **S**
+- [x] Add `trace()` method with overloaded signature
+- [x] Remove `annotate()` and `traceLog()` from `Graph`
+- [x] Update demo-shell + tests **S**
 
 ##### Consolidate RxJS observable bridge
 
@@ -472,13 +472,13 @@ toObservable(node, { raw: true })     // raw messages
 
 Graph-level observation: `toObservable(graph.observe("*"))` — no separate `observeGraph$` needed.
 
-- [ ] Merge into single `toObservable(source, opts?)` in `extra/observable.ts`
-- [ ] Remove `observeNode$`, `observeGraph$`, `toMessages$`
-- [ ] Update nestjs compat to use consolidated API **S**
+- [x] Merge into single `toObservable(source, opts?)` in `extra/observable.ts`
+- [x] Remove `observeNode$`, `observeGraph$`, `toMessages$`
+- [x] Update nestjs compat to use consolidated API **S**
 
 ##### Stop exporting internal plumbing
 
-- [ ] Remove `describeNode` and `metaSnapshot` from `core/index.ts` public exports (keep as internal, used only by `describe()`) **S**
+- [x] Remove `describeNode` and `metaSnapshot` from `core/index.ts` public exports (keep as internal, used only by `describe()`) **S**
 
 #### PY consolidation (match TS)
 
@@ -522,11 +522,11 @@ Add pending task counter and `__repr__` to runner implementations. Surfaces in a
 
 ##### `harnessTrace()` — same as PY
 
-- [ ] Implement `harnessTrace(harness, logger?)` → `dispose()` in `src/patterns/harness/trace.ts` **S**
+- [x] Implement `harnessTrace(harness, logger?)` → `dispose()` in `src/patterns/harness/trace.ts` **S**
 
 ##### Runner diagnostic `__repr__` / `toString()`
 
-- [ ] Add pending counters + `toString()` to TS runner implementations **S**
+N/A in TS — no runner abstraction (TS uses microtask scheduling natively via `promptNode` + `LLMAdapter`).
 
 #### Final surface (both languages)
 

@@ -1149,4 +1149,62 @@ describe("harnessLoop with mockLLM", () => {
 		}
 		expect(totalAttempts).toBeGreaterThanOrEqual(1);
 	});
+
+	it("harnessTrace captures stage events and disposes cleanly", async () => {
+		const mock = mockLLM({
+			stages: {
+				triage: {
+					responses: [
+						{
+							rootCause: "missing-fn",
+							intervention: "catalog-fn",
+							route: "auto-fix",
+							priority: 80,
+						},
+					],
+				},
+				execute: { responses: [{ outcome: "success", detail: "Fixed" }] },
+				verify: { responses: [{ verified: true, findings: ["ok"] }] },
+			},
+		});
+
+		const harness = harnessLoop("trace-test", {
+			adapter: mock,
+			maxRetries: 1,
+			retainedLimit: 100,
+		});
+
+		const lines: string[] = [];
+		const { harnessTrace } = await import("../../patterns/harness/trace.js");
+		const handle = harnessTrace(harness, { logger: (line) => lines.push(line) });
+
+		harness.intake.publish({
+			source: "eval",
+			summary: "Trace test item",
+			evidence: "test evidence",
+			affectsAreas: ["core"],
+		});
+
+		await vi.waitFor(
+			() => {
+				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+			},
+			{ timeout: 3000, interval: 50 },
+		);
+
+		// Should have captured at least INTAKE and STRATEGY events
+		expect(lines.length).toBeGreaterThanOrEqual(2);
+		expect(lines.some((l) => l.includes("INTAKE"))).toBe(true);
+		expect(lines.some((l) => l.includes("STRATEGY"))).toBe(true);
+
+		// Each line should have elapsed time format
+		for (const line of lines) {
+			expect(line).toMatch(/^\[\d+\.\d{3}s\]/);
+		}
+
+		// Dispose should not throw
+		handle.dispose();
+		// Double dispose is safe
+		handle.dispose();
+	});
 });

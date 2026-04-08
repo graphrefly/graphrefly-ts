@@ -8,7 +8,12 @@ export { monotonicNs, wallClockNs } from "./clock.js";
 export * from "./dynamic-node.js";
 export * from "./guard.js";
 export * from "./messages.js";
-export * from "./meta.js";
+export {
+	type DescribeDetail,
+	type DescribeField,
+	type DescribeNodeOutput,
+	resolveDescribeFields,
+} from "./meta.js";
 export {
 	CLEANUP_RESULT,
 	type CleanupResult,

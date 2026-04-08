@@ -46,11 +46,6 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 - `GuardDenied` — error class thrown when a guard denies an action
 - `accessHintForGuard(guard)` — probes a guard with standard actor types, returns a human-readable access hint string
 
-### core — meta (`src/core/meta.ts`)
-
-- `metaSnapshot(node)` — reads current cached values of all meta companion nodes; returns plain `{ key: value }` object
-- `describeNode(node)` — builds a `DescribeNodeOutput` slice (type, status, deps, meta, value) for one node
-
 ### core — messages (`src/core/messages.ts`)
 
 - Message type constants: `DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`
@@ -66,7 +61,7 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 
 ### graph — Graph container (`src/graph/graph.ts`)
 
-- `Graph` — reactive node registry; methods: `register`, `resolve`, `describe`, `observe`, `snapshot`, `diff`, `diagram`, `spy`, `mount`, `unmount`, `teardown`
+- `Graph` — reactive node registry; methods: `register`, `resolve`, `describe`, `observe`, `trace`, `snapshot`, `diff`, `diagram`, `mount`, `unmount`, `teardown`
 - `reachable(graph, startPath, options?)` — returns the set of node paths reachable from `startPath` via dependency edges
 
 ### extra — operators (`src/extra/operators.ts`)
@@ -169,10 +164,7 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 
 ### extra — observable interop (`src/extra/observable.ts`)
 
-- `toObservable(node)` — converts a GraphReFly node to an RxJS-compatible Observable (DATA values)
-- `toMessages$(node)` — converts a node to an Observable of raw message arrays
-- `observeNode$(node)` — observe a single node as an Observable stream
-- `observeGraph$(graph)` — observe all graph events as an Observable stream
+- `toObservable(node, opts?)` — converts a GraphReFly node to an RxJS-compatible Observable; default emits DATA values, `{ raw: true }` emits raw message batches
 
 ### patterns — orchestration (`src/patterns/orchestration.ts`)
 

@@ -38,7 +38,7 @@ import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
-import { observeGraph$, observeNode$, toMessages$, toObservable } from "../../extra/observable.js";
+import { toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
 import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs.js";
 
@@ -99,11 +99,11 @@ describe("nestjs compat — RxJS bridge", () => {
 		sub.unsubscribe();
 	});
 
-	it("toMessages$: emits raw message batches", async () => {
+	it("toObservable({ raw: true }): emits raw message batches", async () => {
 		const s = state<number>(0);
 		// Batch splits DIRTY (immediate, tier 0) from DATA (deferred, tier 2).
 		// So s.down([[DIRTY], [DATA, 1]]) produces two emissions: [[DIRTY]] then [[DATA, 1]].
-		const msgs$ = toMessages$(s).pipe(take(2), toArray());
+		const msgs$ = toObservable(s, { raw: true }).pipe(take(2), toArray());
 		const p = rxFirstValueFrom(msgs$);
 
 		s.down([[DIRTY], [DATA, 1]]);
@@ -114,13 +114,13 @@ describe("nestjs compat — RxJS bridge", () => {
 		expect(result[1]).toEqual([[DATA, 1]]);
 	});
 
-	it("toMessages$: terminal batch emitted before Observable error", async () => {
+	it("toObservable({ raw: true }): terminal batch emitted before Observable error", async () => {
 		const s = state<number>(0);
 		const batches: Messages[] = [];
 		let caughtError: unknown;
 
 		await new Promise<void>((resolve) => {
-			toMessages$(s).subscribe({
+			toObservable(s, { raw: true }).subscribe({
 				next: (msgs) => batches.push(msgs),
 				error: (err) => {
 					caughtError = err;
@@ -134,12 +134,12 @@ describe("nestjs compat — RxJS bridge", () => {
 		expect(caughtError).toBeInstanceOf(Error);
 	});
 
-	it("observeNode$: streams node values through graph.observe", async () => {
+	it("toObservable: graph node values via graph.resolve", async () => {
 		const g = new Graph("test");
 		const s = state<number>(10);
 		g.add("counter", s);
 
-		const values$ = observeNode$<number>(g, "counter").pipe(take(2), toArray());
+		const values$ = toObservable<number>(g.resolve("counter")).pipe(take(2), toArray());
 		const p = rxFirstValueFrom(values$);
 
 		s.down([[DATA, 20]]);
@@ -147,26 +147,6 @@ describe("nestjs compat — RxJS bridge", () => {
 
 		const result = await p;
 		expect(result).toEqual([20, 30]);
-	});
-
-	it("observeGraph$: streams all node events", async () => {
-		const g = new Graph("test");
-		const a = state<number>(1);
-		const b = state<number>(2);
-		g.add("a", a);
-		g.add("b", b);
-
-		const events$ = observeGraph$(g).pipe(take(2), toArray());
-		const p = rxFirstValueFrom(events$);
-
-		a.down([[DATA, 10]]);
-		b.down([[DATA, 20]]);
-
-		const result = await p;
-		expect(result).toHaveLength(2);
-		const paths = result.map((e) => e.path);
-		expect(paths).toContain("a");
-		expect(paths).toContain("b");
 	});
 
 	it("toObservable: unsubscribing the Observable unsubscribes the node", () => {

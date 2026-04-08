@@ -718,54 +718,54 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(d2).toContain("->");
 	});
 
-	it("annotate validates path and traceLog follows inspector gating", () => {
+	it("trace() validates path and follows inspector gating", () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));
-		g.annotate("a", "first");
-		expect(g.traceLog().some((e) => e.reason === "first")).toBe(true);
-		expect(() => g.annotate("missing", "x")).toThrow();
+		g.trace("a", "first");
+		expect(g.trace().some((e) => e.reason === "first")).toBe(true);
+		expect(() => g.trace("missing", "x")).toThrow();
 
 		const prev = Graph.inspectorEnabled;
 		try {
 			Graph.inspectorEnabled = false;
-			expect(g.traceLog()).toEqual([]);
-			g.annotate("a", "second");
+			expect(g.trace()).toEqual([]);
+			g.trace("a", "second");
 		} finally {
 			Graph.inspectorEnabled = prev;
 		}
-		expect(g.traceLog().some((e) => e.reason === "second")).toBe(false);
+		expect(g.trace().some((e) => e.reason === "second")).toBe(false);
 	});
 
-	it("spy logs events with include/exclude filters", () => {
+	it("observe({ format }) logs events with include/exclude filters", () => {
 		const g = new Graph("g");
 		const logs: string[] = [];
 		g.add("a", state(0, { name: "a" }));
-		const spy = g.spy({
-			path: "a",
+		const obs = g.observe("a", {
+			format: "pretty",
 			includeTypes: ["data", "dirty", "resolved"],
 			excludeTypes: ["resolved"],
 			theme: "none",
 			logger: (line) => logs.push(line),
 		});
 		g.set("a", 1);
-		spy.dispose();
+		obs.dispose();
 		expect(logs.some((line) => line.includes("DATA"))).toBe(true);
 		expect(logs.some((line) => line.includes("RESOLVED"))).toBe(false);
 	});
 
-	it("spy supports JSON output in graph-wide mode", () => {
+	it("observe({ format: 'json' }) supports JSON output in graph-wide mode", () => {
 		const g = new Graph("g");
 		const lines: string[] = [];
 		g.add("a", state(0, { name: "a" }));
 		g.add("b", state(0, { name: "b" }));
-		const spy = g.spy({
+		const obs = g.observe({
 			format: "json",
 			theme: "none",
 			logger: (line) => lines.push(line),
 		});
 		g.set("a", 2);
 		g.set("b", 3);
-		spy.dispose();
+		obs.dispose();
 		const parsed = lines.map((line) => JSON.parse(line) as { type?: string; path?: string });
 		expect(parsed.some((evt) => evt.type === "data" && evt.path === "a")).toBe(true);
 		expect(parsed.some((evt) => evt.type === "data" && evt.path === "b")).toBe(true);

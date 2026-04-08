@@ -213,9 +213,6 @@ export default defineConfig({
 						collapsed: true,
 						items: [
 							{ label: "toObservable()", link: "/api/toobservable" },
-							{ label: "toMessages$()", link: "/api/tomessages" },
-							{ label: "observeNode$()", link: "/api/observenode" },
-							{ label: "observeGraph$()", link: "/api/observegraph" },
 						],
 					},
 					{
@@ -225,8 +222,6 @@ export default defineConfig({
 							{ label: "isBatching()", link: "/api/isbatching" },
 							{ label: "partitionForBatch()", link: "/api/partitionforbatch" },
 							{ label: "downWithBatch()", link: "/api/downwithbatch" },
-							{ label: "metaSnapshot()", link: "/api/metasnapshot" },
-							{ label: "describeNode()", link: "/api/describenode" },
 							{ label: "policy()", link: "/api/policy" },
 							{ label: "GuardDenied", link: "/api/guarddenied" },
 							{ label: "accessHintForGuard()", link: "/api/accesshintforguard" },

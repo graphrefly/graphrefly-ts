@@ -317,7 +317,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		([ref, _tick]) => {
 			const demo = ref as Graph | null;
 			if (!demo) return [];
-			return demo.traceLog();
+			return demo.trace();
 		},
 		{ name: "inspect/trace-log" },
 	);

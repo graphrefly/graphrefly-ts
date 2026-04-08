@@ -34,6 +34,11 @@ Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LL
 | **`Node` resolution without `get()`** | When blocking until first `DATA`, prefer `node.get()` when it already holds a settled value, then subscribe only if still pending — avoids hangs when the node does not replay `DATA` to new subscribers. | — |
 | **Passing plain strings through `fromAny` (TypeScript)** | `fromAny` treats strings as iterables (one `DATA` per character). For tool handlers that return plain strings, return the string directly; use `fromAny` only for `Node` / `AsyncIterable` / Promise-like after await. | — |
 
+- **`batch_id` in `ObserveEvent` timeline fields (decided 2026-04-08):** Added `batch_id?: number` to `ObserveEvent` in TS (parity with PY). Increments once per subscribe-callback invocation; all messages in one delivery share the same `batch_id`. Useful for correlating events that arrived together without polling. `in_batch: boolean` is unchanged (reflects `isBatching()` at event time). TS: implemented in `_createObserveResult`, `_createObserveResultForAll`, and both fallback paths. PY: already had `batch_id` on `batch_seq` counter.
+
+- **`ObserveResult.completedCleanly` ambiguous in graph-wide mode (noted 2026-04-08):**
+  In graph-wide observation (`graph.observe()` without a path), `completedCleanly` is set to `true` when **any** node sends COMPLETE without prior ERROR. If a different node later sends ERROR, `errored` becomes `true` but `completedCleanly` is never reset — both flags are `true` simultaneously. Single-node observation is unaffected (terminal rules prevent both). **Why:** `completedCleanly` and `errored` are additive per-node aggregates, but the names read as mutually exclusive graph-level state. **Options:** (A) rename to `anyCompletedCleanly` / `anyErrored` to match additive semantics; (B) add `allCompletedCleanly` (every observed node completed without error); (C) reset `completedCleanly = false` on any ERROR (makes them exclusive but loses info). Applies to both TS and PY `ObserveResult`.
+
 ---
 
 ## Deferred follow-ups

@@ -7,7 +7,6 @@ import {
 	DEFAULT_ACTOR,
 	debounce,
 	debounceTime,
-	describeNode,
 	extra,
 	flatMap,
 	GuardDenied,
@@ -79,11 +78,6 @@ describe("graphrefly", () => {
 		expect(typeof core.derived).toBe("function");
 		expect(typeof core.effect).toBe("function");
 		expect(typeof core.pipe).toBe("function");
-	});
-
-	it("exports describeNode for Graph.describe parity", () => {
-		expect(typeof describeNode).toBe("function");
-		expect(typeof core.describeNode).toBe("function");
 	});
 
 	it("RxJS alias identity", () => {

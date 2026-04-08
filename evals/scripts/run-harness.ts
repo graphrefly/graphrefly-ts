@@ -296,7 +296,6 @@ async function steerGates(harness: ReturnType<typeof harnessLoop>): Promise<void
 					console.log(`  → Modified and forwarded ${pending.length} items`);
 					break;
 				}
-				case "s":
 				default:
 					console.log(`  → Skipped`);
 					break;

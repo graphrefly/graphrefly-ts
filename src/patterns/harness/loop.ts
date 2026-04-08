@@ -443,6 +443,12 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	harness.addDisposer(fastRetryUnsub);
 	harness.addDisposer(strategy.dispose);
 
+	// Register stage nodes for introspection (harnessTrace, describe, observe)
+	harness.add("triage", triageNode as Node<unknown>);
+	harness.add("execute", executeNode as Node<unknown>);
+	harness.add("verify", verifyNode as Node<unknown>);
+	harness.add("strategy", strategy.node as Node<unknown>);
+
 	// Mount subgraphs
 	harness.mount("intake", intake);
 	for (const [route, topic] of queueTopics) {

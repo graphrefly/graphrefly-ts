@@ -51,10 +51,6 @@ const REGISTRY = {
 	GuardDenied: "src/core/guard.ts",
 	accessHintForGuard: "src/core/guard.ts",
 
-	// Core — meta
-	metaSnapshot: "src/core/meta.ts",
-	describeNode: "src/core/meta.ts",
-
 	// Extra — operators
 	map: "src/extra/operators.ts",
 	filter: "src/extra/operators.ts",
@@ -175,9 +171,6 @@ const REGISTRY = {
 
 	// Extra — observable (RxJS interop)
 	toObservable: "src/extra/observable.ts",
-	toMessages$: "src/extra/observable.ts",
-	observeNode$: "src/extra/observable.ts",
-	observeGraph$: "src/extra/observable.ts",
 
 	// Patterns — reactive layout (roadmap §7.1)
 	reactiveLayout: "src/patterns/reactive-layout/reactive-layout.ts",

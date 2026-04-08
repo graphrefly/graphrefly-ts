@@ -327,7 +327,7 @@ class RingBuffer<T> {
 	}
 }
 
-const SPY_ANSI_THEME: Required<GraphSpyTheme> = {
+const OBSERVE_ANSI_THEME: Required<ObserveTheme> = {
 	data: "\u001b[32m",
 	dirty: "\u001b[33m",
 	resolved: "\u001b[36m",
@@ -338,7 +338,7 @@ const SPY_ANSI_THEME: Required<GraphSpyTheme> = {
 	reset: "\u001b[0m",
 };
 
-const SPY_NO_COLOR_THEME: Required<GraphSpyTheme> = {
+const OBSERVE_NO_COLOR_THEME: Required<ObserveTheme> = {
 	data: "",
 	dirty: "",
 	resolved: "",
@@ -360,9 +360,9 @@ function describeData(value: unknown): string {
 	}
 }
 
-function resolveSpyTheme(theme: GraphSpyOptions["theme"]): Required<GraphSpyTheme> {
-	if (theme === "none") return SPY_NO_COLOR_THEME;
-	if (theme === "ansi" || theme == null) return SPY_ANSI_THEME;
+function resolveObserveTheme(theme: ObserveOptions["theme"]): Required<ObserveTheme> {
+	if (theme === "none") return OBSERVE_NO_COLOR_THEME;
+	if (theme === "ansi" || theme == null) return OBSERVE_ANSI_THEME;
 	return {
 		data: theme.data ?? "",
 		dirty: theme.dirty ?? "",
@@ -436,6 +436,22 @@ export type ObserveOptions = {
 	 * `"minimal"` filters to DATA-only events.
 	 */
 	detail?: ObserveDetail;
+
+	// ——— Format / logging (merged from spy) ———
+
+	/**
+	 * When set, auto-enables structured mode and attaches a logger.
+	 * `"pretty"` renders colored one-line output; `"json"` emits one JSON object per event.
+	 */
+	format?: "pretty" | "json";
+	/** Sink for rendered lines (`console.log` by default). Only used when `format` is set. */
+	logger?: (line: string, event: ObserveEvent) => void;
+	/** Keep only these event types in formatted output. Only used when `format` is set. */
+	includeTypes?: ObserveEvent["type"][];
+	/** Exclude these event types from formatted output. Only used when `format` is set. */
+	excludeTypes?: ObserveEvent["type"][];
+	/** Built-in color preset (`ansi` default) or explicit color tokens. Only used when `format` is set. */
+	theme?: ObserveThemeName | ObserveTheme;
 };
 
 /** Accumulated observation result (structured mode). */
@@ -470,6 +486,8 @@ export type ObserveEvent = {
 	data?: unknown;
 	timestamp_ns?: number;
 	in_batch?: boolean;
+	/** Monotonically increasing counter per subscribe-callback invocation. All events in one delivery share the same id. */
+	batch_id?: number;
 	trigger_dep_index?: number;
 	trigger_dep_name?: string;
 	/**
@@ -481,33 +499,11 @@ export type ObserveEvent = {
 	dep_values?: unknown[];
 };
 
-/** Built-in color presets for {@link Graph.spy}. */
-export type GraphSpyThemeName = "none" | "ansi";
+/** Built-in color preset names for observe `format` rendering. */
+export type ObserveThemeName = "none" | "ansi";
 
-/** ANSI/style overrides for {@link Graph.spy} event rendering. */
-export type GraphSpyTheme = Partial<Record<ObserveEvent["type"] | "path" | "reset", string>>;
-
-/** Options for {@link Graph.spy}. */
-export type GraphSpyOptions = ObserveOptions & {
-	/** Observe one path; omit for graph-wide mode. */
-	path?: string;
-	/** Keep only these event types in spy output. */
-	includeTypes?: ObserveEvent["type"][];
-	/** Exclude these event types from spy output. */
-	excludeTypes?: ObserveEvent["type"][];
-	/** Built-in color preset (`ansi` default) or explicit color tokens. */
-	theme?: GraphSpyThemeName | GraphSpyTheme;
-	/** One-line `pretty` output (default) or JSON-per-event. */
-	format?: "pretty" | "json";
-	/** Optional sink for rendered lines (`console.log` by default). */
-	logger?: (line: string, event: ObserveEvent) => void;
-};
-
-/** Handle returned by {@link Graph.spy}. */
-export type GraphSpyHandle = {
-	readonly result: ObserveResult;
-	dispose(): void;
-};
+/** ANSI/style overrides for observe `format` event rendering. */
+export type ObserveTheme = Partial<Record<ObserveEvent["type"] | "path" | "reset", string>>;
 
 /** Options for {@link Graph.dumpGraph}. */
 export type GraphDumpOptions = {
@@ -1407,10 +1403,12 @@ export class Graph {
 			derived?: true;
 		},
 	): ObserveResult;
+	observe(path: string, options: ObserveOptions & { format: "pretty" | "json" }): ObserveResult;
 	observe(path: string, options?: ObserveOptions): GraphObserveOne;
 	observe(
 		options: ObserveOptions & { structured?: true; timeline?: true; causal?: true; derived?: true },
 	): ObserveResult;
+	observe(options: ObserveOptions & { format: "pretty" | "json" }): ObserveResult;
 	observe(options?: ObserveOptions): GraphObserveAll;
 	observe(
 		pathOrOpts?: string | ObserveOptions,
@@ -1430,9 +1428,16 @@ export class Graph {
 				resolved.causal === true ||
 				resolved.derived === true ||
 				resolved.detail === "minimal" ||
-				resolved.detail === "full";
-			if (wantsStructured && Graph.inspectorEnabled) {
-				return this._createObserveResult(path, target, resolved);
+				resolved.detail === "full" ||
+				resolved.format != null;
+			if (wantsStructured) {
+				const result = Graph.inspectorEnabled
+					? this._createObserveResult(path, target, resolved)
+					: this._createFallbackObserveResult(path, resolved);
+				if (resolved.format != null) {
+					this._attachFormatLogger(result, resolved);
+				}
+				return result;
 			}
 			return {
 				subscribe(sink: NodeSink) {
@@ -1456,9 +1461,16 @@ export class Graph {
 			opts.causal === true ||
 			opts.derived === true ||
 			opts.detail === "minimal" ||
-			opts.detail === "full";
-		if (wantsStructured && Graph.inspectorEnabled) {
-			return this._createObserveResultForAll(opts);
+			opts.detail === "full" ||
+			opts.format != null;
+		if (wantsStructured) {
+			const result = Graph.inspectorEnabled
+				? this._createObserveResultForAll(opts)
+				: this._createFallbackObserveResultForAll(opts);
+			if (opts.format != null) {
+				this._attachFormatLogger(result, opts);
+			}
+			return result;
 		}
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
@@ -1516,6 +1528,7 @@ export class Graph {
 		let lastTriggerDepIndex: number | undefined;
 		let lastRunDepValues: unknown[] | undefined;
 		let detachInspectorHook: (() => void) | undefined;
+		let batchSeq = 0;
 		if ((causal || derived) && target instanceof NodeImpl) {
 			detachInspectorHook = target._setInspectorHook((event: NodeInspectorHookEvent) => {
 				if (event.kind === "dep_message") {
@@ -1528,16 +1541,21 @@ export class Graph {
 						type: "derived",
 						path,
 						dep_values: [...event.depValues],
-						...(timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {}),
+						...(timeline
+							? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
+							: {}),
 					});
 				}
 			});
 		}
 
 		const unsub = target.subscribe((msgs) => {
+			batchSeq++;
 			for (const m of msgs) {
 				const t = m[0];
-				const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
+				const base = timeline
+					? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
+					: {};
 				const withCausal =
 					causal && lastRunDepValues != null
 						? (() => {
@@ -1619,11 +1637,15 @@ export class Graph {
 					Object.assign(merged, extra);
 				}
 				const resolvedTarget = graph.resolve(basePath);
-				return graph._createObserveResult<T>(
+				const expanded = graph._createObserveResult<T>(
 					basePath,
 					resolvedTarget as Node<T>,
 					resolveObserveDetail(merged),
 				);
+				if (merged.format != null) {
+					graph._attachFormatLogger(expanded, merged);
+				}
+				return expanded;
 			},
 		};
 	}
@@ -1651,11 +1673,15 @@ export class Graph {
 		this._collectObserveTargets("", targets);
 		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
+		let batchSeq = 0;
 		const unsubs = picked.map(([path, nd]) =>
 			nd.subscribe((msgs) => {
+				batchSeq++;
 				for (const m of msgs) {
 					const t = m[0];
-					const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
+					const base = timeline
+						? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
+						: {};
 					if (t === DATA) {
 						result.values[path] = m[1];
 						result.events.push({ type: "data", path, data: m[1], ...base });
@@ -1714,26 +1740,168 @@ export class Graph {
 				} else {
 					Object.assign(merged, extra);
 				}
-				return graph._createObserveResultForAll(resolveObserveDetail(merged));
+				const expanded = graph._createObserveResultForAll(resolveObserveDetail(merged));
+				if (merged.format != null) {
+					graph._attachFormatLogger(expanded, merged);
+				}
+				return expanded;
 			},
 		};
 	}
 
 	/**
-	 * Convenience live debugger over {@link Graph.observe}. Logs protocol events as they flow.
-	 *
-	 * Supports one-node (`path`) and graph-wide modes, event filtering, and JSON/pretty rendering.
-	 * Color themes are built in (`ansi` / `none`) to avoid external dependencies.
-	 *
-	 * @param options - Spy configuration.
-	 * @returns Disposable handle plus a structured observation accumulator.
+	 * Fallback ObserveResult for single-node when inspector is disabled but `format` is requested.
+	 * Subscribes to raw messages and accumulates events with timeline info.
 	 */
-	spy(options: GraphSpyOptions = {}): GraphSpyHandle {
+	private _createFallbackObserveResult(path: string, options: ObserveOptions): ObserveResult {
+		const timeline = options.timeline !== false;
+		const acc = {
+			values: {} as Record<string, unknown>,
+			dirtyCount: 0,
+			resolvedCount: 0,
+			events: [] as ObserveEvent[],
+			completedCleanly: false,
+			errored: false,
+		};
+		const target = this.resolve(path);
+		let batchSeq = 0;
+		const unsub = target.subscribe((msgs) => {
+			batchSeq++;
+			for (const m of msgs) {
+				const t = m[0];
+				const base = timeline
+					? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
+					: {};
+				if (t === DATA) {
+					acc.values[path] = m[1];
+					acc.events.push({ type: "data", path, data: m[1], ...base });
+				} else if (t === DIRTY) {
+					acc.dirtyCount++;
+					acc.events.push({ type: "dirty", path, ...base });
+				} else if (t === RESOLVED) {
+					acc.resolvedCount++;
+					acc.events.push({ type: "resolved", path, ...base });
+				} else if (t === COMPLETE) {
+					if (!acc.errored) acc.completedCleanly = true;
+					acc.events.push({ type: "complete", path, ...base });
+				} else if (t === ERROR) {
+					acc.errored = true;
+					acc.events.push({ type: "error", path, data: m[1], ...base });
+				}
+			}
+		});
+		return {
+			get values() {
+				return acc.values;
+			},
+			get dirtyCount() {
+				return acc.dirtyCount;
+			},
+			get resolvedCount() {
+				return acc.resolvedCount;
+			},
+			get events() {
+				return acc.events;
+			},
+			get completedCleanly() {
+				return acc.completedCleanly;
+			},
+			get errored() {
+				return acc.errored;
+			},
+			dispose() {
+				unsub();
+			},
+			expand() {
+				throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
+			},
+		};
+	}
+
+	/**
+	 * Fallback ObserveResult for graph-wide when inspector is disabled but `format` is requested.
+	 */
+	private _createFallbackObserveResultForAll(options: ObserveOptions): ObserveResult {
+		const timeline = options.timeline !== false;
+		const actor = options.actor;
+		const acc = {
+			values: {} as Record<string, unknown>,
+			dirtyCount: 0,
+			resolvedCount: 0,
+			events: [] as ObserveEvent[],
+			completedCleanly: false,
+			errored: false,
+		};
+		const targets: [string, Node][] = [];
+		this._collectObserveTargets("", targets);
+		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
+		let batchSeq = 0;
+		const unsubs = picked.map(([path, nd]) =>
+			nd.subscribe((msgs) => {
+				batchSeq++;
+				for (const m of msgs) {
+					const t = m[0];
+					const base = timeline
+						? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
+						: {};
+					if (t === DATA) {
+						acc.values[path] = m[1];
+						acc.events.push({ type: "data", path, data: m[1], ...base });
+					} else if (t === DIRTY) {
+						acc.dirtyCount++;
+						acc.events.push({ type: "dirty", path, ...base });
+					} else if (t === RESOLVED) {
+						acc.resolvedCount++;
+						acc.events.push({ type: "resolved", path, ...base });
+					} else if (t === COMPLETE) {
+						if (!acc.errored) acc.completedCleanly = true;
+						acc.events.push({ type: "complete", path, ...base });
+					} else if (t === ERROR) {
+						acc.errored = true;
+						acc.events.push({ type: "error", path, data: m[1], ...base });
+					}
+				}
+			}),
+		);
+		return {
+			get values() {
+				return acc.values;
+			},
+			get dirtyCount() {
+				return acc.dirtyCount;
+			},
+			get resolvedCount() {
+				return acc.resolvedCount;
+			},
+			get events() {
+				return acc.events;
+			},
+			get completedCleanly() {
+				return acc.completedCleanly;
+			},
+			get errored() {
+				return acc.errored;
+			},
+			dispose() {
+				for (const u of unsubs) u();
+			},
+			expand() {
+				throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
+			},
+		};
+	}
+
+	/**
+	 * Attaches a format logger to an ObserveResult, rendering events as they arrive.
+	 * Wraps the result's dispose to flush pending events.
+	 */
+	private _attachFormatLogger(result: ObserveResult, options: ObserveOptions): void {
+		const format = options.format!;
+		const logger = options.logger ?? ((line: string) => console.log(line));
 		const include = options.includeTypes ? new Set(options.includeTypes) : null;
 		const exclude = options.excludeTypes ? new Set(options.excludeTypes) : null;
-		const theme = resolveSpyTheme(options.theme);
-		const format = options.format ?? "pretty";
-		const logger = options.logger ?? ((line: string) => console.log(line));
+		const theme = resolveObserveTheme(options.theme);
 
 		const shouldLog = (type: ObserveEvent["type"]): boolean => {
 			if (include?.has(type) === false) return false;
@@ -1766,155 +1934,33 @@ export class Graph {
 			return `${pathPart}${color}${event.type.toUpperCase()}${theme.reset}${dataPart}${triggerPart}${batchPart}`;
 		};
 
-		if (!Graph.inspectorEnabled) {
-			const timeline = options.timeline ?? true;
-			const acc: {
-				values: Record<string, unknown>;
-				dirtyCount: number;
-				resolvedCount: number;
-				events: ObserveEvent[];
-				completedCleanly: boolean;
-				errored: boolean;
-			} = {
-				values: {},
-				dirtyCount: 0,
-				resolvedCount: 0,
-				events: [],
-				completedCleanly: false,
-				errored: false,
-			};
-			let stop: () => void = () => {};
-			const result: ObserveResult = {
-				get values() {
-					return acc.values;
-				},
-				get dirtyCount() {
-					return acc.dirtyCount;
-				},
-				get resolvedCount() {
-					return acc.resolvedCount;
-				},
-				get events() {
-					return acc.events;
-				},
-				get completedCleanly() {
-					return acc.completedCleanly;
-				},
-				get errored() {
-					return acc.errored;
-				},
-				dispose() {
-					stop();
-				},
-				expand() {
-					throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
-				},
-			};
-
-			const pushEvent = (path: string | undefined, message: Messages[number]) => {
-				const t = message[0];
-				const base = timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching() } : {};
-				let event: ObserveEvent | undefined;
-				if (t === DATA) {
-					if (path != null) acc.values[path] = message[1];
-					event = { type: "data", ...(path != null ? { path } : {}), data: message[1], ...base };
-				} else if (t === DIRTY) {
-					acc.dirtyCount += 1;
-					event = { type: "dirty", ...(path != null ? { path } : {}), ...base };
-				} else if (t === RESOLVED) {
-					acc.resolvedCount += 1;
-					event = { type: "resolved", ...(path != null ? { path } : {}), ...base };
-				} else if (t === COMPLETE) {
-					if (!acc.errored) acc.completedCleanly = true;
-					event = { type: "complete", ...(path != null ? { path } : {}), ...base };
-				} else if (t === ERROR) {
-					acc.errored = true;
-					event = {
-						type: "error",
-						...(path != null ? { path } : {}),
-						data: message[1],
-						...base,
-					};
-				}
-				if (!event) return;
-				acc.events.push(event);
-				if (!shouldLog(event.type)) return;
-				logger(renderEvent(event), event);
-			};
-
-			if (options.path != null) {
-				const stream = this.observe(options.path, {
-					actor: options.actor,
-					structured: false,
-				});
-				stop = stream.subscribe((messages) => {
-					for (const m of messages) {
-						pushEvent(options.path, m);
-					}
-				});
-			} else {
-				const stream = this.observe({ actor: options.actor, structured: false });
-				stop = stream.subscribe((path, messages) => {
-					for (const m of messages) {
-						pushEvent(path, m);
-					}
-				});
-			}
-			return {
-				result,
-				dispose() {
-					result.dispose();
-				},
-			};
-		}
-
-		const structuredObserveOptions = {
-			actor: options.actor,
-			structured: true as const,
-			...(options.timeline !== false ? { timeline: true as const } : {}),
-			...(options.causal ? { causal: true as const } : {}),
-			...(options.derived ? { derived: true as const } : {}),
-		};
-		const result: ObserveResult =
-			options.path != null
-				? this.observe(options.path, structuredObserveOptions)
-				: this.observe(structuredObserveOptions);
-
+		// Poll-free event flushing: watch the events array length via a cursor.
+		// The fallback ObserveResult pushes events synchronously during subscribe callbacks,
+		// so we use Object.defineProperty to intercept event pushes.
 		let cursor = 0;
-		const flushNewEvents = () => {
-			const nextEvents = result.events.slice(cursor);
-			cursor = result.events.length;
-			for (const event of nextEvents) {
-				if (!shouldLog(event.type)) continue;
-				logger(renderEvent(event), event);
+		const flush = () => {
+			const events = result.events;
+			while (cursor < events.length) {
+				const event = events[cursor++];
+				if (shouldLog(event.type)) {
+					logger(renderEvent(event), event);
+				}
 			}
 		};
 
-		const stream =
-			options.path != null
-				? this.observe(options.path, { actor: options.actor, structured: false })
-				: this.observe({ actor: options.actor, structured: false });
+		// Wrap the events array's push to flush on each new event.
+		const origPush = (result.events as ObserveEvent[]).push;
+		(result.events as ObserveEvent[]).push = function (...items: ObserveEvent[]) {
+			const ret = origPush.apply(this, items);
+			flush();
+			return ret;
+		};
 
-		const stop =
-			options.path != null
-				? (stream as GraphObserveOne).subscribe((messages) => {
-						if (messages.length > 0) {
-							flushNewEvents();
-						}
-					})
-				: (stream as GraphObserveAll).subscribe((_path, messages) => {
-						if (messages.length > 0) {
-							flushNewEvents();
-						}
-					});
-
-		return {
-			result,
-			dispose() {
-				stop();
-				flushNewEvents();
-				result.dispose();
-			},
+		// Wrap dispose to flush any remaining events.
+		const origDispose = result.dispose.bind(result);
+		(result as { dispose(): void }).dispose = () => {
+			origDispose();
+			flush();
 		};
 	}
 
@@ -2353,7 +2399,7 @@ export class Graph {
 
 	/**
 	 * When `false`, structured observation options (`causal`, `timeline`),
-	 * `annotate()`, and `traceLog()` are no-ops. Raw `observe()` always works.
+	 * and `trace()` writes are no-ops. Raw `observe()` always works.
 	 *
 	 * Default: `true` outside production (`process.env.NODE_ENV !== "production"`).
 	 */
@@ -2365,26 +2411,25 @@ export class Graph {
 	private _traceRing = new RingBuffer<TraceEntry>(1000);
 
 	/**
-	 * Attaches a reasoning annotation to a node — captures *why* an AI agent set a value.
+	 * Unified reasoning trace: write annotations or read the ring buffer.
 	 *
+	 * Write: `graph.trace("path", "reason")` — attaches a reasoning annotation
+	 * to a node, capturing *why* an AI agent set a value.
 	 * No-op when {@link Graph.inspectorEnabled} is `false`.
 	 *
-	 * @param path - Qualified node path.
-	 * @param reason - Free-text note stored in the trace ring buffer.
+	 * Read: `graph.trace()` — returns a chronological log of all annotations.
+	 * Returns `[]` when {@link Graph.inspectorEnabled} is `false`.
 	 */
-	annotate(path: string, reason: string): void {
-		if (!Graph.inspectorEnabled) return;
-		this.resolve(path); // validate path exists
-		this._annotations.set(path, reason);
-		this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
-	}
-
-	/**
-	 * Returns a chronological log of all reasoning annotations (ring buffer).
-	 *
-	 * @returns `[]` when {@link Graph.inspectorEnabled} is `false`.
-	 */
-	traceLog(): readonly TraceEntry[] {
+	trace(path: string, reason: string): void;
+	trace(): readonly TraceEntry[];
+	trace(path?: string, reason?: string): undefined | readonly TraceEntry[] {
+		if (path != null && reason != null) {
+			if (!Graph.inspectorEnabled) return;
+			this.resolve(path); // validate path exists
+			this._annotations.set(path, reason);
+			this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
+			return;
+		}
 		if (!Graph.inspectorEnabled) return [];
 		return this._traceRing.toArray();
 	}
