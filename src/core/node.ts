@@ -800,7 +800,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._downInternal(wasDirty ? [[RESOLVED]] : [[DIRTY], [RESOLVED]]);
 			return;
 		}
-		this._cached = value as T;
+		// _handleLocalLifecycle (called by _downInternal) sets _cached from the DATA payload.
 		this._downInternal(wasDirty ? [[DATA, value]] : [[DIRTY], [DATA, value]]);
 	}
 

@@ -40,6 +40,129 @@ Supports both graph-subgraph (tight coupling, same propagation cycle) and cursor
 - [ ] Strategy model accumulates effectiveness data across treatments A→D
 - [ ] Retrospective distills into `agentMemory` for next session context
 
+##### Closed-loop automation (eval → harness → implement → verify → re-eval)
+
+The harness loop stages are wired but EXECUTE and VERIFY are currently promptNode shells — they output JSON assessments but don't touch code or re-run evals. The full closed loop requires:
+
+- [ ] **EXECUTE actuators** — pluggable implementations that can apply catalog entry updates, template additions, doc edits, or `CatalogFnEntry` modifications. Default: promptNode (current). Advanced: tool-use agent that writes code + runs lint.
+- [ ] **VERIFY re-eval** — after EXECUTE produces a fix, re-run *only the affected eval tasks* (not full suite). Wire `affectsEvalTasks` from the triaged item → eval runner → compare before/after scores. Default: promptNode review (current). Advanced: actual eval execution via `evals/lib/runner.ts`.
+- [ ] **4-treatment runner script** (`evals/scripts/run-treatments.ts`) — automate the A→D experiment: iterate treatments, run evals per treatment, collect results, feed into harness loop for comparative analysis. Currently fully manual.
+- [ ] **CI-triggered eval→harness pipeline** — on push/merge, run affected evals → feed results into harness → strategy model updates → report delta. Deferred until EXECUTE actuators are real.
+
+**Design note:** EXECUTE and VERIFY are intentionally pluggable (the developer or LLM fills in the "how"). The above items wire *our specific* actuators for the catalog automation use case. Other users would plug in their own. The harness loop infrastructure is general; the actuators are domain-specific.
+
+##### Streaming promptNode + mountable stream extractors (promptNode v2)
+
+Generalized stream processing for any streaming source (LLM tokens, WebSocket, SSE, file tail). The stream topic is a universal tap point; extractor subgraphs mount independently. Zero cost if nobody subscribes.
+
+```
+streamingPromptNode (or any streaming source)
+  └─→ streamTopic: TopicGraph<StreamChunk>
+        ├─→ piiRedactor        (regex/NER → redaction events → gate blocks output)
+        ├─→ invariantChecker   (design invariant keywords → flags topic)
+        ├─→ toolCallExtractor  (detects tool_call JSON mid-stream → interception chain from §11)
+        ├─→ thinkingRenderer   (accumulates reasoning → human subscriber: CLI, UI, MCP)
+        ├─→ costMeter          (token count → budgetGate)
+        └─→ streamExtractor(fn) (user-defined: any derived/effect on the stream)
+```
+
+Core streaming infrastructure:
+
+- [ ] **`streamingPromptNode`** — uses `adapter.stream()` instead of `invoke()`. Emits chunks to a `TopicGraph<StreamChunk>` as the LLM generates. Final parsed result goes to the output node as before.
+- [ ] **`StreamChunk` type** — `{ source: string, token: string, accumulated: string, index: number }`. Generic enough for any streaming source, not just LLM.
+- [ ] **Cancelable execution via `switchMap` + `AbortSignal`** — human steering signal cancels in-flight stream (`AbortController.abort()`). New input starts fresh. Uses existing `switchMap` — `switchMap(steeringSignal, () => streamingPromptNode(...))`.
+- [ ] **Gate integration** — `gate.reject()` on the stream triggers abort. `gate.modify()` redirects with updated context.
+
+Mountable extractor subgraphs (each is opt-in, composes with any stream topic):
+
+- [ ] **`streamExtractor(streamTopic, extractFn, opts?)`** — generic factory: mount an extractor function to any streaming topic. Returns a derived node with extracted values. `extractFn: (accumulated: string) => T | null` — returns extracted value or null (nothing yet). This is the building block for all extractors below.
+- [ ] **Keyword flag extractor** — `streamExtractor` with pattern-match for suspicious keywords. Config: `{ patterns: RegExp[], labels: string[] }`. Use cases: design invariant violations (`setTimeout`, `EventEmitter`, `process.nextTick`), PII detection (`SSN`, email, phone patterns), toxicity keywords, off-track reasoning indicators.
+- [ ] **Tool call extractor** — `streamExtractor` that detects `tool_call` JSON in the stream. Feeds into the tool interception chain (SESSION-reactive-collaboration-harness §11). Enables reactive tool gating mid-stream, not post-hoc.
+- [ ] **Cost meter extractor** — `streamExtractor` that counts tokens and feeds into `budgetGate`. Enables hard-stop when LLM output exceeds budget mid-generation.
+
+**Pattern:** the stream topic is a `TopicGraph` (which extends `Graph`) — extractors are just nodes in that graph or mounted subgraphs. Sync vs async is a property of the sink, not the source: a `derived` extractor runs in the same propagation cycle as the chunk (sync — can abort before the next token), while a `SubscriptionGraph` cursor-reader consumes at its own pace (async — batches, renders at 60fps, flushes when ready). Same topology, same data, consumer picks the coupling mode. This is the dual composition mode (SESSION-reactive-collaboration-harness §8) applied to streaming.
+
+This is what GraphReFly was built for from day 1: every flow is inspectable (`describe()`, `observe()`, `graphProfile()`), every node is subscribable, every subgraph is mountable. Stream extractors are not a new abstraction — they're what falls out naturally when a streaming source is a graph node instead of a raw `AsyncIterable`.
+
+##### Reusable patterns to extract from harness work
+
+Patterns discovered during §9.0 implementation that generalize beyond the harness:
+
+- [ ] **Generalized source→intake bridge factory** — `evalIntakeBridge` is eval-specific; the pattern (parse domain results → uniform `IntakeItem[]` → publish to topic) generalizes to any source (CI results, test failures, Slack messages, monitoring alerts). Provide a `createIntakeBridge(parser, topic)` factory with pluggable parser.
+- [ ] **Stage-aware prompt routing** (document pattern) — detecting which pipeline stage called the LLM based on prompt content keywords. Used in `mockLLM` and `run-harness.ts`. Worth documenting as a testing pattern for any multi-stage LLM pipeline.
+- [ ] **Stable identity for retried items** (document pattern) — `trackingKey` pattern: use `relatedTo[0]` as stable identity, fall back to summary. Prevents retry/reingestion decorations (like `[RETRY N/M]` prefix) from generating novel keys that defeat dedup. Document in composition guide.
+
+##### Common harness compositions (reusable building blocks)
+
+The harness loop is general infrastructure. Below are pre-composed building blocks that users wire together for common workflows. Each is a composition of existing primitives — not new abstractions. We don't babysit every combination; we provide the Lego pieces with clear "snap here" points.
+
+**Composition A: Eval-driven improvement loop**
+
+The most common pattern: find issues → implement fixes → eval to verify → learn what works.
+
+```
+  issues ──→ TRIAGE ──→ IMPLEMENT ──→ EVAL ──→ COMPARE ──→ REPORT
+    ↑                                              │
+    └─── REFLECT (strategy model, new issues) ─────┘
+```
+
+Building blocks to provide:
+- [ ] **`evalSource(runner, config)`** — wraps any eval runner as a reactive producer node. Input: trigger signal (code change, manual, cron). Output: `EvalRun` results. Currently our eval runner is imperative (`await runLLMDXEval(config)`); this wraps it in a producer so results flow reactively into the harness.
+- [ ] **`beforeAfterCompare(before, after)`** — derived node that takes two eval results and computes per-task deltas (score diff, new failures, resolved failures). Pure computation, no domain logic. Feeds into strategy model and report generation.
+- [ ] **`affectedTaskFilter(issues, fullTaskSet)`** — derived node that selects which eval tasks to re-run based on `affectsEvalTasks` from triaged items. Avoids re-running the full suite on every fix.
+
+**Composition B: Content safety pipeline**
+
+LLM output flows through extractor subgraphs before reaching the user. Stream extractors (above) are the mechanism; this composition is the wiring pattern.
+
+```
+  LLM stream ──→ streamTopic ──→ piiRedactor ──→ toxicityGate ──→ outputTopic
+                       │                                │
+                       └─→ auditLog                     └─→ alert (if blocked)
+```
+
+Building blocks:
+- [ ] **`redactor(streamTopic, patterns, replaceFn)`** — stream extractor that replaces matched patterns in-flight. `patterns`: PII regexes, custom terms. `replaceFn`: mask, hash, or remove. Output: sanitized stream topic.
+- [ ] **`contentGate(streamTopic, classifier, threshold)`** — gate that blocks output if classifier score exceeds threshold. `classifier`: keyword-based (cheap) or promptNode-based (accurate). Falls through to human gate for borderline cases.
+
+**Composition C: Agent tool interception**
+
+From SESSION-reactive-collaboration-harness §11. Tool calls flow through a reactive pipeline before execution.
+
+```
+  agentLoop tool_call ──→ toolTopic ──→ valve (allowed?) ──→ budgetGate ──→ gate (human) ──→ execute ──→ auditTrail
+```
+
+Building blocks:
+- [ ] **`toolInterceptor(agentLoop, opts?)`** — mounts a tool interception subgraph between `agentLoop` tool emission and tool execution. Pluggable pipeline: valve (policy), budgetGate (cost), gate (human approval for destructive ops). Default: passthrough (current behavior). Composition of valve (§9.0), budgetGate (§8.1), gate (§9.0), auditTrail (§9.2).
+
+**Composition D: Quality gate (CI/CD)**
+
+On code change, run affected checks → triage failures → auto-fix trivial ones → alert on structural ones.
+
+```
+  code change ──→ intakeBridge ──→ TRIAGE ──→ auto-fix queue ──→ EXECUTE (lint --fix, format) ──→ commit
+                                         └──→ alert queue ──→ notify (Slack, PR comment)
+```
+
+Building blocks:
+- [ ] **`codeChangeBridge(gitDiffSource, parser)`** — intake bridge that parses git diff / CI output into IntakeItems. `parser`: lint errors, test failures, type errors.
+- [ ] **`notifyEffect(topic, transport)`** — effect node that sends triaged/verified items to an external channel (Slack webhook, GitHub PR comment, email). Pluggable transport.
+
+**Composition E: Refinement loop (wraps refineLoop §9.8)**
+
+The harness loop's EXECUTE→VERIFY cycle is a single-pass fix. For iterative refinement (prompt optimization, catalog tuning), wire `refineLoop` into the EXECUTE slot:
+
+```
+  triaged item ──→ refineLoop(seed=current, evaluator=affected_evals, strategy=errorCritique) ──→ best candidate ──→ VERIFY
+```
+
+This connects §9.0 (harness) with §9.8 (refineLoop) — the harness routes items, refineLoop iterates on fixes, the harness verifies and learns.
+
+- [ ] **`refineExecutor(refineLoopFactory, opts?)`** — adapter that plugs a refineLoop into the EXECUTE slot of harnessLoop. Maps triaged item → seed, affected evals → evaluator, strategy model → refinement strategy selection.
+
+**Design principle:** each composition is 5-20 lines of wiring, not a new factory. The building blocks above are the nodes and edges; the user's `harnessLoop` config determines which are active. We provide the Lego pieces and a few pre-assembled models (our own dogfood). The user remixes for their domain.
+
 ---
 
 ### Wave 1: "The Eval Story" — publish engineering discipline (Weeks 1-3)
@@ -191,6 +314,19 @@ NL → GraphSpec → flow view → run → persist → explain. The demo that pr
 The harness engineering showcase. Instrument agentLoop, LLM observes LLM, distills "why agent went off-track."
 
 - [ ] Demo 6 (7.3b → 9.7)
+
+**Demo candidate: stream extractor showcase.** Part or all of the stream extractor pattern as a live demo — a single `streamingPromptNode` with multiple extractors mounted simultaneously, each visible in real time. Demonstrates that every flow is inspectable and pluggable — the core GraphReFly thesis applied to streaming. Scope decided at demo time.
+
+```
+streamingPromptNode
+  └─→ streamTopic: TopicGraph<StreamChunk>
+        ├─→ piiRedactor        (regex/NER → redaction events → gate blocks output)
+        ├─→ invariantChecker   (design invariant keywords → flags topic)
+        ├─→ toolCallExtractor  (tool_call JSON mid-stream → interception chain)
+        ├─→ thinkingAccumulator (reasoning rendered to human subscriber)
+        ├─→ costMeter          (token count → budgetGate)
+        └─→ userDefinedExtractor(...)
+```
 
 #### Wave 3 deliverables for announcement
 
@@ -365,7 +501,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 - [ ] **Factory composition helper** — shared pattern/utility for 4.x graph factory boilerplate
 - [ ] **Cross-island state bridge** — shared graph state across Astro islands
 - [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant
-- [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()`
+- [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()`. **Partially done:** scenario-scripted `mockLLM` with stage detection, call recording, per-stage cycling, and `callsFor(stage)` inspection exists in `src/__tests__/helpers/mock-llm.ts`. Needs promotion to a public library export (e.g. `src/patterns/testing.ts` or `src/testing/mock-llm.ts`) so any developer testing AI patterns can use it.
 - [ ] **Time simulation** — `monotonicNs()` test-mode override for `vi.useFakeTimers()` integration
 
 ### Phase 8.4 — Audit & accountability

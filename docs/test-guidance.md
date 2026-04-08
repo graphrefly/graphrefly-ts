@@ -129,6 +129,30 @@ const desc = graph.describe({ detail: "standard" });
 
 ---
 
+## Inspection tools in tests
+
+When debugging composed factories (Phase 4+), use profiling utilities to snapshot graph state rather than adding ad-hoc console.logs:
+
+```ts
+import { graphProfile } from "../../graph/profile.js";
+import { harnessProfile } from "../../patterns/harness/profile.js";
+
+// Snapshot before and after an operation
+const before = graphProfile(graph);
+// ... perform operation ...
+const after = graphProfile(graph);
+
+// Check for memory growth, runaway subscribers, stuck nodes
+expect(after.totalValueSizeBytes).toBeLessThan(100_000);
+expect(after.hotspots[0].status).toBe("settled");
+```
+
+For harness-specific debugging, `harnessProfile` adds queue depths, strategy entries, and retry/reingestion tracker sizes — these immediately reveal unbounded counters or runaway loops.
+
+**Isolate first:** When a test OOMs or times out, run it alone (`npx vitest run -t "test name"`) before investigating. Multiple test instances of the same factory can obscure the signal.
+
+---
+
 ## Diamond resolution pattern
 
 ```ts

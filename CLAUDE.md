@@ -55,6 +55,10 @@ These are non-negotiable across all implementations. Validate every change again
 - For persistence auto-checkpoint behavior, gate saves by `messageTier >= 2`.
 - Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
 
+## Debugging composition (mandatory procedure)
+
+When debugging OOM, infinite loops, silent failures, or unexpected values in composed factories, follow the **"Debugging composition"** section in `~/src/graphrefly/COMPOSITION-GUIDE.md`. That is the single source of truth for the procedure. Do not skip or improvise around it.
+
 ## Commands
 
 ```bash

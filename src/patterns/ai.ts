@@ -11,6 +11,7 @@ import { monotonicNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR, TEARDOWN } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
+import { ResettableTimer } from "../core/timer.js";
 import {
 	type DistillBundle,
 	type DistillOptions,
@@ -160,36 +161,33 @@ function firstDataFromNode(
 	}
 	const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	return new Promise((resolve, reject) => {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const cleanup = () => {
-			if (timer !== undefined) clearTimeout(timer);
-		};
+		const timer = new ResettableTimer();
 		const unsub = resolved.subscribe((messages) => {
 			for (const msg of messages) {
 				if (msg[0] === DATA) {
-					cleanup();
+					timer.cancel();
 					unsub();
 					resolve(msg[1]);
 					return;
 				}
 				if (msg[0] === ERROR) {
-					cleanup();
+					timer.cancel();
 					unsub();
 					reject(msg[1]);
 					return;
 				}
 				if (msg[0] === COMPLETE) {
-					cleanup();
+					timer.cancel();
 					unsub();
 					reject(new Error("firstDataFromNode: completed without producing a value"));
 					return;
 				}
 			}
 		});
-		timer = setTimeout(() => {
+		timer.start(timeoutMs, () => {
 			unsub();
 			reject(new Error(`firstDataFromNode: timed out after ${timeoutMs}ms`));
-		}, timeoutMs);
+		});
 	});
 }
 

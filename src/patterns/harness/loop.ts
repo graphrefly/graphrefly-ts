@@ -8,8 +8,9 @@
  * @module
  */
 
+import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { effect } from "../../core/sugar.js";
+import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
 import type { LLMAdapter } from "../ai.js";
@@ -27,6 +28,7 @@ import {
 	type ExecutionResult,
 	type HarnessLoopOptions,
 	type IntakeItem,
+	QUEUE_NAMES,
 	type QueueConfig,
 	type QueueRoute,
 	type TriagedItem,
@@ -38,8 +40,18 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Strip `[RETRY N/M] ` prefix to get the stable item identity key. */
-function baseSummary(summary: string): string {
-	return summary.replace(/^\[RETRY \d+\/\d+\]\s*/, "");
+/**
+ * Stable tracking key for an item. Uses `relatedTo[0]` if the item is
+ * already a retry or reingestion (carries the original key forward).
+ * Falls back to the raw summary for first-time items.
+ *
+ * This avoids deriving keys from mutated summary strings — retries
+ * decorate the summary with `[RETRY N/M]` and failure context, so
+ * regex-stripping would be fragile and any new decoration pattern
+ * would risk infinite loops by generating novel keys.
+ */
+function trackingKey(item: { summary: string; relatedTo?: string[] }): string {
+	return item.relatedTo?.[0] ?? item.summary;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,17 +106,6 @@ Output JSON:
 }`;
 
 // ---------------------------------------------------------------------------
-// Queue names
-// ---------------------------------------------------------------------------
-
-const QUEUE_NAMES: readonly QueueRoute[] = [
-	"auto-fix",
-	"needs-decision",
-	"investigation",
-	"backlog",
-];
-
-// ---------------------------------------------------------------------------
 // HarnessGraph
 // ---------------------------------------------------------------------------
 
@@ -125,11 +126,11 @@ export class HarnessGraph extends Graph {
 	/** Verify results topic — subscribe to see verification outcomes. */
 	readonly verifyResults: TopicGraph<VerifyResult>;
 
-	/** Per-item fast-retry counts (keyed by base summary). */
-	readonly retryTracker: ReadonlyMap<string, number>;
+	/** Global retry count across all items (circuit breaker). Reactive — subscribable. */
+	readonly totalRetries: Node<number>;
 
-	/** Per-item reingestion counts (keyed by base summary). */
-	readonly reingestionTracker: ReadonlyMap<string, number>;
+	/** Global reingestion count across all items (circuit breaker). Reactive — subscribable. */
+	readonly totalReingestions: Node<number>;
 
 	constructor(
 		name: string,
@@ -138,8 +139,8 @@ export class HarnessGraph extends Graph {
 		gates: Map<QueueRoute, GateController<TriagedItem>>,
 		strategy: StrategyModelBundle,
 		verifyResults: TopicGraph<VerifyResult>,
-		retryTracker: Map<string, number>,
-		reingestionTracker: Map<string, number>,
+		totalRetries: Node<number>,
+		totalReingestions: Node<number>,
 	) {
 		super(name);
 		this.intake = intake;
@@ -147,8 +148,8 @@ export class HarnessGraph extends Graph {
 		this.gates = gates;
 		this.strategy = strategy;
 		this.verifyResults = verifyResults;
-		this.retryTracker = retryTracker;
-		this.reingestionTracker = reingestionTracker;
+		this.totalRetries = totalRetries;
+		this.totalReingestions = totalReingestions;
 	}
 }
 
@@ -229,13 +230,23 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		queueTopics.set(route, new TopicGraph<TriagedItem>(`queue/${route}`, { retainedLimit }));
 	}
 
-	// Router effect: watches triage output and publishes to the correct queue.
-	// Keepalive subscription activates the lazy computation chain (COMPOSITION-GUIDE §1).
-	const router = effect([triageNode as Node<unknown>], ([triaged]) => {
-		const item = triaged as TriagedItem | null;
-		if (!item || !item.route) return;
-		const topic = queueTopics.get(item.route);
-		if (topic) topic.publish(item);
+	// Router: merge intake fields into triage classification before routing to queue.
+	// The LLM only returns {rootCause, intervention, route, priority} — the router
+	// pairs it with the original intake item (summary, evidence, etc.).
+	// Sample triageInput (not intake.latest) — triageInput holds the [item, strategy]
+	// pair that *triggered* this specific triage, so we get the correct item even if
+	// a newer intake item has arrived since. triageNode triggers; triageInput sampled.
+	const routerInput = withLatestFrom(triageNode as Node<unknown>, triageInput as Node<unknown>);
+	const router = effect([routerInput as Node<unknown>], ([pair]) => {
+		const [classification, triagePair] = pair as [
+			TriagedItem | null,
+			[IntakeItem | null, StrategySnapshot] | null,
+		];
+		if (!classification || !classification.route) return;
+		const intakeItem = triagePair?.[0];
+		const merged: TriagedItem = { ...intakeItem, ...classification };
+		const topic = queueTopics.get(merged.route);
+		if (topic) topic.publish(merged);
 	});
 	const routerUnsub = router.subscribe(() => {});
 
@@ -325,8 +336,10 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	);
 
 	const maxReingestions = opts.maxReingestions ?? 1;
-	const retryTracker = new Map<string, number>();
-	const reingestionTracker = new Map<string, number>();
+	const maxTotalRetries = Math.min(opts.maxTotalRetries ?? maxRetries * 10, 100);
+	const maxTotalReingestions = Math.min(opts.maxTotalReingestions ?? maxReingestions * 10, 100);
+	const totalRetries = state(0);
+	const totalReingestions = state(0);
 
 	const fastRetry = effect([verifyContext as Node<unknown>], ([ctx]) => {
 		const [[vo, execRaw], item] = ctx as [
@@ -364,14 +377,20 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 				detail: vr.findings.join("; "),
 			});
 
-		const key = baseSummary(item.summary);
-		const retryCount = retryTracker.get(key) ?? 0;
+		const itemRetries = item._retries ?? 0;
 
-		if (errClass === "self-correctable" && retryCount < maxRetries) {
-			retryTracker.set(key, retryCount + 1);
+		if (
+			errClass === "self-correctable" &&
+			itemRetries < maxRetries &&
+			(totalRetries.get() ?? 0) < maxTotalRetries
+		) {
+			totalRetries.down([[DATA, (totalRetries.get() ?? 0) + 1]]);
+			const key = trackingKey(item);
 			const retryItem: TriagedItem = {
 				...item,
-				summary: `[RETRY ${retryCount + 1}/${maxRetries}] ${baseSummary(item.summary)} — Previous attempt failed: ${vr.findings.join("; ")}`,
+				_retries: itemRetries + 1,
+				summary: `[RETRY ${itemRetries + 1}/${maxRetries}] ${key} — Previous attempt failed: ${vr.findings.join("; ")}`,
+				relatedTo: [key],
 			};
 			retryTopic.publish(retryItem);
 		} else {
@@ -379,18 +398,22 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			strategy.record(item.rootCause, item.intervention, false);
 			verifyResults.publish(vr);
 
-			// Per-item + global reingestion cap
-			const itemReingestions = reingestionTracker.get(key) ?? 0;
-			if (itemReingestions < maxReingestions) {
-				reingestionTracker.set(key, itemReingestions + 1);
+			const key = trackingKey(item);
+			const itemReingestions = item._reingestions ?? 0;
+			if (
+				itemReingestions < maxReingestions &&
+				(totalReingestions.get() ?? 0) < maxTotalReingestions
+			) {
+				totalReingestions.down([[DATA, (totalReingestions.get() ?? 0) + 1]]);
 				intake.publish({
 					source: "eval",
-					summary: `Verification failed for: ${baseSummary(item.summary)}`,
+					summary: `Verification failed for: ${key}`,
 					evidence: vr.findings.join("\n"),
 					affectsAreas: item.affectsAreas,
 					affectsEvalTasks: item.affectsEvalTasks,
 					severity: "high",
-					relatedTo: [baseSummary(item.summary)],
+					relatedTo: [key],
+					_reingestions: itemReingestions + 1,
 				});
 			}
 		}
@@ -411,8 +434,8 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		gateControllers,
 		strategy,
 		verifyResults,
-		retryTracker,
-		reingestionTracker,
+		totalRetries,
+		totalReingestions,
 	);
 
 	// Register disposers for unregistered internal nodes (D1/D2 fix)

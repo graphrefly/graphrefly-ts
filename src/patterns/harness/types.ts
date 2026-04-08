@@ -39,6 +39,14 @@ export type Intervention =
 /** Routing destinations after triage. */
 export type QueueRoute = "auto-fix" | "needs-decision" | "investigation" | "backlog";
 
+/** Ordered queue route names for iteration. */
+export const QUEUE_NAMES: readonly QueueRoute[] = [
+	"auto-fix",
+	"needs-decision",
+	"investigation",
+	"backlog",
+];
+
 /**
  * An item entering the harness loop via the INTAKE stage.
  *
@@ -53,6 +61,8 @@ export interface IntakeItem {
 	affectsEvalTasks?: string[];
 	severity?: Severity;
 	relatedTo?: string[];
+	/** Item-carried reingestion count. Incremented on each full-loop reingestion. */
+	_reingestions?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +76,8 @@ export interface TriagedItem extends IntakeItem {
 	route: QueueRoute;
 	priority: number;
 	triageReasoning?: string;
+	/** Item-carried retry count. Incremented on each fast-retry pass. */
+	_retries?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,8 +226,14 @@ export interface HarnessLoopOptions {
 	/** Max fast-retries per item before routing to full intake (default 2). */
 	maxRetries?: number;
 
+	/** Global retry cap across all items — circuit breaker (default maxRetries × 10). */
+	maxTotalRetries?: number;
+
 	/** Max re-ingestions from verify→intake before giving up (default 1). */
 	maxReingestions?: number;
+
+	/** Global reingestion cap across all items — circuit breaker (default maxReingestions × 10). */
+	maxTotalReingestions?: number;
 
 	/** Retained limit for topic logs (default 1000). */
 	retainedLimit?: number;

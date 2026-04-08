@@ -50,3 +50,10 @@ export {
 	reachable,
 	type TraceEntry,
 } from "./graph.js";
+export {
+	type GraphProfileOptions,
+	type GraphProfileResult,
+	graphProfile,
+	type NodeProfile,
+} from "./profile.js";
+export { sizeof } from "./sizeof.js";

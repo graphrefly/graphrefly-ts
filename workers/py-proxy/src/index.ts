@@ -1,10 +1,11 @@
 /**
  * Cloudflare Worker: proxy /py/* requests to graphrefly-py GitHub Pages.
  *
- * graphrefly.dev/py/api/node  →  graphrefly.github.io/graphrefly-py/py/api/node
+ * graphrefly.dev/py/api/node  →  graphrefly.github.io/graphrefly-py/api/node
  *
- * The Python site must build with base=/py/ so paths already
- * include the /py/ prefix in the built output. We forward the full path.
+ * Astro builds with base=/py/ so HTML references include /py/ in URLs,
+ * but the output directory structure does NOT contain a /py/ subdirectory.
+ * We strip the /py prefix before forwarding to GitHub Pages.
  */
 export default {
 	async fetch(request: Request): Promise<Response> {
@@ -15,8 +16,9 @@ export default {
 			return fetch(request);
 		}
 
-		// GitHub Pages serves at: https://graphrefly.github.io/graphrefly-py/py/...
-		const upstream = `https://graphrefly.github.io/graphrefly-py${url.pathname}${url.search}`;
+		// Strip /py prefix — Astro base=/py/ affects URLs, not output dirs
+		const upstreamPath = url.pathname.replace(/^\/py/, "") || "/";
+		const upstream = `https://graphrefly.github.io/graphrefly-py${upstreamPath}${url.search}`;
 
 		const resp = await fetch(upstream, {
 			method: request.method,
