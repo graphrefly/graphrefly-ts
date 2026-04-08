@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.17.0...v0.18.0) (2026-04-08)
+
+
+### Features
+
+* consolidate inspection tools ([3387374](https://github.com/graphrefly/graphrefly-ts/commit/33873741609a2c05f9e2ede208dcc04b0d2ef8e2))
+
 # [0.17.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.16.0...v0.17.0) (2026-04-08)
 
 
