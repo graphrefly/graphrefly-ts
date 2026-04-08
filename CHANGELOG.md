@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.15.0...v0.16.0) (2026-04-08)
+
+
+### Features
+
+* address optimizations ([f535348](https://github.com/graphrefly/graphrefly-ts/commit/f53534813bc9167b904f0f42a1fde49931394e17))
+
 # [0.15.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.14.0...v0.15.0) (2026-04-07)
 
 
