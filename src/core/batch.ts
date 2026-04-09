@@ -167,9 +167,9 @@ function drainPending(): void {
 /**
  * Splits a message array into three groups by signal tier (see `messages.ts`):
  *
- * - **immediate** — tier 0–1: DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN, unknown
- * - **deferred** — tier 2: DATA, RESOLVED (phase-2, deferred inside `batch()`)
- * - **terminal** — tier 3: COMPLETE, ERROR (delivered after phase-2)
+ * - **immediate** — tier 0–2, 5: START, DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN, unknown
+ * - **deferred** — tier 3: DATA, RESOLVED (phase-2, deferred inside `batch()`)
+ * - **terminal** — tier 4: COMPLETE, ERROR (delivered after phase-2)
  *
  * Order within each group is preserved.
  *
@@ -210,10 +210,10 @@ export function partitionForBatch(messages: Messages): {
  * Delivers messages downstream through `sink`, applying batch semantics and
  * canonical tier-based ordering (see `messages.ts`):
  *
- * 1. **Immediate** (tier 0–1, 4): DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN,
+ * 1. **Immediate** (tier 0–2, 5): START, DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN,
  *    unknown — delivered synchronously.
- * 2. **Phase-2** (tier 2): DATA, RESOLVED — deferred while `isBatching()`.
- * 3. **Terminal** (tier 3): COMPLETE, ERROR — always delivered after phase-2.
+ * 2. **Phase-2** (tier 3): DATA, RESOLVED — deferred while `isBatching()`.
+ * 3. **Terminal** (tier 4): COMPLETE, ERROR — always delivered after phase-2.
  *    When batching, terminal is queued after deferred phase-2 in the pending list.
  *    When not batching, terminal is delivered after phase-2 synchronously.
  *
@@ -286,12 +286,12 @@ export function downWithBatch(
 	// Multi-message: three-way partition by tier.
 	const { immediate, deferred, terminal } = partitionForBatch(messages);
 
-	// 1. Immediate signals (tier 0–1, 4) — deliver synchronously now.
+	// 1. Immediate signals (tier 0–2, 5) — deliver synchronously now.
 	if (immediate.length > 0) {
 		sink(immediate);
 	}
 
-	// 2. Deferred (tier 2) + Terminal (tier 3) — canonical order preserved.
+	// 2. Deferred (tier 3) + Terminal (tier 4) — canonical order preserved.
 	if (isBatching()) {
 		if (deferred.length > 0) {
 			queue.push(() => sink(deferred));
@@ -313,6 +313,14 @@ export function downWithBatch(
  * Sequential strategy: walk messages one at a time. Phase-2 (DATA/RESOLVED) and
  * terminal (COMPLETE/ERROR) messages are deferred while batching; immediate
  * messages deliver synchronously. Matches graphrefly-py `_down_sequential`.
+ *
+ * Tier legend (after START introduction):
+ *   0 = START              — immediate, delivered before other tiers
+ *   1 = DIRTY, INVALIDATE  — immediate
+ *   2 = PAUSE, RESUME      — immediate
+ *   3 = DATA, RESOLVED     — deferred inside batch
+ *   4 = COMPLETE, ERROR    — deferred to phase-3 queue (drains after data)
+ *   5 = TEARDOWN           — deferred to phase-3 queue (drains after data)
  */
 function _downSequential(
 	sink: (messages: Messages) => void,
@@ -322,7 +330,7 @@ function _downSequential(
 	const dataQueue = phase === 3 ? pendingPhase3 : pendingPhase2;
 	for (const msg of messages) {
 		const tier = messageTier(msg[0]);
-		if (tier === 2) {
+		if (tier === 3) {
 			// Phase-2 (DATA/RESOLVED): defer while batching.
 			if (isBatching()) {
 				const m = msg;
@@ -330,10 +338,10 @@ function _downSequential(
 			} else {
 				sink([msg]);
 			}
-		} else if (tier >= 3) {
-			// Terminal (COMPLETE/ERROR/TEARDOWN): always route to phase-3
-			// regardless of the caller's `phase` param — terminals must
-			// drain after all phase-2 work to prevent premature termination.
+		} else if (tier >= 4) {
+			// Terminal + destruction (COMPLETE/ERROR/TEARDOWN): always route to
+			// phase-3 queue — terminals and teardown must drain after all phase-2
+			// work to prevent premature termination or early resource release.
 			if (isBatching()) {
 				const m = msg;
 				pendingPhase3.push(() => sink([m]));
@@ -341,7 +349,8 @@ function _downSequential(
 				sink([msg]);
 			}
 		} else {
-			// Immediate (DIRTY, INVALIDATE, PAUSE, RESUME): deliver synchronously.
+			// Immediate (START, DIRTY, INVALIDATE, PAUSE, RESUME):
+			// deliver synchronously.
 			sink([msg]);
 		}
 	}

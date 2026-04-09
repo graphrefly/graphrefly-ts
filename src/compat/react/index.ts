@@ -66,7 +66,7 @@ export type NodeFactory<K, R extends Record<string, any>> = (key: K) => {
 /**
  * Subscribe to a dynamic set of keyed node records.
  * Re-subscribes all per-key fields whenever `keysNode` changes.
- * Key re-sync is gated to settled batches (`messageTier >= 2`) to avoid DIRTY-phase churn.
+ * Key re-sync is gated to settled batches (`messageTier >= 3`) to avoid DIRTY-phase churn.
  * Guaranteed to clean up strictly with React hook lifecycle, utilizing no global mappings.
  *
  * @param keysNode - Node of current keys (e.g. node IDs)
@@ -124,7 +124,7 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 				};
 
 				const keysUnsub = keysNode.subscribe((msgs: Messages) => {
-					const hasSettled = msgs.some((m) => messageTier(m[0]) >= 2);
+					const hasSettled = msgs.some((m) => messageTier(m[0]) >= 3);
 					if (!disposed && hasSettled) sync(keysNode.get() ?? []);
 				});
 				sync(keysNode.get() ?? []);

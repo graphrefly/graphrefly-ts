@@ -18,19 +18,10 @@ import {
 	saveGraphCheckpointIndexedDb,
 } from "../../extra/checkpoint.js";
 import { Graph } from "../../graph/graph.js";
+import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function collect(node: {
-	subscribe: (fn: (msgs: readonly (readonly unknown[])[]) => void) => () => void;
-}) {
-	const batches: Array<readonly (readonly unknown[])[]> = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push([...msgs]);
-	});
-	return { batches, unsub };
 }
 
 class FakeIDBRequest<T> {

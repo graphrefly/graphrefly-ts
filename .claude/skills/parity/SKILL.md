@@ -122,7 +122,10 @@ After user approves:
    - Run `cd ~/src/graphrefly-py && uv run pytest` — fix failures
 4. Update `docs/optimizations.md` in **both** repos:
    - Add new open decisions under "Active work items"
-   - When decisions are resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"
+   - **Actively sweep:** scan for any fully-resolved items (all sub-tasks DONE, no remaining TODOs) and archive them to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log". Remove archived content from `optimizations.md`.
+5. Update `docs/roadmap.md`:
+   - Check off completed items
+   - **Actively sweep:** scan for any fully-completed phase or item group and archive to `archive/roadmap/*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive". Remove archived content from `roadmap.md`.
 
 ---
 

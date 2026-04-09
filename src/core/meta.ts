@@ -1,7 +1,7 @@
 import type { Actor } from "./actor.js";
 import { DynamicNodeImpl } from "./dynamic-node.js";
 import { accessHintForGuard } from "./guard.js";
-import { type Node, NodeImpl } from "./node.js";
+import { NO_VALUE, type Node, NodeImpl } from "./node.js";
 
 /** JSON-shaped slice of a node for Phase 1 `Graph.describe()` (GRAPHREFLY-SPEC §3.6, Appendix B). */
 export type DescribeNodeOutput = {
@@ -11,6 +11,8 @@ export type DescribeNodeOutput = {
 	meta?: Record<string, unknown>;
 	name?: string;
 	value?: unknown;
+	/** True when the node has never received or been initialized with a value (cache holds SENTINEL). */
+	sentinel?: boolean;
 	/** Node versioning info (GRAPHREFLY-SPEC §7). Present only when versioning is enabled. */
 	v?: { id: string; version: number; cid?: string; prev?: string | null };
 	/** Guard info (full detail). */
@@ -189,8 +191,14 @@ export function describeNode(node: Node, includeFields?: Set<string> | null): De
 		out.name = node.name;
 	}
 
-	// value
+	// value + sentinel indicator
 	if (all || includeFields!.has("value")) {
+		const isSentinel =
+			(node instanceof NodeImpl && node._cached === NO_VALUE) ||
+			(node instanceof DynamicNodeImpl && node._cached === NO_VALUE);
+		if (isSentinel) {
+			out.sentinel = true;
+		}
 		try {
 			out.value = node.get();
 		} catch {

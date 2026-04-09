@@ -1,14 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[] = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push(msgs);
-	});
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 describe("extra reactiveMap (roadmap §3.2)", () => {
 	it("emits DIRTY then DATA with versioned snapshot on set", () => {

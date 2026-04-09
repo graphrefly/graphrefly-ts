@@ -112,9 +112,13 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 
 	// --- Correlate ---
 	// Collect latest value from each branch, produce correlated output.
+	// Wrap each branch in a derived with `initial: null` so every branch has
+	// a seed value at subscribe time — this lets the correlate wave reach its
+	// first-run gate even when the classifier only routes to one branch.
 	const branchNodes = branches.map((b) => {
 		try {
-			return g.resolve(`stratify::branch/${b.name}`);
+			const raw = g.resolve(`stratify::branch/${b.name}`);
+			return derived([raw as Node], ([v]) => v, { initial: null });
 		} catch {
 			return state<unknown>(null);
 		}

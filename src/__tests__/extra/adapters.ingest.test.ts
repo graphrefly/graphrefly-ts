@@ -166,10 +166,9 @@ describe("fromSyslog + parseSyslog", () => {
 			for (const m of msgs) if (m[0] === DATA) received.push(m[1]);
 		});
 
-		// Push-on-subscribe replays the cached value
-		expect(received).toHaveLength(2);
+		// Producer emits once during _startProducer — single delivery.
+		expect(received).toHaveLength(1);
 		expect((received[0] as any).appName).toBe("app");
-		expect((received[1] as any).appName).toBe("app");
 	});
 });
 
@@ -219,8 +218,8 @@ describe("fromStatsD + parseStatsD", () => {
 			for (const m of msgs) if (m[0] === DATA) received.push(m[1]);
 		});
 
-		// Push-on-subscribe replays the last cached value (mem:512|g)
-		expect(received).toHaveLength(3);
+		// Two emits during _startProducer — single delivery per emit.
+		expect(received).toHaveLength(2);
 	});
 });
 

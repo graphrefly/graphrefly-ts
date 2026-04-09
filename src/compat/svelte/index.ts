@@ -76,7 +76,7 @@ export type NodeFactory<K, R extends Record<string, any>> = (key: K) => {
 /**
  * Subscribe to a dynamic keyed record of nodes as a Svelte readable store.
  * Re-subscribes all per-key fields whenever `keysNode` changes.
- * Key re-sync is gated to settled batches (`messageTier >= 2`) to avoid DIRTY-phase churn.
+ * Key re-sync is gated to settled batches (`messageTier >= 3`) to avoid DIRTY-phase churn.
  */
 export function useSubscribeRecord<K extends string, R extends Record<string, any>>(
 	keysNode: Node<K[]>,
@@ -119,7 +119,7 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 			};
 
 			const keysUnsub = keysNode.subscribe((msgs: Messages) => {
-				if (msgs.some((m) => messageTier(m[0]) >= 2)) {
+				if (msgs.some((m) => messageTier(m[0]) >= 3)) {
 					sync(keysNode.get() ?? []);
 				}
 			});

@@ -4,14 +4,7 @@ import { pubsub } from "../../extra/pubsub.js";
 import { reactiveIndex } from "../../extra/reactive-index.js";
 import { reactiveList } from "../../extra/reactive-list.js";
 import { logSlice, reactiveLog } from "../../extra/reactive-log.js";
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[] = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push(msgs);
-	});
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 	it("append and clear emit versioned snapshots", () => {

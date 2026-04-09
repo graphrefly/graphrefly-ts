@@ -103,11 +103,11 @@ describe("0.6 two-phase ordering", () => {
 		});
 
 		src.down([[DIRTY], [DATA, 5]]);
-		unsub();
 
 		const order = batches.flat();
 		expect(order.indexOf(DIRTY)).toBeGreaterThanOrEqual(0);
 		expect(order.indexOf(DATA)).toBeGreaterThan(order.indexOf(DIRTY));
 		expect(d.get()).toBe(6);
+		unsub();
 	});
 });

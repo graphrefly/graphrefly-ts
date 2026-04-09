@@ -11,6 +11,7 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
+	START,
 	TEARDOWN,
 } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
@@ -357,10 +358,10 @@ describe("integration: void sources and operator chains", () => {
 		const unsub = oneShot.subscribe((msgs: Messages) => {
 			for (const m of msgs) log.push([m[0], m[1]]);
 		});
-		// Producer emits DATA(undefined)+COMPLETE during connect.
-		// Push-on-subscribe is skipped because the node is terminal (§1.3.4).
-		expect(log.map((m) => m[0])).toEqual([DATA, COMPLETE]);
-		expect(log[0][1]).toBe(undefined);
+		// Subscribe delivers [[START]] handshake first; then the producer's
+		// fn emits DATA(undefined)+COMPLETE during `_onActivate`.
+		expect(log.map((m) => m[0])).toEqual([START, DATA, COMPLETE]);
+		expect(log[1][1]).toBe(undefined);
 		unsub();
 	});
 

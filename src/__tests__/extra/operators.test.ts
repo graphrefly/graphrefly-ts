@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
-import { node } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+import { derived, producer, state } from "../../core/sugar.js";
 import {
 	audit,
 	bufferCount,
@@ -31,7 +31,6 @@ import {
 	sample,
 	scan,
 	skip,
-	startWith,
 	switchMap,
 	take,
 	takeUntil,
@@ -42,14 +41,7 @@ import {
 	withLatestFrom,
 	zip,
 } from "../../extra/operators.js";
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[][] = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push([...msgs]);
-	});
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -284,10 +276,10 @@ describe("extra operators (Tier 1)", () => {
 		expect(br.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(1);
 	});
 
-	// Regression: GRAPHREFLY-SPEC §1.3 — startWith prepends an initial DATA.
-	it("startWith emits seed before upstream DATA", () => {
+	// Regression: GRAPHREFLY-SPEC §1.3 — derived with initial seeds before upstream DATA.
+	it("derived with initial emits seed before upstream DATA", () => {
 		const s = state(0);
-		const sw = startWith(s, -1);
+		const sw = derived([s as Node], ([v]) => v, { initial: -1 });
 		const { batches: bsw } = collect(sw);
 		s.down([[DATA, 0]]);
 		expect(
@@ -1512,7 +1504,7 @@ describe("Tier 2 teardown and reconnect freshness — concatMap", () => {
 		const unsub1 = out.subscribe(() => undefined);
 		src.down([[DATA, 1]]);
 		unsub1();
-		const prevWave = wave;
+		const _prevWave = wave;
 		// Resubscribe — push-on-subscribe replays src's cached value through concatMap
 		const values: number[] = [];
 		const unsub2 = out.subscribe((msgs) => {
@@ -1520,10 +1512,11 @@ describe("Tier 2 teardown and reconnect freshness — concatMap", () => {
 				if (msg[0] === DATA) values.push(msg[1] as number);
 			}
 		});
-		unsub2();
-		// Output node pushes its cached value to the new subscriber on resubscribe.
-		// No stale buffered items from the previous subscription should leak through.
+		// Output compute node clears its cache on disconnect (ROM/RAM rule).
+		// Resubscribe re-runs concatMap with the source's current value, emitting
+		// fresh DATA to the new sink.
 		expect(values.length).toBeGreaterThan(0);
+		unsub2();
 	});
 });
 
@@ -1548,8 +1541,8 @@ describe("diamond resolution through operator chain", () => {
 		});
 		dataCount = 0;
 		src.down([[DIRTY], [DATA, 5]]);
-		unsub();
 		expect(dataCount).toBe(1);
 		expect(c.get()).toEqual([5, 5]);
+		unsub();
 	});
 });

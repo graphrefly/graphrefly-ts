@@ -910,7 +910,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(g1.get(metaPath)).toBe("hi");
 	});
 
-	it("autoCheckpoint triggers only for messageTier >= 2", async () => {
+	it("autoCheckpoint triggers only for messageTier >= 3", async () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));
 		const saves: unknown[] = [];
@@ -1133,12 +1133,12 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 			for (const m of msgs) seq.push(m[0] as symbol);
 		});
 		g.set("a", 5);
-		off();
 		const iDirty = seq.indexOf(DIRTY);
 		const iData = seq.indexOf(DATA);
 		expect(iDirty).toBeGreaterThanOrEqual(0);
 		expect(iData).toBeGreaterThan(iDirty);
 		expect(g.get("b")).toBe(6);
+		off();
 	});
 
 	it("snapshot survives JSON wire and restores nested mount values", () => {

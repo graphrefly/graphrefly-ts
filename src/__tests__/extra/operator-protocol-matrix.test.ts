@@ -6,7 +6,7 @@ import type { Message, Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { derived, state } from "../../core/sugar.js";
 import {
 	audit,
 	buffer,
@@ -41,7 +41,6 @@ import {
 	sample,
 	scan,
 	skip,
-	startWith,
 	switchMap,
 	take,
 	takeUntil,
@@ -317,17 +316,17 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 	});
 
-	describe("startWith", () => {
+	describe("derived with initial (replaces startWith)", () => {
 		it("DIRTY precedes DATA when source uses two-phase down after seed", () => {
 			const s = state(0);
-			const out = startWith(s, -1);
+			const out = derived([s as Node], ([v]) => v, { initial: -1 });
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 0]]));
 		});
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
 				const s = state(0, { resubscribable: true });
-				const out = startWith(s, 0);
+				const out = derived([s as Node], ([v]) => v, { initial: 0 });
 				return { source: s, out };
 			});
 		});
@@ -554,9 +553,12 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("takeUntil", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3 — primary stream two-phase before notifier stops.
+		// Notifier must be SENTINEL (no initial value) so it doesn't trigger
+		// takeUntil's COMPLETE on subscribe — the test verifies the primary
+		// stream's two-phase protocol while the notifier is idle.
 		it("DIRTY precedes DATA on primary when notifier has not fired", () => {
 			const s = state(0);
-			const stop = state(0);
+			const stop = node<number>();
 			const out = takeUntil(s, stop);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
 		});

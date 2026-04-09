@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
 import {
 	type ClickHouseInsertClientLike,
 	checkpointToRedis,
@@ -35,6 +34,7 @@ import {
 	toTempo,
 } from "../../extra/adapters.js";
 import { fromIter } from "../../extra/sources.js";
+import { collectFlat } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
@@ -578,10 +578,7 @@ describe("fromSqlite", () => {
 			{ id: 2, name: "Bob" },
 		];
 		const db: SqliteDbLike = { query: () => rows };
-		const msgs: [symbol, unknown?][] = [];
-		fromSqlite(db, "SELECT * FROM users").subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromSqlite(db, "SELECT * FROM users"));
 		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
 		expect(msgs).toEqual([
 			[DATA, { id: 1, name: "Alice" }],
@@ -620,10 +617,7 @@ describe("fromSqlite", () => {
 				throw new Error("no such table");
 			},
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromSqlite(db, "SELECT * FROM missing").subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromSqlite(db, "SELECT * FROM missing"));
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
 		expect((msgs[0][1] as Error).message).toBe("no such table");
@@ -631,26 +625,22 @@ describe("fromSqlite", () => {
 
 	it("emits COMPLETE with zero rows", () => {
 		const db: SqliteDbLike = { query: () => [] };
-		const msgs: [symbol, unknown?][] = [];
-		fromSqlite(db, "SELECT * FROM empty").subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromSqlite(db, "SELECT * FROM empty"));
 		expect(msgs).toEqual([[COMPLETE]]);
 	});
 
 	it("emits ERROR with no partial DATA when mapRow throws", () => {
 		let callCount = 0;
 		const db: SqliteDbLike = { query: () => [{ v: 1 }, { v: 2 }, { v: 3 }] };
-		const msgs: [symbol, unknown?][] = [];
-		fromSqlite(db, "SELECT v FROM t", {
-			mapRow: (r) => {
-				callCount++;
-				if (callCount === 2) throw new Error("bad row");
-				return r;
-			},
-		}).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(
+			fromSqlite(db, "SELECT v FROM t", {
+				mapRow: (r) => {
+					callCount++;
+					if (callCount === 2) throw new Error("bad row");
+					return r;
+				},
+			}),
+		);
 		// Pre-map: error occurs before batch, so no partial DATA emitted
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -923,10 +913,7 @@ describe("fromPrisma", () => {
 			{ id: 2, name: "Bob" },
 		];
 		const model: PrismaModelLike = { findMany: () => Promise.resolve(rows) };
-		const msgs: [symbol, unknown?][] = [];
-		fromPrisma(model).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromPrisma(model));
 		await tick();
 		// a.emit() inside batch: DIRTY propagates immediately, DATA deferred.
 		// After batch drain: two DATA values, then COMPLETE (outside batch).
@@ -970,10 +957,7 @@ describe("fromPrisma", () => {
 		const model: PrismaModelLike = {
 			findMany: () => Promise.reject(new Error("connection lost")),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromPrisma(model).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromPrisma(model));
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -982,10 +966,7 @@ describe("fromPrisma", () => {
 
 	it("emits only COMPLETE for empty result", async () => {
 		const model: PrismaModelLike = { findMany: () => Promise.resolve([]) };
-		const msgs: [symbol, unknown?][] = [];
-		fromPrisma(model).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromPrisma(model));
 		await tick();
 		expect(msgs).toEqual([[COMPLETE]]);
 	});
@@ -998,11 +979,7 @@ describe("fromPrisma", () => {
 					resolveFn = r;
 				}),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		const n = fromPrisma(model);
-		const unsub = n.subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs, unsub } = collectFlat(fromPrisma(model));
 		unsub();
 		resolveFn([{ id: 1 }]);
 		await tick();
@@ -1013,14 +990,13 @@ describe("fromPrisma", () => {
 		const model: PrismaModelLike = {
 			findMany: () => Promise.resolve([{ id: 1 }]),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromPrisma(model, {
-			mapRow: () => {
-				throw new Error("bad map");
-			},
-		}).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(
+			fromPrisma(model, {
+				mapRow: () => {
+					throw new Error("bad map");
+				},
+			}),
+		);
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -1036,10 +1012,7 @@ describe("fromDrizzle", () => {
 	it("emits DIRTY+DATA per row then COMPLETE", async () => {
 		const rows = [{ id: 1 }, { id: 2 }];
 		const query: DrizzleQueryLike = { execute: () => Promise.resolve(rows) };
-		const msgs: [symbol, unknown?][] = [];
-		fromDrizzle(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromDrizzle(query));
 		await tick();
 		expect(msgs).toEqual([[DIRTY], [DIRTY], [DATA, { id: 1 }], [DATA, { id: 2 }], [COMPLETE]]);
 	});
@@ -1062,10 +1035,7 @@ describe("fromDrizzle", () => {
 		const query: DrizzleQueryLike = {
 			execute: () => Promise.reject(new Error("timeout")),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromDrizzle(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromDrizzle(query));
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -1074,10 +1044,7 @@ describe("fromDrizzle", () => {
 
 	it("emits only COMPLETE for empty result", async () => {
 		const query: DrizzleQueryLike = { execute: () => Promise.resolve([]) };
-		const msgs: [symbol, unknown?][] = [];
-		fromDrizzle(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromDrizzle(query));
 		await tick();
 		expect(msgs).toEqual([[COMPLETE]]);
 	});
@@ -1090,11 +1057,7 @@ describe("fromDrizzle", () => {
 					resolveFn = r;
 				}),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		const n = fromDrizzle(query);
-		const unsub = n.subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs, unsub } = collectFlat(fromDrizzle(query));
 		unsub();
 		resolveFn([{ id: 1 }]);
 		await tick();
@@ -1105,14 +1068,13 @@ describe("fromDrizzle", () => {
 		const query: DrizzleQueryLike = {
 			execute: () => Promise.resolve([{ id: 1 }]),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromDrizzle(query, {
-			mapRow: () => {
-				throw new Error("bad map");
-			},
-		}).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(
+			fromDrizzle(query, {
+				mapRow: () => {
+					throw new Error("bad map");
+				},
+			}),
+		);
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -1128,10 +1090,7 @@ describe("fromKysely", () => {
 	it("emits DIRTY+DATA per row then COMPLETE", async () => {
 		const rows = [{ name: "Alice" }, { name: "Bob" }];
 		const query: KyselyQueryLike = { execute: () => Promise.resolve(rows) };
-		const msgs: [symbol, unknown?][] = [];
-		fromKysely(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromKysely(query));
 		await tick();
 		expect(msgs).toEqual([
 			[DIRTY],
@@ -1160,10 +1119,7 @@ describe("fromKysely", () => {
 		const query: KyselyQueryLike = {
 			execute: () => Promise.reject(new Error("syntax error")),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromKysely(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromKysely(query));
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
@@ -1172,10 +1128,7 @@ describe("fromKysely", () => {
 
 	it("emits only COMPLETE for empty result", async () => {
 		const query: KyselyQueryLike = { execute: () => Promise.resolve([]) };
-		const msgs: [symbol, unknown?][] = [];
-		fromKysely(query).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(fromKysely(query));
 		await tick();
 		expect(msgs).toEqual([[COMPLETE]]);
 	});
@@ -1188,11 +1141,7 @@ describe("fromKysely", () => {
 					resolveFn = r;
 				}),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		const n = fromKysely(query);
-		const unsub = n.subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs, unsub } = collectFlat(fromKysely(query));
 		unsub();
 		resolveFn([{ id: 1 }]);
 		await tick();
@@ -1203,14 +1152,13 @@ describe("fromKysely", () => {
 		const query: KyselyQueryLike = {
 			execute: () => Promise.resolve([{ id: 1 }]),
 		};
-		const msgs: [symbol, unknown?][] = [];
-		fromKysely(query, {
-			mapRow: () => {
-				throw new Error("bad map");
-			},
-		}).subscribe((m) => {
-			for (const msg of m) msgs.push(msg);
-		});
+		const { msgs } = collectFlat(
+			fromKysely(query, {
+				mapRow: () => {
+					throw new Error("bad map");
+				},
+			}),
+		);
 		await tick();
 		expect(msgs).toHaveLength(1);
 		expect(msgs[0][0]).toBe(ERROR);
