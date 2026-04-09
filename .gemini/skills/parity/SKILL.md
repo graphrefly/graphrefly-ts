@@ -3,7 +3,7 @@ name: parity
 description: "Cross-language parity check between graphrefly-ts and graphrefly-py. Compares API surface, behavior, tests, and spec conformance. READ-ONLY — reports findings, never applies fixes without explicit approval. Use when user says 'parity', 'cross-lang check', or 'sync repos'."
 ---
 
-You are executing the **parity** workflow, comparing **graphrefly-ts** (this repo) against **graphrefly-py** (`~/src/graphrefly-py`).
+You are executing the **parity** workflow, comparing **graphrefly-ts** and **graphrefly-py**. All operational docs (roadmap, optimizations, test-guidance) live in graphrefly-ts (this repo).
 
 User's context: $ARGUMENTS
 
@@ -27,6 +27,8 @@ Determine scope from the user's input:
 
 Read these files (parallelize all reads):
 
+> **Note:** Operational docs (roadmap, optimizations, cross-language notes) all live in this repo (graphrefly-ts). Do NOT read from `~/src/graphrefly-py/docs/`.
+
 **From graphrefly-ts (this repo):**
 - `docs/roadmap.md` — which phases are complete
 - `docs/optimizations.md` — cross-language notes and open decisions
@@ -34,8 +36,6 @@ Read these files (parallelize all reads):
 - Test files in the scoped area under `src/__tests__/`
 
 **From graphrefly-py:**
-- `~/src/graphrefly-py/docs/roadmap.md` — which phases are complete
-- `~/src/graphrefly-py/docs/optimizations.md` — cross-language notes
 - Source files in the scoped area under `~/src/graphrefly-py/src/graphrefly/`
 - Test files in the scoped area under `~/src/graphrefly-py/tests/`
 

@@ -1,6 +1,6 @@
-# Test guidance (graphrefly-ts)
+# Test guidance (cross-language)
 
-Guidelines for writing, organizing, and maintaining tests. Read this before adding tests. **Behavioral authority:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (and `docs/roadmap.md` for scope).
+Guidelines for writing, organizing, and maintaining tests in both **graphrefly-ts** and **graphrefly-py**. Read this before adding tests. **Behavioral authority:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (and `docs/roadmap.md` for scope).
 
 ---
 
@@ -9,18 +9,19 @@ Guidelines for writing, organizing, and maintaining tests. Read this before addi
 1. **Verify before fixing.** Every "bug" is a hypothesis until a test fails. Write the test first when possible.
 2. **Source + spec over old tests.** If a test disagrees with `~/src/graphrefly/GRAPHREFLY-SPEC.md` or the implementation’s intended semantics, fix the test or the code — the spec wins for GraphReFly.
 3. **Test what the code should do.** Express correct semantics; failures are real bugs or spec gaps.
-4. **One concern per test.** Each `it()` should assert one behavior; avoid bundling unrelated scenarios.
+4. **One concern per test.** Each `it()` / `test_*` should assert one behavior; avoid bundling unrelated scenarios.
 5. **Protocol-level assertions.** Prefer helpers that record **`[[Type, Data?], ...]`** sequences (and, when implemented, **`Graph.observe()`**) over ad-hoc sinks. See §Observation below.
-6. **Predecessor reference.** **`~/src/callbag-recharge`** has extensive tests (Inspector, operators, diamonds). Use for **ideas and edge cases**; map assertions to GraphReFly message types (`DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, etc.), not legacy callbag numeric types.
+6. **Predecessor reference.** TS: **`~/src/callbag-recharge`**. PY: **`~/src/callbag-recharge-py`**. Use for **ideas and edge cases**; map assertions to GraphReFly message types, not legacy callbag numeric types.
+7. **Authority hierarchy:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` → `docs/roadmap.md` → implementation when spec is silent.
 
 ---
 
 ## Runner and layout
 
+### TypeScript
+
 - **Runner:** Vitest (`pnpm test`). Config: `vitest.config.ts`.
 - **Discovery:** `src/**/*.test.ts` (includes `src/__tests__/**/*.test.ts`).
-
-Recommended layout as the codebase grows (aligned with `docs/roadmap.md`):
 
 ```
 src/
@@ -32,6 +33,25 @@ src/
 ├── core/
 ├── graph/
 └── extra/
+```
+
+### Python
+
+- **Runner:** pytest (`uv run pytest`). Config: `pyproject.toml`.
+- **Discovery:** `tests/test_*.py`.
+
+```
+tests/
+├── conftest.py              # shared fixtures
+├── test_smoke.py            # package / import sanity
+├── test_protocol.py         # message types, invariants, batch semantics (Phase 0.2)
+├── test_core.py             # node primitive, sugar, diamond, lifecycle (Phase 0.3+)
+├── test_concurrency.py      # locks, threads, free-threaded concerns (Phase 0.4)
+├── test_graph.py            # Graph container (Phase 1)
+├── test_guard.py            # Actor, guard, policy (Phase 1.5)
+├── test_extra_tier1.py      # sync operators (Phase 2.1)
+├── test_extra_tier2.py      # async/dynamic operators (Phase 2.2)
+└── test_regressions.py      # regression suite
 ```
 
 **Rule:** Add new tests to the narrowest existing file; create a new file only when the area is clearly separate.
@@ -54,9 +74,17 @@ From **GRAPHREFLY-SPEC** §1 and §2:
 
 From **GRAPHREFLY-SPEC §5.8–5.12**:
 
-- [ ] **No polling:** Operators and sources must not use `setInterval` or timer loops to poll node values. Test that reactive push propagation is the only update mechanism.
+- [ ] **No polling:** Operators and sources must not use `setInterval`/`time.sleep` loops to poll node values. Test that reactive push propagation is the only update mechanism.
 - [ ] **No leaked internals:** Phase 4+ APIs must not expose protocol internals (`DIRTY`, `RESOLVED`, bitmask) in error messages or return types visible to end users.
-- [ ] **Async boundary isolation:** Async boundaries (timers, I/O, promises) belong in sources and runners, never inside node `fn` callbacks. Test that node fns remain synchronous.
+- [ ] **Async boundary isolation:** Async boundaries (timers, I/O, promises/coroutines) belong in sources and runners, never inside node `fn` callbacks. Test that node fns remain synchronous.
+
+### Python-specific test axes
+
+- [ ] **Thread safety:** Where APIs claim thread-safe `get()` / propagation, stress with multiple threads (see roadmap 0.4).
+- [ ] **Concurrent `get()` without torn reads** — independent subgraphs updated without deadlock.
+- [ ] **Under load:** DIRTY/DATA ordering invariants hold under concurrent writes.
+- [ ] **Free-threaded Python 3.14:** Tests should pass with GIL disabled.
+- Always use **timeouts** and **liveness assertions** on thread joins where threads might block.
 
 ---
 
@@ -187,6 +215,24 @@ When fixing a confirmed bug, add a **regression test** with a short comment:
 ```
 
 Do not delete regression tests without explicit reason.
+
+---
+
+## Running tests
+
+**TypeScript:**
+```bash
+pnpm test
+npx vitest run -t "test name"    # single test
+```
+
+**Python:**
+```bash
+uv run pytest
+uv run pytest tests/test_core.py
+uv run pytest tests/test_core.py::test_name -v
+uv run pytest -x
+```
 
 ---
 

@@ -5,7 +5,9 @@ disable-model-invocation: true
 argument-hint: "[--skip-docs] [optional context about what was implemented]"
 ---
 
-You are executing the **qa** workflow for **graphrefly-ts** (GraphReFly TypeScript implementation).
+You are executing the **qa** workflow for **GraphReFly** (cross-language: TypeScript + Python).
+
+Operational docs live in **graphrefly-ts** (this repo). The diff may include changes in `graphrefly-ts` and/or `graphrefly-py` (`~/src/graphrefly-py`).
 
 Context from user: $ARGUMENTS
 
@@ -26,10 +28,10 @@ Run `git diff` to get all uncommitted changes. If there are also untracked files
 Launch these as parallel Agent calls. Each receives the diff and the context from $ARGUMENTS (what was implemented and why).
 
 **Subagent 1: Blind Hunter** — Pure code review, no project context:
-> You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one errors, race conditions, resource leaks, missing error handling, security issues, dead code, unreachable branches. Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail**. Be adversarial — assume bugs exist.
+> You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one errors, race conditions, resource leaks, missing error handling, security issues, dead code, unreachable branches. For Python code, also check thread safety (including free-threaded Python without GIL). Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail**. Be adversarial — assume bugs exist.
 
 **Subagent 2: Edge Case Hunter** — Has project read access:
-> You are an Edge Case Hunter. Review this diff in the context of **GraphReFly** (`~/src/graphrefly/GRAPHREFLY-SPEC.md`). First, read `archive/optimizations/cross-language-notes.jsonl` and collect all entries with `id` prefix `divergence-` — these are **confirmed intentional cross-language divergences** that must NOT be raised as findings. Then check: unhandled message sequences (DIRTY without follow-up, DATA vs RESOLVED), diamond resolution (recompute once), COMPLETE/ERROR terminal rules, forward-unknown-types, batch semantics (DATA deferred, DIRTY not), reconnect/teardown leaks, meta companion nodes, and graph mount/signal propagation when `Graph` is in scope. Also flag violations of design invariants (spec §5.8–5.12): polling patterns (busy-wait or setInterval on node values), imperative triggers bypassing graph topology, bare Promises/queueMicrotask/setTimeout for reactive scheduling, direct Date.now()/performance.now() usage (must use core/clock.ts), hardcoded message type checks instead of messageTier utilities, and Phase 4+ APIs that leak protocol internals (DIRTY/RESOLVED/bitmask) into their primary surface. **If the change touches `src/patterns/` or `src/compat/`, verify the implementation against COMPOSITION-GUIDE.md categories (§1 lazy activation, §2 subscription ordering, §3 null guards, §5 wiring order, §7 feedback cycles, §8 SENTINEL gate).** For each finding: **title** | **trigger_condition** | **potential_consequence** | **location** | **suggested_guard**.
+> You are an Edge Case Hunter. Review this diff in the context of **GraphReFly** (`~/src/graphrefly/GRAPHREFLY-SPEC.md`). First, read `archive/optimizations/cross-language-notes.jsonl` and collect all entries with `id` prefix `divergence-` — these are **confirmed intentional cross-language divergences** that must NOT be raised as findings. Then check: unhandled message sequences (DIRTY without follow-up, DATA vs RESOLVED), diamond resolution (recompute once), COMPLETE/ERROR terminal rules, forward-unknown-types, batch semantics (DATA deferred, DIRTY not), reconnect/teardown leaks, meta companion nodes, and graph mount/signal propagation when `Graph` is in scope. Also flag violations of design invariants (spec §5.8–5.12): polling patterns (busy-wait or setInterval/time.sleep loops on node values), imperative triggers bypassing graph topology, bare Promises/queueMicrotask/setTimeout (TS) or asyncio.ensure_future/create_task/threading.Timer (PY) for reactive scheduling, direct Date.now()/performance.now() (TS) or time.time_ns()/time.monotonic_ns() (PY) usage (must use core/clock.ts or core/clock.py), hardcoded message type checks instead of messageTier/message_tier utilities, and Phase 4+ APIs that leak protocol internals (DIRTY/RESOLVED/bitmask) into their primary surface. **If the change touches `src/patterns/` or `src/compat/`, verify the implementation against COMPOSITION-GUIDE.md categories (§1 lazy activation, §2 subscription ordering, §3 null guards, §5 wiring order, §7 feedback cycles, §8 SENTINEL gate).** For each finding: **title** | **trigger_condition** | **potential_consequence** | **location** | **suggested_guard**.
 
 ### 1c. Triage findings
 
@@ -59,7 +61,7 @@ Group findings:
 1. **Needs Decision** — architecture-affecting or ambiguous fixes
 2. **Auto-applicable** — clear fixes that follow existing patterns
 
-**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, add them to **`docs/optimizations.md`** under "Active work items". If **`graphrefly-py`** is available alongside this repo, add the same entry to **`graphrefly-py/docs/optimizations.md`**. If not available, call out mirroring for the user. When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
+**Cross-language decision log:** For **Needs Decision** items that are architectural or affect TS/Python parity, add them to **`docs/optimizations.md`** under "Active work items" (this repo is the single source of truth for both TS and PY). When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
 
 **Wait for user decisions on group 1. Group 2 can be applied immediately if user approves the batch.**
 
@@ -73,11 +75,18 @@ Apply the approved fixes from Phase 1.
 
 ## Phase 3: Final Checks
 
-Run all of these and fix any failures (do NOT skip or ignore):
+Run all checks for the affected repo(s) and fix any failures (do NOT skip or ignore):
 
+**TypeScript:**
 1. `pnpm test` — all tests must pass
 2. `pnpm run lint:fix` — fix lint issues
 3. `pnpm run build` — check for DTS/build problems
+
+**Python (if PY code was changed):**
+1. `cd ~/src/graphrefly-py && uv run pytest`
+2. `cd ~/src/graphrefly-py && uv run ruff check --fix src/ tests/`
+3. `cd ~/src/graphrefly-py && uv run ruff format src/ tests/`
+4. `cd ~/src/graphrefly-py && uv run mypy src/`
 
 If a failure is related to an implementation design question, **HALT** and raise it to the user before fixing.
 
@@ -93,7 +102,7 @@ Update documentation when behavior or public API changed:
 
 - **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
 - **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
-- **`docs/optimizations.md`** — add **new open decisions** under "Active work items"; when **resolved**, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"; mirror to **`graphrefly-py`** if in workspace
+- **`docs/optimizations.md`** — add **new open decisions** under "Active work items"; when **resolved**, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"
 - **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages)
 - **New public symbols** — barrel export + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI)
 - **`docs/test-guidance.md`** — if new test patterns are established

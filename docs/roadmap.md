@@ -1,13 +1,56 @@
-# Roadmap — Active Items
+# Roadmap — Active Items (TS + PY)
 
+> **This file is the single source of truth** for roadmap tracking across both graphrefly-ts and graphrefly-py.
+>
 > **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs-guidance.md` § "Roadmap archive" for the archive structure and workflow.
 >
-> **Spec:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical; not vendored in this repo)
+> **Spec:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical)
 >
 > **Guidance:** [docs-guidance.md](docs-guidance.md) (documentation), [test-guidance.md](test-guidance.md) (tests). Agent context: repo root `CLAUDE.md`; skills under `.claude/skills/`.
 >
-> **Predecessor:** callbag-recharge (170+ modules, 13 categories). Key patterns and lessons
-> carried forward — see `archive/docs/DESIGN-ARCHIVE-INDEX.md` for lineage. Clone path for local reference: `~/src/callbag-recharge`.
+> **Predecessors:** callbag-recharge (TS, 170+ modules), callbag-recharge-py (PY, Phase 0–1). Key patterns and lessons carried forward — see `archive/docs/design-archive-index.jsonl` for lineage. Clone paths: `~/src/callbag-recharge` (TS), `~/src/callbag-recharge-py` (PY).
+
+---
+
+## Push Model Migration (Spec v0.1 → v0.2)
+
+> **Branch:** `push-model` (ts, py, spec repos)
+>
+> All nodes with cached value push `[[DATA, cached]]` to every new subscriber. Derived nodes compute reactively from upstream push instead of eager compute on connection. See `GRAPHREFLY-SPEC.md` §2.2.
+
+### Phase 1: Spec + prototype (TS)
+
+- [x] Evaluate protocol models (current/push/lazy/pull) — chose Model B (push on subscribe)
+- [x] Prototype in `node.ts`: push-on-subscribe for source nodes, remove `_connecting` guard and explicit `_runFn()` in `_connectUpstream()`
+- [x] Categorize test failures (83 with source-only push)
+
+### Phase 2: All-nodes push + spec rewrite
+
+- [x] Upgrade push from source-only to ALL nodes with cached value (`if (this._cached !== NO_VALUE)`)
+- [x] Rewrite `GRAPHREFLY-SPEC.md` for v0.2 (push model, RESET, PAUSE/RESUME lockId, dynamicNode, §4.2 timer utilities)
+- [x] Rewrite `COMPOSITION-GUIDE.md` for push model (SENTINEL over state(null), `!= null` guards, keepalive vs activation)
+- [x] Update `composition-guide.jsonl` entries
+- [ ] Categorize new test failures (131 with all-nodes push)
+
+### Phase 3: Test migration (TS)
+
+- [ ] Fix duplicate-initial-value assertions (derived/effect push cached to late subscribers)
+- [ ] Fix message-ordering assertions (cached push sends DATA directly, not DIRTY first)
+- [ ] Fix double-entry assertions (length N+1 where N was expected)
+- [ ] Fix batch-timing regressions (push-on-subscribe bypasses batch deferral — route through `_downInternal` or batch-aware path)
+- [ ] Validate all 1370 tests pass
+
+### Phase 4: Python parity
+
+- [ ] Port push-on-subscribe to `graphrefly-py` `node.py`
+- [ ] Port test fixes
+- [ ] Run full Python test suite green
+
+### Phase 5: LLM composition validation
+
+- [ ] LLM one-shot composition test: give spec + guide to LLM, ask it to compose tasks without additional guidance
+- [ ] Evaluate how naturally LLM reasons about push model vs previous eager-compute model
+- [ ] Document any surprising patterns or needed guide additions
 
 ---
 
@@ -650,6 +693,39 @@ Items not needed for harness engineering adoption. Build when demanded by users/
 - §7.4 Scenario tests — after demos ship
 - §7.5 Inspection stress tests — quality hardening
 - Consumer track (pillar #1 "Stop Drowning in Information") — revisit at v1.0
+
+---
+
+## Python-Specific Active Items
+
+> Python tracks TS for core parity. Eval harness is TS-primary (corpus, rubrics, runner). MCP server and framework infiltration packages are TS-only. Python focus: §9.2 parity + backpressure + polish.
+
+### PY Wave 2: Audit & accountability parity (Weeks 4-9)
+
+#### PY 9.2 — Audit & accountability (8.4 → 9.2) — TS parity
+
+- [ ] `explain_path(graph, from_node, to_node)` — walk backward through graph derivation chain
+- [ ] `audit_trail(graph, opts)` → Graph — wraps graph with `reactive_log` recording every mutation
+- [ ] `policy_enforcer(graph, policies)` — reactive constraint enforcement
+- [ ] `compliance_snapshot(graph)` — point-in-time export for regulatory archival
+
+#### PY 9.2b — Backpressure protocol (8.5 → 9.2b)
+
+- [ ] Backpressure protocol — formalize PAUSE/RESUME for throughput control across graph boundaries
+
+### PY Wave 3: Polish & publish (Weeks 10-15)
+
+- [ ] `llms.txt` for AI agent discovery (7 → 9.3)
+- [ ] PyPI publish: `graphrefly-py` (7 → 9.3)
+- [ ] Docs site at `py.graphrefly.dev` (7 → 9.3)
+- [ ] Free-threaded Python 3.14 benchmark suite
+
+### PY Deferred (post-Wave 3)
+
+- §7.2 Showcase demos (Pyodide/WASM lab) — after TS demos prove the pattern
+- §7.3 Scenario tests — after demos
+- §7.4 Inspection stress tests (thread-safety: concurrent factory composition under per-subgraph locks)
+- §8.5 `peer_graph`, `sharded_graph`, adaptive sampling — distributed scale
 
 ---
 

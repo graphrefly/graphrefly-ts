@@ -7,6 +7,8 @@ argument-hint: "[feature area or 'full'] [optional: path to sibling repo]"
 
 You are executing the **parity** workflow, comparing **graphrefly-ts** (this repo) against **graphrefly-py** (`~/src/graphrefly-py` unless overridden in $ARGUMENTS).
 
+**This repo is the single source of truth** for all operational docs (roadmap, optimizations, test-guidance, docs-guidance, archive). Both repos' docs are maintained here.
+
 Context from user: $ARGUMENTS
 
 ---
@@ -18,11 +20,10 @@ Determine scope from $ARGUMENTS:
 - If `full`, scan all implemented phases in both roadmaps.
 
 Read in parallel:
-- **This repo:** `docs/optimizations.md` (active items + deferred), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
-- **Sibling repo:** `~/src/graphrefly-py/docs/optimizations.md`, `~/src/graphrefly-py/archive/optimizations/*.jsonl`, `~/src/graphrefly-py/docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`)
+- **Operational docs (this repo):** `docs/optimizations.md` (active items + deferred), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
 - **Composition guide:** `~/src/graphrefly/COMPOSITION-GUIDE.md` — **mandatory** when the scoped area includes `src/patterns/` or `src/compat/` in either repo. Composed factories require understanding lazy activation, subscription ordering, null guards, wiring order, feedback cycles, and SENTINEL gate patterns.
-- Source files in the scoped area from **both** repos
-- Test files in the scoped area from **both** repos
+- **TS source:** `src/` and `src/__tests__/` in the scoped area
+- **PY source:** `~/src/graphrefly-py/src/graphrefly/` and `~/src/graphrefly-py/tests/` in the scoped area
 
 **Important:** Read `archive/optimizations/cross-language-notes.jsonl` entries with `id` prefix `divergence-`. These are **confirmed intentional divergences** — do NOT re-raise them as parity gaps or QA findings. Filter them out before presenting results.
 

@@ -1,15 +1,17 @@
-# Documentation guidance (graphrefly-ts)
+# Documentation guidance (cross-language)
 
-Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; **JSDoc on exported APIs** feeds generated docs; **`examples/`** holds all runnable code.
+This file is the **single source of truth** for documentation conventions across both **graphrefly-ts** and **graphrefly-py**. All operational docs live in this repo (graphrefly-ts).
+
+Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; **JSDoc/docstrings on exported APIs** feed generated docs; **`examples/`** holds all runnable code.
 
 ---
 
 ## Authority order
 
 1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — protocol, node contract, Graph, invariants (cross-language, canonical)
-2. **JSDoc** on public exports — parameters, returns, examples, remarks (source of truth for TS API docs)
-3. **`examples/*.ts`** — all runnable library code (single source for recipes, demos, guides)
-4. **`docs/roadmap.md`** — what is implemented vs planned
+2. **JSDoc** (TS) / **Docstrings** (PY) on public exports — parameters, returns, examples, remarks (source of truth for API docs)
+3. **`examples/*.ts`** (TS) / **`examples/*.py`** (PY) — all runnable library code (single source for recipes, demos, guides)
+4. **`docs/roadmap.md`** — what is implemented vs planned (covers both TS and PY)
 5. **`README.md`** — install, quick start, links
 
 ---
@@ -17,22 +19,22 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 ## Design invariant documentation
 
 - When documenting Phase 4+ APIs, never expose protocol internals (`DIRTY`, `RESOLVED`, bitmask) in primary API docs — use domain language (e.g. "the value updates reactively" not "emits DIRTY then DATA").
-- JSDoc `@example` blocks should demonstrate reactive patterns, not polling or imperative triggers.
+- JSDoc `@example` / docstring example blocks should demonstrate reactive patterns, not polling or imperative triggers.
 - Reference the design invariants in **GRAPHREFLY-SPEC §5.8–5.12** when reviewing doc changes for Phase 4+ features.
 
 ---
 
 ## Documentation tiers
 
-| Tier | What | Where it lives | Flows to |
-|------|------|----------------|----------|
-| **0 — Protocol spec** | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | `~/src/graphrefly/` repo (sibling checkout) | Both sites via `sync-docs.mjs` |
-| **1 — JSDoc** | Structured doc blocks on exports | `src/**/*.ts` | Generated API pages via `gen-api-docs.mjs` → `website/src/content/docs/api/` |
-| **2 — Runnable examples** | Self-contained scripts using public imports | `examples/*.ts` | Imported by recipes + demos |
-| **3 — Recipes / guides** | Long-form Starlight pages with context | `website/src/content/docs/recipes/` | Pull code from `examples/` via Starlight file imports |
-| **4 — Interactive demos** | Astro/Starlight components with live UI | `website/src/components/examples/` | Import stores from `examples/`, handle UI only |
-| **5 — `llms.txt`** | AI-readable docs | repo root → `website/public/` via `sync-docs.mjs` | Updated when adding user-facing primitives |
-| **6 — `robots.txt`** | Search engine / AI crawler directives | repo root → `website/public/` via `sync-docs.mjs` | Updated when site structure changes |
+| Tier | What | TS | PY |
+|------|------|----|----|
+| **0 — Protocol spec** | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Both sites via `sync-docs.mjs` | Both sites via `sync-docs.mjs` |
+| **1 — JSDoc / Docstrings** | Structured doc blocks on exports | `src/**/*.ts` → `gen-api-docs.mjs` → `website/src/content/docs/api/` | `src/graphrefly/**/*.py` → `gen_api_docs.py` → `website/src/content/docs/api/` |
+| **2 — Runnable examples** | Self-contained scripts | `examples/*.ts` | `examples/*.py` (in graphrefly-py) |
+| **3 — Recipes / guides** | Long-form Starlight pages | `website/src/content/docs/recipes/` | `website/src/content/docs/recipes/` (in graphrefly-py) |
+| **4 — Interactive demos** | Live UI / Pyodide labs | `website/src/components/examples/` (Astro) | `website/src/content/docs/lab/` (Pyodide) |
+| **5 — `llms.txt`** | AI-readable docs | repo root → `website/public/` | repo root (graphrefly-py) |
+| **6 — `robots.txt`** | Crawler directives | repo root → `website/public/` | — |
 
 ### Unified code location rule
 
@@ -46,6 +48,8 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 
 ## How API docs are generated
 
+### TypeScript
+
 API reference pages (`website/src/content/docs/api/*.md`) are **generated** from structured JSDoc on exported functions via `website/scripts/gen-api-docs.mjs`.
 
 ```bash
@@ -57,6 +61,17 @@ pnpm --filter @graphrefly/docs-site docs:gen:check         # CI dry-run — exit
 **Do NOT edit `website/src/content/docs/api/*.md` by hand** — edit the JSDoc in source, then run `docs:gen`.
 
 To add a new function, register it in `website/scripts/gen-api-docs.mjs` in the `REGISTRY` object.
+
+### Python
+
+PY API reference pages are generated from structured docstrings via `website/scripts/gen_api_docs.py` in `graphrefly-py`. Modules listed in `EXTRA_MODULES` (currently `extra/tier1.py`, `tier2.py`, `sources.py`, `backoff.py`, `checkpoint.py`, `resilience.py`, `data_structures.py`, …).
+
+```bash
+cd ~/src/graphrefly-py/website && pnpm docs:gen              # regenerate all
+cd ~/src/graphrefly-py/website && pnpm docs:gen:check        # CI dry-run
+```
+
+Docstrings use Google-style or NumPy-style consistently. Same semantic tags as TS JSDoc for cross-language alignment.
 
 ---
 
@@ -161,9 +176,9 @@ Every exported function must have a structured JSDoc block. The generator reads 
 
 ### Design decision archive
 
-`archive/docs/design-archive-index.jsonl` indexes all design session files (`SESSION-*.md`). See `archive/docs/DESIGN-ARCHIVE-INDEX.md` for schema and query examples.
+`archive/docs/design-archive-index.jsonl` indexes all design session files (`SESSION-*.md`). Each entry has `id`, `date`, `title`, `file`, `topic`, `decisions`, and optional fields (`roadmap_impact`, `related_files`, `missing_pieces`, `research_findings`, `structural_gaps`). Predecessor entries have `"origin": "callbag-recharge"`.
 
-When a new design session is completed, append an entry to `design-archive-index.jsonl` with `id`, `date`, `title`, `file`, `topic`, `decisions`, and optional fields (`roadmap_impact`, `related_files`, `missing_pieces`, `research_findings`, `structural_gaps`).
+When a new design session is completed, append an entry to `design-archive-index.jsonl`.
 
 ### Optimization decision log
 
@@ -194,8 +209,8 @@ Additional fields vary by file: `phase`, `noted`, `resolved`, `section`, `status
 
 1. **New open decisions** go in `docs/optimizations.md` under "Active work items".
 2. When a decision is **resolved**, move it from `docs/optimizations.md` to the appropriate `archive/optimizations/*.jsonl` file (append a new line).
-3. If the sibling repo (`graphrefly-py` / `graphrefly-ts`) is available, mirror the entry to its `archive/optimizations/*.jsonl` too.
-4. The anti-patterns table and deferred follow-ups stay in `docs/optimizations.md` as living reference.
+3. The anti-patterns table and deferred follow-ups stay in `docs/optimizations.md` as living reference.
+4. **All operational docs live in this repo (graphrefly-ts).** No need to mirror to graphrefly-py.
 
 ### Reading archived decisions
 
@@ -218,16 +233,14 @@ cat archive/optimizations/resolved-decisions.jsonl | python3 -m json.tool --json
 
 ## When to update which file
 
-| Change | Update |
-|--------|--------|
-| New public API | JSDoc + export from barrel + register in `gen-api-docs.mjs` REGISTRY |
-| Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc |
-| New runnable example | `examples/<name>.ts` + optional recipe page |
-| Phase completed | Archive done items to `archive/roadmap/*.jsonl`, update `docs/roadmap.md` |
+| Change | TS | PY |
+|--------|----|----|
+| New public API | JSDoc + barrel export + `gen-api-docs.mjs` REGISTRY | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
+| Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc/docstring on both |
+| New runnable example | `examples/<name>.ts` | `examples/<name>.py` (in graphrefly-py) |
+| Phase completed | Archive done items to `archive/roadmap/*.jsonl`, update `docs/roadmap.md` (both in this repo) |
 | AI / LLM discovery | `llms.txt` (repo root) — synced to `website/public/` by build |
 | Crawler directives | `robots.txt` (repo root) — synced to `website/public/` by build |
-| GitHub repo metadata | `gh repo edit` — description, topics, homepage URL |
-| npm metadata | `package.json` — description, keywords |
 | New blog post | `website/src/content/docs/blog/<slug>.md` — see blog post format below |
 
 ---
@@ -267,14 +280,23 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 
 ## Order of execution for new features
 
-1. **Implementation** in `src/` + tests (`docs/test-guidance.md`)
-2. **Structured JSDoc** on the exported function (Tier 1)
-3. **Register** in `website/scripts/gen-api-docs.mjs` REGISTRY, run `docs:gen`
-4. **Runnable example** in `examples/` (Tier 2) — if the feature warrants a standalone demo
-5. **Recipe** on the site that imports from `examples/` (Tier 3) — for complex patterns
-6. **Interactive demo** if warranted (Tier 4) — imports from `examples/`, handles UI only
-7. **Update llms.txt** if the feature is user-facing (Tier 5)
-8. **Roadmap** — mark items done
+**TypeScript:**
+1. Implementation in `src/` + tests (`docs/test-guidance.md`)
+2. Structured JSDoc on the exported function (Tier 1)
+3. Register in `website/scripts/gen-api-docs.mjs` REGISTRY, run `docs:gen`
+4. Runnable example in `examples/` (Tier 2)
+5. Recipe / interactive demo if warranted (Tier 3–4)
+6. Update `llms.txt` if user-facing (Tier 5)
+7. Roadmap — mark items done
+
+**Python:**
+1. Implementation in `src/graphrefly/` + tests (`docs/test-guidance.md`)
+2. Structured docstring on the exported function/class (Tier 1)
+3. Add to `__all__`, run `cd ~/src/graphrefly-py/website && pnpm docs:gen`
+4. Runnable example in `examples/` (Tier 2)
+5. Recipe / Pyodide lab if warranted (Tier 3–4)
+6. Update `llms.txt` when introduced (Tier 5)
+7. Roadmap — mark items done (in this repo)
 
 ---
 
@@ -283,13 +305,15 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 | What | Where | Editable? |
 |------|-------|-----------|
 | Canonical spec | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | Yes — coordinate across repos |
-| Source of truth (JSDoc) | `src/core/*.ts`, `src/extra/*.ts`, `src/graph/*.ts` | Yes — primary edit target |
-| API doc generator | `website/scripts/gen-api-docs.mjs` | Yes — add new entries to REGISTRY |
-| Generated API pages | `website/src/content/docs/api/*.md` | **No** — regenerated from JSDoc |
+| TS source of truth (JSDoc) | `src/core/*.ts`, `src/extra/*.ts`, `src/graph/*.ts` | Yes — primary TS edit target |
+| PY source of truth (docstrings) | `~/src/graphrefly-py/src/graphrefly/*.py` | Yes — primary PY edit target |
+| TS API doc generator | `website/scripts/gen-api-docs.mjs` | Yes — add new entries to REGISTRY |
+| PY API doc generator | `~/src/graphrefly-py/website/scripts/gen_api_docs.py` | Yes |
+| Generated API pages | `website/src/content/docs/api/*.md` | **No** — regenerated |
 | Sync script | `website/scripts/sync-docs.mjs` | Yes |
-| Synced doc pages | `website/src/content/docs/*.md` | **No** — regenerated from `docs/` |
-| Runnable examples | `examples/*.ts` | Yes — all library demo code lives here |
-| Recipes | `website/src/content/docs/recipes/*.md` | Yes — import code from `examples/` |
-| Roadmap | `docs/roadmap.md` | Yes |
-| This file | `docs/docs-guidance.md` | Yes |
-| Astro config (sidebar) | `website/astro.config.mjs` | Yes — update when adding pages |
+| TS runnable examples | `examples/*.ts` | Yes |
+| PY runnable examples | `~/src/graphrefly-py/examples/*.py` | Yes |
+| Roadmap (both langs) | `docs/roadmap.md` | Yes — single source of truth |
+| Optimizations (both langs) | `docs/optimizations.md` | Yes — single source of truth |
+| This file | `docs/docs-guidance.md` | Yes — covers both TS and PY |
+| TS Astro config | `website/astro.config.mjs` | Yes |

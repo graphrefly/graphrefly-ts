@@ -1,5 +1,7 @@
-# Optimizations — Active Items
+# Optimizations — Active Items (TS + PY)
 
+> **This file is the single source of truth** for optimization tracking across both graphrefly-ts and graphrefly-py.
+>
 > **Resolved decisions, cross-language notes, built-in optimization docs, QA design decisions, and parity fixes have been archived to `archive/optimizations/*.jsonl`.** See `docs/docs-guidance.md` § "Optimization decision log" for the archive workflow.
 
 ---
