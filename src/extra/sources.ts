@@ -869,10 +869,7 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
  *
  * @category extra
  */
-export function firstWhere<T>(
-	source: Node<T>,
-	predicate: (value: T) => boolean,
-): Promise<T> {
+export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let settled = false;
 		const unsub = source.subscribe((msgs) => {

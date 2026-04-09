@@ -6,6 +6,7 @@ import {
 	observeSubscription,
 } from "../../compat/nestjs/gateway.js";
 import { COMPLETE, DATA, type Messages, PAUSE, RESUME } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
 import { createWatermarkController } from "../../extra/backpressure.js";
 import { Graph } from "../../graph/graph.js";
@@ -208,7 +209,7 @@ describe("GraphObserveOne.up()", () => {
 
 describe("observeSubscription — backpressure", () => {
 	it("sends PAUSE when queue exceeds highWaterMark", () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("sub-bp");
 		g.add("n", s);
 
@@ -239,7 +240,7 @@ describe("observeSubscription — backpressure", () => {
 	});
 
 	it("no backpressure when options not set", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("sub-no-bp");
 		g.add("n", s);
 
@@ -299,7 +300,7 @@ describe("ObserveGateway — backpressure", () => {
 	}
 
 	it("sends PAUSE when messages exceed highWaterMark, RESUME on ack", () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("gw-bp");
 		g.add("counter", s);
 

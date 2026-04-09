@@ -17,11 +17,15 @@ describe("extra reactiveMap (roadmap §3.2)", () => {
 		m.set("a", 1);
 		unsub();
 		const flat = (batches as [symbol, unknown][][]).flat();
+		// Push-on-subscribe delivers the initial cached empty Map as DATA first.
+		// After that, set("a", 1) emits DIRTY then DATA with the updated map.
+		// Find the DIRTY and the DATA that follows it (skipping the initial cached push).
 		const iDirty = flat.findIndex((m) => m[0] === DIRTY);
-		const iData = flat.findIndex((m) => m[0] === DATA);
 		expect(iDirty).toBeGreaterThanOrEqual(0);
-		expect(iData).toBeGreaterThan(iDirty);
-		const dataMsg = flat[iData] as [symbol, ReadonlyMap<string, number>];
+		// Find the DATA after DIRTY (the one from set())
+		const iDataAfterDirty = flat.findIndex((m, i) => i > iDirty && m[0] === DATA);
+		expect(iDataAfterDirty).toBeGreaterThan(iDirty);
+		const dataMsg = flat[iDataAfterDirty] as [symbol, ReadonlyMap<string, number>];
 		expect(dataMsg[1].get("a")).toBe(1);
 	});
 

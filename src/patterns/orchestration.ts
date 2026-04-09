@@ -625,63 +625,79 @@ export function wait<T>(
 	const timers = new Set<ReturnType<typeof setTimeout>>();
 	let terminated = false;
 	let completed = false;
+
+	function clearAllTimers(): void {
+		for (const id of timers) clearTimeout(id);
+		timers.clear();
+	}
+
+	// Producer pattern: 0 deps, manual subscribe to source.
+	// Under Model B (push-on-subscribe) the fn runs eagerly via _startProducer,
+	// ensuring the cleanup is registered and timers are cleared on teardown.
+	// Only set initial if source has a real cached value (not SENTINEL/undefined).
+	const srcVal = src.node.get();
+	const initialOpt = srcVal !== undefined ? { initial: srcVal as T } : {};
+
 	const step = node<T>(
-		[src.node],
-		() => {
-			for (const id of timers) clearTimeout(id);
-			timers.clear();
+		[],
+		(_deps, actions) => {
+			clearAllTimers();
+			terminated = false;
+			completed = false;
+			const unsub = src.node.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (terminated) return;
+					if (msg[0] === DATA) {
+						const id = setTimeout(() => {
+							timers.delete(id);
+							actions.down([msg] satisfies Messages);
+							if (completed && timers.size === 0) {
+								actions.down([[COMPLETE]] satisfies Messages);
+							}
+						}, ms);
+						timers.add(id);
+					} else if (msg[0] === COMPLETE) {
+						terminated = true;
+						completed = true;
+						if (timers.size === 0) {
+							actions.down([[COMPLETE]] satisfies Messages);
+						}
+					} else if (msg[0] === ERROR) {
+						terminated = true;
+						clearAllTimers();
+						actions.down([msg] satisfies Messages);
+					} else {
+						actions.down([msg] satisfies Messages);
+					}
+				}
+			});
 			return () => {
-				for (const id of timers) clearTimeout(id);
-				timers.clear();
+				unsub();
+				clearAllTimers();
 				terminated = true;
 			};
 		},
 		{
 			...opts,
 			name,
-			initial: src.node.get() as T,
+			...initialOpt,
 			describeKind: "operator",
 			completeWhenDepsComplete: false,
 			meta: baseMeta("wait", opts?.meta),
-			onMessage(msg: Message, depIndex: number, actions: NodeActions) {
-				if (terminated) return true;
-				if (depIndex !== 0) {
-					actions.down([msg] satisfies Messages);
-					if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
-					return true;
-				}
-				if (msg[0] === DATA) {
-					const id = setTimeout(() => {
-						timers.delete(id);
-						actions.down([msg] satisfies Messages);
-						if (completed && timers.size === 0) {
-							actions.down([[COMPLETE]] satisfies Messages);
-						}
-					}, ms);
-					timers.add(id);
-					return true;
-				}
-				if (msg[0] === COMPLETE) {
-					terminated = true;
-					completed = true;
-					if (timers.size === 0) {
-						actions.down([[COMPLETE]] satisfies Messages);
-					}
-					return true;
-				}
-				if (msg[0] === ERROR) {
-					terminated = true;
-					for (const id of timers) clearTimeout(id);
-					timers.clear();
-					actions.down([msg] satisfies Messages);
-					return true;
-				}
-				actions.down([msg] satisfies Messages);
-				return true;
-			},
 		},
 	);
-	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
+	// Producer pattern: register in graph without dep edges (manual subscription).
+	// Record a logical edge for describe() even though the dep is not in constructor deps.
+	graph.add(name, step as unknown as Node<unknown>);
+	if (src.path) {
+		try {
+			graph.connect(src.path, name);
+		} catch (e) {
+			// connect validates constructor deps — expected to fail for producer
+			// pattern. Re-throw unexpected errors to surface wiring bugs.
+			if (!(e instanceof Error && /dep|edge|connect/i.test(e.message))) throw e;
+		}
+	}
 	return step;
 }
 

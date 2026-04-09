@@ -127,9 +127,17 @@ function createPrimitiveAtom<T>(initial: T, options?: AtomOptions): WritableAtom
 			n.down([[DATA, fn(current)]]);
 		},
 		subscribe: (cb: (value: T) => void) => {
+			// Skip the initial push-on-subscribe DATA — jotai subscribe fires on changes only.
+			let initial = true;
 			return n.subscribe((msgs: Messages) => {
 				for (const [t, v] of msgs) {
-					if (t === DATA) cb(v as T);
+					if (t === DATA) {
+						if (initial) {
+							initial = false;
+							continue;
+						}
+						cb(v as T);
+					}
 				}
 			});
 		},
@@ -167,9 +175,17 @@ function createDerivedAtom<T>(
 			return n.get() as T;
 		},
 		subscribe: (cb: (value: T) => void) => {
+			// Skip the initial push-on-subscribe DATA — jotai subscribe fires on changes only.
+			let initial = true;
 			return n.subscribe((msgs: Messages) => {
 				for (const [t, v] of msgs) {
-					if (t === DATA) cb(v as T);
+					if (t === DATA) {
+						if (initial) {
+							initial = false;
+							continue;
+						}
+						cb(v as T);
+					}
 				}
 			});
 		},

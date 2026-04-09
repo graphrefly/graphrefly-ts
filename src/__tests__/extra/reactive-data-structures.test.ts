@@ -21,8 +21,12 @@ describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 		unsub();
 		const flat = (batches as [symbol, unknown][][]).flat();
 		expect(flat.some((m) => m[0] === DIRTY)).toBe(true);
-		const data = flat.find((m) => m[0] === DATA) as [symbol, readonly number[]];
-		expect([...data[1]]).toEqual([1]);
+		// Push-on-subscribe delivers the initial cached empty array first;
+		// find the DATA that contains the appended value.
+		const dataMessages = flat.filter((m) => m[0] === DATA) as [symbol, readonly number[]][];
+		const appended = dataMessages.find((m) => (m[1] as readonly number[]).length > 0);
+		expect(appended).toBeDefined();
+		expect([...appended![1]]).toEqual([1]);
 	});
 
 	it("tail returns last n entries", () => {
@@ -82,6 +86,7 @@ describe("extra pubsub (roadmap §3.2)", () => {
 		});
 		hub.publish("x", 42);
 		unsub();
-		expect(seen).toEqual([42]);
+		// Push-on-subscribe delivers the initial cached undefined, then the published 42
+		expect(seen).toEqual([undefined, 42]);
 	});
 });

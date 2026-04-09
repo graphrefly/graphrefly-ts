@@ -268,6 +268,8 @@ describe("Graph composition (Phase 1.2)", () => {
 		root.mount("c", child);
 		childNode.subscribe(() => order.push("child"));
 		rootNode.subscribe(() => order.push("root"));
+		// Clear initial push-on-subscribe emissions
+		order.length = 0;
 		root.signal([[PAUSE, "x"]]);
 		expect(order).toEqual(["child", "root"]);
 	});
@@ -920,6 +922,9 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 			},
 			{ debounceMs: 5, compactEvery: 2 },
 		);
+		// Wait for any initial push-on-subscribe checkpoint to drain
+		await new Promise((r) => setTimeout(r, 15));
+		saves.length = 0;
 		g.signal([[PAUSE, "lock"]]);
 		await new Promise((r) => setTimeout(r, 15));
 		expect(saves.length).toBe(0);
@@ -1556,6 +1561,8 @@ describe("observe() expand() (3.3b)", () => {
 
 		// Expand to full — disposes old, creates new subscription
 		const full = minimal.expand("full");
+		// Clear push-on-subscribe events so we only see the dep-triggered update
+		full.events.length = 0;
 		g.set("a", 3);
 
 		const dataEvt = full.events.find((e) => e.type === "data");

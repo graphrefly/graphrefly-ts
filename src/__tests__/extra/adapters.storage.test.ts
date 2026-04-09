@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
 import {
 	type ClickHouseInsertClientLike,
@@ -38,6 +40,26 @@ function tick(ms = 0): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Creates a source node with no cached value (SENTINEL), so push-on-subscribe
+ * does not replay any value. Call `send(v)` to push DATA, `complete()` to push
+ * COMPLETE, `error(e)` to push ERROR.
+ */
+function manualSource<T>(): {
+	src: Node<T>;
+	send: (v: T) => void;
+	complete: () => void;
+	error: (e: unknown) => void;
+} {
+	const src = node<T>();
+	return {
+		src,
+		send: (v: T) => src.down([[DATA, v]]),
+		complete: () => src.down([[COMPLETE]]),
+		error: (e: unknown) => src.down([[ERROR, e]]),
+	};
+}
+
 // ——————————————————————————————————————————————————————————————
 //  toFile
 // ——————————————————————————————————————————————————————————————
@@ -51,8 +73,12 @@ describe("toFile", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter([1, 2, 3]);
+		const { src, send, complete } = manualSource<number>();
 		const handle = toFile(src, writer);
+		send(1);
+		send(2);
+		send(3);
+		complete();
 		expect(chunks).toEqual(["1\n", "2\n", "3\n"]);
 		handle.dispose();
 	});
@@ -65,8 +91,11 @@ describe("toFile", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter(["a", "b"]);
+		const { src, send, complete } = manualSource<string>();
 		const handle = toFile(src, writer, { serialize: (v) => `LINE:${v}\n` });
+		send("a");
+		send("b");
+		complete();
 		expect(chunks).toEqual(["LINE:a\n", "LINE:b\n"]);
 		handle.dispose();
 	});
@@ -107,13 +136,14 @@ describe("toFile", () => {
 			write: () => {},
 			end: () => {},
 		};
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const handle = toFile(src, writer, {
 			serialize: () => {
 				throw new Error("bad");
 			},
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("serialize");
 		handle.dispose();
@@ -127,10 +157,11 @@ describe("toFile", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const handle = toFile(src, writer, {
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("send");
 		handle.dispose();
@@ -150,11 +181,11 @@ describe("toCSV", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter([
-			{ name: "Alice", age: "30" },
-			{ name: "Bob", age: "25" },
-		]);
+		const { src, send, complete } = manualSource<Record<string, string>>();
 		const handle = toCSV(src, writer, { columns: ["name", "age"] });
+		send({ name: "Alice", age: "30" });
+		send({ name: "Bob", age: "25" });
+		complete();
 		expect(chunks).toEqual(["name,age\nAlice,30\n", "Bob,25\n"]);
 		handle.dispose();
 	});
@@ -167,11 +198,14 @@ describe("toCSV", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter([{ val: "has,comma" }, { val: 'has"quote' }]);
+		const { src, send, complete } = manualSource<Record<string, string>>();
 		const handle = toCSV(src, writer, {
 			columns: ["val"],
 			writeHeader: false,
 		});
+		send({ val: "has,comma" });
+		send({ val: 'has"quote' });
+		complete();
 		expect(chunks).toEqual(['"has,comma"\n', '"has""quote"\n']);
 		handle.dispose();
 	});
@@ -184,11 +218,13 @@ describe("toCSV", () => {
 			},
 			end: () => {},
 		};
-		const src = fromIter([{ a: "1", b: "2" }]);
+		const { src, send, complete } = manualSource<Record<string, string>>();
 		const handle = toCSV(src, writer, {
 			columns: ["a", "b"],
 			delimiter: "\t",
 		});
+		send({ a: "1", b: "2" });
+		complete();
 		expect(chunks).toEqual(["a\tb\n1\t2\n"]);
 		handle.dispose();
 	});
@@ -220,11 +256,14 @@ describe("toClickHouse", () => {
 				inserted.push(params.values);
 			},
 		};
-		const src = fromIter([1, 2]);
+		const { src, send, complete } = manualSource<number>();
 		const handle = toClickHouse(src, client, "t", {
 			batchSize: 10,
 			transform: (v) => ({ val: v * 10 }),
 		});
+		send(1);
+		send(2);
+		complete();
 		handle.dispose();
 		expect(inserted).toEqual([[{ val: 10 }, { val: 20 }]]);
 	});
@@ -234,7 +273,7 @@ describe("toClickHouse", () => {
 		const client: ClickHouseInsertClientLike = {
 			insert: async () => {},
 		};
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const handle = toClickHouse(src, client, "t", {
 			batchSize: 10,
 			transform: () => {
@@ -242,6 +281,7 @@ describe("toClickHouse", () => {
 			},
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("serialize");
 		handle.dispose();
@@ -260,11 +300,14 @@ describe("toS3", () => {
 				uploads.push({ key: params.Key, body: params.Body as string });
 			},
 		};
-		const src = fromIter([{ a: 1 }, { b: 2 }]);
+		const { src, send, complete } = manualSource<Record<string, number>>();
 		const handle = toS3(src, client, "my-bucket", {
 			batchSize: 10,
 			keyGenerator: (seq) => `batch-${seq}.ndjson`,
 		});
+		send({ a: 1 });
+		send({ b: 2 });
+		complete();
 		handle.dispose();
 		expect(uploads).toHaveLength(1);
 		expect(uploads[0].key).toBe("batch-1.ndjson");
@@ -301,8 +344,11 @@ describe("toPostgres", () => {
 				queries.push({ sql, params: params ?? [] });
 			},
 		};
-		const src = fromIter([{ x: 1 }, { x: 2 }]);
+		const { src, send, complete } = manualSource<Record<string, number>>();
 		const { dispose: unsub } = toPostgres(src, client, "events");
+		send({ x: 1 });
+		send({ x: 2 });
+		complete();
 		await tick();
 		expect(queries).toHaveLength(2);
 		expect(queries[0].sql).toContain('INSERT INTO "events"');
@@ -314,13 +360,14 @@ describe("toPostgres", () => {
 		const client: PostgresClientLike = {
 			query: async () => {},
 		};
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const { dispose: unsub } = toPostgres(src, client, "t", {
 			toSQL: () => {
 				throw new Error("bad sql");
 			},
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("serialize");
 		unsub();
@@ -353,8 +400,11 @@ describe("toMongo", () => {
 				docs.push(doc);
 			},
 		};
-		const src = fromIter([{ a: 1 }, { b: 2 }]);
+		const { src, send, complete } = manualSource<Record<string, number>>();
 		const { dispose: unsub } = toMongo(src, collection);
+		send({ a: 1 });
+		send({ b: 2 });
+		complete();
 		await tick();
 		expect(docs).toEqual([{ a: 1 }, { b: 2 }]);
 		unsub();
@@ -367,10 +417,13 @@ describe("toMongo", () => {
 				docs.push(doc);
 			},
 		};
-		const src = fromIter([1, 2]);
+		const { src, send, complete } = manualSource<number>();
 		const { dispose: unsub } = toMongo(src, collection, {
 			toDocument: (v) => ({ value: v, ts: "now" }),
 		});
+		send(1);
+		send(2);
+		complete();
 		await tick();
 		expect(docs).toEqual([
 			{ value: 1, ts: "now" },
@@ -392,11 +445,13 @@ describe("toLoki", () => {
 				pushes.push(payload);
 			},
 		};
-		const src = fromIter(["log line 1"]);
+		const { src, send, complete } = manualSource<string>();
 		const { dispose: unsub } = toLoki(src, client, {
 			labels: { job: "test" },
 			toLine: (v) => v,
 		});
+		send("log line 1");
+		complete();
 		await tick();
 		expect(pushes).toHaveLength(1);
 		const first = pushes[0] as {
@@ -440,8 +495,10 @@ describe("toTempo", () => {
 			},
 		};
 		const span = { traceId: "abc", spans: [{ name: "op1" }] };
-		const src = fromIter([span]);
+		const { src, send, complete } = manualSource<typeof span>();
 		const { dispose: unsub } = toTempo(src, client);
+		send(span);
+		complete();
 		await tick();
 		expect(pushes).toHaveLength(1);
 		expect((pushes[0] as { resourceSpans: unknown[] }).resourceSpans).toEqual([span]);
@@ -525,6 +582,7 @@ describe("fromSqlite", () => {
 		fromSqlite(db, "SELECT * FROM users").subscribe((m) => {
 			for (const msg of m) msgs.push(msg);
 		});
+		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
 		expect(msgs).toEqual([
 			[DATA, { id: 1, name: "Alice" }],
 			[DATA, { id: 2, name: "Bob" }],
@@ -552,6 +610,7 @@ describe("fromSqlite", () => {
 		}).subscribe((m) => {
 			for (const msg of m) if (msg[0] === DATA) values.push(msg[1] as number);
 		});
+		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(values).toEqual([20, 40]);
 	});
 
@@ -612,8 +671,11 @@ describe("toSqlite", () => {
 				return [];
 			},
 		};
-		const src = fromIter([{ x: 1 }, { x: 2 }]);
+		const { src, send, complete } = manualSource<Record<string, number>>();
 		const { dispose: unsub } = toSqlite(src, db, "events");
+		send({ x: 1 });
+		send({ x: 2 });
+		complete();
 		expect(queries).toHaveLength(2);
 		expect(queries[0].sql).toContain('INSERT INTO "events"');
 		expect(queries[0].params[0]).toBe(JSON.stringify({ x: 1 }));
@@ -639,13 +701,14 @@ describe("toSqlite", () => {
 	it("reports toSQL errors via onTransportError (serialize stage)", () => {
 		const errors: unknown[] = [];
 		const db: SqliteDbLike = { query: () => [] };
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const { dispose: unsub } = toSqlite(src, db, "t", {
 			toSQL: () => {
 				throw new Error("bad sql");
 			},
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("serialize");
 		unsub();
@@ -658,10 +721,11 @@ describe("toSqlite", () => {
 				throw new Error("disk full");
 			},
 		};
-		const src = fromIter([1]);
+		const { src, send } = manualSource<number>();
 		const { dispose: unsub } = toSqlite(src, db, "t", {
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { stage: string }).stage).toBe("send");
 		expect((errors[0] as { error: Error }).error.message).toBe("disk full");
@@ -764,11 +828,13 @@ describe("toSqlite", () => {
 				return [];
 			},
 		};
-		const src = fromIter([1]);
+		const { src, send, complete } = manualSource<number>();
 		const handle = toSqlite(src, db, "t", {
 			batchInsert: true,
 			onTransportError: (e) => errors.push(e),
 		});
+		send(1);
+		complete();
 		// COMPLETE triggered flush, BEGIN failed — error reported
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as { error: Error }).error.message).toBe("locked");
@@ -813,8 +879,8 @@ describe("toSqlite", () => {
 				return [];
 			},
 		};
-		// Use a state source that doesn't complete, so dispose is the only flush trigger
-		const s = state(0);
+		// Use a node with no initial value so push-on-subscribe does not fire
+		const s = node<number>();
 		const handle = toSqlite(s, db, "t", { batchInsert: true });
 		s.down([[DATA, 1]]);
 		s.down([[DATA, 2]]);
@@ -835,8 +901,10 @@ describe("toSqlite", () => {
 				return [];
 			},
 		};
-		const src = fromIter([1]);
+		const { src, send, complete } = manualSource<number>();
 		const handle = toSqlite(src, db, "t", { batchInsert: true });
+		send(1);
+		complete();
 		const countBefore = queries.length;
 		handle.dispose();
 		handle.dispose(); // second call should be no-op

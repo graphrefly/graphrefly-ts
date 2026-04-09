@@ -166,8 +166,10 @@ describe("fromSyslog + parseSyslog", () => {
 			for (const m of msgs) if (m[0] === DATA) received.push(m[1]);
 		});
 
-		expect(received).toHaveLength(1);
+		// Push-on-subscribe replays the cached value
+		expect(received).toHaveLength(2);
 		expect((received[0] as any).appName).toBe("app");
+		expect((received[1] as any).appName).toBe("app");
 	});
 });
 
@@ -217,7 +219,8 @@ describe("fromStatsD + parseStatsD", () => {
 			for (const m of msgs) if (m[0] === DATA) received.push(m[1]);
 		});
 
-		expect(received).toHaveLength(2);
+		// Push-on-subscribe replays the last cached value (mem:512|g)
+		expect(received).toHaveLength(3);
 	});
 });
 

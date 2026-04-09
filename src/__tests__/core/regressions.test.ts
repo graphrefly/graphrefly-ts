@@ -34,12 +34,13 @@ describe("regressions", () => {
 		const b = node<number>({ initial: 0 });
 		const errA = new Error("error-a");
 		const errB = new Error("error-b");
-		// Subscribers that only throw when DATA arrives (deferred during batch drain).
+		// Subscribers that only throw when non-initial DATA arrives (deferred during batch drain).
+		// Push-on-subscribe delivers the initial value (0), so we skip that.
 		a.subscribe((msgs) => {
-			if (msgs.some((m) => m[0] === DATA)) throw errA;
+			if (msgs.some((m) => m[0] === DATA && (m[1] as number) > 0)) throw errA;
 		});
 		b.subscribe((msgs) => {
-			if (msgs.some((m) => m[0] === DATA)) throw errB;
+			if (msgs.some((m) => m[0] === DATA && (m[1] as number) > 0)) throw errB;
 		});
 
 		let caught: unknown;
@@ -63,8 +64,9 @@ describe("regressions", () => {
 	it("batch drain with single callback error throws unwrapped", () => {
 		const a = node<number>({ initial: 0 });
 		const singleErr = new Error("single");
-		a.subscribe(() => {
-			throw singleErr;
+		// Only throw on non-initial DATA to avoid throwing during push-on-subscribe.
+		a.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === DATA && (m[1] as number) > 0)) throw singleErr;
 		});
 
 		let caught: unknown;

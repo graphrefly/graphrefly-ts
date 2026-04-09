@@ -108,6 +108,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("fromIter / of", () => {
 		const a = collect(fromIter([10, 20]));
+		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
 		expect(
 			a.batches
 				.flat()
@@ -170,6 +171,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("fromAny dispatches iterable", () => {
 		const a = collect(fromAny([1, 2]));
+		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(
 			a.batches
 				.flat()
@@ -240,6 +242,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		const acc: number[] = [];
 		const src = fromIter([1, 2]);
 		const unsub = forEach(src, (v) => acc.push(v as number));
+		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(acc).toEqual([1, 2]);
 		expect(typeof unsub).toBe("function");
 		unsub();
@@ -539,6 +542,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		}
 		const ws = new FakeWebSocket();
 		const unsub = toWebSocket(fromIter([1, 2]), ws, { serialize: (v) => `n:${v}` });
+		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(ws.sent).toEqual(["n:1", "n:2"]);
 		expect(ws.closed).toBe(1);
 		unsub();
@@ -583,6 +587,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 					}),
 			}),
 		).not.toThrow();
+		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(errors).toHaveLength(1);
 		expect(errors[0]?.stage).toBe("send");
 		expect(errors[0]?.error.message).toBe("send-failed");

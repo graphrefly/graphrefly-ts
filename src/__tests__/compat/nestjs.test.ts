@@ -36,7 +36,7 @@ import {
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
+import { type Node, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
@@ -48,7 +48,7 @@ import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs.j
 
 describe("nestjs compat — RxJS bridge", () => {
 	it("toObservable: emits DATA values", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const values$ = toObservable(s).pipe(take(2), toArray());
 		const p = rxFirstValueFrom(values$);
 
@@ -72,7 +72,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: completes on COMPLETE", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const all = toObservable(s).pipe(toArray());
 		const p = rxFirstValueFrom(all);
 
@@ -86,7 +86,7 @@ describe("nestjs compat — RxJS bridge", () => {
 
 	it("toObservable: skips protocol-internal signals (DIRTY, RESOLVED)", async () => {
 		const { RESOLVED } = await import("../../core/messages.js");
-		const s = state<number>(0);
+		const s = node<number>();
 		const values: number[] = [];
 		const sub = toObservable(s).subscribe((v) => values.push(v));
 
@@ -100,7 +100,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable({ raw: true }): emits raw message batches", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		// Batch splits DIRTY (immediate, tier 0) from DATA (deferred, tier 2).
 		// So s.down([[DIRTY], [DATA, 1]]) produces two emissions: [[DIRTY]] then [[DATA, 1]].
 		const msgs$ = toObservable(s, { raw: true }).pipe(take(2), toArray());
@@ -136,7 +136,7 @@ describe("nestjs compat — RxJS bridge", () => {
 
 	it("toObservable: graph node values via graph.resolve", async () => {
 		const g = new Graph("test");
-		const s = state<number>(10);
+		const s = node<number>();
 		g.add("counter", s);
 
 		const values$ = toObservable<number>(g.resolve("counter")).pipe(take(2), toArray());
@@ -150,7 +150,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: unsubscribing the Observable unsubscribes the node", () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const values: number[] = [];
 		const sub = toObservable(s).subscribe((v) => values.push(v));
 
@@ -162,12 +162,13 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: works with derived nodes (reactive chain)", () => {
-		const count = state(0);
+		const count = node<number>();
 		const doubled = derived([count], (c: number) => c * 2);
 
 		const values: number[] = [];
 		const sub = toObservable(doubled).subscribe((v) => values.push(v));
 
+		count.down([[DATA, 0]]);
 		count.down([[DATA, 3]]);
 		count.down([[DATA, 5]]);
 
@@ -455,7 +456,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("counter", state(0)),
+					build: (g) => g.add("counter", node<number>()),
 				}),
 			],
 			providers: [OrderHandler],
@@ -483,7 +484,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 			}
 		}
 
-		const s = state<number>(0);
+		const s = node<number>();
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
@@ -517,7 +518,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 			}
 		}
 
-		const s = state<number>(0);
+		const s = node<number>();
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
@@ -554,7 +555,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "payments",
-					build: (g) => g.add("status", state("pending")),
+					build: (g) => g.add("status", node<string>()),
 				}),
 			],
 			providers: [PaymentHandler],
@@ -591,8 +592,8 @@ describe("nestjs compat — @OnGraphEvent", () => {
 			imports: [
 				GraphReflyModule.forRoot({
 					build: (g) => {
-						g.add("a", state(0));
-						g.add("b", state(0));
+						g.add("a", node<number>());
+						g.add("b", node<number>());
 					},
 				}),
 			],
@@ -984,7 +985,7 @@ describe("nestjs compat — observeSSE", () => {
 
 describe("nestjs compat — observeSubscription", () => {
 	it("yields DATA values as async iterator", async () => {
-		const s = state<string>("");
+		const s = node<string>();
 		const g = new Graph("sub-test");
 		g.add("msg", s);
 
@@ -1004,7 +1005,7 @@ describe("nestjs compat — observeSubscription", () => {
 	});
 
 	it("rejects on ERROR", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("sub-err");
 		g.add("n", s);
 
@@ -1037,7 +1038,7 @@ describe("nestjs compat — observeSubscription", () => {
 	});
 
 	it("return() disposes the subscription", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("sub-return");
 		g.add("n", s);
 
@@ -1122,7 +1123,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("forwards DATA to client via default send", () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("gw-send");
 		g.add("n", s);
 
@@ -1316,7 +1317,7 @@ describe("nestjs compat — TEARDOWN handling", () => {
 	});
 
 	it("observeSubscription completes on TEARDOWN", async () => {
-		const s = state<string>("");
+		const s = node<string>();
 		const g = new Graph("sub-td");
 		g.add("n", s);
 
@@ -1335,7 +1336,7 @@ describe("nestjs compat — TEARDOWN handling", () => {
 	});
 
 	it("observeSubscription disposes subscription on COMPLETE", async () => {
-		const s = state<number>(0);
+		const s = node<number>();
 		const g = new Graph("sub-dispose");
 		g.add("n", s);
 
@@ -1701,7 +1702,8 @@ describe("nestjs compat — @QueryHandler", () => {
 		g.dispatch("add", { name: "a" });
 		g.dispatch("add", { name: "b" });
 
-		expect(values).toEqual([1, 2]);
+		// Initial projection value (0) is pushed on subscribe, then updates
+		expect(values).toEqual([0, 1, 2]);
 
 		await module.close();
 	});

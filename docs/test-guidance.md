@@ -70,6 +70,15 @@ From **GRAPHREFLY-SPEC** §1 and §2:
 - [ ] **Unknown types** forward (forward-compat).
 - [ ] **Meta** keys behave as subscribable nodes when present.
 
+### Push-on-subscribe (Spec v0.2)
+
+All nodes with a cached value push `[[DATA, cached]]` to new subscribers synchronously during `subscribe()`. Key implications for tests:
+
+- **Use `node<T>()` (SENTINEL) when you don't want initial push.** `state(v)` and `node({initial: v})` push on subscribe; bare `node<T>()` has no cached value and does not push.
+- **No DIRTY precedes the initial push.** Two-phase `DIRTY → DATA` ordering applies to *updates*, not the initial cached push.
+- **Terminal nodes do not push.** After `COMPLETE` or `ERROR`, push-on-subscribe is skipped (§1.3.4).
+- **Compat adapters suppress the initial push** where the external library's API contract says "no immediate call" (nanostores `listen`, jotai/zustand/signals `subscribe`).
+
 ### Design invariant violations
 
 From **GRAPHREFLY-SPEC §5.8–5.12**:

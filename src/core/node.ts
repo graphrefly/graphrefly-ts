@@ -647,7 +647,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		// Model B: ALL nodes with cached value push to new subscriber.
 		// Data flows through messages uniformly — no peek via .get().
-		if (this._cached !== NO_VALUE) {
+		// Push is synchronous (not batch-deferred) so derived nodes can
+		// compute during connection when deps push their cached values.
+		// Skip if node is terminal — no DATA after COMPLETE/ERROR (§1.3.4).
+		if (this._cached !== NO_VALUE && !this._terminal) {
 			sink([[DATA, this._cached]]);
 		}
 
@@ -979,14 +982,22 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			: undefined;
 		// Model B: no _connecting guard needed — deps push on subscribe,
 		// _onDepSettled triggers _runFn reactively when all deps have settled.
+		const depValuesBefore = this._lastDepValues;
 		for (let i = 0; i < this._deps.length; i += 1) {
 			const dep = this._deps[i];
 			this._upstreamUnsubs.push(
 				dep.subscribe((msgs) => this._handleDepMessages(i, msgs), subHints),
 			);
 		}
-		// Model B: removed explicit _runFn() call — derived computes reactively
-		// from upstream push (state pushes DATA on subscribe, cascading through chain).
+		// Model B: derived nodes without onMessage compute reactively from
+		// upstream push (state pushes DATA on subscribe → _onDepSettled → _runFn).
+		// Nodes with onMessage that fully consume dep messages need an explicit
+		// _runFn call since _onDepSettled is never reached through the consumed
+		// path. Skip if _onDepSettled already triggered _runFn during the
+		// subscribe loop (detectable by _lastDepValues being reassigned).
+		if (this._fn && this._onMessage && this._lastDepValues === depValuesBefore) {
+			this._runFn();
+		}
 	}
 
 	_stopProducer(): void {

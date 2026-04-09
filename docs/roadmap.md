@@ -30,15 +30,18 @@
 - [x] Rewrite `GRAPHREFLY-SPEC.md` for v0.2 (push model, RESET, PAUSE/RESUME lockId, dynamicNode, §4.2 timer utilities)
 - [x] Rewrite `COMPOSITION-GUIDE.md` for push model (SENTINEL over state(null), `!= null` guards, keepalive vs activation)
 - [x] Update `composition-guide.jsonl` entries
-- [ ] Categorize new test failures (131 with all-nodes push)
+- [x] Categorize new test failures (131 with all-nodes push) — 5 categories: A) duplicate initial value (~55), B) DIRTY-before-DATA ordering (~20), C) batch-timing (collapsed into A — initial push is synchronous, not batch-deferred), D) compat adapter contracts (~15), E) misc edge cases (~5)
 
 ### Phase 3: Test migration (TS)
 
-- [ ] Fix duplicate-initial-value assertions (derived/effect push cached to late subscribers)
-- [ ] Fix message-ordering assertions (cached push sends DATA directly, not DIRTY first)
-- [ ] Fix double-entry assertions (length N+1 where N was expected)
-- [ ] Fix batch-timing regressions (push-on-subscribe bypasses batch deferral — route through `_downInternal` or batch-aware path)
-- [ ] Validate all 1370 tests pass
+- [x] Fix duplicate-initial-value assertions (derived/effect push cached to late subscribers) — switched `state(v)` → `node<T>()` (SENTINEL) in tests, or adjusted expected arrays
+- [x] Fix message-ordering assertions (cached push sends DATA directly, not DIRTY first) — updated two-phase ordering expectations; initial push has no preceding DIRTY
+- [x] Fix double-entry assertions (length N+1 where N was expected) — adjusted assertion counts
+- [x] Fix batch-timing regressions — initial push is intentionally synchronous (not batch-deferred) so derived nodes compute during connection; "batch-timing" failures were Category A
+- [x] Fix compat adapter initial-push suppression — nanostores `listen()`, jotai/zustand/signals `subscribe()` skip initial push to match external API contracts; nanostores `subscribe()` removed redundant explicit `cb()`
+- [x] Fix `_connectUpstream` for `onMessage` operators — nodes with `onMessage` that consume all dep messages (bufferTime, windowTime) need explicit `_runFn()` after connection
+- [x] Fix `wait` pattern cleanup registration — converted to producer node so cleanup is always registered
+- [x] Validate all 1370 tests pass
 
 ### Phase 4: Python parity
 

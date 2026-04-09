@@ -943,22 +943,28 @@ describe("harnessLoop with mockLLM", () => {
 			evidence: "ambiguous case",
 			affectsAreas: ["patterns"],
 		});
+		// Wait for triage → router → queue propagation (async due to promptNode Promise)
+		await new Promise((r) => setTimeout(r, 500));
 
-		// Wait for the item to arrive in the needs-decision queue
-		await vi.waitFor(
-			() => {
-				const queue = harness.queues.get("needs-decision")!;
-				expect(queue.retained().length).toBeGreaterThanOrEqual(1);
-			},
-			{ timeout: 5000, interval: 50 },
-		);
+		const qLen = harness.queues.get("needs-decision")!.retained().length;
+		const triageCalls = mock.callsFor("triage").length;
+		const allStages = mock.calls.map((c) => c.stage);
 
-		// Gate should have pending items
+		// If queue is empty, something in the triage chain didn't fire.
+		// Provide diagnostic info for debugging.
+		if (qLen === 0) {
+			throw new Error(
+				`Queue empty after 500ms. Triage calls: ${triageCalls}, all stages: [${allStages}]`,
+			);
+		}
+
+		// Gate should have pending items (may include initial push-on-subscribe null)
 		const gateCtrl = harness.gates.get("needs-decision")!;
 		expect(gateCtrl).toBeDefined();
 
-		// Approve the gate
-		gateCtrl.approve();
+		// Approve ALL pending items in the gate (includes push-on-subscribe initial + real item)
+		const pendingCount = (gateCtrl.count.get() as number) ?? 0;
+		gateCtrl.approve(pendingCount);
 
 		// Wait for the item to flow through execute → verify
 		await vi.waitFor(
@@ -1012,12 +1018,17 @@ describe("harnessLoop with mockLLM", () => {
 
 		const gateCtrl = harness.gates.get("needs-decision")!;
 
-		// Human steering: override triage classification with structured metadata
-		gateCtrl.modify((item: TriagedItem) => ({
-			...item,
-			rootCause: "composition",
-			intervention: "template",
-		}));
+		// Human steering: override triage classification with structured metadata.
+		// Approve all pending items (push-on-subscribe may have buffered initial null).
+		const pendingCount = (gateCtrl.count.get() as number) ?? 0;
+		gateCtrl.modify(
+			(item: TriagedItem) => ({
+				...item,
+				rootCause: "composition",
+				intervention: "template",
+			}),
+			pendingCount,
+		);
 
 		// Wait for modified item to flow through execute → verify → strategy.
 		// Check both presence of override AND absence of original in one predicate
@@ -1040,10 +1051,11 @@ describe("harnessLoop with mockLLM", () => {
 		expect(stages).toContain("TRIAGE");
 		expect(stages).toContain("STRATEGY");
 
-		// INTAKE before TRIAGE before STRATEGY
-		const intakeIdx = stages.indexOf("INTAKE");
-		const triageIdx = stages.indexOf("TRIAGE");
-		const strategyIdx = stages.indexOf("STRATEGY");
+		// INTAKE before TRIAGE before STRATEGY (use lastIndexOf to skip
+		// initial push-on-subscribe events that fire during harnessTrace wiring)
+		const intakeIdx = stages.lastIndexOf("INTAKE");
+		const triageIdx = stages.lastIndexOf("TRIAGE");
+		const strategyIdx = stages.lastIndexOf("STRATEGY");
 		expect(intakeIdx).toBeLessThan(triageIdx);
 		expect(triageIdx).toBeLessThan(strategyIdx);
 	});
