@@ -16,7 +16,7 @@ import { node } from "../../core/node.js";
 
 describe("node primitive", () => {
 	it("source node emits messages to subscribers", () => {
-		const s = node<number>({ initial: 0 });
+		const s = node<number>();
 		const seen: symbol[][] = [];
 		const unsub = s.subscribe((messages) => {
 			seen.push(messages.map((m) => m[0] as symbol));
@@ -116,7 +116,7 @@ describe("node primitive", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.4 — ERROR is terminal (no further downstream messages).
 	it("after ERROR, non-resubscribable node does not emit to sinks again", () => {
-		const source = node<number>({ initial: 0 });
+		const source = node<number>();
 		const broken = node([source], () => {
 			throw new Error("boom");
 		});
@@ -126,10 +126,12 @@ describe("node primitive", () => {
 		});
 
 		source.down([[DATA, 1]]);
-		expect(deliveries).toBe(1);
+		// 2 deliveries: DIRTY (from dep settling) + ERROR (from throwing fn)
+		expect(deliveries).toBe(2);
 
 		source.down([[DIRTY], [DATA, 2]]);
-		expect(deliveries).toBe(1);
+		// No additional deliveries after terminal ERROR
+		expect(deliveries).toBe(2);
 		unsub();
 	});
 
@@ -338,7 +340,8 @@ describe("node primitive", () => {
 		unsub();
 
 		expect(p.name).toBe("producer-like");
-		expect(values).toEqual([42]);
+		// Producer emits 42 during connect, then push-on-subscribe replays cached 42
+		expect(values).toEqual([42, 42]);
 	});
 
 	it("completeWhenDepsComplete: false suppresses auto-COMPLETE", () => {
@@ -674,7 +677,7 @@ describe("node primitive", () => {
 
 describe("D1: sink snapshot during emitToSinks", () => {
 	it("unsubscribing another sink mid-delivery does not skip it", () => {
-		const src = node({ initial: 0 });
+		const src = node<number>();
 		const log: string[] = [];
 		let unsubB: () => void;
 		const unsubA = src.subscribe(() => {
@@ -858,7 +861,9 @@ describe("meta (companion stores)", () => {
 		});
 		n.meta.err.down([[DIRTY], [DATA, "bad"]]);
 		unsub();
-		expect(seen).toEqual([[DIRTY], [DATA]]);
+		// Push-on-subscribe delivers the initial cached value (null) as DATA,
+		// then the explicit down() delivers DIRTY and DATA.
+		expect(seen).toEqual([[DATA], [DIRTY], [DATA]]);
 		expect(metaSnapshot(n).err).toBe("bad");
 	});
 

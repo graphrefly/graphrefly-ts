@@ -68,12 +68,12 @@ function createStore<T>(node: Node<T>, extra: any = {}): any {
 		subscribe: (cb: (value: T) => void) => {
 			if (listeners === 0) trigger(node, START_LISTENERS);
 			listeners++;
+			// Push-on-subscribe delivers the initial value via DATA — no explicit cb() needed.
 			const sub = node.subscribe((msgs: Messages) => {
 				for (const [t, v] of msgs) {
 					if (t === DATA) cb(v as T);
 				}
 			});
-			cb(getVal(node));
 			return () => {
 				sub();
 				listeners--;
@@ -83,9 +83,17 @@ function createStore<T>(node: Node<T>, extra: any = {}): any {
 		listen: (cb: (value: T) => void) => {
 			if (listeners === 0) trigger(node, START_LISTENERS);
 			listeners++;
+			// Skip the initial push-on-subscribe DATA — listen() fires on changes only.
+			let initial = true;
 			const sub = node.subscribe((msgs: Messages) => {
 				for (const [t, v] of msgs) {
-					if (t === DATA) cb(v as T);
+					if (t === DATA) {
+						if (initial) {
+							initial = false;
+							continue;
+						}
+						cb(v as T);
+					}
 				}
 			});
 			return () => {

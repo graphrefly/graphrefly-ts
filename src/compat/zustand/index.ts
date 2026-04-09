@@ -52,9 +52,15 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 		getInitialState: () => initialValue,
 		subscribe: (listener) => {
 			let prev = getState();
+			// Skip the initial push-on-subscribe DATA — zustand subscribe fires on changes only.
+			let initial = true;
 			return s.subscribe((msgs) => {
 				for (const [t, v] of msgs) {
 					if (t === DATA) {
+						if (initial) {
+							initial = false;
+							continue;
+						}
 						listener(v as T, prev);
 						prev = v as T;
 					}

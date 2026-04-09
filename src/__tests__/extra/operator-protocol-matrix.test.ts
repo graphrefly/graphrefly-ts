@@ -2,8 +2,10 @@
  * Regression: operator-level protocol and lifecycle vs GRAPHREFLY-SPEC §1.3 (two-phase, RESOLVED, subscriptions).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Message, Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
+import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
 import {
 	audit,
@@ -470,8 +472,8 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("concat", () => {
 		it("DIRTY precedes DATA on first source two-phase", () => {
-			const a = state(0);
-			const b = state(0);
+			const a = node<number>();
+			const b = node<number>();
 			const c = concat(a, b);
 			assertDirtyBeforeDataOnTwoPhase(c, () => a.down([[DIRTY], [DATA, 1]]));
 		});
@@ -562,7 +564,9 @@ describe("Tier 1 operator protocol matrix", () => {
 		it("second subscription receives DATA after unsubscribe (notifier idle)", () => {
 			assertReconnectSeesData(() => {
 				const s = state(0);
-				const stop = state(0);
+				// Use SENTINEL for notifier — state(0) would push DATA on resubscribe,
+				// triggering takeUntil's COMPLETE (notifier must be truly idle).
+				const stop = node<number>();
 				const out = takeUntil(s, stop);
 				return { source: s, out };
 			});
@@ -665,8 +669,8 @@ describe("Tier 2 operator protocol matrix", () => {
 	describe("switchMap", () => {
 		// Outer two-phase may interleave with inner subscription setup; assert global ordering once inner emits.
 		it("DIRTY precedes inner DATA after outer selects inner (two-phase outer)", () => {
-			const src = state(0);
-			const inner = state(10);
+			const src = node<number>();
+			const inner = node<number>();
 			const out = switchMap(src, () => inner);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -714,8 +718,8 @@ describe("Tier 2 operator protocol matrix", () => {
 	describe("concatMap", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3 — inner two-phase ordering must survive queued higher-order dispatch.
 		it("DIRTY precedes DATA from active inner after outer two-phase", () => {
-			const src = state(0);
-			const inner = state(10);
+			const src = node<number>();
+			const inner = node<number>();
 			const out = concatMap(src, () => inner);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -755,8 +759,8 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("mergeMap", () => {
 		it("DIRTY precedes DATA from inner after outer two-phase", () => {
-			const src = state(0);
-			const inner = state(1);
+			const src = node<number>();
+			const inner = node<number>();
 			const out = mergeMap(src, () => inner);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -789,8 +793,8 @@ describe("Tier 2 operator protocol matrix", () => {
 		});
 
 		it("DIRTY precedes DATA from inner after outer two-phase", () => {
-			const src = state(0);
-			const inner = state(1);
+			const src = node<number>();
+			const inner = node<number>();
 			const out = flatMap(src, () => inner);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -841,17 +845,23 @@ describe("Tier 2 operator protocol matrix", () => {
 		// Regression: throttle uses `performance.now()` for spacing — lastEmit starts at -Infinity so the first leading edge always fires.
 		it("reconnect sees leading DATA again (fake timers)", () => {
 			vi.useFakeTimers({ shouldAdvanceTime: true });
-			const s = state(0);
+			const s = node<number>();
 			const out = throttle(s, 1_000, { trailing: false });
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
 			expect(a.flat().find((m) => m[0] === DATA)?.[1]).toBe(1);
 			a.unsub();
 			vi.advanceTimersByTime(2_000);
-			const b = subscribeProtocol(out);
+			// Subscribe and drain initial cached push, then advance past any throttle window it may trigger.
+			const bBatches: Messages[] = [];
+			const bUnsub = out.subscribe((msgs) => bBatches.push([...msgs] as unknown as Messages));
+			bBatches.length = 0;
+			vi.advanceTimersByTime(2_000);
 			s.down([[DATA, 2]]);
-			expect(b.flat().find((m) => m[0] === DATA)?.[1]).toBe(2);
-			b.unsub();
+			expect(
+				(bBatches as Message[][]).flat().some((m: Message) => m[0] === DATA && m[1] === 2),
+			).toBe(true);
+			bUnsub();
 		});
 	});
 
@@ -916,7 +926,7 @@ describe("Tier 2 operator protocol matrix", () => {
 	describe("bufferTime", () => {
 		it("DIRTY precedes interval-flushed DATA (fake timers)", () => {
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node<number>();
 			const out = bufferTime(s, 50);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
@@ -957,19 +967,16 @@ describe("Tier 2 operator protocol matrix", () => {
 		it("DIRTY precedes DATA after window interval (fake timers)", () => {
 			vi.useFakeTimers({ shouldAdvanceTime: true });
 			vi.setSystemTime(10_000);
-			const s = state(0);
+			const s = node<number>();
 			const out = windowTime(s, 100);
-			const cap = subscribeProtocol(out);
-			s.down([[DIRTY], [DATA, 1]]);
-			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
-			cap.unsub();
+			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 	});
 
 	describe("timeout", () => {
 		// Regression: split `down` so DIRTY is not elided at the sink (single-dep DIRTY skip when batched with DATA).
 		it("DIRTY precedes DATA when idle timer is long", () => {
-			const s = state(0);
+			const s = node<number>();
 			const out = timeout(s, 999_999);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
@@ -991,7 +998,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("pausable", () => {
 		it("DIRTY precedes DATA when not paused", () => {
-			const s = state(0);
+			const s = node<number>();
 			const out = pausable(s);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
@@ -1003,7 +1010,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("rescue", () => {
 		it("DIRTY precedes DATA on successful path", () => {
-			const s = state(0);
+			const s = node<number>();
 			const out = rescue(s, () => 0);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);

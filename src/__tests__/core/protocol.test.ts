@@ -357,7 +357,8 @@ describe("integration: void sources and operator chains", () => {
 		const unsub = oneShot.subscribe((msgs: Messages) => {
 			for (const m of msgs) log.push([m[0], m[1]]);
 		});
-		// DATA(undefined) should arrive before COMPLETE.
+		// Producer emits DATA(undefined)+COMPLETE during connect.
+		// Push-on-subscribe is skipped because the node is terminal (§1.3.4).
 		expect(log.map((m) => m[0])).toEqual([DATA, COMPLETE]);
 		expect(log[0][1]).toBe(undefined);
 		unsub();

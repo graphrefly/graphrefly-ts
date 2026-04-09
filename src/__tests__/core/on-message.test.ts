@@ -162,6 +162,8 @@ describe("onMessage (spec §2.6)", () => {
 		});
 
 		handler.subscribe((msgs) => downstream.push(msgs));
+		// Clear initial push-on-subscribe emissions
+		downstream.length = 0;
 
 		// Custom type → intercepted
 		source.down([[ESCROW_LOCKED, "tx1"]]);

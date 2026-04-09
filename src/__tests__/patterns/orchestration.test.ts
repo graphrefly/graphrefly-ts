@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DATA, TEARDOWN } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 import {
@@ -112,7 +113,7 @@ describe("patterns.orchestration", () => {
 
 	it("forEach runs side effects and forwards messages", () => {
 		const g = pipeline("wf");
-		const input = state(1);
+		const input = node<number>();
 		g.add("input", input);
 		const seen: number[] = [];
 		const sink = forEach<number>(g, "sink", "input", (value) => {
@@ -160,7 +161,7 @@ describe("patterns.orchestration", () => {
 		const values: number[] = [];
 		s.node.subscribe((msgs) => {
 			for (const msg of msgs) {
-				if (msg[0] === DATA) {
+				if (msg[0] === DATA && msg[1] !== undefined) {
 					values.push(msg[1] as number);
 				}
 			}
@@ -203,7 +204,7 @@ describe("patterns.orchestration", () => {
 
 	it("forEach does not run user callback after terminal error", () => {
 		const g = pipeline("wf");
-		const src = state(0);
+		const src = node<number>();
 		g.add("src", src);
 		const seen: number[] = [];
 		const sink = forEach<number>(g, "sink", "src", (value) => {
@@ -220,14 +221,14 @@ describe("patterns.orchestration", () => {
 
 	it("wait cancels pending timers on teardown", async () => {
 		const g = pipeline("wf");
-		const input = state(1);
+		const input = node<number>();
 		g.add("input", input);
 		const delayed = wait<number>(g, "delayed", "input", 20);
 		delayed.subscribe(() => undefined);
 		g.set("input", 2);
 		delayed.down([[TEARDOWN]]);
 		await new Promise((resolve) => setTimeout(resolve, 35));
-		expect(g.get("delayed")).toBe(1);
+		expect(g.get("delayed")).toBeUndefined();
 	});
 
 	it("onFailure stops recovery attempts after terminal error", () => {
@@ -277,7 +278,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate queues values and approve forwards them", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input");
 
@@ -304,7 +305,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate reject discards pending values", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input");
 		ctrl.node.subscribe(() => undefined);
@@ -319,7 +320,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate modify transforms and forwards", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input");
 
@@ -336,7 +337,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate open flushes pending and auto-approves future", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input");
 
@@ -358,7 +359,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate close re-enables manual gating", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input", { startOpen: true });
 
@@ -389,7 +390,7 @@ describe("patterns.orchestration", () => {
 
 	it("gate approve(n) forwards multiple values", () => {
 		const g = pipeline("wf");
-		const input = state(0);
+		const input = node<number>();
 		g.add("input", input);
 		const ctrl = gate<number>(g, "gated", "input");
 

@@ -31,7 +31,8 @@ describe("sugar constructors", () => {
 		});
 		unsub();
 		expect(p.get()).toBe(1);
-		expect(seen).toEqual([1]);
+		// Producer emits 1 during connect, then push-on-subscribe replays cached 1
+		expect(seen).toEqual([1, 1]);
 	});
 
 	it("derived is an alias for deps + value-returning fn", () => {

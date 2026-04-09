@@ -186,9 +186,17 @@ export const Signal = {
 			typeof callback === "function"
 				? { data: callback as (value: T) => void, error: undefined, complete: undefined }
 				: callback;
+		// Skip the initial push-on-subscribe DATA — Signal.sub fires on changes only.
+		let initial = true;
 		return signal._node.subscribe((msgs) => {
 			for (const [t, v] of msgs) {
-				if (t === DATA) handlers.data?.(v as T);
+				if (t === DATA) {
+					if (initial) {
+						initial = false;
+						continue;
+					}
+					handlers.data?.(v as T);
+				}
 				if (t === ERROR) handlers.error?.(v);
 				if (t === COMPLETE) handlers.complete?.();
 			}

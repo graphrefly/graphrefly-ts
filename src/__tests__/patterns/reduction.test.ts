@@ -40,6 +40,9 @@ describe("reduction.stratify", () => {
 				if (msg[0] === DATA) oddSeen.push(msg[1] as number);
 			}
 		});
+		// Clear initial push-on-subscribe emissions
+		evenSeen.length = 0;
+		oddSeen.length = 0;
 
 		source.down([[DATA, 2]]);
 		source.down([[DATA, 3]]);
@@ -51,7 +54,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("reactive rules: rewriting rules at runtime changes classification", () => {
-		const source = state<string>("a");
+		const source = state<string>("");
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
 
 		const g = stratify("dynamic", source, rules);
@@ -62,6 +65,8 @@ describe("reduction.stratify", () => {
 				if (msg[0] === DATA) seen.push(msg[1] as string);
 			}
 		});
+		// Clear initial push-on-subscribe emissions (initial "" doesn't match rule)
+		seen.length = 0;
 
 		source.down([[DATA, "a"]]);
 		expect(seen).toEqual(["a"]);
@@ -159,7 +164,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("rules-only update after source settlement produces no spurious data", () => {
-		const source = state<string>("x");
+		const source = state<string>("");
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "x" }];
 
 		const g = stratify("resolved", source, rules);
@@ -170,6 +175,8 @@ describe("reduction.stratify", () => {
 				if (msg[0] === DATA) dataSeen.push(msg[1] as string);
 			}
 		});
+		// Clear initial push-on-subscribe emissions (initial "" doesn't match)
+		dataSeen.length = 0;
 
 		// Initial emission
 		source.down([[DATA, "x"]]);
@@ -223,6 +230,8 @@ describe("reduction.funnel", () => {
 				if (msg[0] === DATA) results.push(msg[1] as number);
 			}
 		});
+		// Clear initial push-on-subscribe emissions
+		results.length = 0;
 
 		s1.down([[DATA, 5]]);
 		s2.down([[DATA, 3]]);
@@ -365,6 +374,8 @@ describe("reduction.budgetGate", () => {
 				if (msg[0] === DATA) seen.push(msg[1] as number);
 			}
 		});
+		// Clear initial push-on-subscribe emissions
+		seen.length = 0;
 
 		source.down([[DATA, 42]]);
 		expect(seen).toEqual([42]);
@@ -383,13 +394,17 @@ describe("reduction.budgetGate", () => {
 			}
 		});
 
+		// Push-on-subscribe delivers initial 0 which gets buffered (budget=0).
+		// Clear the seen array; the buffered initial is still in the gate's internal buffer.
+		seen.length = 0;
+
 		source.down([[DATA, 1]]);
 		source.down([[DATA, 2]]);
 		expect(seen).toEqual([]); // buffered
 
-		// Replenish budget
+		// Replenish budget — flushes buffered initial 0, plus 1 and 2
 		budget.down([[DATA, 50]]);
-		expect(seen).toEqual([1, 2]); // flushed
+		expect(seen).toEqual([0, 1, 2]); // flushed (includes initial push-on-subscribe value)
 	});
 
 	it("rejects zero constraints", () => {

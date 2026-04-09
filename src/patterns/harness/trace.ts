@@ -159,16 +159,14 @@ export function harnessTrace(
 							if (detail === "summary") {
 								logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ←`);
 							} else {
-								const dataStr =
-									event.data !== undefined ? ` ${summarize(event.data)}` : "";
+								const dataStr = event.data !== undefined ? ` ${summarize(event.data)}` : "";
 								logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ←${dataStr}`);
 							}
 						}
 					} else if (event.type === "error") {
 						recordEvent(stage, "error", event.data);
 						if (logger) {
-							const errStr =
-								event.data !== undefined ? ` ${summarize(event.data)}` : "";
+							const errStr = event.data !== undefined ? ` ${summarize(event.data)}` : "";
 							logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ✗${errStr}`);
 						}
 					} else if (event.type === "complete") {

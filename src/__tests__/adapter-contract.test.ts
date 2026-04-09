@@ -137,6 +137,7 @@ describe("Pillar 2: terminal-time ordering", () => {
 		// Try emitting after complete.
 		emitFn!("after-terminal");
 		const dataMessages = messages.filter((m) => m[0] === DATA);
+		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
 		expect(dataMessages).toHaveLength(1);
 		expect(dataMessages[0][1]).toBe("before");
 		unsub();
