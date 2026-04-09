@@ -5,7 +5,9 @@ disable-model-invocation: true
 argument-hint: "[--light] [task description or context]"
 ---
 
-You are executing the **dev-dispatch** workflow for **graphrefly-ts** (GraphReFly TypeScript implementation).
+You are executing the **dev-dispatch** workflow for **GraphReFly** (cross-language: TypeScript + Python).
+
+Operational docs, roadmap, optimizations, and skills all live in **graphrefly-ts** (this repo). Implementation may target `graphrefly-ts`, `graphrefly-py` (`~/src/graphrefly-py`), or both.
 
 The user's task/context is: $ARGUMENTS
 
@@ -26,8 +28,8 @@ Read in parallel:
 - `docs/test-guidance.md` — checklist for the relevant layer (core protocol, node, graph, extra)
 - `docs/roadmap.md` — if this is a new feature or cross-cutting change (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`)
 - Any files the user referenced in $ARGUMENTS
-- Relevant source files in the area you'll modify
-- Existing tests for the area
+- Relevant source files in the area you'll modify (TS: `src/`, PY: `~/src/graphrefly-py/src/graphrefly/`)
+- Existing tests for the area (TS: `src/__tests__/`, PY: `~/src/graphrefly-py/tests/`)
 
 **Mandatory for patterns/ work:** If the task touches any file in `src/patterns/` or `src/compat/`, reading `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory**, not optional. The harness, orchestration, messaging, and all Phase 4+ code are composed factories — modifying their tests or implementation requires understanding composition patterns (lazy activation, subscription ordering, feedback cycles, SENTINEL gate).
 
@@ -40,11 +42,13 @@ While planning, explicitly validate proposed changes against these invariants (f
 - **Unknown message types forward** — do not swallow unrecognized tuples.
 - Prefer **composition (nodes + edges)** over monolithic configuration objects.
 - For **diamond** topologies, recomputation happens once per upstream change after all deps settle.
-- **No polling** — never poll node values on a timer or busy-wait. Use reactive sources (`fromTimer`, `fromCron`) instead (spec §5.8).
-- **No imperative triggers** — no event emitters, callbacks, or `setTimeout` + `set()` workarounds. All coordination uses reactive `NodeInput` signals (spec §5.9).
-- **No raw Promises or microtasks** — no bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick` for reactive work. Async belongs in sources and the runner layer (spec §5.10).
-- **Central timer and `messageTier`** — use `core/clock.ts` for timestamps, `messageTier` for tier classification. Never hardcode type checks (spec §5.11).
+- **No polling** — never poll node values on a timer or busy-wait. Use reactive sources (`fromTimer`/`from_timer`, `fromCron`/`from_cron`) instead (spec §5.8).
+- **No imperative triggers** — no event emitters, callbacks, or `setTimeout`/`threading.Timer` + `set()` workarounds. All coordination uses reactive `NodeInput` signals (spec §5.9).
+- **No raw async primitives** — TS: no bare `Promise`, `queueMicrotask`, `setTimeout`, `process.nextTick`. PY: no bare `asyncio.ensure_future`, `asyncio.create_task`, `threading.Timer`, or raw coroutines. Async belongs in sources and the runner layer (spec §5.10).
+- **Central timer and `messageTier`/`message_tier`** — TS: use `core/clock.ts`. PY: use `core/clock.py`. Never hardcode type checks (spec §5.11).
 - **Phase 4+ APIs must be developer-friendly** — sensible defaults, minimal boilerplate, clear errors. Protocol internals never surface in primary APIs (spec §5.12).
+- **PY: Thread safety** — design for GIL and free-threaded Python where core APIs are documented as thread-safe. Per-subgraph `RLock` (see roadmap Phase 0.4).
+- **PY: No `async def` in public APIs** — all public functions return `Node[T]`, `Graph`, `None`, or a plain synchronous value.
 
 Do NOT start implementing yet.
 
@@ -66,12 +70,13 @@ Do NOT start implementing yet.
 Prioritize (in order):
 1. **Correctness** — matches `~/src/graphrefly/GRAPHREFLY-SPEC.md` and protocol invariants
 2. **Completeness** — edge cases (errors, completion, reconnect, diamonds)
-3. **Consistency** — matches patterns already in graphrefly-ts
+3. **Consistency** — matches patterns already in the target repo
 4. **Simplicity** — minimal solution
+5. **Thread safety** (PY) — where concurrent `get()` / propagation applies
 
 Do NOT consider backward compatibility at this early stage (pre-1.0).
 
-**Cross-language decision log:** If Phase 1–2 surface an **architectural or product-level** question (protocol semantics, batch/node invariants, parity between ports, or anything that needs a spec/product call), **jot it down** in **`docs/optimizations.md`** under **"Active work items"**. If the sibling repo **`graphrefly-py`** is available, add a **matching** entry to **`graphrefly-py/docs/optimizations.md`** so both implementations stay visible. If the sibling tree is not in the workspace, tell the user to mirror the note there. When the decision is **resolved**, move it to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
+**Cross-language decision log:** If Phase 1–2 surface an **architectural or product-level** question (protocol semantics, batch/node invariants, parity between ports, or anything that needs a spec/product call), **jot it down** in **`docs/optimizations.md`** under **"Active work items"** (this repo is the single source of truth for both TS and PY). When the decision is **resolved**, move it to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
 
 **Wait for user approval before proceeding.**
 
@@ -96,9 +101,11 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 2. Create tests following `docs/test-guidance.md`:
    - Put tests in the most specific existing file under `src/__tests__/` (or colocated `*.test.ts` per project convention)
    - Use **`Graph.observe()`** / **`graph.observe()`** for live message assertions when the Graph API exists; until then, test at the **node** and **message** level per test-guidance
-3. Run tests: `pnpm test`
-4. Fix any test failures
+3. Run checks:
+   - **TS:** `pnpm test`
+   - **PY:** `cd ~/src/graphrefly-py && uv run pytest && uv run ruff check src/ tests/ && uv run mypy src/`
+4. Fix any failures
 
-If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, or “needs spec” item), add it to **`docs/optimizations.md`** under “Active work items” and mirror to **`graphrefly-py/docs/optimizations.md`** when that repo is available. When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md`.
+If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, or “needs spec” item), add it to **`docs/optimizations.md`** under “Active work items” (this repo is the single source of truth). When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md`.
 
 When done, briefly list files changed and new exports added. Then suggest running `/qa` for adversarial review and final checks.

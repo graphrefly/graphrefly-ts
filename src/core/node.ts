@@ -645,6 +645,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._startProducer();
 		}
 
+		// Model B: ALL nodes with cached value push to new subscriber.
+		// Data flows through messages uniformly — no peek via .get().
+		if (this._cached !== NO_VALUE) {
+			sink([[DATA, this._cached]]);
+		}
+
 		let removed = false;
 		return () => {
 			if (removed) return;
@@ -807,7 +813,6 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_runFn(): void {
 		if (!this._fn) return;
 		if (this._terminal && !this._opts.resubscribable) return;
-		if (this._connecting) return;
 
 		try {
 			const n = this._deps.length;
@@ -972,20 +977,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const subHints: SubscribeHints | undefined = this._isSingleDep
 			? { singleDep: true }
 			: undefined;
-		this._connecting = true;
-		try {
-			for (let i = 0; i < this._deps.length; i += 1) {
-				const dep = this._deps[i];
-				this._upstreamUnsubs.push(
-					dep.subscribe((msgs) => this._handleDepMessages(i, msgs), subHints),
-				);
-			}
-		} finally {
-			this._connecting = false;
+		// Model B: no _connecting guard needed — deps push on subscribe,
+		// _onDepSettled triggers _runFn reactively when all deps have settled.
+		for (let i = 0; i < this._deps.length; i += 1) {
+			const dep = this._deps[i];
+			this._upstreamUnsubs.push(
+				dep.subscribe((msgs) => this._handleDepMessages(i, msgs), subHints),
+			);
 		}
-		if (this._fn) {
-			this._runFn();
-		}
+		// Model B: removed explicit _runFn() call — derived computes reactively
+		// from upstream push (state pushes DATA on subscribe, cascading through chain).
 	}
 
 	_stopProducer(): void {

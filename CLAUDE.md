@@ -1,6 +1,16 @@
-# graphrefly-ts — agent context
+# graphrefly — unified agent context
 
-**GraphReFly** — reactive graph protocol for human + LLM co-operation. This package is the TypeScript implementation (`@graphrefly/graphrefly-ts`).
+**GraphReFly** — reactive graph protocol for human + LLM co-operation. This repo (`graphrefly-ts`) is the **single source of truth** for operational docs, skills, roadmap, and optimization records across both the TypeScript and Python implementations.
+
+## Repos
+
+| Repo | Path | Role |
+|------|------|------|
+| **graphrefly-ts** | this repo | TypeScript implementation + **all operational docs** |
+| **graphrefly-py** | `~/src/graphrefly-py` | Python implementation (must stay in parity) |
+| **graphrefly** (spec) | `~/src/graphrefly` | `GRAPHREFLY-SPEC.md`, `COMPOSITION-GUIDE.md`, `composition-guide.jsonl` |
+| **callbag-recharge** | `~/src/callbag-recharge` | TS predecessor (patterns/tests, NOT spec authority) |
+| **callbag-recharge-py** | `~/src/callbag-recharge-py` | PY predecessor (concurrency patterns, subgraph locks) |
 
 ## Canonical references (read these)
 
@@ -10,57 +20,14 @@
 | `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
 | `~/src/graphrefly/composition-guide.jsonl` | Machine-readable composition entries (appendable) |
 | `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes, proposed improvements. Check before introducing new optimizations or debugging perf issues. |
-| `docs/roadmap.md` | Phased implementation checklist |
-| `docs/docs-guidance.md` | How to document APIs and long-form docs |
-| `docs/test-guidance.md` | How to write and organize tests |
+| `docs/roadmap.md` | Phased implementation checklist (covers both TS and PY) |
+| `docs/docs-guidance.md` | How to document APIs and long-form docs (covers both TS and PY) |
+| `docs/test-guidance.md` | How to write and organize tests (covers both TS and PY) |
 | `archive/docs/SESSION-graphrefly-spec-design.md` | Design history and migration from callbag-recharge |
-
-## Predecessor repo (help, not spec)
-
-The **callbag-recharge** codebase at **`~/src/callbag-recharge`** is the mature predecessor (operators, tests, docs site patterns). Use it when you need:
-
-- Analogous **operator** behavior, edge cases, or regression ideas
-- **Test** structure inspiration (adapt to GraphReFly APIs and message tuples)
-- **Documentation** pipeline ideas (`docs/docs-guidance.md` defers to that repo where graphrefly-ts has not yet added the same tooling)
-
-**Do not** treat callbag-recharge as the authority for GraphReFly behavior. Always reconcile with `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
-
-## Layout
-
-- `src/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
-- `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3)
-- `src/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
-- `src/compat/` — framework adapters: NestJS (Phase 5+)
-
-## Design invariants (spec §5.8–5.12)
-
-These are non-negotiable across all implementations. Validate every change against them.
-
-1. **No polling.** State changes propagate reactively via messages. Never poll a node's value on a timer or busy-wait for status. Use reactive timer sources (`fromTimer`, `fromCron`) instead.
-2. **No imperative triggers.** All coordination uses reactive `NodeInput` signals and message flow through topology. No event emitters, callbacks, or `setTimeout` + `set()` workarounds. If you need a trigger, it's a reactive source node.
-3. **No raw Promises or microtasks.** Do not use bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick` to schedule reactive work. Async boundaries belong in sources (`fromPromise`, `fromAsyncIter`) and the runner layer, not in node fns or operators.
-4. **Central timer and `messageTier` utilities.** Use `clock.ts` for all timestamps (see rule below). Use `messageTier` utilities for tier classification — never hardcode type checks for checkpoint or batch gating.
-5. **Phase 4+ APIs must be developer-friendly.** Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) use sensible defaults, minimal boilerplate, and clear errors. Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface in primary APIs — accessible via `.node()` or `inner` when needed.
-
-## Time utility rule
-
-- Use `src/core/clock.ts` utilities for all timestamps.
-- Internal/event-order durations must use `monotonicNs()`.
-- Wall-clock attribution payloads must use `wallClockNs()`.
-- Do not call `Date.now()` / `performance.now()` directly outside `core/clock.ts`.
-
-## Auto-checkpoint trigger rule
-
-- For persistence auto-checkpoint behavior, gate saves by `messageTier >= 2`.
-- Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
-
-## Debugging composition (mandatory procedure)
-
-When debugging OOM, infinite loops, silent failures, or unexpected values in composed factories, follow the **"Debugging composition"** section in `~/src/graphrefly/COMPOSITION-GUIDE.md`. That is the single source of truth for the procedure. Do not skip or improvise around it.
 
 ## Commands
 
+**TypeScript (this repo):**
 ```bash
 pnpm test          # vitest run
 pnpm run lint      # biome check
@@ -68,11 +35,74 @@ pnpm run lint:fix   # biome check --write
 pnpm run build     # tsup
 ```
 
+**Python (`~/src/graphrefly-py`):**
+```bash
+uv run pytest                          # tests
+uv run ruff check src/ tests/         # lint
+uv run ruff check --fix src/ tests/   # lint fix
+uv run ruff format src/ tests/        # format
+uv run mypy src/                       # type check
+```
+
+Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv sync` to install dependencies. Distribution name: `graphrefly-py`, import path: `graphrefly`.
+
+## Layout
+
+**TypeScript (`graphrefly-ts`):**
+- `src/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
+- `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
+- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3)
+- `src/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
+- `src/compat/` — framework adapters: NestJS (Phase 5+)
+
+**Python (`graphrefly-py`):**
+- `src/graphrefly/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
+- `src/graphrefly/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
+- `src/graphrefly/extra/` — operators, sources, data structures, resilience (Phase 2–3)
+- `src/graphrefly/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
+- `src/graphrefly/compat/` — async runners: asyncio, trio (Phase 5+)
+- `src/graphrefly/integrations/` — framework integrations: FastAPI (Phase 5+)
+
+## Design invariants (spec §5.8–5.12)
+
+These are non-negotiable across all implementations. Validate every change against them.
+
+1. **No polling.** State changes propagate reactively via messages. Never poll a node's value on a timer or busy-wait for status. Use reactive timer sources (`fromTimer`/`from_timer`, `fromCron`/`from_cron`) instead.
+2. **No imperative triggers.** All coordination uses reactive `NodeInput` signals and message flow through topology. No event emitters, callbacks, or `setTimeout`/`threading.Timer` + `set()` workarounds. If you need a trigger, it's a reactive source node.
+3. **No raw async primitives in the reactive layer.** TS: no bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick`. PY: no bare `asyncio.ensure_future`, `asyncio.create_task`, `threading.Timer`, or raw coroutines. Async boundaries belong in sources (`fromPromise`/`from_awaitable`, `fromAsyncIter`/`from_async_iter`) and the runner layer, not in node fns or operators.
+4. **Central timer and `messageTier`/`message_tier` utilities.** TS: use `clock.ts` for all timestamps. PY: use `clock.py`. Use `messageTier`/`message_tier` utilities for tier classification — never hardcode type checks for checkpoint or batch gating.
+5. **Phase 4+ APIs must be developer-friendly.** Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) use sensible defaults, minimal boilerplate, and clear errors. Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface in primary APIs — accessible via `.node()` or `inner` when needed.
+
+## Time utility rule
+
+- **TS:** Use `src/core/clock.ts` utilities. Do not call `Date.now()` / `performance.now()` directly outside `core/clock.ts`.
+- **PY:** Use `src/graphrefly/core/clock.py` utilities. Do not call `time.time_ns()` / `time.monotonic_ns()` directly outside `core/clock.py`.
+- Internal/event-order durations must use `monotonicNs()` / `monotonic_ns()`.
+- Wall-clock attribution payloads must use `wallClockNs()` / `wall_clock_ns()`.
+
+## Auto-checkpoint trigger rule
+
+- For persistence auto-checkpoint behavior, gate saves by `messageTier`/`message_tier >= 2`.
+- Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
+
+## Debugging composition (mandatory procedure)
+
+When debugging OOM, infinite loops, silent failures, or unexpected values in composed factories, follow the **"Debugging composition"** section in `~/src/graphrefly/COMPOSITION-GUIDE.md`. That is the single source of truth for the procedure. Do not skip or improvise around it.
+
+## Python-specific invariants
+
+- **Thread safety:** Design for GIL and free-threaded Python. Per-subgraph `RLock`, per-node `_cache_lock`. Core APIs documented as thread-safe (see roadmap Phase 0.4).
+- **No `async def` / `Awaitable` in public APIs.** All public functions return `Node[T]`, `Graph`, `None`, or a plain synchronous value.
+- **Diamond resolution** via unlimited-precision Python `int` bitmask (TS uses `Uint32Array` + `BigInt` for fan-in >31).
+- **Context managers:** PY uses `with batch():` instead of TS's `batch(() => ...)`.
+- **`|` pipe operator:** PY `Node.__or__` maps to TS `pipe()`.
+
 ## Claude skills (workflows)
 
-Project-local skills live under `.claude/skills/`:
+Project-local skills live under `.claude/skills/`. These skills operate on **both** TS and PY repos when relevant:
 
-- **dev-dispatch** — plan, align with spec, implement, self-test (`pnpm test`)
-- **qa** — adversarial review, fixes, `pnpm test` + lint + build, doc touch-ups
+- **dev-dispatch** — plan, align with spec, implement, self-test
+- **qa** — adversarial review, fixes, test + lint + build, doc touch-ups
+- **parity** — cross-language parity check (TS vs PY)
 
 Invoke via the user's Claude Code slash commands or skill names when relevant.
