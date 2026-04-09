@@ -544,6 +544,24 @@ N/A in TS — no runner abstraction (TS uses microtask scheduling natively via `
 
 9 tools, no overlaps, no memorization burden. Internals (`describeNode`, `metaSnapshot`, `sizeof`) stay internal.
 
+#### Immediate follow-ups (from inspection-harness-revalidation session, 2026-04-08)
+
+##### Category A: Move protocol-level operators from patterns/ to extra/ or core/
+
+Several `patterns/` files contain protocol-level operators that belong in `extra/` or `core/`:
+- `reduction.stratify()` — tier classification, belongs in `extra/`
+- `orchestration.valve()` / `for_each()` / `wait()` — general reactive primitives, belong in `extra/`
+
+These are currently in `patterns/` because they were built for harness use cases, but they have no domain-layer assumptions. Move them so non-harness users can compose with them.
+
+- [ ] Audit and move protocol-level operators from `patterns/` to `extra/` (TS + PY) **M**
+
+##### Category B: Replace direct `.down([(MessageType.DATA, value)])` with `.set()` sugar
+
+~30+ sites across `patterns/` in both TS and PY use `.down([(MessageType.DATA, value)])` instead of `.set(value)`. The `.down()` calls expose protocol internals (MessageType) in domain-layer code. Gate `approve()`/`reject()` are already sugar for this boundary — the remaining sites should use `.set()` or equivalent sugar.
+
+- [ ] Replace `.down([(DATA, value)])` with `.set()` sugar across patterns/ (TS + PY) **M**
+
 ---
 
 ### Wave 2.5: Prompt & Catalog Optimization (Weeks 7-9)

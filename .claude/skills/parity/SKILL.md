@@ -20,6 +20,7 @@ Determine scope from $ARGUMENTS:
 Read in parallel:
 - **This repo:** `docs/optimizations.md` (active items + deferred), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
 - **Sibling repo:** `~/src/graphrefly-py/docs/optimizations.md`, `~/src/graphrefly-py/archive/optimizations/*.jsonl`, `~/src/graphrefly-py/docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`)
+- **Composition guide:** `~/src/graphrefly/COMPOSITION-GUIDE.md` — **mandatory** when the scoped area includes `src/patterns/` or `src/compat/` in either repo. Composed factories require understanding lazy activation, subscription ordering, null guards, wiring order, feedback cycles, and SENTINEL gate patterns.
 - Source files in the scoped area from **both** repos
 - Test files in the scoped area from **both** repos
 

@@ -805,6 +805,11 @@ export function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 /**
  * Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data.
  *
+ * **Important:** This subscribes and waits for a **future** emission. Data that
+ * has already flowed is gone and will not be seen. Call this *before* the upstream
+ * emits, or use `source.get()` / `source.status` for already-cached state.
+ * See COMPOSITION-GUIDE §2 (subscription ordering).
+ *
  * @param source - Node to read once.
  * @returns Promise of the first value.
  *
@@ -838,6 +843,59 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 				if (m[0] === COMPLETE) {
 					settled = true;
 					reject(new Error("completed without DATA"));
+					queueMicrotask(() => unsub());
+					return;
+				}
+			}
+		});
+	});
+}
+
+/**
+ * Wait for the first DATA value from `source` that satisfies `predicate`.
+ *
+ * Subscribes directly and resolves on the first DATA value where
+ * `predicate` returns true. Reactive, no polling. Use in tests and
+ * bridging code where you need a single matching value as a Promise.
+ *
+ * **Important:** This only captures **future** emissions — data that has
+ * already flowed through the node is gone. Call this *before* the upstream
+ * emits. For already-cached values, use `source.get()` / `source.status`.
+ * See COMPOSITION-GUIDE §2 (subscription ordering).
+ *
+ * ```ts
+ * const val = await firstWhere(strategy.node, snap => snap.size > 0);
+ * ```
+ *
+ * @category extra
+ */
+export function firstWhere<T>(
+	source: Node<T>,
+	predicate: (value: T) => boolean,
+): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		let settled = false;
+		const unsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (settled) return;
+				if (m[0] === DATA) {
+					const v = m[1] as T;
+					if (predicate(v)) {
+						settled = true;
+						resolve(v);
+						queueMicrotask(() => unsub());
+						return;
+					}
+				}
+				if (m[0] === ERROR) {
+					settled = true;
+					reject(m[1]);
+					queueMicrotask(() => unsub());
+					return;
+				}
+				if (m[0] === COMPLETE) {
+					settled = true;
+					reject(new Error("completed without matching value"));
 					queueMicrotask(() => unsub());
 					return;
 				}

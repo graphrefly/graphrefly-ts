@@ -29,6 +29,8 @@ Read in parallel:
 - Relevant source files in the area you'll modify
 - Existing tests for the area
 
+**Mandatory for patterns/ work:** If the task touches any file in `src/patterns/` or `src/compat/`, reading `~/src/graphrefly/COMPOSITION-GUIDE.md` is **mandatory**, not optional. The harness, orchestration, messaging, and all Phase 4+ code are composed factories — modifying their tests or implementation requires understanding composition patterns (lazy activation, subscription ordering, feedback cycles, SENTINEL gate).
+
 **Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
 
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):

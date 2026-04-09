@@ -989,6 +989,10 @@ describe("harnessLoop with mockLLM", () => {
 
 		const harness = harnessLoop("mock-gate-modify", { adapter: mock });
 
+		// Wire harnessTrace with structured events to validate stage ordering
+		const { harnessTrace } = await import("../../patterns/harness/trace.js");
+		const trace = harnessTrace(harness);
+
 		harness.intake.publish({
 			source: "eval",
 			summary: "T5: resilience ordering wrong",
@@ -1028,6 +1032,20 @@ describe("harnessLoop with mockLLM", () => {
 
 		const entry = harness.strategy.lookup("composition", "template")!;
 		expect(entry.successes).toBeGreaterThanOrEqual(1);
+
+		// Structured events revalidation: verify stage ordering without string parsing
+		trace.dispose();
+		const stages = trace.events.filter((e) => e.type === "data").map((e) => e.stage);
+		expect(stages).toContain("INTAKE");
+		expect(stages).toContain("TRIAGE");
+		expect(stages).toContain("STRATEGY");
+
+		// INTAKE before TRIAGE before STRATEGY
+		const intakeIdx = stages.indexOf("INTAKE");
+		const triageIdx = stages.indexOf("TRIAGE");
+		const strategyIdx = stages.indexOf("STRATEGY");
+		expect(intakeIdx).toBeLessThan(triageIdx);
+		expect(triageIdx).toBeLessThan(strategyIdx);
 	});
 
 	it("harnessProfile inspects node states and memory", async () => {

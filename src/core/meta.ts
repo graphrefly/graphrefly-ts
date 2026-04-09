@@ -93,6 +93,7 @@ function inferDescribeType(n: NodeImpl): DescribeNodeOutput["type"] {
  * core.metaSnapshot(n); // { tag: "a" }
  * ```
  */
+/** @internal Used by {@link describeNode} — not part of the public API. */
 export function metaSnapshot(node: Node): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	for (const [key, child] of Object.entries(node.meta)) {
@@ -129,6 +130,7 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
  * @param node - Node to introspect.
  * @param includeFields - Set of fields to include, or `null` for all. When omitted, all fields are included (legacy behavior).
  */
+/** @internal Used by {@link Graph.describe} — not part of the public API. */
 export function describeNode(node: Node, includeFields?: Set<string> | null): DescribeNodeOutput {
 	const all = includeFields == null; // null or undefined → include everything
 
