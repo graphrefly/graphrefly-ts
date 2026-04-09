@@ -15,12 +15,7 @@ import {
 import { describeNode } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
-
-function collect(n: Node) {
-	const batches: Messages[] = [];
-	const unsub = n.subscribe((msgs) => batches.push(msgs));
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 function dataValues(batches: Messages[]): unknown[] {
 	return batches.flatMap((b) => b.filter((m) => m[0] === DATA).map((m) => m[1]));

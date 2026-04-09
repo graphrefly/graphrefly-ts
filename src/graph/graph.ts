@@ -2255,8 +2255,9 @@ export class Graph {
 	/**
 	 * Debounced persistence wired to graph-wide observe stream (spec §3.8 auto-checkpoint).
 	 *
-	 * Checkpoint trigger uses {@link messageTier}: only batches containing tier >= 2 messages
-	 * schedule a save (`DATA`/`RESOLVED`/terminal/destruction), never pure tier-0/1 control waves.
+	 * Checkpoint trigger uses {@link messageTier}: only batches containing tier >= 3 messages
+	 * schedule a save (`DATA`/`RESOLVED`/terminal/destruction), never pure tier-0/1/2 control
+	 * waves (`START`/`DIRTY`/`INVALIDATE`/`PAUSE`/`RESUME`).
 	 */
 	autoCheckpoint(
 		adapter: AutoCheckpointAdapter,
@@ -2310,7 +2311,7 @@ export class Graph {
 		};
 
 		const off = this.observe().subscribe((path, messages) => {
-			const triggeredByTier = messages.some((m) => messageTier(m[0]) >= 2);
+			const triggeredByTier = messages.some((m) => messageTier(m[0]) >= 3);
 			if (!triggeredByTier) return;
 			if (options.filter) {
 				const nd = this.resolve(path);

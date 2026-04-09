@@ -107,7 +107,6 @@ export default defineConfig({
 							{ label: "elementAt()", link: "/api/elementat" },
 							{ label: "takeWhile()", link: "/api/takewhile" },
 							{ label: "takeUntil()", link: "/api/takeuntil" },
-							{ label: "startWith()", link: "/api/startwith" },
 							{ label: "tap()", link: "/api/tap" },
 							{ label: "distinctUntilChanged()", link: "/api/distinctuntilchanged" },
 							{ label: "pairwise()", link: "/api/pairwise" },

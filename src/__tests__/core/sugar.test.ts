@@ -29,10 +29,10 @@ describe("sugar constructors", () => {
 				if (m[0] === DATA) seen.push(m[1] as number);
 			}
 		});
-		unsub();
 		expect(p.get()).toBe(1);
-		// Producer emits 1 during connect, then push-on-subscribe replays cached 1
-		expect(seen).toEqual([1, 1]);
+		// Producer emits 1 during _startProducer → single delivery.
+		expect(seen).toEqual([1]);
+		unsub();
 	});
 
 	it("derived is an alias for deps + value-returning fn", () => {
@@ -43,9 +43,9 @@ describe("sugar constructors", () => {
 			for (const m of msgs) seen.push(m[0] as symbol);
 		});
 		src.down([[DATA, 3]]);
-		unsub();
 		expect(d.get()).toBe(9);
 		expect(seen).toContain(DATA);
+		unsub();
 	});
 
 	it("effect and producer set describe kind for describe()", () => {

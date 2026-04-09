@@ -15,6 +15,7 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
+	START,
 } from "../core/messages.js";
 import { NO_VALUE, type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
@@ -197,9 +198,12 @@ export function reduce<T, R>(
  */
 export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) {
+		let completed = false;
 		return node<T>(
 			[source as Node],
 			(_d, a) => {
+				if (completed) return undefined;
+				completed = true;
 				a.down([[COMPLETE]]);
 				return undefined;
 			},
@@ -207,8 +211,17 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 				...operatorOpts(opts),
 				completeWhenDepsComplete: false,
 				onMessage(msg, _i, a) {
-					if (msg[0] === COMPLETE) {
+					// Immediately complete on the source's subscribe handshake —
+					// `take(0)` never forwards anything from the source.
+					if (msg[0] === START && !completed) {
+						completed = true;
 						a.down([[COMPLETE]]);
+						return true;
+					}
+					if (msg[0] === COMPLETE && !completed) {
+						completed = true;
+						a.down([[COMPLETE]]);
+						return true;
 					}
 					return true;
 				},
@@ -530,39 +543,6 @@ export function find<T>(
  */
 export function elementAt<T>(source: Node<T>, index: number, opts?: ExtraOpts): Node<T> {
 	return take(skip(source, index, opts), 1, opts);
-}
-
-/**
- * Prepends `initial` as **`DATA`**, then forwards every value from `source`.
- *
- * @param source - Upstream node.
- * @param initial - Value emitted before upstream.
- * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
- * @returns `Node<T>` - Prefixed stream.
- *
- * @example
- * ```ts
- * import { startWith, state } from "@graphrefly/graphrefly-ts";
- *
- * const n = startWith(state(2), 0);
- * ```
- *
- * @category extra
- */
-export function startWith<T>(source: Node<T>, initial: T, opts?: ExtraOpts): Node<T> {
-	let prepended = false;
-	return node<T>(
-		[source as Node],
-		([v], a) => {
-			if (!prepended) {
-				prepended = true;
-				a.emit(initial);
-			}
-			a.emit(v as T);
-			return undefined;
-		},
-		operatorOpts(opts),
-	);
 }
 
 /**
@@ -1096,6 +1076,9 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 		let sawError = false;
 		const out: Message[] = [];
 		for (const m of msgs) {
+			// Filter START from inner subscriptions — each node's own
+			// subscribe handshake handles START for its direct sinks.
+			if (messageTier(m[0]) < 1) continue;
 			if (m[0] === DATA) emitted = true;
 			if (m[0] === COMPLETE) sawComplete = true;
 			else {
@@ -1806,7 +1789,8 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 			const t = msg[0];
 			const tier = messageTier(t);
 			// Terminal from either dep — latch so at most one terminal goes downstream.
-			if (tier >= 3) {
+			// (Tier 4 after START added: COMPLETE / ERROR. TEARDOWN is tier 5.)
+			if (tier >= 4) {
 				if (t === ERROR) {
 					terminated = true;
 					a.down([msg]);
@@ -1824,7 +1808,8 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 					a.down([msg]);
 					return true;
 				}
-				// TEARDOWN — forward from either dep.
+				// TEARDOWN — forward from either dep, latch to prevent further processing.
+				terminated = true;
 				a.down([msg]);
 				return true;
 			}

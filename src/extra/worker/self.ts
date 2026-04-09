@@ -5,10 +5,10 @@
  * imports from main thread, exposes local nodes via the same wire protocol.
  * Uses derived() + effect() for batch coalescing.
  *
- * Wire filtering: messages with {@link messageTier} >= 2 cross the wire.
+ * Wire filtering: graph-local signals ({@link isLocalOnly}) stay local;
  * DATA values go through the coalescing path; RESOLVED, COMPLETE, ERROR,
  * TEARDOWN, and unknown {@link Symbol.for} types go through the signal
- * subscription. Tier 0–1 (DIRTY, INVALIDATE, PAUSE, RESUME) stay local.
+ * subscription.
  *
  * Handshake (worker perspective):
  *   1. workerSelf() called — creates proxy nodes for imports
@@ -19,14 +19,7 @@
  */
 
 import { batch } from "../../core/batch.js";
-import {
-	DATA,
-	ERROR,
-	knownMessageTypes,
-	type Messages,
-	messageTier,
-	TEARDOWN,
-} from "../../core/messages.js";
+import { DATA, ERROR, isLocalOnly, type Messages, TEARDOWN } from "../../core/messages.js";
 import type { Node, NodeSink } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
@@ -146,7 +139,7 @@ export function workerSelf<TImport extends readonly string[]>(
 		effectUnsub = effectNode.subscribe(() => {});
 	}
 
-	// -- Subscribe to exposed nodes: forward tier >= 2 messages -----------------
+	// -- Subscribe to exposed nodes: forward tier >= 3 messages -----------------
 	const exposeUnsubs: Array<() => void> = [];
 	for (const [name, n] of exposeEntries) {
 		const unsub = n.subscribe(((msgs: Messages) => {
@@ -155,9 +148,9 @@ export function workerSelf<TImport extends readonly string[]>(
 				const type = m[0] as symbol;
 				// DATA goes through the coalescing path — skip here
 				if (type === DATA) continue;
-				// Block known tier 0/1 (DIRTY, INVALIDATE, PAUSE, RESUME) — local only.
-				// Unknown types (not in knownMessageTypes) always forward (spec §1.3.6).
-				if (knownMessageTypes.includes(type) && messageTier(type) < 2) continue;
+				// Block graph-local signals (START, DIRTY, INVALIDATE, PAUSE, RESUME).
+				// Unknown types forward (spec §1.3.6).
+				if (isLocalOnly(type)) continue;
 				// ERROR: serialize payload
 				if (type === ERROR) {
 					transport.post({

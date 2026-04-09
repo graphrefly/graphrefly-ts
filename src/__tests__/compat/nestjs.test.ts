@@ -35,7 +35,15 @@ import {
 } from "../../compat/nestjs/index.js";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { GuardDenied, policy } from "../../core/guard.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	type Messages,
+	START,
+	TEARDOWN,
+} from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { toObservable } from "../../extra/observable.js";
@@ -101,17 +109,19 @@ describe("nestjs compat — RxJS bridge", () => {
 
 	it("toObservable({ raw: true }): emits raw message batches", async () => {
 		const s = node<number>();
-		// Batch splits DIRTY (immediate, tier 0) from DATA (deferred, tier 2).
-		// So s.down([[DIRTY], [DATA, 1]]) produces two emissions: [[DIRTY]] then [[DATA, 1]].
-		const msgs$ = toObservable(s, { raw: true }).pipe(take(2), toArray());
+		// Subscribe delivers [[START]] first (tier 0), then s.down splits
+		// DIRTY (tier 1 immediate) from DATA (tier 3 deferred).
+		// Three emissions total: [[START]], [[DIRTY]], [[DATA, 1]].
+		const msgs$ = toObservable(s, { raw: true }).pipe(take(3), toArray());
 		const p = rxFirstValueFrom(msgs$);
 
 		s.down([[DIRTY], [DATA, 1]]);
 
 		const result = await p;
-		expect(result).toHaveLength(2);
-		expect(result[0]).toEqual([[DIRTY]]);
-		expect(result[1]).toEqual([[DATA, 1]]);
+		expect(result).toHaveLength(3);
+		expect(result[0]).toEqual([[START]]);
+		expect(result[1]).toEqual([[DIRTY]]);
+		expect(result[2]).toEqual([[DATA, 1]]);
 	});
 
 	it("toObservable({ raw: true }): terminal batch emitted before Observable error", async () => {

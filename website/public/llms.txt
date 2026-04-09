@@ -74,7 +74,7 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 - `map(fn)`, `filter(pred)`, `scan(fn, seed)`, `reduce(fn, seed)` — transform
 - `take(n)`, `skip(n)`, `takeWhile(pred)`, `takeUntil(signal)` — limiting
 - `first()`, `last()`, `find(pred)`, `elementAt(i)` — selection
-- `startWith(...values)`, `tap(fn)`, `distinctUntilChanged(eq?)` — utility
+- `tap(fn)`, `distinctUntilChanged(eq?)` — utility
 - `pairwise()` — emits `[prev, curr]` pairs
 - `combine(...nodes)`, `combineLatest(...nodes)`, `withLatestFrom(...nodes)` — combination
 - `merge(...nodes)`, `zip(...nodes)`, `concat(...nodes)`, `race(...nodes)` — merging

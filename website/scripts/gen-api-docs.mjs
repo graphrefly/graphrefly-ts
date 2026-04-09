@@ -64,7 +64,6 @@ const REGISTRY = {
 	last: "src/extra/operators.ts",
 	find: "src/extra/operators.ts",
 	elementAt: "src/extra/operators.ts",
-	startWith: "src/extra/operators.ts",
 	tap: "src/extra/operators.ts",
 	distinctUntilChanged: "src/extra/operators.ts",
 	pairwise: "src/extra/operators.ts",

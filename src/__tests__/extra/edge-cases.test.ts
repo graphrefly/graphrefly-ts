@@ -20,14 +20,7 @@ import {
 	throttle,
 	timeout,
 } from "../../extra/operators.js";
-
-function collect(n: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[][] = [];
-	const unsub = n.subscribe((msgs: unknown) => {
-		batches.push([...(msgs as unknown[])]);
-	});
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 function msgs(batches: unknown[][]): unknown[][] {
 	return batches.flat() as unknown[][];

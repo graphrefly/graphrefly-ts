@@ -82,7 +82,7 @@ These are non-negotiable across all implementations. Validate every change again
 
 ## Auto-checkpoint trigger rule
 
-- For persistence auto-checkpoint behavior, gate saves by `messageTier`/`message_tier >= 2`.
+- For persistence auto-checkpoint behavior, gate saves by `messageTier`/`message_tier >= 3`.
 - Do not describe this as DATA/RESOLVED-only; terminal/teardown lifecycle tiers are included.
 
 ## Debugging composition (mandatory procedure)

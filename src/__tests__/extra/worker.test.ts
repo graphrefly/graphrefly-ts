@@ -13,6 +13,7 @@ import {
 } from "../../extra/worker/protocol.js";
 import { workerSelf } from "../../extra/worker/self.js";
 import type { WorkerTransport } from "../../extra/worker/transport.js";
+import { collect } from "../test-helpers.js";
 
 /** Create a pair of WorkerTransport backed by a node:worker_threads MessageChannel. */
 function transportPair(): [WorkerTransport, WorkerTransport] {
@@ -35,14 +36,6 @@ function transportPair(): [WorkerTransport, WorkerTransport] {
 
 function tick(ms = 0): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
-}
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[][] = [];
-	const unsub = node.subscribe((msgs: unknown) => {
-		batches.push([...(msgs as unknown[])]);
-	});
-	return { batches, unsub };
 }
 
 // ---------------------------------------------------------------------------

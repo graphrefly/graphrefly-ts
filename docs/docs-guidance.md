@@ -161,6 +161,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | `phase-7-polish.jsonl` | Phase 7: llms.txt, reactive layout, demo shell, streaming node convention |
 | `phase-8-reduction-layer.jsonl` | Phase 8: reduction primitives, domain templates, LLM graph composition, backpressure |
 | `phase-9-harness-sprint.jsonl` | Phase 9 + hotfix: collaboration loop primitives, eval tiers, schema fixes, rich catalog, harness sprint deliverables, equals/error hotfix |
+| `push-model-migration.jsonl` | Push Model Migration (spec v0.1→v0.2): phases 1-3 (TS), phase 5 (LLM validation), inspection TS consolidation |
 
 **JSONL schema:**
 

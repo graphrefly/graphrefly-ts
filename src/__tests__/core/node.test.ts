@@ -9,6 +9,7 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
+	START,
 	TEARDOWN,
 } from "../../core/messages.js";
 import { describeNode, metaSnapshot } from "../../core/meta.js";
@@ -23,11 +24,15 @@ describe("node primitive", () => {
 		});
 
 		s.down([[DIRTY], [DATA, 1]]);
-		unsub();
 
 		expect(s.get()).toBe(1);
 		expect(s.status).toBe("settled");
-		expect(seen).toEqual([[DIRTY], [DATA]]);
+		// SENTINEL node: subscribe delivers [[START]] alone (no cached value).
+		// The explicit DIRTY+DATA batch is partitioned by tier: DIRTY (tier 1)
+		// delivered first, DATA (tier 3) delivered second — two separate sink
+		// calls.
+		expect(seen).toEqual([[START], [DIRTY], [DATA]]);
+		unsub();
 	});
 
 	it("derived node emits RESOLVED when equals says unchanged", () => {
@@ -41,10 +46,10 @@ describe("node primitive", () => {
 		});
 
 		source.down([[DATA, 2]]);
-		unsub();
 
 		expect(derived.get()).toBe("positive");
 		expect(seen).toContainEqual([RESOLVED]);
+		unsub();
 	});
 
 	it("diamond settles once per upstream change", () => {
@@ -61,10 +66,10 @@ describe("node primitive", () => {
 		const before = dRuns;
 		a.down([[DIRTY], [DATA, 5]]);
 		const after = dRuns;
-		unsub();
 
 		expect(after - before).toBe(1);
 		expect(d.get()).toBe(13);
+		unsub();
 	});
 
 	it("fn throw is forwarded as ERROR downstream", () => {
@@ -316,10 +321,10 @@ describe("node primitive", () => {
 		expect(d.get()).toBe(8);
 		source.down([[INVALIDATE]]);
 		source.down([[DIRTY], [DATA, 7]]);
-		unsub();
 
 		expect(runs).toBe(2);
 		expect(d.get()).toBe(8);
+		unsub();
 	});
 
 	it("supports node(fn, opts) producer form", () => {
@@ -340,8 +345,10 @@ describe("node primitive", () => {
 		unsub();
 
 		expect(p.name).toBe("producer-like");
-		// Producer emits 42 during connect, then push-on-subscribe replays cached 42
-		expect(values).toEqual([42, 42]);
+		// Producer emits 42 during _startProducer → delivered to subscriber
+		// via _downToSinks. Subscribe-time push is skipped (value was freshly
+		// produced during this subscribe call).
+		expect(values).toEqual([42]);
 	});
 
 	it("completeWhenDepsComplete: false suppresses auto-COMPLETE", () => {
@@ -469,11 +476,11 @@ describe("node primitive", () => {
 		const unsub = leaf.subscribe(() => undefined);
 
 		source.down([[DIRTY], [DATA, 5]]);
-		unsub();
 
 		// Values propagate correctly through optimized chain
 		expect(derived.get()).toBe(10);
 		expect(leaf.get()).toBe(110);
+		unsub();
 	});
 
 	it("single-dep optimization: diamond still settles once", () => {
@@ -490,12 +497,12 @@ describe("node primitive", () => {
 		const before = dRuns;
 		a.down([[DIRTY], [DATA, 5]]);
 		const after = dRuns;
-		unsub();
 
 		// a has two subscribers (b, c) → optimization disabled on a
 		// Diamond settlement works correctly
 		expect(after - before).toBe(1);
 		expect(d.get()).toBe(13);
+		unsub();
 	});
 
 	it("single-dep optimization: disabled when second subscriber joins", () => {
@@ -539,13 +546,13 @@ describe("node primitive", () => {
 		emissions.length = 0;
 		// Value changes but derived result stays "positive"
 		source.down([[DIRTY], [DATA, 2]]);
-		unsub2();
 
 		expect(derived.get()).toBe("positive");
 		// Should emit RESOLVED (not DATA) since value unchanged
 		const allTypes = emissions.flat();
 		expect(allTypes).toContain(RESOLVED);
 		expect(allTypes).not.toContain(DATA);
+		unsub2();
 	});
 
 	it("single-dep optimization: re-enabled when subscriber count drops to one", () => {
@@ -560,10 +567,10 @@ describe("node primitive", () => {
 		unsub2(); // d2 unsubscribes → back to one single-dep subscriber
 
 		source.down([[DIRTY], [DATA, 10]]);
-		unsub1();
 
 		// Values still correct after optimization re-engages
 		expect(d1.get()).toBe(11);
+		unsub1();
 	});
 
 	it("single-dep optimization: fewer sink calls in optimized chain", () => {
@@ -679,14 +686,17 @@ describe("D1: sink snapshot during emitToSinks", () => {
 	it("unsubscribing another sink mid-delivery does not skip it", () => {
 		const src = node<number>();
 		const log: string[] = [];
-		let unsubB: () => void;
-		const unsubA = src.subscribe(() => {
-			log.push("A");
-			// A unsubscribes B during delivery
-			unsubB();
+		let unsubB: () => void = () => {};
+		const unsubA = src.subscribe((msgs) => {
+			// Only unsub B during the actual DATA delivery (ignore the
+			// subscribe-time [[START]] handshake).
+			if (msgs.some((m) => m[0] === DATA)) {
+				log.push("A");
+				unsubB();
+			}
 		});
-		unsubB = src.subscribe(() => {
-			log.push("B");
+		unsubB = src.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === DATA)) log.push("B");
 		});
 		src.down([[DIRTY], [DATA, 1]]);
 		// Both should have been called despite A removing B mid-iteration
@@ -778,12 +788,12 @@ describe("connect-order re-entrancy guard", () => {
 		});
 
 		const unsub = derived.subscribe(() => undefined);
-		unsub();
 
 		// The first (and ideally only) runFn call should see both dep values
 		expect(seen.length).toBeGreaterThanOrEqual(1);
 		expect(seen[0]).toEqual(["from-a", 42]);
 		expect(derived.get()).toBe("from-a-42");
+		unsub();
 	});
 
 	it("connect guard does not suppress post-connect updates", () => {
@@ -861,9 +871,10 @@ describe("meta (companion stores)", () => {
 		});
 		n.meta.err.down([[DIRTY], [DATA, "bad"]]);
 		unsub();
-		// Push-on-subscribe delivers the initial cached value (null) as DATA,
-		// then the explicit down() delivers DIRTY and DATA.
-		expect(seen).toEqual([[DATA], [DIRTY], [DATA]]);
+		// Subscribe handshake partitions [[START], [DATA, null]]: START (tier 0)
+		// delivers first, DATA (tier 3) second. Then the explicit down() further
+		// partitions into DIRTY and DATA.
+		expect(seen).toEqual([[START], [DATA], [DIRTY], [DATA]]);
 		expect(metaSnapshot(n).err).toBe("bad");
 	});
 

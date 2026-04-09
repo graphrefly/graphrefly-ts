@@ -34,18 +34,11 @@ import {
 	throwError,
 	toArray,
 } from "../../extra/sources.js";
+import { collect } from "../test-helpers.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */
 function tick(ms = 0): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
-}
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[][] = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push([...msgs]);
-	});
-	return { batches, unsub };
 }
 
 async function readSSE(stream: ReadableStream<Uint8Array>): Promise<string> {

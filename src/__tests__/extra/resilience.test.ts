@@ -28,14 +28,7 @@ import {
 } from "../../extra/resilience.js";
 import { throwError } from "../../extra/sources.js";
 import { Graph } from "../../graph/graph.js";
-
-function collect(node: { subscribe: (fn: (m: unknown) => void) => () => void }) {
-	const batches: unknown[][] = [];
-	const unsub = node.subscribe((msgs) => {
-		batches.push([...msgs]);
-	});
-	return { batches, unsub };
-}
+import { collect } from "../test-helpers.js";
 
 describe("extra resilience (roadmap §3.1)", () => {
 	afterEach(() => {

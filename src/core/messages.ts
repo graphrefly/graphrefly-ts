@@ -9,11 +9,12 @@
  *
  * | Tier | Signals                | Role              | Batch behavior                      |
  * |------|------------------------|-------------------|-------------------------------------|
- * |  0   | DIRTY, INVALIDATE      | Notification      | Immediate (never deferred)          |
- * |  1   | PAUSE, RESUME          | Flow control      | Immediate (never deferred)          |
- * |  2   | DATA, RESOLVED         | Value settlement  | Deferred inside `batch()`           |
- * |  3   | COMPLETE, ERROR        | Terminal lifecycle | Deferred to after phase-2           |
- * |  4   | TEARDOWN               | Destruction       | Immediate (usually sent alone)      |
+ * |  0   | START                  | Subscribe handshake | Immediate (never deferred)        |
+ * |  1   | DIRTY, INVALIDATE      | Notification      | Immediate (never deferred)          |
+ * |  2   | PAUSE, RESUME          | Flow control      | Immediate (never deferred)          |
+ * |  3   | DATA, RESOLVED         | Value settlement  | Deferred inside `batch()`           |
+ * |  4   | COMPLETE, ERROR        | Terminal lifecycle | Deferred to after phase-2          |
+ * |  5   | TEARDOWN               | Destruction       | Immediate (usually sent alone)      |
  *
  * **Rule:** Within `downWithBatch`, messages are partitioned by tier and delivered
  * in tier order. This ensures phase-2 values (DATA/RESOLVED) reach sinks before
@@ -21,7 +22,7 @@
  * "COMPLETE-before-DATA" class of bugs. Sources that emit in canonical order
  * naturally partition correctly with zero overhead.
  *
- * Unknown message types (forward-compat) are tier 0 (immediate).
+ * Unknown message types (forward-compat) are tier 1 (immediate).
  *
  * ## Meta node bypass rules (centralized — GRAPHREFLY-SPEC §2.3)
  *
@@ -31,27 +32,44 @@
  * - **TEARDOWN** — propagated from parent to meta, releasing meta resources.
  */
 
-/** Value delivery (`DATA`, value). Tier 2 — deferred inside `batch()`. */
+/**
+ * Subscribe-time handshake (`START`). Delivered to each new sink at the top of
+ * `subscribe()` — `[[START]]` for a SENTINEL (no cached value) node or
+ * `[[START], [DATA, cached]]` for a node with a cached value.
+ *
+ * Semantics: "upstream connected and ready to flow." A new sink receiving
+ * `[[START]]` alone knows the upstream is alive but has no current value; a
+ * sink receiving `[[START], [DATA, v]]` knows the upstream is ready
+ * with value `v`. Absence of `START` before any other message means the
+ * subscription was either never established or the node is terminal.
+ *
+ * Tier 0 — immediate, delivered before any DIRTY/DATA in the same batch.
+ * Not forwarded through nodes — each node emits its own `START` to its own
+ * new sinks.
+ */
+export const START = Symbol.for("graphrefly/START");
+/** Value delivery (`DATA`, value). Tier 3 — deferred inside `batch()`. */
 export const DATA = Symbol.for("graphrefly/DATA");
-/** Phase 1: value about to change. Tier 0 — immediate. */
+/** Phase 1: value about to change. Tier 1 — immediate. */
 export const DIRTY = Symbol.for("graphrefly/DIRTY");
-/** Phase 2: dirty pass completed, value unchanged. Tier 2 — deferred inside `batch()`. */
+/** Phase 2: dirty pass completed, value unchanged. Tier 3 — deferred inside `batch()`. */
 export const RESOLVED = Symbol.for("graphrefly/RESOLVED");
-/** Clear cached state; do not auto-emit. Tier 0 — immediate. */
+/** Clear cached state; do not auto-emit. Tier 1 — immediate. */
 export const INVALIDATE = Symbol.for("graphrefly/INVALIDATE");
-/** Suspend activity. Tier 1 — immediate. */
+/** Suspend activity. Tier 2 — immediate. */
 export const PAUSE = Symbol.for("graphrefly/PAUSE");
-/** Resume after pause. Tier 1 — immediate. */
+/** Resume after pause. Tier 2 — immediate. */
 export const RESUME = Symbol.for("graphrefly/RESUME");
-/** Permanent cleanup. Tier 4 — immediate (usually sent alone). */
+/** Permanent cleanup. Tier 5 — immediate (usually sent alone). */
 export const TEARDOWN = Symbol.for("graphrefly/TEARDOWN");
-/** Clean termination. Tier 3 — delivered after phase-2 in the same batch. */
+/** Clean termination. Tier 4 — delivered after phase-2 in the same batch. */
 export const COMPLETE = Symbol.for("graphrefly/COMPLETE");
-/** Error termination. Tier 3 — delivered after phase-2 in the same batch. */
+/** Error termination. Tier 4 — delivered after phase-2 in the same batch. */
 export const ERROR = Symbol.for("graphrefly/ERROR");
 
 /** Known protocol type symbols (open set — other symbols are valid and forward). */
 export const knownMessageTypes: readonly symbol[] = [
+	START,
 	DATA,
 	DIRTY,
 	RESOLVED,
@@ -62,6 +80,9 @@ export const knownMessageTypes: readonly symbol[] = [
 	COMPLETE,
 	ERROR,
 ];
+
+/** O(1) lookup for {@link isKnownMessageType} and {@link isLocalOnly}. */
+const knownMessageSet: ReadonlySet<symbol> = new Set(knownMessageTypes);
 
 /** One protocol tuple: `[Type, optional payload]`. */
 export type Message = readonly [symbol, unknown?];
@@ -86,39 +107,42 @@ export type Messages = readonly Message[];
  * ```
  */
 export function isKnownMessageType(t: symbol): boolean {
-	return knownMessageTypes.includes(t);
+	return knownMessageSet.has(t);
 }
 
 /**
  * Returns the signal tier for a message type (see module-level ordering table).
  *
- * - 0: notification (DIRTY, INVALIDATE) — immediate
- * - 1: flow control (PAUSE, RESUME) — immediate
- * - 2: value (DATA, RESOLVED) — deferred inside `batch()`
- * - 3: terminal (COMPLETE, ERROR) — delivered after phase-2
- * - 4: destruction (TEARDOWN) — immediate, usually alone
- * - 0 for unknown types (forward-compat: immediate)
+ * - 0: subscribe handshake (START) — immediate, first in canonical order
+ * - 1: notification (DIRTY, INVALIDATE) — immediate
+ * - 2: flow control (PAUSE, RESUME) — immediate
+ * - 3: value (DATA, RESOLVED) — deferred inside `batch()`
+ * - 4: terminal (COMPLETE, ERROR) — delivered after phase-3
+ * - 5: destruction (TEARDOWN) — immediate, usually alone
+ * - 1 for unknown types (forward-compat: immediate)
  *
  * @param t — Message type symbol.
- * @returns Tier number (0–4).
+ * @returns Tier number (0–5).
  *
  * @example
  * ```ts
- * import { DATA, DIRTY, COMPLETE, TEARDOWN, messageTier } from "@graphrefly/graphrefly-ts";
+ * import { DATA, DIRTY, COMPLETE, TEARDOWN, messageTier, START } from "@graphrefly/graphrefly-ts";
  *
- * messageTier(DIRTY);    // 0
- * messageTier(DATA);     // 2
- * messageTier(COMPLETE); // 3
- * messageTier(TEARDOWN); // 4
+ * messageTier(START);    // 0
+ * messageTier(DIRTY);    // 1
+ * messageTier(DATA);     // 3
+ * messageTier(COMPLETE); // 4
+ * messageTier(TEARDOWN); // 5
  * ```
  */
 export function messageTier(t: symbol): number {
-	if (t === DIRTY || t === INVALIDATE) return 0;
-	if (t === PAUSE || t === RESUME) return 1;
-	if (t === DATA || t === RESOLVED) return 2;
-	if (t === COMPLETE || t === ERROR) return 3;
-	if (t === TEARDOWN) return 4;
-	return 0; // unknown → immediate
+	if (t === START) return 0;
+	if (t === DIRTY || t === INVALIDATE) return 1;
+	if (t === PAUSE || t === RESUME) return 2;
+	if (t === DATA || t === RESOLVED) return 3;
+	if (t === COMPLETE || t === ERROR) return 4;
+	if (t === TEARDOWN) return 5;
+	return 1; // unknown → immediate (after START)
 }
 
 /**
@@ -160,6 +184,46 @@ export function isPhase2Message(msg: Message): boolean {
  */
 export function isTerminalMessage(t: symbol): boolean {
 	return t === COMPLETE || t === ERROR;
+}
+
+/**
+ * Whether `t` is a graph-local signal that should NOT cross a wire/transport
+ * boundary (SSE, WebSocket, worker bridge, persistence sinks).
+ *
+ * Local-only signals (tier 0–2): START, DIRTY, INVALIDATE, PAUSE, RESUME.
+ * These are internal to the reactive graph — subscribe handshakes,
+ * notification phases, and flow control have no semantics for remote consumers.
+ *
+ * Wire-crossing signals (tier 3+): DATA, RESOLVED, COMPLETE, ERROR, TEARDOWN.
+ * Unknown message types (spec §1.3.6 forward-compat) also cross the wire.
+ *
+ * Individual adapters may further opt-in to local signals for observability
+ * (e.g. SSE `includeDirty`, `includeResolved` options). Storage/persistence
+ * adapters that need INVALIDATE for remote cache-clear should explicitly
+ * forward it despite `isLocalOnly(INVALIDATE) === true`. The default is to
+ * skip all local-only signals at the boundary.
+ *
+ * @param t — Message type symbol.
+ * @returns `true` if the message should be kept local (not sent over wire).
+ *
+ * @example
+ * ```ts
+ * import { START, DIRTY, DATA, COMPLETE, isLocalOnly } from "@graphrefly/graphrefly-ts";
+ *
+ * isLocalOnly(START);    // true  — subscribe handshake
+ * isLocalOnly(DIRTY);    // true  — notification phase
+ * isLocalOnly(RESOLVED); // false — value settlement crosses wire
+ * isLocalOnly(DATA);     // false — value crosses wire
+ * isLocalOnly(COMPLETE); // false — terminal crosses wire
+ * ```
+ *
+ * @category core
+ */
+export function isLocalOnly(t: symbol): boolean {
+	// Unknown types always cross the wire (spec §1.3.6 forward-compat).
+	// messageTier returns 1 for unknowns, but unknowns are NOT local-only.
+	if (!knownMessageSet.has(t)) return false;
+	return messageTier(t) < 3;
 }
 
 /**

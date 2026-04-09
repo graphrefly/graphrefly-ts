@@ -20,6 +20,7 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
+	isLocalOnly,
 	type Message,
 	messageTier,
 	RESOLVED,
@@ -518,6 +519,13 @@ export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<U
 			unsub = source.subscribe((msgs) => {
 				for (const msg of msgs) {
 					const t = msg[0];
+					// Skip graph-local signals (tier < 3: START, DIRTY, INVALIDATE,
+					// PAUSE, RESUME). DIRTY is opt-in for observability.
+					if (isLocalOnly(t)) {
+						if (t === DIRTY && includeDirty) {
+							/* fall through to write */
+						} else continue;
+					}
 					if (t === DATA) {
 						write(dataEvent, serializeSseData(msg[1], serialize));
 						continue;
@@ -532,8 +540,8 @@ export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<U
 						close();
 						return;
 					}
+					// RESOLVED (tier 3) is opt-in for observability.
 					if (!includeResolved && t === RESOLVED) continue;
-					if (!includeDirty && t === DIRTY) continue;
 					write(
 						eventNameResolver(t),
 						msg.length > 1 ? serializeSseData(msg[1], serialize) : undefined,

@@ -8,14 +8,32 @@
 
 ## Active work items
 
-- **PY `ReactiveMapBundle` parity — `.get(key)`, `.has(key)`, `.size` (noted 2026-04-07):**
-  - **Level A: DONE (2026-04-07).** Added `.get(key)`, `.has(key)`, `.size` to PY `ReactiveMapBundle` matching TS signatures. PY harness `strategy.py` updated to use `.get(key)` instead of Versioned navigation.
-  - **Level B: DONE (TS, 2026-04-07; PY, 2026-04-07).** Removed `Versioned` wrapper from all reactive bundle APIs (ReactiveMap, ReactiveLog, ReactiveList, ReactiveIndex). `.node` / `.entries` / `.items` / `.ordered` now emit unwrapped domain types (`ReadonlyMap<K,V>`, `readonly T[]`, etc.). Internal version counter drives efficient equality without leaking into composition code (spec §5.12). All downstream consumers updated (messaging, cqrs, ai, domain-templates, composite, nestjs/compat).
-
-- **Whole-repo `emit` → `down` audit + `up` / backpressure / `message_tier` sweep (all phases, noted 2026-04-07):**
-  - **TS: DONE (2026-04-07).** Renames: `emitWithBatch` → `downWithBatch`, `_emitToSinks` → `_downToSinks`, `_emitAutoValue` → `_downAutoValue`, `_boundEmitToSinks` → `_boundDownToSinks`, `_emitSequential` → `_downSequential`, `emitLine` → `flushLine` (reactive-layout). Batch param `emit` → `sink`. `up()` audit: no asymmetries found — all operators/sources correctly forward or inherit. `messageTier()` audit: already clean, zero hardcoded type checks. `NodeActions.emit()` kept (different semantics from `actions.down()`). CQRS `CommandActions.emit()` kept (domain concept). Spec updated (`_emitAutoValue` → `_downAutoValue`).
-  - **PY: DONE (2026-04-07).** Renames: `emit_with_batch` → `down_with_batch`, `_emit_to_sinks` → `_down_to_sinks`, `_emit_auto_value` → `_down_auto_value`, `_emit_partition` → `_down_partition`, `_emit_sequential` → `_down_sequential`, `EmitStrategy` → `DownStrategy`, `emit_line` → `flush_line` (reactive-layout), internal closures renamed. `up()` audit: no asymmetries. `message_tier()` audit: already clean. `NodeActions.emit()` kept. CQRS `CommandActions.emit()` kept. `_manual_emit_used` / `_manual_emit` kept.
-  Pre-1.0, no backward compat concern on any rename.
+- **START protocol + ROM/RAM refactor (2026-04-09 → 2026-04-10):**
+  - **TS: DONE.** Full NodeImpl/DynamicNodeImpl refactor on a shared `NodeBase`.
+    Added `[[START]]` handshake as a first-class protocol message (tier 0);
+    shifted other tiers (DIRTY/INVALIDATE → 1, PAUSE/RESUME → 2, DATA/RESOLVED → 3,
+    COMPLETE/ERROR → 4, TEARDOWN → 5). Added `"pending"` node status. Implemented
+    ROM/RAM cache rule: state preserves cache across disconnect, compute nodes
+    clear cache. First-run gate uses pre-set dirty mask trick — fn waits until
+    every dep has delivered DATA. Reconnect re-runs fn (C2). DynamicNodeImpl
+    uses rewire-buffer for lazy-dep composition: fn runs, rewire subscribes new
+    deps (messages buffered), scan detects discrepancies and re-runs fn once
+    (bounded by MAX_RERUN=16). Connection-time diamond glitch fix, subscribe-time
+    double-delivery fix, and D2 "DIRTY→COMPLETE without DATA" unsticker all
+    retained. Spec §1.2/§1.3/§2.2 updated; composition guide §1/§3 updated.
+  - **PY: TODO — parity port needed.** Apply the same refactor to
+    `graphrefly-py/src/graphrefly/core/node.py`, `dynamic_node.py`, `messages.py`,
+    and `batch.py`. Port the `NodeBase` split + `START` message + tier shuffle +
+    ROM/RAM + rewire buffer. Verify Python test suite catches the same edge
+    cases (SENTINEL gate, diamond resolution, rewire stabilization).
+  - **QA pass (2026-04-10):** Fixed `forwardInner` leaking START to downstream
+    operators (switchMap/concatMap/exhaustMap/mergeMap now filter tier < 1);
+    restored ABAC guard check in `DynamicNodeImpl.up()` (regression in refactor);
+    simplified `startWith` to `derived([source], passthrough, { initial })` (no
+    onMessage needed — handshake handles initial delivery); `DynamicNodeImpl`
+    rewire-buffer discrepancy check now uses `_equals` instead of `Object.is`;
+    all JSDoc tier numbers updated to match new 0-5 scheme; CLAUDE.md auto-checkpoint
+    rule corrected to `messageTier >= 3`.
 
 ---
 
@@ -36,8 +54,6 @@ Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LL
 | **`Node` resolution without `get()`** | When blocking until first `DATA`, prefer `node.get()` when it already holds a settled value, then subscribe only if still pending — avoids hangs when the node does not replay `DATA` to new subscribers. | — |
 | **Passing plain strings through `fromAny` (TypeScript)** | `fromAny` treats strings as iterables (one `DATA` per character). For tool handlers that return plain strings, return the string directly; use `fromAny` only for `Node` / `AsyncIterable` / Promise-like after await. | — |
 
-- **`batch_id` in `ObserveEvent` timeline fields (decided 2026-04-08):** Added `batch_id?: number` to `ObserveEvent` in TS (parity with PY). Increments once per subscribe-callback invocation; all messages in one delivery share the same `batch_id`. Useful for correlating events that arrived together without polling. `in_batch: boolean` is unchanged (reflects `isBatching()` at event time). TS: implemented in `_createObserveResult`, `_createObserveResultForAll`, and both fallback paths. PY: already had `batch_id` on `batch_seq` counter.
-
 - **`ObserveResult.completedCleanly` ambiguous in graph-wide mode (noted 2026-04-08):**
   In graph-wide observation (`graph.observe()` without a path), `completedCleanly` is set to `true` when **any** node sends COMPLETE without prior ERROR. If a different node later sends ERROR, `errored` becomes `true` but `completedCleanly` is never reset — both flags are `true` simultaneously. Single-node observation is unaffected (terminal rules prevent both). **Why:** `completedCleanly` and `errored` are additive per-node aggregates, but the names read as mutually exclusive graph-level state. **Options:** (A) rename to `anyCompletedCleanly` / `anyErrored` to match additive semantics; (B) add `allCompletedCleanly` (every observed node completed without error); (C) reset `completedCleanly = false` on any ERROR (makes them exclusive but loses info). Applies to both TS and PY `ObserveResult`.
 
@@ -51,6 +67,7 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 |------|-------|
 | **`lastDepValues` + `Object.is` / referential equality (resolved 2026-03-31 — documented)** | Default `Object.is` identity check is correct for the common immutable-value case. The `node({ equals })` option already exists for custom comparison. Mutable dep values should use a custom `equals` function. **Documented in `node()` JSDoc (2026-04-07).** |
 | **`sideEffects: false` in `package.json`** | Already present. Safe while the library has no import-time side effects. Revisit if global registration or polyfills are added at module load. |
+| **`DynamicNodeImpl` identity-skip false positive on dep reorder (TS + PY)** | After `_rewire` / `_rewire`, `_trackedValues` is indexed by the *previous* fn run's dep order, but `_deps` holds the *new* order. If deps are reordered (same deps, different positions), index mismatch triggers a false "values differ" detection and an unnecessary `_runFn` re-run. No data corruption (same inputs produce same output), but wastes a compute cycle. **Fix:** track dep values by node identity (`Map<Node, unknown>` / `dict[Node, Any]`) instead of positional index. Applies to both TS `dynamic-node.ts` and PY `dynamic_node.py`. |
 | **JSDoc / docstrings on `node()` and public APIs** | `docs/docs-guidance.md`: JSDoc on new TS exports; docstrings on new Python public APIs. `node()` equals guidance added (2026-04-07). `mergeMap` ERROR behavior documented (2026-04-07). `fromRedisStream` COMPLETE/disconnect documented (2026-04-07). |
 | **Roadmap §0.3 checkboxes** | Mark Phase 0.3 items when the team agrees the milestone is complete. |
 

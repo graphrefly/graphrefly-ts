@@ -102,11 +102,11 @@ Update documentation when behavior or public API changed:
 
 - **`docs/docs-guidance.md`** — if documentation *conventions* or generator workflow change, update this file so `/qa` and contributors stay aligned
 - **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — only if the **spec** itself is intentionally revised (rare; use semver rules in spec §8)
-- **`docs/optimizations.md`** — add **new open decisions** under "Active work items"; when **resolved**, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log"
+- **`docs/optimizations.md`** — add **new open decisions** under "Active work items". **Then actively sweep:** scan for any fully-resolved items (all sub-tasks DONE, no remaining TODOs) and archive them to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log". Remove archived content from `optimizations.md` — it should contain only active/open items, anti-patterns, and deferred follow-ups.
 - **Structured JSDoc** on exported public APIs (Tier 1 — parameters, returns, examples per `docs-guidance`; source of truth for generated API pages)
 - **New public symbols** — barrel export + **`website/scripts/gen-api-docs.mjs` REGISTRY** entry, then `pnpm --filter @graphrefly/docs-site docs:gen` (or `docs:gen:check` in CI)
 - **`docs/test-guidance.md`** — if new test patterns are established
-- **`docs/roadmap.md`** — check off completed items; when a phase/group is fully done, archive to `archive/roadmap/*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive"
+- **`docs/roadmap.md`** — check off completed items. **Then actively sweep:** scan for any fully-completed phase or item group and archive it to `archive/roadmap/*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive". Remove archived content from `roadmap.md` — it should contain only active/open items.
 - **`CLAUDE.md`** — only if fundamental workflow/commands changed
 
 Do **not** hand-edit **`website/src/content/docs/api/*.md`** — regenerate from JSDoc via `docs:gen` per **`docs/docs-guidance.md`**.

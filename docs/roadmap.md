@@ -18,30 +18,9 @@
 >
 > All nodes with cached value push `[[DATA, cached]]` to every new subscriber. Derived nodes compute reactively from upstream push instead of eager compute on connection. See `GRAPHREFLY-SPEC.md` §2.2.
 
-### Phase 1: Spec + prototype (TS)
+### Phase 1–3: Spec + prototype + test migration (TS)
 
-- [x] Evaluate protocol models (current/push/lazy/pull) — chose Model B (push on subscribe)
-- [x] Prototype in `node.ts`: push-on-subscribe for source nodes, remove `_connecting` guard and explicit `_runFn()` in `_connectUpstream()`
-- [x] Categorize test failures (83 with source-only push)
-
-### Phase 2: All-nodes push + spec rewrite
-
-- [x] Upgrade push from source-only to ALL nodes with cached value (`if (this._cached !== NO_VALUE)`)
-- [x] Rewrite `GRAPHREFLY-SPEC.md` for v0.2 (push model, RESET, PAUSE/RESUME lockId, dynamicNode, §4.2 timer utilities)
-- [x] Rewrite `COMPOSITION-GUIDE.md` for push model (SENTINEL over state(null), `!= null` guards, keepalive vs activation)
-- [x] Update `composition-guide.jsonl` entries
-- [x] Categorize new test failures (131 with all-nodes push) — 5 categories: A) duplicate initial value (~55), B) DIRTY-before-DATA ordering (~20), C) batch-timing (collapsed into A — initial push is synchronous, not batch-deferred), D) compat adapter contracts (~15), E) misc edge cases (~5)
-
-### Phase 3: Test migration (TS)
-
-- [x] Fix duplicate-initial-value assertions (derived/effect push cached to late subscribers) — switched `state(v)` → `node<T>()` (SENTINEL) in tests, or adjusted expected arrays
-- [x] Fix message-ordering assertions (cached push sends DATA directly, not DIRTY first) — updated two-phase ordering expectations; initial push has no preceding DIRTY
-- [x] Fix double-entry assertions (length N+1 where N was expected) — adjusted assertion counts
-- [x] Fix batch-timing regressions — initial push is intentionally synchronous (not batch-deferred) so derived nodes compute during connection; "batch-timing" failures were Category A
-- [x] Fix compat adapter initial-push suppression — nanostores `listen()`, jotai/zustand/signals `subscribe()` skip initial push to match external API contracts; nanostores `subscribe()` removed redundant explicit `cb()`
-- [x] Fix `_connectUpstream` for `onMessage` operators — nodes with `onMessage` that consume all dep messages (bufferTime, windowTime) need explicit `_runFn()` after connection
-- [x] Fix `wait` pattern cleanup registration — converted to producer node so cleanup is always registered
-- [x] Validate all 1370 tests pass
+> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (ids: `push-model-phase1`, `push-model-phase2`, `push-model-phase3`).
 
 ### Phase 4: Python parity
 
@@ -51,9 +30,9 @@
 
 ### Phase 5: LLM composition validation
 
-- [ ] LLM one-shot composition test: give spec + guide to LLM, ask it to compose tasks without additional guidance
-- [ ] Evaluate how naturally LLM reasons about push model vs previous eager-compute model
-- [ ] Document any surprising patterns or needed guide additions
+> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `push-model-phase5`).
+>
+> Summary: 10 scenarios, 11 tests, all passing. Push model highly LLM-compatible (9/11 first-attempt). Fixed connection-time diamond spec-impl gap, documented two-phase source protocol (COMPOSITION-GUIDE §9), SENTINEL vs null-guard cascading (§10), SENTINEL indicator in describe(). Test file: `src/__tests__/phase5-llm-composition.test.ts`.
 
 ---
 
@@ -287,7 +266,7 @@ const persistent = persistentState(graph, {
 
 - [ ] `persistentState()` factory — composes autoCheckpoint + snapshot + restore
 - [ ] Incremental mode using `Graph.diff()` for delta checkpoints (existing)
-- [ ] Auto-saves gated by `messageTier >= 2` (per CLAUDE.md auto-checkpoint rule)
+- [ ] Auto-saves gated by `messageTier >= 3` (per CLAUDE.md auto-checkpoint rule)
 - [ ] `persistent.save()` / `persistent.restore()` for manual control
 - [ ] Depends on: autoCheckpoint (Phase 1.4b, done), Graph.diff() (done)
 
@@ -476,55 +455,9 @@ Goal: reduce the inspection surface from 14+ exported tools to 9 with clear, non
 
 #### TS consolidation (breaking)
 
-##### Merge `spy()` into `observe()`
-
-`spy()` is `observe({ structured: true })` + a pretty-print logger. Merge it as a format option on `observe()`.
-
-```ts
-// Before (two APIs):
-graph.spy({ path: "foo", format: "pretty" })
-graph.observe("foo", { structured: true, timeline: true })
-
-// After (one API):
-graph.observe("foo", { format: "pretty" })   // replaces spy()
-graph.observe("foo", { structured: true })    // existing
-```
-
-- [x] Add `format?: "pretty" | "json"` option to `observe()` — when set, auto-enables structured mode and attaches logger
-- [x] Remove `spy()` method from `Graph`
-- [x] Update demo-shell + tests to use `observe({ format })` **S**
-
-##### Merge `annotate()` + `traceLog()` into `trace()`
-
-One method, two overloads: write annotations and read the ring buffer.
-
-```ts
-graph.trace("path", "reason")   // write (replaces annotate)
-graph.trace()                   // read all (replaces traceLog)
-```
-
-- [x] Add `trace()` method with overloaded signature
-- [x] Remove `annotate()` and `traceLog()` from `Graph`
-- [x] Update demo-shell + tests **S**
-
-##### Consolidate RxJS observable bridge
-
-4 functions (`observeNode$`, `observeGraph$`, `toMessages$`, `toObservable`) doing the same thing with different output shapes. Consolidate to one:
-
-```ts
-toObservable(node)                    // values (default)
-toObservable(node, { raw: true })     // raw messages
-```
-
-Graph-level observation: `toObservable(graph.observe("*"))` — no separate `observeGraph$` needed.
-
-- [x] Merge into single `toObservable(source, opts?)` in `extra/observable.ts`
-- [x] Remove `observeNode$`, `observeGraph$`, `toMessages$`
-- [x] Update nestjs compat to use consolidated API **S**
-
-##### Stop exporting internal plumbing
-
-- [x] Remove `describeNode` and `metaSnapshot` from `core/index.ts` public exports (keep as internal, used only by `describe()`) **S**
+> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `inspection-ts-consolidation`).
+>
+> Merged: spy()→observe(format=), annotate()+traceLog()→trace(), 4 RxJS bridges→toObservable(source, opts?), unexported describeNode/metaSnapshot, implemented harnessTrace().
 
 #### PY consolidation (match TS)
 
@@ -565,10 +498,6 @@ Add pending task counter and `__repr__` to runner implementations. Surfaces in a
 - [ ] Add `_scheduled`/`_completed` counters + `__repr__` to `_ThreadRunner` and `AsyncioRunner` **S**
 
 #### TS new tools (parity)
-
-##### `harnessTrace()` — same as PY
-
-- [x] Implement `harnessTrace(harness, logger?)` → `dispose()` in `src/patterns/harness/trace.ts` **S**
 
 ##### Runner diagnostic `__repr__` / `toString()`
 

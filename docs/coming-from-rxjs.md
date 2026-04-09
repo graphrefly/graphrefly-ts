@@ -62,7 +62,7 @@ filter(map(source, x => x + 1), x => x > 0)
 | **scan / reduce seed** | Seed is optional (seedless mode infers from first value) | Seed is always required |
 | **tap** | Accepts a function or a partial `Observer` | Accepts a function or `{ data, error, complete }` observer object |
 | **share / replay** | Configurable `refCount` behavior | Always resets on zero subscribers (no configurable refcount) |
-| **startWith** | Accepts multiple values: `startWith(1, 2, 3)` | Single value only — chain for multiple: `startWith(startWith(s, 1), 2)` |
+| **startWith** | Accepts multiple values: `startWith(1, 2, 3)` | Use `{ initial }` option on `derived`: `derived([source], ([v]) => v, { initial })` |
 
 ---
 

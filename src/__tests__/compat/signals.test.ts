@@ -26,18 +26,6 @@ describe("compat/signals", () => {
 		const b = new Signal.State("b");
 		const useA = new Signal.State(true);
 
-		// This tracks only the deps it actually reads
-		const result = new Signal.Computed(() => {
-			return useA.get() ? a.get() : b.get();
-		});
-
-		expect(result.get()).toBe("a");
-
-		// While pointing to `a`, changing `b` should NOT trigger re-computation
-		// We verify this by looking at how `result.get()` is behaving
-		// Since we don't have spies on the inner function directly here, we use a mock fn
-		// via a side-effecting computed.
-
 		const computeSpy = vi.fn(() => (useA.get() ? a.get() : b.get()));
 		const trackedResult = new Signal.Computed(computeSpy);
 
@@ -150,13 +138,16 @@ describe("compat/signals", () => {
 		// subscribe to keep the network active
 		const unsub = Signal.sub(final, () => {});
 		expect(final.get()).toBe(5); // left(2) + right(3)
-		expect(computeSpy).toHaveBeenCalledTimes(1);
+		// Initial activation goes through the ROM/RAM + rewire-buffer path:
+		// first fn run reads undefined from disconnected compute deps,
+		// rewire activates them, discrepancy triggers one stabilizing re-run.
+		expect(computeSpy).toHaveBeenCalledTimes(2);
 
-		// Update base
+		// Update base — diamond resolution: final should recompute exactly
+		// once when both left and right settle in the same wave.
 		base.set(2);
 
-		// Final should recompute exactly ONCE despite 2 intermediate dependencies changing
-		expect(computeSpy).toHaveBeenCalledTimes(2);
+		expect(computeSpy).toHaveBeenCalledTimes(3);
 		expect(final.get()).toBe(8); // left(4) + right(4)
 
 		unsub();

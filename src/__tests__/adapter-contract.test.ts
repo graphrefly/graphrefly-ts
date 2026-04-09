@@ -7,23 +7,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { WebSocketRegister } from "../extra/adapters.js";
-import { COMPLETE, DATA, ERROR, fromWebhook, fromWebSocket, type Message } from "../index.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Collect all messages delivered to a subscriber. */
-function collect(n: ReturnType<typeof fromWebhook>): {
-	messages: Message[];
-	unsub: () => void;
-} {
-	const messages: Message[] = [];
-	const unsub = n.subscribe((msgs) => {
-		for (const m of msgs) messages.push(m);
-	});
-	return { messages, unsub };
-}
+import { COMPLETE, DATA, ERROR, fromWebhook, fromWebSocket } from "../index.js";
+import { collectFlat } from "./test-helpers.js";
 
 // ---------------------------------------------------------------------------
 // Pillar 1 — Register callback expectations
@@ -36,8 +21,8 @@ describe("Pillar 1: register callback expectations", () => {
 			emit("hello");
 			return cleanup;
 		});
-		const { messages, unsub } = collect(n);
-		expect(messages).toContainEqual([DATA, "hello"]);
+		const { msgs, unsub } = collectFlat(n);
+		expect(msgs).toContainEqual([DATA, "hello"]);
 		unsub();
 		expect(cleanup).toHaveBeenCalled();
 	});
@@ -47,8 +32,8 @@ describe("Pillar 1: register callback expectations", () => {
 			emit("ok");
 			return undefined;
 		});
-		const { messages, unsub } = collect(n);
-		expect(messages).toContainEqual([DATA, "ok"]);
+		const { msgs, unsub } = collectFlat(n);
+		expect(msgs).toContainEqual([DATA, "ok"]);
 		unsub();
 	});
 
@@ -56,14 +41,14 @@ describe("Pillar 1: register callback expectations", () => {
 		const n = fromWebSocket((_emit, _error, _complete) => {
 			return () => {};
 		});
-		const { unsub } = collect(n);
+		const { unsub } = collectFlat(n);
 		unsub();
 	});
 
 	it("fromWebSocket: register returning non-function triggers ERROR", () => {
 		const n = fromWebSocket((() => undefined) as unknown as WebSocketRegister<unknown>);
-		const { messages, unsub } = collect(n);
-		const errorMsg = messages.find((m) => m[0] === ERROR);
+		const { msgs, unsub } = collectFlat(n);
+		const errorMsg = msgs.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();
 		expect((errorMsg![1] as Error).message).toContain("contract violation");
 		unsub();
@@ -73,8 +58,8 @@ describe("Pillar 1: register callback expectations", () => {
 		const n = fromWebhook(() => {
 			throw new Error("register boom");
 		});
-		const { messages, unsub } = collect(n);
-		const errorMsg = messages.find((m) => m[0] === ERROR);
+		const { msgs, unsub } = collectFlat(n);
+		const errorMsg = msgs.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();
 		expect((errorMsg![1] as Error).message).toBe("register boom");
 		unsub();
@@ -84,8 +69,8 @@ describe("Pillar 1: register callback expectations", () => {
 		const n = fromWebSocket(() => {
 			throw new Error("ws register boom");
 		});
-		const { messages, unsub } = collect(n);
-		const errorMsg = messages.find((m) => m[0] === ERROR);
+		const { msgs, unsub } = collectFlat(n);
+		const errorMsg = msgs.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();
 		expect((errorMsg![1] as Error).message).toBe("ws register boom");
 		unsub();
@@ -107,7 +92,7 @@ describe("Pillar 2: terminal-time ordering", () => {
 				order.push("cleanup");
 			};
 		});
-		const { unsub } = collect(n);
+		const { unsub } = collectFlat(n);
 		n.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === COMPLETE) order.push("complete-received");
@@ -133,10 +118,10 @@ describe("Pillar 2: terminal-time ordering", () => {
 			complete();
 			return undefined;
 		});
-		const { messages, unsub } = collect(n);
+		const { msgs, unsub } = collectFlat(n);
 		// Try emitting after complete.
 		emitFn!("after-terminal");
-		const dataMessages = messages.filter((m) => m[0] === DATA);
+		const dataMessages = msgs.filter((m) => m[0] === DATA);
 		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
 		expect(dataMessages).toHaveLength(1);
 		expect(dataMessages[0][1]).toBe("before");
@@ -161,8 +146,8 @@ describe("Pillar 3: transport errors surface as ERROR tuples", () => {
 				},
 			},
 		);
-		const { messages, unsub } = collect(n);
-		const errorMsg = messages.find((m) => m[0] === ERROR);
+		const { msgs, unsub } = collectFlat(n);
+		const errorMsg = msgs.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();
 		expect((errorMsg![1] as Error).message).toBe("parse failed");
 		unsub();
@@ -173,8 +158,8 @@ describe("Pillar 3: transport errors surface as ERROR tuples", () => {
 			error(new Error("transport err"));
 			return undefined;
 		});
-		const { messages, unsub } = collect(n);
-		const errorMsg = messages.find((m) => m[0] === ERROR);
+		const { msgs, unsub } = collectFlat(n);
+		const errorMsg = msgs.find((m) => m[0] === ERROR);
 		expect(errorMsg).toBeDefined();
 		expect((errorMsg![1] as Error).message).toBe("transport err");
 		unsub();
@@ -192,11 +177,11 @@ describe("Pillar 4: idempotency", () => {
 			completeFn = complete;
 			return undefined;
 		});
-		const { messages, unsub } = collect(n);
+		const { msgs, unsub } = collectFlat(n);
 		completeFn!();
 		completeFn!();
 		completeFn!();
-		const completes = messages.filter((m) => m[0] === COMPLETE);
+		const completes = msgs.filter((m) => m[0] === COMPLETE);
 		expect(completes).toHaveLength(1);
 		unsub();
 	});
@@ -207,10 +192,10 @@ describe("Pillar 4: idempotency", () => {
 			errorFn = error;
 			return undefined;
 		});
-		const { messages, unsub } = collect(n);
+		const { msgs, unsub } = collectFlat(n);
 		errorFn!(new Error("first"));
 		errorFn!(new Error("second"));
-		const errors = messages.filter((m) => m[0] === ERROR);
+		const errors = msgs.filter((m) => m[0] === ERROR);
 		expect(errors).toHaveLength(1);
 		expect((errors[0][1] as Error).message).toBe("first");
 		unsub();
@@ -223,9 +208,9 @@ describe("Pillar 4: idempotency", () => {
 			error(new Error("done"));
 			return () => {};
 		});
-		const { messages, unsub } = collect(n);
+		const { msgs, unsub } = collectFlat(n);
 		emitFn!("late-data");
-		const dataMessages = messages.filter((m) => m[0] === DATA);
+		const dataMessages = msgs.filter((m) => m[0] === DATA);
 		expect(dataMessages).toHaveLength(0);
 		unsub();
 	});
@@ -238,10 +223,10 @@ describe("Pillar 4: idempotency", () => {
 			errorFn = error;
 			return () => {};
 		});
-		const { messages, unsub } = collect(n);
+		const { msgs, unsub } = collectFlat(n);
 		completeFn!();
 		errorFn!(new Error("late"));
-		const terminals = messages.filter((m) => m[0] === COMPLETE || m[0] === ERROR);
+		const terminals = msgs.filter((m) => m[0] === COMPLETE || m[0] === ERROR);
 		expect(terminals).toHaveLength(1);
 		expect(terminals[0][0]).toBe(COMPLETE);
 		unsub();

@@ -1,10 +1,9 @@
 /**
  * Wire protocol for worker bridge communication.
  *
- * Messages with {@link messageTier} >= 2 cross the wire (DATA values via
- * coalescing, RESOLVED/COMPLETE/TEARDOWN as signals, ERROR as serialized
- * payloads). Tier 0–1 (DIRTY, INVALIDATE, PAUSE, RESUME) stay local to
- * each side's reactive graph.
+ * Graph-local signals ({@link isLocalOnly}) stay local to each side's
+ * reactive graph. DATA values cross via coalescing; RESOLVED/COMPLETE/TEARDOWN
+ * as signals; ERROR as serialized payloads.
  *
  * Lifecycle signals serialize as string names since Symbols can't survive
  * structured clone. Unknown {@link Symbol.for} symbols are round-tripped

@@ -380,12 +380,14 @@ export function promptNode<T = string>(
 	const useCache = opts?.cache ?? false;
 	const cache = useCache ? new Map<string, T>() : null;
 
+	// Seed with `initial: []` so `switchMap` below fires with `[]` during the
+	// initial activation pass and emits null (composition guide §8 — promptNode
+	// gates on nullish deps). Dep-level null guarding is done inside the fn.
 	const messagesNode = derived<readonly ChatMessage[]>(
 		deps as Node<unknown>[],
 		(values) => {
-			// SENTINEL gate: if any dep is nullish, deps aren't ready yet.
-			// Return empty array → switchMap skips LLM call → emits null.
-			// This eliminates the need for null guards in every prompt function.
+			// Dep-level null guard (composition guide §8): if any dep is
+			// nullish, return empty messages → switchMap emits null.
 			if (values.some((v) => v == null)) return [];
 			const text = typeof prompt === "string" ? prompt : prompt(...values);
 			if (!text) return [];
@@ -397,6 +399,7 @@ export function promptNode<T = string>(
 		{
 			name: opts?.name ? `${opts.name}::messages` : "prompt_node::messages",
 			meta: aiMeta("prompt_node"),
+			initial: [] as readonly ChatMessage[],
 		},
 	);
 
