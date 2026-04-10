@@ -1,6 +1,6 @@
 ---
 title: "Integration Matrix"
-description: "Current integration surface across adapters, compat layers, and ecosystem packages."
+description: "Current integration surface across adapters and compat layers."
 ---
 
 This matrix is the fast inventory view. Use it to find what exists today, where to look next, and which package or doc path to start from.
@@ -23,15 +23,8 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Integration | Type | Entry |
 |---|---|---|
 | NestJS | Compat | `@graphrefly/graphrefly/compat/nestjs` |
+| Jotai | Compat | `@graphrefly/graphrefly/compat/jotai` |
+| Nanostores | Compat | `@graphrefly/graphrefly/compat/nanostores` |
+| Zustand | Compat | `@graphrefly/graphrefly/compat/zustand` |
 
 See [Compat](/integrations/compat/) for framework integration guidance.
-
-## Ecosystem
-
-| Integration | Type | Entry |
-|---|---|---|
-| MCP Server | Ecosystem package | `@graphrefly/mcp-server` |
-| Vercel AI SDK middleware | Ecosystem package | `@graphrefly/ai-sdk` |
-| LangGraph tooling | Ecosystem package | `@graphrefly/langgraph` |
-
-See [Ecosystem](/integrations/ecosystem/) for adoption strategy and quickstarts.

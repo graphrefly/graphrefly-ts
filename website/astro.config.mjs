@@ -283,7 +283,6 @@ export default defineConfig({
 						{ label: "Integration Matrix", link: "/integrations/matrix" },
 						{ label: "Adapters", link: "/integrations/adapters" },
 						{ label: "Compat", link: "/integrations/compat" },
-						{ label: "Ecosystem", link: "/integrations/ecosystem" },
 					],
 				},
 			],
