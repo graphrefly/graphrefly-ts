@@ -1,3 +1,16 @@
+# [0.19.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.18.0...v0.19.0) (2026-04-10)
+
+
+### Features
+
+* add mountable extractor subgraphs ([18f77b5](https://github.com/graphrefly/graphrefly-ts/commit/18f77b547e062d0ac7f3601ccb859ad46d04614b))
+* address optimization items ([0839fe3](https://github.com/graphrefly/graphrefly-ts/commit/0839fe316daa840ea68508910909835630864a84))
+* architecture v5 ([c29ff03](https://github.com/graphrefly/graphrefly-ts/commit/c29ff032097e30e1086a27cea4a3f723a2f87394))
+* core streaming infrastructure ([85b2899](https://github.com/graphrefly/graphrefly-ts/commit/85b28993610d86f5776c629c5382bc97556454ee))
+* fix ([7b60e64](https://github.com/graphrefly/graphrefly-ts/commit/7b60e64ff63d300a3f75c554721f6ac530345abc))
+* fix inspection tool ([6b8dace](https://github.com/graphrefly/graphrefly-ts/commit/6b8dacec7566a6848f741438525ba4eda7bd037f))
+* implement start ([0248d99](https://github.com/graphrefly/graphrefly-ts/commit/0248d996119761b9268b4f8c5b9c966d3eb977ae))
+
 # [0.18.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.17.0...v0.18.0) (2026-04-08)
 
 
