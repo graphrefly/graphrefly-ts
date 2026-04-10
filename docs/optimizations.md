@@ -51,6 +51,12 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 |------|-------|
 | **`DynamicNodeImpl` identity-skip false positive on dep reorder** | **Resolved (TS 2026-04-09).** TS `_trackedValues` is `Map<Node, unknown>` (identity-based). PY `dynamic_node.py` doesn't have `_tracked_values` — no action needed unless PY adds the rewire buffer. |
 
+- **Missing `meta=_ai_meta(...)` on stream extractor `derived()` calls (TS + PY, 2026-04-09):**
+  All four extractor factories (`streamExtractor`/`stream_extractor`, `keywordFlagExtractor`/`keyword_flag_extractor`, `toolCallExtractor`/`tool_call_extractor`, `costMeterExtractor`/`cost_meter_extractor`) create `derived` nodes without `meta` tags. Every other AI-layer node carries `_ai_meta(...)`. Extractor nodes will not appear in AI-layer catalog scans or harness introspection that filters on `meta.ai`. Fix: add `meta=_ai_meta("stream_extractor")` etc. to each `derived()` call in both TS and PY.
+
+- **`_async_pump` return annotation is `AsyncIterable` not `AsyncGenerator` (PY, 2026-04-09):**
+  In `streaming_prompt_node`, the inner `_async_pump` function uses `yield` (making it an `AsyncGenerator`) but is annotated `-> AsyncIterable[Any]`. No runtime impact (`AsyncGenerator` is a subtype of `AsyncIterable`), but the annotation is technically incorrect. Fix: change to `-> AsyncGenerator[Any, None]`.
+
 ### AI surface (Phase 4.4) — deferred optimizations
 
 | Item | Status | Notes |

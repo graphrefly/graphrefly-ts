@@ -96,7 +96,7 @@ Core streaming infrastructure:
 - [x] **`streamingPromptNode`** — uses `adapter.stream()` instead of `invoke()`. Emits chunks to a `TopicGraph<StreamChunk>` as the LLM generates. Final parsed result goes to the output node as before. TS: `src/patterns/ai.ts`. PY: `src/graphrefly/patterns/ai.py` — dual path (async iterable via runner, sync iterable via `from_iter`).
 - [x] **`StreamChunk` type** — `{ source: string, token: string, accumulated: string, index: number }`. Generic enough for any streaming source, not just LLM.
 - [x] **Cancelable execution via `switchMap` + `AbortSignal`** — human steering signal cancels in-flight stream (`AbortController.abort()`). New input starts fresh. Uses existing `switchMap` — `switchMap(steeringSignal, () => streamingPromptNode(...))`. PY: async path cancellable via `from_async_iter` cleanup; sync path runs to completion (single-threaded, no interleave risk).
-- [ ] **Gate integration** — `gate.reject()` on the stream triggers abort. `gate.modify()` redirects with updated context.
+- [x] **Gate integration** — `gatedStream` (TS) / `gated_stream` (PY) composes `streamingPromptNode` + `gate`. TS: `reject()` aborts in-flight stream via cancel signal → switchMap restart → AbortController. PY: `reject()` discards pending value (sync streams complete before reject; async streams cancelled by switchMap cleanup). `modify()` transforms pending value. `approve()` forwards. Null filter suppresses switchMap initial/cancel state.
 
 Mountable extractor subgraphs (each is opt-in, composes with any stream topic):
 

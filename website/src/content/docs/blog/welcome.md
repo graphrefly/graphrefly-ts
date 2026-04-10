@@ -1,6 +1,6 @@
 ---
 title: GraphReFly Blog
-description: Engineering stories from building GraphReFly — architecture decisions, bugs that taught us something, and ideas that didn't survive contact with reality.
+description: "Engineering essays on GraphReFly — the reactive harness layer for agent workflows: inspectable graphs, orchestration, policy, and human + LLM co-operation."
 date: 2026-04-03T10:00:00
 authors:
   - david
@@ -9,22 +9,16 @@ tags:
 featured: true
 ---
 
-Engineering stories from building GraphReFly — the architecture decisions, the bugs that taught us something, and the ideas that didn't survive contact with reality.
+Engineering essays from the GraphReFly project — what it takes to build a reactive harness around probabilistic models: deterministic structure you can describe, trace, and improve, with room for people and LLMs in the loop.
 
 ## The GraphReFly Chronicle
 
-A 25-post series tracing the evolution from a forgotten reactive protocol to a full graph engine for human + LLM co-operation.
+An evolving collection of posts on that harness — the reactive graph engine, the protocol, and the product-shaped layers on top — not a closed syllabus, but themes we revisit as the spec and implementations move.
 
-**Origins** — Why we bet on callbag, what signals can't do, and protocol-first thinking.
+**Where it started** — Motivation, the limits of plain signals, and why protocol-first thinking is load-bearing for anything you want to inspect or govern.
 
-**Architecture** — Four iterations of the reactive graph: from naive diamonds to two-phase push, from pull-phase memoization to the RESOLVED signal.
+**How the graph behaves** — Push and pull phases, fan-in and diamonds, memoization, and the lifecycle of a node once the topology gets honest enough to serve as execution substrate.
 
-**Performance** — Output slot optimization, bitmask flag packing, Skip DIRTY dispatch halving, and why we don't use queueMicrotask.
+**Speed, safety, and the surrounding system** — Performance experiments, correctness tradeoffs, and the orchestration, policy, and platform questions — stores, streaming, tooling — that show up once the core model has to carry real agent workflows.
 
-**Correctness** — Diamond resolution without pull-phase computation, the cost of correctness vs raw speed, and promises as the new callback hell.
-
-**Platform** — Stores all the way down, eagerly reactive computed state, the Zustand-to-orchestration migration path, and why signals aren't enough for AI streaming.
-
-**Capstone** — [From callbag-recharge to GraphReFly: Why We Started Over](/blog/31-from-callbag-recharge-to-graphrefly/) — the full story of what we kept, what we threw away, and why.
-
-Browse all posts in the sidebar, or start from the beginning with [The Road to GraphReFly](/blog/01-the-road-to-graphrefly/).
+New pieces land here over time. For one continuous story of the reboot, see [From callbag-recharge to GraphReFly: Why We Started Over](/blog/31-from-callbag-recharge-to-graphrefly/). To read from the earliest essay, start with [The Road to GraphReFly](/blog/01-the-road-to-graphrefly/). Browse the sidebar for the full archive.

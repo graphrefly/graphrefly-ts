@@ -1,5 +1,0 @@
-describeNode.md - moved to TRASH/ - unexported from public API (inspection tool consolidation)
-metaSnapshot.md - moved to TRASH/ - unexported from public API (inspection tool consolidation)
-observeGraph$.md - moved to TRASH/ - consolidated into toObservable() (inspection tool consolidation)
-observeNode$.md - moved to TRASH/ - consolidated into toObservable() (inspection tool consolidation)
-toMessages$.md - moved to TRASH/ - consolidated into toObservable({ raw: true }) (inspection tool consolidation)

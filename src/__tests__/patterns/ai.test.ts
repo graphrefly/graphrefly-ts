@@ -13,6 +13,8 @@ import {
 	costMeterExtractor,
 	type ExtractedToolCall,
 	fromLLM,
+	type GatedStreamHandle,
+	gatedStream,
 	gaugesAsContext,
 	graphFromSpec,
 	type KeywordFlag,
@@ -39,6 +41,12 @@ import {
 // Mock LLM adapter
 // ---------------------------------------------------------------------------
 
+/**
+ * Mock LLM adapter. `stream()` yields tokens asynchronously (one microtask per
+ * token) to match real adapter behavior — real LLM SDKs always involve I/O
+ * between chunks. Tests MUST use reactive subscribe patterns (not synchronous
+ * `.get()`) to observe stream results.
+ */
 function mockAdapter(responses: LLMResponse[], streamChunks?: string[][]): LLMAdapter {
 	let idx = 0;
 	let streamIdx = 0;
@@ -52,6 +60,9 @@ function mockAdapter(responses: LLMResponse[], streamChunks?: string[][]): LLMAd
 			const chunks = streamChunks?.[streamIdx] ?? streamChunks?.[streamChunks.length - 1] ?? [];
 			streamIdx++;
 			for (const chunk of chunks) {
+				// Yield to microtask queue between tokens — real adapters always
+				// have async I/O between chunks (network, SSE frame parsing, etc.)
+				await Promise.resolve();
 				yield chunk;
 			}
 		},
@@ -681,6 +692,145 @@ describe("patterns.ai.costMeterExtractor", () => {
 		extractor.subscribe(() => {});
 
 		expect(extractor.get()).toEqual({ chunkCount: 0, charCount: 0, estimatedTokens: 0 });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// gatedStream
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.gatedStream", () => {
+	/** Wait for gate.count to reach `n` by subscribing reactively. */
+	function waitForPending(handle: GatedStreamHandle<unknown>, n = 1): Promise<void> {
+		// If count already has the value, resolve immediately
+		if ((handle.gate.count.get() as number) >= n) return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			let teardown: (() => void) | undefined;
+			teardown = handle.gate.count.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && (m[1] as number) >= n) {
+						teardown?.();
+						resolve();
+					}
+				}
+			});
+		});
+	}
+
+	it("gates output and allows approval", async () => {
+		const adapter = mockAdapter([], [["hello", " world"]]);
+		const graph = new Graph("test");
+		const dep = state("go");
+
+		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
+		const results: unknown[] = [];
+		handle.output.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA && m[1] != null) results.push(m[1]);
+		});
+
+		await waitForPending(handle);
+		expect(handle.gate.count.get()).toBe(1);
+		handle.gate.approve();
+		expect(results.length).toBe(1);
+		expect(results[0]).toBe("hello world");
+		handle.dispose();
+	});
+
+	it("reject discards pending and aborts the stream", async () => {
+		let streamStarted = false;
+		const adapter: LLMAdapter = {
+			invoke: () => ({ content: "", finishReason: "end_turn" }),
+			async *stream(_msgs, opts) {
+				streamStarted = true;
+				for (let i = 0; i < 100; i++) {
+					if (opts?.signal?.aborted) return;
+					yield `chunk${i} `;
+					await new Promise((r) => setTimeout(r, 5));
+				}
+			},
+		};
+
+		const graph = new Graph("test");
+		const dep = state("go");
+		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
+		handle.output.subscribe(() => {});
+
+		// Wait for first chunk to confirm stream started, then reject
+		await new Promise<void>((resolve) => {
+			handle.stream.latest.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) {
+						resolve();
+					}
+				}
+			});
+		});
+
+		expect(streamStarted).toBe(true);
+		handle.gate.reject();
+		expect(handle.gate.count.get()).toBe(0);
+		handle.dispose();
+	});
+
+	it("modify transforms pending value before forwarding", async () => {
+		const adapter = mockAdapter([], [["original"]]);
+		const graph = new Graph("test");
+		const dep = state("go");
+
+		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
+		const results: unknown[] = [];
+		handle.output.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA && m[1] != null) results.push(m[1]);
+		});
+
+		await waitForPending(handle);
+		handle.gate.modify((v) => `${v} [reviewed]`);
+		expect(results.length).toBe(1);
+		expect(results[0]).toBe("original [reviewed]");
+		handle.dispose();
+	});
+
+	it("stream topic publishes chunks while gate is pending", async () => {
+		const adapter = mockAdapter([], [["a", "b", "c"]]);
+		const graph = new Graph("test");
+		const dep = state("go");
+
+		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `${v}`);
+		const chunks: StreamChunk[] = [];
+		handle.stream.latest.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA && m[1]) chunks.push(m[1] as StreamChunk);
+		});
+		// Activate gate chain so the output pipeline runs
+		handle.output.subscribe(() => {});
+
+		await waitForPending(handle);
+		// Chunks published even though gate hasn't approved
+		expect(chunks.length).toBeGreaterThan(0);
+		expect(chunks[chunks.length - 1]!.accumulated).toBe("abc");
+		handle.gate.approve();
+		handle.dispose();
+	});
+
+	it("startOpen auto-approves without gating", async () => {
+		const adapter = mockAdapter([], [["auto"]]);
+		const graph = new Graph("test");
+		const dep = state("go");
+
+		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `${v}`, {
+			gate: { startOpen: true },
+		});
+
+		// With startOpen, value flows through without gating — wait for non-null result
+		const result = await new Promise<unknown>((resolve) => {
+			handle.output.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) resolve(m[1]);
+				}
+			});
+		});
+
+		expect(result).toBe("auto");
+		handle.dispose();
 	});
 });
 
