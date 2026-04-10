@@ -24,6 +24,9 @@
 | `docs/docs-guidance.md` | How to document APIs and long-form docs (covers both TS and PY) |
 | `docs/test-guidance.md` | How to write and organize tests (covers both TS and PY) |
 | `archive/docs/SESSION-graphrefly-spec-design.md` | Design history and migration from callbag-recharge |
+| `archive/docs/SESSION-reactive-collaboration-harness.md` | **Active** — 7-stage reactive collaboration loop (INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT), gate port from callbag-recharge, `promptNode` factory, `valve` rename, strategy model (`rootCause × intervention → successRate`), `harnessLoop()` factory. Source of truth for §9.0. |
+| `archive/docs/SESSION-harness-engineering-strategy.md` | **Active** — harness engineering category positioning, 8-requirement coverage analysis, GraphReFly vs LangGraph, three-wave announcement plan, MCP Server as distribution priority. Source of truth for §9.1–9.7 direction. |
+| `archive/docs/SESSION-marketing-promotion-strategy.md` | **Active** — positioning pillars (pain-point-first), wave-based announcement plan, pain-point reply marketing playbooks, xiaohongshu strategy, Future AGI competitive intel (§16), prompt optimization algorithm analysis (§17), blog content plan (§18). Source of truth for public-facing copy. |
 
 ## Commands
 
@@ -45,6 +48,16 @@ uv run mypy src/                       # type check
 ```
 
 Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv sync` to install dependencies. Distribution name: `graphrefly-py`, import path: `graphrefly`.
+
+## Documentation workflow (critical)
+
+- `docs/docs-guidance.md` is the cross-language documentation standard.
+- `website/src/content/docs/api/*.md` is generated output. Do not hand-edit.
+- For API docs updates:
+  1. Update source JSDoc/docstrings.
+  2. Run docs generation in the respective repo (`pnpm --dir website docs:gen`).
+  3. Validate with `pnpm --dir website docs:gen:check` and `pnpm --dir website sync-docs:check`.
+- `llms.txt` is an AI index; keep it high-signal and avoid drift-prone, exhaustive inline API inventories.
 
 ## Layout
 
