@@ -54,6 +54,9 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 - **Missing `meta=_ai_meta(...)` on stream extractor `derived()` calls (TS + PY, 2026-04-09):**
   All four extractor factories (`streamExtractor`/`stream_extractor`, `keywordFlagExtractor`/`keyword_flag_extractor`, `toolCallExtractor`/`tool_call_extractor`, `costMeterExtractor`/`cost_meter_extractor`) create `derived` nodes without `meta` tags. Every other AI-layer node carries `_ai_meta(...)`. Extractor nodes will not appear in AI-layer catalog scans or harness introspection that filters on `meta.ai`. Fix: add `meta=_ai_meta("stream_extractor")` etc. to each `derived()` call in both TS and PY.
 
+- **`EffectivenessTrackerBundle.record()` thread safety (PY, 2026-04-10):**
+  `record()` does read-modify-write on `self._map` (get → compute → set) without a lock. Under free-threaded Python (no GIL), two concurrent `record()` calls for the same key can race: both read the same existing entry, both compute `attempts+1`, and one write overwrites the other. Same pattern exists in other pattern-layer factories (e.g. `strategyModel`). Should be addressed with a per-bundle `RLock`, consistent with the project's threading policy ("per-subgraph `RLock`, per-node `_cache_lock`"). Deferred — all current callers are single-threaded; needs systematic pattern-layer lock audit.
+
 - **`_async_pump` return annotation is `AsyncIterable` not `AsyncGenerator` (PY, 2026-04-09):**
   In `streaming_prompt_node`, the inner `_async_pump` function uses `yield` (making it an `AsyncGenerator`) but is annotated `-> AsyncIterable[Any]`. No runtime impact (`AsyncGenerator` is a subtype of `AsyncIterable`), but the annotation is technically incorrect. Fix: change to `-> AsyncGenerator[Any, None]`.
 

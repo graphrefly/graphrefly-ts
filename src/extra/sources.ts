@@ -11,9 +11,9 @@
 import { existsSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, ERROR, type Message } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Message } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { producer, state } from "../core/sugar.js";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
@@ -923,3 +923,75 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
  * @category extra
  */
 export const shareReplay = replay;
+
+// ---------------------------------------------------------------------------
+// keepalive
+// ---------------------------------------------------------------------------
+
+/**
+ * Activate a compute node's upstream wiring without a real sink.
+ *
+ * Derived/effect nodes are lazy — they don't compute until at least one
+ * subscriber exists (COMPOSITION-GUIDE §5). `keepalive` subscribes with an
+ * empty sink so the node stays wired for `.get()` and upstream propagation.
+ *
+ * Returns the unsubscribe handle. Common usage:
+ * `graph.addDisposer(keepalive(node))`.
+ *
+ * @category extra
+ */
+export function keepalive(n: Node<unknown>): () => void {
+	return n.subscribe(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// reactiveCounter
+// ---------------------------------------------------------------------------
+
+/** Bundle returned by {@link reactiveCounter}. */
+export type ReactiveCounterBundle = {
+	/** Reactive node holding the current count. */
+	readonly node: Node<number>;
+	/** Increment by 1. Returns `false` if cap would be exceeded. */
+	increment(): boolean;
+	/** Current count (synchronous read). */
+	get(): number;
+	/** Whether the counter has reached its cap. */
+	atCap(): boolean;
+};
+
+/**
+ * Reactive counter with a cap — the building block for circuit breakers.
+ *
+ * Wraps a `state(0)` node with `increment()` that respects a maximum.
+ * The `node` is subscribable and composable like any reactive node. When
+ * the cap is reached, `increment()` returns `false`.
+ *
+ * ```ts
+ * const retries = reactiveCounter(10);
+ * retries.increment(); // true — count is now 1
+ * retries.node.subscribe(...); // reactive updates
+ * retries.atCap(); // false
+ * ```
+ *
+ * @param cap - Maximum value (inclusive). 0 = no increments allowed.
+ * @category extra
+ */
+export function reactiveCounter(cap: number): ReactiveCounterBundle {
+	const counter = state(0);
+	return {
+		node: counter,
+		increment() {
+			const current = counter.get() ?? 0;
+			if (current >= cap) return false;
+			counter.down([[DIRTY], [DATA, current + 1]]);
+			return true;
+		},
+		get() {
+			return counter.get() ?? 0;
+		},
+		atCap() {
+			return (counter.get() ?? 0) >= cap;
+		},
+	};
+}

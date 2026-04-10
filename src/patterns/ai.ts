@@ -121,21 +121,10 @@ export type StreamChunk = {
 // Meta helpers
 // ---------------------------------------------------------------------------
 
-type AIMeta = {
-	ai?: true;
-	ai_type?: string;
-};
+import { domainMeta, keepalive } from "./_internal.js";
 
 function aiMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
-	return {
-		ai: true,
-		ai_type: kind,
-		...(extra ?? {}),
-	} satisfies AIMeta;
-}
-
-function keepalive(n: Node<unknown>): () => void {
-	return n.subscribe(() => undefined);
+	return domainMeta("ai", kind, extra);
 }
 
 function isPromiseLike(x: unknown): x is PromiseLike<unknown> {

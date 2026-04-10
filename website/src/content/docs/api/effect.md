@@ -8,7 +8,11 @@ Runs a side-effect when deps settle; return value is not auto-emitted.
 ## Signature
 
 ```ts
-function effect(deps: readonly Node[], fn: NodeFn<unknown>): Node<unknown>
+function effect(
+	deps: readonly Node[],
+	fn: NodeFn<unknown>,
+	opts?: NodeOptions,
+): Node<unknown>
 ```
 
 ## Parameters
@@ -17,6 +21,7 @@ function effect(deps: readonly Node[], fn: NodeFn<unknown>): Node<unknown>
 |-----------|------|-------------|
 | `deps` | `readonly Node[]` | Nodes to watch. |
 | `fn` | `NodeFn&lt;unknown&gt;` | Side-effect body. |
+| `opts` | `NodeOptions` |  |
 
 ## Returns
 

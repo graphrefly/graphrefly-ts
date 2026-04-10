@@ -13,11 +13,6 @@ import { reactiveLog } from "../extra/reactive-log.js";
 import { reactiveMap } from "../extra/reactive-map.js";
 import { Graph, type GraphOptions } from "../graph/index.js";
 
-type MessagingMeta = {
-	messaging?: true;
-	messaging_type?: string;
-};
-
 const DEFAULT_MAX_PER_PUMP = 2_147_483_647;
 
 function requireNonNegativeInt(value: number, label: string): number {
@@ -27,20 +22,10 @@ function requireNonNegativeInt(value: number, label: string): number {
 	return value;
 }
 
-/**
- * Keep a derived node's dep wiring alive for `get()` without a user sink.
- * Returns the unsubscribe handle so callers can clean up.
- */
-function keepalive(n: Node<unknown>): () => void {
-	return n.subscribe(() => {});
-}
+import { domainMeta, keepalive } from "./_internal.js";
 
 function messagingMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
-	return {
-		messaging: true,
-		messaging_type: kind,
-		...(extra ?? {}),
-	} satisfies MessagingMeta;
+	return domainMeta("messaging", kind, extra);
 }
 
 export type TopicOptions = {

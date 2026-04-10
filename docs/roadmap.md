@@ -113,9 +113,16 @@ This is what GraphReFly was built for from day 1: every flow is inspectable (`de
 
 Patterns discovered during §9.0 implementation that generalize beyond the harness:
 
-- [ ] **Generalized source→intake bridge factory** — `evalIntakeBridge` is eval-specific; the pattern (parse domain results → uniform `IntakeItem[]` → publish to topic) generalizes to any source (CI results, test failures, Slack messages, monitoring alerts). Provide a `createIntakeBridge(parser, topic)` factory with pluggable parser.
+- [x] **Generalized source→intake bridge factory** — `createIntakeBridge(source, topic, parser)` in `harness/bridge.ts` / `harness/bridge.py`. `evalIntakeBridge` kept as thin wrapper. Both TS and PY.
 - [ ] **Stage-aware prompt routing** (document pattern) — detecting which pipeline stage called the LLM based on prompt content keywords. Used in `mockLLM` and `run-harness.ts`. Worth documenting as a testing pattern for any multi-stage LLM pipeline.
-- [ ] **Stable identity for retried items** (document pattern) — `trackingKey` pattern: use `relatedTo[0]` as stable identity, fall back to summary. Prevents retry/reingestion decorations (like `[RETRY N/M]` prefix) from generating novel keys that defeat dedup. Document in composition guide.
+- [x] **Stable identity for retried items** (document pattern) — `trackingKey` extracted to `patterns/_internal.ts` / `patterns/_internal.py`. Documented in COMPOSITION-GUIDE §17. Both TS and PY.
+
+Additional patterns extracted:
+
+- [x] **Shared `keepalive` + `domainMeta`** — deduplicated from 5 TS / 4 PY copies into `patterns/_internal.ts` / `patterns/_internal.py`. Eliminates copy-paste across orchestration, messaging, reduction, ai, cqrs, and domain-templates modules.
+- [x] **`effectivenessTracker`** — generalized from `strategyModel` into `reduction.ts` / `reduction.py`. Tracks action×context → success rate. Reusable for A/B testing, routing optimization, cache policy tuning.
+- [x] **`reactiveCounter`** — circuit breaker counter kernel extracted to `patterns/_internal.ts` / `patterns/_internal.py`. Reactive `state(0)` + cap-checked `increment()`.
+- [x] **Nested `withLatestFrom` pattern** — documented in COMPOSITION-GUIDE §16. Fire on stage N, sample stages N-1 and N-2 without making them reactive triggers.
 
 ##### Common harness compositions (reusable building blocks)
 

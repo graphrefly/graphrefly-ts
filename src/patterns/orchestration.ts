@@ -90,12 +90,10 @@ function registerStep(
 	}
 }
 
+import { domainMeta } from "./_internal.js";
+
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
-	return {
-		orchestration: true,
-		orchestration_type: kind,
-		...(meta ?? {}),
-	};
+	return domainMeta("orchestration", kind, meta);
 }
 
 function coerceLoopIterations(raw: unknown): number {

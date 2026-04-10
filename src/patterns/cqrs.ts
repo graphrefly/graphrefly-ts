@@ -47,16 +47,10 @@ const EVENT_GUARD = policy((allow, deny) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function cqrsMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
-	return { cqrs: true, cqrs_type: kind, ...(extra ?? {}) };
-}
+import { domainMeta, keepalive } from "./_internal.js";
 
-/**
- * Keep a derived node's dep wiring alive for `get()` without a user sink.
- * Returns the unsubscribe handle so callers can clean up.
- */
-function keepalive(n: Node<unknown>): () => void {
-	return n.subscribe(() => {});
+function cqrsMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
+	return domainMeta("cqrs", kind, extra);
 }
 
 // ---------------------------------------------------------------------------

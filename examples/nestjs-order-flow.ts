@@ -9,7 +9,7 @@
  * 4. Scheduled jobs — fromTimer/fromCron as graph nodes
  * 5. WebSocket observe — ObserveGateway for real-time node streams
  * 6. SSE stream — observeSSE() endpoint for order events
- * 7. Admin endpoint — graph.describe() as JSON
+ * 7. Admin endpoints — graph.describe() + diagram exports
  *
  * NOTE: The library's CQRS decorators (@CommandHandler, @SagaHandler, etc.)
  * use TC39 Stage 3 decorators. NestJS requires legacy `experimentalDecorators`.
@@ -27,6 +27,8 @@
  *   GET  /orders/summary      — current order projection state
  *   GET  /orders/stream       — SSE stream of order events
  *   GET  /admin/describe      — full graph.describe() snapshot
+ *   GET  /admin/mermaid       — graph diagram as Mermaid flowchart text
+ *   GET  /admin/d2            — graph diagram as D2 text
  *   ws://localhost:3000       — WebSocket observe gateway
  *
  * Try:
@@ -142,8 +144,8 @@ class OrderController implements OnModuleInit, OnModuleDestroy {
 				const t = m[0];
 				if (t === COMPLETE || t === ERROR) return;
 				if (t !== DATA) continue;
-				const snap = m[1] as { value: { entries: readonly CqrsEvent[] } };
-				for (const entry of snap.value.entries) {
+				const entries = m[1] as readonly CqrsEvent[];
+				for (const entry of entries) {
 					if (entry.seq > lastEvtSeq) {
 						const p = entry.payload as { orderId: string };
 						console.log(`  [evt] OrderPlaced: ${p.orderId} (seq=${entry.seq})`);
@@ -360,7 +362,17 @@ class AdminController {
 	@Get("describe")
 	describe(@Req() req: unknown) {
 		const actor = getActor(req);
-		return this.graph.describe({ actor });
+		return this.graph.describe({ actor, detail: "standard" });
+	}
+
+	@Get("mermaid")
+	mermaid() {
+		return this.graph.toMermaid({ direction: "LR" });
+	}
+
+	@Get("d2")
+	d2() {
+		return this.graph.toD2({ direction: "LR" });
 	}
 }
 
@@ -396,33 +408,51 @@ class AppModule {}
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule, { logger: ["error", "warn", "log"] });
 	app.useWebSocketAdapter(new WsAdapter(app));
+	const port = Number.parseInt(process.env.PORT ?? "3000", 10);
 
-	await app.listen(3000);
+	await app.listen(port);
 
 	console.log(`
   GraphReFly + NestJS — Order Flow Example
-  http://localhost:3000
+  http://localhost:${port}
 
   Endpoints:
     POST /orders/place     — dispatch PlaceOrder command
     GET  /orders/summary   — current order projection
     GET  /orders/stream    — SSE stream of order events
     GET  /admin/describe   — graph topology snapshot
-    ws://localhost:3000    — WebSocket observe gateway
+    GET  /admin/mermaid    — graph diagram (Mermaid)
+    GET  /admin/d2         — graph diagram (D2)
+    ws://localhost:${port}    — WebSocket observe gateway
 
   Try:
-    curl -X POST http://localhost:3000/orders/place \\
+    curl -X POST http://localhost:${port}/orders/place \\
       -H "Content-Type: application/json" \\
       -d '{"id":"order-1","item":"Widget","amount":29.99}'
 
-    curl http://localhost:3000/orders/summary
-    curl -N http://localhost:3000/orders/stream
-    curl http://localhost:3000/admin/describe | jq .
+    curl http://localhost:${port}/orders/summary
+    curl -N http://localhost:${port}/orders/stream
+    curl http://localhost:${port}/admin/describe | jq .
+    curl http://localhost:${port}/admin/mermaid
+    curl http://localhost:${port}/admin/d2
 
     # With actor context:
-    curl http://localhost:3000/admin/describe \\
+    curl http://localhost:${port}/admin/describe \\
       -H 'x-actor: {"type":"human","id":"admin-1"}'
 `);
 }
 
-bootstrap();
+bootstrap().catch((err: unknown) => {
+	if (
+		typeof err === "object" &&
+		err !== null &&
+		"code" in err &&
+		(err as { code?: string }).code === "EADDRINUSE"
+	) {
+		console.error(
+			`Port already in use. Set a different port, e.g. PORT=3001 pnpm exec tsx --tsconfig examples/tsconfig.json examples/nestjs-order-flow.ts`,
+		);
+		process.exit(1);
+	}
+	throw err;
+});

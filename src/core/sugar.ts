@@ -92,8 +92,12 @@ export function derived<T = unknown>(
  *
  * @category core
  */
-export function effect(deps: readonly Node[], fn: NodeFn<unknown>): Node<unknown> {
-	return node(deps, fn, { describeKind: "effect" });
+export function effect(
+	deps: readonly Node[],
+	fn: NodeFn<unknown>,
+	opts?: NodeOptions,
+): Node<unknown> {
+	return node(deps, fn, { describeKind: "effect", ...opts });
 }
 
 /** Unary transform used by {@link pipe} (typically returns a new node wrapping `n`). */

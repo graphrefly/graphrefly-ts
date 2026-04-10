@@ -146,7 +146,7 @@ class AdminController {
   @Get("describe")
   describe(@Req() req: unknown) {
     const actor = getActor(req);
-    return this.graph.describe({ actor });
+    return this.graph.describe({ actor, detail: "standard" });
   }
 }
 ```
@@ -257,12 +257,35 @@ curl http://localhost:3000/admin/describe | jq .
 
 Returns the full topology: node names, types, dependency edges, current values, and metadata.
 
+You can also export diagrams directly from the running graph:
+
+```ts
+@Get("mermaid")
+mermaid() {
+  return this.graph.toMermaid({ direction: "LR" });
+}
+
+@Get("d2")
+d2() {
+  return this.graph.toD2({ direction: "LR" });
+}
+```
+
+```bash frame="none"
+curl http://localhost:3000/admin/mermaid
+curl http://localhost:3000/admin/d2
+```
+
 ## Running the example
 
 The complete, bootable example is at `examples/nestjs-order-flow.ts`:
 
 ```bash frame="none"
+# Default port (3000)
 pnpm exec tsx --tsconfig examples/tsconfig.json examples/nestjs-order-flow.ts
+
+# Or choose a different port if 3000 is already in use
+PORT=3001 pnpm exec tsx --tsconfig examples/tsconfig.json examples/nestjs-order-flow.ts
 ```
 
 Then try:
@@ -281,6 +304,10 @@ curl -N http://localhost:3000/orders/stream
 
 # Inspect the graph topology
 curl http://localhost:3000/admin/describe | jq .
+
+# Export diagrams
+curl http://localhost:3000/admin/mermaid
+curl http://localhost:3000/admin/d2
 ```
 
 ## Key concepts

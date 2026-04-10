@@ -25,12 +25,10 @@ import { feedback, type StratifyRule, scorer, stratify } from "./reduction.js";
 // Shared
 // ---------------------------------------------------------------------------
 
-function keepalive(n: Node<unknown>): () => void {
-	return n.subscribe(() => {});
-}
+import { domainMeta, keepalive } from "./_internal.js";
 
 function baseMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
-	return { domain_template: true, template_type: kind, ...(extra ?? {}) };
+	return domainMeta("domain_template", kind, extra);
 }
 
 // ---------------------------------------------------------------------------

@@ -13,11 +13,11 @@ import type { Node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
+import { trackingKey } from "../_internal.js";
 import type { LLMAdapter } from "../ai.js";
 import { promptNode } from "../ai.js";
 import { TopicGraph } from "../messaging.js";
 import { type GateController, gate } from "../orchestration.js";
-
 import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "./strategy.js";
 import {
 	DEFAULT_QUEUE_CONFIGS,
@@ -34,25 +34,6 @@ import {
 	type TriagedItem,
 	type VerifyResult,
 } from "./types.js";
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Strip `[RETRY N/M] ` prefix to get the stable item identity key. */
-/**
- * Stable tracking key for an item. Uses `relatedTo[0]` if the item is
- * already a retry or reingestion (carries the original key forward).
- * Falls back to the raw summary for first-time items.
- *
- * This avoids deriving keys from mutated summary strings — retries
- * decorate the summary with `[RETRY N/M]` and failure context, so
- * regex-stripping would be fragile and any new decoration pattern
- * would risk infinite loops by generating novel keys.
- */
-function trackingKey(item: { summary: string; relatedTo?: string[] }): string {
-	return item.relatedTo?.[0] ?? item.summary;
-}
 
 // ---------------------------------------------------------------------------
 // Default prompts
