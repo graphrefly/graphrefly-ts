@@ -24,9 +24,9 @@
 
 ### Phase 4: Python parity
 
-- [ ] Port push-on-subscribe to `graphrefly-py` `node.py`
-- [ ] Port test fixes
-- [ ] Run full Python test suite green
+> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `push-model-phase4`).
+>
+> Summary: Full v0.2 push-on-subscribe + v5 architecture (START message, tier shift, NodeBase extraction, ROM/RAM cache rule, first-run gate, at-most-once `_active` deactivation guard) ported to graphrefly-py. QA pass fixed terminal replay (reverted to match TS/spec), first-run gate, RAM cache clear, adapter test race conditions, initial status for compute nodes. `_connected` field removed — connect guards use `_upstream_unsubs`/`_dep_unsubs` directly. All 1156 PY tests pass, lint + mypy clean.
 
 ### Phase 5: LLM composition validation
 

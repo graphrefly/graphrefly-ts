@@ -202,7 +202,7 @@ export class NodeImpl<T = unknown> extends NodeBase<T> {
 		// through the subscribe-time START handshake.
 	}
 
-	protected _onDeactivate(): void {
+	protected _doDeactivate(): void {
 		// Release upstream subscriptions (for compute nodes with deps).
 		this._disconnectUpstream();
 		// Flush pending cleanup fn (producers + derived both use `_cleanup`).

@@ -191,7 +191,7 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 		this._runFn();
 	}
 
-	protected _onDeactivate(): void {
+	protected _doDeactivate(): void {
 		this._disconnect();
 	}
 
