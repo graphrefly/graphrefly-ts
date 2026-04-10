@@ -9,15 +9,10 @@
 ## Active work items
 
 - **Per-node resource tracking / subscriber audit (proposed):**
-  - `node.stats()` / `graph.audit()` / `graph.resourceProfile()` / `graph.resource_profile()` — detect orphan effects (`_sinkCount === 0` / `_sink_count == 0` on effect nodes), unbounded log growth, activation counts.
-  - `graph.resourceProfile()` / `graph.resource_profile()` — walks all nodes: per-node stats + aggregate memory estimate. Reactive DevTools direction — inspection-as-test-harness.
-  - Highest ROI: subscriber audit for debugging factories with lazy-activation bugs, memory profiling long-running harness loops.
+  `graph.resourceProfile()` / `graph.resource_profile()` — snapshot-based walk of all nodes: per-node stats (subscriber count, cache state, activation count) + aggregate memory estimate. Detects orphan effects (`_sinkCount === 0` / `_sink_count == 0` on effect nodes), unbounded log growth. Reactive DevTools direction — inspection-as-test-harness.
 
-- **Shared test helpers: `collect_raw` + refactor + test-guidance (2026-04-09):**
-  Three-part item:
-  1. **Add `collectRaw` / `collect_raw`** — same as `collect` but does NOT filter START. Drop-in replacement for the `sink.append` pattern. TS: `test-helpers.ts`. PY: `conftest.py` (already has `collect`/`collect_flat`).
-  2. **Refactor tests** — ~140 `sink.append` sites in PY `test_extra_tier1.py`/`test_extra_tier2.py` → `collect_raw`. ~10 `lambda msgs: list.extend(msgs)` in `test_bridge.py`, `test_graph.py`, `test_backpressure.py`, `test_reactive_layout.py` → `collect_flat`. ~5 batch collectors in `test_dynamic_node.py`, `test_guard.py` → `collect`. Custom extraction (type-only, value-only, filtered) stays inline.
-  3. **Update `docs/test-guidance.md`** — add "Shared test helpers" section: usage examples for both TS/PY, variant table (`collect` vs `collect_flat` vs `collect_raw`), and refactoring priority.
+- **Shared test helpers: refactor remaining PY `sink.append` sites (2026-04-09):**
+  Unified `collect(node, *, flat=False, raw=False)` helper shipped in both TS and PY. ~127 `sink.append` sites in PY tests (`test_extra_tier1.py`, `test_extra_tier2.py`, `test_edge_cases.py`, etc.) remain to be migrated. Custom extraction (type-only, value-only, filtered) stays inline. See `docs/test-guidance.md` § "Shared test helpers".
 
 ---
 
@@ -38,9 +33,6 @@ Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LL
 | **`Node` resolution without `get()`** | When blocking until first `DATA`, prefer `node.get()` when it already holds a settled value, then subscribe only if still pending — avoids hangs when the node does not replay `DATA` to new subscribers. | — |
 | **Passing plain strings through `fromAny` (TypeScript)** | `fromAny` treats strings as iterables (one `DATA` per character). For tool handlers that return plain strings, return the string directly; use `fromAny` only for `Node` / `AsyncIterable` / Promise-like after await. | — |
 
-- **`ObserveResult.completedCleanly` ambiguous in graph-wide mode (noted 2026-04-08):**
-  In graph-wide observation (`graph.observe()` without a path), `completedCleanly` is set to `true` when **any** node sends COMPLETE without prior ERROR. If a different node later sends ERROR, `errored` becomes `true` but `completedCleanly` is never reset — both flags are `true` simultaneously. Single-node observation is unaffected (terminal rules prevent both). **Why:** `completedCleanly` and `errored` are additive per-node aggregates, but the names read as mutually exclusive graph-level state. **Options:** (A) rename to `anyCompletedCleanly` / `anyErrored` to match additive semantics; (B) add `allCompletedCleanly` (every observed node completed without error); (C) reset `completedCleanly = false` on any ERROR (makes them exclusive but loses info). Applies to both TS and PY `ObserveResult`.
-
 ---
 
 ## Deferred follow-ups
@@ -49,17 +41,7 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 
 | Item | Notes |
 |------|-------|
-| **`lastDepValues` + `Object.is` / referential equality (resolved 2026-03-31 — documented)** | Default `Object.is` identity check is correct for the common immutable-value case. The `node({ equals })` option already exists for custom comparison. Mutable dep values should use a custom `equals` function. **Documented in `node()` JSDoc (2026-04-07).** |
-| **`sideEffects: false` in `package.json`** | Already present. Safe while the library has no import-time side effects. Revisit if global registration or polyfills are added at module load. |
-| **`DynamicNodeImpl` identity-skip false positive on dep reorder (TS + PY)** | After `_rewire` / `_rewire`, `_trackedValues` is indexed by the *previous* fn run's dep order, but `_deps` holds the *new* order. If deps are reordered (same deps, different positions), index mismatch triggers a false "values differ" detection and an unnecessary `_runFn` re-run. No data corruption (same inputs produce same output), but wastes a compute cycle. **Fix:** track dep values by node identity (`Map<Node, unknown>` / `dict[Node, Any]`) instead of positional index. Applies to both TS `dynamic-node.ts` and PY `dynamic_node.py`. |
-| **JSDoc / docstrings on `node()` and public APIs** | `docs/docs-guidance.md`: JSDoc on new TS exports; docstrings on new Python public APIs. `node()` equals guidance added (2026-04-07). `mergeMap` ERROR behavior documented (2026-04-07). `fromRedisStream` COMPLETE/disconnect documented (2026-04-07). |
-| **Roadmap §0.3 checkboxes** | Mark Phase 0.3 items when the team agrees the milestone is complete. |
-
-### Factory teardown — `dispose()` pattern (D1/D2, noted 2026-04-07)
-
-| Item | Status | Notes |
-|------|--------|-------|
-| **Phase 4+ factories don't register internal nodes on the graph** | **DONE (TS + PY, 2026-04-07)** | Added `Graph.addDisposer(fn)` / `Graph.add_disposer(fn)` — general-purpose disposer registration drained on `destroy()` **before** TEARDOWN signal. TS: Fixed `harnessLoop`, `strategyModel`, `agentMemory`, `feedback`, `gate`, `contentModerationGraph`, `funnel` bridge, `ChatStreamGraph`, `ToolRegistryGraph`. PY: Fixed `harness_loop`, `reduction.py`, `ChatStreamGraph`, `ToolRegistryGraph`, `AgentMemoryGraph`. Dead `_version` counter removed from all reactive bundles (TS + PY). |
+| **`DynamicNodeImpl` identity-skip false positive on dep reorder** | **Resolved (TS 2026-04-09).** TS `_trackedValues` is `Map<Node, unknown>` (identity-based). PY `dynamic_node.py` doesn't have `_tracked_values` — no action needed unless PY adds the rewire buffer. |
 
 ### AI surface (Phase 4.4) — deferred optimizations
 
@@ -68,20 +50,6 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 | **Re-indexes entire store on every change** | Deferred | Decision: diff-based indexing using internal version counter to track indexed entries. Deferred to after Phase 6 — current N is small enough that full re-index is acceptable pre-1.0. |
 | **Budget packing always includes first item** | Documented behavior | The retrieval budget packer always includes the first ranked result even if it exceeds `maxTokens`. This is intentional "never return empty" semantics — a query that matches at least one entry always returns something. Callers who need strict budget enforcement should post-filter. |
 | **Retrieval pipeline auto-wires when vectors/KG enabled** | Documented behavior | When `embedFn` or `enableKnowledgeGraph` is set, the retrieval pipeline automatically wires vector search and KG expansion into the retrieval derived node. There is no explicit opt-in/opt-out per retrieval stage — the presence of the capability implies its use. Callers who need selective retrieval should use the individual nodes directly. |
-
-### Tier 2 extra operators — deferred semantics
-
-| Item | Status | Notes |
-|------|--------|-------|
-| **`mergeMap` / `merge_map` + `ERROR`** | **Documented (TS JSDoc, 2026-04-07)** | Inner errors propagate downstream but do not cancel sibling inners. Outer ERROR cancels all inners. Current behavior is intentional for parallel work. **Documented in `mergeMap` JSDoc.** PY: add matching docstring. |
-
-### Ingest adapters — deferred items
-
-| Item | Status | Notes |
-|------|--------|-------|
-| **`fromRedisStream` / `from_redis_stream` never emits COMPLETE** | **Documented (TS JSDoc, 2026-04-07)** | Long-lived stream consumers intentionally never complete. **Documented in `fromRedisStream` JSDoc.** PY: add matching docstring. |
-| **`fromRedisStream` / `from_redis_stream` does not disconnect client** | **Documented (TS JSDoc, 2026-04-07)** | The caller owns the Redis client lifecycle. **Documented in `fromRedisStream` JSDoc.** PY: add matching docstring. |
-| **PY `from_csv` / `from_ndjson` thread not joined on cleanup** | Documented limitation (2026-04-03) | Python file-ingest adapters run in a daemon thread. On teardown, `active[0] = False` signals the thread to exit but does not `join()` it. The daemon flag ensures the thread does not block process exit. A future optimization could add optional `join(timeout)` on cleanup for stricter resource control. |
 
 ### Intentional cross-language divergences
 
