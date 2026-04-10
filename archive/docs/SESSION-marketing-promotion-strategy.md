@@ -354,6 +354,7 @@ Add 小红书 to the posting platforms alongside HN, Reddit, Dev.to:
 | Priority | Entry point | Target audience | Why |
 |---|---|---|---|
 | **1** | **MCP Server** (`graphrefly-mcp-server`) | All MCP clients (Claude Code, Cursor, Windsurf, DeerFlow, custom) | One implementation, universal reach. MCP is 2026's distribution wind. Zero-commitment trial. |
+| **1b** | **OpenClaw Context Engine** (`@graphrefly/openclaw-context-engine`) | All OpenClaw users (250k+ stars, 20+ messaging platforms) | Deeper integration than MCP — controls what the agent remembers. Lower effort (3 hooks vs 6 tools). Proves reactive memory thesis directly. Existing plugins are all static/imperative. Design ref: `SESSION-openclaw-context-engine-research.md`. |
 | **2** | **Workspace bridge** (`fromWorkspace()`) | File-based agents (DeerFlow, Claude Code, Deep Agents) | Zero agent code changes. Silently adds causality + consistency to existing file coordination. |
 | **3** | **LangGraph adapter** (`graphrefly-langgraph`) | LangChain ecosystem (DeerFlow, Deep Agents, custom LangGraph agents) | Largest ecosystem. Agent sees tools, GraphReFly provides coordination underneath. |
 | **4** | **Framework-specific adapters** | CrewAI, OpenAI Agents SDK, AutoGen | Expand coverage after proving the pattern with LangGraph. |
