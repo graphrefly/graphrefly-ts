@@ -14,7 +14,7 @@
  *
  * **Subclass hooks (abstract):**
  * - `_onActivate()` — called when sinkCount transitions 0 → 1
- * - `_onDeactivate()` — called when sinkCount transitions 1 → 0
+ * - `_doDeactivate()` — cleanup on deactivation (at-most-once, guarded by `_onDeactivate`)
  * - `up()` / `unsubscribe()` / `_upInternal()` — dep-iteration specifics
  * - `_createMetaNode()` — meta companion factory (avoids circular imports)
  *
@@ -384,13 +384,13 @@ export function createBitSet(size: number): BitSet {
  * - `_sinkCount` always reflects the size of `_sinks`.
  * - `_cached === NO_VALUE` iff the node has never produced a value (SENTINEL).
  * - `_terminal` is set exactly once (per subscription cycle for resubscribable).
- * - `_onActivate` runs exactly once per activation cycle; `_onDeactivate`
- *   runs exactly once per deactivation (both driven by `subscribe()`).
+ * - `_onActivate` runs exactly once per activation cycle; `_doDeactivate`
+ *   runs at most once per deactivation (guarded by `_active` flag).
  *
  * ROM/RAM rule (GRAPHREFLY-SPEC §2.2): state nodes (no fn) preserve `_cached`
  * across disconnect — intrinsic, non-volatile. Compute nodes (derived,
  * producer, dynamic) clear `_cached` on disconnect in their subclass
- * `_onDeactivate` — their value is a function of live subscriptions.
+ * `_doDeactivate` — their value is a function of live subscriptions.
  */
 export abstract class NodeBase<T = unknown> implements Node<T> {
 	// --- Identity (set once) ---
@@ -421,6 +421,7 @@ export abstract class NodeBase<T = unknown> implements Node<T> {
 	/** @internal Read externally via `get status()`. */
 	_status: NodeStatus;
 	protected _terminal = false;
+	private _active = false;
 
 	// --- Sink storage ---
 	/** @internal Read by `graph/profile.ts` for subscriber counts. */
@@ -608,8 +609,19 @@ export abstract class NodeBase<T = unknown> implements Node<T> {
 	/** Called when `_sinkCount` transitions 0 → 1. */
 	protected abstract _onActivate(): void;
 
-	/** Called when `_sinkCount` transitions 1 → 0. */
-	protected abstract _onDeactivate(): void;
+	/**
+	 * At-most-once deactivation guard. Both TEARDOWN (eager) and
+	 * unsubscribe-body (lazy) call this. The `_active` flag ensures
+	 * `_doDeactivate` runs exactly once per activation cycle.
+	 */
+	protected _onDeactivate(): void {
+		if (!this._active) return;
+		this._active = false;
+		this._doDeactivate();
+	}
+
+	/** Subclass hook: cleanup on deactivation (called at most once). */
+	protected abstract _doDeactivate(): void;
 
 	// --- Subscribe (uniform across node shapes) ---
 
@@ -674,6 +686,7 @@ export abstract class NodeBase<T = unknown> implements Node<T> {
 		// First subscriber triggers activation. May cause fn to run and emit
 		// via `_downInternal` → `_downToSinks` to the new sink.
 		if (this._sinkCount === 1 && !this._terminal) {
+			this._active = true;
 			this._onActivate();
 		}
 
@@ -806,9 +819,9 @@ export abstract class NodeBase<T = unknown> implements Node<T> {
 				try {
 					this._propagateToMeta(t);
 				} finally {
-					// Deactivate on teardown — releases upstream subs and
-					// stops producers. Subclasses handle their own cleanup
-					// inside `_onDeactivate`.
+					// Force upstream disconnect immediately — don't wait for
+					// downstream to unsubscribe.  _onDeactivate's _active
+					// guard ensures _doDeactivate runs at most once.
 					this._onDeactivate();
 				}
 			}

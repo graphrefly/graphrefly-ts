@@ -8,32 +8,16 @@
 
 ## Active work items
 
-- **START protocol + ROM/RAM refactor (2026-04-09 → 2026-04-10):**
-  - **TS: DONE.** Full NodeImpl/DynamicNodeImpl refactor on a shared `NodeBase`.
-    Added `[[START]]` handshake as a first-class protocol message (tier 0);
-    shifted other tiers (DIRTY/INVALIDATE → 1, PAUSE/RESUME → 2, DATA/RESOLVED → 3,
-    COMPLETE/ERROR → 4, TEARDOWN → 5). Added `"pending"` node status. Implemented
-    ROM/RAM cache rule: state preserves cache across disconnect, compute nodes
-    clear cache. First-run gate uses pre-set dirty mask trick — fn waits until
-    every dep has delivered DATA. Reconnect re-runs fn (C2). DynamicNodeImpl
-    uses rewire-buffer for lazy-dep composition: fn runs, rewire subscribes new
-    deps (messages buffered), scan detects discrepancies and re-runs fn once
-    (bounded by MAX_RERUN=16). Connection-time diamond glitch fix, subscribe-time
-    double-delivery fix, and D2 "DIRTY→COMPLETE without DATA" unsticker all
-    retained. Spec §1.2/§1.3/§2.2 updated; composition guide §1/§3 updated.
-  - **PY: TODO — parity port needed.** Apply the same refactor to
-    `graphrefly-py/src/graphrefly/core/node.py`, `dynamic_node.py`, `messages.py`,
-    and `batch.py`. Port the `NodeBase` split + `START` message + tier shuffle +
-    ROM/RAM + rewire buffer. Verify Python test suite catches the same edge
-    cases (SENTINEL gate, diamond resolution, rewire stabilization).
-  - **QA pass (2026-04-10):** Fixed `forwardInner` leaking START to downstream
-    operators (switchMap/concatMap/exhaustMap/mergeMap now filter tier < 1);
-    restored ABAC guard check in `DynamicNodeImpl.up()` (regression in refactor);
-    simplified `startWith` to `derived([source], passthrough, { initial })` (no
-    onMessage needed — handshake handles initial delivery); `DynamicNodeImpl`
-    rewire-buffer discrepancy check now uses `_equals` instead of `Object.is`;
-    all JSDoc tier numbers updated to match new 0-5 scheme; CLAUDE.md auto-checkpoint
-    rule corrected to `messageTier >= 3`.
+- **Per-node resource tracking / subscriber audit (proposed):**
+  - `node.stats()` / `graph.audit()` / `graph.resourceProfile()` / `graph.resource_profile()` — detect orphan effects (`_sinkCount === 0` / `_sink_count == 0` on effect nodes), unbounded log growth, activation counts.
+  - `graph.resourceProfile()` / `graph.resource_profile()` — walks all nodes: per-node stats + aggregate memory estimate. Reactive DevTools direction — inspection-as-test-harness.
+  - Highest ROI: subscriber audit for debugging factories with lazy-activation bugs, memory profiling long-running harness loops.
+
+- **Shared test helpers: `collect_raw` + refactor + test-guidance (2026-04-09):**
+  Three-part item:
+  1. **Add `collectRaw` / `collect_raw`** — same as `collect` but does NOT filter START. Drop-in replacement for the `sink.append` pattern. TS: `test-helpers.ts`. PY: `conftest.py` (already has `collect`/`collect_flat`).
+  2. **Refactor tests** — ~140 `sink.append` sites in PY `test_extra_tier1.py`/`test_extra_tier2.py` → `collect_raw`. ~10 `lambda msgs: list.extend(msgs)` in `test_bridge.py`, `test_graph.py`, `test_backpressure.py`, `test_reactive_layout.py` → `collect_flat`. ~5 batch collectors in `test_dynamic_node.py`, `test_guard.py` → `collect`. Custom extraction (type-only, value-only, filtered) stays inline.
+  3. **Update `docs/test-guidance.md`** — add "Shared test helpers" section: usage examples for both TS/PY, variant table (`collect` vs `collect_flat` vs `collect_raw`), and refactoring priority.
 
 ---
 

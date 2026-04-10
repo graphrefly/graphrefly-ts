@@ -19,7 +19,8 @@
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
 | `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
 | `~/src/graphrefly/composition-guide.jsonl` | Machine-readable composition entries (appendable) |
-| `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes, proposed improvements. Check before introducing new optimizations or debugging perf issues. |
+| `docs/optimizations.md` | **Active backlog** — open work items, anti-patterns, deferred follow-ups, proposed improvements. Add new items here. |
+| `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes. Check before introducing new optimizations or debugging perf issues. **Backlog/proposed items belong in `docs/optimizations.md`, not here.** |
 | `docs/roadmap.md` | Phased implementation checklist (covers both TS and PY) |
 | `docs/docs-guidance.md` | How to document APIs and long-form docs (covers both TS and PY) |
 | `docs/test-guidance.md` | How to write and organize tests (covers both TS and PY) |

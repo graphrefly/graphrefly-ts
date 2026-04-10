@@ -12,8 +12,8 @@
 {"id":"summary-12","optimization":"Production debug stripping","status":"Resolved (§3)","impact":"`sideEffects: false` + `process.env.NODE_ENV` gate; consumer bundlers strip","when_to_use":"Production builds"}
 {"id":"summary-13","optimization":"COMPLETE-all-deps semantics","status":"Resolved (§A)","impact":"Effect/operator default true; derived default false","when_to_use":"`completeWhenDepsComplete` option"}
 {"id":"summary-14","optimization":"`graph.disconnect` vs `NodeImpl` deps","status":"Resolved (§C)","impact":"Registry-only is the long-term contract","when_to_use":"Use `dynamicNode` for runtime rewiring"}
-{"id":"summary-15","optimization":"Per-node resource tracking / subscriber audit","status":"Proposed","impact":"Detect orphan effects (subscriberCount=0), unbounded log growth, activation counts","when_to_use":"Debugging factories with lazy-activation bugs, memory profiling long-running harness loops"}
-{"id":"summary-16","optimization":"Graph resource profile","status":"Proposed","impact":"graph.resourceProfile() walks all nodes: per-node stats + aggregate memory estimate","when_to_use":"Reactive DevTools direction — inspection-as-test-harness"}
+{"id":"summary-15","note":"Moved to docs/optimizations.md — proposed items belong in backlog, not archive"}
+{"id":"summary-16","note":"Moved to docs/optimizations.md — proposed items belong in backlog, not archive"}
 {"id": "summary-17", "topic": "TEARDOWN → `\"disconnected\"` status", "python": "`_status_after_message` maps TEARDOWN", "typescript": "`statusAfterMessage` maps TEARDOWN"}
 {"id": "summary-18", "topic": "DIRTY→COMPLETE settlement (D2)", "python": "`_run_fn()` when no dirty deps remain but node is dirty", "typescript": "`_runFn()` when no dirty deps remain but node is dirty"}
 {"id": "summary-19", "topic": "Describe slice + frozen meta", "python": "`describe_node`, `MappingProxyType`", "typescript": "`describeNode` via `instanceof NodeImpl`, `Object.freeze(meta)`"}
@@ -45,5 +45,6 @@
 {"id": "summary-45", "topic": "Extra Phase 3.1 (resilience)", "python": "`graphrefly.extra.{backoff,resilience,checkpoint}` + `core/timer.py` (`ResettableTimer`); see §6 below", "typescript": "`src/extra/{backoff,resilience,checkpoint}.ts` + `core/timer.ts` (`ResettableTimer`); see §6 below"}
 {"id": "summary-46", "topic": "Extra Phase 3.2 (data structures)", "python": "`graphrefly.extra.data_structures` (`reactive_map`, …); see §17", "typescript": "`reactiveMap` + `reactive-base` (`Versioned` snapshots); see §17"}
 {"id": "summary-47", "topic": "Core hook shape", "python": "`NodeImpl._set_inspector_hook()` installs an internal, opt-in hook with `dep_message` and `run` events.", "typescript": "`NodeImpl._setInspectorHook()` mirrors the same hook contract (`dep_message`, `run`)."}
-{"id": "summary-48", "topic": "Per-node resource tracking (proposed)", "python": "`node.stats()`, `graph.audit()`, `graph.resource_profile()` — proposed", "typescript": "`node.stats()`, `graph.audit()`, `graph.resourceProfile()` — proposed"}
-{"id": "summary-49", "topic": "Subscriber audit (proposed, highest ROI)", "python": "Detect orphan effects (`_sink_count == 0` on effect nodes)", "typescript": "Detect orphan effects (`_sinkCount === 0` on effect nodes)"}
+{"id": "summary-48", "note": "Moved to docs/optimizations.md — proposed items belong in backlog, not archive"}
+{"id": "summary-49", "note": "Moved to docs/optimizations.md — proposed items belong in backlog, not archive"}
+{"id": "summary-50", "topic": "At-most-once deactivation (`_active` guard)", "python": "NodeBase `_on_deactivate` guards with `_active` flag → delegates to abstract `_do_deactivate`; `_connected` field removed — connect guards use `_upstream_unsubs` / `_dep_unsubs` directly", "typescript": "NodeBase `_onDeactivate` guards with `_active` flag → delegates to abstract `_doDeactivate`; TS never had `_connected` field"}
