@@ -1007,14 +1007,19 @@ describe("harnessLoop with mockLLM", () => {
 			severity: "high",
 		});
 
-		// Wait for the item to arrive at the needs-decision gate
-		await vi.waitFor(
-			() => {
-				const queue = harness.queues.get("needs-decision")!;
-				expect(queue.retained().length).toBeGreaterThanOrEqual(1);
-			},
-			{ timeout: 5000, interval: 50 },
-		);
+		// Wait for the item to arrive at the needs-decision gate (reactive, no polling).
+		await new Promise<void>((resolve) => {
+			const queue = harness.queues.get("needs-decision")!;
+			const unsub = queue.latest.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (msg[0] === DATA && queue.retained().length >= 1) {
+						unsub();
+						resolve();
+						return;
+					}
+				}
+			});
+		});
 
 		const gateCtrl = harness.gates.get("needs-decision")!;
 
@@ -1030,16 +1035,21 @@ describe("harnessLoop with mockLLM", () => {
 			pendingCount,
 		);
 
-		// Wait for modified item to flow through execute → verify → strategy.
-		// Check both presence of override AND absence of original in one predicate
-		// to avoid a race where the original entry is still in-flight.
-		await vi.waitFor(
-			() => {
-				expect(harness.strategy.lookup("composition", "template")).toBeDefined();
-				expect(harness.strategy.lookup("unknown", "investigate")).toBeUndefined();
-			},
-			{ timeout: 5000, interval: 50 },
-		);
+		// Wait for modified item to flow through execute → verify → strategy
+		// (reactive subscription, no polling — §5.8).
+		await new Promise<void>((resolve) => {
+			const unsub = harness.strategy.node.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (msg[0] === DATA && harness.strategy.lookup("composition", "template")) {
+						unsub();
+						resolve();
+						return;
+					}
+				}
+			});
+		});
+		// Original classification should NOT appear (modify replaced it).
+		expect(harness.strategy.lookup("unknown", "investigate")).toBeUndefined();
 
 		const entry = harness.strategy.lookup("composition", "template")!;
 		expect(entry.successes).toBeGreaterThanOrEqual(1);

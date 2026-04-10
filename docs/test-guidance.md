@@ -284,6 +284,47 @@ uv run pytest -x
 
 ---
 
+## Async tests and runner selection (PY)
+
+When writing async tests (`async def test_*`) in Python:
+
+- **Use the conftest `_ThreadRunner` (default).** It spawns a thread per coroutine
+  via `asyncio.run()`. This avoids the blocking-bridge deadlock described in
+  COMPOSITION-GUIDE §14 — `first_value_from()` blocks the test thread while the
+  coroutine completes in a separate thread.
+
+- **Do NOT use `AsyncioRunner.from_running()` in tests that exercise factories
+  with blocking bridges** (promptNode, tool handlers, harness pipeline). The
+  `AsyncioRunner` schedules work on the test's event loop, but `first_value_from`
+  blocks that same thread — deadlock.
+
+- **Reactive waits in async tests:** Replace `time.sleep` polling loops with
+  `asyncio.Future` signaled by a reactive subscription:
+
+  ```python
+  async def test_something() -> None:
+      loop = asyncio.get_running_loop()
+      ready: asyncio.Future[None] = loop.create_future()
+
+      def _on_update(msgs: object) -> None:
+          for msg in msgs:
+              if msg[0] is MessageType.DATA and my_condition():
+                  if not ready.done():
+                      loop.call_soon_threadsafe(ready.set_result, None)
+
+      unsub = target_node.subscribe(_on_update)
+      try:
+          await asyncio.wait_for(ready, timeout=5.0)
+      finally:
+          unsub()
+  ```
+
+  `call_soon_threadsafe` is needed because the subscription callback may fire from
+  a runner thread (not the event loop thread). Push-on-subscribe (§2.2) ensures the
+  callback fires immediately if the node already holds the value — no race condition.
+
+---
+
 ## Authority hierarchy (tests)
 
 1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`**

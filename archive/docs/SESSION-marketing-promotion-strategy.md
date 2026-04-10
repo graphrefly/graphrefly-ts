@@ -717,6 +717,56 @@ The idea of going stealth to prevent competitors from copying the reactive graph
 
 ---
 
+## 18. Blog Content Plan — Session Archive to Published Posts (added April 9, 2026)
+
+Maps session archive (`archive/docs/`) to publishable blog posts across the three waves. Each entry identifies source sessions, target keyword, blog type, and wave timing.
+
+### Status
+
+| # | Blog | Status | File |
+|---|---|---|---|
+| 32 | "Why AI Can't Debug What It Can't See — And How We Fixed That" | **DONE** | `website/src/content/docs/blog/32-debugging-with-your-own-tools.md` |
+
+### Wave 1 Blogs (eval credibility)
+
+Blog 32 covers the Wave 1 eval story. No additional Wave 1 blogs needed — the eval CI + scorecard are the other Wave 1 deliverables.
+
+### Wave 2 Blogs (claims the category)
+
+| # | Title | Source Sessions | Keywords | Type | Words |
+|---|---|---|---|---|---|
+| 33 | "Building a Reactive Harness Layer for Agent Workflows" | `SESSION-reactive-collaboration-harness.md` (7-stage loop, gate.modify(), strategy model), `SESSION-harness-engineering-strategy.md` (8 requirements, coverage analysis, vs LangGraph) | `reactive harness layer`, `agent orchestration`, `human-in-the-loop agents` | Ultimate Guide | 3000-4000 |
+| 34 | "Why Agent Harnesses Need Reactive Graphs, Not Static DAGs" | `SESSION-harness-engineering-strategy.md` (Part 7 — vs LangGraph), `SESSION-deerflow-deepagents-comparison.md` (DeerFlow 2.0 trajectory, tool-as-agent vs topology-as-program) | `harness engineering`, `reactive graph`, `LangGraph alternative` | Opinion/Thought | 1500-2000 |
+| 35 | "The Feedback Loop Is the Product — Why We Don't Ship 6 Optimization Algorithms" | §17 prompt optimization analysis, `SESSION-reactive-collaboration-harness.md` (strategy model — rootCause×intervention→successRate) | `agent optimization`, `feedback loop`, `prompt optimization` | Opinion/Thought | 1200-1500 |
+| 36 | "One Primitive, One Protocol: Why We Killed Six Abstractions" | `SESSION-graphrefly-spec-design.md` (7-step spec process, radical simplification), `SESSION-first-principles-audit.md` (irreducible core, is-it-necessary audit) | `reactive primitives`, `protocol design`, `software simplification` | Opinion/Thought | 1200-1500 |
+
+### Wave 3 Blogs (full launch)
+
+| # | Title | Source Sessions | Keywords | Type | Words |
+|---|---|---|---|---|---|
+| 37 | "Describe, Run, Explain: Building Demo 0" | `SESSION-first-principles-audit.md` (Demo 0 design, three-layer DX/UX), `SESSION-marketing-promotion-strategy.md` (Wave 3 deliverables) | `NL to graph`, `agent demo`, `causal explanation` | Tutorial | 2500-3000 |
+| 38 | "Static Topology, Flowing Data: The Kafka Insight for Agent Loops" | `SESSION-reactive-collaboration-harness.md` (Part 2 — Kafka insight, cursor reading as 降维), `SESSION-demo-test-strategy.md` (three-pane shell) | `agent architecture`, `static topology`, `data flow` | Opinion/Thought | 1200-1500 |
+| 39 | "The Universal Reduction Layer: From Massive Info to Actionable Items" | `SESSION-universal-reduction-layer.md` (stratified reduction, 10 advantages), `SESSION-agentic-memory-research.md` (4 strategies, default agentMemory) | `information reduction`, `reactive middleware`, `LLM orchestration` | Guide | 2500-3000 |
+| 40 | "Built-in Access Control for Reactive Graphs" | `SESSION-access-control-actor-guard.md` (Actor/Guard/Policy, CASL comparison, Web3 identity) | `ABAC`, `access control`, `reactive security` | How-to | 2000-2500 |
+
+### Post-Wave 3 (sustained)
+
+| # | Title | Source Sessions | Keywords | Type |
+|---|---|---|---|---|
+| 41 | "Web3 Meets Reactive Graphs: Security, OMS, Agent Commerce" | `SESSION-web3-integration-research.md`, `SESSION-web3-research-type-extensibility.md` | `Web3 reactive`, `agent commerce`, `chain monitoring` | Guide |
+| 42 | "From callbag-recharge to GraphReFly: A Migration Story" | `SESSION-graphrefly-spec-design.md`, predecessor sessions (#1-8), `SESSION-first-principles-audit.md` (HN callbag feedback) | `callbag`, `reactive migration`, `protocol evolution` | Story |
+| 43 | "Agentic Memory: Four Strategies, One Composable Factory" | `SESSION-agentic-memory-research.md` (SOTA synthesis, 4 strategies, 5 unique advantages) | `agentic memory`, `agent memory management`, `LLM memory` | Guide |
+
+### Writing approach
+
+Use the `write-blog` skill (in `~/.claude/skills-backup/write-blog/`) for SEO optimization. Key adaptations for GraphReFly blogs:
+- E-E-A-T signals are genuine — first-hand experience building and debugging the system
+- Keyword targets align with harness engineering conversation participants (§15 Part 9 thread discovery)
+- Each blog should reference eval data or code examples, not just architecture
+- Lead with user pain point (per first-principles audit: "don't lead with architecture")
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords

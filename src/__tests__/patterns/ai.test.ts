@@ -11,7 +11,6 @@ import {
 	ChatStreamGraph,
 	chatStream,
 	fromLLM,
-	fromLLMStream,
 	gaugesAsContext,
 	graphFromSpec,
 	knobsAsTools,
@@ -20,6 +19,9 @@ import {
 	llmConsolidator,
 	llmExtractor,
 	promptNode,
+	type StreamChunk,
+	streamExtractor,
+	streamingPromptNode,
 	suggestStrategy,
 	systemPromptBuilder,
 	type ToolDefinition,
@@ -223,111 +225,202 @@ describe("patterns.ai.fromLLM", () => {
 });
 
 // ---------------------------------------------------------------------------
-// fromLLMStream
+// streamingPromptNode
 // ---------------------------------------------------------------------------
 
-describe("patterns.ai.fromLLMStream", () => {
-	it("accumulates streamed tokens into a reactive log", async () => {
+describe("patterns.ai.streamingPromptNode", () => {
+	it("emits final result after stream completes", async () => {
 		const chunks = ["Hello", " ", "world", "!"];
 		const adapter = mockAdapter([], [chunks]);
-		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
-		const { node: result, dispose } = fromLLMStream(adapter, msgs);
+		const input = state("greet");
 
-		// Wait for the async iteration to complete
-		await new Promise<void>((resolve) => {
-			const unsub = result.subscribe((messages) => {
+		const { output } = streamingPromptNode(adapter, [input], (v) => `say ${v}`);
+
+		const result = await new Promise<string | null>((resolve) => {
+			output.subscribe((messages) => {
 				for (const msg of messages) {
-					if (msg[0] === DATA) {
-						const entries = msg[1] as readonly string[];
-						if (entries.length === chunks.length) {
-							expect(entries).toEqual(chunks);
-							unsub();
-							dispose();
-							resolve();
-						}
+					if (msg[0] === DATA && msg[1] !== null) {
+						resolve(msg[1] as string | null);
 					}
 				}
 			});
 		});
+
+		expect(result).toBe("Hello world!");
 	});
 
-	it("starts a fresh log on new messages input", async () => {
-		const chunks1 = ["first"];
-		const chunks2 = ["second"];
-		const adapter = mockAdapter([], [chunks1, chunks2]);
-		const msgs = state<ChatMessage[]>([{ role: "user", content: "one" }]);
-		const { node: result, dispose } = fromLLMStream(adapter, msgs);
+	it("publishes StreamChunks to the stream topic", async () => {
+		const chunks = ["A", "B", "C"];
+		const adapter = mockAdapter([], [chunks]);
+		const input = state("go");
 
-		// Single persistent subscription to capture all emissions
-		const allSnapshots: Array<readonly string[]> = [];
-		const unsub = result.subscribe((messages) => {
+		const { output, stream } = streamingPromptNode(adapter, [input], (v) => `${v}`);
+
+		const received: StreamChunk[] = [];
+		stream.latest.subscribe((messages) => {
 			for (const msg of messages) {
-				if (msg[0] === DATA) {
-					allSnapshots.push(msg[1] as readonly string[]);
+				if (msg[0] === DATA && msg[1] != null) {
+					received.push(msg[1] as StreamChunk);
 				}
 			}
 		});
 
-		// Wait for first stream async iteration to complete
-		await new Promise((r) => setTimeout(r, 20));
-		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
-		const firstFinal = allSnapshots[allSnapshots.length - 1];
-		expect(firstFinal).toEqual(["first"]);
+		// Wait for stream to complete
+		await new Promise<void>((resolve) => {
+			output.subscribe((messages) => {
+				for (const msg of messages) {
+					if (msg[0] === DATA && msg[1] !== null) resolve();
+				}
+			});
+		});
 
-		// Trigger second stream — switchMap tears down old, creates fresh log
-		allSnapshots.length = 0;
-		msgs.down([[DATA, [{ role: "user", content: "two" }]]]);
-		await new Promise((r) => setTimeout(r, 20));
-
-		expect(allSnapshots.length).toBeGreaterThanOrEqual(1);
-		const secondFinal = allSnapshots[allSnapshots.length - 1];
-		// Fresh log: only "second", not ["first", "second"]
-		expect(secondFinal).toEqual(["second"]);
-		unsub();
-		dispose();
+		expect(received.length).toBe(3);
+		expect(received[0]).toEqual({ source: "llm", token: "A", accumulated: "A", index: 0 });
+		expect(received[1]).toEqual({ source: "llm", token: "B", accumulated: "AB", index: 1 });
+		expect(received[2]).toEqual({ source: "llm", token: "C", accumulated: "ABC", index: 2 });
 	});
 
-	it("returns empty log for empty messages", () => {
+	it("cancels in-flight stream on new input via switchMap", async () => {
+		const chunks1 = ["slow", "stream"];
+		const chunks2 = ["fast"];
+		const adapter = mockAdapter([], [chunks1, chunks2]);
+		const input = state("first");
+
+		const { output } = streamingPromptNode(adapter, [input], (v) => `${v}`);
+
+		const results: Array<string | null> = [];
+		output.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) results.push(msg[1] as string | null);
+			}
+		});
+
+		// Wait for first stream result
+		await new Promise<void>((resolve) => {
+			const unsub = output.subscribe((messages) => {
+				for (const msg of messages) {
+					if (msg[0] === DATA && msg[1] !== null) {
+						unsub();
+						resolve();
+					}
+				}
+			});
+		});
+		expect(results.filter((r) => r !== null).pop()).toBe("slowstream");
+
+		// Trigger second input — switchMap cancels first, starts fresh
+		input.down([[DATA, "second"]]);
+
+		// Wait for second stream result (skip cached push-on-subscribe)
+		await new Promise<void>((resolve) => {
+			let skipFirst = true;
+			const unsub = output.subscribe((messages) => {
+				for (const msg of messages) {
+					if (msg[0] === DATA && msg[1] !== null) {
+						if (skipFirst) {
+							skipFirst = false;
+							continue;
+						}
+						unsub();
+						resolve();
+					}
+				}
+			});
+		});
+
+		const nonNull = results.filter((r) => r !== null);
+		expect(nonNull[nonNull.length - 1]).toBe("fast");
+	});
+
+	it("emits null for nullish deps (SENTINEL gate)", () => {
 		const adapter = mockAdapter([], []);
-		const msgs = state<ChatMessage[]>([]);
-		const { node: result, dispose } = fromLLMStream(adapter, msgs);
-		const unsub = result.subscribe(() => {});
-		const snapshot = result.get() as { value: { entries: readonly string[] } } | null;
-		// Empty messages → cleared log
-		expect(snapshot === null || (snapshot?.value?.entries?.length ?? 0) === 0).toBe(true);
-		unsub();
-		dispose();
+		const dep = state<string | null>(null);
+
+		const { output } = streamingPromptNode(adapter, [dep], (v) => `${v}`);
+
+		const values: Array<unknown> = [];
+		output.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) values.push(msg[1]);
+			}
+		});
+
+		// null dep → empty messages → switchMap returns state(null) → pushed synchronously
+		expect(values).toContain(null);
 	});
 
-	it("absorbs adapter stream errors without crashing", async () => {
-		const errorAdapter: LLMAdapter = {
+	it("parses JSON when format is json", async () => {
+		const adapter: LLMAdapter = {
 			invoke: () => ({ content: "" }),
 			async *stream() {
-				yield "partial";
-				throw new Error("stream broke");
+				yield '{"key":';
+				yield '"value"}';
 			},
 		};
-		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
-		const { node: result, dispose } = fromLLMStream(errorAdapter, msgs);
+		const input = state("go");
 
-		const snapshots: Array<readonly string[]> = [];
-		const unsub = result.subscribe((messages) => {
-			for (const msg of messages) {
-				if (msg[0] === DATA) {
-					snapshots.push(msg[1] as readonly string[]);
+		const { output } = streamingPromptNode<{ key: string }>(adapter, [input], (v) => `${v}`, {
+			format: "json",
+		});
+
+		const result = await new Promise<{ key: string } | null>((resolve) => {
+			output.subscribe((messages) => {
+				for (const msg of messages) {
+					if (msg[0] === DATA && msg[1] !== null) {
+						resolve(msg[1] as { key: string } | null);
+					}
 				}
+			});
+		});
+
+		expect(result).toEqual({ key: "value" });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// streamExtractor
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.streamExtractor", () => {
+	it("extracts values from a stream topic", () => {
+		const { stream } = streamingPromptNode(
+			mockAdapter([], [["hello", " world"]]),
+			[state("go")],
+			(v) => `${v}`,
+		);
+
+		const extracted: Array<string | null> = [];
+		const extractor = streamExtractor(
+			stream,
+			(accumulated) => {
+				const match = accumulated.match(/hello/);
+				return match ? match[0] : null;
+			},
+			{ name: "hello-detector" },
+		);
+		extractor.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) extracted.push(msg[1] as string | null);
 			}
 		});
 
-		await new Promise((r) => setTimeout(r, 20));
-		// Should have received at least the "partial" chunk before the error.
-		// Filter out initial push-on-subscribe empty snapshots.
-		const nonEmpty = snapshots.filter((s) => s.length > 0);
-		expect(nonEmpty.length).toBeGreaterThanOrEqual(1);
-		expect(nonEmpty[0]).toContain("partial");
-		// Log node is still alive (not terminated) — can receive new streams
-		unsub();
-		dispose();
+		// Manually publish chunks to test the extractor in isolation
+		stream.publish({ source: "test", token: "hel", accumulated: "hel", index: 0 });
+		stream.publish({ source: "test", token: "lo", accumulated: "hello", index: 1 });
+
+		// First chunk: no match → null, second: match → "hello"
+		expect(extracted).toContain(null);
+		expect(extracted).toContain("hello");
+	});
+
+	it("returns null when stream topic has no chunks", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = streamExtractor(stream, () => "found");
+		extractor.subscribe(() => {});
+
+		// No chunks published yet — latest is undefined → extractFn not called
+		expect(extractor.get()).toBe(null);
 	});
 });
 

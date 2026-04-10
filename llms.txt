@@ -200,7 +200,8 @@ GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM compo
 ### patterns — AI (`src/patterns/ai.ts`)
 
 - `fromLLM(opts)` — wraps an LLM API call as a reactive node
-- `fromLLMStream(opts)` — wraps a streaming LLM API as a reactive node
+- `streamingPromptNode(adapter, deps, prompt, opts?)` — streaming LLM transform with TopicGraph tap point and cancel-on-new-input
+- `streamExtractor(streamTopic, extractFn, opts?)` — mount an extractor on any streaming topic
 - `chatStream(name, opts?)` — creates a chat-style streaming Graph
 - `toolRegistry(name, opts?)` — reactive tool/function registry for agents
 - `systemPromptBuilder(opts)` — reactive system prompt composition
