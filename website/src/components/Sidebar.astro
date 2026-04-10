@@ -16,13 +16,14 @@ if (base !== '/') {
 if (!pathname.startsWith('/')) pathname = `/${pathname}`;
 pathname = pathname.replace(/\/$/, '') || '/';
 
-type Mode = 'spec' | 'api' | 'comparisons' | 'recipes' | 'blog' | 'lab' | 'all';
+type Mode = 'spec' | 'api' | 'comparisons' | 'recipes' | 'integrations' | 'blog' | 'lab' | 'all';
 
 function routeMode(path: string): Mode {
 	if (path === '/spec' || path.startsWith('/spec/')) return 'spec';
 	if (path.startsWith('/api')) return 'api';
 	if (path.startsWith('/comparisons')) return 'comparisons';
 	if (path.startsWith('/recipes')) return 'recipes';
+	if (path.startsWith('/integrations')) return 'integrations';
 	if (path.startsWith('/blog')) return 'blog';
 	if (path.startsWith('/lab')) return 'lab';
 	return 'all';
@@ -38,7 +39,20 @@ function groupMatchesPrefix(entry: SidebarEntry, prefix: string): boolean {
 function filterSidebar(entries: SidebarEntry[], m: Mode): SidebarEntry[] {
 	if (m === 'all') return entries;
 	if (m === 'blog') return []; // handled separately below
-	const prefix = m === 'spec' ? '/spec' : m === 'api' ? '/api/' : m === 'comparisons' ? '/comparisons/' : m === 'recipes' ? '/recipes/' : m === 'lab' ? '/lab/' : '/';
+	const prefix =
+		m === 'spec'
+			? '/spec'
+			: m === 'api'
+				? '/api/'
+				: m === 'comparisons'
+					? '/comparisons/'
+					: m === 'recipes'
+						? '/recipes/'
+						: m === 'integrations'
+							? '/integrations/'
+							: m === 'lab'
+								? '/lab/'
+								: '/';
 	return entries.filter((e) => groupMatchesPrefix(e, prefix));
 }
 
