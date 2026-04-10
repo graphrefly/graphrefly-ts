@@ -312,18 +312,15 @@ export function streamingPromptNode<T = string>(
 	const format = opts?.format ?? "text";
 	const streamTopic = topic<StreamChunk>(`${sourceName}/stream`);
 
-	const messagesNode = derived<readonly ChatMessage[]>(
-		deps as Node<unknown>[],
-		(values) => {
-			if (values.some((v) => v == null)) return [];
-			const text = typeof prompt === "string" ? prompt : prompt(...values);
-			if (!text) return [];
-			const msgs: ChatMessage[] = [];
-			if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
-			msgs.push({ role: "user", content: text });
-			return msgs;
-		},
-	);
+	const messagesNode = derived<readonly ChatMessage[]>(deps as Node<unknown>[], (values) => {
+		if (values.some((v) => v == null)) return [];
+		const text = typeof prompt === "string" ? prompt : prompt(...values);
+		if (!text) return [];
+		const msgs: ChatMessage[] = [];
+		if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
+		msgs.push({ role: "user", content: text });
+		return msgs;
+	});
 
 	const output = switchMap(messagesNode, (msgs) => {
 		const chatMsgs = msgs as readonly ChatMessage[];
@@ -663,20 +660,17 @@ export function gatedStream<T = string>(
 	const format = opts?.format ?? "text";
 	const streamTopic = topic<StreamChunk>(`${sourceName}/stream`);
 
-	const messagesNode = derived<readonly ChatMessage[]>(
-		allDeps as Node<unknown>[],
-		(values) => {
-			// Last dep is the cancel signal — exclude from prompt args
-			const depValues = values.slice(0, -1);
-			if (depValues.some((v) => v == null)) return [];
-			const text = typeof prompt === "string" ? prompt : prompt(...depValues);
-			if (!text) return [];
-			const msgs: ChatMessage[] = [];
-			if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
-			msgs.push({ role: "user", content: text });
-			return msgs;
-		},
-	);
+	const messagesNode = derived<readonly ChatMessage[]>(allDeps as Node<unknown>[], (values) => {
+		// Last dep is the cancel signal — exclude from prompt args
+		const depValues = values.slice(0, -1);
+		if (depValues.some((v) => v == null)) return [];
+		const text = typeof prompt === "string" ? prompt : prompt(...depValues);
+		if (!text) return [];
+		const msgs: ChatMessage[] = [];
+		if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
+		msgs.push({ role: "user", content: text });
+		return msgs;
+	});
 
 	const output = switchMap(messagesNode, (msgs) => {
 		const chatMsgs = msgs as readonly ChatMessage[];
