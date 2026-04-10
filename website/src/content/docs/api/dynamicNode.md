@@ -10,10 +10,14 @@ After each recompute:
 - New deps (not in previous set) are subscribed
 - Removed deps (not in current set) are unsubscribed
 - Kept deps retain their existing subscriptions
-- Bitmasks are rebuilt to match the new dep set
 
-The node participates fully in diamond resolution via the standard two-phase
-DIRTY/RESOLVED protocol across all dynamically-tracked deps.
+The node participates in diamond resolution via the pre-set dirty mask
+(shared with NodeImpl).
+
+**Lazy-dep composition:** when a tracked dep is itself a lazy compute node
+whose first subscribe causes a fresh value to arrive, the rewire buffer
+detects the discrepancy and re-runs fn once so it observes the real value.
+Capped at MAX_RERUN iterations.
 
 ## Signature
 
@@ -41,7 +45,6 @@ const cond = state(true);
 const a = state(1);
 const b = state(2);
 
-// Deps change based on cond's value
 const d = dynamicNode((get) => {
     const useA = get(cond);
     return useA ? get(a) : get(b);

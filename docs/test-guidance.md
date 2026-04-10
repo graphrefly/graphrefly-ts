@@ -325,6 +325,46 @@ When writing async tests (`async def test_*`) in Python:
 
 ---
 
+## Mock LLM adapters must be async
+
+Real LLM SDKs (OpenAI, Anthropic) return async iterables from their streaming APIs — token delivery requires network I/O. Test mock adapters **must match this async behavior** so tests validate the actual reactive chain (thread runner → `from_async_iter` → `switch_map`), not a synchronous shortcut that hides timing bugs.
+
+### Invariant
+
+- **`adapter.stream()` must be `async def` (PY) / return `AsyncIterable` (TS).** Sync list/generator returns bypass the async runner path and mask push-on-subscribe race conditions.
+- **`adapter.invoke()` may remain sync** — single-shot invocation doesn't involve streaming infrastructure.
+
+### Test assertion pattern
+
+Because the stream runs in a background thread, tests **cannot** assert results immediately after `subscribe()`. Use reactive wait helpers instead of `time.sleep`:
+
+**TypeScript:**
+```ts
+// Subscribe resolves via Promise when a non-null DATA arrives
+const result = await new Promise<string>((resolve) => {
+  handle.output.subscribe((msgs) => {
+    for (const [type, data] of msgs) {
+      if (type === DATA && data != null) resolve(data);
+    }
+  });
+});
+expect(result).toBe("Hello world!");
+```
+
+**Python:**
+```python
+# _wait_for_result uses threading.Event — no polling
+result = _wait_for_result(handle.output)
+assert result == "Hello world!"
+
+# For gate count or custom conditions, use a predicate:
+_wait_for_result(handle.gate.count, predicate=lambda v: v >= 1)
+```
+
+The `_wait_for_result` helper handles push-on-subscribe correctly — if the value is already cached when `subscribe()` fires, it returns immediately without blocking.
+
+---
+
 ## Authority hierarchy (tests)
 
 1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`**

@@ -40,6 +40,7 @@ import {
 	vectorIndex,
 } from "./memory.js";
 import { type TopicGraph, topic } from "./messaging.js";
+import { type GateController, type GateOptions, gate } from "./orchestration.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -322,7 +323,6 @@ export function streamingPromptNode<T = string>(
 			msgs.push({ role: "user", content: text });
 			return msgs;
 		},
-		{ initial: [] },
 	);
 
 	const output = switchMap(messagesNode, (msgs) => {
@@ -604,6 +604,169 @@ export function costMeterExtractor(
 			initial: { chunkCount: 0, charCount: 0, estimatedTokens: 0 },
 		},
 	);
+}
+
+// ---------------------------------------------------------------------------
+// gatedStream
+// ---------------------------------------------------------------------------
+
+export type GatedStreamOptions = StreamingPromptNodeOptions & {
+	/** Gate options (maxPending, startOpen). */
+	gate?: Omit<GateOptions, "meta">;
+};
+
+/**
+ * Bundle returned by {@link gatedStream}.
+ */
+export type GatedStreamHandle<T> = {
+	/** Final parsed result (after gate approval). */
+	output: Node<T | null>;
+	/** Live stream topic — subscribe to `stream.latest` for chunks. */
+	stream: TopicGraph<StreamChunk>;
+	/** Gate controller — approve, reject (aborts in-flight stream), modify. */
+	gate: GateController<T | null>;
+	/** Tear down everything. */
+	dispose: () => void;
+};
+
+/**
+ * Streaming LLM transform with human-in-the-loop gate integration.
+ *
+ * Composes {@link streamingPromptNode} with {@link gate} so that:
+ * - `gate.reject()` discards the pending value **and** aborts the in-flight
+ *   stream (cancels the `AbortController`).
+ * - `gate.modify()` transforms the pending value before forwarding downstream.
+ * - `gate.approve()` forwards the final result as normal.
+ *
+ * The abort-on-reject works by toggling an internal cancel signal that causes
+ * the `switchMap` inside `streamingPromptNode` to restart with an empty message
+ * list, which triggers the `AbortController.abort()` in the async generator's
+ * `finally` block.
+ */
+export function gatedStream<T = string>(
+	graph: Graph,
+	name: string,
+	adapter: LLMAdapter,
+	deps: readonly Node<unknown>[],
+	prompt: string | ((...depValues: unknown[]) => string),
+	opts?: GatedStreamOptions,
+): GatedStreamHandle<T> {
+	// Cancel signal: toggling this forces switchMap to restart (aborting stream).
+	const cancelSignal = state<number>(0, { name: `${name}/cancel` });
+	let cancelCounter = 0;
+
+	// Build the streaming prompt node with cancelSignal as an extra dep.
+	// The cancel dep is excluded from prompt template arguments.
+	const allDeps = [...deps, cancelSignal] as readonly Node<unknown>[];
+
+	const sourceName = opts?.name ?? name;
+	const format = opts?.format ?? "text";
+	const streamTopic = topic<StreamChunk>(`${sourceName}/stream`);
+
+	const messagesNode = derived<readonly ChatMessage[]>(
+		allDeps as Node<unknown>[],
+		(values) => {
+			// Last dep is the cancel signal — exclude from prompt args
+			const depValues = values.slice(0, -1);
+			if (depValues.some((v) => v == null)) return [];
+			const text = typeof prompt === "string" ? prompt : prompt(...depValues);
+			if (!text) return [];
+			const msgs: ChatMessage[] = [];
+			if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
+			msgs.push({ role: "user", content: text });
+			return msgs;
+		},
+	);
+
+	const output = switchMap(messagesNode, (msgs) => {
+		const chatMsgs = msgs as readonly ChatMessage[];
+		if (!chatMsgs || chatMsgs.length === 0) {
+			return state<T | null>(null) as NodeInput<T | null>;
+		}
+
+		const ac = new AbortController();
+
+		async function* pumpAndCollect(): AsyncGenerator<T | null> {
+			let accumulated = "";
+			let index = 0;
+			try {
+				for await (const token of adapter.stream(chatMsgs, {
+					model: opts?.model,
+					temperature: opts?.temperature,
+					maxTokens: opts?.maxTokens,
+					systemPrompt: opts?.systemPrompt,
+					signal: ac.signal,
+				})) {
+					accumulated += token;
+					streamTopic.publish({
+						source: sourceName,
+						token,
+						accumulated,
+						index: index++,
+					});
+				}
+				let result: T | null;
+				if (format === "json") {
+					try {
+						result = JSON.parse(stripFences(accumulated)) as T;
+					} catch {
+						result = null;
+					}
+				} else {
+					result = accumulated as unknown as T;
+				}
+				yield result;
+			} finally {
+				ac.abort();
+			}
+		}
+
+		return fromAny(pumpAndCollect());
+	});
+
+	const unsub = keepalive(output);
+
+	// Filter: only forward non-null results to the gate. Null is the switchMap
+	// initial/cancel state — not a real LLM result worth gating. Returning
+	// undefined from a derived fn means "no auto-emit" (spec §2.4), so null
+	// values are silently suppressed.
+	const nonNullOutput = derived<T>(
+		[output],
+		([v]) => {
+			if (v == null) return undefined;
+			return v as T;
+		},
+		{
+			name: `${name}/filter`,
+		},
+	);
+
+	// Register the filtered output so gate() can find it as a dep
+	graph.add(`${name}/raw`, nonNullOutput);
+
+	// Wire gate on the output
+	const gateCtrl = gate<T | null>(graph, `${name}/gate`, `${name}/raw`, opts?.gate);
+
+	// Wrap reject to also abort the in-flight stream
+	const originalReject = gateCtrl.reject.bind(gateCtrl);
+	const gateWithAbort: GateController<T | null> = {
+		...gateCtrl,
+		reject(count = 1) {
+			originalReject(count);
+			// Toggle cancel signal to force switchMap restart → abort
+			cancelSignal.down([[DATA, ++cancelCounter]]);
+		},
+	};
+
+	return {
+		output: gateCtrl.node,
+		stream: streamTopic,
+		gate: gateWithAbort,
+		dispose: () => {
+			unsub();
+			streamTopic.destroy();
+		},
+	};
 }
 
 // ---------------------------------------------------------------------------

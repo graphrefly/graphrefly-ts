@@ -1,12 +1,13 @@
 ---
 title: "node()"
-description: "Creates a reactive Node — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).\n\nTypical shapes: `node([])` / `node([], opts)` for a manual source; `node(produc"
+description: "Creates a reactive Node — the single GraphReFly primitive (§2).\n\nTypical shapes: `node([])` / `node([], opts)` for a manual source;\n`node(producerFn, opts)` for"
 ---
 
-Creates a reactive Node — the single GraphReFly primitive (GRAPHREFLY-SPEC §2).
+Creates a reactive Node — the single GraphReFly primitive (§2).
 
-Typical shapes: `node([])` / `node([], opts)` for a manual source; `node(producerFn, opts)` for a
-producer; `node(deps, computeFn, opts)` for derived nodes and operators.
+Typical shapes: `node([])` / `node([], opts)` for a manual source;
+`node(producerFn, opts)` for a producer; `node(deps, computeFn, opts)` for
+derived nodes and operators.
 
 ## Signature
 
@@ -28,7 +29,7 @@ function node<T = unknown>(
 
 ## Returns
 
-`Node&lt;T&gt;` - Configured node instance (lazy until subscribed).
+`Node&lt;T&gt;` — lazy until subscribed.
 
 ## Basic Usage
 
@@ -41,14 +42,14 @@ const b = node([a], ([x]) => (x as number) + 1);
 
 ## Behavior Details
 
-- **Protocol:** DIRTY / DATA / RESOLVED ordering, completion, and batch deferral follow `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
+- **Protocol:** START handshake, DIRTY / DATA / RESOLVED ordering, completion,
+and batch deferral follow `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
 
 **`equals` and mutable values:** The default `Object.is` identity check is
 correct for the common immutable-value case. If your node produces mutable
-objects (e.g. arrays or maps mutated in place), provide a custom `equals`
-function — otherwise `Object.is` will always return `true` for the same
-reference and the node will emit `RESOLVED` instead of `DATA`.
+objects, provide a custom `equals` — otherwise `Object.is` always returns
+`true` for the same reference and the node emits `RESOLVED` instead of `DATA`.
 
-## See Also
-
-- [Specification](/spec)
+**ROM/RAM (§2.2):** State nodes (no fn) preserve their cache across
+disconnect — runtime writes survive. Compute nodes (derived, producer)
+clear their cache on disconnect; reconnect re-runs fn.

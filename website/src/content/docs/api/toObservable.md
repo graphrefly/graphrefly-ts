@@ -1,20 +1,19 @@
 ---
 title: "toObservable()"
-description: "Bridge a `Node<T>` to an RxJS `Observable<T>`.\n\nEmits the node's value on each `DATA` message. Maps `ERROR` to\n`subscriber.error()` and `COMPLETE` to `subscribe"
+description: "API reference for toObservable."
 ---
-
-Bridge a `Node&lt;T&gt;` to an RxJS `Observable&lt;T&gt;`.
-
-Emits the node's value on each `DATA` message. Maps `ERROR` to
-`subscriber.error()` and `COMPLETE` to `subscriber.complete()`.
-Protocol-internal signals (DIRTY, RESOLVED, PAUSE, etc.) are skipped.
-
-Unsubscribing the Observable unsubscribes the node.
 
 ## Signature
 
 ```ts
-function toObservable<T>(node: Node<T>): Observable<T>
+function toObservable<T>(
+	node: Node<T>,
+	options?: ToObservableOptions & { raw?: false },
+): Observable<T>
+function toObservable<T>(
+	node: Node<T>,
+	options: ToObservableOptions & { raw: true },
+): Observable<Messages>
 ```
 
 ## Parameters
@@ -22,3 +21,4 @@ function toObservable<T>(node: Node<T>): Observable<T>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `node` | `Node&lt;T&gt;` |  |
+| `options` | `ToObservableOptions` |  |

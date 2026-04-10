@@ -1,9 +1,14 @@
 ---
 title: "firstValueFrom()"
-description: "Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data."
+description: "Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data.\n\n**Important:** This subscribes and waits for a **future** "
 ---
 
 Converts the first `DATA` on `source` into a Promise; rejects on `ERROR` or `COMPLETE` without data.
+
+**Important:** This subscribes and waits for a **future** emission. Data that
+has already flowed is gone and will not be seen. Call this *before* the upstream
+emits, or use `source.get()` / `source.status` for already-cached state.
+See COMPOSITION-GUIDE §2 (subscription ordering).
 
 ## Signature
 
