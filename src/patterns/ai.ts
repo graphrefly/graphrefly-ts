@@ -8,7 +8,7 @@
 import type { Actor } from "../core/actor.js";
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
-import { COMPLETE, DATA, ERROR, TEARDOWN } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
 import { ResettableTimer } from "../core/timer.js";
@@ -39,6 +39,7 @@ import {
 	type VectorSearchResult,
 	vectorIndex,
 } from "./memory.js";
+import { type TopicGraph, topic } from "./messaging.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,6 +100,21 @@ export type ToolDefinition = {
 };
 
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
+
+/**
+ * A single chunk from any streaming source (LLM tokens, WebSocket, SSE, file tail).
+ * Generic enough for any streaming source, not just LLM.
+ */
+export type StreamChunk = {
+	/** Identifier for the stream source (adapter name, URL, etc.). */
+	readonly source: string;
+	/** This chunk's content. */
+	readonly token: string;
+	/** Full accumulated text so far. */
+	readonly accumulated: string;
+	/** 0-based chunk counter. */
+	readonly index: number;
+};
 
 // ---------------------------------------------------------------------------
 // Meta helpers
@@ -248,87 +264,152 @@ export function fromLLM(
 }
 
 // ---------------------------------------------------------------------------
-// fromLLMStream
+// streamingPromptNode
 // ---------------------------------------------------------------------------
 
-export type FromLLMStreamOptions = FromLLMOptions;
+export type StreamingPromptNodeOptions = {
+	name?: string;
+	model?: string;
+	temperature?: number;
+	maxTokens?: number;
+	/** Output format — `"json"` attempts JSON.parse on the final accumulated text. Default: `"text"`. */
+	format?: "text" | "json";
+	systemPrompt?: string;
+};
 
 /**
- * Bundle returned by {@link fromLLMStream}. `node` is the reactive log of
- * token chunks; `dispose` tears down the internal effect and log.
+ * Bundle returned by {@link streamingPromptNode}.
  */
-export type LLMStreamHandle = {
-	/** Reactive log node accumulating token chunks. */
-	node: Node<readonly string[]>;
-	/** Tear down the internal effect, abort any in-flight stream, and release resources. */
+export type StreamingPromptNodeHandle<T> = {
+	/** Final parsed result (emits once per invocation, after stream completes). */
+	output: Node<T | null>;
+	/** Live stream topic — subscribe to `stream.latest` or `stream.events` for chunks. */
+	stream: TopicGraph<StreamChunk>;
+	/** Tear down the keepalive subscription and release resources. */
 	dispose: () => void;
 };
 
 /**
- * Streaming LLM invocation. Returns a `{ node, dispose }` bundle where
- * `node` is a `reactiveLog`-backed node that accumulates token chunks as
- * they arrive from `adapter.stream()`.
+ * Streaming LLM transform: wraps a prompt template + adapter into a reactive
+ * streaming pipeline. Re-invokes the LLM whenever any dep changes; the
+ * previous in-flight stream is canceled automatically via `switchMap`.
  *
- * An `effect` watches the messages input; new values abort the in-flight
- * stream and clear the log before starting a new one. Call `dispose()` to
- * tear down the effect and release resources.
+ * Each token chunk is published to a {@link TopicGraph} as a {@link StreamChunk}.
+ * Extractors can mount on the topic independently (see {@link streamExtractor}).
+ * Zero overhead if nobody subscribes to the stream topic.
+ *
+ * The `output` node emits the final parsed result (like {@link promptNode}).
+ * The async boundary is handled by `fromAny` (spec §5.10 compliant).
  */
-export function fromLLMStream(
+export function streamingPromptNode<T = string>(
 	adapter: LLMAdapter,
-	messages: NodeInput<readonly ChatMessage[]>,
-	opts?: FromLLMStreamOptions,
-): LLMStreamHandle {
-	const msgsNode = fromAny(messages);
-	let controller: AbortController | undefined;
+	deps: readonly Node<unknown>[],
+	prompt: string | ((...depValues: unknown[]) => string),
+	opts?: StreamingPromptNodeOptions,
+): StreamingPromptNodeHandle<T> {
+	const sourceName = opts?.name ?? "llm";
+	const format = opts?.format ?? "text";
+	const streamTopic = topic<StreamChunk>(sourceName + "/stream");
 
-	const log = reactiveLog<string>([], { name: opts?.name ?? "llmStream" });
-
-	const eff = effect([msgsNode], ([msgs]) => {
-		// Abort any in-flight stream
-		controller?.abort();
-		log.clear();
-
-		const chatMsgs = msgs as readonly ChatMessage[];
-		if (!chatMsgs || chatMsgs.length === 0) return;
-
-		controller = new AbortController();
-		const iter = adapter.stream(chatMsgs, {
-			model: opts?.model,
-			temperature: opts?.temperature,
-			maxTokens: opts?.maxTokens,
-			tools: opts?.tools,
-			systemPrompt: opts?.systemPrompt,
-			signal: controller.signal,
-		});
-		const ctrl = controller;
-		(async () => {
-			try {
-				for await (const chunk of iter) {
-					if (ctrl.signal.aborted) break;
-					log.append(chunk);
-				}
-			} catch (_err) {
-				// Stream errors are silently absorbed when aborted.
-				// Non-abort errors are also absorbed — surfacing ERROR on
-				// a state node (log.entries) would violate terminal semantics.
-				// Callers needing error visibility should wrap with a meta node.
-			}
-		})();
-
-		return () => {
-			ctrl.abort();
-		};
-	});
-	const unsub = keepalive(eff);
-
-	return {
-		node: log.entries,
-		dispose() {
-			controller?.abort();
-			unsub();
-			eff.down([[TEARDOWN]]);
+	const messagesNode = derived<readonly ChatMessage[]>(
+		deps as Node<unknown>[],
+		(values) => {
+			if (values.some((v) => v == null)) return [];
+			const text = typeof prompt === "string" ? prompt : prompt(...values);
+			if (!text) return [];
+			const msgs: ChatMessage[] = [];
+			if (opts?.systemPrompt) msgs.push({ role: "system", content: opts.systemPrompt });
+			msgs.push({ role: "user", content: text });
+			return msgs;
 		},
-	};
+		{ initial: [] },
+	);
+
+	const output = switchMap(messagesNode, (msgs) => {
+		const chatMsgs = msgs as readonly ChatMessage[];
+		if (!chatMsgs || chatMsgs.length === 0) {
+			return state<T | null>(null) as NodeInput<T | null>;
+		}
+
+		const ac = new AbortController();
+
+		async function* pumpAndCollect(): AsyncGenerator<T | null> {
+			let accumulated = "";
+			let index = 0;
+			try {
+				for await (const token of adapter.stream(chatMsgs, {
+					model: opts?.model,
+					temperature: opts?.temperature,
+					maxTokens: opts?.maxTokens,
+					systemPrompt: opts?.systemPrompt,
+					signal: ac.signal,
+				})) {
+					accumulated += token;
+					streamTopic.publish({
+						source: sourceName,
+						token,
+						accumulated,
+						index: index++,
+					});
+				}
+				let result: T | null;
+				if (format === "json") {
+					try {
+						result = JSON.parse(stripFences(accumulated)) as T;
+					} catch {
+						result = null;
+					}
+				} else {
+					result = accumulated as unknown as T;
+				}
+				yield result;
+			} finally {
+				ac.abort();
+			}
+		}
+
+		return fromAny(pumpAndCollect());
+	});
+
+	const unsub = keepalive(output);
+
+	return { output, stream: streamTopic, dispose: unsub };
+}
+
+// ---------------------------------------------------------------------------
+// streamExtractor
+// ---------------------------------------------------------------------------
+
+/**
+ * Mounts an extractor function on a streaming topic. Returns a derived node
+ * that emits extracted values as chunks arrive.
+ *
+ * `extractFn` receives the accumulated text from the latest chunk and returns
+ * the extracted value, or `null` if nothing detected yet. This is the building
+ * block for keyword flags, tool call detection, cost metering, etc.
+ *
+ * @param streamTopic - The stream topic to extract from.
+ * @param extractFn - `(accumulated: string) => T | null`.
+ * @param opts - Optional name.
+ * @returns Derived node emitting extracted values.
+ */
+export function streamExtractor<T>(
+	streamTopic: TopicGraph<StreamChunk>,
+	extractFn: (accumulated: string) => T | null,
+	opts?: { name?: string },
+): Node<T | null> {
+	return derived<T | null>(
+		[streamTopic.latest as Node<StreamChunk | undefined>],
+		([chunk]) => {
+			if (chunk == null) return null;
+			return extractFn((chunk as StreamChunk).accumulated);
+		},
+		{
+			name: opts?.name ?? "extractor",
+			describeKind: "derived",
+			initial: null,
+		},
+	);
 }
 
 // ---------------------------------------------------------------------------

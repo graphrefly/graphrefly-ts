@@ -14,6 +14,8 @@
 - **Shared test helpers: refactor remaining PY `sink.append` sites (2026-04-09):**
   Unified `collect(node, *, flat=False, raw=False)` helper shipped in both TS and PY. ~127 `sink.append` sites in PY tests (`test_extra_tier1.py`, `test_extra_tier2.py`, `test_edge_cases.py`, etc.) remain to be migrated. Custom extraction (type-only, value-only, filtered) stays inline. See `docs/test-guidance.md` § "Shared test helpers".
 
+- ~~**PY blocking-bridge deadlock: `_resolve_node_input` + `AsyncioRunner` (2026-04-09):**~~ — **RESOLVED.** All call sites now use `_has_event_loop_runner()` guard + `_async_resolve_node_input()` non-blocking path. Archive candidate.
+
 ---
 
 ## Implementation anti-patterns

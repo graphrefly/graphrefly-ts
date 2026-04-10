@@ -8,7 +8,7 @@
 |------|------|------|
 | **graphrefly-ts** | this repo | TypeScript implementation + **all operational docs** |
 | **graphrefly-py** | `~/src/graphrefly-py` | Python implementation (must stay in parity) |
-| **graphrefly** (spec) | `~/src/graphrefly` | `GRAPHREFLY-SPEC.md`, `COMPOSITION-GUIDE.md`, `composition-guide.jsonl` |
+| **graphrefly** (spec) | `~/src/graphrefly` | `GRAPHREFLY-SPEC.md`, `COMPOSITION-GUIDE.md` |
 | **callbag-recharge** | `~/src/callbag-recharge` | TS predecessor (patterns/tests, NOT spec authority) |
 | **callbag-recharge-py** | `~/src/callbag-recharge-py` | PY predecessor (concurrency patterns, subgraph locks) |
 
@@ -18,7 +18,6 @@
 |-----|------|
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
 | `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
-| `~/src/graphrefly/composition-guide.jsonl` | Machine-readable composition entries (appendable) |
 | `docs/optimizations.md` | **Active backlog** — open work items, anti-patterns, deferred follow-ups, proposed improvements. Add new items here. |
 | `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes. Check before introducing new optimizations or debugging perf issues. **Backlog/proposed items belong in `docs/optimizations.md`, not here.** |
 | `docs/roadmap.md` | Phased implementation checklist (covers both TS and PY) |
