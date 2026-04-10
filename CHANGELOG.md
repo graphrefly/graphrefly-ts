@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.19.0...v0.20.0) (2026-04-10)
+
+
+### Features
+
+* reusable harness patterns ([0e2384e](https://github.com/graphrefly/graphrefly-ts/commit/0e2384ec4b1f8ca062d67e3d32984fa1a4c34ebd))
+
 # [0.19.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.18.0...v0.19.0) (2026-04-10)
 
 
