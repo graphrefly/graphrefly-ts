@@ -74,6 +74,9 @@ importers:
       jsdom:
         specifier: ^29.0.1
         version: 29.0.1
+      openai:
+        specifier: ^6.34.0
+        version: 6.34.0(ws@8.20.0)(zod@4.3.6)
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -3429,6 +3432,18 @@ packages:
 
   oniguruma-to-es@4.3.5:
     resolution: {integrity: sha512-Zjygswjpsewa0NLTsiizVuMQZbp0MDyM6lIt66OxsF21npUDlzpHi1Mgb/qhQdkb+dWFTzJmFbEWdvZgRho8eQ==}
+
+  openai@6.34.0:
+    resolution: {integrity: sha512-yEr2jdGf4tVFYG6ohmr3pF6VJuveP0EA/sS8TBx+4Eq5NT10alu5zg2dmxMXMgqpihRDQlFGpRt2XwsGj+Fyxw==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   p-each-series@3.0.0:
     resolution: {integrity: sha512-lastgtAdoH9YaLyDa5i5z64q+kzOcQHsQ5SsZJD3q0VEyI8mq872S3geuNbRUQLVAE9siMfgKrpj7MloKFHruw==}
@@ -8515,6 +8530,11 @@ snapshots:
       oniguruma-parser: 0.12.1
       regex: 6.1.0
       regex-recursion: 6.0.2
+
+  openai@6.34.0(ws@8.20.0)(zod@4.3.6):
+    optionalDependencies:
+      ws: 8.20.0
+      zod: 4.3.6
 
   p-each-series@3.0.0: {}
 

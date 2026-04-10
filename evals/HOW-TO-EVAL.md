@@ -73,14 +73,16 @@ pnpm eval:dev-dx
 pnpm eval:compare evals/results/baseline.json evals/results/current.json
 ```
 
-**Providers:** The eval system supports four LLM providers. Set `EVAL_PROVIDER` to switch.
+**Providers:** The eval system supports six LLM providers. Set `EVAL_PROVIDER` to switch.
 
 | Provider | Env var | SDK | Budget models | Publish models |
 |---|---|---|---|---|
 | `anthropic` (default) | `ANTHROPIC_API_KEY` | `@anthropic-ai/sdk` | Haiku 4.5 | Sonnet 4.6 / Opus 4.6 |
 | `openai` | `OPENAI_API_KEY` | `openai` | gpt-5.4-mini | gpt-5.4 / gpt-4.1 |
-| `google` | `GOOGLE_API_KEY` | `@google/genai` | gemini-2.5-flash | gemini-2.5-pro / gemini-3.1-pro-preview |
-| `local` | — | `openai` (Ollama) | Gemma 4 12B | Gemma 4 27B |
+| `google` | `GOOGLE_API_KEY` | `@google/genai` | gemini-3-flash-preview | gemini-3.1-pro-preview |
+| `ollama` | — | `openai` (Ollama) | Gemma 4 E4B | Gemma 4 26B |
+| `openrouter` | `OPENROUTER_API_KEY` | `openai` | free router / :free models | paid routed models |
+| `groq` | `GROQ_API_KEY` | `openai` | gpt-oss-20b / llama-class budget | faster larger OSS models |
 
 **Configuration (env vars):**
 
@@ -92,7 +94,9 @@ pnpm eval:compare evals/results/baseline.json evals/results/current.json
 | `EVAL_JUDGE_MODEL` | `claude-sonnet-4-6` | Model for LLM-as-judge scoring |
 | `EVAL_MODELS` | — | Comma-separated model list for matrix runs |
 | `EVAL_PROVIDERS` | — | Comma-separated provider per model (for matrix) |
-| `EVAL_LOCAL_BASE_URL` | `http://localhost:11434/v1` | Base URL for local provider (Ollama) |
+| `EVAL_OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Base URL for Ollama provider |
+| `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Base URL override for OpenRouter provider |
+| `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Base URL override for Groq provider |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Path to spec repo eval corpus |
 
 Results are written to `evals/results/` as timestamped JSON files.
@@ -102,17 +106,23 @@ Scorecards are written to `evals/scorecard/latest.{json,md}`.
 
 ```bash
 # Run across three providers
-EVAL_MODELS="claude-sonnet-4-6,gpt-5.4-mini,gemma4:27b" \
-EVAL_PROVIDERS="anthropic,openai,local" \
+EVAL_MODELS="claude-sonnet-4-6,gpt-5.4-mini,gemma4:26b" \
+EVAL_PROVIDERS="anthropic,openai,ollama" \
 pnpm eval:matrix
 
 # Local only — free, no API keys
-EVAL_MODELS="gemma4:27b" EVAL_PROVIDERS="local" pnpm eval:matrix
+EVAL_MODELS="gemma4:26b" EVAL_PROVIDERS="ollama" pnpm eval:matrix
+
+# OpenRouter free router
+EVAL_PROVIDER=openrouter EVAL_MODEL=openrouter/free pnpm eval
+
+# Groq budget model
+EVAL_PROVIDER=groq EVAL_MODEL=openai/gpt-oss-20b pnpm eval
 ```
 
-## Option B2: Running with Ollama (local, free)
+## Option B2: Running with Ollama (free)
 
-No API keys needed. All eval tiers (L0, L1) work with local models — the only
+No API keys needed. All eval tiers (L0, L1) work with Ollama models — the only
 difference vs cloud models is output quality. Great for development iteration
 and cost-free experimentation.
 
@@ -123,10 +133,10 @@ and cost-free experimentation.
 
 ```bash
 # Recommended for 32GB Apple Silicon:
-ollama pull gemma4:27b      # Best quality that fits in 32GB (Q4 quant, ~18GB)
+ollama pull gemma4:26b      # Best quality that fits in 32GB (Q4 quant, ~18GB)
 
 # Faster alternative for quick iteration:
-ollama pull gemma4:12b      # Snappier, leaves more RAM headroom
+ollama pull gemma4:e4b      # Snappier, leaves more RAM headroom
 ```
 
 3. Start the Ollama server (it runs automatically after install, or run `ollama serve`)
@@ -135,26 +145,26 @@ ollama pull gemma4:12b      # Snappier, leaves more RAM headroom
 
 | RAM | Chip | Recommended model | Notes |
 |-----|------|-------------------|-------|
-| 32GB | M1/M2/M3/M4 Pro | **`gemma4:27b`** | Best quality that fits — ~18GB with Q4 quant, ~14GB left for OS |
-| 32GB | M1/M2/M3/M4 Pro | `gemma4:12b` | Faster, good for dev iteration |
-| 16GB | M1/M2 base | `gemma4:12b` | 27B won't fit comfortably |
-| 64GB+ | M-series Max/Ultra | `gemma4:27b` or `qwen3:32b` | Plenty of headroom |
+| 32GB | M1/M2/M3/M4 Pro | **`gemma4:26b`** | Best quality that fits — ~18GB with Q4 quant, ~14GB left for OS |
+| 32GB | M1/M2/M3/M4 Pro | `gemma4:e4b` | Faster, good for dev iteration |
+| 16GB | M1/M2 base | `gemma4:e4b` | 26B won't fit comfortably |
+| 64GB+ | M-series Max/Ultra | `gemma4:26b` or `qwen3:32b` | Plenty of headroom |
 
 ### Running evals
 
 ```bash
 # Single model — run all tiers
-EVAL_PROVIDER=local EVAL_MODEL=gemma4:27b pnpm eval
+EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:26b pnpm eval
 
 # Just L0 contrastive
-EVAL_PROVIDER=local EVAL_MODEL=gemma4:27b pnpm eval:contrastive
+EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:26b pnpm eval:contrastive
 
 # Just L1 (generation + comprehension)
-EVAL_PROVIDER=local EVAL_MODEL=gemma4:27b pnpm eval:llm-dx
+EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:26b pnpm eval:llm-dx
 
-# Matrix: local + cloud comparison
-EVAL_MODELS="gemma4:27b,claude-sonnet-4-6" \
-EVAL_PROVIDERS="local,anthropic" \
+# Matrix: ollama + cloud comparison
+EVAL_MODELS="gemma4:26b,claude-sonnet-4-6" \
+EVAL_PROVIDERS="ollama,anthropic" \
 pnpm eval:matrix
 ```
 
@@ -163,20 +173,20 @@ pnpm eval:matrix
 If Ollama runs on a different host/port:
 
 ```bash
-EVAL_LOCAL_BASE_URL=http://192.168.1.100:11434/v1 \
-EVAL_PROVIDER=local \
-EVAL_MODEL=gemma4:27b \
+EVAL_OLLAMA_BASE_URL=http://192.168.1.100:11434/v1 \
+EVAL_PROVIDER=ollama \
+EVAL_MODEL=gemma4:26b \
 pnpm eval
 ```
 
 ### What to expect
 
 - **Speed:** ~2-5x slower than cloud APIs on M1 Pro. Budget 10-30 min for a full run.
-- **Quality:** Local 27B models score lower than Sonnet/GPT-4.1 on structured JSON output,
+- **Quality:** Ollama 26B models score lower than Sonnet/GPT-4.1 on structured JSON output,
   but the eval harness handles this gracefully (invalid outputs are scored, not crashed).
-- **Cost:** $0. Token counts are tracked but cost is reported as $0.00 for local models.
-- **Judge model:** By default the same local model judges its own output. For higher-quality
-  scoring, use a cloud judge: `EVAL_JUDGE_MODEL=claude-sonnet-4-6 EVAL_PROVIDER=local EVAL_MODEL=gemma4:27b pnpm eval`
+- **Cost:** $0. Token counts are tracked but cost is reported as $0.00 for Ollama models.
+- **Judge model:** By default the same Ollama model judges its own output. For higher-quality
+  scoring, use a cloud judge: `EVAL_JUDGE_MODEL=claude-sonnet-4-6 EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:26b pnpm eval`
   (requires `ANTHROPIC_API_KEY` for the judge).
 
 ---

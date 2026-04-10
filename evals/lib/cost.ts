@@ -20,7 +20,7 @@ const PRICING: Record<string, { input: number; output: number }> = {
 	"gemini-2.5-pro": { input: 1.25, output: 10 },
 	"gemini-2.5-flash": { input: 0.15, output: 0.6 },
 	"gemini-2.0-flash": { input: 0.1, output: 0.4 },
-	// Local (Ollama) — free
+	// Ollama (local) — free
 	"gemma3:12b": { input: 0, output: 0 },
 	"gemma3:27b": { input: 0, output: 0 },
 	"gemma4:27b": { input: 0, output: 0 },
@@ -29,7 +29,7 @@ const PRICING: Record<string, { input: number; output: number }> = {
 
 /**
  * Estimate cost in USD for a given token count and model.
- * Returns 0 for unknown models (local, etc.).
+ * Returns 0 for unknown models (ollama, etc.).
  */
 export function estimateTokenCost(
 	inputTokens: number,

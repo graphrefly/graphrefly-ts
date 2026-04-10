@@ -258,6 +258,7 @@
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"jsdom": "^29.0.1",
+		"openai": "^6.34.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"reflect-metadata": "^0.2.2",

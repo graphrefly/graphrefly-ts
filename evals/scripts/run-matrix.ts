@@ -8,7 +8,7 @@
  *   EVAL_MODELS — comma-separated model list
  *     e.g. "claude-sonnet-4-6,gpt-4o-mini,gemini-2.5-flash,gemma4:27b"
  *   EVAL_PROVIDERS — comma-separated provider per model (same order)
- *     e.g. "anthropic,openai,google,local"
+ *     e.g. "anthropic,openai,google,ollama"
  *   Falls back to DEFAULT_CONFIG if EVAL_MODELS is not set.
  */
 
@@ -17,7 +17,7 @@ import { runContrastiveEval } from "../lib/contrastive.js";
 import { printSummary, writeResults } from "../lib/reporter.js";
 import { runComprehensionEval, runLLMDXEval } from "../lib/runner.js";
 import type { ProviderName } from "../lib/types.js";
-import { DEFAULT_CONFIG, type EvalConfig } from "../lib/types.js";
+import { DEFAULT_CONFIG, type EvalConfig, normalizeProviderName } from "../lib/types.js";
 
 interface ModelEntry {
 	model: string;
@@ -34,7 +34,7 @@ function parseModels(): ModelEntry[] {
 
 	const models = modelsEnv.split(",").map((s) => s.trim());
 	const providers = providersEnv
-		? providersEnv.split(",").map((s) => s.trim() as ProviderName)
+		? providersEnv.split(",").map((s) => normalizeProviderName(s) as ProviderName)
 		: models.map(() => DEFAULT_CONFIG.provider);
 
 	if (providers.length !== models.length) {

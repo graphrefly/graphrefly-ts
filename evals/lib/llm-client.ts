@@ -1,14 +1,14 @@
 /**
  * Multi-provider LLM client (roadmap §9.1).
  *
- * Provider-agnostic adapter: Anthropic, OpenAI, Google, Local (Ollama).
+ * Provider-agnostic adapter: Anthropic, Google, and OpenAI-compatible providers.
  * Switch providers/models by config or env var, not code change.
  *
  * SDKs are dynamically imported — only the one you're using needs to be installed.
  *   - Anthropic: `@anthropic-ai/sdk`
- *   - OpenAI:    `openai`
+ *   - OpenAI-compatible: `openai`
  *   - Google:    `@google/generative-ai`
- *   - Local:     uses `openai` SDK with custom baseURL (Ollama-compatible)
+ *   - Presets: OpenAI, Ollama, OpenRouter, Groq
  */
 
 import type { EvalConfig, ProviderName } from "./types.js";
@@ -81,20 +81,32 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI
+// OpenAI-compatible providers (OpenAI, Ollama, OpenRouter, Groq)
 // ---------------------------------------------------------------------------
 
-export class OpenAIProvider implements LLMProvider {
-	readonly name = "openai";
-	private config: EvalConfig;
+interface OpenAICompatiblePreset {
+	name: ProviderName;
+	baseURL?: string;
+	apiKey?: string;
+}
 
-	constructor(config: EvalConfig) {
+export class OpenAICompatibleProvider implements LLMProvider {
+	readonly name: ProviderName;
+	private config: EvalConfig;
+	private preset: OpenAICompatiblePreset;
+
+	constructor(config: EvalConfig, preset: OpenAICompatiblePreset) {
 		this.config = config;
+		this.preset = preset;
+		this.name = preset.name;
 	}
 
 	async generate(req: LLMRequest): Promise<LLMResponse> {
 		const { default: OpenAI } = await import("openai");
-		const client = new OpenAI();
+		const client = new OpenAI({
+			baseURL: this.preset.baseURL,
+			apiKey: this.preset.apiKey,
+		});
 
 		const model = req.model ?? this.config.model;
 		const start = performance.now();
@@ -118,6 +130,46 @@ export class OpenAIProvider implements LLMProvider {
 			outputTokens: response.usage?.completion_tokens ?? 0,
 			latencyMs,
 		};
+	}
+}
+
+function resolveOpenAICompatiblePreset(config: EvalConfig): OpenAICompatiblePreset {
+	switch (config.provider) {
+		case "openai":
+			return {
+				name: "openai",
+			};
+		case "ollama":
+			return {
+				name: "ollama",
+				baseURL:
+					process.env.EVAL_OLLAMA_BASE_URL ??
+					process.env.EVAL_LOCAL_BASE_URL ??
+					"http://localhost:11434/v1",
+				apiKey: process.env.EVAL_OLLAMA_API_KEY ?? process.env.EVAL_LOCAL_API_KEY ?? "ollama",
+			};
+		case "openrouter": {
+			const apiKey = process.env.OPENROUTER_API_KEY;
+			if (!apiKey) throw new Error("OPENROUTER_API_KEY env var required for OpenRouter provider");
+			return {
+				name: "openrouter",
+				baseURL: process.env.EVAL_OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
+				apiKey,
+			};
+		}
+		case "groq": {
+			const apiKey = process.env.GROQ_API_KEY;
+			if (!apiKey) throw new Error("GROQ_API_KEY env var required for Groq provider");
+			return {
+				name: "groq",
+				baseURL: process.env.EVAL_GROQ_BASE_URL ?? "https://api.groq.com/openai/v1",
+				apiKey,
+			};
+		}
+		default:
+			throw new Error(
+				`Provider "${config.provider}" is not OpenAI-compatible. Expected one of: openai, ollama, openrouter, groq`,
+			);
 	}
 }
 
@@ -165,52 +217,6 @@ export class GoogleProvider implements LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Local (Ollama — OpenAI-compatible API)
-// ---------------------------------------------------------------------------
-
-export class LocalProvider implements LLMProvider {
-	readonly name = "local";
-	private config: EvalConfig;
-	private baseURL: string;
-
-	constructor(config: EvalConfig) {
-		this.config = config;
-		this.baseURL = process.env.EVAL_LOCAL_BASE_URL ?? "http://localhost:11434/v1";
-	}
-
-	async generate(req: LLMRequest): Promise<LLMResponse> {
-		const { default: OpenAI } = await import("openai");
-		const client = new OpenAI({
-			baseURL: this.baseURL,
-			apiKey: "ollama", // Ollama doesn't need a real key
-		});
-
-		const model = req.model ?? this.config.model;
-		const start = performance.now();
-
-		const response = await client.chat.completions.create({
-			model,
-			max_tokens: req.maxTokens ?? 4096,
-			temperature: req.temperature ?? this.config.temperature,
-			messages: [
-				{ role: "system", content: req.system },
-				{ role: "user", content: req.user },
-			],
-		});
-
-		const latencyMs = performance.now() - start;
-		const content = response.choices[0]?.message?.content ?? "";
-
-		return {
-			content,
-			inputTokens: response.usage?.prompt_tokens ?? 0,
-			outputTokens: response.usage?.completion_tokens ?? 0,
-			latencyMs,
-		};
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -223,13 +229,16 @@ export function createProvider(config: EvalConfig): LLMProvider {
 		case "anthropic":
 			return new AnthropicProvider(config);
 		case "openai":
-			return new OpenAIProvider(config);
+		case "ollama":
+		case "openrouter":
+		case "groq":
+			return new OpenAICompatibleProvider(config, resolveOpenAICompatiblePreset(config));
 		case "google":
 			return new GoogleProvider(config);
-		case "local":
-			return new LocalProvider(config);
 		default:
-			throw new Error(`Unknown provider "${name}". Valid: anthropic, openai, google, local`);
+			throw new Error(
+				`Unknown provider "${name}". Valid: anthropic, openai, google, ollama, openrouter, groq`,
+			);
 	}
 }
 

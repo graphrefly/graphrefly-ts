@@ -3,7 +3,23 @@
  * These are the TypeScript runtime representations.
  */
 
-export type ProviderName = "anthropic" | "openai" | "google" | "local";
+export type ProviderName = "anthropic" | "openai" | "google" | "ollama" | "openrouter" | "groq";
+
+export function normalizeProviderName(raw?: string): ProviderName {
+	switch ((raw ?? "").trim()) {
+		case "anthropic":
+		case "openai":
+		case "google":
+		case "ollama":
+		case "openrouter":
+		case "groq":
+			return raw as ProviderName;
+		case "local":
+			return "ollama";
+		default:
+			return "anthropic";
+	}
+}
 
 // --- Task types ---
 
@@ -131,9 +147,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const DEFAULT_CONFIG: EvalConfig = {
-	provider: (process.env.EVAL_PROVIDER ?? "anthropic") as ProviderName,
+	provider: normalizeProviderName(process.env.EVAL_PROVIDER),
 	model: process.env.EVAL_MODEL ?? "claude-sonnet-4-6",
-	judgeProvider: (process.env.EVAL_JUDGE_PROVIDER ?? "anthropic") as ProviderName,
+	judgeProvider: normalizeProviderName(process.env.EVAL_JUDGE_PROVIDER),
 	judgeModel: process.env.EVAL_JUDGE_MODEL ?? "claude-sonnet-4-6",
 	specEvalsPath: process.env.SPEC_EVALS_PATH ?? join(homedir(), "src", "graphrefly", "evals"),
 	temperature: 0,

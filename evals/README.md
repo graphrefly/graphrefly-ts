@@ -34,8 +34,10 @@ error messages for common developer mistakes.
 |---|---|---|---|
 | `anthropic` (default) | `@anthropic-ai/sdk` | Haiku 4.5 | Sonnet/Opus 4.6 |
 | `openai` | `openai` | GPT-4o-mini | GPT-4o / GPT-4.1 |
-| `google` | `@google/genai` | Gemini Flash | Gemini Pro |
-| `local` | `openai` (Ollama) | Gemma 4 27B | — |
+| `google` | `@google/genai` | Gemini 3 Flash Preview | Gemini 3.1 Pro Preview |
+| `ollama` | `openai` (Ollama) | Gemma 4 27B | — |
+| `openrouter` | `openai` | `openrouter/free` or `:free` models | paid routed models |
+| `groq` | `openai` | GPT-OSS 20B / smaller Llama-family | larger/faster OSS models |
 
 Set `EVAL_PROVIDER` to switch. SDKs are dynamically imported — only install what you use.
 
@@ -116,8 +118,12 @@ Analysis: [eval-analysis.md](results/eval-analysis.md)
 | `EVAL_JUDGE_MODEL` | `claude-sonnet-4-6` | Model for LLM judge |
 | `EVAL_MODELS` | — | Comma-separated for matrix runs |
 | `EVAL_PROVIDERS` | — | Provider per model (matrix) |
-| `EVAL_LOCAL_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint |
+| `EVAL_OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint |
+| `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter endpoint override |
+| `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq endpoint override |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Spec repo evals path |
 | `ANTHROPIC_API_KEY` | — | Anthropic provider |
 | `OPENAI_API_KEY` | — | OpenAI provider |
 | `GOOGLE_API_KEY` | — | Google provider |
+| `OPENROUTER_API_KEY` | — | OpenRouter provider |
+| `GROQ_API_KEY` | — | Groq provider |
