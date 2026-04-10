@@ -135,6 +135,45 @@ Prefer **`graph.observe(name)`** (or per-node) for live streams — see **GRAPHR
 
 ---
 
+## Shared test helpers
+
+Both repos provide a unified `collect` helper for subscribing to a node and recording messages. Use `collect` instead of manual `sink.append` / inline lambdas.
+
+### API
+
+**TypeScript** (`src/__tests__/test-helpers.ts`):
+```ts
+import { collect } from "../test-helpers.js";
+
+const { messages, unsub } = collect(node);                      // batches, no START
+const { messages, unsub } = collect(node, { flat: true });      // flat messages, no START
+const { messages, unsub } = collect(node, { raw: true });       // batches including START
+const { messages, unsub } = collect(node, { flat: true, raw: true }); // flat including START
+```
+
+**Python** (`tests/conftest.py` — auto-discovered by pytest):
+```python
+batches, unsub = collect(node)                        # batches, no START
+msgs, unsub = collect(node, flat=True)                # flat messages, no START
+batches, unsub = collect(node, raw=True)              # batches including START
+msgs, unsub = collect(node, flat=True, raw=True)      # flat including START
+```
+
+### When to use which mode
+
+| Mode | Use when |
+|------|----------|
+| `collect(n)` (default) | Most tests — asserts on batch structure after updates |
+| `collect(n, flat=True)` | Adapter tests asserting on ordered message sequences |
+| `collect(n, raw=True)` | Tests verifying START handshake behavior |
+| `collect(n, flat=True, raw=True)` | Full protocol trace including START |
+
+### When to stay inline
+
+Keep custom sinks inline when doing type-only, value-only, or filtered extraction (e.g. `msgs.filter(m => m[0] === DATA).map(m => m[1])`). The `collect` helper collects raw message tuples — transform after collection.
+
+---
+
 ## Debugging: `describe()` and `status` first, `get()` second
 
 `node.get()` and `graph.get(name)` return the **cached value only** — they do not guarantee freshness, do not trigger computation, and return `undefined` for nodes that have never received DATA. This is by design (spec §2.2).

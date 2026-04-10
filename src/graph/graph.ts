@@ -29,6 +29,7 @@ import {
 } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
@@ -464,10 +465,12 @@ export type ObserveResult<T = unknown> = {
 	readonly resolvedCount: number;
 	/** All events in order. */
 	readonly events: ObserveEvent[];
-	/** True if COMPLETE received without prior ERROR. */
-	readonly completedCleanly: boolean;
-	/** True if ERROR received. */
-	readonly errored: boolean;
+	/** True if any observed node sent COMPLETE without prior ERROR on that node. */
+	readonly anyCompletedCleanly: boolean;
+	/** True if any observed node sent ERROR. */
+	readonly anyErrored: boolean;
+	/** True if at least one COMPLETE received and no ERROR from any observed node. */
+	readonly completedWithoutErrors: boolean;
 	/** Stop observing. */
 	dispose(): void;
 	/**
@@ -1355,6 +1358,17 @@ export class Graph {
 		return out;
 	}
 
+	/**
+	 * Snapshot-based resource profile: per-node stats, orphan effect detection,
+	 * memory hotspots. Zero runtime overhead — walks nodes on demand.
+	 *
+	 * @param opts - Optional `topN` for hotspot limit (default 10).
+	 * @returns Aggregate profile with per-node details, hotspots, and orphan effects.
+	 */
+	resourceProfile(opts?: GraphProfileOptions): GraphProfileResult {
+		return graphProfile(this, opts);
+	}
+
 	private _qualifyEdgeEndpoint(part: string, prefix: string): string {
 		if (part.includes(PATH_SEP)) return part;
 		return prefix === "" ? part : `${prefix}${PATH_SEP}${part}`;
@@ -1514,15 +1528,15 @@ export class Graph {
 			dirtyCount: number;
 			resolvedCount: number;
 			events: ObserveEvent[];
-			completedCleanly: boolean;
-			errored: boolean;
+			anyCompletedCleanly: boolean;
+			anyErrored: boolean;
 		} = {
 			values: {},
 			dirtyCount: 0,
 			resolvedCount: 0,
 			events: [],
-			completedCleanly: false,
-			errored: false,
+			anyCompletedCleanly: false,
+			anyErrored: false,
 		};
 
 		let lastTriggerDepIndex: number | undefined;
@@ -1581,8 +1595,8 @@ export class Graph {
 					// minimal: track state but don't push non-DATA events
 					if (t === DIRTY) result.dirtyCount++;
 					else if (t === RESOLVED) result.resolvedCount++;
-					else if (t === COMPLETE && !result.errored) result.completedCleanly = true;
-					else if (t === ERROR) result.errored = true;
+					else if (t === COMPLETE && !result.anyErrored) result.anyCompletedCleanly = true;
+					else if (t === ERROR) result.anyErrored = true;
 				} else if (t === DIRTY) {
 					result.dirtyCount++;
 					result.events.push({ type: "dirty", path, ...base });
@@ -1590,10 +1604,10 @@ export class Graph {
 					result.resolvedCount++;
 					result.events.push({ type: "resolved", path, ...base, ...withCausal });
 				} else if (t === COMPLETE) {
-					if (!result.errored) result.completedCleanly = true;
+					if (!result.anyErrored) result.anyCompletedCleanly = true;
 					result.events.push({ type: "complete", path, ...base });
 				} else if (t === ERROR) {
-					result.errored = true;
+					result.anyErrored = true;
 					result.events.push({ type: "error", path, data: m[1], ...base });
 				}
 			}
@@ -1615,11 +1629,14 @@ export class Graph {
 			get events() {
 				return result.events;
 			},
-			get completedCleanly() {
-				return result.completedCleanly;
+			get anyCompletedCleanly() {
+				return result.anyCompletedCleanly;
 			},
-			get errored() {
-				return result.errored;
+			get anyErrored() {
+				return result.anyErrored;
+			},
+			get completedWithoutErrors() {
+				return result.anyCompletedCleanly && !result.anyErrored;
 			},
 			dispose() {
 				unsub();
@@ -1658,16 +1675,18 @@ export class Graph {
 			dirtyCount: number;
 			resolvedCount: number;
 			events: ObserveEvent[];
-			completedCleanly: boolean;
-			errored: boolean;
+			anyCompletedCleanly: boolean;
+			anyErrored: boolean;
 		} = {
 			values: {},
 			dirtyCount: 0,
 			resolvedCount: 0,
 			events: [],
-			completedCleanly: false,
-			errored: false,
+			anyCompletedCleanly: false,
+			anyErrored: false,
 		};
+		/** Per-node terminal state for allCompletedCleanly computation. */
+		const nodeErrored = new Set<string>();
 		const actor = options.actor;
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
@@ -1688,8 +1707,11 @@ export class Graph {
 					} else if (minimal) {
 						if (t === DIRTY) result.dirtyCount++;
 						else if (t === RESOLVED) result.resolvedCount++;
-						else if (t === COMPLETE && !result.errored) result.completedCleanly = true;
-						else if (t === ERROR) result.errored = true;
+						else if (t === COMPLETE && !nodeErrored.has(path)) result.anyCompletedCleanly = true;
+						else if (t === ERROR) {
+							result.anyErrored = true;
+							nodeErrored.add(path);
+						}
 					} else if (t === DIRTY) {
 						result.dirtyCount++;
 						result.events.push({ type: "dirty", path, ...base });
@@ -1697,10 +1719,11 @@ export class Graph {
 						result.resolvedCount++;
 						result.events.push({ type: "resolved", path, ...base });
 					} else if (t === COMPLETE) {
-						if (!result.errored) result.completedCleanly = true;
+						if (!nodeErrored.has(path)) result.anyCompletedCleanly = true;
 						result.events.push({ type: "complete", path, ...base });
 					} else if (t === ERROR) {
-						result.errored = true;
+						result.anyErrored = true;
+						nodeErrored.add(path);
 						result.events.push({ type: "error", path, data: m[1], ...base });
 					}
 				}
@@ -1721,11 +1744,14 @@ export class Graph {
 			get events() {
 				return result.events;
 			},
-			get completedCleanly() {
-				return result.completedCleanly;
+			get anyCompletedCleanly() {
+				return result.anyCompletedCleanly;
 			},
-			get errored() {
-				return result.errored;
+			get anyErrored() {
+				return result.anyErrored;
+			},
+			get completedWithoutErrors() {
+				return result.anyCompletedCleanly && !result.anyErrored;
 			},
 			dispose() {
 				for (const u of unsubs) u();
@@ -1760,8 +1786,8 @@ export class Graph {
 			dirtyCount: 0,
 			resolvedCount: 0,
 			events: [] as ObserveEvent[],
-			completedCleanly: false,
-			errored: false,
+			anyCompletedCleanly: false,
+			anyErrored: false,
 		};
 		const target = this.resolve(path);
 		let batchSeq = 0;
@@ -1782,10 +1808,10 @@ export class Graph {
 					acc.resolvedCount++;
 					acc.events.push({ type: "resolved", path, ...base });
 				} else if (t === COMPLETE) {
-					if (!acc.errored) acc.completedCleanly = true;
+					if (!acc.anyErrored) acc.anyCompletedCleanly = true;
 					acc.events.push({ type: "complete", path, ...base });
 				} else if (t === ERROR) {
-					acc.errored = true;
+					acc.anyErrored = true;
 					acc.events.push({ type: "error", path, data: m[1], ...base });
 				}
 			}
@@ -1803,11 +1829,14 @@ export class Graph {
 			get events() {
 				return acc.events;
 			},
-			get completedCleanly() {
-				return acc.completedCleanly;
+			get anyCompletedCleanly() {
+				return acc.anyCompletedCleanly;
 			},
-			get errored() {
-				return acc.errored;
+			get anyErrored() {
+				return acc.anyErrored;
+			},
+			get completedWithoutErrors() {
+				return acc.anyCompletedCleanly && !acc.anyErrored;
 			},
 			dispose() {
 				unsub();
@@ -1829,9 +1858,10 @@ export class Graph {
 			dirtyCount: 0,
 			resolvedCount: 0,
 			events: [] as ObserveEvent[],
-			completedCleanly: false,
-			errored: false,
+			anyCompletedCleanly: false,
+			anyErrored: false,
 		};
+		const nodeErrored = new Set<string>();
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
 		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
@@ -1855,10 +1885,11 @@ export class Graph {
 						acc.resolvedCount++;
 						acc.events.push({ type: "resolved", path, ...base });
 					} else if (t === COMPLETE) {
-						if (!acc.errored) acc.completedCleanly = true;
+						if (!nodeErrored.has(path)) acc.anyCompletedCleanly = true;
 						acc.events.push({ type: "complete", path, ...base });
 					} else if (t === ERROR) {
-						acc.errored = true;
+						acc.anyErrored = true;
+						nodeErrored.add(path);
 						acc.events.push({ type: "error", path, data: m[1], ...base });
 					}
 				}
@@ -1877,11 +1908,14 @@ export class Graph {
 			get events() {
 				return acc.events;
 			},
-			get completedCleanly() {
-				return acc.completedCleanly;
+			get anyCompletedCleanly() {
+				return acc.anyCompletedCleanly;
 			},
-			get errored() {
-				return acc.errored;
+			get anyErrored() {
+				return acc.anyErrored;
+			},
+			get completedWithoutErrors() {
+				return acc.anyCompletedCleanly && !acc.anyErrored;
 			},
 			dispose() {
 				for (const u of unsubs) u();

@@ -30,6 +30,8 @@ export interface NodeProfile {
 	subscriberCount: number;
 	/** Number of upstream dependencies. */
 	depCount: number;
+	/** True if this is an effect node with no external subscribers (potential leak). */
+	isOrphanEffect: boolean;
 }
 
 /** Aggregate graph profile. */
@@ -46,6 +48,8 @@ export interface GraphProfileResult {
 	totalValueSizeBytes: number;
 	/** Nodes sorted by valueSizeBytes descending (top N). */
 	hotspots: NodeProfile[];
+	/** Effect nodes with no external subscribers (potential leaks). */
+	orphanEffects: NodeProfile[];
 }
 
 /** Options for {@link graphProfile}. */
@@ -97,6 +101,8 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 		const subscriberCount = impl ? impl._sinkCount : 0;
 		const depCount = nodeDesc.deps?.length ?? 0;
 
+		const isOrphanEffect = nodeDesc.type === "effect" && subscriberCount === 0;
+
 		profiles.push({
 			path,
 			type: nodeDesc.type,
@@ -104,12 +110,15 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 			valueSizeBytes,
 			subscriberCount,
 			depCount,
+			isOrphanEffect,
 		});
 	}
 
 	const totalValueSizeBytes = profiles.reduce((sum, p) => sum + p.valueSizeBytes, 0);
 
 	const hotspots = [...profiles].sort((a, b) => b.valueSizeBytes - a.valueSizeBytes).slice(0, topN);
+
+	const orphanEffects = profiles.filter((p) => p.isOrphanEffect);
 
 	return {
 		nodeCount: profiles.length,
@@ -118,5 +127,6 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 		nodes: profiles,
 		totalValueSizeBytes,
 		hotspots,
+		orphanEffects,
 	};
 }

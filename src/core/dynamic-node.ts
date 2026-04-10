@@ -132,7 +132,7 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 	private _running = false;
 	private _rewiring = false;
 	private _bufferedDepMessages: PendingEntry[] = [];
-	private _trackedValues: unknown[] = [];
+	private _trackedValues: Map<Node, unknown> = new Map();
 	private _rerunCount = 0;
 
 	constructor(fn: DynamicNodeFn<T>, opts: DynamicNodeOptions) {
@@ -224,7 +224,7 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 			for (;;) {
 				// --- Phase 1: execute fn with tracking `get`. ---
 				const trackedDeps: Node[] = [];
-				const trackedValues: unknown[] = [];
+				const trackedValuesMap = new Map<Node, unknown>();
 				const trackedSet = new Set<Node>();
 
 				const get: DynGet = <V>(dep: Node<V>): V | undefined => {
@@ -236,12 +236,12 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 						// undefined — the rewire buffer will detect the
 						// discrepancy once the lazy dep's real value arrives
 						// via subscribe-time push.
-						trackedValues.push(dep.get());
+						trackedValuesMap.set(dep, dep.get());
 					}
 					return dep.get() as V | undefined;
 				};
 
-				this._trackedValues = trackedValues;
+				this._trackedValues = trackedValuesMap;
 
 				// Collect dep values for inspector hook
 				const depValues: unknown[] = [];
@@ -273,7 +273,8 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 				for (const entry of this._bufferedDepMessages) {
 					for (const msg of entry.msgs) {
 						if (msg[0] === DATA) {
-							const trackedValue = this._trackedValues[entry.index];
+							const dep = this._deps[entry.index];
+							const trackedValue = dep != null ? this._trackedValues.get(dep) : undefined;
 							const actualValue = msg[1];
 							if (!this._equals(trackedValue, actualValue)) {
 								needsRerun = true;
@@ -515,9 +516,9 @@ export class DynamicNodeImpl<T = unknown> extends NodeBase<T> {
 	 * already matches `_trackedValues`.
 	 */
 	private _depValuesDifferFromTracked(): boolean {
-		for (let i = 0; i < this._deps.length; i++) {
-			const current = this._deps[i].get();
-			const tracked = this._trackedValues[i];
+		for (const dep of this._deps) {
+			const current = dep.get();
+			const tracked = this._trackedValues.get(dep);
 			if (!this._equals(current, tracked)) return true;
 		}
 		return false;
