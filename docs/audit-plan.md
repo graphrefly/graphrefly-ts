@@ -1165,3 +1165,129 @@ Build Inspector (3.3) remaining items ──→ timeline, causal, diagram, spy, 
 
 Run Phase D(10)+E(12)+G(16) ──→ Hand in ──→ Py docs + Py tests + integration stress
                                               (final passes, now everything is reactive-clean)
+
+---
+
+## Phase I — Full Documentation Sweep (Critical Fixes)
+
+### Batch 18: Documentation Sweep + Critical Remediation (TS)
+
+**Directory:** `~/src/graphrefly-ts`
+
+```
+You are performing a full TypeScript documentation sweep aligned with docs/docs-guidance.md and prior Batch 9 methodology, with one change: apply critical fixes now.
+
+READ FIRST:
+- docs/docs-guidance.md (single source of truth for docs conventions)
+- docs/roadmap.md (implementation state)
+- docs/batch-review/batch-9.md (prior TS docs audit baseline)
+
+AUDIT SURFACE:
+- src/core/**/*.ts
+- src/graph/**/*.ts
+- src/extra/**/*.ts
+- src/patterns/**/*.ts
+- src/compat/**/*.ts
+- src/index.ts and barrel exports
+- website/scripts/gen-api-docs.mjs
+- website/src/content/docs/api/*.md (generated outputs)
+- examples/*.ts
+- README.md
+- llms.txt
+
+CHECKLIST:
+1. JSDoc completeness on exported APIs:
+   - description starts with verb
+   - @param for each parameter
+   - @returns with type + description
+   - at least one @example with ```ts block
+2. Registry parity:
+   - every public export that should be in API docs is in REGISTRY
+   - no stale registry entries
+3. Generated API docs staleness:
+   - generated pages match JSDoc source after regeneration
+4. Example and quick start correctness:
+   - key examples and README snippets align with current API
+5. Critical docs breakage:
+   - missing docs on exported APIs
+   - incorrect signatures/types in docs
+   - generator failures or stale docs drift in critical pages
+
+REMEDIATION RULE:
+- Fix only CRITICAL/HIGH issues now.
+- Defer non-critical polish to follow-up.
+
+OUTPUT FORMAT:
+- COMPLETE — meets docs-guidance standard
+- FIXED (file:path#symbol) — critical fix applied
+- MISSING (file:export) — deferred non-critical gap
+- STALE (file) — regenerated/updated
+- DIVERGENCE — implementation vs docs/spec mismatch
+
+IMPORTANT:
+1) Write findings + fixes summary to ~/src/graphrefly-ts/docs/batch-review/batch-18.md
+2) Regenerate docs outputs and include command results in the report.
+```
+
+---
+
+### Batch 19: Documentation Sweep + Critical Remediation (Py)
+
+**Directory:** `~/src/graphrefly-py`
+
+```
+You are performing a full Python documentation sweep aligned with docs/docs-guidance.md and prior Batch 10 methodology, with one change: apply critical fixes now.
+
+READ FIRST:
+- ~/src/graphrefly-ts/docs/docs-guidance.md (cross-language docs standard)
+- ~/src/graphrefly-ts/docs/roadmap.md (implementation state)
+- ~/src/graphrefly-ts/docs/batch-review/batch-10.md (prior PY docs audit baseline)
+
+AUDIT SURFACE:
+- src/graphrefly/core/**/*.py
+- src/graphrefly/graph/**/*.py
+- src/graphrefly/extra/**/*.py
+- src/graphrefly/patterns/**/*.py
+- src/graphrefly/compat/**/*.py
+- src/graphrefly/integrations/**/*.py
+- src/graphrefly/__init__.py and package __init__.py files
+- website/scripts/gen_api_docs.py
+- website/src/content/docs/api/*.md (generated outputs)
+- examples/*.py
+- README.md
+- llms.txt
+
+CHECKLIST:
+1. Docstring completeness on public APIs:
+   - docstring exists
+   - parameters documented
+   - return value documented
+   - at least one usage example
+   - consistent style
+2. Export and __all__ parity:
+   - package exports include intended public APIs
+   - no stale exports
+3. Generated API docs staleness:
+   - generated pages match docstrings after regeneration
+4. Example and quick start correctness:
+   - key examples and README snippets align with current API
+5. Critical docs breakage:
+   - missing docs on public exports
+   - incorrect signatures/types in docs
+   - generator failures or stale docs drift in critical pages
+
+REMEDIATION RULE:
+- Fix only CRITICAL/HIGH issues now.
+- Defer non-critical polish to follow-up.
+
+OUTPUT FORMAT:
+- COMPLETE — meets docs-guidance standard
+- FIXED (file:path#symbol) — critical fix applied
+- MISSING (file:export) — deferred non-critical gap
+- STALE (file) — regenerated/updated
+- DIVERGENCE — implementation vs docs/spec mismatch
+
+IMPORTANT:
+1) Write findings + fixes summary to ~/src/graphrefly-ts/docs/batch-review/batch-19.md
+2) Regenerate docs outputs and include command results in the report.
+```
