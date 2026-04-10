@@ -16,6 +16,12 @@
 
 - ~~**PY blocking-bridge deadlock: `_resolve_node_input` + `AsyncioRunner` (2026-04-09):**~~ — **RESOLVED.** All call sites now use `_has_event_loop_runner()` guard + `_async_resolve_node_input()` non-blocking path. Archive candidate.
 
+- **Stream extractor unbounded re-scan on every chunk (2026-04-09):**
+  All stream extractors (`keywordFlagExtractor`, `toolCallExtractor`, `costMeterExtractor`, and generic `streamExtractor`) re-process the entire `accumulated` string from scratch on every `StreamChunk`. For long streams this is O(n×k) total work (n = final length, k = chunk count). `toolCallExtractor`'s brace-scanning is especially expensive. Optimization: maintain a cursor/offset between invocations so each chunk only processes the delta. Deferred — acceptable pre-1.0 where streams are short (LLM output typically <10K chars).
+
+- **Stream extractor redundant emissions on identical chunks (2026-04-09):**
+  If two consecutive `StreamChunk`s produce identical extracted results (e.g., same keyword flags), the extractor still re-emits a new array/object instance. Downstream subscribers miss memoization opportunities. Optimization: pass a structural `equals` function to the `derived` node options to suppress redundant emissions via `RESOLVED`. Deferred — identical consecutive chunks are rare in practice (accumulated text grows monotonically).
+
 ---
 
 ## Implementation anti-patterns

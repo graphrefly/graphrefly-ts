@@ -93,17 +93,17 @@ streamingPromptNode (or any streaming source)
 
 Core streaming infrastructure:
 
-- [ ] **`streamingPromptNode`** — uses `adapter.stream()` instead of `invoke()`. Emits chunks to a `TopicGraph<StreamChunk>` as the LLM generates. Final parsed result goes to the output node as before.
-- [ ] **`StreamChunk` type** — `{ source: string, token: string, accumulated: string, index: number }`. Generic enough for any streaming source, not just LLM.
-- [ ] **Cancelable execution via `switchMap` + `AbortSignal`** — human steering signal cancels in-flight stream (`AbortController.abort()`). New input starts fresh. Uses existing `switchMap` — `switchMap(steeringSignal, () => streamingPromptNode(...))`.
+- [x] **`streamingPromptNode`** — uses `adapter.stream()` instead of `invoke()`. Emits chunks to a `TopicGraph<StreamChunk>` as the LLM generates. Final parsed result goes to the output node as before. TS: `src/patterns/ai.ts`. PY: `src/graphrefly/patterns/ai.py` — dual path (async iterable via runner, sync iterable via `from_iter`).
+- [x] **`StreamChunk` type** — `{ source: string, token: string, accumulated: string, index: number }`. Generic enough for any streaming source, not just LLM.
+- [x] **Cancelable execution via `switchMap` + `AbortSignal`** — human steering signal cancels in-flight stream (`AbortController.abort()`). New input starts fresh. Uses existing `switchMap` — `switchMap(steeringSignal, () => streamingPromptNode(...))`. PY: async path cancellable via `from_async_iter` cleanup; sync path runs to completion (single-threaded, no interleave risk).
 - [ ] **Gate integration** — `gate.reject()` on the stream triggers abort. `gate.modify()` redirects with updated context.
 
 Mountable extractor subgraphs (each is opt-in, composes with any stream topic):
 
-- [ ] **`streamExtractor(streamTopic, extractFn, opts?)`** — generic factory: mount an extractor function to any streaming topic. Returns a derived node with extracted values. `extractFn: (accumulated: string) => T | null` — returns extracted value or null (nothing yet). This is the building block for all extractors below.
-- [ ] **Keyword flag extractor** — `streamExtractor` with pattern-match for suspicious keywords. Config: `{ patterns: RegExp[], labels: string[] }`. Use cases: design invariant violations (`setTimeout`, `EventEmitter`, `process.nextTick`), PII detection (`SSN`, email, phone patterns), toxicity keywords, off-track reasoning indicators.
-- [ ] **Tool call extractor** — `streamExtractor` that detects `tool_call` JSON in the stream. Feeds into the tool interception chain (SESSION-reactive-collaboration-harness §11). Enables reactive tool gating mid-stream, not post-hoc.
-- [ ] **Cost meter extractor** — `streamExtractor` that counts tokens and feeds into `budgetGate`. Enables hard-stop when LLM output exceeds budget mid-generation.
+- [x] **`streamExtractor(streamTopic, extractFn, opts?)`** — generic factory: mount an extractor function to any streaming topic. Returns a derived node with extracted values. `extractFn: (accumulated: string) => T | null` — returns extracted value or null (nothing yet). This is the building block for all extractors below. TS: `src/patterns/ai.ts`. PY: `src/graphrefly/patterns/ai.py`.
+- [x] **Keyword flag extractor** — `keywordFlagExtractor(streamTopic, { patterns })`. Scans accumulated text for all configured `RegExp` patterns, emits `KeywordFlag[]`. Use cases: design invariant violations, PII detection, toxicity keywords, off-track reasoning. TS: `src/patterns/ai.ts`.
+- [x] **Tool call extractor** — `toolCallExtractor(streamTopic)`. String-aware brace scanner detects complete `{ name, arguments }` JSON blocks mid-stream, emits `ExtractedToolCall[]`. Feeds into tool interception chain for reactive gating. TS: `src/patterns/ai.ts`.
+- [x] **Cost meter extractor** — `costMeterExtractor(streamTopic, { charsPerToken? })`. Tracks chunk count, char count, estimated tokens. Compose with `budgetGate` for mid-generation hard-stop. TS: `src/patterns/ai.ts`.
 
 **Pattern:** the stream topic is a `TopicGraph` (which extends `Graph`) — extractors are just nodes in that graph or mounted subgraphs. Sync vs async is a property of the sink, not the source: a `derived` extractor runs in the same propagation cycle as the chunk (sync — can abort before the next token), while a `SubscriptionGraph` cursor-reader consumes at its own pace (async — batches, renders at 60fps, flushes when ready). Same topology, same data, consumer picks the coupling mode. This is the dual composition mode (SESSION-reactive-collaboration-harness §8) applied to streaming.
 
@@ -375,6 +375,23 @@ The missing layer that makes "harness" real, not just "substrate."
 - [ ] Publish to npm as `@graphrefly/mcp-server`
 - [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
 - [ ] "Try it with Claude Code in 2 minutes" quickstart
+
+#### 9.3b — OpenClaw Context Engine Plugin (`@graphrefly/openclaw-context-engine`)
+
+Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook interface (select, budget, compact) with GraphReFly's reactive memory graph underneath. Lower effort than MCP Server, deeper integration (controls what the agent remembers), reaches all OpenClaw users (250k+).
+
+**Design reference:** `archive/docs/SESSION-openclaw-context-engine-research.md`
+
+- [ ] Implement ContextEngine 3-hook interface (select, budget, compact)
+- [ ] Reactive memory graph: store, extractor, stale-filter, consolidator, compact-view
+- [ ] Work context signal derived from OpenClaw session state
+- [ ] Persistence via autoCheckpoint to workspace `.graphrefly/` dir
+- [ ] Unit tests: packIntoBudget, scoreRelevance, stale-filter, consolidation
+- [ ] Integration tests: ContextEngine interface compliance
+- [ ] Regression tests: no degradation of default OpenClaw behavior
+- [ ] E2E quality test: multi-turn recall comparison (reactive memory vs legacy)
+- [ ] Publish to npm as `@graphrefly/openclaw-context-engine`
+- [ ] OpenClaw plugin registry submission
 
 #### 9.4 — Harness scorecard (public)
 

@@ -309,7 +309,7 @@ export function streamingPromptNode<T = string>(
 ): StreamingPromptNodeHandle<T> {
 	const sourceName = opts?.name ?? "llm";
 	const format = opts?.format ?? "text";
-	const streamTopic = topic<StreamChunk>(sourceName + "/stream");
+	const streamTopic = topic<StreamChunk>(`${sourceName}/stream`);
 
 	const messagesNode = derived<readonly ChatMessage[]>(
 		deps as Node<unknown>[],
@@ -373,7 +373,14 @@ export function streamingPromptNode<T = string>(
 
 	const unsub = keepalive(output);
 
-	return { output, stream: streamTopic, dispose: unsub };
+	return {
+		output,
+		stream: streamTopic,
+		dispose: () => {
+			unsub();
+			streamTopic.destroy();
+		},
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +415,193 @@ export function streamExtractor<T>(
 			name: opts?.name ?? "extractor",
 			describeKind: "derived",
 			initial: null,
+		},
+	);
+}
+
+// ---------------------------------------------------------------------------
+// keywordFlagExtractor
+// ---------------------------------------------------------------------------
+
+/** A keyword match detected in the stream. */
+export type KeywordFlag = {
+	readonly label: string;
+	readonly pattern: RegExp;
+	readonly match: string;
+	readonly position: number;
+};
+
+export type KeywordFlagExtractorOptions = {
+	patterns: readonly { pattern: RegExp; label: string }[];
+	name?: string;
+};
+
+/**
+ * Mounts a keyword-flag extractor on a streaming topic. Scans accumulated text
+ * for all configured patterns and emits an array of matches.
+ *
+ * Use cases: design invariant violations (`setTimeout`, `EventEmitter`), PII
+ * detection (SSN, email, phone), toxicity keywords, off-track reasoning.
+ */
+export function keywordFlagExtractor(
+	streamTopic: TopicGraph<StreamChunk>,
+	opts: KeywordFlagExtractorOptions,
+): Node<readonly KeywordFlag[]> {
+	return derived<readonly KeywordFlag[]>(
+		[streamTopic.latest as Node<StreamChunk | undefined>],
+		([chunk]) => {
+			if (chunk == null) return [];
+			const accumulated = (chunk as StreamChunk).accumulated;
+			const flags: KeywordFlag[] = [];
+			for (const { pattern, label } of opts.patterns) {
+				// Reset lastIndex for stateful (global) regexes
+				const re = new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`);
+				for (const m of accumulated.matchAll(re)) {
+					flags.push({ label, pattern, match: m[0], position: m.index! });
+				}
+			}
+			return flags;
+		},
+		{
+			name: opts.name ?? "keyword-flag-extractor",
+			describeKind: "derived",
+			initial: [],
+		},
+	);
+}
+
+// ---------------------------------------------------------------------------
+// toolCallExtractor
+// ---------------------------------------------------------------------------
+
+/** A tool call detected in the stream. */
+export type ExtractedToolCall = {
+	readonly name: string;
+	readonly arguments: Record<string, unknown>;
+	readonly raw: string;
+	readonly startIndex: number;
+};
+
+/**
+ * Mounts a tool-call extractor on a streaming topic. Scans accumulated text
+ * for complete JSON objects containing `"name"` and `"arguments"` keys (the
+ * standard tool_call shape). Partial JSON is ignored until the closing brace.
+ *
+ * Feeds into the tool interception chain for reactive tool gating mid-stream.
+ */
+export function toolCallExtractor(
+	streamTopic: TopicGraph<StreamChunk>,
+	opts?: { name?: string },
+): Node<readonly ExtractedToolCall[]> {
+	return derived<readonly ExtractedToolCall[]>(
+		[streamTopic.latest as Node<StreamChunk | undefined>],
+		([chunk]) => {
+			if (chunk == null) return [];
+			const accumulated = (chunk as StreamChunk).accumulated;
+			const calls: ExtractedToolCall[] = [];
+			// Scan for top-level JSON objects containing "name" and "arguments".
+			// String-aware: skips braces inside double-quoted strings.
+			let i = 0;
+			while (i < accumulated.length) {
+				const start = accumulated.indexOf("{", i);
+				if (start === -1) break;
+				let depth = 0;
+				let end = -1;
+				let inString = false;
+				for (let j = start; j < accumulated.length; j++) {
+					const ch = accumulated[j];
+					if (inString) {
+						if (ch === "\\" && j + 1 < accumulated.length) {
+							j++; // skip escaped character
+						} else if (ch === '"') {
+							inString = false;
+						}
+					} else if (ch === '"') {
+						inString = true;
+					} else if (ch === "{") {
+						depth++;
+					} else if (ch === "}") {
+						depth--;
+						if (depth === 0) {
+							end = j;
+							break;
+						}
+					}
+				}
+				if (end === -1) break; // incomplete JSON — wait for more chunks
+				const raw = accumulated.slice(start, end + 1);
+				try {
+					const parsed = JSON.parse(raw) as Record<string, unknown>;
+					if (
+						typeof parsed.name === "string" &&
+						parsed.arguments != null &&
+						typeof parsed.arguments === "object"
+					) {
+						calls.push({
+							name: parsed.name,
+							arguments: parsed.arguments as Record<string, unknown>,
+							raw,
+							startIndex: start,
+						});
+					}
+				} catch {
+					// Not valid JSON — skip
+				}
+				i = end + 1;
+			}
+			return calls;
+		},
+		{
+			name: opts?.name ?? "tool-call-extractor",
+			describeKind: "derived",
+			initial: [],
+		},
+	);
+}
+
+// ---------------------------------------------------------------------------
+// costMeterExtractor
+// ---------------------------------------------------------------------------
+
+/** A cost meter reading from the stream. */
+export type CostMeterReading = {
+	readonly chunkCount: number;
+	readonly charCount: number;
+	readonly estimatedTokens: number;
+};
+
+export type CostMeterOptions = {
+	/** Characters per token approximation. Default: 4 (GPT-family). */
+	charsPerToken?: number;
+	name?: string;
+};
+
+/**
+ * Mounts a cost meter on a streaming topic. Counts chunks, characters, and
+ * estimates token count. Compose with `budgetGate` for hard-stop when LLM
+ * output exceeds budget mid-generation.
+ */
+export function costMeterExtractor(
+	streamTopic: TopicGraph<StreamChunk>,
+	opts?: CostMeterOptions,
+): Node<CostMeterReading> {
+	const charsPerToken = opts?.charsPerToken ?? 4;
+	return derived<CostMeterReading>(
+		[streamTopic.latest as Node<StreamChunk | undefined>],
+		([chunk]) => {
+			if (chunk == null) return { chunkCount: 0, charCount: 0, estimatedTokens: 0 };
+			const c = chunk as StreamChunk;
+			const charCount = c.accumulated.length;
+			return {
+				chunkCount: c.index + 1,
+				charCount,
+				estimatedTokens: Math.ceil(charCount / charsPerToken),
+			};
+		},
+		{
+			name: opts?.name ?? "cost-meter",
+			describeKind: "derived",
+			initial: { chunkCount: 0, charCount: 0, estimatedTokens: 0 },
 		},
 	);
 }

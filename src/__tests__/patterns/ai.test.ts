@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA } from "../../core/messages.js";
+import { DATA, TEARDOWN } from "../../core/messages.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 import {
@@ -10,9 +10,13 @@ import {
 	type ChatMessage,
 	ChatStreamGraph,
 	chatStream,
+	costMeterExtractor,
+	type ExtractedToolCall,
 	fromLLM,
 	gaugesAsContext,
 	graphFromSpec,
+	type KeywordFlag,
+	keywordFlagExtractor,
 	knobsAsTools,
 	type LLMAdapter,
 	type LLMResponse,
@@ -26,6 +30,7 @@ import {
 	systemPromptBuilder,
 	type ToolDefinition,
 	ToolRegistryGraph,
+	toolCallExtractor,
 	toolRegistry,
 	validateGraphDef,
 } from "../../patterns/ai.js";
@@ -375,6 +380,25 @@ describe("patterns.ai.streamingPromptNode", () => {
 
 		expect(result).toEqual({ key: "value" });
 	});
+
+	it("dispose destroys the stream topic (TEARDOWN)", () => {
+		const { stream, dispose } = streamingPromptNode(
+			mockAdapter([], []),
+			[state("go")],
+			(v) => `${v}`,
+		);
+
+		const received: unknown[] = [];
+		stream.latest.subscribe((messages) => {
+			for (const msg of messages) {
+				received.push(msg[0]);
+			}
+		});
+
+		dispose();
+
+		expect(received).toContain(TEARDOWN);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -421,6 +445,242 @@ describe("patterns.ai.streamExtractor", () => {
 
 		// No chunks published yet — latest is undefined → extractFn not called
 		expect(extractor.get()).toBe(null);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// keywordFlagExtractor
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.keywordFlagExtractor", () => {
+	it("detects keyword matches in the stream", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], [["a"]]), [state("go")], (v) => `${v}`);
+
+		const flags: KeywordFlag[][] = [];
+		const extractor = keywordFlagExtractor(stream, {
+			patterns: [
+				{ pattern: /setTimeout/g, label: "invariant-violation" },
+				{ pattern: /\bSSN\b/i, label: "pii" },
+			],
+		});
+		extractor.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) flags.push(msg[1] as KeywordFlag[]);
+			}
+		});
+
+		stream.publish({ source: "test", token: "use ", accumulated: "use ", index: 0 });
+		stream.publish({
+			source: "test",
+			token: "setTimeout and SSN",
+			accumulated: "use setTimeout and SSN",
+			index: 1,
+		});
+
+		// Last emission should contain both flags
+		const last = flags[flags.length - 1];
+		expect(last).toHaveLength(2);
+		expect(last[0].label).toBe("invariant-violation");
+		expect(last[0].match).toBe("setTimeout");
+		expect(last[1].label).toBe("pii");
+		expect(last[1].match).toBe("SSN");
+	});
+
+	it("returns empty array when no matches", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = keywordFlagExtractor(stream, {
+			patterns: [{ pattern: /setTimeout/, label: "violation" }],
+		});
+		extractor.subscribe(() => {});
+
+		stream.publish({ source: "test", token: "clean code", accumulated: "clean code", index: 0 });
+		expect(extractor.get()).toEqual([]);
+	});
+
+	it("finds multiple matches of the same pattern", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = keywordFlagExtractor(stream, {
+			patterns: [{ pattern: /TODO/g, label: "todo" }],
+		});
+		extractor.subscribe(() => {});
+
+		stream.publish({
+			source: "test",
+			token: "TODO fix TODO later",
+			accumulated: "TODO fix TODO later",
+			index: 0,
+		});
+
+		const result = extractor.get()!;
+		expect(result).toHaveLength(2);
+		expect(result[0].position).toBe(0);
+		expect(result[1].position).toBe(9);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// toolCallExtractor
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.toolCallExtractor", () => {
+	it("extracts tool calls from the stream", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const calls: ExtractedToolCall[][] = [];
+		const extractor = toolCallExtractor(stream);
+		extractor.subscribe((messages) => {
+			for (const msg of messages) {
+				if (msg[0] === DATA) calls.push(msg[1] as ExtractedToolCall[]);
+			}
+		});
+
+		const toolJson = JSON.stringify({ name: "get_weather", arguments: { city: "NYC" } });
+		stream.publish({
+			source: "test",
+			token: toolJson,
+			accumulated: `Sure, let me check. ${toolJson}`,
+			index: 0,
+		});
+
+		const last = calls[calls.length - 1];
+		expect(last).toHaveLength(1);
+		expect(last[0].name).toBe("get_weather");
+		expect(last[0].arguments).toEqual({ city: "NYC" });
+		expect(last[0].startIndex).toBe(20); // after "Sure, let me check. "
+	});
+
+	it("returns empty array for partial JSON", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = toolCallExtractor(stream);
+		extractor.subscribe(() => {});
+
+		// Incomplete JSON — no closing brace yet
+		stream.publish({
+			source: "test",
+			token: '{"name": "run',
+			accumulated: '{"name": "run',
+			index: 0,
+		});
+
+		expect(extractor.get()).toEqual([]);
+	});
+
+	it("ignores JSON objects without name+arguments shape", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = toolCallExtractor(stream);
+		extractor.subscribe(() => {});
+
+		stream.publish({
+			source: "test",
+			token: '{"foo": "bar"}',
+			accumulated: '{"foo": "bar"}',
+			index: 0,
+		});
+
+		expect(extractor.get()).toEqual([]);
+	});
+
+	it("handles braces inside JSON string values", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = toolCallExtractor(stream);
+		extractor.subscribe(() => {});
+
+		const toolJson = JSON.stringify({
+			name: "run_code",
+			arguments: { code: 'if (x) { return "}" }' },
+		});
+		stream.publish({
+			source: "test",
+			token: toolJson,
+			accumulated: toolJson,
+			index: 0,
+		});
+
+		const result = extractor.get()!;
+		expect(result).toHaveLength(1);
+		expect(result[0].name).toBe("run_code");
+		expect(result[0].arguments).toEqual({ code: 'if (x) { return "}" }' });
+	});
+
+	it("extracts multiple tool calls from one stream", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = toolCallExtractor(stream);
+		extractor.subscribe(() => {});
+
+		const call1 = JSON.stringify({ name: "a", arguments: { x: 1 } });
+		const call2 = JSON.stringify({ name: "b", arguments: { y: 2 } });
+		stream.publish({
+			source: "test",
+			token: `${call1} then ${call2}`,
+			accumulated: `${call1} then ${call2}`,
+			index: 0,
+		});
+
+		const result = extractor.get()!;
+		expect(result).toHaveLength(2);
+		expect(result[0].name).toBe("a");
+		expect(result[1].name).toBe("b");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// costMeterExtractor
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.costMeterExtractor", () => {
+	it("tracks chunk count, char count, and estimated tokens", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = costMeterExtractor(stream);
+		extractor.subscribe(() => {});
+
+		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
+
+		const reading = extractor.get()!;
+		expect(reading.chunkCount).toBe(1);
+		expect(reading.charCount).toBe(5);
+		expect(reading.estimatedTokens).toBe(2); // ceil(5/4)
+	});
+
+	it("accumulates across chunks", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = costMeterExtractor(stream);
+		extractor.subscribe(() => {});
+
+		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
+		stream.publish({ source: "test", token: " world", accumulated: "hello world", index: 1 });
+
+		const reading = extractor.get()!;
+		expect(reading.chunkCount).toBe(2);
+		expect(reading.charCount).toBe(11);
+		expect(reading.estimatedTokens).toBe(3); // ceil(11/4)
+	});
+
+	it("uses custom charsPerToken", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = costMeterExtractor(stream, { charsPerToken: 2 });
+		extractor.subscribe(() => {});
+
+		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
+
+		expect(extractor.get()!.estimatedTokens).toBe(3); // ceil(5/2)
+	});
+
+	it("returns zero reading when no chunks", () => {
+		const { stream } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+
+		const extractor = costMeterExtractor(stream);
+		extractor.subscribe(() => {});
+
+		expect(extractor.get()).toEqual({ chunkCount: 0, charCount: 0, estimatedTokens: 0 });
 	});
 });
 
