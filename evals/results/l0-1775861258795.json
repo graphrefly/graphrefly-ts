@@ -1,436 +1,436 @@
 {
-  "run_id": "l0-1775861258795",
-  "timestamp": "2026-04-10T22:47:38.795Z",
-  "layer": "L0",
-  "model": "gemma4:26b",
-  "provider": "ollama",
-  "schema_version": "scaffold",
-  "scores": {
-    "L0-M1-graphspec-error-rate": 1,
-    "L0-M1-functions-error-rate": 0.16666666666666666,
-    "L0-M1-ratio": 6
-  },
-  "tasks": [
-    {
-      "task_id": "stateful-leaderboard",
-      "treatment": "graphspec",
-      "raw_output": "```json\n{\n  \"nodes\": {\n    \"score_events\": {\n      \"type\": \"producer\",\n      \"source\": \"http-server\",\n      \"config\": {\n        \"path\": \"/score-update\"\n      }\n    },\n    \"player_scores\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"score_events\"\n      ],\n      \"fn\": \"groupBy\",\n      \"config\": {\n        \"field\": \"playerId\"\n      }\n    },\n    \"leaderboard\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"player_scores\"\n      ],\n      \"fn\": \"aggregate\",\n      \"config\": {\n        \"op\": \"max\",\n        \"field\": \"score\"\n      }\n    },\n    \"leaderboard_changes\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"leaderboard\"\n      ],\n      \"fn\": \"dedup\"\n    },\n    \"broadcast\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"leaderboard_changes\"\n      ],\n      \"fn\": \"postToChannel\",\n      \"config\": {\n        \"channel\": \"game-clients\"\n      }\n    }\n  }\n}\n```",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The GraphSpec correctly implements the data pipeline for receiving events, detecting changes, and broadcasting, but it fails to address the specific requirements of sorting the leaderboard and maintaining only the top 10 players."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "The GraphSpec correctly implements the data flow for receiving events, detecting changes (via dedup), and broadcasting (via postToChannel). However, it fails to address the specific requirement of maintaining a 'sorted top-10' leaderboard, as the 'leaderboard' node only performs a 'max' aggregation without any sorting or truncation mechanism to limit the results to 10."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The claim is correct. The GraphSpec defines a continuous and unbroken dependency chain: score_events (producer) -> player_scores -> leaderboard -> leaderboard_changes -> broadcast (effect). Every node correctly references its predecessor in the 'deps' array, and every node in the chain is utilized by a subsequent node, meaning there are no missing dependencies or unused inputs."
-        }
-      ],
-      "latency_ms": 139712.205625,
-      "token_count": {
-        "input": 2901,
-        "output": 3507
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-leaderboard",
-      "treatment": "functions",
-      "raw_output": "```typescript\nasync function main() {\n  const scoreStream = connectWebSocket('ws://game-scores-stream');\n  const playerScores: Record<string, number> = {};\n  let lastLeaderboardJson = '';\n\n  for await (const event of scoreStream) {\n    const { playerId, score } = event;\n    playerScores[playerId] = score;\n\n    const top10 = Object.entries(playerScores)\n      .map(([playerId, score]) => ({ playerId, score }))\n      .sort((a, b) => b.score - a.score)\n      .slice(0, 10);\n\n    const currentLeaderboardJson = JSON.stringify(top10);\n\n    if (currentLeaderboardJson !== lastLeaderboardJson) {\n      lastLeaderboardJson = currentLeaderboardJson;\n      await sendPushNotification(`Leaderboard Update: ${currentLeaderboardJson}`);\n    }\n  }\n}\n```",
-      "valid": true,
-      "runnable": true,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The claim states that the generated output is syntactically valid. Upon inspection, the TypeScript code provided is syntactically correct, using valid async/await syntax, proper type annotations, and correct usage of array methods and object manipulation."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The provided code correctly implements all requirements: it iterates over a stream of events, updates a local state of player scores, recalculates the top 10 sorted list, compares the new top 10 against the previous state to detect changes, and triggers a notification (broadcast) when a change is detected."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The code correctly implements the entire logic requested in the task. The data flow is complete: it consumes an asynchronous stream, processes the data to update a local state, performs a comparison to detect changes, and triggers an external notification. All variables used in the logic are either defined within the function or represent the necessary external dependencies (like the websocket connection and notification service) required to fulfill the task."
-        }
-      ],
-      "latency_ms": 110275.86287499999,
-      "token_count": {
-        "input": 729,
-        "output": 3087
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-retry-fallback",
-      "treatment": "graphspec",
-      "raw_output": "",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "The generated output is empty. Therefore, it cannot be syntactically valid (as claimed), nor does it implement any of the required behaviors or logic described in the task description."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The provided generated output is empty, therefore it does not implement any of the required behaviors specified in the task description. The claim that the output correctly implements all key behaviors is false."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "The claim provided does not attempt to solve the task described. It is a single sentence regarding the existence of references in a catalog, whereas the task requires a functional implementation of an API call with retry logic, exponential backoff, fallback mechanism, and logging."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The generated output is empty, meaning no implementation was provided to evaluate against the task description. Consequently, none of the required behaviors are present, and the claim regarding the correctness of dependencies/data flows cannot be verified and is effectively false as there is no code to contain them."
-        }
-      ],
-      "latency_ms": 159577.95954199997,
-      "token_count": {
-        "input": 2905,
-        "output": 4096
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-retry-fallback",
-      "treatment": "functions",
-      "raw_output": "```typescript\nasync function getPricingWithRetry(apiUrl: string, cachePath: string): Promise<any> {\n  let attempt = 0;\n  const maxRetries = 3;\n\n  while (attempt <= maxRetries) {\n    try {\n      const data = await fetchFromApi(apiUrl);\n      \n      // Update cache on success\n      await writeFile(cachePath, JSON.stringify(data));\n      await logToAudit({ url: apiUrl, attempt, status: 'success' });\n      \n      return data;\n    } catch (error) {\n      const errorMessage = error instanceof Error ? error.message : String(error);\n      await logToAudit({ url: apiUrl, attempt, status: 'failure', error: errorMessage });\n\n      if (attempt < maxRetries) {\n        // Exponential backoff: 1s, 2s, 4s\n        const delay = Math.pow(2, attempt) * 1000;\n        await new Promise((resolve) => setTimeout(resolve, delay));\n        attempt++;\n      } else {\n        // All retries exhausted, fallback to cache\n        await logToAudit({ url: apiUrl, attempt, status: 'retries_exhausted', action: 'fallback_to_cache' });\n        const cachedContent = await readFile(cachePath);\n        return JSON.parse(cachedContent);\n      }\n    }\n  }\n}\n```",
-      "valid": true,
-      "runnable": true,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The TypeScript code is syntactically valid and correctly implements all the requirements: it performs the API call, implements a retry loop with exponential backoff (up to 3 retries), handles the fallback to a cache upon exhaustion, and includes logging for all attempts (success, failure, and exhaustion)."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The code correctly implements the logic: it performs an initial attempt and up to 3 retries (total 4 attempts) using an exponential backoff strategy. It logs every attempt (success, failure, and exhaustion) and correctly implements the fallback to the cached file when retries are exhausted."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The function correctly declares and uses all its inputs (apiUrl and cachePath). The data flow is logical: the API response is passed to the cache and the return statement, and the cache path is used for both writing and reading. The retry logic and backoff calculation correctly depend on the internal 'attempt' variable. While the external helper functions (fetchFromApi, writeFile, etc.) are not defined in the snippet, they are correctly referenced as dependencies for the function's logic."
-        }
-      ],
-      "latency_ms": 93087.22912499984,
-      "token_count": {
-        "input": 733,
-        "output": 2598
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-circuit-breaker",
-      "treatment": "graphspec",
-      "raw_output": "",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "The 'Generated output' field is empty. Therefore, the output does not perform the requested task, and the claim that the output is syntactically valid is false because an empty string is not a valid GraphSpec (JSON) or TypeScript function."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The provided generated output is empty, meaning it does not contain any implementation of the requested task or its key behaviors. Therefore, the claim that it correctly implements all behaviors is false."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "The claim provided does not address the task description (implementing a circuit breaker). It is a meta-statement about code references and contains none of the required functional behaviors or logic."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The generated output is empty, so it does not implement the required circuit breaker logic, nor does it declare any dependencies or data flows as claimed."
-        }
-      ],
-      "latency_ms": 159472.1210830002,
-      "token_count": {
-        "input": 2923,
-        "output": 4096
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-circuit-breaker",
-      "treatment": "functions",
-      "raw_output": "",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "The provided 'Generated output' is empty. Therefore, the claim that the output is syntactically valid cannot be verified as true, and the output fails to implement any of the required behaviors or address the task description."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The provided generated output is empty, meaning it contains no implementation of the requested task. Therefore, the claim that the output correctly implements all key behaviors is false."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "The output provided is a meta-statement regarding the existence of references and does not contain any implementation of the circuit breaker logic described in the task."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The 'Generated output' field is empty. Therefore, it is impossible to verify the claim that dependencies and data flows are correctly declared, and none of the required behaviors are present."
-        }
-      ],
-      "latency_ms": 148224.6329999999,
-      "token_count": {
-        "input": 751,
-        "output": 4096
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-dead-letter-queue",
-      "treatment": "graphspec",
-      "raw_output": "```json\n{\n  \"nodes\": {\n    \"job_queue\": {\n      \"type\": \"producer\",\n      \"source\": \"kafka\",\n      \"config\": {\n        \"topic\": \"jobs\"\n      }\n    },\n    \"process_job\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"job_queue\"\n      ],\n      \"fn\": \"retry\",\n      \"config\": {\n        \"maxAttempts\": 3\n      }\n    },\n    \"failed_jobs\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"process_job\"\n      ],\n      \"fn\": \"filterBy\",\n      \"config\": {\n        \"field\": \"status\",\n        \"op\": \"eq\",\n        \"value\": \"failed\"\n      }\n    },\n    \"dlq_writer\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"failed_jobs\"\n      ],\n      \"fn\": \"writeToDB\",\n      \"config\": {\n        \"table\": \"dead_letter_queue\"\n      }\n    },\n    \"ops_alert\": {\n      \"",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "The claim states the output is syntactically valid, but the provided JSON is incomplete and truncated, making it invalid. Furthermore, the 'ops_alert' node is not finished, so the requirement to alert the ops channel is not implemented."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The generated output is incomplete. While it covers the queue consumption, retry logic, and DLQ writing, the JSON string cuts off before defining the 'ops_alert' node, meaning the requirement to alert the ops channel with the failure reason is not implemented."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The provided GraphSpec is truncated, leaving the 'ops_alert' node unfinished. Because the definition for 'ops_alert' is missing, it is impossible to verify if its dependencies or data flows are correctly declared, making the claim that 'all' dependencies are correctly declared false."
-        }
-      ],
-      "latency_ms": 158973.64429200022,
-      "token_count": {
-        "input": 2911,
-        "output": 4096
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-dead-letter-queue",
-      "treatment": "functions",
-      "raw_output": "```typescript\nasync function processJob(message: any): Promise<void> {\n  // Logic for processing the job goes here\n  // This is a placeholder for the actual business logic\n}\n\nasync function main() {\n  const queueUrl = 'https://api.jobs.queue/stream';\n  const dlqTable = 'dead_letter_queue';\n  const opsChannel = '#ops-alerts';\n  const pollInterval = 5000;\n\n  for await (const message of pollSource(queueUrl, pollInterval)) {\n    let attempts = 0;\n    let lastError: any = null;\n    let success = false;\n\n    // Initial attempt + up to 2 retries = 3 total attempts\n    while (attempts <= 2) {\n      try {\n        await processJob(message);\n        success = true;\n        break;\n      } catch (error) {\n        attempts++;\n        lastError = error;\n      }\n    }\n\n    if (!success) {\n      const errorReason = lastError instanceof Error ? lastError.message : String(lastError);\n\n      await writeToDatabase(dlqTable, {\n        payload: message,\n        error: errorReason,\n        timestamp: new Date().toISOString(),\n        retryAttempts: attempts - 1\n      });\n\n      await sendSlackMessage(\n        opsChannel,\n        `🚨 Job processing failed after 2 retries. Reason: ${errorReason}`\n      );\n    }\n  }\n}\n```",
-      "valid": true,
-      "runnable": true,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The TypeScript code is syntactically correct and implements all the required logic: it uses an async iterator to consume messages, implements a retry loop that allows for an initial attempt plus 2 retries (3 total), and correctly handles the dead-letter queue and alerting logic upon exhaustion of retries."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The code correctly implements the logic for polling a queue, a retry loop that allows for an initial attempt plus 2 retries (total 3 attempts), and the subsequent logic to move failed messages to a DLQ and alert the ops channel with the error reason."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The claim is false because the code relies on several external dependencies (pollSource, writeToDatabase, and sendSlackMessage) that are neither defined within the provided snippet nor imported, meaning the dependencies are not correctly declared."
-        }
-      ],
-      "latency_ms": 63060.07545799995,
-      "token_count": {
-        "input": 739,
-        "output": 1772
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-threshold-alert",
-      "treatment": "graphspec",
-      "raw_output": "```json\n{\n  \"nodes\": {\n    \"metrics_stream\": {\n      \"type\": \"producer\",\n      \"source\": \"prometheus\",\n      \"config\": {\n        \"query\": \"rate(http_errors_total[1m]) / rate(http_requests_total[1m])\",\n        \"intervalMs\": 30000\n      }\n    },\n    \"error_threshold_breach\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"metrics_stream\"\n      ],\n      \"fn\": \"thresholdCheck\",\n      \"config\": {\n        \"max\": 0.05\n      }\n    },\n    \"pagerduty_alert\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"sendPagerDuty\",\n      \"config\": {\n        \"severity\": \"critical\"\n      }\n    },\n    \"audit_log\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"writeLog\",\n      \"config\": {\n        \"level\": \"error\",\n        \"destination\": \"audit-trail\"\n      }\n    },\n    \"dashboard_update\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"updateDashboard\",\n      \"config\": {\n        \"dashboardId\": \"system-health-status\"\n      }\n    }\n  }\n}\n```",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The generated output is a syntactically valid JSON object following the GraphSpec schema. It correctly implements the logic: it defines a producer for the error rate, a derived node for the 5% threshold check, and three independent effect nodes that trigger upon the threshold breach. All required side effects (PagerDuty, audit log, dashboard update) are present and correctly configured."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The GraphSpec correctly implements the logic: it defines a producer for the metrics, a derived node to check the 5% threshold, and three separate effect nodes. Because the three effect nodes all depend on the 'error_threshold_breach' node but do not depend on each other, they are executed as independent branches in the graph, satisfying the requirement for independent side effects."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The graph correctly establishes a logical chain: the producer (metrics_stream) feeds into the logic node (error_threshold_breach), which then branches out to the three side-effect nodes (pagerduty_alert, audit_log, and dashboard_update). Each node's 'deps' property correctly identifies its required input, and there are no disconnected or unused nodes in the pipeline."
-        }
-      ],
-      "latency_ms": 51551.08295900002,
-      "token_count": {
-        "input": 2906,
-        "output": 1208
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-threshold-alert",
-      "treatment": "functions",
-      "raw_output": "```typescript\nasync function monitorMetricsStream(url: string, intervalMs: number) {\n  const stream = pollSource(url, intervalMs);\n\n  for await (const metrics of stream) {\n    if (metrics.errorRate > 0.05) {\n      const alert = sendPushNotification(`PagerDuty Alert: Error rate has exceeded 5% (Current: ${metrics.errorRate * 100}%)`);\n      const audit = logToAudit({\n        event: 'High Error Rate Detected',\n        errorRate: metrics.errorRate,\n        timestamp: new Date().toISOString()\n      });\n      const dashboard = writeToDatabase('status_dashboard', {\n        status: 'Critical',\n        errorRate: metrics.errorRate,\n        lastUpdated: new Date().toISOString()\n      });\n\n      // Promise.allSettled ensures each side effect completes independently \n      // regardless of whether others succeed or fail.\n      await Promise.allSettled([alert, audit, dashboard]);\n    }\n  }\n}\n```",
-      "valid": true,
-      "runnable": true,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The provided TypeScript code is syntactically valid. It correctly uses async/await, async iterators (for await...of), template literals, and Promise.allSettled. While the external functions (pollSource, sendPushNotification, etc.) are not defined within the snippet, the syntax used to call them is correct."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The implementation correctly uses an async iterator to monitor the stream, checks the specific 5% threshold, triggers all three required side effects, and uses Promise.allSettled to ensure that the failure of one side effect does not prevent the others from completing, satisfying the independence requirement."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The function correctly utilizes all its input parameters (url, intervalMs) and the data from the stream (metrics.errorRate) to drive the logic. The data flow from the source to the threshold check and then to the parallel execution of side effects via Promise.allSettled is logically complete. While the external utility functions (pollSource, etc.) are not defined in the snippet, they are treated as provided environment dependencies, and the internal data dependencies within the function are all correctly declared and used."
-        }
-      ],
-      "latency_ms": 85445.30150000006,
-      "token_count": {
-        "input": 734,
-        "output": 2371
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-user-signup",
-      "treatment": "graphspec",
-      "raw_output": "",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "The 'Generated output' field is empty. Therefore, the claim that the output is syntactically valid cannot be true, and none of the required behaviors are present."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "The provided 'Generated output' is empty. Therefore, it does not implement any of the required behaviors, making the claim that it 'correctly implements all key behaviors' false."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "The provided text is a meta-statement regarding the existence of references in a catalog; it does not contain any implementation of the user signup workflow or any of the required behaviors described in the task."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "The provided output does not contain any of the required functional logic (email validation, database creation, email sending, etc.) described in the task. It is simply a claim about data flows and does not implement the signup workflow."
-        }
-      ],
-      "latency_ms": 159486.35487499926,
-      "token_count": {
-        "input": 2922,
-        "output": 4096
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-user-signup",
-      "treatment": "functions",
-      "raw_output": "```typescript\nasync function handleUserSignup(userData: { email: string; name: string }) {\n  const steps = [\n    {\n      name: 'Email Validation',\n      action: async () => {\n        const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n        if (!emailRegex.test(userData.email)) {\n          throw new Error('Invalid email format');\n        }\n      }\n    },\n    {\n      name: 'Create User Record',\n      action: async () => {\n        await writeToDatabase('users', userData);\n      }\n    },\n    {\n      name: 'Send Welcome Email',\n      action: async () => {\n        const verificationLink = `https://app.com/verify?token=${encodeURIComponent(userData.email)}`;\n        await sendEmail(\n          userData.email,\n          'Welcome to our platform!',\n          `Please verify your email by clicking here: ${verificationLink}`\n        );\n      }\n    },\n    {\n      name: 'Enqueue Analytics Event',\n      action: async () => {\n        await writeToDatabase('analytics_events', {\n          event: 'user_signup',\n          email: userData.email,\n          timestamp: new Date().toISOString()\n        });\n      }\n    },\n    {\n      name: 'Provision Default Workspace',\n      action: async () => {\n        await writeToDatabase('workspaces', {\n          ownerEmail: userData.email,\n          name: 'My Default Workspace',\n          createdAt: new Date().toISOString()\n        });\n      }\n    }\n  ];\n\n  for (const step of steps) {\n    try {\n      await step.action();\n    } catch (error: any) {\n      await logToAudit({\n        event: 'signup_step_failure',\n        step: step.name,\n        error: error.message,\n        timestamp: new Date().toISOString()\n      });\n    }\n  }\n}\n```",
-      "valid": true,
-      "runnable": true,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": true,
-          "reasoning": "The generated code accurately follows all instructions in the task description. It implements the sequence of operations (validation, DB creation, email, analytics, workspace) and specifically adheres to the requirement to log failures and continue with the remaining steps by using a try-catch block inside the loop. The syntax is valid TypeScript."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": true,
-          "reasoning": "The implementation follows all instructions. It uses an array of step objects and iterates through them with a try-catch block inside the loop, which ensures that a failure in one step is logged via 'logToAudit' but does not prevent subsequent steps from executing, as requested. All specific functional requirements (validation, DB creation, email with link, analytics, and workspace provisioning) are present."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: "
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": true,
-          "reasoning": "The claim is correct. The function `handleUserSignup` takes `userData` as an input and utilizes its properties (`email` and `name`) throughout the various steps of the process. There are no unused inputs from the provided `userData` object, and the data flow from the input to the database, email, and analytics steps is logically and completely declared. The external dependencies (like `writeToDatabase`) are used correctly within the context of the function's logic."
-        }
-      ],
-      "latency_ms": 129249.16475000046,
-      "token_count": {
-        "input": 750,
-        "output": 3584
-      },
-      "cost_usd": 0
-    }
-  ],
-  "total_cost_usd": 0
+	"run_id": "l0-1775861258795",
+	"timestamp": "2026-04-10T22:47:38.795Z",
+	"layer": "L0",
+	"model": "gemma4:26b",
+	"provider": "ollama",
+	"schema_version": "scaffold",
+	"scores": {
+		"L0-M1-graphspec-error-rate": 1,
+		"L0-M1-functions-error-rate": 0.16666666666666666,
+		"L0-M1-ratio": 6
+	},
+	"tasks": [
+		{
+			"task_id": "stateful-leaderboard",
+			"treatment": "graphspec",
+			"raw_output": "```json\n{\n  \"nodes\": {\n    \"score_events\": {\n      \"type\": \"producer\",\n      \"source\": \"http-server\",\n      \"config\": {\n        \"path\": \"/score-update\"\n      }\n    },\n    \"player_scores\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"score_events\"\n      ],\n      \"fn\": \"groupBy\",\n      \"config\": {\n        \"field\": \"playerId\"\n      }\n    },\n    \"leaderboard\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"player_scores\"\n      ],\n      \"fn\": \"aggregate\",\n      \"config\": {\n        \"op\": \"max\",\n        \"field\": \"score\"\n      }\n    },\n    \"leaderboard_changes\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"leaderboard\"\n      ],\n      \"fn\": \"dedup\"\n    },\n    \"broadcast\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"leaderboard_changes\"\n      ],\n      \"fn\": \"postToChannel\",\n      \"config\": {\n        \"channel\": \"game-clients\"\n      }\n    }\n  }\n}\n```",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The GraphSpec correctly implements the data pipeline for receiving events, detecting changes, and broadcasting, but it fails to address the specific requirements of sorting the leaderboard and maintaining only the top 10 players."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "The GraphSpec correctly implements the data flow for receiving events, detecting changes (via dedup), and broadcasting (via postToChannel). However, it fails to address the specific requirement of maintaining a 'sorted top-10' leaderboard, as the 'leaderboard' node only performs a 'max' aggregation without any sorting or truncation mechanism to limit the results to 10."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The claim is correct. The GraphSpec defines a continuous and unbroken dependency chain: score_events (producer) -> player_scores -> leaderboard -> leaderboard_changes -> broadcast (effect). Every node correctly references its predecessor in the 'deps' array, and every node in the chain is utilized by a subsequent node, meaning there are no missing dependencies or unused inputs."
+				}
+			],
+			"latency_ms": 139712.205625,
+			"token_count": {
+				"input": 2901,
+				"output": 3507
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-leaderboard",
+			"treatment": "functions",
+			"raw_output": "```typescript\nasync function main() {\n  const scoreStream = connectWebSocket('ws://game-scores-stream');\n  const playerScores: Record<string, number> = {};\n  let lastLeaderboardJson = '';\n\n  for await (const event of scoreStream) {\n    const { playerId, score } = event;\n    playerScores[playerId] = score;\n\n    const top10 = Object.entries(playerScores)\n      .map(([playerId, score]) => ({ playerId, score }))\n      .sort((a, b) => b.score - a.score)\n      .slice(0, 10);\n\n    const currentLeaderboardJson = JSON.stringify(top10);\n\n    if (currentLeaderboardJson !== lastLeaderboardJson) {\n      lastLeaderboardJson = currentLeaderboardJson;\n      await sendPushNotification(`Leaderboard Update: ${currentLeaderboardJson}`);\n    }\n  }\n}\n```",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The claim states that the generated output is syntactically valid. Upon inspection, the TypeScript code provided is syntactically correct, using valid async/await syntax, proper type annotations, and correct usage of array methods and object manipulation."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The provided code correctly implements all requirements: it iterates over a stream of events, updates a local state of player scores, recalculates the top 10 sorted list, compares the new top 10 against the previous state to detect changes, and triggers a notification (broadcast) when a change is detected."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The code correctly implements the entire logic requested in the task. The data flow is complete: it consumes an asynchronous stream, processes the data to update a local state, performs a comparison to detect changes, and triggers an external notification. All variables used in the logic are either defined within the function or represent the necessary external dependencies (like the websocket connection and notification service) required to fulfill the task."
+				}
+			],
+			"latency_ms": 110275.86287499999,
+			"token_count": {
+				"input": 729,
+				"output": 3087
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "graphspec",
+			"raw_output": "",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "The generated output is empty. Therefore, it cannot be syntactically valid (as claimed), nor does it implement any of the required behaviors or logic described in the task description."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The provided generated output is empty, therefore it does not implement any of the required behaviors specified in the task description. The claim that the output correctly implements all key behaviors is false."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "The claim provided does not attempt to solve the task described. It is a single sentence regarding the existence of references in a catalog, whereas the task requires a functional implementation of an API call with retry logic, exponential backoff, fallback mechanism, and logging."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The generated output is empty, meaning no implementation was provided to evaluate against the task description. Consequently, none of the required behaviors are present, and the claim regarding the correctness of dependencies/data flows cannot be verified and is effectively false as there is no code to contain them."
+				}
+			],
+			"latency_ms": 159577.95954199997,
+			"token_count": {
+				"input": 2905,
+				"output": 4096
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "functions",
+			"raw_output": "```typescript\nasync function getPricingWithRetry(apiUrl: string, cachePath: string): Promise<any> {\n  let attempt = 0;\n  const maxRetries = 3;\n\n  while (attempt <= maxRetries) {\n    try {\n      const data = await fetchFromApi(apiUrl);\n      \n      // Update cache on success\n      await writeFile(cachePath, JSON.stringify(data));\n      await logToAudit({ url: apiUrl, attempt, status: 'success' });\n      \n      return data;\n    } catch (error) {\n      const errorMessage = error instanceof Error ? error.message : String(error);\n      await logToAudit({ url: apiUrl, attempt, status: 'failure', error: errorMessage });\n\n      if (attempt < maxRetries) {\n        // Exponential backoff: 1s, 2s, 4s\n        const delay = Math.pow(2, attempt) * 1000;\n        await new Promise((resolve) => setTimeout(resolve, delay));\n        attempt++;\n      } else {\n        // All retries exhausted, fallback to cache\n        await logToAudit({ url: apiUrl, attempt, status: 'retries_exhausted', action: 'fallback_to_cache' });\n        const cachedContent = await readFile(cachePath);\n        return JSON.parse(cachedContent);\n      }\n    }\n  }\n}\n```",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The TypeScript code is syntactically valid and correctly implements all the requirements: it performs the API call, implements a retry loop with exponential backoff (up to 3 retries), handles the fallback to a cache upon exhaustion, and includes logging for all attempts (success, failure, and exhaustion)."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The code correctly implements the logic: it performs an initial attempt and up to 3 retries (total 4 attempts) using an exponential backoff strategy. It logs every attempt (success, failure, and exhaustion) and correctly implements the fallback to the cached file when retries are exhausted."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The function correctly declares and uses all its inputs (apiUrl and cachePath). The data flow is logical: the API response is passed to the cache and the return statement, and the cache path is used for both writing and reading. The retry logic and backoff calculation correctly depend on the internal 'attempt' variable. While the external helper functions (fetchFromApi, writeFile, etc.) are not defined in the snippet, they are correctly referenced as dependencies for the function's logic."
+				}
+			],
+			"latency_ms": 93087.22912499984,
+			"token_count": {
+				"input": 733,
+				"output": 2598
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-circuit-breaker",
+			"treatment": "graphspec",
+			"raw_output": "",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "The 'Generated output' field is empty. Therefore, the output does not perform the requested task, and the claim that the output is syntactically valid is false because an empty string is not a valid GraphSpec (JSON) or TypeScript function."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The provided generated output is empty, meaning it does not contain any implementation of the requested task or its key behaviors. Therefore, the claim that it correctly implements all behaviors is false."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "The claim provided does not address the task description (implementing a circuit breaker). It is a meta-statement about code references and contains none of the required functional behaviors or logic."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The generated output is empty, so it does not implement the required circuit breaker logic, nor does it declare any dependencies or data flows as claimed."
+				}
+			],
+			"latency_ms": 159472.1210830002,
+			"token_count": {
+				"input": 2923,
+				"output": 4096
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-circuit-breaker",
+			"treatment": "functions",
+			"raw_output": "",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "The provided 'Generated output' is empty. Therefore, the claim that the output is syntactically valid cannot be verified as true, and the output fails to implement any of the required behaviors or address the task description."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The provided generated output is empty, meaning it contains no implementation of the requested task. Therefore, the claim that the output correctly implements all key behaviors is false."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "The output provided is a meta-statement regarding the existence of references and does not contain any implementation of the circuit breaker logic described in the task."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The 'Generated output' field is empty. Therefore, it is impossible to verify the claim that dependencies and data flows are correctly declared, and none of the required behaviors are present."
+				}
+			],
+			"latency_ms": 148224.6329999999,
+			"token_count": {
+				"input": 751,
+				"output": 4096
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-dead-letter-queue",
+			"treatment": "graphspec",
+			"raw_output": "```json\n{\n  \"nodes\": {\n    \"job_queue\": {\n      \"type\": \"producer\",\n      \"source\": \"kafka\",\n      \"config\": {\n        \"topic\": \"jobs\"\n      }\n    },\n    \"process_job\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"job_queue\"\n      ],\n      \"fn\": \"retry\",\n      \"config\": {\n        \"maxAttempts\": 3\n      }\n    },\n    \"failed_jobs\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"process_job\"\n      ],\n      \"fn\": \"filterBy\",\n      \"config\": {\n        \"field\": \"status\",\n        \"op\": \"eq\",\n        \"value\": \"failed\"\n      }\n    },\n    \"dlq_writer\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"failed_jobs\"\n      ],\n      \"fn\": \"writeToDB\",\n      \"config\": {\n        \"table\": \"dead_letter_queue\"\n      }\n    },\n    \"ops_alert\": {\n      \"",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "The claim states the output is syntactically valid, but the provided JSON is incomplete and truncated, making it invalid. Furthermore, the 'ops_alert' node is not finished, so the requirement to alert the ops channel is not implemented."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The generated output is incomplete. While it covers the queue consumption, retry logic, and DLQ writing, the JSON string cuts off before defining the 'ops_alert' node, meaning the requirement to alert the ops channel with the failure reason is not implemented."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The provided GraphSpec is truncated, leaving the 'ops_alert' node unfinished. Because the definition for 'ops_alert' is missing, it is impossible to verify if its dependencies or data flows are correctly declared, making the claim that 'all' dependencies are correctly declared false."
+				}
+			],
+			"latency_ms": 158973.64429200022,
+			"token_count": {
+				"input": 2911,
+				"output": 4096
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-dead-letter-queue",
+			"treatment": "functions",
+			"raw_output": "```typescript\nasync function processJob(message: any): Promise<void> {\n  // Logic for processing the job goes here\n  // This is a placeholder for the actual business logic\n}\n\nasync function main() {\n  const queueUrl = 'https://api.jobs.queue/stream';\n  const dlqTable = 'dead_letter_queue';\n  const opsChannel = '#ops-alerts';\n  const pollInterval = 5000;\n\n  for await (const message of pollSource(queueUrl, pollInterval)) {\n    let attempts = 0;\n    let lastError: any = null;\n    let success = false;\n\n    // Initial attempt + up to 2 retries = 3 total attempts\n    while (attempts <= 2) {\n      try {\n        await processJob(message);\n        success = true;\n        break;\n      } catch (error) {\n        attempts++;\n        lastError = error;\n      }\n    }\n\n    if (!success) {\n      const errorReason = lastError instanceof Error ? lastError.message : String(lastError);\n\n      await writeToDatabase(dlqTable, {\n        payload: message,\n        error: errorReason,\n        timestamp: new Date().toISOString(),\n        retryAttempts: attempts - 1\n      });\n\n      await sendSlackMessage(\n        opsChannel,\n        `🚨 Job processing failed after 2 retries. Reason: ${errorReason}`\n      );\n    }\n  }\n}\n```",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The TypeScript code is syntactically correct and implements all the required logic: it uses an async iterator to consume messages, implements a retry loop that allows for an initial attempt plus 2 retries (3 total), and correctly handles the dead-letter queue and alerting logic upon exhaustion of retries."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The code correctly implements the logic for polling a queue, a retry loop that allows for an initial attempt plus 2 retries (total 3 attempts), and the subsequent logic to move failed messages to a DLQ and alert the ops channel with the error reason."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The claim is false because the code relies on several external dependencies (pollSource, writeToDatabase, and sendSlackMessage) that are neither defined within the provided snippet nor imported, meaning the dependencies are not correctly declared."
+				}
+			],
+			"latency_ms": 63060.07545799995,
+			"token_count": {
+				"input": 739,
+				"output": 1772
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-threshold-alert",
+			"treatment": "graphspec",
+			"raw_output": "```json\n{\n  \"nodes\": {\n    \"metrics_stream\": {\n      \"type\": \"producer\",\n      \"source\": \"prometheus\",\n      \"config\": {\n        \"query\": \"rate(http_errors_total[1m]) / rate(http_requests_total[1m])\",\n        \"intervalMs\": 30000\n      }\n    },\n    \"error_threshold_breach\": {\n      \"type\": \"derived\",\n      \"deps\": [\n        \"metrics_stream\"\n      ],\n      \"fn\": \"thresholdCheck\",\n      \"config\": {\n        \"max\": 0.05\n      }\n    },\n    \"pagerduty_alert\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"sendPagerDuty\",\n      \"config\": {\n        \"severity\": \"critical\"\n      }\n    },\n    \"audit_log\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"writeLog\",\n      \"config\": {\n        \"level\": \"error\",\n        \"destination\": \"audit-trail\"\n      }\n    },\n    \"dashboard_update\": {\n      \"type\": \"effect\",\n      \"deps\": [\n        \"error_threshold_breach\"\n      ],\n      \"fn\": \"updateDashboard\",\n      \"config\": {\n        \"dashboardId\": \"system-health-status\"\n      }\n    }\n  }\n}\n```",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The generated output is a syntactically valid JSON object following the GraphSpec schema. It correctly implements the logic: it defines a producer for the error rate, a derived node for the 5% threshold check, and three independent effect nodes that trigger upon the threshold breach. All required side effects (PagerDuty, audit log, dashboard update) are present and correctly configured."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The GraphSpec correctly implements the logic: it defines a producer for the metrics, a derived node to check the 5% threshold, and three separate effect nodes. Because the three effect nodes all depend on the 'error_threshold_breach' node but do not depend on each other, they are executed as independent branches in the graph, satisfying the requirement for independent side effects."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The graph correctly establishes a logical chain: the producer (metrics_stream) feeds into the logic node (error_threshold_breach), which then branches out to the three side-effect nodes (pagerduty_alert, audit_log, and dashboard_update). Each node's 'deps' property correctly identifies its required input, and there are no disconnected or unused nodes in the pipeline."
+				}
+			],
+			"latency_ms": 51551.08295900002,
+			"token_count": {
+				"input": 2906,
+				"output": 1208
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-threshold-alert",
+			"treatment": "functions",
+			"raw_output": "```typescript\nasync function monitorMetricsStream(url: string, intervalMs: number) {\n  const stream = pollSource(url, intervalMs);\n\n  for await (const metrics of stream) {\n    if (metrics.errorRate > 0.05) {\n      const alert = sendPushNotification(`PagerDuty Alert: Error rate has exceeded 5% (Current: ${metrics.errorRate * 100}%)`);\n      const audit = logToAudit({\n        event: 'High Error Rate Detected',\n        errorRate: metrics.errorRate,\n        timestamp: new Date().toISOString()\n      });\n      const dashboard = writeToDatabase('status_dashboard', {\n        status: 'Critical',\n        errorRate: metrics.errorRate,\n        lastUpdated: new Date().toISOString()\n      });\n\n      // Promise.allSettled ensures each side effect completes independently \n      // regardless of whether others succeed or fail.\n      await Promise.allSettled([alert, audit, dashboard]);\n    }\n  }\n}\n```",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The provided TypeScript code is syntactically valid. It correctly uses async/await, async iterators (for await...of), template literals, and Promise.allSettled. While the external functions (pollSource, sendPushNotification, etc.) are not defined within the snippet, the syntax used to call them is correct."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The implementation correctly uses an async iterator to monitor the stream, checks the specific 5% threshold, triggers all three required side effects, and uses Promise.allSettled to ensure that the failure of one side effect does not prevent the others from completing, satisfying the independence requirement."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The function correctly utilizes all its input parameters (url, intervalMs) and the data from the stream (metrics.errorRate) to drive the logic. The data flow from the source to the threshold check and then to the parallel execution of side effects via Promise.allSettled is logically complete. While the external utility functions (pollSource, etc.) are not defined in the snippet, they are treated as provided environment dependencies, and the internal data dependencies within the function are all correctly declared and used."
+				}
+			],
+			"latency_ms": 85445.30150000006,
+			"token_count": {
+				"input": 734,
+				"output": 2371
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-user-signup",
+			"treatment": "graphspec",
+			"raw_output": "",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "The 'Generated output' field is empty. Therefore, the claim that the output is syntactically valid cannot be true, and none of the required behaviors are present."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "The provided 'Generated output' is empty. Therefore, it does not implement any of the required behaviors, making the claim that it 'correctly implements all key behaviors' false."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "The provided text is a meta-statement regarding the existence of references in a catalog; it does not contain any implementation of the user signup workflow or any of the required behaviors described in the task."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "The provided output does not contain any of the required functional logic (email validation, database creation, email sending, etc.) described in the task. It is simply a claim about data flows and does not implement the signup workflow."
+				}
+			],
+			"latency_ms": 159486.35487499926,
+			"token_count": {
+				"input": 2922,
+				"output": 4096
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-user-signup",
+			"treatment": "functions",
+			"raw_output": "```typescript\nasync function handleUserSignup(userData: { email: string; name: string }) {\n  const steps = [\n    {\n      name: 'Email Validation',\n      action: async () => {\n        const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n        if (!emailRegex.test(userData.email)) {\n          throw new Error('Invalid email format');\n        }\n      }\n    },\n    {\n      name: 'Create User Record',\n      action: async () => {\n        await writeToDatabase('users', userData);\n      }\n    },\n    {\n      name: 'Send Welcome Email',\n      action: async () => {\n        const verificationLink = `https://app.com/verify?token=${encodeURIComponent(userData.email)}`;\n        await sendEmail(\n          userData.email,\n          'Welcome to our platform!',\n          `Please verify your email by clicking here: ${verificationLink}`\n        );\n      }\n    },\n    {\n      name: 'Enqueue Analytics Event',\n      action: async () => {\n        await writeToDatabase('analytics_events', {\n          event: 'user_signup',\n          email: userData.email,\n          timestamp: new Date().toISOString()\n        });\n      }\n    },\n    {\n      name: 'Provision Default Workspace',\n      action: async () => {\n        await writeToDatabase('workspaces', {\n          ownerEmail: userData.email,\n          name: 'My Default Workspace',\n          createdAt: new Date().toISOString()\n        });\n      }\n    }\n  ];\n\n  for (const step of steps) {\n    try {\n      await step.action();\n    } catch (error: any) {\n      await logToAudit({\n        event: 'signup_step_failure',\n        step: step.name,\n        error: error.message,\n        timestamp: new Date().toISOString()\n      });\n    }\n  }\n}\n```",
+			"valid": true,
+			"runnable": true,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": true,
+					"reasoning": "The generated code accurately follows all instructions in the task description. It implements the sequence of operations (validation, DB creation, email, analytics, workspace) and specifically adheres to the requirement to log failures and continue with the remaining steps by using a try-catch block inside the loop. The syntax is valid TypeScript."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": true,
+					"reasoning": "The implementation follows all instructions. It uses an array of step objects and iterates through them with a try-catch block inside the loop, which ensures that a failure in one step is logged via 'logToAudit' but does not prevent subsequent steps from executing, as requested. All specific functional requirements (validation, DB creation, email with link, analytics, and workspace provisioning) are present."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: "
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": true,
+					"reasoning": "The claim is correct. The function `handleUserSignup` takes `userData` as an input and utilizes its properties (`email` and `name`) throughout the various steps of the process. There are no unused inputs from the provided `userData` object, and the data flow from the input to the database, email, and analytics steps is logically and completely declared. The external dependencies (like `writeToDatabase`) are used correctly within the context of the function's logic."
+				}
+			],
+			"latency_ms": 129249.16475000046,
+			"token_count": {
+				"input": 750,
+				"output": 3584
+			},
+			"cost_usd": 0
+		}
+	],
+	"total_cost_usd": 0
 }

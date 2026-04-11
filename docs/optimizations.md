@@ -8,6 +8,14 @@
 
 ## Active work items
 
+- **Reactive rate limiter → `src/extra/rate-limiter.ts` (proposed, 2026-04-10):**
+  The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). To promote it to a library primitive:
+  1. **Reactive core** — `state()` nodes for effective RPM/TPM (live-tunable by LLM or human), `slidingWindow()` utility for request/token tracking, pacing via `fromTimer` + reactive gate (not imperative `while`+`sleep`), backoff signal as reactive input that triggers adaptation.
+  2. **Separate HTTP-specific parsing** — 429 status detection, `retry-after`/`x-ratelimit-*` header parsing, error message regex extraction. Keep composable (same file, exported separately) so the reactive rate limiter core applies to any stream/reactive problem (queue consumers, WebSocket reconnect, polling sources), not just HTTP APIs.
+  3. **`resilientPipeline()` integration** — the reactive rate limiter becomes a building block in §9.0b `resilientPipeline()` (rateLimiter → breaker → retry → timeout → fallback). Natural composition point.
+  4. **Migrate `evals/lib/rate-limiter.ts`** to thin adapter over the reactive version.
+  Depends on: `slidingWindow()` utility (new), `fromTimer` (existing). Aligns with §9.0b.
+
 - **`toolInterceptor(agentLoop, opts?)` — Composition C (harness §9.0, 2026-04-10):**
   Mounts a reactive interception pipeline between `agentLoop` tool emission and tool execution (valve → budgetGate → gate → auditTrail). Blocked by an `agentLoop` refactor: the current tool execution path runs imperatively inside `async run()` and has no reactive tap point. To unblock: refactor `AgentLoopGraph` to emit each `ToolCall` as a DATA message to a configurable `toolCallNode` (state or topic) before dispatching — downstream can intercept via `switchMap`/`valve`/`gate` before `appendToolResult` is called. See SESSION-reactive-collaboration-harness §11 for full design. Downstream of §9.2 (`auditTrail`).
 

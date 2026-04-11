@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
-import { callLLM, extractJSON } from "./llm-client.js";
+import { callLLM, extractJSON, getProviderLimits, getRateLimiterStats } from "./llm-client.js";
 import type { EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
 import { validateSpec } from "./validator.js";
 
@@ -158,6 +158,18 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 			`  [L0] Resume: running ${tasks.length}/${fullCorpus.length} task(s) (${skipped} skipped from corpus head)`,
 		);
 	}
+
+	// Log provider limits
+	const limits = getProviderLimits(config);
+	console.log(
+		`  [L0] Provider limits: RPM=${limits.rpm}, RPD=${limits.rpd === Infinity ? "∞" : limits.rpd}, ` +
+			`TPM=${limits.tpm === Infinity ? "∞" : limits.tpm.toLocaleString()}, ` +
+			`context=${limits.contextWindow.toLocaleString()}, maxOutput=${limits.maxOutputTokens.toLocaleString()}`,
+	);
+	console.log(
+		`  [L0] Rate limiting: ${config.rateLimitEnabled ? "enabled (adaptive)" : "disabled"}`,
+	);
+
 	const graphspecTemplate = await loadTemplate("graphspec-treatment", config);
 	const functionsTemplate = await loadTemplate("functions-treatment", config);
 	const rubric = await loadRubric(join(config.specEvalsPath, "rubrics", "l0-contrastive.json"));
@@ -204,6 +216,16 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 	const graphErrorRate = graphResults.filter((r) => !r.valid).length / graphResults.length;
 	const funcErrorRate = funcResults.filter((r) => !r.valid).length / funcResults.length;
 
+	// Log rate limiter stats
+	const rlStats = getRateLimiterStats(config);
+	if (config.rateLimitEnabled && (rlStats.totalRetries > 0 || rlStats.totalWaitMs > 0)) {
+		console.log(
+			`\n  [L0] Rate limiter: ${rlStats.totalRetries} retries, ` +
+				`${(rlStats.totalWaitMs / 1000).toFixed(1)}s total pacing wait, ` +
+				`effective RPM=${rlStats.effectiveRpm}`,
+		);
+	}
+
 	return {
 		run_id: `l0-${Date.now()}`,
 		timestamp: new Date().toISOString(),
@@ -218,5 +240,13 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		},
 		tasks: results,
 		total_cost_usd: totalCost(results.map((r) => r.cost_usd)),
+		rate_limit_stats: config.rateLimitEnabled
+			? {
+					total_retries: rlStats.totalRetries,
+					total_wait_ms: rlStats.totalWaitMs,
+					effective_rpm: rlStats.effectiveRpm,
+					effective_tpm: rlStats.effectiveTpm,
+				}
+			: undefined,
 	};
 }

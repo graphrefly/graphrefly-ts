@@ -119,6 +119,12 @@ export interface EvalRun {
 	scores: Record<string, number>;
 	tasks: TaskResult[];
 	total_cost_usd?: number;
+	rate_limit_stats?: {
+		total_retries: number;
+		total_wait_ms: number;
+		effective_rpm: number;
+		effective_tpm: number;
+	};
 }
 
 // --- Rubric types ---
@@ -149,6 +155,11 @@ export interface EvalConfig {
 	 * L0 contrastive only: run tasks after this task id (exclusive). Mutually exclusive with `l0FromTaskId`.
 	 */
 	l0ResumeAfterTaskId?: string;
+	/**
+	 * Whether to enable adaptive rate limiting. Default: true.
+	 * Disable with EVAL_RATE_LIMIT=false for local providers like Ollama.
+	 */
+	rateLimitEnabled: boolean;
 }
 
 import { homedir } from "node:os";
@@ -164,4 +175,5 @@ export const DEFAULT_CONFIG: EvalConfig = {
 	maxRetries: 1,
 	l0FromTaskId: process.env.EVAL_L0_FROM?.trim() || undefined,
 	l0ResumeAfterTaskId: process.env.EVAL_L0_AFTER?.trim() || undefined,
+	rateLimitEnabled: process.env.EVAL_RATE_LIMIT !== "false",
 };

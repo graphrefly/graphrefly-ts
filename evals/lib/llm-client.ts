@@ -11,6 +11,9 @@
  *   - Presets: OpenAI, Ollama, OpenRouter, Groq
  */
 
+import type { ResolvedLimits } from "./limits.js";
+import { resolveLimits } from "./limits.js";
+import { AdaptiveRateLimiter } from "./rate-limiter.js";
 import type { EvalConfig, ProviderName } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +41,7 @@ export interface LLMResponse {
 
 export interface LLMProvider {
 	readonly name: string;
+	readonly limits: ResolvedLimits;
 	generate(req: LLMRequest): Promise<LLMResponse>;
 }
 
@@ -47,10 +51,12 @@ export interface LLMProvider {
 
 export class AnthropicProvider implements LLMProvider {
 	readonly name = "anthropic";
+	readonly limits: ResolvedLimits;
 	private config: EvalConfig;
 
 	constructor(config: EvalConfig) {
 		this.config = config;
+		this.limits = resolveLimits("anthropic", config.model);
 	}
 
 	async generate(req: LLMRequest): Promise<LLMResponse> {
@@ -58,11 +64,12 @@ export class AnthropicProvider implements LLMProvider {
 		const client = new Anthropic();
 
 		const model = req.model ?? this.config.model;
+		const maxTokens = req.maxTokens ?? this.limits.maxOutputTokens;
 		const start = performance.now();
 
 		const response = await client.messages.create({
 			model,
-			max_tokens: req.maxTokens ?? 4096,
+			max_tokens: maxTokens,
 			temperature: req.temperature ?? this.config.temperature,
 			system: req.system,
 			messages: [{ role: "user", content: req.user }],
@@ -92,6 +99,7 @@ interface OpenAICompatiblePreset {
 
 export class OpenAICompatibleProvider implements LLMProvider {
 	readonly name: ProviderName;
+	readonly limits: ResolvedLimits;
 	private config: EvalConfig;
 	private preset: OpenAICompatiblePreset;
 
@@ -99,6 +107,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 		this.config = config;
 		this.preset = preset;
 		this.name = preset.name;
+		this.limits = resolveLimits(preset.name, config.model);
 	}
 
 	async generate(req: LLMRequest): Promise<LLMResponse> {
@@ -109,11 +118,12 @@ export class OpenAICompatibleProvider implements LLMProvider {
 		});
 
 		const model = req.model ?? this.config.model;
+		const maxTokens = req.maxTokens ?? this.limits.maxOutputTokens;
 		const start = performance.now();
 
 		const response = await client.chat.completions.create({
 			model,
-			max_tokens: req.maxTokens ?? 4096,
+			max_tokens: maxTokens,
 			temperature: req.temperature ?? this.config.temperature,
 			messages: [
 				{ role: "system", content: req.system },
@@ -179,10 +189,12 @@ function resolveOpenAICompatiblePreset(config: EvalConfig): OpenAICompatiblePres
 
 export class GoogleProvider implements LLMProvider {
 	readonly name = "google";
+	readonly limits: ResolvedLimits;
 	private config: EvalConfig;
 
 	constructor(config: EvalConfig) {
 		this.config = config;
+		this.limits = resolveLimits("google", config.model);
 	}
 
 	async generate(req: LLMRequest): Promise<LLMResponse> {
@@ -192,12 +204,13 @@ export class GoogleProvider implements LLMProvider {
 		const client = new GoogleGenAI({ apiKey });
 
 		const model = req.model ?? this.config.model;
+		const maxTokens = req.maxTokens ?? this.limits.maxOutputTokens;
 		const start = performance.now();
 
 		const response = await client.models.generateContent({
 			model,
 			config: {
-				maxOutputTokens: req.maxTokens ?? 4096,
+				maxOutputTokens: maxTokens,
 				temperature: req.temperature ?? this.config.temperature,
 				systemInstruction: req.system,
 			},
@@ -246,18 +259,33 @@ export function createProvider(config: EvalConfig): LLMProvider {
 // Convenience wrapper (backward-compatible)
 // ---------------------------------------------------------------------------
 
-/** Provider instances cached by provider name. */
-const _providerCache = new Map<string, LLMProvider>();
+/** Provider + rate limiter instances cached by provider name. */
+const _providerCache = new Map<string, { provider: LLMProvider; limiter: AdaptiveRateLimiter }>();
 
-function getProvider(config: EvalConfig, providerName?: ProviderName): LLMProvider {
+function getProviderWithLimiter(
+	config: EvalConfig,
+	providerName?: ProviderName,
+): { provider: LLMProvider; limiter: AdaptiveRateLimiter } {
 	const name = providerName ?? config.provider;
-	let provider = _providerCache.get(name);
-	if (!provider) {
+	let entry = _providerCache.get(name);
+	if (!entry) {
 		const overrideConfig = name === config.provider ? config : { ...config, provider: name };
-		provider = createProvider(overrideConfig);
-		_providerCache.set(name, provider);
+		const provider = createProvider(overrideConfig);
+		const limiter = new AdaptiveRateLimiter(provider.limits);
+		entry = { provider, limiter };
+		_providerCache.set(name, entry);
 	}
-	return provider;
+	return entry;
+}
+
+/** Get resolved limits for the configured provider/model. */
+export function getProviderLimits(config: EvalConfig, providerName?: ProviderName): ResolvedLimits {
+	return getProviderWithLimiter(config, providerName).provider.limits;
+}
+
+/** Get rate limiter stats for the configured provider. */
+export function getRateLimiterStats(config: EvalConfig, providerName?: ProviderName) {
+	return getProviderWithLimiter(config, providerName).limiter.stats();
 }
 
 export async function callLLM(
@@ -265,7 +293,23 @@ export async function callLLM(
 	config: EvalConfig,
 	providerOverride?: ProviderName,
 ): Promise<LLMResponse> {
-	return getProvider(config, providerOverride).generate(req);
+	const { provider, limiter } = getProviderWithLimiter(config, providerOverride);
+
+	// Estimate tokens for pacing: input prompt ~chars/4, output ~maxTokens/2
+	const estimatedInput = Math.ceil((req.system.length + req.user.length) / 4);
+	const estimatedOutput = Math.ceil((req.maxTokens ?? provider.limits.maxOutputTokens) / 2);
+	const estimatedTotal = estimatedInput + estimatedOutput;
+
+	if (!config.rateLimitEnabled) {
+		const response = await provider.generate(req);
+		limiter.recordUsage(response.inputTokens + response.outputTokens);
+		return response;
+	}
+
+	const response = await limiter.call(() => provider.generate(req), estimatedTotal);
+	// Update with actual usage for accurate TPM tracking
+	limiter.recordUsage(response.inputTokens + response.outputTokens);
+	return response;
 }
 
 // ---------------------------------------------------------------------------
