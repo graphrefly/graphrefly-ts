@@ -122,6 +122,8 @@ Analysis: [eval-analysis.md](results/eval-analysis.md)
 | `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter endpoint override |
 | `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq endpoint override |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Spec repo evals path |
+| `EVAL_L0_FROM` | — | L0 only: task id to start at (inclusive); set only one of this or `EVAL_L0_AFTER` |
+| `EVAL_L0_AFTER` | — | L0 only: task id to resume after (exclusive); set only one of this or `EVAL_L0_FROM` |
 | `ANTHROPIC_API_KEY` | — | Anthropic provider |
 | `OPENAI_API_KEY` | — | OpenAI provider |
 | `GOOGLE_API_KEY` | — | Google provider |

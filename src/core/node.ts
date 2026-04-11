@@ -268,7 +268,7 @@ export class NodeImpl<T = unknown> extends NodeBase<T> {
 			);
 		}
 		// Fallback for `onMessage`-driven operators: if the subscribe loop
-		// did not drive a wave completion (e.g. `concatMap`, `sample` —
+		// did not drive a wave completion (e.g. `switchMap`, `sample` —
 		// operators whose `onMessage` consumes every dep message without
 		// letting the mask-based wave progress), still run fn once so the
 		// operator can initialize side-effect state (inner subscriptions,
@@ -300,13 +300,14 @@ export class NodeImpl<T = unknown> extends NodeBase<T> {
 				try {
 					const consumed = this._onMessage(msg, index, this._actions);
 					if (consumed) {
-						// If the operator consumes this dep's subscribe
-						// handshake (START), treat the dep as fully
-						// user-managed: clear its pre-set dirty bit so the
-						// first-run wave gate doesn't block on it.
-						// Notifier deps in operators like `takeUntil` rely
-						// on this — they're signaling deps, not data deps.
-						if (t === START) {
+						// Clear the dep's pre-set dirty bit when onMessage
+						// consumes a protocol-significant message:
+						// - START: dep is fully user-managed (takeUntil notifier)
+						// - DATA/RESOLVED: dep delivered real data via onMessage
+						//   instead of the normal wave path
+						// This ensures the first-run gate tracks dep readiness
+						// correctly even when onMessage bypasses wave tracking.
+						if (t === START || t === DATA || t === RESOLVED) {
 							this._depDirtyMask.clear(index);
 							if (this._depDirtyMask.any() && this._depSettledMask.covers(this._depDirtyMask)) {
 								this._depDirtyMask.reset();

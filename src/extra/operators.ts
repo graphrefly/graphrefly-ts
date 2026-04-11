@@ -149,9 +149,11 @@ export function reduce<T, R>(
 ): Node<R> {
 	let acc = seed;
 	let sawData = false;
+	let depHasData = false;
 	return node<R>(
 		[source as Node],
 		([v]) => {
+			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
 			sawData = true;
 			acc = reducer(acc, v as T);
 			return undefined;
@@ -164,9 +166,11 @@ export function reduce<T, R>(
 					? () => {
 							acc = seed;
 							sawData = false;
+							depHasData = false;
 						}
 					: undefined,
 			onMessage(msg: Message, _i: number, a) {
+				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
 				if (msg[0] === COMPLETE) {
 					if (!sawData) acc = seed;
 					a.emit(acc);
@@ -348,9 +352,11 @@ export function takeWhile<T>(
 	opts?: ExtraOpts,
 ): Node<T> {
 	let done = false;
+	let depHasData = false;
 	return node<T>(
 		[source as Node],
 		([v], a) => {
+			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
 			if (done) return undefined;
 			if (!predicate(v as T)) {
 				done = true;
@@ -363,6 +369,7 @@ export function takeWhile<T>(
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
 			onMessage(msg, _i, a) {
+				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
 				if (done) {
 					if (msg[0] === COMPLETE) {
 						a.down([[COMPLETE]]);
@@ -473,9 +480,11 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 	const useDefault = options != null && Object.hasOwn(options, "defaultValue");
 	let lastVal: T | undefined;
 	let has = false;
+	let depHasData = false;
 	return node<T>(
 		[source as Node],
 		([v]) => {
+			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
 			lastVal = v as T;
 			has = true;
 			return undefined;
@@ -484,6 +493,7 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 			...operatorOpts(rest),
 			completeWhenDepsComplete: false,
 			onMessage(msg, _i, a) {
+				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
 				if (msg[0] === COMPLETE) {
 					if (has) {
 						a.emit(lastVal as T);
@@ -1131,7 +1141,6 @@ export function switchMap<T, R>(
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
-	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1139,7 +1148,6 @@ export function switchMap<T, R>(
 	}
 
 	function attach(v: T, a: NodeActions): void {
-		attached = true;
 		clearInner();
 		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 			clearInner();
@@ -1147,44 +1155,36 @@ export function switchMap<T, R>(
 		});
 	}
 
-	return node<R>(
-		[source as Node],
-		([v], a) => {
-			// Skip if onMessage already handled the initial DATA during connect.
-			if (!attached) attach(v as T, a);
-			return clearInner;
+	return node<R>([source as Node], () => clearInner, {
+		...operatorOpts(opts),
+		completeWhenDepsComplete: false,
+		onMessage(msg, _i, a) {
+			const t = msg[0];
+			if (t === ERROR) {
+				clearInner();
+				a.down([msg]);
+				return true;
+			}
+			if (t === COMPLETE) {
+				sourceDone = true;
+				if (innerUnsub === undefined) a.down([[COMPLETE]]);
+				return true;
+			}
+			if (t === DIRTY) {
+				a.down([[DIRTY]]);
+				return true;
+			}
+			if (t === RESOLVED) {
+				a.down([[RESOLVED]]);
+				return true;
+			}
+			if (t === DATA) {
+				attach(msg[1] as T, a);
+				return true;
+			}
+			return false;
 		},
-		{
-			...operatorOpts(opts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					clearInner();
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					sourceDone = true;
-					if (innerUnsub === undefined) a.down([[COMPLETE]]);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					attach(msg[1] as T, a);
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+	});
 }
 
 /**
@@ -1210,7 +1210,6 @@ export function exhaustMap<T, R>(
 ): Node<R> {
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
-	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1218,54 +1217,46 @@ export function exhaustMap<T, R>(
 	}
 
 	function attach(v: T, a: NodeActions): void {
-		attached = true;
 		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 			clearInner();
 			if (sourceDone) a.down([[COMPLETE]]);
 		});
 	}
 
-	return node<R>(
-		[source as Node],
-		([v], a) => {
-			if (!attached && innerUnsub === undefined) attach(v as T, a);
-			return clearInner;
-		},
-		{
-			...operatorOpts(opts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					clearInner();
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					sourceDone = true;
-					if (innerUnsub === undefined) a.down([[COMPLETE]]);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
+	return node<R>([source as Node], () => clearInner, {
+		...operatorOpts(opts),
+		completeWhenDepsComplete: false,
+		onMessage(msg, _i, a) {
+			const t = msg[0];
+			if (t === ERROR) {
+				clearInner();
+				a.down([msg]);
+				return true;
+			}
+			if (t === COMPLETE) {
+				sourceDone = true;
+				if (innerUnsub === undefined) a.down([[COMPLETE]]);
+				return true;
+			}
+			if (t === DIRTY) {
+				a.down([[DIRTY]]);
+				return true;
+			}
+			if (t === RESOLVED) {
+				a.down([[RESOLVED]]);
+				return true;
+			}
+			if (t === DATA) {
+				if (innerUnsub !== undefined) {
 					a.down([[RESOLVED]]);
 					return true;
 				}
-				if (t === DATA) {
-					if (innerUnsub !== undefined) {
-						a.down([[RESOLVED]]);
-						return true;
-					}
-					attach(msg[1] as T, a);
-					return true;
-				}
-				return false;
-			},
+				attach(msg[1] as T, a);
+				return true;
+			}
+			return false;
 		},
-	);
+	});
 }
 
 /**
@@ -1293,7 +1284,6 @@ export function concatMap<T, R>(
 	const queue: T[] = [];
 	let innerUnsub: (() => void) | undefined;
 	let sourceDone = false;
-	let attached = false;
 
 	function clearInner(): void {
 		innerUnsub?.();
@@ -1314,50 +1304,42 @@ export function concatMap<T, R>(
 	}
 
 	function enqueue(v: T, a: NodeActions): void {
-		attached = true;
 		if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
 		queue.push(v);
 		tryPump(a);
 	}
 
-	return node<R>(
-		[source as Node],
-		([v], a) => {
-			if (!attached) enqueue(v as T, a);
-			return clearInner;
+	return node<R>([source as Node], () => clearInner, {
+		...operatorOpts(concatNodeOpts),
+		completeWhenDepsComplete: false,
+		onMessage(msg, _i, a) {
+			const t = msg[0];
+			if (t === ERROR) {
+				clearInner();
+				queue.length = 0;
+				a.down([msg]);
+				return true;
+			}
+			if (t === COMPLETE) {
+				sourceDone = true;
+				tryPump(a);
+				return true;
+			}
+			if (t === DIRTY) {
+				a.down([[DIRTY]]);
+				return true;
+			}
+			if (t === RESOLVED) {
+				a.down([[RESOLVED]]);
+				return true;
+			}
+			if (t === DATA) {
+				enqueue(msg[1] as T, a);
+				return true;
+			}
+			return false;
 		},
-		{
-			...operatorOpts(concatNodeOpts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					clearInner();
-					queue.length = 0;
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					sourceDone = true;
-					tryPump(a);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					enqueue(msg[1] as T, a);
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+	});
 }
 
 /** Options for {@link mergeMap}. */
@@ -1460,48 +1442,36 @@ export function mergeMap<T, R>(
 		buffer.length = 0;
 	}
 
-	let attached = false;
-
-	return node<R>(
-		[source as Node],
-		([v], a) => {
-			if (!attached) {
-				attached = true;
-				enqueue(v as T, a);
+	return node<R>([source as Node], () => clearAll, {
+		...operatorOpts(mergeNodeOpts),
+		completeWhenDepsComplete: false,
+		onMessage(msg, _i, a) {
+			const t = msg[0];
+			if (t === ERROR) {
+				clearAll();
+				a.down([msg]);
+				return true;
 			}
-			return clearAll;
+			if (t === COMPLETE) {
+				sourceDone = true;
+				tryComplete(a);
+				return true;
+			}
+			if (t === DIRTY) {
+				a.down([[DIRTY]]);
+				return true;
+			}
+			if (t === RESOLVED) {
+				a.down([[RESOLVED]]);
+				return true;
+			}
+			if (t === DATA) {
+				enqueue(msg[1] as T, a);
+				return true;
+			}
+			return false;
 		},
-		{
-			...operatorOpts(mergeNodeOpts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					clearAll();
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					sourceDone = true;
-					tryComplete(a);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					enqueue(msg[1] as T, a);
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+	});
 }
 
 /**
@@ -2049,54 +2019,39 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
 export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T[]> {
 	if (count <= 0) throw new RangeError("bufferCount expects count > 0");
 	const buf: T[] = [];
-	let started = false;
-	return node<T[]>(
-		[source as Node],
-		([v], a) => {
-			// onMessage intercepts subsequent DATA; compute fn only runs on initial connect.
-			if (!started) {
-				started = true;
-				buf.push(v as T);
+	return node<T[]>([source as Node], () => undefined, {
+		...operatorOpts(opts),
+		completeWhenDepsComplete: false,
+		onMessage(msg, _i, a) {
+			const t = msg[0];
+			if (t === ERROR) {
+				a.down([msg]);
+				return true;
+			}
+			if (t === COMPLETE) {
+				if (buf.length > 0) a.emit([...buf]);
+				buf.length = 0;
+				a.down([[COMPLETE]]);
+				return true;
+			}
+			if (t === DIRTY) {
+				a.down([[DIRTY]]);
+				return true;
+			}
+			if (t === RESOLVED) {
+				a.down([[RESOLVED]]);
+				return true;
+			}
+			if (t === DATA) {
+				buf.push(msg[1] as T);
 				if (buf.length >= count) {
 					a.emit(buf.splice(0, buf.length));
 				}
+				return true;
 			}
-			return undefined;
+			return false;
 		},
-		{
-			...operatorOpts(opts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					if (buf.length > 0) a.emit([...buf]);
-					buf.length = 0;
-					a.down([[COMPLETE]]);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					buf.push(msg[1] as T);
-					if (buf.length >= count) {
-						a.emit(buf.splice(0, buf.length));
-					}
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+	});
 }
 
 /**

@@ -141,6 +141,14 @@ export interface EvalConfig {
 	specEvalsPath: string;
 	temperature: number;
 	maxRetries: number;
+	/**
+	 * L0 contrastive only: run from this task id (inclusive). Mutually exclusive with `l0ResumeAfterTaskId`.
+	 */
+	l0FromTaskId?: string;
+	/**
+	 * L0 contrastive only: run tasks after this task id (exclusive). Mutually exclusive with `l0FromTaskId`.
+	 */
+	l0ResumeAfterTaskId?: string;
 }
 
 import { homedir } from "node:os";
@@ -154,4 +162,6 @@ export const DEFAULT_CONFIG: EvalConfig = {
 	specEvalsPath: process.env.SPEC_EVALS_PATH ?? join(homedir(), "src", "graphrefly", "evals"),
 	temperature: 0,
 	maxRetries: 1,
+	l0FromTaskId: process.env.EVAL_L0_FROM?.trim() || undefined,
+	l0ResumeAfterTaskId: process.env.EVAL_L0_AFTER?.trim() || undefined,
 };

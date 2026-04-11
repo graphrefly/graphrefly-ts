@@ -139,9 +139,9 @@ The most common pattern: find issues → implement fixes → eval to verify → 
 ```
 
 Building blocks to provide:
-- [ ] **`evalSource(runner, config)`** — wraps any eval runner as a reactive producer node. Input: trigger signal (code change, manual, cron). Output: `EvalRun` results. Currently our eval runner is imperative (`await runLLMDXEval(config)`); this wraps it in a producer so results flow reactively into the harness.
-- [ ] **`beforeAfterCompare(before, after)`** — derived node that takes two eval results and computes per-task deltas (score diff, new failures, resolved failures). Pure computation, no domain logic. Feeds into strategy model and report generation.
-- [ ] **`affectedTaskFilter(issues, fullTaskSet)`** — derived node that selects which eval tasks to re-run based on `affectsEvalTasks` from triaged items. Avoids re-running the full suite on every fix.
+- [x] **`evalSource(trigger, runner)`** — wraps any eval runner as a reactive producer node. `switchMap(trigger, () => fromAny(runner()))` — trigger fires → runner executes async → result flows into harness. TS: `harness/bridge.ts`. PY: `harness/bridge.py`.
+- [x] **`beforeAfterCompare(before, after)`** — derived node that takes two eval results and computes per-task deltas (score diff, new failures, resolved failures). Pure computation, no domain logic. Feeds into strategy model and report generation. TS: `harness/bridge.ts`. PY: `harness/bridge.py`.
+- [x] **`affectedTaskFilter(issues, fullTaskSet?)`** — derived node that selects which eval tasks to re-run based on `affectsEvalTasks` from triaged items. Avoids re-running the full suite on every fix. TS: `harness/bridge.ts`. PY: `harness/bridge.py`.
 
 **Composition B: Content safety pipeline**
 
@@ -154,8 +154,8 @@ LLM output flows through extractor subgraphs before reaching the user. Stream ex
 ```
 
 Building blocks:
-- [ ] **`redactor(streamTopic, patterns, replaceFn)`** — stream extractor that replaces matched patterns in-flight. `patterns`: PII regexes, custom terms. `replaceFn`: mask, hash, or remove. Output: sanitized stream topic.
-- [ ] **`contentGate(streamTopic, classifier, threshold)`** — gate that blocks output if classifier score exceeds threshold. `classifier`: keyword-based (cheap) or promptNode-based (accurate). Falls through to human gate for borderline cases.
+- [x] **`redactor(streamTopic, patterns, replaceFn?)`** — stream extractor that replaces matched patterns in-flight. Returns `Node<StreamChunk>` with sanitized `accumulated`/`token`. TS: `ai.ts`. PY: `ai.py`.
+- [x] **`contentGate(streamTopic, classifier, threshold)`** — returns `Node<'allow' | 'review' | 'block'>`. Three-way classification: allow (below threshold), review ([threshold, threshold×1.5)), block (above). Classifier can be a `(text) => number` function or a live `Node<number>`. Wire into valve (automatic) or gate (human approval). TS: `ai.ts`. PY: `ai.py`.
 
 **Composition C: Agent tool interception**
 
@@ -166,7 +166,7 @@ From SESSION-reactive-collaboration-harness §11. Tool calls flow through a reac
 ```
 
 Building blocks:
-- [ ] **`toolInterceptor(agentLoop, opts?)`** — mounts a tool interception subgraph between `agentLoop` tool emission and tool execution. Pluggable pipeline: valve (policy), budgetGate (cost), gate (human approval for destructive ops). Default: passthrough (current behavior). Composition of valve (§9.0), budgetGate (§8.1), gate (§9.0), auditTrail (§9.2).
+- [ ] **`toolInterceptor(agentLoop, opts?)`** — mounts a tool interception subgraph between `agentLoop` tool emission and tool execution. Pluggable pipeline: valve (policy), budgetGate (cost), gate (human approval for destructive ops). **Blocked:** requires `agentLoop` refactor to emit tool calls as reactive DATA before execution (currently imperative inside `async run()`). Tracked in `docs/optimizations.md`.
 
 **Composition D: Quality gate (CI/CD)**
 
@@ -178,8 +178,8 @@ On code change, run affected checks → triage failures → auto-fix trivial one
 ```
 
 Building blocks:
-- [ ] **`codeChangeBridge(gitDiffSource, parser)`** — intake bridge that parses git diff / CI output into IntakeItems. `parser`: lint errors, test failures, type errors.
-- [ ] **`notifyEffect(topic, transport)`** — effect node that sends triaged/verified items to an external channel (Slack webhook, GitHub PR comment, email). Pluggable transport.
+- [x] **`codeChangeBridge(source, intakeTopic, parser?)`** — intake bridge that parses `CodeChange` (lint errors, test failures) into `IntakeItem[]`. Custom parser optional. TS: `harness/bridge.ts`. PY: `harness/bridge.py`.
+- [x] **`notifyEffect(topic, transport)`** — effect node that sends each topic entry to an external channel (Slack webhook, GitHub PR comment, email). Async transports fire-and-forget. TS: `harness/bridge.ts`. PY: `harness/bridge.py`.
 
 **Composition E: Refinement loop (wraps refineLoop §9.8)**
 

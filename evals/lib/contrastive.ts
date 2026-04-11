@@ -13,6 +13,44 @@ import { callLLM, extractJSON } from "./llm-client.js";
 import type { EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
 import { validateSpec } from "./validator.js";
 
+export type ContrastiveResumeConfig = Pick<EvalConfig, "l0FromTaskId" | "l0ResumeAfterTaskId">;
+
+/**
+ * Slice the L0 corpus for resume runs. Full corpus order is preserved; unknown ids throw.
+ */
+export function sliceContrastiveTasksForResume(
+	all: EvalTask[],
+	config: ContrastiveResumeConfig,
+): EvalTask[] {
+	const from = config.l0FromTaskId;
+	const after = config.l0ResumeAfterTaskId;
+	if (from && after) {
+		throw new Error(
+			"Set only one of EVAL_L0_FROM or EVAL_L0_AFTER (or l0FromTaskId / l0ResumeAfterTaskId on EvalConfig)",
+		);
+	}
+	if (!from && !after) {
+		return all;
+	}
+	const ids = all.map((t) => t.id);
+	if (from) {
+		const i = ids.indexOf(from);
+		if (i === -1) {
+			throw new Error(
+				`EVAL_L0_FROM: unknown task id "${from}". Known ids: ${ids.slice(0, 5).join(", ")}… (${ids.length} total)`,
+			);
+		}
+		return all.slice(i);
+	}
+	const i = ids.indexOf(after!);
+	if (i === -1) {
+		throw new Error(
+			`EVAL_L0_AFTER: unknown task id "${after}". Known ids: ${ids.slice(0, 5).join(", ")}… (${ids.length} total)`,
+		);
+	}
+	return all.slice(i + 1);
+}
+
 async function loadTemplate(name: string, config: EvalConfig): Promise<string> {
 	return readFile(join(config.specEvalsPath, "templates", `${name}.md`), "utf-8");
 }
@@ -112,7 +150,14 @@ async function runFunctionsTreatment(
  * Run the full contrastive eval (L0).
  */
 export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
-	const tasks = await loadCorpus<EvalTask>("contrastive-tasks", config);
+	const fullCorpus = await loadCorpus<EvalTask>("contrastive-tasks", config);
+	const tasks = sliceContrastiveTasksForResume(fullCorpus, config);
+	if (tasks.length < fullCorpus.length) {
+		const skipped = fullCorpus.length - tasks.length;
+		console.log(
+			`  [L0] Resume: running ${tasks.length}/${fullCorpus.length} task(s) (${skipped} skipped from corpus head)`,
+		);
+	}
 	const graphspecTemplate = await loadTemplate("graphspec-treatment", config);
 	const functionsTemplate = await loadTemplate("functions-treatment", config);
 	const rubric = await loadRubric(join(config.specEvalsPath, "rubrics", "l0-contrastive.json"));

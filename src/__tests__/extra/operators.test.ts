@@ -1546,3 +1546,115 @@ describe("diamond resolution through operator chain", () => {
 		unsub();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// D8 / SENTINEL dep safety — operators must not corrupt state when dep is
+// SENTINEL (no cached DATA). Regression: operator fn received undefined from
+// dep.get() and processed it as real data.
+// ---------------------------------------------------------------------------
+describe("SENTINEL dep safety (D8 fallback)", () => {
+	it("switchMap does not call project until real DATA arrives", () => {
+		const trigger = node<number>();
+		let projectCalls = 0;
+		const out = switchMap(trigger, (_v) => {
+			projectCalls++;
+			return state("inner");
+		});
+		const { messages, unsub } = collect(out, { flat: true });
+		expect(projectCalls).toBe(0);
+		expect(messages.filter((m) => m[0] === DATA)).toHaveLength(0);
+		trigger.down([[DATA, 1]]);
+		expect(projectCalls).toBe(1);
+		expect(messages.some((m) => m[0] === DATA && m[1] === "inner")).toBe(true);
+		unsub();
+	});
+
+	it("exhaustMap does not call project until real DATA arrives", () => {
+		const trigger = node<number>();
+		let projectCalls = 0;
+		const out = exhaustMap(trigger, (_v) => {
+			projectCalls++;
+			return state("inner");
+		});
+		const { unsub } = collect(out, { flat: true });
+		expect(projectCalls).toBe(0);
+		trigger.down([[DATA, 1]]);
+		expect(projectCalls).toBe(1);
+		unsub();
+	});
+
+	it("concatMap does not call project until real DATA arrives", () => {
+		const trigger = node<number>();
+		let projectCalls = 0;
+		const out = concatMap(trigger, (_v) => {
+			projectCalls++;
+			return state("inner");
+		});
+		const { unsub } = collect(out, { flat: true });
+		expect(projectCalls).toBe(0);
+		trigger.down([[DATA, 1]]);
+		expect(projectCalls).toBe(1);
+		unsub();
+	});
+
+	it("mergeMap does not call project until real DATA arrives", () => {
+		const trigger = node<number>();
+		let projectCalls = 0;
+		const out = mergeMap(trigger, (_v) => {
+			projectCalls++;
+			return state("inner");
+		});
+		const { unsub } = collect(out, { flat: true });
+		expect(projectCalls).toBe(0);
+		trigger.down([[DATA, 1]]);
+		expect(projectCalls).toBe(1);
+		unsub();
+	});
+
+	it("reduce does not accumulate SENTINEL undefined as data", () => {
+		const trigger = node<number>();
+		const out = reduce(trigger, (acc, v) => acc + v, 0);
+		const { messages, unsub } = collect(out, { flat: true });
+		trigger.down([[DATA, 10]]);
+		trigger.down([[DATA, 20]]);
+		trigger.down([[COMPLETE]]);
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toContain(30);
+		unsub();
+	});
+
+	it("takeWhile does not evaluate predicate on SENTINEL undefined", () => {
+		const trigger = node<number>();
+		let predicateCalls = 0;
+		const out = takeWhile(trigger, (v) => {
+			predicateCalls++;
+			return v < 10;
+		});
+		const { unsub } = collect(out, { flat: true });
+		expect(predicateCalls).toBe(0);
+		trigger.down([[DATA, 5]]);
+		expect(predicateCalls).toBe(1);
+		unsub();
+	});
+
+	it("last does not emit SENTINEL undefined on COMPLETE", () => {
+		const trigger = node<number>();
+		const out = last(trigger);
+		const { messages, unsub } = collect(out, { flat: true });
+		trigger.down([[COMPLETE]]);
+		const dataVals = messages.filter((m) => m[0] === DATA);
+		expect(dataVals).toHaveLength(0);
+		unsub();
+	});
+
+	it("bufferCount does not include SENTINEL undefined in buffer", () => {
+		const trigger = node<number>();
+		const out = bufferCount(trigger, 2);
+		const { messages, unsub } = collect(out, { flat: true });
+		trigger.down([[DATA, 1]]);
+		trigger.down([[DATA, 2]]);
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toEqual([[1, 2]]);
+		unsub();
+	});
+});

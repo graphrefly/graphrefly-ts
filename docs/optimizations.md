@@ -8,6 +8,10 @@
 
 ## Active work items
 
+- **`toolInterceptor(agentLoop, opts?)` — Composition C (harness §9.0, 2026-04-10):**
+  Mounts a reactive interception pipeline between `agentLoop` tool emission and tool execution (valve → budgetGate → gate → auditTrail). Blocked by an `agentLoop` refactor: the current tool execution path runs imperatively inside `async run()` and has no reactive tap point. To unblock: refactor `AgentLoopGraph` to emit each `ToolCall` as a DATA message to a configurable `toolCallNode` (state or topic) before dispatching — downstream can intercept via `switchMap`/`valve`/`gate` before `appendToolResult` is called. See SESSION-reactive-collaboration-harness §11 for full design. Downstream of §9.2 (`auditTrail`).
+
+
 - **Per-node resource tracking / subscriber audit (proposed):**
   `graph.resourceProfile()` / `graph.resource_profile()` — snapshot-based walk of all nodes: per-node stats (subscriber count, cache state, activation count) + aggregate memory estimate. Detects orphan effects (`_sinkCount === 0` / `_sink_count == 0` on effect nodes), unbounded log growth. Reactive DevTools direction — inspection-as-test-harness.
 

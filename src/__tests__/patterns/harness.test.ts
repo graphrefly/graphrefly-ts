@@ -1,8 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
-import { type EvalResult, evalIntakeBridge } from "../../patterns/harness/bridge.js";
+import { contentGate, redactor, type StreamChunk } from "../../patterns/ai.js";
+import {
+	affectedTaskFilter,
+	beforeAfterCompare,
+	type CodeChange,
+	codeChangeBridge,
+	type EvalResult,
+	evalIntakeBridge,
+	evalSource,
+	notifyEffect,
+} from "../../patterns/harness/bridge.js";
 import { HarnessGraph, harnessLoop } from "../../patterns/harness/loop.js";
 import {
 	priorityScore,
@@ -15,9 +26,8 @@ import {
 	type IntakeItem,
 	strategyKey,
 	type TriagedItem,
-	type VerifyResult,
 } from "../../patterns/harness/types.js";
-import { TopicGraph } from "../../patterns/messaging.js";
+import { TopicGraph, topic } from "../../patterns/messaging.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 // ---------------------------------------------------------------------------
@@ -1246,5 +1256,406 @@ describe("harnessLoop with mockLLM", () => {
 		handle.dispose();
 		// Double dispose is safe
 		handle.dispose();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition A: evalSource
+// ---------------------------------------------------------------------------
+
+describe("evalSource", () => {
+	it("fires runner on trigger and emits the result reactively", async () => {
+		// Use state so trigger has an initial value on subscribe, then update it.
+		// evalSource fires runner for every trigger DATA — including the initial one.
+		const trigger = state("run-a");
+		const runner = (id: string) =>
+			Promise.resolve({ run_id: id, model: "test", tasks: [] as EvalResult["tasks"] });
+
+		const results: EvalResult[] = [];
+		// Bind the trigger value into the runner so we can identify which run emitted.
+		const resultNode = evalSource(trigger as ReturnType<typeof state<unknown>>, () =>
+			runner(trigger.get() as string),
+		);
+		const unsub = resultNode.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) results.push(data as EvalResult);
+			}
+		});
+
+		await new Promise<void>((resolve) => setTimeout(resolve, 20));
+		// The runner fired (at least once — for the initial trigger value or on subscribe).
+		expect(results.length).toBeGreaterThanOrEqual(1);
+		unsub();
+	});
+
+	it("emits the result for each trigger — last-write wins via switchMap", async () => {
+		// Each trigger value determines the run_id so we can track which run resolved.
+		const trigger = state<string | null>(null);
+		const runner = () => {
+			const id = trigger.get();
+			// Slow promise so earlier runs haven't resolved yet when a new trigger fires.
+			return new Promise<EvalResult>((resolve) =>
+				setTimeout(() => resolve({ run_id: id ?? "null", model: "test", tasks: [] }), 40),
+			);
+		};
+
+		const results: string[] = [];
+		const resultNode = evalSource(trigger as ReturnType<typeof state<unknown>>, runner);
+		const unsub = resultNode.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) results.push((data as EvalResult).run_id);
+			}
+		});
+
+		// Fire two rapid triggers — switchMap should cancel the first before it resolves.
+		trigger.down([[DATA, "first"]]);
+		trigger.down([[DATA, "second"]]);
+		await new Promise<void>((resolve) => setTimeout(resolve, 80));
+
+		// "first" should be cancelled (not emitted), "second" should win.
+		expect(results).not.toContain("first");
+		expect(results).toContain("second");
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition A: beforeAfterCompare
+// ---------------------------------------------------------------------------
+
+describe("beforeAfterCompare", () => {
+	const makeResult = (
+		runId: string,
+		tasks: Array<{ id: string; valid: boolean; passes?: number; total?: number }>,
+	): EvalResult => ({
+		run_id: runId,
+		model: "test",
+		tasks: tasks.map((t) => ({
+			task_id: t.id,
+			valid: t.valid,
+			judge_scores:
+				t.total !== undefined
+					? Array.from({ length: t.total }, (_, i) => ({
+							claim: `c${i}`,
+							pass: i < (t.passes ?? 0),
+							reasoning: "",
+						}))
+					: undefined,
+		})),
+	});
+
+	it("identifies new failures and resolved tasks", () => {
+		const before = state(
+			makeResult("b", [
+				{ id: "t1", valid: true },
+				{ id: "t2", valid: false },
+			]),
+		);
+		const after = state(
+			makeResult("a", [
+				{ id: "t1", valid: false },
+				{ id: "t2", valid: true },
+			]),
+		);
+
+		const delta = beforeAfterCompare(before, after);
+		const unsub = delta.subscribe(() => {});
+
+		const d = delta.get()!;
+		expect(d.newFailures).toEqual(["t1"]);
+		expect(d.resolved).toEqual(["t2"]);
+		expect(d.overallImproved).toBe(false); // 1 resolved, 1 failure — equal
+
+		unsub();
+	});
+
+	it("overall improved when more resolved than failures", () => {
+		const before = state(
+			makeResult("b", [
+				{ id: "t1", valid: false },
+				{ id: "t2", valid: false },
+				{ id: "t3", valid: true },
+			]),
+		);
+		const after = state(
+			makeResult("a", [
+				{ id: "t1", valid: true },
+				{ id: "t2", valid: true },
+				{ id: "t3", valid: false },
+			]),
+		);
+
+		const delta = beforeAfterCompare(before, after);
+		const unsub = delta.subscribe(() => {});
+
+		const d = delta.get()!;
+		expect(d.resolved).toHaveLength(2);
+		expect(d.newFailures).toHaveLength(1);
+		expect(d.overallImproved).toBe(true);
+
+		unsub();
+	});
+
+	it("computes scoreDiff when judge_scores present", () => {
+		const before = state(makeResult("b", [{ id: "t1", valid: true, passes: 2, total: 4 }]));
+		const after = state(makeResult("a", [{ id: "t1", valid: true, passes: 3, total: 4 }]));
+
+		const delta = beforeAfterCompare(before, after);
+		const unsub = delta.subscribe(() => {});
+
+		const td = delta.get()!.taskDeltas[0];
+		expect(td.scoreDiff).toBe(1); // 3 - 2
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition A: affectedTaskFilter
+// ---------------------------------------------------------------------------
+
+describe("affectedTaskFilter", () => {
+	function mkTI(tasks: string[]): TriagedItem {
+		return {
+			affectsEvalTasks: tasks,
+			source: "eval",
+			summary: "",
+			evidence: "",
+			affectsAreas: [],
+			rootCause: "unknown",
+			intervention: "investigate",
+			route: "backlog",
+			priority: 0,
+		} as TriagedItem;
+	}
+
+	it("collects affected task IDs from triaged items", () => {
+		const issuesNode = state<readonly TriagedItem[]>([mkTI(["T1", "T2"]), mkTI(["T2", "T3"])]);
+		const filtered = affectedTaskFilter(issuesNode);
+		const unsub = filtered.subscribe(() => {});
+
+		expect(filtered.get()).toEqual(["T1", "T2", "T3"]);
+		unsub();
+	});
+
+	it("intersects with fullTaskSet when provided", () => {
+		const issuesNode = state<readonly TriagedItem[]>([mkTI(["T1", "T2", "T3"])]);
+		const filtered = affectedTaskFilter(issuesNode, ["T1", "T3", "T5"] as readonly string[]);
+		const unsub = filtered.subscribe(() => {});
+
+		expect(filtered.get()).toEqual(["T1", "T3"]); // T2 excluded, T5 not affected
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition D: codeChangeBridge
+// ---------------------------------------------------------------------------
+
+describe("codeChangeBridge", () => {
+	it("publishes IntakeItems for lint errors and test failures", () => {
+		const source = state<CodeChange | null>(null);
+		const intakeTopic = topic<IntakeItem>("intake");
+
+		const published: IntakeItem[] = [];
+		const unsubIntake = intakeTopic.latest.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) published.push(data as IntakeItem);
+			}
+		});
+
+		const bridge = codeChangeBridge(
+			source as ReturnType<typeof state<CodeChange>>,
+			intakeTopic as unknown as TopicGraph<IntakeItem>,
+		);
+		const unsubBridge = bridge.subscribe(() => {});
+
+		const change: CodeChange = {
+			files: ["src/foo.ts"],
+			lintErrors: [
+				{ file: "src/foo.ts", line: 10, col: 3, rule: "no-any", message: "Use unknown" },
+			],
+			testFailures: [{ testId: "foo.test", file: "src/foo.ts", message: "expected true" }],
+		};
+		source.down([[DATA, change]]);
+
+		expect(published.length).toBeGreaterThanOrEqual(2);
+		const sources = published.map((i) => i.source);
+		expect(sources).toContain("code-change");
+		expect(sources).toContain("test");
+		unsubIntake();
+		unsubBridge();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition D: notifyEffect
+// ---------------------------------------------------------------------------
+
+describe("notifyEffect", () => {
+	it("calls transport for each new topic entry", () => {
+		const alertTopic = topic<string>("alerts");
+		const calls: string[] = [];
+		const eff = notifyEffect(alertTopic as unknown as TopicGraph<string>, (item: string) =>
+			calls.push(item),
+		);
+		const unsub = eff.subscribe(() => {});
+
+		alertTopic.publish("first");
+		alertTopic.publish("second");
+
+		expect(calls).toContain("first");
+		expect(calls).toContain("second");
+		unsub();
+	});
+
+	it("supports async transport (fire-and-forget)", async () => {
+		const alertTopic = topic<string>("async-alerts");
+		const calls: string[] = [];
+		const transport = async (item: string) => {
+			await Promise.resolve();
+			calls.push(item);
+		};
+		const eff = notifyEffect(alertTopic as unknown as TopicGraph<string>, transport);
+		const unsub = eff.subscribe(() => {});
+
+		alertTopic.publish("hello");
+		await new Promise<void>((r) => setTimeout(r, 10));
+		expect(calls).toContain("hello");
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition B: redactor
+// ---------------------------------------------------------------------------
+
+describe("redactor", () => {
+	function makeStream() {
+		return topic<StreamChunk>("stream");
+	}
+
+	function pushChunk(
+		t: TopicGraph<StreamChunk>,
+		token: string,
+		accumulated: string,
+		index: number,
+	) {
+		t.publish({ source: "test", token, accumulated, index });
+	}
+
+	it("replaces matched patterns with [REDACTED]", () => {
+		const stream = makeStream();
+		const sanitized = redactor(stream, [/\d{3}-\d{2}-\d{4}/g]); // SSN pattern
+		const results: StreamChunk[] = [];
+		const unsub = sanitized.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) results.push(data as StreamChunk);
+			}
+		});
+
+		pushChunk(stream, "My SSN is 123-45-6789.", "My SSN is 123-45-6789.", 0);
+
+		const last = results[results.length - 1];
+		expect(last?.accumulated).toBe("My SSN is [REDACTED].");
+		expect(last?.token).toBe("My SSN is [REDACTED].");
+		unsub();
+	});
+
+	it("uses custom replaceFn when provided", () => {
+		const stream = makeStream();
+		const sanitized = redactor(stream, [/secret/gi], () => "***");
+		const results: StreamChunk[] = [];
+		const unsub = sanitized.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) results.push(data as StreamChunk);
+			}
+		});
+
+		pushChunk(stream, "my secret", "my secret data", 0);
+
+		const last = results[results.length - 1];
+		expect(last?.accumulated).toBe("my *** data");
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Composition B: contentGate
+// ---------------------------------------------------------------------------
+
+describe("contentGate", () => {
+	function makeStream() {
+		return topic<StreamChunk>("stream");
+	}
+
+	function pushChunk(t: TopicGraph<StreamChunk>, acc: string) {
+		t.publish({ source: "test", token: acc, accumulated: acc, index: 0 });
+	}
+
+	it("returns allow when score is below threshold", () => {
+		const stream = makeStream();
+		const gate = contentGate(stream, (text) => text.length / 100, 0.5); // low threshold
+		const decisions: string[] = [];
+		const unsub = gate.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) decisions.push(data as string);
+			}
+		});
+
+		pushChunk(stream, "hi"); // length 2 / 100 = 0.02 — well below 0.5
+		expect(decisions[decisions.length - 1]).toBe("allow");
+		unsub();
+	});
+
+	it("returns review when score is in [threshold, hard)", () => {
+		const stream = makeStream();
+		// hardMultiplier default 1.5 → hard = 0.5 × 1.5 = 0.75
+		const gate = contentGate(stream, () => 0.6, 0.5);
+		const decisions: string[] = [];
+		const unsub = gate.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) decisions.push(data as string);
+			}
+		});
+
+		pushChunk(stream, "x");
+		expect(decisions[decisions.length - 1]).toBe("review");
+		unsub();
+	});
+
+	it("returns block when score exceeds hard threshold", () => {
+		const stream = makeStream();
+		const gate = contentGate(stream, () => 0.9, 0.5); // 0.9 ≥ 0.75
+		const decisions: string[] = [];
+		const unsub = gate.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) decisions.push(data as string);
+			}
+		});
+
+		pushChunk(stream, "x");
+		expect(decisions[decisions.length - 1]).toBe("block");
+		unsub();
+	});
+
+	it("accepts a Node<number> classifier", () => {
+		const stream = makeStream();
+		const score = state(0.8);
+		const gate = contentGate(stream, score, 0.5); // 0.8 ≥ 0.75 → block
+		const decisions: string[] = [];
+		const unsub = gate.subscribe((msgs) => {
+			for (const [type, data] of msgs) {
+				if (type === DATA && data != null) decisions.push(data as string);
+			}
+		});
+
+		pushChunk(stream, "x");
+		expect(decisions[decisions.length - 1]).toBe("block");
+
+		// Lower the score to allow
+		score.down([[DATA, 0.1]]);
+		pushChunk(stream, "y");
+		expect(decisions[decisions.length - 1]).toBe("allow");
+		unsub();
 	});
 });
