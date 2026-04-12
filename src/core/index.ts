@@ -49,6 +49,8 @@ export {
 	type NodeFn,
 	type NodeFnCleanup,
 	NodeImpl,
+	type NodeInspectorHook,
+	type NodeInspectorHookEvent,
 	type NodeOptions,
 	type NodeSink,
 	type NodeStatus,

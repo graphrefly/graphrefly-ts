@@ -89,14 +89,20 @@ describe("Graph (Phase 1.1)", () => {
 		expect(() => g.connect("a", "a")).toThrow(/cannot connect a node to itself/);
 	});
 
-	it("connect throws when target deps do not include source instance", () => {
+	it("connect auto-adds a reactive dep when target does not already include source", () => {
+		// v5: Graph.connect() uses NodeImpl._addDep to create a live
+		// reactive edge post-construction. This enables pattern factories
+		// (stratify, feedback, forEach, etc.) to wire nodes after creation.
 		const g = new Graph("g");
 		const a1 = state(0, { name: "a1" });
 		const a2 = state(0, { name: "a2" });
 		const b = derived([a2], ([v]) => v, { name: "b" });
 		g.add("a", a1);
 		g.add("b", b);
-		expect(() => g.connect("a", "b")).toThrow(/must include/);
+		expect((b as unknown as { _deps: readonly unknown[] })._deps.length).toBe(1);
+		g.connect("a", "b");
+		// After connect: b now has a1 as an additional reactive dep
+		expect((b as unknown as { _deps: readonly unknown[] })._deps.length).toBe(2);
 	});
 
 	it("disconnect throws when edge missing", () => {
@@ -607,9 +613,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(obs.values.b).toBe(3);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dep_values and trigger_dep_index/trigger_dep_name are no longer populated in observe events
-	it.skip("observe(path, { causal: true, derived: true }) captures trigger and dep snapshots", () => {
+	it("observe(path, { causal: true, derived: true }) captures trigger and dep snapshots", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
@@ -630,9 +634,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(obs.values.b).toBe(6);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// derived events are no longer emitted in observe results
-	it.skip("observe(path, { causal: true, derived: true }) includes initial derived run", () => {
+	it("observe(path, { causal: true, derived: true }) includes initial derived run", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
@@ -1508,9 +1510,7 @@ describe("observe() detail levels (3.3b)", () => {
 		Graph.inspectorEnabled = false;
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// trigger_dep_name is no longer populated in observe events
-	it.skip('detail: "full" enables timeline + causal + derived', () => {
+	it('detail: "full" enables timeline + causal + derived', () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-full");
 		const a = state(10, { name: "a" });
@@ -1559,9 +1559,7 @@ describe("observe() detail levels (3.3b)", () => {
 });
 
 describe("observe() expand() (3.3b)", () => {
-	// FLAG: v5 behavioral change — needs investigation
-	// trigger_dep_name is no longer populated in observe events
-	it.skip("expand upgrades observation from minimal to full", () => {
+	it("expand upgrades observation from minimal to full", () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-expand");
 		const a = state(1, { name: "a" });
