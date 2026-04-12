@@ -243,7 +243,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("share uses one upstream subscription", () => {
 		let subs = 0;
-		const src = producer<number>((_d, a) => {
+		const src = producer<number>((a) => {
 			subs += 1;
 			a.emit(1);
 			return () => {
@@ -590,7 +590,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	it("toWebSocket reports close failure and closes idempotently", () => {
 		const errors: Array<{ stage: string; error: Error; message: [symbol, unknown?] | undefined }> =
 			[];
-		const repeatedTerminal = producer((_deps, a) => {
+		const repeatedTerminal = producer((a) => {
 			a.down([[COMPLETE], [ERROR, new Error("late")]]);
 			return () => {};
 		});
@@ -681,7 +681,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("toSSE can include DIRTY and RESOLVED events", async () => {
-		const n = producer((_deps, a) => {
+		const n = producer((a) => {
 			a.down([[DIRTY], [RESOLVED], [COMPLETE]]);
 			return () => {};
 		});

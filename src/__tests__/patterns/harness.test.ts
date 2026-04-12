@@ -69,7 +69,7 @@ describe("harness types", () => {
 describe("strategyModel", () => {
 	it("starts empty", () => {
 		const sm = strategyModel();
-		expect(sm.node.get().size).toBe(0);
+		expect(sm.node.cache.size).toBe(0);
 		expect(sm.lookup("composition", "template")).toBeUndefined();
 	});
 
@@ -136,7 +136,7 @@ describe("priorityScore", () => {
 		const score = priorityScore(item, sm.node, lastInteraction);
 		score.subscribe(() => undefined); // activate
 
-		const val = score.get();
+		const val = score.cache;
 		expect(typeof val).toBe("number");
 		expect(val).toBeGreaterThan(0);
 	});
@@ -160,7 +160,7 @@ describe("priorityScore", () => {
 		// Without strategy data
 		const scoreWithout = priorityScore(item, sm.node, lastInteraction);
 		scoreWithout.subscribe(() => undefined);
-		const valWithout = scoreWithout.get();
+		const valWithout = scoreWithout.cache;
 
 		// Record high effectiveness
 		sm.record("composition", "template", true);
@@ -169,7 +169,7 @@ describe("priorityScore", () => {
 
 		const scoreWith = priorityScore(item, sm.node, lastInteraction);
 		scoreWith.subscribe(() => undefined);
-		const valWith = scoreWith.get();
+		const valWith = scoreWith.cache;
 
 		expect(valWith).toBeGreaterThan(valWithout);
 	});
@@ -294,6 +294,10 @@ describe("evalIntakeBridge", () => {
 // harnessLoop
 // ---------------------------------------------------------------------------
 
+// FLAG: v5 behavioral change — needs investigation
+// harnessLoop tests fail with:
+//   Graph "gates": connect(needs-decision/source, needs-decision/gate) — target must include source in its constructor deps (same node reference)
+// The gate factory in orchestration.ts uses Graph.connect() which now enforces deps.
 describe("harnessLoop", () => {
 	// Mock LLM adapter that returns predictable JSON
 	function mockAdapter(responses: Record<string, unknown>) {
@@ -377,8 +381,8 @@ describe("harnessLoop", () => {
 		const adapter = mockAdapter({});
 		const harness = harnessLoop("test-harness-6", { adapter });
 
-		expect(harness.totalRetries.get()).toBe(0);
-		expect(harness.totalReingestions.get()).toBe(0);
+		expect(harness.totalRetries.cache).toBe(0);
+		expect(harness.totalReingestions.cache).toBe(0);
 	});
 });
 
@@ -386,6 +390,7 @@ describe("harnessLoop", () => {
 // e2e: full 7-stage flow
 // ---------------------------------------------------------------------------
 
+// FLAG: v5 behavioral change — needs investigation (same Graph.connect() deps enforcement)
 describe("harnessLoop e2e", () => {
 	/**
 	 * Stage-aware mock adapter.
@@ -492,7 +497,7 @@ describe("harnessLoop e2e", () => {
 		// (proves: triage → route → execute → verify → strategy.record)
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThan(0);
+				expect(harness.strategy.node.cache.size).toBeGreaterThan(0);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
@@ -579,7 +584,7 @@ describe("harnessLoop e2e", () => {
 		);
 
 		// Global retry counter should have recorded retry attempts
-		expect(harness.totalRetries.get()).toBeGreaterThanOrEqual(0);
+		expect(harness.totalRetries.cache).toBeGreaterThanOrEqual(0);
 	});
 
 	it("evalIntakeBridge → harnessLoop integration", async () => {
@@ -630,6 +635,7 @@ describe("harnessLoop e2e", () => {
 // mockLLM-based scenario tests
 // ---------------------------------------------------------------------------
 
+// FLAG: v5 behavioral change — needs investigation (same Graph.connect() deps enforcement)
 describe("harnessLoop with mockLLM", () => {
 	it("full 7-stage happy path — each stage fires in order, strategy records success", async () => {
 		const mock = mockLLM({
@@ -740,7 +746,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy to accumulate entries
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
@@ -801,7 +807,7 @@ describe("harnessLoop with mockLLM", () => {
 		);
 
 		// Global retry counter should show retries occurred
-		expect(harness.totalRetries.get()).toBe(2);
+		expect(harness.totalRetries.cache).toBe(2);
 
 		// Strategy should record failure
 		const entry = harness.strategy.lookup("schema-gap", "schema-change")!;
@@ -860,7 +866,7 @@ describe("harnessLoop with mockLLM", () => {
 		);
 
 		// Structural failure should NOT trigger fast-retry
-		expect(harness.totalRetries.get()).toBe(0);
+		expect(harness.totalRetries.cache).toBe(0);
 
 		// Strategy should record failure
 		const entry = harness.strategy.lookup("composition", "template")!;
@@ -918,13 +924,13 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for the global reingestion counter to record the first reingestion
 		await vi.waitFor(
 			() => {
-				expect(harness.totalReingestions.get()).toBe(1);
+				expect(harness.totalReingestions.cache).toBe(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
 
 		// Strategy should have recorded outcomes
-		expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+		expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 	});
 
 	it("gate blocking — needs-decision item waits at gate, approve releases it", async () => {
@@ -973,13 +979,13 @@ describe("harnessLoop with mockLLM", () => {
 		expect(gateCtrl).toBeDefined();
 
 		// Approve ALL pending items in the gate (includes push-on-subscribe initial + real item)
-		const pendingCount = (gateCtrl.count.get() as number) ?? 0;
+		const pendingCount = (gateCtrl.count.cache as number) ?? 0;
 		gateCtrl.approve(pendingCount);
 
 		// Wait for the item to flow through execute → verify
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
@@ -1035,7 +1041,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		// Human steering: override triage classification with structured metadata.
 		// Approve all pending items (push-on-subscribe may have buffered initial null).
-		const pendingCount = (gateCtrl.count.get() as number) ?? 0;
+		const pendingCount = (gateCtrl.count.cache as number) ?? 0;
 		gateCtrl.modify(
 			(item: TriagedItem) => ({
 				...item,
@@ -1119,7 +1125,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 3000, interval: 50 },
 		);
@@ -1183,13 +1189,13 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for first item to complete
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
 
 		// Strategy should have at least one entry recorded
-		const snapshot = harness.strategy.node.get();
+		const snapshot = harness.strategy.node.cache;
 		expect(snapshot.size).toBeGreaterThanOrEqual(1);
 
 		// At least one key should have attempts > 0
@@ -1237,7 +1243,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.get().size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 3000, interval: 50 },
 		);
@@ -1274,7 +1280,7 @@ describe("evalSource", () => {
 		const results: EvalResult[] = [];
 		// Bind the trigger value into the runner so we can identify which run emitted.
 		const resultNode = evalSource(trigger as ReturnType<typeof state<unknown>>, () =>
-			runner(trigger.get() as string),
+			runner(trigger.cache as string),
 		);
 		const unsub = resultNode.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
@@ -1292,7 +1298,7 @@ describe("evalSource", () => {
 		// Each trigger value determines the run_id so we can track which run resolved.
 		const trigger = state<string | null>(null);
 		const runner = () => {
-			const id = trigger.get();
+			const id = trigger.cache;
 			// Slow promise so earlier runs haven't resolved yet when a new trigger fires.
 			return new Promise<EvalResult>((resolve) =>
 				setTimeout(() => resolve({ run_id: id ?? "null", model: "test", tasks: [] }), 40),
@@ -1361,7 +1367,7 @@ describe("beforeAfterCompare", () => {
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
 
-		const d = delta.get()!;
+		const d = delta.cache!;
 		expect(d.newFailures).toEqual(["t1"]);
 		expect(d.resolved).toEqual(["t2"]);
 		expect(d.overallImproved).toBe(false); // 1 resolved, 1 failure — equal
@@ -1388,7 +1394,7 @@ describe("beforeAfterCompare", () => {
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
 
-		const d = delta.get()!;
+		const d = delta.cache!;
 		expect(d.resolved).toHaveLength(2);
 		expect(d.newFailures).toHaveLength(1);
 		expect(d.overallImproved).toBe(true);
@@ -1403,7 +1409,7 @@ describe("beforeAfterCompare", () => {
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
 
-		const td = delta.get()!.taskDeltas[0];
+		const td = delta.cache!.taskDeltas[0];
 		expect(td.scoreDiff).toBe(1); // 3 - 2
 		unsub();
 	});
@@ -1433,7 +1439,7 @@ describe("affectedTaskFilter", () => {
 		const filtered = affectedTaskFilter(issuesNode);
 		const unsub = filtered.subscribe(() => {});
 
-		expect(filtered.get()).toEqual(["T1", "T2", "T3"]);
+		expect(filtered.cache).toEqual(["T1", "T2", "T3"]);
 		unsub();
 	});
 
@@ -1442,7 +1448,7 @@ describe("affectedTaskFilter", () => {
 		const filtered = affectedTaskFilter(issuesNode, ["T1", "T3", "T5"] as readonly string[]);
 		const unsub = filtered.subscribe(() => {});
 
-		expect(filtered.get()).toEqual(["T1", "T3"]); // T2 excluded, T5 not affected
+		expect(filtered.cache).toEqual(["T1", "T3"]); // T2 excluded, T5 not affected
 		unsub();
 	});
 });

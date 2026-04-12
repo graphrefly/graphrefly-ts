@@ -32,7 +32,7 @@ describe("React bindings", () => {
 		});
 
 		expect(result.current[0]).toBe(20);
-		expect(testNode.get()).toBe(20);
+		expect(testNode.cache).toBe(20);
 	});
 
 	it("useSubscribeRecord tracks multiple nodes and re-subscribes properly", () => {

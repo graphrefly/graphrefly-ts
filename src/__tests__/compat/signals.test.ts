@@ -11,6 +11,8 @@ describe("compat/signals", () => {
 		expect(count.get()).toBe(1);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Computed evaluates reactively based on State changes", () => {
 		const count = new Signal.State(2);
 		const doubled = new Signal.Computed(() => count.get() * 2);
@@ -21,6 +23,8 @@ describe("compat/signals", () => {
 		expect(doubled.get()).toBe(6);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Computed dependencies are tracked globally during execution", () => {
 		const a = new Signal.State("a");
 		const b = new Signal.State("b");
@@ -49,6 +53,8 @@ describe("compat/signals", () => {
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Nested Computed properties track correctly", () => {
 		const count = new Signal.State(1);
 		const doubled = new Signal.Computed(() => count.get() * 2);
@@ -107,6 +113,8 @@ describe("compat/signals", () => {
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Signal.get does not throw after upstream error", () => {
 		const count = new Signal.State(1);
 		const doubled = new Signal.Computed(() => {
@@ -124,6 +132,8 @@ describe("compat/signals", () => {
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Diamond patterns resolve without glitches", () => {
 		const base = new Signal.State(1);
 		const left = new Signal.Computed(() => base.get() * 2);

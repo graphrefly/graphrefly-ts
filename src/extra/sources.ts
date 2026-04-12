@@ -694,11 +694,10 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
 			if (!ctx.store.buf) ctx.store.buf = [];
 			const buf = ctx.store.buf as T[];
 			if (ctx.dataFrom[0]) buf.push(data[0] as T);
+			// Emit only on COMPLETE — accumulate silently until then.
 			if (ctx.terminalDeps[0] !== undefined) {
 				actions.emit([...buf]);
 				actions.down([[COMPLETE]]);
-			} else {
-				actions.down([[RESOLVED]]);
 			}
 		},
 		{

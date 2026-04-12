@@ -83,7 +83,7 @@ describe("CliMeasureAdapter", () => {
 		const unsub = bundle.lineBreaks.subscribe(() => {});
 		// "hello" = 40px, " " = 8px, "world" = 40px → total 88px > 60px
 		// Should wrap into 2 lines
-		const lb = bundle.lineBreaks.get();
+		const lb = bundle.lineBreaks.cache;
 		expect(lb).not.toBeNull();
 		expect(lb!.lineCount).toBe(2);
 		unsub();

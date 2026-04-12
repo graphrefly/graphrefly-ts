@@ -188,7 +188,7 @@ export function cascadingCache<V>(
 			}
 			if (result !== undefined) {
 				nd.down([[DATA, result]]);
-				promote(key, result, tierIndex);
+				promote(key, result as V, tierIndex);
 				return;
 			}
 		}
@@ -208,7 +208,7 @@ export function cascadingCache<V>(
 					if (nd.status !== "sentinel") {
 						for (let i = tiers.length - 1; i >= 0; i--) {
 							if (tiers[i].save) {
-								tiers[i].save!(key, value);
+								tiers[i].save!(key, value as V);
 								// Clear faster tiers
 								for (let j = 0; j < i; j++) {
 									if (tiers[j].clear) tiers[j].clear!(key);

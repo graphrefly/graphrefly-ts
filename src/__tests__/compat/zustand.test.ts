@@ -74,6 +74,6 @@ describe("zustand compat", () => {
 		const store = create(() => ({ count: 0 }));
 		const stateNode = store.node("state");
 		store.destroy();
-		expect(stateNode.status).toBe("disconnected");
+		expect(stateNode.status).toBe("sentinel");
 	});
 });

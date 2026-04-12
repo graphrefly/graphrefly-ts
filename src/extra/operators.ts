@@ -13,6 +13,7 @@ import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
+	DIRTY,
 	ERROR,
 	type Message,
 	type Messages,
@@ -162,12 +163,12 @@ export function reduce<T, R>(
 				a.down([[COMPLETE]]);
 				return;
 			}
-			// Only accumulate if dep sent DATA this wave.
+			// Only accumulate if dep sent DATA this wave. Emit nothing
+			// until COMPLETE — downstream's pre-set-dirty DepRecord holds
+			// the wave open naturally.
 			if (ctx.dataFrom[0]) {
 				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
 			}
-			// Don't emit until COMPLETE — suppress downstream.
-			a.down([[RESOLVED]]);
 		},
 		{
 			...operatorOpts(opts),
@@ -439,13 +440,13 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 				a.down([[COMPLETE]]);
 				return;
 			}
-			// Accumulate latest DATA
+			// Accumulate latest DATA — emit nothing until COMPLETE.
+			// Downstream's pre-set-dirty DepRecord holds the wave open
+			// naturally; no RESOLVED needed.
 			if (ctx.dataFrom[0]) {
 				ctx.store.latest = v as T;
 				ctx.store.has = true;
 			}
-			// Don't emit until COMPLETE
-			a.down([[RESOLVED]]);
 		},
 		{
 			...operatorOpts(rest),
@@ -671,7 +672,16 @@ export function combine<const T extends readonly unknown[]>(
 	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const deps = [...sources] as unknown as Node[];
-	return derived(deps, (vals) => vals as unknown as T, operatorOpts<T>());
+	return derived(deps, (vals) => vals as unknown as T, {
+		...operatorOpts<T>(),
+		equals: (a, b) => {
+			if (a.length !== b.length) return false;
+			for (let i = 0; i < a.length; i++) {
+				if (!Object.is(a[i], b[i])) return false;
+			}
+			return true;
+		},
+	});
 }
 
 /**
@@ -1092,7 +1102,9 @@ export function exhaustMap<T, R>(
 		const srcUnsub = source.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {
-					// Ignore if inner is still active
+					// Only attach if no inner is active; otherwise silently
+					// drop (exhaustMap semantics). No RESOLVED needed — this
+					// is a producer node, no DIRTY was emitted for this drop.
 					if (innerUnsub === undefined) attach(m[1] as T);
 				} else if (m[0] === ERROR) {
 					clearInner();
@@ -1370,6 +1382,9 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
 					clearAll();
 					a.down([m]);
 				}
+				// DIRTY from source is NOT forwarded — delay transforms the
+				// timeline. a.emit(v) in the timer callback handles full
+				// DIRTY+DATA framing atomically at the delayed time.
 			}
 		});
 
@@ -1917,6 +1932,9 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 					clearInterval(iv);
 					a.down([m]);
 				}
+				// DIRTY from source is NOT forwarded — bufferTime
+				// transforms the timeline. a.emit(buf) handles full
+				// DIRTY+DATA framing when the interval fires.
 			}
 		});
 

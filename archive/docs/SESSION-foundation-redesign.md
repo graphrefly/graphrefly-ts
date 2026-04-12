@@ -2631,3 +2631,63 @@ downstream fn re-runs.
 - [ ] `src/__tests__/extra/` — fix.
 - [ ] `src/graph/` + `src/patterns/` + `src/compat/` — fix drift.
 
+
+### 10.6.6 — Two-phase invariant: transitions only, not activation
+
+Activation-wave emissions (RESOLVED from accumulating operators like `last`,
+`reduce`, `toArray` during subscribe ceremony) do NOT require preceding DIRTY.
+Two-phase (DIRTY → DATA/RESOLVED) applies to **state transitions** only.
+Spec §2.2 already exempts START handshake from DIRTY. Activation RESOLVED
+is analogous — "I started up, no value yet."
+
+Terminal-emission operators (`last`, `reduce`, `toArray`) emit nothing during
+accumulation waves. They stay silent until COMPLETE, then emit `[DIRTY, DATA,
+COMPLETE]`. Downstream's pre-set-dirty DepRecord holds the wave open naturally.
+
+### 10.6.7 — autoError split from autoComplete
+
+`completeWhenDepsComplete: false` suppresses auto-COMPLETE only. ERROR always
+propagates unless `errorWhenDepsError: false` (rescue pattern). This fixes
+operators like `take`, `reduce`, `takeWhile` that previously swallowed
+upstream ERRORs.
+
+### 10.6.8 — Producer-based operators: atomic DIRTY+DATA at emit time
+
+Timer operators (delay, bufferTime) do NOT forward source DIRTY immediately.
+`a.emit(v)` in the timer callback handles DIRTY+DATA atomically via bundle
+at the delayed time. Downstream sees a clean transition, not DIRTY-now +
+DATA-later.
+
+Similarly, exhaustMap silently drops outer DATA when inner is active — no
+RESOLVED emission. Producer nodes that silently drop stay silent.
+
+### 10.6.9 — Remaining test failures (88, grouped)
+
+| Category | Count | Root cause | Status |
+|----------|-------|------------|--------|
+| Graph.connect() deps enforcement | ~70 | v5 validates target has source in _deps; pattern factories wire post-construction | DESIGN QUESTION |
+| dynamicNode auto-tracking | 11 | v5 requires upfront deps; jotai/signals need runtime discovery | IMPLEMENTING |
+| Observer hook removed | 5 | _setInspectorHook deleted | DEFERRED to graph/ redesign |
+| Diamond recount | 1 | Wave tracking count differs | COSMETIC |
+| INVALIDATE cache clearing | 2 | Behavior changed | NEEDS INVESTIGATION |
+| _applyVersioning removed | 1 | Construction-time only | DEFERRED |
+
+### 10.6.10 — autoTrackNode: two-phase dep discovery
+
+Design for Jotai/signals compat (§6 deferred item). Procedure:
+
+1. Run fn at activation. `track(dep)` for unknown deps:
+   - Record the dep in a pending list
+   - Return `dep.cache` as stub (P3 boundary exception for discovery)
+   - try/catch the run (stale `.cache` may cause errors)
+2. After fn returns, if new deps discovered:
+   - Subscribe to each new dep, add to DepRecord
+   - Pre-set dirty on new deps
+3. Check if all dep dirty flags cleared (some may settle synchronously
+   from subscribe handshake)
+4. If all settled, run fn again (real run — protocol-delivered values)
+5. If re-run discovers MORE new deps, repeat from step 2
+6. Converges when no new deps found — O(n) total wasted runs for n deps
+
+P3 violation is limited to discovery runs only. Once all deps are known,
+subsequent waves use protocol-delivered data exclusively.

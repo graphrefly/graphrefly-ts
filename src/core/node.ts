@@ -410,7 +410,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _config: GraphReFlyConfig;
 
 	// --- Topology ---
-	readonly _deps: DepRecord[];
+	/** Mutable for autoTrackNode / Graph.connect() post-construction dep addition. */
+	_deps: DepRecord[];
 	_sinks: NodeSink | Set<NodeSink> | null = null;
 	_sinkCount = 0;
 
@@ -424,6 +425,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_hasCalledFnOnce = false;
 	_paused = false;
 	_pendingWave = false;
+	_isExecutingFn = false;
+	_pendingRerun = false;
 
 	// --- Options (frozen at construction) ---
 	readonly _fn: NodeFn | undefined;
@@ -709,6 +712,33 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
+	 * @internal Append a dep post-construction. Used by `autoTrackNode`
+	 * (runtime dep discovery) and `Graph.connect()` (post-construction
+	 * wiring). Subscribes immediately — if DATA arrives synchronously
+	 * during subscribe and fn is currently executing, the re-run is
+	 * deferred via `_pendingRerun` flag (see `_execFn` guard).
+	 *
+	 * @returns The index of the new dep in `_deps`.
+	 */
+	_addDep(depNode: Node): number {
+		const depIdx = this._deps.length;
+		const record = createDepRecord(depNode);
+		record.dirty = true;
+		this._deps.push(record);
+		record.unsub = depNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				this._config.onMessage(
+					this as unknown as NodeCtx,
+					m,
+					{ direction: "down-in", depIndex: depIdx },
+					this._actions,
+				);
+			}
+		});
+		return depIdx;
+	}
+
+	/**
 	 * @internal Unsubscribes from deps, fires fn cleanup (both shapes),
 	 * clears wave/store state, and (for compute nodes) drops `_cached` per
 	 * the ROM/RAM rule. Idempotent: second call is a no-op.
@@ -929,6 +959,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _execFn(): void {
 		if (!this._fn) return;
 		if (this._isTerminal && !this._resubscribable) return;
+		// Re-entrance guard: if fn is currently executing (e.g. _addDep
+		// triggered a synchronous DATA delivery → _maybeRunFnOnSettlement
+		// → _execFn), defer the re-run until the current fn returns.
+		if (this._isExecutingFn) {
+			this._pendingRerun = true;
+			return;
+		}
 
 		// Pre-run cleanup — only the function-form cleanup fires here.
 		const prevCleanup = this._cleanup;
@@ -955,6 +992,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._hasCalledFnOnce = true;
 		this._clearWaveFlags();
 
+		this._isExecutingFn = true;
 		try {
 			const result = this._fn(latestData, this._actions, ctx);
 			if (typeof result === "function") {
@@ -966,9 +1004,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			) {
 				this._cleanup = result as { deactivation: () => void };
 			}
-			// void or anything else: ignore.
 		} catch (err) {
 			this._emit([[ERROR, this._wrapFnError("fn threw", err)]]);
+		} finally {
+			this._isExecutingFn = false;
+			if (this._pendingRerun) {
+				this._pendingRerun = false;
+				this._maybeRunFnOnSettlement();
+			}
 		}
 	}
 

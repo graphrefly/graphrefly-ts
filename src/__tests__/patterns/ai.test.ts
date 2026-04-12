@@ -45,7 +45,7 @@ import {
  * Mock LLM adapter. `stream()` yields tokens asynchronously (one microtask per
  * token) to match real adapter behavior — real LLM SDKs always involve I/O
  * between chunks. Tests MUST use reactive subscribe patterns (not synchronous
- * `.get()`) to observe stream results.
+ * `.cache`) to observe stream results.
  */
 function mockAdapter(responses: LLMResponse[], streamChunks?: string[][]): LLMAdapter {
 	let idx = 0;
@@ -127,7 +127,7 @@ describe("patterns.ai.toolRegistry", () => {
 	it("creates a graph with definitions and schemas nodes", () => {
 		const tr = toolRegistry("test-tools");
 		expect(tr).toBeInstanceOf(ToolRegistryGraph);
-		const schemas = tr.schemas.get() as ToolDefinition[];
+		const schemas = tr.schemas.cache as ToolDefinition[];
 		expect(schemas).toEqual([]);
 	});
 
@@ -142,13 +142,13 @@ describe("patterns.ai.toolRegistry", () => {
 		tr.register(tool);
 		expect(tr.getDefinition("add")).toBeDefined();
 
-		const schemas = tr.schemas.get() as ToolDefinition[];
+		const schemas = tr.schemas.cache as ToolDefinition[];
 		expect(schemas.length).toBe(1);
 		expect(schemas[0]?.name).toBe("add");
 
 		tr.unregister("add");
 		expect(tr.getDefinition("add")).toBeUndefined();
-		expect((tr.schemas.get() as ToolDefinition[]).length).toBe(0);
+		expect((tr.schemas.cache as ToolDefinition[]).length).toBe(0);
 	});
 
 	it("execute runs the tool handler", async () => {
@@ -200,26 +200,26 @@ describe("patterns.ai.toolRegistry", () => {
 describe("patterns.ai.systemPromptBuilder", () => {
 	it("assembles sections into a prompt", () => {
 		const prompt = systemPromptBuilder(["You are a helpful assistant.", "Be concise."]);
-		expect(prompt.get()).toBe("You are a helpful assistant.\n\nBe concise.");
+		expect(prompt.cache).toBe("You are a helpful assistant.\n\nBe concise.");
 	});
 
 	it("reacts to section changes", () => {
 		const role = state("You are an assistant.");
 		const prompt = systemPromptBuilder([role, "Be concise."]);
-		expect(prompt.get()).toBe("You are an assistant.\n\nBe concise.");
+		expect(prompt.cache).toBe("You are an assistant.\n\nBe concise.");
 
 		role.down([[DATA, "You are a coding expert."]]);
-		expect(prompt.get()).toBe("You are a coding expert.\n\nBe concise.");
+		expect(prompt.cache).toBe("You are a coding expert.\n\nBe concise.");
 	});
 
 	it("filters empty sections", () => {
 		const prompt = systemPromptBuilder(["hello", "", "world"]);
-		expect(prompt.get()).toBe("hello\n\nworld");
+		expect(prompt.cache).toBe("hello\n\nworld");
 	});
 
 	it("uses custom separator", () => {
 		const prompt = systemPromptBuilder(["a", "b"], { separator: " | " });
-		expect(prompt.get()).toBe("a | b");
+		expect(prompt.cache).toBe("a | b");
 	});
 });
 
@@ -235,7 +235,7 @@ describe("patterns.ai.fromLLM", () => {
 		const result = fromLLM(adapter, msgs);
 		// switchMap nodes need a subscriber to activate
 		const unsub = result.subscribe(() => {});
-		expect(result.get()).toEqual(resp);
+		expect(result.cache).toEqual(resp);
 		unsub();
 	});
 });
@@ -455,7 +455,7 @@ describe("patterns.ai.streamExtractor", () => {
 		extractor.subscribe(() => {});
 
 		// No chunks published yet — latest is undefined → extractFn not called
-		expect(extractor.get()).toBe(null);
+		expect(extractor.cache).toBe(null);
 	});
 });
 
@@ -506,7 +506,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 		extractor.subscribe(() => {});
 
 		stream.publish({ source: "test", token: "clean code", accumulated: "clean code", index: 0 });
-		expect(extractor.get()).toEqual([]);
+		expect(extractor.cache).toEqual([]);
 	});
 
 	it("finds multiple matches of the same pattern", () => {
@@ -524,7 +524,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 			index: 0,
 		});
 
-		const result = extractor.get()!;
+		const result = extractor.cache!;
 		expect(result).toHaveLength(2);
 		expect(result[0].position).toBe(0);
 		expect(result[1].position).toBe(9);
@@ -576,7 +576,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 			index: 0,
 		});
 
-		expect(extractor.get()).toEqual([]);
+		expect(extractor.cache).toEqual([]);
 	});
 
 	it("ignores JSON objects without name+arguments shape", () => {
@@ -592,7 +592,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 			index: 0,
 		});
 
-		expect(extractor.get()).toEqual([]);
+		expect(extractor.cache).toEqual([]);
 	});
 
 	it("handles braces inside JSON string values", () => {
@@ -612,7 +612,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 			index: 0,
 		});
 
-		const result = extractor.get()!;
+		const result = extractor.cache!;
 		expect(result).toHaveLength(1);
 		expect(result[0].name).toBe("run_code");
 		expect(result[0].arguments).toEqual({ code: 'if (x) { return "}" }' });
@@ -633,7 +633,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 			index: 0,
 		});
 
-		const result = extractor.get()!;
+		const result = extractor.cache!;
 		expect(result).toHaveLength(2);
 		expect(result[0].name).toBe("a");
 		expect(result[1].name).toBe("b");
@@ -653,7 +653,7 @@ describe("patterns.ai.costMeterExtractor", () => {
 
 		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
 
-		const reading = extractor.get()!;
+		const reading = extractor.cache!;
 		expect(reading.chunkCount).toBe(1);
 		expect(reading.charCount).toBe(5);
 		expect(reading.estimatedTokens).toBe(2); // ceil(5/4)
@@ -668,7 +668,7 @@ describe("patterns.ai.costMeterExtractor", () => {
 		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
 		stream.publish({ source: "test", token: " world", accumulated: "hello world", index: 1 });
 
-		const reading = extractor.get()!;
+		const reading = extractor.cache!;
 		expect(reading.chunkCount).toBe(2);
 		expect(reading.charCount).toBe(11);
 		expect(reading.estimatedTokens).toBe(3); // ceil(11/4)
@@ -682,7 +682,7 @@ describe("patterns.ai.costMeterExtractor", () => {
 
 		stream.publish({ source: "test", token: "hello", accumulated: "hello", index: 0 });
 
-		expect(extractor.get()!.estimatedTokens).toBe(3); // ceil(5/2)
+		expect(extractor.cache!.estimatedTokens).toBe(3); // ceil(5/2)
 	});
 
 	it("returns zero reading when no chunks", () => {
@@ -691,7 +691,7 @@ describe("patterns.ai.costMeterExtractor", () => {
 		const extractor = costMeterExtractor(stream);
 		extractor.subscribe(() => {});
 
-		expect(extractor.get()).toEqual({ chunkCount: 0, charCount: 0, estimatedTokens: 0 });
+		expect(extractor.cache).toEqual({ chunkCount: 0, charCount: 0, estimatedTokens: 0 });
 	});
 });
 
@@ -699,11 +699,14 @@ describe("patterns.ai.costMeterExtractor", () => {
 // gatedStream
 // ---------------------------------------------------------------------------
 
+// FLAG: v5 behavioral change — needs investigation
+// All gatedStream tests fail with:
+//   Graph "test": connect(review/raw, review/gate) — target must include source in its constructor deps (same node reference)
 describe("patterns.ai.gatedStream", () => {
 	/** Wait for gate.count to reach `n` by subscribing reactively. */
 	function waitForPending(handle: GatedStreamHandle<unknown>, n = 1): Promise<void> {
 		// If count already has the value, resolve immediately
-		if ((handle.gate.count.get() as number) >= n) return Promise.resolve();
+		if ((handle.gate.count.cache as number) >= n) return Promise.resolve();
 		return new Promise<void>((resolve) => {
 			let teardown: (() => void) | undefined;
 			teardown = handle.gate.count.subscribe((msgs) => {
@@ -729,7 +732,7 @@ describe("patterns.ai.gatedStream", () => {
 		});
 
 		await waitForPending(handle);
-		expect(handle.gate.count.get()).toBe(1);
+		expect(handle.gate.count.cache).toBe(1);
 		handle.gate.approve();
 		expect(results.length).toBe(1);
 		expect(results[0]).toBe("hello world");
@@ -768,7 +771,7 @@ describe("patterns.ai.gatedStream", () => {
 
 		expect(streamStarted).toBe(true);
 		handle.gate.reject();
-		expect(handle.gate.count.get()).toBe(0);
+		expect(handle.gate.count.cache).toBe(0);
 		handle.dispose();
 	});
 
@@ -844,8 +847,8 @@ describe("patterns.ai.agentLoop", () => {
 		const adapter = mockAdapter([resp]);
 		const loop = agentLoop("test-agent", { adapter });
 		expect(loop).toBeInstanceOf(AgentLoopGraph);
-		expect(loop.status.get()).toBe("idle");
-		expect(loop.turnCount.get()).toBe(0);
+		expect(loop.status.cache).toBe("idle");
+		expect(loop.turnCount.cache).toBe(0);
 	});
 
 	it("runs a simple conversation and reaches done status", async () => {
@@ -855,8 +858,8 @@ describe("patterns.ai.agentLoop", () => {
 
 		const result = await loop.run("Hi!");
 		expect(result?.content).toBe("Hello, human!");
-		expect(loop.status.get()).toBe("done");
-		expect(loop.turnCount.get()).toBe(1);
+		expect(loop.status.cache).toBe("done");
+		expect(loop.turnCount.cache).toBe(1);
 	});
 
 	it("executes tool calls and loops", async () => {
@@ -884,7 +887,7 @@ describe("patterns.ai.agentLoop", () => {
 
 		const result = await loop.run("Double 5 for me");
 		expect(result?.content).toBe("The result is 10");
-		expect(loop.turnCount.get()).toBe(2);
+		expect(loop.turnCount.cache).toBe(2);
 		// Chat should have: user, assistant (tool call), tool result, assistant (final)
 		const msgs = loop.chat.allMessages();
 		expect(msgs.length).toBe(4);
@@ -911,8 +914,8 @@ describe("patterns.ai.agentLoop", () => {
 		});
 
 		await loop.run("loop forever");
-		expect(loop.turnCount.get()).toBe(2);
-		expect(loop.status.get()).toBe("done");
+		expect(loop.turnCount.cache).toBe(2);
+		expect(loop.status.cache).toBe("done");
 	});
 
 	it("respects custom stopWhen", async () => {
@@ -924,7 +927,7 @@ describe("patterns.ai.agentLoop", () => {
 		});
 		const result = await loop.run("test");
 		expect(result?.content).toBe("STOP_HERE");
-		expect(loop.status.get()).toBe("done");
+		expect(loop.status.cache).toBe("done");
 	});
 
 	it("resolves async LLM adapter invoke (Promise)", async () => {
@@ -1112,7 +1115,7 @@ describe("patterns.ai.agentMemory", () => {
 		});
 
 		mem.retrieve!({ vector: [0.5, 0.5, 0.0] });
-		const trace = mem.retrievalTrace!.get();
+		const trace = mem.retrievalTrace!.cache;
 		if (trace) {
 			expect(trace).toHaveProperty("vectorCandidates");
 			expect(trace).toHaveProperty("graphExpanded");
@@ -1265,7 +1268,7 @@ describe("knobsAsTools", () => {
 		// Handler calls graph.set
 		const tempDef = result.definitions.find((d) => d.name === "temperature");
 		tempDef!.handler({ value: 80 });
-		expect(temp.get()).toBe(80);
+		expect(temp.cache).toBe(80);
 
 		g.destroy();
 	});
@@ -1597,20 +1600,20 @@ describe("patterns.ai.promptNode", () => {
 		const unsub = pn.subscribe(() => {});
 		await tick();
 
-		expect(pn.get()).toBe("result");
+		expect(pn.cache).toBe("result");
 		// Push-on-subscribe may cause initial invocation(s); record baseline
 		const baseline = callCount;
 
 		// Trigger re-evaluation with same dep value — should hit cache
 		dep.down([[DATA, "hello"]]);
 		await tick();
-		expect(pn.get()).toBe("result");
+		expect(pn.cache).toBe("result");
 		expect(callCount).toBe(baseline); // no additional call (cache hit)
 
 		// Change dep — different prompt text → different cache key
 		dep.down([[DATA, "world"]]);
 		await tick();
-		expect(pn.get()).toBe("result");
+		expect(pn.cache).toBe("result");
 		expect(callCount).toBe(baseline + 1);
 
 		unsub();
@@ -1630,7 +1633,7 @@ describe("patterns.ai.promptNode", () => {
 		const pn = promptNode<{ key: string }>(adapter, [dep], "extract", { format: "json" });
 		const unsub = pn.subscribe(() => {});
 		await tick();
-		expect(pn.get()).toEqual({ key: "value" });
+		expect(pn.cache).toEqual({ key: "value" });
 		unsub();
 	});
 
@@ -1650,7 +1653,7 @@ describe("patterns.ai.promptNode", () => {
 		const pn = promptNode<string>(adapter, [dep], "test", { systemPrompt: "be helpful" });
 		const unsub = pn.subscribe(() => {});
 		await tick();
-		expect(pn.get()).toBe("ok");
+		expect(pn.cache).toBe("ok");
 		expect(receivedOpts.systemPrompt).toBe("be helpful");
 		unsub();
 	});
