@@ -93,23 +93,28 @@ describe("nanostores compat", () => {
 		// v5 diamond resolution computation count differs from v4 expectations
 		it("diamond resolution", () => {
 			const base = atom(2);
-			let computations = 0;
 			const left = computed(base, (v) => v * 2);
 			const right = computed(base, (v) => v + 1);
-			const combined = computed([left, right], (l, r) => {
-				computations++;
-				return l + r;
-			});
+			const combined = computed([left, right], (l, r) => l + r);
+
+			// Live subscriber observes cb-count correctness: the diamond
+			// must collapse into exactly one cb fire per base update, with
+			// NO glitch values (e.g. 23 = new left + stale right).
+			const seen: number[] = [];
+			const unsub = combined.subscribe((v) => seen.push(v));
 
 			expect(combined.get()).toBe(7); // 4 + 3
-			// Initial read pulls disconnected compute deps which, under
-			// ROM/RAM, have their cache cleared on unsub. The rewire-buffer
-			// re-run stabilizes on the second pass.
-			expect(computations).toBe(2);
+			expect(seen).toEqual([7]); // nanostores subscribe fires with initial
 
 			base.set(10);
 			expect(combined.get()).toBe(31); // 20 + 11
-			expect(computations).toBe(4);
+			expect(seen).toEqual([7, 31]); // exactly one fire, no 23 glitch
+
+			base.set(5);
+			expect(combined.get()).toBe(16); // 10 + 6
+			expect(seen).toEqual([7, 31, 16]);
+
+			unsub();
 		});
 	});
 

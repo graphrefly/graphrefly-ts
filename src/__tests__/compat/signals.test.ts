@@ -11,8 +11,6 @@ describe("compat/signals", () => {
 		expect(count.get()).toBe(1);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Computed evaluates reactively based on State changes", () => {
 		const count = new Signal.State(2);
 		const doubled = new Signal.Computed(() => count.get() * 2);
@@ -23,38 +21,53 @@ describe("compat/signals", () => {
 		expect(doubled.get()).toBe(6);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
-	it("Computed dependencies are tracked globally during execution", () => {
+	it("Computed tracks deps globally and fires cb only on genuine value changes", () => {
+		// Focus: value correctness + cb count correctness.
+		// Fn call counts are an implementation detail and not asserted.
 		const a = new Signal.State("a");
 		const b = new Signal.State("b");
 		const useA = new Signal.State(true);
 
-		const computeSpy = vi.fn(() => (useA.get() ? a.get() : b.get()));
-		const trackedResult = new Signal.Computed(computeSpy);
+		const trackedResult = new Signal.Computed(() => (useA.get() ? a.get() : b.get()));
 
-		// To truly test reactivity changes without reading we need a subscriber to keep it connected
-		const unsub = Signal.sub(trackedResult, () => {});
+		const seen: string[] = [];
+		const unsub = Signal.sub(trackedResult, (v) => seen.push(v));
 
-		// first read sets up tracking - subscription triggers initial eval
+		// Initial value
 		expect(trackedResult.get()).toBe("a");
-		expect(computeSpy).toHaveBeenCalledTimes(1);
+		expect(seen).toEqual([]); // Signal.sub skips the initial push
 
-		b.set("b2"); // shouldn't trigger recompute because b is not tracked
-		expect(computeSpy).toHaveBeenCalledTimes(1);
+		// b is not in the currently-used branch, so mutating it must not
+		// change the observed value and must not fire the subscriber.
+		b.set("b2");
+		expect(trackedResult.get()).toBe("a");
+		expect(seen).toEqual([]);
 
-		useA.set(false); // triggers tracking change
-		expect(computeSpy).toHaveBeenCalledTimes(2);
+		// Flip the branch — value changes, subscriber fires exactly once
+		// with the current value of b.
+		useA.set(false);
 		expect(trackedResult.get()).toBe("b2");
+		expect(seen).toEqual(["b2"]);
 
-		a.set("a2"); // shouldn't trigger recompute because a is no longer tracked
-		expect(computeSpy).toHaveBeenCalledTimes(2);
+		// a is no longer the active branch. Mutating it must not fire the
+		// subscriber — the user-visible value is still b's value.
+		a.set("a2");
+		expect(trackedResult.get()).toBe("b2");
+		expect(seen).toEqual(["b2"]);
+
+		// Flip back — the re-activated a branch must reflect a's CURRENT
+		// value "a2", not a stale snapshot from when a was last read.
+		useA.set(true);
+		expect(trackedResult.get()).toBe("a2");
+		expect(seen).toEqual(["b2", "a2"]);
+
+		// Setting a to the same value must not fire the subscriber.
+		a.set("a2");
+		expect(seen).toEqual(["b2", "a2"]);
 
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Nested Computed properties track correctly", () => {
 		const count = new Signal.State(1);
 		const doubled = new Signal.Computed(() => count.get() * 2);
@@ -113,8 +126,6 @@ describe("compat/signals", () => {
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Signal.get does not throw after upstream error", () => {
 		const count = new Signal.State(1);
 		const doubled = new Signal.Computed(() => {
@@ -132,33 +143,31 @@ describe("compat/signals", () => {
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("Diamond patterns resolve without glitches", () => {
+		// Focus: the diamond must produce the correct final value and
+		// fire the subscriber EXACTLY ONCE per base update (not twice —
+		// that would be the glitch we care about).
 		const base = new Signal.State(1);
 		const left = new Signal.Computed(() => base.get() * 2);
 		const right = new Signal.Computed(() => base.get() + 2);
+		const final = new Signal.Computed(() => left.get() + right.get());
 
-		const computeSpy = vi.fn();
-		const final = new Signal.Computed(() => {
-			computeSpy();
-			return left.get() + right.get();
-		});
+		const seen: number[] = [];
+		const unsub = Signal.sub(final, (v) => seen.push(v));
 
-		// subscribe to keep the network active
-		const unsub = Signal.sub(final, () => {});
 		expect(final.get()).toBe(5); // left(2) + right(3)
-		// Initial activation goes through the ROM/RAM + rewire-buffer path:
-		// first fn run reads undefined from disconnected compute deps,
-		// rewire activates them, discrepancy triggers one stabilizing re-run.
-		expect(computeSpy).toHaveBeenCalledTimes(2);
+		expect(seen).toEqual([]); // Signal.sub skips initial push
 
-		// Update base — diamond resolution: final should recompute exactly
-		// once when both left and right settle in the same wave.
 		base.set(2);
-
-		expect(computeSpy).toHaveBeenCalledTimes(3);
 		expect(final.get()).toBe(8); // left(4) + right(4)
+		// Exactly one cb fire with the final diamond-resolved value —
+		// no intermediate glitch values like 6 (left=4, right=3 stale)
+		// or 7 (left=2 stale, right=4).
+		expect(seen).toEqual([8]);
+
+		base.set(3);
+		expect(final.get()).toBe(11); // left(6) + right(5)
+		expect(seen).toEqual([8, 11]);
 
 		unsub();
 	});

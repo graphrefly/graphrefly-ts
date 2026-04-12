@@ -120,10 +120,14 @@ function createPrimitiveAtom<T>(initial: T, options?: AtomOptions): WritableAtom
 			}
 			return n.cache as T;
 		},
-		set: (value: T) => n.down([[DATA, value]]),
+		// Use `n.emit` (not raw `n.down`) so writes go through the framed
+		// emit pipeline: bundle() auto-prefixes DIRTY (diamond-safe wave
+		// coordination) and the equals check folds same-value writes to
+		// RESOLVED (no spurious subscriber fires).
+		set: (value: T) => n.emit(value),
 		update: (fn: (current: T) => T) => {
 			const current = n.status === "sentinel" ? pull(n) : (n.cache as T);
-			n.down([[DATA, fn(current)]]);
+			n.emit(fn(current));
 		},
 		subscribe: (cb: (value: T) => void) => {
 			// Skip the initial push-on-subscribe DATA — jotai subscribe fires on changes only.
