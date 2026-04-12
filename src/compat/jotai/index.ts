@@ -1,6 +1,6 @@
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { dynamicNode, state } from "../../core/sugar.js";
+import { autoTrackNode, state } from "../../core/sugar.js";
 
 /**
  * Options for creating an atom.
@@ -150,8 +150,7 @@ function createDerivedAtom<T>(
 	write?: WriteFn<T>,
 	options?: AtomOptions,
 ): ReadableAtom<T> | WritableAtom<T> {
-	const n = dynamicNode(
-		[],
+	const n = autoTrackNode(
 		(track) =>
 			read(<V>(a: ReadableAtom<V>) => {
 				const dn = a._node;

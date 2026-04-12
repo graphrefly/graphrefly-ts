@@ -2691,3 +2691,109 @@ Design for Jotai/signals compat (§6 deferred item). Procedure:
 
 P3 violation is limited to discovery runs only. Once all deps are known,
 subsequent waves use protocol-delivered data exclusively.
+
+### 10.6.11 — _addDep + inspector hook restored
+
+**`NodeImpl._addDep(depNode: Node): number`** — post-construction dep
+addition. Creates DepRecord, pre-sets dirty, subscribes immediately.
+Returns dep index. Used by:
+- `autoTrackNode` for runtime dep discovery (Jotai/signals compat)
+- `Graph.connect()` for post-construction reactive wiring (pattern
+  factories: stratify, feedback, gate, forEach, etc.)
+
+**Re-entrance guard in `_execFn`** — `_isExecutingFn` + `_pendingRerun`
+flags. If `_addDep`'s synchronous subscribe triggers DATA during fn
+execution, the recursive `_execFn` call sets `_pendingRerun=true` and
+returns. The `finally` block picks it up after the outer fn returns.
+
+**`_clearWaveFlags` also runs after fn** — fixes stale `dataThisWave`
+from inner `_addDep` subscribes. Previously only ran before fn (captured
+the snapshot), leaving new deps' flags uncleared.
+
+**`_setInspectorHook(hook?)`** — restored per-node inspection hook for
+`Graph.observe(path, { causal, derived })`. Fires two event kinds:
+- `"dep_message"` — fired in `_onDepMessage` with `{ depIndex, message }`
+- `"run"` — fired in `_execFn` before fn runs with `{ depValues }`
+
+`Graph.observe` attaches via `_setInspectorHook`, records
+`lastTriggerDepIndex` (for causal) and `lastRunDepValues` (for derived),
+and emits synthetic `"derived"` events into the observe timeline.
+
+### 10.6.12 — Flags for next session
+
+**Flag A: `dataFrom`-based emission suppression — edge cases**
+
+Current `autoTrackNode` implementation: track which deps current fn run
+accesses (via `track()`). After fn returns, if (a) no accessed dep changed
+this wave AND (b) result equals cache → suppress emission entirely.
+
+**Known cases that need review:**
+1. **Grow-only deps + unused-dep updates.** When a dep is tracked
+   historically but not in the current run (e.g. `useA ? a : b` switching
+   branches), the unused dep still triggers fn re-runs. Emission is
+   suppressed correctly, but fn still runs (wasted cycles).
+2. **Apply to `dynamicNode` too.** Same mechanism should work for
+   dynamicNode (upfront deps with conditional access). Needs testing to
+   confirm it behaves the same way.
+3. **First run + no dataFrom.** On initial activation, ctx.dataFrom is
+   empty/false. `hasCompletedOnce` gate prevents false-positive
+   suppression on the first run. Edge case: what if a dep delivers DATA
+   during initial activation via subscribe handshake → dataFrom includes
+   it → normal path → emit. Works, but needs confirmation.
+4. **Inside batch, discovery takes 2 fn calls.** Deferred DATA from
+   `_addDep`'s subscribe handshake means the first fn call can't complete
+   discovery (allNewSettled=false). Test expectations updated, but
+   document: "one extra fn call per batch-wrapped dep discovery."
+5. **Pure-fn assumption.** The optimization assumes fn is pure:
+   same-deps-in → same-output-out. Side-effect fns that read external
+   state could incorrectly suppress.
+6. **Equals exception swallowing.** If `equals` throws during the
+   suppression check, we fall through to emit. Should this be flagged
+   differently?
+
+**Flag B: Observer hook use cases — per-node vs global**
+
+Current: restored `_setInspectorHook` as per-node method. Discussion
+needed on whether to also add global inspection (wraps singleton
+`onMessage`) for Redux-DevTools-style full-graph tracing. Per-node
+matches spec §3 `observe(path, ...)` signature. Global is additional.
+
+**Flag C: Pattern layer `Graph.connect()` consumers**
+
+Pattern factories (stratify, feedback, gate, forEach, harnessLoop) call
+`connect()` after node construction. With `_addDep`, this works — but
+the "connect" semantics now create reactive edges. Verify that patterns
+intentionally create a reactive edge vs. just a metadata-only edge.
+Distinguishing the two might warrant a separate `Graph.link()` API
+(metadata-only, for describe() output) vs `Graph.connect()` (reactive
+wiring with `_addDep`).
+
+**Flag D: Reactive-layout INVALIDATE tests (2 failing)**
+
+INVALIDATE cache clearing behavior changed. Some reactive-layout tests
+expect measurement cache to clear on INVALIDATE. Needs investigation.
+
+**Flag E: P3 audit — `.cache` reads in fn/subscribe callbacks**
+
+6 sites tracked in `docs/optimizations.md`:
+1. `operators.ts:994` — forwardInner reads inner.cache for sync producer seed
+2. `composite.ts:78` — sourceNode.cache inside switchMap project
+3. `composite.ts:184` — verdict.cache inside derived fn
+4. `resilience.ts:624` — out.meta.status.cache in subscribe callback
+5. `resilience.ts:733` — (fb as Node).cache in callback
+6. `adapters.ts:394` — fetchCount.cache in subscribe callback
+
+All work "by accident" under synchronous execution, may break under
+batch deferral. Need case-by-case redesign.
+
+**Flag F: Composite distill eviction**
+
+Current patch uses `forEach(verdict, ...)` subscriptions per-key.
+Functional but adds subscribe overhead. Full redesign deferred to store
+mutation events (§6 "composite.ts eviction").
+
+**Flag G: Jotai diamond recount**
+
+nanostores diamond test expects 2 fn calls, gets 1 because dynamicNode
+discovery settled synchronously. Test expectation may be outdated —
+needs confirmation that 1-call behavior is correct.

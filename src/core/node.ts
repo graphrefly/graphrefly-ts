@@ -89,6 +89,23 @@ export type NodeStatus =
 /** Callback that receives downstream message batches. */
 export type NodeSink = (messages: Messages) => void;
 
+/**
+ * Observability hook events fired by a per-node inspector. Used by
+ * `Graph.observe(path, { causal, derived })` to build causal traces.
+ *
+ * - `"dep_message"` — fires in `_onDepMessage` before default dispatch,
+ *   one event per message received from a dep. Includes `depIndex` and
+ *   the raw `Message` tuple.
+ * - `"run"` — fires in `_execFn` just before the user fn runs. Includes
+ *   the per-dep `latestData` snapshot that will be passed to fn.
+ */
+export type NodeInspectorHookEvent =
+	| { kind: "dep_message"; depIndex: number; message: Message }
+	| { kind: "run"; depValues: readonly unknown[] };
+
+/** Callback attached to a node for per-message/per-run inspection. */
+export type NodeInspectorHook = (event: NodeInspectorHookEvent) => void;
+
 /** Describe `type` for `Graph.describe` (GRAPHREFLY-SPEC Appendix B). */
 export type NodeDescribeKind = "state" | "derived" | "producer" | "effect";
 
@@ -443,6 +460,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	// --- ABAC ---
 	_lastMutation: { actor: Actor; timestamp_ns: number } | undefined;
 
+	/**
+	 * @internal Optional per-node inspector hook for `Graph.observe(path,
+	 * { causal, derived })`. Fires in `_onDepMessage` and `_execFn`.
+	 * Attached via `_setInspectorHook` and removed by the returned disposer.
+	 */
+	_inspectorHook: NodeInspectorHook | undefined;
+
 	// --- Actions (built once in the constructor) ---
 	readonly _actions: NodeActions;
 
@@ -561,6 +585,22 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	hasGuard(): boolean {
 		return this._guard != null;
+	}
+
+	/**
+	 * @internal Attach an inspector hook. Returns a disposer that removes
+	 * the hook. Used by `Graph.observe(path, { causal, derived })` to build
+	 * causal traces. Only one hook is active at a time — attaching a new
+	 * one replaces the previous; the disposer restores the previous hook.
+	 */
+	_setInspectorHook(hook?: NodeInspectorHook): () => void {
+		const prev = this._inspectorHook;
+		this._inspectorHook = hook;
+		return () => {
+			if (this._inspectorHook === hook) {
+				this._inspectorHook = prev;
+			}
+		};
 	}
 
 	allowsObserve(actor: Actor): boolean {
@@ -797,11 +837,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		if (!skipStatusUpdate) {
-			// Compute nodes → "sentinel" (cache cleared, no value). State
-			// nodes preserve status (ROM: value is intrinsic, disconnect is
-			// a subscriber lifecycle event, not a value lifecycle event).
-			if ((this._fn != null || this._deps.length > 0) && !this._isTerminal) {
-				this._status = "sentinel";
+			// Compute nodes → "sentinel" (cache cleared, no value).
+			// - Non-terminal: always reset.
+			// - Terminal + resubscribable: reset (resubscribable means
+			//   "can be re-activated after terminal" — the terminal state
+			//   doesn't persist across subscription cycles).
+			// - Terminal + non-resubscribable: preserve (stream is over).
+			// State nodes preserve status (ROM rule, value is intrinsic).
+			if (this._fn != null || this._deps.length > 0) {
+				if (!this._isTerminal || this._resubscribable) {
+					this._status = "sentinel";
+				}
 			}
 		}
 	}
@@ -816,6 +862,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_onDepMessage(depIndex: number, msg: Message): void {
 		const dep = this._deps[depIndex];
 		const t = msg[0];
+
+		// Fire inspector hook before default dispatch.
+		this._inspectorHook?.({ kind: "dep_message", depIndex, message: msg });
 
 		// Tier 0 (START) — informational, no state change.
 		if (t === START) return;
@@ -992,6 +1041,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._hasCalledFnOnce = true;
 		this._clearWaveFlags();
 
+		// Fire inspector hook before fn runs — for Graph.observe causal
+		// traces. depValues is the snapshot about to be passed to fn.
+		this._inspectorHook?.({ kind: "run", depValues: latestData });
+
 		this._isExecutingFn = true;
 		try {
 			const result = this._fn(latestData, this._actions, ctx);
@@ -1007,6 +1060,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		} catch (err) {
 			this._emit([[ERROR, this._wrapFnError("fn threw", err)]]);
 		} finally {
+			// Clear wave flags again in case fn added deps via _addDep
+			// whose synchronous subscribe handshake set dataThisWave=true.
+			// Those flags should not leak into the next wave's snapshot.
+			this._clearWaveFlags();
 			this._isExecutingFn = false;
 			if (this._pendingRerun) {
 				this._pendingRerun = false;

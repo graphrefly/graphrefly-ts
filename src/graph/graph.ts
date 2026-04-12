@@ -932,9 +932,9 @@ export class Graph {
 			);
 		}
 		if (!toNode._deps.some((d) => d.node === fromNode)) {
-			throw new Error(
-				`Graph "${this.name}": connect(${fromPath}, ${toPath}) — target must include source in its constructor deps (same node reference)`,
-			);
+			// Post-construction dep addition via _addDep: subscribes
+			// immediately, new dep participates in wave tracking.
+			toNode._addDep(fromNode);
 		}
 
 		if (fromGraph === toGraph) {
@@ -1533,11 +1533,34 @@ export class Graph {
 
 		let lastTriggerDepIndex: number | undefined;
 		let lastRunDepValues: unknown[] | undefined;
-		// TODO: redesign observer hook for v5
-		// Inspector hook (_setInspectorHook) was removed in v5. Causal/derived
-		// observation will need a new mechanism. For now, these features are
-		// disabled — lastTriggerDepIndex and lastRunDepValues remain undefined.
 		let batchSeq = 0;
+		// Attach inspector hook for causal/derived tracing.
+		let detachInspectorHook: (() => void) | undefined;
+		if ((causal || derived) && target instanceof NodeImpl) {
+			detachInspectorHook = target._setInspectorHook((event) => {
+				if (event.kind === "dep_message") {
+					lastTriggerDepIndex = event.depIndex;
+				} else if (event.kind === "run") {
+					lastRunDepValues = [...event.depValues];
+					// Emit a synthetic "derived" event when requested.
+					if (derived) {
+						const base = timeline
+							? {
+									timestamp_ns: monotonicNs(),
+									in_batch: isBatching(),
+									batch_id: batchSeq,
+								}
+							: {};
+						result.events.push({
+							type: "derived",
+							path,
+							dep_values: [...event.depValues],
+							...base,
+						} as ObserveEvent);
+					}
+				}
+			});
+		}
 
 		const unsub = target.subscribe((msgs) => {
 			batchSeq++;
@@ -1617,11 +1640,13 @@ export class Graph {
 			},
 			dispose() {
 				unsub();
+				detachInspectorHook?.();
 			},
 			expand(
 				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
 			): ObserveResult<T> {
 				unsub();
+				detachInspectorHook?.();
 				const merged: ObserveOptions = { ...options };
 				if (typeof extra === "string") {
 					merged.detail = extra;
