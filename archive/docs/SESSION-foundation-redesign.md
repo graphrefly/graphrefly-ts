@@ -2459,3 +2459,134 @@ Order:
 - **PY parity** (§9 P0–P8). Unstarted.
 - **Meta TEARDOWN re-entrancy audit** (§10.2 flag 5).
 
+---
+
+## §10.6 — Pass 2 refinements (2026-04-11, live session)
+
+Clarifying decisions layered on top of §1–§9 as the TS rewrite proceeds.
+These SUPERSEDE the corresponding earlier sections where they conflict.
+
+### 10.6.1 — `ctx.store` replaces factory / afterResubscribe for persistent state
+
+**Supersedes** §3.8 Q4, §4 FnCtx v6, §6 resubscribe-reset handling.
+
+Closure state that must survive across fn re-runs (reduce accumulator,
+takeWhile done flag, bufferCount buffer) lives in a framework-managed
+per-node bag exposed on `FnCtx`:
+
+```ts
+interface FnCtx {
+  dataFrom: readonly boolean[];
+  terminalDeps: readonly (true | unknown)[];
+  store: Record<string, unknown>;
+}
+```
+
+**Store lifecycle:**
+- A fresh empty object is created once per activation cycle.
+- Persists across fn re-runs within the cycle.
+- Wiped on deactivation AND on resubscribable terminal reset.
+
+**Cleanup return shape (two-shape union, not a factory):**
+- `() => void` — default, fires before every next fn run AND on deactivation
+  (RxJS/useEffect semantics).
+- `{ deactivation: () => void }` — opt-in, fires ONLY on deactivation. For
+  long-lived resources that should not be rebuilt between runs.
+
+Factory `fn: () => (data, actions, ctx) => ...` was considered and rejected
+as an RxJS/callbag DX divergence that LLM code-gen would stumble on.
+`ctx.store` + dual cleanup covers the same ground without changing fn arity.
+
+**Reduce under this shape:**
+```ts
+const reduce = (src, reducer, initial) => derived([src], (data, actions, ctx) => {
+  ctx.store.acc ??= initial;
+  ctx.store.acc = reducer(ctx.store.acc, data[0]);
+  if (ctx.terminalDeps[0]) actions.emit(ctx.store.acc);
+});
+```
+
+### 10.6.2 — `GraphReFlyConfig` class + `configure` (not `configureGraphReFly`)
+
+**Supersedes** §5 singleton sketch, §10.4 step 3.
+
+Module-global mutable `Map` rejected. Instead: `GraphReFlyConfig` class with
+**getter-based auto-freeze** on `bundle` / `onMessage` / `onSubscribe`. First
+read of any hook flips `_frozen = true`; subsequent setter or
+`registerMessageType` calls throw. Registry reads (`messageTier`,
+`isLocalOnly`, `isKnownMessageType`) are free lookups that do NOT freeze.
+
+**Public name: `configure`** (matches spec §2 example, not session doc's
+`configureGraphReFly`).
+
+**File layout (pass 2 final):**
+- `core/messages.ts` — shrunk: symbols + `Message`/`Messages` types +
+  `MessageTypeRegistration` / `MessageTypeRegistrationInput` interfaces.
+  No registry. No free-function tier lookups. No
+  `propagatesToMeta` / `isPhase2Message` / `isTerminalMessage` helpers
+  (removed until re-needed; all derivable from
+  `config.messageTier(t) === N`).
+- `core/config.ts` — NEW. `GraphReFlyConfig` class + handler type shapes
+  (`NodeCtx`, `NodeActions`, `MessageContext`, `SubscribeContext`, `Bundle`,
+  `BundleFactory`, `OnMessageHandler`, `OnSubscribeHandler`) + `registerBuiltins`
+  helper. Imports ONLY from `messages.ts`. Zero references to `NodeImpl`.
+- `core/node.ts` — imports `GraphReFlyConfig` + `registerBuiltins` from
+  `config.ts`. Owns concrete `defaultBundle` / `defaultOnMessage` /
+  `defaultOnSubscribe` (they need NodeImpl internals). Constructs
+  `defaultConfig = new GraphReFlyConfig({...})`, calls `registerBuiltins`,
+  exports `defaultConfig` and `configure(fn)`.
+
+Tree-shakability preserved: `import { configure }` pulls node.ts (which
+anyone using primitives already pulls); `import { GraphReFlyConfig }` pulls
+config.ts only. `extra/` imports nothing new.
+
+### 10.6.3 — `opts.config` replaces 4th constructor arg
+
+**Supersedes** "4th argument" phrasing in the pass 2 plan.
+
+Isolated instances are passed through `NodeOptions.config?: GraphReFlyConfig`.
+Sugar signatures stay `(deps, fn, opts?)`. NodeImpl constructor reads
+`opts.config ?? defaultConfig` and touches one hook getter to trigger freeze.
+
+### 10.6.4 — Removed (not deferred) internal accessors
+
+Per user direction: clean the surface now, revisit in the graph/ redesign.
+These are DELETED from `NodeImpl`:
+
+- `_inspectorHook` / `_setInspectorHook()` — observability plumbing for
+  `graph.observe({ causal|derived })`. Follow-up: `graph/observe.ts` needs
+  a new hook mechanism; likely via an `onMessage` wrapper installed through
+  the singleton `configure(...)` or a dedicated graph-scoped config.
+- `_applyVersioning(level, opts)` — `Graph.setVersioning()` retroactive
+  versioning attach. Follow-up: decide whether versioning is always
+  construction-time, or expose it via a dedicated method on `Graph` that
+  creates a wrapping node.
+- `_assignRegistryName(localName)` — `Graph.add` assigns names when the
+  options bag lacks one. Follow-up: move name assignment into the add()
+  path (build the node with the name baked into opts) instead of
+  post-hoc mutation.
+
+Callers in `graph/` will break and are expected to break — we'll
+redesign the accessor surface as part of the follow-up graph/ pass.
+
+### 10.6.5 — File-by-file progress tracker
+
+- [x] `messages.ts` — shrunk.
+- [x] `config.ts` — new, class + handlers + registerBuiltins.
+- [ ] `batch.ts` — drainPhase2/3/4 rename, pre-sorted walk, TEARDOWN
+      deferred to phase 4, delete `DownStrategy` / `partitionForBatch` /
+      `_downSequential`.
+- [ ] `node.ts` — consolidated NodeImpl + DepRecord + actions +
+      defaultConfig + configure + defaults.
+- [ ] `node-base.ts` — DELETE.
+- [ ] `dynamic-node.ts` — DELETE.
+- [ ] `bridge.ts` — DELETE.
+- [ ] `sugar.ts` — rewrite.
+- [ ] `meta.ts` — rewrite.
+- [ ] `index.ts` — prune.
+- [ ] `src/__tests__/core/` — rewrite failing tests.
+- [ ] `src/extra/operators.ts` — rewrite.
+- [ ] `src/extra/sources.ts` — rewrite.
+- [ ] `src/__tests__/extra/` — fix.
+- [ ] `src/graph/` + `src/patterns/` + `src/compat/` — fix drift.
+
