@@ -8,6 +8,30 @@
 
 ## Active work items
 
+- **Higher-order operators: fn+closure tier-1 upgrade (proposed, 2026-04-11):**
+  `switchMap`, `exhaustMap`, `concatMap`, `mergeMap` currently use the **producer pattern** (manual `source.subscribe()` inside a producer fn). This matches RxJS semantics and has no correctness regression from v4, but the outer source does not participate in the node's wave tracking (tier 2 operator — message-level, not wave-level).
+  **fn+closure alternative:** declare `[source]` as a dep, use `data[0]` for the outer value, manage inner subscriptions in closure, return cleanup. Benefits:
+  (a) **Wave batching** — multiple outer DATAs in the same batch → fn runs once with the latest value. Fewer inner subscription churn for switchMap (cancel+resubscribe once instead of N times).
+  (b) **Pre-fn skip** — if outer emits RESOLVED (unchanged via `equals`), fn doesn't re-run at all. Zero inner subscription management overhead. Free subtree pruning.
+  (c) **Diamond coordination** — downstream nodes that depend on both the higher-order operator AND another path from the same source get glitch-free wave resolution via DepRecord tracking.
+  Trade-off: fn fires once per wave (not per DATA message). For switchMap this is semantically identical (latest value wins). For concatMap/mergeMap, it means "batch of outer values → one fn call with latest" which may differ from per-message semantics. Needs careful design per operator.
+  Depends on: foundation redesign completion. Not blocking — current producer pattern is correct.
+
+- **Single-dep fast path (re-introduce, 2026-04-11):**
+  Removed during foundation redesign. Current bench shows single-dep and multi-dep derived are nearly identical (~1.8M ops/sec). In the old design, single-dep was significantly faster because it skipped diamond-resolution overhead. Re-introducing a lightweight check (`deps.length === 1` → skip DepRecord iteration on incoming message, direct fn re-run) could recapture that gap. Target: 2x single-dep vs multi-dep.
+
+- **Message array allocation in hot path (proposed, 2026-04-11):**
+  Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify.
+
+- **Diamond wide scaling — per-dep iteration overhead (proposed, 2026-04-11):**
+  "diamond: wide (10 intermediates)" is 184K ops/sec — 3.7x slower than flat diamond (680K). Each incoming message iterates all DepRecords to check settlement. Potential: maintain a "pending dep count" integer that decrements on each dep settlement, triggering fn re-run when it hits 0 — O(1) settlement check instead of O(deps) scan.
+
+- **Fan-out scaling — sink notification overhead (proposed, 2026-04-11):**
+  10→100 subscribers drops throughput 4x (3.1M→762K). Sink array is iterated with per-sink `downWithBatch` calls. Potential: share the same message array reference across sinks (already immutable by convention), reduce per-sink overhead to a single function call without re-framing.
+
+- **`equals` subtree skip verification (proposed, 2026-04-11):**
+  Bench shows `equals` provides no benefit when values always change (expected). However, need to verify that when `equals` returns true and RESOLVED is emitted, downstream derived nodes truly skip fn re-run (not just emit RESOLVED themselves after re-running). Add a bench variant where `equals` returns true 50% of the time to measure actual subtree pruning benefit.
+
 - **Reactive rate limiter → `src/extra/rate-limiter.ts` (proposed, 2026-04-10):**
   The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). To promote it to a library primitive:
   1. **Reactive core** — `state()` nodes for effective RPM/TPM (live-tunable by LLM or human), `slidingWindow()` utility for request/token tracking, pacing via `fromTimer` + reactive gate (not imperative `while`+`sleep`), backoff signal as reactive input that triggers adaptation.
@@ -49,7 +73,7 @@ Cross-cutting rules for reactive/async integration (especially `patterns.ai`, LL
 | **Non-central time** | Do not schedule periodic work with raw `setTimeout` / `setInterval` / `time.sleep` for graph-aligned sampling. Use `fromTimer` / `from_timer` (or other documented `extra` time sources) and compose reactively. Use `monotonicNs()` / `monotonic_ns()` for event ordering, `wallClockNs()` / `wall_clock_ns()` for attribution. | §5.11 |
 | **Hardcoded message type checks** | Do not hardcode `if (type === DATA)` for checkpoint or batch gating. Use `messageTier` / `message_tier` utilities for tier classification. | §5.11 |
 | **Bypassing `fromAny` / `from_any` for async** | Do not one-off `asyncio.run`, bare `.then` chains, or manual thread sleeps to bridge coroutines / async iterables / Promises into the graph. Route unknown shapes through `fromAny` / `from_any` so `DATA` / `ERROR` / `COMPLETE` stay consistent end-to-end. | §5.10 |
-| **Leaking protocol internals in Phase 4+ APIs** | Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) must never expose `DIRTY`, `RESOLVED`, bitmask, or settlement internals in their primary surface. Use domain language. Protocol access available via `.node()` or `inner`. | §5.12 |
+| **Leaking protocol internals in Phase 4+ APIs** | Domain-layer APIs (orchestration, messaging, memory, AI, CQRS) must never expose `DIRTY`, `RESOLVED`, DepRecord, or settlement internals in their primary surface. Use domain language. Protocol access available via `.node()` or `inner`. | §5.12 |
 | **`Node` resolution without `get()`** | When blocking until first `DATA`, prefer `node.get()` when it already holds a settled value, then subscribe only if still pending — avoids hangs when the node does not replay `DATA` to new subscribers. | — |
 | **Passing plain strings through `fromAny` (TypeScript)** | `fromAny` treats strings as iterables (one `DATA` per character). For tool handlers that return plain strings, return the string directly; use `fromAny` only for `Node` / `AsyncIterable` / Promise-like after await. | — |
 

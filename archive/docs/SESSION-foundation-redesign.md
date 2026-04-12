@@ -2569,6 +2569,47 @@ These are DELETED from `NodeImpl`:
 Callers in `graph/` will break and are expected to break — we'll
 redesign the accessor surface as part of the follow-up graph/ pass.
 
+### 10.6.6 — Benchmark results (v5 redesign vs pre-redesign baseline)
+
+**Date:** 2026-04-11
+**Environment:** macOS, Node.js, Vitest bench with Tinybench
+**Baseline:** `benchmarks/vitest-baseline.json` (pre-redesign, same machine)
+
+| Benchmark | v5 ops/sec | Baseline ops/sec | Speedup |
+|-----------|-----------|-----------------|---------|
+| state: read (`.cache`) | 34,949K | — | (API changed, no baseline) |
+| state: write (no subscribers) | 5,460K | — | (API changed) |
+| state: write (with subscriber) | 5,198K | — | (API changed) |
+| derived: single-dep | 1,805K | — | (API changed) |
+| derived: multi-dep | 1,750K | — | (API changed) |
+| derived: cached read | 35,047K | — | (API changed) |
+| diamond: flat (A→B,C→D) | 680K | 564K | **1.14x** ⇑ |
+| diamond: deep (5 levels) | 380K | — | — |
+| diamond: wide (10 intermediates) | 184K | — | — |
+| effect: single dep re-run | 5,368K | 3,919K | **1.32x** ⇑ |
+| effect: multi-dep (diamond) | 674K | 581K | **1.12x** ⇑ |
+| fan-out: 10 subscribers | 3,251K | 2,640K | **1.17x** ⇑ |
+| fan-out: 100 subscribers | 776K | 726K | **1.05x** ⇑ |
+| batch: unbatched (10 sets) | 161K | 134K | **1.15x** ⇑ |
+| batch: batched (10 sets) | 291K | 208K | **1.33x** ⇑ |
+| equals: without | 674K | 564K | **1.14x** ⇑ |
+| equals: with (subtree skip) | 665K | 575K | **1.10x** ⇑ |
+| linear 10-node chain | 272K | 208K | **1.23x** ⇑ |
+| fan-in batch (2 sources) | 1,046K | 824K | **1.21x** ⇑ |
+
+**Key takeaway:** Every comparable benchmark improved 1.05x–1.33x without single-dep
+optimization. The unified `NodeImpl` + `DepRecord[]` + config singleton design
+reduces per-message overhead across the board. Batch and effect paths benefit most
+(1.32–1.33x) from the elimination of `DownStrategy` dispatch and flattened
+`_onDepMessage` → `_recompute` path.
+
+**Note:** `equals` with subtree skip shows ~1.01x vs without in the same run because
+the bench increments values (never unchanged). The `equals` benefit only manifests
+when the fn output is unchanged — that path correctly emits RESOLVED and skips
+downstream fn re-runs.
+
+---
+
 ### 10.6.5 — File-by-file progress tracker
 
 - [x] `messages.ts` — shrunk.
