@@ -26,6 +26,7 @@ describe("patterns.orchestration", () => {
 		expect(g.name).toBe("wf");
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (expected undefined to be 6)
 	it("task registers a computed step and wires dependency edges", () => {
 		const g = pipeline("wf");
 		const input = state(1);
@@ -87,6 +88,7 @@ describe("patterns.orchestration", () => {
 		expect(bNode?.meta?.orchestration_type).toBe("branch");
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (expected undefined to be 2)
 	it("valve and approval hold value when control is false", () => {
 		const g = pipeline("wf");
 		const input = state(1);
@@ -111,6 +113,7 @@ describe("patterns.orchestration", () => {
 		expect(g.get("reviewed")).toBe(3);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("forEach runs side effects and forwards messages", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -183,6 +186,7 @@ describe("patterns.orchestration", () => {
 		expect(g.get("delayed")).toBe(2);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("onFailure recovers from errors", () => {
 		const g = pipeline("wf");
 		const src = state(1);
@@ -202,6 +206,7 @@ describe("patterns.orchestration", () => {
 		expect(g.get("recovered")).toBe(999);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("forEach does not run user callback after terminal error", () => {
 		const g = pipeline("wf");
 		const src = node<number>();
@@ -231,6 +236,7 @@ describe("patterns.orchestration", () => {
 		expect(g.get("delayed")).toBeUndefined();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("onFailure stops recovery attempts after terminal error", () => {
 		const g = pipeline("wf");
 		const src = state(0);
@@ -276,6 +282,7 @@ describe("patterns.orchestration", () => {
 	// gate (human-in-the-loop approval queue)
 	// ---------------------------------------------------------------
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate queues values and approve forwards them", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -289,20 +296,21 @@ describe("patterns.orchestration", () => {
 
 		g.set("input", 1);
 		g.set("input", 2);
-		expect(ctrl.pending.get()).toEqual([1, 2]);
-		expect(ctrl.count.get()).toBe(2);
+		expect(ctrl.pending.cache).toEqual([1, 2]);
+		expect(ctrl.count.cache).toBe(2);
 		expect(approved).toEqual([]);
 
 		ctrl.approve();
 		expect(approved).toEqual([1]);
-		expect(ctrl.pending.get()).toEqual([2]);
-		expect(ctrl.count.get()).toBe(1);
+		expect(ctrl.pending.cache).toEqual([2]);
+		expect(ctrl.count.cache).toBe(1);
 
 		ctrl.approve();
 		expect(approved).toEqual([1, 2]);
-		expect(ctrl.pending.get()).toEqual([]);
+		expect(ctrl.pending.cache).toEqual([]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate reject discards pending values", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -311,13 +319,14 @@ describe("patterns.orchestration", () => {
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 10);
 		g.set("input", 20);
-		expect(ctrl.pending.get()).toEqual([10, 20]);
+		expect(ctrl.pending.cache).toEqual([10, 20]);
 		ctrl.reject();
-		expect(ctrl.pending.get()).toEqual([20]);
+		expect(ctrl.pending.cache).toEqual([20]);
 		ctrl.reject();
-		expect(ctrl.pending.get()).toEqual([]);
+		expect(ctrl.pending.cache).toEqual([]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate modify transforms and forwards", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -332,9 +341,10 @@ describe("patterns.orchestration", () => {
 		g.set("input", 5);
 		ctrl.modify((v, _i, _pending) => v * 10);
 		expect(approved).toEqual([50]);
-		expect(ctrl.pending.get()).toEqual([]);
+		expect(ctrl.pending.cache).toEqual([]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate open flushes pending and auto-approves future", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -350,13 +360,14 @@ describe("patterns.orchestration", () => {
 		g.set("input", 2);
 		ctrl.open();
 		expect(approved).toEqual([1, 2]);
-		expect(ctrl.isOpen.get()).toBe(true);
+		expect(ctrl.isOpen.cache).toBe(true);
 
 		// Future values pass through immediately
 		g.set("input", 3);
 		expect(approved).toEqual([1, 2, 3]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate close re-enables manual gating", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -373,9 +384,10 @@ describe("patterns.orchestration", () => {
 		ctrl.close();
 		g.set("input", 2);
 		expect(approved).toEqual([1]);
-		expect(ctrl.pending.get()).toEqual([2]);
+		expect(ctrl.pending.cache).toEqual([2]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate maxPending drops oldest values (FIFO)", () => {
 		const g = pipeline("wf");
 		const input = state(0);
@@ -385,9 +397,10 @@ describe("patterns.orchestration", () => {
 		g.set("input", 1);
 		g.set("input", 2);
 		g.set("input", 3);
-		expect(ctrl.pending.get()).toEqual([2, 3]);
+		expect(ctrl.pending.cache).toEqual([2, 3]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate approve(n) forwards multiple values", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
@@ -404,9 +417,10 @@ describe("patterns.orchestration", () => {
 		g.set("input", 3);
 		ctrl.approve(2);
 		expect(approved).toEqual([1, 2]);
-		expect(ctrl.pending.get()).toEqual([3]);
+		expect(ctrl.pending.cache).toEqual([3]);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate registers internal state nodes in graph", () => {
 		const g = pipeline("wf");
 		const input = state(0);

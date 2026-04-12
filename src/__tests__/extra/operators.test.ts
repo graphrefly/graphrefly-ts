@@ -419,7 +419,10 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
-	// Regression: GRAPHREFLY-SPEC §1.3.3 — exhaustMap may emit RESOLVED while inner is busy.
+	// Regression: exhaustMap silently drops outer DATA while inner is active.
+	// Producer nodes stay silent on drop — no RESOLVED emitted (same
+	// principle as `last` during accumulation: no DIRTY was emitted, so no
+	// RESOLVED is needed to close a wave).
 	it("exhaustMap drops outer DATA while inner active", () => {
 		const src = state(0);
 		const inner = state(10);
@@ -427,9 +430,10 @@ describe("extra operators (Tier 2)", () => {
 		const { batches, unsub } = collect(out);
 		src.down([[DATA, 1]]);
 		inner.down([[DATA, 1]]);
-		src.down([[DATA, 2]]);
-		const resolvedAfterSecond = batches.flat().filter((m) => m[0] === RESOLVED);
-		expect(resolvedAfterSecond.length).toBeGreaterThanOrEqual(1);
+		const beforeDrop = batches.flat().length;
+		src.down([[DATA, 2]]); // dropped — inner still active
+		// No new messages emitted on drop (silent).
+		expect(batches.flat().length).toBe(beforeDrop);
 		inner.down([[COMPLETE]]);
 		unsub();
 	});
@@ -555,7 +559,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: roadmap §3.1b — higher-order projects accept Iterable via fromAny coercion.
 	it("concatMap coerces iterable project returns", () => {
-		const src = producer<number>((_d, a) => {
+		const src = producer<number>((a) => {
 			a.down([[DATA, 4], [COMPLETE]]);
 		});
 		const out = concatMap(src, (v) => [v * 2, v * 3]);
@@ -702,7 +706,7 @@ describe("extra operators (Tier 2)", () => {
 		const src = state(1);
 		const out = rescue(
 			switchMap(src, () =>
-				producer<number>((_d, a) => {
+				producer<number>((a) => {
 					a.down([[ERROR, new Error("inner")], [COMPLETE]]);
 				}),
 			),

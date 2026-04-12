@@ -18,6 +18,7 @@ import {
 	type NodeFn,
 	type NodeFnCleanup,
 	type NodeOptions,
+	NodeImpl,
 	node,
 } from "./node.js";
 
@@ -192,6 +193,85 @@ export function dynamicNode<T = unknown>(
 		},
 		opts,
 	);
+}
+
+// ---------------------------------------------------------------------------
+// pipe — left-to-right operator composition
+// ---------------------------------------------------------------------------
+// autoTrackNode — runtime dep discovery (Jotai/signals compat)
+// ---------------------------------------------------------------------------
+
+/**
+ * Like {@link dynamicNode} but deps are discovered at runtime via `track()`
+ * calls — no upfront `allDeps` array needed. Designed for pull-based compat
+ * layers (Jotai atoms, TC39 Signals) where deps are unknown until fn runs.
+ *
+ * **Two-phase discovery:**
+ * 1. fn runs. Each `track(dep)` for an unknown dep: subscribes immediately
+ *    via `_addDep`, returns `dep.cache` as a stub (P3 boundary exception).
+ *    Result is discarded (discovery run).
+ * 2. New deps settle (DATA from subscribe handshake). Wave machinery
+ *    re-triggers fn. `track(dep)` now returns protocol-delivered `data[i]`.
+ *    If MORE unknown deps appear, repeat step 1.
+ * 3. Converges when no new deps found → real run → `actions.emit(result)`.
+ *
+ * P3 violation is limited to discovery runs. Once all deps are known,
+ * subsequent waves use protocol-delivered values exclusively.
+ *
+ * Re-entrance safety: `_addDep` subscribes immediately. If the dep delivers
+ * DATA synchronously during fn execution, `_execFn`'s re-entrance guard
+ * defers the re-run to after the current fn returns.
+ *
+ * @example
+ * ```ts
+ * const a = state(1), b = state(2);
+ * const sum = autoTrackNode((track) => track(a) + track(b));
+ * // deps [a, b] discovered automatically on first run
+ * ```
+ */
+export function autoTrackNode<T = unknown>(
+	fn: (track: TrackFn, ctx: FnCtx) => T | undefined | null,
+	opts?: NodeOptions<T>,
+): Node<T> {
+	let implRef: NodeImpl<T>;
+	const depIndexMap = new Map<Node, number>();
+
+	const wrappedFn: NodeFn = (data, actions, ctx) => {
+		let foundNew = false;
+		const track: TrackFn = (dep) => {
+			const idx = depIndexMap.get(dep);
+			if (idx !== undefined) {
+				// Known dep — return protocol-delivered value.
+				return idx < data.length ? data[idx] : dep.cache;
+			}
+			// Unknown dep — discovery phase.
+			foundNew = true;
+			const newIdx = implRef._addDep(dep);
+			depIndexMap.set(dep, newIdx);
+			return dep.cache; // P3 boundary exception (discovery stub)
+		};
+
+		try {
+			const result = fn(track, ctx);
+			if (!foundNew) {
+				// Real run — all deps known, protocol-delivered values.
+				actions.emit(result);
+			}
+			// Discovery run — result discarded. New deps are subscribed via
+			// _addDep. Their DATA delivery triggers _maybeRunFnOnSettlement
+			// via the _pendingRerun mechanism, which will re-call fn.
+		} catch (err) {
+			if (!foundNew) throw err;
+			// Discovery run failed (stale .cache) — swallow.
+			// Re-run after new deps settle will use protocol values.
+		}
+	};
+
+	implRef = new NodeImpl<T>([], wrappedFn, {
+		describeKind: "derived",
+		...opts,
+	});
+	return implRef;
 }
 
 // ---------------------------------------------------------------------------

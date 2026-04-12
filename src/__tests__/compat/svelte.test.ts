@@ -37,12 +37,12 @@ describe("Svelte bindings", () => {
 		// Test setter
 		store.set(42);
 		expect(val).toBe(42);
-		expect(testNode.get()).toBe(42);
+		expect(testNode.cache).toBe(42);
 
 		// Test updater
 		store.update((n) => (n as number) + 1);
 		expect(val).toBe(43);
-		expect(testNode.get()).toBe(43);
+		expect(testNode.cache).toBe(43);
 
 		unsub();
 	});

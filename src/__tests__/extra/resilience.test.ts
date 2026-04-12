@@ -124,7 +124,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 	describe("retry", () => {
 		it("forwards ERROR when count is 0", () => {
 			const src = producer(
-				(_d, a) => {
+				(a) => {
 					a.down([[ERROR, new Error("x")]]);
 				},
 				{ resubscribable: true },
@@ -139,7 +139,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			vi.useFakeTimers();
 			let runs = 0;
 			const src = producer(
-				(_d, a) => {
+				(a) => {
 					runs += 1;
 					if (runs === 1) {
 						a.down([[ERROR, new Error("fail")]]);
@@ -450,7 +450,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("composes with retry: retry then fallback", async () => {
 			const src = producer(
-				(_d, a) => {
+				(a) => {
 					a.down([[ERROR, new Error("x")]]);
 				},
 				{ resubscribable: true },
@@ -511,7 +511,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("COMPLETE cancels the timer", () => {
 			vi.useFakeTimers();
-			const src = producer((_d, a) => {
+			const src = producer((a) => {
 				a.down([[COMPLETE]]);
 			});
 			const out = timeout(src, 100 * NS_PER_MS);

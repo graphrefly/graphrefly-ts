@@ -15,6 +15,8 @@ describe("jotai compat", () => {
 		expect(count.get()).toBe(15);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("read-only derived atom: tracks dependencies", () => {
 		const base = atom(2);
 		const doubled = atom((get: GetFn) => get(base)! * 2);
@@ -24,6 +26,8 @@ describe("jotai compat", () => {
 		expect(doubled.get()).toBe(10);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("read-only derived atom: dynamic dependency switching", () => {
 		const cond = atom(true);
 		const a = atom(1);
@@ -39,6 +43,8 @@ describe("jotai compat", () => {
 		expect(result.get()).toBe(10);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("writable derived atom: custom write logic", () => {
 		const base = atom(5);
 		const clamped = atom(
@@ -87,16 +93,18 @@ describe("jotai compat", () => {
 	it("atom options: meta", () => {
 		const a = atom(0, { meta: { description: "test counter" } });
 		expect(a.meta.description).toBeDefined();
-		expect(a.meta.description.get()).toBe("test counter");
+		expect(a.meta.description.cache).toBe("test counter");
 	});
 
 	it("derived atom options: meta", () => {
 		const a = atom(0);
 		const b = atom((get: GetFn) => (get(a) ?? 0) * 2, { meta: { tag: "derived" } });
 		expect(b.meta.tag).toBeDefined();
-		expect(b.meta.tag.get()).toBe("derived");
+		expect(b.meta.tag.cache).toBe("derived");
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("derived atom: error handling", () => {
 		const a = atom(1);
 		const b = atom((get: GetFn) => {
@@ -108,14 +116,14 @@ describe("jotai compat", () => {
 		expect(b.get()).toBe(10);
 		a.set(0);
 
-		// While disconnected, it won't recompute or show 'errored' until pulled.
-		expect(b._node.status).toBe("disconnected");
+		// While sentinel, it won't recompute or show 'errored' until pulled.
+		expect(b._node.status).toBe("sentinel");
 
 		// Trigger pull via get() and check throwing behavior.
 		expect(() => b.get()).toThrow("Zero division");
 
-		// After get() throws, it returns to disconnected in GraphReFly.
-		expect(b._node.status).toBe("disconnected");
+		// After get() throws, it returns to sentinel in GraphReFly.
+		expect(b._node.status).toBe("sentinel");
 
 		// Verify it stays errored while subscribed.
 		const unsub = b.subscribe(() => {});
@@ -123,6 +131,8 @@ describe("jotai compat", () => {
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("derived atom: diamond resolution", () => {
 		const base = atom<number>(2);
 		let computations = 0;
@@ -146,11 +156,13 @@ describe("jotai compat", () => {
 		expect(combined.get()).toBe(31); // (10*2) + (10+1) = 20 + 11 = 31
 		// Each `.get()` triggers a fresh `pull(combined._node)` which
 		// subscribes-then-unsubs. The second `.get()` starts from a
-		// disconnected compute node and repeats the two-phase (discover +
+		// sentinel compute node and repeats the two-phase (discover +
 		// stabilize) cycle, so we see another +2 computations.
 		expect(computations).toBe(4);
 	});
 
+	// FLAG: v5 behavioral change — needs investigation
+	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("writable derived atom: update logic", () => {
 		const base = atom<number>(10);
 		const derived = atom<number>(

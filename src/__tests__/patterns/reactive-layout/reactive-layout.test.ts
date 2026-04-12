@@ -376,7 +376,7 @@ describe("reactiveLayout", () => {
 			maxWidth: 200,
 		});
 		const unsub = layout.height.subscribe(() => {});
-		expect(layout.height.get()).toBe(20); // 1 line * 20px
+		expect(layout.height.cache).toBe(20); // 1 line * 20px
 		unsub();
 	});
 
@@ -392,11 +392,11 @@ describe("reactiveLayout", () => {
 		const unsub = layout.height.subscribe(() => {});
 
 		// Initial: "hello" (5 chars = 40px) fits in 48px → 1 line
-		expect(layout.height.get()).toBe(20);
+		expect(layout.height.cache).toBe(20);
 
 		// Change text to something that wraps
 		layout.setText("hello world"); // 11 chars + space → wraps
-		expect(layout.height.get()).toBe(40); // 2 lines
+		expect(layout.height.cache).toBe(40); // 2 lines
 		unsub();
 	});
 
@@ -410,10 +410,10 @@ describe("reactiveLayout", () => {
 		});
 
 		const unsub = layout.height.subscribe(() => {});
-		expect(layout.height.get()).toBe(20); // Fits in 1 line
+		expect(layout.height.cache).toBe(20); // Fits in 1 line
 
 		layout.setMaxWidth(40); // Force wrap
-		expect(layout.height.get()).toBe(40); // 2 lines
+		expect(layout.height.cache).toBe(40); // 2 lines
 		unsub();
 	});
 
@@ -453,10 +453,10 @@ describe("reactiveLayout", () => {
 		});
 
 		const unsub = layout.segments.subscribe(() => {});
-		const segs1 = layout.segments.get();
+		const segs1 = layout.segments.cache;
 		// Set same text — should trigger RESOLVED (no change)
 		layout.setText("hello");
-		const segs2 = layout.segments.get();
+		const segs2 = layout.segments.cache;
 		expect(segs1).toEqual(segs2);
 		unsub();
 	});
@@ -484,17 +484,18 @@ describe("reactiveLayout", () => {
 		});
 
 		const unsub = layout.charPositions.subscribe(() => {});
-		const initial = layout.charPositions.get();
+		const initial = layout.charPositions.cache;
 		expect(initial).not.toBeNull();
 		expect(initial!.map((p) => p.width)).toEqual([6, 10]);
 
 		layout.setFont("f2");
-		const updated = layout.charPositions.get();
+		const updated = layout.charPositions.cache;
 		expect(updated).not.toBeNull();
 		expect(updated!.map((p) => p.width)).toEqual([10, 6]);
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (height stays 20 after INVALIDATE, expected 40)
 	it("INVALIDATE clears measurement cache (height changes after cache flush)", async () => {
 		let multiplier = 1;
 		let clearCalls = 0;
@@ -517,7 +518,7 @@ describe("reactiveLayout", () => {
 		});
 
 		const unsub = layout.height.subscribe(() => {});
-		expect(layout.height.get()).toBe(20);
+		expect(layout.height.cache).toBe(20);
 
 		multiplier = 2;
 		layout.graph.signal([[INVALIDATE]]);
@@ -532,7 +533,7 @@ describe("reactiveLayout", () => {
 		// Give derived nodes a chance to settle after the INVALIDATE + DATA write.
 		await Promise.resolve();
 
-		expect(layout.height.get()).toBe(40);
+		expect(layout.height.cache).toBe(40);
 		expect(clearCalls).toBeGreaterThanOrEqual(1);
 		unsub();
 	});
@@ -547,7 +548,7 @@ describe("reactiveLayout", () => {
 		});
 
 		const unsub = layout.charPositions.subscribe(() => {});
-		const positions = layout.charPositions.get();
+		const positions = layout.charPositions.cache;
 		expect(positions.length).toBe(2);
 		expect(positions[0]!.x).toBe(0);
 		expect(positions[0]!.y).toBe(0);

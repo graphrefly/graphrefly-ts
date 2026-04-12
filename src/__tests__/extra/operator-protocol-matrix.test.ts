@@ -632,8 +632,18 @@ describe("Tier 1 operator protocol matrix", () => {
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY], [DATA, 7]]);
 			s.down([[COMPLETE]]);
-			expect(globalDirtyBeforePhase2(cap.flat())).toBe(true);
-			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			const flat = cap.flat();
+			// last emits RESOLVED during activation (accumulating, no value
+			// yet). That's an activation-ceremony emission — no DIRTY
+			// precedes it (spec §2.2: ceremony ≠ transition). The two-phase
+			// check applies to the terminal DATA emission: there must be a
+			// DIRTY before the final DATA.
+			const dataIdx = flat.findIndex((m) => m[0] === DATA);
+			expect(dataIdx).toBeGreaterThanOrEqual(0);
+			const dirtyBeforeData = flat
+				.slice(0, dataIdx)
+				.some((m) => m[0] === DIRTY);
+			expect(dirtyBeforeData).toBe(true);
 			cap.unsub();
 		});
 	});
@@ -825,20 +835,25 @@ describe("Tier 2 operator protocol matrix", () => {
 	});
 
 	describe("delay", () => {
-		// Regression: GRAPHREFLY-SPEC §1.3 — DIRTY forwards immediately; DATA follows after the timer (split `down` so DIRTY is observable before scheduling).
-		it("DIRTY is not withheld past delayed DATA (fake timers)", () => {
+		// v5: delay is a producer that transforms the timeline. DIRTY+DATA
+		// arrive atomically at timer-fire time via a.emit(v) → bundle.
+		// No early DIRTY forwarding — the downstream doesn't see the
+		// source's transition until the delayed value is ready.
+		it("DIRTY+DATA arrive together after timer fires (fake timers)", () => {
 			vi.useFakeTimers();
 			const s = state(0);
 			const out = delay(s, 40);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
 			s.down([[DATA, 7]]);
-			const before = cap.flat().filter((m) => m[0] === DATA).length;
-			expect(before).toBe(0);
-			expect(cap.flat().some((m) => m[0] === DIRTY)).toBe(true);
+			// Before timer: no DIRTY, no DATA visible at the delayed node.
+			expect(cap.flat().filter((m) => m[0] === DATA).length).toBe(0);
+			expect(cap.flat().filter((m) => m[0] === DIRTY).length).toBe(0);
 			vi.advanceTimersByTime(40);
+			// After timer: DIRTY+DATA arrive together (bundle auto-prefix).
 			const flat = cap.flat();
-			expect(flat.some((m) => m[0] === DATA)).toBe(true);
+			expect(globalDirtyBeforePhase2(flat)).toBe(true);
+			expect(flat.some((m) => m[0] === DATA && m[1] === 7)).toBe(true);
 			cap.unsub();
 		});
 	});
@@ -926,16 +941,22 @@ describe("Tier 2 operator protocol matrix", () => {
 	});
 
 	describe("bufferTime", () => {
-		it("DIRTY precedes interval-flushed DATA (fake timers)", () => {
+		// v5: bufferTime is a producer. DIRTY+DATA arrive atomically
+		// when the interval fires via a.emit(buf) → bundle.
+		it("DIRTY+DATA arrive together after interval fires (fake timers)", () => {
 			vi.useFakeTimers();
 			const s = node<number>();
 			const out = bufferTime(s, 50);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
 			s.down([[DATA, 7]]);
-			expect(cap.flat().some((m) => m[0] === DIRTY)).toBe(true);
+			// Before interval: nothing visible at the buffered node.
+			expect(cap.flat().filter((m) => m[0] === DATA).length).toBe(0);
 			vi.advanceTimersByTime(50);
-			expect(cap.flat().some((m) => m[0] === DATA)).toBe(true);
+			// After interval: DIRTY+DATA arrive together.
+			const flat = cap.flat();
+			expect(globalDirtyBeforePhase2(flat)).toBe(true);
+			expect(flat.some((m) => m[0] === DATA)).toBe(true);
 			cap.unsub();
 		});
 	});

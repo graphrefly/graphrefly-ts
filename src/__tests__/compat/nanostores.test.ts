@@ -89,6 +89,8 @@ describe("nanostores compat", () => {
 			expect(result.get()).toBe(10);
 		});
 
+		// FLAG: v5 behavioral change — needs investigation
+		// v5 diamond resolution computation count differs from v4 expectations
 		it("diamond resolution", () => {
 			const base = atom(2);
 			let computations = 0;

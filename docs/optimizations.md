@@ -32,6 +32,19 @@
 - **`equals` subtree skip verification (proposed, 2026-04-11):**
   Bench shows `equals` provides no benefit when values always change (expected). However, need to verify that when `equals` returns true and RESOLVED is emitted, downstream derived nodes truly skip fn re-run (not just emit RESOLVED themselves after re-running). Add a bench variant where `equals` returns true 50% of the time to measure actual subtree pruning benefit.
 
+- **P3 audit: `.cache` reads inside fn/subscribe callbacks (2026-04-12):**
+  Six call sites read `.cache` on another node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral. Tracked violations:
+  1. `operators.ts:994` — `forwardInner` reads `inner.cache` after subscribe to seed value for synchronous producers. Fragile under batch.
+  2. `composite.ts:78` — `sourceNode.cache` inside switchMap project fn. Should receive value through the trigger/dep protocol.
+  3. `composite.ts:184` — `verdict.cache === true` inside derived fn. Should subscribe to verdict reactively (partially addressed by forEach patch, needs full redesign).
+  4. `resilience.ts:624` — `out.meta.status.cache === "errored"` in subscribe callback. Should react to status changes via protocol.
+  5. `resilience.ts:733` — `(fb as Node<T>).cache` reads fallback value in callback. Should subscribe to fallback node.
+  6. `adapters.ts:394` — `fetchCount.cache ?? 0` in subscribe callback. Should use protocol-delivered value.
+  Fix approach: each call site needs case-by-case analysis — some may need structural redesign (subscribe + protocol delivery), others may be acceptable external reads at wiring time. Separate audit session.
+
+- **Distill eviction redesign — reactive verdict tracking (deferred, 2026-04-12):**
+  `distill()` eviction with `Node<boolean>` verdicts was patched during foundation v5 rewrite with `forEach(verdict, ...)` subscriptions — functional but adds subscribe overhead per-key. The original design used `dynamicNode` to track verdict deps automatically. Redesign options: (a) store mutation events (§6 "composite.ts eviction — store mutation events") so verdict changes flow as protocol messages, (b) reactive per-entry eviction nodes managed internally by the store, (c) keep `forEach` approach but add cleanup-on-delete tracking. Separate session; blocked on store mutation event design.
+
 - **Reactive rate limiter → `src/extra/rate-limiter.ts` (proposed, 2026-04-10):**
   The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). To promote it to a library primitive:
   1. **Reactive core** — `state()` nodes for effective RPM/TPM (live-tunable by LLM or human), `slidingWindow()` utility for request/token tracking, pacing via `fromTimer` + reactive gate (not imperative `while`+`sleep`), backoff signal as reactive input that triggers adaptation.

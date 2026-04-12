@@ -1,3 +1,9 @@
+// FLAG: v5 behavioral change — needs investigation
+// All tests in this file fail with:
+//   Graph "...": connect(source, target) — target must include source in its constructor deps (same node reference)
+// The underlying pattern factories (stratify, feedback, etc.) use Graph.connect() which now
+// enforces that the target node already has the source in its deps array.
+
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
@@ -81,7 +87,7 @@ describe("observabilityGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, { type: "error", msg: "test" }]]);
-		const result = slo.get() as Record<string, unknown>;
+		const result = slo.cache as Record<string, unknown>;
 		expect(result).toEqual({ pass: true });
 	});
 
@@ -144,7 +150,7 @@ describe("issueTrackerGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "found a bug"]]);
-		const issue = extract.get() as ExtractedIssue;
+		const issue = extract.cache as ExtractedIssue;
 		expect(issue.id).toBe("issue-1");
 		expect(issue.severity).toBe(3);
 	});
@@ -159,7 +165,7 @@ describe("issueTrackerGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "test finding"]]);
-		const result = verify.get() as Record<string, unknown>;
+		const result = verify.cache as Record<string, unknown>;
 		expect(result.verification).toEqual({ valid: true });
 	});
 
@@ -178,7 +184,7 @@ describe("issueTrackerGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "critical bug"]]);
-		const result = regression.get() as Record<string, unknown>;
+		const result = regression.cache as Record<string, unknown>;
 		expect(result).toHaveProperty("regression");
 	});
 
@@ -202,7 +208,7 @@ describe("issueTrackerGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "regression bug"]]);
-		const scored = priority.get() as { score: number };
+		const scored = priority.cache as { score: number };
 		// severity=5 * weight=1 + regression=2 * weight=1.5 = 8
 		expect(scored.score).toBe(8);
 	});
@@ -247,7 +253,7 @@ describe("contentModerationGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "some content"]]);
-		const result = classify.get() as ModerationResult;
+		const result = classify.cache as ModerationResult;
 		expect(result.label).toBe("review");
 		expect(result.confidence).toBe(0.5);
 	});
@@ -269,7 +275,7 @@ describe("contentModerationGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, "bad content"]]);
-		const result = classify.get() as ModerationResult;
+		const result = classify.cache as ModerationResult;
 		expect(result.label).toBe("block");
 	});
 
@@ -279,7 +285,7 @@ describe("contentModerationGraph", () => {
 
 		const policy = g.node("policy");
 		policy.down([[DATA, { blockProfanity: true }]]);
-		expect(policy.get()).toEqual({ blockProfanity: true });
+		expect(policy.cache).toEqual({ blockProfanity: true });
 	});
 });
 
@@ -313,7 +319,7 @@ describe("dataQualityGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, { id: 1, name: "test" }]]);
-		const result = validate.get() as ValidationResult;
+		const result = validate.cache as ValidationResult;
 		expect(result.valid).toBe(true);
 		expect(result.errors).toEqual([]);
 	});
@@ -337,7 +343,7 @@ describe("dataQualityGraph", () => {
 		validate.subscribe(() => {});
 
 		source.down([[DATA, { id: 1 }]]);
-		const result = validate.get() as ValidationResult;
+		const result = validate.cache as ValidationResult;
 		expect(result.valid).toBe(false);
 		expect(result.errors).toContain("missing name");
 	});
@@ -363,7 +369,7 @@ describe("dataQualityGraph", () => {
 		anomaly.subscribe(() => {});
 
 		source.down([[DATA, { value: 999 }]]);
-		const result = anomaly.get() as AnomalyResult;
+		const result = anomaly.cache as AnomalyResult;
 		expect(result.anomaly).toBe(true);
 		expect(result.score).toBe(0.9);
 	});
@@ -381,7 +387,7 @@ describe("dataQualityGraph", () => {
 		const baseline = g.node("baseline");
 
 		source.down([[DATA, { id: 1, name: "valid" }]]);
-		expect(baseline.get()).toEqual({ id: 1, name: "valid" });
+		expect(baseline.cache).toEqual({ id: 1, name: "valid" });
 	});
 
 	it("output combines all quality checks", () => {
@@ -392,7 +398,7 @@ describe("dataQualityGraph", () => {
 		output.subscribe(() => {});
 
 		source.down([[DATA, { id: 1, name: "test" }]]);
-		const result = output.get() as Record<string, unknown>;
+		const result = output.cache as Record<string, unknown>;
 		expect(result).toHaveProperty("validation");
 		expect(result).toHaveProperty("anomaly");
 		expect(result).toHaveProperty("drift");

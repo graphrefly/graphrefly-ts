@@ -56,6 +56,7 @@ export {
 	node,
 } from "./node.js";
 export {
+	autoTrackNode,
 	type DerivedFn,
 	type DynamicFn,
 	derived,

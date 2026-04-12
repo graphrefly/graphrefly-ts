@@ -132,7 +132,7 @@ describe("node primitive", () => {
 		});
 
 		source.down([[DATA, 1]]);
-		// 2 deliveries: DIRTY (from dep settling) + ERROR (from throwing fn)
+		// 2 deliveries: DIRTY (from dep settling) + ERROR (from throwing fn).
 		expect(deliveries).toBe(2);
 
 		source.down([[DIRTY], [DATA, 2]]);

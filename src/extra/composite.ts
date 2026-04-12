@@ -165,13 +165,32 @@ export function distill<TRaw, TMem>(
 	});
 
 	if (opts.evict) {
+		// Track active verdict-node subscriptions so we can react to Node<boolean> changes.
+		const verdictUnsubs = new Map<string, () => void>();
+
 		const evictionKeys = derived([store.entries], ([snapshot]) => {
 			const out: string[] = [];
 			const entries = mapFromSnapshot<TMem>(snapshot);
+			// Clean up verdict subscriptions for removed keys.
+			for (const key of verdictUnsubs.keys()) {
+				if (!entries.has(key)) {
+					verdictUnsubs.get(key)!();
+					verdictUnsubs.delete(key);
+				}
+			}
 			for (const [key, mem] of entries) {
 				const verdict = opts.evict!(key, mem);
 				if (isNodeLike<boolean>(verdict)) {
 					if (verdict.cache === true) out.push(key);
+					// Subscribe to verdict node changes if not already subscribed.
+					if (!verdictUnsubs.has(key)) {
+						const unsub = forEach(verdict, (val) => {
+							if (val === true && store.has(key)) {
+								store.delete(key);
+							}
+						});
+						verdictUnsubs.set(key, unsub);
+					}
 					continue;
 				}
 				if (typeof verdict === "boolean") {

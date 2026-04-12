@@ -1,3 +1,8 @@
+// FLAG: v5 behavioral change — needs investigation
+// stratify and feedback tests fail with:
+//   Graph "...": connect(source, target) — target must include source in its constructor deps (same node reference)
+// The underlying pattern factories use Graph.connect() which now enforces deps.
+
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
@@ -531,7 +536,7 @@ describe("reduction.scorer", () => {
 	it("has reduction meta", () => {
 		const s = scorer([state(0)], [state(1)]);
 		const meta = s.meta;
-		expect(meta.reduction.get()).toBe(true);
-		expect(meta.reduction_type.get()).toBe("scorer");
+		expect(meta.reduction.cache).toBe(true);
+		expect(meta.reduction_type.cache).toBe("scorer");
 	});
 });

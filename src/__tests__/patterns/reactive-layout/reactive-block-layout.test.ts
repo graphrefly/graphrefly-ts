@@ -321,7 +321,7 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 800,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		expect(bundle.totalHeight.get()).toBeGreaterThan(0);
+		expect(bundle.totalHeight.cache).toBeGreaterThan(0);
 		unsub();
 	});
 
@@ -335,13 +335,13 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 800,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const flow = bundle.blockFlow.get() as PositionedBlock[];
+		const flow = bundle.blockFlow.cache as PositionedBlock[];
 		expect(flow).toHaveLength(2);
 		expect(flow[0]!.type).toBe("text");
 		expect(flow[1]!.type).toBe("image");
 		expect(flow[1]!.width).toBe(200);
 		expect(flow[1]!.height).toBe(100);
-		const total = bundle.totalHeight.get();
+		const total = bundle.totalHeight.cache;
 		expect(total).toBe(flow[0]!.height + flow[1]!.height);
 		unsub();
 	});
@@ -353,12 +353,12 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 800,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const h1 = bundle.totalHeight.get();
+		const h1 = bundle.totalHeight.cache;
 		bundle.setBlocks([
 			{ type: "text", text: "hello" },
 			{ type: "image", src: "x.png", naturalWidth: 100, naturalHeight: 50 },
 		]);
-		const h2 = bundle.totalHeight.get();
+		const h2 = bundle.totalHeight.cache;
 		expect(h2).toBeGreaterThan(h1);
 		unsub();
 	});
@@ -370,12 +370,12 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 800,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const m1 = bundle.measuredBlocks.get() as MeasuredBlock[];
+		const m1 = bundle.measuredBlocks.cache as MeasuredBlock[];
 		expect(m1[0]!.width).toBe(800);
 		expect(m1[0]!.height).toBe(450);
 
 		bundle.setMaxWidth(400);
-		const m2 = bundle.measuredBlocks.get() as MeasuredBlock[];
+		const m2 = bundle.measuredBlocks.cache as MeasuredBlock[];
 		expect(m2[0]!.width).toBe(400);
 		expect(m2[0]!.height).toBe(225);
 		unsub();
@@ -392,10 +392,10 @@ describe("reactiveBlockLayout", () => {
 			gap: 10,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const flow = bundle.blockFlow.get() as PositionedBlock[];
+		const flow = bundle.blockFlow.cache as PositionedBlock[];
 		expect(flow[0]!.y).toBe(0);
 		expect(flow[1]!.y).toBe(60); // 50 + 10
-		expect(bundle.totalHeight.get()).toBe(110); // 60 + 50
+		expect(bundle.totalHeight.cache).toBe(110); // 60 + 50
 		unsub();
 	});
 
@@ -410,12 +410,13 @@ describe("reactiveBlockLayout", () => {
 			gap: 0,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		expect(bundle.totalHeight.get()).toBe(100);
+		expect(bundle.totalHeight.cache).toBe(100);
 		bundle.setGap(20);
-		expect(bundle.totalHeight.get()).toBe(120);
+		expect(bundle.totalHeight.cache).toBe(120);
 		unsub();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (clearCount stays 0 after INVALIDATE signal)
 	it("INVALIDATE clears measurement cache", () => {
 		let clearCount = 0;
 		const adapter: MeasurementAdapter = {
@@ -433,7 +434,7 @@ describe("reactiveBlockLayout", () => {
 		});
 		const unsub = bundle.measuredBlocks.subscribe(() => {});
 		// Force initial computation
-		bundle.measuredBlocks.get();
+		bundle.measuredBlocks.cache;
 
 		// Send INVALIDATE to the graph — signal broadcasts to all nodes,
 		// so clearCache may be called more than once (once per INVALIDATE delivery)
@@ -465,11 +466,11 @@ describe("reactiveBlockLayout", () => {
 		});
 		const unsub = bundle.measuredBlocks.subscribe(() => {});
 		// Force computation
-		bundle.measuredBlocks.get();
+		bundle.measuredBlocks.cache;
 		const mbNode = bundle.graph.node("measured-blocks");
 		expect(mbNode.meta).toBeDefined();
-		expect(mbNode.meta["block-count"]?.get()).toBe(2);
-		expect(typeof mbNode.meta["layout-time-ns"]?.get()).toBe("number");
+		expect(mbNode.meta["block-count"]?.cache).toBe(2);
+		expect(typeof mbNode.meta["layout-time-ns"]?.cache).toBe("number");
 		unsub();
 	});
 
@@ -483,16 +484,16 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 800,
 		});
 		const unsub = bundle.measuredBlocks.subscribe(() => {});
-		bundle.measuredBlocks.get();
+		bundle.measuredBlocks.cache;
 
 		const mbNode = bundle.graph.node("measured-blocks");
-		const countBefore = mbNode.meta["block-count"]?.get();
+		const countBefore = mbNode.meta["block-count"]?.cache;
 		expect(countBefore).toBe(2);
 
 		bundle.graph.signal([[INVALIDATE]]);
 
 		// Meta should survive INVALIDATE (spec §2.3)
-		expect(mbNode.meta["block-count"]?.get()).toBe(countBefore);
+		expect(mbNode.meta["block-count"]?.cache).toBe(countBefore);
 		unsub();
 	});
 
@@ -507,10 +508,10 @@ describe("reactiveBlockLayout", () => {
 			gap: -10,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const flow = bundle.blockFlow.get() as PositionedBlock[];
+		const flow = bundle.blockFlow.cache as PositionedBlock[];
 		expect(flow[0]!.y).toBe(0);
 		expect(flow[1]!.y).toBe(40); // 50 + (-10)
-		expect(bundle.totalHeight.get()).toBe(90); // 40 + 50
+		expect(bundle.totalHeight.cache).toBe(90); // 40 + 50
 		unsub();
 	});
 
@@ -522,7 +523,7 @@ describe("reactiveBlockLayout", () => {
 			maxWidth: 0,
 		});
 		const unsub = bundle.totalHeight.subscribe(() => {});
-		const m = bundle.measuredBlocks.get() as MeasuredBlock[];
+		const m = bundle.measuredBlocks.cache as MeasuredBlock[];
 		// Image wider than maxWidth=0: scales to w=0, h=0
 		expect(m[0]!.width).toBe(0);
 		expect(m[0]!.height).toBe(0);

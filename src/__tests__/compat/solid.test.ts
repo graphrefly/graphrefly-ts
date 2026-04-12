@@ -36,7 +36,7 @@ describe("Solid bindings", () => {
 
 			setter(42);
 			expect(accessor()).toBe(42);
-			expect(testNode.get()).toBe(42);
+			expect(testNode.cache).toBe(42);
 
 			dispose();
 		});

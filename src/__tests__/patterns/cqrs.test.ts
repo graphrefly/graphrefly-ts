@@ -17,7 +17,7 @@ describe("cqrs — roadmap §4.5", () => {
 		const app = cqrs("test");
 		const evtNode = app.event("orderPlaced");
 		expect(evtNode).toBeDefined();
-		const entries = evtNode.get() as readonly unknown[];
+		const entries = evtNode.cache as readonly unknown[];
 		expect(entries).toEqual([]);
 		app.destroy();
 	});
@@ -73,7 +73,7 @@ describe("cqrs — roadmap §4.5", () => {
 		});
 		app.dispatch("placeOrder", { id: "order-1" });
 
-		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		const entries = app.event("orderPlaced").cache as readonly CqrsEvent[];
 		expect(entries).toHaveLength(1);
 		expect(entries[0].type).toBe("orderPlaced");
 		expect(entries[0].payload).toEqual({ orderId: "order-1" });
@@ -113,22 +113,24 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("orderPlaced", payload);
 		});
 		app.dispatch("placeOrder", { id: "1" });
-		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		const entries = app.event("orderPlaced").cache as readonly CqrsEvent[];
 		const evt = entries[0];
 		expect(evt.timestampNs).toBeGreaterThan(0);
 		expect(evt.seq).toBe(1);
 		app.destroy();
 	});
 
+	// FLAG: v5 behavioral change — needs investigation (_applyVersioning removed, v0 not populated)
 	it("events carry v0 identity when event log node is versioned", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
-		((app as any)._eventLogs.get("orderPlaced").log.entries as any)._applyVersioning(0);
+		// FLAG: _applyVersioning removed in v5
+		// ((app as any)._eventLogs.get("orderPlaced").log.entries as any)._applyVersioning(0);
 		app.command("placeOrder", (payload: any, { emit }) => {
 			emit("orderPlaced", payload);
 		});
 		app.dispatch("placeOrder", { id: "1" });
-		const entries = app.event("orderPlaced").get() as readonly CqrsEvent[];
+		const entries = app.event("orderPlaced").cache as readonly CqrsEvent[];
 		expect(entries[0].v0).toBeDefined();
 		expect(entries[0].v0!.id).toBeTypeOf("string");
 		app.destroy();
@@ -143,8 +145,8 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("b", 2);
 		});
 		app.dispatch("cmd", {});
-		const entriesA = app.event("a").get() as readonly CqrsEvent[];
-		const entriesB = app.event("b").get() as readonly CqrsEvent[];
+		const entriesA = app.event("a").cache as readonly CqrsEvent[];
+		const entriesB = app.event("b").cache as readonly CqrsEvent[];
 		expect(entriesA[0].seq).toBe(1);
 		expect(entriesB[0].seq).toBe(2);
 		app.destroy();
@@ -160,7 +162,7 @@ describe("cqrs — roadmap §4.5", () => {
 		});
 		expect(() => app.dispatch("bad", {})).toThrow("boom");
 		const cmdNode = app.resolve("bad");
-		expect(cmdNode.meta.error.get()).toBe(err);
+		expect(cmdNode.meta.error.cache).toBe(err);
 		app.destroy();
 	});
 
@@ -173,10 +175,10 @@ describe("cqrs — roadmap §4.5", () => {
 		});
 		expect(() => app.dispatch("maybe", {})).toThrow("fail");
 		const cmdNode = app.resolve("maybe");
-		expect(cmdNode.meta.error.get()).toBeInstanceOf(Error);
+		expect(cmdNode.meta.error.cache).toBeInstanceOf(Error);
 		shouldThrow = false;
 		app.dispatch("maybe", {});
-		expect(cmdNode.meta.error.get()).toBeNull();
+		expect(cmdNode.meta.error.cache).toBeNull();
 		app.destroy();
 	});
 
@@ -271,10 +273,10 @@ describe("cqrs — roadmap §4.5", () => {
 		});
 		app.dispatch("placeOrder", { id: "1" });
 		const sagaNode = app.resolve("sideFx");
-		expect(sagaNode.meta.error.get()).toBeInstanceOf(Error);
+		expect(sagaNode.meta.error.cache).toBeInstanceOf(Error);
 		shouldThrow = false;
 		app.dispatch("placeOrder", { id: "2" });
-		expect(sagaNode.meta.error.get()).toBeNull();
+		expect(sagaNode.meta.error.cache).toBeNull();
 		app.destroy();
 	});
 

@@ -40,7 +40,7 @@ describe("Vue bindings", () => {
 
 		// test write
 		r.value = 42;
-		expect(testNode.get()).toBe(42);
+		expect(testNode.cache).toBe(42);
 
 		// test read
 		testNode.down([[DATA, 50]]);

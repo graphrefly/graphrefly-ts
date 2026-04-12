@@ -276,7 +276,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 		}).compile();
 
 		const countNode = module.get<Node<number>>(getNodeToken("count"));
-		expect(countNode.get()).toBe(7);
+		expect(countNode.cache).toBe(7);
 
 		await module.close();
 	});
@@ -375,7 +375,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 		}).compile();
 
 		const totalNode = module.get<Node<number>>(getNodeToken("orders::total"));
-		expect(totalNode.get()).toBe(250);
+		expect(totalNode.cache).toBe(250);
 
 		await module.close();
 	});
@@ -1452,7 +1452,7 @@ describe("nestjs compat — GraphReflyModule.forCqrs", () => {
 		}).compile();
 
 		const totalNode = module.get<Node<number>>(getNodeToken("inv::total"));
-		expect(totalNode.get()).toBe(0);
+		expect(totalNode.cache).toBe(0);
 
 		await module.close();
 	});
