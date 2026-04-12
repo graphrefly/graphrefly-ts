@@ -513,7 +513,12 @@ export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceO
 }
 
 function isNode(x: unknown): x is Node {
-	return x != null && "cache" in (x as Node) && typeof (x as Node).subscribe === "function";
+	return (
+		x != null &&
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node).subscribe === "function"
+	);
 }
 
 /**

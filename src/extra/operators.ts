@@ -152,18 +152,21 @@ export function reduce<T, R>(
 		[source as Node],
 		([v], a, ctx) => {
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
-			// Check for terminal — dep completed
-			if (ctx.terminalDeps[0] !== undefined) {
-				// Terminal: emit accumulated value (or seed if no data ever arrived)
+			// ERROR: let auto-error propagate — don't emit accumulated value.
+			if (ctx.terminalDeps[0] !== undefined && ctx.terminalDeps[0] !== true) {
+				return;
+			}
+			// COMPLETE: emit accumulated value then COMPLETE.
+			if (ctx.terminalDeps[0] === true) {
 				a.emit(ctx.store.acc as R);
 				a.down([[COMPLETE]]);
 				return;
 			}
-			// Only accumulate if dep sent DATA this wave
+			// Only accumulate if dep sent DATA this wave.
 			if (ctx.dataFrom[0]) {
 				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
 			}
-			// Don't emit until COMPLETE — suppress downstream
+			// Don't emit until COMPLETE — suppress downstream.
 			a.down([[RESOLVED]]);
 		},
 		{
@@ -213,8 +216,13 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 				a.down([[RESOLVED]]);
 				return;
 			}
+			// Upstream COMPLETE before count reached → forward COMPLETE.
+			if (ctx.terminalDeps[0] === true) {
+				ctx.store.done = true;
+				a.down([[COMPLETE]]);
+				return;
+			}
 			if (!ctx.dataFrom[0]) {
-				// RESOLVED wave — pass through
 				a.down([[RESOLVED]]);
 				return;
 			}
@@ -949,19 +957,21 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 	unsub = inner.subscribe((msgs) => {
 		let sawComplete = false;
 		let sawError = false;
-		const out: Message[] = [];
 		for (const m of msgs) {
-			// Filter START from inner subscriptions — each node's own
-			// subscribe handshake handles START for its direct sinks.
 			if (m[0] === START) continue;
-			if (m[0] === DATA) emitted = true;
-			if (m[0] === COMPLETE) sawComplete = true;
-			else {
-				if (m[0] === ERROR) sawError = true;
-				out.push(m);
+			if (m[0] === DATA) {
+				emitted = true;
+				a.emit(m[1] as R);
+			} else if (m[0] === COMPLETE) {
+				sawComplete = true;
+			} else if (m[0] === ERROR) {
+				sawError = true;
+				a.down([m]);
+			} else {
+				// Forward RESOLVED and other signals as-is.
+				a.down([m]);
 			}
 		}
-		if (out.length > 0) a.down(out as unknown as Messages);
 		if (sawError) {
 			unsub?.();
 			unsub = undefined;

@@ -322,11 +322,11 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = node<number>();
 			const { node: out, status } = withStatus(s);
 			const { batches, unsub } = collect(out);
-			expect(status.get()).toBe("pending");
+			expect(status.cache).toBe("pending");
 			s.down([[DATA, 1]]);
-			expect(status.get()).toBe("active");
+			expect(status.cache).toBe("active");
 			s.down([[COMPLETE]]);
-			expect(status.get()).toBe("completed");
+			expect(status.cache).toBe("completed");
 			expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 			unsub();
 		});
@@ -336,11 +336,11 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const { node: out, status, error } = withStatus(s);
 			const { unsub } = collect(out);
 			s.down([[ERROR, new Error("e")]]);
-			expect(status.get()).toBe("errored");
-			expect(error.get()).toBeInstanceOf(Error);
+			expect(status.cache).toBe("errored");
+			expect(error.cache).toBeInstanceOf(Error);
 			s.down([[DATA, 1]]);
-			expect(status.get()).toBe("active");
-			expect(error.get()).toBeNull();
+			expect(status.cache).toBe("active");
+			expect(error.cache).toBeNull();
 			unsub();
 		});
 	});
@@ -351,7 +351,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = state(1);
 			const bundle = withBreaker(b)(s);
 			expect(bundle.node.meta.breakerState).toBe(bundle.breakerState);
-			expect(bundle.breakerState.get()).toBe("closed");
+			expect(bundle.breakerState.cache).toBe("closed");
 		});
 
 		it("withStatus companions are accessible via node.meta", () => {
@@ -359,7 +359,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const bundle = withStatus(s);
 			expect(bundle.node.meta.status).toBe(bundle.status);
 			expect(bundle.node.meta.error).toBe(bundle.error);
-			expect(bundle.status.get()).toBe("pending");
+			expect(bundle.status.cache).toBe("pending");
 		});
 
 		it("withBreaker breakerState appears in graph.describe()", () => {
@@ -393,7 +393,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("pipe accepts retry operator", () => {
 			const s = state(1);
 			const out = retry(s, { count: 0 });
-			expect(out.get()).toBe(1);
+			expect(out.cache).toBe(1);
 		});
 	});
 

@@ -98,7 +98,7 @@ describe("extra operators (Tier 1)", () => {
 		const { batches: bs } = collect(sc);
 		s.down([[DATA, 1]]);
 		s.down([[DATA, 2]]);
-		expect(sc.get()).toBe(3);
+		expect(sc.cache).toBe(3);
 		expect(bs.length).toBeGreaterThan(0);
 	});
 
@@ -135,7 +135,7 @@ describe("extra operators (Tier 1)", () => {
 		const out = take(s, 0);
 		const { batches } = collect(out);
 		s.down([[DATA, 1]]);
-		expect(out.get()).toBe(undefined);
+		expect(out.cache).toBe(undefined);
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 	});
 
@@ -213,7 +213,7 @@ describe("extra operators (Tier 1)", () => {
 		const c = combine(a, b);
 		collect(c);
 		a.down([[DATA, 10]]);
-		expect(c.get()).toEqual([10, 2]);
+		expect(c.cache).toEqual([10, 2]);
 	});
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — zip pairs DATA in lockstep.
@@ -357,7 +357,7 @@ describe("extra operators (Tier 1)", () => {
 		const combo = combine(left, right);
 		collect(combo);
 		src.down([[DATA, 3]]);
-		expect(combo.get()).toEqual([6, 13]);
+		expect(combo.cache).toEqual([6, 13]);
 	});
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — reduce aggregates until COMPLETE, then emits once.
@@ -1542,7 +1542,7 @@ describe("diamond resolution through operator chain", () => {
 		dataCount = 0;
 		src.down([[DIRTY], [DATA, 5]]);
 		expect(dataCount).toBe(1);
-		expect(c.get()).toEqual([5, 5]);
+		expect(c.cache).toEqual([5, 5]);
 		unsub();
 	});
 });
@@ -1550,7 +1550,7 @@ describe("diamond resolution through operator chain", () => {
 // ---------------------------------------------------------------------------
 // D8 / SENTINEL dep safety — operators must not corrupt state when dep is
 // SENTINEL (no cached DATA). Regression: operator fn received undefined from
-// dep.get() and processed it as real data.
+// dep.cache and processed it as real data.
 // ---------------------------------------------------------------------------
 describe("SENTINEL dep safety (D8 fallback)", () => {
 	it("switchMap does not call project until real DATA arrives", () => {

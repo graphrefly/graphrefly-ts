@@ -365,7 +365,7 @@ describe("P1: reentrancy safety", () => {
 		});
 
 		// Should eventually settle at 2
-		expect(d.get()).toBe(2);
+		expect(d.cache).toBe(2);
 		expect(values).toContain(2);
 	});
 

@@ -682,8 +682,9 @@ export class TimeoutError extends Error {
 function isNode(x: unknown): x is Node {
 	return (
 		x != null &&
-		typeof (x as Node).subscribe === "function" &&
-		"cache" in (x as Node)
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node).subscribe === "function"
 	);
 }
 
