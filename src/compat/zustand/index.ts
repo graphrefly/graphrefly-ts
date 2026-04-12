@@ -2,6 +2,13 @@ import { DATA } from "../../core/messages.js";
 import { state as stateNode } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 
+// Zustand fires listeners on every setState, regardless of reference
+// equality. Configure the state node with a permissive equals so every
+// emit produces DATA (not RESOLVED). Diamond coordination still works
+// because `n.emit` routes through the framed pipeline which auto-
+// prefixes `[DIRTY]`.
+const alwaysDiffer = () => false;
+
 /** Zustand-compatible Store API. */
 export interface StoreApi<T> {
 	getState: () => T;
@@ -35,7 +42,10 @@ export type StateCreator<T> = (
  */
 export function create<T extends object>(initializer: StateCreator<T>): Graph & StoreApi<T> {
 	const g = new Graph("zustand");
-	const s = stateNode<T>(undefined as unknown as T, { name: "state" });
+	const s = stateNode<T>(undefined as unknown as T, {
+		name: "state",
+		equals: alwaysDiffer,
+	});
 	g.add("state", s);
 
 	const getState = () => s.cache as T;
@@ -43,7 +53,12 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 		const prev = getState();
 		const next = typeof partial === "function" ? partial(prev) : partial;
 		const nextState = replace ? next : { ...prev, ...next };
-		s.down([[DATA, nextState]]);
+		// `n.emit` goes through `_actionEmit` → `bundle()`, which auto-
+		// prefixes `[DIRTY]` so diamond legs coordinate under downstream
+		// composition. The `alwaysDiffer` equals keeps zustand's "fire
+		// on every setState" semantics — the framing is what matters
+		// here, not the equality folding.
+		s.emit(nextState);
 	};
 
 	const api: StoreApi<T> = {
@@ -71,7 +86,7 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 	};
 
 	const initialValue = initializer(setState, getState, api);
-	s.down([[DATA, initialValue]]);
+	s.emit(initialValue);
 
 	return Object.assign(g, api);
 }

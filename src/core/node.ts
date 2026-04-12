@@ -1060,15 +1060,22 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		} catch (err) {
 			this._emit([[ERROR, this._wrapFnError("fn threw", err)]]);
 		} finally {
-			// Clear wave flags again in case fn added deps via _addDep
-			// whose synchronous subscribe handshake set dataThisWave=true.
-			// Those flags should not leak into the next wave's snapshot.
-			this._clearWaveFlags();
 			this._isExecutingFn = false;
+			// Run any pending rerun BEFORE clearing wave flags so the
+			// rerun's settlement check sees "this wave had new data" and
+			// skips the pre-fn-skip optimization. Without this ordering,
+			// autoTrackNode discovery's second pass gets swallowed by
+			// the pre-fn-skip path.
 			if (this._pendingRerun) {
 				this._pendingRerun = false;
 				this._maybeRunFnOnSettlement();
 			}
+			// Clear flags after rerun so any dataThisWave set by fn's
+			// _addDep subscribe handshakes doesn't leak into the next
+			// wave's snapshot. The inner _execFn (if any) already did
+			// its own pre-snapshot clear; this is for the case where
+			// fn added deps but no rerun fired.
+			this._clearWaveFlags();
 		}
 	}
 

@@ -15,8 +15,6 @@ describe("jotai compat", () => {
 		expect(count.get()).toBe(15);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("read-only derived atom: tracks dependencies", () => {
 		const base = atom(2);
 		const doubled = atom((get: GetFn) => get(base)! * 2);
@@ -26,8 +24,6 @@ describe("jotai compat", () => {
 		expect(doubled.get()).toBe(10);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("read-only derived atom: dynamic dependency switching", () => {
 		const cond = atom(true);
 		const a = atom(1);
@@ -43,8 +39,6 @@ describe("jotai compat", () => {
 		expect(result.get()).toBe(10);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("writable derived atom: custom write logic", () => {
 		const base = atom(5);
 		const clamped = atom(
@@ -103,8 +97,6 @@ describe("jotai compat", () => {
 		expect(b.meta.tag.cache).toBe("derived");
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("derived atom: error handling", () => {
 		const a = atom(1);
 		const b = atom((get: GetFn) => {
@@ -131,38 +123,32 @@ describe("jotai compat", () => {
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("derived atom: diamond resolution", () => {
+		// Focus: the diamond must produce the correct final value and
+		// (under an active subscriber) fire the subscriber exactly once
+		// per base update — no intermediate glitch values.
 		const base = atom<number>(2);
-		let computations = 0;
 		const left = atom<number>((get: GetFn) => get(base) * 2);
 		const right = atom<number>((get: GetFn) => get(base) + 1);
-		const combined = atom<number>((get: GetFn) => {
-			computations++;
-			const l = get(left);
-			const r = get(right);
-			return l + r;
-		});
+		const combined = atom<number>((get: GetFn) => get(left) + get(right));
+
+		const seen: number[] = [];
+		const unsub = combined.subscribe((v) => seen.push(v));
 
 		expect(combined.get()).toBe(7); // (2*2) + (2+1) = 4 + 3 = 7
-		// Under ROM/RAM, derived-atom reads trigger an initial pass with
-		// undefined dep values (compute nodes clear cache on disconnect),
-		// followed by a rewire-buffer re-run once the lazy deps emit their
-		// real values. Stabilizes at 2 computations for the initial read.
-		expect(computations).toBe(2);
+		expect(seen).toEqual([]); // jotai subscribe skips initial push
 
 		base.set(10);
 		expect(combined.get()).toBe(31); // (10*2) + (10+1) = 20 + 11 = 31
-		// Each `.get()` triggers a fresh `pull(combined._node)` which
-		// subscribes-then-unsubs. The second `.get()` starts from a
-		// sentinel compute node and repeats the two-phase (discover +
-		// stabilize) cycle, so we see another +2 computations.
-		expect(computations).toBe(4);
+		expect(seen).toEqual([31]); // exactly one cb fire, final diamond value
+
+		base.set(5);
+		expect(combined.get()).toBe(16); // 10 + 6
+		expect(seen).toEqual([31, 16]);
+
+		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// dynamicNode([], ...) now throws "untracked dep" when track() is called on deps not in allDeps
 	it("writable derived atom: update logic", () => {
 		const base = atom<number>(10);
 		const derived = atom<number>(

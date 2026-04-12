@@ -1,7 +1,7 @@
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { type TrackFn, dynamicNode, state } from "../../core/sugar.js";
+import { type TrackFn, autoTrackNode, state } from "../../core/sugar.js";
 
 /**
  * Options for creating signals.
@@ -116,8 +116,7 @@ class SignalComputed<T> implements AnySignal<T> {
 	_node: Node<T>;
 
 	constructor(computation: () => T, opts?: SignalOptions) {
-		this._node = dynamicNode<T>(
-			[],
+		this._node = autoTrackNode<T>(
 			(track) => {
 				trackingStack.push(track);
 				try {

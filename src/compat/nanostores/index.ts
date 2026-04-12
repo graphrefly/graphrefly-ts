@@ -142,7 +142,12 @@ export function atom<T>(initial: T): NanoAtom<T> {
 	});
 
 	return createStore(n, {
-		set: (value: T) => n.down([[DATA, value]]),
+		// `n.emit` routes through the framed pipeline: `bundle()` auto-
+		// prefixes `[DIRTY]` (diamond-safe wave coordination) and the
+		// node's `equals` (default `Object.is`) folds same-value writes
+		// into `RESOLVED`. Matches nanostores' documented Object.is
+		// dedup semantics without any custom check.
+		set: (value: T) => n.emit(value),
 	});
 }
 
@@ -215,10 +220,14 @@ export function map<T extends Record<string, unknown>>(initial: T): NanoMap<T> {
 	});
 
 	return createStore(n, {
-		set: (value: T) => n.down([[DATA, value]]),
+		// `map`'s state node is configured with `equals: () => false`
+		// above, so every `emit` produces DATA (even for same-key same-
+		// value sets). The `emit` path is still required for diamond
+		// coordination (`[DIRTY]` auto-prefix via `bundle()`).
+		set: (value: T) => n.emit(value),
 		setKey: <K extends keyof T>(key: K, value: T[K]) => {
 			const current = getVal(n);
-			n.down([[DATA, { ...current, [key]: value }]]);
+			n.emit({ ...current, [key]: value });
 		},
 	});
 }

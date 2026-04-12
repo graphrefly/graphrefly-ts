@@ -2797,3 +2797,107 @@ mutation events (§6 "composite.ts eviction").
 nanostores diamond test expects 2 fn calls, gets 1 because dynamicNode
 discovery settled synchronously. Test expectation may be outdated —
 needs confirmation that 1-call behavior is correct.
+
+### 10.6.13 — compat-layer two-way bridge invariant + autoTrackNode cleanup
+
+**Context.** Compat layers (Jotai `atom`, TC39 `Signal.Computed`,
+Nanostores `computed`, Zustand `create`) are not one-way surfaces. Each
+compat object exposes `._node`, and users are expected to reach into
+the native graphrefly layer when they outgrow the compat feature set.
+Two-way composition is the distribution story — drop-in usage first,
+then graduated adoption via `._node` without rewriting existing code.
+
+Decided invariant: **compat layers must be first-class composable Nodes
+that satisfy the full wave protocol, not just the compat-surface API.**
+A downstream native `derived([compat._node, ...])` must see the same
+value/cb-count semantics a pure compat subscriber sees, including
+diamond resolution, equality-based RESOLVED propagation, and dep
+settlement tracking.
+
+**Bugs found and fixed.**
+
+1. **`autoTrackNode` dataFrom suppression (`src/core/sugar.ts`).**
+   An uncommitted optimization added a `return;` path that skipped
+   `actions.emit` when no currently-accessed dep changed AND the result
+   equaled cache. This was invisible to leaf subscribers but left
+   downstream `dep.dirty` records stuck forever (no RESOLVED ever sent
+   to clear the earlier DIRTY relay). A subsequent sibling-dep update
+   at the downstream would hang because one dep was frozen. Fix:
+   restore HEAD's simple body. `actions.emit` → `_actionEmit` already
+   folds same-value results to RESOLVED via the equals check, and
+   `node.ts:972`'s pre-fn skip handles transitive propagation one hop
+   up. No custom state, no flags beyond `foundNew`.
+
+2. **`_execFn` finally ordering (`src/core/node.ts:1062`).** The finally
+   block called `_clearWaveFlags()` BEFORE running `_maybeRunFnOnSettlement`
+   for `_pendingRerun`. This meant the rerun's settlement check saw
+   `!_waveHasNewData` and hit the pre-fn skip path → emit RESOLVED
+   without running fn. autoTrackNode's discovery-then-real-run pattern
+   relies on `_pendingRerun` driving the second pass, and this
+   ordering swallowed it. Fix: reorder finally so `_pendingRerun`
+   fires first, then `_clearWaveFlags` cleans up any flags set by
+   `_addDep`'s synchronous DATA handshakes. One structural change,
+   no new state.
+
+3. **Jotai primitive atom `.set` missing DIRTY prefix
+   (`src/compat/jotai/index.ts:123`).** `n.down([[DATA, value]])`
+   bypasses the framed emit pipeline, so `bundle()` never auto-prefixes
+   `[DIRTY]`. Downstream computed atoms in a diamond fired on glitch
+   values mid-wave because the legs weren't coordinating. Latent — not
+   surfaced by the existing jotai test suite, which asserted only fn
+   call counts and final `.get()` values, both of which are insensitive
+   to mid-wave glitches. Fix: use `n.emit(value)` / `n.emit(fn(current))`
+   which routes through `_actionEmit` → `bundle()` → framed delivery.
+
+4. **Nanostores `atom` / `map` same pattern
+   (`src/compat/nanostores/index.ts`).** Same latent diamond glitch.
+   Same fix: switch to `n.emit`. Nanostores' documented Object.is dedup
+   is now load-bearing on the node's default equals (instead of being
+   a side-effect of never-emit-same-twice conventions).
+
+5. **Zustand `setState` + initial seed same pattern
+   (`src/compat/zustand/index.ts`).** Same latent diamond glitch.
+   Zustand fires on every setState regardless of equality, so the
+   state node is configured with `equals: () => false` (`alwaysDiffer`)
+   and writes go through `s.emit(nextState)`. Framing (DIRTY prefix)
+   comes from `bundle`; the "always fire" semantics come from the
+   equals config.
+
+**Invariant distilled.** Any compat-layer write path that originates
+value changes must go through the framed `emit` pipeline — either
+`n.emit(value)` or a manual `[[DIRTY], [DATA, value]]` shape routed
+through `n.down`. Raw `n.down([[DATA, value]])` without a DIRTY prefix
+is a latent diamond glitch waiting to happen the moment someone
+composes the compat object into a native derived chain. This applies
+to any future compat layer (Preact signals, Svelte v5 runes, etc.) and
+any existing one that still uses raw `down`.
+
+**Tests added.**
+
+- `signals-autotrack.test.ts` — 13 scenarios focused on value + cb
+  count correctness (not fn-call counts): conditional branch switching,
+  downstream chain advancement, transitive skip via equality, sibling-
+  dep advancement past inner no-op waves, diamonds with no-op legs,
+  multi-level nested auto-tracking, multiple subscribers, subscribe-
+  after-set, deep chains, bucket-style equality absorption, rapid in-
+  place updates, two independent state sources, and an explicit
+  two-way bridge test (native `computed._node.subscribe` observing a
+  `Signal.Computed`).
+- `jotai.test.ts > derived atom: diamond resolution` — rewritten to
+  use a live subscriber and assert the cb-observed value sequence
+  (`[31]`, not `[23, 31]`).
+- `nanostores.test.ts > diamond resolution` — same treatment.
+- `zustand.test.ts > two-way bridge: native diamond over
+  store.node('state') resolves without glitches` — new test that builds
+  a native diamond on top of the zustand state node and asserts no
+  glitch values.
+
+**What Flag A becomes.** Flag A ("dataFrom-based emission suppression —
+edge cases") is now closed. The suppression block was architecturally
+wrong for the two-way bridge; it will not be revisited. If a future
+optimization wants to reduce duplicate fn runs, it must preserve wave
+correctness — i.e., still emit RESOLVED (not nothing) on no-op waves.
+The `allNewSettled` gate (save-a-fn-call-on-sync-discovery) is a
+reasonable shape for such a future optimization if the extra work
+accounting can be justified, but it's not currently needed — HEAD's
+simple double-discovery pattern is correct and cheap enough.

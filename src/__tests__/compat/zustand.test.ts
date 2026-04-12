@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { create } from "../../compat/zustand/index.js";
+import { DATA } from "../../core/messages.js";
+import { derived } from "../../core/sugar.js";
 
 describe("zustand compat", () => {
 	it("create: initializes with state from initializer", () => {
@@ -75,5 +77,47 @@ describe("zustand compat", () => {
 		const stateNode = store.node("state");
 		store.destroy();
 		expect(stateNode.status).toBe("sentinel");
+	});
+
+	it("two-way bridge: native diamond over store.node('state') resolves without glitches", () => {
+		// Regression: zustand's setState used to bypass the framed emit
+		// pipeline (`n.down([[DATA, v]])` instead of `n.emit(v)`), which
+		// meant no auto-prefixed `[DIRTY]`. Diamond legs built from the
+		// state node wouldn't coordinate and a downstream computed fired
+		// with glitch values mid-wave.
+		const store = create(() => ({ x: 1 }));
+		const state = store.node("state") as ReturnType<typeof store.node> & {
+			subscribe: (s: unknown) => () => void;
+		};
+
+		// Left leg: x * 10. Right leg: x + 100. Diamond: left + right.
+		const left = derived([state], ([s]) => (s as { x: number }).x * 10);
+		const right = derived([state], ([s]) => (s as { x: number }).x + 100);
+		const final = derived([left, right], ([l, r]) => (l as number) + (r as number));
+
+		const seen: number[] = [];
+		const unsub = final.subscribe((msgs) => {
+			for (const [t, v] of msgs) {
+				if (t === DATA) seen.push(v as number);
+			}
+		});
+
+		// Push-on-subscribe replay of the initial wave.
+		expect(final.cache).toBe(111); // (1 * 10) + (1 + 100) = 10 + 101
+		expect(seen).toEqual([111]);
+
+		// Setting x=5 via zustand's setState must collapse the diamond
+		// to exactly one fire with the final resolved value 155 — not a
+		// glitchy intermediate like 151 (new left 50 + stale right 101)
+		// or 110 (stale left 10 + new right 105).
+		store.setState({ x: 5 });
+		expect(final.cache).toBe(155); // 50 + 105
+		expect(seen).toEqual([111, 155]);
+
+		store.setState({ x: 10 });
+		expect(final.cache).toBe(210); // 100 + 110
+		expect(seen).toEqual([111, 155, 210]);
+
+		unsub();
 	});
 });
