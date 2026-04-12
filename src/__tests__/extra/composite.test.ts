@@ -16,9 +16,9 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 			autoVerify: false,
 		});
 
-		expect(bundle.verified.get()).toEqual({ holds: true, checked: 2 });
+		expect(bundle.verified.cache).toEqual({ holds: true, checked: 2 });
 		trigger.down([[DATA, 1]]);
-		expect(bundle.verified.get()).toEqual({ holds: true, checked: 2 });
+		expect(bundle.verified.cache).toEqual({ holds: true, checked: 2 });
 	});
 
 	it("cancels stale verification with switchMap", async () => {
@@ -38,17 +38,17 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 		trigger.down([[DATA, 2]]);
 
 		await tick(15);
-		expect(bundle.verified.get()).toEqual({ value: 2 });
+		expect(bundle.verified.cache).toEqual({ value: 2 });
 
 		await tick(60);
-		expect(bundle.verified.get()).toEqual({ value: 2 });
+		expect(bundle.verified.cache).toEqual({ value: 2 });
 	});
 
 	it("accepts falsy scalar trigger values", () => {
 		const source = state(3);
 		const bundle = verifiable(source, (value) => value * 10, { trigger: 0 as const });
 		expect(bundle.trigger).not.toBe(null);
-		expect(bundle.verified.get()).toBe(30);
+		expect(bundle.verified.cache).toBe(30);
 	});
 
 	it("stamps sourceVersion meta when source node has V0", () => {
@@ -59,7 +59,7 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 			autoVerify: false,
 		});
 		trigger.down([[DATA, 1]]);
-		const sv = (bundle.verified.meta as any).sourceVersion.get() as {
+		const sv = (bundle.verified.meta as any).sourceVersion.cache as {
 			id: string;
 			version: number;
 		};
@@ -85,8 +85,8 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 
 		source.down([[DATA, "beta"]]);
 		expect(bundle.store.get("beta")).toEqual({ text: "beta", points: 4 });
-		expect(bundle.size.get()).toBeGreaterThan(0);
-		expect(bundle.compact.get().some((x) => x.key === "beta")).toBe(true);
+		expect(bundle.size.cache).toBeGreaterThan(0);
+		expect(bundle.compact.cache.some((x) => x.key === "beta")).toBe(true);
 	});
 
 	it("reactively evicts via dynamicNode-tracked condition", () => {
@@ -154,7 +154,7 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 		);
 		expect(bundle.store.has("seed")).toBe(false);
 		expect(bundle.store.has("merged")).toBe(true);
-		expect(bundle.compact.get().some((x) => x.key === "merged")).toBe(true);
+		expect(bundle.compact.cache.some((x) => x.key === "merged")).toBe(true);
 	});
 
 	it("throws for invalid evict return type", () => {

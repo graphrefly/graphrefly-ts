@@ -117,10 +117,10 @@ describe("workerBridge + workerSelf", () => {
 		await tick(50);
 
 		// Bridge should be connected
-		expect(bridge.meta.status.get()).toBe("connected");
+		expect(bridge.meta.status.cache).toBe("connected");
 
 		// Worker's initial value should be available on main
-		expect(bridge.workerVal.get()).toBe(100);
+		expect(bridge.workerVal.cache).toBe(100);
 	});
 
 	it("forwards value updates from main to worker", async () => {
@@ -133,7 +133,7 @@ describe("workerBridge + workerSelf", () => {
 		});
 		bridges.push(bridge);
 
-		let workerProxy: { get(): unknown } | undefined;
+		let workerProxy: { cache: unknown } | undefined;
 		const self = workerSelf(workerTransport, {
 			import: ["msg"] as const,
 			expose: (imported) => {
@@ -148,14 +148,14 @@ describe("workerBridge + workerSelf", () => {
 		await tick(50);
 
 		// Worker should have received initial value
-		expect(workerProxy!.get()).toBe("hello");
+		expect(workerProxy!.cache).toBe("hello");
 
 		// Update main node -> should propagate to worker and back as echo
 		mainNode.down([[DATA, "world"]]);
 		await tick(50);
 
-		expect(workerProxy!.get()).toBe("world");
-		expect(bridge.echo.get()).toBe("echo:world");
+		expect(workerProxy!.cache).toBe("world");
+		expect(bridge.echo.cache).toBe("echo:world");
 	});
 
 	it("forwards value updates from worker to main", async () => {
@@ -177,15 +177,15 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(self);
 
 		await tick(50);
-		expect(bridge.counter.get()).toBe(0);
+		expect(bridge.counter.cache).toBe(0);
 
 		workerCounter!.down([[DATA, 1]]);
 		await tick(50);
-		expect(bridge.counter.get()).toBe(1);
+		expect(bridge.counter.cache).toBe(1);
 
 		workerCounter!.down([[DATA, 2]]);
 		await tick(50);
-		expect(bridge.counter.get()).toBe(2);
+		expect(bridge.counter.cache).toBe(2);
 	});
 
 	it("coalesces batch updates into single message", async () => {
@@ -235,12 +235,12 @@ describe("workerBridge + workerSelf", () => {
 
 		workerTransport.post({ t: "b", u: { counter: 2 }, v: { counter: 2 } });
 		await tick(20);
-		expect(bridge.counter.get()).toBe(2);
+		expect(bridge.counter.cache).toBe(2);
 
 		// Stale update with older version must be ignored.
 		workerTransport.post({ t: "b", u: { counter: 1 }, v: { counter: 1 } });
 		await tick(20);
-		expect(bridge.counter.get()).toBe(2);
+		expect(bridge.counter.cache).toBe(2);
 	});
 
 	it("forwards COMPLETE from worker to main proxy", async () => {
@@ -330,13 +330,13 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(self);
 
 		await tick(50);
-		expect(bridge.meta.status.get()).toBe("connected");
+		expect(bridge.meta.status.cache).toBe("connected");
 
 		workerMessages.length = 0;
 		bridge.destroy();
 		await tick(100);
 
-		expect(bridge.meta.status.get()).toBe("closed");
+		expect(bridge.meta.status.cache).toBe("closed");
 		// Verify bridge sent a TEARDOWN signal message
 		const teardownMsg = workerMessages.find(
 			(m: any) => m.t === "s" && m.sig === "TEARDOWN" && m.s === "*",
@@ -357,14 +357,14 @@ describe("workerBridge + workerSelf", () => {
 		});
 
 		await tick(50);
-		expect(bridge.val.get()).toBe(99);
+		expect(bridge.val.cache).toBe(99);
 
 		// Destroy worker side only
 		self.destroy();
 		bridges.push(bridge); // already there, just for cleanup
 
 		// Bridge should still be functional (no crash), proxy retains last value
-		expect(bridge.val.get()).toBe(99);
+		expect(bridge.val.cache).toBe(99);
 	});
 
 	it("handles import-only bridge (no expose)", async () => {
@@ -381,7 +381,7 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(self);
 
 		await tick(50);
-		expect(bridge.data.get()).toEqual({ x: 1 });
+		expect(bridge.data.cache).toEqual({ x: 1 });
 	});
 
 	it("handles expose-only bridge (no import)", async () => {
@@ -393,7 +393,7 @@ describe("workerBridge + workerSelf", () => {
 		});
 		bridges.push(bridge);
 
-		let workerProxy: { get(): unknown } | undefined;
+		let workerProxy: { cache: unknown } | undefined;
 		const self = workerSelf(workerTransport, {
 			import: ["shared"] as const,
 			expose: (imported) => {
@@ -405,7 +405,7 @@ describe("workerBridge + workerSelf", () => {
 
 		await tick(50);
 		// Worker proxy receives the initial value via the init message
-		expect(workerProxy!.get()).toBe("shared");
+		expect(workerProxy!.cache).toBe("shared");
 	});
 
 	it("double destroy is idempotent", async () => {
@@ -562,12 +562,12 @@ describe("workerBridge + workerSelf", () => {
 		});
 		bridges.push(bridge);
 
-		expect(bridge.meta.status.get()).toBe("connecting");
+		expect(bridge.meta.status.cache).toBe("connecting");
 
 		await tick(150);
 
-		expect(bridge.meta.status.get()).toBe("closed");
-		expect(bridge.meta.error.get()).toBeInstanceOf(Error);
-		expect(bridge.meta.error.get()!.message).toContain("timeout");
+		expect(bridge.meta.status.cache).toBe("closed");
+		expect(bridge.meta.error.cache).toBeInstanceOf(Error);
+		expect((bridge.meta.error.cache as Error)!.message).toContain("timeout");
 	});
 });

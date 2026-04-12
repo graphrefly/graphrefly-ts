@@ -23,12 +23,12 @@ describe("fromHTTP", () => {
 		const bundle = fromHTTP("https://example.com");
 		const unsub = bundle.node.subscribe(() => {});
 
-		await vi.waitUntil(() => bundle.node.get() !== undefined);
+		await vi.waitUntil(() => bundle.node.cache !== undefined);
 
-		expect(bundle.node.get()).toEqual(mockData);
-		expect(bundle.status.get()).toBe("completed");
-		expect(bundle.fetchCount.get()).toBe(1);
-		expect(bundle.lastUpdated.get()).toBeGreaterThan(0);
+		expect(bundle.node.cache).toEqual(mockData);
+		expect(bundle.status.cache).toBe("completed");
+		expect(bundle.fetchCount.cache).toBe(1);
+		expect(bundle.lastUpdated.cache).toBeGreaterThan(0);
 		expect(global.fetch).toHaveBeenCalledWith("https://example.com", expect.any(Object));
 		unsub();
 	});
@@ -43,11 +43,11 @@ describe("fromHTTP", () => {
 		const bundle = fromHTTP("https://example.com");
 		const unsub = bundle.node.subscribe(() => {});
 
-		await vi.waitUntil(() => bundle.status.get() === "errored");
+		await vi.waitUntil(() => bundle.status.cache === "errored");
 
-		expect(bundle.status.get()).toBe("errored");
-		expect(bundle.error.get()).toBeInstanceOf(Error);
-		expect((bundle.error.get() as Error).message).toContain("HTTP 404");
+		expect(bundle.status.cache).toBe("errored");
+		expect(bundle.error.cache).toBeInstanceOf(Error);
+		expect((bundle.error.cache as Error).message).toContain("HTTP 404");
 		unsub();
 	});
 
@@ -57,10 +57,10 @@ describe("fromHTTP", () => {
 		const bundle = fromHTTP("https://example.com");
 		const unsub = bundle.node.subscribe(() => {});
 
-		await vi.waitUntil(() => bundle.status.get() === "errored");
+		await vi.waitUntil(() => bundle.status.cache === "errored");
 
-		expect(bundle.error.get()).toBeInstanceOf(Error);
-		expect((bundle.error.get() as Error).message).toBe("Network failure");
+		expect(bundle.error.cache).toBeInstanceOf(Error);
+		expect((bundle.error.cache as Error).message).toBe("Network failure");
 		unsub();
 	});
 });

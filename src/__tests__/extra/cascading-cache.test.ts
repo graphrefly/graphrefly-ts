@@ -64,7 +64,7 @@ describe("cascadingCache", () => {
 
 		const c = cascadingCache([hot, cold]);
 		const nd = c.load("x");
-		expect(nd.get()).toBe(42);
+		expect(nd.cache).toBe(42);
 		// Auto-promoted to hot tier
 		expect(hot.store.get("x")).toBe(42);
 	});
@@ -82,9 +82,9 @@ describe("cascadingCache", () => {
 		const tier = memTier<string>();
 		const c = cascadingCache([tier]);
 		const nd = c.load("k"); // undefined
-		expect(nd.get()).toBeUndefined();
+		expect(nd.cache).toBeUndefined();
 		c.save("k", "hello");
-		expect(nd.get()).toBe("hello");
+		expect(nd.cache).toBe("hello");
 		expect(tier.store.get("k")).toBe("hello");
 	});
 
@@ -93,7 +93,7 @@ describe("cascadingCache", () => {
 		const c = cascadingCache([tier]);
 		c.save("new", 99);
 		expect(c.has("new")).toBe(true);
-		expect(c.load("new").get()).toBe(99);
+		expect(c.load("new").cache).toBe(99);
 	});
 
 	it("writeThrough saves to all tiers", () => {
@@ -120,13 +120,13 @@ describe("cascadingCache", () => {
 		cold.store.set("k", 10);
 		const c = cascadingCache([hot, cold]);
 		const nd = c.load("k");
-		expect(nd.get()).toBe(10);
+		expect(nd.cache).toBe(10);
 
 		// Change cold tier value
 		cold.store.set("k", 20);
 		hot.store.delete("k"); // clear hot cache
 		c.invalidate("k");
-		expect(nd.get()).toBe(20);
+		expect(nd.cache).toBe(20);
 		// Re-promoted to hot
 		expect(hot.store.get("k")).toBe(20);
 	});
@@ -188,13 +188,13 @@ describe("cascadingCache", () => {
 		const good = memTier<number>();
 		good.store.set("k", 42);
 		const c = cascadingCache([broken, good]);
-		expect(c.load("k").get()).toBe(42);
+		expect(c.load("k").cache).toBe(42);
 	});
 
 	it("all tiers miss → value stays undefined", () => {
 		const empty = memTier<number>();
 		const c = cascadingCache([empty]);
-		expect(c.load("missing").get()).toBeUndefined();
+		expect(c.load("missing").cache).toBeUndefined();
 	});
 });
 
@@ -205,7 +205,7 @@ describe("tieredStorage", () => {
 
 		const ts = tieredStorage([mem]);
 		const nd = ts.load("k");
-		expect(nd.get()).toEqual({ value: 42 });
+		expect(nd.cache).toEqual({ value: 42 });
 	});
 
 	it("save/load/invalidate/delete/has/size work", () => {
@@ -214,10 +214,10 @@ describe("tieredStorage", () => {
 		ts.save("x", "hello");
 		expect(ts.has("x")).toBe(true);
 		expect(ts.size).toBe(1);
-		expect(ts.load("x").get()).toBe("hello");
+		expect(ts.load("x").cache).toBe("hello");
 
 		ts.invalidate("x");
-		expect(ts.load("x").get()).toBe("hello"); // re-cascaded from adapter
+		expect(ts.load("x").cache).toBe("hello"); // re-cascaded from adapter
 
 		ts.delete("x");
 		expect(ts.has("x")).toBe(false);

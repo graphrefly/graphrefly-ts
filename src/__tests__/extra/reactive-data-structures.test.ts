@@ -27,13 +27,13 @@ describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 		lg.append("a");
 		lg.append("b");
 		const tail = lg.tail(1);
-		expect(tail.get()).toEqual(["b"]);
+		expect(tail.cache).toEqual(["b"]);
 	});
 
 	it("logSlice matches tuple slice semantics", () => {
 		const lg = reactiveLog([0, 1, 2, 3]);
 		const sl = logSlice(lg, 1, 3);
-		expect(sl.get()).toEqual([1, 2]);
+		expect(sl.cache).toEqual([1, 2]);
 	});
 });
 
@@ -42,16 +42,16 @@ describe("extra reactiveIndex (roadmap §3.2)", () => {
 		const idx = reactiveIndex<string, string>();
 		idx.upsert("p1", 10, "a");
 		idx.upsert("p2", 5, "b");
-		expect(idx.byPrimary.get()).toEqual(
+		expect(idx.byPrimary.cache).toEqual(
 			new Map([
 				["p1", "a"],
 				["p2", "b"],
 			]),
 		);
-		const ordered = idx.ordered.get() as readonly { primary: string }[];
+		const ordered = idx.ordered.cache as readonly { primary: string }[];
 		expect(ordered.map((r) => r.primary)).toEqual(["p2", "p1"]);
 		idx.delete("p2");
-		const m = idx.byPrimary.get() as Map<string, string>;
+		const m = idx.byPrimary.cache as Map<string, string>;
 		expect([...m.keys()]).toEqual(["p1"]);
 	});
 });
@@ -61,9 +61,9 @@ describe("extra reactiveList (roadmap §3.2)", () => {
 		const lst = reactiveList<number>();
 		lst.append(1);
 		lst.insert(0, 0);
-		expect(lst.items.get()).toEqual([0, 1]);
+		expect(lst.items.cache).toEqual([0, 1]);
 		expect(lst.pop()).toBe(1);
-		expect(lst.items.get()).toEqual([0]);
+		expect(lst.items.cache).toEqual([0]);
 	});
 });
 

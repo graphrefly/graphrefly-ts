@@ -157,8 +157,14 @@ export interface NodeOptions<T = unknown> {
 	meta?: Record<string, unknown>;
 	resubscribable?: boolean;
 	resetOnTeardown?: boolean;
-	/** Auto-emit `[[COMPLETE]]` when all deps are terminal. Default `true`. */
+	/** Auto-emit `[[COMPLETE]]` when all deps complete. Default `true`. */
 	completeWhenDepsComplete?: boolean;
+	/**
+	 * Auto-propagate `[[ERROR]]` when any dep errors. Default `true`.
+	 * Set `false` only for rescue/catchError operators that handle errors
+	 * explicitly via `ctx.terminalDeps`.
+	 */
+	errorWhenDepsError?: boolean;
 	/**
 	 * Tier-2 PAUSE/RESUME handling.
 	 * - `true` (default): wave completion suppressed while paused; fn fires
@@ -425,6 +431,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _resubscribable: boolean;
 	readonly _resetOnTeardown: boolean;
 	readonly _autoComplete: boolean;
+	readonly _autoError: boolean;
 	readonly _pausable: boolean | "resumeAll";
 	readonly _guard: NodeGuard | undefined;
 	readonly _hashFn: HashFn;
@@ -451,6 +458,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._resubscribable = opts.resubscribable ?? false;
 		this._resetOnTeardown = opts.resetOnTeardown ?? false;
 		this._autoComplete = opts.completeWhenDepsComplete ?? true;
+		this._autoError = opts.errorWhenDepsError ?? true;
 		this._pausable = opts.pausable ?? true;
 		this._guard = opts.guard;
 		this._fn = fn;
@@ -893,16 +901,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	private _maybeAutoTerminalAfterWave(): void {
-		if (!this._autoComplete) return;
 		if (this._deps.length === 0) return;
 		if (this._isTerminal) return;
-		// Any dep with a non-`true` terminal value is errored; emit its payload.
+		// ERROR always propagates (unless rescue operator opts out via
+		// errorWhenDepsError: false). Checked independently of _autoComplete
+		// so operators with completeWhenDepsComplete: false still get
+		// automatic error forwarding.
 		const erroredDep = this._deps.find((d) => d.terminal !== undefined && d.terminal !== true);
 		if (erroredDep != null) {
-			this._emit([[ERROR, erroredDep.terminal]]);
+			if (this._autoError) {
+				this._emit([[ERROR, erroredDep.terminal]]);
+			}
 			return;
 		}
-		if (this._deps.every((d) => d.terminal !== undefined)) {
+		// COMPLETE only when autoComplete is true and ALL deps are terminal.
+		if (this._autoComplete && this._deps.every((d) => d.terminal !== undefined)) {
 			this._emit([[COMPLETE]]);
 		}
 	}

@@ -382,8 +382,8 @@ describe("toPostgres", () => {
 		const src = fromIter([1]);
 		const handle = toPostgres(src, client, "t");
 		await tick();
-		expect(handle.errors.get()).not.toBeNull();
-		expect((handle.errors.get() as { stage: string }).stage).toBe("send");
+		expect(handle.errors.cache).not.toBeNull();
+		expect((handle.errors.cache as { stage: string }).stage).toBe("send");
 		handle.dispose();
 	});
 });
@@ -730,8 +730,8 @@ describe("toSqlite", () => {
 		};
 		const src = fromIter([1]);
 		const handle = toSqlite(src, db, "t");
-		expect(handle.errors.get()).not.toBeNull();
-		expect((handle.errors.get() as { stage: string }).stage).toBe("send");
+		expect(handle.errors.cache).not.toBeNull();
+		expect((handle.errors.cache as { stage: string }).stage).toBe("send");
 		handle.dispose();
 	});
 

@@ -186,7 +186,7 @@ export function cascadingCache<V>(
 			} catch {
 				continue; // tier threw — skip to next
 			}
-			if (result != null) {
+			if (result !== undefined) {
 				nd.down([[DATA, result]]);
 				promote(key, result, tierIndex);
 				return;
@@ -205,7 +205,7 @@ export function cascadingCache<V>(
 				if (nd) {
 					// Demote to deepest tier with save before evicting
 					const value = nd.cache;
-					if (value != null) {
+					if (nd.status !== "sentinel") {
 						for (let i = tiers.length - 1; i >= 0; i--) {
 							if (tiers[i].save) {
 								tiers[i].save!(key, value);
