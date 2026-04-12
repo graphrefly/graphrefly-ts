@@ -44,7 +44,6 @@ export {
 	defaultConfig,
 	type DepRecord,
 	type FnCtx,
-	type Maybe,
 	type Node,
 	type NodeDescribeKind,
 	type NodeFn,

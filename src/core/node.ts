@@ -67,14 +67,6 @@ const NO_VALUE: unique symbol = Symbol.for("graphrefly/NO_VALUE");
 type NoValue = typeof NO_VALUE;
 
 /**
- * "Maybe" — value or absent. `undefined` and `null` are valid data payloads
- * in GraphReFly, so public accessors return `T | undefined | null`. Absence
- * of a value (sentinel / no-value-ever) is disambiguated through
- * `node.status === "sentinel"`.
- */
-export type Maybe<T> = T | undefined | null;
-
-/**
  * Internal "cached or sentinel" type for `_cached` and per-dep `latestData`.
  * The sentinel slot is only visible inside the core layer.
  */
@@ -161,7 +153,7 @@ export interface NodeOptions<T = unknown> {
 	 * Pre-populate the cache at construction. Key presence (`"initial" in opts`)
 	 * is what matters — `undefined` and `null` are valid initial values.
 	 */
-	initial?: Maybe<T>;
+	initial?: T | undefined | null;
 	meta?: Record<string, unknown>;
 	resubscribable?: boolean;
 	resetOnTeardown?: boolean;
@@ -197,7 +189,7 @@ export interface Node<T = unknown> {
 	 * cached values — use `node.status` to distinguish "absent" from
 	 * "present but undefined/null".
 	 */
-	readonly cache: Maybe<T>;
+	readonly cache: T | undefined | null;
 	readonly meta: Record<string, Node>;
 	readonly lastMutation: Readonly<{ actor: Actor; timestamp_ns: number }> | undefined;
 	readonly v: Readonly<NodeVersionInfo> | undefined;
@@ -293,14 +285,17 @@ const defaultBundle: BundleFactory = (node: NodeCtx, initial: Messages): Bundle 
 			msgs.push(...more);
 			return bundle;
 		},
-		resolve(_direction?: "down" | "up"): Messages {
-			// Stable tier sort.
+		resolve(direction?: "down" | "up"): Messages {
+			// Stable tier sort (both directions).
 			const indexed = msgs.map((m, i) => ({ m, i, tier: tierOf(m[0]) }));
 			indexed.sort((a, b) => a.tier - b.tier || a.i - b.i);
 			const sorted = indexed.map((x) => x.m);
-			// Auto-inject DIRTY iff tier-3 present, no DIRTY already present,
-			// and node is not already dirty. Insert AFTER any tier-0 messages
-			// to preserve monotone tier order.
+			// Up direction: tier-sorted only. DIRTY auto-prefix is a
+			// downstream two-phase concept; upstream signals are pass-through.
+			if (direction === "up") return sorted;
+			// Down direction (default): auto-inject DIRTY iff tier-3 present,
+			// no DIRTY already present, and node is not already dirty.
+			// Insert AFTER any tier-0 messages to preserve monotone tier order.
 			const hasTier3 = sorted.some((m) => tierOf(m[0]) === 3);
 			const hasDirty = sorted.some((m) => m[0] === DIRTY);
 			if (hasTier3 && !hasDirty && impl._status !== "dirty") {
@@ -308,12 +303,11 @@ const defaultBundle: BundleFactory = (node: NodeCtx, initial: Messages): Bundle 
 				while (insertAt < sorted.length && tierOf(sorted[insertAt][0]) === 0) {
 					insertAt += 1;
 				}
-				const framed: Message[] = [
+				return [
 					...sorted.slice(0, insertAt),
-					[DIRTY],
+					[DIRTY] as Message,
 					...sorted.slice(insertAt),
 				];
-				return framed;
 			}
 			return sorted;
 		},
@@ -425,6 +419,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_cleanup: NodeFnCleanup | undefined;
 	_store: Record<string, unknown> = {};
 	_waveHasNewData = false;
+	_hasNewTerminal = false;
 	_hasCalledFnOnce = false;
 	_paused = false;
 	_pendingWave = false;
@@ -547,7 +542,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return this._status;
 	}
 
-	get cache(): Maybe<T> {
+	get cache(): T | undefined | null {
 		return this._cached === NO_VALUE ? undefined : (this._cached as T);
 	}
 
@@ -568,43 +563,35 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return this._guard(normalizeActor(actor), "observe");
 	}
 
+	// --- Guard helper ---
+
+	private _checkGuard(options?: NodeTransportOptions): void {
+		if (options?.internal || this._guard == null) return;
+		const actor = normalizeActor(options?.actor);
+		const action: GuardAction = options?.delivery === "signal" ? "signal" : "write";
+		if (!this._guard(actor, action)) {
+			throw new GuardDenied({ actor, action, nodeName: this.name });
+		}
+		this._lastMutation = { actor, timestamp_ns: wallClockNs() };
+	}
+
 	// --- Public transport ---
 
 	down(messages: Messages, options?: NodeTransportOptions): void {
 		if (messages.length === 0) return;
-		if (!options?.internal && this._guard != null) {
-			const actor = normalizeActor(options?.actor);
-			const action: GuardAction = options?.delivery === "signal" ? "signal" : "write";
-			if (!this._guard(actor, action)) {
-				throw new GuardDenied({ actor, action, nodeName: this.name });
-			}
-			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
-		}
+		this._checkGuard(options);
 		this._emit(messages);
 	}
 
 	emit(value: T, options?: NodeTransportOptions): void {
-		if (!options?.internal && this._guard != null) {
-			const actor = normalizeActor(options?.actor);
-			const action: GuardAction = options?.delivery === "signal" ? "signal" : "write";
-			if (!this._guard(actor, action)) {
-				throw new GuardDenied({ actor, action, nodeName: this.name });
-			}
-			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
-		}
+		this._checkGuard(options);
 		this._actionEmit(value);
 	}
 
 	up(messages: Messages, options?: NodeTransportOptions): void {
 		if (this._deps.length === 0) return;
 		if (messages.length === 0) return;
-		if (!options?.internal && this._guard != null) {
-			const actor = normalizeActor(options?.actor);
-			if (!this._guard(actor, "write")) {
-				throw new GuardDenied({ actor, action: "write", nodeName: this.name });
-			}
-			this._lastMutation = { actor, timestamp_ns: wallClockNs() };
-		}
+		this._checkGuard(options);
 		const forwardOpts: NodeTransportOptions = options ?? { internal: true };
 		for (const d of this._deps) {
 			d.node.up?.(messages, forwardOpts);
@@ -666,20 +653,24 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (removed) return;
 			removed = true;
 			this._sinkCount -= 1;
-			if (this._sinks === sink) {
-				this._sinks = null;
-			} else if (this._sinks != null && typeof this._sinks !== "function") {
-				this._sinks.delete(sink);
-				if (this._sinks.size === 1) {
-					const [only] = this._sinks;
-					this._sinks = only;
-				} else if (this._sinks.size === 0) {
-					this._sinks = null;
-				}
-			}
+			this._removeSink(sink);
 			if (typeof subCleanup === "function") subCleanup();
 			if (this._sinks == null) this._deactivate();
 		};
+	}
+
+	private _removeSink(sink: NodeSink): void {
+		if (this._sinks === sink) {
+			this._sinks = null;
+		} else if (this._sinks != null && typeof this._sinks !== "function") {
+			this._sinks.delete(sink);
+			if (this._sinks.size === 1) {
+				const [only] = this._sinks;
+				this._sinks = only;
+			} else if (this._sinks.size === 0) {
+				this._sinks = null;
+			}
+		}
 	}
 
 	// --- Lifecycle ---
@@ -774,10 +765,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		if (!skipStatusUpdate) {
-			// ROM rule: state nodes (no fn, no deps) preserve status across
-			// disconnect. Compute nodes → "sentinel".
-			if (this._fn != null || this._deps.length > 0) {
-				if (!this._isTerminal) this._status = "sentinel";
+			// Compute nodes → "sentinel" (cache cleared, no value). State
+			// nodes preserve status (ROM: value is intrinsic, disconnect is
+			// a subscriber lifecycle event, not a value lifecycle event).
+			if ((this._fn != null || this._deps.length > 0) && !this._isTerminal) {
+				this._status = "sentinel";
 			}
 		}
 	}
@@ -845,11 +837,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		} else if (t === COMPLETE) {
 			dep.terminal = true;
 			dep.dirty = false;
+			this._hasNewTerminal = true;
 		} else if (t === ERROR) {
-			// Store raw error payload in the same slot. `undefined` payload
-			// is indistinguishable from "live" — documented edge case.
 			dep.terminal = msg[1];
 			dep.dirty = false;
+			this._hasNewTerminal = true;
 		} else {
 			// Unknown type: forward as-is (spec §1.3.6 forward-compat).
 			this._emit([msg]);
@@ -900,7 +892,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Pre-fn skip: when no dep sent DATA this wave (all RESOLVED), skip
 		// fn and emit RESOLVED directly. Transitive-skip optimization — leaf
 		// fn is not re-run when a mid-chain node produces the same value.
-		if (!this._waveHasNewData && this._hasCalledFnOnce) {
+		if (!this._waveHasNewData && !this._hasNewTerminal && this._hasCalledFnOnce) {
 			this._clearWaveFlags();
 			this._emit([[RESOLVED]]);
 			this._maybeAutoTerminalAfterWave();
@@ -981,6 +973,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	private _clearWaveFlags(): void {
 		this._waveHasNewData = false;
+		this._hasNewTerminal = false;
 		for (const d of this._deps) d.dataThisWave = false;
 	}
 

@@ -307,6 +307,8 @@ describe("node primitive", () => {
 		expect(source.cache).toBeUndefined();
 		expect(hop.cache).toBeUndefined();
 		expect(leaf.cache).toBeUndefined();
+		// ROM rule: state nodes preserve status across disconnect.
+		// INVALIDATE set "dirty"; unsub() doesn't change that.
 		expect(source.status).toBe("dirty");
 	});
 
@@ -781,9 +783,13 @@ describe("connect-order re-entrancy guard", () => {
 		d.subscribe(() => undefined);
 		expect(recompute).toBe(1);
 		src.down([[COMPLETE]]);
+		// fn runs once more on the terminal event so operators like
+		// last()/reduce can emit final values via ctx.terminalDeps.
+		expect(recompute).toBe(2);
 		expect(d.status).toBe("completed");
 		src.down([[DIRTY], [DATA, 2]]);
-		expect(recompute).toBe(1);
+		// After completion, no further recomputes.
+		expect(recompute).toBe(2);
 	});
 
 	it("TEARDOWN after COMPLETE runs lifecycle and reaches sinks (B3)", () => {

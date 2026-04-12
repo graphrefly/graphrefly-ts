@@ -14,7 +14,6 @@
 import type { NodeActions } from "./config.js";
 import {
 	type FnCtx,
-	type Maybe,
 	type Node,
 	node,
 	type NodeFn,
@@ -89,7 +88,7 @@ export function producer<T = unknown>(
  * For derived nodes that need to inspect `ctx.dataFrom` / `ctx.terminalDeps`
  * / `ctx.store`, accept the optional second parameter.
  */
-export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => Maybe<T>;
+export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefined | null;
 
 /**
  * Creates a derived node from dependencies and a compute function.
@@ -159,7 +158,7 @@ export function effect(
 export type TrackFn = (dep: Node) => unknown;
 
 /** User-level dynamicNode compute. */
-export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => Maybe<T>;
+export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
 
 /**
  * Sugar over `derived(...)` that exposes dep values via a `track(dep)`
