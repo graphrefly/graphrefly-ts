@@ -14,6 +14,7 @@ import {
 } from "../../core/messages.js";
 import { describeNode, metaSnapshot } from "../../core/meta.js";
 import { node } from "../../core/node.js";
+import { derived } from "../../core/sugar.js";
 
 describe("node primitive", () => {
 	it("source node emits messages to subscribers", () => {
@@ -25,7 +26,7 @@ describe("node primitive", () => {
 
 		s.down([[DIRTY], [DATA, 1]]);
 
-		expect(s.get()).toBe(1);
+		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
 		// SENTINEL node: subscribe delivers [[START]] alone (no cached value).
 		// The explicit DIRTY+DATA batch is partitioned by tier: DIRTY (tier 1)
@@ -37,27 +38,27 @@ describe("node primitive", () => {
 
 	it("derived node emits RESOLVED when equals says unchanged", () => {
 		const source = node<number>({ initial: 1 });
-		const derived = node([source], ([v]) => ((v as number) > 0 ? "positive" : "other"), {
+		const d = derived([source], ([v]) => ((v as number) > 0 ? "positive" : "other"), {
 			equals: (a, b) => a === b,
 		});
 		const seen: symbol[][] = [];
-		const unsub = derived.subscribe((messages) => {
+		const unsub = d.subscribe((messages) => {
 			seen.push(messages.map((m) => m[0] as symbol));
 		});
 
 		source.down([[DATA, 2]]);
 
-		expect(derived.get()).toBe("positive");
+		expect(d.cache).toBe("positive");
 		expect(seen).toContainEqual([RESOLVED]);
 		unsub();
 	});
 
 	it("diamond settles once per upstream change", () => {
 		const a = node<number>({ initial: 0 });
-		const b = node([a], ([v]) => (v as number) + 1);
-		const c = node([a], ([v]) => (v as number) + 2);
+		const b = derived([a], ([v]) => (v as number) + 1);
+		const c = derived([a], ([v]) => (v as number) + 2);
 		let dRuns = 0;
-		const d = node([b, c], ([bv, cv]) => {
+		const d = derived([b, c], ([bv, cv]) => {
 			dRuns += 1;
 			return (bv as number) + (cv as number);
 		});
@@ -68,13 +69,13 @@ describe("node primitive", () => {
 		const after = dRuns;
 
 		expect(after - before).toBe(1);
-		expect(d.get()).toBe(13);
+		expect(d.cache).toBe(13);
 		unsub();
 	});
 
 	it("fn throw is forwarded as ERROR downstream", () => {
 		const source = node<number>({ initial: 0 });
-		const broken = node([source], () => {
+		const broken = derived([source], () => {
 			throw new Error("boom");
 		});
 		const seen: symbol[] = [];
@@ -99,11 +100,11 @@ describe("node primitive", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.3 — RESOLVED enables transitive skip (leaf fn not re-run).
 	it("RESOLVED on mid skips leaf compute when value unchanged", () => {
 		const source = node<number>({ initial: 0 });
-		const mid = node([source], ([v]) => ((v as number) > 0 ? "p" : "n"), {
+		const mid = derived([source], ([v]) => ((v as number) > 0 ? "p" : "n"), {
 			equals: (a, b) => a === b,
 		});
 		let leafRuns = 0;
-		const leaf = node([mid], ([m]) => {
+		const leaf = derived([mid], ([m]) => {
 			leafRuns += 1;
 			return m;
 		});
@@ -122,7 +123,7 @@ describe("node primitive", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.4 — ERROR is terminal (no further downstream messages).
 	it("after ERROR, non-resubscribable node does not emit to sinks again", () => {
 		const source = node<number>();
-		const broken = node([source], () => {
+		const broken = derived([source], () => {
 			throw new Error("boom");
 		});
 		let deliveries = 0;
@@ -144,7 +145,7 @@ describe("node primitive", () => {
 	it("custom equals is not called with undefined on first computation", () => {
 		const source = node<number>({ initial: 1 });
 		let equalsCalled = false;
-		const mid = node([source], ([v]) => new Map([["k", v]]), {
+		const mid = derived([source], ([v]) => new Map([["k", v]]), {
 			equals: (a, b) => {
 				equalsCalled = true;
 				// This would crash if a were undefined: (a as Map<...>).size
@@ -165,7 +166,7 @@ describe("node primitive", () => {
 	it("ERROR message tuple contains the exact thrown Error instance as payload", () => {
 		const source = node<number>({ initial: 0 });
 		const theError = new Error("exact-instance");
-		const broken = node([source], () => {
+		const broken = derived([source], () => {
 			throw theError;
 		});
 		const collected: unknown[][] = [];
@@ -192,9 +193,9 @@ describe("node primitive", () => {
 	it("resetOnTeardown clears cached value on TEARDOWN", () => {
 		const n = node<number>({ initial: 42, resetOnTeardown: true });
 		const unsub = n.subscribe(() => undefined);
-		expect(n.get()).toBe(42);
+		expect(n.cache).toBe(42);
 		n.down([[TEARDOWN]]);
-		expect(n.get()).toBeUndefined();
+		expect(n.cache).toBeUndefined();
 		unsub();
 	});
 
@@ -215,7 +216,7 @@ describe("node primitive", () => {
 		unsub2();
 
 		expect(seen).toContain(COMPLETE);
-		expect(n.get()).toBe(2);
+		expect(n.cache).toBe(2);
 	});
 
 	it("passthrough node forwards unknown message types", () => {
@@ -254,9 +255,9 @@ describe("node primitive", () => {
 
 	it("forwards PAUSE and RESUME through a derived node", () => {
 		const source = node<number>({ initial: 0 });
-		const derived = node([source], ([v]) => v as number);
+		const d = derived([source], ([v]) => v as number);
 		const seen: symbol[] = [];
-		const unsub = derived.subscribe((messages) => {
+		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
 				seen.push(m[0] as symbol);
 			}
@@ -272,8 +273,8 @@ describe("node primitive", () => {
 
 	it("forwards PAUSE then RESUME through multi-hop derived chain", () => {
 		const source = node<number>({ initial: 1 });
-		const hop = node([source], ([v]) => v as number);
-		const leaf = node([hop], ([v]) => (v as number) * 2);
+		const hop = derived([source], ([v]) => v as number);
+		const leaf = derived([hop], ([v]) => (v as number) * 2);
 		const seen: symbol[] = [];
 		const unsub = leaf.subscribe((messages) => {
 			for (const m of messages) {
@@ -291,46 +292,46 @@ describe("node primitive", () => {
 
 	it("INVALIDATE propagates and clears caches along multi-hop derived chain", () => {
 		const source = node<number>({ initial: 42 });
-		const hop = node([source], ([v]) => v as number);
-		const leaf = node([hop], ([v]) => (v as number) + 1);
+		const hop = derived([source], ([v]) => v as number);
+		const leaf = derived([hop], ([v]) => (v as number) + 1);
 		let sawInvalidate = false;
 		const unsub = leaf.subscribe((messages) => {
 			sawInvalidate ||= messages.some((m) => m[0] === INVALIDATE);
 		});
 
-		expect(leaf.get()).toBe(43);
+		expect(leaf.cache).toBe(43);
 		source.down([[INVALIDATE]]);
 		unsub();
 
 		expect(sawInvalidate).toBe(true);
-		expect(source.get()).toBeUndefined();
-		expect(hop.get()).toBeUndefined();
-		expect(leaf.get()).toBeUndefined();
+		expect(source.cache).toBeUndefined();
+		expect(hop.cache).toBeUndefined();
+		expect(leaf.cache).toBeUndefined();
 		expect(source.status).toBe("dirty");
 	});
 
 	it("INVALIDATE clears dep memo so identical DATA triggers recompute", () => {
 		const source = node<number>({ initial: 7 });
 		let runs = 0;
-		const d = node([source], ([v]) => {
+		const d = derived([source], ([v]) => {
 			runs += 1;
 			return (v as number) + 1;
 		});
 		const unsub = d.subscribe(() => undefined);
 		expect(runs).toBe(1);
-		expect(d.get()).toBe(8);
+		expect(d.cache).toBe(8);
 		source.down([[INVALIDATE]]);
 		source.down([[DIRTY], [DATA, 7]]);
 
 		expect(runs).toBe(2);
-		expect(d.get()).toBe(8);
+		expect(d.cache).toBe(8);
 		unsub();
 	});
 
 	it("supports node(fn, opts) producer form", () => {
 		const p = node(
-			(_deps, { down }) => {
-				down([[DATA, 42]]);
+			(_data, actions) => {
+				actions.down([[DATA, 42]]);
 			},
 			{ name: "producer-like" },
 		);
@@ -354,11 +355,11 @@ describe("node primitive", () => {
 	it("completeWhenDepsComplete: false suppresses auto-COMPLETE", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
-		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number), {
+		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number), {
 			completeWhenDepsComplete: false,
 		});
 		const seen: symbol[] = [];
-		const unsub = derived.subscribe((messages) => {
+		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
 				seen.push(m[0] as symbol);
 			}
@@ -369,15 +370,15 @@ describe("node primitive", () => {
 		unsub();
 
 		expect(seen).not.toContain(COMPLETE);
-		expect(derived.status).not.toBe("completed");
+		expect(d.status).not.toBe("completed");
 	});
 
 	it("completeWhenDepsComplete: true (default) emits COMPLETE when all deps complete", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
-		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
 		const seen: symbol[] = [];
-		const unsub = derived.subscribe((messages) => {
+		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
 				seen.push(m[0] as symbol);
 			}
@@ -399,7 +400,7 @@ describe("node primitive", () => {
 		}
 
 		let fnRuns = 0;
-		const sum = node(sources, (deps) => {
+		const sum = derived(sources, (deps) => {
 			fnRuns += 1;
 			return (deps as number[]).reduce((a, b) => a + b, 0);
 		});
@@ -412,7 +413,7 @@ describe("node primitive", () => {
 
 		expect(fnRuns - before).toBe(1);
 		// Original sum: 0+1+...+39 = 780. Replace 35 with 100: 780 - 35 + 100 = 845
-		expect(sum.get()).toBe(845);
+		expect(sum.cache).toBe(845);
 		unsub();
 	});
 
@@ -423,7 +424,7 @@ describe("node primitive", () => {
 		}
 
 		let fnRuns = 0;
-		const combined = node(sources, (deps) => {
+		const combined = derived(sources, (deps) => {
 			fnRuns += 1;
 			return (deps as number[]).reduce((a, b) => a + b, 0);
 		});
@@ -438,7 +439,7 @@ describe("node primitive", () => {
 		});
 
 		expect(fnRuns - before).toBe(1);
-		expect(combined.get()).toBe(30);
+		expect(combined.cache).toBe(30);
 		unsub();
 	});
 
@@ -448,7 +449,7 @@ describe("node primitive", () => {
 			sources.push(node<number>({ initial: i }));
 		}
 
-		const combined = node(sources, (deps) => (deps as number[]).reduce((a, b) => a + b, 0));
+		const combined = derived(sources, (deps) => (deps as number[]).reduce((a, b) => a + b, 0));
 		const seen: symbol[] = [];
 		const unsub = combined.subscribe((messages) => {
 			for (const m of messages) {
@@ -469,26 +470,26 @@ describe("node primitive", () => {
 		expect(seen).toContain(COMPLETE);
 	});
 
-	it("single-dep optimization: chain computes correctly with skipped DIRTY", () => {
+	it("chain computes correctly through derived nodes", () => {
 		const source = node<number>({ initial: 0 });
-		const derived = node([source], ([v]) => (v as number) * 2);
-		const leaf = node([derived], ([v]) => (v as number) + 100);
+		const d1 = derived([source], ([v]) => (v as number) * 2);
+		const leaf = derived([d1], ([v]) => (v as number) + 100);
 		const unsub = leaf.subscribe(() => undefined);
 
 		source.down([[DIRTY], [DATA, 5]]);
 
-		// Values propagate correctly through optimized chain
-		expect(derived.get()).toBe(10);
-		expect(leaf.get()).toBe(110);
+		// Values propagate correctly through chain
+		expect(d1.cache).toBe(10);
+		expect(leaf.cache).toBe(110);
 		unsub();
 	});
 
-	it("single-dep optimization: diamond still settles once", () => {
+	it("diamond still settles once", () => {
 		const a = node<number>({ initial: 0 });
-		const b = node([a], ([v]) => (v as number) + 1);
-		const c = node([a], ([v]) => (v as number) + 2);
+		const b = derived([a], ([v]) => (v as number) + 1);
+		const c = derived([a], ([v]) => (v as number) + 2);
 		let dRuns = 0;
-		const d = node([b, c], ([bv, cv]) => {
+		const d = derived([b, c], ([bv, cv]) => {
 			dRuns += 1;
 			return (bv as number) + (cv as number);
 		});
@@ -498,17 +499,16 @@ describe("node primitive", () => {
 		a.down([[DIRTY], [DATA, 5]]);
 		const after = dRuns;
 
-		// a has two subscribers (b, c) → optimization disabled on a
 		// Diamond settlement works correctly
 		expect(after - before).toBe(1);
-		expect(d.get()).toBe(13);
+		expect(d.cache).toBe(13);
 		unsub();
 	});
 
-	it("single-dep optimization: disabled when second subscriber joins", () => {
+	it("DIRTY is always delivered to subscribers", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = node([source], ([v]) => (v as number) + 1);
-		const d2 = node([source], ([v]) => (v as number) + 2);
+		const d1 = derived([source], ([v]) => (v as number) + 1);
+		const d2 = derived([source], ([v]) => (v as number) + 2);
 
 		const e1: symbol[][] = [];
 		const e2: symbol[][] = [];
@@ -525,21 +525,21 @@ describe("node primitive", () => {
 		unsub1();
 		unsub2();
 
-		// source has two subscribers → DIRTY not skipped
+		// DIRTY is always present
 		const allTypes1 = e1.flat();
 		const allTypes2 = e2.flat();
 		expect(allTypes1).toContain(DIRTY);
 		expect(allTypes2).toContain(DIRTY);
 	});
 
-	it("single-dep optimization: handles RESOLVED for unchanged values", () => {
+	it("handles RESOLVED for unchanged values", () => {
 		const source = node<number>({ initial: 1 });
-		const derived = node([source], ([v]) => ((v as number) > 0 ? "positive" : "negative"));
-		const unsub1 = derived.subscribe(() => undefined);
+		const d = derived([source], ([v]) => ((v as number) > 0 ? "positive" : "negative"));
+		const unsub1 = d.subscribe(() => undefined);
 
 		const emissions: symbol[][] = [];
 		unsub1();
-		const unsub2 = derived.subscribe((msgs) => {
+		const unsub2 = d.subscribe((msgs) => {
 			emissions.push(msgs.map((m) => m[0] as symbol));
 		});
 
@@ -547,7 +547,7 @@ describe("node primitive", () => {
 		// Value changes but derived result stays "positive"
 		source.down([[DIRTY], [DATA, 2]]);
 
-		expect(derived.get()).toBe("positive");
+		expect(d.cache).toBe("positive");
 		// Should emit RESOLVED (not DATA) since value unchanged
 		const allTypes = emissions.flat();
 		expect(allTypes).toContain(RESOLVED);
@@ -555,53 +555,11 @@ describe("node primitive", () => {
 		unsub2();
 	});
 
-	it("single-dep optimization: re-enabled when subscriber count drops to one", () => {
+	it("standalone DIRTY passes through to derived nodes", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = node([source], ([v]) => (v as number) + 1);
-		const d2 = node([source], ([v]) => (v as number) + 2);
-
-		const unsub1 = d1.subscribe(() => undefined);
-		const unsub2 = d2.subscribe(() => undefined);
-
-		// Two subscribers → optimization off on source
-		unsub2(); // d2 unsubscribes → back to one single-dep subscriber
-
-		source.down([[DIRTY], [DATA, 10]]);
-
-		// Values still correct after optimization re-engages
-		expect(d1.get()).toBe(11);
-		unsub1();
-	});
-
-	it("single-dep optimization: fewer sink calls in optimized chain", () => {
-		const source = node<number>({ initial: 0 });
-
-		// Manually subscribe to source to count calls
-		let callCount = 0;
-		const derived = node([source], ([v]) => {
-			callCount += 1;
-			return (v as number) * 2;
-		});
-		const leaf = node([derived], ([v]) => (v as number) + 100);
-		const unsub = leaf.subscribe(() => undefined);
-
-		callCount = 0;
-
-		// With optimization: source skips DIRTY to derived, derived gets one DATA call
-		// Without optimization: derived would get DIRTY then DATA (two calls to handleDepMessages)
-		source.down([[DIRTY], [DATA, 5]]);
-
-		// fn should still run exactly once
-		expect(callCount).toBe(1);
-		expect(leaf.get()).toBe(110);
-		unsub();
-	});
-
-	it("standalone DIRTY passes through even with single-dep optimization", () => {
-		const source = node<number>({ initial: 0 });
-		const derived = node([source], ([v]) => (v as number) * 2);
+		const d = derived([source], ([v]) => (v as number) * 2);
 		const seen: symbol[] = [];
-		const unsub = derived.subscribe((messages) => {
+		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
 				seen.push(m[0] as symbol);
 			}
@@ -619,12 +577,12 @@ describe("node primitive", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
 		let fnRuns = 0;
-		const derived = node([a, b], ([av, bv]) => {
+		const d = derived([a, b], ([av, bv]) => {
 			fnRuns += 1;
 			return (av as number) + (bv as number);
 		});
 
-		const unsub = derived.subscribe(() => undefined);
+		const unsub = d.subscribe(() => undefined);
 		const before = fnRuns;
 
 		// a sends DIRTY, then COMPLETEs instead of DATA/RESOLVED
@@ -635,7 +593,7 @@ describe("node primitive", () => {
 
 		// derived should still recompute with latest values
 		expect(fnRuns).toBeGreaterThan(before);
-		expect(derived.get()).toBe(11); // a=1 (initial, no DATA), b=10
+		expect(d.cache).toBe(11); // a=1 (initial, no DATA), b=10
 		unsub();
 	});
 
@@ -661,9 +619,9 @@ describe("node primitive", () => {
 
 	it("double-unsubscribe is safe", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = node([source], ([v]) => (v as number) + 1);
-		const d2 = node([source], ([v]) => (v as number) + 2);
-		const d3 = node([source], ([v]) => (v as number) + 3);
+		const d1 = derived([source], ([v]) => (v as number) + 1);
+		const d2 = derived([source], ([v]) => (v as number) + 2);
+		const d3 = derived([source], ([v]) => (v as number) + 3);
 
 		const unsub1 = d1.subscribe(() => undefined);
 		const unsub2 = d2.subscribe(() => undefined);
@@ -678,7 +636,7 @@ describe("node primitive", () => {
 
 		// Source should still work after all unsubs
 		source.down([[DIRTY], [DATA, 5]]);
-		expect(source.get()).toBe(5);
+		expect(source.cache).toBe(5);
 	});
 });
 
@@ -711,21 +669,21 @@ describe("D2: DIRTY→COMPLETE without DATA unsticks dirty node", () => {
 		const a = node({ initial: 1 });
 		const b = node({ initial: 2 });
 		const sinkMsgs: symbol[][] = [];
-		const derived = node([a, b], ([av, bv]) => {
+		const d = derived([a, b], ([av, bv]) => {
 			return (av as number) + (bv as number);
 		});
-		derived.subscribe((msgs) => {
+		d.subscribe((msgs) => {
 			sinkMsgs.push(msgs.map((m) => m[0] as symbol));
 		});
-		expect(derived.get()).toBe(3);
+		expect(d.cache).toBe(3);
 
 		// a goes DIRTY then COMPLETE without DATA
 		a.down([[DIRTY]]);
-		expect(derived.status).toBe("dirty");
+		expect(d.status).toBe("dirty");
 		a.down([[COMPLETE]]);
 		// Dep values unchanged → runFn fires the equality shortcut → RESOLVED
 		// Node must NOT stay stuck in "dirty".
-		expect(derived.status).not.toBe("dirty");
+		expect(d.status).not.toBe("dirty");
 		// Sinks should have received DIRTY then RESOLVED (value unchanged)
 		const flat = sinkMsgs.flat();
 		expect(flat).toContain(DIRTY);
@@ -735,36 +693,36 @@ describe("D2: DIRTY→COMPLETE without DATA unsticks dirty node", () => {
 	it("dep goes DIRTY then COMPLETE — multi-dep diamond unsticks", () => {
 		const a = node({ initial: 1 });
 		const b = node({ initial: 2 });
-		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number));
-		derived.subscribe(() => undefined);
+		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+		d.subscribe(() => undefined);
 
 		// Both deps go dirty, only b settles; a completes without DATA
 		a.down([[DIRTY]]);
 		b.down([[DIRTY]]);
-		expect(derived.status).toBe("dirty");
+		expect(d.status).toBe("dirty");
 		b.down([[DATA, 20]]);
 		// b settled but a still dirty → no recompute yet
 		a.down([[COMPLETE]]);
 		// Now a is done (no pending dirty bits) → derived should recompute
-		expect(derived.status).not.toBe("dirty");
-		expect(derived.get()).toBe(21); // 1 + 20
+		expect(d.status).not.toBe("dirty");
+		expect(d.cache).toBe(21); // 1 + 20
 	});
 });
 
-describe("D3: TEARDOWN updates status to disconnected", () => {
-	it("source node status becomes disconnected after TEARDOWN", () => {
+describe("D3: TEARDOWN updates status to sentinel", () => {
+	it("source node status becomes sentinel after TEARDOWN", () => {
 		const src = node({ initial: 1 });
 		expect(src.status).toBe("settled");
 		src.down([[TEARDOWN]]);
-		expect(src.status).toBe("disconnected");
+		expect(src.status).toBe("sentinel");
 	});
 
-	it("terminated node status becomes disconnected after TEARDOWN (B3)", () => {
+	it("terminated node status becomes sentinel after TEARDOWN (B3)", () => {
 		const src = node({ initial: 1 });
 		src.down([[COMPLETE]]);
 		expect(src.status).toBe("completed");
 		src.down([[TEARDOWN]]);
-		expect(src.status).toBe("disconnected");
+		expect(src.status).toBe("sentinel");
 	});
 });
 
@@ -772,51 +730,51 @@ describe("connect-order re-entrancy guard", () => {
 	it("multi-dep node sees all dep values on first compute (no premature runFn)", () => {
 		// dep `a` emits DATA immediately on subscribe (producer pattern).
 		// Without the _connecting guard, `runFn` would fire during the subscribe
-		// loop before `b` is wired, seeing b.get() as undefined.
+		// loop before `b` is wired, seeing b.cache as undefined.
 		const a = node(
-			(_deps, { down }) => {
-				down([[DATA, "from-a"]]);
+			(_data, actions) => {
+				actions.down([[DATA, "from-a"]]);
 			},
 			{ name: "a" },
 		);
 		const b = node<number>({ initial: 42, name: "b" });
 
 		const seen: unknown[][] = [];
-		const derived = node([a, b], (depValues) => {
+		const d = derived([a, b], (depValues) => {
 			seen.push([...depValues]);
 			return `${depValues[0]}-${depValues[1]}`;
 		});
 
-		const unsub = derived.subscribe(() => undefined);
+		const unsub = d.subscribe(() => undefined);
 
 		// The first (and ideally only) runFn call should see both dep values
 		expect(seen.length).toBeGreaterThanOrEqual(1);
 		expect(seen[0]).toEqual(["from-a", 42]);
-		expect(derived.get()).toBe("from-a-42");
+		expect(d.cache).toBe("from-a-42");
 		unsub();
 	});
 
 	it("connect guard does not suppress post-connect updates", () => {
 		const a = node(
-			(_deps, { down }) => {
-				down([[DATA, 1]]);
+			(_data, actions) => {
+				actions.down([[DATA, 1]]);
 			},
 			{ name: "a" },
 		);
 		const b = node<number>({ initial: 2, name: "b" });
-		const derived = node([a, b], ([av, bv]) => (av as number) + (bv as number));
-		const unsub = derived.subscribe(() => undefined);
+		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const unsub = d.subscribe(() => undefined);
 
 		// After connect, normal updates still propagate
 		b.down([[DIRTY], [DATA, 10]]);
-		expect(derived.get()).toBe(11);
+		expect(d.cache).toBe(11);
 		unsub();
 	});
 
 	it("runFn terminal guard: dep updates after COMPLETE do not recompute", () => {
 		const src = node({ initial: 1 });
 		let recompute = 0;
-		const d = node([src], ([v]) => {
+		const d = derived([src], ([v]) => {
 			recompute += 1;
 			return v;
 		});
@@ -830,7 +788,7 @@ describe("connect-order re-entrancy guard", () => {
 
 	it("TEARDOWN after COMPLETE runs lifecycle and reaches sinks (B3)", () => {
 		const src = node({ initial: 1 });
-		const n = node([src], ([v]) => v, { meta: { m: 0 } });
+		const n = derived([src], ([v]) => v, { meta: { m: 0 } });
 		const sinkTypes: symbol[] = [];
 		let metaSawTeardown = false;
 		const unsubMeta = n.meta.m.subscribe((msgs) => {
@@ -851,18 +809,18 @@ describe("connect-order re-entrancy guard", () => {
 
 describe("meta (companion stores)", () => {
 	it("meta keys are subscribable nodes with initial values", () => {
-		const n = node([node({ initial: 0 })], ([v]) => v, {
+		const n = derived([node({ initial: 0 })], ([v]) => v, {
 			name: "with-meta",
 			meta: { description: "hi", status: "idle" },
 		});
-		expect(n.meta.description.get()).toBe("hi");
-		expect(n.meta.status.get()).toBe("idle");
+		expect(n.meta.description.cache).toBe("hi");
+		expect(n.meta.status.cache).toBe("idle");
 		expect(metaSnapshot(n)).toEqual({ description: "hi", status: "idle" });
 	});
 
 	it("meta field is independently subscribable from the parent node", () => {
 		const src = node({ initial: 1 });
-		const n = node([src], ([v]) => (v as number) * 2, {
+		const n = derived([src], ([v]) => (v as number) * 2, {
 			meta: { err: null as string | null },
 		});
 		const seen: symbol[][] = [];
@@ -880,9 +838,9 @@ describe("meta (companion stores)", () => {
 
 	it("meta can be updated without subscribing to the parent", () => {
 		const n = node({ initial: 0, meta: { tag: "a" } });
-		expect(n.meta.tag.get()).toBe("a");
+		expect(n.meta.tag.cache).toBe("a");
 		n.meta.tag.down([[DATA, "b"]]);
-		expect(n.meta.tag.get()).toBe("b");
+		expect(n.meta.tag.cache).toBe("b");
 		expect(metaSnapshot(n)).toEqual({ tag: "b" });
 	});
 
@@ -893,7 +851,7 @@ describe("meta (companion stores)", () => {
 
 	it("parent TEARDOWN still disconnects when one meta.down throws", () => {
 		const src = node({ initial: 1 });
-		const n = node([src], ([v]) => (v as number) * 2, {
+		const n = derived([src], ([v]) => (v as number) * 2, {
 			meta: { flaky: 0, stable: 1 },
 		});
 		const origFlakyDown = n.meta.flaky.down.bind(n.meta.flaky);
@@ -908,7 +866,7 @@ describe("meta (companion stores)", () => {
 		const unsub = n.subscribe(() => {});
 		n.down([[TEARDOWN]]);
 		expect(stableSawTeardown).toBe(true);
-		expect(n.status).toBe("disconnected");
+		expect(n.status).toBe("sentinel");
 		unsub();
 		unsubStable();
 	});
@@ -929,9 +887,9 @@ describe("meta (companion stores)", () => {
 	it("TEARDOWN runs stopProducer even when meta.down throws (producer restarts on resubscribe)", () => {
 		let producerRuns = 0;
 		const p = node(
-			(_deps, { down }) => {
+			(_data, actions) => {
 				producerRuns += 1;
-				down([[DATA, producerRuns]]);
+				actions.down([[DATA, producerRuns]]);
 			},
 			{ meta: { m: 0 } },
 		);
@@ -950,22 +908,20 @@ describe("meta (companion stores)", () => {
 		u2();
 	});
 
-	it("metaSnapshot omits keys when get() throws", () => {
+	it("metaSnapshot omits keys when cache getter throws", () => {
 		const n = node({ initial: 0, meta: { fine: 1, bad: 2 } });
-		const bad = n.meta.bad as { get: () => unknown };
-		bad.get = () => {
-			throw new Error("no snapshot");
-		};
+		Object.defineProperty(n.meta.bad, "cache", {
+			get: () => { throw new Error("no snapshot"); },
+		});
 		expect(metaSnapshot(n)).toEqual({ fine: 1 });
 	});
 
-	it("metaSnapshot omits every key whose get() throws", () => {
+	it("metaSnapshot omits every key whose cache getter throws", () => {
 		const n = node({ initial: 0, meta: { ok: 0, x: 1, y: 2 } });
 		for (const key of ["x", "y"] as const) {
-			const child = n.meta[key] as { get: () => unknown };
-			child.get = () => {
-				throw new Error("bad");
-			};
+			Object.defineProperty(n.meta[key], "cache", {
+				get: () => { throw new Error("bad"); },
+			});
 		}
 		expect(metaSnapshot(n)).toEqual({ ok: 0 });
 	});
@@ -992,7 +948,7 @@ describe("meta (companion stores)", () => {
 
 	it("describeNode derived lists dep names", () => {
 		const src = node({ initial: 1, name: "input" });
-		const n = node([src], ([v]) => (v as number) * 2, {
+		const n = derived([src], ([v]) => (v as number) * 2, {
 			name: "validate",
 			meta: { description: "ok" },
 		});

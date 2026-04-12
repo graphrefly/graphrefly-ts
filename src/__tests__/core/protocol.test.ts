@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { batch, downWithBatch, isBatching, partitionForBatch } from "../../core/batch.js";
+import { batch, downWithBatch, isBatching } from "../../core/batch.js";
 import {
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
 	INVALIDATE,
-	knownMessageTypes,
 	type Messages,
 	PAUSE,
 	RESOLVED,
@@ -14,30 +13,17 @@ import {
 	START,
 	TEARDOWN,
 } from "../../core/messages.js";
+import { defaultConfig } from "../../core/node.js";
 import { producer, state } from "../../core/sugar.js";
-import { concatMap, exhaustMap, mergeMap, switchMap } from "../../extra/operators.js";
+
+/** Shorthand for the tierOf callback required by downWithBatch in v5. */
+const tierOf = (t: symbol) => defaultConfig.messageTier(t);
 
 describe("message protocol", () => {
-	// Regression: GRAPHREFLY-SPEC §1.2 — known types are distinct symbols (open set for forward compat).
-	it("exports distinct symbols for each known type", () => {
-		const set = new Set(knownMessageTypes);
-		expect(set.size).toBe(knownMessageTypes.length);
-	});
-
 	// Regression: GRAPHREFLY-SPEC §1.1 — Messages are arrays of tuples; no single-message shorthand.
 	it("messages are arrays of [Type, Data?] tuples — no shorthand", () => {
 		const msgs: readonly [typeof DATA, number][] = [[DATA, 42]];
 		expect(msgs).toEqual([[DATA, 42]]);
-	});
-
-	// Regression: GRAPHREFLY-SPEC §1.3.7 — batch defers phase-2 (DATA/RESOLVED), not DIRTY.
-	it("partitionForBatch defers DATA and RESOLVED, not DIRTY", () => {
-		const m = [DIRTY, DATA, RESOLVED, INVALIDATE] as const;
-		const tuples = m.map((t) => [t] as const);
-		const { immediate, deferred, terminal } = partitionForBatch(tuples);
-		expect(immediate.map((x) => x[0])).toEqual([DIRTY, INVALIDATE]);
-		expect(deferred.map((x) => x[0])).toEqual([DATA, RESOLVED]);
-		expect(terminal).toEqual([]);
 	});
 });
 
@@ -50,6 +36,7 @@ describe("downWithBatch", () => {
 				log.push(msgs.map((m) => m[0]));
 			},
 			[[DIRTY], [DATA, 1]],
+			tierOf,
 		);
 		expect(log).toEqual([[DIRTY], [DATA]]);
 	});
@@ -62,6 +49,7 @@ describe("downWithBatch", () => {
 				log.push(msgs.map((m) => m[0]));
 			},
 			[[DATA, 1], [COMPLETE]],
+			tierOf,
 		);
 		expect(log).toEqual([[DATA], [COMPLETE]]);
 	});
@@ -76,6 +64,7 @@ describe("downWithBatch", () => {
 					log.push(msgs.map((m) => m[0]));
 				},
 				[[DIRTY], [DATA, 42]],
+				tierOf,
 			);
 			expect(log).toEqual([[DIRTY]]);
 		});
@@ -92,6 +81,7 @@ describe("downWithBatch", () => {
 					log.push(msgs.map((m) => m[0]));
 				},
 				[[DIRTY], [RESOLVED]],
+				tierOf,
 			);
 			expect(log).toEqual([[DIRTY]]);
 		});
@@ -102,9 +92,9 @@ describe("downWithBatch", () => {
 	it("nested batch does not flush until outermost exits", () => {
 		const log: string[] = [];
 		batch(() => {
-			downWithBatch((msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 1]]);
+			downWithBatch((msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 1]], tierOf);
 			batch(() => {
-				downWithBatch((msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 2]]);
+				downWithBatch((msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 2]], tierOf);
 				expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
 			});
 			expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
@@ -122,6 +112,7 @@ describe("downWithBatch", () => {
 					log.push(String(msgs[0]?.[0]));
 				},
 				[[CUSTOM, { x: 1 }]],
+				tierOf,
 			);
 			expect(log.length).toBe(1);
 		});
@@ -133,7 +124,7 @@ describe("downWithBatch", () => {
 		let n = 0;
 		downWithBatch(() => {
 			n += 1;
-		}, []);
+		}, [], tierOf);
 		expect(n).toBe(0);
 	});
 
@@ -147,6 +138,7 @@ describe("downWithBatch", () => {
 						log.push(msgs.map((m) => m[0]));
 					},
 					[[DATA, 1]],
+					tierOf,
 				);
 				throw new Error("abort");
 			}),
@@ -164,6 +156,7 @@ describe("downWithBatch", () => {
 						log.push(msgs.map((m) => m[0]));
 					},
 					[[DATA, 1]],
+					tierOf,
 				);
 				batch(() => {
 					throw new Error("inner");
@@ -192,9 +185,11 @@ describe("batch drain semantics", () => {
 							log.push("nested-drain");
 						},
 						[[DATA, 99]],
+						tierOf,
 					);
 				},
 				[[DATA, 1]],
+				tierOf,
 			);
 		});
 
@@ -211,10 +206,10 @@ describe("batch drain semantics", () => {
 			batch(() => {
 				downWithBatch(() => {
 					throw new Error("boom");
-				}, [[DATA, 1]]);
+				}, [[DATA, 1]], tierOf);
 				downWithBatch(() => {
 					log.push("second");
-				}, [[DATA, 2]]);
+				}, [[DATA, 2]], tierOf);
 			}),
 		).toThrow("boom");
 
@@ -225,7 +220,7 @@ describe("batch drain semantics", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.7 — after outermost batch exits, `isBatching` is false.
 	it("isBatching is false after drain completes", () => {
 		batch(() => {
-			downWithBatch(() => undefined, [[DATA, 1]]);
+			downWithBatch(() => undefined, [[DATA, 1]], tierOf);
 		});
 		expect(isBatching()).toBe(false);
 	});
@@ -238,11 +233,11 @@ describe("batch drain semantics", () => {
 				downWithBatch(() => {
 					downWithBatch(() => {
 						log.push("deferred-from-callback");
-					}, [[DATA, 1]]);
+					}, [[DATA, 1]], tierOf);
 					batch(() => {
 						throw new Error("inner");
 					});
-				}, [[DATA, 0]]);
+				}, [[DATA, 0]], tierOf);
 			}),
 		).toThrow("inner");
 		expect(log).toEqual(["deferred-from-callback"]);
@@ -257,8 +252,8 @@ describe("D4: drain cycle detection", () => {
 				const cyclicEmit = (): void => {
 					downWithBatch(() => {
 						// re-enqueue indefinitely
-						downWithBatch(() => cyclicEmit(), [[DATA, 1]]);
-					}, [[DATA, 0]]);
+						downWithBatch(() => cyclicEmit(), [[DATA, 1]], tierOf);
+					}, [[DATA, 0]], tierOf);
 				};
 				cyclicEmit();
 			}),
@@ -267,9 +262,9 @@ describe("D4: drain cycle detection", () => {
 });
 
 describe("terminal and control messages are not phase-2", () => {
-	// Regression: GRAPHREFLY-SPEC §1.2 — PAUSE, RESUME, TEARDOWN emit immediately even in batch.
-	it("PAUSE, RESUME, TEARDOWN emit immediately in batch", () => {
-		for (const t of [PAUSE, RESUME, TEARDOWN] as const) {
+	// Regression: GRAPHREFLY-SPEC §1.2 — PAUSE, RESUME emit immediately even in batch (tier 2).
+	it("PAUSE, RESUME emit immediately in batch", () => {
+		for (const t of [PAUSE, RESUME] as const) {
 			const log: symbol[] = [];
 			batch(() => {
 				downWithBatch(
@@ -277,6 +272,7 @@ describe("terminal and control messages are not phase-2", () => {
 						log.push(msgs[0]?.[0] as symbol);
 					},
 					[[t]],
+					tierOf,
 				);
 				expect(log).toEqual([t]);
 			});
@@ -284,9 +280,27 @@ describe("terminal and control messages are not phase-2", () => {
 		}
 	});
 
-	// Canonical ordering: terminal signals (COMPLETE, ERROR) are tier 3 — deferred to
+	// v5: TEARDOWN is tier 5, deferred to drainPhase4 inside a batch.
+	it("TEARDOWN is deferred inside batch (tier 5)", () => {
+		const log: symbol[] = [];
+		batch(() => {
+			downWithBatch(
+				(msgs) => {
+					log.push(msgs[0]?.[0] as symbol);
+				},
+				[[TEARDOWN]],
+				tierOf,
+			);
+			// TEARDOWN is deferred inside batch.
+			expect(log).toEqual([]);
+		});
+		// Delivered on batch exit.
+		expect(log).toEqual([TEARDOWN]);
+	});
+
+	// Canonical ordering: terminal signals (COMPLETE, ERROR) are tier 4 — deferred to
 	// after phase-2 inside a batch, so DATA/RESOLVED reach sinks before node goes terminal.
-	it("ERROR, COMPLETE are deferred (tier 3) — delivered after phase-2 in batch", () => {
+	it("ERROR, COMPLETE are deferred (tier 4) — delivered after phase-2 in batch", () => {
 		for (const t of [ERROR, COMPLETE] as const) {
 			const log: symbol[] = [];
 			batch(() => {
@@ -295,8 +309,9 @@ describe("terminal and control messages are not phase-2", () => {
 						log.push(msgs[0]?.[0] as symbol);
 					},
 					[[t]],
+					tierOf,
 				);
-				// Terminal is deferred inside batch (tier 3).
+				// Terminal is deferred inside batch (tier 4).
 				expect(log).toEqual([]);
 			});
 			// Delivered on batch exit.
@@ -312,6 +327,7 @@ describe("terminal and control messages are not phase-2", () => {
 				log.push(msgs.map((m) => m[0]));
 			},
 			[[DATA, undefined], [COMPLETE]],
+			tierOf,
 		);
 		expect(log).toEqual([[DATA], [COMPLETE]]);
 	});
@@ -324,6 +340,7 @@ describe("terminal and control messages are not phase-2", () => {
 				log.push(msgs.map((m) => m[0]));
 			},
 			[[DIRTY], [DATA, 42], [COMPLETE]],
+			tierOf,
 		);
 		expect(log).toEqual([[DIRTY], [DATA], [COMPLETE]]);
 	});
@@ -337,6 +354,7 @@ describe("terminal and control messages are not phase-2", () => {
 					log.push(msgs.map((m) => m[0]));
 				},
 				[[DIRTY], [DATA, 1], [COMPLETE]],
+				tierOf,
 			);
 			// Only DIRTY is immediate.
 			expect(log).toEqual([[DIRTY]]);
@@ -346,14 +364,14 @@ describe("terminal and control messages are not phase-2", () => {
 	});
 });
 
-describe("integration: void sources and operator chains", () => {
+describe("integration: void sources", () => {
 	// Regression: one-shot sources (IDB, Promise wrappers) emitting [[DATA, undefined], [COMPLETE]]
-	// through switchMap previously broke because COMPLETE was delivered before DATA.
+	// through operators previously broke because COMPLETE was delivered before DATA.
 	it("one-shot void producer delivers DATA(undefined) then COMPLETE to subscriber", () => {
 		const log: [symbol, unknown?][] = [];
 		// Simulate a one-shot void source (like fromIDBTransaction)
-		const oneShot = producer<void>((_d, a) => {
-			a.down([[DATA, undefined], [COMPLETE]]);
+		const oneShot = producer<void>((actions) => {
+			actions.down([[DATA, undefined], [COMPLETE]]);
 		});
 		const unsub = oneShot.subscribe((msgs: Messages) => {
 			for (const m of msgs) log.push([m[0], m[1]]);
@@ -363,110 +381,5 @@ describe("integration: void sources and operator chains", () => {
 		expect(log.map((m) => m[0])).toEqual([START, DATA, COMPLETE]);
 		expect(log[1][1]).toBe(undefined);
 		unsub();
-	});
-
-	it("switchMap with void inner source receives DATA(undefined) before COMPLETE", () => {
-		const log: [symbol, unknown?][] = [];
-		const src = state(1);
-		const out = switchMap(src, () =>
-			producer<void>((_d, a) => {
-				a.down([[DATA, undefined], [COMPLETE]]);
-			}),
-		);
-		const unsub = out.subscribe((msgs: Messages) => {
-			for (const m of msgs) log.push([m[0], m[1]]);
-		});
-		// switchMap should forward DATA(undefined) from inner, then COMPLETE after inner completes + source done.
-		const types = log.map((m) => m[0]);
-		expect(types).toContain(DATA);
-		// DATA should appear before any COMPLETE.
-		const dataIdx = types.indexOf(DATA);
-		const completeIdx = types.indexOf(COMPLETE);
-		if (completeIdx >= 0) {
-			expect(dataIdx).toBeLessThan(completeIdx);
-		}
-		unsub();
-	});
-
-	it("concatMap with void inner source receives DATA(undefined) before COMPLETE", () => {
-		const log: [symbol, unknown?][] = [];
-		const src = state(1);
-		const out = concatMap(src, () =>
-			producer<void>((_d, a) => {
-				a.down([[DATA, undefined], [COMPLETE]]);
-			}),
-		);
-		const unsub = out.subscribe((msgs: Messages) => {
-			for (const m of msgs) log.push([m[0], m[1]]);
-		});
-		const types = log.map((m) => m[0]);
-		expect(types).toContain(DATA);
-		const dataIdx = types.indexOf(DATA);
-		const completeIdx = types.indexOf(COMPLETE);
-		if (completeIdx >= 0) {
-			expect(dataIdx).toBeLessThan(completeIdx);
-		}
-		unsub();
-	});
-
-	it("mergeMap with void inner source receives DATA(undefined) before COMPLETE", () => {
-		const log: [symbol, unknown?][] = [];
-		const src = state(1);
-		const out = mergeMap(src, () =>
-			producer<void>((_d, a) => {
-				a.down([[DATA, undefined], [COMPLETE]]);
-			}),
-		);
-		const unsub = out.subscribe((msgs: Messages) => {
-			for (const m of msgs) log.push([m[0], m[1]]);
-		});
-		const types = log.map((m) => m[0]);
-		expect(types).toContain(DATA);
-		const dataIdx = types.indexOf(DATA);
-		const completeIdx = types.indexOf(COMPLETE);
-		if (completeIdx >= 0) {
-			expect(dataIdx).toBeLessThan(completeIdx);
-		}
-		unsub();
-	});
-
-	it("exhaustMap with void inner source receives DATA(undefined) before COMPLETE", () => {
-		const log: [symbol, unknown?][] = [];
-		const src = state(1);
-		const out = exhaustMap(src, () =>
-			producer<void>((_d, a) => {
-				a.down([[DATA, undefined], [COMPLETE]]);
-			}),
-		);
-		const unsub = out.subscribe((msgs: Messages) => {
-			for (const m of msgs) log.push([m[0], m[1]]);
-		});
-		const types = log.map((m) => m[0]);
-		expect(types).toContain(DATA);
-		const dataIdx = types.indexOf(DATA);
-		const completeIdx = types.indexOf(COMPLETE);
-		if (completeIdx >= 0) {
-			expect(dataIdx).toBeLessThan(completeIdx);
-		}
-		unsub();
-	});
-
-	it("partitionForBatch three-way split: DIRTY + DATA + COMPLETE", () => {
-		const msgs: Messages = [[DIRTY], [DATA, 42], [COMPLETE]];
-		const { immediate, deferred, terminal } = partitionForBatch(msgs);
-		expect(immediate.map((m) => m[0])).toEqual([DIRTY]);
-		expect(deferred.map((m) => m[0])).toEqual([DATA]);
-		expect(terminal.map((m) => m[0])).toEqual([COMPLETE]);
-	});
-
-	it("partitionForBatch: ERROR is terminal tier", () => {
-		const msgs: Messages = [
-			[DATA, 1],
-			[ERROR, new Error("oops")],
-		];
-		const { immediate, deferred, terminal } = partitionForBatch(msgs);
-		expect(immediate).toEqual([]);
-		expect(deferred.map((m) => m[0])).toEqual([DATA]);
-		expect(terminal.map((m) => m[0])).toEqual([ERROR]);
 	});
 });

@@ -531,6 +531,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this.up = this.up.bind(this);
 	}
 
+	// --- Derived state ---
+
+	private get _isTerminal(): boolean {
+		return this._status === "completed" || this._status === "errored";
+	}
+
 	// --- Public getters ---
 
 	get name(): string | undefined {
@@ -614,7 +620,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		// Resubscribable terminal reset.
-		const wasTerminal = this._status === "completed" || this._status === "errored";
+		const wasTerminal = this._isTerminal;
 		const afterTerminalReset = wasTerminal && this._resubscribable;
 		if (afterTerminalReset) {
 			this._cached = NO_VALUE;
@@ -645,7 +651,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		// First-subscriber activation.
-		const isTerminalNow = this._status === "completed" || this._status === "errored";
+		const isTerminalNow = this._isTerminal;
 		if (this._sinkCount === 1 && !isTerminalNow) {
 			this._activate();
 		}
@@ -713,8 +719,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * @internal Unsubscribes from deps, fires fn cleanup (both shapes),
 	 * clears wave/store state, and (for compute nodes) drops `_cached` per
 	 * the ROM/RAM rule. Idempotent: second call is a no-op.
+	 *
+	 * @param skipStatusUpdate — When `true`, the caller takes responsibility
+	 *   for setting `_status` after deactivation (e.g. TEARDOWN always sets
+	 *   `"sentinel"` unconditionally). When `false` (default), deactivation
+	 *   applies the ROM rule: compute nodes → `"sentinel"`, state nodes
+	 *   preserve their current status.
 	 */
-	_deactivate(): void {
+	_deactivate(skipStatusUpdate = false): void {
 		// Fn cleanup — both () => void and { deactivation } forms fire here.
 		const cleanup = this._cleanup;
 		this._cleanup = undefined;
@@ -761,9 +773,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._cached = NO_VALUE;
 		}
 
-		// Drop to sentinel unless already terminal.
-		if (this._status !== "completed" && this._status !== "errored") {
-			this._status = "sentinel";
+		if (!skipStatusUpdate) {
+			// ROM rule: state nodes (no fn, no deps) preserve status across
+			// disconnect. Compute nodes → "sentinel".
+			if (this._fn != null || this._deps.length > 0) {
+				if (!this._isTerminal) this._status = "sentinel";
+			}
 		}
 	}
 
@@ -871,6 +886,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	private _maybeRunFnOnSettlement(): void {
+		if (this._isTerminal && !this._resubscribable) return;
 		const allSettled = this._deps.every((d) => !d.dirty);
 		if (!allSettled) return;
 		const gateOpen = this._deps.every(
@@ -881,6 +897,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._pendingWave = true;
 			return;
 		}
+		// Pre-fn skip: when no dep sent DATA this wave (all RESOLVED), skip
+		// fn and emit RESOLVED directly. Transitive-skip optimization — leaf
+		// fn is not re-run when a mid-chain node produces the same value.
+		if (!this._waveHasNewData && this._hasCalledFnOnce) {
+			this._clearWaveFlags();
+			this._emit([[RESOLVED]]);
+			this._maybeAutoTerminalAfterWave();
+			return;
+		}
 		if (this._fn) this._execFn();
 		this._maybeAutoTerminalAfterWave();
 	}
@@ -888,7 +913,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _maybeAutoTerminalAfterWave(): void {
 		if (!this._autoComplete) return;
 		if (this._deps.length === 0) return;
-		if (this._status === "completed" || this._status === "errored") return;
+		if (this._isTerminal) return;
 		// Any dep with a non-`true` terminal value is errored; emit its payload.
 		const erroredDep = this._deps.find(
 			(d) => d.terminal !== undefined && d.terminal !== true,
@@ -910,6 +935,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	private _execFn(): void {
 		if (!this._fn) return;
+		if (this._isTerminal && !this._resubscribable) return;
 
 		// Pre-run cleanup — only the function-form cleanup fires here.
 		const prevCleanup = this._cleanup;
@@ -985,7 +1011,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// TEARDOWN / INVALIDATE still propagate so graph teardown and cache-
 		// clear still work.
 		let deliverable = messages;
-		const terminal = this._status === "completed" || this._status === "errored";
+		const terminal = this._isTerminal;
 		if (terminal && !this._resubscribable) {
 			const pass = messages.filter(
 				(m) => m[0] === TEARDOWN || m[0] === INVALIDATE,
@@ -1046,7 +1072,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						/* best-effort */
 					}
 				}
-				this._deactivate();
+				this._deactivate(/* skipStatusUpdate */ true);
+				// TEARDOWN is a hard reset — unconditionally "sentinel",
+				// even if the node was previously completed/errored.
+				this._status = "sentinel";
 			}
 		}
 	}
