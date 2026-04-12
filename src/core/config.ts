@@ -53,14 +53,32 @@ export interface NodeCtx {
 /** Imperative actions available inside a node's compute function (§5). */
 export interface NodeActions {
 	/**
-	 * Emit a single value. Applies equals-based DATA/RESOLVED framing and
-	 * prefixes `[[DIRTY]]` when the node isn't already dirty.
+	 * Sugar: framed value delivery. Runs `equals` (current cache vs
+	 * `value`) to decide DATA vs RESOLVED, frames the outgoing message
+	 * through the singleton `bundle` (tier sort + DIRTY auto-prefix), then
+	 * delivers via the raw emit pipeline. Diamond-safe by construction.
 	 */
 	emit(value: unknown): void;
-	/** Emit raw messages downstream. Caller is responsible for tier ordering. */
+	/**
+	 * Raw downstream passthrough — `messages` are delivered as-is through
+	 * the emit pipeline. **No framing.** Developer controls exactly what
+	 * goes on the wire; use `actions.bundle(...).resolve()` to build a
+	 * framed payload when you need tier sorting or DIRTY auto-prefix.
+	 */
 	down(messages: Messages): void;
-	/** Send messages upstream toward deps. */
+	/**
+	 * Raw upstream passthrough — forwards `messages` to every dep without
+	 * modifying any local state.
+	 */
 	up(messages: Messages): void;
+	/**
+	 * Create a {@link Bundle} that captures this node's context. Accepts a
+	 * single {@link Message} tuple or a {@link Messages} array as the
+	 * starting payload; append more via `bundle.append(...)` and call
+	 * `bundle.resolve()` to obtain a framed (tier-sorted, DIRTY-prefixed)
+	 * `Messages` array ready for `actions.down(...)`.
+	 */
+	bundle(initial: Message | Messages): Bundle;
 }
 
 /**
@@ -93,8 +111,13 @@ export interface Bundle {
 	resolve(direction?: "down" | "up"): Messages;
 }
 
-/** Factory invoked by core emission paths to frame an outgoing payload. */
-export type BundleFactory = (node: NodeCtx, ...initial: Message[]) => Bundle;
+/**
+ * Factory invoked by core emission paths to frame an outgoing payload. Takes
+ * the starting messages as a single `Messages` array (not variadic) so
+ * internal callers can pass an already-collected array without spreading.
+ * The user-facing variadic/flexible form lives on `actions.bundle`.
+ */
+export type BundleFactory = (node: NodeCtx, initial: Messages) => Bundle;
 
 /**
  * Singleton message interceptor. Called for every message in either direction
