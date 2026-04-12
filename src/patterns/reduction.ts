@@ -9,7 +9,6 @@
  */
 
 import { batch } from "../core/batch.js";
-import { bridge, DEFAULT_DOWN } from "../core/bridge.js";
 import {
 	COMPLETE,
 	DATA,
@@ -21,8 +20,9 @@ import {
 	RESUME,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import type { NodeActions } from "../core/config.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
+import { derived, effect, state } from "../core/sugar.js";
 import { merge } from "../extra/operators.js";
 import { reactiveMap } from "../extra/reactive-map.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
@@ -129,7 +129,7 @@ function _addBranch<T>(
 			sourceValue = _noValue;
 			if (value !== _noValue) {
 				// Source emitted DATA — classify with settled rules
-				const currentRules = rulesNode.get() as ReadonlyArray<StratifyRule<T>>;
+				const currentRules = rulesNode.cache as ReadonlyArray<StratifyRule<T>>;
 				const currentRule = currentRules.find((r) => r.name === rule.name);
 				let matches = false;
 				try {
@@ -159,10 +159,27 @@ function _addBranch<T>(
 		// else: rules-only change — no reclassification ("future items only")
 	}
 
-	const filterNode = node<T>([source as Node, rulesNode as Node], () => undefined, {
-		describeKind: "operator",
+	// Producer pattern: manually subscribe to source and rules for per-message
+	// interception (onMessage removed in v5)
+	const filterNode = node<T>([], (data, filterActions) => {
+		const srcUnsub = (source as Node).subscribe((msgs) => {
+			for (const msg of msgs) {
+				_handleStratifyMessage(msg, 0, filterActions);
+			}
+		});
+		const rulesUnsub = (rulesNode as Node).subscribe((msgs) => {
+			for (const msg of msgs) {
+				_handleStratifyMessage(msg, 1, filterActions);
+			}
+		});
+		return () => { srcUnsub(); rulesUnsub(); };
+	}, {
+		describeKind: "derived",
 		meta: baseMeta("stratify_branch", { branch: rule.name }),
-		onMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
+		completeWhenDepsComplete: false,
+	});
+
+	function _handleStratifyMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
 			const t = msg[0];
 
 			// --- DIRTY (phase 1) ---
@@ -207,13 +224,11 @@ function _addBranch<T>(
 				return true;
 			}
 
-			// Swallow PAUSE/RESUME/INVALIDATE from rules dep (internal impl detail)
-			if (depIndex === 1) return true;
+		// Swallow PAUSE/RESUME/INVALIDATE from rules dep (internal impl detail)
+		if (depIndex === 1) return true;
 
-			return false;
-		},
-		completeWhenDepsComplete: false,
-	});
+		return false;
+	}
 
 	graph.add(branchName, filterNode as Node<unknown>);
 	graph.connect("source", branchName);
@@ -298,18 +313,16 @@ export function funnel<T>(
 
 		g.mount(stage.name, sub);
 
-		// Graph-visible bridge: forwards all standard types except TEARDOWN
-		// from the previous output to the next stage's input. TEARDOWN excluded
-		// because stage lifecycle is managed by the parent graph, not the
-		// upstream stage. Participates in two-phase push and shows up in describe().
+		// Bridge replacement: effect that forwards DATA from previous output
+		// to the next stage's input. TEARDOWN excluded because stage lifecycle
+		// is managed by the parent graph. Shows up in describe().
 		const prevNode = g.resolve(prevOutputPath);
 		const stageInputPath = `${stage.name}::input`;
 		const stageInput = g.resolve(stageInputPath);
 		const bridgeName = `__bridge_${prevOutputPath}→${stage.name}_input`;
-		const br = bridge(prevNode, stageInput, {
-			name: bridgeName,
-			down: DEFAULT_DOWN.filter((t) => t !== TEARDOWN),
-		});
+		const br = effect([prevNode], ([data]) => {
+			stageInput.down([[DATA, data]]);
+		}, { name: bridgeName });
 		g.add(bridgeName, br as Node<unknown>);
 		g.connect(prevOutputPath, bridgeName);
 		g.addDisposer(keepalive(br));
@@ -378,8 +391,30 @@ export function feedback(
 	// Graph-visible feedback effect: intercepts condition DATA, routes back to
 	// reentry with iteration counting. Registered in the graph so it shows up
 	// in describe() and cleans up on graph.destroy().
+	// Feedback effect: subscribe to condition node for per-message interception
+	// (onMessage removed in v5 — use producer+subscribe instead)
 	const feedbackEffectName = `__feedback_effect_${condition}`;
-	const feedbackEffect = node([condNode], undefined, {
+	const feedbackEffect = node([], (data, feedbackActions) => {
+		const unsub = condNode.subscribe((msgs) => {
+			for (const msg of msgs) {
+				const t = msg[0];
+				if (t === DATA) {
+					const currentCount = counter.cache as number;
+					if (currentCount >= maxIter) return;
+					const condValue = msg[1];
+					if (condValue == null) return;
+					batch(() => {
+						counter.down([[DATA, currentCount + 1]]);
+						reentryNode.down([[DATA, condValue]]);
+					});
+				} else if (t === COMPLETE || t === ERROR) {
+					const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];
+					counter.down([terminal]);
+				}
+			}
+		});
+		return () => unsub();
+	}, {
 		name: feedbackEffectName,
 		describeKind: "effect",
 		meta: {
@@ -388,31 +423,6 @@ export function feedback(
 				feedbackTo: reentry,
 			}),
 			_internal: true,
-		},
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions): boolean {
-			const t = msg[0];
-			if (t === DATA) {
-				const currentCount = counter.get() as number;
-				if (currentCount >= maxIter) return true;
-				const condValue = msg[1];
-				if (condValue == null) return true;
-				// Batch counter + reentry so both arrive atomically — no
-				// downstream listener sees the counter incremented while reentry
-				// still holds the old value (or vice versa).
-				batch(() => {
-					counter.down([[DATA, currentCount + 1]]);
-					reentryNode.down([[DATA, condValue]]);
-				});
-				return true;
-			}
-			if (t === COMPLETE || t === ERROR) {
-				// Terminal on condition — finalize the feedback cycle.
-				// Forward terminal to counter so observers know the cycle is done.
-				const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];
-				counter.down([terminal]);
-				return true;
-			}
-			return false;
 		},
 	});
 	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
@@ -435,7 +445,7 @@ export type BudgetConstraint<T = unknown> = {
 };
 
 /** Options for {@link budgetGate}. */
-export type BudgetGateOptions = Omit<NodeOptions, "describeKind" | "name" | "meta"> & {
+export type BudgetGateOptions = Omit<NodeOptions<unknown>, "describeKind" | "name" | "meta"> & {
 	meta?: Record<string, unknown>;
 };
 
@@ -469,7 +479,7 @@ export function budgetGate<T>(
 	const lockId = Symbol("budget-gate");
 
 	function checkBudget(): boolean {
-		return constraints.every((c) => c.check(c.node.get()));
+		return constraints.every((c) => c.check(c.node.cache));
 	}
 
 	function flushBuffer(actions: NodeActions): void {
@@ -485,11 +495,26 @@ export function budgetGate<T>(
 		}
 	}
 
-	return node<T>(allDeps, () => undefined, {
+	// Producer pattern: manually subscribe to all deps for per-message interception
+	// (onMessage removed in v5 — use producer+subscribe instead)
+	return node<T>([], (data, gateActions) => {
+		const unsubs: Array<() => void> = [];
+		for (let depIdx = 0; depIdx < allDeps.length; depIdx++) {
+			const dep = allDeps[depIdx];
+			unsubs.push(dep.subscribe((msgs) => {
+				for (const msg of msgs) {
+					_handleBudgetMessage(msg, depIdx, gateActions);
+				}
+			}));
+		}
+		return () => { for (const u of unsubs) u(); };
+	}, {
 		...opts,
-		describeKind: "operator",
+		describeKind: "derived",
 		meta: baseMeta("budget_gate", opts?.meta),
-		onMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
+	} as NodeOptions<T>);
+
+	function _handleBudgetMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
 			const t = msg[0];
 
 			// Source messages (dep 0)
@@ -564,10 +589,9 @@ export function budgetGate<T>(
 				// Constraint completed — locked at last value, no-op
 				return true;
 			}
-			// Unknown constraint types → default forwarding
-			return false;
-		},
-	});
+		// Unknown constraint types → default forwarding
+		return false;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -585,7 +609,7 @@ export type ScoredItem<T = unknown> = {
 };
 
 /** Options for {@link scorer}. */
-export type ScorerOptions = Omit<NodeOptions, "describeKind" | "name" | "meta"> & {
+export type ScorerOptions = Omit<NodeOptions<unknown>, "describeKind" | "name" | "meta"> & {
 	meta?: Record<string, unknown>;
 	/** Custom scoring function per signal. Default: identity (signal value IS the score). */
 	scoreFns?: ReadonlyArray<(value: unknown) => number>;
@@ -644,7 +668,7 @@ export function scorer(
 			};
 		},
 		{
-			...opts,
+			...(opts ? { equals: opts.equals, resubscribable: opts.resubscribable, resetOnTeardown: opts.resetOnTeardown } : {}),
 			describeKind: "derived",
 			meta: baseMeta("scorer", opts?.meta),
 		},

@@ -118,7 +118,7 @@ describe("diamond: wide (10 intermediates)", () => {
 		derived([root], ([rv]) => (rv as number) + j),
 	);
 	const leaf = derived(intermediates, (deps) =>
-		deps.reduce((sum, v) => sum + (v as number), 0),
+		deps.reduce((sum: number, v) => sum + (v as number), 0),
 	);
 	const unsub = leaf.subscribe(() => undefined);
 	let i = 0;

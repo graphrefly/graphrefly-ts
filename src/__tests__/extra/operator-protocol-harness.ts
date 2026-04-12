@@ -2,8 +2,8 @@
  * Helpers for operator tests that assert GRAPHREFLY-SPEC §1 message ordering and lifecycle.
  */
 import type { Message, Messages } from "../../core/messages.js";
-import { DATA, DIRTY, messageTier, RESOLVED, START } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
+import { DATA, DIRTY, RESOLVED, START } from "../../core/messages.js";
+import { defaultConfig, type Node } from "../../core/node.js";
 
 export type ProtocolCapture = {
 	readonly batches: Messages[];
@@ -30,7 +30,7 @@ export function subscribeProtocol(node: Node<unknown>): ProtocolCapture {
 		// Combined case (outside batch): [[START], [DATA, v]] in one callback.
 		if (msgs[0][0] === START) {
 			// Strip START and any paired handshake DATA from the batch.
-			const rest = msgs.filter((m) => messageTier(m[0]) > 0);
+			const rest = msgs.filter((m) => defaultConfig.messageTier(m[0]) > 0);
 			if (rest.length === 0) {
 				// Pure [[START]] — flag so a follow-up [[DATA, v]] is also dropped.
 				expectHandshakeData = true;

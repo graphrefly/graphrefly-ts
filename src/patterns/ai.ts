@@ -137,8 +137,7 @@ function isNodeLike(x: unknown): x is Node<unknown> {
 		x !== null &&
 		"subscribe" in x &&
 		typeof (x as Node<unknown>).subscribe === "function" &&
-		"get" in x &&
-		typeof (x as Node<unknown>).get === "function"
+		"cache" in x
 	);
 }
 
@@ -160,7 +159,7 @@ function firstDataFromNode(
 ): Promise<unknown> {
 	// Only trust get() when node is in settled state
 	if ((resolved as { status?: string }).status === "settled") {
-		const immediate = resolved.get();
+		const immediate = resolved.cache;
 		if (immediate !== undefined) {
 			return Promise.resolve(immediate);
 		}
@@ -968,8 +967,8 @@ export function promptNode<T = string>(
 					// NodeInput may be a Node, Promise, or raw value
 					if (input && typeof (input as PromiseLike<LLMResponse>).then === "function") {
 						(input as PromiseLike<LLMResponse>).then(resolve, reject);
-					} else if (input && typeof (input as Node<LLMResponse>).get === "function") {
-						resolve((input as Node<LLMResponse>).get() as LLMResponse);
+					} else if (input && typeof (input as Node<LLMResponse>).subscribe === "function") {
+						resolve((input as Node<LLMResponse>).cache as LLMResponse);
 					} else {
 						resolve(input as LLMResponse);
 					}
@@ -1066,7 +1065,7 @@ export class ChatStreamGraph extends Graph {
 	}
 
 	allMessages(): readonly ChatMessage[] {
-		return this.messages.get() as readonly ChatMessage[];
+		return this.messages.cache as readonly ChatMessage[];
 	}
 }
 
@@ -1112,14 +1111,14 @@ export class ToolRegistryGraph extends Graph {
 	}
 
 	register(tool: ToolDefinition): void {
-		const current = this.definitions.get() as ReadonlyMap<string, ToolDefinition>;
+		const current = this.definitions.cache as ReadonlyMap<string, ToolDefinition>;
 		const next = new Map(current);
 		next.set(tool.name, tool);
 		this.definitions.down([[DATA, next]]);
 	}
 
 	unregister(name: string): void {
-		const current = this.definitions.get() as ReadonlyMap<string, ToolDefinition>;
+		const current = this.definitions.cache as ReadonlyMap<string, ToolDefinition>;
 		if (!current.has(name)) return;
 		const next = new Map(current);
 		next.delete(name);
@@ -1127,7 +1126,7 @@ export class ToolRegistryGraph extends Graph {
 	}
 
 	async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
-		const defs = this.definitions.get() as ReadonlyMap<string, ToolDefinition>;
+		const defs = this.definitions.cache as ReadonlyMap<string, ToolDefinition>;
 		const tool = defs.get(name);
 		if (!tool) throw new Error(`toolRegistry: unknown tool "${name}"`);
 		const raw = tool.handler(args);
@@ -1135,7 +1134,7 @@ export class ToolRegistryGraph extends Graph {
 	}
 
 	getDefinition(name: string): ToolDefinition | undefined {
-		return (this.definitions.get() as ReadonlyMap<string, ToolDefinition>).get(name);
+		return (this.definitions.cache as ReadonlyMap<string, ToolDefinition>)?.get(name);
 	}
 }
 
@@ -1208,7 +1207,7 @@ export function llmExtractor<TRaw, TMem>(
 			},
 		];
 		// Wrap the adapter call in a producer that parses the JSON response
-		return producer<Extraction<TMem>>((_deps, actions) => {
+		return producer<Extraction<TMem>>((actions) => {
 			let active = true;
 			const result = opts.adapter.invoke(messages, {
 				model: opts.model,
@@ -1270,7 +1269,7 @@ export function llmConsolidator<TMem>(
 			{ role: "system", content: systemPrompt },
 			{ role: "user", content: JSON.stringify({ memories: entriesArray }) },
 		];
-		return producer<Extraction<TMem>>((_deps, actions) => {
+		return producer<Extraction<TMem>>((actions) => {
 			let active = true;
 			const result = opts.adapter.invoke(messages, {
 				model: opts.model,
@@ -1649,7 +1648,7 @@ export function agentMemory<TMem = unknown>(
 
 		const tierOf = (key: string): MemoryTier => {
 			if (permanentKeys.has(key)) return "permanent";
-			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.get());
+			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
 			if (storeMap.has(key)) return "active";
 			return "archived";
 		};
@@ -1913,7 +1912,7 @@ export function agentMemory<TMem = unknown>(
 
 		retrieveFn = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
 			queryInput.down([[DATA, query]]);
-			const result = retrievalDerived.get() as ReadonlyArray<RetrievalEntry<TMem>>;
+			const result = retrievalDerived.cache as ReadonlyArray<RetrievalEntry<TMem>>;
 			// Update trace node outside derived callback (avoids reactive glitch)
 			if (lastTrace) {
 				traceState.down([[DATA, lastTrace]]);
@@ -2063,7 +2062,7 @@ export class AgentLoopGraph extends Graph {
 
 				// Invoke LLM
 				const msgs = this.chat.allMessages();
-				const toolSchemas = (this.tools.schemas.get() as readonly ToolDefinition[]) ?? [];
+				const toolSchemas = (this.tools.schemas.cache as readonly ToolDefinition[]) ?? [];
 				const response = await this._invokeLLM(msgs, toolSchemas, signal);
 				if (signal.aborted) throw new Error("agentLoop: aborted");
 
@@ -2108,7 +2107,7 @@ export class AgentLoopGraph extends Graph {
 			this._statusState.down([[DATA, "done" as AgentLoopStatus]]);
 			this._running = false;
 			this._abortController = null;
-			return this.lastResponse.get() as LLMResponse | null;
+			return this.lastResponse.cache as LLMResponse | null;
 		} catch (err) {
 			this._statusState.down([[DATA, "error" as AgentLoopStatus]]);
 			this._running = false;

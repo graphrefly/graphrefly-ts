@@ -304,7 +304,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			try {
 				const nd = demo.resolve(p);
 				const nodeDesc = describeNode(nd, standardFields);
-				return { path: p, ...nodeDesc, value: nd.get() };
+				return { path: p, ...nodeDesc, value: nd.cache };
 			} catch {
 				return null;
 			}

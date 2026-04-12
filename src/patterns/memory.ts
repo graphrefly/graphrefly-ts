@@ -145,11 +145,11 @@ function copyMap<K, V>(m: ReadonlyMap<K, V>): Map<K, V> {
 }
 
 function readMap<K, V>(node: Node<ReadonlyMap<K, V>>): ReadonlyMap<K, V> {
-	return node.get() ?? new Map<K, V>();
+	return node.cache ?? new Map<K, V>();
 }
 
 function readArray<T>(node: Node<ReadonlyArray<T>>): ReadonlyArray<T> {
-	return node.get() ?? [];
+	return node.cache ?? [];
 }
 
 function cosineSimilarity(a: readonly number[], b: readonly number[]): number {

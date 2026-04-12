@@ -29,11 +29,11 @@ import type { Node } from "../../core/node.js";
  * Subscribe to a read-only `Node<T>` as a Vue `Ref<T>`. Auto-unsubscribes on scope disposal.
  * Subscription lifecycle is tied to Vue scope disposal (not node terminal messages).
  */
-export function useSubscribe<T>(node: Node<T>): Readonly<Ref<T | undefined>> {
-	const ref = shallowRef(node.get()) as Ref<T | undefined>;
+export function useSubscribe<T>(node: Node<T>): Readonly<Ref<T | undefined | null>> {
+	const ref = shallowRef(node.cache) as Ref<T | undefined | null>;
 
 	const unsub = node.subscribe(() => {
-		ref.value = node.get();
+		ref.value = node.cache;
 	});
 
 	if (getCurrentScope()) {
@@ -44,7 +44,7 @@ export function useSubscribe<T>(node: Node<T>): Readonly<Ref<T | undefined>> {
 		);
 	}
 
-	return readonly(ref) as Readonly<Ref<T | undefined>>;
+	return readonly(ref) as Readonly<Ref<T | undefined | null>>;
 }
 
 /**
@@ -52,11 +52,11 @@ export function useSubscribe<T>(node: Node<T>): Readonly<Ref<T | undefined>> {
  * Value sets always dispatch `[[DIRTY], [DATA, value]]`, including `value === undefined`.
  * Subscription lifecycle is tied to Vue scope disposal (not node terminal messages).
  */
-export function useStore<T>(node: Node<T>): Ref<T | undefined> {
-	const inner = shallowRef(node.get()) as Ref<T | undefined>;
+export function useStore<T>(node: Node<T>): Ref<T | undefined | null> {
+	const inner = shallowRef(node.cache) as Ref<T | undefined | null>;
 
 	const unsub = node.subscribe(() => {
-		inner.value = node.get();
+		inner.value = node.cache;
 	});
 
 	if (getCurrentScope()) {
@@ -69,7 +69,7 @@ export function useStore<T>(node: Node<T>): Ref<T | undefined> {
 
 	return computed({
 		get: () => inner.value,
-		set: (v: T | undefined) => {
+		set: (v: T | undefined | null) => {
 			node.down([[DIRTY], [DATA, v]]);
 		},
 	});
@@ -124,9 +124,9 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 
 			for (const field of fields) {
 				const node = nodes[field];
-				values[field] = node.get() as R[keyof R];
+				values[field] = node.cache as R[keyof R];
 				const unsub = node.subscribe(() => {
-					values[field] = node.get() as R[keyof R];
+					values[field] = node.cache as R[keyof R];
 					scheduleBatch();
 				});
 				subs.push(unsub);

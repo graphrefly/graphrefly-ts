@@ -17,6 +17,7 @@
  * ```
  */
 import { downWithBatch } from "../../core/batch.js";
+import { defaultConfig } from "../../core/node.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
@@ -312,8 +313,9 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			// Phase-3 meta deferral (parity with reactiveLayout)
 			const meta = measuredBlocksNode.meta;
 			if (meta) {
-				downWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], 3);
-				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], 3);
+				const tierOf = defaultConfig.messageTier.bind(defaultConfig);
+				downWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], tierOf);
+				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], tierOf);
 			}
 
 			return result;
@@ -321,15 +323,8 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 		{
 			name: "measured-blocks",
 			meta: { "block-count": 0, "layout-time-ns": 0 },
-			onMessage(msg, _depIndex, _actions) {
-				if (msg[0] === INVALIDATE || msg[0] === TEARDOWN) {
-					// Local side-effect only; return false so default dispatch
-					// still propagates the message (TEARDOWN → meta/downstream).
-					measureCache.clear();
-					adapters.text.clearCache?.();
-				}
-				return false;
-			},
+			// TODO: redesign observer hook for v5 — previously used onMessage
+			// to clear measureCache on INVALIDATE/TEARDOWN
 			equals: (a, b) => {
 				const ma = a as MeasuredBlock[] | null;
 				const mb = b as MeasuredBlock[] | null;

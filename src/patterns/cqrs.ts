@@ -240,7 +240,7 @@ export class CqrsGraph extends Graph {
 				describeKind: "state",
 				meta: cqrsMeta("event", { event_name: name }),
 				guard: EVENT_GUARD,
-				initial: entries.get() as readonly CqrsEvent[],
+				initial: entries.cache as readonly CqrsEvent[],
 			},
 		);
 		this.add(name, guarded);

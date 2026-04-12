@@ -10,6 +10,7 @@
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
 import { downWithBatch } from "../../core/batch.js";
+import { defaultConfig } from "../../core/node.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
@@ -759,9 +760,10 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				const hr = hitRate;
 				const len = result.length;
 				const el = elapsed;
-				downWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], 3);
-				downWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], 3);
-				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], 3);
+				const tierOf = defaultConfig.messageTier.bind(defaultConfig);
+				downWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], tierOf);
+				downWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], tierOf);
+				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], tierOf);
 			}
 
 			return result;
@@ -773,17 +775,8 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				"segment-count": 0,
 				"layout-time-ns": 0,
 			},
-			onMessage(msg) {
-				if (msg[0] === INVALIDATE || msg[0] === TEARDOWN) {
-					// Local side-effect: clear closure-held cache that the node
-					// cannot reach via its normal lifecycle. Return false so the
-					// message still propagates via default dispatch (TEARDOWN
-					// forwarding to meta/downstream, INVALIDATE clearing _cached).
-					measureCache.clear();
-					adapter.clearCache?.();
-				}
-				return false;
-			},
+			// TODO: redesign observer hook for v5 — previously used onMessage
+			// to clear measureCache on INVALIDATE/TEARDOWN
 			equals: (a, b) => {
 				const sa = a as PreparedSegment[] | null;
 				const sb = b as PreparedSegment[] | null;

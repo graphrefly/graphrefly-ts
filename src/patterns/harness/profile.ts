@@ -56,8 +56,8 @@ export function harnessProfile(
 	return {
 		...base,
 		queueDepths: queueDepths as Record<QueueRoute, number>,
-		strategyEntries: harness.strategy.node.get()?.size ?? 0,
-		totalRetries: harness.totalRetries.get() ?? 0,
-		totalReingestions: harness.totalReingestions.get() ?? 0,
+		strategyEntries: harness.strategy.node.cache?.size ?? 0,
+		totalRetries: harness.totalRetries.cache ?? 0,
+		totalReingestions: harness.totalReingestions.cache ?? 0,
 	};
 }

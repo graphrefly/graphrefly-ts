@@ -13,7 +13,7 @@
 //   // $count = 42
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY, type Messages, messageTier } from "../../core/messages.js";
+import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /** Svelte store contract — implements the minimal `subscribe` method. */
@@ -31,13 +31,13 @@ export interface SvelteWritable<T> extends SvelteReadable<T> {
  * Subscribe to a `Node<T>` as a Svelte readable store (implements Svelte store contract).
  * Subscription lifecycle is tied to Svelte store unsubscription (not node terminal messages).
  */
-export function useSubscribe<T>(node: Node<T>): SvelteReadable<T | undefined> {
+export function useSubscribe<T>(node: Node<T>): SvelteReadable<T | undefined | null> {
 	return {
-		subscribe(run: (value: T | undefined) => void): () => void {
+		subscribe(run: (value: T | undefined | null) => void): () => void {
 			const unsub = node.subscribe(() => {
-				run(node.get());
+				run(node.cache);
 			});
-			run(node.get());
+			run(node.cache);
 			return unsub;
 		},
 	};
@@ -49,20 +49,20 @@ export function useSubscribe<T>(node: Node<T>): SvelteReadable<T | undefined> {
  * Setter/update always forward `[[DIRTY], [DATA, value]]`, including `value === undefined`.
  * Subscription lifecycle is tied to Svelte store unsubscription (not node terminal messages).
  */
-export function useStore<T>(node: Node<T>): SvelteWritable<T | undefined> {
+export function useStore<T>(node: Node<T>): SvelteWritable<T | undefined | null> {
 	return {
-		subscribe(run: (value: T | undefined) => void): () => void {
+		subscribe(run: (value: T | undefined | null) => void): () => void {
 			const unsub = node.subscribe(() => {
-				run(node.get());
+				run(node.cache);
 			});
-			run(node.get());
+			run(node.cache);
 			return unsub;
 		},
-		set(value: T | undefined) {
+		set(value: T | undefined | null) {
 			node.down([[DIRTY], [DATA, value]]);
 		},
-		update(updater: (value: T | undefined) => T | undefined) {
-			const next = updater(node.get());
+		update(updater: (value: T | undefined | null) => T | undefined | null) {
+			const next = updater(node.cache);
 			node.down([[DIRTY], [DATA, next]]);
 		},
 	};
@@ -93,11 +93,11 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 
 			const buildSnapshot = (): Record<K, R> => {
 				const snap = {} as Record<K, R>;
-				for (const key of keysNode.get() ?? []) {
+				for (const key of keysNode.cache ?? []) {
 					const nodes = factory(key);
 					const values = {} as R;
 					for (const field of Object.keys(nodes) as (keyof R)[]) {
-						values[field] = nodes[field].get() as R[keyof R];
+						values[field] = nodes[field].cache as R[keyof R];
 					}
 					snap[key] = values;
 				}
@@ -119,11 +119,11 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 			};
 
 			const keysUnsub = keysNode.subscribe((msgs: Messages) => {
-				if (msgs.some((m) => messageTier(m[0]) >= 3)) {
-					sync(keysNode.get() ?? []);
+				if (msgs.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
+					sync(keysNode.cache ?? []);
 				}
 			});
-			sync(keysNode.get() ?? []);
+			sync(keysNode.cache ?? []);
 
 			return () => {
 				keysUnsub();

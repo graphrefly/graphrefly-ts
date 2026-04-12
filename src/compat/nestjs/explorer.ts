@@ -244,7 +244,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		// Snapshot the highest seq already in the log so we only deliver new events.
 		// Tracking by seq (monotonic per-graph) is robust against reactive log trim.
 		const eventNode = cqrsGraph.resolve(meta.eventName);
-		const existingEntries = eventNode.get() as readonly { seq: number }[] | undefined;
+		const existingEntries = eventNode.cache as readonly { seq: number }[] | undefined;
 		let lastSeq =
 			existingEntries && existingEntries.length > 0
 				? existingEntries[existingEntries.length - 1].seq

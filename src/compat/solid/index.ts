@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { createSignal, getOwner, onCleanup } from "solid-js";
-import { DATA, DIRTY, type Messages, messageTier } from "../../core/messages.js";
+import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /** Solid accessor function — returns current value when called. */
@@ -22,11 +22,11 @@ export type Accessor<T> = () => T;
  * Subscribe to a `Node<T>` as a Solid signal. Auto-cleans up with the owning scope.
  * Subscription lifecycle is tied to Solid scope cleanup (not node terminal messages).
  */
-export function useSubscribe<T>(node: Node<T>): Accessor<T | undefined> {
-	const [value, setValue] = createSignal(node.get(), { equals: false });
+export function useSubscribe<T>(node: Node<T>): Accessor<T | undefined | null> {
+	const [value, setValue] = createSignal(node.cache, { equals: false });
 
 	const unsub = node.subscribe(() => {
-		setValue(() => node.get());
+		setValue(() => node.cache);
 	});
 
 	if (getOwner()) {
@@ -45,7 +45,7 @@ export function useSubscribe<T>(node: Node<T>): Accessor<T | undefined> {
  * Setter always forwards `[[DIRTY], [DATA, value]]`, including `value === undefined`.
  * Subscription lifecycle is tied to Solid scope cleanup (not node terminal messages).
  */
-export function useStore<T>(node: Node<T>): [Accessor<T | undefined>, (v: T) => void] {
+export function useStore<T>(node: Node<T>): [Accessor<T | undefined | null>, (v: T) => void] {
 	const value = useSubscribe(node);
 	const setter = (v: T) => {
 		node.down([[DIRTY], [DATA, v]]);
@@ -77,11 +77,11 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 
 	const buildSnapshot = (): Record<K, R> => {
 		const snap = {} as Record<K, R>;
-		for (const key of keysNode.get() ?? []) {
+		for (const key of keysNode.cache ?? []) {
 			const nodes = factory(key);
 			const values = {} as R;
 			for (const field of Object.keys(nodes) as (keyof R)[]) {
-				values[field] = nodes[field].get() as R[keyof R];
+				values[field] = nodes[field].cache as R[keyof R];
 			}
 			snap[key] = values;
 		}
@@ -103,11 +103,11 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 	};
 
 	const keysUnsub = keysNode.subscribe((msgs: Messages) => {
-		if (msgs.some((m) => messageTier(m[0]) >= 3)) {
-			sync(keysNode.get() ?? []);
+		if (msgs.some((m) => m[0] === DATA || m[0] === RESOLVED)) {
+			sync(keysNode.cache ?? []);
 		}
 	});
-	sync(keysNode.get() ?? []);
+	sync(keysNode.cache ?? []);
 
 	if (getOwner()) {
 		onCleanup(() => {
