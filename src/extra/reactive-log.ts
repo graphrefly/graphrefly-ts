@@ -136,7 +136,7 @@ export function reactiveLog<T>(
 			if (n < 0) {
 				throw new RangeError("n must be >= 0");
 			}
-			const e = entries.get() as readonly T[];
+			const e = entries.cache as readonly T[];
 			const init = n === 0 ? [] : e.slice(Math.max(0, e.length - n));
 			const out = derived(
 				[entries],
@@ -183,7 +183,7 @@ export function logSlice<T>(
 	if (start < 0) {
 		throw new RangeError("start must be >= 0");
 	}
-	const e = log.entries.get() as readonly T[];
+	const e = log.entries.cache as readonly T[];
 	const init = stop === undefined ? e.slice(start) : e.slice(start, stop);
 	const out = derived(
 		[log.entries],

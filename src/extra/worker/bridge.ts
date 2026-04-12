@@ -19,8 +19,8 @@
  */
 
 import { batch } from "../../core/batch.js";
-import { DATA, ERROR, isLocalOnly, type Messages, TEARDOWN } from "../../core/messages.js";
-import type { Node, NodeSink } from "../../core/node.js";
+import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
+import { type Node, type NodeSink, defaultConfig } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
@@ -123,7 +123,7 @@ export function workerBridge<
 			() => {
 				const updates: Record<string, unknown> = {};
 				for (const [name, n] of exposeEntries) {
-					const v = n.get();
+					const v = n.cache;
 					if (v !== lastSent.get(name)) {
 						updates[name] = v;
 						lastSent.set(name, v);
@@ -135,7 +135,7 @@ export function workerBridge<
 		);
 
 		const effectNode = effect([aggregated], () => {
-			const updates = aggregated.get() as Record<string, unknown>;
+			const updates = aggregated.cache as Record<string, unknown>;
 			if (Object.keys(updates).length === 0) return;
 
 			const transferList: Transferable[] = [];
@@ -185,7 +185,7 @@ export function workerBridge<
 				// Send initial values of exposed nodes
 				const initValues: Record<string, unknown> = {};
 				for (const [name, n] of exposeEntries) {
-					initValues[name] = n.get();
+					initValues[name] = n.cache;
 					lastSent.set(name, initValues[name]);
 				}
 				transport.post({ t: "i", stores: initValues } satisfies BridgeMessage);
@@ -254,7 +254,7 @@ export function workerBridge<
 				if (type === DATA) continue;
 				// Block graph-local signals (START, DIRTY, INVALIDATE, PAUSE, RESUME).
 				// Unknown types forward (spec §1.3.6).
-				if (isLocalOnly(type)) continue;
+				if (defaultConfig.isLocalOnly(type)) continue;
 				// ERROR: serialize payload
 				if (type === ERROR) {
 					transport.post({
@@ -280,7 +280,7 @@ export function workerBridge<
 	let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
 	if (opts.timeoutMs != null && opts.timeoutMs > 0) {
 		handshakeTimer = setTimeout(() => {
-			if (statusNode.get() === "connecting") {
+			if (statusNode.cache === "connecting") {
 				errorNode.down([[DATA, new Error("Worker bridge handshake timeout")]]);
 				destroy();
 			}

@@ -6,7 +6,6 @@
  */
 
 import { batch } from "../core/batch.js";
-import { dynamicNode } from "../core/dynamic-node.js";
 import { DATA } from "../core/messages.js";
 import type { Node, NodeOptions } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
@@ -18,7 +17,7 @@ function isNodeLike<T>(value: unknown): value is Node<T> {
 	return (
 		typeof value === "object" &&
 		value !== null &&
-		typeof (value as Node<T>).get === "function" &&
+		"cache" in (value as Node<T>) &&
 		typeof (value as Node<T>).subscribe === "function"
 	);
 }
@@ -76,7 +75,7 @@ export function verifiable<T, TVerify = VerifyValue>(
 	}
 
 	if (triggerNode !== null) {
-		const verifyStream = switchMap(triggerNode, () => verifyFn(sourceNode.get() as T));
+		const verifyStream = switchMap(triggerNode, () => verifyFn(sourceNode.cache as T));
 		forEach(verifyStream, (value) => {
 			batch(() => {
 				verified.down([[DATA, value]]);
@@ -126,7 +125,7 @@ function mapFromSnapshot<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
 }
 
 function asReadonlyMap<TMem>(store: ReactiveMapBundle<string, TMem>): ReadonlyMap<string, TMem> {
-	return mapFromSnapshot<TMem>(store.entries.get());
+	return mapFromSnapshot<TMem>(store.entries.cache);
 }
 
 function applyExtraction<TMem>(
@@ -166,13 +165,13 @@ export function distill<TRaw, TMem>(
 	});
 
 	if (opts.evict) {
-		const evictionKeys = dynamicNode((get) => {
+		const evictionKeys = derived([store.entries], ([snapshot]) => {
 			const out: string[] = [];
-			const snapshot = mapFromSnapshot<TMem>(get(store.entries));
-			for (const [key, mem] of snapshot) {
+			const entries = mapFromSnapshot<TMem>(snapshot);
+			for (const [key, mem] of entries) {
 				const verdict = opts.evict!(key, mem);
 				if (isNodeLike<boolean>(verdict)) {
-					if (get(verdict) === true) out.push(key);
+					if (verdict.cache === true) out.push(key);
 					continue;
 				}
 				if (typeof verdict === "boolean") {

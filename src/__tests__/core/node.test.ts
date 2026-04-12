@@ -917,7 +917,9 @@ describe("meta (companion stores)", () => {
 	it("metaSnapshot omits keys when cache getter throws", () => {
 		const n = node({ initial: 0, meta: { fine: 1, bad: 2 } });
 		Object.defineProperty(n.meta.bad, "cache", {
-			get: () => { throw new Error("no snapshot"); },
+			get: () => {
+				throw new Error("no snapshot");
+			},
 		});
 		expect(metaSnapshot(n)).toEqual({ fine: 1 });
 	});
@@ -926,7 +928,9 @@ describe("meta (companion stores)", () => {
 		const n = node({ initial: 0, meta: { ok: 0, x: 1, y: 2 } });
 		for (const key of ["x", "y"] as const) {
 			Object.defineProperty(n.meta[key], "cache", {
-				get: () => { throw new Error("bad"); },
+				get: () => {
+					throw new Error("bad");
+				},
 			});
 		}
 		expect(metaSnapshot(n)).toEqual({ ok: 0 });
