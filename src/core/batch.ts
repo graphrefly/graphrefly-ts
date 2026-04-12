@@ -94,11 +94,7 @@ function drainPending(): void {
 			// Always drain the lowest non-empty phase. Re-enqueues at any level
 			// cause the next iteration to restart from phase 2 if needed.
 			const queue =
-				drainPhase2.length > 0
-					? drainPhase2
-					: drainPhase3.length > 0
-						? drainPhase3
-						: drainPhase4;
+				drainPhase2.length > 0 ? drainPhase2 : drainPhase3.length > 0 ? drainPhase3 : drainPhase4;
 			const ops = queue.splice(0);
 			for (const run of ops) {
 				try {

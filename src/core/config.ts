@@ -87,9 +87,7 @@ export interface NodeActions {
  * - `"down-in"` — message arriving from a dep (identified by `depIndex`).
  * - `"up-in"` — message arriving from a sink.
  */
-export type MessageContext =
-	| { direction: "down-in"; depIndex: number }
-	| { direction: "up-in" };
+export type MessageContext = { direction: "down-in"; depIndex: number } | { direction: "up-in" };
 
 /**
  * Per-sink context passed to {@link OnSubscribeHandler}.

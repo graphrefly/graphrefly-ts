@@ -84,19 +84,13 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
  * Builds a single-node slice of `Graph.describe()` JSON (structure + `meta`
  * snapshot). Parity with `graphrefly-py` `describe_node`.
  */
-export function describeNode(
-	node: Node,
-	includeFields?: Set<string> | null,
-): DescribeNodeOutput {
+export function describeNode(node: Node, includeFields?: Set<string> | null): DescribeNodeOutput {
 	const all = includeFields == null;
 	const metaKeys: string[] | null =
 		!all && includeFields != null
-			? [...includeFields]
-					.filter((f) => f.startsWith("meta."))
-					.map((f) => f.slice(5))
+			? [...includeFields].filter((f) => f.startsWith("meta.")).map((f) => f.slice(5))
 			: null;
-	const wantsMeta =
-		all || includeFields!.has("meta") || (metaKeys != null && metaKeys.length > 0);
+	const wantsMeta = all || includeFields!.has("meta") || (metaKeys != null && metaKeys.length > 0);
 
 	let type: NodeDescribeKind = "state";
 	let deps: string[] = [];
