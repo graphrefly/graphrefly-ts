@@ -2,12 +2,37 @@
  * Core layer: message protocol, node primitive, lifecycle (Phase 0).
  */
 export * from "./actor.js";
-export * from "./batch.js";
-export { type BridgeOptions, bridge, DEFAULT_DOWN } from "./bridge.js";
+export { batch, downWithBatch, isBatching } from "./batch.js";
 export { monotonicNs, wallClockNs } from "./clock.js";
-export * from "./dynamic-node.js";
+export {
+	type Bundle,
+	type BundleFactory,
+	GraphReFlyConfig,
+	type MessageContext,
+	type NodeActions,
+	type NodeCtx,
+	type OnMessageHandler,
+	type OnSubscribeHandler,
+	registerBuiltins,
+	type SubscribeContext,
+} from "./config.js";
 export * from "./guard.js";
-export * from "./messages.js";
+export {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	INVALIDATE,
+	type Message,
+	type Messages,
+	type MessageTypeRegistration,
+	type MessageTypeRegistrationInput,
+	PAUSE,
+	RESOLVED,
+	RESUME,
+	START,
+	TEARDOWN,
+} from "./messages.js";
 export {
 	type DescribeDetail,
 	type DescribeField,
@@ -15,22 +40,36 @@ export {
 	resolveDescribeFields,
 } from "./meta.js";
 export {
-	CLEANUP_RESULT,
-	type CleanupResult,
-	cleanupResult,
+	configure,
+	defaultConfig,
+	type DepRecord,
+	type FnCtx,
+	type Maybe,
 	type Node,
-	type NodeActions,
 	type NodeDescribeKind,
 	type NodeFn,
+	type NodeFnCleanup,
 	type NodeOptions,
 	type NodeSink,
 	type NodeStatus,
 	type NodeTransportOptions,
 	node,
-	type OnMessageHandler,
-	type SubscribeHints,
+	NodeImpl,
 } from "./node.js";
-export * from "./sugar.js";
+export {
+	derived,
+	type DerivedFn,
+	dynamicNode,
+	type DynamicFn,
+	effect,
+	type EffectFn,
+	pipe,
+	type PipeOperator,
+	producer,
+	type ProducerFn,
+	state,
+	type TrackFn,
+} from "./sugar.js";
 export { ResettableTimer } from "./timer.js";
 export {
 	advanceVersion,
