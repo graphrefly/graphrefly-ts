@@ -97,7 +97,7 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 		const nd = pathToNode.get(path);
 		const impl = nd instanceof NodeImpl ? nd : null;
 
-		const valueSizeBytes = impl ? sizeof(impl.get()) : 0;
+		const valueSizeBytes = impl ? sizeof(impl.cache) : 0;
 		const subscriberCount = impl ? impl._sinkCount : 0;
 		const depCount = nodeDesc.deps?.length ?? 0;
 

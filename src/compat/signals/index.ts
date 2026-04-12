@@ -1,8 +1,7 @@
 import { batch } from "../../core/batch.js";
-import { type DynGet, dynamicNode } from "../../core/dynamic-node.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { type TrackFn, dynamicNode, state } from "../../core/sugar.js";
 
 /**
  * Options for creating signals.
@@ -34,14 +33,14 @@ export interface AnySignal<T> {
  * function before execution and pop it after. This prevents memory leaks without
  * needing WeakRefs, as the stack is always empty when idle.
  */
-const trackingStack: DynGet[] = [];
+const trackingStack: TrackFn[] = [];
 
 /**
  * Helper to pull a disconnected node, forcing a synchronous resolution
  * cycle so that `get()` returns a fresh value even if the signal is unmounted.
  */
 function pull<T>(n: Node<T>): T {
-	let val: T | undefined = n.get();
+	let val: T | undefined | null = n.cache;
 	const unsub = n.subscribe((msgs: Messages) => {
 		for (const [t, v] of msgs) {
 			if (t === DATA) val = v as T;
@@ -81,16 +80,16 @@ class SignalState<T> implements AnySignal<T> {
 		// If we are evaluating inside a computed node, track this read!
 		const tracker = trackingStack[trackingStack.length - 1];
 		if (tracker) {
-			if (this._node.status === "disconnected") {
+			if (this._node.status === "sentinel") {
 				pull(this._node);
 			}
 			return tracker(this._node) as T;
 		}
 
-		if (this._node.status === "disconnected") {
+		if (this._node.status === "sentinel") {
 			return pull(this._node);
 		}
-		return this._node.get() as T;
+		return this._node.cache as T;
 	}
 
 	set(value: T): void {
@@ -118,8 +117,9 @@ class SignalComputed<T> implements AnySignal<T> {
 
 	constructor(computation: () => T, opts?: SignalOptions) {
 		this._node = dynamicNode<T>(
-			(get) => {
-				trackingStack.push(get);
+			[],
+			(track) => {
+				trackingStack.push(track);
 				try {
 					return computation();
 				} finally {
@@ -139,16 +139,16 @@ class SignalComputed<T> implements AnySignal<T> {
 		// Computed nodes can themselves be dependencies of other Computed nodes.
 		const tracker = trackingStack[trackingStack.length - 1];
 		if (tracker) {
-			if (this._node.status === "disconnected") {
+			if (this._node.status === "sentinel") {
 				pull(this._node);
 			}
 			return tracker(this._node) as T;
 		}
 
-		if (this._node.status === "disconnected") {
+		if (this._node.status === "sentinel") {
 			return pull(this._node);
 		}
-		return this._node.get() as T;
+		return this._node.cache as T;
 	}
 }
 

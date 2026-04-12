@@ -66,7 +66,7 @@ export class TopicGraph<T> extends Graph {
 	}
 
 	retained(): readonly T[] {
-		return this.events.get() as readonly T[];
+		return this.events.cache as readonly T[];
 	}
 }
 
@@ -89,7 +89,7 @@ export class SubscriptionGraph<T> extends Graph {
 			name: "source",
 			describeKind: "derived",
 			meta: messagingMeta("subscription_source"),
-			initial: topicEvents.get() as readonly T[],
+			initial: topicEvents.cache as readonly T[],
 		});
 		this.add("source", this.source);
 		this.cursor = state(initialCursor, {
@@ -121,20 +121,20 @@ export class SubscriptionGraph<T> extends Graph {
 	}
 
 	ack(count?: number): number {
-		const available = this.available.get() as readonly T[];
+		const available = this.available.cache as readonly T[];
 		const requested =
 			count === undefined
 				? available.length
 				: requireNonNegativeInt(count, "subscription ack count");
 		const step = Math.min(requested, available.length);
-		if (step <= 0) return this.cursor.get() as number;
-		const next = (this.cursor.get() as number) + step;
+		if (step <= 0) return this.cursor.cache as number;
+		const next = (this.cursor.cache as number) + step;
 		this.cursor.down([[DATA, next]]);
 		return next;
 	}
 
 	pull(limit?: number, opts: { ack?: boolean } = {}): readonly T[] {
-		const available = this.available.get() as readonly T[];
+		const available = this.available.cache as readonly T[];
 		const max =
 			limit === undefined
 				? available.length
@@ -208,7 +208,7 @@ export class JobQueueGraph<T> extends Graph {
 		if (max === 0) return [];
 		const out: JobEnvelope<T>[] = [];
 		while (out.length < max) {
-			const ids = this.pending.get() as readonly string[];
+			const ids = this.pending.cache as readonly string[];
 			if (ids.length === 0) break;
 			const id = this._pending.pop(0);
 			const job = this._jobs.get(id);
@@ -349,7 +349,7 @@ export class JobFlowGraph<T> extends Graph {
 	}
 
 	retainedCompleted(): readonly JobEnvelope<T>[] {
-		return this.completed.get() as readonly JobEnvelope<T>[];
+		return this.completed.cache as readonly JobEnvelope<T>[];
 	}
 }
 
@@ -402,7 +402,7 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 					bridged += 1;
 				}
 				if (bridged > 0) {
-					const current = this.bridgedCount.get() as number;
+					const current = this.bridgedCount.cache as number;
 					this.bridgedCount.down([[DATA, current + bridged]]);
 				}
 			},

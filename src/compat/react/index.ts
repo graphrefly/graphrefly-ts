@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
-import { DATA, DIRTY, type Messages, messageTier } from "../../core/messages.js";
+import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /**
@@ -22,7 +22,7 @@ import type { Node } from "../../core/node.js";
  * @param node - Any `Node<T>`.
  * @returns `T | undefined` — the current node value, kept in sync via `useSyncExternalStore`.
  */
-export function useSubscribe<T>(node: Node<T>): T | undefined {
+export function useSubscribe<T>(node: Node<T>): T | undefined | null {
 	return useSyncExternalStore(
 		(onStoreChange) => {
 			let disposed = false;
@@ -34,8 +34,8 @@ export function useSubscribe<T>(node: Node<T>): T | undefined {
 				unsub();
 			};
 		},
-		() => node.get(),
-		() => node.get(), // Server snapshot
+		() => node.cache,
+		() => node.cache, // Server snapshot
 	);
 }
 
@@ -47,7 +47,7 @@ export function useSubscribe<T>(node: Node<T>): T | undefined {
  * @param node - A `Node<T>` (e.g. state node).
  * @returns `[T | undefined, (value: T) => void]` — current value and setter function.
  */
-export function useStore<T>(node: Node<T>): [T | undefined, (value: T) => void] {
+export function useStore<T>(node: Node<T>): [T | undefined | null, (value: T) => void] {
 	const value = useSubscribe(node);
 	const setter = useCallback(
 		(v: T) => {
@@ -83,12 +83,12 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 	const store = useMemo(() => {
 		const computeSnap = () => {
 			const snap = {} as Record<K, R>;
-			const keys = keysNode.get() ?? [];
+			const keys = keysNode.cache ?? [];
 			for (const key of keys) {
 				const nodes = factoryRef.current(key);
 				const values = {} as R;
 				for (const field of Object.keys(nodes) as (keyof R)[]) {
-					values[field] = nodes[field].get() as R[keyof R];
+					values[field] = nodes[field].cache as R[keyof R];
 				}
 				snap[key] = values;
 			}
@@ -124,10 +124,10 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 				};
 
 				const keysUnsub = keysNode.subscribe((msgs: Messages) => {
-					const hasSettled = msgs.some((m) => messageTier(m[0]) >= 3);
-					if (!disposed && hasSettled) sync(keysNode.get() ?? []);
+					const hasSettled = msgs.some((m) => m[0] === DATA || m[0] === RESOLVED);
+					if (!disposed && hasSettled) sync(keysNode.cache ?? []);
 				});
-				sync(keysNode.get() ?? []);
+				sync(keysNode.cache ?? []);
 
 				return () => {
 					disposed = true;

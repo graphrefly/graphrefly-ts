@@ -1,8 +1,7 @@
 import { batch } from "../../core/batch.js";
-import { type DynGet, dynamicNode } from "../../core/dynamic-node.js";
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { type TrackFn, dynamicNode, state } from "../../core/sugar.js";
 
 /**
  * A Nanostores-compatible atom.
@@ -108,7 +107,7 @@ function createStore<T>(node: Node<T>, extra: any = {}): any {
 }
 
 function pull<T>(n: Node<T>): T {
-	let val: T | undefined = n.get();
+	let val: T | undefined | null = n.cache;
 	let err: any;
 	const unsub = n.subscribe((msgs: Messages) => {
 		for (const [t, v] of msgs) {
@@ -122,10 +121,10 @@ function pull<T>(n: Node<T>): T {
 }
 
 function getVal<T>(n: Node<T>): T {
-	if (n.status === "disconnected") {
+	if (n.status === "sentinel") {
 		return pull(n);
 	}
-	return n.get() as T;
+	return n.cache as T;
 }
 
 /**
@@ -177,14 +176,16 @@ export function computed<T>(stores: any, fn: (...args: any[]) => T): NanoCompute
 		? stores
 		: [stores];
 
+	const depNodes = storeArray.map((s) => s._node);
 	const n = dynamicNode(
-		(get: DynGet) => {
+		depNodes,
+		(track: TrackFn) => {
 			const vals = storeArray.map((s) => {
 				const node = s._node;
-				if (node.status === "disconnected") {
+				if (node.status === "sentinel") {
 					pull(node);
 				}
-				return get(node);
+				return track(node);
 			});
 			return fn(...vals);
 		},

@@ -38,7 +38,7 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 	const s = stateNode<T>(undefined as unknown as T, { name: "state" });
 	g.add("state", s);
 
-	const getState = () => s.get() as T;
+	const getState = () => s.cache as T;
 	const setState = (partial: any, replace?: boolean): void => {
 		const prev = getState();
 		const next = typeof partial === "function" ? partial(prev) : partial;

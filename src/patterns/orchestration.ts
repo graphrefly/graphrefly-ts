@@ -15,8 +15,9 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type Node, type NodeActions, type NodeFn, type NodeOptions, node } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import type { NodeActions } from "../core/config.js";
+import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
+import { derived, effect, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
@@ -26,7 +27,7 @@ type OrchestrationMeta = {
 	orchestration_type?: string;
 };
 
-export type OrchestrationStepOptions = Omit<NodeOptions, "describeKind" | "name" | "meta"> & {
+export type OrchestrationStepOptions = Omit<NodeOptions<unknown>, "describeKind" | "name" | "meta"> & {
 	deps?: ReadonlyArray<StepRef>;
 	meta?: Record<string, unknown> & OrchestrationMeta;
 };
@@ -127,7 +128,7 @@ export function pipeline(name: string, opts?: GraphOptions): Graph {
 export function task<T>(
 	graph: Graph,
 	name: string,
-	run: NodeFn<T>,
+	run: NodeFn,
 	opts?: OrchestrationStepOptions,
 ): Node<T> {
 	const depRefs = opts?.deps ?? [];
@@ -141,7 +142,7 @@ export function task<T>(
 			name,
 			describeKind: "derived",
 			meta: baseMeta("task", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	registerStep(
 		graph,
@@ -163,7 +164,7 @@ export function branch<T>(
 	opts?: Omit<OrchestrationStepOptions, "deps">,
 ): Node<BranchResult<T>> {
 	const src = resolveDep(graph, source);
-	const step = node<BranchResult<T>>(
+	const step = derived<BranchResult<T>>(
 		[src.node],
 		([value]) => ({
 			branch: predicate(value as T) ? "then" : "else",
@@ -172,9 +173,8 @@ export function branch<T>(
 		{
 			...opts,
 			name,
-			describeKind: "derived",
 			meta: baseMeta("branch", opts?.meta),
-		},
+		} as NodeOptions<BranchResult<T>>,
 	);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
@@ -192,22 +192,17 @@ export function valve<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	const ctrl = resolveDep(graph, control);
-	const step = node<T>(
+	const step = derived<T>(
 		[src.node, ctrl.node],
-		(_deps, actions) => {
-			const opened = ctrl.node.get();
-			if (!opened) {
-				actions.down([[RESOLVED]]);
-				return undefined;
-			}
-			return src.node.get() as T;
+		([srcVal, ctrlVal]) => {
+			if (!ctrlVal) return undefined;
+			return srcVal as T;
 		},
 		{
 			...opts,
 			name,
-			describeKind: "operator",
 			meta: baseMeta("valve", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	registerStep(
 		graph,
@@ -235,21 +230,17 @@ export function approval<T>(
 	const src = resolveDep(graph, source);
 	const ctrl = resolveDep(graph, approver);
 	const isApproved = opts?.isApproved ?? ((value: unknown) => Boolean(value));
-	const step = node<T>(
+	const step = derived<T>(
 		[src.node, ctrl.node],
-		(_deps, actions: NodeActions) => {
-			if (!isApproved(ctrl.node.get())) {
-				actions.down([[RESOLVED]]);
-				return undefined;
-			}
-			return src.node.get() as T;
+		([srcVal, ctrlVal]) => {
+			if (!isApproved(ctrlVal)) return undefined;
+			return srcVal as T;
 		},
 		{
 			...opts,
 			name,
-			describeKind: "operator",
 			meta: baseMeta("approval", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	registerStep(
 		graph,
@@ -322,9 +313,8 @@ export function gate<T>(
 	// Internal reactive state
 	const pendingNode = state<T[]>([], { name: "pending", equals: () => false });
 	const isOpenNode = state<boolean>(startOpen, { name: "isOpen" });
-	const countNode = node<number>([pendingNode], ([arr]) => (arr as T[]).length, {
+	const countNode = derived<number>([pendingNode], ([arr]) => (arr as T[]).length, {
 		name: "count",
-		describeKind: "derived",
 	});
 
 	let queue: T[] = [];
@@ -351,40 +341,38 @@ export function gate<T>(
 	}
 
 	// The output node: a producer-like node that subscribes to source
-	const output = node<T>([src.node], () => undefined, {
-		name,
-		describeKind: "operator",
-		meta: baseMeta("gate", opts?.meta),
-		onMessage(msg: Message, _depIndex: number, actions: NodeActions) {
-			if (msg[0] === DATA) {
-				if (isOpenNode.get()) {
-					actions.emit(msg[1] as T);
+	// Producer pattern: manually subscribe to source for per-message interception
+	// (onMessage removed in v5 — use producer+subscribe instead)
+	const output = node<T>([], (data, actions) => {
+		const unsub = src.node.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) {
+					if (isOpenNode.cache) {
+						actions.emit(msg[1] as T);
+					} else {
+						enqueue(msg[1] as T);
+						actions.down([[RESOLVED]]);
+					}
+				} else if (msg[0] === TEARDOWN) {
+					torn = true;
+					queue = [];
+					syncPending();
+					actions.down([msg]);
+				} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
+					torn = true;
+					queue = [];
+					syncPending();
+					actions.down([msg]);
 				} else {
-					enqueue(msg[1] as T);
-					// Settle downstream: source DIRTY was forwarded, so emit RESOLVED
-					// to prevent downstream from staying stuck in dirty status.
-					actions.down([[RESOLVED]]);
+					actions.down([msg]);
 				}
-				return true;
 			}
-			if (msg[0] === TEARDOWN) {
-				torn = true;
-				queue = [];
-				syncPending();
-				actions.down([msg]);
-				return true;
-			}
-			if (msg[0] === COMPLETE || msg[0] === ERROR) {
-				torn = true;
-				queue = [];
-				syncPending();
-				actions.down([msg]);
-				return true;
-			}
-			// Forward DIRTY, RESOLVED, and unknown types
-			actions.down([msg]);
-			return true;
-		},
+		});
+		return () => unsub();
+	}, {
+		name,
+		describeKind: "derived",
+		meta: baseMeta("gate", opts?.meta),
 	});
 
 	const controller: GateController<T> = {
@@ -456,34 +444,34 @@ export function forEach<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	let terminated = false;
-	const step = node<T>([src.node], () => undefined, {
+	// Producer pattern: manually subscribe to source for per-message interception
+	// (onMessage removed in v5 — use producer+subscribe instead)
+	const step = node<T>([], (data, actions) => {
+		const unsub = src.node.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (terminated) return;
+				if (msg[0] === DATA) {
+					try {
+						run(msg[1] as T, actions);
+						actions.down([msg] satisfies Messages);
+					} catch (err) {
+						terminated = true;
+						actions.down([[ERROR, err]] satisfies Messages);
+					}
+				} else {
+					actions.down([msg] satisfies Messages);
+					if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
+				}
+			}
+		});
+		return () => unsub();
+	}, {
 		...opts,
 		name,
 		describeKind: "effect",
 		completeWhenDepsComplete: false,
 		meta: baseMeta("forEach", opts?.meta),
-		onMessage(msg: Message, depIndex: number, actions: NodeActions) {
-			if (terminated) return true;
-			if (depIndex !== 0) {
-				actions.down([msg] satisfies Messages);
-				if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
-				return true;
-			}
-			if (msg[0] === DATA) {
-				try {
-					run(msg[1] as T, actions);
-					actions.down([msg] satisfies Messages);
-				} catch (err) {
-					terminated = true;
-					actions.down([[ERROR, err]] satisfies Messages);
-				}
-				return true;
-			}
-			actions.down([msg] satisfies Messages);
-			if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
-			return true;
-		},
-	});
+	} as NodeOptions<T>);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }
@@ -498,15 +486,14 @@ export function join<T extends readonly unknown[]>(
 	opts?: Omit<OrchestrationStepOptions, "deps">,
 ): Node<T> {
 	const resolved = deps.map((dep) => resolveDep(graph, dep));
-	const step = node<T>(
+	const step = derived<T>(
 		resolved.map((d) => d.node),
 		(values) => values as T,
 		{
 			...opts,
 			name,
-			describeKind: "derived",
 			meta: baseMeta("join", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	registerStep(
 		graph,
@@ -534,21 +521,21 @@ export function loop<T>(
 	const staticIterations = typeof iterRef === "number" ? iterRef : undefined;
 	const step = node<T>(
 		iterDep ? [src.node, iterDep.node] : [src.node],
-		(_deps, actions) => {
-			let current = src.node.get() as T;
-			const rawCount = staticIterations ?? iterDep?.node.get() ?? 1;
+		(depValues, actions) => {
+			let current = depValues[0] as T;
+			const rawCount = staticIterations ?? (iterDep ? depValues[1] : 1);
 			const count = coerceLoopIterations(rawCount);
 			for (let i = 0; i < count; i += 1) {
 				current = iterate(current, i, actions);
 			}
-			return current;
+			actions.emit(current);
 		},
 		{
 			...opts,
 			name,
 			describeKind: "derived",
 			meta: baseMeta("loop", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	registerStep(
 		graph,
@@ -583,7 +570,7 @@ export function sensor<T>(
 	graph: Graph,
 	name: string,
 	initial?: T,
-	opts?: Omit<NodeOptions, "name" | "describeKind" | "meta"> & {
+	opts?: Omit<NodeOptions<unknown>, "name" | "describeKind" | "meta"> & {
 		meta?: Record<string, unknown>;
 	},
 ): SensorControls<T> {
@@ -633,7 +620,7 @@ export function wait<T>(
 	// Under Model B (push-on-subscribe) the fn runs eagerly via _startProducer,
 	// ensuring the cleanup is registered and timers are cleared on teardown.
 	// Only set initial if source has a real cached value (not SENTINEL/undefined).
-	const srcVal = src.node.get();
+	const srcVal = src.node.cache;
 	const initialOpt = srcVal !== undefined ? { initial: srcVal as T } : {};
 
 	const step = node<T>(
@@ -679,10 +666,10 @@ export function wait<T>(
 			...opts,
 			name,
 			...initialOpt,
-			describeKind: "operator",
+			describeKind: "derived",
 			completeWhenDepsComplete: false,
 			meta: baseMeta("wait", opts?.meta),
-		},
+		} as NodeOptions<T>,
 	);
 	// Producer pattern: register in graph without dep edges (manual subscription).
 	// Record a logical edge for describe() even though the dep is not in constructor deps.
@@ -711,28 +698,33 @@ export function onFailure<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	let terminated = false;
-	const step = node<T>([src.node], () => undefined, {
+	// Producer pattern: manually subscribe to source for per-message interception
+	// (onMessage removed in v5 — use producer+subscribe instead)
+	const step = node<T>([], (data, actions) => {
+		const unsub = src.node.subscribe((msgs) => {
+			for (const msg of msgs) {
+				if (terminated) return;
+				if (msg[0] === ERROR) {
+					try {
+						actions.emit(recover(msg[1], actions));
+					} catch (err) {
+						terminated = true;
+						actions.down([[ERROR, err]] satisfies Messages);
+					}
+				} else {
+					actions.down([msg] satisfies Messages);
+					if (msg[0] === COMPLETE) terminated = true;
+				}
+			}
+		});
+		return () => unsub();
+	}, {
 		...opts,
 		name,
-		describeKind: "operator",
+		describeKind: "derived",
 		completeWhenDepsComplete: false,
 		meta: baseMeta("onFailure", opts?.meta),
-		onMessage(msg: Message, _depIndex: number, actions: NodeActions) {
-			if (terminated) return true;
-			if (msg[0] === ERROR) {
-				try {
-					actions.emit(recover(msg[1], actions));
-				} catch (err) {
-					terminated = true;
-					actions.down([[ERROR, err]] satisfies Messages);
-				}
-				return true;
-			}
-			actions.down([msg] satisfies Messages);
-			if (msg[0] === COMPLETE) terminated = true;
-			return true;
-		},
-	});
+	} as NodeOptions<T>);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }

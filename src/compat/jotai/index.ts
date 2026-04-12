@@ -1,7 +1,6 @@
-import { dynamicNode } from "../../core/dynamic-node.js";
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { dynamicNode, state } from "../../core/sugar.js";
 
 /**
  * Options for creating an atom.
@@ -95,7 +94,7 @@ export function atom<T>(
 }
 
 function pull<T>(n: Node<T>): T {
-	let val: T | undefined = n.get();
+	let val: T | undefined | null = n.cache;
 	let err: any;
 	const unsub = n.subscribe((msgs: Messages) => {
 		for (const [t, v] of msgs) {
@@ -116,14 +115,14 @@ function createPrimitiveAtom<T>(initial: T, options?: AtomOptions): WritableAtom
 	});
 	return {
 		get: () => {
-			if (n.status === "disconnected") {
+			if (n.status === "sentinel") {
 				return pull(n);
 			}
-			return n.get() as T;
+			return n.cache as T;
 		},
 		set: (value: T) => n.down([[DATA, value]]),
 		update: (fn: (current: T) => T) => {
-			const current = n.status === "disconnected" ? pull(n) : (n.get() as T);
+			const current = n.status === "sentinel" ? pull(n) : (n.cache as T);
 			n.down([[DATA, fn(current)]]);
 		},
 		subscribe: (cb: (value: T) => void) => {
@@ -152,13 +151,14 @@ function createDerivedAtom<T>(
 	options?: AtomOptions,
 ): ReadableAtom<T> | WritableAtom<T> {
 	const n = dynamicNode(
-		(get) =>
+		[],
+		(track) =>
 			read(<V>(a: ReadableAtom<V>) => {
 				const dn = a._node;
-				if (dn.status === "disconnected") {
+				if (dn.status === "sentinel") {
 					pull(dn);
 				}
-				return get(dn) as V;
+				return track(dn) as V;
 			}),
 		{
 			...options,
@@ -169,10 +169,10 @@ function createDerivedAtom<T>(
 
 	const result: ReadableAtom<T> = {
 		get: () => {
-			if (n.status === "disconnected") {
+			if (n.status === "sentinel") {
 				return pull(n);
 			}
-			return n.get() as T;
+			return n.cache as T;
 		},
 		subscribe: (cb: (value: T) => void) => {
 			// Skip the initial push-on-subscribe DATA — jotai subscribe fires on changes only.
@@ -200,7 +200,7 @@ function createDerivedAtom<T>(
 		const writable = result as WritableAtom<T>;
 		writable.set = (value: T) => write(getFn, setFn, value);
 		writable.update = (fn: (current: T) => T) => {
-			const current = n.status === "disconnected" ? pull(n) : (n.get() as T);
+			const current = n.status === "sentinel" ? pull(n) : (n.cache as T);
 			return write(getFn, setFn, fn(current));
 		};
 		return writable;

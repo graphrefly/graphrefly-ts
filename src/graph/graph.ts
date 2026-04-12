@@ -9,7 +9,6 @@ import {
 	ERROR,
 	INVALIDATE,
 	type Messages,
-	messageTier,
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
@@ -21,9 +20,9 @@ import {
 	resolveDescribeFields,
 } from "../core/meta.js";
 import {
+	defaultConfig,
 	type Node,
 	NodeImpl,
-	type NodeInspectorHookEvent,
 	type NodeSink,
 	type NodeTransportOptions,
 } from "../core/node.js";
@@ -773,16 +772,12 @@ export class Graph {
 		}
 		this._nodes.set(name, node);
 		if (node instanceof NodeImpl) {
-			node._assignRegistryName(name);
-			if (this._defaultVersioningLevel != null) {
-				node._applyVersioning(this._defaultVersioningLevel);
-			}
 			// Auto-register edges from constructor deps (eliminates dual-bookkeeping).
 			// Forward: this node's deps → already-registered nodes.
 			if (node._deps.length > 0) {
 				for (const dep of node._deps) {
 					for (const [depName, depNode] of this._nodes) {
-						if (depNode === dep) {
+						if (depNode === dep.node) {
 							this._edges.add(edgeKey(depName, name));
 							break;
 						}
@@ -792,7 +787,7 @@ export class Graph {
 			// Reverse: already-registered nodes that depend on this newly added node.
 			for (const [otherName, otherNode] of this._nodes) {
 				if (otherName === name) continue;
-				if (otherNode instanceof NodeImpl && otherNode._deps.includes(node)) {
+				if (otherNode instanceof NodeImpl && otherNode._deps.some((d) => d.node === node)) {
 					this._edges.add(edgeKey(name, otherName));
 				}
 			}
@@ -812,12 +807,9 @@ export class Graph {
 	 */
 	setVersioning(level: VersioningLevel | undefined): void {
 		this._defaultVersioningLevel = level;
-		if (level == null) return;
-		for (const n of this._nodes.values()) {
-			if (n instanceof NodeImpl) {
-				n._applyVersioning(level);
-			}
-		}
+		// v5: versioning is construction-time only (§10.6.4).
+		// This method stores the default for documentation/query purposes
+		// but does not retroactively mutate already-registered nodes.
 	}
 
 	/**
@@ -886,7 +878,7 @@ export class Graph {
 	 * @returns Cached value or `undefined`.
 	 */
 	get(name: string): unknown {
-		return this.node(name).get();
+		return this.node(name).cache;
 	}
 
 	/**
@@ -939,7 +931,7 @@ export class Graph {
 				`Graph "${this.name}": connect(${fromPath}, ${toPath}) requires the target to be a graphrefly NodeImpl so deps can be validated`,
 			);
 		}
-		if (!toNode._deps.includes(fromNode)) {
+		if (!toNode._deps.some((d) => d.node === fromNode)) {
 			throw new Error(
 				`Graph "${this.name}": connect(${fromPath}, ${toPath}) — target must include source in its constructor deps (same node reference)`,
 			);
@@ -1247,7 +1239,7 @@ export class Graph {
 			if (actor != null && !n.allowsObserve(actor)) continue;
 			const raw = describeNode(n, effectiveFields);
 			const deps =
-				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d) ?? d.name ?? "") : [];
+				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d.node) ?? d.node.name ?? "") : [];
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
 			if (filter != null) {
@@ -1541,27 +1533,11 @@ export class Graph {
 
 		let lastTriggerDepIndex: number | undefined;
 		let lastRunDepValues: unknown[] | undefined;
-		let detachInspectorHook: (() => void) | undefined;
+		// TODO: redesign observer hook for v5
+		// Inspector hook (_setInspectorHook) was removed in v5. Causal/derived
+		// observation will need a new mechanism. For now, these features are
+		// disabled — lastTriggerDepIndex and lastRunDepValues remain undefined.
 		let batchSeq = 0;
-		if ((causal || derived) && target instanceof NodeImpl) {
-			detachInspectorHook = target._setInspectorHook((event: NodeInspectorHookEvent) => {
-				if (event.kind === "dep_message") {
-					lastTriggerDepIndex = event.depIndex;
-					return;
-				}
-				lastRunDepValues = [...event.depValues];
-				if (derived) {
-					result.events.push({
-						type: "derived",
-						path,
-						dep_values: [...event.depValues],
-						...(timeline
-							? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
-							: {}),
-					});
-				}
-			});
-		}
 
 		const unsub = target.subscribe((msgs) => {
 			batchSeq++;
@@ -1573,16 +1549,17 @@ export class Graph {
 				const withCausal =
 					causal && lastRunDepValues != null
 						? (() => {
-								const triggerDep =
+								const triggerDepRecord =
 									lastTriggerDepIndex != null &&
 									lastTriggerDepIndex >= 0 &&
 									target instanceof NodeImpl
 										? target._deps[lastTriggerDepIndex]
 										: undefined;
-								const tv = triggerDep?.v;
+								const triggerNode = triggerDepRecord?.node;
+								const tv = triggerNode?.v;
 								return {
 									trigger_dep_index: lastTriggerDepIndex,
-									trigger_dep_name: triggerDep?.name,
+									trigger_dep_name: triggerNode?.name,
 									...(tv != null ? { trigger_version: { id: tv.id, version: tv.version } } : {}),
 									dep_values: [...lastRunDepValues],
 								};
@@ -1640,13 +1617,11 @@ export class Graph {
 			},
 			dispose() {
 				unsub();
-				detachInspectorHook?.();
 			},
 			expand(
 				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
 			): ObserveResult<T> {
 				unsub();
-				detachInspectorHook?.();
 				const merged: ObserveOptions = { ...options };
 				if (typeof extra === "string") {
 					merged.detail = extra;
@@ -2155,7 +2130,7 @@ export class Graph {
 			if (onlyPatterns !== null && !onlyPatterns.some((re) => re.test(path))) continue;
 			const slice = data.nodes[path];
 			if (slice === undefined || slice.value === undefined) continue;
-			if (slice.type === "derived" || slice.type === "operator" || slice.type === "effect") {
+			if (slice.type === "derived" || slice.type === "effect") {
 				continue;
 			}
 			try {
@@ -2345,7 +2320,7 @@ export class Graph {
 		};
 
 		const off = this.observe().subscribe((path, messages) => {
-			const triggeredByTier = messages.some((m) => messageTier(m[0]) >= 3);
+			const triggeredByTier = messages.some((m) => defaultConfig.messageTier(m[0]) >= 3);
 			if (!triggeredByTier) return;
 			if (options.filter) {
 				const nd = this.resolve(path);

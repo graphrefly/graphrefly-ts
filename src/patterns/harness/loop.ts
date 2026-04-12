@@ -363,9 +363,9 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		if (
 			errClass === "self-correctable" &&
 			itemRetries < maxRetries &&
-			(totalRetries.get() ?? 0) < maxTotalRetries
+			(totalRetries.cache ?? 0) < maxTotalRetries
 		) {
-			totalRetries.down([[DIRTY], [DATA, (totalRetries.get() ?? 0) + 1]]);
+			totalRetries.down([[DIRTY], [DATA, (totalRetries.cache ?? 0) + 1]]);
 			const key = trackingKey(item);
 			const retryItem: TriagedItem = {
 				...item,
@@ -383,9 +383,9 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			const itemReingestions = item._reingestions ?? 0;
 			if (
 				itemReingestions < maxReingestions &&
-				(totalReingestions.get() ?? 0) < maxTotalReingestions
+				(totalReingestions.cache ?? 0) < maxTotalReingestions
 			) {
-				totalReingestions.down([[DIRTY], [DATA, (totalReingestions.get() ?? 0) + 1]]);
+				totalReingestions.down([[DIRTY], [DATA, (totalReingestions.cache ?? 0) + 1]]);
 				intake.publish({
 					source: "eval",
 					summary: `Verification failed for: ${key}`,
