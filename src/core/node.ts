@@ -303,11 +303,7 @@ const defaultBundle: BundleFactory = (node: NodeCtx, initial: Messages): Bundle 
 				while (insertAt < sorted.length && tierOf(sorted[insertAt][0]) === 0) {
 					insertAt += 1;
 				}
-				return [
-					...sorted.slice(0, insertAt),
-					[DIRTY] as Message,
-					...sorted.slice(insertAt),
-				];
+				return [...sorted.slice(0, insertAt), [DIRTY] as Message, ...sorted.slice(insertAt)];
 			}
 			return sorted;
 		},
@@ -349,8 +345,7 @@ const defaultOnSubscribe: OnSubscribeHandler = (
 	const impl = node as NodeImpl;
 	if (impl._status === "completed" || impl._status === "errored") return;
 	const cached = impl._cached;
-	const initial: Messages =
-		cached === NO_VALUE ? [[START]] : [[START], [DATA, cached]];
+	const initial: Messages = cached === NO_VALUE ? [[START]] : [[START], [DATA, cached]];
 	const tierOf = (t: symbol) => impl._config.messageTier(t);
 	downWithBatch(sink, initial, tierOf);
 };
@@ -469,11 +464,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._hashFn = opts.versioningHash ?? defaultHash;
 		this._versioning =
 			opts.versioning != null
-				? createVersioning(
-						opts.versioning,
-						this._cached === NO_VALUE ? undefined : this._cached,
-						{ id: opts.versioningId, hash: this._hashFn },
-					)
+				? createVersioning(opts.versioning, this._cached === NO_VALUE ? undefined : this._cached, {
+						id: opts.versioningId,
+						hash: this._hashFn,
+					})
 				: undefined;
 
 		// Per-dep records (replaces 4 BitSets + _lastDepValues + _upstreamUnsubs).
@@ -853,9 +847,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			// the singleton bundle for tier ordering + DIRTY auto-prefix —
 			// `_emit` is raw and won't do it on our behalf.
 			if (t === DATA || t === RESOLVED) {
-				const framed = this._config
-					.bundle(this as unknown as NodeCtx, [msg])
-					.resolve();
+				const framed = this._config.bundle(this as unknown as NodeCtx, [msg]).resolve();
 				this._emit(framed);
 			}
 			if (t === COMPLETE || t === ERROR) {
@@ -881,9 +873,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		if (this._isTerminal && !this._resubscribable) return;
 		const allSettled = this._deps.every((d) => !d.dirty);
 		if (!allSettled) return;
-		const gateOpen = this._deps.every(
-			(d) => d.latestData !== NO_VALUE || d.terminal !== undefined,
-		);
+		const gateOpen = this._deps.every((d) => d.latestData !== NO_VALUE || d.terminal !== undefined);
 		if (!gateOpen) return;
 		if (this._paused) {
 			this._pendingWave = true;
@@ -907,9 +897,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		if (this._deps.length === 0) return;
 		if (this._isTerminal) return;
 		// Any dep with a non-`true` terminal value is errored; emit its payload.
-		const erroredDep = this._deps.find(
-			(d) => d.terminal !== undefined && d.terminal !== true,
-		);
+		const erroredDep = this._deps.find((d) => d.terminal !== undefined && d.terminal !== true);
 		if (erroredDep != null) {
 			this._emit([[ERROR, erroredDep.terminal]]);
 			return;
@@ -1006,9 +994,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		let deliverable = messages;
 		const terminal = this._isTerminal;
 		if (terminal && !this._resubscribable) {
-			const pass = messages.filter(
-				(m) => m[0] === TEARDOWN || m[0] === INVALIDATE,
-			);
+			const pass = messages.filter((m) => m[0] === TEARDOWN || m[0] === INVALIDATE);
 			if (pass.length === 0) return;
 			deliverable = pass;
 		}
@@ -1098,16 +1084,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _actionEmit(value: unknown): void {
 		let unchanged: boolean;
 		try {
-			unchanged =
-				this._cached !== NO_VALUE && this._equals(this._cached as T, value as T);
+			unchanged = this._cached !== NO_VALUE && this._equals(this._cached as T, value as T);
 		} catch (err) {
 			this._emit([[ERROR, this._wrapFnError("equals threw", err)]]);
 			return;
 		}
 		const payload: Message = unchanged ? [RESOLVED] : [DATA, value];
-		const framed = this._config
-			.bundle(this as unknown as NodeCtx, [payload])
-			.resolve();
+		const framed = this._config.bundle(this as unknown as NodeCtx, [payload]).resolve();
 		this._emit(framed);
 	}
 }
@@ -1147,13 +1130,11 @@ export function node<T = unknown>(
 				: undefined;
 	let opts: NodeOptions<T> = {};
 	if (isNodeArray(depsOrFn)) {
-		opts = ((isNodeOptionsObject(fnOrOpts) ? fnOrOpts : optsArg) ??
-			{}) as NodeOptions<T>;
+		opts = ((isNodeOptionsObject(fnOrOpts) ? fnOrOpts : optsArg) ?? {}) as NodeOptions<T>;
 	} else if (isNodeOptionsObject(depsOrFn)) {
 		opts = depsOrFn as NodeOptions<T>;
 	} else {
-		opts = ((isNodeOptionsObject(fnOrOpts) ? fnOrOpts : optsArg) ??
-			{}) as NodeOptions<T>;
+		opts = ((isNodeOptionsObject(fnOrOpts) ? fnOrOpts : optsArg) ?? {}) as NodeOptions<T>;
 	}
 	return new NodeImpl<T>(deps, fn, opts);
 }

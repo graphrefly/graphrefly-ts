@@ -15,10 +15,10 @@ import type { NodeActions } from "./config.js";
 import {
 	type FnCtx,
 	type Node,
-	node,
 	type NodeFn,
 	type NodeFnCleanup,
 	type NodeOptions,
+	node,
 } from "./node.js";
 
 // ---------------------------------------------------------------------------
@@ -33,10 +33,7 @@ import {
  *   explicitly to cache that value; omit to leave the node in `"sentinel"`.
  * @param opts - Optional {@link NodeOptions} (excluding `initial`).
  */
-export function state<T>(
-	initial: T,
-	opts?: Omit<NodeOptions<T>, "initial">,
-): Node<T> {
+export function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): Node<T> {
 	return node<T>([], { ...opts, initial });
 }
 
@@ -50,10 +47,7 @@ export function state<T>(
  * only `store` is useful on a producer — no deps means `dataFrom` and
  * `terminalDeps` are empty).
  */
-export type ProducerFn = (
-	actions: NodeActions,
-	ctx: FnCtx,
-) => NodeFnCleanup | void;
+export type ProducerFn = (actions: NodeActions, ctx: FnCtx) => NodeFnCleanup | void;
 
 /**
  * Creates a producer node with no deps; `fn` runs once when the first
@@ -68,10 +62,7 @@ export type ProducerFn = (
  * });
  * ```
  */
-export function producer<T = unknown>(
-	fn: ProducerFn,
-	opts?: NodeOptions<T>,
-): Node<T> {
+export function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): Node<T> {
 	const wrapped: NodeFn = (_data, actions, ctx) => fn(actions, ctx);
 	return node<T>(wrapped, { describeKind: "producer", ...opts });
 }
@@ -184,16 +175,16 @@ export function dynamicNode<T = unknown>(
 	opts?: NodeOptions<T>,
 ): Node<T> {
 	const depIndex = new Map<Node, number>();
-	allDeps.forEach((d, i) => { depIndex.set(d, i); });
+	allDeps.forEach((d, i) => {
+		depIndex.set(d, i);
+	});
 	return derived<T>(
 		allDeps,
 		(data, ctx) => {
 			const track: TrackFn = (dep) => {
 				const i = depIndex.get(dep);
 				if (i == null) {
-					throw new Error(
-						`dynamicNode: untracked dep "${dep.name ?? "<unnamed>"}"`,
-					);
+					throw new Error(`dynamicNode: untracked dep "${dep.name ?? "<unnamed>"}"`);
 				}
 				return data[i];
 			};
