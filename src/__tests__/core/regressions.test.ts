@@ -23,7 +23,7 @@ describe("regressions", () => {
 		const unsub = source.subscribe(() => undefined);
 		// Bare [DATA] should not crash or update the cached value.
 		source.down([[DATA] as unknown as [symbol, number]]);
-		expect(source.get()).toBe(0);
+		expect(source.cache).toBe(0);
 		expect(source.status).toBe("settled"); // unchanged from initial
 		unsub();
 	});

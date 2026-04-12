@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
-import type { Node } from "../../core/node.js";
+import { type Node, node } from "../../core/node.js";
 import { derived, effect, pipe, producer, state } from "../../core/sugar.js";
 
 describe("sugar constructors", () => {
 	it("state(initial) is a manual source with initial value", () => {
 		const s = state(10);
-		expect(s.get()).toBe(10);
+		expect(s.cache).toBe(10);
 		const seen: symbol[] = [];
 		const unsub = s.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
 		});
 		s.down([[DIRTY], [DATA, 11]]);
 		unsub();
-		expect(s.get()).toBe(11);
+		expect(s.cache).toBe(11);
 		expect(seen).toContain(DIRTY);
 		expect(seen).toContain(DATA);
 	});
 
 	it("producer runs on subscribe and can emit", () => {
-		const p = producer<number>((_deps, { emit }) => {
-			emit(1);
+		const p = producer<number>((actions) => {
+			actions.emit(1);
 		});
 		const seen: number[] = [];
 		const unsub = p.subscribe((msgs) => {
@@ -29,7 +29,7 @@ describe("sugar constructors", () => {
 				if (m[0] === DATA) seen.push(m[1] as number);
 			}
 		});
-		expect(p.get()).toBe(1);
+		expect(p.cache).toBe(1);
 		// Producer emits 1 during _startProducer → single delivery.
 		expect(seen).toEqual([1]);
 		unsub();
@@ -43,7 +43,7 @@ describe("sugar constructors", () => {
 			for (const m of msgs) seen.push(m[0] as symbol);
 		});
 		src.down([[DATA, 3]]);
-		expect(d.get()).toBe(9);
+		expect(d.cache).toBe(9);
 		expect(seen).toContain(DATA);
 		unsub();
 	});
@@ -51,8 +51,8 @@ describe("sugar constructors", () => {
 	it("effect and producer set describe kind for describe()", () => {
 		const e = effect([state(0)], () => {});
 		expect(describeNode(e).type).toBe("effect");
-		const p = producer((_d, { emit }) => {
-			emit(1);
+		const p = producer((actions) => {
+			actions.emit(1);
 		});
 		expect(describeNode(p).type).toBe("producer");
 	});
@@ -69,7 +69,7 @@ describe("sugar constructors", () => {
 		unsub();
 		// Initial connect runs once; dep update runs again.
 		expect(runs).toBe(2);
-		expect(e.get()).toBeUndefined();
+		expect(e.cache).toBeUndefined();
 	});
 
 	it("pipe chains unary node transforms", () => {
@@ -77,7 +77,7 @@ describe("sugar constructors", () => {
 		const doubled = (n: Node) => derived([n], ([v]) => (v as number) * 2);
 		const out = pipe(src, doubled, doubled);
 		const unsub = out.subscribe(() => undefined);
-		expect(out.get()).toBe(4);
+		expect(out.cache).toBe(4);
 		unsub();
 	});
 
@@ -86,11 +86,10 @@ describe("sugar constructors", () => {
 		expect(pipe(src)).toBe(src);
 	});
 
-	it("derived with explicit down() skips return-value emit", () => {
+	it("raw node with explicit actions.down() does not emit DATA", () => {
 		const src = state(0);
-		const d = derived([src], (_deps, { down }) => {
-			down([[DIRTY], [RESOLVED]]);
-			return 999;
+		const d = node([src], (_data, actions) => {
+			actions.down([[DIRTY], [RESOLVED]]);
 		});
 		const vals: unknown[] = [];
 		const unsub = d.subscribe((msgs) => {

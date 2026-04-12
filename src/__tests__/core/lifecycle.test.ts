@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, INVALIDATE, type Messages, PAUSE } from "../../core/messages.js";
 import { node } from "../../core/node.js";
+import { derived } from "../../core/sugar.js";
 
 describe("0.6 lifecycle: INVALIDATE", () => {
 	it("INVALIDATE marks a source node dirty and reaches subscribers", () => {
@@ -15,14 +16,14 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 		expect(s.status).toBe("dirty");
 		expect(seen).toContain(INVALIDATE);
 		// GRAPHREFLY-SPEC §1.2: INVALIDATE clears cached state (no auto-emit).
-		expect(s.get()).toBeUndefined();
+		expect(s.cache).toBeUndefined();
 
 		unsub();
 	});
 
 	it("derived node forwards INVALIDATE from a dependency to its sinks", () => {
 		const src = node<number>({ initial: 0 });
-		const d = node([src], ([v]) => (v as number) * 2);
+		const d = derived([src], ([v]) => (v as number) * 2);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
@@ -32,7 +33,7 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 
 		expect(seen).toContain(INVALIDATE);
 		expect(d.status).toBe("dirty");
-		expect(d.get()).toBeUndefined();
+		expect(d.cache).toBeUndefined();
 
 		unsub();
 	});
@@ -48,7 +49,7 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 		s.down([[INVALIDATE]]);
 
 		expect(types).toContain(INVALIDATE);
-		expect(s.get()).toBeUndefined();
+		expect(s.cache).toBeUndefined();
 
 		unsub();
 	});
@@ -56,7 +57,7 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 	it("INVALIDATE runs fn cleanup once", () => {
 		const src = node<number>({ initial: 0 });
 		let cleanups = 0;
-		const n = node([src], () => () => {
+		const n = node([src], (_data, _actions, _ctx) => () => {
 			cleanups += 1;
 		});
 		const unsub = n.subscribe(() => undefined);
@@ -75,7 +76,7 @@ describe("0.6 lifecycle: node.up fan-out", () => {
 	it("up() invokes each dependency's up with the same message batch", () => {
 		const a = node<number>({ initial: 0 });
 		const b = node<number>({ initial: 0 });
-		const d = node([a, b], ([x, y]) => (x as number) + (y as number));
+		const d = derived([a, b], ([x, y]) => (x as number) + (y as number));
 		d.subscribe(() => {});
 
 		const spyA = vi.spyOn(a, "up");
@@ -84,9 +85,9 @@ describe("0.6 lifecycle: node.up fan-out", () => {
 		d.up(batch);
 
 		expect(spyA).toHaveBeenCalledTimes(1);
-		expect(spyA).toHaveBeenCalledWith(batch);
+		expect(spyA).toHaveBeenCalledWith(batch, { internal: true });
 		expect(spyB).toHaveBeenCalledTimes(1);
-		expect(spyB).toHaveBeenCalledWith(batch);
+		expect(spyB).toHaveBeenCalledWith(batch, { internal: true });
 
 		spyA.mockRestore();
 		spyB.mockRestore();
@@ -96,7 +97,7 @@ describe("0.6 lifecycle: node.up fan-out", () => {
 describe("0.6 two-phase ordering", () => {
 	it("derived subscriber sees DIRTY before DATA in dep push order", () => {
 		const src = node<number>({ initial: 0 });
-		const d = node([src], ([v]) => (v as number) + 1);
+		const d = derived([src], ([v]) => (v as number) + 1);
 		const batches: symbol[][] = [];
 		const unsub = d.subscribe((msgs) => {
 			batches.push(msgs.map((m) => m[0] as symbol));
@@ -107,7 +108,7 @@ describe("0.6 two-phase ordering", () => {
 		const order = batches.flat();
 		expect(order.indexOf(DIRTY)).toBeGreaterThanOrEqual(0);
 		expect(order.indexOf(DATA)).toBeGreaterThan(order.indexOf(DIRTY));
-		expect(d.get()).toBe(6);
+		expect(d.cache).toBe(6);
 		unsub();
 	});
 });
