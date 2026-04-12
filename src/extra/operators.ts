@@ -1,31 +1,33 @@
 /**
  * Tier 1 sync operators (roadmap §2.1) and Tier 2 async/dynamic operators (roadmap §2.2) —
  * each returns a {@link Node} built with {@link node} (or {@link producer} for cold sources).
+ *
+ * v5 foundation redesign: all operators use `actions.emit()` for value emission,
+ * `ctx.store` for persistent state, `ctx.terminalDeps` for terminal handling,
+ * and `ctx.dataFrom` for DATA vs RESOLVED discrimination. `onMessage` and
+ * `onResubscribe` are removed; `NO_VALUE` is no longer exported.
  */
 
 import { monotonicNs } from "../core/clock.js";
+import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
-	DIRTY,
 	ERROR,
 	type Message,
 	type Messages,
-	messageTier,
-	PAUSE,
 	RESOLVED,
-	RESUME,
 	START,
 } from "../core/messages.js";
-import { NO_VALUE, type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
 import { NS_PER_MS } from "./backoff.js";
 import { fromAny, type NodeInput } from "./sources.js";
 
-type ExtraOpts = Omit<NodeOptions, "describeKind">;
+type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 
-function operatorOpts(opts?: ExtraOpts): NodeOptions {
-	return { describeKind: "operator", ...opts };
+function operatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "derived", ...opts } as NodeOptions<T>;
 }
 
 /**
@@ -46,7 +48,7 @@ function operatorOpts(opts?: ExtraOpts): NodeOptions {
  * @category extra
  */
 export function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts): Node<R> {
-	return derived([source as Node], ([v]) => project(v as T), operatorOpts(opts));
+	return derived([source as Node], ([v]) => project(v as T), operatorOpts<R>(opts));
 }
 
 /**
@@ -74,9 +76,8 @@ export function filter<T>(
 	return node<T>(
 		[source as Node],
 		([v], a) => {
-			if (predicate(v as T)) return v as T;
-			a.down([[RESOLVED]]);
-			return undefined;
+			if (predicate(v as T)) a.emit(v as T);
+			else a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);
@@ -109,12 +110,12 @@ export function scan<T, R>(
 	seed: R,
 	opts?: ExtraOpts,
 ): Node<R> {
-	let acc = seed;
 	return node<R>(
 		[source as Node],
-		([v]) => {
-			acc = reducer(acc, v as T);
-			return acc;
+		([v], a, ctx) => {
+			if (!("acc" in ctx.store)) ctx.store.acc = seed;
+			ctx.store.acc = reducer(ctx.store.acc as R, v as T);
+			a.emit(ctx.store.acc as R);
 		},
 		{ ...operatorOpts(opts), initial: seed, resetOnTeardown: true },
 	);
@@ -147,38 +148,27 @@ export function reduce<T, R>(
 	seed: R,
 	opts?: ExtraOpts,
 ): Node<R> {
-	let acc = seed;
-	let sawData = false;
-	let depHasData = false;
 	return node<R>(
 		[source as Node],
-		([v]) => {
-			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
-			sawData = true;
-			acc = reducer(acc, v as T);
-			return undefined;
+		([v], a, ctx) => {
+			if (!("acc" in ctx.store)) ctx.store.acc = seed;
+			// Check for terminal — dep completed
+			if (ctx.terminalDeps[0] !== undefined) {
+				// Terminal: emit accumulated value (or seed if no data ever arrived)
+				a.emit(ctx.store.acc as R);
+				a.down([[COMPLETE]]);
+				return;
+			}
+			// Only accumulate if dep sent DATA this wave
+			if (ctx.dataFrom[0]) {
+				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
+			}
+			// Don't emit until COMPLETE — suppress downstream
+			a.down([[RESOLVED]]);
 		},
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
-			onResubscribe:
-				opts?.resubscribable === true
-					? () => {
-							acc = seed;
-							sawData = false;
-							depHasData = false;
-						}
-					: undefined,
-			onMessage(msg: Message, _i: number, a) {
-				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
-				if (msg[0] === COMPLETE) {
-					if (!sawData) acc = seed;
-					a.emit(acc);
-					a.down([[COMPLETE]]);
-					return true;
-				}
-				return false;
-			},
 		},
 	);
 }
@@ -202,84 +192,43 @@ export function reduce<T, R>(
  */
 export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) {
-		let completed = false;
 		return node<T>(
 			[source as Node],
-			(_d, a) => {
-				if (completed) return undefined;
-				completed = true;
+			(_d, a, ctx) => {
+				if (ctx.store.completed) return;
+				ctx.store.completed = true;
 				a.down([[COMPLETE]]);
-				return undefined;
 			},
 			{
 				...operatorOpts(opts),
 				completeWhenDepsComplete: false,
-				onMessage(msg, _i, a) {
-					// Immediately complete on the source's subscribe handshake —
-					// `take(0)` never forwards anything from the source.
-					if (msg[0] === START && !completed) {
-						completed = true;
-						a.down([[COMPLETE]]);
-						return true;
-					}
-					if (msg[0] === COMPLETE && !completed) {
-						completed = true;
-						a.down([[COMPLETE]]);
-						return true;
-					}
-					return true;
-				},
 			},
 		);
 	}
-	let taken = 0;
-	let done = false;
 	return node<T>(
 		[source as Node],
-		([v]) => {
-			if (done) return undefined;
-			return v as T;
+		([v], a, ctx) => {
+			if (!("taken" in ctx.store)) ctx.store.taken = 0;
+			if (ctx.store.done) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			if (!ctx.dataFrom[0]) {
+				// RESOLVED wave — pass through
+				a.down([[RESOLVED]]);
+				return;
+			}
+			// DATA wave
+			ctx.store.taken = (ctx.store.taken as number) + 1;
+			a.emit(v as T);
+			if ((ctx.store.taken as number) >= count) {
+				ctx.store.done = true;
+				a.down([[COMPLETE]]);
+			}
 		},
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
-			onResubscribe:
-				opts?.resubscribable === true
-					? () => {
-							taken = 0;
-							done = false;
-						}
-					: undefined,
-			onMessage(msg, _i, a) {
-				if (msg[0] === DIRTY) return false;
-				if (done) {
-					return true;
-				}
-				if (msg[0] === DATA) {
-					taken += 1;
-					if (taken >= count) {
-						done = true;
-						a.emit(source.get() as T);
-						a.down([[COMPLETE]]);
-						return true;
-					}
-					return false;
-				}
-				if (msg[0] === RESOLVED) {
-					return false;
-				}
-				if (msg[0] === COMPLETE) {
-					done = true;
-					a.down([[COMPLETE]]);
-					return true;
-				}
-				if (msg[0] === ERROR) {
-					a.down([msg]);
-					return true;
-				}
-				a.down([msg]);
-				return true;
-			},
 		},
 	);
 }
@@ -302,31 +251,24 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
  * @category extra
  */
 export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
-	let skipped = 0;
-	return node<T>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
+	return node<T>(
+		[source as Node],
+		([v], a, ctx) => {
+			if (!("skipped" in ctx.store)) ctx.store.skipped = 0;
+			if (!ctx.dataFrom[0]) {
+				// RESOLVED wave — pass through
 				a.down([[RESOLVED]]);
-				return true;
+				return;
 			}
-			if (t === DATA) {
-				skipped += 1;
-				if (skipped <= count) {
-					a.down([[RESOLVED]]);
-				} else {
-					a.emit(msg[1]);
-				}
-				return true;
+			ctx.store.skipped = (ctx.store.skipped as number) + 1;
+			if ((ctx.store.skipped as number) <= count) {
+				a.down([[RESOLVED]]);
+			} else {
+				a.emit(v as T);
 			}
-			return false;
 		},
-	});
+		operatorOpts(opts),
+	);
 }
 
 /**
@@ -351,33 +293,27 @@ export function takeWhile<T>(
 	predicate: (value: T) => boolean,
 	opts?: ExtraOpts,
 ): Node<T> {
-	let done = false;
-	let depHasData = false;
 	return node<T>(
 		[source as Node],
-		([v], a) => {
-			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
-			if (done) return undefined;
-			if (!predicate(v as T)) {
-				done = true;
-				a.down([[COMPLETE]]);
-				return undefined;
+		([v], a, ctx) => {
+			if (ctx.store.done) {
+				a.down([[RESOLVED]]);
+				return;
 			}
-			return v as T;
+			if (!ctx.dataFrom[0]) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			if (!predicate(v as T)) {
+				ctx.store.done = true;
+				a.down([[COMPLETE]]);
+				return;
+			}
+			a.emit(v as T);
 		},
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
-				if (done) {
-					if (msg[0] === COMPLETE) {
-						a.down([[COMPLETE]]);
-					}
-					return true;
-				}
-				return false;
-			},
 		},
 	);
 }
@@ -408,34 +344,38 @@ export function takeUntil<T>(
 ): Node<T> {
 	const pred = opts?.predicate ?? ((m: Message) => m[0] === DATA);
 	const { predicate: _, ...restOpts } = opts ?? {};
-	let stopped = false;
-	return node<T>(
-		[source as Node, notifier],
-		([v]) => {
-			if (stopped) return undefined;
-			return v as T;
-		},
-		{
-			...operatorOpts(restOpts as ExtraOpts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, i, a) {
-				if (stopped) {
-					if (msg[0] === COMPLETE) {
-						a.down([[COMPLETE]]);
+	// Use producer pattern — subscribe to both manually for message-level control.
+	return producer<T>(
+		(a) => {
+			let stopped = false;
+			const srcUnsub = source.subscribe((msgs) => {
+				if (stopped) return;
+				for (const m of msgs) {
+					if (stopped) return;
+					if (m[0] === DATA) a.emit(m[1] as T);
+					else if (m[0] === COMPLETE || m[0] === ERROR) {
+						stopped = true;
+						a.down([m]);
 					}
-					return true;
 				}
-				if (i === 1) {
-					if (pred(msg)) {
+			});
+			const notUnsub = notifier.subscribe((msgs) => {
+				if (stopped) return;
+				for (const m of msgs) {
+					if (stopped) return;
+					if (pred(m)) {
 						stopped = true;
 						a.down([[COMPLETE]]);
-						return true;
+						return;
 					}
-					return true;
 				}
-				return false;
-			},
+			});
+			return () => {
+				srcUnsub();
+				notUnsub();
+			};
 		},
+		operatorOpts(restOpts as ExtraOpts),
 	);
 }
 
@@ -478,33 +418,30 @@ export function first<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: T }): Node<T> {
 	const { defaultValue, ...rest } = options ?? {};
 	const useDefault = options != null && Object.hasOwn(options, "defaultValue");
-	let lastVal: T | undefined;
-	let has = false;
-	let depHasData = false;
 	return node<T>(
 		[source as Node],
-		([v]) => {
-			if (!depHasData) return undefined; // D8 fallback — dep is SENTINEL
-			lastVal = v as T;
-			has = true;
-			return undefined;
+		([v], a, ctx) => {
+			// Check for terminal — dep completed
+			if (ctx.terminalDeps[0] !== undefined) {
+				if (ctx.store.has) {
+					a.emit(ctx.store.latest as T);
+				} else if (useDefault) {
+					a.emit(defaultValue as T);
+				}
+				a.down([[COMPLETE]]);
+				return;
+			}
+			// Accumulate latest DATA
+			if (ctx.dataFrom[0]) {
+				ctx.store.latest = v as T;
+				ctx.store.has = true;
+			}
+			// Don't emit until COMPLETE
+			a.down([[RESOLVED]]);
 		},
 		{
 			...operatorOpts(rest),
 			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				if (msg[0] === DATA) depHasData = true; // protocol-level tracking
-				if (msg[0] === COMPLETE) {
-					if (has) {
-						a.emit(lastVal as T);
-					} else if (useDefault) {
-						a.emit(defaultValue as T);
-					}
-					a.down([[COMPLETE]]);
-					return true;
-				}
-				return false;
-			},
 		},
 	);
 }
@@ -594,11 +531,11 @@ export function tap<T>(
 	opts?: ExtraOpts,
 ): Node<T> {
 	if (typeof fnOrObserver === "function") {
-		return derived(
+		return node<T>(
 			[source as Node],
-			([v]) => {
+			([v], a) => {
 				fnOrObserver(v as T);
-				return v as T;
+				a.emit(v as T);
 			},
 			operatorOpts(opts),
 		);
@@ -606,27 +543,26 @@ export function tap<T>(
 	const obs = fnOrObserver;
 	return node<T>(
 		[source as Node],
-		([v]) => {
-			obs.data?.(v as T);
-			return v as T;
+		([v], a, ctx) => {
+			// Check for terminal events
+			if (ctx.terminalDeps[0] !== undefined) {
+				if (ctx.terminalDeps[0] === true) {
+					obs.complete?.();
+					a.down([[COMPLETE]]);
+				} else {
+					obs.error?.(ctx.terminalDeps[0]);
+					a.down([[ERROR, ctx.terminalDeps[0]]]);
+				}
+				return;
+			}
+			if (ctx.dataFrom[0]) {
+				obs.data?.(v as T);
+			}
+			a.emit(v as T);
 		},
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					obs.error?.(msg[1]);
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					obs.complete?.();
-					a.down([msg]);
-					return true;
-				}
-				return false;
-			},
 		},
 	);
 }
@@ -653,10 +589,20 @@ export function distinctUntilChanged<T>(
 	equals: (a: T, b: T) => boolean = Object.is,
 	opts?: ExtraOpts,
 ): Node<T> {
-	return node<T>([source as Node], ([v]) => v as T, {
-		...operatorOpts(opts),
-		equals: equals as (a: unknown, b: unknown) => boolean,
-	});
+	return node<T>(
+		[source as Node],
+		([v], a, ctx) => {
+			const val = v as T;
+			if (ctx.store.hasPrev && equals(ctx.store.prev as T, val)) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			ctx.store.prev = val;
+			ctx.store.hasPrev = true;
+			a.emit(val);
+		},
+		operatorOpts(opts),
+	);
 }
 
 /**
@@ -676,21 +622,19 @@ export function distinctUntilChanged<T>(
  * @category extra
  */
 export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]> {
-	let prev: T | undefined;
-	let hasPrev = false;
 	return node<readonly [T, T]>(
 		[source as Node],
-		([v], a) => {
+		([v], a, ctx) => {
 			const x = v as T;
-			if (!hasPrev) {
-				prev = x;
-				hasPrev = true;
+			if (!ctx.store.hasPrev) {
+				ctx.store.prev = x;
+				ctx.store.hasPrev = true;
 				a.down([[RESOLVED]]);
-				return undefined;
+				return;
 			}
-			const pair = [prev as T, x] as const;
-			prev = x;
-			return pair;
+			const pair = [ctx.store.prev as T, x] as const;
+			ctx.store.prev = x;
+			a.emit(pair);
 		},
 		operatorOpts(opts),
 	);
@@ -719,7 +663,7 @@ export function combine<const T extends readonly unknown[]>(
 	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const deps = [...sources] as unknown as Node[];
-	return node<T>(deps, (vals) => vals as unknown as T, operatorOpts());
+	return derived(deps, (vals) => vals as unknown as T, operatorOpts<T>());
 }
 
 /**
@@ -744,39 +688,19 @@ export function withLatestFrom<A, B>(
 	secondary: Node<B>,
 	opts?: ExtraOpts,
 ): Node<readonly [A, B]> {
-	let latestB: B | undefined;
-	let hasB = false;
-	return node<readonly [A, B]>([primary as Node, secondary as Node], () => undefined, {
-		...operatorOpts(opts),
-		onMessage(msg, i, a) {
-			if (i === 1 && (msg[0] === DATA || msg[0] === RESOLVED)) {
-				latestB = secondary.get() as B;
-				hasB = true;
-				return true;
+	return node<readonly [A, B]>(
+		[primary as Node, secondary as Node],
+		(data, a, ctx) => {
+			// Only emit when primary (dep 0) sent DATA this wave
+			if (ctx.dataFrom[0]) {
+				a.emit([data[0] as A, data[1] as B]);
+			} else {
+				// Secondary update only — don't emit downstream DATA
+				a.down([[RESOLVED]]);
 			}
-			if (i === 0 && (msg[0] === DATA || msg[0] === RESOLVED)) {
-				if (!hasB) {
-					latestB = secondary.get() as B;
-					hasB = true;
-				}
-				a.emit([primary.get() as A, latestB as B]);
-				return true;
-			}
-			if (i === 0 && msg[0] === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (i === 1 && msg[0] === DIRTY) {
-				return true;
-			}
-			if (msg[0] === COMPLETE || msg[0] === ERROR) {
-				a.down([msg]);
-				return true;
-			}
-			a.down([msg]);
-			return true;
 		},
-	});
+		operatorOpts(opts),
+	);
 }
 
 /**
@@ -799,62 +723,37 @@ export function withLatestFrom<A, B>(
  */
 export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
-		return producer<T>((_d, a) => {
+		return producer<T>((a) => {
 			a.down([[COMPLETE]]);
-			return undefined;
 		}, operatorOpts());
 	}
-	const deps = sources as unknown as Node[];
-	const n = deps.length;
-	let completed = 0;
-	let dirtyMask = 0n;
-	let anyData = false;
-	return node<T>(deps, () => undefined, {
-		...operatorOpts(),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			const bit = 1n << BigInt(i);
-			if (t === DIRTY) {
-				const wasClean = dirtyMask === 0n;
-				dirtyMask |= bit;
-				if (wasClean) {
-					anyData = false;
-					a.down([[DIRTY]]);
-				}
-				return true;
-			}
-			if (t === RESOLVED) {
-				if (dirtyMask & bit) {
-					dirtyMask &= ~bit;
-					if (dirtyMask === 0n && !anyData) {
-						a.down([[RESOLVED]]);
+	// Producer pattern: subscribe to all sources internally.
+	return producer<T>((a) => {
+		const n = sources.length;
+		let completed = 0;
+		const unsubs: (() => void)[] = [];
+		for (const src of sources) {
+			const u = src.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						a.emit(m[1] as T);
+					} else if (m[0] === COMPLETE) {
+						completed += 1;
+						if (completed >= n) {
+							a.down([[COMPLETE]]);
+						}
+					} else if (m[0] === ERROR) {
+						a.down([m]);
 					}
+					// DIRTY, RESOLVED, START silently absorbed
 				}
-				return true;
-			}
-			if (t === DATA) {
-				dirtyMask &= ~bit;
-				anyData = true;
-				a.emit(msg[1]);
-				return true;
-			}
-			if (t === COMPLETE) {
-				dirtyMask &= ~bit;
-				completed += 1;
-				if (completed >= n) {
-					a.down([[COMPLETE]]);
-				}
-				return true;
-			}
-			if (t === ERROR) {
-				a.down([msg]);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+			});
+			unsubs.push(u);
+		}
+		return () => {
+			for (const u of unsubs) u();
+		};
+	}, operatorOpts());
 }
 
 /**
@@ -877,73 +776,47 @@ export function zip<const T extends readonly unknown[]>(
 ): Node<T> {
 	const n = sources.length;
 	if (n === 0) {
-		return node<T>([], () => [] as unknown as T, operatorOpts());
+		return producer<T>((a) => {
+			a.emit([] as unknown as T);
+			a.down([[COMPLETE]]);
+		}, operatorOpts());
 	}
-	const deps = [...sources] as unknown as Node[];
-	const queues: unknown[][] = Array.from({ length: n }, () => []);
-	let dirtyMask = 0n;
-	let anyData = false;
-	let active = n;
+	// Producer pattern: manage queues internally.
+	return producer<T>((a) => {
+		const queues: unknown[][] = Array.from({ length: n }, () => []);
+		let active = n;
 
-	function tryEmit(a: { emit(v: T): void }) {
-		while (queues.every((q) => q.length > 0)) {
-			const tuple = queues.map((q) => q.shift()!) as unknown as T;
-			a.emit(tuple);
-		}
-	}
-
-	return node<T>(deps, () => undefined, {
-		...operatorOpts(),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			const bit = 1n << BigInt(i);
-			if (t === DIRTY) {
-				const wasClean = dirtyMask === 0n;
-				dirtyMask |= bit;
-				if (wasClean) {
-					anyData = false;
-					a.down([[DIRTY]]);
-				}
-				return true;
+		function tryEmit(): void {
+			while (queues.every((q) => q.length > 0)) {
+				const tuple = queues.map((q) => q.shift()!) as unknown as T;
+				a.emit(tuple);
 			}
-			if (t === RESOLVED) {
-				if (dirtyMask & bit) {
-					dirtyMask &= ~bit;
-					if (dirtyMask === 0n) {
-						if (anyData) {
-							tryEmit(a);
-						} else {
-							a.down([[RESOLVED]]);
+		}
+
+		const unsubs: (() => void)[] = [];
+		for (let i = 0; i < n; i++) {
+			const idx = i;
+			const u = (sources[i] as Node).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						queues[idx].push(m[1]);
+						tryEmit();
+					} else if (m[0] === COMPLETE) {
+						active -= 1;
+						if (active === 0 || queues[idx].length === 0) {
+							a.down([[COMPLETE]]);
 						}
+					} else if (m[0] === ERROR) {
+						a.down([m]);
 					}
 				}
-				return true;
-			}
-			if (t === DATA) {
-				dirtyMask &= ~bit;
-				queues[i].push(msg[1]);
-				anyData = true;
-				if (dirtyMask === 0n) {
-					tryEmit(a);
-				}
-				return true;
-			}
-			if (t === COMPLETE) {
-				active -= 1;
-				if (active === 0 || queues[i].length === 0) {
-					a.down([[COMPLETE]]);
-				}
-				return true;
-			}
-			if (t === ERROR) {
-				a.down([msg]);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+			});
+			unsubs.push(u);
+		}
+		return () => {
+			for (const u of unsubs) u();
+		};
+	}, operatorOpts());
 }
 
 /**
@@ -964,43 +837,51 @@ export function zip<const T extends readonly unknown[]>(
  * @category extra
  */
 export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Node<T> {
-	let phase: 0 | 1 = 0;
-	const pending: unknown[] = [];
-	return node<T>([firstSrc as Node, secondSrc as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			if (phase === 0 && i === 1) {
-				if (t === DATA) {
-					pending.push(msg[1]);
-				} else if (t === ERROR) {
-					a.down([msg]);
+	// Producer pattern: manage subscription lifecycle manually.
+	return producer<T>((a) => {
+		let phase: 0 | 1 = 0;
+		const pending: unknown[] = [];
+		let firstUnsub: (() => void) | undefined;
+		let secondUnsub: (() => void) | undefined;
+
+		secondUnsub = secondSrc.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (phase === 0) {
+					if (m[0] === DATA) pending.push(m[1]);
+					else if (m[0] === ERROR) a.down([m]);
+				} else {
+					// phase 1 — forward everything from second
+					if (m[0] === DATA) a.emit(m[1] as T);
+					else if (m[0] === COMPLETE || m[0] === ERROR) a.down([m]);
 				}
-				return true;
 			}
-			if (phase === 0 && i === 0) {
-				if (t === COMPLETE) {
-					phase = 1;
-					for (const v of pending) {
-						a.emit(v as T);
+		});
+
+		firstUnsub = firstSrc.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (phase === 0) {
+					if (m[0] === DATA) {
+						a.emit(m[1] as T);
+					} else if (m[0] === COMPLETE) {
+						phase = 1;
+						// Flush buffered second-source DATA
+						for (const v of pending) {
+							a.emit(v as T);
+						}
+						pending.length = 0;
+					} else if (m[0] === ERROR) {
+						a.down([m]);
 					}
-					pending.length = 0;
-					return true;
 				}
-				a.down([msg]);
-				return true;
+				// phase 1: ignore further first-source messages
 			}
-			if (phase === 1 && i === 0) {
-				return true;
-			}
-			if (phase === 1 && i === 1) {
-				a.down([msg]);
-				return true;
-			}
-			return true;
-		},
-	});
+		});
+
+		return () => {
+			firstUnsub?.();
+			secondUnsub?.();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1020,54 +901,38 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
  */
 export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
-		return producer<T>((_d, a) => {
+		return producer<T>((a) => {
 			a.down([[COMPLETE]]);
-			return undefined;
 		}, operatorOpts());
 	}
 	if (sources.length === 1) {
-		return node<T>([sources[0] as Node], ([v]) => v as T, operatorOpts());
+		return derived([sources[0] as Node], ([v]) => v as T, operatorOpts<T>());
 	}
-	const deps = sources as unknown as Node[];
-	let winner: number | null = null;
-	return node<T>(deps, () => undefined, {
-		...operatorOpts(),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			if (winner !== null && i !== winner) {
-				return true;
-			}
-			if (t === DATA && winner === null) {
-				winner = i;
-				a.emit(msg[1]);
-				return true;
-			}
-			if (winner !== null && i === winner) {
-				if (t === DATA) {
-					a.emit(msg[1]);
-					return true;
+	// Producer pattern: first DATA wins.
+	return producer<T>((a) => {
+		let winner: number | null = null;
+		const unsubs: (() => void)[] = [];
+		for (let i = 0; i < sources.length; i++) {
+			const idx = i;
+			const u = (sources[i] as Node).subscribe((msgs) => {
+				for (const m of msgs) {
+					if (winner !== null && idx !== winner) return;
+					if (m[0] === DATA) {
+						if (winner === null) winner = idx;
+						a.emit(m[1] as T);
+					} else if (m[0] === COMPLETE || m[0] === ERROR) {
+						if (winner === null || idx === winner) {
+							a.down([m]);
+						}
+					}
 				}
-				a.down([msg]);
-				return true;
-			}
-			if (winner === null) {
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === COMPLETE || t === ERROR) {
-					a.down([msg]);
-					return true;
-				}
-			}
-			return false;
-		},
-	});
+			});
+			unsubs.push(u);
+		}
+		return () => {
+			for (const u of unsubs) u();
+		};
+	}, operatorOpts());
 }
 
 // --- Tier 2: async / dynamic (roadmap §2.2), all on `node` / `producer` ---
@@ -1088,7 +953,7 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 		for (const m of msgs) {
 			// Filter START from inner subscriptions — each node's own
 			// subscribe handshake handles START for its direct sinks.
-			if (messageTier(m[0]) < 1) continue;
+			if (m[0] === START) continue;
 			if (m[0] === DATA) emitted = true;
 			if (m[0] === COMPLETE) sawComplete = true;
 			else {
@@ -1106,7 +971,7 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 		}
 	});
 	if (!emitted && (inner.status === "settled" || inner.status === "resolved")) {
-		a.emit(inner.get() as R);
+		a.emit(inner.cache as R);
 	}
 	if (inner.status === "completed" || inner.status === "errored") {
 		finish();
@@ -1139,52 +1004,42 @@ export function switchMap<T, R>(
 	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
-	let innerUnsub: (() => void) | undefined;
-	let sourceDone = false;
+	return producer<R>((a) => {
+		let innerUnsub: (() => void) | undefined;
+		let sourceDone = false;
 
-	function clearInner(): void {
-		innerUnsub?.();
-		innerUnsub = undefined;
-	}
+		function clearInner(): void {
+			innerUnsub?.();
+			innerUnsub = undefined;
+		}
 
-	function attach(v: T, a: NodeActions): void {
-		clearInner();
-		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
+		function attach(v: T): void {
 			clearInner();
-			if (sourceDone) a.down([[COMPLETE]]);
-		});
-	}
-
-	return node<R>([source as Node], () => clearInner, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
+			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 				clearInner();
-				a.down([msg]);
-				return true;
+				if (sourceDone) a.down([[COMPLETE]]);
+			});
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					attach(m[1] as T);
+				} else if (m[0] === ERROR) {
+					clearInner();
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					sourceDone = true;
+					if (innerUnsub === undefined) a.down([[COMPLETE]]);
+				}
 			}
-			if (t === COMPLETE) {
-				sourceDone = true;
-				if (innerUnsub === undefined) a.down([[COMPLETE]]);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				attach(msg[1] as T, a);
-				return true;
-			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearInner();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1208,55 +1063,42 @@ export function exhaustMap<T, R>(
 	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
-	let innerUnsub: (() => void) | undefined;
-	let sourceDone = false;
+	return producer<R>((a) => {
+		let innerUnsub: (() => void) | undefined;
+		let sourceDone = false;
 
-	function clearInner(): void {
-		innerUnsub?.();
-		innerUnsub = undefined;
-	}
+		function clearInner(): void {
+			innerUnsub?.();
+			innerUnsub = undefined;
+		}
 
-	function attach(v: T, a: NodeActions): void {
-		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
-			clearInner();
-			if (sourceDone) a.down([[COMPLETE]]);
-		});
-	}
-
-	return node<R>([source as Node], () => clearInner, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
+		function attach(v: T): void {
+			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 				clearInner();
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE) {
-				sourceDone = true;
-				if (innerUnsub === undefined) a.down([[COMPLETE]]);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				if (innerUnsub !== undefined) {
-					a.down([[RESOLVED]]);
-					return true;
+				if (sourceDone) a.down([[COMPLETE]]);
+			});
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					// Ignore if inner is still active
+					if (innerUnsub === undefined) attach(m[1] as T);
+				} else if (m[0] === ERROR) {
+					clearInner();
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					sourceDone = true;
+					if (innerUnsub === undefined) a.down([[COMPLETE]]);
 				}
-				attach(msg[1] as T, a);
-				return true;
 			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearInner();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1281,65 +1123,56 @@ export function concatMap<T, R>(
 	opts?: ExtraOpts & { maxBuffer?: number },
 ): Node<R> {
 	const { maxBuffer: maxBuf, ...concatNodeOpts } = opts ?? {};
-	const queue: T[] = [];
-	let innerUnsub: (() => void) | undefined;
-	let sourceDone = false;
+	return producer<R>((a) => {
+		const queue: T[] = [];
+		let innerUnsub: (() => void) | undefined;
+		let sourceDone = false;
 
-	function clearInner(): void {
-		innerUnsub?.();
-		innerUnsub = undefined;
-	}
-
-	function tryPump(a: NodeActions): void {
-		if (innerUnsub !== undefined) return;
-		if (queue.length === 0) {
-			if (sourceDone) a.down([[COMPLETE]]);
-			return;
+		function clearInner(): void {
+			innerUnsub?.();
+			innerUnsub = undefined;
 		}
-		const v = queue.shift()!;
-		innerUnsub = forwardInner(fromAny(project(v)), a, () => {
-			clearInner();
-			tryPump(a);
-		});
-	}
 
-	function enqueue(v: T, a: NodeActions): void {
-		if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
-		queue.push(v);
-		tryPump(a);
-	}
-
-	return node<R>([source as Node], () => clearInner, {
-		...operatorOpts(concatNodeOpts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
+		function tryPump(): void {
+			if (innerUnsub !== undefined) return;
+			if (queue.length === 0) {
+				if (sourceDone) a.down([[COMPLETE]]);
+				return;
+			}
+			const v = queue.shift()!;
+			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
 				clearInner();
-				queue.length = 0;
-				a.down([msg]);
-				return true;
+				tryPump();
+			});
+		}
+
+		function enqueue(v: T): void {
+			if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
+			queue.push(v);
+			tryPump();
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					enqueue(m[1] as T);
+				} else if (m[0] === ERROR) {
+					clearInner();
+					queue.length = 0;
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					sourceDone = true;
+					tryPump();
+				}
 			}
-			if (t === COMPLETE) {
-				sourceDone = true;
-				tryPump(a);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				enqueue(msg[1] as T, a);
-				return true;
-			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearInner();
+			queue.length = 0;
+		};
+	}, operatorOpts(concatNodeOpts));
 }
 
 /** Options for {@link mergeMap}. */
@@ -1385,93 +1218,84 @@ export function mergeMap<T, R>(
 	const { concurrent: concurrentOpt, ...mergeNodeOpts } = opts ?? {};
 	const maxConcurrent =
 		concurrentOpt != null && concurrentOpt > 0 ? concurrentOpt : Number.POSITIVE_INFINITY;
-	let active = 0;
-	let sourceDone = false;
-	const innerStops = new Set<() => void>();
-	const buffer: T[] = [];
 
-	function tryComplete(a: NodeActions): void {
-		if (sourceDone && active === 0 && buffer.length === 0) a.down([[COMPLETE]]);
-	}
+	return producer<R>((a) => {
+		let active = 0;
+		let sourceDone = false;
+		const innerStops = new Set<() => void>();
+		const buffer: T[] = [];
 
-	function spawn(v: T, a: NodeActions): void {
-		active++;
-		const inner = fromAny(project(v));
-		let stop: (() => void) | undefined;
-		const runStop = (): void => {
-			stop?.();
-			if (stop !== undefined) innerStops.delete(stop);
-			stop = undefined;
-		};
-		stop = inner.subscribe((msgs) => {
-			let sawComplete = false;
-			const out: Message[] = [];
-			for (const m of msgs) {
-				if (m[0] === COMPLETE) sawComplete = true;
-				else out.push(m);
+		function tryComplete(): void {
+			if (sourceDone && active === 0 && buffer.length === 0) a.down([[COMPLETE]]);
+		}
+
+		function spawn(v: T): void {
+			active++;
+			const inner = fromAny(project(v));
+			let stop: (() => void) | undefined;
+			const runStop = (): void => {
+				stop?.();
+				if (stop !== undefined) innerStops.delete(stop);
+				stop = undefined;
+			};
+			stop = inner.subscribe((msgs) => {
+				let sawComplete = false;
+				const out: Message[] = [];
+				for (const m of msgs) {
+					if (m[0] === COMPLETE) sawComplete = true;
+					else out.push(m);
+				}
+				if (out.length > 0) a.down(out as unknown as Messages);
+				if (sawComplete) {
+					runStop();
+					active--;
+					drainBuffer();
+					tryComplete();
+				}
+			});
+			innerStops.add(stop);
+		}
+
+		function drainBuffer(): void {
+			while (buffer.length > 0 && active < maxConcurrent) {
+				spawn(buffer.shift()!);
 			}
-			if (out.length > 0) a.down(out as unknown as Messages);
-			if (sawComplete) {
-				runStop();
-				active--;
-				drainBuffer(a);
-				tryComplete(a);
+		}
+
+		function enqueue(v: T): void {
+			if (active < maxConcurrent) {
+				spawn(v);
+			} else {
+				buffer.push(v);
+			}
+		}
+
+		function clearAll(): void {
+			for (const u of innerStops) u();
+			innerStops.clear();
+			active = 0;
+			buffer.length = 0;
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					enqueue(m[1] as T);
+				} else if (m[0] === ERROR) {
+					clearAll();
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					sourceDone = true;
+					tryComplete();
+				}
 			}
 		});
-		innerStops.add(stop);
-	}
 
-	function drainBuffer(a: NodeActions): void {
-		while (buffer.length > 0 && active < maxConcurrent) {
-			spawn(buffer.shift()!, a);
-		}
-	}
-
-	function enqueue(v: T, a: NodeActions): void {
-		if (active < maxConcurrent) {
-			spawn(v, a);
-		} else {
-			buffer.push(v);
-		}
-	}
-
-	function clearAll(): void {
-		for (const u of innerStops) u();
-		innerStops.clear();
-		active = 0;
-		buffer.length = 0;
-	}
-
-	return node<R>([source as Node], () => clearAll, {
-		...operatorOpts(mergeNodeOpts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
-				clearAll();
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE) {
-				sourceDone = true;
-				tryComplete(a);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				enqueue(msg[1] as T, a);
-				return true;
-			}
-			return false;
-		},
-	});
+		return () => {
+			srcUnsub();
+			clearAll();
+		};
+	}, operatorOpts(mergeNodeOpts));
 }
 
 /**
@@ -1510,37 +1334,40 @@ export const flatMap = mergeMap;
  * @category extra
  */
 export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	const timers = new Set<ReturnType<typeof setTimeout>>();
-	function clearAll(): void {
-		for (const id of timers) clearTimeout(id);
-		timers.clear();
-	}
-	return node<T>([source as Node], () => clearAll, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === DIRTY || t === ERROR || t === COMPLETE || t === PAUSE || t === RESUME) {
-				if (t === COMPLETE) clearAll();
-				a.down([msg]);
-				return true;
+	return producer<T>((a) => {
+		const timers = new Set<ReturnType<typeof setTimeout>>();
+		function clearAll(): void {
+			for (const id of timers) clearTimeout(id);
+			timers.clear();
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					const id = setTimeout(() => {
+						timers.delete(id);
+						a.emit(m[1] as T);
+					}, ms);
+					timers.add(id);
+				} else if (m[0] === COMPLETE) {
+					// Wait for all pending timers, then complete
+					const id = setTimeout(() => {
+						timers.delete(id);
+						a.down([[COMPLETE]]);
+					}, ms);
+					timers.add(id);
+				} else if (m[0] === ERROR) {
+					clearAll();
+					a.down([m]);
+				}
 			}
-			if (t === RESOLVED) {
-				a.down([msg]);
-				return true;
-			}
-			if (t === DATA) {
-				const id = setTimeout(() => {
-					timers.delete(id);
-					a.down([msg]);
-				}, ms);
-				timers.add(id);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearAll();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1560,53 +1387,44 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
  * @category extra
  */
 export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	let pending: T | undefined;
-	function clearTimer(): void {
-		if (timer !== undefined) {
-			clearTimeout(timer);
-			timer = undefined;
+	return producer<T>((a) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let pending: T | undefined;
+
+		function clearTimer(): void {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				timer = undefined;
+			}
 		}
-	}
-	return node<T>([source as Node], () => clearTimer, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR || t === PAUSE || t === RESUME) {
-				clearTimer();
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE) {
-				if (timer !== undefined) {
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
 					clearTimer();
-					a.emit(pending as T);
+					pending = m[1] as T;
+					timer = setTimeout(() => {
+						timer = undefined;
+						a.emit(pending as T);
+					}, ms);
+				} else if (m[0] === COMPLETE) {
+					if (timer !== undefined) {
+						clearTimer();
+						a.emit(pending as T);
+					}
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					clearTimer();
+					a.down([m]);
 				}
-				a.down([msg]);
-				return true;
 			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === DATA) {
-				clearTimer();
-				pending = msg[1] as T;
-				timer = setTimeout(() => {
-					timer = undefined;
-					a.emit(pending as T);
-				}, ms);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearTimer();
+		};
+	}, operatorOpts(opts));
 }
 
 export type ThrottleOptions = { leading?: boolean; trailing?: boolean };
@@ -1635,45 +1453,25 @@ export function throttle<T>(
 	const { leading: leadingOpt, trailing: trailingOpt, ...throttleNodeOpts } = opts ?? {};
 	const leading = leadingOpt !== false;
 	const trailing = trailingOpt === true;
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	const windowNs = ms * NS_PER_MS;
-	let lastEmitNs = -Infinity;
-	let pending: T | undefined;
-	let hasPending = false;
 
-	function clearTimer(): void {
-		if (timer !== undefined) {
-			clearTimeout(timer);
-			timer = undefined;
+	return producer<T>((a) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let lastEmitNs = -Infinity;
+		let pending: T | undefined;
+		let hasPending = false;
+
+		function clearTimer(): void {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				timer = undefined;
+			}
 		}
-	}
 
-	return node<T>(
-		[source as Node],
-		() => {
-			clearTimer();
-			return undefined;
-		},
-		{
-			...operatorOpts(throttleNodeOpts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR || t === COMPLETE || t === PAUSE || t === RESUME) {
-					clearTimer();
-					a.down([msg]);
-					return true;
-				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					const v = msg[1] as T;
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					const v = m[1] as T;
 					const nowNs = monotonicNs();
 					if (leading && nowNs - lastEmitNs >= windowNs) {
 						lastEmitNs = nowNs;
@@ -1689,9 +1487,7 @@ export function throttle<T>(
 								}
 							}, ms);
 						}
-						return true;
-					}
-					if (trailing) {
+					} else if (trailing) {
 						pending = v;
 						hasPending = true;
 						if (timer === undefined) {
@@ -1709,22 +1505,26 @@ export function throttle<T>(
 							);
 						}
 					}
-					return true;
+				} else if (m[0] === COMPLETE || m[0] === ERROR) {
+					clearTimer();
+					a.down([m]);
 				}
-				a.down([msg]);
-				return true;
-			},
-		},
-	);
+			}
+		});
+
+		return () => {
+			srcUnsub();
+			clearTimer();
+		};
+	}, operatorOpts(throttleNodeOpts));
 }
 
 /**
  * Emits the most recent source value whenever `notifier` emits `DATA` (`sample`).
  *
  * Source `COMPLETE` stops sampling (clears held value); notifier `COMPLETE` terminates the
- * operator. `ERROR` from either dep terminates immediately. Unknown message types from
- * either dep are forwarded per spec §1.3.6. At most one terminal message is emitted
- * downstream (latch). Supports `resubscribable` — closure state resets on resubscribe.
+ * operator. `ERROR` from either dep terminates immediately. At most one terminal message is
+ * emitted downstream (latch). Supports `resubscribable` — `ctx.store` resets automatically.
  *
  * @param source - Node whose latest value is sampled.
  * @param notifier - When this node emits `DATA`, a sample is taken.
@@ -1740,73 +1540,50 @@ export function throttle<T>(
  * @category extra
  */
 export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T> {
-	let lastSourceValue: T | typeof NO_VALUE = NO_VALUE;
-	let terminated = false;
-	let sourceCompleted = false;
-	return node<T>([source as Node, notifier as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onResubscribe:
-			opts?.resubscribable === true
-				? () => {
-						lastSourceValue = NO_VALUE;
-						terminated = false;
-						sourceCompleted = false;
-					}
-				: undefined,
-		onMessage(msg, i, a) {
-			if (terminated) return true;
-			const t = msg[0];
-			const tier = messageTier(t);
-			// Terminal from either dep — latch so at most one terminal goes downstream.
-			// (Tier 4 after START added: COMPLETE / ERROR. TEARDOWN is tier 5.)
-			if (tier >= 4) {
-				if (t === ERROR) {
+	return producer<T>((a) => {
+		let lastSourceValue: { v: T } | undefined;
+		let terminated = false;
+		let sourceCompleted = false;
+
+		const srcUnsub = source.subscribe((msgs) => {
+			if (terminated) return;
+			for (const m of msgs) {
+				if (terminated) return;
+				if (m[0] === DATA) {
+					lastSourceValue = { v: m[1] as T };
+				} else if (m[0] === ERROR) {
 					terminated = true;
-					a.down([msg]);
-					return true;
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					sourceCompleted = true;
+					lastSourceValue = undefined;
 				}
-				if (t === COMPLETE) {
-					if (i === 0) {
-						// Source completed — stop sampling, clear held value.
-						sourceCompleted = true;
-						lastSourceValue = NO_VALUE;
-						return true;
+			}
+		});
+
+		const notUnsub = notifier.subscribe((msgs) => {
+			if (terminated) return;
+			for (const m of msgs) {
+				if (terminated) return;
+				if (m[0] === DATA) {
+					if (lastSourceValue !== undefined && !sourceCompleted) {
+						a.emit(lastSourceValue.v);
 					}
-					// Notifier completed — terminal for sample.
+				} else if (m[0] === ERROR) {
 					terminated = true;
-					a.down([msg]);
-					return true;
+					a.down([m]);
+				} else if (m[0] === COMPLETE) {
+					terminated = true;
+					a.down([[COMPLETE]]);
 				}
-				// TEARDOWN — forward from either dep, latch to prevent further processing.
-				terminated = true;
-				a.down([msg]);
-				return true;
 			}
-			// Source (dep 0): capture DATA, swallow known types, forward unknowns.
-			if (i === 0) {
-				if (t === DATA) {
-					lastSourceValue = msg[1] as T;
-					return true;
-				}
-				if (t === DIRTY || t === RESOLVED) return true;
-				// Unknown type from source — forward per spec §1.3.6.
-				a.down([msg]);
-				return true;
-			}
-			// Notifier (dep 1): trigger sampling on DATA.
-			if (t === DATA) {
-				if (lastSourceValue !== NO_VALUE && !sourceCompleted) {
-					a.emit(lastSourceValue);
-				}
-				return true;
-			}
-			if (t === RESOLVED) return true;
-			// Unknown notifier types — forward per spec §1.3.6.
-			a.down([msg]);
-			return true;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			notUnsub();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1826,52 +1603,43 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  * @category extra
  */
 export function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	let latest: T | undefined;
-	let has = false;
+	return producer<T>((a) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let latest: T | undefined;
+		let has = false;
 
-	function clearTimer(): void {
-		if (timer !== undefined) {
-			clearTimeout(timer);
-			timer = undefined;
+		function clearTimer(): void {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				timer = undefined;
+			}
 		}
-	}
 
-	return node<T>([source as Node], () => clearTimer, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR || t === COMPLETE || t === PAUSE || t === RESUME) {
-				clearTimer();
-				a.down([msg]);
-				return true;
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					latest = m[1] as T;
+					has = true;
+					clearTimer();
+					timer = setTimeout(() => {
+						timer = undefined;
+						if (has) {
+							has = false;
+							a.emit(latest as T);
+						}
+					}, ms);
+				} else if (m[0] === COMPLETE || m[0] === ERROR) {
+					clearTimer();
+					a.down([m]);
+				}
 			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				latest = msg[1] as T;
-				has = true;
-				clearTimer();
-				timer = setTimeout(() => {
-					timer = undefined;
-					if (has) {
-						has = false;
-						a.emit(latest as T);
-					}
-				}, ms);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			clearTimer();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -1896,47 +1664,39 @@ export function timeout<T>(
 	opts?: ExtraOpts & { with?: unknown },
 ): Node<T> {
 	const { with: withPayload, ...timeoutNodeOpts } = opts ?? {};
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	const err = withPayload ?? new Error("timeout");
 
-	function arm(a: NodeActions): void {
-		clearTimeout(timer);
-		timer = setTimeout(() => {
-			timer = undefined;
-			a.down([[ERROR, err]]);
-		}, ms);
-	}
+	return producer<T>((a) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
 
-	return node<T>(
-		[source as Node],
-		([_v], a) => {
-			arm(a);
-			return () => clearTimeout(timer);
-		},
-		{
-			...operatorOpts(timeoutNodeOpts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === DATA) {
-					arm(a);
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE || t === ERROR) {
+		function arm(): void {
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				timer = undefined;
+				a.down([[ERROR, err]]);
+			}, ms);
+		}
+
+		// Arm immediately on subscribe
+		arm();
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					arm();
+					a.emit(m[1] as T);
+				} else if (m[0] === COMPLETE || m[0] === ERROR) {
 					clearTimeout(timer);
-					a.down([msg]);
-					return true;
+					a.down([m]);
 				}
-				if (t === DIRTY || t === RESOLVED) {
-					a.down([msg]);
-					return true;
-				}
-				a.down([msg]);
-				return true;
-			},
-		},
-	);
+			}
+		});
+
+		return () => {
+			srcUnsub();
+			clearTimeout(timer);
+		};
+	}, operatorOpts(timeoutNodeOpts));
 }
 
 /**
@@ -1956,48 +1716,45 @@ export function timeout<T>(
  * @category extra
  */
 export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T[]> {
-	const buf: T[] = [];
-	return node<T[]>([source as Node, notifier as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE && i === 0) {
-				if (buf.length > 0) a.emit([...buf]);
-				buf.length = 0;
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE && i === 1) {
-				a.down([msg]);
-				return true;
-			}
-			if (i === 0 && t === DATA) {
-				buf.push(msg[1] as T);
-				return true;
-			}
-			if (i === 1 && t === DATA) {
-				if (buf.length > 0) {
-					a.emit([...buf]);
+	return producer<T[]>((a) => {
+		const buf: T[] = [];
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					buf.push(m[1] as T);
+				} else if (m[0] === COMPLETE) {
+					if (buf.length > 0) a.emit([...buf]);
 					buf.length = 0;
-				} else {
-					a.down([[RESOLVED]]);
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					a.down([m]);
 				}
-				return true;
 			}
-			if (i === 1 && t === RESOLVED) {
-				return true;
+		});
+
+		const notUnsub = notifier.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					if (buf.length > 0) {
+						a.emit([...buf]);
+						buf.length = 0;
+					}
+				} else if (m[0] === COMPLETE) {
+					// Notifier complete — forward
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					a.down([m]);
+				}
 			}
-			if (i === 0 && (t === DIRTY || t === RESOLVED)) {
-				return true;
-			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			notUnsub();
+			buf.length = 0;
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2018,40 +1775,31 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  */
 export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T[]> {
 	if (count <= 0) throw new RangeError("bufferCount expects count > 0");
-	const buf: T[] = [];
-	return node<T[]>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === ERROR) {
-				a.down([msg]);
-				return true;
-			}
-			if (t === COMPLETE) {
-				if (buf.length > 0) a.emit([...buf]);
-				buf.length = 0;
-				a.down([[COMPLETE]]);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			if (t === DATA) {
-				buf.push(msg[1] as T);
-				if (buf.length >= count) {
-					a.emit(buf.splice(0, buf.length));
+	return producer<T[]>((a) => {
+		const buf: T[] = [];
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					buf.push(m[1] as T);
+					if (buf.length >= count) {
+						a.emit(buf.splice(0, buf.length));
+					}
+				} else if (m[0] === COMPLETE) {
+					if (buf.length > 0) a.emit([...buf]);
+					buf.length = 0;
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					a.down([m]);
 				}
-				return true;
 			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			buf.length = 0;
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2073,63 +1821,50 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  */
 export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<Node<T>> {
 	if (count <= 0) throw new RangeError("windowCount expects count > 0");
-	let win: Node<T> | undefined;
-	let winDown: ((msgs: Messages) => void) | undefined;
-	let n = 0;
 
-	function openWindow(a: NodeActions): void {
-		const s = producer<T>((_d, actions) => {
-			winDown = actions.down.bind(actions);
-			return () => {
-				winDown = undefined;
-			};
-		}, operatorOpts());
-		win = s;
-		n = 0;
-		a.emit(s);
-	}
+	return producer<Node<T>>((a) => {
+		let winDown: ((msgs: Messages) => void) | undefined;
+		let n = 0;
 
-	return node<Node<T>>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === DATA) {
-				if (!win) openWindow(a);
-				winDown?.([[DATA, msg[1]]]);
-				n += 1;
-				if (n >= count) {
-					winDown?.([[COMPLETE]]);
-					win = undefined;
+		function openWindow(): void {
+			const s = producer<T>((actions) => {
+				winDown = actions.down.bind(actions);
+				return () => {
 					winDown = undefined;
+				};
+			}, operatorOpts());
+			n = 0;
+			a.emit(s);
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					if (!winDown) openWindow();
+					winDown?.([[DATA, m[1]]]);
+					n += 1;
+					if (n >= count) {
+						winDown?.([[COMPLETE]]);
+						winDown = undefined;
+					}
+				} else if (m[0] === COMPLETE) {
+					winDown?.([[COMPLETE]]);
+					winDown = undefined;
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					winDown?.([m]);
+					winDown = undefined;
+					a.down([m]);
 				}
-				return true;
 			}
-			if (t === COMPLETE) {
-				winDown?.([[COMPLETE]]);
-				win = undefined;
-				winDown = undefined;
-				a.down([[COMPLETE]]);
-				return true;
-			}
-			if (t === ERROR) {
-				winDown?.([msg]);
-				win = undefined;
-				winDown = undefined;
-				a.down([msg]);
-				return true;
-			}
-			if (t === DIRTY) {
-				a.down([[DIRTY]]);
-				return true;
-			}
-			if (t === RESOLVED) {
-				a.down([[RESOLVED]]);
-				return true;
-			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			winDown?.([[COMPLETE]]);
+			winDown = undefined;
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2149,53 +1884,38 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  * @category extra
  */
 export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T[]> {
-	const buf: T[] = [];
-	let iv: ReturnType<typeof setInterval> | undefined;
-	return node<T[]>(
-		[source as Node],
-		(_deps, a) => {
-			iv = setInterval(() => {
-				if (buf.length > 0) {
-					a.emit([...buf]);
-					buf.length = 0;
-				}
-			}, ms);
-			return () => {
-				if (iv !== undefined) clearInterval(iv);
-			};
-		},
-		{
-			...operatorOpts(opts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === ERROR) {
-					a.down([msg]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					if (iv !== undefined) clearInterval(iv);
+	return producer<T[]>((a) => {
+		const buf: T[] = [];
+
+		const iv = setInterval(() => {
+			if (buf.length > 0) {
+				a.emit([...buf]);
+				buf.length = 0;
+			}
+		}, ms);
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					buf.push(m[1] as T);
+				} else if (m[0] === COMPLETE) {
+					clearInterval(iv);
 					if (buf.length > 0) a.emit([...buf]);
 					buf.length = 0;
 					a.down([[COMPLETE]]);
-					return true;
+				} else if (m[0] === ERROR) {
+					clearInterval(iv);
+					a.down([m]);
 				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				if (t === DATA) {
-					buf.push(msg[1] as T);
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+			}
+		});
+
+		return () => {
+			srcUnsub();
+			clearInterval(iv);
+			buf.length = 0;
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2216,70 +1936,53 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  * @category extra
  */
 export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<Node<T>> {
-	let winDown: ((msgs: Messages) => void) | undefined;
-	let iv: ReturnType<typeof setInterval> | undefined;
+	return producer<Node<T>>((a) => {
+		let winDown: ((msgs: Messages) => void) | undefined;
 
-	function closeWindow(): void {
-		winDown?.([[COMPLETE]]);
-		winDown = undefined;
-	}
+		function closeWindow(): void {
+			winDown?.([[COMPLETE]]);
+			winDown = undefined;
+		}
 
-	return node<Node<T>>(
-		[source as Node],
-		(_deps, a) => {
-			function openWindow(): void {
-				const s = producer<T>((_d, actions) => {
-					winDown = actions.down.bind(actions);
-					return () => {
-						winDown = undefined;
-					};
-				}, operatorOpts());
-				a.emit(s);
-			}
+		function openWindow(): void {
+			const s = producer<T>((actions) => {
+				winDown = actions.down.bind(actions);
+				return () => {
+					winDown = undefined;
+				};
+			}, operatorOpts());
+			a.emit(s);
+		}
+
+		openWindow();
+		const iv = setInterval(() => {
+			closeWindow();
 			openWindow();
-			iv = setInterval(() => {
-				closeWindow();
-				openWindow();
-			}, ms);
-			return () => {
-				if (iv !== undefined) clearInterval(iv);
-				closeWindow();
-			};
-		},
-		{
-			...operatorOpts(opts),
-			completeWhenDepsComplete: false,
-			onMessage(msg, _i, a) {
-				const t = msg[0];
-				if (t === DATA) {
-					winDown?.([[DATA, msg[1]]]);
-					return true;
-				}
-				if (t === COMPLETE) {
-					if (iv !== undefined) clearInterval(iv);
+		}, ms);
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					winDown?.([[DATA, m[1]]]);
+				} else if (m[0] === COMPLETE) {
+					clearInterval(iv);
 					closeWindow();
 					a.down([[COMPLETE]]);
-					return true;
-				}
-				if (t === ERROR) {
-					if (iv !== undefined) clearInterval(iv);
-					winDown?.([msg]);
+				} else if (m[0] === ERROR) {
+					clearInterval(iv);
+					winDown?.([m]);
 					closeWindow();
-					a.down([msg]);
-					return true;
+					a.down([m]);
 				}
-				if (t === DIRTY) {
-					a.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					a.down([[RESOLVED]]);
-					return true;
-				}
-				return false;
-			},
-		},
-	);
+			}
+		});
+
+		return () => {
+			srcUnsub();
+			clearInterval(iv);
+			closeWindow();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2304,70 +2007,55 @@ export function window<T>(
 	notifier: Node<unknown>,
 	opts?: ExtraOpts,
 ): Node<Node<T>> {
-	let win: Node<T> | undefined;
-	let winDown: ((msgs: Messages) => void) | undefined;
+	return producer<Node<T>>((a) => {
+		let winDown: ((msgs: Messages) => void) | undefined;
 
-	function closeWindow(): void {
-		winDown?.([[COMPLETE]]);
-		win = undefined;
-		winDown = undefined;
-	}
+		function closeWindow(): void {
+			winDown?.([[COMPLETE]]);
+			winDown = undefined;
+		}
 
-	return node<Node<T>>([source as Node, notifier as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, i, a) {
-			const t = msg[0];
-			if (i === 0 && t === DATA) {
-				if (!win) {
-					const s = producer<T>((_d, actions) => {
-						winDown = actions.down.bind(actions);
-						return () => {
-							winDown = undefined;
-						};
-					}, operatorOpts());
-					win = s;
-					a.emit(s);
+		function openWindow(): void {
+			const s = producer<T>((actions) => {
+				winDown = actions.down.bind(actions);
+				return () => {
+					winDown = undefined;
+				};
+			}, operatorOpts());
+			a.emit(s);
+		}
+
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					if (!winDown) openWindow();
+					winDown?.([[DATA, m[1]]]);
+				} else if (m[0] === COMPLETE) {
+					closeWindow();
+					a.down([[COMPLETE]]);
+				} else if (m[0] === ERROR) {
+					winDown?.([m]);
+					winDown = undefined;
+					a.down([m]);
 				}
-				winDown?.([[DATA, msg[1]]]);
-				return true;
 			}
-			if (i === 1 && t === DATA) {
-				closeWindow();
-				const s = producer<T>((_d, actions) => {
-					winDown = actions.down.bind(actions);
-					return () => {
-						winDown = undefined;
-					};
-				}, operatorOpts());
-				win = s;
-				a.emit(s);
-				return true;
+		});
+
+		const notUnsub = notifier.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					closeWindow();
+					openWindow();
+				}
 			}
-			if (t === COMPLETE && i === 0) {
-				closeWindow();
-				a.down([[COMPLETE]]);
-				return true;
-			}
-			if (t === COMPLETE && i === 1) {
-				return true;
-			}
-			if (t === ERROR) {
-				winDown?.([msg]);
-				win = undefined;
-				winDown = undefined;
-				a.down([msg]);
-				return true;
-			}
-			if (i === 0 && (t === DIRTY || t === RESOLVED)) {
-				return true;
-			}
-			if (i === 1 && t === RESOLVED) {
-				return true;
-			}
-			return false;
-		},
-	});
+		});
+
+		return () => {
+			srcUnsub();
+			notUnsub();
+			closeWindow();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
@@ -2386,11 +2074,11 @@ export function window<T>(
  * @category extra
  */
 export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
-	let n = 0;
-	return producer<number>((_d, a) => {
+	return producer<number>((a, ctx) => {
+		if (!("n" in ctx.store)) ctx.store.n = 0;
 		const id = setInterval(() => {
-			a.emit(n);
-			n += 1;
+			a.emit(ctx.store.n as number);
+			ctx.store.n = (ctx.store.n as number) + 1;
 		}, periodMs);
 		return () => clearInterval(id);
 	}, operatorOpts(opts));
@@ -2414,7 +2102,7 @@ export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
  */
 export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) throw new RangeError("repeat expects count > 0");
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let remaining = count;
 		let innerU: (() => void) | undefined;
 
@@ -2446,52 +2134,27 @@ export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Nod
 }
 
 /**
- * While `PAUSE` is in effect, buffers `DIRTY` / `DATA` / `RESOLVED`; flushes on `RESUME`.
+ * Identity passthrough — `pausable()` has been promoted to default node behavior in v5 (§4).
+ *
+ * @deprecated Default node behavior now handles PAUSE/RESUME. This operator is a no-op
+ * identity passthrough kept only for migration compatibility.
  *
  * @param source - Upstream node.
  * @param opts - Optional {@link NodeOptions} (excluding `describeKind`).
- * @returns `Node<T>` - Pass-through with pause buffering.
+ * @returns `Node<T>` - Pass-through (identity).
  * @example
  * ```ts
- * import { pausable, state, PAUSE, RESUME } from "@graphrefly/graphrefly-ts";
+ * import { pausable, state } from "@graphrefly/graphrefly-ts";
  *
+ * // No longer needed — default nodes handle PAUSE/RESUME.
  * const s = state(0);
- * pausable(s);
- * s.down([[PAUSE]]);
- * s.down([[RESUME]]);
+ * pausable(s); // identity passthrough
  * ```
  *
  * @category extra
  */
 export function pausable<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
-	let paused = false;
-	const backlog: Message[] = [];
-
-	return node<T>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			const t = msg[0];
-			if (t === PAUSE) {
-				paused = true;
-				a.down([msg]);
-				return true;
-			}
-			if (t === RESUME) {
-				paused = false;
-				a.down([msg]);
-				for (const m of backlog) a.down([m]);
-				backlog.length = 0;
-				return true;
-			}
-			if (paused && (t === DIRTY || t === DATA || t === RESOLVED)) {
-				backlog.push(msg);
-				return true;
-			}
-			a.down([msg]);
-			return true;
-		},
-	});
+	return derived([source as Node], ([v]) => v as T, operatorOpts<T>(opts));
 }
 
 /**
@@ -2515,36 +2178,41 @@ export function rescue<T>(
 	recover: (err: unknown) => T,
 	opts?: ExtraOpts,
 ): Node<T> {
-	return node<T>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg, _i, a) {
-			if (msg[0] === ERROR) {
-				try {
-					a.emit(recover(msg[1]));
-				} catch (err) {
-					a.down([[ERROR, err]]);
+	return producer<T>((a) => {
+		const srcUnsub = source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					a.emit(m[1] as T);
+				} else if (m[0] === ERROR) {
+					try {
+						a.emit(recover(m[1]));
+					} catch (recoverErr) {
+						a.down([[ERROR, recoverErr]]);
+					}
+				} else if (m[0] === COMPLETE) {
+					a.down([[COMPLETE]]);
 				}
-				return true;
 			}
-			a.down([msg]);
-			return true;
-		},
-	});
+		});
+		return () => {
+			srcUnsub();
+		};
+	}, operatorOpts(opts));
 }
 
 /**
  * Forwards upstream `DATA` only while `control.get()` is truthy; when closed, emits `RESOLVED`
- * instead of repeating the last value (value-level valve). For protocol pause/resume, use {@link pausable}.
+ * instead of repeating the last value (value-level valve). For protocol pause/resume, use default
+ * node PAUSE/RESUME behavior.
  *
  * @param source - Upstream value node.
- * @param control - Boolean node; when falsy, output stays “closed” for that tick.
+ * @param control - Boolean node; when falsy, output stays "closed" for that tick.
  * @param opts - Optional node options (excluding `describeKind`).
  * @returns `Node<T>` gated by `control`.
  *
  * @example
  * ```ts
- * import { valve, state } from “@graphrefly/graphrefly-ts”;
+ * import { valve, state } from "@graphrefly/graphrefly-ts";
  *
  * const data = state(1);
  * const open = state(true);
@@ -2556,14 +2224,12 @@ export function rescue<T>(
 export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
 	return node<T>(
 		[source as Node, control as Node],
-		(_deps, a) => {
-			const v = (source as Node).get();
-			const c = (control as Node).get();
-			if (!c) {
+		(data, a) => {
+			if (!data[1]) {
 				a.down([[RESOLVED]]);
-				return undefined;
+				return;
 			}
-			return v as T;
+			a.emit(data[0] as T);
 		},
 		operatorOpts(opts),
 	);

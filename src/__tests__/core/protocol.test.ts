@@ -92,9 +92,17 @@ describe("downWithBatch", () => {
 	it("nested batch does not flush until outermost exits", () => {
 		const log: string[] = [];
 		batch(() => {
-			downWithBatch((msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 1]], tierOf);
+			downWithBatch(
+				(msgs) => log.push(`a:${msgs[0]?.[0] === DATA ? "d" : "i"}`),
+				[[DATA, 1]],
+				tierOf,
+			);
 			batch(() => {
-				downWithBatch((msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`), [[DATA, 2]], tierOf);
+				downWithBatch(
+					(msgs) => log.push(`b:${msgs[0]?.[0] === DATA ? "d" : "i"}`),
+					[[DATA, 2]],
+					tierOf,
+				);
 				expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
 			});
 			expect(log.filter((x) => x.startsWith("b"))).toEqual([]);
@@ -122,9 +130,13 @@ describe("downWithBatch", () => {
 	// Regression: GRAPHREFLY-SPEC §1.1 — empty batches are ignored.
 	it("empty messages is a no-op", () => {
 		let n = 0;
-		downWithBatch(() => {
-			n += 1;
-		}, [], tierOf);
+		downWithBatch(
+			() => {
+				n += 1;
+			},
+			[],
+			tierOf,
+		);
 		expect(n).toBe(0);
 	});
 
@@ -204,12 +216,20 @@ describe("batch drain semantics", () => {
 
 		expect(() =>
 			batch(() => {
-				downWithBatch(() => {
-					throw new Error("boom");
-				}, [[DATA, 1]], tierOf);
-				downWithBatch(() => {
-					log.push("second");
-				}, [[DATA, 2]], tierOf);
+				downWithBatch(
+					() => {
+						throw new Error("boom");
+					},
+					[[DATA, 1]],
+					tierOf,
+				);
+				downWithBatch(
+					() => {
+						log.push("second");
+					},
+					[[DATA, 2]],
+					tierOf,
+				);
 			}),
 		).toThrow("boom");
 
@@ -230,14 +250,22 @@ describe("batch drain semantics", () => {
 		const log: string[] = [];
 		expect(() =>
 			batch(() => {
-				downWithBatch(() => {
-					downWithBatch(() => {
-						log.push("deferred-from-callback");
-					}, [[DATA, 1]], tierOf);
-					batch(() => {
-						throw new Error("inner");
-					});
-				}, [[DATA, 0]], tierOf);
+				downWithBatch(
+					() => {
+						downWithBatch(
+							() => {
+								log.push("deferred-from-callback");
+							},
+							[[DATA, 1]],
+							tierOf,
+						);
+						batch(() => {
+							throw new Error("inner");
+						});
+					},
+					[[DATA, 0]],
+					tierOf,
+				);
 			}),
 		).toThrow("inner");
 		expect(log).toEqual(["deferred-from-callback"]);
@@ -250,10 +278,14 @@ describe("D4: drain cycle detection", () => {
 		expect(() =>
 			batch(() => {
 				const cyclicEmit = (): void => {
-					downWithBatch(() => {
-						// re-enqueue indefinitely
-						downWithBatch(() => cyclicEmit(), [[DATA, 1]], tierOf);
-					}, [[DATA, 0]], tierOf);
+					downWithBatch(
+						() => {
+							// re-enqueue indefinitely
+							downWithBatch(() => cyclicEmit(), [[DATA, 1]], tierOf);
+						},
+						[[DATA, 0]],
+						tierOf,
+					);
 				};
 				cyclicEmit();
 			}),

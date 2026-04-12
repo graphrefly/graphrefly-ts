@@ -11,20 +11,15 @@
 import { existsSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Message } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
-import { producer, state } from "../core/sugar.js";
+import { derived, producer, state } from "../core/sugar.js";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
 
-type ExtraOpts = Omit<NodeOptions, "describeKind">;
+type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 
-function sourceOpts(opts?: ExtraOpts): NodeOptions {
-	return { describeKind: "producer", ...opts };
-}
-
-/** @internal kept for toArray which is an operator, not a producer */
-function operatorOpts(opts?: ExtraOpts): NodeOptions {
-	return { describeKind: "operator", ...opts };
+function sourceOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "producer", ...opts } as NodeOptions<T>;
 }
 
 /** Options for {@link fromTimer} / {@link fromPromise} / {@link fromAsyncIter}. */
@@ -112,14 +107,14 @@ export function matchesAnyPattern(path: string, patterns: RegExp[]): boolean {
 }
 
 function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void): Node<T> {
-	const wrapper = node<T>([inner], ([val]) => val as T, {
-		describeKind: "operator",
-		initial: inner.get(),
+	const wrapper = derived([inner as Node], ([val]) => val as T, {
+		describeKind: "derived",
+		initial: inner.cache as T,
 	});
 	const origSubscribe = wrapper.subscribe.bind(wrapper);
-	(wrapper as { subscribe: typeof wrapper.subscribe }).subscribe = (sink, hints) => {
+	(wrapper as { subscribe: typeof wrapper.subscribe }).subscribe = (sink, actor) => {
 		before(sink);
-		return origSubscribe(sink, hints);
+		return origSubscribe(sink, actor);
 	};
 	return wrapper;
 }
@@ -142,7 +137,7 @@ function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void):
  */
 export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number }): Node<number> {
 	const { signal, period, ...rest } = opts ?? {};
-	return producer<number>((_d, a) => {
+	return producer<number>((a) => {
 		let done = false;
 		let count = 0;
 		let t: ReturnType<typeof setTimeout> | undefined;
@@ -206,7 +201,7 @@ export function fromCron(expr: string, opts?: FromCronOptions): Node<number | Da
 	const tickMs = tickOpt ?? 60_000;
 	const emitDate = output === "date";
 	return producer<number | Date>(
-		(_d, a) => {
+		(a) => {
 			let lastFiredKey = -1;
 			const check = () => {
 				const now = new Date();
@@ -252,7 +247,7 @@ export function fromEvent<T = unknown>(
 	opts?: ExtraOpts & { capture?: boolean; passive?: boolean; once?: boolean },
 ): Node<T> {
 	const { capture, passive, once, ...rest } = opts ?? {};
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		const handler = (e: unknown) => {
 			a.emit(e as T);
 		};
@@ -279,7 +274,7 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 	const excludePatterns = (exclude ?? ["**/node_modules/**", "**/.git/**", "**/dist/**"]).map(
 		globToRegExp,
 	);
-	return producer<FSEvent>((_d, a) => {
+	return producer<FSEvent>((a) => {
 		const pending = new Map<string, FSEvent>();
 		const watchers: ReturnType<typeof watch>[] = [];
 		let stopped = false;
@@ -385,7 +380,7 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
  * @category extra
  */
 export function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T> {
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let cancelled = false;
 		try {
 			for (const x of iterable) {
@@ -424,7 +419,7 @@ function isThenable(x: unknown): x is PromiseLike<unknown> {
  */
 export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourceOpts): Node<T> {
 	const { signal, ...rest } = opts ?? {};
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let settled = false;
 		const onAbort = () => {
 			if (settled) return;
@@ -479,7 +474,7 @@ export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourc
  */
 export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceOpts): Node<T> {
 	const { signal: outerSignal, ...rest } = opts ?? {};
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		const ac = new AbortController();
 		const onOuterAbort = () => ac.abort(outerSignal?.reason);
 		if (outerSignal?.aborted) {
@@ -518,11 +513,7 @@ export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceO
 }
 
 function isNode(x: unknown): x is Node {
-	return (
-		x != null &&
-		typeof (x as Node).subscribe === "function" &&
-		typeof (x as Node).get === "function"
-	);
+	return x != null && "cache" in (x as Node) && typeof (x as Node).subscribe === "function";
 }
 
 /**
@@ -598,7 +589,7 @@ export function of<T>(...values: T[]): Node<T> {
  * @category extra
  */
 export function empty<T = never>(opts?: ExtraOpts): Node<T> {
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		a.down([[COMPLETE]]);
 		return undefined;
 	}, sourceOpts(opts));
@@ -640,7 +631,7 @@ export function never<T = never>(opts?: ExtraOpts): Node<T> {
  * @category extra
  */
 export function throwError(err: unknown, opts?: ExtraOpts): Node<never> {
-	return producer<never>((_d, a) => {
+	return producer<never>((a) => {
 		a.down([[ERROR, err]]);
 		return undefined;
 	}, sourceOpts(opts));
@@ -665,17 +656,13 @@ export function throwError(err: unknown, opts?: ExtraOpts): Node<never> {
  * @category extra
  */
 export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): () => void {
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...opts,
-		onMessage(msg: Message, _i, _a) {
-			if (msg[0] === DATA) {
-				fn(msg[1] as T);
-				return true;
-			}
-			return false;
+	const inner = node(
+		[source as Node],
+		(data, _actions, ctx) => {
+			if (ctx.dataFrom[0]) fn(data[0] as T);
 		},
-	});
+		{ describeKind: "effect", ...opts } as NodeOptions,
+	);
 	return inner.subscribe(() => {});
 }
 
@@ -683,7 +670,7 @@ export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: Extra
  * Buffers every `DATA`; on upstream `COMPLETE` emits one `DATA` with the full array then `COMPLETE`.
  *
  * @param source - Upstream node.
- * @param opts - Optional node options (operator describe kind).
+ * @param opts - Optional node options (derived describe kind).
  * @returns `Node<T[]>` — single array emission before completion.
  *
  * @example
@@ -696,30 +683,32 @@ export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: Extra
  * @category extra
  */
 export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
-	const acc: T[] = [];
-	return node<T[]>([source as Node], () => undefined, {
-		...operatorOpts(opts),
-		completeWhenDepsComplete: false,
-		onMessage(msg: Message, _i, a) {
-			if (msg[0] === DATA) {
-				acc.push(msg[1] as T);
-				return true;
+	return node<T[]>(
+		[source as Node],
+		(data, actions, ctx) => {
+			if (!ctx.store.buf) ctx.store.buf = [];
+			const buf = ctx.store.buf as T[];
+			if (ctx.dataFrom[0]) buf.push(data[0] as T);
+			if (ctx.terminalDeps[0] !== undefined) {
+				actions.emit([...buf]);
+				actions.down([[COMPLETE]]);
+			} else {
+				actions.down([[RESOLVED]]);
 			}
-			if (msg[0] === COMPLETE) {
-				a.emit([...acc]);
-				a.down([[COMPLETE]]);
-				return true;
-			}
-			return false;
 		},
-	});
+		{
+			describeKind: "derived",
+			completeWhenDepsComplete: false,
+			...opts,
+		} as NodeOptions<T[]>,
+	);
 }
 
 /**
  * Multicasts upstream: one subscription to `source` while this wrapper has subscribers (via {@link producer}).
  *
  * @param source - Upstream node to share.
- * @param opts - Producer options; `initial` seeds from `source.get()` when set by factory.
+ * @param opts - Producer options; `initial` seeds from `source.cache` when set by factory.
  * @returns `Node<T>` — hot ref-counted bridge.
  *
  * @example
@@ -733,11 +722,11 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
  */
 export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 	return producer<T>(
-		(_d, a) =>
+		(a) =>
 			source.subscribe((msgs) => {
 				a.down(msgs);
 			}),
-		{ ...sourceOpts(opts), initial: source.get() },
+		{ ...sourceOpts<T>(opts), initial: source.cache },
 	);
 }
 
@@ -763,7 +752,7 @@ export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts)
 	if (bufferSize < 1) throw new RangeError("replay expects bufferSize >= 1");
 	const buf: T[] = [];
 	const inner = producer<T>(
-		(_d, a) =>
+		(a) =>
 			source.subscribe((msgs) => {
 				for (const m of msgs) {
 					if (m[0] === DATA) {
@@ -773,7 +762,7 @@ export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts)
 				}
 				a.down(msgs);
 			}),
-		{ ...sourceOpts(opts), initial: source.get() },
+		{ ...sourceOpts<T>(opts), initial: source.cache },
 	);
 	return wrapSubscribeHook(inner, (sink) => {
 		for (const v of buf) {
@@ -807,7 +796,7 @@ export function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
  *
  * **Important:** This subscribes and waits for a **future** emission. Data that
  * has already flowed is gone and will not be seen. Call this *before* the upstream
- * emits, or use `source.get()` / `source.status` for already-cached state.
+ * emits, or use `source.cache` / `source.status` for already-cached state.
  * See COMPOSITION-GUIDE §2 (subscription ordering).
  *
  * @param source - Node to read once.
@@ -860,7 +849,7 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
  *
  * **Important:** This only captures **future** emissions — data that has
  * already flowed through the node is gone. Call this *before* the upstream
- * emits. For already-cached values, use `source.get()` / `source.status`.
+ * emits. For already-cached values, use `source.cache` / `source.status`.
  * See COMPOSITION-GUIDE §2 (subscription ordering).
  *
  * ```ts
@@ -933,7 +922,7 @@ export const shareReplay = replay;
  *
  * Derived/effect nodes are lazy — they don't compute until at least one
  * subscriber exists (COMPOSITION-GUIDE §5). `keepalive` subscribes with an
- * empty sink so the node stays wired for `.get()` and upstream propagation.
+ * empty sink so the node stays wired for `.cache` and upstream propagation.
  *
  * Returns the unsubscribe handle. Common usage:
  * `graph.addDisposer(keepalive(node))`.
@@ -982,16 +971,16 @@ export function reactiveCounter(cap: number): ReactiveCounterBundle {
 	return {
 		node: counter,
 		increment() {
-			const current = counter.get() ?? 0;
+			const current = counter.cache ?? 0;
 			if (current >= cap) return false;
 			counter.down([[DIRTY], [DATA, current + 1]]);
 			return true;
 		},
 		get() {
-			return counter.get() ?? 0;
+			return counter.cache ?? 0;
 		},
 		atCap() {
-			return (counter.get() ?? 0) >= cap;
+			return (counter.cache ?? 0) >= cap;
 		},
 	};
 }

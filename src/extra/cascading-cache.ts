@@ -204,8 +204,8 @@ export function cascadingCache<V>(
 				const nd = entries.get(key);
 				if (nd) {
 					// Demote to deepest tier with save before evicting
-					const value = nd.get();
-					if (value !== undefined) {
+					const value = nd.cache;
+					if (value != null) {
 						for (let i = tiers.length - 1; i >= 0; i--) {
 							if (tiers[i].save) {
 								tiers[i].save!(key, value);

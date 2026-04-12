@@ -19,8 +19,8 @@
  */
 
 import { batch } from "../../core/batch.js";
-import { DATA, ERROR, isLocalOnly, type Messages, TEARDOWN } from "../../core/messages.js";
-import type { Node, NodeSink } from "../../core/node.js";
+import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
+import { type Node, type NodeSink, defaultConfig } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
@@ -98,7 +98,7 @@ export function workerSelf<TImport extends readonly string[]>(
 			() => {
 				const updates: Record<string, unknown> = {};
 				for (const [name, n] of exposeEntries) {
-					const v = n.get();
+					const v = n.cache;
 					if (v !== lastSent.get(name)) {
 						updates[name] = v;
 						lastSent.set(name, v);
@@ -111,7 +111,7 @@ export function workerSelf<TImport extends readonly string[]>(
 
 		const effectNode = effect([aggregated], () => {
 			if (destroyed) return;
-			const updates = aggregated.get() as Record<string, unknown>;
+			const updates = aggregated.cache as Record<string, unknown>;
 			if (Object.keys(updates).length === 0) return;
 
 			const transferList: Transferable[] = [];
@@ -150,7 +150,7 @@ export function workerSelf<TImport extends readonly string[]>(
 				if (type === DATA) continue;
 				// Block graph-local signals (START, DIRTY, INVALIDATE, PAUSE, RESUME).
 				// Unknown types forward (spec §1.3.6).
-				if (isLocalOnly(type)) continue;
+				if (defaultConfig.isLocalOnly(type)) continue;
 				// ERROR: serialize payload
 				if (type === ERROR) {
 					transport.post({
@@ -248,7 +248,7 @@ export function workerSelf<TImport extends readonly string[]>(
 	// -- Send ready message ----------------------------------------------------
 	const readyValues: Record<string, unknown> = {};
 	for (const [name, n] of exposeEntries) {
-		readyValues[name] = n.get();
+		readyValues[name] = n.cache;
 		lastSent.set(name, readyValues[name]);
 	}
 	transport.post({ t: "r", stores: readyValues } satisfies BridgeMessage);

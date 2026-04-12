@@ -20,13 +20,11 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
-	isLocalOnly,
 	type Message,
-	messageTier,
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type Node, type NodeActions, type NodeOptions, node } from "../core/node.js";
+import { type Node, type NodeOptions, defaultConfig } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import { type WithStatusBundle, withStatus } from "./resilience.js";
@@ -73,8 +71,8 @@ function createSinkErrorHandler(userHandler?: (err: SinkTransportError) => void)
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
-function sourceOpts(opts?: ExtraOpts): NodeOptions {
-	return { describeKind: "producer", ...opts };
+function sourceOpts<T>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "producer", ...opts } as NodeOptions<T>;
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -126,7 +124,7 @@ export function fromWebSocket<T = unknown>(
 	},
 ): Node<T> {
 	const { parse, closeOnTeardown = false, ...rest } = opts ?? {};
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let active = true;
 		let cleanup: (() => void) | undefined;
 		const runCleanup = () => {
@@ -271,7 +269,7 @@ export type WebhookRegister<T> = (handlers: {
  * @category extra
  */
 export function fromWebhook<T = unknown>(register: WebhookRegister<T>, opts?: ExtraOpts): Node<T> {
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let active = true;
 		const emit = (payload: T) => {
 			if (!active) return;
@@ -356,7 +354,7 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 	const fetchCount = state(0, { name: `${rest.name ?? "http"}/fetchCount` });
 	const lastUpdated = state(0, { name: `${rest.name ?? "http"}/lastUpdated` });
 
-	const sourceNode = producer<T>((_d, a) => {
+	const sourceNode = producer<T>((a) => {
 		let active = true;
 		const abort = new AbortController();
 
@@ -393,7 +391,7 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 				if (!active) return;
 
 				batch(() => {
-					fetchCount.down([[DATA, (fetchCount.get() ?? 0) + 1]]);
+					fetchCount.down([[DATA, (fetchCount.cache ?? 0) + 1]]);
 					lastUpdated.down([[DATA, wallClockNs()]]);
 					a.emit(data as T);
 				});
@@ -521,7 +519,7 @@ export function toSSE<T>(source: Node<T>, opts?: ToSSEOptions): ReadableStream<U
 					const t = msg[0];
 					// Skip graph-local signals (tier < 3: START, DIRTY, INVALIDATE,
 					// PAUSE, RESUME). DIRTY is opt-in for observability.
-					if (isLocalOnly(t)) {
+					if (defaultConfig.isLocalOnly(t)) {
 						if (t === DIRTY && includeDirty) {
 							/* fall through to write */
 						} else continue;
@@ -645,37 +643,29 @@ export function toWebSocket<T>(
 		}
 	};
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	return source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				let serialized: string | ArrayBufferLike | Blob | ArrayBufferView;
 				try {
 					serialized = serialize(msg[1] as T);
 				} catch (err) {
 					reportTransportError("serialize", err, msg);
-					return true;
+					continue;
 				}
 				try {
 					socket.send(serialized === undefined ? String(msg[1] as T) : serialized);
 				} catch (err) {
 					reportTransportError("send", err, msg);
-					return true;
+					continue;
 				}
-				return true;
-			}
-			if (msg[0] === COMPLETE && closeOnComplete) {
+			} else if (msg[0] === COMPLETE && closeOnComplete) {
 				closeSocket(msg);
-				return true;
-			}
-			if (msg[0] === ERROR && closeOnError) {
+			} else if (msg[0] === ERROR && closeOnError) {
 				closeSocket(msg);
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	return inner.subscribe(() => {});
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -704,7 +694,7 @@ export type FromMCPOptions = ExtraOpts & {
  */
 export function fromMCP<T = unknown>(client: MCPClientLike, opts?: FromMCPOptions): Node<T> {
 	const { method = "notifications/message", onDisconnect, ...rest } = opts ?? {};
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let active = true;
 		client.setNotificationHandler(method, (notification) => {
 			if (!active) return;
@@ -760,7 +750,7 @@ export function fromGitHook(repoPath: string, opts?: FromGitHookOptions): Node<G
 	const includePatterns = include?.map(globToRegExp) ?? [];
 	const excludePatterns = exclude?.map(globToRegExp) ?? [];
 
-	return producer<GitEvent>((_d, a) => {
+	return producer<GitEvent>((a) => {
 		let active = true;
 		let lastSeen: string;
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -952,21 +942,21 @@ export function fromOTel(register: OTelRegister, opts?: FromOTelOptions): OTelBu
 	};
 
 	const traces = producer<OTelSpan>(
-		(_d, _a) => () => {
+		(_a) => () => {
 			active = false;
 			teardownOne();
 		},
 		sourceOpts(opts),
 	);
 	const metrics = producer<OTelMetric>(
-		(_d, _a) => () => {
+		(_a) => () => {
 			active = false;
 			teardownOne();
 		},
 		sourceOpts(opts),
 	);
 	const logs = producer<OTelLog>(
-		(_d, _a) => () => {
+		(_a) => () => {
 			active = false;
 			teardownOne();
 		},
@@ -1253,7 +1243,7 @@ export function fromPrometheus(
 	} = opts ?? {};
 	const intervalMs = Math.ceil(intervalNs / NS_PER_MS);
 
-	return producer<PrometheusMetric>((_d, a) => {
+	return producer<PrometheusMetric>((a) => {
 		let active = true;
 		let running = false;
 		let timer: ReturnType<typeof setInterval> | undefined;
@@ -1506,7 +1496,7 @@ export function fromKafka<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<KafkaMessage<T>>((_d, a) => {
+	return producer<KafkaMessage<T>>((a) => {
 		let active = true;
 
 		const start = async () => {
@@ -1581,10 +1571,8 @@ export function toKafka<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				const key = keyExtractor?.(value) ?? null;
@@ -1597,7 +1585,7 @@ export function toKafka<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				void kafkaProducer
 					.send({
@@ -1611,12 +1599,9 @@ export function toKafka<T>(
 							value,
 						});
 					});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -1706,7 +1691,7 @@ export function fromRedisStream<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<RedisStreamEntry<T>>((_d, a) => {
+	return producer<RedisStreamEntry<T>>((a) => {
 		let active = true;
 		let lastId = startId;
 
@@ -1779,10 +1764,8 @@ export function toRedisStream<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let fields: string[];
@@ -1794,7 +1777,7 @@ export function toRedisStream<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				const send =
 					maxLen !== undefined
@@ -1807,12 +1790,9 @@ export function toRedisStream<T>(
 						value,
 					});
 				});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -1869,7 +1849,7 @@ export function fromCSV(source: AsyncIterable<string>, opts?: FromCSVOptions): N
 	} = opts ?? {};
 	const parse = parseLine ?? ((line: string) => parseCSVLine(line, delimiter));
 
-	return producer<CSVRow>((_d, a) => {
+	return producer<CSVRow>((a) => {
 		let cancelled = false;
 
 		const run = async () => {
@@ -1994,7 +1974,7 @@ export function fromNDJSON<T = unknown>(
 	source: AsyncIterable<string>,
 	opts?: FromNDJSONOptions,
 ): Node<T> {
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let cancelled = false;
 
 		const run = async () => {
@@ -2090,7 +2070,7 @@ export function fromClickHouseWatch(
 	} = opts ?? {};
 	const intervalMs = Math.ceil(intervalNs / NS_PER_MS);
 
-	return producer<ClickHouseRow>((_d, a) => {
+	return producer<ClickHouseRow>((a) => {
 		let active = true;
 		let running = false;
 		let timer: ReturnType<typeof setInterval> | undefined;
@@ -2233,7 +2213,7 @@ export function fromPulsar<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<PulsarMessage<T>>((_d, a) => {
+	return producer<PulsarMessage<T>>((a) => {
 		let active = true;
 
 		const loop = async () => {
@@ -2303,10 +2283,8 @@ export function toPulsar<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let data: Buffer;
@@ -2318,7 +2296,7 @@ export function toPulsar<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				void pulsarProducer
 					.send({
@@ -2333,12 +2311,9 @@ export function toPulsar<T>(
 							value,
 						});
 					});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -2429,7 +2404,7 @@ export function fromNATS<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<NATSMessage<T>>((_d, a) => {
+	return producer<NATSMessage<T>>((a) => {
 		let active = true;
 		const sub = client.subscribe(subject, queue ? { queue } : undefined);
 
@@ -2500,10 +2475,8 @@ export function toNATS<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let data: Uint8Array;
@@ -2515,7 +2488,7 @@ export function toNATS<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				try {
 					client.publish(subject, data);
@@ -2526,12 +2499,9 @@ export function toNATS<T>(
 						value,
 					});
 				}
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -2640,7 +2610,7 @@ export function fromRabbitMQ<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<RabbitMQMessage<T>>((_d, a) => {
+	return producer<RabbitMQMessage<T>>((a) => {
 		let active = true;
 		let consumerTag: string | undefined;
 
@@ -2721,10 +2691,8 @@ export function toRabbitMQ<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let routingKey: string;
@@ -2736,7 +2704,7 @@ export function toRabbitMQ<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				let content: Buffer;
 				try {
@@ -2747,7 +2715,7 @@ export function toRabbitMQ<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				try {
 					channel.publish(exchange, routingKey, content);
@@ -2758,12 +2726,9 @@ export function toRabbitMQ<T>(
 						value,
 					});
 				}
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -2863,10 +2828,8 @@ export function toFile<T>(
 
 	const buffered = flushIntervalMs > 0 || batchSize < Number.POSITIVE_INFINITY;
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let line: string;
@@ -2878,7 +2841,7 @@ export function toFile<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				if (buffered) {
 					buffer.push(line);
@@ -2895,16 +2858,11 @@ export function toFile<T>(
 						});
 					}
 				}
-				return true;
-			}
-			if (messageTier(msg[0]) >= 3) {
+			} else if (defaultConfig.messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
-			return false;
-		},
+		}
 	});
-
-	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
 		if (disposed) return;
@@ -3100,10 +3058,8 @@ export function toClickHouse<T>(
 		}
 	};
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				try {
@@ -3114,20 +3070,15 @@ export function toClickHouse<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				if (buffer.length >= batchSize) doFlush();
 				else scheduleFlush();
-				return true;
-			}
-			if (messageTier(msg[0]) >= 3) {
+			} else if (defaultConfig.messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
-			return false;
-		},
+		}
 	});
-
-	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
 		if (disposed) return;
@@ -3263,10 +3214,8 @@ export function toS3<T>(
 		}
 	};
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				try {
@@ -3277,20 +3226,15 @@ export function toS3<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				if (buffer.length >= batchSize) doFlush();
 				else scheduleFlush();
-				return true;
-			}
-			if (messageTier(msg[0]) >= 3) {
+			} else if (defaultConfig.messageTier(msg[0]) >= 3) {
 				doFlush();
 			}
-			return false;
-		},
+		}
 	});
-
-	const unsub = inner.subscribe(() => {});
 
 	const dispose = () => {
 		if (disposed) return;
@@ -3355,10 +3299,8 @@ export function toPostgres<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let query: { sql: string; params: unknown[] };
@@ -3370,7 +3312,7 @@ export function toPostgres<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				void client.query(query.sql, query.params).catch((err: unknown) => {
 					handler({
@@ -3379,12 +3321,9 @@ export function toPostgres<T>(
 						value,
 					});
 				});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -3426,10 +3365,8 @@ export function toMongo<T>(
 	const { toDocument = (v: T) => v, onTransportError, ...rest } = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let doc: unknown;
@@ -3441,7 +3378,7 @@ export function toMongo<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				void collection.insertOne(doc).catch((err: unknown) => {
 					handler({
@@ -3450,12 +3387,9 @@ export function toMongo<T>(
 						value,
 					});
 				});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -3513,10 +3447,8 @@ export function toLoki<T>(
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let line: string;
@@ -3528,7 +3460,7 @@ export function toLoki<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				let streamLabels: Record<string, string>;
 				try {
@@ -3539,7 +3471,7 @@ export function toLoki<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				const ts = `${wallClockNs()}`;
 				void client
@@ -3551,12 +3483,9 @@ export function toLoki<T>(
 							value,
 						});
 					});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -3598,10 +3527,8 @@ export function toTempo<T>(
 	const { toResourceSpans = (v: T) => [v], onTransportError, ...rest } = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let spans: unknown[];
@@ -3613,7 +3540,7 @@ export function toTempo<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				void client.push({ resourceSpans: spans }).catch((err: unknown) => {
 					handler({
@@ -3622,12 +3549,9 @@ export function toTempo<T>(
 						value,
 					});
 				});
-				return true;
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	return {
 		dispose: () => {
 			unsub();
@@ -3811,7 +3735,7 @@ export function fromSqlite<T = unknown>(
 	const { mapRow = (r: unknown) => r as T, params, ...rest } = opts ?? {};
 
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			let mapped: T[];
 			try {
 				const rows = db.query(query, params);
@@ -3828,7 +3752,7 @@ export function fromSqlite<T = unknown>(
 			});
 			return undefined;
 		},
-		{ describeKind: "producer", completeWhenDepsComplete: false, ...rest },
+		{ describeKind: "producer", completeWhenDepsComplete: false, ...rest } as NodeOptions<T>,
 	);
 }
 
@@ -3958,10 +3882,8 @@ export function toSqlite<T>(
 		}
 	};
 
-	const inner = node([source as Node], () => undefined, {
-		describeKind: "effect",
-		...rest,
-		onMessage(msg: Message, _depIndex: number, _actions: NodeActions) {
+	const unsub = source.subscribe((msgs) => {
+		for (const msg of msgs) {
 			if (msg[0] === DATA) {
 				const value = msg[1] as T;
 				let query: { sql: string; params: unknown[] };
@@ -3973,7 +3895,7 @@ export function toSqlite<T>(
 						error: err instanceof Error ? err : new Error(String(err)),
 						value,
 					});
-					return true;
+					continue;
 				}
 				if (batchInsert) {
 					pendingInserts.push(query);
@@ -3990,15 +3912,11 @@ export function toSqlite<T>(
 						});
 					}
 				}
-				return true;
-			}
-			if (batchInsert && messageTier(msg[0]) >= 3) {
+			} else if (batchInsert && defaultConfig.messageTier(msg[0]) >= 3) {
 				flushTransaction();
 			}
-			return false;
-		},
+		}
 	});
-	const unsub = inner.subscribe(() => {});
 	const dispose = () => {
 		if (disposed) return;
 		disposed = true;
@@ -4073,7 +3991,7 @@ export function fromPrisma<T = unknown, U = T>(
 	const { args, mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
 	return producer<U>(
-		(_d, a) => {
+		(a) => {
 			let active = true;
 
 			void model
@@ -4101,7 +4019,7 @@ export function fromPrisma<T = unknown, U = T>(
 				active = false;
 			};
 		},
-		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false } as NodeOptions<U>,
 	);
 }
 
@@ -4154,7 +4072,7 @@ export function fromDrizzle<T = unknown, U = T>(
 	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
 	return producer<U>(
-		(_d, a) => {
+		(a) => {
 			let active = true;
 
 			void query
@@ -4182,7 +4100,7 @@ export function fromDrizzle<T = unknown, U = T>(
 				active = false;
 			};
 		},
-		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false } as NodeOptions<U>,
 	);
 }
 
@@ -4234,7 +4152,7 @@ export function fromKysely<T = unknown, U = T>(
 	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
 	return producer<U>(
-		(_d, a) => {
+		(a) => {
 			let active = true;
 
 			void query
@@ -4262,6 +4180,6 @@ export function fromKysely<T = unknown, U = T>(
 				active = false;
 			};
 		},
-		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false },
+		{ ...rest, describeKind: "producer", completeWhenDepsComplete: false } as NodeOptions<U>,
 	);
 }

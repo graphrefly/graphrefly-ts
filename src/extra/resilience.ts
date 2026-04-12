@@ -26,8 +26,8 @@ import {
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
-function operatorOpts(opts?: ExtraOpts): NodeOptions {
-	return { describeKind: "operator", ...opts };
+function operatorOpts<T>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "derived", ...opts } as NodeOptions<T>;
 }
 
 function clampNonNegative(value: number): number {
@@ -69,7 +69,7 @@ export type RetryOptions = {
  * import { ERROR, NS_PER_SEC, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
  *
  * const src = producer(
- *   (_d, a) => {
+ *   (a) => {
  *     a.down([[ERROR, new Error("x")]]);
  *   },
  *   { resubscribable: true },
@@ -93,7 +93,7 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 				: backoffOpt;
 
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			let attempt = 0;
 			let stopped = false;
 			let prevDelay: number | null = null;
@@ -160,7 +160,7 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 		},
 		{
 			...operatorOpts(),
-			initial: source.get(),
+			initial: source.cache,
 		},
 	);
 }
@@ -395,7 +395,7 @@ export function withBreaker<T>(
 				...operatorOpts(),
 				meta: { breakerState: breaker.state },
 				completeWhenDepsComplete: false,
-				initial: source.get(),
+				initial: source.cache,
 			},
 		);
 
@@ -509,7 +509,7 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
 	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			const times: number[] = [];
 			const pending: T[] = [];
 			const timer = new ResettableTimer();
@@ -568,7 +568,7 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 		},
 		{
 			...operatorOpts(),
-			initial: source.get(),
+			initial: source.cache,
 		},
 	);
 }
@@ -621,7 +621,7 @@ export function withStatus<T>(
 					const t = m[0];
 					if (t === DIRTY) a.down([[DIRTY]]);
 					else if (t === DATA) {
-						if (out.meta.status.get() === "errored") {
+						if (out.meta.status.cache === "errored") {
 							batch(() => {
 								out.meta.error.down([[DATA, null]]);
 								out.meta.status.down([[DATA, "active"]]);
@@ -652,7 +652,7 @@ export function withStatus<T>(
 			meta: { status: initialStatus, error: null },
 			completeWhenDepsComplete: false,
 			resubscribable: true,
-			initial: src.get(),
+			initial: src.cache,
 		},
 	);
 
@@ -683,7 +683,7 @@ function isNode(x: unknown): x is Node {
 	return (
 		x != null &&
 		typeof (x as Node).subscribe === "function" &&
-		typeof (x as Node).get === "function"
+		"cache" in (x as Node)
 	);
 }
 
@@ -705,14 +705,14 @@ function isNode(x: unknown): x is Node {
  * import { fallback, throwError } from "@graphrefly/graphrefly-ts";
  *
  * const safe = fallback(throwError(new Error("boom")), "default");
- * safe.get(); // "default" after subscribe
+ * safe.cache; // "default" after subscribe
  * ```
  *
  * @category extra
  */
 export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			let fallbackUnsub: (() => void) | undefined;
 			let sourceUnsub: (() => void) | undefined;
 
@@ -729,7 +729,7 @@ export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
 							fallbackUnsub = (fb as Node<T>).subscribe((fMsgs) => {
 								a.down(fMsgs);
 							});
-							const cur = (fb as Node<T>).get();
+							const cur = (fb as Node<T>).cache;
 							if (cur !== undefined) a.down([[DATA, cur]]);
 						} else {
 							a.emit(fb as T);
@@ -751,7 +751,7 @@ export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
 		},
 		{
 			...operatorOpts(),
-			initial: source.get(),
+			initial: source.cache,
 		},
 	);
 }
@@ -780,7 +780,7 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 	if (timeoutNs <= 0) throw new RangeError("timeoutNs must be > 0");
 
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			let stopped = false;
 			const timer = new ResettableTimer();
 
@@ -833,7 +833,7 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 		},
 		{
 			...operatorOpts(),
-			initial: source.get(),
+			initial: source.cache,
 		},
 	);
 }
@@ -868,7 +868,7 @@ export function cache<T>(source: Node<T>, ttlNs: number): Node<T> {
 	let hasCached = false;
 
 	return producer<T>(
-		(_d, a) => {
+		(a) => {
 			// Replay cached value within TTL on each (re)subscribe
 			if (hasCached && monotonicNs() - cachedAt < ttlNs) {
 				a.down([[DATA, cachedValue]]);
@@ -895,7 +895,7 @@ export function cache<T>(source: Node<T>, ttlNs: number): Node<T> {
 		{
 			...operatorOpts(),
 			resubscribable: true,
-			initial: source.get(),
+			initial: source.cache,
 		},
 	);
 }

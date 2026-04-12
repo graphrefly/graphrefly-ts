@@ -275,8 +275,8 @@ export function restoreGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter)
  *
  * @category extra
  */
-export function checkpointNodeValue<T>(n: Node<T>): { version: number; value: T | undefined } {
-	return { version: 1, value: n.get() };
+export function checkpointNodeValue<T>(n: Node<T>): { version: number; value: T | undefined | null } {
+	return { version: 1, value: n.cache };
 }
 
 export type IndexedDbCheckpointSpec = {
@@ -305,7 +305,7 @@ export type IndexedDbCheckpointSpec = {
  * @category extra
  */
 export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
-	return producer<T>((_d, a) => {
+	return producer<T>((a) => {
 		let done = false;
 		const clear = () => {
 			req.onsuccess = null;
@@ -349,7 +349,7 @@ export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
  * @category extra
  */
 export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
-	return producer<void>((_d, a) => {
+	return producer<void>((a) => {
 		let done = false;
 		const clear = () => {
 			tx.oncomplete = null;
@@ -382,7 +382,7 @@ export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
 }
 
 function openIdbNode(dbName: string, storeName: string, version: number): Node<IDBDatabase> {
-	return producer<IDBDatabase>((_d, a) => {
+	return producer<IDBDatabase>((a) => {
 		if (typeof indexedDB === "undefined") {
 			a.down([[ERROR, new TypeError("indexedDB is not available in this environment")]]);
 			return undefined;
@@ -430,7 +430,7 @@ export function saveGraphCheckpointIndexedDb(
 	spec: IndexedDbCheckpointSpec,
 ): Node<void> {
 	const key = spec.key ?? "graphrefly_checkpoint";
-	return producer<void>((_d, a) => {
+	return producer<void>((a) => {
 		let db: IDBDatabase | undefined;
 		let opUnsub: (() => void) | undefined;
 		let done = false;
@@ -540,7 +540,7 @@ export function restoreGraphCheckpointIndexedDb(
 	spec: IndexedDbCheckpointSpec,
 ): Node<boolean> {
 	const key = spec.key ?? "graphrefly_checkpoint";
-	return producer<boolean>((_d, a) => {
+	return producer<boolean>((a) => {
 		let db: IDBDatabase | undefined;
 		let reqUnsub: (() => void) | undefined;
 		let txUnsub: (() => void) | undefined;
