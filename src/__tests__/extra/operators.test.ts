@@ -738,10 +738,11 @@ describe("extra operators (Tier 2)", () => {
 		const s = state(0);
 		const out = pausable(s);
 		const { batches, unsub } = collect(out);
-		s.down([[PAUSE]]);
+		const lock = Symbol("test-lock");
+		s.down([[PAUSE, lock]]);
 		s.down([[DIRTY]]);
 		s.down([[DATA, 5]]);
-		s.down([[RESUME]]);
+		s.down([[RESUME, lock]]);
 		expect(batches.flat().filter((m) => m[0] === DATA).length).toBeGreaterThanOrEqual(1);
 		unsub();
 	});

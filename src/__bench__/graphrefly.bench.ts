@@ -264,3 +264,125 @@ describe("graphrefly: fan-in batch", () => {
 	});
 	afterAll(() => unsub());
 });
+
+// ─── Equals subtree skip — workload-driven bench variants (B3) ─────────────
+
+/**
+ * The 2026-04-11 baseline's `equals: with (subtree skip)` bench showed ~1% win
+ * because the source value incremented monotonically every iteration and
+ * `equals` (default `Object.is`) was never seeing the same value twice.
+ *
+ * These variants drive two orthogonal levers to expose the real subtree-skip
+ * benefit:
+ *
+ * 1. **Inputs actually repeat** — `push(a, k % 2)` toggles the source
+ *    between 0 and 1, so every other write is a no-op that the first-level
+ *    equals substitution absorbs into RESOLVED.
+ *
+ * 2. **`equals: () => false` as the "unmemoized" baseline** — NOT just
+ *    omitting `equals`. Omitting equals uses default `Object.is`, which
+ *    *already* does subtree-skip on same-value writes; that was the
+ *    original bench's bug. `alwaysDiffer` forces every DATA to propagate
+ *    regardless, simulating a naive reactive system with no memoization.
+ *
+ * 3. **Heavier fn body** — a trivial `(v) => v + 1` body is too cheap for
+ *    the saved fn-run to outweigh the equals comparison cost. We use a
+ *    small fixed-work loop inside fn so the fn-skip actually dominates.
+ */
+
+const alwaysDiffer = () => false;
+
+// Synthetic "non-trivial fn" — adds a small fixed cost so that skipping
+// the fn actually dominates the wire framing overhead.
+function heavyTransform(v: number): number {
+	let acc = v;
+	for (let i = 0; i < 50; i++) acc = (acc * 31 + 7) >>> 0;
+	return acc >>> 0;
+}
+
+// Pattern generator: produces `[0, 0, 1, 1, 0, 0, 1, 1, ...]` — every
+// other write is a true duplicate of the previous, so equals substitution
+// has something to collapse. A simple `k % 2` toggle produces NO duplicates
+// (every write alternates 0/1), which is why the 2026-04-13 first attempt
+// still measured no difference. Half the writes are genuine no-ops here.
+const noopPattern = (k: number): number => Math.floor(k / 2) % 2;
+
+describe("equals: 5-level linear chain, 50% no-op writes (heavy fn)", () => {
+	// Baseline: source + all levels use `alwaysDiffer`. Every source write
+	// fully propagates through the chain — the source never collapses
+	// duplicates, downstream levels never pre-fn skip. Represents a naive
+	// reactive system with no memoization anywhere.
+	const a1 = state<number>(0, { equals: alwaysDiffer });
+	let cur1: ReturnType<typeof state<number>> = derived([a1], ([v]) => heavyTransform(v as number), {
+		equals: alwaysDiffer,
+	});
+	for (let j = 0; j < 4; j++) {
+		const prev = cur1;
+		cur1 = derived([prev], ([v]) => heavyTransform(v as number), { equals: alwaysDiffer });
+	}
+	const tail1 = cur1;
+	const u1 = tail1.subscribe(() => undefined);
+	let k1 = 0;
+
+	// Optimized: default `equals` (Object.is) everywhere. Source collapses
+	// duplicate writes to RESOLVED via §3.5.1 substitution, downstream
+	// levels pre-fn skip (`!_waveHasNewData`) so the leaf fn only runs on
+	// actual transitions (half the time for the noop pattern).
+	const a2 = state<number>(0);
+	let cur2: ReturnType<typeof state<number>> = derived([a2], ([v]) => heavyTransform(v as number));
+	for (let j = 0; j < 4; j++) {
+		const prev = cur2;
+		cur2 = derived([prev], ([v]) => heavyTransform(v as number));
+	}
+	const tail2 = cur2;
+	const u2 = tail2.subscribe(() => undefined);
+	let k2 = 0;
+
+	bench("baseline (alwaysDiffer — no subtree skip)", () => {
+		push(a1, noopPattern(k1));
+		k1++;
+	});
+	bench("with equals subtree skip (default Object.is)", () => {
+		push(a2, noopPattern(k2));
+		k2++;
+	});
+	afterAll(() => {
+		u1();
+		u2();
+	});
+});
+
+describe("equals: diamond with 50% no-op inputs (heavy fn)", () => {
+	// Diamond: both legs share the same source. When the source value
+	// doesn't change, both legs emit RESOLVED at the first node and the
+	// join's pre-fn skip fires. Baseline uses `alwaysDiffer` on every
+	// node including the source so nothing collapses.
+	const src1 = state<number>(0, { equals: alwaysDiffer });
+	const l1 = derived([src1], ([v]) => heavyTransform(v as number), { equals: alwaysDiffer });
+	const r1 = derived([src1], ([v]) => heavyTransform(v as number) + 1, { equals: alwaysDiffer });
+	const j1 = derived([l1, r1], ([l, r]) => heavyTransform((l as number) + (r as number)), {
+		equals: alwaysDiffer,
+	});
+	const u1 = j1.subscribe(() => undefined);
+	let k1 = 0;
+
+	const src2 = state<number>(0);
+	const l2 = derived([src2], ([v]) => heavyTransform(v as number));
+	const r2 = derived([src2], ([v]) => heavyTransform(v as number) + 1);
+	const j2 = derived([l2, r2], ([l, r]) => heavyTransform((l as number) + (r as number)));
+	const u2 = j2.subscribe(() => undefined);
+	let k2 = 0;
+
+	bench("baseline (alwaysDiffer — no diamond skip)", () => {
+		push(src1, noopPattern(k1));
+		k1++;
+	});
+	bench("with equals subtree skip (default Object.is)", () => {
+		push(src2, noopPattern(k2));
+		k2++;
+	});
+	afterAll(() => {
+		u1();
+		u2();
+	});
+});

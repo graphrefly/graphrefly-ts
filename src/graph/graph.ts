@@ -631,6 +631,8 @@ export class Graph {
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
+	/** Graph-level default versioning level; forwarded to new nodes via {@link add}. */
+	private _defaultVersioningLevel: VersioningLevel | undefined;
 
 	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
 		if (!pattern) {
@@ -771,6 +773,12 @@ export class Graph {
 		}
 		this._nodes.set(name, node);
 		if (node instanceof NodeImpl) {
+			// Inherit graph-level default versioning if the node didn't
+			// explicitly opt in. `_applyVersioning` is monotonic, so a
+			// node that already has v1 and joins a v0 graph stays at v1.
+			if (this._defaultVersioningLevel != null) {
+				node._applyVersioning(this._defaultVersioningLevel);
+			}
 			// Auto-register edges from constructor deps (eliminates dual-bookkeeping).
 			// Forward: this node's deps → already-registered nodes.
 			if (node._deps.length > 0) {
@@ -806,9 +814,17 @@ export class Graph {
 	 */
 	setVersioning(level: VersioningLevel | undefined): void {
 		this._defaultVersioningLevel = level;
-		// v5: versioning is construction-time only (§10.6.4).
-		// This method stores the default for documentation/query purposes
-		// but does not retroactively mutate already-registered nodes.
+		if (level == null) return;
+		// Retroactively bump already-registered nodes to the new minimum
+		// level. `_applyVersioning` is monotonic — nodes already at a
+		// higher level are untouched. The method refuses to run mid-wave,
+		// so callers should invoke `setVersioning` at graph setup time
+		// (before any external subscribers are connected).
+		for (const node of this._nodes.values()) {
+			if (node instanceof NodeImpl) {
+				node._applyVersioning(level);
+			}
+		}
 	}
 
 	/**

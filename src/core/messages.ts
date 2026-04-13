@@ -42,6 +42,45 @@ export type Message = readonly [symbol, unknown?];
 export type Messages = readonly Message[];
 
 // ---------------------------------------------------------------------------
+// Interned singletons for payload-free tuples
+// ---------------------------------------------------------------------------
+//
+// Every emission path used to allocate fresh `[[DIRTY]]`, `[[RESOLVED]]`,
+// etc. — two arrays per emit in the hot path. Since none of these tuples
+// carry a payload, one frozen instance is indistinguishable from a
+// fresh one. We intern them at module load and reuse forever. Only
+// `[DATA, v]`, `[ERROR, e]`, `[PAUSE, lockId]`, `[RESUME, lockId]` still
+// allocate per-call because they carry payloads.
+//
+// Downstream code MUST treat these as immutable. `Object.freeze` makes
+// accidental mutation throw in strict mode. Do not `push`, splice, or
+// otherwise mutate a Messages array that came from one of these.
+
+/** Singleton `[DIRTY]` tuple — payload-free, interned. */
+export const DIRTY_MSG: Message = Object.freeze([DIRTY]) as Message;
+/** Singleton `[RESOLVED]` tuple — payload-free, interned. */
+export const RESOLVED_MSG: Message = Object.freeze([RESOLVED]) as Message;
+/** Singleton `[INVALIDATE]` tuple — payload-free, interned. */
+export const INVALIDATE_MSG: Message = Object.freeze([INVALIDATE]) as Message;
+/** Singleton `[START]` tuple — payload-free, interned. */
+export const START_MSG: Message = Object.freeze([START]) as Message;
+/** Singleton `[COMPLETE]` tuple — payload-free, interned. */
+export const COMPLETE_MSG: Message = Object.freeze([COMPLETE]) as Message;
+/** Singleton `[TEARDOWN]` tuple — payload-free, interned. */
+export const TEARDOWN_MSG: Message = Object.freeze([TEARDOWN]) as Message;
+
+/** Pre-wrapped `[[DIRTY]]` for `_emit([DIRTY_ONLY_BATCH])`-style callers. */
+export const DIRTY_ONLY_BATCH: Messages = Object.freeze([DIRTY_MSG]) as Messages;
+/** Pre-wrapped `[[RESOLVED]]`. */
+export const RESOLVED_ONLY_BATCH: Messages = Object.freeze([RESOLVED_MSG]) as Messages;
+/** Pre-wrapped `[[INVALIDATE]]`. */
+export const INVALIDATE_ONLY_BATCH: Messages = Object.freeze([INVALIDATE_MSG]) as Messages;
+/** Pre-wrapped `[[COMPLETE]]`. */
+export const COMPLETE_ONLY_BATCH: Messages = Object.freeze([COMPLETE_MSG]) as Messages;
+/** Pre-wrapped `[[TEARDOWN]]`. */
+export const TEARDOWN_ONLY_BATCH: Messages = Object.freeze([TEARDOWN_MSG]) as Messages;
+
+// ---------------------------------------------------------------------------
 // Registry entry shape
 // ---------------------------------------------------------------------------
 

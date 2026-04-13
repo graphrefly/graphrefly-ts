@@ -120,12 +120,9 @@ describe("cqrs — roadmap §4.5", () => {
 		app.destroy();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (_applyVersioning removed, v0 not populated)
 	it("events carry v0 identity when event log node is versioned", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
-		// FLAG: _applyVersioning removed in v5
-		// ((app as any)._eventLogs.get("orderPlaced").log.entries as any)._applyVersioning(0);
 		app.command("placeOrder", (payload: any, { emit }) => {
 			emit("orderPlaced", payload);
 		});

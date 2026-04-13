@@ -8,10 +8,17 @@ import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
+import type { VersioningLevel } from "../core/versioning.js";
 
 export type ReactiveLogOptions = {
 	name?: string;
 	maxSize?: number;
+	/**
+	 * Optional versioning level for the underlying `entries` state node. Set
+	 * at construction time; cannot be changed later. Pass `0` for V0 identity
+	 * + monotonic version counter, or `1` for V1 + content-addressed cid.
+	 */
+	versioning?: VersioningLevel;
 };
 
 export type ReactiveLogBundle<T> = {
@@ -67,7 +74,7 @@ export function reactiveLog<T>(
 	initial?: readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLogBundle<T> {
-	const { name, maxSize } = options;
+	const { name, maxSize, versioning } = options;
 	if (maxSize !== undefined && maxSize < 1) {
 		throw new RangeError("maxSize must be >= 1");
 	}
@@ -80,6 +87,7 @@ export function reactiveLog<T>(
 		name,
 		describeKind: "state",
 		equals: (a, b) => a === b,
+		...(versioning != null ? { versioning } : {}),
 	});
 
 	function pushSnapshot(): void {

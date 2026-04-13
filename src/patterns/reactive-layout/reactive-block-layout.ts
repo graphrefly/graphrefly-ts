@@ -20,7 +20,7 @@ import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { defaultConfig } from "../../core/node.js";
+import { defaultConfig, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 import {
@@ -296,9 +296,14 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	const gapNode = state<number>(opts.gap ?? 0, { name: "gap" });
 
 	// --- Derived: measured-blocks ---
-	const measuredBlocksNode = derived<MeasuredBlock[]>(
+	// Raw `node(...)` instead of `derived(...)` so the fn can return a
+	// cleanup function. Core fires function-form cleanup on INVALIDATE (see
+	// `node.ts:_updateState` INVALIDATE branch), which lets us flush the
+	// measure cache and the downstream adapter cache reactively — replaces
+	// the old v4 per-node `onMessage` hook that watched for INVALIDATE.
+	const measuredBlocksNode: Node<MeasuredBlock[]> = node<MeasuredBlock[]>(
 		[blocksNode, maxWidthNode],
-		([blocksVal, mwVal]) => {
+		([blocksVal, mwVal], actions) => {
 			const t0 = monotonicNs();
 			const result = measureBlocks(
 				blocksVal as ContentBlock[],
@@ -313,18 +318,27 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			// Phase-3 meta deferral (parity with reactiveLayout)
 			const meta = measuredBlocksNode.meta;
 			if (meta) {
-				const tierOf = defaultConfig.messageTier.bind(defaultConfig);
+				const tierOf = defaultConfig.tierOf;
 				downWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], tierOf);
 				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], tierOf);
 			}
 
-			return result;
+			actions.emit(result);
+
+			// Function-form cleanup: fires before the next run AND on
+			// deactivation AND on INVALIDATE (per `node.ts:_updateState`).
+			// Flushes the shared measurement cache + the text adapter's
+			// cache so stale measurements don't persist across INVALIDATE
+			// broadcasts. Image/SVG measurers don't expose a cache hook.
+			return () => {
+				measureCache.clear();
+				adapters.text.clearCache?.();
+			};
 		},
 		{
 			name: "measured-blocks",
+			describeKind: "derived",
 			meta: { "block-count": 0, "layout-time-ns": 0 },
-			// TODO: redesign observer hook for v5 — previously used onMessage
-			// to clear measureCache on INVALIDATE/TEARDOWN
 			equals: (a, b) => {
 				const ma = a as MeasuredBlock[] | null;
 				const mb = b as MeasuredBlock[] | null;

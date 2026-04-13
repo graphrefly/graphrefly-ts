@@ -416,7 +416,6 @@ describe("reactiveBlockLayout", () => {
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (clearCount stays 0 after INVALIDATE signal)
 	it("INVALIDATE clears measurement cache", () => {
 		let clearCount = 0;
 		const adapter: MeasurementAdapter = {

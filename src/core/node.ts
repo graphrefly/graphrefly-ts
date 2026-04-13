@@ -19,8 +19,6 @@ import { normalizeActor } from "./actor.js";
 import { downWithBatch } from "./batch.js";
 import { wallClockNs } from "./clock.js";
 import type {
-	Bundle,
-	BundleFactory,
 	MessageContext,
 	NodeActions,
 	NodeCtx,
@@ -33,17 +31,25 @@ import type { GuardAction, NodeGuard } from "./guard.js";
 import { GuardDenied } from "./guard.js";
 import {
 	COMPLETE,
+	COMPLETE_ONLY_BATCH,
 	DATA,
 	DIRTY,
+	DIRTY_MSG,
+	DIRTY_ONLY_BATCH,
 	ERROR,
 	INVALIDATE,
+	INVALIDATE_ONLY_BATCH,
 	type Message,
 	type Messages,
 	PAUSE,
 	RESOLVED,
+	RESOLVED_MSG,
+	RESOLVED_ONLY_BATCH,
 	RESUME,
 	START,
+	START_MSG,
 	TEARDOWN,
+	TEARDOWN_ONLY_BATCH,
 } from "./messages.js";
 import {
 	advanceVersion,
@@ -160,13 +166,16 @@ export interface FnCtx {
  * payload), never raw Message tuples. Emission is explicit via
  * `actions.emit(v)` (sugar: equals + bundle + down) or `actions.down(msgs)`
  * (raw). Return a cleanup function (or `{ deactivation }`) to register
- * teardown — any non-cleanup return value is ignored.
+ * teardown — any non-cleanup return value is ignored. The `| void` leg in
+ * the return type lets arrow-block bodies (the common sugar/operator case)
+ * satisfy `NodeFn` without an explicit `return undefined`.
  */
 export type NodeFn = (
 	data: readonly unknown[],
 	actions: NodeActions,
 	ctx: FnCtx,
-) => NodeFnCleanup | undefined;
+	// biome-ignore lint/suspicious/noConfusingVoidType: see JSDoc above.
+) => NodeFnCleanup | void;
 
 /** Options accepted by every node constructor. */
 export interface NodeOptions<T = unknown> {
@@ -224,25 +233,31 @@ export interface Node<T = unknown> {
 	readonly lastMutation: Readonly<{ actor: Actor; timestamp_ns: number }> | undefined;
 	readonly v: Readonly<NodeVersionInfo> | undefined;
 	/**
-	 * Raw downstream passthrough — `messages` are delivered as-is through
-	 * the emit pipeline. NO framing. Caller is responsible for tier
-	 * ordering and two-phase DIRTY prefixing; use `emit` for framed
-	 * value delivery.
+	 * Send one or more messages downstream. Accepts either a single
+	 * {@link Message} tuple (e.g. `node.down([DATA, 42])`) or a
+	 * {@link Messages} array of tuples (e.g.
+	 * `node.down([[DIRTY], [DATA, 42]])`). One call = one wave: the
+	 * emit pipeline tier-sorts the input, auto-prefixes `[DIRTY]` when
+	 * any tier-3 payload is present and the node is not already dirty,
+	 * runs equals substitution against the live cache (§3.5.1), then
+	 * dispatches to sinks with phase deferral.
 	 */
-	down(messages: Messages, options?: NodeTransportOptions): void;
+	down(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void;
 	/**
-	 * Framed value delivery. Runs `equals` (cache vs `value`) to decide
-	 * DATA vs RESOLVED, frames the outgoing message through the singleton
-	 * `bundle` (tier sort + DIRTY auto-prefix), then delivers. Diamond-
-	 * safe by construction — prefer this over raw `down` for state-node
-	 * writes from external code.
+	 * Sugar for `down([[DATA, value]])`. One wave with a single DATA
+	 * payload — the pipeline adds the synthetic DIRTY prefix and runs
+	 * equals substitution against the live cache.
 	 */
-	emit(value: T, options?: NodeTransportOptions): void;
+	emit(value: T | undefined | null, options?: NodeTransportOptions): void;
 	/**
-	 * Raw upstream passthrough — forwards `messages` to every dep without
-	 * modifying any local state.
+	 * Send one or more messages upstream. Accepts the same shapes as
+	 * {@link down}. Upstream messages are tier <3 + tier 5 only
+	 * (DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN); tier-3/4 payloads
+	 * throw — DATA/RESOLVED/COMPLETE/ERROR are downstream-only in this
+	 * protocol. No equals substitution, no cache advance, no DIRTY
+	 * auto-prefix — the up direction just forwards to every dep.
 	 */
-	up?(messages: Messages, options?: NodeTransportOptions): void;
+	up?(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void;
 	subscribe(sink: NodeSink, actor?: Actor): () => void;
 	allowsObserve(actor: Actor): boolean;
 	hasGuard(): boolean;
@@ -295,51 +310,25 @@ function resetDepRecord(d: DepRecord): void {
 }
 
 // ---------------------------------------------------------------------------
-// Default handlers
+// Normalization helper
 // ---------------------------------------------------------------------------
 
 /**
- * Default {@link BundleFactory}. Accumulates messages, sorts them by tier on
- * `resolve()`, and auto-injects a `[[DIRTY]]` tier-1 message when any tier-3
- * payload is present and the node is not already in `"dirty"` status. The
- * DIRTY is inserted after any tier-0 (START) entries so the result stays
- * monotonically sorted by tier — `downWithBatch` walks it without
- * re-sorting.
+ * Accept either a single `Message` tuple or a `Messages` array and return
+ * a `Messages` array. The discriminator is the type of the first element:
+ * a `Message` has a symbol at index 0, while a `Messages` array has a
+ * nested array at index 0. This lets `node.down(...)` and `actions.down(...)`
+ * take either shape without a wrapper allocation on the common single-msg
+ * path.
  */
-const defaultBundle: BundleFactory = (node: NodeCtx, initial: Messages): Bundle => {
-	const msgs: Message[] = [...initial];
-	const impl = node as NodeImpl;
-	const tierOf = (t: symbol) => impl._config.messageTier(t);
-	const bundle: Bundle = {
-		append(...more: Message[]): Bundle {
-			msgs.push(...more);
-			return bundle;
-		},
-		resolve(direction?: "down" | "up"): Messages {
-			// Stable tier sort (both directions).
-			const indexed = msgs.map((m, i) => ({ m, i, tier: tierOf(m[0]) }));
-			indexed.sort((a, b) => a.tier - b.tier || a.i - b.i);
-			const sorted = indexed.map((x) => x.m);
-			// Up direction: tier-sorted only. DIRTY auto-prefix is a
-			// downstream two-phase concept; upstream signals are pass-through.
-			if (direction === "up") return sorted;
-			// Down direction (default): auto-inject DIRTY iff tier-3 present,
-			// no DIRTY already present, and node is not already dirty.
-			// Insert AFTER any tier-0 messages to preserve monotone tier order.
-			const hasTier3 = sorted.some((m) => tierOf(m[0]) === 3);
-			const hasDirty = sorted.some((m) => m[0] === DIRTY);
-			if (hasTier3 && !hasDirty && impl._status !== "dirty") {
-				let insertAt = 0;
-				while (insertAt < sorted.length && tierOf(sorted[insertAt][0]) === 0) {
-					insertAt += 1;
-				}
-				return [...sorted.slice(0, insertAt), [DIRTY] as Message, ...sorted.slice(insertAt)];
-			}
-			return sorted;
-		},
-	};
-	return bundle;
-};
+function normalizeMessages(input: Message | Messages): Messages {
+	if (input.length === 0) return input as Messages;
+	return typeof (input as Message)[0] === "symbol" ? [input as Message] : (input as Messages);
+}
+
+// ---------------------------------------------------------------------------
+// Default handlers
+// ---------------------------------------------------------------------------
 
 /**
  * Default {@link OnMessageHandler}. For `"down-in"` messages (from a dep),
@@ -357,6 +346,7 @@ const defaultOnMessage: OnMessageHandler = (
 		(node as NodeImpl)._onDepMessage(ctx.depIndex, msg);
 	}
 	// up-in is currently unused; default is to do nothing.
+	return undefined;
 };
 
 /**
@@ -375,15 +365,15 @@ const defaultOnSubscribe: OnSubscribeHandler = (
 	const impl = node as NodeImpl;
 	if (impl._status === "completed" || impl._status === "errored") return;
 	const cached = impl._cached;
-	const initial: Message[] = cached === NO_VALUE ? [[START]] : [[START], [DATA, cached]];
+	const initial: Message[] =
+		cached === NO_VALUE ? [START_MSG] : [START_MSG, [DATA, cached] as Message];
 	// When the node is mid-wave (`"dirty"`), append a DIRTY so the late
 	// joiner participates in the in-flight wave. Without this, the next
 	// DATA/RESOLVED the sink receives lacks the preceding DIRTY required
 	// by spec §1.3.1 — the emit-side DIRTY auto-prefix is suppressed when
 	// `_status` is already `"dirty"`.
-	if (impl._status === "dirty") initial.push([DIRTY]);
-	const tierOf = (t: symbol) => impl._config.messageTier(t);
-	downWithBatch(sink, initial, tierOf);
+	if (impl._status === "dirty") initial.push(DIRTY_MSG);
+	downWithBatch(sink, initial, impl._config.tierOf);
 };
 
 // ---------------------------------------------------------------------------
@@ -396,7 +386,6 @@ const defaultOnSubscribe: OnSubscribeHandler = (
  * on first hook access.
  */
 export const defaultConfig = new GraphReFlyConfig({
-	bundle: defaultBundle,
 	onMessage: defaultOnMessage,
 	onSubscribe: defaultOnSubscribe,
 });
@@ -442,6 +431,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _optsName: string | undefined;
 	readonly _describeKind: NodeDescribeKind | undefined;
 	readonly meta: Record<string, Node>;
+	/**
+	 * Cached `Object.keys(meta).length > 0` check. `meta` is frozen at
+	 * construction so this boolean never flips. Used by `_emit` to skip
+	 * the meta TEARDOWN fan-out block allocation on the common "no meta"
+	 * hot path.
+	 */
+	readonly _hasMeta: boolean;
 
 	// --- Config ---
 	readonly _config: GraphReFlyConfig;
@@ -466,6 +462,40 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_pendingRerun = false;
 	_rerunDepth = 0;
 
+	// --- Settlement counters (A3) ---
+	/**
+	 * Count of deps currently in `dirty === true`. Maintained by
+	 * `_onDepDirtied` / `_onDepSettled` / `_addDep` / `_deactivate` /
+	 * `resetDepRecordState`. `_maybeRunFnOnSettlement` treats `0` as
+	 * "wave settled" — O(1) replacement for the old `every(!d.dirty)` scan.
+	 */
+	_dirtyDepCount = 0;
+	/**
+	 * Count of deps that have NOT yet delivered their first DATA and have
+	 * not terminated. `0` means the first-run gate is open — every dep has
+	 * contributed. Maintained in lockstep with `DepRecord.latestData` /
+	 * `DepRecord.terminal` through the same centralized helpers.
+	 */
+	_sentinelDepCount = 0;
+
+	// --- PAUSE/RESUME lock tracking (C0) ---
+	/**
+	 * Set of active pause locks held against this node. Every `[PAUSE, lockId]`
+	 * adds its `lockId` to the set; every `[RESUME, lockId]` removes it.
+	 * `_paused` is a derived quantity: `_pauseLocks.size > 0`. Multi-pauser
+	 * correctness — one controller releasing its lock does NOT resume the
+	 * node while another controller still holds its lock.
+	 */
+	_pauseLocks: Set<unknown> | null = null;
+	/**
+	 * Buffered DATA messages held while paused. Only populated when
+	 * `_pausable === "resumeAll"` (bufferAll mode). On final lock release
+	 * the buffer is replayed through the node's outgoing pipeline in the
+	 * order received. Non-bufferAll pause mode drops DATA on the floor
+	 * (upstream is expected to honor PAUSE by suppressing production).
+	 */
+	_pauseBuffer: Message[] | null = null;
+
 	// --- Options (frozen at construction) ---
 	readonly _fn: NodeFn | undefined;
 	readonly _equals: (a: T, b: T) => boolean;
@@ -475,8 +505,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _autoError: boolean;
 	readonly _pausable: boolean | "resumeAll";
 	readonly _guard: NodeGuard | undefined;
-	readonly _hashFn: HashFn;
+	_hashFn: HashFn;
 	_versioning: NodeVersionInfo | undefined;
+	/**
+	 * Explicit versioning level, tracked separately from `_versioning` so
+	 * monotonicity checks and future v2/v3 extensions don't rely on the
+	 * fragile `"cid" in _versioning` shape discriminator. `undefined` means
+	 * the node has no versioning attached; `0` / `1` / future levels name
+	 * the tier. Mutated in lockstep with `_versioning` by the constructor
+	 * and by `_applyVersioning`.
+	 */
+	_versioningLevel: VersioningLevel | undefined;
 
 	// --- ABAC ---
 	_lastMutation: { actor: Actor; timestamp_ns: number } | undefined;
@@ -495,7 +534,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Bind to config FIRST so meta nodes inherit it. Touching a hook
 		// getter below freezes the config on first node creation.
 		this._config = opts.config ?? defaultConfig;
-		void this._config.bundle;
+		void this._config.onMessage;
 
 		this._optsName = opts.name;
 		this._describeKind = opts.describeKind;
@@ -517,10 +556,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			deps.length === 0 && fn == null && this._cached !== NO_VALUE ? "settled" : "sentinel";
 
 		// Versioning
-		this._hashFn = opts.versioningHash ?? defaultHash;
+		// Hash resolution: per-node `opts.versioningHash` wins; then the
+		// bound config's `defaultHashFn`; then the vendored sync SHA-256.
+		// Hot-path workloads that want a faster hash (xxHash, FNV-1a) can
+		// set it once at app init via `configure(cfg => { cfg.defaultHashFn = ... })`.
+		this._hashFn = opts.versioningHash ?? this._config.defaultHashFn ?? defaultHash;
+		// Versioning level resolution: per-node `opts.versioning` wins; if
+		// absent, fall back to the bound config's `defaultVersioning`. `null`
+		// stays unversioned. Explicit levels (0, 1, …) attach the versioning
+		// info at construction so the next DATA emit advances it.
+		const versioningLevel: VersioningLevel | undefined =
+			opts.versioning ?? this._config.defaultVersioning;
+		this._versioningLevel = versioningLevel;
 		this._versioning =
-			opts.versioning != null
-				? createVersioning(opts.versioning, this._cached === NO_VALUE ? undefined : this._cached, {
+			versioningLevel != null
+				? createVersioning(versioningLevel, this._cached === NO_VALUE ? undefined : this._cached, {
 						id: opts.versioningId,
 						hash: this._hashFn,
 					})
@@ -543,31 +593,23 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		Object.freeze(meta);
 		this.meta = meta;
+		this._hasMeta = Object.keys(meta).length > 0;
 
-		// Actions: built once, closure over `this`.
+		// Actions: built once, closure over `this`. Every call goes through
+		// `_emit` which owns the full dispatch invariant — tier sort,
+		// synthetic DIRTY prefix, equals substitution, and phase dispatch.
+		// One call = one wave. Multiple calls produce multiple waves.
+		// No accumulation, no user-facing bundle builder.
 		const self = this;
 		this._actions = {
 			emit(value: unknown): void {
-				self._actionEmit(value);
+				self._emit([[DATA, value] as Message]);
 			},
-			down(messages: Messages): void {
-				// Raw pipeline entry: no bundle auto-framing. Caller is
-				// responsible for tier ordering and two-phase DIRTY prefix.
-				self._emit(messages);
+			down(messageOrMessages: Message | Messages): void {
+				self._emit(normalizeMessages(messageOrMessages));
 			},
-			up(messages: Messages): void {
-				for (const d of self._deps) {
-					d.node.up?.(messages, { internal: true });
-				}
-			},
-			bundle(initial: Message | Messages): Bundle {
-				// Runtime discrimination: a single Message has a symbol at
-				// index 0, whereas a Messages array holds Message tuples.
-				const msgs: Messages =
-					typeof (initial as Message)[0] === "symbol"
-						? [initial as Message]
-						: (initial as Messages);
-				return self._config.bundle(self as unknown as NodeCtx, msgs);
+			up(messageOrMessages: Message | Messages): void {
+				self._emitUp(normalizeMessages(messageOrMessages));
 			},
 		};
 
@@ -609,6 +651,70 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
+	 * @internal Retroactively attach (or upgrade) versioning state on this
+	 * node. Intended for `Graph.setVersioning(level)` bulk application and
+	 * for rare cases where a specific node needs to be bumped to a higher
+	 * level (e.g., `v0 → v1`) after construction.
+	 *
+	 * **Safety:** the mutation is rejected mid-wave. Specifically,
+	 * throws if the node is currently executing its fn (`_isExecutingFn`).
+	 * Callers at quiescent points — before the first sink subscribes, or
+	 * after all sinks unsubscribe, or between external `down()` / `emit()`
+	 * invocations — are safe. The re-entrance window that motivated §10.6.4
+	 * removal was the "transition `_versioning` from `undefined` to a fresh
+	 * object mid-`_updateState`" case; that path is now guarded.
+	 *
+	 * **Monotonicity:** levels can only go up. Downgrade (e.g., `v1 → v0`)
+	 * is a no-op — once a node carries higher-level metadata, dropping it
+	 * mid-graph would tear the linked-history invariant for v1 and above.
+	 *
+	 * **Linked-history boundary (D1, 2026-04-13):** upgrading v0 → v1
+	 * produces a **fresh history root**. The new v1 state has `cid =
+	 * hash(currentCachedValue)` and `prev = null`, not a synthetic `prev`
+	 * anchored to any previous v0 value. The v0 monotonic `version` counter
+	 * is preserved across the upgrade, but the linked-cid chain (spec §7)
+	 * starts fresh at the upgrade point. Downstream audit tools that walk
+	 * `v.cid.prev` backwards through time will see a `null` boundary at
+	 * the upgrade — **this is intentional**: v0 had no cid to link to, and
+	 * fabricating one would lie about the hash. Callers that require an
+	 * unbroken cid chain from birth must attach versioning at construction
+	 * via `opts.versioning` or `config.defaultVersioning`, not retroactively.
+	 *
+	 * @param level - New minimum versioning level.
+	 * @param opts - Optional id / hash overrides; applied only if the
+	 *   node currently has no versioning state.
+	 */
+	_applyVersioning(level: VersioningLevel, opts?: { id?: string; hash?: HashFn }): void {
+		if (this._isExecutingFn) {
+			throw new Error(
+				`Node "${this.name}": _applyVersioning cannot run mid-fn — ` +
+					"call it outside of `_execFn` (typically at graph setup time " +
+					"before the first subscribe).",
+			);
+		}
+		const currentLevel = this._versioningLevel;
+		if (currentLevel != null && level <= currentLevel) {
+			// Downgrade or no-op. Monotonic: higher levels only.
+			return;
+		}
+		const hash = opts?.hash ?? this._hashFn;
+		if (hash !== this._hashFn) this._hashFn = hash;
+		const initialValue = this._cached === NO_VALUE ? undefined : this._cached;
+		// Preserve the existing id + version counter across upgrades so
+		// downstream consumers watching `v.id` don't see an identity jump.
+		const current = this._versioning;
+		const preservedId = current?.id ?? opts?.id;
+		const preservedVersion = current?.version ?? 0;
+		const fresh = createVersioning(level, initialValue, {
+			id: preservedId,
+			hash,
+		});
+		fresh.version = preservedVersion;
+		this._versioning = fresh;
+		this._versioningLevel = level;
+	}
+
+	/**
 	 * @internal Attach an inspector hook. Returns a disposer that removes
 	 * the hook. Used by `Graph.observe(path, { causal, derived })` to build
 	 * causal traces. Only one hook is active at a time — attaching a new
@@ -643,24 +749,64 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	// --- Public transport ---
 
-	down(messages: Messages, options?: NodeTransportOptions): void {
+	down(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void {
+		const messages = normalizeMessages(messageOrMessages);
 		if (messages.length === 0) return;
 		this._checkGuard(options);
 		this._emit(messages);
 	}
 
-	emit(value: T, options?: NodeTransportOptions): void {
+	emit(value: T | undefined | null, options?: NodeTransportOptions): void {
 		this._checkGuard(options);
-		this._actionEmit(value);
+		this._emit([[DATA, value] as Message]);
 	}
 
-	up(messages: Messages, options?: NodeTransportOptions): void {
+	up(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void {
 		if (this._deps.length === 0) return;
+		const messages = normalizeMessages(messageOrMessages);
 		if (messages.length === 0) return;
 		this._checkGuard(options);
 		const forwardOpts: NodeTransportOptions = options ?? { internal: true };
+		// Validate tier constraint before fanning out (B1.4 option a).
+		this._validateUpTiers(messages);
 		for (const d of this._deps) {
 			d.node.up?.(messages, forwardOpts);
+		}
+	}
+
+	/**
+	 * @internal Internal up-path used by `actions.up(...)` from inside fn.
+	 * Same tier validation as public `up`, but bypasses the guard check
+	 * since the fn context is already inside an authorized operation.
+	 */
+	private _emitUp(messages: Messages): void {
+		if (this._deps.length === 0) return;
+		if (messages.length === 0) return;
+		this._validateUpTiers(messages);
+		for (const d of this._deps) {
+			d.node.up?.(messages, { internal: true });
+		}
+	}
+
+	/**
+	 * @internal Enforce spec §1.2 — up-direction messages are restricted to
+	 * tier 0–2 and tier 5 (START, DIRTY, INVALIDATE, PAUSE, RESUME,
+	 * TEARDOWN). Tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR) are
+	 * downstream-only. Emitting tier-3/4 via `up` would bypass equals
+	 * substitution and cache advance entirely and is a protocol bug.
+	 */
+	private _validateUpTiers(messages: Messages): void {
+		const tierOf = this._config.tierOf;
+		for (const m of messages) {
+			const tier = tierOf(m[0]);
+			if (tier === 3 || tier === 4) {
+				throw new Error(
+					`Node "${this.name}": tier-${tier} messages cannot flow up — ` +
+						"DATA/RESOLVED/COMPLETE/ERROR are downstream-only. Use " +
+						"`down(...)` for value delivery; `up(...)` is for control " +
+						"signals (DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN).",
+				);
+			}
 		}
 	}
 
@@ -687,6 +833,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._pendingRerun = false;
 			this._isExecutingFn = false;
 			this._rerunDepth = 0;
+			this._dirtyDepCount = 0;
+			this._sentinelDepCount = 0;
+			// C0: clear pause state so a new subscriber after terminal-reset
+			// starts from a clean pause lockset — otherwise a lockId from
+			// the previous lifecycle would leave the node stuck paused and
+			// swallow every emit.
+			this._pauseLocks = null;
+			this._pauseBuffer = null;
 			for (const d of this._deps) resetDepRecord(d);
 		}
 
@@ -758,11 +912,24 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (this._fn) this._execFn();
 			return;
 		}
-		// Pre-set every dep as dirty BEFORE subscribing — even if the first
-		// dep settles synchronously during subscribe, the wave-complete check
-		// sees later deps still marked dirty and holds fn until they settle.
+		// Pre-set every dep as dirty + sentinel BEFORE subscribing — even if
+		// the first dep settles synchronously during subscribe, the
+		// wave-complete check sees later deps still counted as dirty and
+		// holds fn until they settle. Counters are bulk-initialized here
+		// so per-dep transitions below (via the centralized helpers)
+		// decrement correctly.
 		for (const d of this._deps) d.dirty = true;
-		for (let i = 0; i < this._deps.length; i++) {
+		this._dirtyDepCount = this._deps.length;
+		this._sentinelDepCount = this._deps.length;
+		// Capture the initial length BEFORE subscribing. `_addDep` can fire
+		// synchronously during a dep's subscribe callback (e.g., via
+		// `autoTrackNode` discovery in `_execFn`) and push new DepRecords.
+		// Iterating `this._deps.length` live would mean this loop also
+		// subscribes the new dep that `_addDep` already subscribed — a
+		// double-subscribe bug. Snapshot the length instead; `_addDep`
+		// owns the subscribe + counter bump for any dep it adds.
+		const initialLen = this._deps.length;
+		for (let i = 0; i < initialLen; i++) {
 			const depIdx = i;
 			const dep = this._deps[i];
 			dep.unsub = dep.node.subscribe((msgs) => {
@@ -785,18 +952,40 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * during subscribe and fn is currently executing, the re-run is
 	 * deferred via `_pendingRerun` flag (see `_execFn` guard).
 	 *
-	 * @returns The index of the new dep in `_deps`.
+	 * **Dedup:** idempotent on duplicate `depNode` — if `depNode` is
+	 * already in `_deps`, returns the existing index without mutating
+	 * state. Callers can safely invoke `_addDep` without their own
+	 * "already added" check. `autoTrackNode` still keeps a `depIndexMap`
+	 * as a fast-path lookup for known deps (returning cached `data[idx]`
+	 * without calling `_addDep` at all); this internal dedup is the
+	 * backstop for any caller that doesn't track its own dep set.
+	 *
+	 * @returns The index of the new dep in `_deps`, or the existing index
+	 *   if the dep was already present.
 	 */
 	_addDep(depNode: Node): number {
+		// Dedup: idempotent on repeated adds of the same dep. Matches
+		// reference equality — the DepRecord is keyed by `node` identity,
+		// so a caller with a fresh `depNode` that observes as equal but
+		// is a distinct object is treated as a new dep.
+		for (let i = 0; i < this._deps.length; i++) {
+			if (this._deps[i].node === depNode) return i;
+		}
 		const depIdx = this._deps.length;
 		const record = createDepRecord(depNode);
 		record.dirty = true;
 		this._deps.push(record);
+		// New dep starts dirty + sentinel — bump both A3 counters to match
+		// the pre-set flags. Skipping the helper here because the record
+		// isn't in the array yet when the helper would early-return on
+		// `dep.dirty === true`.
+		this._dirtyDepCount++;
+		this._sentinelDepCount++;
 		// Topology change → downstream sees a new wave. Skip when already
 		// dirty (we're inside an in-flight wave and have already emitted).
-		// `_markDepDirty` can't do this for us because `record.dirty` was
+		// `_depDirtied` can't do this for us because `record.dirty` was
 		// pre-set above, which short-circuits its DIRTY-emit path.
-		if (this._status !== "dirty") this._emit([[DIRTY]]);
+		if (this._status !== "dirty") this._emit(DIRTY_ONLY_BATCH);
 		record.unsub = depNode.subscribe((msgs) => {
 			for (const m of msgs) {
 				this._config.onMessage(
@@ -872,6 +1061,18 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pendingRerun = false;
 		this._rerunDepth = 0;
 		this._store = {};
+		// A3 counters reset with DepRecord bulk-reset.
+		this._dirtyDepCount = 0;
+		this._sentinelDepCount = 0;
+		// C0 pause state: TEARDOWN is a hard reset. Buffered tier-3/4
+		// messages from a paused `resumeAll` node are DISCARDED rather than
+		// drained, matching "teardown wipes in-flight state" semantics.
+		// Clearing both structures also prevents a memory leak on
+		// non-resubscribable teardown, and guarantees a resubscribable
+		// re-activation starts from `_paused === false` with no stale
+		// lockset carried over from the previous lifecycle.
+		this._pauseLocks = null;
+		this._pauseBuffer = null;
 
 		// ROM/RAM: compute nodes clear cache; pure state nodes preserve it.
 		if (this._fn != null) {
@@ -913,59 +1114,44 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		// Tier 1
 		if (t === DIRTY) {
-			this._markDepDirty(depIndex);
+			this._depDirtied(dep);
 			return;
 		}
 		if (t === INVALIDATE) {
-			dep.latestData = NO_VALUE;
-			dep.dataThisWave = false;
-			this._markDepDirty(depIndex);
-			this._emit([[INVALIDATE]]);
+			this._depInvalidated(dep);
+			this._emit(INVALIDATE_ONLY_BATCH);
 			return;
 		}
 
-		// Tier 2
-		if (t === PAUSE) {
-			if (this._pausable !== false) this._paused = true;
-			this._emit([[PAUSE]]);
-			return;
-		}
-		if (t === RESUME) {
-			if (this._paused) {
-				this._paused = false;
-				this._emit([[RESUME]]);
-				if (this._pendingWave) {
-					this._pendingWave = false;
-					this._maybeRunFnOnSettlement();
-				}
-			} else {
-				this._emit([[RESUME]]);
-			}
+		// Tier 2 — PAUSE / RESUME flow downstream (spec §1.2). Lock bookkeeping
+		// happens inside `_emit` so both `_onDepMessage` (PAUSE received from
+		// a dep) and external `node.down([[PAUSE, lockId]])` (source
+		// directly issuing PAUSE) hit the same path. Here we just forward —
+		// `_emit` will consume the lock, update `_paused`, and broadcast.
+		if (t === PAUSE || t === RESUME) {
+			this._emit([msg]);
 			return;
 		}
 
 		// Tier 5
 		if (t === TEARDOWN) {
-			this._emit([[TEARDOWN]]);
+			this._emit(TEARDOWN_ONLY_BATCH);
 			return;
 		}
 
-		// Tier 3 / 4 — DepRecord updates then settlement / propagation.
+		// Tier 3 / 4 — centralized transitions keep the settlement counters
+		// (`_dirtyDepCount`, `_sentinelDepCount`) in sync with the flags on
+		// every DepRecord. A3 optimization: the two counters let
+		// `_maybeRunFnOnSettlement` check wave completion in O(1) instead
+		// of two `every(...)` scans.
 		if (t === DATA) {
-			dep.latestData = msg[1];
-			dep.dirty = false;
-			dep.dataThisWave = true;
-			this._waveHasNewData = true;
+			this._depSettledAsData(dep, msg[1]);
 		} else if (t === RESOLVED) {
-			dep.dirty = false;
+			this._depSettledAsResolved(dep);
 		} else if (t === COMPLETE) {
-			dep.terminal = true;
-			dep.dirty = false;
-			this._hasNewTerminal = true;
+			this._depSettledAsTerminal(dep, true);
 		} else if (t === ERROR) {
-			dep.terminal = msg[1];
-			dep.dirty = false;
-			this._hasNewTerminal = true;
+			this._depSettledAsTerminal(dep, msg[1]);
 		} else {
 			// Unknown type: forward as-is (spec §1.3.6 forward-compat).
 			this._emit([msg]);
@@ -973,12 +1159,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		if (!this._fn) {
-			// Passthrough: forward DATA/RESOLVED 1:1. Frame explicitly via
-			// the singleton bundle for tier ordering + DIRTY auto-prefix —
-			// `_emit` is raw and won't do it on our behalf.
+			// Passthrough: forward DATA/RESOLVED 1:1 through the unified
+			// emit pipeline. `_emit` owns tier sort + synthetic DIRTY
+			// prefix + equals substitution uniformly — no manual framing.
 			if (t === DATA || t === RESOLVED) {
-				const framed = this._config.bundle(this as unknown as NodeCtx, [msg]).resolve();
-				this._emit(framed);
+				this._emit([msg]);
 			}
 			if (t === COMPLETE || t === ERROR) {
 				this._maybeAutoTerminalAfterWave();
@@ -989,22 +1174,101 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._maybeRunFnOnSettlement();
 	}
 
-	private _markDepDirty(depIndex: number): void {
-		const dep = this._deps[depIndex];
+	// --- Centralized dep-state transitions (A3 settlement counters) ---
+	//
+	// Every mutation to `DepRecord.dirty` / `DepRecord.latestData` /
+	// `DepRecord.terminal` must go through one of these helpers so the
+	// `_dirtyDepCount` and `_sentinelDepCount` counters stay in sync with
+	// the per-record flags. `_maybeRunFnOnSettlement` reads the counters
+	// and never re-scans the `_deps` array.
+
+	/**
+	 * Called when a dep transitions `dirty: false → true` (either from an
+	 * incoming DIRTY, or pre-set during `_activate` / `_addDep` /
+	 * `_depInvalidated`). No-op if the dep is already dirty. Fires the
+	 * downstream DIRTY emit if we're the first to dirty this wave.
+	 */
+	private _depDirtied(dep: DepRecord): void {
 		if (dep.dirty) return;
 		dep.dirty = true;
+		this._dirtyDepCount++;
 		// First dep to dirty this wave → propagate DIRTY to our own sinks.
 		if (this._status !== "dirty") {
-			this._emit([[DIRTY]]);
+			this._emit(DIRTY_ONLY_BATCH);
+		}
+	}
+
+	/**
+	 * Called when a dep delivers new DATA: clears dirty, stores the payload,
+	 * marks wave-has-data, and — if this is the dep's first DATA — clears
+	 * its sentinel slot so the first-run gate can open.
+	 */
+	private _depSettledAsData(dep: DepRecord, value: unknown): void {
+		if (dep.dirty) {
+			dep.dirty = false;
+			this._dirtyDepCount--;
+		}
+		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
+		dep.latestData = value;
+		dep.dataThisWave = true;
+		if (wasSentinel) this._sentinelDepCount--;
+		this._waveHasNewData = true;
+	}
+
+	/**
+	 * Called when a dep emits RESOLVED (wave settled, value unchanged).
+	 * Clears dirty; does NOT touch `latestData` / `terminal` / sentinel
+	 * count — sentinel only exits on first DATA or terminal, not RESOLVED.
+	 */
+	private _depSettledAsResolved(dep: DepRecord): void {
+		if (dep.dirty) {
+			dep.dirty = false;
+			this._dirtyDepCount--;
+		}
+	}
+
+	/**
+	 * Called when a dep delivers COMPLETE (`terminal = true`) or ERROR
+	 * (`terminal = errorPayload`). Clears dirty, stores the terminal, and
+	 * — if the dep had never contributed a DATA yet — leaves sentinel
+	 * since the gate treats "terminated without data" as gate-open too.
+	 */
+	private _depSettledAsTerminal(dep: DepRecord, terminal: unknown): void {
+		if (dep.dirty) {
+			dep.dirty = false;
+			this._dirtyDepCount--;
+		}
+		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
+		dep.terminal = terminal;
+		if (wasSentinel) this._sentinelDepCount--;
+		this._hasNewTerminal = true;
+	}
+
+	/**
+	 * Called when a dep emits INVALIDATE: clears cache, marks dirty, and
+	 * restores sentinel state. The dep is now back in the "never delivered
+	 * a real value" state, so the first-run gate re-closes.
+	 */
+	private _depInvalidated(dep: DepRecord): void {
+		const wasNotSentinel = dep.latestData !== NO_VALUE || dep.terminal !== undefined;
+		dep.latestData = NO_VALUE;
+		dep.terminal = undefined;
+		dep.dataThisWave = false;
+		if (wasNotSentinel) this._sentinelDepCount++;
+		if (!dep.dirty) {
+			dep.dirty = true;
+			this._dirtyDepCount++;
 		}
 	}
 
 	private _maybeRunFnOnSettlement(): void {
 		if (this._isTerminal && !this._resubscribable) return;
-		const allSettled = this._deps.every((d) => !d.dirty);
-		if (!allSettled) return;
-		const gateOpen = this._deps.every((d) => d.latestData !== NO_VALUE || d.terminal !== undefined);
-		if (!gateOpen) return;
+		// O(1) gate checks via the A3 counters. `_dirtyDepCount === 0` means
+		// every dep has delivered its settlement for this wave;
+		// `_sentinelDepCount === 0` means every dep has contributed at least
+		// one DATA or terminal since activation (first-run gate is open).
+		if (this._dirtyDepCount > 0) return;
+		if (this._sentinelDepCount > 0) return;
 		if (this._paused) {
 			this._pendingWave = true;
 			return;
@@ -1014,7 +1278,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// fn is not re-run when a mid-chain node produces the same value.
 		if (!this._waveHasNewData && !this._hasNewTerminal && this._hasCalledFnOnce) {
 			this._clearWaveFlags();
-			this._emit([[RESOLVED]]);
+			this._emit(RESOLVED_ONLY_BATCH);
 			this._maybeAutoTerminalAfterWave();
 			return;
 		}
@@ -1038,7 +1302,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		// COMPLETE only when autoComplete is true and ALL deps are terminal.
 		if (this._autoComplete && this._deps.every((d) => d.terminal !== undefined)) {
-			this._emit([[COMPLETE]]);
+			this._emit(COMPLETE_ONLY_BATCH);
 		}
 	}
 
@@ -1149,20 +1413,102 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		return new Error(`Node "${this.name}": ${label}: ${msg}`, { cause: err });
 	}
 
+	// --- Framing (tier sort + synthetic DIRTY prefix) ---
+
+	/**
+	 * @internal Stable tier sort + synthetic DIRTY prefix for an outgoing
+	 * batch. Fast path: already-monotone single-tier batches (the common
+	 * case from interned singletons like `DIRTY_ONLY_BATCH`) return the
+	 * input unchanged. General path: decorate-sort-undecorate into a new
+	 * array, then prepend `[DIRTY]` after any tier-0 START entries when
+	 * a tier-3 payload is present and the node isn't already dirty.
+	 *
+	 * This is the single source of truth for the spec §1.3.1 framing
+	 * invariant. `defaultBundle.resolve()` used to duplicate this logic
+	 * and `_updateState` used to synthesize its own prefix on equals
+	 * substitution — both are now gone. Every outgoing path hits
+	 * `_frameBatch` exactly once via `_emit`.
+	 */
+	private _frameBatch(messages: Messages): Messages {
+		const tierOf = this._config.tierOf;
+		// Fast path: single message.
+		if (messages.length === 1) {
+			const t = tierOf(messages[0][0]);
+			if (t === 3 && this._status !== "dirty") {
+				return [DIRTY_MSG, messages[0]];
+			}
+			return messages;
+		}
+		// Check monotonicity and tier-3 presence in a single pass.
+		let monotone = true;
+		let hasTier3 = false;
+		let hasDirty = false;
+		let prevTier = -1;
+		for (const m of messages) {
+			const tier = tierOf(m[0]);
+			if (tier < prevTier) monotone = false;
+			if (tier === 3) hasTier3 = true;
+			if (m[0] === DIRTY) hasDirty = true;
+			prevTier = tier;
+		}
+		let sorted: Messages = messages;
+		if (!monotone) {
+			// Stable sort via index-keyed decoration.
+			const indexed = messages.map((m, i) => ({ m, i, tier: tierOf(m[0]) }));
+			indexed.sort((a, b) => a.tier - b.tier || a.i - b.i);
+			sorted = indexed.map((x) => x.m);
+		}
+		if (hasTier3 && !hasDirty && this._status !== "dirty") {
+			// Insert DIRTY after any tier-0 START entries to preserve
+			// monotonicity.
+			let insertAt = 0;
+			while (insertAt < sorted.length && tierOf(sorted[insertAt][0]) === 0) insertAt++;
+			if (insertAt === 0) return [DIRTY_MSG, ...sorted];
+			return [...sorted.slice(0, insertAt), DIRTY_MSG, ...sorted.slice(insertAt)];
+		}
+		return sorted;
+	}
+
 	// --- Emit pipeline ---
 
 	/**
-	 * @internal Raw emission pipeline: terminal filter → `_updateState` →
-	 * `downWithBatch`. Does NOT run bundle — callers are responsible for
-	 * tier ordering and any DIRTY auto-prefix. Internal callers that emit
-	 * tier-3 payloads must explicitly frame via `this._config.bundle(...)`
-	 * (see passthrough branch in `_onDepMessage` and `_actionEmit`).
+	 * @internal The unified dispatch waist — one call = one wave.
 	 *
-	 * The raw shape keeps `node.down` / `actions.down` / `node.up` /
-	 * `actions.up` absolutely free — the developer controls exactly what
-	 * goes on the wire. `node.emit` / `actions.emit` are the framing-sugar
-	 * entry points that call bundle + `_emit` for diamond-safe value
-	 * delivery.
+	 * Pipeline stages, in order:
+	 *
+	 *   1. Early-return on empty batch.
+	 *   2. Terminal filter — post-COMPLETE/ERROR only TEARDOWN/INVALIDATE
+	 *      still propagate so graph teardown and cache-clear still work.
+	 *   3. Tier sort (stable) — the batch can be in any order when it
+	 *      arrives; the walker downstream (`downWithBatch`) assumes
+	 *      ascending tier monotone, and so does `_updateState`'s tier-3
+	 *      slice walk. This is the single source of truth for ordering.
+	 *   4. Synthetic DIRTY prefix — if a tier-3 payload is present, no
+	 *      DIRTY is already in the batch, and the node isn't already in
+	 *      `"dirty"` status, prepend `[DIRTY]` after any tier-0 START
+	 *      entries. Guarantees spec §1.3.1 (DIRTY precedes DATA within
+	 *      the same batch) uniformly across every entry point.
+	 *   5. PAUSE/RESUME lock bookkeeping (C0) — update `_pauseLocks`,
+	 *      derive `_paused`, filter unknown-lockId RESUME, replay
+	 *      bufferAll buffer on final lock release.
+	 *   6. Meta TEARDOWN fan-out — notify meta children before
+	 *      `_updateState`'s TEARDOWN branch calls `_deactivate`. Hoisted
+	 *      out of the walk to keep `_updateState` re-entrance-free.
+	 *   7. `_updateState` — walk the batch in tier order, advancing
+	 *      `_cached` / `_status` / `_versioning` and running equals
+	 *      substitution on tier-3 DATA (§3.5.1). Returns
+	 *      `{finalMessages, equalsError?}`.
+	 *   8. `downWithBatch` dispatch (or bufferAll capture if paused with
+	 *      `pausable: "resumeAll"`).
+	 *   9. Recursive ERROR emission if equals threw mid-walk.
+	 *
+	 * Public `node.down` / `node.emit` / `actions.down` / `actions.emit`
+	 * all converge here. `actions.bundle` no longer exists — the bundle
+	 * sort + auto-prefix logic that used to live in the config's
+	 * `BundleFactory` was folded into stages 3 and 4 so every emission
+	 * path shares one invariant. The singleton `config.bundle` is retained
+	 * as an advanced escape hatch for callers that want manual control;
+	 * nothing in core calls it.
 	 */
 	_emit(messages: Messages): void {
 		if (messages.length === 0) return;
@@ -1178,6 +1524,121 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			deliverable = pass;
 		}
 
+		// Tier sort + synthetic DIRTY prefix (stages 3 + 4 of the emit
+		// pipeline). `_frameBatch` is a no-op for pre-sorted single-msg
+		// batches (the common case from the tuple-interning A2 call sites);
+		// otherwise it produces a stable tier-sorted copy with `[DIRTY]`
+		// auto-prepended after any tier-0 messages when a tier-3 payload
+		// is present and the node isn't already dirty.
+		deliverable = this._frameBatch(deliverable);
+
+		// C0 — PAUSE/RESUME lock tracking. Every tier-2 tuple MUST carry a
+		// `lockId` payload. Each PAUSE / RESUME updates `_pauseLocks` and
+		// derives `_paused` from set size — multi-pauser correctness
+		// guarantees a node only resumes when every lock it holds is
+		// released. All tier-2 messages are forwarded unconditionally so
+		// downstream nodes on the propagation path keep their own lock
+		// sets consistent (subscribers that joined the graph before any
+		// PAUSE see the full lock history). `pausable: false` sources
+		// forward PAUSE/RESUME but do not track locks — appropriate for
+		// reactive timers that must keep ticking. Unknown-lockId RESUME
+		// is swallowed to keep `dispose()` idempotent.
+		let filtered: Message[] | null = null;
+		for (let i = 0; i < deliverable.length; i++) {
+			const m = deliverable[i];
+			const t = m[0];
+			if (t !== PAUSE && t !== RESUME) {
+				if (filtered != null) filtered.push(m);
+				continue;
+			}
+			if (m.length < 2) {
+				throw new Error(
+					`Node "${this.name}": [[${t === PAUSE ? "PAUSE" : "RESUME"}]] must ` +
+						"carry a lockId payload — bare PAUSE/RESUME is a protocol " +
+						"violation (C0 rule). Use `[[PAUSE, lockId]]` / " +
+						"`[[RESUME, lockId]]`.",
+				);
+			}
+			let forward = true;
+			if (this._pausable !== false) {
+				const lockId = m[1];
+				if (t === PAUSE) {
+					if (this._pauseLocks == null) this._pauseLocks = new Set();
+					this._pauseLocks.add(lockId);
+					this._paused = true;
+					if (this._pausable === "resumeAll" && this._pauseBuffer == null) {
+						this._pauseBuffer = [];
+					}
+				} else {
+					// RESUME
+					if (this._pauseLocks == null || !this._pauseLocks.has(lockId)) {
+						// Unknown lockId — swallow to keep dispose idempotent.
+						forward = false;
+					} else {
+						this._pauseLocks.delete(lockId);
+						if (this._pauseLocks.size === 0) {
+							this._paused = false;
+							// Replay bufferAll buffer through the outgoing
+							// pipeline BEFORE forwarding RESUME — subscribers
+							// observe the deferred DATAs as part of the
+							// pre-RESUME wake-up.
+							//
+							// D2 (2026-04-13) semantic note: the recursive
+							// `_emit(drain)` goes through the full pipeline
+							// including `_updateState`'s equals substitution.
+							// A buffered `[DATA, v]` whose value matches the
+							// *pre-pause* cache will collapse to RESOLVED on
+							// replay — producer "pulses" that write the same
+							// value while paused are absorbed. This matches
+							// diamond-safety intent: `.cache` stays coherent
+							// with "the last DATA actually delivered to
+							// sinks". Producers that need pulse semantics
+							// (every write observable regardless of value)
+							// should set `equals: () => false` on the node.
+							if (this._pauseBuffer != null && this._pauseBuffer.length > 0) {
+								const drain = this._pauseBuffer;
+								this._pauseBuffer = [];
+								this._emit(drain);
+							}
+							// Kick the held wave forward if one was pending.
+							if (this._pendingWave) {
+								this._pendingWave = false;
+								this._maybeRunFnOnSettlement();
+							}
+						}
+					}
+				}
+			}
+			if (!forward) {
+				if (filtered == null) filtered = deliverable.slice(0, i) as Message[];
+			} else if (filtered != null) {
+				filtered.push(m);
+			}
+		}
+		if (filtered != null) {
+			if (filtered.length === 0) return;
+			deliverable = filtered;
+		}
+
+		// Meta TEARDOWN fan-out happens BEFORE `_updateState` so the walk
+		// stays re-entrance-free: previously the walk called `_emit` on each
+		// meta child mid-iteration, which meant a meta node's own dispatch
+		// re-entered the parent's outgoing pipeline while `this._cached` /
+		// `this._status` were mid-commit. Hoisting the fan-out keeps
+		// `_updateState` a pure state-transition walk and preserves the spec
+		// ordering "meta propagates before deactivation" — `_updateState`'s
+		// TEARDOWN branch still runs `_deactivate` AFTER the meta children
+		// have already been notified here.
+		if (this._hasMeta && deliverable.some((m) => m[0] === TEARDOWN)) {
+			for (const k of Object.keys(this.meta)) {
+				try {
+					(this.meta[k] as NodeImpl)._emit(TEARDOWN_ONLY_BATCH);
+				} catch {
+					/* best-effort */
+				}
+			}
+		}
+
 		// State update + equals substitution (§3.5.1 invariant). Returns the
 		// possibly-rewritten batch and an optional equals-throw error. When
 		// equals throws mid-walk we still deliver the successfully-walked
@@ -1186,8 +1647,30 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const { finalMessages, equalsError } = this._updateState(deliverable);
 
 		if (finalMessages.length > 0) {
-			const tierOf = (t: symbol) => this._config.messageTier(t);
-			downWithBatch(this._deliverToSinks, finalMessages, tierOf);
+			// BufferAll: while paused with `pausable: "resumeAll"`, buffer
+			// tier-3/4 payloads in order. Tier 0–2 and tier 5 continue to
+			// dispatch synchronously — START/DIRTY/RESUME/PAUSE/TEARDOWN
+			// must stay live so subscribers, downstream pausers, and graph
+			// teardown all observe them. Cache/status advance has already
+			// happened via `_updateState`, so the replay later just pushes
+			// the deferred messages back through `downWithBatch`.
+			if (this._paused && this._pausable === "resumeAll" && this._pauseBuffer != null) {
+				const tierOf = this._config.tierOf;
+				const immediate: Message[] = [];
+				for (const m of finalMessages) {
+					const tier = tierOf(m[0]);
+					if (tier < 3 || tier === 5) {
+						immediate.push(m);
+					} else {
+						this._pauseBuffer.push(m);
+					}
+				}
+				if (immediate.length > 0) {
+					downWithBatch(this._deliverToSinks, immediate, tierOf);
+				}
+			} else {
+				downWithBatch(this._deliverToSinks, finalMessages, this._config.tierOf);
+			}
 		}
 
 		if (equalsError != null) {
@@ -1196,40 +1679,34 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * @internal Walk an outgoing batch, updating own cache / status /
-	 * versioning / meta propagation and running the tier-3 equals
-	 * substitution invariant (§3.5.1). Every DATA payload is compared
-	 * against the live `_cached`; when equal, the tuple is rewritten to
-	 * `[RESOLVED]` in a per-call copy and cache is not re-advanced. This
-	 * is the one place equals runs for *any* emission path (`actions.emit`,
-	 * raw `node.down`, `bundle(...).resolve()`-wrapped, passthrough
-	 * forwarding), so `.cache` cannot drift from "last DATA payload
-	 * actually delivered downstream."
+	 * @internal Walk an outgoing (already-framed) batch, updating own
+	 * cache / status / versioning and running equals substitution on
+	 * every tier-3 DATA (§3.5.1). Framing — tier sort and synthetic
+	 * DIRTY prefix — has already happened upstream in `_frameBatch`.
+	 * This walk trusts the input is in monotone tier order and that the
+	 * spec §1.3.1 DIRTY/RESOLVED precedence invariant is already
+	 * satisfied by the frame.
+	 *
+	 * Equals substitution: every DATA payload is compared against the
+	 * live `_cached`; when equal, the tuple is rewritten to `[RESOLVED]`
+	 * in a per-call copy and cache is not re-advanced. `.cache` remains
+	 * coherent with "the last DATA payload this node actually sent
+	 * downstream".
 	 *
 	 * Returns `{ finalMessages, equalsError? }`:
-	 * - `finalMessages` — the array to deliver to sinks (may be `messages`
-	 *   unchanged, a rewritten copy with DATA→RESOLVED substitutions, or
-	 *   a truncated prefix when equals throws mid-walk).
+	 * - `finalMessages` — the array to deliver to sinks (may be
+	 *   `messages` unchanged, a rewritten copy with DATA→RESOLVED
+	 *   substitutions, or a truncated prefix when equals throws mid-walk).
 	 * - `equalsError` — present only when the configured `equals` function
 	 *   threw on some DATA message. `_emit` delivers the prefix first,
 	 *   then emits a fresh ERROR batch via a recursive `_emit` call so
 	 *   subscribers observe `[...walked_prefix, ERROR]` in order.
-	 *
-	 * Synthetic DIRTY prefix (§3.5.1, P1 decision): when a DATA is
-	 * substituted to RESOLVED and no DIRTY preceded it (in this batch or
-	 * from the pre-walk `_status`), we prepend a synthetic `[DIRTY]` to
-	 * the returned array. This satisfies spec §1.3.1 (DIRTY precedes
-	 * RESOLVED within the same batch) without making raw `down` opt out
-	 * of equals substitution. Matches the behavior of `bundle.resolve()`'s
-	 * own DIRTY auto-prefix.
 	 */
 	private _updateState(messages: Messages): {
 		finalMessages: Messages;
 		equalsError?: Error;
 	} {
 		let rewritten: Message[] | undefined;
-		let waveHadDirty = this._status === "dirty";
-		let needDirtyPrefix = false;
 		let equalsError: Error | undefined;
 		let abortedAt = -1;
 
@@ -1252,12 +1729,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						}
 					}
 					if (unchanged) {
-						if (!waveHadDirty) {
-							needDirtyPrefix = true;
-							waveHadDirty = true;
-						}
 						if (rewritten == null) rewritten = messages.slice(0, i) as Message[];
-						rewritten.push([RESOLVED] as Message);
+						rewritten.push(RESOLVED_MSG);
 						this._status = "resolved";
 						continue;
 					}
@@ -1271,7 +1744,6 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			} else {
 				if (rewritten != null) rewritten.push(m);
 				if (t === DIRTY) {
-					waveHadDirty = true;
 					this._status = "dirty";
 				} else if (t === RESOLVED) {
 					this._status = "resolved";
@@ -1294,14 +1766,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					}
 				} else if (t === TEARDOWN) {
 					if (this._resetOnTeardown) this._cached = NO_VALUE;
-					// Propagate to meta companions before deactivation.
-					for (const metaNode of Object.values(this.meta)) {
-						try {
-							(metaNode as NodeImpl)._emit([[TEARDOWN]]);
-						} catch {
-							/* best-effort */
-						}
-					}
+					// Meta TEARDOWN fan-out was already performed by `_emit`
+					// before this walk. Deactivate now that meta children
+					// have been notified.
 					this._deactivate(/* skipStatusUpdate */ true);
 					// TEARDOWN is a hard reset — unconditionally "sentinel",
 					// even if the node was previously completed/errored.
@@ -1310,22 +1777,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			}
 		}
 
-		let base: Messages;
-		if (abortedAt >= 0) {
-			base = (rewritten ?? (messages.slice(0, abortedAt) as Messages)) as Messages;
-		} else {
-			base = rewritten ?? messages;
-		}
-
-		if (needDirtyPrefix) {
-			// Insert synthetic DIRTY after any tier-0 START but before the
-			// first tier-1+ message. Matches bundle's auto-prefix placement.
-			const tierOf = (t: symbol) => this._config.messageTier(t);
-			let insertAt = 0;
-			while (insertAt < base.length && tierOf(base[insertAt][0]) === 0) insertAt++;
-			base = [...base.slice(0, insertAt), [DIRTY] as Message, ...base.slice(insertAt)];
-		}
-
+		const base: Messages =
+			abortedAt >= 0
+				? ((rewritten ?? (messages.slice(0, abortedAt) as Messages)) as Messages)
+				: (rewritten ?? messages);
 		return equalsError != null ? { finalMessages: base, equalsError } : { finalMessages: base };
 	}
 
@@ -1341,24 +1796,6 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const snapshot = [...this._sinks];
 		for (const sink of snapshot) sink(messages);
 	};
-
-	// --- emit sugar (framing path) ---
-
-	/**
-	 * @internal Shared implementation for `actions.emit(v)` and public
-	 * `node.emit(v)`. Frames `[DATA, v]` through the singleton `bundle`
-	 * (tier sort + DIRTY auto-prefix), then delegates to `_emit`. The
-	 * equals check + DATA→RESOLVED substitution happens inside `_emit`
-	 * as a protocol invariant (§3.5.1), so `emit`, raw `down`, and
-	 * passthrough forwarding all share a single equals-against-live-cache
-	 * path. This function's only job is bundle framing.
-	 */
-	private _actionEmit(value: unknown): void {
-		const framed = this._config
-			.bundle(this as unknown as NodeCtx, [[DATA, value] as Message])
-			.resolve();
-		this._emit(framed);
-	}
 }
 
 // ---------------------------------------------------------------------------
