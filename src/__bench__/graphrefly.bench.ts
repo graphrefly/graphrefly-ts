@@ -8,7 +8,6 @@
 import { afterAll, bench, describe } from "vitest";
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY, type Messages } from "../core/messages.js";
-import { node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 
 const push = (n: { down: (m: Messages) => void }, v: number) => {

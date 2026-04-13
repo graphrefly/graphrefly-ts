@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
-import { node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
 import { contentGate, redactor, type StreamChunk } from "../../patterns/ai.js";
 import {

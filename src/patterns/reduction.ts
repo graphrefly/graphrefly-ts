@@ -115,12 +115,21 @@ function _addBranch<T>(
 	// emit [DIRTY, DATA]. If not, emit [DIRTY, RESOLVED] so downstream exits
 	// dirty status cleanly (spec §1.3.1). Source RESOLVED forwards as RESOLVED.
 	// Rules-only changes produce no downstream emission ("future items only").
+	//
+	// Producer pattern with `[]` deps: the framework does NOT auto-propagate
+	// DIRTY/RESOLVED/COMPLETE from source or rules. We forward source terminals
+	// explicitly below, and we silently absorb rules signals — preserving the
+	// "future items only" semantic (rules changes are invisible downstream).
 	const _noValue: unique symbol = Symbol("noValue");
 	let sourceDirty = false;
 	let rulesDirty = false;
 	let sourcePhase2 = false; // source delivered DATA or RESOLVED this cycle
 	let sourceValue: T | typeof _noValue = _noValue; // DATA payload, or _noValue for RESOLVED
 	let pendingDirty = false; // owe downstream a DIRTY
+	// Latest rules DATA, seeded at factory time (wiring-time external read —
+	// allowed per foundation-redesign §3.6). Updated by the rules subscribe
+	// handler so `resolve()` never reads `rulesNode.cache` from a reactive context.
+	let latestRules: ReadonlyArray<StratifyRule<T>> = rulesNode.cache ?? [];
 
 	function resolve(actions: NodeActions): void {
 		if (sourcePhase2) {
@@ -129,8 +138,7 @@ function _addBranch<T>(
 			sourceValue = _noValue;
 			if (value !== _noValue) {
 				// Source emitted DATA — classify with settled rules
-				const currentRules = rulesNode.cache as ReadonlyArray<StratifyRule<T>>;
-				const currentRule = currentRules.find((r) => r.name === rule.name);
+				const currentRule = latestRules.find((r) => r.name === rule.name);
 				let matches = false;
 				try {
 					matches = currentRule?.classify(value) ?? false;
@@ -163,7 +171,7 @@ function _addBranch<T>(
 	// interception (onMessage removed in v5)
 	const filterNode = node<T>(
 		[],
-		(data, filterActions) => {
+		(_data, filterActions) => {
 			const srcUnsub = (source as Node).subscribe((msgs) => {
 				for (const msg of msgs) {
 					_handleStratifyMessage(msg, 0, filterActions);
@@ -207,6 +215,10 @@ function _addBranch<T>(
 				sourcePhase2 = true;
 				sourceValue = t === DATA ? (msg[1] as T) : _noValue;
 			} else {
+				// Rules dep: capture DATA payload into closure before settling.
+				if (t === DATA) {
+					latestRules = msg[1] as ReadonlyArray<StratifyRule<T>>;
+				}
 				rulesDirty = false;
 			}
 
@@ -407,7 +419,7 @@ export function feedback(
 	const feedbackEffectName = `__feedback_effect_${condition}`;
 	const feedbackEffect = node(
 		[],
-		(data, feedbackActions) => {
+		(_data, _feedbackActions) => {
 			const unsub = condNode.subscribe((msgs) => {
 				for (const msg of msgs) {
 					const t = msg[0];
@@ -493,8 +505,16 @@ export function budgetGate<T>(
 	let pendingResolved = false;
 	const lockId = Symbol("budget-gate");
 
+	// Latest DATA from each constraint. Seeded at **activation time** (inside the
+	// producer fn below) — a wiring-time boundary read, not a reactive-callback
+	// read — so concurrent constraint updates between factory-time and
+	// activation-time are reflected before `checkBudget()` first runs. The
+	// subscribe handler updates this array on each constraint DATA message, so
+	// `checkBudget` never reads `.cache` from inside a reactive callback.
+	const latestValues: unknown[] = new Array(constraints.length);
+
 	function checkBudget(): boolean {
-		return constraints.every((c) => c.check(c.node.cache));
+		return constraints.every((c, i) => c.check(latestValues[i]));
 	}
 
 	function flushBuffer(actions: NodeActions): void {
@@ -514,7 +534,13 @@ export function budgetGate<T>(
 	// (onMessage removed in v5 — use producer+subscribe instead)
 	return node<T>(
 		[],
-		(data, gateActions) => {
+		(_data, gateActions) => {
+			// Seed `latestValues` at activation (not factory time) so any constraint
+			// updates between factory return and first subscribe are captured before
+			// source's push-on-subscribe fires `checkBudget()`.
+			for (let i = 0; i < constraints.length; i++) {
+				latestValues[i] = constraints[i]!.node.cache;
+			}
 			const unsubs: Array<() => void> = [];
 			for (let depIdx = 0; depIdx < allDeps.length; depIdx++) {
 				const dep = allDeps[depIdx];
@@ -585,7 +611,10 @@ export function budgetGate<T>(
 			return false;
 		}
 
-		// Constraint node messages (dep 1+): re-check budget
+		// Constraint node messages (dep 1+): capture DATA then re-check budget
+		if (t === DATA) {
+			latestValues[depIndex - 1] = msg[1];
+		}
 		if (t === DATA || t === RESOLVED) {
 			if (checkBudget() && buffer.length > 0) {
 				flushBuffer(actions);

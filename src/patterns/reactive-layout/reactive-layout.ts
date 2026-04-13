@@ -11,7 +11,7 @@
  */
 import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
-import { DATA, INVALIDATE, TEARDOWN } from "../../core/messages.js";
+import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { defaultConfig } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";

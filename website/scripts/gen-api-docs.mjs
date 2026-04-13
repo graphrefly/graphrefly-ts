@@ -36,8 +36,8 @@ const REGISTRY = {
 	effect: "src/core/sugar.ts",
 	pipe: "src/core/sugar.ts",
 
-	// Core — timer
-	ResettableTimer: "src/core/timer.ts",
+	// Extra — timer
+	ResettableTimer: "src/extra/timer.ts",
 
 	// Core — batch
 	batch: "src/core/batch.ts",

@@ -93,6 +93,9 @@ export function workerSelf<TImport extends readonly string[]>(
 	if (exposeEntries.length > 0) {
 		const nodes = exposeEntries.map(([, n]) => n);
 
+		// See bridge.ts for the full rationale — aggregator needs wave-final
+		// state, which `n.cache` provides under the synchronous-cache-write
+		// invariant. Folded into the long-term Option B worker-bridge redesign.
 		const aggregated = derived(
 			nodes,
 			() => {

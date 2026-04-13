@@ -1566,7 +1566,7 @@ export function toKafka<T>(
 		serialize = (v: T) => JSON.stringify(v),
 		keyExtractor,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -1759,7 +1759,7 @@ export function toRedisStream<T>(
 		serialize = (v: T) => ["data", JSON.stringify(v)],
 		maxLen,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -2278,7 +2278,7 @@ export function toPulsar<T>(
 		keyExtractor,
 		propertiesExtractor,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -2470,7 +2470,7 @@ export function toNATS<T>(
 	const {
 		serialize = (v: T) => encoder.encode(JSON.stringify(v)),
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -2686,7 +2686,7 @@ export function toRabbitMQ<T>(
 		serialize = (v: T) => Buffer.from(JSON.stringify(v)),
 		routingKeyExtractor = () => "",
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -2792,7 +2792,7 @@ export function toFile<T>(
 		batchSize = Number.POSITIVE_INFINITY,
 		onTransportError,
 		mode: _mode,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -3009,7 +3009,7 @@ export function toClickHouse<T>(
 		format = "JSONEachRow",
 		transform = (v: T) => v,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -3156,7 +3156,7 @@ export function toS3<T>(
 		flushIntervalMs = 10000,
 		transform = (v: T) => v,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -3294,7 +3294,7 @@ export function toPostgres<T>(
 			params: [JSON.stringify(v)],
 		}),
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -3361,7 +3361,7 @@ export function toMongo<T>(
 	collection: MongoCollectionLike,
 	opts?: ToMongoOptions<T>,
 ): SinkHandle {
-	const { toDocument = (v: T) => v, onTransportError, ...rest } = opts ?? {};
+	const { toDocument = (v: T) => v, onTransportError, ..._rest } = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const unsub = source.subscribe((msgs) => {
@@ -3442,7 +3442,7 @@ export function toLoki<T>(
 		toLine = (v: T) => JSON.stringify(v),
 		toLabels,
 		onTransportError,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
@@ -3523,7 +3523,7 @@ export function toTempo<T>(
 	client: TempoClientLike,
 	opts?: ToTempoOptions<T>,
 ): SinkHandle {
-	const { toResourceSpans = (v: T) => [v], onTransportError, ...rest } = opts ?? {};
+	const { toResourceSpans = (v: T) => [v], onTransportError, ..._rest } = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 
 	const unsub = source.subscribe((msgs) => {
@@ -3817,7 +3817,7 @@ export function toSqlite<T>(
 		batchInsert = false,
 		maxBatchSize = 1000,
 		flushIntervalMs = 0,
-		...rest
+		..._rest
 	} = opts ?? {};
 	const { errorsNode, handler } = createSinkErrorHandler(onTransportError);
 

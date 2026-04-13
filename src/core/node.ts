@@ -67,6 +67,13 @@ const NO_VALUE: unique symbol = Symbol.for("graphrefly/NO_VALUE");
 type NoValue = typeof NO_VALUE;
 
 /**
+ * Maximum `_pendingRerun` depth before we give up and emit ERROR. Bounds
+ * autoTrackNode / `_addDep` discovery loops — a well-formed discovery
+ * converges in O(n) total rounds for n deps, so 100 is ample.
+ */
+const MAX_RERUN_DEPTH = 100;
+
+/**
  * Internal "cached or sentinel" type for `_cached` and per-dep `latestData`.
  * The sentinel slot is only visible inside the core layer.
  */
@@ -159,7 +166,7 @@ export type NodeFn = (
 	data: readonly unknown[],
 	actions: NodeActions,
 	ctx: FnCtx,
-) => NodeFnCleanup | void;
+) => NodeFnCleanup | undefined;
 
 /** Options accepted by every node constructor. */
 export interface NodeOptions<T = unknown> {
@@ -345,7 +352,7 @@ const defaultOnMessage: OnMessageHandler = (
 	msg: Message,
 	ctx: MessageContext,
 	_actions: NodeActions,
-): "consume" | void => {
+): "consume" | undefined => {
 	if (ctx.direction === "down-in") {
 		(node as NodeImpl)._onDepMessage(ctx.depIndex, msg);
 	}
@@ -364,11 +371,17 @@ const defaultOnSubscribe: OnSubscribeHandler = (
 	sink: NodeSink,
 	_ctx: SubscribeContext,
 	_actions: NodeActions,
-): (() => void) | void => {
+): (() => void) | undefined => {
 	const impl = node as NodeImpl;
 	if (impl._status === "completed" || impl._status === "errored") return;
 	const cached = impl._cached;
-	const initial: Messages = cached === NO_VALUE ? [[START]] : [[START], [DATA, cached]];
+	const initial: Message[] = cached === NO_VALUE ? [[START]] : [[START], [DATA, cached]];
+	// When the node is mid-wave (`"dirty"`), append a DIRTY so the late
+	// joiner participates in the in-flight wave. Without this, the next
+	// DATA/RESOLVED the sink receives lacks the preceding DIRTY required
+	// by spec §1.3.1 — the emit-side DIRTY auto-prefix is suppressed when
+	// `_status` is already `"dirty"`.
+	if (impl._status === "dirty") initial.push([DIRTY]);
 	const tierOf = (t: symbol) => impl._config.messageTier(t);
 	downWithBatch(sink, initial, tierOf);
 };
@@ -402,6 +415,13 @@ registerBuiltins(defaultConfig);
  * ```
  */
 export function configure(fn: (cfg: GraphReFlyConfig) => void): void {
+	if (defaultConfig._isFrozen()) {
+		throw new Error(
+			"configure() called after a node was created — the default " +
+				"GraphReFlyConfig is frozen. Call configure(...) at application " +
+				"startup, before any node factories run.",
+		);
+	}
 	fn(defaultConfig);
 }
 
@@ -444,6 +464,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_pendingWave = false;
 	_isExecutingFn = false;
 	_pendingRerun = false;
+	_rerunDepth = 0;
 
 	// --- Options (frozen at construction) ---
 	readonly _fn: NodeFn | undefined;
@@ -660,6 +681,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._store = {};
 			this._hasCalledFnOnce = false;
 			this._waveHasNewData = false;
+			this._hasNewTerminal = false;
+			this._paused = false;
+			this._pendingWave = false;
+			this._pendingRerun = false;
+			this._isExecutingFn = false;
+			this._rerunDepth = 0;
 			for (const d of this._deps) resetDepRecord(d);
 		}
 
@@ -765,6 +792,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const record = createDepRecord(depNode);
 		record.dirty = true;
 		this._deps.push(record);
+		// Topology change → downstream sees a new wave. Skip when already
+		// dirty (we're inside an in-flight wave and have already emitted).
+		// `_markDepDirty` can't do this for us because `record.dirty` was
+		// pre-set above, which short-circuits its DIRTY-emit path.
+		if (this._status !== "dirty") this._emit([[DIRTY]]);
 		record.unsub = depNode.subscribe((msgs) => {
 			for (const m of msgs) {
 				this._config.onMessage(
@@ -791,6 +823,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_deactivate(skipStatusUpdate = false): void {
 		// Fn cleanup — both () => void and { deactivation } forms fire here.
+		// Note on cleanup-throw ERRORs: when deactivation runs as part of
+		// last-sink-unsubscribe, `_sinks` is already `null` by the time this
+		// method is reached, so any ERROR emitted here lands on
+		// `_deliverToSinks`'s null-guard and is dropped by design. Cleanup
+		// errors during teardown are best-effort — callers that need to
+		// observe them should install a host-level error channel via
+		// `configure()`.
 		const cleanup = this._cleanup;
 		this._cleanup = undefined;
 		if (typeof cleanup === "function") {
@@ -826,9 +865,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		// Clear wave + store state.
 		this._waveHasNewData = false;
+		this._hasNewTerminal = false;
 		this._hasCalledFnOnce = false;
 		this._paused = false;
 		this._pendingWave = false;
+		this._pendingRerun = false;
+		this._rerunDepth = 0;
 		this._store = {};
 
 		// ROM/RAM: compute nodes clear cache; pure state nodes preserve it.
@@ -876,6 +918,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		if (t === INVALIDATE) {
 			dep.latestData = NO_VALUE;
+			dep.dataThisWave = false;
 			this._markDepDirty(depIndex);
 			this._emit([[INVALIDATE]]);
 			return;
@@ -1068,7 +1111,23 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			// the pre-fn-skip path.
 			if (this._pendingRerun) {
 				this._pendingRerun = false;
-				this._maybeRunFnOnSettlement();
+				this._rerunDepth += 1;
+				if (this._rerunDepth > MAX_RERUN_DEPTH) {
+					this._rerunDepth = 0;
+					this._emit([
+						[
+							ERROR,
+							new Error(
+								`Node "${this.name}": _pendingRerun depth exceeded ${MAX_RERUN_DEPTH} — likely a reactive cycle`,
+							),
+						],
+					]);
+				} else {
+					this._maybeRunFnOnSettlement();
+				}
+			} else {
+				// Chain converged — reset the depth counter for the next wave.
+				this._rerunDepth = 0;
 			}
 			// Clear flags after rerun so any dataThisWave set by fn's
 			// _addDep subscribe handshakes doesn't leak into the next

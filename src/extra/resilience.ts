@@ -15,7 +15,6 @@ import {
 } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
-import { ResettableTimer } from "../core/timer.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
@@ -23,6 +22,7 @@ import {
 	NS_PER_SEC,
 	resolveBackoffPreset,
 } from "./backoff.js";
+import { ResettableTimer } from "./timer.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
