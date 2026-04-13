@@ -1,7 +1,7 @@
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { type TrackFn, autoTrackNode, state } from "../../core/sugar.js";
+import { autoTrackNode, state, type TrackFn } from "../../core/sugar.js";
 
 /**
  * Options for creating signals.

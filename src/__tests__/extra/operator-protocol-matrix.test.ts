@@ -640,9 +640,7 @@ describe("Tier 1 operator protocol matrix", () => {
 			// DIRTY before the final DATA.
 			const dataIdx = flat.findIndex((m) => m[0] === DATA);
 			expect(dataIdx).toBeGreaterThanOrEqual(0);
-			const dirtyBeforeData = flat
-				.slice(0, dataIdx)
-				.some((m) => m[0] === DIRTY);
+			const dirtyBeforeData = flat.slice(0, dataIdx).some((m) => m[0] === DIRTY);
 			expect(dirtyBeforeData).toBe(true);
 			cap.unsub();
 		});

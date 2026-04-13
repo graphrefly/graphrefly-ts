@@ -1119,64 +1119,155 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			deliverable = pass;
 		}
 
-		this._updateState(deliverable);
+		// State update + equals substitution (§3.5.1 invariant). Returns the
+		// possibly-rewritten batch and an optional equals-throw error. When
+		// equals throws mid-walk we still deliver the successfully-walked
+		// prefix to sinks before emitting ERROR, preserving cache/wire
+		// coherence (user P2 option (i)).
+		const { finalMessages, equalsError } = this._updateState(deliverable);
 
-		const tierOf = (t: symbol) => this._config.messageTier(t);
-		downWithBatch(this._deliverToSinks, deliverable, tierOf);
+		if (finalMessages.length > 0) {
+			const tierOf = (t: symbol) => this._config.messageTier(t);
+			downWithBatch(this._deliverToSinks, finalMessages, tierOf);
+		}
+
+		if (equalsError != null) {
+			this._emit([[ERROR, equalsError]]);
+		}
 	}
 
 	/**
-	 * @internal Update own cache / status / versioning / meta propagation
-	 * from an outgoing batch, before it is delivered to sinks.
+	 * @internal Walk an outgoing batch, updating own cache / status /
+	 * versioning / meta propagation and running the tier-3 equals
+	 * substitution invariant (§3.5.1). Every DATA payload is compared
+	 * against the live `_cached`; when equal, the tuple is rewritten to
+	 * `[RESOLVED]` in a per-call copy and cache is not re-advanced. This
+	 * is the one place equals runs for *any* emission path (`actions.emit`,
+	 * raw `node.down`, `bundle(...).resolve()`-wrapped, passthrough
+	 * forwarding), so `.cache` cannot drift from "last DATA payload
+	 * actually delivered downstream."
+	 *
+	 * Returns `{ finalMessages, equalsError? }`:
+	 * - `finalMessages` — the array to deliver to sinks (may be `messages`
+	 *   unchanged, a rewritten copy with DATA→RESOLVED substitutions, or
+	 *   a truncated prefix when equals throws mid-walk).
+	 * - `equalsError` — present only when the configured `equals` function
+	 *   threw on some DATA message. `_emit` delivers the prefix first,
+	 *   then emits a fresh ERROR batch via a recursive `_emit` call so
+	 *   subscribers observe `[...walked_prefix, ERROR]` in order.
+	 *
+	 * Synthetic DIRTY prefix (§3.5.1, P1 decision): when a DATA is
+	 * substituted to RESOLVED and no DIRTY preceded it (in this batch or
+	 * from the pre-walk `_status`), we prepend a synthetic `[DIRTY]` to
+	 * the returned array. This satisfies spec §1.3.1 (DIRTY precedes
+	 * RESOLVED within the same batch) without making raw `down` opt out
+	 * of equals substitution. Matches the behavior of `bundle.resolve()`'s
+	 * own DIRTY auto-prefix.
 	 */
-	private _updateState(messages: Messages): void {
-		for (const m of messages) {
+	private _updateState(messages: Messages): {
+		finalMessages: Messages;
+		equalsError?: Error;
+	} {
+		let rewritten: Message[] | undefined;
+		let waveHadDirty = this._status === "dirty";
+		let needDirtyPrefix = false;
+		let equalsError: Error | undefined;
+		let abortedAt = -1;
+
+		for (let i = 0; i < messages.length; i++) {
+			const m = messages[i];
 			const t = m[0];
 			if (t === DATA) {
 				if (m.length >= 2) {
+					let unchanged = false;
+					if (this._cached !== NO_VALUE) {
+						try {
+							unchanged = this._equals(this._cached as T, m[1] as T);
+						} catch (err) {
+							// Abort walk on equals throw: deliver successfully-walked
+							// prefix, then caller emits ERROR. Excludes the throwing
+							// message from the prefix.
+							equalsError = this._wrapFnError("equals threw", err);
+							abortedAt = i;
+							break;
+						}
+					}
+					if (unchanged) {
+						if (!waveHadDirty) {
+							needDirtyPrefix = true;
+							waveHadDirty = true;
+						}
+						if (rewritten == null) rewritten = messages.slice(0, i) as Message[];
+						rewritten.push([RESOLVED] as Message);
+						this._status = "resolved";
+						continue;
+					}
 					this._cached = m[1] as T;
 					if (this._versioning != null) {
 						advanceVersion(this._versioning, m[1], this._hashFn);
 					}
 				}
 				this._status = "settled";
-			} else if (t === DIRTY) {
-				this._status = "dirty";
-			} else if (t === RESOLVED) {
-				this._status = "resolved";
-			} else if (t === COMPLETE) {
-				this._status = "completed";
-			} else if (t === ERROR) {
-				this._status = "errored";
-			} else if (t === INVALIDATE) {
-				this._cached = NO_VALUE;
-				this._status = "dirty";
-				// Function-form cleanup fires on invalidate (treats as "re-run").
-				const c = this._cleanup;
-				if (typeof c === "function") {
-					this._cleanup = undefined;
-					try {
-						c();
-					} catch {
-						/* best-effort */
+				if (rewritten != null) rewritten.push(m);
+			} else {
+				if (rewritten != null) rewritten.push(m);
+				if (t === DIRTY) {
+					waveHadDirty = true;
+					this._status = "dirty";
+				} else if (t === RESOLVED) {
+					this._status = "resolved";
+				} else if (t === COMPLETE) {
+					this._status = "completed";
+				} else if (t === ERROR) {
+					this._status = "errored";
+				} else if (t === INVALIDATE) {
+					this._cached = NO_VALUE;
+					this._status = "dirty";
+					// Function-form cleanup fires on invalidate (treats as "re-run").
+					const c = this._cleanup;
+					if (typeof c === "function") {
+						this._cleanup = undefined;
+						try {
+							c();
+						} catch {
+							/* best-effort */
+						}
 					}
-				}
-			} else if (t === TEARDOWN) {
-				if (this._resetOnTeardown) this._cached = NO_VALUE;
-				// Propagate to meta companions before deactivation.
-				for (const metaNode of Object.values(this.meta)) {
-					try {
-						(metaNode as NodeImpl)._emit([[TEARDOWN]]);
-					} catch {
-						/* best-effort */
+				} else if (t === TEARDOWN) {
+					if (this._resetOnTeardown) this._cached = NO_VALUE;
+					// Propagate to meta companions before deactivation.
+					for (const metaNode of Object.values(this.meta)) {
+						try {
+							(metaNode as NodeImpl)._emit([[TEARDOWN]]);
+						} catch {
+							/* best-effort */
+						}
 					}
+					this._deactivate(/* skipStatusUpdate */ true);
+					// TEARDOWN is a hard reset — unconditionally "sentinel",
+					// even if the node was previously completed/errored.
+					this._status = "sentinel";
 				}
-				this._deactivate(/* skipStatusUpdate */ true);
-				// TEARDOWN is a hard reset — unconditionally "sentinel",
-				// even if the node was previously completed/errored.
-				this._status = "sentinel";
 			}
 		}
+
+		let base: Messages;
+		if (abortedAt >= 0) {
+			base = (rewritten ?? (messages.slice(0, abortedAt) as Messages)) as Messages;
+		} else {
+			base = rewritten ?? messages;
+		}
+
+		if (needDirtyPrefix) {
+			// Insert synthetic DIRTY after any tier-0 START but before the
+			// first tier-1+ message. Matches bundle's auto-prefix placement.
+			const tierOf = (t: symbol) => this._config.messageTier(t);
+			let insertAt = 0;
+			while (insertAt < base.length && tierOf(base[insertAt][0]) === 0) insertAt++;
+			base = [...base.slice(0, insertAt), [DIRTY] as Message, ...base.slice(insertAt)];
+		}
+
+		return equalsError != null ? { finalMessages: base, equalsError } : { finalMessages: base };
 	}
 
 	private _deliverToSinks = (messages: Messages): void => {
@@ -1196,21 +1287,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	/**
 	 * @internal Shared implementation for `actions.emit(v)` and public
-	 * `node.emit(v)`. Runs `equals` to decide DATA vs RESOLVED, frames
-	 * through the singleton `bundle` (tier sort + DIRTY auto-prefix), then
-	 * delivers via the raw `_emit` pipeline. This is the only path in the
-	 * core that calls bundle — raw `down` / `up` stay framing-free.
+	 * `node.emit(v)`. Frames `[DATA, v]` through the singleton `bundle`
+	 * (tier sort + DIRTY auto-prefix), then delegates to `_emit`. The
+	 * equals check + DATA→RESOLVED substitution happens inside `_emit`
+	 * as a protocol invariant (§3.5.1), so `emit`, raw `down`, and
+	 * passthrough forwarding all share a single equals-against-live-cache
+	 * path. This function's only job is bundle framing.
 	 */
 	private _actionEmit(value: unknown): void {
-		let unchanged: boolean;
-		try {
-			unchanged = this._cached !== NO_VALUE && this._equals(this._cached as T, value as T);
-		} catch (err) {
-			this._emit([[ERROR, this._wrapFnError("equals threw", err)]]);
-			return;
-		}
-		const payload: Message = unchanged ? [RESOLVED] : [DATA, value];
-		const framed = this._config.bundle(this as unknown as NodeCtx, [payload]).resolve();
+		const framed = this._config
+			.bundle(this as unknown as NodeCtx, [[DATA, value] as Message])
+			.resolve();
 		this._emit(framed);
 	}
 }

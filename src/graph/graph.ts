@@ -1239,7 +1239,9 @@ export class Graph {
 			if (actor != null && !n.allowsObserve(actor)) continue;
 			const raw = describeNode(n, effectiveFields);
 			const deps =
-				n instanceof NodeImpl ? n._deps.map((d) => nodeToPath.get(d.node) ?? d.node.name ?? "") : [];
+				n instanceof NodeImpl
+					? n._deps.map((d) => nodeToPath.get(d.node) ?? d.node.name ?? "")
+					: [];
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
 			if (filter != null) {

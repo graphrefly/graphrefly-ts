@@ -186,9 +186,7 @@ describe("fan-out: 100 subscribers", () => {
 
 describe("batch: 10 sets + derived reader", () => {
 	const items = Array.from({ length: 10 }, (_, k) => state<number>(k));
-	const agg = derived(items, (deps) =>
-		deps.reduce((s, v) => (s as number) + (v as number), 0),
-	);
+	const agg = derived(items, (deps) => deps.reduce((s, v) => (s as number) + (v as number), 0));
 	const unsub = agg.subscribe(() => undefined);
 	let k = 0;
 	let k2 = 0;

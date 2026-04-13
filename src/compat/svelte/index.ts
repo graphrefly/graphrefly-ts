@@ -13,7 +13,7 @@
 //   // $count = 42
 // ---------------------------------------------------------------------------
 
-import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
+import { DATA, DIRTY, type Messages, RESOLVED } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /** Svelte store contract — implements the minimal `subscribe` method. */

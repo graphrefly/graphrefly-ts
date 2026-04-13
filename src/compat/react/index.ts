@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
-import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
+import { DATA, DIRTY, type Messages, RESOLVED } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /**

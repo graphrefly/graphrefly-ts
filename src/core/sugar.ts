@@ -17,8 +17,8 @@ import {
 	type Node,
 	type NodeFn,
 	type NodeFnCleanup,
-	type NodeOptions,
 	NodeImpl,
+	type NodeOptions,
 	node,
 } from "./node.js";
 

@@ -275,7 +275,10 @@ export function restoreGraphCheckpoint(graph: Graph, adapter: CheckpointAdapter)
  *
  * @category extra
  */
-export function checkpointNodeValue<T>(n: Node<T>): { version: number; value: T | undefined | null } {
+export function checkpointNodeValue<T>(n: Node<T>): {
+	version: number;
+	value: T | undefined | null;
+} {
 	return { version: 1, value: n.cache };
 }
 

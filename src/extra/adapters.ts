@@ -24,7 +24,7 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import { type Node, type NodeOptions, defaultConfig } from "../core/node.js";
+import { defaultConfig, type Node, type NodeOptions } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import { type WithStatusBundle, withStatus } from "./resilience.js";
@@ -657,7 +657,6 @@ export function toWebSocket<T>(
 					socket.send(serialized === undefined ? String(msg[1] as T) : serialized);
 				} catch (err) {
 					reportTransportError("send", err, msg);
-					continue;
 				}
 			} else if (msg[0] === COMPLETE && closeOnComplete) {
 				closeSocket(msg);

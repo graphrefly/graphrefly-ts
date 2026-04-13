@@ -6,6 +6,7 @@
  * Phase 2 operator names (for example `gate`, `forEach`).
  */
 
+import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
@@ -15,7 +16,6 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
-import type { NodeActions } from "../core/config.js";
 import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
@@ -27,7 +27,10 @@ type OrchestrationMeta = {
 	orchestration_type?: string;
 };
 
-export type OrchestrationStepOptions = Omit<NodeOptions<unknown>, "describeKind" | "name" | "meta"> & {
+export type OrchestrationStepOptions = Omit<
+	NodeOptions<unknown>,
+	"describeKind" | "name" | "meta"
+> & {
 	deps?: ReadonlyArray<StepRef>;
 	meta?: Record<string, unknown> & OrchestrationMeta;
 };
@@ -343,37 +346,41 @@ export function gate<T>(
 	// The output node: a producer-like node that subscribes to source
 	// Producer pattern: manually subscribe to source for per-message interception
 	// (onMessage removed in v5 — use producer+subscribe instead)
-	const output = node<T>([], (data, actions) => {
-		const unsub = src.node.subscribe((msgs) => {
-			for (const msg of msgs) {
-				if (msg[0] === DATA) {
-					if (isOpenNode.cache) {
-						actions.emit(msg[1] as T);
+	const output = node<T>(
+		[],
+		(data, actions) => {
+			const unsub = src.node.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (msg[0] === DATA) {
+						if (isOpenNode.cache) {
+							actions.emit(msg[1] as T);
+						} else {
+							enqueue(msg[1] as T);
+							actions.down([[RESOLVED]]);
+						}
+					} else if (msg[0] === TEARDOWN) {
+						torn = true;
+						queue = [];
+						syncPending();
+						actions.down([msg]);
+					} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
+						torn = true;
+						queue = [];
+						syncPending();
+						actions.down([msg]);
 					} else {
-						enqueue(msg[1] as T);
-						actions.down([[RESOLVED]]);
+						actions.down([msg]);
 					}
-				} else if (msg[0] === TEARDOWN) {
-					torn = true;
-					queue = [];
-					syncPending();
-					actions.down([msg]);
-				} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
-					torn = true;
-					queue = [];
-					syncPending();
-					actions.down([msg]);
-				} else {
-					actions.down([msg]);
 				}
-			}
-		});
-		return () => unsub();
-	}, {
-		name,
-		describeKind: "derived",
-		meta: baseMeta("gate", opts?.meta),
-	});
+			});
+			return () => unsub();
+		},
+		{
+			name,
+			describeKind: "derived",
+			meta: baseMeta("gate", opts?.meta),
+		},
+	);
 
 	const controller: GateController<T> = {
 		node: output,
@@ -446,32 +453,36 @@ export function forEach<T>(
 	let terminated = false;
 	// Producer pattern: manually subscribe to source for per-message interception
 	// (onMessage removed in v5 — use producer+subscribe instead)
-	const step = node<T>([], (data, actions) => {
-		const unsub = src.node.subscribe((msgs) => {
-			for (const msg of msgs) {
-				if (terminated) return;
-				if (msg[0] === DATA) {
-					try {
-						run(msg[1] as T, actions);
+	const step = node<T>(
+		[],
+		(data, actions) => {
+			const unsub = src.node.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (terminated) return;
+					if (msg[0] === DATA) {
+						try {
+							run(msg[1] as T, actions);
+							actions.down([msg] satisfies Messages);
+						} catch (err) {
+							terminated = true;
+							actions.down([[ERROR, err]] satisfies Messages);
+						}
+					} else {
 						actions.down([msg] satisfies Messages);
-					} catch (err) {
-						terminated = true;
-						actions.down([[ERROR, err]] satisfies Messages);
+						if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
 					}
-				} else {
-					actions.down([msg] satisfies Messages);
-					if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
 				}
-			}
-		});
-		return () => unsub();
-	}, {
-		...opts,
-		name,
-		describeKind: "effect",
-		completeWhenDepsComplete: false,
-		meta: baseMeta("forEach", opts?.meta),
-	} as NodeOptions<T>);
+			});
+			return () => unsub();
+		},
+		{
+			...opts,
+			name,
+			describeKind: "effect",
+			completeWhenDepsComplete: false,
+			meta: baseMeta("forEach", opts?.meta),
+		} as NodeOptions<T>,
+	);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }
@@ -700,31 +711,35 @@ export function onFailure<T>(
 	let terminated = false;
 	// Producer pattern: manually subscribe to source for per-message interception
 	// (onMessage removed in v5 — use producer+subscribe instead)
-	const step = node<T>([], (data, actions) => {
-		const unsub = src.node.subscribe((msgs) => {
-			for (const msg of msgs) {
-				if (terminated) return;
-				if (msg[0] === ERROR) {
-					try {
-						actions.emit(recover(msg[1], actions));
-					} catch (err) {
-						terminated = true;
-						actions.down([[ERROR, err]] satisfies Messages);
+	const step = node<T>(
+		[],
+		(data, actions) => {
+			const unsub = src.node.subscribe((msgs) => {
+				for (const msg of msgs) {
+					if (terminated) return;
+					if (msg[0] === ERROR) {
+						try {
+							actions.emit(recover(msg[1], actions));
+						} catch (err) {
+							terminated = true;
+							actions.down([[ERROR, err]] satisfies Messages);
+						}
+					} else {
+						actions.down([msg] satisfies Messages);
+						if (msg[0] === COMPLETE) terminated = true;
 					}
-				} else {
-					actions.down([msg] satisfies Messages);
-					if (msg[0] === COMPLETE) terminated = true;
 				}
-			}
-		});
-		return () => unsub();
-	}, {
-		...opts,
-		name,
-		describeKind: "derived",
-		completeWhenDepsComplete: false,
-		meta: baseMeta("onFailure", opts?.meta),
-	} as NodeOptions<T>);
+			});
+			return () => unsub();
+		},
+		{
+			...opts,
+			name,
+			describeKind: "derived",
+			completeWhenDepsComplete: false,
+			meta: baseMeta("onFailure", opts?.meta),
+		} as NodeOptions<T>,
+	);
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }

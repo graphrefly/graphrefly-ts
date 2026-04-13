@@ -1,7 +1,7 @@
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { type TrackFn, dynamicNode, state } from "../../core/sugar.js";
+import { dynamicNode, state, type TrackFn } from "../../core/sugar.js";
 
 /**
  * A Nanostores-compatible atom.

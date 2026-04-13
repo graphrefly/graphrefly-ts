@@ -1008,19 +1008,129 @@ pipeline with a `direction` parameter.
 **Deleted:** `_downInternal`, `_downToSinks`, `_boundDownToSinks`,
 `_downAutoValue`, `_upInternal`, `_downSequential`. Six methods gone.
 
-### bundle.resolve() replaces `_downAutoValue`
+### `_downAutoValue` — deleted, replaced by explicit sugar wrapping
 
-Under v5.1, fn's return-value framing is:
+Under v5.1 + §7's "fn return is cleanup only" rule, `_downAutoValue` is **deleted outright**, not replaced. There is no framework-internal path that reads fn's return value and frames it as DATA.
+
+**Plain `node(deps, fn)`** takes a full fn with the signature `(latestData, actions) => cleanup | void`. The user writes emission explicitly via `actions`:
 
 ```ts
-// Framework code that runs after fn returns a value:
-const framed = singleton.bundle([DATA, fnReturnValue]).resolve()
-//   → [[DIRTY],[DATA, v]] if not dirty, else [[DATA, v]]
-//   → post-fn equals decides [RESOLVED] vs [DATA, v]
-this._emit("down", framed, { internal: true })
+node([a, b], (data, actions) => {
+  actions.emit(data[0] + data[1])   // or actions.down(...) for raw framing
+})
 ```
 
-No `_downAutoValue` method. The singleton bundle owns framing logic.
+Fn's return value is treated as a cleanup function (if callable) or ignored (otherwise). No auto-framing. No framework post-fn hook reads the return value as data.
+
+**Sugar constructors** (`derived`, `map`, `filter`, `scan`, etc.) take a value-returning `userFn` and wrap it at construction time so the user doesn't have to spell out `actions.emit` for the common case:
+
+```ts
+// derived(deps, userFn) desugars to:
+node(deps, (data, actions) => {
+  actions.emit(userFn(data))
+})
+
+// map(userFn) desugars (single-dep form) to:
+node([source], (data, actions) => {
+  actions.emit(userFn(data[0]))
+})
+```
+
+The wrapping lives in the sugar constructor's body (`src/core/sugar.ts`), not in the framework dispatch path. From the core's perspective, every node has the same shape: full fn with explicit `actions`. Sugar is a user-surface convenience, not a protocol-level branch.
+
+**What `bundle` actually owns:** multi-message batching — tier sort + DIRTY auto-prefix (§3.5.2). It does *not* own fn-return framing (there is no fn-return to frame), and it does *not* own equals substitution (that's a dispatch-layer invariant, §3.5.1).
+
+**Deleted by this decision:** `_downAutoValue`, `_onManualEmit`, `_manualEmitUsed`, and the entire auto-framing machinery in `_runFn()`. See §7 inventory (lines 1790–1791) and §8.1 (line 1803 — `_runFn` rewrite: "No auto-framing, just call fn, store cleanup") for the inventory impact.
+
+### §3.5.1 Equals substitution — tier-3 dispatch invariant (2026-04-12)
+
+**Refines the "bundle.resolve() replaces `_downAutoValue`" subsection above.** Bundle owns *sort + DIRTY prefix*; the dispatcher owns *equals + cache advance*. The two are adjacent but not the same layer, and conflating them breaks multi-emit cases.
+
+Equals/RESOLVED substitution is a **protocol invariant at the outgoing tier-3 dispatch step**, not an opt-in feature of `bundle.resolve()` or `actions.emit(v)`. It applies uniformly to every DATA payload leaving the node, regardless of which action API produced it. The singleton `_emit("down", ...)` walks the tier-3 slice sequentially:
+
+```ts
+// Conceptual, inside _emit("down", ...) after tier sort:
+for (const msg of tier3Messages) {
+  if (msg[0] === DATA) {
+    if (this._cached !== NO_VALUE && this._equals(this._cached, msg[1])) {
+      msg = [RESOLVED]           // substitute in place
+    } else {
+      this._cached = msg[1]      // advance cache
+    }
+  }
+  dispatch(msg)
+}
+```
+
+**Why this placement — the multi-emit edge case.** With `.cache = 2`, if fn calls `emit(1); emit(2); emit(3); emit(2)`:
+
+- *Snapshot-at-fn-entry* semantics (naive reading of "post-fn equals") would produce `DATA(1), RESOLVED, DATA(3), RESOLVED`, leaving downstream's `dep.latestData` at 3 — **wrong**. RESOLVED means "unchanged from what you last saw," and downstream last saw 3, not the entry snapshot of 2.
+- *Live-cache* semantics produce `DATA(1), DATA(2), DATA(3), DATA(2)`, leaving downstream at 2 — correct.
+
+`.cache` therefore has one well-defined meaning: **"the last DATA payload this node actually emitted downstream."** It is owned by the dispatcher and advances synchronously as each tier-3 message is processed. Fn never writes `.cache` directly.
+
+`lastFnInput` (the pre-fn input identity-skip, §1 v2 line 1362) is a separate, genuinely-snapshotted dep-value cache. Both concepts exist, at different layers, and neither should be confused with the other.
+
+**Synthetic DIRTY prefix on substitution (QA P1, 2026-04-12).** When the walk substitutes `[DATA, v]` to `[RESOLVED]` and no DIRTY has been seen in the current wave (pre-walk `_status !== "dirty"` AND no DIRTY earlier in this batch), the walk **auto-prepends a synthetic `[DIRTY]`** to the rewritten batch. This keeps the emitted sequence `[[DIRTY], [RESOLVED]]` compliant with spec §1.3.1 (DIRTY precedes DATA or RESOLVED in the same batch) even when the caller used raw `node.down([[DATA, v]])` without explicit DIRTY framing. The prefix is inserted after any tier-0 messages, matching `defaultBundle.resolve()`'s existing DIRTY auto-prefix placement. Without this rule, raw `down([[DATA, sameValue]])` would produce a lonely RESOLVED on the wire, which §1.3.1's compat-path carve-out (bare DATA from raw/external sources) does NOT cover. The synthetic prefix is the mechanism that reconciles "equals substitution is non-negotiable for every emission path" with "§1.3.1 two-phase framing is non-negotiable."
+
+Note: the raw `down` compat path for *bare* DATA (no substitution needed, `v` differs from cache) is unchanged — no synthetic DIRTY is inserted in that case, because §1.3.1's compat carve-out allows raw DATA without prior DIRTY.
+
+**Equals-throw atomicity (QA P2, 2026-04-12).** When the user-supplied `equals` function throws mid-walk on message N of a multi-message batch, the walk:
+
+1. Aborts immediately — message N and any subsequent messages are not processed.
+2. Commits state mutations from messages 0..N-1 (already in-place on `this._cached` / `this._status` / `this._versioning`).
+3. Returns the successfully-walked prefix from `_updateState` alongside an `equalsError`.
+4. `_emit` delivers the prefix to sinks via `downWithBatch`, then recursively calls `_emit([[ERROR, ...]])` to emit a fresh ERROR batch.
+
+Subscribers observe `[...walked_prefix, ERROR]` in order, coherent with `.cache` which was advanced during the prefix walk. This is a change from the pre-refactor single-value `actions.emit` path, which ran equals *before* any state mutation and was trivially atomic. With the unified dispatch-layer walk, atomicity is restored at the cost of a two-step emission (prefix then ERROR). Alternative "discard the whole batch on throw" semantics were considered and rejected: they would desynchronize `.cache` from what subscribers have observed, which is the whole point of making equals a dispatch invariant in the first place.
+
+### §3.5.2 Action API taxonomy (2026-04-12)
+
+Three action APIs produce outgoing messages, differing only in which conveniences wrap them. Equals substitution and cache advance are common to all three because they sit *below* the bundle layer.
+
+| API | Tier sort | DIRTY auto-prefix | Equals + cache advance |
+|---|---|---|---|
+| `actions.emit(v)` | trivial (one msg) | yes (via bundle) | yes |
+| `actions.down(bundle(...))` | yes | yes | yes |
+| `actions.down(rawMessages[])` | no | no | **yes** |
+
+- `actions.emit(v)` is sugar for `actions.down(bundle([DATA, v]))`. Always goes through the bundle path, so always picks up sort + DIRTY prefix.
+- `actions.down(bundle(...))` is the protocol-safe multi-message path: sort by tier, auto-prefix DIRTY when any tier-3 message is present and the node is not already dirty, then dispatch.
+- `actions.down(rawMessages[])` is the escape hatch: caller owns message ordering and DIRTY framing. Use when hand-framing is deliberate (operator-internal protocol sequences). Does not participate in tier sort or DIRTY auto-prefix.
+
+All three ultimately hit `_emit("down", ...)`, and `_emit` applies the equals+cache walk unconditionally. **There is no way for a node to emit DATA downstream without advancing `.cache`** — that's the invariant that keeps `.cache` coherent with the wire.
+
+Corollary: `actions.emit(v)` and `actions.down([[DATA, v]])` are *not* equivalent. The former auto-prefixes DIRTY via bundle; the latter does not — unless the walk substitutes `[DATA, v]` to `[RESOLVED]`, in which case §3.5.1's synthetic-DIRTY rule kicks in and a `[DIRTY]` is auto-prepended so the resulting `[[DIRTY], [RESOLVED]]` is §1.3.1 compliant.
+
+**Semantic broadening of `equals` scope (QA D1, 2026-04-12).** Because the walk runs for *every* outgoing tier-3 message regardless of path, a user-supplied `equals` function now fires in contexts where it didn't pre-refactor:
+
+- **Passthrough / forwarding nodes** (`node([dep])` with no fn) — previously dep DATA was re-emitted 1:1 without running the passthrough's own `equals`. Now the passthrough's `equals` fires on every forwarded DATA against the passthrough's own `_cached`, so two identical dep emissions produce DATA then RESOLVED at the passthrough.
+- **Raw `node.down([[DATA, v]])`** — previously raw down bypassed equals entirely. Now it participates in the substitution walk.
+- **Operator-internal raw down** — any operator that uses raw `actions.down([[DATA, v]])` for hand-framed emission now picks up equals substitution automatically.
+
+**Author implication:** a custom `equals` is now a global deduplication filter across every outgoing DATA, not just `actions.emit` / bundle.resolve. A pathological `equals: () => true` will absorb every DATA emission into RESOLVED regardless of payload, which was previously only possible for `actions.emit` paths. Operators that want per-path equals semantics must either (a) use the default `Object.is` at the node level and do their own in-fn comparison, or (b) accept the global filter behavior.
+
+**`equals` contract — purity (QA D4, 2026-04-12).** The `equals` function MUST be pure. Specifically:
+
+- No side effects. No network/disk I/O, no mutation of captured state, no reactive emissions (`node.down(...)`, `node.emit(...)`, etc.).
+- No reads of `this.cache` / `this.status` via captured references. The walk mutates `this._cached` / `this._status` progressively during multi-message batches; an impure `equals` that reads them via a captured `this` sees intermediate state.
+- Deterministic. Calling `equals(a, b)` twice with the same arguments must return the same result.
+
+Violating the contract corrupts the reactive graph in undefined ways. The library does not enforce purity at runtime (the cost is too high and the contract is standard for reactive systems). Specifically, an impure `equals` that calls `node.down(...)` reentrantly will trigger a nested `_emit` / `_updateState` walk that commits its own state, which the outer walk's in-place mutation may then overwrite — the result is undefined and implementation-specific.
+
+**Guard interaction.** Public-API calls (`node.down`, `node.emit`, `node.up`) from inside `equals` still hit `_checkGuard` on the target node. The guard is *not* bypassable via the public API. It *is* bypassable via `_`-prefixed internal methods (e.g., `node._emit(...)` reflectively), but that is true of all user code and not specific to `equals` — `_` prefix is a visibility convention, not a runtime boundary. Nodes that need strong isolation from `equals`-initiated writes should apply a guard to their public surface.
+
+### §3.5.3 Mixed-tier cache-advance ordering (2026-04-12)
+
+Within a single `actions.down(bundle(...))` call, the tier sort (lines 1216–1219) processes messages in tier order: 1 → 2 → 3 → 4 → 5. The equals+cache walk runs entirely within the contiguous tier-3 slice, so:
+
+- Tiers 1 (DIRTY/INVALIDATE) and 2 (PAUSE/RESUME) dispatch before any cache change in this call.
+- Tier 3 (DATA/RESOLVED) dispatches sequentially, advancing `.cache` per DATA.
+- Tiers 4 (COMPLETE/ERROR) and 5 (TEARDOWN) dispatch after `.cache` is fully advanced.
+
+No cross-tier interleaving; no "partial cache" visible to tier-4 handlers. A COMPLETE in the same bundle as a final DATA observes the post-DATA cache.
+
+Sequential `actions.emit()` / `actions.down()` calls do not coordinate with each other — each is an independent dispatch with its own DIRTY-prefix check and its own tier-3 walk. Bundles are the only way to get single-wave multi-tier emission; sequential calls produce multiple waves.
 
 ### Remaining justified asymmetry
 
@@ -2312,6 +2422,24 @@ split from `protocol.py`), 4 rewrites (`node.py`, `sugar.py`,
   Simpler, sufficient, and avoids multiplying acquisition cost
   during wave settlement. Subgraph lock is already held by
   `_handle_dep_messages`; no new locks introduced.
+
+### §9.8 — Equals substitution as dispatch-layer invariant (TS 2026-04-12 — PY parity deferred)
+
+**TS landed 2026-04-12.** Equals substitution was moved from `_actionEmit` into `_updateState` so that every outgoing DATA payload — from `actions.emit`, raw `actions.down([[DATA, v]])`, bundle-wrapped down, and passthrough forwarding — runs through a single equals-vs-live-cache walk. `.cache` advances progressively per tier-3 message in a batch. Substitution that would produce a lonely RESOLVED without a prior DIRTY synthesizes a `[DIRTY]` prefix to stay §1.3.1 compliant. Equals-throw mid-batch delivers the successfully-walked prefix before emitting ERROR. See §3.5.1–.2 for details and `src/core/node.ts:_emit` / `_updateState` for the impl.
+
+**PY status: parity item, not yet landed.** `~/src/graphrefly-py/src/graphrefly/core/node_base.py` still runs equals inside `_down_auto_value` (snapshot-at-entry per-call semantics), and raw `down` does NOT participate in equals substitution. This matches TS's pre-2026-04-12 behavior. PY has not yet executed the foundation redesign (the "fn return is cleanup only" rewrite of §7), so the refactor site doesn't exist there yet.
+
+**When PY lands the foundation redesign** (see §9.5 PY implementation plan), port the TS invariant verbatim:
+
+1. Move equals substitution out of `_down_auto_value` / any emit-sugar site and into the PY equivalent of `_update_state` (the dispatch-layer walk).
+2. Apply it uniformly across `actions.emit`, raw `actions.down`, passthrough forwarding, and any bundle-wrapped down path.
+3. Implement the synthetic-DIRTY prefix rule (§3.5.1) so substitution from a non-dirty wave stays §1.3.1 compliant.
+4. Implement the equals-throw atomicity contract (§3.5.1): deliver walked prefix before emitting ERROR, return `(final_messages, equals_error)` from `_update_state`.
+5. Port the `§3.5 equals substitution — dispatch-layer invariant` test block from `src/__tests__/core/node.test.ts` (TS) to `tests/core/test_node.py` (PY), adjusting for Python conventions.
+
+**Why defer rather than patch both now:** PY hasn't deleted auto-framing, so there's no unified `_emit` → `_update_state` surface to patch yet. Trying to land this in PY before the foundation redesign would require porting the refactor first. Track as one atomic parity item that ships alongside the PY foundation rewrite.
+
+**Parity tracker line:** add to `docs/optimizations.md` under "Active work items" as `[py-parity-equals-dispatch-invariant]`.
 
 ---
 
