@@ -230,7 +230,12 @@ export class CqrsGraph extends Graph {
 		const existing = this._eventLogs.get(name);
 		if (existing) return existing.node;
 
-		const log = reactiveLog<CqrsEvent>([], { name });
+		// V0 versioning is attached at construction — post-hoc
+		// `_applyVersioning` was deleted because it opened a re-entrance
+		// window where a wave could observe `_versioning` transitioning from
+		// `undefined` to a fresh state. Construction-time-only means the
+		// flag is frozen at birth.
+		const log = reactiveLog<CqrsEvent>([], { name, versioning: 0 });
 		const entries = log.entries;
 		const guarded = derived<readonly CqrsEvent[]>(
 			[entries],

@@ -1143,13 +1143,12 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		collectedB.unsub();
 	});
 
-	it("actions.emit(v) and raw actions.down([[DATA, v]]) differ — emit auto-prefixes DIRTY, raw does not", () => {
-		// §3.5.2 corollary: the visible difference between emit and raw
-		// down (when no substitution fires) is DIRTY auto-prefix. Starting
-		// from cache=0, emit(6) ≠ cache → wire is [DIRTY, DATA(6)]. Raw
-		// down([[DATA, 6]]) ≠ cache produces just [DATA, 6] (no synthetic
-		// DIRTY because no substitution, and raw opted out of two-phase
-		// framing per spec §1.3.1 compat path).
+	it("actions.emit(v) and raw actions.down([[DATA, v]]) are equivalent — both auto-prefix DIRTY", () => {
+		// B1 unified dispatch: every entry point (emit, down, actions.*)
+		// flows through `_emit` → `_frameBatch`, which auto-prefixes
+		// DIRTY when any tier-3 payload is present and the node isn't
+		// already in `"dirty"` status. emit(v) and down([[DATA,v]]) now
+		// produce identical wire output.
 		const nEmit = node<number>({ initial: 0 });
 		const nRaw = node<number>({ initial: 0 });
 		const collectedEmit = collectTier3(nEmit);
@@ -1159,7 +1158,7 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		nRaw.down([[DATA, 6]]);
 
 		expect(collectedEmit.msgs).toEqual([DIRTY, DATA]);
-		expect(collectedRaw.msgs).toEqual([DATA]);
+		expect(collectedRaw.msgs).toEqual([DIRTY, DATA]);
 		collectedEmit.unsub();
 		collectedRaw.unsub();
 	});
@@ -1187,18 +1186,19 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		unsub();
 	});
 
-	it("§3.5.3 bundle path: bundle sorts DATA before COMPLETE and cache advances within tier-3 slice", () => {
-		// Explicit bundle-path companion to the raw-sorted test above. The
-		// producer emits `[[COMPLETE], [DATA, 77]]` through bundle — out
-		// of tier order on input, but bundle.resolve() sorts to
-		// `[[DIRTY?], [DATA, 77], [COMPLETE]]`. The walk advances cache
-		// before the COMPLETE handler runs, so any downstream observer
-		// watching COMPLETE sees cache = 77.
+	it("§3.5.3 unified dispatch path: tier sort happens inside _emit; cache advances within tier-3 slice", () => {
+		// Under B1 the bundle builder is gone — tier sort lives inside
+		// `_emit` → `_frameBatch`. Passing `[[COMPLETE], [DATA, 77]]`
+		// directly to `actions.down(...)` produces the same result: the
+		// framing stage sorts to tier order (DIRTY auto-prefix + DATA
+		// then COMPLETE), advances cache within the tier-3 slice before
+		// the COMPLETE handler runs, so downstream observers watching
+		// COMPLETE see `cache === 77`.
 		let completeCache = -1;
 		const src = node<number>(
 			[],
 			(_data, actions) => {
-				actions.down(actions.bundle([[COMPLETE] as Message, [DATA, 77] as Message]).resolve());
+				actions.down([[COMPLETE] as Message, [DATA, 77] as Message]);
 			},
 			{ initial: 0 },
 		);

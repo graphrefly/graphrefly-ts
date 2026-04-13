@@ -202,7 +202,7 @@ export function OnGraphEvent(
  * Run a method on a fixed interval — replaces `@Interval()` from `@nestjs/schedule`.
  *
  * Backed by a `fromTimer` node added to the root graph as `__schedule__.<className>.<methodName>`.
- * Visible in `graph.describe()`, pausable via `graph.signal(name, [[PAUSE]])`.
+ * Visible in `graph.describe()`, pausable via `graph.signal(name, [[PAUSE, lockId]])`.
  *
  * @param ms - Interval in milliseconds.
  *

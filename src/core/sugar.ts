@@ -48,7 +48,11 @@ export function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): No
  * only `store` is useful on a producer — no deps means `dataFrom` and
  * `terminalDeps` are empty).
  */
-export type ProducerFn = (actions: NodeActions, ctx: FnCtx) => NodeFnCleanup | undefined;
+export type ProducerFn = (
+	actions: NodeActions,
+	ctx: FnCtx,
+	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
+) => NodeFnCleanup | void;
 
 /**
  * Creates a producer node with no deps; `fn` runs once when the first
@@ -64,7 +68,7 @@ export type ProducerFn = (actions: NodeActions, ctx: FnCtx) => NodeFnCleanup | u
  * ```
  */
 export function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): Node<T> {
-	const wrapped: NodeFn = (_data, actions, ctx) => fn(actions, ctx);
+	const wrapped: NodeFn = (_data, actions, ctx) => fn(actions, ctx) ?? undefined;
 	return node<T>(wrapped, { describeKind: "producer", ...opts });
 }
 
@@ -98,6 +102,7 @@ export function derived<T = unknown>(
 ): Node<T> {
 	const wrapped: NodeFn = (data, actions, ctx) => {
 		actions.emit(fn(data, ctx));
+		return undefined;
 	};
 	return node<T>(deps, wrapped, { describeKind: "derived", ...opts });
 }
@@ -116,7 +121,8 @@ export type EffectFn = (
 	data: readonly unknown[],
 	actions: NodeActions,
 	ctx: FnCtx,
-) => NodeFnCleanup | undefined;
+	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
+) => NodeFnCleanup | void;
 
 /**
  * Runs a side-effect when deps settle. Return value is not auto-emitted.
@@ -274,6 +280,7 @@ export function autoTrackNode<T = unknown>(
 			// re-throw it out of `_execFn`.
 			ctx.store.__autoTrackLastDiscoveryError = err;
 		}
+		return undefined;
 	};
 
 	implRef = new NodeImpl<T>([], wrappedFn, {

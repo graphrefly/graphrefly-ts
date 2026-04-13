@@ -17,20 +17,23 @@
   Trade-off: fn fires once per wave (not per DATA message). For switchMap this is semantically identical (latest value wins). For concatMap/mergeMap, it means "batch of outer values → one fn call with latest" which may differ from per-message semantics. Needs careful design per operator.
   Depends on: foundation redesign completion. Not blocking — current producer pattern is correct.
 
-- **Single-dep fast path (re-introduce, 2026-04-11):**
-  Removed during foundation redesign. Current bench shows single-dep and multi-dep derived are nearly identical (~1.8M ops/sec). In the old design, single-dep was significantly faster because it skipped diamond-resolution overhead. Re-introducing a lightweight check (`deps.length === 1` → skip DepRecord iteration on incoming message, direct fn re-run) could recapture that gap. Target: 2x single-dep vs multi-dep.
-
 - **Message array allocation in hot path (proposed, 2026-04-11):**
-  Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify.
+  Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify. **Partially landed 2026-04-12 (A2):** 6 payload-free tuples interned (`DIRTY_MSG`, `RESOLVED_MSG`, `INVALIDATE_MSG`, `START_MSG`, `COMPLETE_MSG`, `TEARDOWN_MSG`) plus 5 pre-wrapped batch singletons. Closes the alloc cost for tier-1/tier-5 control signals. Tier-3 DATA/ERROR still allocate per-call because they carry payloads — see passthrough `[msg]` wrapper item below.
 
-- **Diamond wide scaling — per-dep iteration overhead (proposed, 2026-04-11):**
-  "diamond: wide (10 intermediates)" is 184K ops/sec — 3.7x slower than flat diamond (680K). Each incoming message iterates all DepRecords to check settlement. Potential: maintain a "pending dep count" integer that decrements on each dep settlement, triggering fn re-run when it hits 0 — O(1) settlement check instead of O(deps) scan.
+- **Passthrough `[msg]` wrapper allocation — single-message `_emit` overload (proposed, 2026-04-13):**
+  `_onDepMessage` passthrough branch (`src/core/node.ts:1088, 1097`) and the unknown-type forward-compat branch forward a single dep message by calling `this._emit([msg])` — a fresh one-element array wrapper per forwarded message. A2 interning doesn't help here: the inner tuple is `[DATA, v]` / `[ERROR, e]` which carries a per-call payload, and even if the inner was reusable the outer `[...]` wrapper is a new allocation. For passthrough-heavy graphs (identity operators, describe/observe layers, `graph.connect()`-spliced wrappers) this is 1 wasted allocation per forwarded message — in a 100K msg/sec write-heavy workload through a 5-level passthrough chain, ~500K wasted allocs/sec. GC pressure, not latency.
+  **Fix shape:** add a single-message overload to `_emit`:
+  ```ts
+  _emit(messages: Messages): void;
+  _emit(single: Message): void;
+  _emit(input: Messages | Message): void { /* shape-discriminate like normalizeMessages */ }
+  ```
+  Passthrough callers become `this._emit(msg)` with zero wrapper alloc. The discrimination still allocates one array inside `_emit` in the slow path, but `_frameBatch`'s existing `messages.length === 1` fast path can be specialized further to avoid even that.
+  **Why deferred:** (a) bench doesn't currently exercise passthrough — `linear 10-node chain` uses `derived`, not identity passthrough, so the win isn't measured; need a passthrough bench variant first. (b) Touches `_emit`'s signature which every core caller hits — worth doing in a standalone focused pass with before/after numbers so the delta is attributable. (c) Additive, not a correctness issue.
+  **Prereq:** add a passthrough-heavy bench variant to `src/__bench__/graphrefly.bench.ts` to quantify the win before committing the refactor.
 
 - **Fan-out scaling — sink notification overhead (proposed, 2026-04-11):**
   10→100 subscribers drops throughput 4x (3.1M→762K). Sink array is iterated with per-sink `downWithBatch` calls. Potential: share the same message array reference across sinks (already immutable by convention), reduce per-sink overhead to a single function call without re-framing.
-
-- **`equals` subtree skip verification (proposed, 2026-04-11):**
-  Bench shows `equals` provides no benefit when values always change (expected). However, need to verify that when `equals` returns true and RESOLVED is emitted, downstream derived nodes truly skip fn re-run (not just emit RESOLVED themselves after re-running). Add a bench variant where `equals` returns true 50% of the time to measure actual subtree pruning benefit.
 
 - **P3 audit: `.cache` reads inside fn/subscribe callbacks (updated 2026-04-12):**
   Call sites reading `.cache` on a node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral.
@@ -137,8 +140,6 @@
 - **Shared test helpers: refactor remaining PY `sink.append` sites (2026-04-09):**
   Unified `collect(node, *, flat=False, raw=False)` helper shipped in both TS and PY. ~127 `sink.append` sites in PY tests (`test_extra_tier1.py`, `test_extra_tier2.py`, `test_edge_cases.py`, etc.) remain to be migrated. Custom extraction (type-only, value-only, filtered) stays inline. See `docs/test-guidance.md` § "Shared test helpers".
 
-- ~~**PY blocking-bridge deadlock: `_resolve_node_input` + `AsyncioRunner` (2026-04-09):**~~ — **RESOLVED.** All call sites now use `_has_event_loop_runner()` guard + `_async_resolve_node_input()` non-blocking path. Archive candidate.
-
 - **Stream extractor unbounded re-scan on every chunk (2026-04-09):**
   All stream extractors (`keywordFlagExtractor`, `toolCallExtractor`, `costMeterExtractor`, and generic `streamExtractor`) re-process the entire `accumulated` string from scratch on every `StreamChunk`. For long streams this is O(n×k) total work (n = final length, k = chunk count). `toolCallExtractor`'s brace-scanning is especially expensive. Optimization: maintain a cursor/offset between invocations so each chunk only processes the delta. Deferred — acceptable pre-1.0 where streams are short (LLM output typically <10K chars).
 
@@ -186,9 +187,6 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 
 - **`_async_pump` return annotation is `AsyncIterable` not `AsyncGenerator` (PY, 2026-04-09):**
   In `streaming_prompt_node`, the inner `_async_pump` function uses `yield` (making it an `AsyncGenerator`) but is annotated `-> AsyncIterable[Any]`. No runtime impact (`AsyncGenerator` is a subtype of `AsyncIterable`), but the annotation is technically incorrect. Fix: change to `-> AsyncGenerator[Any, None]`.
-
-- **`src/core/versioning.ts` imports `node:crypto` (TS, 2026-04-12):**
-  `createHash` and `randomUUID` are pulled from `node:crypto` at the top of `versioning.ts`. This breaks any non-Node runtime (browser, Deno, edge workers, Bun without the node-compat flag) for anyone who constructs a node with `versioning: 1`. Core is supposed to be runtime-agnostic. Options: (a) switch to Web Crypto (`crypto.subtle.digest` + `crypto.randomUUID()`) with a Node fallback, or (b) inject `hash` / `uuid` through `GraphReFlyConfig` so the runtime chooses. Deferred — versioning is opt-in and all current consumers are Node-only, but this will bite the moment someone tries to run the reactive layer in a browser.
 
 ### AI surface (Phase 4.4) — deferred optimizations
 

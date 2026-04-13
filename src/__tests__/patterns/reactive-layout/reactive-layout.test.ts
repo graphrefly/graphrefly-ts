@@ -495,7 +495,6 @@ describe("reactiveLayout", () => {
 		unsub();
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (height stays 20 after INVALIDATE, expected 40)
 	it("INVALIDATE clears measurement cache (height changes after cache flush)", async () => {
 		let multiplier = 1;
 		let clearCalls = 0;

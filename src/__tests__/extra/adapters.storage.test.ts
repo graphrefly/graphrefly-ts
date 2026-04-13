@@ -579,8 +579,15 @@ describe("fromSqlite", () => {
 		];
 		const db: SqliteDbLike = { query: () => rows };
 		const { msgs } = collectFlat(fromSqlite(db, "SELECT * FROM users"));
-		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4)
+		// No post-terminal replay — terminal guard blocks push-on-subscribe (§1.3.4).
+		// B1 semantics: each `actions.emit(row)` call is a separate wave,
+		// each auto-framed with its own `[DIRTY]` prefix. Inside the
+		// producer's batch scope, tier-1 DIRTY emits go out immediately
+		// and tier-3 DATAs are deferred to drainPhase2, so the observed
+		// order is [DIRTY, DIRTY, DATA, DATA, COMPLETE].
 		expect(msgs).toEqual([
+			[DIRTY],
+			[DIRTY],
 			[DATA, { id: 1, name: "Alice" }],
 			[DATA, { id: 2, name: "Bob" }],
 			[COMPLETE],

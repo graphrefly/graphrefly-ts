@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
+import { registerBuiltins } from "../../core/config.js";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
-import { node } from "../../core/node.js";
+import { GraphReFlyConfig, type NodeImpl, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import {
 	advanceVersion,
@@ -244,6 +245,89 @@ describe("versioning in describeNode", () => {
 		const s = state(0, { name: "x" });
 		const d = describeNode(s);
 		expect(d.v).toBeUndefined();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Retroactive _applyVersioning + config-level defaults
+// ---------------------------------------------------------------------------
+
+describe("_applyVersioning — retroactive + monotonic upgrade", () => {
+	it("attaches V0 to a node that had no versioning", () => {
+		const s = state(42) as unknown as NodeImpl<number>;
+		expect(s.v).toBeUndefined();
+		s._applyVersioning(0);
+		expect(s.v).toBeDefined();
+		expect(s.v!.version).toBe(0);
+	});
+
+	it("upgrades V0 → V1, preserving id and version counter", () => {
+		const s = state(42, { versioning: 0 }) as unknown as NodeImpl<number>;
+		const unsub = s.subscribe(() => {});
+		s.down([[DATA, 99]]);
+		const originalId = s.v!.id;
+		const originalVersion = s.v!.version;
+		expect(originalVersion).toBe(1);
+
+		s._applyVersioning(1);
+		expect(s.v!.id).toBe(originalId);
+		expect(s.v!.version).toBe(originalVersion);
+		expect(isV1(s.v!)).toBe(true);
+		expect((s.v as V1).cid).toBeTypeOf("string");
+		unsub();
+	});
+
+	it("is monotonic — V1 → V0 is a no-op (levels only go up)", () => {
+		const s = state(42, { versioning: 1 }) as unknown as NodeImpl<number>;
+		const cidBefore = (s.v as V1).cid;
+		s._applyVersioning(0);
+		expect(isV1(s.v!)).toBe(true);
+		expect((s.v as V1).cid).toBe(cidBefore);
+	});
+});
+
+describe("config-level defaults — defaultVersioning + defaultHashFn", () => {
+	it("nodes inherit config.defaultVersioning when opts.versioning is omitted", () => {
+		const cfg = new GraphReFlyConfig({
+			onMessage: () => undefined,
+			onSubscribe: () => undefined,
+			defaultVersioning: 0,
+		});
+		registerBuiltins(cfg);
+		const s = state(1, { config: cfg });
+		expect(s.v).toBeDefined();
+		expect(s.v!.version).toBe(0);
+	});
+
+	it("nodes use config.defaultHashFn when opts.versioningHash is omitted", () => {
+		let customHashCalls = 0;
+		const customHash = (v: unknown): string => {
+			customHashCalls += 1;
+			return `cust-${String(v)}`;
+		};
+		const cfg = new GraphReFlyConfig({
+			onMessage: () => undefined,
+			onSubscribe: () => undefined,
+			defaultVersioning: 1,
+			defaultHashFn: customHash,
+		});
+		registerBuiltins(cfg);
+		const s = state(42, { config: cfg });
+		expect(customHashCalls).toBeGreaterThanOrEqual(1);
+		expect((s.v as V1).cid).toBe("cust-42");
+	});
+
+	it("per-node opts.versioning overrides config.defaultVersioning", () => {
+		const cfg = new GraphReFlyConfig({
+			onMessage: () => undefined,
+			onSubscribe: () => undefined,
+			defaultVersioning: 1,
+		});
+		registerBuiltins(cfg);
+		// Per-node opt-out at v0.
+		const s = state(1, { config: cfg, versioning: 0 });
+		expect(s.v).toBeDefined();
+		expect(isV1(s.v!)).toBe(false);
 	});
 });
 

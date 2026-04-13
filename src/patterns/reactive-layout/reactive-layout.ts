@@ -13,7 +13,7 @@ import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { defaultConfig } from "../../core/node.js";
+import { defaultConfig, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 
@@ -734,9 +734,14 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		return true;
 	}
 
-	const segmentsNode = derived<PreparedSegment[]>(
+	// Raw `node(...)` instead of `derived(...)` so the fn can return a
+	// cleanup function. Core fires function-form cleanup on INVALIDATE (see
+	// `node.ts:_updateState` INVALIDATE branch), which replaces the old v4
+	// per-node `onMessage` hook that watched for INVALIDATE/TEARDOWN to flush
+	// measurement caches.
+	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
 		[textNode, fontNode],
-		([textVal, fontVal]) => {
+		([textVal, fontVal], actions) => {
 			const t0 = monotonicNs();
 			const measureStats: SegmentMeasureStats = { hits: 0, misses: 0 };
 			const result = analyzeAndMeasure(
@@ -760,23 +765,31 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 				const hr = hitRate;
 				const len = result.length;
 				const el = elapsed;
-				const tierOf = defaultConfig.messageTier.bind(defaultConfig);
+				const tierOf = defaultConfig.tierOf;
 				downWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], tierOf);
 				downWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], tierOf);
 				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], tierOf);
 			}
 
-			return result;
+			actions.emit(result);
+
+			// Function-form cleanup: fires before the next run AND on
+			// deactivation AND on INVALIDATE. Flushes the shared measurement
+			// cache + the adapter's own cache so stale measurements don't
+			// persist across INVALIDATE broadcasts.
+			return () => {
+				measureCache.clear();
+				adapter.clearCache?.();
+			};
 		},
 		{
 			name: "segments",
+			describeKind: "derived",
 			meta: {
 				"cache-hit-rate": 0,
 				"segment-count": 0,
 				"layout-time-ns": 0,
 			},
-			// TODO: redesign observer hook for v5 — previously used onMessage
-			// to clear measureCache on INVALIDATE/TEARDOWN
 			equals: (a, b) => {
 				const sa = a as PreparedSegment[] | null;
 				const sb = b as PreparedSegment[] | null;

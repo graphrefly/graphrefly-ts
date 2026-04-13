@@ -12,8 +12,8 @@ import {
 	START,
 	TEARDOWN,
 } from "../../core/messages.js";
-import { defaultConfig } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
+import { defaultConfig, node } from "../../core/node.js";
+import { derived, producer, state } from "../../core/sugar.js";
 
 /** Shorthand for the tierOf callback required by downWithBatch in v5. */
 const tierOf = (t: symbol) => defaultConfig.messageTier(t);
@@ -408,9 +408,232 @@ describe("integration: void sources", () => {
 			for (const m of msgs) log.push([m[0], m[1]]);
 		});
 		// Subscribe delivers [[START]] handshake first; then the producer's
-		// fn emits DATA(undefined)+COMPLETE during `_onActivate`.
-		expect(log.map((m) => m[0])).toEqual([START, DATA, COMPLETE]);
-		expect(log[1][1]).toBe(undefined);
+		// fn emits DATA(undefined)+COMPLETE during `_onActivate`. Under the
+		// B1 unified dispatch, raw `actions.down([[DATA], [COMPLETE]])` is
+		// auto-framed with `[DIRTY]` at the emit waist.
+		expect(log.map((m) => m[0])).toEqual([START, DIRTY, DATA, COMPLETE]);
+		expect(log[2][1]).toBe(undefined);
 		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// B3 — Equals subtree skip correctness (guards against cascade regressions)
+// ---------------------------------------------------------------------------
+
+describe("B3: equals subtree skip — downstream fn-run counts under no-op inputs", () => {
+	it("5-level chain: 50% no-op writes only re-run leaf fn on actual changes", () => {
+		// Source toggles between 0 and 1 every other write. With equals
+		// configured on every level, the duplicate writes should produce
+		// RESOLVED at the first derived, which cascades as RESOLVED through
+		// the chain, which fires the downstream pre-fn skip at every level.
+		// The leaf fn should run exactly (writes / 2 + 1) times — once for
+		// each distinct value, not once per write.
+		const a = state<number>(0);
+		let leafRuns = 0;
+		const b = derived([a], ([v]) => (v as number) * 2, { equals: (x, y) => x === y });
+		const c = derived([b], ([v]) => (v as number) + 1, { equals: (x, y) => x === y });
+		const d = derived([c], ([v]) => (v as number) - 1, { equals: (x, y) => x === y });
+		const e = derived(
+			[d],
+			([v]) => {
+				leafRuns += 1;
+				return (v as number) + 7;
+			},
+			{ equals: (x, y) => x === y },
+		);
+		const unsub = e.subscribe(() => undefined);
+		const baseRuns = leafRuns; // initial activation run
+		// Pattern: 0, 0, 1, 1, 0, 0, 1, 1 — each distinct value repeats
+		// twice, so the leaf should run exactly 4 times (one per pair).
+		const pattern = [0, 0, 1, 1, 0, 0, 1, 1];
+		for (const v of pattern) {
+			a.down([[DATA, v]]);
+		}
+		// Expected: baseRuns (initial) + 4 transitions (0→1, 1→0, 0→1 after
+		// the first 0 which equals the initial). Actually the initial cache
+		// is 0; the first push(0) should RESOLVED (no leaf re-run); second
+		// push(0) RESOLVED; push(1) → DATA → leaf runs; push(1) RESOLVED;
+		// push(0) → DATA → leaf runs; push(0) RESOLVED; push(1) → DATA →
+		// leaf runs; push(1) RESOLVED. That's 3 leaf runs after initial.
+		expect(leafRuns - baseRuns).toBe(3);
+		expect(e.cache).toBe(1 * 2 + 1 - 1 + 7); // = 9
+		unsub();
+	});
+
+	it("diamond: both legs collapse to RESOLVED when source doesn't change", () => {
+		// Source toggle drives both legs. Duplicate writes should produce
+		// RESOLVED on both legs, which the join's pre-fn skip absorbs.
+		const src = state<number>(0);
+		let joinRuns = 0;
+		const left = derived([src], ([v]) => (v as number) * 2, {
+			equals: (x, y) => x === y,
+		});
+		const right = derived([src], ([v]) => (v as number) + 10, {
+			equals: (x, y) => x === y,
+		});
+		const joined = derived(
+			[left, right],
+			([l, r]) => {
+				joinRuns += 1;
+				return (l as number) + (r as number);
+			},
+			{ equals: (x, y) => x === y },
+		);
+		const unsub = joined.subscribe(() => undefined);
+		const baseRuns = joinRuns;
+		// Write the same value twice — the join should see RESOLVED on both
+		// legs and skip entirely.
+		src.down([[DATA, 0]]);
+		src.down([[DATA, 0]]);
+		expect(joinRuns - baseRuns).toBe(0);
+		// Actually change the value — join runs once.
+		src.down([[DATA, 1]]);
+		expect(joinRuns - baseRuns).toBe(1);
+		expect(joined.cache).toBe(1 * 2 + (1 + 10)); // = 13
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// C0 — PAUSE/RESUME lock-id tracking + bufferAll
+// ---------------------------------------------------------------------------
+
+describe("C0: PAUSE/RESUME lock-id", () => {
+	it("bare [[PAUSE]] without lockId throws", () => {
+		const a = state(0);
+		const d = derived([a], ([v]) => v);
+		const unsub = d.subscribe(() => {});
+		expect(() => a.down([[PAUSE]])).toThrow(/lockId/);
+		unsub();
+	});
+
+	it("bare [[RESUME]] without lockId throws", () => {
+		const a = state(0);
+		const d = derived([a], ([v]) => v);
+		const unsub = d.subscribe(() => {});
+		expect(() => a.down([[RESUME]])).toThrow(/lockId/);
+		unsub();
+	});
+
+	it("multi-pauser correctness — releasing one lock keeps paused while another holds", () => {
+		const a = state(0);
+		// effect-style node that can be observed for paused state
+		let fnRuns = 0;
+		const d = derived([a], ([v]) => {
+			fnRuns += 1;
+			return v;
+		});
+		const unsub = d.subscribe(() => {});
+		const baseRuns = fnRuns;
+
+		const lockA = Symbol("A");
+		const lockB = Symbol("B");
+
+		// Two pausers hold locks.
+		a.down([[PAUSE, lockA]]);
+		a.down([[PAUSE, lockB]]);
+
+		// While paused, a new DATA from `a` should not cause `d.fn` to run.
+		a.down([[DIRTY], [DATA, 1]]);
+		expect(fnRuns).toBe(baseRuns); // still paused, no fn execution
+
+		// Lock A releases first — lock B still held, so `d` stays paused.
+		a.down([[RESUME, lockA]]);
+		expect(fnRuns).toBe(baseRuns); // B still holds
+
+		// Lock B releases — now all locks released, pending wave replays.
+		a.down([[RESUME, lockB]]);
+		expect(fnRuns).toBe(baseRuns + 1);
+		expect(d.cache).toBe(1);
+
+		unsub();
+	});
+
+	it("idempotent RESUME for unknown lockId is a no-op", () => {
+		const a = state(0);
+		const d = derived([a], ([v]) => v);
+		const unsub = d.subscribe(() => {});
+
+		const lock = Symbol("ghost");
+		// Never paused with this lock — RESUME should not throw, should not
+		// unpause anything, and should leave the node in a normal state.
+		expect(() => a.down([[RESUME, lock]])).not.toThrow();
+		a.down([[DIRTY], [DATA, 42]]);
+		expect(d.cache).toBe(42);
+		unsub();
+	});
+
+	it("pausable: resumeAll buffers DATA and replays on final lock release", () => {
+		// A node with bufferAll mode buffers outgoing tier-3 messages while
+		// paused, then replays them in order when the final lock is released.
+		const s = node<number>(
+			(_actions) => {
+				// Manual producer — we drive it via node.emit from outside.
+			},
+			{ pausable: "resumeAll", initial: 0, describeKind: "state" },
+		);
+		const log: number[] = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) log.push(m[1] as number);
+			}
+		});
+		const baseLog = log.length;
+
+		const lock = Symbol("bufferAll");
+		s.down([[PAUSE, lock]]);
+
+		// While paused, emit three DATA values — they should be buffered, not
+		// delivered live.
+		s.emit(1);
+		s.emit(2);
+		s.emit(3);
+		expect(log.length).toBe(baseLog); // nothing delivered while paused
+
+		// Release the lock — buffered values replay in order.
+		s.down([[RESUME, lock]]);
+		expect(log.slice(baseLog)).toEqual([1, 2, 3]);
+		expect(s.cache).toBe(3);
+
+		unsub();
+	});
+
+	it("pause state is cleared on teardown — no leak, no cross-lifecycle bleed", () => {
+		// Regression: bufferAll state (_pauseLocks, _pauseBuffer) used to
+		// leak across _deactivate, which was both a memory leak on
+		// non-resubscribable nodes and a correctness bug on resubscribable
+		// nodes (new subscribers would see a permanently stuck node with
+		// pauseLocks from a dead lifecycle).
+		const s = state<number>(0, {
+			pausable: "resumeAll",
+			resubscribable: true,
+		}) as unknown as import("../../core/node.js").NodeImpl<number>;
+		const lockOldLifecycle = Symbol("lock-old");
+
+		const unsub = s.subscribe(() => undefined);
+		s.down([[PAUSE, lockOldLifecycle]]);
+		s.emit(1); // buffered
+		s.emit(2); // buffered
+		// Terminate the lifecycle WITHOUT releasing the lock.
+		s.down([[COMPLETE]]);
+		unsub();
+		// After teardown the internal pause state should be clean.
+		expect(s._pauseLocks).toBeNull();
+		expect(s._pauseBuffer).toBeNull();
+		expect(s._paused).toBe(false);
+
+		// Resubscribable reset: new subscriber should see a clean node, not
+		// a stuck-paused leftover from the previous lifecycle.
+		const log: number[] = [];
+		const unsub2 = s.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) log.push(m[1] as number);
+		});
+		expect(s._pauseLocks).toBeNull();
+		expect(s._paused).toBe(false);
+		// Emit a new value — should flow through, not get swallowed.
+		s.emit(99);
+		expect(log).toContain(99);
+		unsub2();
 	});
 });

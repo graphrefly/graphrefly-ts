@@ -34,6 +34,7 @@ import {
 	START,
 	TEARDOWN,
 } from "./messages.js";
+import type { HashFn, VersioningLevel } from "./versioning.js";
 
 // ---------------------------------------------------------------------------
 // Handler type shapes
@@ -53,32 +54,29 @@ export interface NodeCtx {
 /** Imperative actions available inside a node's compute function (§5). */
 export interface NodeActions {
 	/**
-	 * Sugar: framed value delivery. Runs `equals` (current cache vs
-	 * `value`) to decide DATA vs RESOLVED, frames the outgoing message
-	 * through the singleton `bundle` (tier sort + DIRTY auto-prefix), then
-	 * delivers via the raw emit pipeline. Diamond-safe by construction.
+	 * Sugar for `down([[DATA, value]])`. One call = one wave with a
+	 * single DATA payload. The emit pipeline auto-prefixes `[DIRTY]`,
+	 * runs equals substitution against the live cache, and dispatches
+	 * to sinks with phase deferral. Diamond-safe by construction.
 	 */
 	emit(value: unknown): void;
 	/**
-	 * Raw downstream passthrough — `messages` are delivered as-is through
-	 * the emit pipeline. **No framing.** Developer controls exactly what
-	 * goes on the wire; use `actions.bundle(...).resolve()` to build a
-	 * framed payload when you need tier sorting or DIRTY auto-prefix.
+	 * Send one or more messages downstream. Accepts either a single
+	 * {@link Message} tuple or a {@link Messages} array of tuples. One
+	 * call = one wave: the emit pipeline tier-sorts the input,
+	 * auto-prefixes `[DIRTY]` when a tier-3 payload is present and the
+	 * node isn't already dirty, runs equals substitution, then
+	 * dispatches. Multiple calls produce multiple waves.
 	 */
-	down(messages: Messages): void;
+	down(messageOrMessages: Message | Messages): void;
 	/**
-	 * Raw upstream passthrough — forwards `messages` to every dep without
-	 * modifying any local state.
+	 * Send one or more messages upstream. Accepts the same shapes as
+	 * {@link down}. Tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR)
+	 * are downstream-only and will throw — up is for DIRTY, INVALIDATE,
+	 * PAUSE, RESUME, and TEARDOWN only. No cache advance, no equals,
+	 * no framing — a plain forward to every dep.
 	 */
-	up(messages: Messages): void;
-	/**
-	 * Create a {@link Bundle} that captures this node's context. Accepts a
-	 * single {@link Message} tuple or a {@link Messages} array as the
-	 * starting payload; append more via `bundle.append(...)` and call
-	 * `bundle.resolve()` to obtain a framed (tier-sorted, DIRTY-prefixed)
-	 * `Messages` array ready for `actions.down(...)`.
-	 */
-	bundle(initial: Message | Messages): Bundle;
+	up(messageOrMessages: Message | Messages): void;
 }
 
 /**
@@ -98,24 +96,6 @@ export interface SubscribeContext {
 	/** True when this subscribe cleared a resubscribable terminal state. */
 	afterTerminalReset: boolean;
 }
-
-/**
- * Outgoing-message framing primitive. See COMPOSITION-GUIDE §9 for tier
- * ordering and DIRTY auto-prefix semantics.
- */
-export interface Bundle {
-	append(...messages: Message[]): Bundle;
-	/** Resolve to a flat tier-sorted `Messages` array. Pure — does not mutate. */
-	resolve(direction?: "down" | "up"): Messages;
-}
-
-/**
- * Factory invoked by core emission paths to frame an outgoing payload. Takes
- * the starting messages as a single `Messages` array (not variadic) so
- * internal callers can pass an already-collected array without spreading.
- * The user-facing variadic/flexible form lives on `actions.bundle`.
- */
-export type BundleFactory = (node: NodeCtx, initial: Messages) => Bundle;
 
 /**
  * Singleton message interceptor. Called for every message in either direction
@@ -153,27 +133,41 @@ export type OnSubscribeHandler = (
  */
 export class GraphReFlyConfig {
 	private _messageTypes = new Map<symbol, MessageTypeRegistration>();
-	private _bundle: BundleFactory;
 	private _onMessage: OnMessageHandler;
 	private _onSubscribe: OnSubscribeHandler;
+	private _defaultVersioning: VersioningLevel | undefined;
+	private _defaultHashFn: HashFn | undefined;
 	private _frozen = false;
 
+	/**
+	 * Pre-bound tier lookup — shared by every node bound to this config. Since
+	 * the registry is frozen on first hook access, this closure can be built
+	 * once in the constructor and handed directly to `downWithBatch` /
+	 * `_frameBatch` paths without per-node or per-emission `.bind(config)`
+	 * allocation.
+	 */
+	readonly tierOf: (t: symbol) => number;
+
 	constructor(init: {
-		bundle: BundleFactory;
 		onMessage: OnMessageHandler;
 		onSubscribe: OnSubscribeHandler;
+		defaultVersioning?: VersioningLevel;
+		defaultHashFn?: HashFn;
 	}) {
-		this._bundle = init.bundle;
 		this._onMessage = init.onMessage;
 		this._onSubscribe = init.onSubscribe;
+		this._defaultVersioning = init.defaultVersioning;
+		this._defaultHashFn = init.defaultHashFn;
+		// Captured once. Calls back into `this._messageTypes` — still returns
+		// the current registration, but post-freeze the registry is immutable
+		// so the closure is effectively constant.
+		this.tierOf = (t: symbol): number => {
+			const reg = this._messageTypes.get(t);
+			return reg != null ? reg.tier : 1;
+		};
 	}
 
 	// --- Hook getters (freeze on read) ---
-
-	get bundle(): BundleFactory {
-		this._frozen = true;
-		return this._bundle;
-	}
 
 	get onMessage(): OnMessageHandler {
 		this._frozen = true;
@@ -187,11 +181,6 @@ export class GraphReFlyConfig {
 
 	// --- Hook setters (throw when frozen) ---
 
-	set bundle(v: BundleFactory) {
-		this._assertUnfrozen();
-		this._bundle = v;
-	}
-
 	set onMessage(v: OnMessageHandler) {
 		this._assertUnfrozen();
 		this._onMessage = v;
@@ -200,6 +189,47 @@ export class GraphReFlyConfig {
 	set onSubscribe(v: OnSubscribeHandler) {
 		this._assertUnfrozen();
 		this._onSubscribe = v;
+	}
+
+	/**
+	 * Default versioning level applied to every node bound to this config,
+	 * unless the node's own `opts.versioning` provides an explicit override.
+	 * Setting this is only allowed before the config freezes (i.e., before
+	 * the first node is created) so every node in the graph sees a
+	 * consistent starting level. Individual nodes can still opt into a
+	 * higher level via `opts.versioning`, or post-hoc via
+	 * `NodeImpl._applyVersioning(level)` when the node is quiescent.
+	 *
+	 * v0 is the minimum opt-in — unversioned nodes (`undefined`) skip
+	 * the version counter entirely. v1 adds content-addressed cid.
+	 * Future levels (v2, v3) are reserved for linked-history and
+	 * cryptographic attestation extensions.
+	 */
+	get defaultVersioning(): VersioningLevel | undefined {
+		return this._defaultVersioning;
+	}
+	set defaultVersioning(v: VersioningLevel | undefined) {
+		this._assertUnfrozen();
+		this._defaultVersioning = v;
+	}
+
+	/**
+	 * Default content-hash function applied to every versioned node bound
+	 * to this config, unless the node's own `opts.versioningHash` provides
+	 * an explicit override. Use this when a graph needs a non-default hash
+	 * — e.g., swap the vendored sync SHA-256 for a faster non-crypto hash
+	 * (xxHash, FNV-1a) in hot-path workloads, or a stronger hash when
+	 * versioning v1 cids are used as audit anchors.
+	 *
+	 * Only settable before the config freezes. Individual nodes can still
+	 * override via `opts.versioningHash`.
+	 */
+	get defaultHashFn(): HashFn | undefined {
+		return this._defaultHashFn;
+	}
+	set defaultHashFn(v: HashFn | undefined) {
+		this._assertUnfrozen();
+		this._defaultHashFn = v;
 	}
 
 	// --- Registry (writes require unfrozen; reads are free lookups) ---

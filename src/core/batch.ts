@@ -128,9 +128,9 @@ function drainPending(): void {
  * - Tier 5 — deferred to {@link drainPhase4} when batching, else synchronous.
  *
  * Tier-classification uses the caller-supplied `tierOf` so that batch stays
- * decoupled from `GraphReFlyConfig`. NodeImpl passes
- * `config.messageTier.bind(config)` (or an equivalent closure) at the emit
- * site; alternate configs can pass their own lookup.
+ * decoupled from `GraphReFlyConfig`. NodeImpl passes `config.tierOf` (a
+ * pre-bound closure built once in the config constructor) at the emit site;
+ * alternate configs can pass their own lookup.
  */
 export function downWithBatch(
 	sink: (messages: Messages) => void,
