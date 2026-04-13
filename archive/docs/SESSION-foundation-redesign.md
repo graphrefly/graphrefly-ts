@@ -3031,3 +3031,133 @@ The `allNewSettled` gate (save-a-fn-call-on-sync-discovery) is a
 reasonable shape for such a future optimization if the extra work
 accounting can be justified, but it's not currently needed — HEAD's
 simple double-discovery pattern is correct and cheap enough.
+
+---
+
+## §11 — Batch input model (2026-04-13)
+
+### §11.1 — Motivation
+
+`ctx.dataFrom[i]` was a boolean: "did dep i emit DATA this wave?"
+It answered presence but not content — a node that receives two rapid
+DATA emissions in the same wave (e.g. `of('a', 'b')`) only saw the
+last one because the dep record stored only `latestData` (scalar).
+
+### §11.2 — New `NodeFn` signature
+
+```ts
+type NodeFn = (
+  data: readonly (readonly unknown[] | undefined)[],
+  actions: NodeActions,
+  ctx: FnCtx,
+) => NodeFnCleanup | void;
+```
+
+`data[i]` is the batch of DATA values delivered by dep i in this wave:
+
+| `data[i]` value      | Meaning                                    |
+|----------------------|--------------------------------------------|
+| `undefined`          | Dep not involved this wave                 |
+| `[]` (empty array)   | Dep settled RESOLVED (unchanged value)     |
+| `[v1, v2, ...]`      | Dep delivered N DATA values (in order)     |
+
+Most waves: `[v]` — a single-element array.
+
+### §11.3 — `FnCtx.latestData` replaces `FnCtx.dataFrom`
+
+```ts
+interface FnCtx {
+  latestData: readonly unknown[];   // was: dataFrom: readonly boolean[]
+  terminalDeps: readonly unknown[];
+  store: Record<string, unknown>;
+}
+```
+
+`ctx.latestData[i]` — last DATA payload from dep i, from any prior wave.
+Use as fallback when `data[i]` is `undefined` or `[]`:
+
+```ts
+const v = batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i];
+```
+
+### §11.4 — Sugar constructors auto-unwrap
+
+`derived`, `effect`, and `task` receive `data: readonly unknown[]`
+(one scalar per dep, already unwrapped). The sugar wrapper applies:
+
+```ts
+const data = batchData.map((batch, i) =>
+  batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+);
+```
+
+Raw `node()` callers must handle the batch format themselves.
+
+### §11.5 — New `DepRecord` fields
+
+```ts
+interface DepRecord {
+  involvedThisWave: boolean;   // replaces: dataThisWave: boolean
+  dataBatch: unknown[];        // new: accumulates DATA values per wave
+  latestData: Cached<unknown>; // unchanged
+  // ...
+}
+```
+
+- `involvedThisWave` is set in `_depDirtied`, `_depSettledAsData`,
+  `_depSettledAsTerminal`. Cleared in `_clearWaveFlags`.
+- `dataBatch` accumulates in `_depSettledAsData`, copied (snapshot)
+  in `_execFn` before `_clearWaveFlags` truncates it in-place.
+
+### §11.6 — Inspector hook update
+
+```ts
+| { kind: "run"; batchData: readonly (readonly unknown[] | undefined)[]; latestData: readonly unknown[] }
+```
+
+`batchData` replaces `depValues` in Graph observe causal traces.
+
+### §11.7 — Migration summary
+
+| Old | New |
+|-----|-----|
+| `data[i]` (scalar) | `data[i]` (batch array or `undefined`) |
+| `ctx.dataFrom[i]` (boolean) | `data[i] != null && data[i].length > 0` |
+| `ctx.dataFrom` | removed — use `data[i]` batch check |
+| `ctx.latestData[i]` (was `FnCtx.dataFrom` in some drafts) | `ctx.latestData[i]` (last-known scalar) |
+| `DepRecord.dataThisWave` | `DepRecord.involvedThisWave` |
+
+Files updated: `src/core/node.ts`, `src/core/sugar.ts`,
+`src/extra/operators.ts`, `src/extra/sources.ts`, `src/graph/graph.ts`,
+`src/patterns/orchestration.ts`, `src/patterns/cqrs.ts`,
+`src/patterns/reactive-layout/reactive-layout.ts`,
+`src/patterns/reactive-layout/reactive-block-layout.ts`.
+
+### §11.8 — D1 Option B: full batch iteration in operators (2026-04-13)
+
+**Decision (QA 2026-04-13):** Operators must iterate the **full batch**, not just `.at(-1)`. Each value in `batch0` produces an independent wave downstream. Order: dep index (natural), then time received within dep (natural array order in `dataBatch`).
+
+**Rationale:** The pre-D1 operators used `batch0.at(-1)` — silently dropping intermediate values in a multi-value wave. This was lossy: a source that fast-batched `[1, 2, 3]` would appear as a single emission of `3` to all downstream operators.
+
+**Implementation pattern** for single-source operators:
+```typescript
+const batch0 = data[0];
+if (batch0 == null || batch0.length === 0) {
+    a.down([[RESOLVED]]);
+    return;
+}
+let emitted = false;
+for (const v of batch0) {
+    // operator-specific logic — may call a.emit(processedV)
+    emitted = true;
+}
+if (!emitted) a.down([[RESOLVED]]);
+```
+
+Each `a.emit(v)` call sends `[DIRTY, DATA(v)]` to downstream subscribers, triggering a separate wave for each value. The downstream accumulates these into its own `dataBatch` for the next settlement.
+
+**Operators updated:** `filter`, `scan`, `reduce`, `take`, `skip`, `takeWhile`, `tap` (fn+observer forms), `distinctUntilChanged`, `pairwise`, `withLatestFrom`, `valve` in `operators.ts`; `forEach`, `toArray` in `sources.ts`.
+
+**`last`**: keeps `.at(-1)` — semantically correct; `last` only cares about the final value before COMPLETE.
+
+**`_depInvalidated` dead write fix (same session):** removed the unconditional `dep.involvedThisWave = false` before the `!dep.dirty` branch. The `false` assignment was immediately overwritten by `= true` in the `!dirty` case. Now: set `involvedThisWave = true` only in `!dirty` branch; set `involvedThisWave = false` in `else` branch (cancel prior involvement for already-dirty dep).

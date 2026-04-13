@@ -166,8 +166,12 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 		const deployed: string[] = [];
 		const deployNode = node<void>(
 			[gated],
-			([val]) => {
-				const a = val as { version: string; sha: string };
+			(data, _actions, ctx) => {
+				const batch0 = data[0];
+				const a = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.latestData[0]) as {
+					version: string;
+					sha: string;
+				};
 				if (a != null) deployed.push(a.version);
 			},
 			{ name: "deploy" },

@@ -1558,7 +1558,7 @@ export class Graph {
 				if (event.kind === "dep_message") {
 					lastTriggerDepIndex = event.depIndex;
 				} else if (event.kind === "run") {
-					lastRunDepValues = [...event.depValues];
+					lastRunDepValues = [...event.latestData];
 					// Emit a synthetic "derived" event when requested.
 					if (derived) {
 						const base = timeline
@@ -1571,7 +1571,7 @@ export class Graph {
 						result.events.push({
 							type: "derived",
 							path,
-							dep_values: [...event.depValues],
+							dep_values: [...event.latestData],
 							...base,
 						} as ObserveEvent);
 					}

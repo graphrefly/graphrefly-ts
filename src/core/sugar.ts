@@ -45,7 +45,7 @@ export function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): No
 /**
  * User-level producer compute: runs once on first-subscriber activation.
  * Receives `actions` for imperative emission and `ctx` for FnCtx (typically
- * only `store` is useful on a producer — no deps means `dataFrom` and
+ * only `store` is useful on a producer — no deps means `latestData` and
  * `terminalDeps` are empty).
  */
 export type ProducerFn = (
@@ -81,7 +81,7 @@ export function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): No
  * returns the new value. The sugar wraps it with `actions.emit(fn(...))`
  * so the return value flows through the framed emit pipeline.
  *
- * For derived nodes that need to inspect `ctx.dataFrom` / `ctx.terminalDeps`
+ * For derived nodes that need to inspect `ctx.latestData` / `ctx.terminalDeps`
  * / `ctx.store`, accept the optional second parameter.
  */
 export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefined | null;
@@ -100,7 +100,13 @@ export function derived<T = unknown>(
 	fn: DerivedFn<T>,
 	opts?: NodeOptions<T>,
 ): Node<T> {
-	const wrapped: NodeFn = (data, actions, ctx) => {
+	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		// Unwrap batch-per-dep to single latest scalar per dep.
+		// Batch non-null+non-empty → take last value; otherwise fall back to
+		// ctx.latestData[i] (last known value from a prior wave).
+		const data = batchData.map((batch, i) =>
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+		);
 		actions.emit(fn(data, ctx));
 		return undefined;
 	};
@@ -139,7 +145,13 @@ export function effect(
 	fn: EffectFn,
 	opts?: NodeOptions<unknown>,
 ): Node<unknown> {
-	return node(deps, fn, { describeKind: "effect", ...opts });
+	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		const data = batchData.map((batch, i) =>
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+		);
+		return fn(data, actions, ctx) ?? undefined;
+	};
+	return node(deps, wrapped, { describeKind: "effect", ...opts });
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +199,7 @@ export function dynamicNode<T = unknown>(
 	});
 	return derived<T>(
 		allDeps,
+		// data[i] is already sugar-unwrapped to a scalar by derived()'s wrapper.
 		(data, ctx) => {
 			const track: TrackFn = (dep) => {
 				const i = depIndex.get(dep);
@@ -242,13 +255,20 @@ export function autoTrackNode<T = unknown>(
 	let implRef: NodeImpl<T>;
 	const depIndexMap = new Map<Node, number>();
 
-	const wrappedFn: NodeFn = (data, actions, ctx) => {
+	const wrappedFn: NodeFn = (batchData, actions, ctx) => {
 		let foundNew = false;
 		const track: TrackFn = (dep) => {
 			const idx = depIndexMap.get(dep);
 			if (idx !== undefined) {
-				// Known dep — return protocol-delivered value.
-				return idx < data.length ? data[idx] : dep.cache;
+				// Known dep — return latest protocol-delivered value.
+				// batch non-null+non-empty → latest from this wave;
+				// otherwise fall back to ctx.latestData (last known value).
+				if (idx < batchData.length) {
+					const batch = batchData[idx];
+					if (batch != null && batch.length > 0) return batch.at(-1);
+					return ctx.latestData[idx];
+				}
+				return dep.cache;
 			}
 			// Unknown dep — discovery phase.
 			foundNew = true;

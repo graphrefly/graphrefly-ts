@@ -9,7 +9,7 @@
 import type { NodeActions } from "../core/config.js";
 import { COMPLETE, DATA, ERROR, type Messages, RESOLVED, TEARDOWN } from "../core/messages.js";
 import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { type DerivedFn, derived, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
@@ -123,15 +123,22 @@ export function pipeline(name: string, opts?: GraphOptions): Graph {
 export function task<T>(
 	graph: Graph,
 	name: string,
-	run: NodeFn,
+	run: DerivedFn<T>,
 	opts?: OrchestrationStepOptions,
 ): Node<T> {
 	const depRefs = opts?.deps ?? [];
 	const deps = depRefs.map((dep) => resolveDep(graph, dep));
 	const { deps: _deps, ...nodeOpts } = opts ?? {};
+	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		const data = batchData.map((batch, i) =>
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+		);
+		actions.emit(run(data, ctx));
+		return undefined;
+	};
 	const step = node<T>(
 		deps.map((d) => d.node),
-		run,
+		wrapped,
 		{
 			...nodeOpts,
 			name,
@@ -524,9 +531,13 @@ export function loop<T>(
 	const staticIterations = typeof iterRef === "number" ? iterRef : undefined;
 	const step = node<T>(
 		iterDep ? [src.node, iterDep.node] : [src.node],
-		(depValues, actions) => {
-			let current = depValues[0] as T;
-			const rawCount = staticIterations ?? (iterDep ? depValues[1] : 1);
+		(depValues, actions, ctx) => {
+			const batch0 = depValues[0];
+			let current = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.latestData[0]) as T;
+			const batch1 = iterDep ? depValues[1] : undefined;
+			const rawCount =
+				staticIterations ??
+				(iterDep ? (batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.latestData[1]) : 1);
 			const count = coerceLoopIterations(rawCount);
 			for (let i = 0; i < count; i += 1) {
 				current = iterate(current, i, actions);

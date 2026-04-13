@@ -405,10 +405,13 @@ export class CqrsGraph extends Graph {
 		const sagaRef: { n?: Node<unknown> } = {};
 		const sagaNode = node(
 			eventNodes,
-			(snapshots) => {
+			(snapshots, _actions) => {
 				const errNode = sagaRef.n!.meta.error as Node<unknown>;
 				for (let i = 0; i < snapshots.length; i++) {
-					const entries = snapshots[i] as readonly CqrsEvent<T>[];
+					const batch = snapshots[i];
+					if (batch == null || batch.length === 0) continue;
+					const entries = batch.at(-1) as readonly CqrsEvent<T>[] | undefined;
+					if (!entries) continue;
 					const eName = eventNames[i];
 					const lastCount = lastCounts.get(eName) ?? 0;
 					if (entries.length > lastCount) {

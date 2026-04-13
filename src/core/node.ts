@@ -114,7 +114,11 @@ export type NodeSink = (messages: Messages) => void;
  */
 export type NodeInspectorHookEvent =
 	| { kind: "dep_message"; depIndex: number; message: Message }
-	| { kind: "run"; depValues: readonly unknown[] };
+	| {
+			kind: "run";
+			batchData: readonly (readonly unknown[] | undefined)[];
+			latestData: readonly unknown[];
+	  };
 
 /** Callback attached to a node for per-message/per-run inspection. */
 export type NodeInspectorHook = (event: NodeInspectorHookEvent) => void;
@@ -143,7 +147,10 @@ export type NodeFnCleanup = (() => void) | { deactivation: () => void };
  * Fn-time context exposing per-wave metadata and a per-node persistent
  * scratch pad.
  *
- * - `dataFrom[i]` — did dep `i` emit DATA this wave (vs RESOLVED)?
+ * - `latestData[i]` — last known DATA value from dep `i`, regardless of
+ *   whether dep `i` was involved in the current wave. Use as the fallback
+ *   when `data[i]` is `undefined` (not involved) or `[]` (RESOLVED, no
+ *   new values). Always `undefined` for deps that have never sent DATA.
  * - `terminalDeps[i]` — runtime shape:
  *   - `undefined` → dep `i` is still live.
  *   - `true` → dep `i` sent COMPLETE.
@@ -154,7 +161,7 @@ export type NodeFnCleanup = (() => void) | { deactivation: () => void };
  *   cycle. Wiped on deactivation and on resubscribable terminal reset.
  */
 export interface FnCtx {
-	readonly dataFrom: readonly boolean[];
+	readonly latestData: readonly unknown[];
 	readonly terminalDeps: readonly unknown[];
 	readonly store: Record<string, unknown>;
 }
@@ -162,16 +169,27 @@ export interface FnCtx {
 /**
  * Compute function passed to `node(deps, fn, opts?)`.
  *
- * fn receives DATA-only inputs (`data[i]` holds dep `i`'s latest DATA
- * payload), never raw Message tuples. Emission is explicit via
- * `actions.emit(v)` (sugar: equals + bundle + down) or `actions.down(msgs)`
- * (raw). Return a cleanup function (or `{ deactivation }`) to register
- * teardown — any non-cleanup return value is ignored. The `| void` leg in
- * the return type lets arrow-block bodies (the common sugar/operator case)
- * satisfy `NodeFn` without an explicit `return undefined`.
+ * `data[i]` holds the batch of DATA values received from dep `i` during the
+ * current wave. Shape contract:
+ * - `undefined` — dep `i` was not involved in this wave (no DIRTY received).
+ * - `[]` — dep `i` was involved (dirtied), but settled as RESOLVED (value
+ *   unchanged). Use `ctx.latestData[i]` to read its last known value.
+ * - `[v1, v2, ...]` — dep `i` sent one or more DATA values. `at(-1)` gives
+ *   the latest; iterate for multi-emission processing.
+ *
+ * Emission is explicit via `actions.emit(v)` (sugar: equals + framing) or
+ * `actions.down(msgs)` (raw). Return a cleanup function (or
+ * `{ deactivation }`) to register teardown — any non-cleanup return value
+ * is ignored. The `| void` leg lets arrow-block bodies satisfy `NodeFn`
+ * without an explicit `return undefined`.
+ *
+ * Sugar constructors (`derived`, `effect`, `dynamicNode`) unwrap `data[i]`
+ * to a single scalar (`at(-1)` with `ctx.latestData[i]` fallback) so their
+ * user-facing fn signatures stay unchanged. Use raw `node()` when you need
+ * the full batch array.
  */
 export type NodeFn = (
-	data: readonly unknown[],
+	data: readonly (readonly unknown[] | undefined)[],
 	actions: NodeActions,
 	ctx: FnCtx,
 	// biome-ignore lint/suspicious/noConfusingVoidType: see JSDoc above.
@@ -285,8 +303,20 @@ export interface DepRecord {
 	latestData: Cached<unknown>;
 	/** True while awaiting DATA/RESOLVED for the current wave. */
 	dirty: boolean;
-	/** True if this dep contributed DATA (not RESOLVED) during the current wave. */
-	dataThisWave: boolean;
+	/**
+	 * True if this dep was dirtied in the current wave (set in `_depDirtied`,
+	 * cleared in `_clearWaveFlags`). Distinguishes "RESOLVED" (`involvedThisWave
+	 * && dataBatch.length === 0`) from "not involved" (`!involvedThisWave`) in
+	 * the `data[i]` batch snapshot passed to fn.
+	 */
+	involvedThisWave: boolean;
+	/**
+	 * DATA values accumulated from this dep during the current wave.
+	 * Populated by `_depSettledAsData`, cleared by `_clearWaveFlags`.
+	 * Snapshotted (copied) by `_execFn` before `_clearWaveFlags` runs so
+	 * that fn always sees the full wave batch.
+	 */
+	dataBatch: unknown[];
 	/** Terminal-state slot — see JSDoc on {@link DepRecord}. */
 	terminal: unknown;
 }
@@ -297,7 +327,8 @@ function createDepRecord(n: Node): DepRecord {
 		unsub: null,
 		latestData: NO_VALUE,
 		dirty: false,
-		dataThisWave: false,
+		involvedThisWave: false,
+		dataBatch: [],
 		terminal: undefined,
 	};
 }
@@ -305,7 +336,8 @@ function createDepRecord(n: Node): DepRecord {
 function resetDepRecord(d: DepRecord): void {
 	d.latestData = NO_VALUE;
 	d.dirty = false;
-	d.dataThisWave = false;
+	d.involvedThisWave = false;
+	d.dataBatch.length = 0;
 	d.terminal = undefined;
 }
 
@@ -1191,6 +1223,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _depDirtied(dep: DepRecord): void {
 		if (dep.dirty) return;
 		dep.dirty = true;
+		dep.involvedThisWave = true;
 		this._dirtyDepCount++;
 		// First dep to dirty this wave → propagate DIRTY to our own sinks.
 		if (this._status !== "dirty") {
@@ -1210,7 +1243,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
 		dep.latestData = value;
-		dep.dataThisWave = true;
+		dep.involvedThisWave = true;
+		dep.dataBatch.push(value);
 		if (wasSentinel) this._sentinelDepCount--;
 		this._waveHasNewData = true;
 	}
@@ -1240,6 +1274,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
 		dep.terminal = terminal;
+		dep.involvedThisWave = true;
 		if (wasSentinel) this._sentinelDepCount--;
 		this._hasNewTerminal = true;
 	}
@@ -1253,11 +1288,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const wasNotSentinel = dep.latestData !== NO_VALUE || dep.terminal !== undefined;
 		dep.latestData = NO_VALUE;
 		dep.terminal = undefined;
-		dep.dataThisWave = false;
+		dep.dataBatch.length = 0;
 		if (wasNotSentinel) this._sentinelDepCount++;
 		if (!dep.dirty) {
 			dep.dirty = true;
+			dep.involvedThisWave = true;
 			this._dirtyDepCount++;
+		} else {
+			dep.involvedThisWave = false; // cancel prior wave involvement
 		}
 	}
 
@@ -1336,25 +1374,28 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		// { deactivation } cleanup is preserved across runs.
 
-		// Snapshot dep state for FnCtx. Done BEFORE clearing wave flags so
-		// the snapshot reflects "this wave" rather than "next wave".
-		const dataFrom = this._deps.map((d) => d.dataThisWave);
-		const terminalDeps = this._deps.map((d) => d.terminal);
-		const latestData = this._deps.map((d) =>
+		// Snapshot dep state BEFORE clearing wave flags so the snapshot
+		// reflects "this wave" rather than "next wave".
+		// dataBatch is copied here because _clearWaveFlags truncates the live
+		// array in-place (length = 0) — the fn must see the full wave batch.
+		const batchData: (readonly unknown[] | undefined)[] = this._deps.map((d) =>
+			!d.involvedThisWave ? undefined : d.dataBatch.length > 0 ? [...d.dataBatch] : [],
+		);
+		const latestData: unknown[] = this._deps.map((d) =>
 			d.latestData === NO_VALUE ? undefined : d.latestData,
 		);
-		const ctx: FnCtx = { dataFrom, terminalDeps, store: this._store };
+		const terminalDeps = this._deps.map((d) => d.terminal);
+		const ctx: FnCtx = { latestData, terminalDeps, store: this._store };
 
 		this._hasCalledFnOnce = true;
 		this._clearWaveFlags();
 
-		// Fire inspector hook before fn runs — for Graph.observe causal
-		// traces. depValues is the snapshot about to be passed to fn.
-		this._inspectorHook?.({ kind: "run", depValues: latestData });
+		// Fire inspector hook before fn runs — for Graph.observe causal traces.
+		this._inspectorHook?.({ kind: "run", batchData, latestData });
 
 		this._isExecutingFn = true;
 		try {
-			const result = this._fn(latestData, this._actions, ctx);
+			const result = this._fn(batchData, this._actions, ctx);
 			if (typeof result === "function") {
 				this._cleanup = result;
 			} else if (
@@ -1393,8 +1434,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				// Chain converged — reset the depth counter for the next wave.
 				this._rerunDepth = 0;
 			}
-			// Clear flags after rerun so any dataThisWave set by fn's
-			// _addDep subscribe handshakes doesn't leak into the next
+			// Clear flags after rerun so any involvedThisWave/dataBatch set by
+			// fn's _addDep subscribe handshakes doesn't leak into the next
 			// wave's snapshot. The inner _execFn (if any) already did
 			// its own pre-snapshot clear; this is for the case where
 			// fn added deps but no rerun fired.
@@ -1405,7 +1446,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _clearWaveFlags(): void {
 		this._waveHasNewData = false;
 		this._hasNewTerminal = false;
-		for (const d of this._deps) d.dataThisWave = false;
+		for (const d of this._deps) {
+			d.involvedThisWave = false;
+			d.dataBatch.length = 0;
+		}
 	}
 
 	private _wrapFnError(label: string, err: unknown): Error {

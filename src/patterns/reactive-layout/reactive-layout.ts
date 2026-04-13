@@ -741,7 +741,11 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	// measurement caches.
 	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
 		[textNode, fontNode],
-		([textVal, fontVal], actions) => {
+		(data, actions, ctx) => {
+			const b0 = data[0];
+			const textVal = (b0 != null && b0.length > 0 ? b0.at(-1) : ctx.latestData[0]) as string;
+			const b1 = data[1];
+			const fontVal = (b1 != null && b1.length > 0 ? b1.at(-1) : ctx.latestData[1]) as string;
 			const t0 = monotonicNs();
 			const measureStats: SegmentMeasureStats = { hits: 0, misses: 0 };
 			const result = analyzeAndMeasure(

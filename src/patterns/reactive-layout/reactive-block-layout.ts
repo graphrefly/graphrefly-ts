@@ -303,7 +303,9 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	// the old v4 per-node `onMessage` hook that watched for INVALIDATE.
 	const measuredBlocksNode: Node<MeasuredBlock[]> = node<MeasuredBlock[]>(
 		[blocksNode, maxWidthNode],
-		([blocksVal, mwVal], actions) => {
+		(data, actions, ctx) => {
+			const blocksVal = data[0] != null && data[0].length > 0 ? data[0].at(-1) : ctx.latestData[0];
+			const mwVal = data[1] != null && data[1].length > 0 ? data[1].at(-1) : ctx.latestData[1];
 			const t0 = monotonicNs();
 			const result = measureBlocks(
 				blocksVal as ContentBlock[],
