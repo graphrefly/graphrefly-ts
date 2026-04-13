@@ -663,8 +663,11 @@ export function throwError(err: unknown, opts?: ExtraOpts): Node<never> {
 export function forEach<T>(source: Node<T>, fn: (value: T) => void, opts?: ExtraOpts): () => void {
 	const inner = node(
 		[source as Node],
-		(data, _actions, ctx) => {
-			if (ctx.dataFrom[0]) fn(data[0] as T);
+		(data, _actions) => {
+			const batch0 = data[0];
+			if (batch0 != null && batch0.length > 0) {
+				for (const v of batch0) fn(v as T);
+			}
 		},
 		{ describeKind: "effect", ...opts } as NodeOptions,
 	);
@@ -693,7 +696,10 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
 		(data, actions, ctx) => {
 			if (!ctx.store.buf) ctx.store.buf = [];
 			const buf = ctx.store.buf as T[];
-			if (ctx.dataFrom[0]) buf.push(data[0] as T);
+			const batch0 = data[0];
+			if (batch0 != null && batch0.length > 0) {
+				for (const v of batch0) buf.push(v as T);
+			}
 			// Emit only on COMPLETE — accumulate silently until then.
 			if (ctx.terminalDeps[0] !== undefined) {
 				actions.emit([...buf]);

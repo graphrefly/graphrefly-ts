@@ -4,8 +4,8 @@
  *
  * v5 foundation redesign: all operators use `actions.emit()` for value emission,
  * `ctx.store` for persistent state, `ctx.terminalDeps` for terminal handling,
- * and `ctx.dataFrom` for DATA vs RESOLVED discrimination. `onMessage` and
- * `onResubscribe` are removed; `NO_VALUE` is no longer exported.
+ * and `data[i]` batch shape for DATA vs RESOLVED discrimination. `onMessage`
+ * and `onResubscribe` are removed; `NO_VALUE` is no longer exported.
  */
 
 import { monotonicNs } from "../core/clock.js";
@@ -75,9 +75,20 @@ export function filter<T>(
 ): Node<T> {
 	return node<T>(
 		[source as Node],
-		([v], a) => {
-			if (predicate(v as T)) a.emit(v as T);
-			else a.down([[RESOLVED]]);
+		(data, a) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			let emitted = false;
+			for (const v of batch0) {
+				if (predicate(v as T)) {
+					a.emit(v as T);
+					emitted = true;
+				}
+			}
+			if (!emitted) a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);
@@ -112,10 +123,17 @@ export function scan<T, R>(
 ): Node<R> {
 	return node<R>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
-			ctx.store.acc = reducer(ctx.store.acc as R, v as T);
-			a.emit(ctx.store.acc as R);
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) {
+				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
+				a.emit(ctx.store.acc as R);
+			}
 		},
 		{ ...operatorOpts(opts), initial: seed, resetOnTeardown: true },
 	);
@@ -150,7 +168,7 @@ export function reduce<T, R>(
 ): Node<R> {
 	return node<R>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
 			// ERROR: let auto-error propagate — don't emit accumulated value.
 			if (ctx.terminalDeps[0] !== undefined && ctx.terminalDeps[0] !== true) {
@@ -165,8 +183,11 @@ export function reduce<T, R>(
 			// Only accumulate if dep sent DATA this wave. Emit nothing
 			// until COMPLETE — downstream's pre-set-dirty DepRecord holds
 			// the wave open naturally.
-			if (ctx.dataFrom[0]) {
-				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
+			const batch0 = data[0];
+			if (batch0 != null && batch0.length > 0) {
+				for (const v of batch0) {
+					ctx.store.acc = reducer(ctx.store.acc as R, v as T);
+				}
 			}
 		},
 		{
@@ -210,7 +231,7 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 	}
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			if (!("taken" in ctx.store)) ctx.store.taken = 0;
 			if (ctx.store.done) {
 				a.down([[RESOLVED]]);
@@ -222,16 +243,20 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 				a.down([[COMPLETE]]);
 				return;
 			}
-			if (!ctx.dataFrom[0]) {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			// DATA wave
-			ctx.store.taken = (ctx.store.taken as number) + 1;
-			a.emit(v as T);
-			if ((ctx.store.taken as number) >= count) {
-				ctx.store.done = true;
-				a.down([[COMPLETE]]);
+			// DATA wave: iterate full batch, stop at count
+			for (const v of batch0) {
+				(ctx.store.taken as number)++;
+				a.emit(v as T);
+				if ((ctx.store.taken as number) >= count) {
+					ctx.store.done = true;
+					a.down([[COMPLETE]]);
+					return;
+				}
 			}
 		},
 		{
@@ -261,19 +286,25 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 export function skip<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			if (!("skipped" in ctx.store)) ctx.store.skipped = 0;
-			if (!ctx.dataFrom[0]) {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
 				// RESOLVED wave — pass through
 				a.down([[RESOLVED]]);
 				return;
 			}
-			ctx.store.skipped = (ctx.store.skipped as number) + 1;
-			if ((ctx.store.skipped as number) <= count) {
-				a.down([[RESOLVED]]);
-			} else {
-				a.emit(v as T);
+			let emitted = false;
+			for (const v of batch0) {
+				(ctx.store.skipped as number)++;
+				if ((ctx.store.skipped as number) <= count) {
+					// Still in skip window
+				} else {
+					a.emit(v as T);
+					emitted = true;
+				}
 			}
+			if (!emitted) a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);
@@ -303,21 +334,24 @@ export function takeWhile<T>(
 ): Node<T> {
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			if (ctx.store.done) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			if (!ctx.dataFrom[0]) {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			if (!predicate(v as T)) {
-				ctx.store.done = true;
-				a.down([[COMPLETE]]);
-				return;
+			for (const v of batch0) {
+				if (!predicate(v as T)) {
+					ctx.store.done = true;
+					a.down([[COMPLETE]]);
+					return;
+				}
+				a.emit(v as T);
 			}
-			a.emit(v as T);
 		},
 		{
 			...operatorOpts(opts),
@@ -428,7 +462,7 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 	const useDefault = options != null && Object.hasOwn(options, "defaultValue");
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			// Check for terminal — dep completed
 			if (ctx.terminalDeps[0] !== undefined) {
 				if (ctx.store.has) {
@@ -440,10 +474,10 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 				return;
 			}
 			// Accumulate latest DATA — emit nothing until COMPLETE.
-			// Downstream's pre-set-dirty DepRecord holds the wave open
-			// naturally; no RESOLVED needed.
-			if (ctx.dataFrom[0]) {
-				ctx.store.latest = v as T;
+			// Downstream's pre-set-dirty DepRecord holds the wave open naturally.
+			const batch0 = data[0];
+			if (batch0 != null && batch0.length > 0) {
+				ctx.store.latest = batch0.at(-1) as T;
 				ctx.store.has = true;
 			}
 		},
@@ -541,9 +575,16 @@ export function tap<T>(
 	if (typeof fnOrObserver === "function") {
 		return node<T>(
 			[source as Node],
-			([v], a) => {
-				fnOrObserver(v as T);
-				a.emit(v as T);
+			(data, a) => {
+				const batch0 = data[0];
+				if (batch0 == null || batch0.length === 0) {
+					a.down([[RESOLVED]]);
+					return;
+				}
+				for (const v of batch0) {
+					fnOrObserver(v as T);
+					a.emit(v as T);
+				}
 			},
 			operatorOpts(opts),
 		);
@@ -551,7 +592,7 @@ export function tap<T>(
 	const obs = fnOrObserver;
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
+		(data, a, ctx) => {
 			// Check for terminal events
 			if (ctx.terminalDeps[0] !== undefined) {
 				if (ctx.terminalDeps[0] === true) {
@@ -563,10 +604,15 @@ export function tap<T>(
 				}
 				return;
 			}
-			if (ctx.dataFrom[0]) {
-				obs.data?.(v as T);
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
 			}
-			a.emit(v as T);
+			for (const v of batch0) {
+				obs.data?.(v as T);
+				a.emit(v as T);
+			}
 		},
 		{
 			...operatorOpts(opts),
@@ -599,15 +645,24 @@ export function distinctUntilChanged<T>(
 ): Node<T> {
 	return node<T>(
 		[source as Node],
-		([v], a, ctx) => {
-			const val = v as T;
-			if (ctx.store.hasPrev && equals(ctx.store.prev as T, val)) {
+		(data, a, ctx) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			ctx.store.prev = val;
-			ctx.store.hasPrev = true;
-			a.emit(val);
+			let emitted = false;
+			for (const val of batch0 as T[]) {
+				if (ctx.store.hasPrev && equals(ctx.store.prev as T, val)) {
+					// Suppressed — same as previous
+				} else {
+					ctx.store.prev = val;
+					ctx.store.hasPrev = true;
+					a.emit(val);
+					emitted = true;
+				}
+			}
+			if (!emitted) a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);
@@ -632,17 +687,26 @@ export function distinctUntilChanged<T>(
 export function pairwise<T>(source: Node<T>, opts?: ExtraOpts): Node<readonly [T, T]> {
 	return node<readonly [T, T]>(
 		[source as Node],
-		([v], a, ctx) => {
-			const x = v as T;
-			if (!ctx.store.hasPrev) {
-				ctx.store.prev = x;
-				ctx.store.hasPrev = true;
+		(data, a, ctx) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			const pair = [ctx.store.prev as T, x] as const;
-			ctx.store.prev = x;
-			a.emit(pair);
+			let emitted = false;
+			for (const x of batch0 as T[]) {
+				if (!ctx.store.hasPrev) {
+					ctx.store.prev = x;
+					ctx.store.hasPrev = true;
+					// First value — no pair yet
+				} else {
+					const pair = [ctx.store.prev as T, x] as const;
+					ctx.store.prev = x;
+					a.emit(pair);
+					emitted = true;
+				}
+			}
+			if (!emitted) a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);
@@ -708,9 +772,13 @@ export function withLatestFrom<A, B>(
 	return node<readonly [A, B]>(
 		[primary as Node, secondary as Node],
 		(data, a, ctx) => {
-			// Only emit when primary (dep 0) sent DATA this wave
-			if (ctx.dataFrom[0]) {
-				a.emit([data[0] as A, data[1] as B]);
+			const batch0 = data[0];
+			// Only emit when primary (dep 0) sent DATA this wave.
+			// _sentinelDepCount gate guarantees secondary has a latestData value.
+			if (batch0 != null && batch0.length > 0) {
+				for (const v of batch0 as A[]) {
+					a.emit([v, ctx.latestData[1] as B]);
+				}
 			} else {
 				// Secondary update only — don't emit downstream DATA
 				a.down([[RESOLVED]]);
@@ -2251,12 +2319,21 @@ export function rescue<T>(
 export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
 	return node<T>(
 		[source as Node, control as Node],
-		(data, a) => {
-			if (!data[1]) {
+		(data, a, ctx) => {
+			const batch1 = data[1];
+			const controlValue = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.latestData[1];
+			if (!controlValue) {
 				a.down([[RESOLVED]]);
 				return;
 			}
-			a.emit(data[0] as T);
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) {
+				a.emit(v as T);
+			}
 		},
 		operatorOpts(opts),
 	);
