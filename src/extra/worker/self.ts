@@ -20,7 +20,7 @@
 
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
-import { type Node, type NodeSink, defaultConfig } from "../../core/node.js";
+import { defaultConfig, type Node, type NodeSink } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";

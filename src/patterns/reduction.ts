@@ -9,6 +9,7 @@
  */
 
 import { batch } from "../core/batch.js";
+import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
@@ -20,7 +21,6 @@ import {
 	RESUME,
 	TEARDOWN,
 } from "../core/messages.js";
-import type { NodeActions } from "../core/config.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
 import { merge } from "../extra/operators.js";
@@ -161,68 +161,75 @@ function _addBranch<T>(
 
 	// Producer pattern: manually subscribe to source and rules for per-message
 	// interception (onMessage removed in v5)
-	const filterNode = node<T>([], (data, filterActions) => {
-		const srcUnsub = (source as Node).subscribe((msgs) => {
-			for (const msg of msgs) {
-				_handleStratifyMessage(msg, 0, filterActions);
-			}
-		});
-		const rulesUnsub = (rulesNode as Node).subscribe((msgs) => {
-			for (const msg of msgs) {
-				_handleStratifyMessage(msg, 1, filterActions);
-			}
-		});
-		return () => { srcUnsub(); rulesUnsub(); };
-	}, {
-		describeKind: "derived",
-		meta: baseMeta("stratify_branch", { branch: rule.name }),
-		completeWhenDepsComplete: false,
-	});
+	const filterNode = node<T>(
+		[],
+		(data, filterActions) => {
+			const srcUnsub = (source as Node).subscribe((msgs) => {
+				for (const msg of msgs) {
+					_handleStratifyMessage(msg, 0, filterActions);
+				}
+			});
+			const rulesUnsub = (rulesNode as Node).subscribe((msgs) => {
+				for (const msg of msgs) {
+					_handleStratifyMessage(msg, 1, filterActions);
+				}
+			});
+			return () => {
+				srcUnsub();
+				rulesUnsub();
+			};
+		},
+		{
+			describeKind: "derived",
+			meta: baseMeta("stratify_branch", { branch: rule.name }),
+			completeWhenDepsComplete: false,
+		},
+	);
 
 	function _handleStratifyMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
-			const t = msg[0];
+		const t = msg[0];
 
-			// --- DIRTY (phase 1) ---
-			if (t === DIRTY) {
-				if (depIndex === 0) {
-					sourceDirty = true;
-					pendingDirty = true;
-				} else {
-					rulesDirty = true;
-				}
-				return true;
+		// --- DIRTY (phase 1) ---
+		if (t === DIRTY) {
+			if (depIndex === 0) {
+				sourceDirty = true;
+				pendingDirty = true;
+			} else {
+				rulesDirty = true;
 			}
+			return true;
+		}
 
-			// --- Phase 2 (DATA / RESOLVED) ---
-			if (t === DATA || t === RESOLVED) {
-				if (depIndex === 0) {
-					sourceDirty = false;
-					sourcePhase2 = true;
-					sourceValue = t === DATA ? (msg[1] as T) : _noValue;
-				} else {
-					rulesDirty = false;
-				}
-
-				// Wait for all dirty deps to settle
-				if (sourceDirty || rulesDirty) return true;
-
-				resolve(actions);
-				return true;
-			}
-
-			// --- Terminal ---
-			if (t === COMPLETE || t === ERROR || t === TEARDOWN) {
+		// --- Phase 2 (DATA / RESOLVED) ---
+		if (t === DATA || t === RESOLVED) {
+			if (depIndex === 0) {
 				sourceDirty = false;
+				sourcePhase2 = true;
+				sourceValue = t === DATA ? (msg[1] as T) : _noValue;
+			} else {
 				rulesDirty = false;
-				sourcePhase2 = false;
-				sourceValue = _noValue;
-				pendingDirty = false;
-				if (depIndex === 0) {
-					actions.down([msg]);
-				}
-				// Rules terminal: swallow (branch stays alive)
-				return true;
 			}
+
+			// Wait for all dirty deps to settle
+			if (sourceDirty || rulesDirty) return true;
+
+			resolve(actions);
+			return true;
+		}
+
+		// --- Terminal ---
+		if (t === COMPLETE || t === ERROR || t === TEARDOWN) {
+			sourceDirty = false;
+			rulesDirty = false;
+			sourcePhase2 = false;
+			sourceValue = _noValue;
+			pendingDirty = false;
+			if (depIndex === 0) {
+				actions.down([msg]);
+			}
+			// Rules terminal: swallow (branch stays alive)
+			return true;
+		}
 
 		// Swallow PAUSE/RESUME/INVALIDATE from rules dep (internal impl detail)
 		if (depIndex === 1) return true;
@@ -320,9 +327,13 @@ export function funnel<T>(
 		const stageInputPath = `${stage.name}::input`;
 		const stageInput = g.resolve(stageInputPath);
 		const bridgeName = `__bridge_${prevOutputPath}→${stage.name}_input`;
-		const br = effect([prevNode], ([data]) => {
-			stageInput.down([[DATA, data]]);
-		}, { name: bridgeName });
+		const br = effect(
+			[prevNode],
+			([data]) => {
+				stageInput.down([[DATA, data]]);
+			},
+			{ name: bridgeName },
+		);
 		g.add(bridgeName, br as Node<unknown>);
 		g.connect(prevOutputPath, bridgeName);
 		g.addDisposer(keepalive(br));
@@ -394,37 +405,41 @@ export function feedback(
 	// Feedback effect: subscribe to condition node for per-message interception
 	// (onMessage removed in v5 — use producer+subscribe instead)
 	const feedbackEffectName = `__feedback_effect_${condition}`;
-	const feedbackEffect = node([], (data, feedbackActions) => {
-		const unsub = condNode.subscribe((msgs) => {
-			for (const msg of msgs) {
-				const t = msg[0];
-				if (t === DATA) {
-					const currentCount = counter.cache as number;
-					if (currentCount >= maxIter) return;
-					const condValue = msg[1];
-					if (condValue == null) return;
-					batch(() => {
-						counter.down([[DATA, currentCount + 1]]);
-						reentryNode.down([[DATA, condValue]]);
-					});
-				} else if (t === COMPLETE || t === ERROR) {
-					const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];
-					counter.down([terminal]);
+	const feedbackEffect = node(
+		[],
+		(data, feedbackActions) => {
+			const unsub = condNode.subscribe((msgs) => {
+				for (const msg of msgs) {
+					const t = msg[0];
+					if (t === DATA) {
+						const currentCount = counter.cache as number;
+						if (currentCount >= maxIter) return;
+						const condValue = msg[1];
+						if (condValue == null) return;
+						batch(() => {
+							counter.down([[DATA, currentCount + 1]]);
+							reentryNode.down([[DATA, condValue]]);
+						});
+					} else if (t === COMPLETE || t === ERROR) {
+						const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];
+						counter.down([terminal]);
+					}
 				}
-			}
-		});
-		return () => unsub();
-	}, {
-		name: feedbackEffectName,
-		describeKind: "effect",
-		meta: {
-			...baseMeta("feedback_effect", {
-				feedbackFrom: condition,
-				feedbackTo: reentry,
-			}),
-			_internal: true,
+			});
+			return () => unsub();
 		},
-	});
+		{
+			name: feedbackEffectName,
+			describeKind: "effect",
+			meta: {
+				...baseMeta("feedback_effect", {
+					feedbackFrom: condition,
+					feedbackTo: reentry,
+				}),
+				_internal: true,
+			},
+		},
+	);
 	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
 	graph.connect(condition, feedbackEffectName);
 	graph.addDisposer(keepalive(feedbackEffect));
@@ -497,98 +512,106 @@ export function budgetGate<T>(
 
 	// Producer pattern: manually subscribe to all deps for per-message interception
 	// (onMessage removed in v5 — use producer+subscribe instead)
-	return node<T>([], (data, gateActions) => {
-		const unsubs: Array<() => void> = [];
-		for (let depIdx = 0; depIdx < allDeps.length; depIdx++) {
-			const dep = allDeps[depIdx];
-			unsubs.push(dep.subscribe((msgs) => {
-				for (const msg of msgs) {
-					_handleBudgetMessage(msg, depIdx, gateActions);
-				}
-			}));
-		}
-		return () => { for (const u of unsubs) u(); };
-	}, {
-		...opts,
-		describeKind: "derived",
-		meta: baseMeta("budget_gate", opts?.meta),
-	} as NodeOptions<T>);
+	return node<T>(
+		[],
+		(data, gateActions) => {
+			const unsubs: Array<() => void> = [];
+			for (let depIdx = 0; depIdx < allDeps.length; depIdx++) {
+				const dep = allDeps[depIdx];
+				unsubs.push(
+					dep.subscribe((msgs) => {
+						for (const msg of msgs) {
+							_handleBudgetMessage(msg, depIdx, gateActions);
+						}
+					}),
+				);
+			}
+			return () => {
+				for (const u of unsubs) u();
+			};
+		},
+		{
+			...opts,
+			describeKind: "derived",
+			meta: baseMeta("budget_gate", opts?.meta),
+		} as NodeOptions<T>,
+	);
 
 	function _handleBudgetMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
-			const t = msg[0];
+		const t = msg[0];
 
-			// Source messages (dep 0)
-			if (depIndex === 0) {
-				if (t === DATA) {
-					if (checkBudget() && buffer.length === 0) {
-						actions.emit(msg[1] as T);
-					} else {
-						buffer.push(msg[1] as T);
-						if (!paused) {
-							paused = true;
-							actions.up([[PAUSE, lockId]]);
-						}
+		// Source messages (dep 0)
+		if (depIndex === 0) {
+			if (t === DATA) {
+				if (checkBudget() && buffer.length === 0) {
+					actions.emit(msg[1] as T);
+				} else {
+					buffer.push(msg[1] as T);
+					if (!paused) {
+						paused = true;
+						actions.up([[PAUSE, lockId]]);
 					}
-					return true;
-				}
-				if (t === DIRTY) {
-					actions.down([[DIRTY]]);
-					return true;
-				}
-				if (t === RESOLVED) {
-					if (buffer.length === 0) {
-						actions.down([[RESOLVED]]);
-					} else {
-						// Buffer non-empty: defer RESOLVED until buffer drains
-						pendingResolved = true;
-					}
-					return true;
-				}
-				if (t === COMPLETE || t === ERROR) {
-					// Force-flush all buffered items regardless of budget (terminal = done)
-					for (const item of buffer) {
-						actions.emit(item);
-					}
-					buffer = [];
-					pendingResolved = false;
-					// Release PAUSE lock before forwarding terminal
-					if (paused) {
-						paused = false;
-						actions.up([[RESUME, lockId]]);
-					}
-					actions.down([msg]);
-					return true;
-				}
-				return false;
-			}
-
-			// Constraint node messages (dep 1+): re-check budget
-			if (t === DATA || t === RESOLVED) {
-				if (checkBudget() && buffer.length > 0) {
-					flushBuffer(actions);
-					if (buffer.length === 0 && paused) {
-						paused = false;
-						actions.up([[RESUME, lockId]]);
-					}
-				} else if (!checkBudget() && !paused && buffer.length > 0) {
-					paused = true;
-					actions.up([[PAUSE, lockId]]);
 				}
 				return true;
 			}
 			if (t === DIRTY) {
-				// Don't propagate constraint DIRTY downstream
+				actions.down([[DIRTY]]);
 				return true;
 			}
-			if (t === ERROR) {
-				// Constraint error → forward downstream
+			if (t === RESOLVED) {
+				if (buffer.length === 0) {
+					actions.down([[RESOLVED]]);
+				} else {
+					// Buffer non-empty: defer RESOLVED until buffer drains
+					pendingResolved = true;
+				}
+				return true;
+			}
+			if (t === COMPLETE || t === ERROR) {
+				// Force-flush all buffered items regardless of budget (terminal = done)
+				for (const item of buffer) {
+					actions.emit(item);
+				}
+				buffer = [];
+				pendingResolved = false;
+				// Release PAUSE lock before forwarding terminal
+				if (paused) {
+					paused = false;
+					actions.up([[RESUME, lockId]]);
+				}
 				actions.down([msg]);
 				return true;
 			}
-			if (t === COMPLETE) {
-				// Constraint completed — locked at last value, no-op
-				return true;
+			return false;
+		}
+
+		// Constraint node messages (dep 1+): re-check budget
+		if (t === DATA || t === RESOLVED) {
+			if (checkBudget() && buffer.length > 0) {
+				flushBuffer(actions);
+				if (buffer.length === 0 && paused) {
+					paused = false;
+					actions.up([[RESUME, lockId]]);
+				}
+			} else if (!checkBudget() && !paused && buffer.length > 0) {
+				paused = true;
+				actions.up([[PAUSE, lockId]]);
 			}
+			return true;
+		}
+		if (t === DIRTY) {
+			// Don't propagate constraint DIRTY downstream
+			return true;
+		}
+		if (t === ERROR) {
+			// Constraint error → forward downstream
+			actions.down([msg]);
+			return true;
+		}
+		if (t === COMPLETE) {
+			// Constraint completed — locked at last value, no-op
+			return true;
+		}
 		// Unknown constraint types → default forwarding
 		return false;
 	}
@@ -668,7 +691,13 @@ export function scorer(
 			};
 		},
 		{
-			...(opts ? { equals: opts.equals, resubscribable: opts.resubscribable, resetOnTeardown: opts.resetOnTeardown } : {}),
+			...(opts
+				? {
+						equals: opts.equals,
+						resubscribable: opts.resubscribable,
+						resetOnTeardown: opts.resetOnTeardown,
+					}
+				: {}),
 			describeKind: "derived",
 			meta: baseMeta("scorer", opts?.meta),
 		},

@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { createSignal, getOwner, onCleanup } from "solid-js";
-import { DATA, DIRTY, RESOLVED, type Messages } from "../../core/messages.js";
+import { DATA, DIRTY, type Messages, RESOLVED } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 
 /** Solid accessor function — returns current value when called. */

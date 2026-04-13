@@ -968,3 +968,341 @@ describe("meta (companion stores)", () => {
 		expect(snap.meta).toEqual({ description: "ok" });
 	});
 });
+
+// §3.5 — equals substitution is a tier-3 dispatch invariant.
+// Every outgoing DATA payload is compared against the live `.cache` inside
+// `_updateState` (inside `_emit`), regardless of emission path: `actions.emit`,
+// `actions.down`, `node.down`, or bundle-wrapped down. Cache advances per
+// DATA immediately, so successive emissions within one fn run see the
+// progressively updated value. See archive/docs/SESSION-foundation-redesign.md
+// §3.5.1–.3.
+describe("§3.5 equals substitution — dispatch-layer invariant", () => {
+	function collectTier3(n: ReturnType<typeof node<number>>): {
+		msgs: symbol[];
+		values: Array<number | undefined>;
+		unsub: () => void;
+	} {
+		const msgs: symbol[] = [];
+		const values: Array<number | undefined> = [];
+		const unsub = n.subscribe((batch) => {
+			for (const m of batch) {
+				msgs.push(m[0] as symbol);
+				values.push(m[0] === DATA ? (m[1] as number) : undefined);
+			}
+		});
+		// subscribe() synchronously delivers the START handshake (plus the
+		// paired initial DATA if the node already has a cache). Drop that
+		// baseline so tests only assert on emissions they trigger themselves.
+		msgs.length = 0;
+		values.length = 0;
+		return { msgs, values, unsub };
+	}
+
+	it("multi-emit within a producer fn sees progressively advanced cache", () => {
+		// Edge case from SESSION-foundation-redesign.md §3.5.1: fn emits
+		// v1, v2, v3, v2 starting from cache=2. Each emit must see the
+		// LIVE cache (advanced by the previous emit), not a snapshot at
+		// fn entry. Downstream must see DATA(1),DATA(2),DATA(3),DATA(2) —
+		// no spurious RESOLVED collapse — and the final node cache must
+		// equal the last value actually emitted (2).
+		const src = node<number>({ initial: 2 });
+		const { msgs, values, unsub } = collectTier3(src);
+
+		src.emit(1);
+		src.emit(2);
+		src.emit(3);
+		src.emit(2);
+
+		expect(msgs.filter((m) => m === DATA)).toHaveLength(4);
+		expect(msgs.filter((m) => m === RESOLVED)).toHaveLength(0);
+		expect(values.filter((v): v is number => v != null)).toEqual([1, 2, 3, 2]);
+		expect(src.cache).toBe(2);
+		unsub();
+	});
+
+	it("actions.emit(same) collapses to RESOLVED when value equals live cache", () => {
+		const src = node<number>({ initial: 7 });
+		const { msgs, unsub } = collectTier3(src);
+
+		src.emit(7); // same as cache — should collapse
+
+		expect(msgs).toContain(RESOLVED);
+		expect(msgs.filter((m) => m === DATA)).toHaveLength(0);
+		expect(src.cache).toBe(7);
+		unsub();
+	});
+
+	it("raw node.down([[DATA, same]]) collapses to RESOLVED and synthesizes DIRTY (§1.3.1)", () => {
+		// §3.5.1: equals substitution is protocol-invariant, not opt-in.
+		// Raw `down([[DATA, same]])` runs through the dispatch-layer equals
+		// check inside `_updateState`. When substituting DATA→RESOLVED with
+		// no DIRTY in the wave, the walk synthesizes a DIRTY prefix so the
+		// emitted batch `[[DIRTY], [RESOLVED]]` remains spec §1.3.1
+		// compliant (DIRTY precedes RESOLVED).
+		const src = node<number>({ initial: 42 });
+		const { msgs, unsub } = collectTier3(src);
+
+		src.down([[DATA, 42]]);
+
+		expect(msgs).toEqual([DIRTY, RESOLVED]);
+		expect(src.cache).toBe(42);
+		unsub();
+	});
+
+	it("raw node.down([[DIRTY], [DATA, same]]) collapses DATA → RESOLVED without adding a second DIRTY", () => {
+		// Bundle-style raw emission: caller frames DIRTY+DATA explicitly.
+		// DIRTY is tier-1 and passes through unchanged. The tier-3 DATA
+		// gets equals-substituted when payload matches live cache. Because
+		// the caller already supplied DIRTY, the walk must NOT synthesize
+		// a second one.
+		const src = node<number>({ initial: 5 });
+		const { msgs, unsub } = collectTier3(src);
+
+		src.down([[DIRTY], [DATA, 5]]);
+
+		expect(msgs).toEqual([DIRTY, RESOLVED]);
+		expect(src.cache).toBe(5);
+		unsub();
+	});
+
+	it("raw down with two same-value DATAs in one batch: both collapse, one synthetic DIRTY covers the wave", () => {
+		// Per-message sequential walk: each DATA hits equals against live
+		// cache, so a batch with two same-value DATAs collapses both. The
+		// synthetic DIRTY prefix is inserted once at the head of the walk
+		// and covers every RESOLVED in the batch.
+		const src = node<number>({ initial: 9 });
+		const { msgs, unsub } = collectTier3(src);
+
+		src.down([
+			[DATA, 9],
+			[DATA, 9],
+		]);
+
+		expect(msgs).toEqual([DIRTY, RESOLVED, RESOLVED]);
+		expect(src.cache).toBe(9);
+		unsub();
+	});
+
+	it("interleaved non-substituted and substituted DATAs preserve ordering in rewritten copy", () => {
+		// BH#4 regression guard: if a raw batch is `[DIRTY, DATA(1), DATA(1), DATA(2)]`
+		// (cache already == 1), the walk must produce `[DIRTY, RESOLVED, RESOLVED, DATA(2)]`.
+		// This exercises the `rewritten.push(m)` at the bottom of the non-
+		// substituted DATA branch — if that push is ever removed, non-
+		// substituted DATAs after a substituted one would silently disappear.
+		const src = node<number>({ initial: 1 });
+		const { msgs, values, unsub } = collectTier3(src);
+
+		src.down([[DIRTY], [DATA, 1], [DATA, 1], [DATA, 2]]);
+
+		expect(msgs).toEqual([DIRTY, RESOLVED, RESOLVED, DATA]);
+		expect(values.filter((v): v is number => v != null)).toEqual([2]);
+		expect(src.cache).toBe(2);
+		unsub();
+	});
+
+	it("mixed emit+down+emit sequence sees coherent live cache through all paths", () => {
+		// actions.emit and raw down must share the same `.cache` view:
+		// 1. emit(x) when cache != x → DATA, cache = x
+		// 2. down([[DATA, x]]) with cache = x → collapses to RESOLVED
+		// 3. emit(x) again with cache = x → collapses to RESOLVED
+		const src = node<number>({ initial: 0 });
+		const { msgs, values, unsub } = collectTier3(src);
+
+		src.emit(5); // 0 → 5: DATA
+		src.down([[DATA, 5]]); // cache=5, same: RESOLVED (+ synthetic DIRTY)
+		src.emit(5); // cache=5, same: RESOLVED (via bundle DIRTY prefix)
+
+		expect(msgs.filter((m) => m === DATA)).toHaveLength(1);
+		expect(msgs.filter((m) => m === RESOLVED)).toHaveLength(2);
+		expect(values.filter((v): v is number => v != null)).toEqual([5]);
+		expect(src.cache).toBe(5);
+		unsub();
+	});
+
+	it("actions.emit(v) ≡ actions.down(bundle([DATA, v]).resolve()) — both paths hit the same dispatch walk", () => {
+		// §3.5.2 taxonomy: emit is sugar for bundle-wrapped raw down. Two
+		// identical state nodes emitting via the two paths must produce
+		// byte-for-byte identical wire output.
+		const nA = node<number>({ initial: 0 });
+		const nB = node<number>({ initial: 0 });
+		const collectedA = collectTier3(nA);
+		const collectedB = collectTier3(nB);
+
+		// nA uses actions.emit via node.emit sugar.
+		nA.emit(5);
+		// nB uses raw down with the exact batch bundle would produce for
+		// emit(5) when status is not already "dirty": `[[DIRTY], [DATA, 5]]`.
+		nB.down([[DIRTY], [DATA, 5]]);
+
+		// Both should produce [DIRTY, DATA(5)] — nA via bundle auto-prefix
+		// inside node.emit, nB via the explicit [DIRTY] in the raw batch.
+		expect(collectedA.msgs).toEqual(collectedB.msgs);
+		expect(collectedA.values).toEqual(collectedB.values);
+		expect(nA.cache).toBe(nB.cache);
+		collectedA.unsub();
+		collectedB.unsub();
+	});
+
+	it("actions.emit(v) and raw actions.down([[DATA, v]]) differ — emit auto-prefixes DIRTY, raw does not", () => {
+		// §3.5.2 corollary: the visible difference between emit and raw
+		// down (when no substitution fires) is DIRTY auto-prefix. Starting
+		// from cache=0, emit(6) ≠ cache → wire is [DIRTY, DATA(6)]. Raw
+		// down([[DATA, 6]]) ≠ cache produces just [DATA, 6] (no synthetic
+		// DIRTY because no substitution, and raw opted out of two-phase
+		// framing per spec §1.3.1 compat path).
+		const nEmit = node<number>({ initial: 0 });
+		const nRaw = node<number>({ initial: 0 });
+		const collectedEmit = collectTier3(nEmit);
+		const collectedRaw = collectTier3(nRaw);
+
+		nEmit.emit(6);
+		nRaw.down([[DATA, 6]]);
+
+		expect(collectedEmit.msgs).toEqual([DIRTY, DATA]);
+		expect(collectedRaw.msgs).toEqual([DATA]);
+		collectedEmit.unsub();
+		collectedRaw.unsub();
+	});
+
+	it("cache advance is visible to a post-DATA COMPLETE in the same walked batch", () => {
+		// §3.5.3 — mixed-tier cache-advance ordering. The walk processes
+		// messages in array order; when caller-supplied (or bundle-sorted)
+		// order is tier-monotone, the tier-3 slice fully advances cache
+		// before tier-4 handlers run. A COMPLETE observer sees the
+		// post-DATA cache.
+		const src = node<number>({ initial: 0 });
+		const finalSnapshot = { cache: -1 };
+		const unsub = src.subscribe((batch) => {
+			for (const m of batch) {
+				if (m[0] === COMPLETE) {
+					finalSnapshot.cache = src.cache ?? -1;
+				}
+			}
+		});
+
+		src.down([[DATA, 99], [COMPLETE]]);
+
+		expect(finalSnapshot.cache).toBe(99);
+		expect(src.cache).toBe(99);
+		unsub();
+	});
+
+	it("§3.5.3 bundle path: bundle sorts DATA before COMPLETE and cache advances within tier-3 slice", () => {
+		// Explicit bundle-path companion to the raw-sorted test above. The
+		// producer emits `[[COMPLETE], [DATA, 77]]` through bundle — out
+		// of tier order on input, but bundle.resolve() sorts to
+		// `[[DIRTY?], [DATA, 77], [COMPLETE]]`. The walk advances cache
+		// before the COMPLETE handler runs, so any downstream observer
+		// watching COMPLETE sees cache = 77.
+		let completeCache = -1;
+		const src = node<number>(
+			[],
+			(_data, actions) => {
+				actions.down(actions.bundle([[COMPLETE] as Message, [DATA, 77] as Message]).resolve());
+			},
+			{ initial: 0 },
+		);
+		const unsub = src.subscribe((batch) => {
+			for (const m of batch) {
+				if (m[0] === COMPLETE) completeCache = src.cache ?? -2;
+			}
+		});
+		expect(completeCache).toBe(77);
+		expect(src.cache).toBe(77);
+		unsub();
+	});
+
+	it("passthrough forwarding with custom-equals source: passthrough's own walk substitutes, not the source's", () => {
+		// A passthrough node (deps, no fn) forwards dep DATA through its
+		// own `_emit` → `_updateState`, which compares against the
+		// passthrough's own `_cached`. Two identical DATA emissions from
+		// the source produce DATA then RESOLVED at the passthrough — even
+		// though the passthrough code path never calls `actions.emit`.
+		//
+		// `src` uses `equals: () => false` so its own walk never collapses,
+		// ensuring the second DATA reaches `pass` unchanged and we can
+		// observe `pass`'s own substitution rather than src's.
+		const src = node<number>({ equals: (_a, _b) => false });
+		const pass = node<number>([src]);
+		const { msgs, unsub } = collectTier3(pass as ReturnType<typeof node<number>>);
+
+		src.down([[DIRTY], [DATA, 3]]);
+		src.down([[DIRTY], [DATA, 3]]);
+
+		const data = msgs.filter((m) => m === DATA);
+		const resolved = msgs.filter((m) => m === RESOLVED);
+		expect(data).toHaveLength(1); // first propagates as DATA
+		expect(resolved).toHaveLength(1); // second collapses at pass (exact count)
+		expect(pass.cache).toBe(3);
+		unsub();
+	});
+
+	it("initial: undefined is a real cached value (not NO_VALUE) — equals fires and collapses matching emit", () => {
+		// §2.5 load-bearing semantic: `"initial" in opts` is the
+		// presence check, NOT `opts.initial !== undefined`. A node
+		// constructed with `initial: undefined` has a real cached value
+		// (undefined) and subsequent emit(undefined) must collapse to
+		// RESOLVED via equals. A node with no `initial` key at all has
+		// `_cached === NO_VALUE` and the first emit(undefined) passes
+		// through as DATA.
+		const nWithInitial = node<number | undefined>({ initial: undefined });
+		const nWithout = node<number | undefined>();
+
+		const collectedWith = collectTier3(nWithInitial as unknown as ReturnType<typeof node<number>>);
+		const collectedWithout = collectTier3(nWithout as unknown as ReturnType<typeof node<number>>);
+
+		nWithInitial.emit(undefined);
+		nWithout.emit(undefined);
+
+		// With initial: undefined — equals(undefined, undefined) = true → collapse
+		expect(collectedWith.msgs.filter((m) => m === DATA)).toHaveLength(0);
+		expect(collectedWith.msgs).toContain(RESOLVED);
+
+		// Without initial — _cached is NO_VALUE → equals skipped → passes as DATA
+		expect(collectedWithout.msgs.filter((m) => m === DATA)).toHaveLength(1);
+
+		collectedWith.unsub();
+		collectedWithout.unsub();
+	});
+
+	it("equals throw mid-batch delivers successfully-walked prefix then ERROR (P2 atomicity)", () => {
+		// BH#1 fix: when equals throws on message N, the walk aborts,
+		// returns the prefix walked up to (but not including) N, `_emit`
+		// delivers that prefix to sinks, then emits a fresh ERROR batch.
+		// Subscribers observe `[...walked_prefix, ERROR]`, coherent with
+		// `.cache` which was advanced during the prefix walk.
+		let calls = 0;
+		const src = node<number>({
+			initial: 0,
+			equals: (a, b) => {
+				calls += 1;
+				// Throw on the second equals call (which fires for DATA(7)).
+				if (calls >= 2) throw new Error("equals boom");
+				return a === b;
+			},
+		});
+		const seen: Array<[symbol, unknown]> = [];
+		const unsub = src.subscribe((batch) => {
+			for (const m of batch) seen.push([m[0] as symbol, m[1]]);
+		});
+		// Truncate the START handshake baseline (START + paired initial DATA(0))
+		// so assertions only cover emissions from the down() call below.
+		seen.length = 0;
+
+		// Batch: DIRTY, DATA(5) — first equals call, returns false, advances cache.
+		// DATA(7) — second equals call, throws. Walk aborts at index 2.
+		// Prefix `[DIRTY, DATA(5)]` is delivered, then ERROR.
+		src.down([[DIRTY], [DATA, 5], [DATA, 7]]);
+
+		const msgKinds = seen.map(([k]) => k);
+		expect(msgKinds).toContain(DIRTY);
+		expect(msgKinds).toContain(DATA);
+		expect(msgKinds).toContain(ERROR);
+		// DATA(5) was delivered (walked prefix), DATA(7) was NOT (aborted).
+		const dataValues = seen.filter(([k]) => k === DATA).map(([, v]) => v);
+		expect(dataValues).toEqual([5]);
+		// Cache advanced to 5 during prefix walk; never became 7.
+		expect(src.cache).toBe(5);
+		unsub();
+	});
+});

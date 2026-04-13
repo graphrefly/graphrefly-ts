@@ -32,18 +32,61 @@
 - **`equals` subtree skip verification (proposed, 2026-04-11):**
   Bench shows `equals` provides no benefit when values always change (expected). However, need to verify that when `equals` returns true and RESOLVED is emitted, downstream derived nodes truly skip fn re-run (not just emit RESOLVED themselves after re-running). Add a bench variant where `equals` returns true 50% of the time to measure actual subtree pruning benefit.
 
-- **P3 audit: `.cache` reads inside fn/subscribe callbacks (2026-04-12):**
-  Six call sites read `.cache` on another node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral. Tracked violations:
+- **P3 audit: `.cache` reads inside fn/subscribe callbacks (updated 2026-04-12):**
+  Call sites reading `.cache` on a node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral.
+
+  **Originally tracked (still open):**
   1. `operators.ts:994` — `forwardInner` reads `inner.cache` after subscribe to seed value for synchronous producers. Fragile under batch.
   2. `composite.ts:78` — `sourceNode.cache` inside switchMap project fn. Should receive value through the trigger/dep protocol.
-  3. `composite.ts:184` — `verdict.cache === true` inside derived fn. Should subscribe to verdict reactively (partially addressed by forEach patch, needs full redesign).
+  3. `composite.ts:184` — `verdict.cache === true` inside derived fn. (Cross-ref: distill eviction redesign item below.)
   4. `resilience.ts:624` — `out.meta.status.cache === "errored"` in subscribe callback. Should react to status changes via protocol.
   5. `resilience.ts:733` — `(fb as Node<T>).cache` reads fallback value in callback. Should subscribe to fallback node.
   6. `adapters.ts:394` — `fetchCount.cache ?? 0` in subscribe callback. Should use protocol-delivered value.
-  Fix approach: each call site needs case-by-case analysis — some may need structural redesign (subscribe + protocol delivery), others may be acceptable external reads at wiring time. Separate audit session.
+
+  **Added by 2026-04-12 full scan:**
+  7. `composite.ts:128` via `asReadonlyMap` called at `composite.ts:162` and `:214` — `store.entries.cache` inside switchMap project fns. **Folded into distill eviction redesign item below.**
+  8. `worker/bridge.ts:126` — exposed-node aggregator derived fn reads `n.cache` per entry instead of using the protocol-delivered `data` array. Paired with `equals: () => false` which disables framework-level diffing. Same pattern at `worker/self.ts:101`. **Fix plan: Option A below (positional zip).**
+  9. `worker/bridge.ts:138` — `(data[0] ?? aggregated.cache)` in effect fn; the `?? aggregated.cache` fallback is dead code. Same at `worker/self.ts:114`. Cleanup.
+  10. `worker/bridge.ts:283` — `statusNode.cache === "connecting"` inside a `setTimeout` handshake-timeout callback. **Folded into worker bridge handshake-timer item below.**
+  11. `orchestration.ts:350` — `if (isOpenNode.cache)` inside `gate()`'s manual `src.node.subscribe` DATA handler. `isOpenNode` is not declared as a dep of the producer — the gate decision rides entirely on an out-of-protocol read. High-impact correctness site (gate is the harness's flow control primitive).
+  12. `reduction.ts:132` (`stratifyRule`) — `rulesNode.cache` inside a hand-rolled two-dep settlement state machine. `rulesNode` *is* a declared dep, but rules' DATA payload is discarded by the handler and re-read via `.cache`. The state machine exists specifically to avoid stale-rules races, then reads rules through `.cache` anyway. **Fix plan: replace with `withLatestFrom(source, rulesNode)` + filter.**
+  13. `reduction.ts:482` (`budgetGate.checkBudget`) — `c.check(c.node.cache)` inside producer fn. Constraint nodes are declared deps; fix by threading the fn's `data` array into `checkBudget`.
+
+  **Gray zone — self-owned counter reads (same rule, different judgment call):**
+  14. `reduction.ts:402` — feedback effect reads+writes its own `counter` state node via `.cache` inside `condNode.subscribe`. Counter is not a declared dep (no protocol path to receive it).
+  15. `harness/loop.ts:366, 368, 386, 388` — `totalRetries` / `totalReingestions` counters read+written via `.cache` inside `fastRetry` effect. **Fix plan: Option A — encapsulate in a local `tryIncrementBounded(node, cap)` helper with a documented "self-owned counter" P3 exception.**
+  16. `ai.ts:1915` — `retrieveFn` writes `queryInput` then reads `retrievalDerived.cache`, assuming synchronous settlement. Also uses a closure-variable (`lastTrace`) as a side channel to publish to `traceState`. **Fix plan: Option A — make `retrieveFn` async via `firstValueFrom(retrievalDerived)` (subscribe before emit). The trace publish stays post-await.**
+
+  **Acceptable — documented boundary / wiring-time exceptions (not violations):**
+  - `core/sugar.ts:245, 251` — `dynamicNode` discovery stub (P3 boundary exception, explicitly documented).
+  - `core/meta.ts:75, 134` + `graph/profile.ts:100` + `graph/graph.ts:881` — inspection/describe tooling.
+  - `extra/resilience.ts:163, 398, 571, 655, 755, 837, 899`, `extra/sources.ts:112, 733, 769`, `patterns/cqrs.ts:243`, `patterns/messaging.ts:92`, `extra/reactive-log.ts:139, 186` — factory-time `initial:` seeding from `source.cache` (foundation-redesign session §3.6 explicitly allows this as "external observer reads at wiring time").
+  - `patterns/messaging.ts` (retained/ack/pull/bridgedCount), `patterns/memory.ts` (readMap/readArray), `patterns/ai.ts` (allMessages/register/unregister/execute/getDefinition), `patterns/orchestration.ts:623` — external-consumer API methods called synchronously from outside the graph.
+  - `extra/cascading-cache.ts:207` — read during external-consumer `load()` write path (demote-before-evict).
+  - `extra/worker/bridge.ts:188` + `self.ts:251` — transport "worker ready" boundary handler; reads current state to build initial snapshot for wire transport.
+  - `src/compat/{react,vue,solid,svelte,jotai,nanostores,signals,zustand,nestjs}/…` — framework adapter layer; consumer-framework getSnapshot/render calls.
+
+  **Suggested fix order** (from the 2026-04-12 scan triage):
+  - **Now:** #12 stratify (withLatestFrom), #13 budgetGate (positional `data`), #8/#9 worker bridge aggregator (positional zip), #11 gate (add `isOpenNode` as dep), #15 harness counters (tryIncrementBounded helper), #16 retrieveFn (async + firstValueFrom).
+  - **Later:** #1, #2, #4, #5, #6 (original audit) — each needs case-by-case structural work. #14 (feedback counter) pairs with harness-counter exception. #7 (composite/asReadonlyMap) + #3 pair with distill eviction redesign.
+
+- **Worker bridge handshake timer → reactive deadline (proposed, 2026-04-12):**
+  `extra/worker/bridge.ts:281–292` uses a raw `setTimeout` with `opts.timeoutMs` as a one-shot handshake deadline, then reads `statusNode.cache === "connecting"` inside the callback to decide whether the worker ever answered. Two overlapping violations: (a) raw `setTimeout` bypasses the central time abstraction (§5.11 "Non-central time"), and (b) `.cache` read inside a non-reactive async callback (P3 audit #10 above). Not a polling pattern — it's a single-fire race between the handshake and the deadline — so the severity is lower than the aggregator bug, but worth fixing for consistency.
+  **Alternatives:**
+  (a) `fromTimer(timeoutMs)` + `take(1)` as a one-shot deadline node, composed with the `"r"` ready message via a `race`/`first` primitive. Requires confirming that `fromTimer` supports one-shot mode (or that `take(1)` on a periodic timer is the idiom) and that a `race` primitive exists (may need to compose from `merge` + `first`).
+  (b) Drive the deadline from a `fromTimer` source and an internal "handshake settled" state node; gate the timeout action on `!handshakeSettled` via a `derived` instead of reading `statusNode.cache`.
+  Blocked on: audit of `fromTimer` one-shot semantics and confirming `race`/`first` primitive availability.
+
+- **Worker bridge snapshot-delivery redesign (proposed, 2026-04-12):**
+  `extra/worker/bridge.ts:121–135` and `extra/worker/self.ts:95–110` implement exposed-node aggregation as a `derived` with `equals: () => false` that reads every exposed node's `.cache` inside its fn and diffs against a `lastSent` closure Map. The `.cache` reads (P3 audit #8/#11) will be fixed in the short term by zipping the fn's `data` array with `exposeEntries` positionally (Option A — local, no wire-protocol change). **Long-term direction (Option B): drop the `lastSent` closure diffing in favor of per-node `equals`-based RESOLVED suppression**, so the aggregator emits the full current snapshot on real changes only and disables `equals: () => false`. This is the same structural theme as distill eviction — both use closure state to work around "framework doesn't deliver snapshots shaped the way I need them."
+  **Reasons to defer:** (a) changing `lastSent` semantics affects the wire protocol (`{t: "b", u: updates}` currently implies per-field deltas; Option B would send full snapshots); (b) the fix is structurally similar enough to distill eviction that both should be considered under a unified "snapshot delivery" redesign rather than patched independently.
+  Blocked on: (1) wire-protocol review for delta vs. full-snapshot emission, (2) alignment with distill eviction redesign (below) so both land consistently.
 
 - **Distill eviction redesign — reactive verdict tracking (deferred, 2026-04-12):**
   `distill()` eviction with `Node<boolean>` verdicts was patched during foundation v5 rewrite with `forEach(verdict, ...)` subscriptions — functional but adds subscribe overhead per-key. The original design used `dynamicNode` to track verdict deps automatically. Redesign options: (a) store mutation events (§6 "composite.ts eviction — store mutation events") so verdict changes flow as protocol messages, (b) reactive per-entry eviction nodes managed internally by the store, (c) keep `forEach` approach but add cleanup-on-delete tracking. Separate session; blocked on store mutation event design.
+  **P3 violations folded into this redesign (2026-04-12 scan):**
+  - `composite.ts:128` `asReadonlyMap(store)` reads `store.entries.cache` from *inside* the `switchMap` project fn at `composite.ts:162` (extraction stream) and again at `composite.ts:214` (consolidation stream). Same class as the `composite.ts:78` switchMap verify violation — the snapshot is pulled through `.cache` instead of being delivered through the switchMap's outer source value. Fix belongs with the store-mutation-events redesign, not as a standalone patch (the whole `extractFn(raw, readonlyView)` signature assumes synchronous snapshot access).
+  - `composite.ts:184` `verdict.cache === true` inside the `evictionKeys` derived fn — already tracked in the P3 audit list (§P3 item 3), noted here for cross-reference.
 
 - **Reactive rate limiter → `src/extra/rate-limiter.ts` (proposed, 2026-04-10):**
   The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). To promote it to a library primitive:
@@ -70,6 +113,10 @@
 
 - **Stream extractor redundant emissions on identical chunks (2026-04-09):**
   If two consecutive `StreamChunk`s produce identical extracted results (e.g., same keyword flags), the extractor still re-emits a new array/object instance. Downstream subscribers miss memoization opportunities. Optimization: pass a structural `equals` function to the `derived` node options to suppress redundant emissions via `RESOLVED`. Deferred — identical consecutive chunks are rare in practice (accumulated text grows monotonically).
+
+- **[py-parity-equals-dispatch-invariant] Equals substitution parity (TS 2026-04-12 → PY deferred):**
+  TS landed the dispatch-layer equals-substitution invariant on 2026-04-12: every outgoing DATA payload runs through a single equals-vs-live-cache walk inside `_updateState`, regardless of emission path (`actions.emit`, raw `actions.down`, passthrough forwarding, bundle-wrapped down). Includes synthetic-DIRTY prefix for raw-down substitution (spec §1.3.1 compliance) and equals-throw atomicity (prefix delivered before ERROR). See `archive/docs/SESSION-foundation-redesign.md` §3.5.1–.2 + §9.8 and `src/core/node.ts:_emit` / `_updateState` for the TS impl; `src/__tests__/core/node.test.ts` `§3.5` describe block for the regression suite.
+  **PY status:** not yet ported. `~/src/graphrefly-py/src/graphrefly/core/node_base.py` still runs equals inside `_down_auto_value` (pre-foundation-redesign shape), and raw `down` does NOT participate in equals substitution. Matches TS's pre-2026-04-12 behavior. Blocked on PY completing the foundation redesign (see §9.5 PY implementation plan). When that lands, port the TS invariant verbatim: move equals to the dispatch-layer walk, add synthetic-DIRTY prefix rule, implement equals-throw atomicity contract, port the `§3.5` test block. Ship atomically with the PY foundation rewrite.
 
 ---
 
