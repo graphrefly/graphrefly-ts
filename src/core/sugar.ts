@@ -48,7 +48,7 @@ export function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): No
  * only `store` is useful on a producer — no deps means `dataFrom` and
  * `terminalDeps` are empty).
  */
-export type ProducerFn = (actions: NodeActions, ctx: FnCtx) => NodeFnCleanup | void;
+export type ProducerFn = (actions: NodeActions, ctx: FnCtx) => NodeFnCleanup | undefined;
 
 /**
  * Creates a producer node with no deps; `fn` runs once when the first
@@ -116,7 +116,7 @@ export type EffectFn = (
 	data: readonly unknown[],
 	actions: NodeActions,
 	ctx: FnCtx,
-) => NodeFnCleanup | void;
+) => NodeFnCleanup | undefined;
 
 /**
  * Runs a side-effect when deps settle. Return value is not auto-emitted.
@@ -256,14 +256,23 @@ export function autoTrackNode<T = unknown>(
 			if (!foundNew) {
 				// Real run — all deps known, protocol-delivered values.
 				actions.emit(result);
+				// Clear any stale discovery error from a prior run.
+				if (ctx.store.__autoTrackLastDiscoveryError != null) {
+					delete ctx.store.__autoTrackLastDiscoveryError;
+				}
 			}
 			// Discovery run — result discarded. New deps are subscribed via
 			// _addDep. Their DATA delivery triggers _maybeRunFnOnSettlement
 			// via the _pendingRerun mechanism, which will re-call fn.
 		} catch (err) {
 			if (!foundNew) throw err;
-			// Discovery run failed (stale .cache) — swallow.
-			// Re-run after new deps settle will use protocol values.
+			// Discovery run threw — most likely a stale `.cache` read (P3
+			// boundary exception), which the protocol-delivered retry will
+			// not hit. Preserve the error on `ctx.store` for inspection; if
+			// the retry succeeds, the flag is cleared above. If fn has a
+			// real bug unrelated to cache, the non-discovery retry will
+			// re-throw it out of `_execFn`.
+			ctx.store.__autoTrackLastDiscoveryError = err;
 		}
 	};
 

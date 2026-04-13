@@ -322,6 +322,29 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	const totalRetries = state(0);
 	const totalReingestions = state(0);
 
+	// Bounded-increment for self-owned counters. Documented P3 exception: the
+	// counter is not a declared dep of the `fastRetry` effect below — it's a
+	// private budget read+written from a single call site. Encapsulating the
+	// read-modify-write here keeps the `.cache` access in one named place.
+	//
+	// Safety today:
+	//   (1) The current single-threaded JS runner never invokes `fastRetry`
+	//       concurrently — the effect fn runs once per wave of `verifyContext`.
+	//   (2) `counter.down` writes the cache synchronously before returning, so
+	//       if `fastRetry` re-enters itself through a synchronous downstream
+	//       publish (retryTopic → verifyContext → fastRetry), the re-entrant
+	//       call reads the freshly-incremented value — no double-count.
+	//
+	// Future risk: under a free-threaded runner (PY no-GIL or a hypothetical
+	// concurrent TS runner), two concurrent firings could still race. Revisit
+	// when that surfaces.
+	function tryIncrementBounded(counter: Node<number>, cap: number): boolean {
+		const cur = (counter.cache as number | undefined) ?? 0;
+		if (cur >= cap) return false;
+		counter.down([[DIRTY], [DATA, cur + 1]]);
+		return true;
+	}
+
 	const fastRetry = effect([verifyContext as Node<unknown>], ([ctx]) => {
 		const [[vo, execRaw], item] = ctx as [
 			[VerifyOutput | null, ExecuteOutput | null],
@@ -363,9 +386,8 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		if (
 			errClass === "self-correctable" &&
 			itemRetries < maxRetries &&
-			(totalRetries.cache ?? 0) < maxTotalRetries
+			tryIncrementBounded(totalRetries, maxTotalRetries)
 		) {
-			totalRetries.down([[DIRTY], [DATA, (totalRetries.cache ?? 0) + 1]]);
 			const key = trackingKey(item);
 			const retryItem: TriagedItem = {
 				...item,
@@ -383,9 +405,8 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			const itemReingestions = item._reingestions ?? 0;
 			if (
 				itemReingestions < maxReingestions &&
-				(totalReingestions.cache ?? 0) < maxTotalReingestions
+				tryIncrementBounded(totalReingestions, maxTotalReingestions)
 			) {
-				totalReingestions.down([[DIRTY], [DATA, (totalReingestions.cache ?? 0) + 1]]);
 				intake.publish({
 					source: "eval",
 					summary: `Verification failed for: ${key}`,

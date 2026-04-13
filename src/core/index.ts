@@ -72,7 +72,6 @@ export {
 	state,
 	type TrackFn,
 } from "./sugar.js";
-export { ResettableTimer } from "./timer.js";
 export {
 	advanceVersion,
 	createVersioning,

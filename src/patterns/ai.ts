@@ -11,7 +11,6 @@ import { monotonicNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
-import { ResettableTimer } from "../core/timer.js";
 import {
 	type DistillBundle,
 	type DistillOptions,
@@ -21,6 +20,7 @@ import {
 import { switchMap } from "../extra/operators.js";
 import { type ReactiveLogBundle, reactiveLog } from "../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../extra/sources.js";
+import { ResettableTimer } from "../extra/timer.js";
 import {
 	type AutoCheckpointAdapter,
 	Graph,
@@ -1521,7 +1521,23 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	readonly retrieval: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null;
 	/** Latest retrieval trace for observability (null if no retrieval pipeline). */
 	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null> | null;
-	/** Execute a retrieval query (null if no retrieval pipeline). */
+	/**
+	 * Execute a retrieval query (null if no retrieval pipeline).
+	 *
+	 * **Synchronous consumer API** — returns the result immediately and batch-writes
+	 * `retrieval` and `retrievalTrace` state nodes for observers. Reads the store
+	 * snapshot and context value **at call time** (external-boundary read).
+	 *
+	 * **Do not call from inside a reactive fn body** (derived fn, subscribe callback,
+	 * effect body). The cache reads would become transitive protocol violations and
+	 * may observe wave-progressive rather than wave-final state.
+	 *
+	 * **Caller-batch caveat:** if invoked inside a caller's `batch(() => ...)` alongside
+	 * upstream store mutations, the store snapshot reflects what has been committed to
+	 * `store.entries.cache` at call time. State-backed stores update cache synchronously
+	 * so batched inserts are visible; derived-backed store transforms may defer. If you
+	 * need fresh state after batched mutations, call `retrieve` after the batch returns.
+	 */
 	readonly retrieve: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null;
 };
 
@@ -1789,14 +1805,20 @@ export function agentMemory<TMem = unknown>(
 		const costFn = opts.cost;
 		const scoreFn = opts.score;
 
-		// Query input node — updated via retrieve()
-		const queryInput = state<RetrievalQuery | null>(null, {
-			name: "retrievalQuery",
-			describeKind: "state",
-		});
-		graph.add("retrievalQuery", queryInput);
-
 		const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
+
+		// Observer-facing state nodes. `retrieve()` writes both in a batch on every call.
+		// (Option W from the 2026-04-12 P3 audit — retrieveFn is a sync consumer API that
+		// reads store/context at call time, computes inline, and publishes results via
+		// state writes. No derived, no queryInput, no closure side-channel.)
+		const retrievalOutput = state<ReadonlyArray<RetrievalEntry<TMem>>>([], {
+			name: "retrieval",
+			describeKind: "state",
+			meta: aiMeta("retrieval_pipeline"),
+		});
+		graph.add("retrieval", retrievalOutput);
+		retrievalNode = retrievalOutput;
+
 		const traceState = state<RetrievalTrace<TMem> | null>(null, {
 			name: "retrievalTrace",
 			describeKind: "state",
@@ -1805,119 +1827,102 @@ export function agentMemory<TMem = unknown>(
 		graph.add("retrievalTrace", traceState);
 		retrievalTraceNode = traceState;
 
-		const storeNode = distillBundle.store.entries;
+		// Sync consumer API. Reads `store.entries.cache` and `contextNode.cache` at
+		// call time — these are external-boundary reads, allowed per the foundation
+		// redesign. **Do not call from inside a reactive fn body**: the cache reads
+		// would become transitive P3 violations.
+		retrieveFn = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
+			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
+			const ctx = contextNode.cache;
 
-		// Last trace captured during retrieval (populated by retrieve())
-		let lastTrace: RetrievalTrace<TMem> | null = null;
+			const candidateMap = new Map<
+				string,
+				{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
+			>();
 
-		const retrievalDerived = derived<ReadonlyArray<RetrievalEntry<TMem>>>(
-			[queryInput, storeNode, contextNode],
-			([query, snapshot, ctx]) => {
-				if (!query) return [];
-				const q = query as RetrievalQuery;
-				const storeMap = extractStoreMap<TMem>(snapshot);
-
-				const candidateMap = new Map<
-					string,
-					{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
-				>();
-
-				// Stage 1: Vector search
-				let vectorCandidates: VectorSearchResult<TMem>[] = [];
-				if (vectors && q.vector) {
-					vectorCandidates = vectors.search(q.vector, topK) as VectorSearchResult<TMem>[];
-					for (const vc of vectorCandidates) {
-						const mem = storeMap.get(vc.id);
-						if (mem) {
-							candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
-						}
+			// Stage 1: Vector search
+			let vectorCandidates: VectorSearchResult<TMem>[] = [];
+			if (vectors && query.vector) {
+				vectorCandidates = vectors.search(query.vector, topK) as VectorSearchResult<TMem>[];
+				for (const vc of vectorCandidates) {
+					const mem = storeMap.get(vc.id);
+					if (mem) {
+						candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
 					}
 				}
+			}
 
-				// Stage 2: KG expansion
-				const graphExpanded: string[] = [];
-				if (kg) {
-					const seedIds = [...(q.entityIds ?? []), ...[...candidateMap.keys()]];
-					const visited = new Set<string>();
-					let frontier = seedIds;
-					for (let depth = 0; depth < graphDepth; depth++) {
-						const nextFrontier: string[] = [];
-						for (const id of frontier) {
-							if (visited.has(id)) continue;
-							visited.add(id);
-							const related = kg.related(id);
-							for (const edge of related) {
-								const targetId = edge.to;
-								if (!visited.has(targetId)) {
-									nextFrontier.push(targetId);
-									const mem = storeMap.get(targetId);
-									if (mem) {
-										const existing = candidateMap.get(targetId);
-										if (existing) {
-											existing.sources.add("graph");
-										} else {
-											candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
-										}
-										graphExpanded.push(targetId);
+			// Stage 2: KG expansion
+			const graphExpanded: string[] = [];
+			if (kg) {
+				const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
+				const visited = new Set<string>();
+				let frontier = seedIds;
+				for (let depth = 0; depth < graphDepth; depth++) {
+					const nextFrontier: string[] = [];
+					for (const id of frontier) {
+						if (visited.has(id)) continue;
+						visited.add(id);
+						const related = kg.related(id);
+						for (const edge of related) {
+							const targetId = edge.to;
+							if (!visited.has(targetId)) {
+								nextFrontier.push(targetId);
+								const mem = storeMap.get(targetId);
+								if (mem) {
+									const existing = candidateMap.get(targetId);
+									if (existing) {
+										existing.sources.add("graph");
+									} else {
+										candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
 									}
+									graphExpanded.push(targetId);
 								}
 							}
 						}
-						frontier = nextFrontier;
 					}
+					frontier = nextFrontier;
 				}
-
-				// Also include direct store matches not yet in candidates
-				for (const [key, mem] of storeMap) {
-					if (!candidateMap.has(key)) {
-						candidateMap.set(key, { value: mem, sources: new Set(["store"]) });
-					}
-				}
-
-				// Stage 3: Score and rank
-				const ranked: RetrievalEntry<TMem>[] = [];
-				for (const [key, { value, sources }] of candidateMap) {
-					const score = scoreFn(value, ctx);
-					ranked.push({ key, value, score, sources: [...sources] });
-				}
-				ranked.sort((a, b) => b.score - a.score);
-
-				// Stage 4: Budget packing
-				const packed: RetrievalEntry<TMem>[] = [];
-				let usedBudget = 0;
-				for (const entry of ranked) {
-					const c = costFn(entry.value);
-					if (usedBudget + c > budget && packed.length > 0) break;
-					packed.push(entry);
-					usedBudget += c;
-				}
-
-				// Capture trace (no side-effect — stored for retrieval by retrieve())
-				lastTrace = { vectorCandidates, graphExpanded, ranked, packed };
-
-				return packed;
-			},
-			{
-				name: "retrieval",
-				describeKind: "derived",
-				meta: aiMeta("retrieval_pipeline"),
-				initial: [],
-			},
-		);
-		graph.add("retrieval", retrievalDerived);
-		graph.connect("retrievalQuery", "retrieval");
-		graph.connect("store", "retrieval");
-		keepaliveSubs.push(retrievalDerived.subscribe(() => undefined));
-		retrievalNode = retrievalDerived;
-
-		retrieveFn = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
-			queryInput.down([[DATA, query]]);
-			const result = retrievalDerived.cache as ReadonlyArray<RetrievalEntry<TMem>>;
-			// Update trace node outside derived callback (avoids reactive glitch)
-			if (lastTrace) {
-				traceState.down([[DATA, lastTrace]]);
 			}
-			return result;
+
+			// Also include direct store matches not yet in candidates
+			for (const [key, mem] of storeMap) {
+				if (!candidateMap.has(key)) {
+					candidateMap.set(key, { value: mem, sources: new Set(["store"]) });
+				}
+			}
+
+			// Stage 3: Score and rank
+			const ranked: RetrievalEntry<TMem>[] = [];
+			for (const [key, { value, sources }] of candidateMap) {
+				const score = scoreFn(value, ctx);
+				ranked.push({ key, value, score, sources: [...sources] });
+			}
+			ranked.sort((a, b) => b.score - a.score);
+
+			// Stage 4: Budget packing
+			const packed: RetrievalEntry<TMem>[] = [];
+			let usedBudget = 0;
+			for (const entry of ranked) {
+				const c = costFn(entry.value);
+				if (usedBudget + c > budget && packed.length > 0) break;
+				packed.push(entry);
+				usedBudget += c;
+			}
+
+			const trace: RetrievalTrace<TMem> = {
+				vectorCandidates,
+				graphExpanded,
+				ranked,
+				packed,
+			};
+
+			batch(() => {
+				retrievalOutput.down([[DATA, packed]]);
+				traceState.down([[DATA, trace]]);
+			});
+
+			return packed;
 		};
 	}
 

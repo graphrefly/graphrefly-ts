@@ -631,7 +631,6 @@ export class Graph {
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
-	private _defaultVersioningLevel: VersioningLevel | undefined;
 
 	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
 		if (!pattern) {

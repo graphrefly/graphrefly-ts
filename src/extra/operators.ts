@@ -13,7 +13,6 @@ import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
-	DIRTY,
 	ERROR,
 	type Message,
 	type Messages,

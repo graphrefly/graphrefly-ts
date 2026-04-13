@@ -7,17 +7,9 @@
  */
 
 import type { NodeActions } from "../core/config.js";
-import {
-	COMPLETE,
-	DATA,
-	ERROR,
-	type Message,
-	type Messages,
-	RESOLVED,
-	TEARDOWN,
-} from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages, RESOLVED, TEARDOWN } from "../core/messages.js";
 import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
-import { derived, effect, state } from "../core/sugar.js";
+import { derived, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
@@ -348,7 +340,7 @@ export function gate<T>(
 	// (onMessage removed in v5 — use producer+subscribe instead)
 	const output = node<T>(
 		[],
-		(data, actions) => {
+		(_data, actions) => {
 			const unsub = src.node.subscribe((msgs) => {
 				for (const msg of msgs) {
 					if (msg[0] === DATA) {
@@ -455,7 +447,7 @@ export function forEach<T>(
 	// (onMessage removed in v5 — use producer+subscribe instead)
 	const step = node<T>(
 		[],
-		(data, actions) => {
+		(_data, actions) => {
 			const unsub = src.node.subscribe((msgs) => {
 				for (const msg of msgs) {
 					if (terminated) return;
@@ -713,7 +705,7 @@ export function onFailure<T>(
 	// (onMessage removed in v5 — use producer+subscribe instead)
 	const step = node<T>(
 		[],
-		(data, actions) => {
+		(_data, actions) => {
 			const unsub = src.node.subscribe((msgs) => {
 				for (const msg of msgs) {
 					if (terminated) return;

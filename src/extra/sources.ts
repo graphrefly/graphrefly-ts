@@ -11,7 +11,7 @@
 import { existsSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Message } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
 import { derived, producer, state } from "../core/sugar.js";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";

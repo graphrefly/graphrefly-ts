@@ -118,6 +118,17 @@ export function workerBridge<
 	if (exposeEntries.length > 0) {
 		const exposedNodes = exposeEntries.map(([, n]) => n);
 
+		// DOCUMENTED PROTOCOL EXCEPTION (P3 audit #8, see docs/optimizations.md):
+		// This fn reads `n.cache` on each exposed node instead of using the
+		// `data` array because the aggregator needs the **wave-final** state of
+		// all exposed nodes in a single wire message. Under the current TS v5
+		// runner, `state.down([[DATA, v]])` writes the cache synchronously before
+		// queuing downstream delivery, so cache reads always return the latest
+		// committed value. The `data` array, by contrast, is wave-progressive
+		// and can return stale values during multi-dep settlement (when callers
+		// use raw `.down` without a DIRTY prefix, each dep delivery runs the fn
+		// independently). A proper fix requires a framework-level "wave-end"
+		// hook — folded into the long-term Option B worker-bridge redesign.
 		const aggregated = derived(
 			exposedNodes,
 			() => {

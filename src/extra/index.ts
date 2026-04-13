@@ -40,4 +40,5 @@ export {
 	withStatus,
 } from "./resilience.js";
 export * from "./sources.js";
+export { ResettableTimer } from "./timer.js";
 export * from "./worker/index.js";

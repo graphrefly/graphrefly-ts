@@ -5,7 +5,6 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
-	INVALIDATE,
 	type Messages,
 	PAUSE,
 	RESOLVED,
@@ -14,7 +13,7 @@ import {
 	TEARDOWN,
 } from "../../core/messages.js";
 import { defaultConfig } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
+import { producer } from "../../core/sugar.js";
 
 /** Shorthand for the tierOf callback required by downWithBatch in v5. */
 const tierOf = (t: symbol) => defaultConfig.messageTier(t);

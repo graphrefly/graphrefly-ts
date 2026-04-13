@@ -127,7 +127,7 @@ export type OnMessageHandler = (
 	msg: Message,
 	ctx: MessageContext,
 	actions: NodeActions,
-) => "consume" | void;
+) => "consume" | undefined;
 
 /**
  * Singleton subscribe ceremony. Fires for every sink subscribe on every node.
@@ -139,7 +139,7 @@ export type OnSubscribeHandler = (
 	sink: (messages: Messages) => void,
 	ctx: SubscribeContext,
 	actions: NodeActions,
-) => (() => void) | void;
+) => (() => void) | undefined;
 
 // ---------------------------------------------------------------------------
 // GraphReFlyConfig
