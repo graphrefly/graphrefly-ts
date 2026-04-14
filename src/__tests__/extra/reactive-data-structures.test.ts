@@ -79,7 +79,7 @@ describe("extra pubsub (roadmap §3.2)", () => {
 		});
 		hub.publish("x", 42);
 		unsub();
-		// Push-on-subscribe delivers the initial cached undefined, then the published 42
-		expect(seen).toEqual([undefined, 42]);
+		// Topics start in sentinel state — no push-on-subscribe. Only published values arrive.
+		expect(seen).toEqual([42]);
 	});
 });

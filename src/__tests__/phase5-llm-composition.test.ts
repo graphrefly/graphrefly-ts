@@ -168,7 +168,7 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 			[gated],
 			(data, _actions, ctx) => {
 				const batch0 = data[0];
-				const a = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.latestData[0]) as {
+				const a = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0]) as {
 					version: string;
 					sha: string;
 				};

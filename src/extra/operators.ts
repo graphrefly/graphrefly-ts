@@ -5,7 +5,7 @@
  * v5 foundation redesign: all operators use `actions.emit()` for value emission,
  * `ctx.store` for persistent state, `ctx.terminalDeps` for terminal handling,
  * and `data[i]` batch shape for DATA vs RESOLVED discrimination. `onMessage`
- * and `onResubscribe` are removed; `NO_VALUE` is no longer exported.
+ * and `onResubscribe` are removed.
  */
 
 import { monotonicNs } from "../core/clock.js";
@@ -49,7 +49,20 @@ function operatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
  * @category extra
  */
 export function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: ExtraOpts): Node<R> {
-	return derived([source as Node], ([v]) => project(v as T), operatorOpts<R>(opts));
+	return node<R>(
+		[source as Node],
+		(data, a) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) {
+				a.emit(project(v as T));
+			}
+		},
+		operatorOpts<R>(opts),
+	);
 }
 
 /**
@@ -171,24 +184,23 @@ export function reduce<T, R>(
 		[source as Node],
 		(data, a, ctx) => {
 			if (!("acc" in ctx.store)) ctx.store.acc = seed;
-			// ERROR: let auto-error propagate — don't emit accumulated value.
-			if (ctx.terminalDeps[0] !== undefined && ctx.terminalDeps[0] !== true) {
-				return;
-			}
 			// COMPLETE: emit accumulated value then COMPLETE.
+			// ERROR: autoError propagates automatically; nothing to emit.
 			if (ctx.terminalDeps[0] === true) {
 				a.emit(ctx.store.acc as R);
 				a.down([[COMPLETE]]);
 				return;
 			}
-			// Only accumulate if dep sent DATA this wave. Emit nothing
-			// until COMPLETE — downstream's pre-set-dirty DepRecord holds
-			// the wave open naturally.
 			const batch0 = data[0];
-			if (batch0 != null && batch0.length > 0) {
-				for (const v of batch0) {
-					ctx.store.acc = reducer(ctx.store.acc as R, v as T);
-				}
+			// RESOLVED wave (empty batch): propagate RESOLVED. After fn has run once
+			// the pre-fn skip handles this; this guard covers the first-wave case.
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			// DATA: accumulate silently — emit nothing until COMPLETE.
+			for (const v of batch0) {
+				ctx.store.acc = reducer(ctx.store.acc as R, v as T);
 			}
 		},
 		{
@@ -464,8 +476,9 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 	return node<T>(
 		[source as Node],
 		(data, a, ctx) => {
-			// Check for terminal — dep completed
-			if (ctx.terminalDeps[0] !== undefined) {
+			// COMPLETE (terminal === true): emit latest or default, then COMPLETE.
+			// ERROR: autoError propagates automatically.
+			if (ctx.terminalDeps[0] === true) {
 				if (ctx.store.has) {
 					a.emit(ctx.store.latest as T);
 				} else if (useDefault) {
@@ -474,13 +487,16 @@ export function last<T>(source: Node<T>, options?: ExtraOpts & { defaultValue?: 
 				a.down([[COMPLETE]]);
 				return;
 			}
-			// Accumulate latest DATA — emit nothing until COMPLETE.
-			// Downstream's pre-set-dirty DepRecord holds the wave open naturally.
 			const batch0 = data[0];
-			if (batch0 != null && batch0.length > 0) {
-				ctx.store.latest = batch0.at(-1) as T;
-				ctx.store.has = true;
+			// RESOLVED wave: propagate RESOLVED. Covers first-wave case; after first
+			// call the pre-fn skip handles this automatically.
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
 			}
+			// DATA: accumulate latest — emit nothing until COMPLETE.
+			ctx.store.latest = batch0.at(-1) as T;
+			ctx.store.has = true;
 		},
 		{
 			...operatorOpts(rest),
@@ -774,14 +790,26 @@ export function withLatestFrom<A, B>(
 		[primary as Node, secondary as Node],
 		(data, a, ctx) => {
 			const batch0 = data[0];
+			const batch1 = data[1];
+			// Current secondary value: this wave's last DATA if secondary fired,
+			// otherwise last known value from ctx.prevData (previous wave).
+			const secondaryVal = (
+				batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1]
+			) as B | undefined;
+
 			// Only emit when primary (dep 0) sent DATA this wave.
-			// _sentinelDepCount gate guarantees secondary has a latestData value.
 			if (batch0 != null && batch0.length > 0) {
+				// secondary has never produced DATA — undefined is the protocol
+				// sentinel for "never sent DATA"; null is a valid DATA value.
+				if (!(batch1 != null && batch1.length > 0) && ctx.prevData[1] === undefined) {
+					a.down([[RESOLVED]]);
+					return;
+				}
 				for (const v of batch0 as A[]) {
-					a.emit([v, ctx.latestData[1] as B]);
+					a.emit([v, secondaryVal]);
 				}
 			} else {
-				// Secondary update only — don't emit downstream DATA
+				// Secondary update only (or both RESOLVED) — no downstream DATA.
 				a.down([[RESOLVED]]);
 			}
 		},
@@ -813,7 +841,9 @@ export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 			a.down([[COMPLETE]]);
 		}, operatorOpts());
 	}
-	// Producer pattern: subscribe to all sources internally.
+	// producer pattern: node() cannot be used here because the sentinel gate
+	// would block the fn until ALL sources have sent their first DATA, which
+	// defeats the purpose of merge (forward whichever source fires first).
 	return producer<T>((a) => {
 		const n = sources.length;
 		let completed = 0;
@@ -923,7 +953,10 @@ export function zip<const T extends readonly unknown[]>(
  * @category extra
  */
 export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpts): Node<T> {
-	// Producer pattern: manage subscription lifecycle manually.
+	// producer pattern: node() cannot be used here because the sentinel gate
+	// would block the fn until ALL sources have sent their first DATA, which
+	// defeats the purpose of concat (start forwarding firstSrc immediately,
+	// regardless of secondSrc state).
 	return producer<T>((a) => {
 		let phase: 0 | 1 = 0;
 		const pending: unknown[] = [];
@@ -992,7 +1025,19 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 		}, operatorOpts());
 	}
 	if (sources.length === 1) {
-		return derived([sources[0] as Node], ([v]) => v as T, operatorOpts<T>());
+		// Identity passthrough — full batch iteration, not derived's .at(-1).
+		return node<T>(
+			[sources[0] as Node],
+			(data, a) => {
+				const batch0 = data[0];
+				if (batch0 == null || batch0.length === 0) {
+					a.down([[RESOLVED]]);
+					return;
+				}
+				for (const v of batch0) a.emit(v as T);
+			},
+			operatorOpts<T>(),
+		);
 	}
 	// Producer pattern: first DATA wins.
 	return producer<T>((a) => {
@@ -2281,7 +2326,18 @@ export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Nod
  * @category extra
  */
 export function pausable<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
-	return derived([source as Node], ([v]) => v as T, operatorOpts<T>(opts));
+	return node<T>(
+		[source as Node],
+		(data, a) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) a.emit(v as T);
+		},
+		operatorOpts<T>(opts),
+	);
 }
 
 /**
@@ -2353,19 +2409,26 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOp
 		[source as Node, control as Node],
 		(data, a, ctx) => {
 			const batch1 = data[1];
-			const controlValue = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.latestData[1];
+			// undefined = control never sent DATA (gate closed); falsy = explicitly closed.
+			const controlValue = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1];
 			if (!controlValue) {
 				a.down([[RESOLVED]]);
 				return;
 			}
 			const batch0 = data[0];
-			if (batch0 == null || batch0.length === 0) {
-				a.down([[RESOLVED]]);
+			if (batch0 != null && batch0.length > 0) {
+				// Source data this wave: forward it.
+				for (const v of batch0) a.emit(v as T);
 				return;
 			}
-			for (const v of batch0) {
-				a.emit(v as T);
+			// Control just opened this wave but source didn't fire this wave.
+			// Re-emit the last known source value so downstream sees the current
+			// value when the gate opens (only when source has a prior value).
+			if (batch1 != null && batch1.length > 0 && ctx.prevData[0] !== undefined) {
+				a.emit(ctx.prevData[0] as T);
+				return;
 			}
+			a.down([[RESOLVED]]);
 		},
 		operatorOpts(opts),
 	);

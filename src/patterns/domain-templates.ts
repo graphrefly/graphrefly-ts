@@ -130,13 +130,6 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 		},
 	);
 	g.add("correlate", correlateNode);
-	for (const b of branches) {
-		try {
-			g.connect(`stratify::branch/${b.name}`, "correlate");
-		} catch {
-			/* branch may not exist */
-		}
-	}
 
 	// --- SLO verification ---
 	const sloCheckFn = opts.sloCheck ?? (() => ({ pass: true }));

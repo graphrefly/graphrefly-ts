@@ -146,8 +146,8 @@ export function workerBridge<
 		);
 
 		const effectNode = effect([aggregated], (data) => {
-			const updates = (data[0] ?? aggregated.cache) as Record<string, unknown>;
-			if (Object.keys(updates).length === 0) return;
+			const updates = (data[0] ?? aggregated.cache) as Record<string, unknown> | undefined | null;
+			if (updates == null || Object.keys(updates).length === 0) return;
 
 			const transferList: Transferable[] = [];
 			for (const name of Object.keys(updates)) {

@@ -11,9 +11,9 @@
 import { existsSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "../core/clock.js";
-import { COMPLETE, DATA, DIRTY, ERROR, type Message } from "../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../core/node.js";
-import { derived, producer, state } from "../core/sugar.js";
+import { producer, state } from "../core/sugar.js";
 import { type CronSchedule, matchesCron, parseCron } from "./cron.js";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
@@ -107,10 +107,20 @@ export function matchesAnyPattern(path: string, patterns: RegExp[]): boolean {
 }
 
 function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void): Node<T> {
-	const wrapper = derived([inner as Node], ([val]) => val as T, {
-		describeKind: "derived",
-		initial: inner.cache as T,
-	});
+	// node() passthrough instead of derived([inner], ([v]) => v) — derived uses
+	// .at(-1) and would drop intermediate values from multi-DATA batches (D1 gap).
+	const wrapper = node<T>(
+		[inner as Node],
+		(data, a) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) a.emit(v as T);
+		},
+		{ describeKind: "derived", initial: inner.cache as T },
+	);
 	const origSubscribe = wrapper.subscribe.bind(wrapper);
 	(wrapper as { subscribe: typeof wrapper.subscribe }).subscribe = (sink, actor) => {
 		before(sink);
@@ -150,16 +160,20 @@ export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number
 		};
 		const finish = () => {
 			if (done) return;
-			a.emit(count++);
 			if (period != null) {
+				a.emit(count++);
 				iv = setInterval(() => {
 					if (done) return;
 					a.emit(count++);
 				}, period);
 			} else {
+				// One-shot: mark done, emit, complete synchronously.
+				// a.emit() delivers DATA to downstream synchronously before
+				// COMPLETE arrives — no queueMicrotask needed.
 				done = true;
 				signal?.removeEventListener("abort", onAbort);
-				queueMicrotask(() => a.down([[COMPLETE]]));
+				a.emit(count++);
+				a.down([[COMPLETE]]);
 			}
 		};
 		const onAbort = () => {
@@ -485,24 +499,28 @@ export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceO
 		const signal = outerSignal ?? ac.signal;
 		let cancelled = false;
 		const it = iterable[Symbol.asyncIterator]();
+		// Each pump() call chains directly into the next via Promise.then —
+		// no queueMicrotask needed; Promise resolution already yields to the
+		// microtask queue. COMPLETE is delivered synchronously after the last
+		// value, same as fromIter semantics.
 		const pump = (): void => {
 			if (cancelled || signal.aborted) return;
 			void Promise.resolve(it.next()).then(
 				(step) => {
 					if (cancelled || signal.aborted) return;
 					if (step.done) {
-						queueMicrotask(() => a.down([[COMPLETE]]));
+						a.down([[COMPLETE]]);
 						return;
 					}
 					a.emit(step.value as T);
-					queueMicrotask(pump);
+					pump();
 				},
 				(e) => {
 					if (!cancelled && !signal.aborted) a.down([[ERROR, e]]);
 				},
 			);
 		};
-		queueMicrotask(pump);
+		pump();
 		return () => {
 			cancelled = true;
 			outerSignal?.removeEventListener("abort", onOuterAbort);
@@ -696,14 +714,24 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
 		(data, actions, ctx) => {
 			if (!ctx.store.buf) ctx.store.buf = [];
 			const buf = ctx.store.buf as T[];
+			// Accumulate DATA first — must happen before the COMPLETE check so
+			// that a same-wave DATA+COMPLETE batch (e.g. fromTimer one-shot,
+			// fromIter last item) is included in the emitted array.
 			const batch0 = data[0];
 			if (batch0 != null && batch0.length > 0) {
 				for (const v of batch0) buf.push(v as T);
 			}
-			// Emit only on COMPLETE — accumulate silently until then.
-			if (ctx.terminalDeps[0] !== undefined) {
+			// COMPLETE: emit accumulated array then complete.
+			// ERROR: autoError propagates; do NOT emit the partial buffer.
+			if (ctx.terminalDeps[0] === true) {
 				actions.emit([...buf]);
 				actions.down([[COMPLETE]]);
+				return;
+			}
+			// RESOLVED wave: propagate RESOLVED. Covers first-wave case; after first
+			// call the pre-fn skip handles this automatically.
+			if (batch0 == null || batch0.length === 0) {
+				actions.down([[RESOLVED]]);
 			}
 		},
 		{
@@ -824,29 +852,44 @@ export function cached<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let settled = false;
-		const unsub = source.subscribe((msgs) => {
+		let shouldUnsub = false;
+		let unsub: (() => void) | undefined;
+		unsub = source.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (settled) return;
 				if (m[0] === DATA) {
 					settled = true;
 					resolve(m[1] as T);
-					queueMicrotask(() => unsub());
+					if (unsub) {
+						unsub();
+						unsub = undefined;
+					} else shouldUnsub = true;
 					return;
 				}
 				if (m[0] === ERROR) {
 					settled = true;
 					reject(m[1]);
-					queueMicrotask(() => unsub());
+					if (unsub) {
+						unsub();
+						unsub = undefined;
+					} else shouldUnsub = true;
 					return;
 				}
 				if (m[0] === COMPLETE) {
 					settled = true;
 					reject(new Error("completed without DATA"));
-					queueMicrotask(() => unsub());
+					if (unsub) {
+						unsub();
+						unsub = undefined;
+					} else shouldUnsub = true;
 					return;
 				}
 			}
 		});
+		if (shouldUnsub) {
+			unsub?.();
+			unsub = undefined;
+		}
 	});
 }
 
@@ -871,7 +914,9 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let settled = false;
-		const unsub = source.subscribe((msgs) => {
+		let shouldUnsub = false;
+		let unsub: (() => void) | undefined;
+		unsub = source.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (settled) return;
 				if (m[0] === DATA) {
@@ -879,24 +924,37 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
 					if (predicate(v)) {
 						settled = true;
 						resolve(v);
-						queueMicrotask(() => unsub());
+						if (unsub) {
+							unsub();
+							unsub = undefined;
+						} else shouldUnsub = true;
 						return;
 					}
 				}
 				if (m[0] === ERROR) {
 					settled = true;
 					reject(m[1]);
-					queueMicrotask(() => unsub());
+					if (unsub) {
+						unsub();
+						unsub = undefined;
+					} else shouldUnsub = true;
 					return;
 				}
 				if (m[0] === COMPLETE) {
 					settled = true;
 					reject(new Error("completed without matching value"));
-					queueMicrotask(() => unsub());
+					if (unsub) {
+						unsub();
+						unsub = undefined;
+					} else shouldUnsub = true;
 					return;
 				}
 			}
 		});
+		if (shouldUnsub) {
+			unsub?.();
+			unsub = undefined;
+		}
 	});
 }
 

@@ -357,7 +357,7 @@ describe("terminal and control messages are not phase-2", () => {
 			(msgs) => {
 				log.push(msgs.map((m) => m[0]));
 			},
-			[[DATA, undefined], [COMPLETE]],
+			[[DATA, null], [COMPLETE]],
 			tierOf,
 		);
 		expect(log).toEqual([[DATA], [COMPLETE]]);
@@ -396,23 +396,24 @@ describe("terminal and control messages are not phase-2", () => {
 });
 
 describe("integration: void sources", () => {
-	// Regression: one-shot sources (IDB, Promise wrappers) emitting [[DATA, undefined], [COMPLETE]]
+	// Regression: one-shot sources (IDB, Promise wrappers) emitting [[DATA, null], [COMPLETE]]
 	// through operators previously broke because COMPLETE was delivered before DATA.
-	it("one-shot void producer delivers DATA(undefined) then COMPLETE to subscriber", () => {
+	it("one-shot void producer delivers DATA(null) then COMPLETE to subscriber", () => {
 		const log: [symbol, unknown?][] = [];
-		// Simulate a one-shot void source (like fromIDBTransaction)
-		const oneShot = producer<void>((actions) => {
-			actions.down([[DATA, undefined], [COMPLETE]]);
+		// Simulate a one-shot void source (like fromIDBTransaction).
+		// null is the protocol-idiomatic "void" value; undefined is reserved as sentinel.
+		const oneShot = producer<null>((actions) => {
+			actions.down([[DATA, null], [COMPLETE]]);
 		});
 		const unsub = oneShot.subscribe((msgs: Messages) => {
 			for (const m of msgs) log.push([m[0], m[1]]);
 		});
 		// Subscribe delivers [[START]] handshake first; then the producer's
-		// fn emits DATA(undefined)+COMPLETE during `_onActivate`. Under the
+		// fn emits DATA(null)+COMPLETE during `_onActivate`. Under the
 		// B1 unified dispatch, raw `actions.down([[DATA], [COMPLETE]])` is
 		// auto-framed with `[DIRTY]` at the emit waist.
 		expect(log.map((m) => m[0])).toEqual([START, DIRTY, DATA, COMPLETE]);
-		expect(log[2][1]).toBe(undefined);
+		expect(log[2][1]).toBe(null);
 		unsub();
 	});
 });

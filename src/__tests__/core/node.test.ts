@@ -132,12 +132,13 @@ describe("node primitive", () => {
 		});
 
 		source.down([[DATA, 1]]);
-		// 2 deliveries: DIRTY (from dep settling) + ERROR (from throwing fn).
-		expect(deliveries).toBe(2);
+		// 3 deliveries: START (subscribe ceremony) + DIRTY (dep wave, now that
+		// pre-dirty no longer absorbs it) + ERROR (throwing fn).
+		expect(deliveries).toBe(3);
 
 		source.down([[DIRTY], [DATA, 2]]);
 		// No additional deliveries after terminal ERROR
-		expect(deliveries).toBe(2);
+		expect(deliveries).toBe(3);
 		unsub();
 	});
 
@@ -1234,28 +1235,26 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		unsub();
 	});
 
-	it("initial: undefined is a real cached value (not NO_VALUE) — equals fires and collapses matching emit", () => {
-		// §2.5 load-bearing semantic: `"initial" in opts` is the
-		// presence check, NOT `opts.initial !== undefined`. A node
-		// constructed with `initial: undefined` has a real cached value
-		// (undefined) and subsequent emit(undefined) must collapse to
-		// RESOLVED via equals. A node with no `initial` key at all has
-		// `_cached === NO_VALUE` and the first emit(undefined) passes
-		// through as DATA.
-		const nWithInitial = node<number | undefined>({ initial: undefined });
-		const nWithout = node<number | undefined>();
+	it("initial: null is a real cached value — equals fires and collapses matching emit", () => {
+		// §2.5 load-bearing semantic: null is valid DATA; undefined is the
+		// protocol-reserved sentinel for "no cached value". A node with
+		// `initial: null` has _cached = null, so emit(null) collapses to
+		// RESOLVED via equals. A node with no initial has _cached = undefined
+		// (sentinel), so equals is skipped and the first emit(null) passes as DATA.
+		const nWithInitial = node<number | null>({ initial: null });
+		const nWithout = node<number | null>();
 
 		const collectedWith = collectTier3(nWithInitial as unknown as ReturnType<typeof node<number>>);
 		const collectedWithout = collectTier3(nWithout as unknown as ReturnType<typeof node<number>>);
 
-		nWithInitial.emit(undefined);
-		nWithout.emit(undefined);
+		nWithInitial.emit(null);
+		nWithout.emit(null);
 
-		// With initial: undefined — equals(undefined, undefined) = true → collapse
+		// With initial: null — equals(null, null) = true → collapse to RESOLVED
 		expect(collectedWith.msgs.filter((m) => m === DATA)).toHaveLength(0);
 		expect(collectedWith.msgs).toContain(RESOLVED);
 
-		// Without initial — _cached is NO_VALUE → equals skipped → passes as DATA
+		// Without initial — _cached = undefined (sentinel) → equals skipped → DATA
 		expect(collectedWithout.msgs.filter((m) => m === DATA)).toHaveLength(1);
 
 		collectedWith.unsub();
