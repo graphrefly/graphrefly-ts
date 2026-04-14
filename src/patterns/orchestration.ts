@@ -7,7 +7,7 @@
  */
 
 import type { NodeActions } from "../core/config.js";
-import { COMPLETE, DATA, ERROR, type Messages, RESOLVED, TEARDOWN } from "../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
 import { type DerivedFn, derived, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
@@ -131,7 +131,7 @@ export function task<T>(
 	const { deps: _deps, ...nodeOpts } = opts ?? {};
 	const wrapped: NodeFn = (batchData, actions, ctx) => {
 		const data = batchData.map((batch, i) =>
-			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 		);
 		actions.emit(run(data, ctx));
 		return undefined;
@@ -194,15 +194,33 @@ export function valve<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	const ctrl = resolveDep(graph, control);
-	const step = derived<T>(
+	// Raw node so we can emit RESOLVED (hold) instead of DATA(undefined) when closed.
+	const step = node<T>(
 		[src.node, ctrl.node],
-		([srcVal, ctrlVal]) => {
-			if (!ctrlVal) return undefined;
-			return srcVal as T;
+		(batchData, actions, ctx) => {
+			const batch0 = batchData[0];
+			const batch1 = batchData[1];
+			// undefined = control never sent DATA (closed); falsy = explicitly closed.
+			const ctrlVal = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1];
+			// Control just opened and no new source data this wave: re-emit last source value.
+			if (batch0 == null || batch0.length === 0) {
+				if (batch1 != null && batch1.length > 0 && ctrlVal && ctx.prevData[0] !== undefined) {
+					actions.emit(ctx.prevData[0] as T);
+				} else {
+					actions.down([[RESOLVED]]);
+				}
+				return;
+			}
+			if (!ctrlVal) {
+				actions.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0 as T[]) actions.emit(v);
 		},
 		{
 			...opts,
 			name,
+			describeKind: "derived",
 			meta: baseMeta("valve", opts?.meta),
 		} as NodeOptions<T>,
 	);
@@ -232,15 +250,33 @@ export function approval<T>(
 	const src = resolveDep(graph, source);
 	const ctrl = resolveDep(graph, approver);
 	const isApproved = opts?.isApproved ?? ((value: unknown) => Boolean(value));
-	const step = derived<T>(
+	// Raw node so we can emit RESOLVED (hold) instead of DATA(undefined) when not approved.
+	const step = node<T>(
 		[src.node, ctrl.node],
-		([srcVal, ctrlVal]) => {
-			if (!isApproved(ctrlVal)) return undefined;
-			return srcVal as T;
+		(batchData, actions, ctx) => {
+			const batch0 = batchData[0];
+			const batch1 = batchData[1];
+			// undefined = approver never sent DATA (not yet approved).
+			const ctrlVal = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1];
+			if (ctrlVal === undefined || !isApproved(ctrlVal)) {
+				actions.down([[RESOLVED]]);
+				return;
+			}
+			if (batch0 == null || batch0.length === 0) {
+				// Approval just granted and no new source data: re-emit last source value.
+				if (batch1 != null && batch1.length > 0 && ctx.prevData[0] !== undefined) {
+					actions.emit(ctx.prevData[0] as T);
+				} else {
+					actions.down([[RESOLVED]]);
+				}
+				return;
+			}
+			for (const v of batch0 as T[]) actions.emit(v);
 		},
 		{
 			...opts,
 			name,
+			describeKind: "derived",
 			meta: baseMeta("approval", opts?.meta),
 		} as NodeOptions<T>,
 	);
@@ -342,37 +378,30 @@ export function gate<T>(
 		if (torn) throw new Error(`gate: ${method}() called after gate was torn down`);
 	}
 
-	// The output node: a producer-like node that subscribes to source
-	// Producer pattern: manually subscribe to source for per-message interception
-	// (onMessage removed in v5 — use producer+subscribe instead)
 	const output = node<T>(
-		[],
-		(_data, actions) => {
-			const unsub = src.node.subscribe((msgs) => {
-				for (const msg of msgs) {
-					if (msg[0] === DATA) {
-						if (isOpenNode.cache) {
-							actions.emit(msg[1] as T);
-						} else {
-							enqueue(msg[1] as T);
-							actions.down([[RESOLVED]]);
-						}
-					} else if (msg[0] === TEARDOWN) {
-						torn = true;
-						queue = [];
-						syncPending();
-						actions.down([msg]);
-					} else if (msg[0] === COMPLETE || msg[0] === ERROR) {
-						torn = true;
-						queue = [];
-						syncPending();
-						actions.down([msg]);
-					} else {
-						actions.down([msg]);
-					}
+		[src.node],
+		(batchData, actions, ctx) => {
+			const terminal = ctx.terminalDeps[0];
+			if (terminal !== undefined) {
+				torn = true;
+				queue = [];
+				syncPending();
+				actions.down(terminal === true ? [[COMPLETE]] : [[ERROR, terminal]]);
+				return;
+			}
+			const batch0 = batchData[0];
+			if (batch0 == null || batch0.length === 0) {
+				actions.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0 as T[]) {
+				if (isOpenNode.cache) {
+					actions.emit(v);
+				} else {
+					enqueue(v);
+					actions.down([[RESOLVED]]);
 				}
-			});
-			return () => unsub();
+			}
 		},
 		{
 			name,
@@ -439,7 +468,14 @@ export function gate<T>(
 }
 
 /**
- * Registers a workflow side-effect step. The step remains graph-observable and forwards messages.
+ * Registers a workflow side-effect step that runs `run` for each upstream
+ * DATA value.
+ *
+ * `run` receives the full `NodeActions` and is the **sole emission point** —
+ * call `actions.emit(v)` or `actions.down(msgs)` inside `run` to produce
+ * downstream output. If `run` does not emit, this step acts as a pure
+ * side-effect sink (graph-observable but no output). Throwing inside `run`
+ * terminates the step with ERROR.
  */
 export function forEach<T>(
 	graph: Graph,
@@ -450,29 +486,34 @@ export function forEach<T>(
 ): Node<T> {
 	const src = resolveDep(graph, source);
 	let terminated = false;
-	// Producer pattern: manually subscribe to source for per-message interception
-	// (onMessage removed in v5 — use producer+subscribe instead)
 	const step = node<T>(
-		[],
-		(_data, actions) => {
-			const unsub = src.node.subscribe((msgs) => {
-				for (const msg of msgs) {
-					if (terminated) return;
-					if (msg[0] === DATA) {
-						try {
-							run(msg[1] as T, actions);
-							actions.down([msg] satisfies Messages);
-						} catch (err) {
-							terminated = true;
-							actions.down([[ERROR, err]] satisfies Messages);
-						}
-					} else {
-						actions.down([msg] satisfies Messages);
-						if (msg[0] === COMPLETE || msg[0] === ERROR) terminated = true;
-					}
+		[src.node],
+		(batchData, actions, ctx) => {
+			if (terminated) {
+				actions.down([[RESOLVED]]);
+				return;
+			}
+			// Terminal from dep
+			const terminal = ctx.terminalDeps[0];
+			if (terminal !== undefined) {
+				terminated = true;
+				actions.down(terminal === true ? [[COMPLETE]] : [[ERROR, terminal]]);
+				return;
+			}
+			const batch0 = batchData[0];
+			if (batch0 == null || batch0.length === 0) {
+				actions.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0 as T[]) {
+				try {
+					run(v, actions);
+				} catch (err) {
+					terminated = true;
+					actions.down([[ERROR, err]]);
+					return;
 				}
-			});
-			return () => unsub();
+			}
 		},
 		{
 			...opts,
@@ -482,6 +523,8 @@ export function forEach<T>(
 			meta: baseMeta("forEach", opts?.meta),
 		} as NodeOptions<T>,
 	);
+	// registerStep registers the edge for graph visibility. g.connect's dedup
+	// check skips _addDep since src.node is already a constructor dep.
 	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
 	return step;
 }
@@ -533,11 +576,11 @@ export function loop<T>(
 		iterDep ? [src.node, iterDep.node] : [src.node],
 		(depValues, actions, ctx) => {
 			const batch0 = depValues[0];
-			let current = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.latestData[0]) as T;
+			let current = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0]) as T;
 			const batch1 = iterDep ? depValues[1] : undefined;
 			const rawCount =
 				staticIterations ??
-				(iterDep ? (batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.latestData[1]) : 1);
+				(iterDep ? (batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1]) : 1);
 			const count = coerceLoopIterations(rawCount);
 			for (let i = 0; i < count; i += 1) {
 				current = iterate(current, i, actions);
@@ -740,6 +783,10 @@ export function onFailure<T>(
 			name,
 			describeKind: "derived",
 			completeWhenDepsComplete: false,
+			// onFailure handles errors via manual subscription (recover callback).
+			// Disable auto-propagation so dep-channel ERROR doesn't terminate this
+			// node before the recover callback has a chance to emit a replacement value.
+			errorWhenDepsError: false,
 			meta: baseMeta("onFailure", opts?.meta),
 		} as NodeOptions<T>,
 	);

@@ -4,8 +4,7 @@
 
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY, TEARDOWN } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 
 /**
  * In-memory lazy topic registry: each topic is an independent {@link state} node.
@@ -17,7 +16,8 @@ export interface PubSubHub {
 	 * Returns the topic node, creating it on first use.
 	 *
 	 * @param name - Topic key.
-	 * @returns `Node` whose value is the last published payload (initially `undefined`).
+	 * @returns `Node` whose value is the last published payload. Starts in
+	 *   sentinel state — no push-on-subscribe until the first publish.
 	 */
 	topic(name: string): Node<unknown>;
 
@@ -43,7 +43,7 @@ class PubSubHubImpl implements PubSubHub {
 	topic(name: string): Node<unknown> {
 		let n = this.topics.get(name);
 		if (n === undefined) {
-			n = state(undefined, { describeKind: "state" });
+			n = node<unknown>({ describeKind: "state" });
 			this.topics.set(name, n);
 		}
 		return n;

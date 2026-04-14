@@ -53,7 +53,6 @@ export class TopicGraph<T> extends Graph {
 				name: "latest",
 				describeKind: "derived",
 				meta: messagingMeta("topic_latest"),
-				initial: undefined,
 			},
 		);
 		this.add("latest", this.latest);

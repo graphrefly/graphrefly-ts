@@ -10,6 +10,7 @@
 
 import { DATA, DIRTY } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
+import { node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
@@ -219,6 +220,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	// a newer intake item has arrived since. triageNode triggers; triageInput sampled.
 	const routerInput = withLatestFrom(triageNode as Node<unknown>, triageInput as Node<unknown>);
 	const router = effect([routerInput as Node<unknown>], ([pair]) => {
+		if (pair == null) return;
 		const [classification, triagePair] = pair as [
 			TriagedItem | null,
 			[IntakeItem | null, StrategySnapshot] | null,
@@ -281,6 +283,23 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		},
 	);
 
+	// --- Execute context: [execOutput, item] captured once per execute-wave ---
+	//
+	// executeInput feeds into executeNode (dep) AND later into verifyNode (dep).
+	// Without this node, verifyNode would fire twice per wave in the retry path:
+	// once when executeNode settles (with stale item from prevData), and once when
+	// executeInput delivers the retry item directly. The second fire would pair the
+	// correct item with a verify output that was computed using the wrong item.
+	//
+	// withLatestFrom(executeNode, executeInput) fires exactly once per execute-wave:
+	// executeInput notifies executeNode first (depth-first), executeNode runs fn and
+	// settles in executeContextNode.dep[0], then executeInput settles in dep[1].
+	// dirtyDepCount reaches 0 only after both settle → fn runs once with correct data.
+	const executeContextNode = withLatestFrom(
+		executeNode as Node<unknown>,
+		executeInput as Node<unknown>,
+	);
+
 	// --- Stage 6: VERIFY ---
 	const verifyResults = new TopicGraph<VerifyResult>("verify-results", { retainedLimit });
 
@@ -288,15 +307,19 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	// output as the partial shape and assemble the full VerifyResult downstream.
 	type VerifyOutput = { verified: boolean; findings: string[]; errorClass?: ErrorClass };
 
+	// verifyNode depends on executeContextNode ([execOutput, item]) — single dep.
+	// This ensures verifyNode fires once per execute-wave with the correct item.
 	const verifyNode = promptNode<VerifyOutput>(
 		adapter,
-		[executeNode as Node<unknown>, executeInput as Node<unknown>],
+		[executeContextNode as Node<unknown>],
 		opts.verifyPrompt ??
-			((execution: unknown, item: unknown) =>
-				DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
+			((ctxPair: unknown) => {
+				const [execution, item] = ctxPair as [ExecuteOutput | null, unknown];
+				return DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
 					"{{item}}",
 					JSON.stringify(item),
-				)),
+				);
+			}),
 		{
 			name: "verify",
 			format: "json",
@@ -305,15 +328,12 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	);
 
 	// --- Fast-retry path ---
-	// Assemble full VerifyResult from verify output + execution context.
-	//
-	// F2 fix: use nested withLatestFrom so the effect fires ONLY when verifyNode
-	// settles, sampling executeNode + executeInput at that moment. This prevents
-	// mismatched values when a new item arrives before the previous finishes.
-	const verifyWithExec = withLatestFrom(verifyNode as Node<unknown>, executeNode as Node<unknown>);
+	// verifyContext = withLatestFrom(verifyNode, executeContextNode):
+	//   [verifyOutput, [execOutput, item]]
+	// Fires once when verifyNode settles; executeContextNode is sampled as secondary.
 	const verifyContext = withLatestFrom(
-		verifyWithExec as Node<unknown>,
-		executeInput as Node<unknown>,
+		verifyNode as Node<unknown>,
+		executeContextNode as Node<unknown>,
 	);
 
 	const maxReingestions = opts.maxReingestions ?? 1;
@@ -345,11 +365,20 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		return true;
 	}
 
-	const fastRetry = effect([verifyContext as Node<unknown>], ([ctx]) => {
-		const [[vo, execRaw], item] = ctx as [
-			[VerifyOutput | null, ExecuteOutput | null],
-			TriagedItem | null,
+	// Use raw node() so we can check batchData[0] directly — effect() falls back
+	// to ctx.prevData[0] when verifyContext emits RESOLVED (secondary-only wave),
+	// which would re-fire with stale context and create phantom retries.
+	const fastRetry = node([verifyContext as Node<unknown>], (batchData, _actions) => {
+		const batch = batchData[0];
+		if (batch == null || batch.length === 0) return; // RESOLVED or not involved — skip
+		const ctxVal = batch[batch.length - 1];
+		if (ctxVal == null) return;
+		// verifyContext shape: [verifyOutput, [execOutput, item]]
+		const [vo, execCtx] = ctxVal as [
+			VerifyOutput | null,
+			[ExecuteOutput | null, TriagedItem | null] | null,
 		];
+		const [execRaw, item] = execCtx ?? [null, null];
 		if (!vo || !item) return;
 
 		// Assemble full ExecutionResult + VerifyResult from LLM outputs + context

@@ -1558,7 +1558,12 @@ export class Graph {
 				if (event.kind === "dep_message") {
 					lastTriggerDepIndex = event.depIndex;
 				} else if (event.kind === "run") {
-					lastRunDepValues = [...event.latestData];
+					// Effective dep values: this wave's last DATA if dep fired,
+					// else the stable value from the previous wave (prevData).
+					const effectiveDepValues = event.batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : event.prevData[i],
+					);
+					lastRunDepValues = effectiveDepValues;
 					// Emit a synthetic "derived" event when requested.
 					if (derived) {
 						const base = timeline
@@ -1571,7 +1576,7 @@ export class Graph {
 						result.events.push({
 							type: "derived",
 							path,
-							dep_values: [...event.latestData],
+							dep_values: effectiveDepValues,
 							...base,
 						} as ObserveEvent);
 					}

@@ -1666,3 +1666,73 @@ describe("SENTINEL dep safety (D8 fallback)", () => {
 		unsub();
 	});
 });
+
+describe("withLatestFrom — secondary dep semantics", () => {
+	it("primary fires before secondary has any value — no DATA emitted (sentinel gate)", () => {
+		// Secondary has never emitted; _sentinelDepCount > 0 keeps fn gated.
+		const primary = node<number>();
+		const secondary = node<number>();
+		const w = withLatestFrom(primary, secondary);
+		const { messages, unsub } = collect(w, { flat: true });
+		primary.down([[DATA, 1]]);
+		expect(messages.filter((m) => m[0] === DATA)).toHaveLength(0);
+		unsub();
+	});
+
+	it("secondary updates, then primary fires — pairs with latest secondary value", () => {
+		const primary = node<number>();
+		const secondary = state(10);
+		const w = withLatestFrom(primary, secondary);
+		const { messages, unsub } = collect(w, { flat: true });
+		secondary.down([[DATA, 20]]);
+		primary.down([[DATA, 1]]);
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toEqual([[1, 20]]);
+		unsub();
+	});
+
+	it("secondary COMPLETE — operator continues, primary still emits with frozen secondary value", () => {
+		// Secondary completes; autoComplete requires ALL deps terminal so
+		// withLatestFrom does not complete. ctx.latestData[1] retains the
+		// last secondary value for future primary emissions.
+		const primary = node<number>();
+		const secondary = state(10);
+		const w = withLatestFrom(primary, secondary);
+		const { messages, unsub } = collect(w, { flat: true });
+		secondary.down([[COMPLETE]]);
+		primary.down([[DATA, 5]]);
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toEqual([[5, 10]]);
+		expect(messages.filter((m) => m[0] === COMPLETE || m[0] === ERROR)).toHaveLength(0);
+		unsub();
+	});
+
+	it("secondary ERROR — propagates to output (autoError)", () => {
+		// Both deps must be settled (sentinelDepCount=0) for _maybeAutoTerminalAfterWave
+		// to fire. A sentinel primary blocks terminal propagation from secondary — see
+		// "withLatestFrom sentinel gate swallows secondary ERROR" in docs/optimizations.md.
+		const primary = state(1);
+		const secondary = state(10);
+		const w = withLatestFrom(primary, secondary);
+		const { messages, unsub } = collect(w, { flat: true });
+		secondary.down([[ERROR, new Error("secondary failed")]]);
+		const errorMsgs = messages.filter((m) => m[0] === ERROR);
+		expect(errorMsgs).toHaveLength(1);
+		expect((errorMsgs[0]?.[1] as Error).message).toBe("secondary failed");
+		unsub();
+	});
+
+	it("secondary COMPLETE without prior DATA — primary emission suppressed (RESOLVED)", () => {
+		// secondary completes before ever emitting DATA.
+		// withLatestFrom has no value to pair — suppress the emission.
+		const primary = node<number>();
+		const secondary = node<number>(); // raw, never emits DATA
+		const w = withLatestFrom(primary, secondary);
+		const { messages, unsub } = collect(w, { flat: true });
+		secondary.down([[COMPLETE]]); // completes without DATA
+		primary.down([[DATA, 5]]);
+		const dataVals = messages.filter((m) => m[0] === DATA);
+		expect(dataVals).toHaveLength(0); // no pairable value → suppress
+		unsub();
+	});
+});

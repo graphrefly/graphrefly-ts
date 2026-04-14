@@ -18,6 +18,7 @@ import {
 	cached,
 	empty,
 	firstValueFrom,
+	firstWhere,
 	forEach,
 	fromAny,
 	fromAsyncIter,
@@ -648,6 +649,38 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("firstValueFrom rejects on empty", async () => {
 		await expect(firstValueFrom(empty())).rejects.toThrow("completed without DATA");
+	});
+
+	it("firstValueFrom resolves synchronously — shouldUnsub path", async () => {
+		// state(42) pushes DATA synchronously inside subscribe; unsub is
+		// not yet assigned when the callback fires, so shouldUnsub = true
+		// must clean up after subscribe returns.
+		const result = await firstValueFrom(state(42));
+		expect(result).toBe(42);
+	});
+
+	it("firstValueFrom rejects on ERROR", async () => {
+		await expect(firstValueFrom(throwError(new Error("boom")))).rejects.toThrow("boom");
+	});
+
+	it("firstWhere resolves with first matching value (skips earlier)", async () => {
+		const result = await firstWhere(fromIter([1, 2, 3, 4]), (v) => v > 2);
+		expect(result).toBe(3);
+	});
+
+	it("firstWhere resolves on synchronous source — shouldUnsub path", async () => {
+		const result = await firstWhere(state(42), (v) => v === 42);
+		expect(result).toBe(42);
+	});
+
+	it("firstWhere rejects when predicate never satisfied (COMPLETE)", async () => {
+		await expect(firstWhere(fromIter([1, 2, 3]), (v) => v > 99)).rejects.toThrow(
+			"completed without matching value",
+		);
+	});
+
+	it("firstWhere rejects on ERROR before match", async () => {
+		await expect(firstWhere(throwError(new Error("fail")), (_v) => true)).rejects.toThrow("fail");
 	});
 
 	it("toSSE writes standard DATA and COMPLETE frames", async () => {

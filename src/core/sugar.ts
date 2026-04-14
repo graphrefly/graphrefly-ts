@@ -12,6 +12,7 @@
  */
 
 import type { NodeActions } from "./config.js";
+import { RESOLVED } from "./messages.js";
 import {
 	type FnCtx,
 	type Node,
@@ -21,6 +22,30 @@ import {
 	type NodeOptions,
 	node,
 } from "./node.js";
+
+// ---------------------------------------------------------------------------
+// Shared sentinel guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns `true` when fn should be suppressed (RESOLVED emitted instead).
+ *
+ * Fires when `allowPartial` is `false` and any dep has never delivered DATA:
+ * `data[i]` absent this wave AND `ctx.prevData[i] === undefined`.
+ *
+ * `undefined` is the protocol-reserved "never sent DATA" sentinel. `null` is
+ * a valid DATA value and will NOT trigger the guard.
+ */
+function sentinelGuard(
+	batchData: readonly (readonly unknown[] | undefined)[],
+	ctx: FnCtx,
+	allowPartial: boolean,
+): boolean {
+	if (allowPartial) return false;
+	return batchData.some(
+		(batch, i) => !(batch != null && batch.length > 0) && ctx.prevData[i] === undefined,
+	);
+}
 
 // ---------------------------------------------------------------------------
 // state — manual source with an optional initial value
@@ -81,13 +106,25 @@ export function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): No
  * returns the new value. The sugar wraps it with `actions.emit(fn(...))`
  * so the return value flows through the framed emit pipeline.
  *
- * For derived nodes that need to inspect `ctx.latestData` / `ctx.terminalDeps`
+ * For derived nodes that need to inspect `ctx.prevData` / `ctx.terminalDeps`
  * / `ctx.store`, accept the optional second parameter.
  */
 export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefined | null;
 
 /**
- * Creates a derived node from dependencies and a compute function.
+ * Creates a derived node that computes **one output per wave** from the latest
+ * value of each dependency — **snapshot / combine semantics**.
+ *
+ * `fn` receives one scalar per dep (the last DATA value seen this wave, or the
+ * prior-wave value as fallback). It is called once per settled wave and emits
+ * a single value via `actions.emit`. The equals check then suppresses the
+ * emission as `RESOLVED` if the output has not changed.
+ *
+ * **Not for streaming one-to-one transforms.** If each DATA value in a batch
+ * must produce a corresponding output (e.g. transforming every item emitted by
+ * `fromIter` individually), use {@link map} or raw `node()` with full batch
+ * iteration instead. `derived` only sees the *last* value per dep when a batch
+ * carries multiple DATAs.
  *
  * @example
  * ```ts
@@ -98,14 +135,25 @@ export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefin
 export function derived<T = unknown>(
 	deps: readonly Node[],
 	fn: DerivedFn<T>,
-	opts?: NodeOptions<T>,
+	opts?: NodeOptions<T> & { partial?: boolean },
 ): Node<T> {
+	const allowPartial = opts?.partial ?? false;
 	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		// Sentinel guard: if any dep has never sent DATA, emit RESOLVED.
+		// Uses ctx.prevData[i] === undefined (the "never sent" sentinel).
+		// null is valid DATA and won't trigger this. Skipped when partial:true.
+		if (sentinelGuard(batchData, ctx, allowPartial)) {
+			actions.down([[RESOLVED]]);
+			return undefined;
+		}
 		// Unwrap batch-per-dep to single latest scalar per dep.
-		// Batch non-null+non-empty → take last value; otherwise fall back to
-		// ctx.latestData[i] (last known value from a prior wave).
+		// Batch non-null+non-empty → take last value from this wave;
+		// otherwise fall back to ctx.prevData[i] (last value from prior wave).
+		// undefined means "never sent DATA" — sentinelGuard already blocks this
+		// fn when partial:false and any dep is unset, so partial:true callers
+		// receive undefined for uninitiated deps (same as JS convention).
 		const data = batchData.map((batch, i) =>
-			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 		);
 		actions.emit(fn(data, ctx));
 		return undefined;
@@ -143,11 +191,19 @@ export type EffectFn = (
 export function effect(
 	deps: readonly Node[],
 	fn: EffectFn,
-	opts?: NodeOptions<unknown>,
+	opts?: NodeOptions<unknown> & { partial?: boolean },
 ): Node<unknown> {
+	const allowPartial = opts?.partial ?? false;
 	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		// Sentinel guard: hold effect until all deps have initialised.
+		// Matches pre-wave2 framework gate behaviour. Use partial:true to allow
+		// the effect to fire before all deps have delivered their first value.
+		if (sentinelGuard(batchData, ctx, allowPartial)) {
+			actions.down([[RESOLVED]]);
+			return undefined;
+		}
 		const data = batchData.map((batch, i) =>
-			batch != null && batch.length > 0 ? batch.at(-1) : ctx.latestData[i],
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 		);
 		return fn(data, actions, ctx) ?? undefined;
 	};
@@ -191,7 +247,7 @@ export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
 export function dynamicNode<T = unknown>(
 	allDeps: readonly Node[],
 	fn: DynamicFn<T>,
-	opts?: NodeOptions<T>,
+	opts?: NodeOptions<T> & { partial?: boolean },
 ): Node<T> {
 	const depIndex = new Map<Node, number>();
 	allDeps.forEach((d, i) => {
@@ -241,6 +297,10 @@ export function dynamicNode<T = unknown>(
  * DATA synchronously during fn execution, `_execFn`'s re-entrance guard
  * defers the re-run to after the current fn returns.
  *
+ * @param opts - Optional {@link AutoTrackOptions}. Pass `{ partial: true }` to
+ *   allow fn to run before all known deps have delivered their first value
+ *   (useful for optional/secondary deps).
+ *
  * @example
  * ```ts
  * const a = state(1), b = state(2);
@@ -248,12 +308,35 @@ export function dynamicNode<T = unknown>(
  * // deps [a, b] discovered automatically on first run
  * ```
  */
+/**
+ * Options for {@link autoTrackNode}.
+ */
+export interface AutoTrackOptions<T> extends NodeOptions<T> {
+	/**
+	 * When `true`, fn may run before all known deps have delivered their first
+	 * DATA. Unknown deps return `undefined` via `track()`, which the fn must
+	 * handle explicitly. Useful when some deps are "nice-to-have" — e.g. a
+	 * primary computation should continue while a secondary dep is still
+	 * initialising.
+	 *
+	 * When `false` (default), fn is held until every known dep has delivered at
+	 * least one DATA value — a RESOLVED is emitted for the wave instead.
+	 * This matches `derived()` semantics and is the correct default for
+	 * pull-based compat layers (Signals, Jotai) where all deps must be
+	 * initialised before the computation is meaningful.
+	 *
+	 * @default false
+	 */
+	partial?: boolean;
+}
+
 export function autoTrackNode<T = unknown>(
 	fn: (track: TrackFn, ctx: FnCtx) => T | undefined | null,
-	opts?: NodeOptions<T>,
+	opts?: AutoTrackOptions<T>,
 ): Node<T> {
 	let implRef: NodeImpl<T>;
 	const depIndexMap = new Map<Node, number>();
+	const allowPartial = opts?.partial ?? false;
 
 	const wrappedFn: NodeFn = (batchData, actions, ctx) => {
 		let foundNew = false;
@@ -262,11 +345,11 @@ export function autoTrackNode<T = unknown>(
 			if (idx !== undefined) {
 				// Known dep — return latest protocol-delivered value.
 				// batch non-null+non-empty → latest from this wave;
-				// otherwise fall back to ctx.latestData (last known value).
+				// otherwise fall back to ctx.prevData (last known value).
 				if (idx < batchData.length) {
 					const batch = batchData[idx];
 					if (batch != null && batch.length > 0) return batch.at(-1);
-					return ctx.latestData[idx];
+					return ctx.prevData[idx];
 				}
 				return dep.cache;
 			}
@@ -276,6 +359,28 @@ export function autoTrackNode<T = unknown>(
 			depIndexMap.set(dep, newIdx);
 			return dep.cache; // P3 boundary exception (discovery stub)
 		};
+
+		// Sentinel guard (skipped when partial:true): if any known dep has never
+		// delivered DATA (no DATA this wave AND ctx.prevData[idx] === undefined), emit RESOLVED
+		// and defer. Mirrors derived()'s guard for the same sequential-handshake
+		// scenario: when a node re-activates outside a batch and dep A delivers
+		// synchronously before dep B is even subscribed, this holds fn until all
+		// known deps have initialised rather than running with B=undefined.
+		// Uses ctx.prevData[idx] === undefined — the protocol sentinel for
+		// "dep never sent DATA". null is valid DATA and won't trigger this.
+		// Only active when depIndexMap is non-empty (initial discovery runs are
+		// unaffected) and when partial:false (default).
+		if (!allowPartial && depIndexMap.size > 0) {
+			for (const [, idx] of depIndexMap) {
+				if (idx < batchData.length) {
+					const batch = batchData[idx];
+					if (!(batch != null && batch.length > 0) && ctx.prevData[idx] === undefined) {
+						actions.down([[RESOLVED]]);
+						return undefined;
+					}
+				}
+			}
+		}
 
 		try {
 			const result = fn(track, ctx);

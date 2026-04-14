@@ -1030,7 +1030,6 @@ export class ChatStreamGraph extends Graph {
 				name: "latest",
 				describeKind: "derived",
 				meta: aiMeta("chat_latest"),
-				initial: undefined,
 			},
 		);
 		this.add("latest", this.latest);

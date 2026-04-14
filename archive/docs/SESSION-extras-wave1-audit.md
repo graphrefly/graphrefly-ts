@@ -1,7 +1,7 @@
 # SESSION: Extras Wave 1 Audit — Higher-Order Operators
 
 **Date:** 2026-04-13  
-**Status:** Active — all *Map upgraded to B (fn+closure); forwardInner OPEN-1 resolved; mergeMap BUG-1+3 fixed; equals multi-DATA skip added. Remaining: firstValueFrom/firstWhere BUG-2, withLatestFrom tests  
+**Status:** Wave 1 COMPLETE — all *Map upgraded to B (fn+closure); forwardInner OPEN-1 resolved; mergeMap BUG-1+3 fixed; equals multi-DATA skip added; BUG-2 fixed (firstValueFrom/firstWhere shouldUnsub); withLatestFrom secondary-without-data guard added; sentinel gate swallowing secondary ERROR fixed (pre-dirty removed from `_activate`, terminal bypass added in `_maybeRunFnOnSettlement`, `onFailure` given `errorWhenDepsError: false`)  
 **Scope:** `src/extra/operators.ts`, `src/extra/sources.ts`, `src/extra/composite.ts`
 
 ---
@@ -791,7 +791,121 @@ A pure tier-1 switchMap would require `dynamicNode` (auto-tracks inner as a dep 
 ### Still open
 
 - `docs/optimizations.md` — "Framework primitive: wave-final state for multi-dep derived"
-- `firstValueFrom` / `firstWhere` — BUG-2 fix (`shouldUnsub` pattern) + `firstWhere` tests
-- `withLatestFrom` — tests for secondary-unsettled scenario
 - `dynamicNode`-based *Map approach — deferred to separate session
 - 10 pre-existing orchestration/ai/domain-templates test failures (unrelated to *Map)
+
+### Resolved in Wave 1 close-out (2026-04-13)
+
+- ~~BUG-2: `firstValueFrom` / `firstWhere` — `queueMicrotask` replaced with `shouldUnsub` pattern~~ **DONE**
+- ~~`firstWhere` zero test coverage~~ **DONE** — 4 scenarios added in `sources.test.ts`
+- ~~`withLatestFrom` secondary-dep test gaps~~ **DONE** — 5 scenarios added in `operators.test.ts`:
+  - Primary fires before secondary → no DATA (sentinel gate)
+  - Secondary updates, primary fires → pairs with latest secondary
+  - Secondary COMPLETE → operator continues, primary still emits frozen value
+  - Secondary ERROR → propagates (requires primary already settled; sentinel gate swallows it otherwise — filed in `optimizations.md`)
+  - Secondary COMPLETE without prior DATA → primary emission suppressed (RESOLVED)
+
+**New finding:** `withLatestFrom` sentinel gate (`_sentinelDepCount > 0`) blocks `_maybeAutoTerminalAfterWave`, so secondary ERROR is silently swallowed when primary has never emitted. Filed in `docs/optimizations.md`. Tests document this constraint via comment.
+
+- ~~`withLatestFrom` — secondary terminates before primary DATA (secondary-without-data guard)~~ **DONE** — `secondaryHasData` guard added (moved to `ctx.store` — closure variables survive resubscribable terminal reset, `ctx.store` is wiped on reset); fn suppresses emission (returns RESOLVED) when primary fires after secondary went terminal without ever emitting DATA.
+
+### QA pass (2026-04-13) — additional fixes
+
+- ~~**`toArray` — final-wave DATA dropped on same-wave DATA+COMPLETE**~~ **FIXED** — `sources.ts`. When a source emits DATA and COMPLETE in the same wave (e.g. `fromTimer` one-shot), both arrive in one fn invocation with `data[0]` populated AND `terminalDeps[0] === true`. The COMPLETE check ran before the `data[0]` accumulation loop, silently dropping the final value. Fixed by reordering: accumulate `data[0]` into `buf` first, then check `terminalDeps[0]`.
+
+- ~~**`withLatestFrom` — `secondaryHasData` closure variable leaks across resubscribable reset**~~ **FIXED** — `operators.ts`. `secondaryHasData` was a closure variable that survived resubscribable terminal reset; after the secondary terminates and the operator resubscribes, `secondaryHasData` stayed `true` from the prior subscription, making the next primary emission pair with stale state. Fixed by moving to `ctx.store.secondaryHasData` (wiped on reset).
+
+---
+
+## Wave 2 (2026-04-14) — harness fast-retry + autoTrackNode regression
+
+### Findings
+
+**BUG-F1: `harnessLoop` fast-retry exhaustion — `item._retries` always `undefined`**
+
+`totalRetries` reached `maxTotalRetries` (20) instead of `maxRetries` (2). Root cause: depth-first
+delivery caused a diamond race in `verifyContext = withLatestFrom(verifyWithExec, executeInput)`.
+
+Timeline when `retryTopic.publish(retryItem1)` fires:
+1. `executeInput` emits `[DIRTY, DATA(retryItem1)]` to its sinks in subscription order: executeNode
+   first (depth-first), then verifyNode (direct dep[1]), then verifyContext (direct dep[1]).
+2. Because executeNode processes its full message batch before verifyNode does, executeNode runs its
+   fn and emits `DATA(execOutput1)`. This synchronously chains through verifyNode → verifyWithExec →
+   verifyContext. verifyContext fires with `batchData[1]=undefined` (executeInput hasn't reached its
+   dep[1] yet) and falls back to `prevData[1]=M0` (original item). Item = M0, `_retries=undefined`.
+3. `fastRetry` sees `item._retries=undefined` on every retry cycle → publishes retryItem with
+   `_retries=1` every time → loops to the global cap.
+
+**Fix (loop.ts):** Insert `executeContextNode = withLatestFrom(executeNode, executeInput)` between
+execute and verify. This node fires exactly once per execute-wave: executeInput notifies executeNode
+first (depth-first), executeNode settles in dep[0], then executeInput settles in dep[1] →
+`dirtyDepCount` reaches 0 only after both. `verifyNode` now depends on `executeContextNode` alone
+(single dep), so `verifyNode` fires once with the correct `[execOutput, item]` pair. `verifyContext
+= withLatestFrom(verifyNode, executeContextNode)` samples executeContextNode as secondary — both
+deps are in the same wave, executeContextNode settling last.
+
+**BUG-F2: `signals-autotrack` — `level2` emits `undefined` after branch-switch when batching**
+
+`multi-level conditional with grow-only dep sets` failed: after `useX.set(false)`, `seen` contained
+`["x2#0", "undefined#0", "a2#0"]` instead of `["x2#0", "a2#0"]`.
+
+Root cause (three-layer):
+
+1. **Old `dynamicNode` vs new `autoTrackNode`**: the old `DynamicNodeImpl._downInternal` emitted
+   DATA synchronously (no `downWithBatch` deferral). The new `autoTrackNode` wraps `NodeImpl` which
+   uses `downWithBatch` — inside a batch/flush context, subscribe handshake DATA is deferred.
+
+2. **Stale drainPhase2 closures**: inside `useX.set(false)` → batch → drainPhase2 flush, when
+   `level1.get()` is called:
+   - `pull(level1._node)` activates level1, subscriptions to `useA`/`a` queue deferred DATA in
+     drainPhase2. `pull` immediately `unsub()`s → `_deactivate` → `resetDepRecord` (clears
+     `dep.dirty`, `dep.prevData`, sets `dep.unsub=null`) → dep callbacks removed from useA/a sinks.
+     But the drainPhase2 closures already captured the dep callback by value — they fire regardless.
+   - `tracker(level1._node)` = `_addDep(level1._node)` resubscribes level1. `_activate` runs
+     (`_dirtyDepCount=0` reset), subscribing to `useA`/`a` again — more deferred DATA queued.
+
+3. **Premature fn run**: drainPhase2 fires the stale closures first. `_depSettledAsData(dep[0],
+   true)` arrives. `dep[0].dirty=false` (reset) → no `dirtyDepCount--`. `dirtyDepCount=0` →
+   `_maybeRunFnOnSettlement` → `_execFn`. `batchData[0]=[true]`, `batchData[1]=undefined`,
+   `ctx.prevData[0]=undefined` (reset), `ctx.prevData[1]=undefined`. `track(a)` → falls through
+   to `ctx.prevData[1]=undefined`. `result = true ? undefined : ...` = `undefined`. Emits
+   `DATA(undefined)` → `level2=undefined` → `top="undefined#0"`.
+
+**Fix (sugar.ts):** Added sentinel guard to `autoTrackNode`'s `wrappedFn` — mirrors `derived()`'s
+existing guard. Before fn runs, if any known dep (in `depIndexMap`) has `ctx.prevData[idx] ===
+undefined` AND `batchData[idx]` null/empty, emit RESOLVED and return. This blocks all premature
+runs triggered by stale/partial closures. The guard is cleared once a dep's `prevData` is committed
+(first DATA commit happens in `_execFn` pre-fn, unconditionally before fn runs).
+
+**Guard safety analysis:**
+- Only fires when `depIndexMap.size > 0` (known deps exist) — discovery runs (empty map) unaffected.
+- `prevData[i]` is committed from `batchData[i]` BEFORE fn runs (in `_execFn`), so the guard opens
+  for a dep immediately after its first DATA wave, even if fn emits RESOLVED.
+- Matches `_sentinelDepCount` semantics for dynamic deps — equivalent to "wait for all known deps to
+  have delivered at least one DATA before emitting a real value".
+- Permanent block only if a dep truly never sends DATA — same behavior as `derived()` sentinel gate.
+- All 1411 tests pass.
+
+**Open question — alternative fix:** The guard is a correct workaround for stale drainPhase2
+closures. The underlying cause is that `downWithBatch` captures sink callbacks by value, so
+unsubscribing doesn't prevent deferred closures from firing. A more surgical fix would add a
+generation counter to `DepRecord`:
+```
+// In _activate / _addDep:
+dep.gen = (dep.gen ?? 0) + 1;
+const capturedGen = dep.gen;
+dep.unsub = dep.node.subscribe((msgs) => {
+    if (dep.gen !== capturedGen) return; // stale closure
+    ...
+});
+// resetDepRecord: dep.gen++ (invalidates all prior closures)
+```
+This would prevent stale closures from reaching `_depSettledAsData` at all. Deferred for now — all
+tests pass with the guard, and the guard is logically equivalent to the old `_sentinelDepCount`
+behavior for dynamic deps.
+
+### Still open (Wave 2)
+
+- Python parity — all wave 2 changes need to land in `graphrefly-py`
+- `docs/optimizations.md` — prevData open item; check if still applies after wave 2 fixes
+- Generation-counter fix for stale drainPhase2 closures (see BUG-F2 open question above)

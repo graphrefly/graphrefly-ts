@@ -65,12 +65,14 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Module-local "no cached value" sentinel. Kept internal — do NOT re-export
- * in `index.ts`. External callers use `node.status === "sentinel"` to detect
- * absence of cache.
+ * Placeholder unsubscribe used to mark a dep subscription as "pending" during
+ * the synchronous window between `dep.unsub = noopUnsub` and the return of
+ * `dep.node.subscribe(...)`. Ensures the liveness check `dep.unsub === null`
+ * in the subscription callback correctly passes for synchronous push-on-
+ * subscribe deliveries, while still blocking stale drainPhase2 closures that
+ * fire after deactivation has set `dep.unsub = null`.
  */
-const NO_VALUE: unique symbol = Symbol.for("graphrefly/NO_VALUE");
-type NoValue = typeof NO_VALUE;
+const noopUnsub: () => void = () => {};
 
 /**
  * Maximum `_pendingRerun` depth before we give up and emit ERROR. Bounds
@@ -78,12 +80,6 @@ type NoValue = typeof NO_VALUE;
  * converges in O(n) total rounds for n deps, so 100 is ample.
  */
 const MAX_RERUN_DEPTH = 100;
-
-/**
- * Internal "cached or sentinel" type for `_cached` and per-dep `latestData`.
- * The sentinel slot is only visible inside the core layer.
- */
-type Cached<T> = T | NoValue;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -117,7 +113,7 @@ export type NodeInspectorHookEvent =
 	| {
 			kind: "run";
 			batchData: readonly (readonly unknown[] | undefined)[];
-			latestData: readonly unknown[];
+			prevData: readonly unknown[];
 	  };
 
 /** Callback attached to a node for per-message/per-run inspection. */
@@ -147,10 +143,15 @@ export type NodeFnCleanup = (() => void) | { deactivation: () => void };
  * Fn-time context exposing per-wave metadata and a per-node persistent
  * scratch pad.
  *
- * - `latestData[i]` — last known DATA value from dep `i`, regardless of
- *   whether dep `i` was involved in the current wave. Use as the fallback
- *   when `data[i]` is `undefined` (not involved) or `[]` (RESOLVED, no
- *   new values). Always `undefined` for deps that have never sent DATA.
+ * - `prevData[i]` — last DATA value from dep `i` as of the END of the
+ *   previous wave (i.e. the value that was stable before this wave started).
+ *   Use as the fallback when `data[i]` is `undefined` (not involved) or
+ *   `[]` (RESOLVED, no new values this wave).
+ *   `undefined` means dep `i` has never produced DATA (sentinel state).
+ *   `null` is a valid DATA value. `undefined` is not a valid DATA value —
+ *   the protocol reserves it as the "never sent" sentinel.
+ *   - `ctx.prevData[i] === undefined` → dep has never produced DATA
+ *   - `ctx.prevData[i] !== undefined` → last DATA value (may be `null`)
  * - `terminalDeps[i]` — runtime shape:
  *   - `undefined` → dep `i` is still live.
  *   - `true` → dep `i` sent COMPLETE.
@@ -161,7 +162,7 @@ export type NodeFnCleanup = (() => void) | { deactivation: () => void };
  *   cycle. Wiped on deactivation and on resubscribable terminal reset.
  */
 export interface FnCtx {
-	readonly latestData: readonly unknown[];
+	readonly prevData: readonly unknown[];
 	readonly terminalDeps: readonly unknown[];
 	readonly store: Record<string, unknown>;
 }
@@ -173,7 +174,8 @@ export interface FnCtx {
  * current wave. Shape contract:
  * - `undefined` — dep `i` was not involved in this wave (no DIRTY received).
  * - `[]` — dep `i` was involved (dirtied), but settled as RESOLVED (value
- *   unchanged). Use `ctx.latestData[i]` to read its last known value.
+ *   unchanged). Use `ctx.prevData[i]` to read its last known value from the
+ *   previous wave.
  * - `[v1, v2, ...]` — dep `i` sent one or more DATA values. `at(-1)` gives
  *   the latest; iterate for multi-emission processing.
  *
@@ -184,7 +186,7 @@ export interface FnCtx {
  * without an explicit `return undefined`.
  *
  * Sugar constructors (`derived`, `effect`, `dynamicNode`) unwrap `data[i]`
- * to a single scalar (`at(-1)` with `ctx.latestData[i]` fallback) so their
+ * to a single scalar (`at(-1)` with `ctx.prevData[i]` fallback) so their
  * user-facing fn signatures stay unchanged. Use raw `node()` when you need
  * the full batch array.
  */
@@ -201,10 +203,10 @@ export interface NodeOptions<T = unknown> {
 	describeKind?: NodeDescribeKind;
 	equals?: (a: T, b: T) => boolean;
 	/**
-	 * Pre-populate the cache at construction. Key presence (`"initial" in opts`)
-	 * is what matters — `undefined` and `null` are valid initial values.
+	 * Pre-populate the cache at construction. `null` is a valid initial value.
+	 * `undefined` is treated as absent (not a valid DATA payload).
 	 */
-	initial?: T | undefined | null;
+	initial?: T | null;
 	meta?: Record<string, unknown>;
 	resubscribable?: boolean;
 	resetOnTeardown?: boolean;
@@ -300,7 +302,14 @@ export interface Node<T = unknown> {
 export interface DepRecord {
 	readonly node: Node;
 	unsub: (() => void) | null;
-	latestData: Cached<unknown>;
+	/**
+	 * Last DATA value from this dep as of the end of the previous completed
+	 * wave. `undefined` until dep has produced at least one DATA (sentinel).
+	 * Committed by `_execFn` after snapshotting `ctx.prevData` and before
+	 * `_clearWaveFlags`. `undefined` is reserved as the "never sent" sentinel —
+	 * `undefined` is not a valid DATA payload.
+	 */
+	prevData: unknown;
 	/** True while awaiting DATA/RESOLVED for the current wave. */
 	dirty: boolean;
 	/**
@@ -325,7 +334,7 @@ function createDepRecord(n: Node): DepRecord {
 	return {
 		node: n,
 		unsub: null,
-		latestData: NO_VALUE,
+		prevData: undefined,
 		dirty: false,
 		involvedThisWave: false,
 		dataBatch: [],
@@ -334,7 +343,7 @@ function createDepRecord(n: Node): DepRecord {
 }
 
 function resetDepRecord(d: DepRecord): void {
-	d.latestData = NO_VALUE;
+	d.prevData = undefined;
 	d.dirty = false;
 	d.involvedThisWave = false;
 	d.dataBatch.length = 0;
@@ -398,7 +407,7 @@ const defaultOnSubscribe: OnSubscribeHandler = (
 	if (impl._status === "completed" || impl._status === "errored") return;
 	const cached = impl._cached;
 	const initial: Message[] =
-		cached === NO_VALUE ? [START_MSG] : [START_MSG, [DATA, cached] as Message];
+		cached === undefined ? [START_MSG] : [START_MSG, [DATA, cached] as Message];
 	// When the node is mid-wave (`"dirty"`), append a DIRTY so the late
 	// joiner participates in the in-flight wave. Without this, the next
 	// DATA/RESOLVED the sink receives lacks the preceding DIRTY required
@@ -481,7 +490,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_sinkCount = 0;
 
 	// --- State ---
-	_cached: Cached<T>;
+	_cached: T | undefined;
 	_status: NodeStatus;
 	_cleanup: NodeFnCleanup | undefined;
 	_store: Record<string, unknown> = {};
@@ -494,21 +503,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_pendingRerun = false;
 	_rerunDepth = 0;
 
-	// --- Settlement counters (A3) ---
+	// --- Settlement counter (A3) ---
 	/**
-	 * Count of deps currently in `dirty === true`. Maintained by
-	 * `_onDepDirtied` / `_onDepSettled` / `_addDep` / `_deactivate` /
-	 * `resetDepRecordState`. `_maybeRunFnOnSettlement` treats `0` as
-	 * "wave settled" — O(1) replacement for the old `every(!d.dirty)` scan.
+	 * Count of deps currently in `dirty === true`. `_maybeRunFnOnSettlement`
+	 * treats `0` as "wave settled" — O(1) check for full dep settlement.
 	 */
 	_dirtyDepCount = 0;
-	/**
-	 * Count of deps that have NOT yet delivered their first DATA and have
-	 * not terminated. `0` means the first-run gate is open — every dep has
-	 * contributed. Maintained in lockstep with `DepRecord.latestData` /
-	 * `DepRecord.terminal` through the same centralized helpers.
-	 */
-	_sentinelDepCount = 0;
 
 	// --- PAUSE/RESUME lock tracking (C0) ---
 	/**
@@ -582,10 +582,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._guard = opts.guard;
 		this._fn = fn;
 
-		this._cached = "initial" in opts ? (opts.initial as T) : NO_VALUE;
+		// `undefined` is the sentinel ("no cached value") so `initial: undefined`
+		// is treated as absent. `null` is a valid DATA value and sets the cache.
+		this._cached = opts.initial !== undefined ? (opts.initial as T) : undefined;
 		// State-with-initial starts "settled"; everything else starts "sentinel".
 		this._status =
-			deps.length === 0 && fn == null && this._cached !== NO_VALUE ? "settled" : "sentinel";
+			deps.length === 0 && fn == null && this._cached !== undefined ? "settled" : "sentinel";
 
 		// Versioning
 		// Hash resolution: per-node `opts.versioningHash` wins; then the
@@ -602,7 +604,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._versioningLevel = versioningLevel;
 		this._versioning =
 			versioningLevel != null
-				? createVersioning(versioningLevel, this._cached === NO_VALUE ? undefined : this._cached, {
+				? createVersioning(versioningLevel, this._cached === undefined ? undefined : this._cached, {
 						id: opts.versioningId,
 						hash: this._hashFn,
 					})
@@ -667,7 +669,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	get cache(): T | undefined | null {
-		return this._cached === NO_VALUE ? undefined : (this._cached as T);
+		return this._cached === undefined ? undefined : (this._cached as T);
 	}
 
 	get lastMutation(): Readonly<{ actor: Actor; timestamp_ns: number }> | undefined {
@@ -731,7 +733,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		const hash = opts?.hash ?? this._hashFn;
 		if (hash !== this._hashFn) this._hashFn = hash;
-		const initialValue = this._cached === NO_VALUE ? undefined : this._cached;
+		const initialValue = this._cached === undefined ? undefined : this._cached;
 		// Preserve the existing id + version counter across upgrades so
 		// downstream consumers watching `v.id` don't see an identity jump.
 		const current = this._versioning;
@@ -854,7 +856,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const wasTerminal = this._isTerminal;
 		const afterTerminalReset = wasTerminal && this._resubscribable;
 		if (afterTerminalReset) {
-			this._cached = NO_VALUE;
+			this._cached = undefined;
 			this._status = "sentinel";
 			this._store = {};
 			this._hasCalledFnOnce = false;
@@ -866,7 +868,6 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._isExecutingFn = false;
 			this._rerunDepth = 0;
 			this._dirtyDepCount = 0;
-			this._sentinelDepCount = 0;
 			// C0: clear pause state so a new subscriber after terminal-reset
 			// starts from a clean pause lockset — otherwise a lockId from
 			// the previous lifecycle would leave the node stuck paused and
@@ -879,12 +880,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._sinkCount += 1;
 
 		// Subscribe ceremony via singleton.
-		const subCleanup = this._config.onSubscribe(
-			this as unknown as NodeCtx,
-			sink,
-			{ sinkCount: this._sinkCount, afterTerminalReset },
-			this._actions,
-		);
+		// Rollback on throw: undo the sinkCount bump — sink is not yet registered,
+		// no _activate() has run, nothing else to clean up.
+		let subCleanup: (() => void) | undefined;
+		try {
+			subCleanup = this._config.onSubscribe(
+				this as unknown as NodeCtx,
+				sink,
+				{ sinkCount: this._sinkCount, afterTerminalReset },
+				this._actions,
+			);
+		} catch (err) {
+			this._sinkCount -= 1;
+			throw err;
+		}
 
 		// Register sink AFTER START delivery (spec §2.2).
 		if (this._sinks == null) {
@@ -896,13 +905,32 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		// First-subscriber activation.
+		// Rollback on throw: undo sink registration, sinkCount bump, and subCleanup.
+		// _activate() rolls back its own partial dep subscriptions before re-throwing.
 		const isTerminalNow = this._isTerminal;
 		if (this._sinkCount === 1 && !isTerminalNow) {
-			this._activate();
+			try {
+				this._activate();
+			} catch (err) {
+				this._sinkCount -= 1;
+				this._removeSink(sink);
+				// Restore status: onSubscribe emitted START which set _status to
+				// "pending". With zero sinks the node is back to its pre-subscribe
+				// state; reset so node.status reflects no active subscription.
+				if (this._sinkCount === 0) this._status = "sentinel";
+				if (typeof subCleanup === "function") {
+					try {
+						subCleanup();
+					} catch {
+						/* best-effort: subCleanup errors are secondary */
+					}
+				}
+				throw err;
+			}
 		}
 
 		// Reflect "activated but no value yet" as pending.
-		if (this._status === "sentinel" && this._cached === NO_VALUE) {
+		if (this._status === "sentinel" && this._cached === undefined) {
 			this._status = "pending";
 		}
 
@@ -944,15 +972,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (this._fn) this._execFn();
 			return;
 		}
-		// Pre-set every dep as dirty + sentinel BEFORE subscribing — even if
-		// the first dep settles synchronously during subscribe, the
-		// wave-complete check sees later deps still counted as dirty and
-		// holds fn until they settle. Counters are bulk-initialized here
-		// so per-dep transitions below (via the centralized helpers)
-		// decrement correctly.
-		for (const d of this._deps) d.dirty = true;
-		this._dirtyDepCount = this._deps.length;
-		this._sentinelDepCount = this._deps.length;
+		// Pre-set every dep as sentinel BEFORE subscribing. If the first dep
+		// delivers DATA synchronously during its subscribe callback, the
+		// sentinel gate holds fn until all deps have contributed at least one
+		// value. _dirtyDepCount starts at 0 — actual DIRTY messages from deps
+		// drive it; pre-dirtying all deps would cause any dep that only delivers
+		// [[START]] (no DATA) to appear permanently "mid-wave", which blocks
+		// terminal propagation from other deps incorrectly.
+		this._dirtyDepCount = 0;
 		// Capture the initial length BEFORE subscribing. `_addDep` can fire
 		// synchronously during a dep's subscribe callback (e.g., via
 		// `autoTrackNode` discovery in `_execFn`) and push new DepRecords.
@@ -961,19 +988,54 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// double-subscribe bug. Snapshot the length instead; `_addDep`
 		// owns the subscribe + counter bump for any dep it adds.
 		const initialLen = this._deps.length;
-		for (let i = 0; i < initialLen; i++) {
-			const depIdx = i;
-			const dep = this._deps[i];
-			dep.unsub = dep.node.subscribe((msgs) => {
-				for (const m of msgs) {
-					this._config.onMessage(
-						this as unknown as NodeCtx,
-						m,
-						{ direction: "down-in", depIndex: depIdx },
-						this._actions,
-					);
+		// subscribedCount tracks how many deps were successfully subscribed.
+		// On failure, only those deps need to be rolled back.
+		let subscribedCount = 0;
+		try {
+			for (let i = 0; i < initialLen; i++) {
+				const depIdx = i;
+				const dep = this._deps[i];
+				// Pre-set to noopUnsub so the liveness check inside the callback
+				// passes during synchronous push-on-subscribe (dep.unsub is non-null),
+				// while still blocking stale drainPhase2 closures that fire after
+				// _deactivate sets dep.unsub = null.
+				dep.unsub = noopUnsub;
+				dep.unsub = dep.node.subscribe((msgs) => {
+					// Liveness check: dep.unsub === null means this subscription was
+					// cancelled by _deactivate. Drop deliveries from stale drainPhase2
+					// closures that outlived the subscription.
+					if (dep.unsub === null) return;
+					for (const m of msgs) {
+						this._config.onMessage(
+							this as unknown as NodeCtx,
+							m,
+							{ direction: "down-in", depIndex: depIdx },
+							this._actions,
+						);
+					}
+				});
+				subscribedCount++;
+			}
+		} catch (err) {
+			// Dep at index `subscribedCount` failed — its dep.unsub is still noopUnsub.
+			// Mark it null so the liveness check treats any queued closures as stale.
+			this._deps[subscribedCount].unsub = null;
+			// Unsubscribe all deps that DID subscribe successfully (0..subscribedCount-1).
+			for (let j = 0; j < subscribedCount; j++) {
+				const d = this._deps[j];
+				if (d.unsub != null) {
+					const u = d.unsub;
+					d.unsub = null;
+					try {
+						u();
+					} catch {
+						/* best-effort: dep unsub errors are secondary */
+					}
+					resetDepRecord(d);
 				}
-			});
+			}
+			this._dirtyDepCount = 0;
+			throw err;
 		}
 	}
 
@@ -1005,29 +1067,50 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		const depIdx = this._deps.length;
 		const record = createDepRecord(depNode);
-		record.dirty = true;
 		this._deps.push(record);
-		// New dep starts dirty + sentinel — bump both A3 counters to match
-		// the pre-set flags. Skipping the helper here because the record
-		// isn't in the array yet when the helper would early-return on
-		// `dep.dirty === true`.
+
+		// If the node is inactive (no subscribers yet), defer subscribe to
+		// _activate(). Subscribing here would create a duplicate subscription
+		// because _activate() unconditionally subscribes to all _deps entries.
+		// _activate() resets _dirtyDepCount to 0 before subscribing, so pre-
+		// dirtying is wasted work and causes counter underflow on the first DATA.
+		if (this._sinks == null) return depIdx;
+
+		record.dirty = true;
+		// New dep starts dirty — bump the A3 counter to match the pre-set flag.
+		// Skipping the helper here because the record isn't in the array yet when
+		// the helper would early-return on `dep.dirty === true`.
 		this._dirtyDepCount++;
-		this._sentinelDepCount++;
 		// Topology change → downstream sees a new wave. Skip when already
 		// dirty (we're inside an in-flight wave and have already emitted).
 		// `_depDirtied` can't do this for us because `record.dirty` was
 		// pre-set above, which short-circuits its DIRTY-emit path.
 		if (this._status !== "dirty") this._emit(DIRTY_ONLY_BATCH);
-		record.unsub = depNode.subscribe((msgs) => {
-			for (const m of msgs) {
-				this._config.onMessage(
-					this as unknown as NodeCtx,
-					m,
-					{ direction: "down-in", depIndex: depIdx },
-					this._actions,
-				);
-			}
-		});
+		record.unsub = noopUnsub;
+		try {
+			record.unsub = depNode.subscribe((msgs) => {
+				if (record.unsub === null) return;
+				for (const m of msgs) {
+					this._config.onMessage(
+						this as unknown as NodeCtx,
+						m,
+						{ direction: "down-in", depIndex: depIdx },
+						this._actions,
+					);
+				}
+			});
+		} catch (err) {
+			// Rollback: remove the dep record we just pushed and undo the dirty
+			// counter. record.unsub stays null (already cleared below) so any
+			// drainPhase2 closures queued by subscribe before it threw are
+			// treated as stale and dropped by the liveness check.
+			record.unsub = null;
+			this._deps.pop();
+			this._dirtyDepCount--;
+			// Propagate: _execFn's catch block will emit ERROR, which settles
+			// downstream nodes that received the DIRTY we emitted above.
+			throw err;
+		}
 		return depIdx;
 	}
 
@@ -1093,9 +1176,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pendingRerun = false;
 		this._rerunDepth = 0;
 		this._store = {};
-		// A3 counters reset with DepRecord bulk-reset.
+		// A3 counter reset with DepRecord bulk-reset.
 		this._dirtyDepCount = 0;
-		this._sentinelDepCount = 0;
 		// C0 pause state: TEARDOWN is a hard reset. Buffered tier-3/4
 		// messages from a paused `resumeAll` node are DISCARDED rather than
 		// drained, matching "teardown wipes in-flight state" semantics.
@@ -1108,7 +1190,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		// ROM/RAM: compute nodes clear cache; pure state nodes preserve it.
 		if (this._fn != null) {
-			this._cached = NO_VALUE;
+			this._cached = undefined;
 		}
 
 		if (!skipStatusUpdate) {
@@ -1241,11 +1323,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			dep.dirty = false;
 			this._dirtyDepCount--;
 		}
-		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
-		dep.latestData = value;
 		dep.involvedThisWave = true;
 		dep.dataBatch.push(value);
-		if (wasSentinel) this._sentinelDepCount--;
 		this._waveHasNewData = true;
 	}
 
@@ -1272,24 +1351,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			dep.dirty = false;
 			this._dirtyDepCount--;
 		}
-		const wasSentinel = dep.latestData === NO_VALUE && dep.terminal === undefined;
 		dep.terminal = terminal;
 		dep.involvedThisWave = true;
-		if (wasSentinel) this._sentinelDepCount--;
 		this._hasNewTerminal = true;
 	}
 
 	/**
-	 * Called when a dep emits INVALIDATE: clears cache, marks dirty, and
-	 * restores sentinel state. The dep is now back in the "never delivered
-	 * a real value" state, so the first-run gate re-closes.
+	 * Called when a dep emits INVALIDATE: clears prevData, terminal, and
+	 * dataBatch. The dep is now back in the "never delivered a real value"
+	 * state — `prevData === undefined` so the sentinel check in fn will fire.
 	 */
 	private _depInvalidated(dep: DepRecord): void {
-		const wasNotSentinel = dep.latestData !== NO_VALUE || dep.terminal !== undefined;
-		dep.latestData = NO_VALUE;
+		dep.prevData = undefined;
 		dep.terminal = undefined;
 		dep.dataBatch.length = 0;
-		if (wasNotSentinel) this._sentinelDepCount++;
 		if (!dep.dirty) {
 			dep.dirty = true;
 			dep.involvedThisWave = true;
@@ -1301,12 +1376,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	private _maybeRunFnOnSettlement(): void {
 		if (this._isTerminal && !this._resubscribable) return;
-		// O(1) gate checks via the A3 counters. `_dirtyDepCount === 0` means
-		// every dep has delivered its settlement for this wave;
-		// `_sentinelDepCount === 0` means every dep has contributed at least
-		// one DATA or terminal since activation (first-run gate is open).
+		// O(1) gate: `_dirtyDepCount === 0` means every dep has delivered its
+		// settlement for this wave (DATA, RESOLVED, or terminal).
 		if (this._dirtyDepCount > 0) return;
-		if (this._sentinelDepCount > 0) return;
 		if (this._paused) {
 			this._pendingWave = true;
 			return;
@@ -1381,17 +1453,28 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const batchData: (readonly unknown[] | undefined)[] = this._deps.map((d) =>
 			!d.involvedThisWave ? undefined : d.dataBatch.length > 0 ? [...d.dataBatch] : [],
 		);
-		const latestData: unknown[] = this._deps.map((d) =>
-			d.latestData === NO_VALUE ? undefined : d.latestData,
-		);
+		// Snapshot prevData BEFORE committing this wave's values — fn sees the
+		// stable values from the end of the previous wave, not the current wave.
+		// undefined = "never sent DATA". null is a valid DATA value.
+		const prevData: unknown[] = this._deps.map((d) => d.prevData);
+		// Commit: advance each dep's prevData to this wave's last DATA so the
+		// NEXT wave's fn snapshot sees the current wave as "previous".
+		// Use the already-copied batchData rather than dep.dataBatch to avoid
+		// any ordering dependency with _clearWaveFlags.
+		for (let i = 0; i < this._deps.length; i++) {
+			const batch = batchData[i];
+			if (batch != null && batch.length > 0) {
+				this._deps[i].prevData = batch[batch.length - 1] as unknown;
+			}
+		}
 		const terminalDeps = this._deps.map((d) => d.terminal);
-		const ctx: FnCtx = { latestData, terminalDeps, store: this._store };
+		const ctx: FnCtx = { prevData, terminalDeps, store: this._store };
 
 		this._hasCalledFnOnce = true;
 		this._clearWaveFlags();
 
 		// Fire inspector hook before fn runs — for Graph.observe causal traces.
-		this._inspectorHook?.({ kind: "run", batchData, latestData });
+		this._inspectorHook?.({ kind: "run", batchData, prevData });
 
 		this._isExecutingFn = true;
 		try {
@@ -1754,6 +1837,19 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (tierOf(m[0]) === 3) dataCount++;
 		}
 		const checkEquals = dataCount <= 1;
+		// Version advances once per batch wave, not per DATA in the batch.
+		// _cached only retains the last DATA value, so intermediate version
+		// entries would reference values that can never be retrieved from cache.
+		// Pre-scan for the last DATA index so we know when to fire advanceVersion.
+		let lastDataIdx = -1;
+		if (this._versioning != null && dataCount > 1) {
+			for (let i = messages.length - 1; i >= 0; i--) {
+				if (messages[i][0] === DATA) {
+					lastDataIdx = i;
+					break;
+				}
+			}
+		}
 
 		for (let i = 0; i < messages.length; i++) {
 			const m = messages[i];
@@ -1761,7 +1857,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (t === DATA) {
 				if (m.length >= 2) {
 					let unchanged = false;
-					if (checkEquals && this._cached !== NO_VALUE) {
+					if (checkEquals && this._cached !== undefined) {
 						try {
 							unchanged = this._equals(this._cached as T, m[1] as T);
 						} catch (err) {
@@ -1781,7 +1877,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					}
 					this._cached = m[1] as T;
 					if (this._versioning != null) {
-						advanceVersion(this._versioning, m[1], this._hashFn);
+						// dataCount <= 1: lastDataIdx is -1; advance unconditionally
+						// (single DATA, correct as before).
+						// dataCount > 1: only advance on the last DATA in the batch.
+						if (lastDataIdx < 0 || i === lastDataIdx) {
+							advanceVersion(this._versioning, m[1], this._hashFn);
+						}
 					}
 				}
 				this._status = "settled";
@@ -1797,7 +1898,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				} else if (t === ERROR) {
 					this._status = "errored";
 				} else if (t === INVALIDATE) {
-					this._cached = NO_VALUE;
+					this._cached = undefined;
 					this._status = "dirty";
 					// Function-form cleanup fires on invalidate (treats as "re-run").
 					const c = this._cleanup;
@@ -1810,7 +1911,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						}
 					}
 				} else if (t === TEARDOWN) {
-					if (this._resetOnTeardown) this._cached = NO_VALUE;
+					if (this._resetOnTeardown) this._cached = undefined;
 					// Meta TEARDOWN fan-out was already performed by `_emit`
 					// before this walk. Deactivate now that meta children
 					// have been notified.
