@@ -8,14 +8,9 @@
 
 ## Active work items
 
-- **Higher-order operators: fn+closure tier-1 upgrade (proposed, 2026-04-11):**
-  `switchMap`, `exhaustMap`, `concatMap`, `mergeMap` currently use the **producer pattern** (manual `source.subscribe()` inside a producer fn). This matches RxJS semantics and has no correctness regression from v4, but the outer source does not participate in the node's wave tracking (tier 2 operator — message-level, not wave-level).
-  **fn+closure alternative:** declare `[source]` as a dep, use `data[0]` for the outer value, manage inner subscriptions in closure, return cleanup. Benefits:
-  (a) **Wave batching** — multiple outer DATAs in the same batch → fn runs once with the latest value. Fewer inner subscription churn for switchMap (cancel+resubscribe once instead of N times).
-  (b) **Pre-fn skip** — if outer emits RESOLVED (unchanged via `equals`), fn doesn't re-run at all. Zero inner subscription management overhead. Free subtree pruning.
-  (c) **Diamond coordination** — downstream nodes that depend on both the higher-order operator AND another path from the same source get glitch-free wave resolution via DepRecord tracking.
-  Trade-off: fn fires once per wave (not per DATA message). For switchMap this is semantically identical (latest value wins). For concatMap/mergeMap, it means "batch of outer values → one fn call with latest" which may differ from per-message semantics. Needs careful design per operator.
-  Depends on: foundation redesign completion. Not blocking — current producer pattern is correct.
+- **`_updateState` versioning fires for every DATA in a multi-DATA batch (noted, 2026-04-13):**
+  With `checkEquals = false` (multi-DATA batch), `advanceVersion()` is called for each DATA inline at the old cache-update site. `this._cached` only stores the last value via the deferred `newCache` write, but versioning has entries for all intermediate values in the batch — values that were never the node's "official" stable cache. For *Map output nodes this doesn't matter (inner DATA arrives via `a.emit`, always single-item). For nodes that receive raw multi-DATA `down()` calls directly, the version history contains audit entries for intermediate values that were never observable externally. Minor inconsistency; no protocol violation.
+  **Deferred:** versioning is an audit trail, not a reactive signal. Intermediate entries are arguably correct ("we saw these values"). No action needed unless version consumers depend on "version history ≡ cache history."
 
 - **Message array allocation in hot path (proposed, 2026-04-11):**
   Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify. **Partially landed 2026-04-12 (A2):** 6 payload-free tuples interned (`DIRTY_MSG`, `RESOLVED_MSG`, `INVALIDATE_MSG`, `START_MSG`, `COMPLETE_MSG`, `TEARDOWN_MSG`) plus 5 pre-wrapped batch singletons. Closes the alloc cost for tier-1/tier-5 control signals. Tier-3 DATA/ERROR still allocate per-call because they carry payloads — see passthrough `[msg]` wrapper item below.
@@ -39,7 +34,7 @@
   Call sites reading `.cache` on a node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral.
 
   **Originally tracked (still open):**
-  1. `operators.ts:994` — `forwardInner` reads `inner.cache` after subscribe to seed value for synchronous producers. Fragile under batch.
+  1. ~~`operators.ts:994` — `forwardInner` reads `inner.cache` after subscribe to seed value for synchronous producers. Fragile under batch.~~ **DONE (2026-04-13).** Post-subscribe `.status`/`.cache` reads removed — dead code given P4 START handshake guarantees.
   2. `composite.ts:78` — `sourceNode.cache` inside switchMap project fn. Should receive value through the trigger/dep protocol.
   3. `composite.ts:184` — `verdict.cache === true` inside derived fn. (Cross-ref: distill eviction redesign item below.)
   4. `resilience.ts:624` — `out.meta.status.cache === "errored"` in subscribe callback. Should react to status changes via protocol.

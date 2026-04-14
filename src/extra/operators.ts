@@ -13,6 +13,7 @@ import type { NodeActions } from "../core/config.js";
 import {
 	COMPLETE,
 	DATA,
+	DIRTY,
 	ERROR,
 	type Message,
 	type Messages,
@@ -1025,7 +1026,6 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => void): () => void {
 	let unsub: (() => void) | undefined;
 	let finished = false;
-	let emitted = false;
 	const finish = (): void => {
 		if (finished) return;
 		finished = true;
@@ -1037,17 +1037,24 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 		for (const m of msgs) {
 			if (m[0] === START) continue;
 			if (m[0] === DATA) {
-				emitted = true;
 				a.emit(m[1] as R);
 			} else if (m[0] === COMPLETE) {
 				sawComplete = true;
 			} else if (m[0] === ERROR) {
 				sawError = true;
 				a.down([m]);
-			} else {
-				// Forward RESOLVED and other signals as-is.
+			} else if (m[0] === DIRTY || m[0] === RESOLVED) {
+				// Reactive wave signals forwarded to outer output.
 				a.down([m]);
 			}
+			// INVALIDATE, PAUSE, RESUME, TEARDOWN from inner are intentionally
+			// dropped. Inner lifecycle and flow-control signals are internal to
+			// the *Map operator. INVALIDATE is dropped because the inner will
+			// follow up with DIRTY+DATA when it recomputes — forwarding
+			// INVALIDATE to the outer output's sinks is redundant and wrong for
+			// mergeMap (one inner's cache state must not invalidate the whole
+			// merged output). PAUSE/RESUME/TEARDOWN: RxJS/callbag precedent —
+			// no backpressure forwarding in merge-style operators.
 		}
 		if (sawError) {
 			unsub?.();
@@ -1057,12 +1064,9 @@ function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => 
 			finish();
 		}
 	});
-	if (!emitted && (inner.status === "settled" || inner.status === "resolved")) {
-		a.emit(inner.cache as R);
-	}
-	if (inner.status === "completed" || inner.status === "errored") {
-		finish();
-	}
+	// P4 START handshake guarantees: subscribe delivers [[START], [DATA, cache]]
+	// synchronously for settled nodes. Any relevant state is already handled by
+	// the callback above — no post-subscribe .status/.cache reads needed.
 	return () => {
 		unsub?.();
 		unsub = undefined;
@@ -1091,42 +1095,53 @@ export function switchMap<T, R>(
 	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
-	return producer<R>((a) => {
-		let innerUnsub: (() => void) | undefined;
-		let sourceDone = false;
+	let innerUnsub: (() => void) | undefined;
+	let sourceDone = false;
 
-		function clearInner(): void {
-			innerUnsub?.();
-			innerUnsub = undefined;
-		}
+	function clearInner(): void {
+		innerUnsub?.();
+		innerUnsub = undefined;
+	}
 
-		function attach(v: T): void {
+	return node<R>(
+		[source as Node],
+		(data, a, ctx) => {
+			// Source ERROR: cleanup inner, autoError forwards
+			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
+				clearInner();
+				return;
+			}
+			// Source COMPLETE
+			if (ctx.terminalDeps[0] === true) {
+				sourceDone = true;
+				if (!innerUnsub) a.down([[COMPLETE]]);
+				// inner active: onInnerComplete will fire COMPLETE later
+				return;
+			}
+
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) return;
+
+			// Switch: only the latest value matters; skip to the last in the
+			// batch to avoid creating and immediately discarding N-1 inners.
+			// clearInner() runs once to cancel any prior-wave inner.
 			clearInner();
-			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
+			innerUnsub = forwardInner(fromAny(project(batch0[batch0.length - 1] as T)), a, () => {
 				clearInner();
 				if (sourceDone) a.down([[COMPLETE]]);
 			});
-		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					attach(m[1] as T);
-				} else if (m[0] === ERROR) {
+			// Deactivation-only cleanup: must NOT fire before fn reruns
+			// because the terminal wave needs to see innerUnsub intact.
+			return {
+				deactivation: () => {
 					clearInner();
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
-					sourceDone = true;
-					if (innerUnsub === undefined) a.down([[COMPLETE]]);
-				}
-			}
-		});
-
-		return () => {
-			srcUnsub();
-			clearInner();
-		};
-	}, operatorOpts(opts));
+					sourceDone = false;
+				},
+			};
+		},
+		{ ...operatorOpts(opts), completeWhenDepsComplete: false },
+	);
 }
 
 /**
@@ -1150,44 +1165,50 @@ export function exhaustMap<T, R>(
 	project: (value: T) => NodeInput<R>,
 	opts?: ExtraOpts,
 ): Node<R> {
-	return producer<R>((a) => {
-		let innerUnsub: (() => void) | undefined;
-		let sourceDone = false;
+	let innerUnsub: (() => void) | undefined;
+	let sourceDone = false;
 
-		function clearInner(): void {
-			innerUnsub?.();
-			innerUnsub = undefined;
-		}
+	function clearInner(): void {
+		innerUnsub?.();
+		innerUnsub = undefined;
+	}
 
-		function attach(v: T): void {
-			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
+	return node<R>(
+		[source as Node],
+		(data, a, ctx) => {
+			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
 				clearInner();
-				if (sourceDone) a.down([[COMPLETE]]);
-			});
-		}
-
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					// Only attach if no inner is active; otherwise silently
-					// drop (exhaustMap semantics). No RESOLVED needed — this
-					// is a producer node, no DIRTY was emitted for this drop.
-					if (innerUnsub === undefined) attach(m[1] as T);
-				} else if (m[0] === ERROR) {
-					clearInner();
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
-					sourceDone = true;
-					if (innerUnsub === undefined) a.down([[COMPLETE]]);
-				}
+				return;
 			}
-		});
+			if (ctx.terminalDeps[0] === true) {
+				sourceDone = true;
+				if (!innerUnsub) a.down([[COMPLETE]]);
+				return;
+			}
 
-		return () => {
-			srcUnsub();
-			clearInner();
-		};
-	}, operatorOpts(opts));
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) return;
+
+			if (innerUnsub === undefined) {
+				// First value in batch wins (FIFO exhaustMap gate)
+				innerUnsub = forwardInner(fromAny(project(batch0[0] as T)), a, () => {
+					clearInner();
+					if (sourceDone) a.down([[COMPLETE]]);
+				});
+			} else {
+				// Inner active — drop, settle the dep-wave
+				a.down([[RESOLVED]]);
+			}
+
+			return {
+				deactivation: () => {
+					clearInner();
+					sourceDone = false;
+				},
+			};
+		},
+		{ ...operatorOpts(opts), completeWhenDepsComplete: false },
+	);
 }
 
 /**
@@ -1212,56 +1233,68 @@ export function concatMap<T, R>(
 	opts?: ExtraOpts & { maxBuffer?: number },
 ): Node<R> {
 	const { maxBuffer: maxBuf, ...concatNodeOpts } = opts ?? {};
-	return producer<R>((a) => {
-		const queue: T[] = [];
-		let innerUnsub: (() => void) | undefined;
-		let sourceDone = false;
+	const queue: T[] = [];
+	let innerUnsub: (() => void) | undefined;
+	let sourceDone = false;
+	let actions: NodeActions | undefined;
 
-		function clearInner(): void {
-			innerUnsub?.();
-			innerUnsub = undefined;
+	function clearInner(): void {
+		innerUnsub?.();
+		innerUnsub = undefined;
+	}
+
+	function tryPump(): void {
+		if (!actions || innerUnsub !== undefined) return;
+		if (queue.length === 0) {
+			if (sourceDone) actions.down([[COMPLETE]]);
+			return;
 		}
+		const v = queue.shift()!;
+		innerUnsub = forwardInner(fromAny(project(v)), actions, () => {
+			clearInner();
+			tryPump();
+		});
+	}
 
-		function tryPump(): void {
-			if (innerUnsub !== undefined) return;
-			if (queue.length === 0) {
-				if (sourceDone) a.down([[COMPLETE]]);
+	function enqueue(v: T): void {
+		if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
+		queue.push(v);
+		tryPump();
+	}
+
+	return node<R>(
+		[source as Node],
+		(data, a, ctx) => {
+			actions = a;
+
+			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
+				clearInner();
+				queue.length = 0;
 				return;
 			}
-			const v = queue.shift()!;
-			innerUnsub = forwardInner(fromAny(project(v)), a, () => {
-				clearInner();
+			if (ctx.terminalDeps[0] === true) {
+				sourceDone = true;
 				tryPump();
-			});
-		}
+				return;
+			}
 
-		function enqueue(v: T): void {
-			if (maxBuf && maxBuf > 0 && queue.length >= maxBuf) queue.shift();
-			queue.push(v);
-			tryPump();
-		}
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) return;
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					enqueue(m[1] as T);
-				} else if (m[0] === ERROR) {
+			for (const v of batch0 as T[]) {
+				enqueue(v as T);
+			}
+
+			return {
+				deactivation: () => {
 					clearInner();
 					queue.length = 0;
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
-					sourceDone = true;
-					tryPump();
-				}
-			}
-		});
-
-		return () => {
-			srcUnsub();
-			clearInner();
-			queue.length = 0;
-		};
-	}, operatorOpts(concatNodeOpts));
+					sourceDone = false;
+				},
+			};
+		},
+		{ ...operatorOpts(concatNodeOpts), completeWhenDepsComplete: false },
+	);
 }
 
 /** Options for {@link mergeMap}. */
@@ -1308,83 +1341,82 @@ export function mergeMap<T, R>(
 	const maxConcurrent =
 		concurrentOpt != null && concurrentOpt > 0 ? concurrentOpt : Number.POSITIVE_INFINITY;
 
-	return producer<R>((a) => {
-		let active = 0;
-		let sourceDone = false;
-		const innerStops = new Set<() => void>();
-		const buffer: T[] = [];
+	let active = 0;
+	let sourceDone = false;
+	const innerStops = new Set<() => void>();
+	const buffer: T[] = [];
+	let actions: NodeActions | undefined;
 
-		function tryComplete(): void {
-			if (sourceDone && active === 0 && buffer.length === 0) a.down([[COMPLETE]]);
+	function tryComplete(): void {
+		if (sourceDone && active === 0 && buffer.length === 0 && actions) {
+			actions.down([[COMPLETE]]);
 		}
+	}
 
-		function spawn(v: T): void {
-			active++;
-			const inner = fromAny(project(v));
-			let stop: (() => void) | undefined;
-			const runStop = (): void => {
-				stop?.();
-				if (stop !== undefined) innerStops.delete(stop);
-				stop = undefined;
-			};
-			stop = inner.subscribe((msgs) => {
-				let sawComplete = false;
-				const out: Message[] = [];
-				for (const m of msgs) {
-					if (m[0] === COMPLETE) sawComplete = true;
-					else out.push(m);
-				}
-				if (out.length > 0) a.down(out as unknown as Messages);
-				if (sawComplete) {
-					runStop();
-					active--;
-					drainBuffer();
-					tryComplete();
-				}
-			});
-			innerStops.add(stop);
-		}
-
-		function drainBuffer(): void {
-			while (buffer.length > 0 && active < maxConcurrent) {
-				spawn(buffer.shift()!);
-			}
-		}
-
-		function enqueue(v: T): void {
-			if (active < maxConcurrent) {
-				spawn(v);
-			} else {
-				buffer.push(v);
-			}
-		}
-
-		function clearAll(): void {
-			for (const u of innerStops) u();
-			innerStops.clear();
-			active = 0;
-			buffer.length = 0;
-		}
-
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					enqueue(m[1] as T);
-				} else if (m[0] === ERROR) {
-					clearAll();
-					a.down([m]);
-				} else if (m[0] === COMPLETE) {
-					sourceDone = true;
-					tryComplete();
-				}
-			}
+	function spawn(v: T): void {
+		if (!actions) return;
+		active++;
+		// Use `let` (not `const`) so the closure can reference `stop` safely even
+		// if onInnerComplete fires synchronously (e.g. already-completed inner node).
+		let stop: (() => void) | undefined;
+		stop = forwardInner(fromAny(project(v)), actions, () => {
+			if (stop) innerStops.delete(stop);
+			active--;
+			drainBuffer();
+			tryComplete();
 		});
+		innerStops.add(stop);
+	}
 
-		return () => {
-			srcUnsub();
-			clearAll();
-		};
-	}, operatorOpts(mergeNodeOpts));
+	function drainBuffer(): void {
+		while (buffer.length > 0 && active < maxConcurrent) {
+			spawn(buffer.shift()!);
+		}
+	}
+
+	function enqueue(v: T): void {
+		if (active < maxConcurrent) spawn(v);
+		else buffer.push(v);
+	}
+
+	function clearAll(): void {
+		for (const u of innerStops) u();
+		innerStops.clear();
+		active = 0;
+		buffer.length = 0;
+	}
+
+	return node<R>(
+		[source as Node],
+		(data, a, ctx) => {
+			actions = a;
+
+			if (ctx.terminalDeps[0] != null && ctx.terminalDeps[0] !== true) {
+				clearAll();
+				return;
+			}
+			if (ctx.terminalDeps[0] === true) {
+				sourceDone = true;
+				tryComplete();
+				return;
+			}
+
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) return;
+
+			for (const v of batch0 as T[]) {
+				enqueue(v as T);
+			}
+
+			return {
+				deactivation: () => {
+					clearAll();
+					sourceDone = false;
+				},
+			};
+		},
+		{ ...operatorOpts(mergeNodeOpts), completeWhenDepsComplete: false },
+	);
 }
 
 /**

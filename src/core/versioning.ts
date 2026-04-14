@@ -10,7 +10,7 @@
  * - Version advances only on DATA (not RESOLVED, INVALIDATE, or TEARDOWN).
  * - `resetOnTeardown` clears the cached value but does NOT reset versioning state.
  *   After teardown, `v.cid` still reflects the last DATA value, not the cleared cache.
- *   The invariant `hash(node.get()) === v.cid` only holds in `settled`/`resolved` status.
+ *   The invariant `hash(node.cache) === v.cid` only holds in `settled`/`resolved` status.
  * - Resubscribable nodes preserve versioning across subscription lifetimes (monotonic counter).
  */
 

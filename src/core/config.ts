@@ -1,6 +1,6 @@
 /**
- * Singleton protocol config. Holds the message-type registry, the default
- * `bundle` / `onMessage` / `onSubscribe` hooks, and the freeze flag.
+ * Singleton protocol config. Holds the message-type registry, the
+ * `onMessage` / `onSubscribe` hooks, versioning defaults, and the freeze flag.
  *
  * Layering: this file is protocol-pure. It imports only from `messages.ts`
  * and declares opaque type shapes for handlers — the concrete default
@@ -13,9 +13,9 @@
  * 2. **Isolated instance** (`new GraphReFlyConfig(...)`) — pass via
  *    `opts.config` for test isolation or custom protocol stacks.
  *
- * A config **freezes on first getter read** of any hook (`bundle`,
- * `onMessage`, `onSubscribe`). `NodeImpl`'s constructor intentionally touches
- * one of these on first use so configuration cannot drift once nodes exist.
+ * A config **freezes on first getter read** of any hook (`onMessage`,
+ * `onSubscribe`). `NodeImpl`'s constructor intentionally touches one of these
+ * on first use so configuration cannot drift once nodes exist.
  */
 
 import {

@@ -1065,37 +1065,34 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		unsub();
 	});
 
-	it("raw down with two same-value DATAs in one batch: both collapse, one synthetic DIRTY covers the wave", () => {
-		// Per-message sequential walk: each DATA hits equals against live
-		// cache, so a batch with two same-value DATAs collapses both. The
-		// synthetic DIRTY prefix is inserted once at the head of the walk
-		// and covers every RESOLVED in the batch.
+	it("raw down with two same-value DATAs in one batch: equals skipped, both pass through as DATA", () => {
+		// Multi-DATA batches skip equals substitution — running equals on
+		// every DATA is wasted when downstream fn must run regardless.
+		// Cache advances to the last value in the batch.
 		const src = node<number>({ initial: 9 });
-		const { msgs, unsub } = collectTier3(src);
+		const { msgs, values, unsub } = collectTier3(src);
 
 		src.down([
 			[DATA, 9],
 			[DATA, 9],
 		]);
 
-		expect(msgs).toEqual([DIRTY, RESOLVED, RESOLVED]);
+		expect(msgs).toEqual([DIRTY, DATA, DATA]);
+		expect(values.filter((v): v is number => v != null)).toEqual([9, 9]);
 		expect(src.cache).toBe(9);
 		unsub();
 	});
 
-	it("interleaved non-substituted and substituted DATAs preserve ordering in rewritten copy", () => {
-		// BH#4 regression guard: if a raw batch is `[DIRTY, DATA(1), DATA(1), DATA(2)]`
-		// (cache already == 1), the walk must produce `[DIRTY, RESOLVED, RESOLVED, DATA(2)]`.
-		// This exercises the `rewritten.push(m)` at the bottom of the non-
-		// substituted DATA branch — if that push is ever removed, non-
-		// substituted DATAs after a substituted one would silently disappear.
+	it("interleaved DATAs in multi-DATA batch: equals skipped, all pass through", () => {
+		// Multi-DATA batches skip equals — all DATAs pass through as-is.
+		// Cache advances sequentially (1 → 1 → 2).
 		const src = node<number>({ initial: 1 });
 		const { msgs, values, unsub } = collectTier3(src);
 
 		src.down([[DIRTY], [DATA, 1], [DATA, 1], [DATA, 2]]);
 
-		expect(msgs).toEqual([DIRTY, RESOLVED, RESOLVED, DATA]);
-		expect(values.filter((v): v is number => v != null)).toEqual([2]);
+		expect(msgs).toEqual([DIRTY, DATA, DATA, DATA]);
+		expect(values.filter((v): v is number => v != null)).toEqual([1, 1, 2]);
 		expect(src.cache).toBe(2);
 		unsub();
 	});
@@ -1265,44 +1262,33 @@ describe("§3.5 equals substitution — dispatch-layer invariant", () => {
 		collectedWithout.unsub();
 	});
 
-	it("equals throw mid-batch delivers successfully-walked prefix then ERROR (P2 atomicity)", () => {
-		// BH#1 fix: when equals throws on message N, the walk aborts,
-		// returns the prefix walked up to (but not including) N, `_emit`
-		// delivers that prefix to sinks, then emits a fresh ERROR batch.
-		// Subscribers observe `[...walked_prefix, ERROR]`, coherent with
-		// `.cache` which was advanced during the prefix walk.
-		let calls = 0;
+	it("equals throw on single-DATA batch delivers DIRTY prefix then ERROR (P2 atomicity)", () => {
+		// When equals throws, the walk aborts, `_emit` delivers the
+		// successfully-walked prefix to sinks, then emits a fresh ERROR.
+		// Subscribers observe `[...walked_prefix, ERROR]`.
 		const src = node<number>({
 			initial: 0,
-			equals: (a, b) => {
-				calls += 1;
-				// Throw on the second equals call (which fires for DATA(7)).
-				if (calls >= 2) throw new Error("equals boom");
-				return a === b;
+			equals: () => {
+				throw new Error("equals boom");
 			},
 		});
 		const seen: Array<[symbol, unknown]> = [];
 		const unsub = src.subscribe((batch) => {
 			for (const m of batch) seen.push([m[0] as symbol, m[1]]);
 		});
-		// Truncate the START handshake baseline (START + paired initial DATA(0))
-		// so assertions only cover emissions from the down() call below.
+		// Truncate the START handshake baseline.
 		seen.length = 0;
 
-		// Batch: DIRTY, DATA(5) — first equals call, returns false, advances cache.
-		// DATA(7) — second equals call, throws. Walk aborts at index 2.
-		// Prefix `[DIRTY, DATA(5)]` is delivered, then ERROR.
-		src.down([[DIRTY], [DATA, 5], [DATA, 7]]);
+		// Single DATA batch: equals fires and throws. Walk aborts at
+		// index 1 (the DATA). Prefix `[DIRTY]` delivered, then ERROR.
+		src.down([[DATA, 5]]);
 
 		const msgKinds = seen.map(([k]) => k);
 		expect(msgKinds).toContain(DIRTY);
-		expect(msgKinds).toContain(DATA);
 		expect(msgKinds).toContain(ERROR);
-		// DATA(5) was delivered (walked prefix), DATA(7) was NOT (aborted).
-		const dataValues = seen.filter(([k]) => k === DATA).map(([, v]) => v);
-		expect(dataValues).toEqual([5]);
-		// Cache advanced to 5 during prefix walk; never became 7.
-		expect(src.cache).toBe(5);
+		expect(msgKinds).not.toContain(DATA);
+		// Cache stays at 0 — equals threw before cache could advance.
+		expect(src.cache).toBe(0);
 		unsub();
 	});
 });

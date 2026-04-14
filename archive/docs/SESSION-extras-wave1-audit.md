@@ -1,7 +1,7 @@
 # SESSION: Extras Wave 1 Audit — Higher-Order Operators
 
 **Date:** 2026-04-13  
-**Status:** Active — switchMap deep-dive complete; exhaustMap/concatMap/mergeMap/withLatestFrom/firstValueFrom/firstWhere pending  
+**Status:** Active — all *Map upgraded to B (fn+closure); forwardInner OPEN-1 resolved; mergeMap BUG-1+3 fixed; equals multi-DATA skip added. Remaining: firstValueFrom/firstWhere BUG-2, withLatestFrom tests  
 **Scope:** `src/extra/operators.ts`, `src/extra/sources.ts`, `src/extra/composite.ts`
 
 ---
@@ -10,14 +10,109 @@
 
 Following completion of the foundation redesign (SESSION-foundation-redesign.md), this session
 audits the `src/extra/` operators for semantic correctness, design invariant compliance, test
-coverage, and composability. The session uses a phased "wave" structure; this document covers
-**Wave 1: higher-order operators**.
+coverage, and composability. The session uses a phased wave structure; see **Strategic Plan:
+Extras Review & Hardening** below for waves 1–5 and the per-file review protocol. This document
+covers **Wave 1: higher-order operators**.
 
 Foundation redesign invariants in scope:
 - **P2:** `onMessage` handles protocol, `fn` handles data only
 - **P3:** No cross-node inspection — `.cache` / `.status` are external APIs; use protocol
 - **P4:** START handshake disambiguates "no value yet"
 - **P6:** Tier-based unification — reduce special cases
+
+---
+
+## Strategic Plan: Extras Review & Hardening
+
+This session log focuses on **Wave 1** only; the full extras review is organized as waves 1–5
+below.
+
+### Ordering rationale
+
+The foundation redesign established new invariants (P2 signal/data split, P3 no cross-node
+inspection, P4 START handshake, P6 tier-based unification). Extras are validated **bottom-up**:
+simpler operators first, then higher-order operators that compose them, then data structures,
+resilience, and finally adapters.
+
+### Wave 1 — Higher-order operators (pain points first)
+
+**Files:** `operators.ts` (switchMap, withLatestFrom sections) + `composite.ts`
+
+These are the most semantically subtle; foundation redesign is most likely to have invalidated
+assumptions here. Tackle them first while context is fresh.
+
+For each operator:
+
+1. **Semantic audit** — Does it correctly handle: START before first DATA? Terminal propagation
+   (one upstream vs all upstreams)? Inner subscription lifecycle on cancel/switch? Backpressure
+   interactions?
+2. **Invariant check** — P2: `fn` only touches data, `onMessage` only touches protocol. P3: No
+   `.get()` / `.status` calls across nodes inside operator impl.
+3. **Simplify** — Higher-order operators tend to accumulate special cases. After understanding
+   current behavior, ask: can we reduce to fewer state variables?
+4. **Stress scenarios** — For each: rapid upstream switching, terminal from inner, terminal from
+   outer, zero-emission inner, cold vs hot source, diamond topology feeding the operator.
+5. **Test audit** — Verify tests actually exercise the scenarios above, not just happy-path.
+
+**Order within Wave 1:**
+
+| Operator | Why first? |
+|----------|------------|
+| `switchMap` | Most stateful — inner subscription management is where bugs hide |
+| `withLatestFrom` | START-before-DATA ordering bug is classic here |
+| `firstValueFrom` / `firstWhere` | Simpler but terminal-on-first-value needs to be airtight |
+
+### Wave 2 — Core Tier 1 operators and sources
+
+**Files:** `operators.ts` (remaining Tier 1: map, filter, merge, combine, scan, etc.) +
+`sources.ts`
+
+Lower semantic risk but high surface area. Focus:
+
+- Uniform terminal propagation pattern
+- START handshake correctness (P4)
+- `fromPromise` / `fromAsyncIter` async boundary compliance (no raw `Promise` in node fn)
+
+### Wave 3 — Resilience + backpressure
+
+**Files:** `resilience.ts`, `backpressure.ts`, `backoff.ts`, `timer.ts`
+
+These use the `ResettableTimer` escape hatch (Spec §5.10). Verify:
+
+- Every raw timer use is justified and documented
+- State machines (circuit breaker, retry) handle terminal correctly — don't retry after terminal
+- Rate limiter doesn't buffer indefinitely under backpressure
+
+### Wave 4 — Reactive data structures
+
+**Files:** `reactive-map.ts`, `reactive-list.ts`, `reactive-index.ts`, `reactive-log.ts`,
+`pubsub.ts`
+
+Focus on the two-phase DIRTY→DATA emission contract and version counter semantics.
+
+### Wave 5 — Adapters + worker bridge
+
+**Files:** `adapters.ts`, `worker/`
+
+Last because they depend on everything above being correct. Slice `adapters.ts` by protocol
+family (HTTP, WebSocket, streaming, message queues) rather than one monolithic pass.
+
+### Per-file review protocol
+
+For each file, in order:
+
+1. Read implementation cold
+2. List: what invariants could this violate?
+3. Run existing tests — do they pass? Are the assertions semantically meaningful?
+4. Write stress scenarios (as test cases or mental models)
+5. Simplify: remove dead branches, collapse special cases, unify patterns
+6. Fix any violations found
+7. Verify tests cover all scenarios from step 4
+
+### Starting point for Wave 1
+
+Begin with **`switchMap`**: read the relevant section of `operators.ts`, map the current state
+machine, then stress-test semantics before changing code. That yields a template for the rest.
 
 ---
 
@@ -550,11 +645,153 @@ to D1 Option B (full batch iteration) in the same session.
 
 ---
 
-## Related Open Items
+## *Map B Upgrade (2026-04-13) — DONE
 
-- `docs/optimizations.md` — "Higher-order operators: fn+closure tier-1 upgrade (proposed 2026-04-11)"
-- `docs/optimizations.md` — "P3 audit #1: operators.ts:994 — forwardInner reads inner.cache"
+All four `*Map` operators upgraded from producer pattern (A) to fn+closure (B) with source
+declared as a dep. `forwardInner` OPEN-1 dead code removed. `mergeMap` BUG-1 + BUG-3 fixed
+by replacing inline `spawn()` with `forwardInner`.
+
+### Key findings during implementation
+
+**Cleanup form must be `{ deactivation }`, not `() => void`:**  
+`() => void` cleanup fires before every fn rerun (including terminal waves). This tears down
+the active inner subscription before fn can check `innerUnsub` for the source COMPLETE case.
+`{ deactivation }` fires only on node deactivation — inner subscription survives across fn
+reruns so the terminal wave can inspect it.
+
+**`_frameBatch` auto-framing resolves async inner concern:**  
+When inner is a boundary source (`fromPromise`, `fromAsyncIter`), `forwardInner`'s callback
+fires asynchronously. `_frameBatch` checks `_status !== "dirty"` before prefixing DIRTY, so
+the dep-wave's DIRTY (status = "dirty") and the inner's eventual DATA pair up correctly.
+No double-DIRTY, no stuck wave. Producer A's "atomic DIRTY+DATA" via `a.emit()` is
+equivalent to B's "dep-wave DIRTY → later DATA settles it."
+
+**COMPLETE settles dirty deps:**  
+`_depSettledAsTerminal` clears `dep.dirty` and decrements `_dirtyDepCount`. Source COMPLETE
+without prior DIRTY in the same batch does NOT propagate DIRTY from the switchMap node to its
+sinks — so fn can return without emitting and no wave is stuck. No RESOLVED-before-COMPLETE
+needed.
+
+**`exhaustMap` RESOLVED for drops is correct:**  
+Source is a declared dep → dep-wave propagates DIRTY downstream → fn must close the wave.
+For drops (inner active), `a.down([[RESOLVED]])` settles the dep-wave. Test updated.
+
+**Equals in multi-tier-3 batches (refined):**  
+`_updateState` counts tier-3 messages (`tierOf(m[0]) === 3` — DATA and RESOLVED) in the batch.
+When count > 1, equals checking is skipped entirely — downstream fn must run regardless. Only
+single-tier-3 batches benefit from equals → RESOLVED substitution → pre-fn skip.
+
+`this._cached` is updated inline per DATA (unchanged). Because `checkEquals` is false for
+multi-tier-3 batches, equals is never called on intermediate values — no deferred write needed.
+The temporary `newCache` approach was introduced and subsequently reverted: it caused an
+INVALIDATE/TEARDOWN regression (deferred write overwrote cache clears), and was unnecessary
+given `checkEquals` already gates equals out for multi-DATA batches.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `operators.ts` `forwardInner` | Removed OPEN-1 dead post-subscribe `.status`/`.cache` reads |
+| `operators.ts` `switchMap` | Producer A → fn+closure B, `{ deactivation }` cleanup |
+| `operators.ts` `exhaustMap` | Producer A → fn+closure B, RESOLVED on drop, `{ deactivation }` cleanup |
+| `operators.ts` `concatMap` | Producer A → fn+closure B, `{ deactivation }` cleanup |
+| `operators.ts` `mergeMap` | Producer A → fn+closure B, `spawn()` replaced with `forwardInner` (fixes BUG-1 + BUG-3), `{ deactivation }` cleanup |
+| `node.ts` `_updateState` | Skip equals for multi-tier-3 batches (`checkEquals = dataCount <= 1`); inline `_cached` write preserved |
+| Tests | §3.5 equals tests updated (multi-DATA → no substitution), exhaustMap drop test updated |
+
+### Resolved items
+
+- ~~`docs/optimizations.md` — "Higher-order operators: fn+closure tier-1 upgrade"~~ **DONE**
+- ~~`docs/optimizations.md` — "P3 audit #1: operators.ts:994 — forwardInner reads inner.cache"~~ **DONE** (OPEN-1 removed)
+- ~~`SESSION-foundation-redesign.md` Flag E — P3 audit (forwardInner .cache as exception)~~ **DONE**
+- ~~BUG-1: mergeMap inner ERROR leaks subscription~~ **DONE** (forwardInner handles ERROR correctly)
+- ~~BUG-3: mergeMap forwards inner START tokens~~ **DONE** (forwardInner filters START)
+
+### QA pass (2026-04-13) — additional fixes
+
+Adversarial review and edge-case hunt found three issues and caught one regression:
+
+| Finding | Location | Fix |
+|---------|----------|-----|
+| `mergeMap` `spawn()` TDZ crash — `const stop` accessed in closure before assignment if inner completes synchronously | `operators.ts` `spawn()` | Changed `const stop` → `let stop`, closure guard `if (stop)` |
+| Closure state not reset on reactivation — `sourceDone = true` persists after deactivate, causes premature COMPLETE on re-subscribe | All four `*Map` operators | Added `sourceDone = false` to every `{ deactivation }` return |
+| `newCache` deferred write overwrites INVALIDATE/TEARDOWN cache clears — `[INVALIDATE]` batch: `this._cached` was set to `NO_VALUE` then overwritten at end of loop | `node.ts` `_updateState` | Reverted `newCache` entirely; inline `_cached` write naturally avoids the regression since `checkEquals` already gates equals out for multi-tier-3 batches |
+
+Post-QA follow-up (applied in same session):
+- **C: switchMap batch optimization** — skip to last value in batch (`batch0[batch0.length - 1]`), call `clearInner()` once; N-1 intermediate `project()` calls eliminated
+- **`forwardInner` inner signal filtering** — `else` branch narrowed to only DIRTY/RESOLVED; PAUSE, RESUME, TEARDOWN, INVALIDATE from inner all dropped (see rationale below)
+
+Deferred (added to `docs/optimizations.md`): versioning for intermediate DATA in multi-DATA batch.
+
+---
+
+## PAUSE/RESUME, `up()`, and tier classification — design notes (2026-04-13)
+
+### `up()` is a pure passthrough in derived nodes
+
+```typescript
+up(messages): void {
+    for (const d of this._deps) {
+        d.node.up?.(messages, forwardOpts);  // fans out to ALL declared deps
+    }
+}
+```
+
+`up()` does NOT consume the message at the *Map node. It fans out to every declared dep. For all four `*Map` operators, the only declared dep is `source`. So:
+
+- Downstream `up([[PAUSE, lockId]])` → *Map's `up()` → `source.up([[PAUSE, lockId]])` — source is paused, stops producing. **The *Map node itself is NOT paused.**
+
+### PAUSE/RESUME direction
+
+| Direction | Path | Effect |
+|-----------|------|--------|
+| Source emits PAUSE downstream | `source → _onDepMessage → this._emit([[PAUSE]])` | *Map node IS paused (fn suppressed, `_pauseLocks` updated), PAUSE forwarded to *Map's sinks |
+| Downstream `up([[PAUSE]])` | `downstream → *Map.up() → source.up()` | Source slows/stops production; *Map node NOT paused; existing inners continue |
+
+Source PAUSE (downstream direction) suppresses fn and chains PAUSE to consumers — that is the full backpressure effect for stopping new outer waves. Existing inner subscriptions keep running; they're already in flight. For a hard output gate that silences ALL output including ongoing inners, use `valve`/`gate` instead.
+
+### `forwardInner` is one-way; `up()` doesn't reach the inner
+
+`forwardInner` is `inner.subscribe(callback)` — data flows inner → outer only. When downstream calls `up()`, it fans to declared deps (`source`), not to the inner node. The inner node is a private implementation detail managed via `innerUnsub`; it has no `up()` channel back from the outer node's consumers.
+
+### Why inner INVALIDATE is dropped (same rationale as PAUSE/RESUME/TEARDOWN)
+
+INVALIDATE from inner means "my cache is stale, I'll recompute." When the inner recomputes it'll emit DIRTY+DATA through `forwardInner` normally. Forwarding INVALIDATE to the outer output is redundant (DIRTY follows anyway) and wrong for mergeMap (one inner's cache state must not invalidate the entire merged output). The same "inner lifecycle is internal" principle applies.
+
+Final `forwardInner` filter:
+- START → drop (protocol, not data)
+- DATA → `a.emit()`
+- COMPLETE → `onInnerComplete()`
+- ERROR → `a.down([m])` + cleanup
+- DIRTY → `a.down([m])` (wave signal: inner changing, outer will change)
+- RESOLVED → `a.down([m])` (wave signal: inner unchanged, wave closes)
+- INVALIDATE, PAUSE, RESUME, TEARDOWN → **drop** (inner lifecycle/flow-control, internal to *Map)
+
+### Are `*Map` operators tier 1?
+
+Not fully. The tier classification is about runtime behavior, not just wiring style.
+
+The `source → *Map` edge IS tier-1: declared dep, wave-tracked, equals optimization, diamond coordination apply. ✅
+
+But every `*Map` operator creates a **second subscription** inside fn:
+```
+source ──(dep, framework-tracked)──▶ *Map node
+                                          │
+                                     project(v)
+                                          │
+                                    inner node ──(forwardInner.subscribe, manual)──▶ *Map node
+```
+
+The inner subscription is not a declared dep, not wave-tracked, can fire asynchronously, and is managed manually via `innerUnsub`. This is inherently tier-2 behavior.
+
+**Accurate description:** *Map operators are "fn+closure tier-2" — tier-1 outer wiring (source dep is framework-tracked) + tier-2 inner management (inner subscription is manual). The upgrade brings tier-1 benefits (wave coordination, equals, diamond) to the outer dep while keeping the inner escape hatch.
+
+A pure tier-1 switchMap would require `dynamicNode` (auto-tracks inner as a dep via cache reads), but that hits P3. Whether a dynamicNode-based approach is viable and worth the tradeoff is deferred to a separate session.
+
+### Still open
+
 - `docs/optimizations.md` — "Framework primitive: wave-final state for multi-dep derived"
-- `SESSION-foundation-redesign.md` §4 — operator categories table (switchMap in "fn+closure+inner sub" row)
-- `SESSION-foundation-redesign.md` §7 Scenario 6 — switchMap rapid outer (batch churn not examined)
-- `SESSION-foundation-redesign.md` Flag E — P3 audit (forwardInner .cache as exception)
+- `firstValueFrom` / `firstWhere` — BUG-2 fix (`shouldUnsub` pattern) + `firstWhere` tests
+- `withLatestFrom` — tests for secondary-unsettled scenario
+- `dynamicNode`-based *Map approach — deferred to separate session
+- 10 pre-existing orchestration/ai/domain-templates test failures (unrelated to *Map)
