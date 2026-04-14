@@ -11,8 +11,7 @@ Guidelines for writing, organizing, and maintaining tests in both **graphrefly-t
 3. **Test what the code should do.** Express correct semantics; failures are real bugs or spec gaps.
 4. **One concern per test.** Each `it()` / `test_*` should assert one behavior; avoid bundling unrelated scenarios.
 5. **Protocol-level assertions.** Prefer helpers that record **`[[Type, Data?], ...]`** sequences (and, when implemented, **`Graph.observe()`**) over ad-hoc sinks. See §Observation below.
-6. **Predecessor reference.** TS: **`~/src/callbag-recharge`**. PY: **`~/src/callbag-recharge-py`**. Use for **ideas and edge cases**; map assertions to GraphReFly message types, not legacy callbag numeric types.
-7. **Authority hierarchy:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` → `docs/roadmap.md` → implementation when spec is silent.
+6. **Authority hierarchy:** `~/src/graphrefly/GRAPHREFLY-SPEC.md` → `docs/roadmap.md` → implementation when spec is silent.
 
 ---
 
@@ -89,8 +88,8 @@ From **GRAPHREFLY-SPEC §5.8–5.12**:
 
 ### Python-specific test axes
 
-- [ ] **Thread safety:** Where APIs claim thread-safe `get()` / propagation, stress with multiple threads (see roadmap 0.4).
-- [ ] **Concurrent `get()` without torn reads** — independent subgraphs updated without deadlock.
+- [ ] **Thread safety:** Where APIs claim thread-safe `.cache` reads / propagation, stress with multiple threads (see roadmap 0.4).
+- [ ] **Concurrent `.cache` reads without torn reads** — independent subgraphs updated without deadlock.
 - [ ] **Under load:** DIRTY/DATA ordering invariants hold under concurrent writes.
 - [ ] **Free-threaded Python 3.14:** Tests should pass with GIL disabled.
 - Always use **timeouts** and **liveness assertions** on thread joins where threads might block.
@@ -174,32 +173,33 @@ Keep custom sinks inline when doing type-only, value-only, or filtered extractio
 
 ---
 
-## Debugging: `describe()` and `status` first, `get()` second
+## Debugging: `describe()` and `status` first, `.cache` second
 
-`node.get()` and `graph.get(name)` return the **cached value only** — they do not guarantee freshness, do not trigger computation, and return `undefined` for nodes that have never received DATA. This is by design (spec §2.2).
+`node.cache` and `graph.get(name)` return the **cached value only** — they do not guarantee freshness, do not trigger computation, and return `undefined` for nodes that have never received DATA. This is by design (spec §2.2).
 
 **When a node returns an unexpected value, check its status before investigating the value:**
 
 ```ts
 // Single node — use node.status directly
 const nd = graph.node("myNode");
-console.log(nd.status);  // "disconnected" | "dirty" | "settled" | "errored" | ...
+console.log(nd.status);  // "sentinel" | "pending" | "dirty" | "settled" | "errored" | ...
 
 // All nodes at once — use describe()
 const desc = graph.describe({ detail: "standard" });
 // Each node in desc.nodes has { type, status, value, deps, ... }
 ```
 
-| Status | `get()` returns | What it means |
+| Status | `.cache` returns | What it means |
 |--------|----------------|---------------|
-| `disconnected` | Last known value or `undefined` | Node has no subscribers — derived nodes are lazy |
+| `sentinel` | `undefined` | No subscribers (compute node cache cleared) or never set |
+| `pending` | `undefined` | Subscribed but fn hasn't run yet — SENTINEL dep blocking first-run gate |
 | `dirty` | Previous value (stale) | DIRTY received, waiting for DATA |
 | `settled` | Current value (fresh) | DATA received, value is current |
 | `resolved` | Current value (fresh) | Was dirty, value confirmed unchanged |
 | `errored` | Last good value or `undefined` | `fn` or `equals` threw — check `observe()` for the ERROR |
 | `completed` | Final value | Terminal — no further updates |
 
-**Common pitfall:** `get()` returning `undefined` on a derived node almost always means the node is `disconnected` (no subscribers activating it) or `errored` (computation threw). Both look identical from `get()` alone. `describe()` or `node.status` distinguishes them instantly.
+**Common pitfall:** `.cache` returning `undefined` on a derived node almost always means the node is `sentinel` (no subscribers activating it) or `pending` (a SENTINEL dep blocking the first-run gate) or `errored`. All three look identical from `.cache` alone. `node.status` or `describe()` distinguishes them instantly.
 
 **In tests:** When asserting derived node values, always subscribe first (via `graph.observe(name).subscribe(...)` or an effect) to activate the lazy computation chain. Then check the value. If the value is still unexpected, assert on `status` to diagnose.
 
@@ -371,4 +371,4 @@ The `_wait_for_result` helper handles push-on-subscribe correctly — if the val
 2. **`docs/roadmap.md`** (scope / phase)
 3. Implementation in `src/` when spec is silent — then consider spec clarification
 
-**RxJS / callbag** are useful **comparisons** only; GraphReFly may differ where the spec says so.
+**RxJS** is a useful **comparison** only; GraphReFly may differ where the spec says so.

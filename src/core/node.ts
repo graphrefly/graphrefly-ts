@@ -1,14 +1,14 @@
 /**
  * `NodeImpl` — the single GraphReFly node primitive.
  *
- * Consolidates the old `NodeBase` + `NodeImpl` + `DynamicNodeImpl` hierarchy
- * (§8.1) into one class. Per-dep state lives in a `DepRecord[]` (§8.2)
- * instead of 4 BitSets + `_lastDepValues` + `_upstreamUnsubs`.
+ * Per-dep state lives in a `DepRecord[]` — one entry per declared dep —
+ * consolidating subscription cleanup, latest-data tracking, dirty/settled
+ * flags, and terminal state into a single structure per dep.
  *
- * This file also owns the default singleton handlers (`defaultBundle`,
- * `defaultOnMessage`, `defaultOnSubscribe`), the `defaultConfig` instance,
- * and the public `configure(...)` entry point. They live here because their
- * bodies touch `NodeImpl` internals; `config.ts` stays NodeImpl-agnostic.
+ * This file also owns the default singleton handlers (`defaultOnMessage`,
+ * `defaultOnSubscribe`), the `defaultConfig` instance, and the public
+ * `configure(...)` entry point. They live here because their bodies touch
+ * `NodeImpl` internals; `config.ts` stays NodeImpl-agnostic.
  *
  * See GRAPHREFLY-SPEC §2 and COMPOSITION-GUIDE §1/§9 for the behavior
  * contract. See SESSION-foundation-redesign.md §§1–10 for design history.
@@ -608,7 +608,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					})
 				: undefined;
 
-		// Per-dep records (replaces 4 BitSets + _lastDepValues + _upstreamUnsubs).
+		// Per-dep records: one DepRecord per declared dep.
 		this._deps = deps.map(createDepRecord);
 
 		// Meta companions (simple state children; inherit config + guard).
@@ -1467,11 +1467,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * array, then prepend `[DIRTY]` after any tier-0 START entries when
 	 * a tier-3 payload is present and the node isn't already dirty.
 	 *
-	 * This is the single source of truth for the spec §1.3.1 framing
-	 * invariant. `defaultBundle.resolve()` used to duplicate this logic
-	 * and `_updateState` used to synthesize its own prefix on equals
-	 * substitution — both are now gone. Every outgoing path hits
-	 * `_frameBatch` exactly once via `_emit`.
+	 * Single source of truth for the spec §1.3.1 framing invariant. Every
+	 * outgoing path hits `_frameBatch` exactly once via `_emit`.
 	 */
 	private _frameBatch(messages: Messages): Messages {
 		const tierOf = this._config.tierOf;
@@ -1546,13 +1543,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 *      `pausable: "resumeAll"`).
 	 *   9. Recursive ERROR emission if equals threw mid-walk.
 	 *
-	 * Public `node.down` / `node.emit` / `actions.down` / `actions.emit`
-	 * all converge here. `actions.bundle` no longer exists — the bundle
-	 * sort + auto-prefix logic that used to live in the config's
-	 * `BundleFactory` was folded into stages 3 and 4 so every emission
-	 * path shares one invariant. The singleton `config.bundle` is retained
-	 * as an advanced escape hatch for callers that want manual control;
-	 * nothing in core calls it.
+	 * `node.down` / `node.emit` / `actions.down` / `actions.emit` all
+	 * converge here — the unified `_emit` waist (spec §1.3.1).
 	 */
 	_emit(messages: Messages): void {
 		if (messages.length === 0) return;
@@ -1665,13 +1657,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		// Meta TEARDOWN fan-out happens BEFORE `_updateState` so the walk
-		// stays re-entrance-free: previously the walk called `_emit` on each
-		// meta child mid-iteration, which meant a meta node's own dispatch
-		// re-entered the parent's outgoing pipeline while `this._cached` /
-		// `this._status` were mid-commit. Hoisting the fan-out keeps
-		// `_updateState` a pure state-transition walk and preserves the spec
-		// ordering "meta propagates before deactivation" — `_updateState`'s
-		// TEARDOWN branch still runs `_deactivate` AFTER the meta children
+		// stays re-entrance-free: a meta node's own dispatch must not
+		// re-enter the parent's outgoing pipeline while `this._cached` /
+		// `this._status` are mid-commit. This preserves the spec ordering
+		// "meta propagates before deactivation" — `_updateState`'s TEARDOWN
+		// branch still runs `_deactivate` AFTER the meta children
 		// have already been notified here.
 		if (this._hasMeta && deliverable.some((m) => m[0] === TEARDOWN)) {
 			for (const k of Object.keys(this.meta)) {
@@ -1750,9 +1740,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		finalMessages: Messages;
 		equalsError?: Error;
 	} {
+		const tierOf = this._config.tierOf;
 		let rewritten: Message[] | undefined;
 		let equalsError: Error | undefined;
 		let abortedAt = -1;
+		// Count tier-3 messages (DATA + RESOLVED) in the batch. Equals
+		// substitution is only worthwhile for a single tier-3 message —
+		// an unchanged value can be rewritten to RESOLVED, enabling the
+		// downstream pre-fn skip. With multiple tier-3 messages the
+		// downstream fn must run regardless, so equals on each is wasted.
+		let dataCount = 0;
+		for (const m of messages) {
+			if (tierOf(m[0]) === 3) dataCount++;
+		}
+		const checkEquals = dataCount <= 1;
 
 		for (let i = 0; i < messages.length; i++) {
 			const m = messages[i];
@@ -1760,7 +1761,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			if (t === DATA) {
 				if (m.length >= 2) {
 					let unchanged = false;
-					if (this._cached !== NO_VALUE) {
+					if (checkEquals && this._cached !== NO_VALUE) {
 						try {
 							unchanged = this._equals(this._cached as T, m[1] as T);
 						} catch (err) {

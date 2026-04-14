@@ -419,10 +419,9 @@ describe("extra operators (Tier 2)", () => {
 		unsub();
 	});
 
-	// Regression: exhaustMap silently drops outer DATA while inner is active.
-	// Producer nodes stay silent on drop — no RESOLVED emitted (same
-	// principle as `last` during accumulation: no DIRTY was emitted, so no
-	// RESOLVED is needed to close a wave).
+	// Regression: exhaustMap drops outer DATA while inner is active.
+	// fn+closure B pattern: source is a declared dep, so the dep-wave
+	// propagates DIRTY downstream. Drop emits RESOLVED to close the wave.
 	it("exhaustMap drops outer DATA while inner active", () => {
 		const src = state(0);
 		const inner = state(10);
@@ -432,8 +431,12 @@ describe("extra operators (Tier 2)", () => {
 		inner.down([[DATA, 1]]);
 		const beforeDrop = batches.flat().length;
 		src.down([[DATA, 2]]); // dropped — inner still active
-		// No new messages emitted on drop (silent).
-		expect(batches.flat().length).toBe(beforeDrop);
+		// Drop emits DIRTY+RESOLVED (dep-wave opened by source, closed by fn).
+		const dropMsgs = batches.flat().slice(beforeDrop);
+		const dropTypes = dropMsgs.map((m: any) => m[0]);
+		expect(dropTypes).toContain(DIRTY);
+		expect(dropTypes).toContain(RESOLVED);
+		expect(dropTypes).not.toContain(DATA);
 		inner.down([[COMPLETE]]);
 		unsub();
 	});

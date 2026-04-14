@@ -6,7 +6,7 @@
  * and drained in ascending phase order after the outermost `batch()` callback
  * returns.
  *
- * **Phase vocabulary (SUPERSEDES the old `pendingPhase2/3` names):**
+ * **Phase vocabulary:**
  * - Phase 1 = tiers 0–2 — immediate, never queued.
  * - Phase 2 = tier 3 — {@link drainPhase2}. Value settlements.
  * - Phase 3 = tier 4 — {@link drainPhase3}. Terminal signals.
@@ -17,9 +17,9 @@
  * before later terminals/teardown" across callback re-entry.
  *
  * **Pre-sorted input invariant.** `downWithBatch` assumes `messages` is
- * already sorted in ascending tier order — that is what `bundle.resolve()`
- * produces (see `config.ts`). The walker exploits monotonicity for a single
- * O(n) pass and slices at phase boundaries without re-sorting.
+ * already sorted in ascending tier order (produced by `_frameBatch` in
+ * `node.ts`). The walker exploits monotonicity for a single O(n) pass and
+ * slices at phase boundaries without re-sorting.
  */
 
 import type { Messages } from "./messages.js";
@@ -117,9 +117,9 @@ function drainPending(): void {
 /**
  * Deliver pre-sorted messages through `sink` with tier-based deferral applied.
  *
- * `messages` MUST be in ascending tier order (produced by `bundle.resolve()`);
- * the walker exploits that invariant to find phase cuts in one pass without
- * re-sorting.
+ * `messages` MUST be in ascending tier order (produced by `_frameBatch` in
+ * `node.ts`); the walker exploits that invariant to find phase cuts in one
+ * pass without re-sorting.
  *
  * Behavior:
  * - Tier 0–2 — delivered synchronously.
