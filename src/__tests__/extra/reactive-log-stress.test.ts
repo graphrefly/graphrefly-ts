@@ -300,7 +300,11 @@ describe("reactiveLog new APIs", () => {
 		expect(lg.at(1)).toBe("b");
 		expect(lg.at(2)).toBe("c");
 		expect(lg.at(3)).toBeUndefined();
-		expect(lg.at(-1)).toBeUndefined(); // no negative indexing; use size-1
+		// P5: Python-style negative indexing supported (parity with reactiveList).
+		expect(lg.at(-1)).toBe("c");
+		expect(lg.at(-2)).toBe("b");
+		expect(lg.at(-3)).toBe("a");
+		expect(lg.at(-4)).toBeUndefined();
 		expect(lg.at(99)).toBeUndefined();
 	});
 

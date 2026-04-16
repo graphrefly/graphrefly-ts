@@ -7,7 +7,7 @@
  * - `jobQueue()` for queue claim/ack flow
  */
 
-import { batch, DATA, derived, type Node, node, state } from "../core/index.js";
+import { batch, COMPLETE, DATA, derived, type Node, node, state } from "../core/index.js";
 import { reactiveList } from "../extra/reactive-list.js";
 import { reactiveLog } from "../extra/reactive-log.js";
 import { reactiveMap } from "../extra/reactive-map.js";
@@ -41,8 +41,19 @@ export class TopicGraph<T> extends Graph {
 	 * yet. Spec §5.12 reserves `undefined` as the protocol-internal "never
 	 * sent DATA" sentinel — `null` is the idiomatic "empty / no value" signal
 	 * for domain nodes. F7.
+	 *
+	 * **Caveat when `T` itself includes `null`** (e.g., `topic<number | null>`):
+	 * `latest === null` is ambiguous — it could mean "no publish yet" OR "a
+	 * `null` value was published". Use {@link hasLatest} to disambiguate, or
+	 * observe {@link events} directly and track length yourself.
 	 */
 	readonly latest: Node<T | null>;
+	/**
+	 * Reactive `true` once the topic has at least one published entry.
+	 * Disambiguates "`null` never published" from "`null` was published" when
+	 * `T` includes `null`.
+	 */
+	readonly hasLatest: Node<boolean>;
 
 	constructor(name: string, opts: TopicOptions = {}) {
 		super(name, opts.graph);
@@ -64,6 +75,31 @@ export class TopicGraph<T> extends Graph {
 		this.add("latest", this.latest);
 		this.connect("events", "latest");
 		this.addDisposer(keepalive(this.latest));
+
+		this.hasLatest = derived<boolean>(
+			[this.events],
+			([snapshot]) => (snapshot as readonly T[]).length > 0,
+			{
+				name: "hasLatest",
+				describeKind: "derived",
+				meta: messagingMeta("topic_has_latest"),
+			},
+		);
+		this.add("hasLatest", this.hasLatest);
+		this.connect("events", "hasLatest");
+		this.addDisposer(keepalive(this.hasLatest));
+
+		// D1(a): on teardown, propagate COMPLETE on `events` so downstream
+		// derived chains (including any externally-held SubscriptionGraph
+		// sources) see the termination via their `terminalDeps` and can stop
+		// serving stale caches. Tier-3 terminal per spec §2.2.
+		this.addDisposer(() => {
+			this.events.down([[COMPLETE]]);
+		});
+		// P9: release any memoized tail/slice view keepalives held by the log.
+		// TopicGraph itself doesn't call log.tail/slice, but plugins may have
+		// attached views via `_log` — defensive.
+		this.addDisposer(() => this._log.disposeAllViews());
 	}
 
 	publish(value: T): void {
@@ -467,7 +503,9 @@ export class MessagingHubGraph extends Graph {
 
 	constructor(name: string, opts: MessagingHubOptions = {}) {
 		super(name, opts.graph);
-		this._defaultTopicOptions = opts.defaultTopicOptions ?? {};
+		// P8: shallow-copy caller-provided defaults so post-construction
+		// mutations by the caller don't leak into every future `topic()` call.
+		this._defaultTopicOptions = { ...(opts.defaultTopicOptions ?? {}) };
 	}
 
 	/** Monotonic counter advancing on topic create/remove. */
@@ -507,25 +545,34 @@ export class MessagingHubGraph extends Graph {
 		return t;
 	}
 
-	/** Publishes a value to the topic, lazily creating it if missing. */
+	/**
+	 * Publishes a value to the topic, lazily creating it on first publish.
+	 *
+	 * **Late-subscriber caveat:** the topic is created lazily, so subscribers
+	 * that attach AFTER a publish only see the retained window (governed by
+	 * `retainedLimit` on `TopicOptions` / `defaultTopicOptions`). If
+	 * `retainedLimit === 0` is set explicitly, early publishes are
+	 * effectively dropped — prefer an unset `retainedLimit` (unbounded
+	 * retention) or subscribe before publishing when late-subscribers matter.
+	 */
 	publish<T = unknown>(name: string, value: T): void {
 		this.topic<T>(name).publish(value);
 	}
 
 	/**
-	 * Bulk publish — collects entries, then issues all publishes inside one
-	 * outer batch. New topics are created as needed. No-op if `entries` is empty.
+	 * Bulk publish — issues all publishes inside one outer batch. New topics
+	 * are created on demand. No-op if `entries` yields nothing.
 	 *
-	 * **Iterable consumption (F6):** `entries` is consumed once (single-pass).
-	 * Pass an array or `Set` for multi-shot callers. If the iterator throws
-	 * mid-collection no publishes occur; after the collect step all commits
-	 * happen inside the batch.
+	 * **Iterable consumption (F6):** `entries` is consumed once (single-pass)
+	 * INSIDE the batch frame. If the iterator throws mid-way, the batch is
+	 * discarded and NO publishes are visible to subscribers (all-or-nothing).
+	 * Pass an array or `Set` for multi-shot callers.
 	 */
 	publishMany(entries: Iterable<[string, unknown]>): void {
-		const list = [...entries];
-		if (list.length === 0) return;
+		// P2: iterate inside batch — no `[...entries]` materialization so large
+		// / infinite iterables don't OOM, and iterator throws are contained.
 		batch(() => {
-			for (const [name, value] of list) {
+			for (const [name, value] of entries) {
 				this.topic(name).publish(value);
 			}
 		});
@@ -555,12 +602,18 @@ export class MessagingHubGraph extends Graph {
 	 */
 	removeTopic(name: string): boolean {
 		if (!this._topics.has(name)) return false;
-		// Graph.remove first: if it throws, _topics / _version stay consistent
-		// (a subsequent `hub.topic(name)` would otherwise see an orphan mount
-		// entry via Graph.mount and throw "already mounted"). P1.
-		this.remove(name); // unmounts, drops edges, tears down
-		this._topics.delete(name);
-		this._version += 1;
+		// P1 / P3: Graph.remove first — if it throws, `_topics` must NOT still
+		// hold the broken half-disposed topic (otherwise the next
+		// `hub.topic(name)` returns the corrupted reference). Wrap in
+		// try/finally so `_topics` / `_version` converge to a consistent state
+		// regardless of whether `remove` throws. Mount-orphan safety is
+		// preserved by removing before deleting.
+		try {
+			this.remove(name); // unmounts, drops edges, tears down
+		} finally {
+			this._topics.delete(name);
+			this._version += 1;
+		}
 		return true;
 	}
 }

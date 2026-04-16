@@ -90,14 +90,22 @@ export type ReactiveMapBundle<K, V> = {
 	deleteMany: (keys: Iterable<K>) => void;
 	clear: () => void;
 	/**
-	 * Current entry count. Triggers pruning of expired entries (and emits a
-	 * snapshot if any were removed) so the reactive surface stays consistent
-	 * with the live count. Therefore `size` is an **observable side effect** on
-	 * a map with TTL entries.
+	 * Current entry count — O(1), **pure read** (no emission). May include
+	 * expired entries on TTL maps until a mutation or explicit
+	 * `pruneExpired()` / `has(key)` / `get(key)` prunes them. Call
+	 * `pruneExpired()` first if you need a live count.
 	 */
 	readonly size: number;
 	/** Explicitly prunes all expired entries. Emits if any were removed. */
 	pruneExpired: () => void;
+	/**
+	 * Releases any internal keepalive subscriptions so the bundle can be
+	 * GC'd. `reactiveMap` currently holds none (the `entries` node lives only
+	 * as long as external subscribers keep it alive), so `dispose()` is a
+	 * no-op today — exposed for API parity with `reactiveIndex.dispose` /
+	 * `reactiveList.dispose` / `reactiveLog.dispose`. Idempotent. D6(a).
+	 */
+	dispose: () => void;
 };
 
 // ── Backend interface ─────────────────────────────────────────────────────
@@ -456,11 +464,28 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 			wrapMutation(() => backend.pruneExpired());
 		},
 
+		/**
+		 * Current raw entry count — O(1), **pure read**. May include
+		 * not-yet-pruned expired entries on TTL maps until the next mutation
+		 * or an explicit `pruneExpired()` / `has` / `get` triggers a prune.
+		 *
+		 * Previously this getter ran `pruneExpired()` inline and emitted a
+		 * snapshot as a side effect — that violated spec §5.8 "no
+		 * side-effectful reads" and created a re-entrancy hazard when a
+		 * subscriber to `entries` read `.size` from its own callback. D2(a).
+		 *
+		 * For a live count that excludes expired entries, call
+		 * `bundle.pruneExpired()` first.
+		 */
 		get size(): number {
-			return wrapMutation(() => {
-				backend.pruneExpired();
-				return backend.size;
-			});
+			return backend.size;
+		},
+
+		dispose(): void {
+			// D6(a): no internal keepalives yet — no-op for API parity with
+			// reactive-index / reactive-list / reactive-log. If a future
+			// refactor adds a keepalive (e.g. on `entries`), wire its
+			// disposer here.
 		},
 	};
 }

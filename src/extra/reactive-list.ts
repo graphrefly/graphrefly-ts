@@ -48,6 +48,14 @@ export type ReactiveListBundle<T> = {
 	/** Remove and return the value at `index` (default: last). Negative indices Python-style. Throws on empty / out-of-range. */
 	pop: (index?: number) => T;
 	clear: () => void;
+	/**
+	 * Releases any internal keepalive subscriptions so the bundle can be
+	 * GC'd. `reactiveList` currently holds none (no internal derived nodes),
+	 * so `dispose()` is a no-op today — exposed for API parity with
+	 * `reactiveIndex.dispose` / `reactiveMap.dispose` / `reactiveLog.dispose`.
+	 * Idempotent. D6(a).
+	 */
+	dispose: () => void;
 };
 
 // ── Backend interface ─────────────────────────────────────────────────────
@@ -132,7 +140,15 @@ export class NativeListBackend<T> implements ListBackend<T> {
 
 	appendMany(values: readonly T[]): void {
 		if (values.length === 0) return;
-		this._buf.push(...values);
+		// Extra: avoid `this._buf.push(...values)` — spread-push has an
+		// engine-dependent stack-argument limit (typically ~100k–500k), so
+		// very large bulk inserts can throw "Maximum call stack size exceeded".
+		// Indexed write is O(n) and has no spread limit.
+		const oldLen = this._buf.length;
+		this._buf.length = oldLen + values.length;
+		for (let i = 0; i < values.length; i++) {
+			this._buf[oldLen + i] = values[i] as T;
+		}
 		this._version += 1;
 	}
 
@@ -234,11 +250,20 @@ export function reactiveList<T>(
 		});
 	}
 
+	/**
+	 * D4(a): try/finally defense-in-depth — if a custom backend op throws
+	 * mid-mutation, surface the partial state via pushSnapshot so subscribers
+	 * don't see a stale cache. Native ops are atomic by contract; this only
+	 * matters for user-supplied backends. Mirrors the pattern in reactive-map,
+	 * reactive-index, and reactive-log.
+	 */
 	function wrapMutation<R>(op: () => R): R {
 		const prev = backend.version;
-		const result = op();
-		if (backend.version !== prev) pushSnapshot();
-		return result;
+		try {
+			return op();
+		} finally {
+			if (backend.version !== prev) pushSnapshot();
+		}
 	}
 
 	return {
@@ -274,6 +299,11 @@ export function reactiveList<T>(
 
 		clear(): void {
 			wrapMutation(() => backend.clear());
+		},
+
+		dispose(): void {
+			// D6(a): no internal keepalives — no-op for API parity. If a future
+			// refactor adds a keepalive, wire its disposer here.
 		},
 	};
 }
