@@ -192,7 +192,6 @@ export default defineConfig({
 						items: [
 							{ label: "reactiveMap()", link: "/api/reactivemap" },
 							{ label: "reactiveLog()", link: "/api/reactivelog" },
-							{ label: "logSlice()", link: "/api/logslice" },
 							{ label: "reactiveIndex()", link: "/api/reactiveindex" },
 							{ label: "reactiveList()", link: "/api/reactivelist" },
 							{ label: "pubsub()", link: "/api/pubsub" },

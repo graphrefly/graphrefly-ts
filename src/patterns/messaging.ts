@@ -7,7 +7,7 @@
  * - `jobQueue()` for queue claim/ack flow
  */
 
-import { DATA, derived, type Node, node, state } from "../core/index.js";
+import { batch, DATA, derived, type Node, node, state } from "../core/index.js";
 import { reactiveList } from "../extra/reactive-list.js";
 import { reactiveLog } from "../extra/reactive-log.js";
 import { reactiveMap } from "../extra/reactive-map.js";
@@ -417,11 +417,150 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 	}
 }
 
+// ── MessagingHubGraph ─────────────────────────────────────────────────────
+
+export type MessagingHubOptions = {
+	graph?: GraphOptions;
+	/**
+	 * Default `TopicOptions` applied to every topic created via `topic(name)`
+	 * without explicit options. Per-call opts override. Default: `{}`
+	 * (unbounded retention per topic unless `retainedLimit` is set per call).
+	 */
+	defaultTopicOptions?: TopicOptions;
+};
+
+/**
+ * Lazy Pulsar-inspired topic registry. Manages a named set of {@link TopicGraph}
+ * instances with retention + cursor semantics. Topics are created on first
+ * access; `removeTopic(name)` unmounts and tears down via {@link Graph.remove}.
+ *
+ * **Relationship to `pubsub()` in `src/extra/pubsub.ts`:** `pubsub` is a
+ * lightweight last-value state hub (no retention, no cursors). `MessagingHubGraph`
+ * is the full messaging hub — retained message logs, cursor-based subscriptions,
+ * and pattern-layer lifecycle management.
+ *
+ * @category patterns
+ */
+export class MessagingHubGraph extends Graph {
+	private readonly _topics = new Map<string, TopicGraph<unknown>>();
+	private _version = 0;
+	private readonly _defaultTopicOptions: TopicOptions;
+
+	constructor(name: string, opts: MessagingHubOptions = {}) {
+		super(name, opts.graph);
+		this._defaultTopicOptions = opts.defaultTopicOptions ?? {};
+	}
+
+	/** Monotonic counter advancing on topic create/remove. */
+	get version(): number {
+		return this._version;
+	}
+
+	/** Number of topics currently in the hub. */
+	get size(): number {
+		return this._topics.size;
+	}
+
+	/** Checks topic existence without creating. */
+	has(name: string): boolean {
+		return this._topics.has(name);
+	}
+
+	/** Iterator over topic names. */
+	topicNames(): IterableIterator<string> {
+		return this._topics.keys();
+	}
+
+	/**
+	 * Returns the {@link TopicGraph} for `name`, creating lazily on first call.
+	 * Subsequent calls with the same name return the same instance (options on
+	 * repeat calls are ignored — the topic is already configured).
+	 */
+	topic<T = unknown>(name: string, opts?: TopicOptions): TopicGraph<T> {
+		let t = this._topics.get(name) as TopicGraph<T> | undefined;
+		if (t === undefined) {
+			const effective: TopicOptions = { ...this._defaultTopicOptions, ...(opts ?? {}) };
+			t = new TopicGraph<T>(name, effective);
+			this._topics.set(name, t as TopicGraph<unknown>);
+			this.mount(name, t);
+			this._version += 1;
+		}
+		return t;
+	}
+
+	/** Publishes a value to the topic, lazily creating it if missing. */
+	publish<T = unknown>(name: string, value: T): void {
+		this.topic<T>(name).publish(value);
+	}
+
+	/**
+	 * Bulk publish — collects entries, then issues all publishes inside one
+	 * outer batch. New topics are created as needed. No-op if `entries` is empty.
+	 */
+	publishMany(entries: Iterable<[string, unknown]>): void {
+		const list = [...entries];
+		if (list.length === 0) return;
+		batch(() => {
+			for (const [name, value] of list) {
+				this.topic(name).publish(value);
+			}
+		});
+	}
+
+	/**
+	 * Creates a {@link SubscriptionGraph} over a named topic. The topic is
+	 * lazily created if missing. Subscription lifecycle is owned by the caller —
+	 * the hub does NOT mount the subscription.
+	 *
+	 * @param subName - Local name for the subscription graph.
+	 * @param topicName - Hub topic to subscribe to.
+	 * @param opts - `SubscriptionOptions` (initial cursor, etc.).
+	 */
+	subscribe<T = unknown>(
+		subName: string,
+		topicName: string,
+		opts?: SubscriptionOptions,
+	): SubscriptionGraph<T> {
+		const t = this.topic<T>(topicName);
+		return new SubscriptionGraph<T>(subName, t, opts);
+	}
+
+	/**
+	 * Unmounts and tears down the topic's graph. Returns `true` if the topic
+	 * existed. Subscribers receive `TEARDOWN` via {@link Graph.remove}.
+	 */
+	removeTopic(name: string): boolean {
+		if (!this._topics.has(name)) return false;
+		this._topics.delete(name);
+		this.remove(name); // Graph.remove unmounts, drops edges, tears down
+		this._version += 1;
+		return true;
+	}
+}
+
 /**
  * Creates a Pulsar-inspired topic graph (append-only retained stream + latest value).
  */
 export function topic<T>(name: string, opts?: TopicOptions): TopicGraph<T> {
 	return new TopicGraph<T>(name, opts);
+}
+
+/**
+ * Creates a lazy Pulsar-inspired messaging hub. Topics are created on first access
+ * via `hub.topic(name)`; `hub.publish(name, value)` shortcuts through the registry.
+ *
+ * @example
+ * ```ts
+ * import { messagingHub } from "@graphrefly/graphrefly-ts";
+ *
+ * const hub = messagingHub("main", { defaultTopicOptions: { retainedLimit: 256 } });
+ * hub.publish("orders", { id: 1 });
+ * hub.publishMany([["shipments", { id: 1 }], ["orders", { id: 2 }]]);
+ * const sub = hub.subscribe("orders-worker", "orders", { cursor: 0 });
+ * ```
+ */
+export function messagingHub(name: string, opts?: MessagingHubOptions): MessagingHubGraph {
+	return new MessagingHubGraph(name, opts);
 }
 
 /**

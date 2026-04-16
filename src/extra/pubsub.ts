@@ -1,13 +1,103 @@
 /**
- * Lazy per-topic manual nodes (roadmap §3.2) — create topics on first access, publish with two-phase push.
+ * Lazy per-topic state hub (roadmap §3.2) — lightweight last-value broadcasts.
+ *
+ * Each topic is a sentinel `node<unknown>()` with push-on-subscribe replay of
+ * the most recent published value (no push until the first `publish`). For
+ * Pulsar-inspired retained message logs,
+ * cursor-based subscriptions, and job-queue semantics, use `messagingHub()` in
+ * `patterns/messaging.ts` — built on `TopicGraph` / `SubscriptionGraph` with
+ * retention policies, absolute cursor tracking, and per-subscriber state.
+ *
+ * **Wave 4 refactor (2026-04-15):** Introduces `PubSubBackend` (thin registry
+ * with version counter). Converts class-based hub to closure factory for
+ * consistency with other `extra/` factories. New bundle APIs: `has(name)`,
+ * `size`, `topicNames()`, `publishMany(entries)`. `removeTopic` → `TEARDOWN`
+ * semantics preserved.
  */
 
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY, TEARDOWN } from "../core/messages.js";
 import { type Node, node } from "../core/node.js";
 
+// ── Backend interface ─────────────────────────────────────────────────────
+
 /**
- * In-memory lazy topic registry: each topic is an independent {@link state} node.
+ * Storage contract for {@link pubsub} — registry only.
+ *
+ * Tracks the set of topic names plus a monotonic `version` counter that
+ * advances on topic create/remove. Does NOT own per-topic message storage —
+ * per-topic cached last values live in the topic nodes themselves (sentinel
+ * until the first publish).
+ *
+ * For distributed / persistent per-topic storage, use `messagingHub()` in
+ * `patterns/messaging.ts`, which composes `TopicGraph` under a lazy registry.
+ *
+ * @category extra
+ */
+export interface PubSubBackend {
+	/** Monotonic counter; advances on topic create/remove. */
+	readonly version: number;
+	readonly topicCount: number;
+	hasTopic(name: string): boolean;
+	topicNames(): IterableIterator<string>;
+	/** Records topic creation. Returns `true` if newly added (advances `version`). */
+	createTopic(name: string): boolean;
+	/** Records topic removal. Returns `true` if it existed (advances `version`). */
+	removeTopic(name: string): boolean;
+}
+
+/**
+ * Default in-memory registry backend.
+ *
+ * @category extra
+ */
+export class NativePubSubBackend implements PubSubBackend {
+	private _version = 0;
+	private readonly _topics = new Set<string>();
+
+	get version(): number {
+		return this._version;
+	}
+
+	get topicCount(): number {
+		return this._topics.size;
+	}
+
+	hasTopic(name: string): boolean {
+		return this._topics.has(name);
+	}
+
+	topicNames(): IterableIterator<string> {
+		return this._topics.values();
+	}
+
+	createTopic(name: string): boolean {
+		if (this._topics.has(name)) return false;
+		this._topics.add(name);
+		this._version += 1;
+		return true;
+	}
+
+	removeTopic(name: string): boolean {
+		const had = this._topics.delete(name);
+		if (had) this._version += 1;
+		return had;
+	}
+}
+
+// ── Hub ───────────────────────────────────────────────────────────────────
+
+export type PubSubHubOptions = {
+	/**
+	 * Storage backend. Defaults to `NativePubSubBackend`. Pluggable for audit /
+	 * monitoring / mirror-to-external-broker use cases.
+	 */
+	backend?: PubSubBackend;
+};
+
+/**
+ * Lazy per-topic state hub. Topics are single-value sentinel nodes
+ * with push-on-subscribe replay of the most recent publish.
  *
  * @category extra
  */
@@ -20,56 +110,36 @@ export interface PubSubHub {
 	 *   sentinel state — no push-on-subscribe until the first publish.
 	 */
 	topic(name: string): Node<unknown>;
-
-	/**
-	 * Pushes a value to the topic (two-phase `DIRTY` then `DATA`, matching other manual sources here).
-	 *
-	 * @param name - Topic key.
-	 * @param value - Payload.
-	 */
+	/** Publishes a value to the topic (lazily creating the topic if missing). */
 	publish(name: string, value: unknown): void;
-
-	/**
-	 * Removes a topic and tears down its node. Returns `true` if the topic existed.
-	 *
-	 * @param name - Topic key.
-	 */
+	/** Bulk publish — single outer batch for all entries. No-op if empty. */
+	publishMany(entries: Iterable<[string, unknown]>): void;
+	/** Removes a topic; sends `TEARDOWN` to its node. Returns `true` if it existed. */
 	removeTopic(name: string): boolean;
-}
-
-class PubSubHubImpl implements PubSubHub {
-	private readonly topics = new Map<string, Node<unknown>>();
-
-	topic(name: string): Node<unknown> {
-		let n = this.topics.get(name);
-		if (n === undefined) {
-			n = node<unknown>({ describeKind: "state" });
-			this.topics.set(name, n);
-		}
-		return n;
-	}
-
-	publish(name: string, value: unknown): void {
-		const t = this.topic(name);
-		batch(() => {
-			t.down([[DIRTY]]);
-			t.down([[DATA, value]]);
-		});
-	}
-
-	removeTopic(name: string): boolean {
-		const n = this.topics.get(name);
-		if (n === undefined) return false;
-		n.down([[TEARDOWN]]);
-		this.topics.delete(name);
-		return true;
-	}
+	/** Checks topic existence without creating. O(1). */
+	has(name: string): boolean;
+	/** Number of topics currently registered. O(1). */
+	readonly size: number;
+	/** Iterator over topic names. */
+	topicNames(): IterableIterator<string>;
 }
 
 /**
- * Creates an empty {@link PubSubHub} for lazy topic nodes.
+ * Creates a lazy per-topic state hub.
  *
- * @returns A new hub with no topics until {@link PubSubHub.topic} or {@link PubSubHub.publish} runs.
+ * @param options - Optional pluggable `backend` (defaults to `NativePubSubBackend`).
+ * @returns Hub with lazy `topic()` / `publish()` / `publishMany()` / `removeTopic()` /
+ *   `has()` / `size` / `topicNames()`.
+ *
+ * @remarks
+ * **Scope:** Each topic is a sentinel node — retains only the last published
+ * value (no push-on-subscribe before the first publish). For Pulsar-inspired
+ * retention + cursor reading, use
+ * `messagingHub()` in `patterns/messaging.ts`.
+ *
+ * **`removeTopic`:** Sends `TEARDOWN` to the topic node; all subscribers receive
+ * the TEARDOWN message. Subsequent `publish(name, value)` silently recreates the
+ * topic with a fresh node — existing subscribers to the old node do NOT reconnect.
  *
  * @example
  * ```ts
@@ -79,11 +149,70 @@ class PubSubHubImpl implements PubSubHub {
  * const t = hub.topic("events");
  * t.subscribe((msgs) => console.log(msgs));
  * hub.publish("events", { ok: true });
- * hub.removeTopic("events"); // tears down the node
+ * hub.publishMany([["events", 1], ["status", "ready"]]);
  * ```
  *
  * @category extra
  */
-export function pubsub(): PubSubHub {
-	return new PubSubHubImpl();
+export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
+	const { backend: userBackend } = options;
+	const backend: PubSubBackend = userBackend ?? new NativePubSubBackend();
+	const nodes = new Map<string, Node<unknown>>();
+
+	function ensureTopic(name: string): Node<unknown> {
+		let n = nodes.get(name);
+		if (n === undefined) {
+			n = node<unknown>({ describeKind: "state" });
+			nodes.set(name, n);
+			backend.createTopic(name);
+		}
+		return n;
+	}
+
+	return {
+		topic(name: string): Node<unknown> {
+			return ensureTopic(name);
+		},
+
+		publish(name: string, value: unknown): void {
+			const t = ensureTopic(name);
+			batch(() => {
+				t.down([[DIRTY]]);
+				t.down([[DATA, value]]);
+			});
+		},
+
+		publishMany(entries: Iterable<[string, unknown]>): void {
+			const list = [...entries];
+			if (list.length === 0) return;
+			batch(() => {
+				for (const [name, value] of list) {
+					const t = ensureTopic(name);
+					t.down([[DIRTY]]);
+					t.down([[DATA, value]]);
+				}
+			});
+		},
+
+		removeTopic(name: string): boolean {
+			const n = nodes.get(name);
+			if (n === undefined) return false;
+			n.down([[TEARDOWN]]);
+			nodes.delete(name);
+			backend.removeTopic(name);
+			return true;
+		},
+
+		has(name: string): boolean {
+			return backend.hasTopic(name);
+		},
+
+		get size(): number {
+			return backend.topicCount;
+		},
+
+		topicNames(): IterableIterator<string> {
+			return backend.topicNames();
+		},
+	};
 }
