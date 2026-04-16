@@ -22,6 +22,7 @@ import {
 	NS_PER_SEC,
 	resolveBackoffPreset,
 } from "./backoff.js";
+import { fromAny } from "./sources.js";
 import { ResettableTimer } from "./timer.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
@@ -38,10 +39,9 @@ function msgVal(m: Message): unknown {
 	return m[1];
 }
 
-function coerceDelayNs(raw: number | null): number {
-	if (raw === null) return 0;
+function coerceDelayNs(raw: number): number {
 	if (typeof raw !== "number" || !Number.isFinite(raw)) {
-		throw new TypeError("backoff strategy must return a finite number or null");
+		throw new TypeError("backoff strategy must return a finite number");
 	}
 	return raw < 0 ? 0 : raw;
 }
@@ -113,7 +113,13 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 					return;
 				}
 				const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
-				const delayNs = coerceDelayNs(raw === undefined ? null : raw);
+				// null from strategy = "stop retrying" (e.g. withMaxAttempts cap reached)
+				if (raw === null || raw === undefined) {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
+				const delayNs = coerceDelayNs(raw);
 				prevDelay = delayNs;
 				attempt += 1;
 				disconnectUpstream();
@@ -461,79 +467,84 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 	};
 }
 
+export type RateLimiterOverflowPolicy = "drop-oldest" | "drop-newest" | "error";
+
+export type RateLimiterOptions = {
+	/** Maximum `DATA` emissions per window (must be > 0). */
+	maxEvents: number;
+	/** Window length in nanoseconds (must be > 0). */
+	windowNs: number;
+	/** Cap on items queued while waiting for token refill (must be >= 1). Unbounded if omitted. */
+	maxBuffer?: number;
+	/** Overflow policy when `maxBuffer` is exceeded. Default: `"drop-newest"`. */
+	onOverflow?: RateLimiterOverflowPolicy;
+};
+
 /**
- * Same behavior as {@link tokenBucket}. Exposed for naming parity with graphrefly-py (`token_tracker`).
- *
- * @param capacity - Maximum tokens (must be positive).
- * @param refillPerSecond - Tokens added per elapsed second (non-negative).
- * @returns A {@link TokenBucket} instance.
- *
- * @example
- * ```ts
- * import { tokenTracker } from "@graphrefly/graphrefly-ts";
- *
- * const tracker = tokenTracker(100, 10); // 100-token capacity, 10/sec refill
- * tracker.tryConsume(5); // true
- * ```
+ * Thrown by {@link rateLimiter} when `onOverflow: "error"` and the pending buffer is full.
  *
  * @category extra
  */
-export function tokenTracker(capacity: number, refillPerSecond: number): TokenBucket {
-	return tokenBucket(capacity, refillPerSecond);
+export class RateLimiterOverflowError extends Error {
+	override name = "RateLimiterOverflowError";
+	constructor(maxBuffer: number) {
+		super(`rateLimiter buffer overflow (maxBuffer=${maxBuffer})`);
+	}
 }
 
 /**
- * Enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
+ * Token-bucket rate limiter: at most `maxEvents` `DATA` values per `windowNs`.
+ *
+ * Uses {@link tokenBucket} internally (capacity = `maxEvents`, refill = `maxEvents / windowSeconds`).
+ * Excess items are queued FIFO until a token is available. The queue may be bounded via
+ * `maxBuffer` with a configurable overflow policy.
  *
  * @param source - Upstream node.
- * @param maxEvents - Maximum `DATA` emissions per window (must be positive).
- * @param windowNs - Window length in nanoseconds (must be positive).
- * @returns Node that queues excess values FIFO until a slot frees.
+ * @param opts - Rate + optional bounded-buffer configuration.
+ * @returns Node that emits DATA at most `maxEvents` per `windowNs`.
  *
  * @remarks
- * **Terminal:** `COMPLETE` / `ERROR` cancel timers, drop pending queue, and clear window state.
+ * **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue, and propagate.
  *
  * @example
  * ```ts
  * import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
  *
  * const src = state(0);
- * // Allow at most 5 DATA values per second
- * const limited = rateLimiter(src, 5, NS_PER_SEC);
- * limited.subscribe((msgs) => console.log(msgs));
+ * // Allow at most 5 DATA values per second; queue up to 100 excess items, drop newest beyond.
+ * const limited = rateLimiter(src, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 100 });
  * ```
  *
  * @category extra
  */
-export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): Node<T> {
+export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<T> {
+	const { maxEvents, windowNs } = opts;
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
 	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
+	const maxBuffer = opts.maxBuffer;
+	if (maxBuffer !== undefined && maxBuffer < 1) throw new RangeError("maxBuffer must be >= 1");
+	const onOverflow: RateLimiterOverflowPolicy = opts.onOverflow ?? "drop-newest";
+	const refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
+
 	return producer<T>(
 		(a) => {
-			const times: number[] = [];
+			const bucket = tokenBucket(maxEvents, refillPerSec);
 			const pending: T[] = [];
 			const timer = new ResettableTimer();
+			let terminated = false;
 
-			function prune(now: number): void {
-				const boundary = now - windowNs;
-				while (times.length > 0 && times[0] <= boundary) times.shift();
-			}
+			const tokenTimeNs = NS_PER_SEC / refillPerSec;
 
 			function tryEmit(): void {
 				while (pending.length > 0) {
-					const now = monotonicNs();
-					prune(now);
-					if (times.length < maxEvents) {
-						times.push(now);
+					if (bucket.tryConsume(1)) {
 						a.emit(pending.shift() as T);
 					} else {
-						const oldest = times[0];
-						const delayNs = Math.max(0, oldest + windowNs - monotonicNs());
-						// §5.10: setTimeout (not fromTimer) — sliding-window schedule needs clearTimeout/setTimeout;
-						// fromTimer creates a new Node per reset, adding lifecycle overhead per window check.
-						timer.start(delayNs / NS_PER_MS, () => {
-							tryEmit();
-						});
+						// Wait one full token-refill interval. Avoids calling bucket.available()
+						// which would advance the internal refill clock and steal fractional credit.
+						// §5.10: setTimeout (not fromTimer) — refill-delay scheduling needs clearTimeout/setTimeout;
+						// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
+						timer.start(Math.max(1, tokenTimeNs / NS_PER_MS), tryEmit);
 						return;
 					}
 				}
@@ -541,27 +552,50 @@ export function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: num
 
 			const unsub = source.subscribe((msgs) => {
 				for (const m of msgs) {
+					if (terminated) return;
 					const t = m[0];
 					if (t === DIRTY) a.down([[DIRTY]]);
 					else if (t === DATA) {
-						pending.push(m[1] as T);
+						if (maxBuffer !== undefined && pending.length >= maxBuffer) {
+							if (onOverflow === "drop-newest") {
+								// silently drop the incoming item
+							} else if (onOverflow === "drop-oldest") {
+								pending.shift();
+								pending.push(m[1] as T);
+							} else {
+								terminated = true;
+								timer.cancel();
+								pending.length = 0;
+								a.down([[ERROR, new RateLimiterOverflowError(maxBuffer)]]);
+								return;
+							}
+						} else {
+							pending.push(m[1] as T);
+						}
 						tryEmit();
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
+						terminated = true;
 						timer.cancel();
 						pending.length = 0;
-						times.length = 0;
 						a.down([[COMPLETE]]);
 					} else if (t === ERROR) {
+						terminated = true;
 						timer.cancel();
 						pending.length = 0;
-						times.length = 0;
 						a.down([m]);
+					} else if (t === TEARDOWN) {
+						terminated = true;
+						timer.cancel();
+						pending.length = 0;
+						a.down([m]);
+						return;
 					} else a.down([m]);
 				}
 			});
 
 			return () => {
+				terminated = true;
 				timer.cancel();
 				unsub();
 			};
@@ -613,6 +647,7 @@ export function withStatus<T>(
 	const out = node<T>(
 		[],
 		(_deps, a) => {
+			let currentStatus: StatusValue = initialStatus;
 			out.meta.status.down([[DATA, initialStatus]]);
 			out.meta.error.down([[DATA, null]]);
 
@@ -621,7 +656,7 @@ export function withStatus<T>(
 					const t = m[0];
 					if (t === DIRTY) a.down([[DIRTY]]);
 					else if (t === DATA) {
-						if (out.meta.status.cache === "errored") {
+						if (currentStatus === "errored") {
 							batch(() => {
 								out.meta.error.down([[DATA, null]]);
 								out.meta.status.down([[DATA, "active"]]);
@@ -629,10 +664,12 @@ export function withStatus<T>(
 						} else {
 							out.meta.status.down([[DATA, "active"]]);
 						}
+						currentStatus = "active";
 						a.emit(m[1] as T);
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
 						out.meta.status.down([[DATA, "completed"]]);
+						currentStatus = "completed";
 						a.down([[COMPLETE]]);
 					} else if (t === ERROR) {
 						const err = msgVal(m);
@@ -640,6 +677,7 @@ export function withStatus<T>(
 							out.meta.error.down([[DATA, err]]);
 							out.meta.status.down([[DATA, "errored"]]);
 						});
+						currentStatus = "errored";
 						a.down([m]);
 					} else a.down([m]);
 				}
@@ -688,17 +726,40 @@ function isNode(x: unknown): x is Node {
 	);
 }
 
+function isThenable(x: unknown): x is PromiseLike<unknown> {
+	return x != null && typeof (x as PromiseLike<unknown>).then === "function";
+}
+
+function isAsyncIterable(x: unknown): x is AsyncIterable<unknown> {
+	return (
+		x != null &&
+		typeof x === "object" &&
+		typeof (x as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function"
+	);
+}
+
+/** Inputs accepted by {@link fallback}. */
+export type FallbackInput<T> = T | Node<T> | PromiseLike<T> | AsyncIterable<T>;
+
 /**
- * On upstream terminal `ERROR`, emit a fallback value instead of propagating the error.
+ * On upstream terminal `ERROR`, switch to a fallback source instead of propagating the error.
  *
- * If `fb` is a plain value, emits `[[DATA, fb], [COMPLETE]]` on error.
- * If `fb` is a `Node`, switches to that node's stream on error (all further messages
- * from the fallback node are forwarded).
+ * Accepts any of:
+ * - **scalar value** — emits `[[DATA, fb], [COMPLETE]]`
+ * - **`Node<T>`** — subscribes and forwards all messages (push-on-subscribe delivers current cache)
+ * - **`Promise<T>` / thenable** — resolves into a one-shot `DATA` then `COMPLETE` (via {@link fromAny})
+ * - **`AsyncIterable<T>`** — streams each yielded value as `DATA`, then `COMPLETE` (via {@link fromAny})
  *
- * Composes naturally with {@link retry}: `pipe(source, retry({count:3}), fallback("default"))`.
+ * Non-`Node` inputs are routed through {@link fromAny} so the fallback participates in the
+ * reactive protocol uniformly. Bare strings, arrays, and other synchronous scalars are treated
+ * as single values (NOT split into characters / elements) to avoid the `fromAny`-on-string
+ * iteration gotcha.
+ *
+ * Composes naturally with {@link retry}:
+ * `pipe(source, retry({count:3}), fallback("default"))`.
  *
  * @param source - Upstream node.
- * @param fb - Fallback value or fallback node to switch to on error.
+ * @param fb - Fallback value, node, promise, or async iterable.
  * @returns Node that replaces errors with the fallback.
  *
  * @example
@@ -711,11 +772,25 @@ function isNode(x: unknown): x is Node {
  *
  * @category extra
  */
-export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
+export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
 	return producer<T>(
 		(a) => {
 			let fallbackUnsub: (() => void) | undefined;
 			let sourceUnsub: (() => void) | undefined;
+
+			function switchToFallback(): void {
+				sourceUnsub?.();
+				sourceUnsub = undefined;
+				if (isNode(fb) || isThenable(fb) || isAsyncIterable(fb)) {
+					const fbNode = fromAny(fb as Node<T> | PromiseLike<T> | AsyncIterable<T>);
+					fallbackUnsub = fbNode.subscribe((fMsgs) => {
+						a.down(fMsgs);
+					});
+				} else {
+					a.emit(fb as T);
+					a.down([[COMPLETE]]);
+				}
+			}
 
 			sourceUnsub = source.subscribe((msgs) => {
 				for (const m of msgs) {
@@ -725,17 +800,7 @@ export function fallback<T>(source: Node<T>, fb: T | Node<T>): Node<T> {
 					else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) a.down([[COMPLETE]]);
 					else if (t === ERROR) {
-						sourceUnsub?.(); // release source subscription
-						if (isNode(fb)) {
-							fallbackUnsub = (fb as Node<T>).subscribe((fMsgs) => {
-								a.down(fMsgs);
-							});
-							const cur = (fb as Node<T>).cache;
-							if (cur !== undefined) a.down([[DATA, cur]]);
-						} else {
-							a.emit(fb as T);
-							a.down([[COMPLETE]]);
-						}
+						switchToFallback();
 						return;
 					} else if (t === TEARDOWN) {
 						fallbackUnsub?.();
@@ -834,68 +899,6 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 		},
 		{
 			...operatorOpts(),
-			initial: source.cache,
-		},
-	);
-}
-
-/**
- * Memoize the last `DATA` value with a TTL. On resubscription (or new subscriber),
- * if a cached value exists within `ttlNs`, emit it immediately then forward live
- * upstream messages.
- *
- * Stale-while-revalidate pattern: subscribers always get the cached value first
- * (if within TTL), then see live updates as they arrive.
- *
- * @param source - Upstream node.
- * @param ttlNs - Time-to-live in nanoseconds.
- * @returns Node with TTL-based caching.
- *
- * @example
- * ```ts
- * import { cache, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
- *
- * const src = state(42);
- * const c = cache(src, 10 * NS_PER_SEC);
- * ```
- *
- * @category extra
- */
-export function cache<T>(source: Node<T>, ttlNs: number): Node<T> {
-	if (ttlNs <= 0) throw new RangeError("ttlNs must be > 0");
-
-	let cachedValue: T | undefined;
-	let cachedAt = 0;
-	let hasCached = false;
-
-	return producer<T>(
-		(a) => {
-			// Replay cached value within TTL on each (re)subscribe
-			if (hasCached && monotonicNs() - cachedAt < ttlNs) {
-				a.down([[DATA, cachedValue]]);
-			}
-
-			const unsub = source.subscribe((msgs) => {
-				for (const m of msgs) {
-					const t = m[0];
-					if (t === DATA) {
-						cachedValue = m[1] as T;
-						cachedAt = monotonicNs();
-						hasCached = true;
-						a.emit(cachedValue);
-					} else if (t === DIRTY) a.down([[DIRTY]]);
-					else if (t === RESOLVED) a.down([[RESOLVED]]);
-					else if (t === COMPLETE) a.down([[COMPLETE]]);
-					else if (t === ERROR) a.down([m]);
-					else a.down([m]);
-				}
-			});
-
-			return unsub;
-		},
-		{
-			...operatorOpts(),
-			resubscribable: true,
 			initial: source.cache,
 		},
 	);
