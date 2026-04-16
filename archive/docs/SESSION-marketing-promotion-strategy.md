@@ -768,6 +768,89 @@ Use the `write-blog` skill (in `~/.claude/skills-backup/write-blog/`) for SEO op
 
 ---
 
+## 19. Peter Pang / CreoAI — Harness Engineering Practitioner Case Study (added April 15, 2026)
+
+**Trigger:** A 小红书 post summarizing CreoAI CTO Peter Pang's "Harness Engineering" talk circulated in the Chinese AI-practitioner community. Pang is a practitioner case study of exactly the pattern GraphReFly is designed to underpin. Cross-referencing against the design archive reveals strong overlap and three actionable gaps.
+
+### What Peter Pang Describes
+
+| His Point | His Framing |
+|---|---|
+| AI-First vs AI-Assisted | Rebuild processes *around* AI (not bolt-on). Three things to rebuild: product process (rapid prototype), testing process (AI tests AI code), codebase (monorepo). |
+| Self-healing | Automated loop: auto-discover → classify → fix → verify. Error self-corrects without engineer intervention. |
+| Role shift | Engineers become architects — design standards, review AI output. CTO's management time "greatly reduced." |
+
+### What GraphReFly Already Has (no action needed)
+
+| Pang's Point | GraphReFly Coverage |
+|---|---|
+| Closed-loop self-healing | `SESSION-reactive-collaboration-harness.md` §9.0: full 7-stage INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT. More complete than Pang's 4-step loop — adds human judgment gate (GATE) and retrospective learning (REFLECT). |
+| AI tests AI code / automated eval | `SESSION-harness-engineering-strategy.md` §9.1: two-tier eval (portable/manual + automated/API), multi-model comparison matrix, Wave 1 eval story. |
+| Engineer-as-architect model | Gate's `modify()` IS the architect interface — human designs topology, AI flows through nodes. Protocol-level invariant, not a philosophy. |
+| Monorepo | Already the architecture (`graphrefly-ts` as single source of truth). |
+
+### Three Actionable Additions
+
+#### A. "Three-Process Rebuild" Framework for Blog / Talk Content
+
+Peter Pang's decomposition — **product process, testing process, codebase** — is a useful narrative scaffold for developer audience. GraphReFly addresses all three but has never framed it this way.
+
+**Use in:** Blog 33 ("Building a Reactive Harness Layer for Agent Workflows") and Wave 2 HN replies. Structure the argument:
+
+> The real barrier to AI-First is that most teams try to bolt AI onto their existing processes. The three processes that actually need rebuilding are: (1) product process — rapid topology prototyping via NL; (2) testing process — AI-generated evals validated by the graph's own observability; (3) codebase state model — reactive graph instead of file-system snapshots.
+>
+> Each is a separate migration. GraphReFly provides the substrate for all three.
+
+**Why it lands:** It gives engineering managers a concrete checklist, not an architecture pitch. Matches pillar #3 framing ("Describe It, Don't Code It") without leading with protocol.
+
+#### B. "Self-Healing" as User-Facing Vocabulary
+
+Pang uses "self-healing" as the takeaway phrase. It is more penetrating than GraphReFly's current vocabulary ("closed loop", "reactive propagation"). Self-healing is what the harness *does* from a user perspective; reactive propagation is how it *works* internally.
+
+**Additions to §6 (Three Positioning Pillars) sub-copy:**
+
+Update Pillar 2 sub-copy ("Trust AI by Understanding It") to include:
+
+> When the loop is reactive and causally traceable, fixes propagate automatically — the graph self-heals. `explainPath` tells you why a fix was applied, not just that it was.
+
+**Additions to §12 (Pain-Point Reply Marketing):**
+
+Add "self-healing" and "self-correcting agent" to search keywords across HN, Reddit, X, and 小红书 playbooks. Suggested reply hook for harness engineering threads:
+
+> The key property people mean when they say "self-healing agent" is: errors discovered, classified, fixed, and verified *within the same reactive graph* — no engineer re-entry required. That's what makes the loop durable rather than fragile.
+
+**小红书 keyword additions:** `Agent 自愈` / `自修复流水线` / `Agent 闭环`
+
+#### C. Engineering Manager / CTO Efficiency as a Pain Point
+
+Pang frames the outcome as "my management time greatly reduced." This is a decision-maker pain point GraphReFly has never addressed in any marketing copy. The current pillars target: (1) knowledge workers drowning in info, (2) developers needing trust/explainability, (3) technical users wanting declarative composition. **No pillar targets the engineering manager who is paying for and approving the tooling.**
+
+**Add to §8 Phase C (Growth) — developer track:**
+
+> **NEW: Engineering manager track** — CTO/VP Eng blogs, LinkedIn, and conference talks targeting "how to reduce the coordination overhead of AI-assisted teams." Framing: GraphReFly's topology-as-program model means engineers design once, AI executes repeatedly, managers review the topology (not every run). The observable harness (scorecard, causal trace) eliminates the "black-box AI" trust problem at the management layer.
+
+**Add to §15 Wave 2 content deliverables:**
+
+> - Blog: "Why Your AI Team Is Still Slow — and How a Reactive Harness Fixes It" *(audience: CTOs/VPs Eng — maps Pang's 3-process rebuild to GraphReFly's substrate, uses self-healing vocabulary)*
+
+**Add to §16 pre-launch contributor outreach target list:**
+
+> - Engineering leaders at AI-native companies who have publicly written about "AI-First" organizational change (search LinkedIn + medium for "AI-First engineering" authored by VPs/CTOs)
+
+### What GraphReFly Has That Pang's Frame Misses
+
+Peter Pang's framing stops at operational practice. GraphReFly goes to protocol-level guarantees that make those practices *durable*:
+
+| Pang's ceiling | GraphReFly's floor |
+|---|---|
+| Self-healing as a workflow | Protocol-level correctness: no double-delivery, diamond resolution, SENTINEL gating — the graph *cannot* get into states that require manual repair |
+| AI tests AI code | Causal trace: `explainPath` shows *why* a test failed, not just that it failed — structural causality, not a log dump |
+| Topology as program | LLM composes the topology via GraphSpec — constrained like SQL, not open-ended like prompt chaining |
+
+These are not positioning language. They are the *reason* self-healing actually works. Use them in technical depth sections (comparison pages, Wave 2 "vs LangGraph" blog), not in lead copy.
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords
