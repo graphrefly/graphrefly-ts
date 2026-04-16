@@ -78,8 +78,8 @@ describe("reactiveMap stress tests", () => {
 		expect(snap.get("b")).toBe(2);
 	});
 
-	// ── Scenario 3: size getter prunes and emits (fixed 2026-04-15) ─────
-	it("S3: size prunes expired entries AND emits a fresh snapshot", () => {
+	// ── Scenario 3: size is a pure read — D2(a), spec §5.8 compliance ───
+	it("S3: size is a pure read (no side-effect emission, includes not-yet-pruned expired)", () => {
 		vi.useFakeTimers();
 		const m = reactiveMap<string, number>();
 		m.set("a", 1, { ttl: 1 });
@@ -90,25 +90,30 @@ describe("reactiveMap stress tests", () => {
 
 		vi.advanceTimersByTime(1500);
 
-		// Access size — prunes "a" AND emits snapshot (Wave 4 fix).
+		// D2(a): .size is now a pure read — no pruning, no emission. Raw
+		// store count includes the not-yet-pruned expired "a".
 		const sz = m.size;
-		expect(sz).toBe(1); // only "b" remains
+		expect(sz).toBe(2);
 
-		const newMessages = messages.slice(beforeLen);
-		// Expect DIRTY + DATA pair from the prune emission.
-		expect(newMessages.filter((msg) => msg[0] === DIRTY).length).toBe(1);
-		expect(newMessages.filter((msg) => msg[0] === DATA).length).toBe(1);
+		// No messages emitted from the size read.
+		expect(messages.length).toBe(beforeLen);
 
-		// entries.cache is fresh — no stale snapshot.
+		// Explicit pruneExpired() delivers the live count + one snapshot emit.
+		m.pruneExpired();
+		expect(m.size).toBe(1);
+		const afterPrune = messages.slice(beforeLen);
+		expect(afterPrune.filter((msg) => msg[0] === DIRTY).length).toBe(1);
+		expect(afterPrune.filter((msg) => msg[0] === DATA).length).toBe(1);
+
+		// entries.cache is fresh post-prune.
 		const cached = m.entries.cache as ReadonlyMap<string, number>;
-		expect(cached.has("a")).toBe(false); // pruned
-		expect(cached.size).toBe(1); // only "b"
+		expect(cached.has("a")).toBe(false);
+		expect(cached.size).toBe(1);
 		expect(cached.get("b")).toBe(2);
 
-		// Subsequent size access: nothing to prune → no emission.
+		// Subsequent size access: nothing to prune, pure read, no emission.
 		const afterReadLen = messages.length;
-		const sz2 = m.size;
-		expect(sz2).toBe(1);
+		expect(m.size).toBe(1);
 		expect(messages.length).toBe(afterReadLen);
 
 		unsub();

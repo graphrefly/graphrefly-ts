@@ -16,7 +16,7 @@
  */
 
 import { batch } from "../core/batch.js";
-import { DATA, DIRTY, TEARDOWN } from "../core/messages.js";
+import { TEARDOWN } from "../core/messages.js";
 import { type Node, node } from "../core/node.js";
 
 // ── Backend interface ─────────────────────────────────────────────────────
@@ -116,8 +116,10 @@ export interface PubSubHub {
 	 * Bulk publish — single outer batch for all entries. No-op if empty.
 	 *
 	 * **Iterable consumption (F6):** `entries` is consumed once (single-pass).
-	 * Pass an array or `Set` for multi-shot callers. If the iterator throws
-	 * mid-iteration, entries already delivered remain committed.
+	 * Pass an array or `Set` for multi-shot callers. Iteration happens INSIDE
+	 * the batch frame — if the iterator throws mid-way, the batch is discarded
+	 * and NO publishes are visible to subscribers (all-or-nothing within one
+	 * call).
 	 */
 	publishMany(entries: Iterable<[string, unknown]>): void;
 	/** Removes a topic; sends `TEARDOWN` to its node. Returns `true` if it existed. */
@@ -181,21 +183,19 @@ export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
 		},
 
 		publish(name: string, value: unknown): void {
-			const t = ensureTopic(name);
-			batch(() => {
-				t.down([[DIRTY]]);
-				t.down([[DATA, value]]);
-			});
+			// P7: use emit() so the pipeline auto-prefixes DIRTY, runs equals
+			// substitution (if user configured one on a custom topic node),
+			// and produces the proper two-phase wave.
+			ensureTopic(name).emit(value);
 		},
 
 		publishMany(entries: Iterable<[string, unknown]>): void {
-			const list = [...entries];
-			if (list.length === 0) return;
+			// P1: iterate INSIDE the batch so a mid-iteration throw is
+			// contained by the batch frame (no partial-publish leak) and
+			// memory stays bounded — no intermediate array from `[...entries]`.
 			batch(() => {
-				for (const [name, value] of list) {
-					const t = ensureTopic(name);
-					t.down([[DIRTY]]);
-					t.down([[DATA, value]]);
+				for (const [name, value] of entries) {
+					ensureTopic(name).emit(value);
 				}
 			});
 		},

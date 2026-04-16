@@ -61,8 +61,12 @@ export type ReactiveIndexBundle<K, V = unknown> = {
 	 * Upserts a row. When `opts.equals(existing, next)` returns `true` for an
 	 * existing primary key, the upsert is a no-op (no version bump, no emission).
 	 * Useful for idempotent writes.
+	 *
+	 * @returns `true` if a new row was inserted (primary key was absent),
+	 *   `false` if the primary key was already present (updated in place OR
+	 *   skipped idempotently via `opts.equals`). D5(a).
 	 */
-	upsert: (primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>) => void;
+	upsert: (primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>) => boolean;
 	/**
 	 * Bulk upsert — emits one snapshot for the whole batch. `opts.equals` applied
 	 * per-row. No-op if empty or all rows skipped.
@@ -81,6 +85,14 @@ export type ReactiveIndexBundle<K, V = unknown> = {
 	 */
 	deleteMany: (primaries: Iterable<K>) => void;
 	clear: () => void;
+	/**
+	 * Releases internal keepalive subscriptions (on `byPrimary`) so the bundle
+	 * can be GC'd. Safe to call more than once (subsequent calls are no-ops).
+	 * Subsequent mutations after `dispose()` still execute on the backend but
+	 * `byPrimary` may stop updating if no external subscriber is attached.
+	 * D6(a).
+	 */
+	dispose: () => void;
 };
 
 // ── Ordering ──────────────────────────────────────────────────────────────
@@ -331,8 +343,8 @@ export class NativeIndexBackend<K, V = unknown> implements IndexBackend<K, V> {
 
 // ── Reactive wrapper ──────────────────────────────────────────────────────
 
-function keepaliveDerived(n: Node<unknown>): void {
-	void n.subscribe(() => {});
+function keepaliveDerived(n: Node<unknown>): () => void {
+	return n.subscribe(() => {});
 }
 
 /**
@@ -394,7 +406,8 @@ export function reactiveIndex<K, V = unknown>(
 		},
 		{ initial: backend.toPrimaryMap(), describeKind: "derived" },
 	);
-	keepaliveDerived(byPrimary);
+	const disposeByPrimaryKeepalive = keepaliveDerived(byPrimary);
+	let disposed = false;
 
 	function pushSnapshot(): void {
 		const snapshot = backend.toArray();
@@ -435,15 +448,24 @@ export function reactiveIndex<K, V = unknown>(
 			return backend.size;
 		},
 
-		upsert(primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>): void {
-			wrapMutation(() => backend.upsert(primary, secondary, value, withDefaultEquals(opts)));
+		upsert(primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>): boolean {
+			return wrapMutation(() => backend.upsert(primary, secondary, value, withDefaultEquals(opts)));
 		},
 
 		upsertMany(
 			rows: Iterable<{ primary: K; secondary: unknown; value: V }>,
 			opts?: UpsertOptions<K, V>,
 		): void {
-			wrapMutation(() => backend.upsertMany(rows, withDefaultEquals(opts)));
+			// Extra: materialize the iterable at the public wrapper so a
+			// caller who passes (e.g.) `index.ordered.cache` as input can't
+			// have the splice-during-iteration semantics observed by the
+			// backend. The backend mutates `_buf` on each upsert; if `rows`
+			// aliased `_buf` (directly or via a wrapping iterator), iteration
+			// would observe mid-mutation state. Arrays are iterator-snapshot
+			// safe.
+			const list = [...rows];
+			if (list.length === 0) return;
+			wrapMutation(() => backend.upsertMany(list, withDefaultEquals(opts)));
 		},
 
 		delete(primary: K): void {
@@ -451,11 +473,20 @@ export function reactiveIndex<K, V = unknown>(
 		},
 
 		deleteMany(primaries: Iterable<K>): void {
-			wrapMutation(() => backend.deleteMany(primaries));
+			// Extra: materialize before mutating — same reasoning as upsertMany.
+			const list = [...primaries];
+			if (list.length === 0) return;
+			wrapMutation(() => backend.deleteMany(list));
 		},
 
 		clear(): void {
 			wrapMutation(() => backend.clear());
+		},
+
+		dispose(): void {
+			if (disposed) return;
+			disposed = true;
+			disposeByPrimaryKeepalive();
 		},
 	};
 }

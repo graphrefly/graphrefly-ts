@@ -106,7 +106,7 @@ export type DistillOptions<TMem> = {
 	consolidate?: (entries: ReadonlyMap<string, TMem>) => NodeInput<Extraction<TMem>>;
 	consolidateTrigger?: NodeInput<unknown>;
 	context?: NodeInput<unknown>;
-	mapOptions?: ReactiveMapOptions;
+	mapOptions?: ReactiveMapOptions<string, TMem>;
 };
 
 export type DistillBundle<TMem> = {

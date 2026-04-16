@@ -51,15 +51,33 @@ export type ReactiveLogBundle<T> = {
 	/** Remove the first `n` entries (clamped to `size`). Throws on non-integer or negative `n`. */
 	trimHead: (n: number) => void;
 	/**
-	 * Last `n` entries (or fewer) as a derived reactive view. Memoized (LRU-bounded)
-	 * — repeat calls with the same `n` return the same node. Throws on non-integer
-	 * or negative `n`.
+	 * Last `n` entries (or fewer) as a derived reactive view. Memoized with
+	 * an LRU cache (default cap 64) — repeat calls with the same `n` return
+	 * the same node. Throws on non-integer or negative `n`.
+	 *
+	 * **LRU eviction contract (D3(b)):** when a 65th distinct `n` is passed,
+	 * the least-recently-used cached view is evicted and its keepalive is
+	 * disposed. External holders of the evicted node will NOT receive further
+	 * updates — re-call `tail(n)` for a fresh node, or dispose proactively
+	 * via {@link disposeTail} / {@link disposeAllViews}. To avoid surprise:
+	 * resolve `tail(n)` at the point of use rather than caching the returned
+	 * node across many distinct `n`s.
 	 */
 	tail: (n: number) => Node<readonly T[]>;
 	/**
-	 * Reactive view of `entries.slice(start, stop)` (same semantics as `Array.prototype.slice`; `stop` exclusive).
-	 * Memoized (LRU-bounded) — repeat calls with the same `(start, stop)` return the same node.
-	 * Throws on non-integer or negative `start`, or non-integer `stop`.
+	 * Reactive view of `entries.slice(start, stop)` — non-negative integer
+	 * `start`, non-negative integer `stop` (exclusive) or `undefined` (to end).
+	 * Memoized with an LRU cache (default cap 64) — repeat calls with the
+	 * same `(start, stop)` return the same node.
+	 *
+	 * Throws on non-integer `start`, negative `start`, non-integer `stop`, or
+	 * negative `stop` (P4 — the backend cannot cheaply honor JS-style
+	 * negative `stop` without scanning length; disallowed for a consistent
+	 * contract between backend, derived recomputation, and cached initial).
+	 *
+	 * **LRU eviction contract (D3(b)):** same as {@link tail} — past 64
+	 * distinct `(start, stop)` pairs, the oldest cached view is evicted and
+	 * its keepalive disposed. External holders stop receiving updates.
 	 */
 	slice: (start: number, stop?: number) => Node<readonly T[]>;
 	/**
@@ -74,6 +92,14 @@ export type ReactiveLogBundle<T> = {
 	disposeSlice: (start: number, stop?: number) => boolean;
 	/** Releases all cached tail/slice views and their keepalive subscriptions. */
 	disposeAllViews: () => void;
+	/**
+	 * Releases all internal keepalive subscriptions so the bundle can be
+	 * GC'd — currently equivalent to {@link disposeAllViews}, but exposed as
+	 * a uniform API across all reactive data structures for lifecycle
+	 * symmetry (mirrors `reactiveMap.dispose` / `reactiveList.dispose` /
+	 * `reactiveIndex.dispose`). Idempotent. D6(a).
+	 */
+	dispose: () => void;
 };
 
 // ── Backend interface ─────────────────────────────────────────────────────
@@ -166,11 +192,14 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 	}
 
 	at(index: number): T | undefined {
-		if (!Number.isInteger(index) || index < 0 || index >= this._size) return undefined;
+		if (!Number.isInteger(index)) return undefined;
+		// P5: Python-style negative index — `-1` returns the last entry.
+		const i = index >= 0 ? index : this._size + index;
+		if (i < 0 || i >= this._size) return undefined;
 		if (this._maxSize !== undefined) {
-			return this._buf[(this._head + index) % this._maxSize];
+			return this._buf[(this._head + i) % this._maxSize];
 		}
-		return this._buf[index];
+		return this._buf[i];
 	}
 
 	append(value: T): void {
@@ -199,11 +228,13 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		if (this._maxSize === undefined) {
 			this._buf.length = 0;
 		} else {
-			// Ring buffer: the valid window collapses to empty, but the backing
-			// array still holds references to the old entries. Null them so the
-			// GC can reclaim ref-typed T. P4.
-			for (let i = 0; i < this._maxSize; i++) {
-				this._buf[i] = undefined as unknown as T;
+			// Ring buffer: only null the currently-live window so the GC can
+			// reclaim ref-typed `T`. Iterating the full capacity would be O(cap)
+			// even when only a few slots are in use (P6). Non-live slots are
+			// already `undefined` (pre-allocation state) or whatever a prior
+			// trim/clear left — they hold no live refs.
+			for (let i = 0; i < n; i++) {
+				this._buf[(this._head + i) % this._maxSize] = undefined as unknown as T;
 			}
 		}
 		this._head = 0;
@@ -236,8 +267,12 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		if (!Number.isInteger(start) || start < 0) {
 			throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
 		}
-		if (stop !== undefined && !Number.isInteger(stop)) {
-			throw new RangeError(`slice: stop must be an integer or undefined (got ${stop})`);
+		// P4: reject negative `stop` explicitly so the bundle / backend / derived
+		// contract stays consistent. Previously stop was silently clamped to 0,
+		// producing `[]` in the backend but a different value under JS semantics
+		// in the derived recomputation — a latent bug for negative inputs.
+		if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
+			throw new RangeError(`slice: stop must be a non-negative integer or undefined (got ${stop})`);
 		}
 		const end = stop === undefined ? this._size : Math.min(Math.max(stop, 0), this._size);
 		const s = Math.min(start, this._size);
@@ -381,6 +416,22 @@ export function reactiveLog<T>(
 		cache.delete(first.value);
 	}
 
+	/**
+	 * D4(a): try/finally defense-in-depth — if a custom backend op throws
+	 * mid-mutation, surface the partial state via pushSnapshot so subscribers
+	 * don't see a stale cache. Matches the pattern in reactive-map and
+	 * reactive-index. Native ops are atomic by contract; this only matters
+	 * for user-supplied backends.
+	 */
+	function wrapMutation<R>(op: () => R): R {
+		const prev = backend.version;
+		try {
+			return op();
+		} finally {
+			if (backend.version !== prev) pushSnapshot();
+		}
+	}
+
 	return {
 		entries,
 
@@ -393,23 +444,29 @@ export function reactiveLog<T>(
 		},
 
 		append(value: T): void {
-			backend.append(value);
-			pushSnapshot();
+			wrapMutation(() => backend.append(value));
 		},
 
 		appendMany(values: readonly T[]): void {
 			if (values.length === 0) return;
-			const before = backend.version;
-			backend.appendMany(values);
-			if (backend.version !== before) pushSnapshot();
+			wrapMutation(() => backend.appendMany(values));
 		},
 
 		clear(): void {
-			if (backend.clear() > 0) pushSnapshot();
+			wrapMutation(() => backend.clear());
+			// NOTE: cached tail/slice derived views are intentionally NOT
+			// disposed here. Disposing would kill the keepalive on any node
+			// a caller already holds externally, silently stopping their
+			// updates. The derived nodes recompute from the new empty
+			// snapshot when `entries` emits post-clear, so `.cache` on an
+			// outstanding view settles to `[]` without any manual
+			// reset. (Initial snapshots, if inspected before the next wave,
+			// may be stale — callers who care can `disposeTail` / `slice`
+			// explicitly.)
 		},
 
 		trimHead(n: number): void {
-			if (backend.trimHead(n) > 0) pushSnapshot();
+			wrapMutation(() => backend.trimHead(n));
 		},
 
 		tail(n: number): Node<readonly T[]> {
@@ -442,8 +499,13 @@ export function reactiveLog<T>(
 			if (!Number.isInteger(start) || start < 0) {
 				throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
 			}
-			if (stop !== undefined && !Number.isInteger(stop)) {
-				throw new RangeError(`slice: stop must be an integer or undefined (got ${stop})`);
+			// P4: reject negative stop explicitly to keep bundle / backend / derived
+			// consistent (JS `Array.prototype.slice` supports negative stop, but the
+			// backend can't cheaply honor it without scanning length, so we disallow).
+			if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
+				throw new RangeError(
+					`slice: stop must be a non-negative integer or undefined (got ${stop})`,
+				);
 			}
 			const key = sliceKey(start, stop);
 			const hit = sliceCache.get(key);
@@ -484,6 +546,15 @@ export function reactiveLog<T>(
 		},
 
 		disposeAllViews(): void {
+			for (const entry of tailCache.values()) entry.dispose();
+			tailCache.clear();
+			for (const entry of sliceCache.values()) entry.dispose();
+			sliceCache.clear();
+		},
+
+		dispose(): void {
+			// D6(a): currently identical to disposeAllViews. Exposed as a
+			// uniform lifecycle API across all 4 reactive data structures.
 			for (const entry of tailCache.values()) entry.dispose();
 			tailCache.clear();
 			for (const entry of sliceCache.values()) entry.dispose();
