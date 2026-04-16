@@ -27,7 +27,11 @@ describe("patterns.messaging", () => {
 		expect(sub.pull()).toEqual([20]);
 		expect(sub.pull(undefined, { ack: true })).toEqual([20]);
 		expect(sub.pull()).toEqual([]);
-		expect(sub.edges()).toContainEqual(["topic::events", "source"]);
+		// D1(e): topic is NOT mounted under the subscription — the "topic::events"
+		// edge no longer exists; verify via the externalized `sub.topic` reference
+		// instead (data dependency lives at the node layer via derived-deps).
+		expect(sub.topic).toBe(t);
+		expect(sub.edges()).toContainEqual(["source", "available"]);
 	});
 
 	it("jobQueue supports enqueue, claim, ack, and nack requeue", () => {

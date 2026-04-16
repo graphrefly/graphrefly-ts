@@ -112,7 +112,13 @@ export interface PubSubHub {
 	topic(name: string): Node<unknown>;
 	/** Publishes a value to the topic (lazily creating the topic if missing). */
 	publish(name: string, value: unknown): void;
-	/** Bulk publish — single outer batch for all entries. No-op if empty. */
+	/**
+	 * Bulk publish — single outer batch for all entries. No-op if empty.
+	 *
+	 * **Iterable consumption (F6):** `entries` is consumed once (single-pass).
+	 * Pass an array or `Set` for multi-shot callers. If the iterator throws
+	 * mid-iteration, entries already delivered remain committed.
+	 */
 	publishMany(entries: Iterable<[string, unknown]>): void;
 	/** Removes a topic; sends `TEARDOWN` to its node. Returns `true` if it existed. */
 	removeTopic(name: string): boolean;
@@ -197,9 +203,14 @@ export function pubsub(options: PubSubHubOptions = {}): PubSubHub {
 		removeTopic(name: string): boolean {
 			const n = nodes.get(name);
 			if (n === undefined) return false;
-			n.down([[TEARDOWN]]);
+			// Delete from map + backend BEFORE sending TEARDOWN (P2). A
+			// synchronous TEARDOWN handler that calls `hub.publish(name, v)`
+			// would otherwise race: `ensureTopic` finds no entry, creates a
+			// fresh node, backend records the re-creation — then the cleanup
+			// below would delete the NEW node, leaking a subscriber on it.
 			nodes.delete(name);
 			backend.removeTopic(name);
+			n.down([[TEARDOWN]]);
 			return true;
 		},
 

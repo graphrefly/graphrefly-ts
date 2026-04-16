@@ -36,18 +36,24 @@ export type TopicOptions = {
 export class TopicGraph<T> extends Graph {
 	private readonly _log;
 	readonly events: Node<readonly T[]>;
-	readonly latest: Node<T | undefined>;
+	/**
+	 * Most recently published value, or `null` when the topic has no entries
+	 * yet. Spec §5.12 reserves `undefined` as the protocol-internal "never
+	 * sent DATA" sentinel — `null` is the idiomatic "empty / no value" signal
+	 * for domain nodes. F7.
+	 */
+	readonly latest: Node<T | null>;
 
 	constructor(name: string, opts: TopicOptions = {}) {
 		super(name, opts.graph);
 		this._log = reactiveLog<T>([], { name: "events", maxSize: opts.retainedLimit });
 		this.events = this._log.entries;
 		this.add("events", this.events);
-		this.latest = derived<T | undefined>(
+		this.latest = derived<T | null>(
 			[this.events],
 			([snapshot]) => {
 				const entries = snapshot as readonly T[];
-				return entries.length === 0 ? undefined : entries[entries.length - 1];
+				return entries.length === 0 ? null : (entries[entries.length - 1] as T);
 			},
 			{
 				name: "latest",
@@ -78,11 +84,20 @@ export class SubscriptionGraph<T> extends Graph {
 	readonly source: Node<readonly T[]>;
 	readonly cursor: Node<number>;
 	readonly available: Node<readonly T[]>;
+	/**
+	 * Reference to the upstream topic graph. Intentionally NOT mounted
+	 * under this subscription: a subscription is a VIEW over an
+	 * externally-owned topic. Double-mounting (e.g. hub-owned topic +
+	 * sub-mount here) would make either-side teardown leave the other
+	 * holding a dead reference. Node-level `derived([topicEvents], …)`
+	 * still wires the data dependency across graph boundaries. D1(e).
+	 */
+	readonly topic: TopicGraph<T>;
 
 	constructor(name: string, topicGraph: TopicGraph<T>, opts: SubscriptionOptions = {}) {
 		super(name, opts.graph);
 		const initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
-		this.mount("topic", topicGraph);
+		this.topic = topicGraph;
 		const topicEvents = topicGraph.events;
 		this.source = derived([topicEvents], ([snapshot]) => snapshot as readonly T[], {
 			name: "source",
@@ -112,7 +127,8 @@ export class SubscriptionGraph<T> extends Graph {
 			},
 		);
 		this.add("available", this.available);
-		this.connect("topic::events", "source");
+		// No `connect("topic::events", "source")` — topic is not mounted here.
+		// The node-level dep `derived([topicEvents], …)` above is the live wire.
 		this.connect("source", "available");
 		this.connect("cursor", "available");
 		this.addDisposer(keepalive(this.source));
@@ -128,7 +144,10 @@ export class SubscriptionGraph<T> extends Graph {
 		const step = Math.min(requested, available.length);
 		if (step <= 0) return this.cursor.cache as number;
 		const next = (this.cursor.cache as number) + step;
-		this.cursor.down([[DATA, next]]);
+		// F8: use emit() so the pipeline auto-prefixes DIRTY, runs equals
+		// substitution, and produces a proper two-phase wave (the raw
+		// `down([[DATA, next]])` path bypassed those contracts).
+		this.cursor.emit(next);
 		return next;
 	}
 
@@ -496,6 +515,11 @@ export class MessagingHubGraph extends Graph {
 	/**
 	 * Bulk publish — collects entries, then issues all publishes inside one
 	 * outer batch. New topics are created as needed. No-op if `entries` is empty.
+	 *
+	 * **Iterable consumption (F6):** `entries` is consumed once (single-pass).
+	 * Pass an array or `Set` for multi-shot callers. If the iterator throws
+	 * mid-collection no publishes occur; after the collect step all commits
+	 * happen inside the batch.
 	 */
 	publishMany(entries: Iterable<[string, unknown]>): void {
 		const list = [...entries];
@@ -531,8 +555,11 @@ export class MessagingHubGraph extends Graph {
 	 */
 	removeTopic(name: string): boolean {
 		if (!this._topics.has(name)) return false;
+		// Graph.remove first: if it throws, _topics / _version stay consistent
+		// (a subsequent `hub.topic(name)` would otherwise see an orphan mount
+		// entry via Graph.mount and throw "already mounted"). P1.
+		this.remove(name); // unmounts, drops edges, tears down
 		this._topics.delete(name);
-		this.remove(name); // Graph.remove unmounts, drops edges, tears down
 		this._version += 1;
 		return true;
 	}

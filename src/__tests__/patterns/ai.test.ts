@@ -78,7 +78,7 @@ describe("patterns.ai.chatStream", () => {
 		const cs = chatStream("test-chat");
 		expect(cs).toBeInstanceOf(ChatStreamGraph);
 		expect(cs.get("messageCount")).toBe(0);
-		expect(cs.get("latest")).toBe(undefined);
+		expect(cs.get("latest")).toBe(null);
 	});
 
 	it("appends messages and updates derived nodes", () => {

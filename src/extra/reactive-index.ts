@@ -35,6 +35,15 @@ export type ReactiveIndexOptions<K, V = unknown> = {
 	 * (The `byPrimary` derived node inherits through the dep graph.)
 	 */
 	versioning?: VersioningLevel;
+	/**
+	 * Default row-equality used to short-circuit idempotent upserts. When
+	 * provided, every `upsert` / `upsertMany` that finds an existing primary
+	 * compares the stored and candidate rows via `equals(existing, next)` —
+	 * on `true` the call is a no-op (no version bump, no emission). Per-call
+	 * `UpsertOptions.equals` overrides this default. Analogous to
+	 * `NodeOptions.equals` on the core `node()` primitive.
+	 */
+	equals?: (existing: IndexRow<K, V>, next: IndexRow<K, V>) => boolean;
 };
 
 export type ReactiveIndexBundle<K, V = unknown> = {
@@ -192,7 +201,7 @@ export interface IndexBackend<K, V = unknown> {
  *
  * **Complexity:**
  * - `has`, `get`: O(1)
- * - `upsert`: O(log n) bisect + up to 2× O(n) splice (remove-old + insert-new) = O(n)
+ * - `upsert`: up to 2× O(log n) bisect (locate old + locate new) + up to 2× O(n) splice (remove-old + insert-new) = O(n)
  * - `upsertMany(k rows)`: O(k log n) bisect + O(k·n) splice worst case; single version bump
  * - `delete`: O(log n) bisect + O(n) splice = O(n)
  * - `deleteMany(k keys)`: O(k log n) + O(k·n) splice worst case; single version bump
@@ -246,22 +255,30 @@ export class NativeIndexBackend<K, V = unknown> implements IndexBackend<K, V> {
 		opts?: UpsertOptions<K, V>,
 	): number {
 		let changed = 0;
-		for (const r of rows) {
-			const existing = this._byPrimary.get(r.primary);
-			const row: IndexRow<K, V> = { primary: r.primary, secondary: r.secondary, value: r.value };
-			if (existing !== undefined && opts?.equals?.(existing, row)) {
-				continue;
+		try {
+			for (const r of rows) {
+				const existing = this._byPrimary.get(r.primary);
+				const row: IndexRow<K, V> = {
+					primary: r.primary,
+					secondary: r.secondary,
+					value: r.value,
+				};
+				if (existing !== undefined && opts?.equals?.(existing, row)) {
+					continue;
+				}
+				if (existing !== undefined) {
+					const oldPos = bisectLeft(this._buf, existing);
+					this._buf.splice(oldPos, 1);
+				}
+				const newPos = bisectLeft(this._buf, row);
+				this._buf.splice(newPos, 0, row);
+				this._byPrimary.set(r.primary, row);
+				changed += 1;
 			}
-			if (existing !== undefined) {
-				const oldPos = bisectLeft(this._buf, existing);
-				this._buf.splice(oldPos, 1);
-			}
-			const newPos = bisectLeft(this._buf, row);
-			this._buf.splice(newPos, 0, row);
-			this._byPrimary.set(r.primary, row);
-			changed += 1;
+		} finally {
+			// D3: surface partial commits on iterator throw; "at most once" preserved.
+			if (changed > 0) this._version += 1;
 		}
-		if (changed > 0) this._version += 1;
 		return changed;
 	}
 
@@ -277,15 +294,18 @@ export class NativeIndexBackend<K, V = unknown> implements IndexBackend<K, V> {
 
 	deleteMany(primaries: Iterable<K>): number {
 		let removed = 0;
-		for (const primary of primaries) {
-			const existing = this._byPrimary.get(primary);
-			if (existing === undefined) continue;
-			const pos = bisectLeft(this._buf, existing);
-			this._buf.splice(pos, 1);
-			this._byPrimary.delete(primary);
-			removed += 1;
+		try {
+			for (const primary of primaries) {
+				const existing = this._byPrimary.get(primary);
+				if (existing === undefined) continue;
+				const pos = bisectLeft(this._buf, existing);
+				this._buf.splice(pos, 1);
+				this._byPrimary.delete(primary);
+				removed += 1;
+			}
+		} finally {
+			if (removed > 0) this._version += 1;
 		}
-		if (removed > 0) this._version += 1;
 		return removed;
 	}
 
@@ -345,8 +365,17 @@ function keepaliveDerived(n: Node<unknown>): void {
 export function reactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions<K, V> = {},
 ): ReactiveIndexBundle<K, V> {
-	const { name, versioning, backend: userBackend } = options;
+	const { name, versioning, equals: defaultEquals, backend: userBackend } = options;
 	const backend: IndexBackend<K, V> = userBackend ?? new NativeIndexBackend<K, V>();
+
+	// F1 override: merge factory-level `equals` into per-call UpsertOptions
+	// so callers who set it once at construction get idempotent-key semantics
+	// on every upsert without repeating the predicate.
+	function withDefaultEquals(opts?: UpsertOptions<K, V>): UpsertOptions<K, V> | undefined {
+		if (opts?.equals !== undefined) return opts;
+		if (defaultEquals === undefined) return opts;
+		return { ...opts, equals: defaultEquals };
+	}
 
 	const ordered = state<readonly IndexRow<K, V>[]>([], {
 		name,
@@ -407,14 +436,14 @@ export function reactiveIndex<K, V = unknown>(
 		},
 
 		upsert(primary: K, secondary: unknown, value: V, opts?: UpsertOptions<K, V>): void {
-			wrapMutation(() => backend.upsert(primary, secondary, value, opts));
+			wrapMutation(() => backend.upsert(primary, secondary, value, withDefaultEquals(opts)));
 		},
 
 		upsertMany(
 			rows: Iterable<{ primary: K; secondary: unknown; value: V }>,
 			opts?: UpsertOptions<K, V>,
 		): void {
-			wrapMutation(() => backend.upsertMany(rows, opts));
+			wrapMutation(() => backend.upsertMany(rows, withDefaultEquals(opts)));
 		},
 
 		delete(primary: K): void {
