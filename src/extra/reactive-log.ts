@@ -166,7 +166,7 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 	}
 
 	at(index: number): T | undefined {
-		if (index < 0 || index >= this._size) return undefined;
+		if (!Number.isInteger(index) || index < 0 || index >= this._size) return undefined;
 		if (this._maxSize !== undefined) {
 			return this._buf[(this._head + index) % this._maxSize];
 		}
@@ -180,12 +180,16 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 
 	appendMany(values: readonly T[]): void {
 		if (values.length === 0) return;
-		// Pre-trim oversize input in ring mode — skip values that would be immediately evicted.
-		const effective =
+		// Pre-trim oversize input in ring mode — skip values that would be
+		// immediately evicted. Iterate with a start index instead of
+		// allocating an intermediate slice. F2.
+		const start =
 			this._maxSize !== undefined && values.length > this._maxSize
-				? values.slice(values.length - this._maxSize)
-				: values;
-		for (const v of effective) this._rawAppend(v);
+				? values.length - this._maxSize
+				: 0;
+		for (let i = start; i < values.length; i++) {
+			this._rawAppend(values[i] as T);
+		}
 		this._version += 1;
 	}
 
@@ -194,8 +198,14 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		const n = this._size;
 		if (this._maxSize === undefined) {
 			this._buf.length = 0;
+		} else {
+			// Ring buffer: the valid window collapses to empty, but the backing
+			// array still holds references to the old entries. Null them so the
+			// GC can reclaim ref-typed T. P4.
+			for (let i = 0; i < this._maxSize; i++) {
+				this._buf[i] = undefined as unknown as T;
+			}
 		}
-		// Ring buffer: no need to clear slots; _size and _head reset defines the valid window.
 		this._head = 0;
 		this._size = 0;
 		this._version += 1;
@@ -203,12 +213,18 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 	}
 
 	trimHead(n: number): number {
-		if (n < 0) throw new RangeError("n must be >= 0");
+		if (!Number.isInteger(n) || n < 0) {
+			throw new RangeError(`trimHead: n must be a non-negative integer (got ${n})`);
+		}
 		if (n === 0 || this._size === 0) return 0;
 		const removed = Math.min(n, this._size);
 		if (this._maxSize === undefined) {
 			this._buf.splice(0, removed);
 		} else {
+			// Null trimmed slots so the GC can reclaim ref-typed T (P4 extension).
+			for (let i = 0; i < removed; i++) {
+				this._buf[(this._head + i) % this._maxSize] = undefined as unknown as T;
+			}
 			this._head = (this._head + removed) % this._maxSize;
 		}
 		this._size -= removed;
@@ -217,7 +233,12 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 	}
 
 	slice(start: number, stop?: number): readonly T[] {
-		if (start < 0) throw new RangeError("start must be >= 0");
+		if (!Number.isInteger(start) || start < 0) {
+			throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
+		}
+		if (stop !== undefined && !Number.isInteger(stop)) {
+			throw new RangeError(`slice: stop must be an integer or undefined (got ${stop})`);
+		}
 		const end = stop === undefined ? this._size : Math.min(Math.max(stop, 0), this._size);
 		const s = Math.min(start, this._size);
 		if (s >= end) return [];
@@ -233,7 +254,9 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 	}
 
 	tail(n: number): readonly T[] {
-		if (n < 0) throw new RangeError("n must be >= 0");
+		if (!Number.isInteger(n) || n < 0) {
+			throw new RangeError(`tail: n must be a non-negative integer (got ${n})`);
+		}
 		if (n === 0 || this._size === 0) return [];
 		const take = Math.min(n, this._size);
 		return this.slice(this._size - take, this._size);
@@ -275,6 +298,9 @@ function keepaliveDerived(n: Node<unknown>): () => void {
 	return n.subscribe(() => {});
 }
 
+/** Default cap on the LRU view cache for `tail(n)` / `slice(start, stop?)`. D2(c). */
+const DEFAULT_VIEW_CACHE_MAX = 64;
+
 /**
  * Creates an append-only reactive log with immutable array snapshots.
  *
@@ -287,6 +313,10 @@ function keepaliveDerived(n: Node<unknown>): () => void {
  * **Backend:** The default {@link NativeLogBackend} uses a ring buffer when `maxSize`
  * is set (O(1) append + trim) and a flat array otherwise. For persistent/structural-
  * sharing semantics plug in a custom {@link LogBackend}.
+ *
+ * **`initial` + custom `backend` (F5):** When you supply `options.backend`, the
+ * `initial` argument is IGNORED — seed the backend yourself before passing it in.
+ * The `initial` seed only applies to the default `NativeLogBackend`.
  *
  * **Memoized views:** {@link ReactiveLogBundle.tail} and {@link ReactiveLogBundle.slice}
  * cache derived nodes per-argument. Repeat calls with the same `n` / `(start, stop)`
@@ -327,12 +357,28 @@ export function reactiveLog<T>(
 		});
 	}
 
-	// Memoization caches for derived views — bounded by unique argument values.
-	const tailCache = new Map<number, Node<readonly T[]>>();
-	const sliceCache = new Map<string, Node<readonly T[]>>();
+	// Memoization caches for derived views (D2(c)). Each cache is an LRU keyed by
+	// the unique view argument, bounded by `DEFAULT_VIEW_CACHE_MAX`. On cache miss
+	// past the cap, the least-recently-used entry is evicted and its keepalive
+	// disposer is called so the underlying derived node can be GC'd. Callers can
+	// also release views proactively via `disposeTail` / `disposeSlice` /
+	// `disposeAllViews`. Iteration order of `Map` is insertion order, so moving
+	// an entry to the end on hit is the LRU "touch".
+	type ViewEntry = { node: Node<readonly T[]>; dispose: () => void };
+	const tailCache = new Map<number, ViewEntry>();
+	const sliceCache = new Map<string, ViewEntry>();
 
 	function sliceKey(start: number, stop?: number): string {
 		return `${start}:${stop === undefined ? "END" : stop}`;
+	}
+
+	function evictOldestIfFull<K>(cache: Map<K, ViewEntry>): void {
+		if (cache.size < DEFAULT_VIEW_CACHE_MAX) return;
+		const first = cache.keys().next();
+		if (first.done) return;
+		const oldest = cache.get(first.value);
+		if (oldest !== undefined) oldest.dispose();
+		cache.delete(first.value);
 	}
 
 	return {
@@ -367,10 +413,18 @@ export function reactiveLog<T>(
 		},
 
 		tail(n: number): Node<readonly T[]> {
-			if (n < 0) throw new RangeError("n must be >= 0");
-			let cached = tailCache.get(n);
-			if (cached !== undefined) return cached;
-			cached = derived(
+			if (!Number.isInteger(n) || n < 0) {
+				throw new RangeError(`tail: n must be a non-negative integer (got ${n})`);
+			}
+			const hit = tailCache.get(n);
+			if (hit !== undefined) {
+				// LRU touch: move to end of insertion order.
+				tailCache.delete(n);
+				tailCache.set(n, hit);
+				return hit.node;
+			}
+			evictOldestIfFull(tailCache);
+			const node_ = derived(
 				[entries],
 				([s]) => {
 					const list = s as readonly T[];
@@ -379,17 +433,27 @@ export function reactiveLog<T>(
 				},
 				{ initial: backend.tail(n), describeKind: "derived" },
 			);
-			keepaliveDerived(cached);
-			tailCache.set(n, cached);
-			return cached;
+			const dispose = keepaliveDerived(node_);
+			tailCache.set(n, { node: node_, dispose });
+			return node_;
 		},
 
 		slice(start: number, stop?: number): Node<readonly T[]> {
-			if (start < 0) throw new RangeError("start must be >= 0");
+			if (!Number.isInteger(start) || start < 0) {
+				throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
+			}
+			if (stop !== undefined && !Number.isInteger(stop)) {
+				throw new RangeError(`slice: stop must be an integer or undefined (got ${stop})`);
+			}
 			const key = sliceKey(start, stop);
-			let cached = sliceCache.get(key);
-			if (cached !== undefined) return cached;
-			cached = derived(
+			const hit = sliceCache.get(key);
+			if (hit !== undefined) {
+				sliceCache.delete(key);
+				sliceCache.set(key, hit);
+				return hit.node;
+			}
+			evictOldestIfFull(sliceCache);
+			const node_ = derived(
 				[entries],
 				([s]) => {
 					const list = s as readonly T[];
@@ -397,9 +461,33 @@ export function reactiveLog<T>(
 				},
 				{ initial: backend.slice(start, stop), describeKind: "derived" },
 			);
-			keepaliveDerived(cached);
-			sliceCache.set(key, cached);
-			return cached;
+			const dispose = keepaliveDerived(node_);
+			sliceCache.set(key, { node: node_, dispose });
+			return node_;
+		},
+
+		disposeTail(n: number): boolean {
+			const hit = tailCache.get(n);
+			if (hit === undefined) return false;
+			hit.dispose();
+			tailCache.delete(n);
+			return true;
+		},
+
+		disposeSlice(start: number, stop?: number): boolean {
+			const key = sliceKey(start, stop);
+			const hit = sliceCache.get(key);
+			if (hit === undefined) return false;
+			hit.dispose();
+			sliceCache.delete(key);
+			return true;
+		},
+
+		disposeAllViews(): void {
+			for (const entry of tailCache.values()) entry.dispose();
+			tailCache.clear();
+			for (const entry of sliceCache.values()) entry.dispose();
+			sliceCache.clear();
 		},
 	};
 }

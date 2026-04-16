@@ -391,7 +391,7 @@ export function streamExtractor<T>(
 	opts?: { name?: string },
 ): Node<T | null> {
 	return derived<T | null>(
-		[streamTopic.latest as Node<StreamChunk | undefined>],
+		[streamTopic.latest as Node<StreamChunk | null>],
 		([chunk]) => {
 			if (chunk == null) return null;
 			return extractFn((chunk as StreamChunk).accumulated);
@@ -433,7 +433,7 @@ export function keywordFlagExtractor(
 	opts: KeywordFlagExtractorOptions,
 ): Node<readonly KeywordFlag[]> {
 	return derived<readonly KeywordFlag[]>(
-		[streamTopic.latest as Node<StreamChunk | undefined>],
+		[streamTopic.latest as Node<StreamChunk | null>],
 		([chunk]) => {
 			if (chunk == null) return [];
 			const accumulated = (chunk as StreamChunk).accumulated;
@@ -479,7 +479,7 @@ export function toolCallExtractor(
 	opts?: { name?: string },
 ): Node<readonly ExtractedToolCall[]> {
 	return derived<readonly ExtractedToolCall[]>(
-		[streamTopic.latest as Node<StreamChunk | undefined>],
+		[streamTopic.latest as Node<StreamChunk | null>],
 		([chunk]) => {
 			if (chunk == null) return [];
 			const accumulated = (chunk as StreamChunk).accumulated;
@@ -572,7 +572,7 @@ export function costMeterExtractor(
 ): Node<CostMeterReading> {
 	const charsPerToken = opts?.charsPerToken ?? 4;
 	return derived<CostMeterReading>(
-		[streamTopic.latest as Node<StreamChunk | undefined>],
+		[streamTopic.latest as Node<StreamChunk | null>],
 		([chunk]) => {
 			if (chunk == null) return { chunkCount: 0, charCount: 0, estimatedTokens: 0 };
 			const c = chunk as StreamChunk;
@@ -631,7 +631,7 @@ export function redactor(
 	}
 
 	return derived<StreamChunk>(
-		[streamTopic.latest as Node<StreamChunk | undefined>],
+		[streamTopic.latest as Node<StreamChunk | null>],
 		([chunk]) => {
 			if (chunk == null) {
 				return { source: "", token: "", accumulated: "", index: -1 };
@@ -692,7 +692,7 @@ export function contentGate(
 	const hardThreshold = threshold * (opts?.hardMultiplier ?? 1.5);
 	const isNodeClassifier = typeof classifier !== "function";
 
-	const deps: Node<unknown>[] = [streamTopic.latest as Node<StreamChunk | undefined>];
+	const deps: Node<unknown>[] = [streamTopic.latest as Node<StreamChunk | null>];
 	if (isNodeClassifier) deps.push(classifier as Node<unknown>);
 
 	return derived<ContentDecision>(
@@ -1007,7 +1007,7 @@ export type ChatStreamOptions = {
 export class ChatStreamGraph extends Graph {
 	private readonly _log: ReactiveLogBundle<ChatMessage>;
 	readonly messages: Node<readonly ChatMessage[]>;
-	readonly latest: Node<ChatMessage | undefined>;
+	readonly latest: Node<ChatMessage | null>;
 	readonly messageCount: Node<number>;
 
 	constructor(name: string, opts: ChatStreamOptions = {}) {
@@ -1020,11 +1020,11 @@ export class ChatStreamGraph extends Graph {
 		this.messages = this._log.entries;
 		this.add("messages", this.messages);
 
-		this.latest = derived<ChatMessage | undefined>(
+		this.latest = derived<ChatMessage | null>(
 			[this.messages],
 			([snapshot]) => {
 				const entries = snapshot as readonly ChatMessage[];
-				return entries.length === 0 ? undefined : entries[entries.length - 1];
+				return entries.length === 0 ? null : (entries[entries.length - 1] as ChatMessage);
 			},
 			{
 				name: "latest",

@@ -49,11 +49,21 @@ export type ReactiveMapBundle<K, V> = {
 	 * Checks existence. O(1) for live keys. If the key is expired, prunes it AND
 	 * emits a snapshot so the reactive surface stays consistent with the return
 	 * value. Reads on expired keys are therefore **observable side effects**.
+	 *
+	 * **LRU touch (F4):** When `maxSize` is configured, a live-key `has` also
+	 * marks the entry as most-recently-used — which rearranges internal insertion
+	 * order without bumping `version` or emitting. If you care about iteration
+	 * order in a downstream subscriber, rely on the `entries` snapshot (a fresh
+	 * `ReadonlyMap` per mutation) rather than iterating the backend directly.
 	 */
 	has: (key: K) => boolean;
 	/**
 	 * Gets value. O(1) for live keys. If the key is expired, prunes it AND emits
 	 * a snapshot. Reads on expired keys are therefore **observable side effects**.
+	 *
+	 * **LRU touch (F4):** When `maxSize` is configured, a live-key `get` also
+	 * marks the entry as most-recently-used (no version bump, no emission). See
+	 * `has` for the full note on iteration order.
 	 */
 	get: (key: K) => V | undefined;
 	/**
@@ -131,10 +141,11 @@ export interface MapBackend<K, V> {
 	 *
 	 * **Consumes `entries` once** — pass an array if you want repeatability.
 	 *
-	 * **Atomicity contract:** TTL validation throws before any mutation. After
-	 * validation, all entries are applied (per-entry errors from the iterable
-	 * itself propagate; see `wrapMutation` in the reactive wrapper for emission
-	 * safety on partial iterator throws).
+	 * **Atomicity contract:** TTL validation throws before any mutation. If the
+	 * iterable itself throws mid-iteration, entries committed before the throw
+	 * remain persisted AND `version` is bumped once (surfaced via finally) so
+	 * the reactive wrapper emits a snapshot reflecting the partial state. "At
+	 * most once" invariant is preserved.
 	 */
 	setMany(entries: Iterable<readonly [K, V]>, ttl?: number): void;
 	/** Removes a key. Returns `true` if the key existed. Advances `version` only if true. */
@@ -241,14 +252,20 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 		// Pre-validate TTL once (throws before any mutation).
 		const expiresAt = this._resolveExpiresAt(ttl);
 		let count = 0;
-		for (const [key, value] of entries) {
-			if (this._store.has(key)) this._store.delete(key);
-			this._store.set(key, { value, expiresAt });
-			count += 1;
-		}
-		if (count > 0) {
-			this._evictLruWhileOver();
-			this._version += 1;
+		try {
+			for (const [key, value] of entries) {
+				if (this._store.has(key)) this._store.delete(key);
+				this._store.set(key, { value, expiresAt });
+				count += 1;
+			}
+		} finally {
+			// D3: if the iterable threw mid-iteration, entries committed before
+			// the throw must still advance `version` so subscribers see the
+			// partial state consistently. "At most once" is preserved.
+			if (count > 0) {
+				this._evictLruWhileOver();
+				this._version += 1;
+			}
 		}
 	}
 
@@ -260,10 +277,13 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
 
 	deleteMany(keys: Iterable<K>): number {
 		let removed = 0;
-		for (const k of keys) {
-			if (this._store.delete(k)) removed += 1;
+		try {
+			for (const k of keys) {
+				if (this._store.delete(k)) removed += 1;
+			}
+		} finally {
+			if (removed > 0) this._version += 1;
 		}
-		if (removed > 0) this._version += 1;
 		return removed;
 	}
 

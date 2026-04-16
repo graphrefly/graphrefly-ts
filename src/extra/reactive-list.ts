@@ -119,6 +119,7 @@ export class NativeListBackend<T> implements ListBackend<T> {
 	}
 
 	at(index: number): T | undefined {
+		if (!Number.isInteger(index)) return undefined;
 		const i = index >= 0 ? index : this._buf.length + index;
 		if (i < 0 || i >= this._buf.length) return undefined;
 		return this._buf[i];
@@ -136,7 +137,7 @@ export class NativeListBackend<T> implements ListBackend<T> {
 	}
 
 	insert(index: number, value: T): void {
-		if (index < 0 || index > this._buf.length) {
+		if (!Number.isInteger(index) || index < 0 || index > this._buf.length) {
 			throw new RangeError(`insert: index ${index} out of range [0, ${this._buf.length}]`);
 		}
 		this._buf.splice(index, 0, value);
@@ -144,7 +145,7 @@ export class NativeListBackend<T> implements ListBackend<T> {
 	}
 
 	insertMany(index: number, values: readonly T[]): void {
-		if (index < 0 || index > this._buf.length) {
+		if (!Number.isInteger(index) || index < 0 || index > this._buf.length) {
 			throw new RangeError(`insertMany: index ${index} out of range [0, ${this._buf.length}]`);
 		}
 		if (values.length === 0) return;
@@ -155,6 +156,9 @@ export class NativeListBackend<T> implements ListBackend<T> {
 	pop(index: number): T {
 		if (this._buf.length === 0) {
 			throw new RangeError("pop from empty list");
+		}
+		if (!Number.isInteger(index)) {
+			throw new RangeError(`pop: index ${index} must be an integer`);
 		}
 		const i = index >= 0 ? index : this._buf.length + index;
 		if (i < 0 || i >= this._buf.length) {
