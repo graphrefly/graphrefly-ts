@@ -3,7 +3,7 @@ import { DATA, DIRTY } from "../../core/messages.js";
 import { pubsub } from "../../extra/pubsub.js";
 import { reactiveIndex } from "../../extra/reactive-index.js";
 import { reactiveList } from "../../extra/reactive-list.js";
-import { logSlice, reactiveLog } from "../../extra/reactive-log.js";
+import { reactiveLog } from "../../extra/reactive-log.js";
 import { collect } from "../test-helpers.js";
 
 describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
@@ -30,9 +30,9 @@ describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 		expect(tail.cache).toEqual(["b"]);
 	});
 
-	it("logSlice matches tuple slice semantics", () => {
+	it("slice matches tuple slice semantics", () => {
 		const lg = reactiveLog([0, 1, 2, 3]);
-		const sl = logSlice(lg, 1, 3);
+		const sl = lg.slice(1, 3);
 		expect(sl.cache).toEqual([1, 2]);
 	});
 });

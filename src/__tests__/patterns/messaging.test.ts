@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { jobFlow, jobQueue, subscription, topic, topicBridge } from "../../patterns/messaging.js";
+import {
+	jobFlow,
+	jobQueue,
+	messagingHub,
+	subscription,
+	topic,
+	topicBridge,
+} from "../../patterns/messaging.js";
 
 describe("patterns.messaging", () => {
 	it("topic retains events and updates latest value", () => {
@@ -123,5 +130,151 @@ describe("patterns.messaging", () => {
 		expect(flow.queue("incoming").get("depth")).toBe(0);
 		expect(flow.queue("work").get("depth")).toBe(0);
 		expect(flow.queue("done").get("depth")).toBe(0);
+	});
+});
+
+describe("patterns.messagingHub", () => {
+	it("lazy-creates topics on first access", () => {
+		const hub = messagingHub("hub");
+		expect(hub.has("orders")).toBe(false);
+		expect(hub.size).toBe(0);
+
+		const t = hub.topic<number>("orders");
+		expect(hub.has("orders")).toBe(true);
+		expect(hub.size).toBe(1);
+
+		// Second call returns same instance
+		expect(hub.topic<number>("orders")).toBe(t);
+	});
+
+	it("publish lazily creates topic + delivers", () => {
+		const hub = messagingHub("hub");
+		hub.publish<number>("events", 42);
+
+		expect(hub.has("events")).toBe(true);
+		expect(hub.topic<number>("events").retained()).toEqual([42]);
+	});
+
+	it("applies defaultTopicOptions and per-call override", () => {
+		const hub = messagingHub("hub", { defaultTopicOptions: { retainedLimit: 3 } });
+
+		const t1 = hub.topic<number>("a");
+		for (let i = 0; i < 10; i++) t1.publish(i);
+		// retainedLimit=3 from defaults
+		expect(t1.retained()).toEqual([7, 8, 9]);
+
+		// Per-call override only applies on first creation
+		const t2 = hub.topic<number>("b", { retainedLimit: 5 });
+		for (let i = 0; i < 10; i++) t2.publish(i);
+		expect(t2.retained()).toEqual([5, 6, 7, 8, 9]);
+	});
+
+	it("publishMany publishes across multiple topics", () => {
+		const hub = messagingHub("hub");
+		hub.publishMany([
+			["orders", { id: 1 }],
+			["shipments", { id: 10 }],
+			["orders", { id: 2 }],
+		]);
+
+		expect(hub.size).toBe(2);
+		expect(hub.topic("orders").retained()).toEqual([{ id: 1 }, { id: 2 }]);
+		expect(hub.topic("shipments").retained()).toEqual([{ id: 10 }]);
+	});
+
+	it("publishMany empty is a no-op", () => {
+		const hub = messagingHub("hub");
+		hub.publishMany([]);
+		expect(hub.size).toBe(0);
+	});
+
+	it("subscribe() creates a cursor-based SubscriptionGraph", () => {
+		const hub = messagingHub("hub");
+		hub.publishMany<number>([
+			["events", 1],
+			["events", 2],
+			["events", 3],
+		] as Iterable<[string, unknown]>);
+
+		const sub = hub.subscribe<number>("consumer", "events");
+		expect(sub.pull()).toEqual([1, 2, 3]);
+		sub.ack(1);
+		expect(sub.pull()).toEqual([2, 3]);
+	});
+
+	it("subscribe() lazily creates the topic if missing", () => {
+		const hub = messagingHub("hub");
+		const sub = hub.subscribe<number>("consumer", "late-topic");
+
+		expect(hub.has("late-topic")).toBe(true);
+		expect(sub.pull()).toEqual([]);
+
+		hub.publish<number>("late-topic", 99);
+		expect(sub.pull()).toEqual([99]);
+	});
+
+	it("removeTopic unmounts and returns true", () => {
+		const hub = messagingHub("hub");
+		hub.publish<number>("x", 1);
+		expect(hub.size).toBe(1);
+
+		const removed = hub.removeTopic("x");
+		expect(removed).toBe(true);
+		expect(hub.has("x")).toBe(false);
+		expect(hub.size).toBe(0);
+
+		// re-publish recreates
+		hub.publish<number>("x", 99);
+		expect(hub.size).toBe(1);
+		expect(hub.topic<number>("x").retained()).toEqual([99]);
+	});
+
+	it("removeTopic on non-existent returns false", () => {
+		const hub = messagingHub("hub");
+		expect(hub.removeTopic("never")).toBe(false);
+	});
+
+	it("version counter advances on create / remove only", () => {
+		const hub = messagingHub("hub");
+		expect(hub.version).toBe(0);
+
+		hub.topic("a");
+		expect(hub.version).toBe(1);
+
+		hub.topic("a"); // already exists — no advance
+		expect(hub.version).toBe(1);
+
+		hub.publish("a", 1); // publish doesn't advance
+		expect(hub.version).toBe(1);
+
+		hub.topic("b");
+		expect(hub.version).toBe(2);
+
+		hub.removeTopic("a");
+		expect(hub.version).toBe(3);
+
+		hub.removeTopic("missing"); // no-op
+		expect(hub.version).toBe(3);
+	});
+
+	it("topicNames iterates over registered topics", () => {
+		const hub = messagingHub("hub");
+		hub.topic("x");
+		hub.publish("y", 1);
+		hub.topic("z");
+
+		expect([...hub.topicNames()].sort()).toEqual(["x", "y", "z"]);
+
+		hub.removeTopic("y");
+		expect([...hub.topicNames()].sort()).toEqual(["x", "z"]);
+	});
+
+	it("mounts topics under the hub — accessible via qualified paths", () => {
+		const hub = messagingHub("hub");
+		hub.publish<number>("orders", 42);
+
+		// hub.orders::events should be resolvable through the mounted subgraph
+		const ordersEvents = hub.node("orders::events");
+		expect(ordersEvents.cache).toEqual([42]);
 	});
 });
