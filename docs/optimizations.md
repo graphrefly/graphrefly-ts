@@ -14,9 +14,6 @@
   **Fix shape:** add `dep.prevLatestData` field; snapshot `dep.latestData` into `dep.prevLatestData` on the first DATA of each wave (in `_depSettledAsData` before overwriting). In `_execFn`, build `prevData` from `dep.prevLatestData` instead of `dep.latestData`. Rename `ctx.latestData` → `ctx.prevData`. This would also allow eliminating `store.hasPrev`/`store.prev` in `distinctUntilChanged` and `pairwise`.
   **Why deferred:** Touches `FnCtx` public API + all operators that read `ctx.latestData`. Wave 3 scope.
 
-- ~~**`_updateState` versioning fires for every DATA in a multi-DATA batch (noted, 2026-04-13):**
-  With `checkEquals = false` (multi-DATA batch), `advanceVersion()` is called for each DATA inline at the old cache-update site. `this._cached` only stores the last value via the deferred `newCache` write, but versioning has entries for all intermediate values in the batch — values that were never the node's "official" stable cache. For *Map output nodes this doesn't matter (inner DATA arrives via `a.emit`, always single-item). For nodes that receive raw multi-DATA `down()` calls directly, the version history contains audit entries for intermediate values that were never observable externally. Minor inconsistency; no protocol violation.~~ **DONE (2026-04-13):** `_updateState` now pre-scans for `lastDataIdx` and calls `advanceVersion` once per batch wave (only on the final DATA). Version history now matches `_cached` history exactly — every version entry corresponds to a value actually observable from cache.
-
 - **Message array allocation in hot path (proposed, 2026-04-11):**
   Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify. **Partially landed 2026-04-12 (A2):** 6 payload-free tuples interned (`DIRTY_MSG`, `RESOLVED_MSG`, `INVALIDATE_MSG`, `START_MSG`, `COMPLETE_MSG`, `TEARDOWN_MSG`) plus 5 pre-wrapped batch singletons. Closes the alloc cost for tier-1/tier-5 control signals. Tier-3 DATA/ERROR still allocate per-call because they carry payloads — see passthrough `[msg]` wrapper item below.
 
@@ -38,12 +35,9 @@
 - **P3 audit: `.cache` reads inside fn/subscribe callbacks (updated 2026-04-12):**
   Call sites reading `.cache` on a node from inside a reactive context (fn body, subscribe callback, or project function) — bypassing protocol delivery. These work "by accident" when execution is synchronous but could return stale values under batch deferral.
 
-  **Originally tracked (still open):**
-  1. ~~`operators.ts:994` — `forwardInner` reads `inner.cache` after subscribe to seed value for synchronous producers. Fragile under batch.~~ **DONE (2026-04-13).** Post-subscribe `.status`/`.cache` reads removed — dead code given P4 START handshake guarantees.
+  **Originally tracked (open):**
   2. `composite.ts:78` — `sourceNode.cache` inside switchMap project fn. Should receive value through the trigger/dep protocol.
   3. `composite.ts:184` — `verdict.cache === true` inside derived fn. (Cross-ref: distill eviction redesign item below.)
-  4. `resilience.ts:624` — `out.meta.status.cache === "errored"` in subscribe callback. Should react to status changes via protocol.
-  5. `resilience.ts:733` — `(fb as Node<T>).cache` reads fallback value in callback. Should subscribe to fallback node.
   6. `adapters.ts:394` — `fetchCount.cache ?? 0` in subscribe callback. Should use protocol-delivered value.
 
   **Added by 2026-04-12 full scan:**
@@ -85,7 +79,7 @@
     - #8/#9 worker bridge aggregator — attempted positional zip, reverted. Framework-level blocker (wave-final vs wave-progressive state), folds into Option B worker-bridge redesign below.
     - #10 worker bridge handshake timer — own item below.
     - #11 `orchestration.ts` gate — own item below.
-  - **Later:** #1, #2, #4, #5, #6 (original audit) — each needs case-by-case structural work. #14 (feedback counter) pairs with harness-counter exception. #7 (composite/asReadonlyMap) + #3 pair with distill eviction redesign (below).
+  - **Later:** #2, #6 (original audit) — each needs case-by-case structural work. #14 (feedback counter) pairs with harness-counter exception. #7 (composite/asReadonlyMap) + #3 pair with distill eviction redesign (below). (#1, #4, #5 resolved 2026-04-13–15, archived.)
 
 - **`orchestration.ts` `gate()` — `isOpenNode.cache` inside producer subscribe (proposed, 2026-04-12):**
   `gate()` at `src/patterns/orchestration.ts:350` reads `isOpenNode.cache` inside its producer's manual `src.node.subscribe` DATA handler. `isOpenNode` is not declared as a dep of the producer (`node<T>([], ...)` with empty deps), so the entire gate decision — pass the item through or enqueue it — rides on an out-of-protocol cache read. Same class as the stratify #12 issue: producer pattern with multiple effective dependencies that bypass the framework's settlement machinery.
@@ -122,13 +116,17 @@
   - `composite.ts:128` `asReadonlyMap(store)` reads `store.entries.cache` from *inside* the `switchMap` project fn at `composite.ts:162` (extraction stream) and again at `composite.ts:214` (consolidation stream). Same class as the `composite.ts:78` switchMap verify violation — the snapshot is pulled through `.cache` instead of being delivered through the switchMap's outer source value. Fix belongs with the store-mutation-events redesign, not as a standalone patch (the whole `extractFn(raw, readonlyView)` signature assumes synchronous snapshot access).
   - `composite.ts:184` `verdict.cache === true` inside the `evictionKeys` derived fn — already tracked in the P3 audit list (§P3 item 3), noted here for cross-reference.
 
-- **Reactive rate limiter → `src/extra/rate-limiter.ts` (proposed, 2026-04-10):**
-  The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). To promote it to a library primitive:
-  1. **Reactive core** — `state()` nodes for effective RPM/TPM (live-tunable by LLM or human), `slidingWindow()` utility for request/token tracking, pacing via `fromTimer` + reactive gate (not imperative `while`+`sleep`), backoff signal as reactive input that triggers adaptation.
-  2. **Separate HTTP-specific parsing** — 429 status detection, `retry-after`/`x-ratelimit-*` header parsing, error message regex extraction. Keep composable (same file, exported separately) so the reactive rate limiter core applies to any stream/reactive problem (queue consumers, WebSocket reconnect, polling sources), not just HTTP APIs.
-  3. **`resilientPipeline()` integration** — the reactive rate limiter becomes a building block in §9.0b `resilientPipeline()` (rateLimiter → breaker → retry → timeout → fallback). Natural composition point.
+- **Reactive adaptive rate limiter → `src/extra/adaptive-rate-limiter.ts` (proposed 2026-04-10, updated 2026-04-15):**
+  The eval harness has an imperative `AdaptiveRateLimiter` in `evals/lib/rate-limiter.ts` (sliding-window RPM/TPM, 429 parsing, exponential backoff with jitter, adaptive limit tightening/relaxation). Promote it to a library primitive in **two composable units**:
+  1. **General `adaptiveRateLimiter(source, opts)`** — reactive operator wrapping `tokenBucket` (the same primitive `rateLimiter` now uses internally). Accepts: `cost: (value: T) => number` for variable-cost admission (e.g., token count per LLM call), `state()` nodes for effective RPM/TPM (live-tunable by LLM or human), `slidingWindow()` utility for tracking, pacing via `fromTimer` + reactive gate (not imperative `while`+`sleep`), backoff signal as reactive `Node<RateLimitSignal>` input that triggers adaptation, `maxBuffer` + overflow policy (inherited from `rateLimiter`). The core is domain-agnostic — applicable to any stream (queue consumers, WebSocket reconnect, polling sources, LLM calls).
+  2. **`http429Parser` — domain-specific signal source.** Separate composable unit: 429 status detection, `retry-after`/`x-ratelimit-*` header parsing, error message regex extraction, Anthropic/OpenAI/Gemini-specific header normalization. Produces `RateLimitSignal` from HTTP errors. Wires into `adaptiveRateLimiter`'s `adaptationSignal` input. Other domains (e.g., gRPC RESOURCE_EXHAUSTED, WebSocket close 1008) would provide their own signal parsers using the same `RateLimitSignal` type.
+  3. **`resilientPipeline()` integration** — the adaptive rate limiter becomes a building block in §9.0b `resilientPipeline()` (adaptiveRateLimiter → breaker → retry → timeout → fallback).
   4. **Migrate `evals/lib/rate-limiter.ts`** to thin adapter over the reactive version.
   Depends on: `slidingWindow()` utility (new), `fromTimer` (existing). Aligns with §9.0b.
+  **Prereqs landed (2026-04-15):** `rateLimiter` rewritten on `tokenBucket` with `maxBuffer` + overflow policy; `tokenTracker` alias removed (consolidated on `tokenBucket`).
+
+- **[py-parity-token-bucket-rename] `token_tracker` → `token_bucket` (TS 2026-04-15 → PY deferred):**
+  TS consolidated on `tokenBucket` (deleted `tokenTracker` alias). PY still exports `token_tracker`. Rename to `token_bucket` in `~/src/graphrefly-py/src/graphrefly/extra/resilience.py` + update all PY call sites and tests. Pre-1.0, no backward-compat shim needed. Ship with next PY parity pass.
 
 - **`toolInterceptor(agentLoop, opts?)` — Composition C (harness §9.0, 2026-04-10):**
   Mounts a reactive interception pipeline between `agentLoop` tool emission and tool execution (valve → budgetGate → gate → auditTrail). Blocked by an `agentLoop` refactor: the current tool execution path runs imperatively inside `async run()` and has no reactive tap point. To unblock: refactor `AgentLoopGraph` to emit each `ToolCall` as a DATA message to a configurable `toolCallNode` (state or topic) before dispatching — downstream can intercept via `switchMap`/`valve`/`gate` before `appendToolResult` is called. See SESSION-reactive-collaboration-harness §11 for full design. Downstream of §9.2 (`auditTrail`).
@@ -184,7 +182,6 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 
 | Item | Notes |
 |------|-------|
-| **`DynamicNodeImpl` identity-skip false positive on dep reorder** | **Resolved (TS 2026-04-09).** TS `_trackedValues` is `Map<Node, unknown>` (identity-based). PY `dynamic_node.py` doesn't have `_tracked_values` — no action needed unless PY adds the rewire buffer. |
 
 - **COMPOSITION-GUIDE §19 `reduce` code snippet is stale (TS + PY, 2026-04-13):**
   The guide's §19 example for `reduce` includes an early-return guard:

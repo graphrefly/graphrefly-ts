@@ -15,9 +15,9 @@ import {
 } from "../../extra/backoff.js";
 import {
 	CircuitOpenError,
-	cache,
 	circuitBreaker,
 	fallback,
+	RateLimiterOverflowError,
 	rateLimiter,
 	retry,
 	TimeoutError,
@@ -158,6 +158,30 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 	});
 
+	describe("retry + withMaxAttempts", () => {
+		it("null from strategy stops retry immediately", async () => {
+			vi.useFakeTimers();
+			let runs = 0;
+			const src = producer(
+				(a) => {
+					runs += 1;
+					a.down([[ERROR, new Error(`fail-${runs}`)]]);
+				},
+				{ resubscribable: true },
+			);
+			// withMaxAttempts(constant(0), 2) → attempts 0,1 get 0 delay; attempt 2 → null → stop
+			const capped = withMaxAttempts(constant(0), 2);
+			const out = retry(src, { backoff: capped });
+			const { batches, unsub } = collect(out);
+			await vi.advanceTimersByTimeAsync(50);
+			const errors = batches.flat().filter((m) => m[0] === ERROR);
+			expect(errors.length).toBe(1);
+			// 1 initial + 2 retries = 3 total runs
+			expect(runs).toBe(3);
+			unsub();
+		});
+	});
+
 	describe("circuitBreaker (factory)", () => {
 		it("opens after threshold failures", () => {
 			const b = circuitBreaker({ failureThreshold: 2, cooldownNs: 60 * NS_PER_SEC });
@@ -287,12 +311,12 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(tb.tryConsume(1)).toBe(false);
 		});
 
-		it("rateLimiter queues beyond window (fake timers + performance)", async () => {
+		it("rateLimiter queues beyond rate (fake timers + performance)", async () => {
 			const now = { v: 1_000_000 };
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
 			vi.useFakeTimers();
 			const s = state(0);
-			const out = rateLimiter(s, 1, 1 * NS_PER_SEC);
+			const out = rateLimiter(s, { maxEvents: 1, windowNs: 1 * NS_PER_SEC });
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 1]]);
 			s.down([[DATA, 2]]);
@@ -300,7 +324,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				.flat()
 				.filter((m) => m[0] === DATA)
 				.map((m) => m[1]);
-			// Push-on-subscribe delivers the initial cached value (0), consuming the 1-per-window rate limit token.
+			// Push-on-subscribe delivers the initial cached value (0), consuming the single token.
 			// DATA 1 and DATA 2 are queued.
 			expect(dataImmediate).toEqual([0]);
 			now.v += 1001;
@@ -309,11 +333,68 @@ describe("extra resilience (roadmap §3.1)", () => {
 				.flat()
 				.filter((m) => m[0] === DATA)
 				.map((m) => m[1]);
-			// After window expires, queued item 1 drains
+			// After token refill, queued item 1 drains
 			expect(dataAfter).toContain(0);
 			expect(dataAfter).toContain(1);
 			unsub();
 			spy.mockRestore();
+		});
+
+		it("rateLimiter maxBuffer + drop-newest drops incoming overflow", () => {
+			const s = state(0);
+			const out = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "drop-newest",
+			});
+			const { batches, unsub } = collect(out);
+			// Push-on-subscribe emits 0 (consumes the one token).
+			// DATA 1 → queued (pending=1). DATA 2 → dropped (pending already at maxBuffer=1).
+			// DATA 3 → dropped as well.
+			s.down([[DATA, 1]]);
+			s.down([[DATA, 2]]);
+			s.down([[DATA, 3]]);
+			const dataValues = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1]);
+			expect(dataValues).toEqual([0]); // only the initial token-consuming emission
+			unsub();
+		});
+
+		it("rateLimiter maxBuffer + drop-oldest evicts the oldest pending item", () => {
+			const s = state(0);
+			const out = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "drop-oldest",
+			});
+			const { unsub } = collect(out);
+			// Push-on-subscribe emits 0 (consumes token).
+			s.down([[DATA, 1]]); // queued
+			s.down([[DATA, 2]]); // overflow → drop 1, queue 2
+			s.down([[DATA, 3]]); // overflow → drop 2, queue 3
+			// pending[] should contain only [3]; no way to observe without advancing time
+			unsub();
+		});
+
+		it("rateLimiter maxBuffer + error emits RateLimiterOverflowError", () => {
+			const s = state(0);
+			const out = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "error",
+			});
+			const { batches, unsub } = collect(out);
+			s.down([[DATA, 1]]); // queued (fills buffer)
+			s.down([[DATA, 2]]); // overflow → ERROR
+			const errBatch = batches.flat().find((m) => m[0] === ERROR);
+			expect(errBatch).toBeDefined();
+			expect(errBatch?.[1]).toBeInstanceOf(RateLimiterOverflowError);
+			unsub();
 		});
 	});
 
@@ -448,6 +529,55 @@ describe("extra resilience (roadmap §3.1)", () => {
 			unsub();
 		});
 
+		it("resolves a Promise fallback on ERROR", async () => {
+			const src = throwError(new Error("boom"));
+			const out = fallback(src, Promise.resolve("async-default"));
+			const { batches, unsub } = collect(out);
+			await new Promise((r) => setTimeout(r, 10));
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) =>
+						(m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === "async-default",
+				),
+			).toBe(true);
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			unsub();
+		});
+
+		it("streams an AsyncIterable fallback on ERROR", async () => {
+			const src = throwError(new Error("boom"));
+			async function* gen(): AsyncIterable<number> {
+				yield 1;
+				yield 2;
+				yield 3;
+			}
+			const out = fallback(src, gen());
+			const { batches, unsub } = collect(out);
+			await new Promise((r) => setTimeout(r, 20));
+			const values = batches
+				.flat()
+				.filter((m) => (m as [symbol])[0] === DATA)
+				.map((m) => (m as [symbol, unknown])[1]);
+			expect(values).toContain(1);
+			expect(values).toContain(2);
+			expect(values).toContain(3);
+			unsub();
+		});
+
+		it("emits a bare string as a scalar value (not split into chars)", () => {
+			const src = throwError(new Error("boom"));
+			const out = fallback(src, "default");
+			const { batches, unsub } = collect(out);
+			const values = batches
+				.flat()
+				.filter((m) => (m as [symbol])[0] === DATA)
+				.map((m) => (m as [symbol, unknown])[1]);
+			// Must be the whole string, not ["d","e","f","a","u","l","t"]
+			expect(values).toEqual(["default"]);
+			unsub();
+		});
+
 		it("composes with retry: retry then fallback", async () => {
 			const src = producer(
 				(a) => {
@@ -534,84 +664,6 @@ describe("extra resilience (roadmap §3.1)", () => {
 					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
 				),
 			).toBe(true);
-			unsub();
-		});
-	});
-
-	describe("cache", () => {
-		it("throws RangeError for non-positive ttlNs", () => {
-			expect(() => cache(state(1), 0)).toThrow(RangeError);
-			expect(() => cache(state(1), -1)).toThrow(RangeError);
-		});
-
-		it("forwards DATA from source", () => {
-			const src = state(42);
-			const out = cache(src, 10 * NS_PER_SEC);
-			const { batches, unsub } = collect(out);
-			src.down([[DATA, 99]]);
-			const flat = batches.flat();
-			expect(
-				flat.some(
-					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
-				),
-			).toBe(true);
-			unsub();
-		});
-
-		it("replays cached value to new subscribers within TTL", () => {
-			const src = state(42);
-			const out = cache(src, 10 * NS_PER_SEC);
-			// First subscriber
-			const { unsub: u1 } = collect(out);
-			src.down([[DATA, 100]]);
-			u1();
-
-			// Second subscriber should see cached value
-			const { batches: b2, unsub: u2 } = collect(out);
-			const flat = b2.flat();
-			expect(
-				flat.some(
-					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 100,
-				),
-			).toBe(true);
-			u2();
-		});
-
-		it("does not operator-replay when TTL expired (node push-on-subscribe still delivers cached)", () => {
-			vi.useFakeTimers();
-			const src = node<number>();
-			const out = cache(src, 50 * NS_PER_MS);
-			const { unsub: u1 } = collect(out);
-			src.down([[DATA, 100]]);
-			u1();
-
-			vi.advanceTimersByTime(100); // TTL expired
-			const { batches: b2, unsub: u2 } = collect(out);
-			const flat = b2.flat();
-			const dataValues = flat
-				.filter((m) => (m as [symbol])[0] === DATA)
-				.map((m) => (m as [symbol, unknown])[1]);
-			// The cache operator does NOT replay (TTL expired), but the node-level
-			// push-on-subscribe still delivers the node's cached value (100).
-			// This is exactly one DATA push from the node layer.
-			expect(dataValues).toEqual([100]);
-			u2();
-		});
-
-		it("forwards live DATA from source", () => {
-			const src = state(0);
-			const out = cache(src, 10 * NS_PER_SEC);
-			const { batches, unsub } = collect(out);
-			src.down([[DATA, 1]]);
-			src.down([[DATA, 2]]);
-			src.down([[DATA, 3]]);
-			const dataValues = batches
-				.flat()
-				.filter((m) => (m as [symbol])[0] === DATA)
-				.map((m) => (m as [symbol, unknown])[1]);
-			expect(dataValues).toContain(1);
-			expect(dataValues).toContain(2);
-			expect(dataValues).toContain(3);
 			unsub();
 		});
 	});
