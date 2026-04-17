@@ -1,5 +1,5 @@
 import type { Actor } from "../core/actor.js";
-import { isBatching } from "../core/batch.js";
+import { batch, isBatching } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
 import type { GraphReFlyConfig } from "../core/config.js";
 import { GuardDenied } from "../core/guard.js";
@@ -8,6 +8,7 @@ import {
 	DATA,
 	DIRTY,
 	ERROR,
+	INVALIDATE,
 	type Messages,
 	RESOLVED,
 	TEARDOWN,
@@ -672,13 +673,21 @@ function filterMetaMessages(messages: Messages, config: GraphReFlyConfig): Messa
 	return kept as unknown as Messages;
 }
 
-/** TEARDOWN every node in a mounted graph tree (depth-first into mounts). */
+/**
+ * TEARDOWN every node in a mounted graph tree (depth-first into mounts).
+ * Errors from individual node teardowns are swallowed — a single bad handler
+ * must not abort cleanup of the rest of the subtree.
+ */
 function teardownMountedGraph(root: Graph): void {
 	for (const child of root._mounts.values()) {
 		teardownMountedGraph(child);
 	}
 	for (const n of root._nodes.values()) {
-		n.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		try {
+			n.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		} catch {
+			/* resilience: keep tearing down siblings */
+		}
 	}
 }
 
@@ -755,12 +764,16 @@ export class Graph {
 
 	/**
 	 * Registers a node under a local name. Fails if the name is already used,
-	 * reserved by a mount, or the same node instance is already registered.
+	 * reserved by a mount, the same node instance is already registered, or
+	 * the node is torn down.
+	 *
+	 * Returns the registered node so callers can chain:
+	 * `const counter = g.add("counter", state(0))`.
 	 *
 	 * @param name - Local key (no `::`).
 	 * @param node - Node instance to own.
 	 */
-	add(name: string, node: Node): void {
+	add<T extends Node>(name: string, node: T): T {
 		assertRegisterableName(name, this.name, "add");
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": name "${name}" is already a mount point`);
@@ -778,6 +791,7 @@ export class Graph {
 		this._nodes.set(name, node);
 		// Edges are derived on demand from node `_deps` via `scanEdges` — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
+		return node;
 	}
 
 	/**
@@ -805,20 +819,39 @@ export class Graph {
 	}
 
 	/**
-	 * Unregisters a node or unmounts a subgraph, drops incident edges, and sends
-	 * `[[TEARDOWN]]` to the removed node or recursively through the mounted subtree (§3.2).
+	 * Unregisters a node or unmounts a subgraph and sends `[[TEARDOWN]]` to the
+	 * removed node or recursively through the mounted subtree (§3.2).
 	 *
 	 * @param name - Local mount or node name.
+	 * @returns Audit record of what was removed: `{kind, nodes, mounts}`.
+	 *   `kind: "node"` → `nodes: [name]`, `mounts: []`. `kind: "mount"` →
+	 *   `nodes` lists every primary node torn down across the subtree (sorted
+	 *   qualified paths relative to the unmounted subgraph) and `mounts` lists
+	 *   the mounted subgraphs in depth-first order including `name` itself.
 	 */
-	remove(name: string): void {
+	remove(name: string): GraphRemoveAudit {
 		assertRegisterableName(name, this.name, "remove");
 
 		// Case 1: unmount a subgraph
 		const child = this._mounts.get(name);
 		if (child) {
+			const audit: GraphRemoveAudit = { kind: "mount", nodes: [], mounts: [] };
+			const targets: [string, Node][] = [];
+			child._collectObserveTargets("", targets);
+			for (const [p, n] of targets) {
+				// Only primary nodes (not meta companions) — meta cascades via
+				// the primary's TEARDOWN.
+				if (!p.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) {
+					audit.nodes.push(p);
+				}
+				void n;
+			}
+			audit.nodes.sort();
+			audit.mounts.push(name);
+			audit.mounts.push(...child._collectSubgraphs(`${name}${PATH_SEP}`));
 			this._mounts.delete(name);
 			teardownMountedGraph(child);
-			return;
+			return audit;
 		}
 
 		// Case 2: remove a local node
@@ -828,6 +861,7 @@ export class Graph {
 		}
 		this._nodes.delete(name);
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
+		return { kind: "node", nodes: [name], mounts: [] };
 	}
 
 	/**
@@ -870,6 +904,66 @@ export class Graph {
 	set(name: string, value: unknown, options?: GraphActorOptions): void {
 		const internal = options?.internal === true;
 		this.node(name).down([[DATA, value]] satisfies Messages, {
+			actor: options?.actor,
+			internal,
+			delivery: "write",
+		});
+	}
+
+	/**
+	 * Atomic multi-node DATA write. Wraps every {@link Graph.set} call in a
+	 * single `batch(...)` so downstream dependents see one coalesced wave
+	 * instead of N cascading ones.
+	 *
+	 * @param entries - `{name → value}` map or `[name, value]` pairs.
+	 * @param options - Passed to each underlying `set` call (same `actor` + `internal` semantics).
+	 */
+	setAll(
+		entries: Record<string, unknown> | Iterable<readonly [string, unknown]>,
+		options?: GraphActorOptions,
+	): void {
+		const iter: Iterable<readonly [string, unknown]> =
+			Symbol.iterator in entries
+				? (entries as Iterable<readonly [string, unknown]>)
+				: Object.entries(entries as Record<string, unknown>);
+		batch(() => {
+			for (const [name, value] of iter) this.set(name, value, options);
+		});
+	}
+
+	/**
+	 * Emit a single `[[INVALIDATE]]` (tier 1) on a node. Thin wrapper over
+	 * `node.down([[INVALIDATE]], …)` matching the {@link Graph.set} ergonomics.
+	 */
+	invalidate(name: string, options?: GraphActorOptions): void {
+		const internal = options?.internal === true;
+		this.node(name).down([[INVALIDATE]] satisfies Messages, {
+			actor: options?.actor,
+			internal,
+			delivery: "write",
+		});
+	}
+
+	/**
+	 * Emit a single `[[ERROR, err]]` (tier 4) on a node.
+	 */
+	error(name: string, err: unknown, options?: GraphActorOptions): void {
+		const internal = options?.internal === true;
+		this.node(name).down([[ERROR, err]] satisfies Messages, {
+			actor: options?.actor,
+			internal,
+			delivery: "write",
+		});
+	}
+
+	/**
+	 * Emit a single `[[COMPLETE]]` (tier 4) on a node, declaring the stream
+	 * cleanly finished. Distinct from {@link Graph.remove} (which emits
+	 * TEARDOWN and unregisters the node).
+	 */
+	complete(name: string, options?: GraphActorOptions): void {
+		const internal = options?.internal === true;
+		this.node(name).down([[COMPLETE]] satisfies Messages, {
 			actor: options?.actor,
 			internal,
 			delivery: "write",
@@ -940,8 +1034,9 @@ export class Graph {
 	 *
 	 * @param name - Local mount point.
 	 * @param child - Nested `Graph` instance.
+	 * @returns The mounted `child`, for chaining.
 	 */
-	mount(name: string, child: Graph): void {
+	mount<G extends Graph>(name: string, child: G): G {
 		assertRegisterableName(name, this.name, "mount");
 		if (this._nodes.has(name)) {
 			throw new Error(
@@ -951,7 +1046,7 @@ export class Graph {
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": mount "${name}" already exists`);
 		}
-		if (child === this) {
+		if ((child as Graph) === this) {
 			throw new Error(`Graph "${this.name}": cannot mount a graph into itself`);
 		}
 		// Reject same child instance mounted twice on this parent.
@@ -964,31 +1059,50 @@ export class Graph {
 			throw new Error(`Graph "${this.name}": mount("${name}", …) would create a mount cycle`);
 		}
 		this._mounts.set(name, child);
+		return child;
 	}
 
 	/**
 	 * Look up a node by qualified path (§3.5). Segments are separated by `::`.
 	 *
 	 * If the first segment equals this graph's {@link Graph.name}, it is stripped
-	 * (so `root.resolve("app::a")` works when `root.name === "app"`).
+	 * (so `root.resolve("app::a")` works when `root.name === "app"`). The strip
+	 * is applied **recursively** when descending into mounted children, so
+	 * `child.resolve("child::x")` also works when `child.name === "child"`.
 	 *
 	 * @param path - Qualified `::` path or local name.
 	 * @returns The resolved `Node`.
 	 */
 	resolve(path: string): Node {
-		let segments = splitPath(path, this.name);
-		if (segments[0] === this.name) {
-			segments = segments.slice(1);
-			if (segments.length === 0) {
-				throw new Error(`Graph "${this.name}": resolve path ends at graph name only`);
-			}
-		}
+		const segments = splitPath(path, this.name);
 		return this._resolveFromSegments(segments);
 	}
 
+	/**
+	 * Non-throwing {@link Graph.resolve}. Returns `undefined` instead of
+	 * throwing when the path does not resolve to a node.
+	 */
+	tryResolve(path: string): Node | undefined {
+		try {
+			return this.resolve(path);
+		} catch {
+			return undefined;
+		}
+	}
+
 	private _resolveFromSegments(segments: readonly string[]): Node {
-		const head = segments[0] as string;
-		const rest = segments.slice(1);
+		// Recursive self-name strip: if the first segment equals this graph's
+		// own name, peel it off. Applied at every recursion level so nested
+		// resolution of `child::x` inside `child` works uniformly.
+		let seg = segments;
+		if (seg[0] === this.name) {
+			seg = seg.slice(1);
+			if (seg.length === 0) {
+				throw new Error(`Graph "${this.name}": resolve path ends at graph name only`);
+			}
+		}
+		const head = seg[0] as string;
+		const rest = seg.slice(1);
 
 		if (rest.length === 0) {
 			const n = this._nodes.get(head);
@@ -1003,7 +1117,7 @@ export class Graph {
 
 		const localN = this._nodes.get(head);
 		if (localN && rest.length > 0 && rest[0] === GRAPH_META_SEGMENT) {
-			return this._resolveMetaChainFromNode(localN, rest, segments.join(PATH_SEP));
+			return this._resolveMetaChainFromNode(localN, rest, seg.join(PATH_SEP));
 		}
 
 		const child = this._mounts.get(head);
@@ -1062,12 +1176,42 @@ export class Graph {
 	 * @param options - Optional `actor` / `internal` for transport.
 	 */
 	signal(messages: Messages, options?: GraphActorOptions): void {
-		this._signalDeliver(messages, options ?? {}, new Set());
+		// Reject tier ≥ 3 (DATA / RESOLVED / COMPLETE / ERROR / TEARDOWN when
+		// called externally — destroy() routes through signal with
+		// `{internal: true}` which bypasses this check). Broadcasting per-flow
+		// values to every node in the tree is almost always a mistake.
+		if (options?.internal !== true) {
+			for (const m of messages) {
+				const tier = this.config.messageTier(m[0]);
+				// Tier 3 (DATA / RESOLVED) is per-flow state — broadcasting it
+				// to every node overwrites unrelated caches. Tier 4/5 stays
+				// allowed: ERROR/COMPLETE/TEARDOWN have legitimate broadcast
+				// use (graceful shutdown, error cascade).
+				if (tier === 3) {
+					throw new Error(
+						`Graph "${this.name}": Graph.signal() rejects tier-3 messages (DATA / RESOLVED). ` +
+							`Broadcast is for control-plane tiers (START / DIRTY / INVALIDATE / PAUSE / RESUME / COMPLETE / ERROR / TEARDOWN). ` +
+							`For per-node value writes, use Graph.set or graph.node(name).down(...).`,
+					);
+				}
+			}
+		}
+		const errors: unknown[] = [];
+		this._signalDeliver(messages, options ?? {}, new Set(), errors);
+		// Surface the first collected error so callers see failures without
+		// aborting the rest of the broadcast. Guard denials are re-thrown
+		// immediately in _signalDeliver (deliberate access-control rejections).
+		if (errors.length > 0) throw errors[0];
 	}
 
-	private _signalDeliver(messages: Messages, opts: GraphActorOptions, vis: Set<Node>): void {
+	private _signalDeliver(
+		messages: Messages,
+		opts: GraphActorOptions,
+		vis: Set<Node>,
+		errors: unknown[],
+	): void {
 		for (const sub of this._mounts.values()) {
-			sub._signalDeliver(messages, opts, vis);
+			sub._signalDeliver(messages, opts, vis, errors);
 		}
 		const internal = opts.internal === true;
 		const downOpts: NodeTransportOptions = internal
@@ -1078,9 +1222,17 @@ export class Graph {
 			const n = this._nodes.get(localName)!;
 			if (vis.has(n)) continue;
 			vis.add(n);
-			n.down(messages, downOpts);
+			try {
+				n.down(messages, downOpts);
+			} catch (err) {
+				// Guard denials bubble — they're deliberate rejections, not
+				// resilience failures. Other errors collect so one bad handler
+				// doesn't abort the rest of the broadcast.
+				if (err instanceof GuardDenied) throw err;
+				errors.push(err);
+			}
 			if (metaMessages.length === 0) continue;
-			this._signalMetaSubtree(n, metaMessages, vis, downOpts);
+			this._signalMetaSubtree(n, metaMessages, vis, downOpts, errors);
 		}
 	}
 
@@ -1089,13 +1241,19 @@ export class Graph {
 		messages: Messages,
 		vis: Set<Node>,
 		downOpts: NodeTransportOptions,
+		errors: unknown[],
 	): void {
 		for (const mk of Object.keys(root.meta).sort()) {
 			const mnode = root.meta[mk];
 			if (vis.has(mnode)) continue;
 			vis.add(mnode);
-			mnode.down(messages, downOpts);
-			this._signalMetaSubtree(mnode, messages, vis, downOpts);
+			try {
+				mnode.down(messages, downOpts);
+			} catch (err) {
+				if (err instanceof GuardDenied) throw err;
+				errors.push(err);
+			}
+			this._signalMetaSubtree(mnode, messages, vis, downOpts, errors);
 		}
 	}
 
@@ -2405,6 +2563,25 @@ export type GraphDiffChange = {
 	field: string;
 	from: unknown;
 	to: unknown;
+};
+
+/** Audit record returned by {@link Graph.remove}. */
+export type GraphRemoveAudit = {
+	/** Whether the removed entry was a local node or a mount. */
+	kind: "node" | "mount";
+	/**
+	 * Primary nodes torn down by this `remove()`. For `kind: "node"` contains
+	 * just the removed name; for `kind: "mount"` lists every primary node in
+	 * the unmounted subtree (qualified paths relative to the mount point,
+	 * sorted).
+	 */
+	nodes: string[];
+	/**
+	 * Mounted subgraphs that were unmounted. For `kind: "node"` this is empty;
+	 * for `kind: "mount"` starts with the top-level mount name and lists its
+	 * descendants in depth-first order.
+	 */
+	mounts: string[];
 };
 
 /** Direction for {@link reachable} graph traversal. */

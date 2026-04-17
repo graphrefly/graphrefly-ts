@@ -9,8 +9,8 @@
  */
 
 import { NodeImpl } from "../core/node.js";
+import { sizeof } from "../extra/utils/sizeof.js";
 import type { Graph, GraphDescribeOutput } from "./graph.js";
-import { sizeof } from "./sizeof.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,8 +56,6 @@ export interface GraphProfileResult {
 export interface GraphProfileOptions {
 	/** Limit hotspot list (default 10). */
 	topN?: number;
-	/** Include subgraph nodes recursively (default true). */
-	recursive?: boolean;
 }
 
 // ---------------------------------------------------------------------------
