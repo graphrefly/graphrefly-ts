@@ -402,11 +402,6 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	g.add("total-height", totalHeightNode);
 
 	// --- Edges (for describe() visibility) ---
-	g.connect("blocks", "measured-blocks");
-	g.connect("max-width", "measured-blocks");
-	g.connect("measured-blocks", "block-flow");
-	g.connect("gap", "block-flow");
-	g.connect("block-flow", "total-height");
 
 	return {
 		graph: g,

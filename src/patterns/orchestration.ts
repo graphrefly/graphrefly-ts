@@ -81,9 +81,9 @@ function registerStep(
 	depPaths: ReadonlyArray<string>,
 ): void {
 	graph.add(name, step);
-	for (const path of depPaths) {
-		graph.connect(path, name);
-	}
+	// depPaths used to drive graph.connect() edge-registry calls; after
+	// Unit 7 edges are derived from node _deps and this wiring is a no-op.
+	void depPaths;
 }
 
 import { domainMeta } from "./_internal.js";
@@ -461,7 +461,6 @@ export function gate<T>(
 	internal.add("pending", pendingNode);
 	internal.add("isOpen", isOpenNode);
 	internal.add("count", countNode);
-	internal.connect("pending", "count");
 	graph.mount(`${name}_state`, internal);
 
 	return controller;
@@ -729,17 +728,11 @@ export function wait<T>(
 		} as NodeOptions<T>,
 	);
 	// Producer pattern: register in graph without dep edges (manual subscription).
-	// Record a logical edge for describe() even though the dep is not in constructor deps.
+	// Post edge-registry deletion (Unit 7), edges are derived from node `_deps`
+	// exclusively; this producer's logical dep on `src` is not reflected in
+	// `describe()` — by design, since there is no real constructor-time
+	// dependency to show.
 	graph.add(name, step as unknown as Node<unknown>);
-	if (src.path) {
-		try {
-			graph.connect(src.path, name);
-		} catch (e) {
-			// connect validates constructor deps — expected to fail for producer
-			// pattern. Re-throw unexpected errors to surface wiring bugs.
-			if (!(e instanceof Error && /dep|edge|connect/i.test(e.message))) throw e;
-		}
-	}
 	return step;
 }
 

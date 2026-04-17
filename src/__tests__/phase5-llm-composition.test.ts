@@ -177,7 +177,6 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 			{ name: "deploy" },
 		);
 		g.add("deploy", deployNode);
-		g.connect("review", "deploy");
 		deployNode.subscribe(() => {});
 
 		// Initially: nothing deployed (approval is false)

@@ -808,23 +808,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		}
 	}
 
-	// Phase 3: Wire edges from deps (record explicit edges for describe())
-	for (const [name, raw] of Object.entries(spec.nodes)) {
-		if (raw.type === "template") continue;
-		const n = raw as GraphSpecNode;
-		for (const dep of n.deps ?? []) {
-			try {
-				g.connect(dep, name);
-			} catch (err: unknown) {
-				// Silently skip edges that are already implicit from constructor deps.
-				// Re-throw unexpected errors.
-				const msg = err instanceof Error ? err.message : "";
-				if (!msg.includes("constructor deps") && !msg.includes("already")) {
-					throw err;
-				}
-			}
-		}
-	}
+	// Edges are derived from node `_deps` (Unit 7) — no explicit edge wiring step.
 
 	// Phase 4: Wire feedback edges via §8.1 feedback()
 	for (const fb of spec.feedback ?? []) {

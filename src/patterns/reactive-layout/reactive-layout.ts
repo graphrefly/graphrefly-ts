@@ -892,16 +892,6 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	g.add("char-positions", charPositionsNode);
 
 	// --- Edges (for describe() visibility) ---
-	g.connect("text", "segments");
-	g.connect("font", "segments");
-	g.connect("segments", "line-breaks");
-	g.connect("max-width", "line-breaks");
-	g.connect("font", "line-breaks");
-	g.connect("line-breaks", "height");
-	g.connect("line-height", "height");
-	g.connect("line-breaks", "char-positions");
-	g.connect("segments", "char-positions");
-	g.connect("line-height", "char-positions");
 
 	return {
 		graph: g,

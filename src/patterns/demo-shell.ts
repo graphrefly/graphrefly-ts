@@ -197,7 +197,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		([ref, _tick]) => {
 			const demo = ref as Graph | null;
 			if (!demo) return "";
-			return demo.toMermaid();
+			return demo.describe({ format: "mermaid" });
 		},
 		{ name: "graph/mermaid" },
 	);
@@ -266,7 +266,6 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			cb(line as number | null);
 		});
 		g.add("highlight/apply-code-scroll", applyCodeScroll);
-		g.connect("highlight/code-scroll", "highlight/apply-code-scroll");
 	}
 
 	if (onHighlight?.visual) {
@@ -275,7 +274,6 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			cb(selector as string | null);
 		});
 		g.add("highlight/apply-visual", applyVisual);
-		g.connect("highlight/visual", "highlight/apply-visual");
 	}
 
 	if (onHighlight?.graph) {
@@ -284,7 +282,6 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			cb(nodeId as string | null);
 		});
 		g.add("highlight/apply-graph", applyGraph);
-		g.connect("highlight/graph", "highlight/apply-graph");
 	}
 
 	// ── Inspect panel ────────────────────────────────────
@@ -333,7 +330,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		[metaDebug, demoGraphTick],
 		([debug, _tick]) => {
 			if (!(debug as boolean)) return "";
-			return g.toMermaid();
+			return g.describe({ format: "mermaid" });
 		},
 		{ name: "meta/shell-mermaid" },
 	);
@@ -407,38 +404,9 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		g.add("layout/graph-labels", graphLabels);
 		g.add("layout/code-lines", codeLines);
 		g.add("layout/side-width-hint", sideWidthHint);
-
-		g.connect("graph/describe", "layout/graph-labels");
-		g.connect("layout/code-text", "layout/code-lines");
-		g.connect("pane/side-width", "layout/code-lines");
-		g.connect("layout/graph-labels", "layout/side-width-hint");
 	}
 
 	// ── Edges (explicit wiring for describe/toMermaid) ───
-	g.connect("pane/main-ratio", "pane/main-width");
-	g.connect("viewport/width", "pane/main-width");
-	g.connect("pane/fullscreen", "pane/main-width");
-	g.connect("pane/main-width", "pane/side-width");
-	g.connect("viewport/width", "pane/side-width");
-	g.connect("pane/fullscreen", "pane/side-width");
-	g.connect("pane/side-split", "pane/graph-height-ratio");
-	g.connect("pane/fullscreen", "pane/graph-height-ratio");
-	g.connect("pane/graph-height-ratio", "pane/code-height-ratio");
-	g.connect("pane/fullscreen", "pane/code-height-ratio");
-	g.connect("demo/graph-ref", "graph/mermaid");
-	g.connect("demo/graph-tick", "graph/mermaid");
-	g.connect("demo/graph-ref", "graph/describe");
-	g.connect("demo/graph-tick", "graph/describe");
-	g.connect("hover/target", "highlight/code-scroll");
-	g.connect("hover/target", "highlight/visual");
-	g.connect("hover/target", "highlight/graph");
-	g.connect("inspect/selected-node", "inspect/node-detail");
-	g.connect("demo/graph-ref", "inspect/node-detail");
-	g.connect("demo/graph-tick", "inspect/node-detail");
-	g.connect("demo/graph-ref", "inspect/trace-log");
-	g.connect("demo/graph-tick", "inspect/trace-log");
-	g.connect("meta/debug", "meta/shell-mermaid");
-	g.connect("demo/graph-tick", "meta/shell-mermaid");
 
 	// ── Handle ───────────────────────────────────────────
 	let tickCounter = 0;

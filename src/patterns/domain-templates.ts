@@ -141,8 +141,6 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	});
 	g.add("slo_value", sloValue);
 	g.add("slo_verified", sloVerified);
-	g.connect("correlate", "slo_value");
-	g.connect("slo_value", "slo_verified");
 
 	// --- Alert scorer ---
 	const weightValues = opts.weights ?? branches.map(() => 1);
@@ -172,8 +170,6 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 		},
 	);
 	g.add("output", output);
-	g.connect("alerts", "output");
-	g.connect("slo_verified", "output");
 
 	// --- Feedback (false-positive learning) ---
 	// SLO failures feed back to re-check with updated context.
@@ -193,7 +189,6 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 		},
 	);
 	g.add("feedback_condition", fbCondition as Node<unknown>);
-	g.connect("slo_verified", "feedback_condition");
 	feedback(g, "feedback_condition", "feedback_reentry", {
 		maxIterations: opts.maxFeedbackIterations ?? 5,
 	});
@@ -277,7 +272,6 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		meta: baseMeta("issue_tracker", { stage: "extract" }),
 	});
 	g.add("extract", extractNode as Node<unknown>);
-	g.connect("source", "extract");
 
 	// --- Verify ---
 	const verifyFn = opts.verify ?? (() => ({ valid: true }));
@@ -292,7 +286,6 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		},
 	);
 	g.add("verify", verifyNode);
-	g.connect("extract", "verify");
 
 	// --- Known patterns (memory / distillation state) ---
 	const knownPatterns = state<unknown[]>([], {
@@ -312,8 +305,6 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		{ meta: baseMeta("issue_tracker", { stage: "regression" }) },
 	);
 	g.add("regression", regressionNode);
-	g.connect("extract", "regression");
-	g.connect("known_patterns", "regression");
 
 	// --- Priority scoring ---
 	const severitySignal = derived<number>([extractNode as Node], (vals) => {
@@ -346,9 +337,6 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		{ meta: baseMeta("issue_tracker", { stage: "output" }) },
 	);
 	g.add("output", output);
-	g.connect("verify", "output");
-	g.connect("regression", "output");
-	g.connect("priority", "output");
 
 	// --- Feedback (re-scan on verification failure) ---
 	const fbReentry = state<unknown>(null, {
@@ -370,7 +358,6 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		},
 	);
 	g.add("feedback_condition", fbCondition as Node<unknown>);
-	g.connect("verify", "feedback_condition");
 	feedback(g, "feedback_condition", "feedback_reentry", {
 		maxIterations: opts.maxFeedbackIterations ?? 3,
 	});
@@ -446,7 +433,6 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		meta: baseMeta("content_moderation", { stage: "classify" }),
 	});
 	g.add("classify", classifyNode as Node<unknown>);
-	g.connect("source", "classify");
 
 	// --- Stratify (safe / review / block) ---
 	const strat = stratify<ModerationResult>("stratify", classifyNode, [
@@ -480,7 +466,6 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	g.add("__review_accumulator", reviewAccumulator as Node<unknown>);
 	g.addDisposer(keepalive(reviewAccumulator as Node<unknown>));
 	try {
-		g.connect("stratify::branch/review", "__review_accumulator");
 	} catch {
 		// fallback branch — no stratify edge to register
 	}
@@ -530,8 +515,6 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		{ meta: baseMeta("content_moderation", { stage: "output" }) },
 	);
 	g.add("output", output);
-	g.connect("classify", "output");
-	g.connect("priority", "output");
 
 	// --- Feedback (false positive → policy refinement) ---
 	// Feedback condition: human marks a review item as false positive.
@@ -648,7 +631,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		{ meta: baseMeta("data_quality", { stage: "validate" }) },
 	);
 	g.add("validate", validateNode as Node<unknown>);
-	g.connect("source", "validate");
 
 	// --- Anomaly detection ---
 	const detectAnomalyFn =
@@ -664,7 +646,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		{ meta: baseMeta("data_quality", { stage: "anomaly" }) },
 	);
 	g.add("anomaly", anomalyNode as Node<unknown>);
-	g.connect("source", "anomaly");
 
 	// --- Baseline (rolling state) ---
 	const baseline = state<unknown>(null, {
@@ -685,7 +666,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		}
 	});
 	g.add("__baseline_updater", baselineUpdater as Node<unknown>);
-	g.connect("validate", "__baseline_updater");
 	keepalive(baselineUpdater as Node<unknown>);
 
 	// --- Drift detection ---
@@ -696,8 +676,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		{ meta: baseMeta("data_quality", { stage: "drift" }) },
 	);
 	g.add("drift", driftNode);
-	g.connect("source", "drift");
-	g.connect("baseline", "drift");
 
 	// --- Remediation suggestions ---
 	const suggestFn = opts.suggest ?? (() => null);
@@ -711,8 +689,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		{ meta: baseMeta("data_quality", { stage: "remediate" }) },
 	);
 	g.add("remediate", remediateNode);
-	g.connect("validate", "remediate");
-	g.connect("anomaly", "remediate");
 
 	// --- Output ---
 	const output = derived<unknown>(
@@ -726,10 +702,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		{ meta: baseMeta("data_quality", { stage: "output" }) },
 	);
 	g.add("output", output);
-	g.connect("validate", "output");
-	g.connect("anomaly", "output");
-	g.connect("drift", "output");
-	g.connect("remediate", "output");
 
 	// --- Feedback (anomaly → validation rule refinement) ---
 	const validationRules = state<unknown[]>([], {
@@ -749,7 +721,6 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		},
 	);
 	g.add("feedback_condition", fbCondition as Node<unknown>);
-	g.connect("anomaly", "feedback_condition");
 	feedback(g, "feedback_condition", "validation_rules", {
 		maxIterations: opts.maxFeedbackIterations ?? 3,
 	});
