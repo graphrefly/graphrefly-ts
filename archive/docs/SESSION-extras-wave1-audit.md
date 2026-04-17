@@ -790,9 +790,11 @@ A pure tier-1 switchMap would require `dynamicNode` (auto-tracks inner as a dep 
 
 ### Still open
 
-- `docs/optimizations.md` — "Framework primitive: wave-final state for multi-dep derived"
-- `dynamicNode`-based *Map approach — deferred to separate session
-- 10 pre-existing orchestration/ai/domain-templates test failures (unrelated to *Map)
+> **Status revalidated 2026-04-17.**
+
+- ~~`docs/optimizations.md` — "Framework primitive: wave-final state for multi-dep derived"~~ **RESOLVED** (`wave-final-state-primitive`).
+- `dynamicNode`-based *Map approach — **still deferred** to a separate post-1.0 session.
+- ~~10 pre-existing orchestration/ai/domain-templates test failures~~ **RESOLVED** — full suite is now 1641 passing, 0 skipped.
 
 ### Resolved in Wave 1 close-out (2026-04-13)
 
@@ -906,6 +908,14 @@ behavior for dynamic deps.
 
 ### Still open (Wave 2)
 
-- Python parity — all wave 2 changes need to land in `graphrefly-py`
-- `docs/optimizations.md` — prevData open item; check if still applies after wave 2 fixes
-- Generation-counter fix for stale drainPhase2 closures (see BUG-F2 open question above)
+> **Status revalidated 2026-04-17.**
+
+- Python parity — **intentionally deprioritized** per `docs/optimizations.md` line 7 (rigor infra Projects 1–3 first).
+- ~~`docs/optimizations.md` — prevData open item~~ **RESOLVED** (`ctx-prevdata-rename`).
+- Generation-counter fix for stale drainPhase2 closures (BUG-F2 alternative) — **still deferred**. Sentinel guard works; surgical alternative not blocking. Revisit if guard's "wait for known deps" semantic causes friction.
+
+### Wave 3–5 status (revalidated 2026-04-17)
+
+- **Wave 3 (resilience.ts / backpressure.ts / backoff.ts / timer.ts):** No formal per-file pass executed, but high-risk items closed via P3 audit (`fetch-count-cache-p3`) and `resilience-composition-parity`. Remaining items would be incremental.
+- **Wave 4 (reactive data structures):** **Shipped** — all five structures (reactive-map, reactive-list, reactive-index, reactive-log, pubsub) refactored 2026-04-15 with version counter + lazy snapshot + `*Backend` interfaces + bulk APIs + stress tests. See `docs/optimizations.md` § "Reactive data structures (Wave 4 audit, 2026-04-15)".
+- **Wave 5 (adapters.ts + worker/):** Partial — worker bridge P3 audits resolved (`worker-bridge-handshake-timer`, `worker-bridge-aggregator-p3`); HTTP adapters got `fromhttp-fetched-companion`. Per-protocol-family slice not formally executed. Wire-protocol Option B folded into post-1.0 "snapshot delivery" session.

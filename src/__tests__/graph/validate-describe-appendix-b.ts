@@ -3,7 +3,15 @@ import { expect } from "vitest";
 /** GRAPHREFLY-SPEC Appendix B — mirrors `describe-appendix-b.schema.json` in this folder. */
 
 const NODE_TYPES = new Set(["state", "derived", "producer", "operator", "effect"]);
-const STATUSES = new Set(["disconnected", "dirty", "settled", "resolved", "completed", "errored"]);
+const STATUSES = new Set([
+	"disconnected",
+	"sentinel",
+	"dirty",
+	"settled",
+	"resolved",
+	"completed",
+	"errored",
+]);
 
 /**
  * Structural validation matching Appendix B / `describe-appendix-b.schema.json`

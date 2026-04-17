@@ -67,9 +67,7 @@ function mockAdapter(responses: LLMResponse[]): LLMAdapter {
 // ===========================================================================
 
 describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
-	// FLAG: v5 behavioral change — needs investigation
-	// orchestration forEach calls connect() which now requires target deps to include source node reference
-	it.skip("pipeline processes a document through classify → extract → validate → output", () => {
+	it("pipeline processes a document through classify → extract → validate → output", () => {
 		const g = pipeline("doc-processor");
 
 		// Stage 1: Input sensor (human submits a document)

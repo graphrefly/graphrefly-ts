@@ -121,6 +121,35 @@ export type OnSubscribeHandler = (
 	actions: NodeActions,
 ) => (() => void) | undefined;
 
+/**
+ * Event payload for {@link GlobalInspectorHook}. One event fires per outgoing
+ * message batch from any node bound to the config.
+ *
+ * - `kind: "emit"` — fires after equals substitution (`finalMessages`) and
+ *   before sink dispatch. `messages` is the exact batch sinks see.
+ */
+export type GlobalInspectorEvent = {
+	kind: "emit";
+	node: NodeCtx;
+	messages: Messages;
+};
+
+/**
+ * Process-global observability hook for full-graph tracing
+ * (Redux-DevTools-style action history). Fires from every node's `_emit`
+ * waist whenever {@link GraphReFlyConfig.inspectorEnabled} is `true`.
+ *
+ * Distinct from per-node `_setInspectorHook` (which is the dep-message /
+ * fn-run causal trace used by `Graph.observe(path, { causal, derived })`).
+ * Use the global hook to record every emission across every node — useful for
+ * time-travel debuggers, tracers, and replay tooling. Use the per-node hook
+ * to attribute a single subscribed path's wave to its driving deps.
+ *
+ * Errors thrown from the hook are swallowed — instrumentation must not break
+ * the data plane.
+ */
+export type GlobalInspectorHook = (event: GlobalInspectorEvent) => void;
+
 // ---------------------------------------------------------------------------
 // GraphReFlyConfig
 // ---------------------------------------------------------------------------
@@ -141,6 +170,7 @@ export class GraphReFlyConfig {
 	private _inspectorEnabled: boolean = !(
 		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
 	);
+	private _globalInspector?: GlobalInspectorHook;
 	private _frozen = false;
 
 	/**
@@ -249,6 +279,21 @@ export class GraphReFlyConfig {
 	}
 	set inspectorEnabled(v: boolean) {
 		this._inspectorEnabled = v;
+	}
+
+	/**
+	 * Process-global observability hook (Redux-DevTools-style full-graph
+	 * tracer). Fires once per outgoing batch from every node bound to this
+	 * config, gated by {@link inspectorEnabled}. See {@link GlobalInspectorHook}.
+	 *
+	 * Settable at any time — like {@link inspectorEnabled} this is operational,
+	 * not protocol-shaping, so it does NOT trigger config freeze.
+	 */
+	get globalInspector(): GlobalInspectorHook | undefined {
+		return this._globalInspector;
+	}
+	set globalInspector(v: GlobalInspectorHook | undefined) {
+		this._globalInspector = v;
 	}
 
 	// --- Registry (writes require unfrozen; reads are free lookups) ---

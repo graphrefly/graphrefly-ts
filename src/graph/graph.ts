@@ -1499,11 +1499,19 @@ export class Graph {
 	 * **Primary-vs-meta filter asymmetry (intentional):** primary nodes receive the
 	 * unfiltered `messages` batch — that's the canonical data-plane flow. Companion
 	 * `meta` nodes receive a filtered subset keyed by the per-type `metaPassthrough`
-	 * flag on {@link GraphReFlyConfig}. This keeps meta observers focused on
-	 * control-plane types they opted into (default: PAUSE/RESUME/INVALIDATE) while
-	 * the primary still sees the whole wave for routing. **TEARDOWN-only** batches
-	 * skip the extra meta pass entirely — the primary's `down()` already cascades
-	 * TEARDOWN to meta.
+	 * flag on {@link GraphReFlyConfig}. Built-in defaults: PAUSE / RESUME / DATA /
+	 * RESOLVED pass through to meta; INVALIDATE / COMPLETE / ERROR / TEARDOWN do
+	 * not.
+	 *
+	 * **Where lifecycle terminals reach meta:**
+	 * - **TEARDOWN** — primary's `_emit` cascades to meta children directly (see
+	 *   `core/node.ts` "Meta TEARDOWN fan-out" block) so meta is torn down with
+	 *   its primary regardless of the signal-level filter.
+	 * - **COMPLETE / ERROR / INVALIDATE** — scoped to primaries on the broadcast
+	 *   path. Meta companions are an attribution side-channel, not a lifecycle
+	 *   participant; address meta directly via `meta.down(...)` if you need to
+	 *   forward these. Audit confirmed 2026-04-17: no current meta consumer
+	 *   relies on broadcast COMPLETE/ERROR/INVALIDATE delivery.
 	 *
 	 * @param messages - Batch to deliver to every registered node (and mounts, recursively).
 	 * @param options - Optional `actor` / `internal` for transport.
@@ -2389,9 +2397,12 @@ export class Graph {
 
 	/**
 	 * Apply persisted values onto an existing graph whose topology matches the snapshot
-	 * (§3.8). Only {@link DescribeNodeOutput.type} `state` and `producer` entries with a
-	 * `value` field are written; `derived` / `operator` / `effect` are skipped so deps
-	 * drive recomputation. Unknown paths are ignored.
+	 * (§3.8). Only {@link DescribeNodeOutput.type} `state` entries with a `value` field
+	 * are written by default; `derived` / `operator` / `effect` are always skipped so
+	 * deps drive recomputation. `producer` entries are skipped unless `includeProducers`
+	 * is set (producers recompute on activation, so restoring is usually a no-op
+	 * overwritten on the next wave — opt in for audit / forensic round-trip use cases).
+	 * Unknown paths are ignored.
 	 *
 	 * @param data - Snapshot envelope with matching `name` and node slices.
 	 * @throws If `data.name` does not equal {@link Graph.name}.

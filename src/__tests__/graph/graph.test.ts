@@ -301,15 +301,6 @@ describe("Graph composition (Phase 1.2)", () => {
 });
 
 describe("Graph introspection (Phase 1.3)", () => {
-	// FLAG: v5 behavioral change — needs investigation
-	// In v5, Graph.add() no longer assigns the registry name to the node's .name property
-	it.skip("add assigns registry name when node has no options name", () => {
-		const g = new Graph("g");
-		const n = state(1);
-		g.add("counter", n);
-		expect(n.name).toBe("counter");
-	});
-
 	it("does not override options.name on add", () => {
 		const g = new Graph("g");
 		const n = state(1, { name: "keep" });
@@ -988,9 +979,7 @@ describe("Graph guard (Phase 1.5)", () => {
 		expect(n.lastMutation!.timestamp_ns).toBeGreaterThan(0);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation
-	// Guard now denies "system" actor type when no explicit allow("observe") for system is set
-	it.skip("subscribe checks observe guard when actor is passed", () => {
+	it("subscribe checks observe guard when actor is passed", () => {
 		const n = state(0, {
 			guard: policy((allow, deny) => {
 				allow("write");
@@ -998,8 +987,8 @@ describe("Graph guard (Phase 1.5)", () => {
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
 		});
-		expect(() => n.subscribe(() => {}, { actor: llm })).toThrow(GuardDenied);
-		const unsub = n.subscribe(() => {}, { actor: human });
+		expect(() => n.subscribe(() => {}, llm)).toThrow(GuardDenied);
+		const unsub = n.subscribe(() => {}, human);
 		unsub();
 	});
 
@@ -1024,9 +1013,7 @@ describe("Graph guard (Phase 1.5)", () => {
 describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signals, policy", () => {
 	const human = { type: "human" as const, id: "u1" };
 
-	// FLAG: v5 behavioral change — needs investigation
-	// assertDescribeMatchesAppendixB expects status field which may not be present in v5 describe output
-	it.skip("describe() conforms to GRAPHREFLY-SPEC Appendix B (all node kinds)", () => {
+	it("describe() conforms to GRAPHREFLY-SPEC Appendix B (all node kinds)", () => {
 		const g = new Graph("app");
 		const a = state(0, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });

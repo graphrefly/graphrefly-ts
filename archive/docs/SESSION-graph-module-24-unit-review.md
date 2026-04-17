@@ -234,15 +234,15 @@ Delivered surface in `codec.ts` (`encodeEnvelope` / `decodeEnvelope` / `register
 
 ## Deferred — separate sessions
 
-Tracked in `docs/optimizations.md` for future sessions:
+> **Status revalidated 2026-04-17.** Items 2 and 4 landed; 1 and 3 remain post-1.0.
 
-1. **Codec lazy decode + eviction policy** (Unit 23 F + G) — post-1.0. `LazyGraphCodec.decodeLazy` Proxy-backed nodes record; dormant subgraph serialization + release. Pairs with `attachStorage` cold-tier work.
+1. **Codec lazy decode + eviction policy** (Unit 23 F + G) — **STILL DEFERRED post-1.0**. `LazyGraphCodec.decodeLazy` Proxy-backed nodes record; dormant subgraph serialization + release. Pairs with `attachStorage` cold-tier work. Tracked in `docs/optimizations.md`.
 
-2. **Reactive-operator rewrite of `attachStorage`** (supersedes Unit 19 D) — rewrite the observe/debounce/flush pipeline as composable operators. Blocked pending a "sample" operator or lives inside the storage subsystem.
+2. ~~**Reactive-operator rewrite of `attachStorage`** (supersedes Unit 19 D)~~ — **RESOLVED 2026-04-17** (`reactive-operator-autocheckpoint-rewrite`). Observe/debounce/flush pipeline rewritten as composable operators.
 
-3. **Streaming snapshot for huge graphs** (Unit 17 L, Unit 23 N) — async iterable yielding sections. Low priority; deferred post-1.0.
+3. **Streaming snapshot for huge graphs** (Unit 17 L, Unit 23 N) — **STILL DEFERRED post-1.0**. Async iterable yielding sections. Low priority.
 
-4. **Observe tier-surfacing gaps** — INVALIDATE/PAUSE/RESUME/TEARDOWN event variants on the discriminated `ObserveEvent` union. Small, self-contained; blocked on nothing.
+4. ~~**Observe tier-surfacing gaps**~~ — **RESOLVED** (`observe-tier-surfacing-variants`). INVALIDATE/PAUSE/RESUME/TEARDOWN variants landed on `ObserveEvent` discriminated union (also already noted resolved in §"Open design questions" item 4 above).
 
 ---
 

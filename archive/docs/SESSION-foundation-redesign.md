@@ -2581,13 +2581,12 @@ Order:
 
 ### §10.5 — Explicit follow-ups (open items, deferred)
 
-- **composite.ts eviction rewrite.** Per-entry dynamically-created
-  verdict nodes need store mutation events (§6 "composite.ts eviction
-  — store mutation events"). Large change; separate session.
-- **graph/ + patterns/ + compat/ drift** (~33 typecheck errors). Target
-  the follow-up session.
-- **PY parity** (§9 P0–P8). Unstarted.
-- **Meta TEARDOWN re-entrancy audit** (§10.2 flag 5).
+> **Status revalidated 2026-04-17.** All four items below resolved or intentionally deferred. See `archive/optimizations/resolved-decisions.jsonl` for landing entries.
+
+- ~~**composite.ts eviction rewrite.**~~ **RESOLVED 2026-04-17** (`distill-eviction-p3-cleanup`) — replaced per-entry verdict-node pattern with factory-time-seed pattern (closure snapshot of `store.entries.cache`, subscribe handler keeps current). Full store-mutation-events redesign folded into a single post-1.0 "snapshot delivery" session per `docs/optimizations.md` § "Store-mutation-events protocol".
+- ~~**graph/ + patterns/ + compat/ drift** (~33 typecheck errors).~~ **RESOLVED** — `tsc --noEmit` clean; 1641 tests pass.
+- **PY parity** (§9 P0–P8). **Intentionally deprioritized** per `docs/optimizations.md` line 7 (rigor infrastructure Projects 1–3 must land first; trace-format approach replaces quarterly parity audits).
+- ~~**Meta TEARDOWN re-entrancy audit** (§10.2 flag 5).~~ **RESOLVED 2026-04-12** (`meta-teardown-reentrance-fix`).
 
 ---
 
@@ -2683,21 +2682,11 @@ Sugar signatures stay `(deps, fn, opts?)`. NodeImpl constructor reads
 Per user direction: clean the surface now, revisit in the graph/ redesign.
 These are DELETED from `NodeImpl`:
 
-- `_inspectorHook` / `_setInspectorHook()` — observability plumbing for
-  `graph.observe({ causal|derived })`. Follow-up: `graph/observe.ts` needs
-  a new hook mechanism; likely via an `onMessage` wrapper installed through
-  the singleton `configure(...)` or a dedicated graph-scoped config.
-- `_applyVersioning(level, opts)` — `Graph.setVersioning()` retroactive
-  versioning attach. Follow-up: decide whether versioning is always
-  construction-time, or expose it via a dedicated method on `Graph` that
-  creates a wrapping node.
-- `_assignRegistryName(localName)` — `Graph.add` assigns names when the
-  options bag lacks one. Follow-up: move name assignment into the add()
-  path (build the node with the name baked into opts) instead of
-  post-hoc mutation.
+- ~~`_inspectorHook` / `_setInspectorHook()`~~ **RESOLVED** — restored as per-node `_setInspectorHook` per §10.6.11 (`add-dep-reentrance-guard`). `Graph.observe(path, { causal, derived })` reattached. Global-inspection variant remains as Flag B below.
+- ~~`_applyVersioning(level, opts)`~~ **RESOLVED 2026-04-13** (`retroactive-apply-versioning-config-defaults`) — `_applyVersioning` restored alongside `GraphReFlyConfig.defaultVersioning` and `defaultHashFn`. Versioning can be applied retroactively via `Graph.setVersioning()` and config-driven defaults exist.
+- ~~`_assignRegistryName(localName)`~~ **RESOLVED BY DESIGN 2026-04-17** — name assignment is construction-time only (`state(0, { name: "counter" })`). The post-hoc-mutation follow-up was rejected; tests reflecting the old behavior were deleted.
 
-Callers in `graph/` will break and are expected to break — we'll
-redesign the accessor surface as part of the follow-up graph/ pass.
+Callers in `graph/` were redesigned as part of the graph-module 24-unit review (see `SESSION-graph-module-24-unit-review.md`).
 
 ### 10.6.6 — Benchmark results (v5 redesign vs pre-redesign baseline)
 
@@ -2742,24 +2731,26 @@ downstream fn re-runs.
 
 ### 10.6.5 — File-by-file progress tracker
 
+> **All items complete as of 2026-04-17.** Verified: `tsc --noEmit` clean; 1641 tests pass; `node-base.ts`, `dynamic-node.ts`, `bridge.ts` no longer exist on disk.
+
 - [x] `messages.ts` — shrunk.
 - [x] `config.ts` — new, class + handlers + registerBuiltins.
-- [ ] `batch.ts` — drainPhase2/3/4 rename, pre-sorted walk, TEARDOWN
+- [x] `batch.ts` — drainPhase2/3/4 rename, pre-sorted walk, TEARDOWN
       deferred to phase 4, delete `DownStrategy` / `partitionForBatch` /
       `_downSequential`.
-- [ ] `node.ts` — consolidated NodeImpl + DepRecord + actions +
+- [x] `node.ts` — consolidated NodeImpl + DepRecord + actions +
       defaultConfig + configure + defaults.
-- [ ] `node-base.ts` — DELETE.
-- [ ] `dynamic-node.ts` — DELETE.
-- [ ] `bridge.ts` — DELETE.
-- [ ] `sugar.ts` — rewrite.
-- [ ] `meta.ts` — rewrite.
-- [ ] `index.ts` — prune.
-- [ ] `src/__tests__/core/` — rewrite failing tests.
-- [ ] `src/extra/operators.ts` — rewrite.
-- [ ] `src/extra/sources.ts` — rewrite.
-- [ ] `src/__tests__/extra/` — fix.
-- [ ] `src/graph/` + `src/patterns/` + `src/compat/` — fix drift.
+- [x] `node-base.ts` — DELETED.
+- [x] `dynamic-node.ts` — DELETED (autoTrackNode lives in sugar.ts).
+- [x] `bridge.ts` — DELETED.
+- [x] `sugar.ts` — rewritten.
+- [x] `meta.ts` — rewritten.
+- [x] `index.ts` — pruned.
+- [x] `src/__tests__/core/` — passing.
+- [x] `src/extra/operators.ts` — rewritten (Wave 1 + Wave 2 audits landed).
+- [x] `src/extra/sources.ts` — rewritten.
+- [x] `src/__tests__/extra/` — passing.
+- [x] `src/graph/` + `src/patterns/` + `src/compat/` — drift fixed.
 
 
 ### 10.6.6 — Two-phase invariant: transitions only, not activation
@@ -2793,14 +2784,16 @@ RESOLVED emission. Producer nodes that silently drop stay silent.
 
 ### 10.6.9 — Remaining test failures (88, grouped)
 
-| Category | Count | Root cause | Status |
+> **All resolved as of 2026-04-17.** Final state: 1641 passing, 0 skipped, 0 failed. Resolution summary below.
+
+| Category | Count | Root cause | Resolution |
 |----------|-------|------------|--------|
-| Graph.connect() deps enforcement | ~70 | v5 validates target has source in _deps; pattern factories wire post-construction | DESIGN QUESTION |
-| dynamicNode auto-tracking | 11 | v5 requires upfront deps; jotai/signals need runtime discovery | IMPLEMENTING |
-| Observer hook removed | 5 | _setInspectorHook deleted | DEFERRED to graph/ redesign |
-| Diamond recount | 1 | Wave tracking count differs | COSMETIC |
-| INVALIDATE cache clearing | 2 | Behavior changed | NEEDS INVESTIGATION |
-| _applyVersioning removed | 1 | Construction-time only | DEFERRED |
+| Graph.connect() deps enforcement | ~70 | v5 validates target has source in _deps; pattern factories wire post-construction | RESOLVED via graph-module review Unit 7 — `connect()` deleted entirely; edges derived on-demand from `_deps` + `_mounts`. Pattern factories migrated. |
+| dynamicNode auto-tracking | 11 | v5 requires upfront deps; jotai/signals need runtime discovery | RESOLVED via `autoTrackNode` two-phase discovery (§10.6.10) + sentinel guard (Wave 2 BUG-F2 fix). |
+| Observer hook removed | 5 | _setInspectorHook deleted | RESOLVED — restored per §10.6.11 (`add-dep-reentrance-guard`). |
+| Diamond recount | 1 | Wave tracking count differs | RESOLVED (cosmetic — test expectation updated). |
+| INVALIDATE cache clearing | 2 | Behavior changed | RESOLVED via `invalidate-reactive-cache-flush`. |
+| _applyVersioning removed | 1 | Construction-time only | RESOLVED — `_applyVersioning` restored 2026-04-13 (`retroactive-apply-versioning-config-defaults`). |
 
 ### 10.6.10 — autoTrackNode: two-phase dep discovery
 
@@ -2851,7 +2844,9 @@ and emits synthetic `"derived"` events into the observe timeline.
 
 ### 10.6.12 — Flags for next session
 
-**Flag A: `dataFrom`-based emission suppression — edge cases**
+> **Status revalidated 2026-04-17.** Most flags landed; only Flag B remains as a small, unscheduled enhancement.
+
+**Flag A: `dataFrom`-based emission suppression — edge cases — RESOLVED 2026-04-11** (`flag-a-datafrom-suppression-closed`)
 
 Current `autoTrackNode` implementation: track which deps current fn run
 accesses (via `track()`). After fn returns, if (a) no accessed dep changed
@@ -2881,52 +2876,27 @@ this wave AND (b) result equals cache → suppress emission entirely.
    suppression check, we fall through to emit. Should this be flagged
    differently?
 
-**Flag B: Observer hook use cases — per-node vs global**
+**Flag B: Observer hook use cases — per-node vs global — STILL OPEN (small)**
 
-Current: restored `_setInspectorHook` as per-node method. Discussion
-needed on whether to also add global inspection (wraps singleton
-`onMessage`) for Redux-DevTools-style full-graph tracing. Per-node
-matches spec §3 `observe(path, ...)` signature. Global is additional.
+Per-node `_setInspectorHook` restored. Global-inspection wrapper around singleton `onMessage` (Redux-DevTools-style full-graph tracing) not yet implemented — no concrete user need has surfaced. Defer until requested.
 
-**Flag C: Pattern layer `Graph.connect()` consumers**
+**Flag C: Pattern layer `Graph.connect()` consumers — MOOT 2026-04-17**
 
-Pattern factories (stratify, feedback, gate, forEach, harnessLoop) call
-`connect()` after node construction. With `_addDep`, this works — but
-the "connect" semantics now create reactive edges. Verify that patterns
-intentionally create a reactive edge vs. just a metadata-only edge.
-Distinguishing the two might warrant a separate `Graph.link()` API
-(metadata-only, for describe() output) vs `Graph.connect()` (reactive
-wiring with `_addDep`).
+`Graph.connect` / `Graph.disconnect` deleted entirely in graph-module review Unit 7. Edges derived on-demand from `_deps` + `_mounts` walk. Every pattern factory migrated to declare deps at construction time or use `_addDep` (autoTrackNode discovery). The `Graph.link` distinction is no longer relevant.
 
-**Flag D: Reactive-layout INVALIDATE tests (2 failing)**
+**Flag D: Reactive-layout INVALIDATE tests — RESOLVED** (`invalidate-reactive-cache-flush`)
 
-INVALIDATE cache clearing behavior changed. Some reactive-layout tests
-expect measurement cache to clear on INVALIDATE. Needs investigation.
+INVALIDATE cache clearing behavior aligned across reactive-layout primitives.
 
-**Flag E: P3 audit — `.cache` reads in fn/subscribe callbacks**
+**Flag E: P3 audit — `.cache` reads in fn/subscribe callbacks — RESOLVED 2026-04-17**
 
-6 sites tracked in `docs/optimizations.md`:
-1. `operators.ts:994` — forwardInner reads inner.cache for sync producer seed
-2. `composite.ts:78` — sourceNode.cache inside switchMap project
-3. `composite.ts:184` — verdict.cache inside derived fn
-4. `resilience.ts:624` — out.meta.status.cache in subscribe callback
-5. `resilience.ts:733` — (fb as Node).cache in callback
-6. `adapters.ts:394` — fetchCount.cache in subscribe callback
+All 6 original sites + later additions resolved. See `docs/optimizations.md` § "P3 audit" for full landing log. Open audit set is empty.
 
-All work "by accident" under synchronous execution, may break under
-batch deferral. Need case-by-case redesign.
+**Flag F: Composite distill eviction — RESOLVED 2026-04-17** (`distill-eviction-p3-cleanup`)
 
-**Flag F: Composite distill eviction**
+Replaced `forEach(verdict, ...)` per-key subscription pattern with factory-time-seed pattern. Full store-mutation-events redesign folded into a single post-1.0 "snapshot delivery" session per `docs/optimizations.md`.
 
-Current patch uses `forEach(verdict, ...)` subscriptions per-key.
-Functional but adds subscribe overhead. Full redesign deferred to store
-mutation events (§6 "composite.ts eviction").
-
-**Flag G: Jotai diamond recount**
-
-nanostores diamond test expects 2 fn calls, gets 1 because dynamicNode
-discovery settled synchronously. Test expectation may be outdated —
-needs confirmation that 1-call behavior is correct.
+**Flag G: Jotai diamond recount — RESOLVED** (cosmetic — test expectation updated to match correct 1-call behavior)
 
 ### 10.6.13 — compat-layer two-way bridge invariant + autoTrackNode cleanup
 
