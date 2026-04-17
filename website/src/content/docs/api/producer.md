@@ -1,33 +1,30 @@
 ---
 title: "producer()"
-description: "Creates a producer node with no deps; `fn` runs when the first subscriber connects."
+description: "Creates a producer node with no deps; `fn` runs once when the first\nsubscriber connects. Return a cleanup function (`() => void`) or\n`{ deactivation: () => void"
 ---
 
-Creates a producer node with no deps; `fn` runs when the first subscriber connects.
+Creates a producer node with no deps; `fn` runs once when the first
+subscriber connects. Return a cleanup function (`() =&gt; void`) or
+`{ deactivation: () =&gt; void }` to register teardown.
 
 ## Signature
 
 ```ts
-function producer<T = unknown>(fn: NodeFn<T>, opts?: NodeOptions): Node<T>
+function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `NodeFn&lt;T&gt;` | Receives deps (empty) and NodeActions; use `emit` / `down` to push. |
-| `opts` | `NodeOptions` | Optional NodeOptions. |
-
-## Returns
-
-`Node&lt;T&gt;` - Producer node.
+| `fn` | `ProducerFn` |  |
+| `opts` | `NodeOptions&lt;T&gt;` |  |
 
 ## Basic Usage
 
 ```ts
-import { producer } from "@graphrefly/graphrefly-ts";
-
-const tick = producer((_d, a) => {
-    a.emit(1);
+const ticker = producer((actions) => {
+    const id = setInterval(() => actions.emit(Date.now()), 1000);
+    return () => clearInterval(id);
   });
 ```

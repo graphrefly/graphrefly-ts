@@ -1,20 +1,11 @@
 ---
 title: "batch()"
-description: "Runs `fn` inside a batch scope. Nested `batch()` calls share one deferral queue.\nIf `fn` throws (including from a nested `batch`), deferred DATA/RESOLVED for\nth"
+description: "Runs `fn` inside a batch scope. Nested `batch()` calls share one deferral\nqueue. If `fn` throws, deferred work for the outer frame is discarded\n(unless a drain "
 ---
 
-Runs `fn` inside a batch scope. Nested `batch()` calls share one deferral queue.
-If `fn` throws (including from a nested `batch`), deferred DATA/RESOLVED for
-that **outer** `batch` frame are discarded — phase-2 is not flushed after an
-error. While the drain loop is running (`flushInProgress`), a nested `batch`
-that throws must **not** clear the global queue (cross-language decision A4).
-
-During the drain loop, `isBatching()` remains true so nested `downWithBatch`
-calls still defer phase-2 messages. The drain loop runs until the queue is
-quiescent (no pending work remains). Per-emission try/catch ensures one
-throwing callback does not orphan remaining emissions; the first error is
-re-thrown after all emissions drain. Callbacks that ran before the throw may
-have applied phase-2 — partial graph state is intentional (decision C1).
+Runs `fn` inside a batch scope. Nested `batch()` calls share one deferral
+queue. If `fn` throws, deferred work for the outer frame is discarded
+(unless a drain is already in progress — cross-language decision A4).
 
 ## Signature
 
@@ -26,19 +17,4 @@ function batch(fn: () => void): void
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `fn` | `() =&gt; void` | — Synchronous work that may call `downWithBatch` / `node.down()`. |
-
-## Returns
-
-`void` — all side-effects happen through `downWithBatch` and the
-phase-2 drain that runs after `fn` returns.
-
-## Basic Usage
-
-```ts
-import { core } from "@graphrefly/graphrefly-ts";
-
-core.batch(() => {
-    core.downWithBatch(sink, [[core.DATA, 1]]);
-  });
-```
+| `fn` | `() =&gt; void` |  |

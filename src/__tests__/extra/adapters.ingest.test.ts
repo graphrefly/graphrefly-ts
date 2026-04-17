@@ -851,6 +851,95 @@ describe("fromPulsar", () => {
 		expect(consumer.acknowledge).not.toHaveBeenCalled();
 		unsub();
 	});
+
+	it("emits AckableMessage envelope when autoAck is false", async () => {
+		let callCount = 0;
+		const mockMsg = {
+			getData: () => Buffer.from('"hello"'),
+			getMessageId: () => ({ toString: () => "msg-1" }),
+			getPartitionKey: () => "",
+			getProperties: () => ({}),
+			getPublishTimestamp: () => 0,
+			getEventTimestamp: () => 0,
+			getTopicName: () => "topic",
+		};
+
+		const consumer: PulsarConsumerLike & {
+			negativeAcknowledge?: (m: unknown) => Promise<void>;
+		} = {
+			receive: vi.fn().mockImplementation(async () => {
+				callCount++;
+				if (callCount === 1) return mockMsg;
+				return new Promise(() => {});
+			}),
+			acknowledge: vi.fn().mockResolvedValue(undefined),
+			close: vi.fn().mockResolvedValue(undefined),
+			negativeAcknowledge: vi.fn(),
+		};
+
+		const received: Array<{ value: unknown; ack: () => void; nack: () => void }> = [];
+		const node = fromPulsar(consumer, { autoAck: false });
+		const unsub = node.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					received.push(m[1] as { value: unknown; ack: () => void; nack: () => void });
+				}
+			}
+		});
+		await tick(10);
+
+		expect(received).toHaveLength(1);
+		expect((received[0].value as { value: unknown }).value).toBe("hello");
+		expect(consumer.acknowledge).not.toHaveBeenCalled();
+		// Caller invokes ack
+		received[0].ack();
+		await tick(0);
+		expect(consumer.acknowledge).toHaveBeenCalledTimes(1);
+		// Idempotent: second ack is a no-op
+		received[0].ack();
+		expect(consumer.acknowledge).toHaveBeenCalledTimes(1);
+		unsub();
+	});
+
+	it("envelope nack calls consumer.negativeAcknowledge", async () => {
+		let callCount = 0;
+		const mockMsg = {
+			getData: () => Buffer.from('"hello"'),
+			getMessageId: () => ({ toString: () => "msg-1" }),
+			getPartitionKey: () => "",
+			getProperties: () => ({}),
+			getPublishTimestamp: () => 0,
+			getEventTimestamp: () => 0,
+			getTopicName: () => "topic",
+		};
+
+		const consumer: PulsarConsumerLike & {
+			negativeAcknowledge?: (m: unknown) => void;
+		} = {
+			receive: vi.fn().mockImplementation(async () => {
+				callCount++;
+				if (callCount === 1) return mockMsg;
+				return new Promise(() => {});
+			}),
+			acknowledge: vi.fn().mockResolvedValue(undefined),
+			close: vi.fn().mockResolvedValue(undefined),
+			negativeAcknowledge: vi.fn(),
+		};
+
+		const received: Array<{ ack: () => void; nack: () => void }> = [];
+		const node = fromPulsar(consumer, { autoAck: false });
+		const unsub = node.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) received.push(m[1] as { ack: () => void; nack: () => void });
+			}
+		});
+		await tick(10);
+
+		received[0].nack();
+		expect(consumer.negativeAcknowledge).toHaveBeenCalledTimes(1);
+		expect(consumer.acknowledge).not.toHaveBeenCalled();
+		unsub();
+	});
 });
 
 describe("toPulsar", () => {
@@ -1132,6 +1221,67 @@ describe("fromRabbitMQ", () => {
 		expect(received).toHaveLength(0);
 		expect(errors).toHaveLength(1);
 		expect((errors[0] as Error).message).toBe("Consumer cancelled by broker");
+		unsub();
+	});
+
+	it("emits AckableMessage envelope when autoAck is false; ack/nack call channel methods", async () => {
+		let handler!: (msg: unknown) => void;
+		const channel: RabbitMQChannelLike & { nack?: (m: unknown, a: boolean, r: boolean) => void } = {
+			consume: vi.fn().mockImplementation(async (_q, h) => {
+				handler = h;
+				return { consumerTag: "ctag" };
+			}),
+			cancel: vi.fn().mockResolvedValue(undefined),
+			ack: vi.fn(),
+			nack: vi.fn(),
+			publish: vi.fn(),
+			sendToQueue: vi.fn(),
+		};
+
+		const received: Array<{
+			value: unknown;
+			ack: () => void;
+			nack: (o?: { requeue?: boolean }) => void;
+		}> = [];
+		const node = fromRabbitMQ(channel, "events", { autoAck: false });
+		const unsub = node.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					received.push(
+						m[1] as {
+							value: unknown;
+							ack: () => void;
+							nack: (o?: { requeue?: boolean }) => void;
+						},
+					);
+				}
+			}
+		});
+		await tick();
+
+		const mockMsg = {
+			content: Buffer.from('{"v":1}'),
+			fields: { routingKey: "", exchange: "", deliveryTag: 1, redelivered: false },
+			properties: {},
+		};
+		handler(mockMsg);
+
+		expect(received).toHaveLength(1);
+		expect((received[0].value as { content: unknown }).content).toEqual({ v: 1 });
+		expect(channel.ack).not.toHaveBeenCalled();
+
+		received[0].ack();
+		expect(channel.ack).toHaveBeenCalledWith(mockMsg);
+
+		// Second message, nack with requeue
+		const mockMsg2 = {
+			content: Buffer.from('{"v":2}'),
+			fields: { routingKey: "", exchange: "", deliveryTag: 2, redelivered: false },
+			properties: {},
+		};
+		handler(mockMsg2);
+		received[1].nack({ requeue: false });
+		expect(channel.nack).toHaveBeenCalledWith(mockMsg2, false, false);
 		unsub();
 	});
 });

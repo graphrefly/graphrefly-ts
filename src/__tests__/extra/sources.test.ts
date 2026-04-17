@@ -535,14 +535,14 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
 		}
 		const ws = new FakeWebSocket();
-		const unsub = toWebSocket(fromIter([1, 2]), ws, { serialize: (v) => `n:${v}` });
-		// No post-terminal replay — terminal guard blocks push-on-subscribe
+		const handle = toWebSocket(fromIter([1, 2]), ws, { serialize: (v) => `n:${v}` });
 		expect(ws.sent).toEqual(["n:1", "n:2"]);
 		expect(ws.closed).toBe(1);
-		unsub();
+		handle.dispose();
 	});
 
-	it("toWebSocket stringifies unsupported serialized undefined payloads", () => {
+	it("toWebSocket reports serialize-returning-undefined as serialize error", () => {
+		const errors: Array<{ stage: string; error: Error }> = [];
 		class FakeWebSocket {
 			sent: unknown[] = [];
 			send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
@@ -553,14 +553,19 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			removeEventListener(_type: "message" | "error" | "close", _listener: (ev: unknown) => void) {}
 		}
 		const ws = new FakeWebSocket();
-		const unsub = toWebSocket(fromIter([1]), ws, { serialize: () => undefined as never });
-		expect(ws.sent).toEqual(["1"]);
-		unsub();
+		const handle = toWebSocket(fromIter([1]), ws, {
+			serialize: () => undefined as never,
+			closeOnComplete: false,
+			onTransportError: (event) => errors.push({ stage: event.stage, error: event.error }),
+		});
+		expect(ws.sent).toEqual([]);
+		expect(errors).toHaveLength(1);
+		expect(errors[0].stage).toBe("serialize");
+		handle.dispose();
 	});
 
 	it("toWebSocket reports structured send failures", () => {
-		const errors: Array<{ stage: string; error: Error; message: [symbol, unknown?] | undefined }> =
-			[];
+		const errors: Array<{ stage: string; error: Error; value: unknown }> = [];
 		class FakeWebSocket {
 			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {
 				throw new Error("send-failed");
@@ -574,22 +579,17 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 			toWebSocket(fromIter([1]), ws, {
 				closeOnComplete: false,
 				onTransportError: (event) =>
-					errors.push({
-						stage: event.stage,
-						error: event.error,
-						message: event.message as [symbol, unknown?] | undefined,
-					}),
+					errors.push({ stage: event.stage, error: event.error, value: event.value }),
 			}),
 		).not.toThrow();
-		// No post-terminal replay — terminal guard blocks push-on-subscribe
 		expect(errors).toHaveLength(1);
-		expect(errors[0]?.stage).toBe("send");
-		expect(errors[0]?.error.message).toBe("send-failed");
-		expect(errors[0]?.message?.[0]).toBe(DATA);
+		expect(errors[0].stage).toBe("send");
+		expect(errors[0].error.message).toBe("send-failed");
+		expect(errors[0].value).toBe(1);
 	});
 
 	it("toWebSocket reports close failure and closes idempotently", () => {
-		const errors: Array<{ stage: string; error: Error; message: [symbol, unknown?] | undefined }> =
+		const errors: Array<{ stage: string; error: Error; message?: [symbol, unknown?] | undefined }> =
 			[];
 		const repeatedTerminal = producer((a) => {
 			a.down([[COMPLETE], [ERROR, new Error("late")]]);
@@ -925,7 +925,11 @@ describe("fromGitHook", () => {
 		const { batches, unsub } = collect(node);
 
 		vi.advanceTimersByTime(500);
-		expect(batches.length).toBe(0);
+		// No DATA batches when HEAD doesn't change. Non-DATA tier-1 signals
+		// (DIRTY/RESOLVED) may appear from the switchMap pipeline and are
+		// filtered here.
+		const dataBatches = batches.filter((b) => b.some((m) => m[0] === DATA));
+		expect(dataBatches.length).toBe(0);
 
 		unsub();
 	});
@@ -981,8 +985,11 @@ describe("fromGitHook", () => {
 
 		vi.advanceTimersByTime(100);
 
-		expect(batches.length).toBe(1);
-		expect(batches[0][0][0]).toBe(ERROR);
+		// switchMap pipeline may interleave tier-1 signals with the terminal
+		// ERROR; locate the ERROR batch instead of asserting exactly one batch.
+		const errorBatches = batches.filter((b) => b.some((m) => m[0] === ERROR));
+		expect(errorBatches.length).toBe(1);
+		expect(errorBatches[0].find((m) => m[0] === ERROR)?.[0]).toBe(ERROR);
 
 		unsub();
 	});

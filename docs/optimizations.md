@@ -8,6 +8,12 @@
 
 ## Active work items
 
+- **`fromHTTP` cached-default status companion — `withStatus` reports `"active"` instead of `"completed"` (proposed, 2026-04-16):**
+  Wave 5 changed `fromHTTP`'s default from "emit DATA + COMPLETE" to "emit DATA, stay live, replay cached DATA to late subscribers" (push-on-subscribe §2.2). Consequence: the `withStatus` companion never transitions to `"completed"` under the new default — it stays `"active"` forever even when the single fetch has succeeded. Users who previously gated on `bundle.status === "completed"` as a "fetch done" signal are broken.
+  **Workaround today:** opt back into the old behavior via `{ completeAfterFetch: true }`, then `withStatus` reports `"completed"` as before.
+  **Fix shape:** add a `fetched: Node<boolean>` companion (or similar signal) to `HTTPBundle<T>` that flips true once the first fetch resolves — orthogonal to `withStatus`'s active/completed/errored lifecycle. Document `{completeAfterFetch: true}` as the "one-shot" preset.
+  **Why deferred:** cosmetic companion addition; not blocking. Ship alongside the next `fromHTTP` doc pass.
+
 - **`ctx.latestData` has wrong semantics — rename to `prevData` requires new `dep.prevLatestData` field (noted, 2026-04-13):**
   `dep.latestData` is updated in `_depSettledAsData` during wave processing, BEFORE `_execFn` runs. So `ctx.latestData[i]` equals the **current wave's last DATA** for involved deps — not the "previous wave's cached value" as intended. For non-involved deps it correctly holds the last known value from a prior wave, creating an inconsistency.
   This is why `distinctUntilChanged`/`pairwise` cannot use `ctx.latestData[0]` as a substitute for `store.prev` — the invariant "after each wave, `store.prev == latestData[0]`" is false.
@@ -182,6 +188,12 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 
 | Item | Notes |
 |------|-------|
+
+- **Pre-1.0 breaking change — DB read adapters emit `Node<T[]>` (Wave 5, 2026-04-16):**
+  `fromSqlite`, `fromPrisma`, `fromDrizzle`, `fromKysely` now emit **one** `[[DATA, rows[]]]` then `COMPLETE`, replacing the old "N per-row DATA + COMPLETE" shape. Matches how the drivers natively return results and makes the adapters flatMap-ready (`source | switchMap(fromSqlite(...))` yields array-shaped DATAs that downstream can `from(...)` / iterate). **Migration:** downstream consumers expecting per-row streaming must flatten via a new operator (e.g. `mergeAll` over the array) or use the new `fromSqliteCursor` for row-by-row streaming. Release note must call this out in the Wave 5 changelog.
+
+- **Pre-1.0 breaking change — `fromHTTP` default no longer emits `COMPLETE` (Wave 5, 2026-04-16):**
+  Default `fromHTTP(url)` now emits `DATA` and stays live (cached replay to late subscribers via push-on-subscribe §2.2). Users who want the old one-shot semantic opt in with `{ completeAfterFetch: true }`. Users who need a companion `"done"` signal under the new default should use that option until the `fetched: Node<boolean>` companion ships (see Active item above).
 
 - **COMPOSITION-GUIDE §19 `reduce` code snippet is stale (TS + PY, 2026-04-13):**
   The guide's §19 example for `reduce` includes an early-return guard:

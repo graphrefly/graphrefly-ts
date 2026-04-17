@@ -1,36 +1,21 @@
 ---
 title: "state()"
-description: "Creates a manual source with no upstream deps. Emit values with Node.down.\n\nSpec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §"
+description: "Creates a manual source node. Drive it with `state.emit(v)` (framed,\ndiamond-safe) or `state.down([[DATA, v]])` (raw compat path)."
 ---
 
-Creates a manual source with no upstream deps. Emit values with Node.down.
-
-Spec: `state(initial, opts?)` is `node([], { initial, ...opts })` (GRAPHREFLY-SPEC §2.7).
+Creates a manual source node. Drive it with `state.emit(v)` (framed,
+diamond-safe) or `state.down([[DATA, v]])` (raw compat path).
 
 ## Signature
 
 ```ts
-function state<T>(initial: T, opts?: Omit<NodeOptions, "initial">): Node<T>
+function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): Node<T>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `initial` | `T` | Initial cached value. Because `initial` is provided, `equals` is
-called on the first | down() emission — if the value matches
-`initial`, the node emits `RESOLVED` instead of `DATA` (spec §2.5). |
-| `opts` | `Omit&lt;NodeOptions, "initial"&gt;` | Optional NodeOptions (excluding `initial`). |
-
-## Returns
-
-`Node&lt;T&gt;` - Stateful node you drive imperatively.
-
-## Basic Usage
-
-```ts
-import { DATA, state } from "@graphrefly/graphrefly-ts";
-
-const n = state(0);
-n.down([[DATA, 1]]);
-```
+| `initial` | `T` | Starting cached value. Pass `undefined` or `null`
+explicitly to cache that value; omit to leave the node in `"sentinel"`. |
+| `opts` | `Omit&lt;NodeOptions&lt;T&gt;, "initial"&gt;` | Optional NodeOptions (excluding `initial`). |

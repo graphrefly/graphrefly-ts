@@ -9,6 +9,7 @@ export * from "./cascading-cache.js";
 export * from "./checkpoint.js";
 export * from "./composite.js";
 export * from "./cron.js";
+export * from "./external-register.js";
 export * from "./observable.js";
 export * from "./operators.js";
 export * from "./pubsub.js";
@@ -16,6 +17,7 @@ export * from "./reactive-index.js";
 export * from "./reactive-list.js";
 export * from "./reactive-log.js";
 export * from "./reactive-map.js";
+export * from "./reactive-sink.js";
 // Re-export resilience explicitly to avoid `timeout` / `pipe` conflicts with operators.js
 export {
 	type CircuitBreaker,
@@ -29,8 +31,10 @@ export {
 	RateLimiterOverflowError,
 	type RateLimiterOverflowPolicy,
 	type RetryOptions,
+	type RetrySourceOptions,
 	rateLimiter,
 	retry,
+	retrySource,
 	type StatusValue,
 	TimeoutError,
 	type TokenBucket,
