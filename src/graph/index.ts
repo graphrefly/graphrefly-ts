@@ -37,6 +37,7 @@ export {
 	type GraphObserveOne,
 	type GraphOptions,
 	type GraphPersistSnapshot,
+	type GraphVersionChange,
 	type ObserveDetail,
 	type ObserveEvent,
 	type ObserveOptions,

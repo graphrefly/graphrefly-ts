@@ -29,6 +29,51 @@ import {
 	NS_PER_MS,
 	resolveBackoffPreset,
 } from "./backoff.js";
+import { RingBuffer } from "./utils/ring-buffer.js";
+
+/**
+ * Dual-mode buffer for the sink's backpressure queue.
+ * - Bounded (finite `maxBuf`): wraps {@link RingBuffer} so drop-oldest is O(1)
+ *   instead of O(n) via `Array.prototype.shift`.
+ * - Unbounded (`Infinity`): plain array — no drops, no need for ring semantics.
+ * `drain()` always returns the current contents and resets to empty.
+ */
+class BackpressureBuffer<T> {
+	private ring: RingBuffer<T> | null;
+	private arr: T[] | null;
+	constructor(cap: number) {
+		if (cap === Number.POSITIVE_INFINITY || cap <= 0) {
+			this.arr = [];
+			this.ring = null;
+		} else {
+			this.ring = new RingBuffer<T>(cap);
+			this.arr = null;
+		}
+	}
+	get length(): number {
+		return this.ring != null ? this.ring.size : this.arr!.length;
+	}
+	push(item: T): void {
+		if (this.ring != null) this.ring.push(item);
+		else this.arr!.push(item);
+	}
+	/** Drop-oldest — O(1) in bounded mode. Returns undefined when empty. */
+	shift(): T | undefined {
+		if (this.ring != null) return this.ring.shift();
+		return this.arr!.shift();
+	}
+	/** Full drain — returns contents, resets to empty. */
+	drain(): T[] {
+		if (this.ring != null) {
+			const out = this.ring.toArray();
+			this.ring.clear();
+			return out;
+		}
+		const out = this.arr!;
+		this.arr = [];
+		return out;
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -373,7 +418,8 @@ export function reactiveSink<T, Ctx = unknown>(
 	// hand-rolled sinks relied on this ordering.
 	// -------------------------------------------------------------------
 	type BufferEntry = { value: T; payload: unknown };
-	let buffer: BufferEntry[] = [];
+	const maxBuf = backpressure?.maxBuffer ?? Number.POSITIVE_INFINITY;
+	const buffer = new BackpressureBuffer<BufferEntry>(maxBuf);
 	let flushTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 
@@ -386,7 +432,6 @@ export function reactiveSink<T, Ctx = unknown>(
 		pausedNode.down([[DATA, paused]]);
 	};
 
-	const maxBuf = backpressure?.maxBuffer ?? Number.POSITIVE_INFINITY;
 	const bpStrategy = backpressure?.strategy ?? "drop-oldest";
 
 	const pushWithBackpressure = (value: T, payload: unknown): boolean => {
@@ -528,8 +573,7 @@ export function reactiveSink<T, Ctx = unknown>(
 
 	const doFlush = (): Promise<void> => {
 		if (disposed || buffer.length === 0) return Promise.resolve();
-		const chunk = buffer;
-		buffer = [];
+		const chunk = buffer.drain();
 		updateBuffered();
 		markPaused(false);
 		if (sendBatch !== undefined) {
