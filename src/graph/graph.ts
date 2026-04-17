@@ -1984,6 +1984,17 @@ export class Graph {
 			if (slice.type === "derived" || slice.type === "effect") {
 				continue;
 			}
+			// V0 shortcut: if the snapshot slice and the live node both carry
+			// matching versioning info (`v.id` + `v.version`), skip the
+			// `set()` — the state is already what the snapshot represents.
+			// Avoids redundant DATA waves on idempotent restores.
+			if (slice.v != null) {
+				const live = this.tryResolve(path);
+				const lv = live?.v;
+				if (lv != null && lv.id === slice.v.id && lv.version === slice.v.version) {
+					continue;
+				}
+			}
 			try {
 				this.set(path, slice.value);
 			} catch {
@@ -2142,6 +2153,23 @@ export class Graph {
 		let seq = 0;
 		let pending = false;
 		let lastDescribe: GraphDescribeOutput | undefined;
+		let lastVersionFingerprint = "";
+
+		/**
+		 * Cheap graph-level version fingerprint: concatenate `v.id@v.version` for
+		 * every node that carries V0 info. Unchanged fingerprint → nothing to
+		 * save this cycle (V0 shortcut per SESSION-serialization-memory-footprint).
+		 * Falls back gracefully to the empty string when no nodes are versioned —
+		 * in that case the shortcut never fires and every scheduled flush writes.
+		 */
+		const computeVersionFingerprint = (nodes: Record<string, DescribeNodeOutput>): string => {
+			const parts: string[] = [];
+			for (const path of Object.keys(nodes).sort()) {
+				const v = nodes[path]!.v;
+				if (v != null) parts.push(`${path}\t${v.id}\t${v.version}`);
+			}
+			return parts.join("\n");
+		};
 
 		const flush = () => {
 			timer = undefined;
@@ -2156,6 +2184,16 @@ export class Graph {
 					cleanNodes[p] = node;
 				}
 				const described = { ...raw, nodes: cleanNodes };
+				// V0 shortcut: if the graph-level version fingerprint is
+				// unchanged from the last save AND we already have a
+				// lastDescribe (i.e. we've saved at least once before),
+				// skip the save. Non-versioned graphs produce an empty
+				// fingerprint, so the guard is a no-op for them.
+				const fingerprint = computeVersionFingerprint(cleanNodes);
+				if (lastDescribe != null && fingerprint !== "" && fingerprint === lastVersionFingerprint) {
+					return;
+				}
+				lastVersionFingerprint = fingerprint;
 				const snapshot = { ...described, version: SNAPSHOT_VERSION };
 				seq += 1;
 				const shouldCompact = lastDescribe == null || seq % compactEvery === 0;

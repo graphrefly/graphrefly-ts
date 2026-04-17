@@ -555,11 +555,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_lastMutation: { actor: Actor; timestamp_ns: number } | undefined;
 
 	/**
-	 * @internal Optional per-node inspector hook for `Graph.observe(path,
+	 * @internal Per-node inspector hooks for `Graph.observe(path,
 	 * { causal, derived })`. Fires in `_onDepMessage` and `_execFn`.
-	 * Attached via `_setInspectorHook` and removed by the returned disposer.
+	 * Attached via `_setInspectorHook` (returns a disposer). Multiple
+	 * observers can attach simultaneously — all registered hooks fire for
+	 * every event.
 	 */
-	_inspectorHook: NodeInspectorHook | undefined;
+	_inspectorHooks: Set<NodeInspectorHook> | undefined;
 
 	// --- Actions (built once in the constructor) ---
 	readonly _actions: NodeActions;
@@ -753,16 +755,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	/**
 	 * @internal Attach an inspector hook. Returns a disposer that removes
 	 * the hook. Used by `Graph.observe(path, { causal, derived })` to build
-	 * causal traces. Only one hook is active at a time — attaching a new
-	 * one replaces the previous; the disposer restores the previous hook.
+	 * causal traces. Multiple hooks may be attached concurrently — all fire
+	 * for every event in registration order. Passing `undefined` is a no-op
+	 * and returns a no-op disposer.
 	 */
 	_setInspectorHook(hook?: NodeInspectorHook): () => void {
-		const prev = this._inspectorHook;
-		this._inspectorHook = hook;
+		if (hook == null) return () => {};
+		if (this._inspectorHooks == null) this._inspectorHooks = new Set();
+		this._inspectorHooks.add(hook);
 		return () => {
-			if (this._inspectorHook === hook) {
-				this._inspectorHook = prev;
-			}
+			this._inspectorHooks?.delete(hook);
+			if (this._inspectorHooks?.size === 0) this._inspectorHooks = undefined;
 		};
 	}
 
@@ -1222,8 +1225,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const dep = this._deps[depIndex];
 		const t = msg[0];
 
-		// Fire inspector hook before default dispatch.
-		this._inspectorHook?.({ kind: "dep_message", depIndex, message: msg });
+		// Fire inspector hooks before default dispatch. Common case: no hooks
+		// (undefined slot). Multiple observers can attach simultaneously.
+		if (this._inspectorHooks != null) {
+			const ev: NodeInspectorHookEvent = { kind: "dep_message", depIndex, message: msg };
+			for (const hook of this._inspectorHooks) hook(ev);
+		}
 
 		// Tier 0 (START) — informational, no state change.
 		if (t === START) return;
@@ -1475,8 +1482,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._hasCalledFnOnce = true;
 		this._clearWaveFlags();
 
-		// Fire inspector hook before fn runs — for Graph.observe causal traces.
-		this._inspectorHook?.({ kind: "run", batchData, prevData });
+		// Fire inspector hooks before fn runs — for Graph.observe causal traces.
+		if (this._inspectorHooks != null) {
+			const ev: NodeInspectorHookEvent = { kind: "run", batchData, prevData };
+			for (const hook of this._inspectorHooks) hook(ev);
+		}
 
 		this._isExecutingFn = true;
 		try {
