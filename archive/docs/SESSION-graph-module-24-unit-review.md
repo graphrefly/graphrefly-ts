@@ -198,17 +198,51 @@ Unit-by-unit short-term batches executed:
 
 Implementation: ensure every node that participates in persistence has `v` metadata; thread version counter through describe output; consume in diff/autoCheckpoint/fromSnapshot. Pairs naturally with `scanEdges` version counter from Unit 7 edge-registry deletion.
 
+## Landed post-hoc (2026-04-17 follow-up batches)
+
+The two biggest "deferred" items from this review were executed after the main batches with design decisions locked up-front. Both landed against the specs that follow.
+
+### Persistence unification → `graph.attachStorage(tiers)` (landed 2026-04-17)
+
+Collapsed `Graph.autoCheckpoint` + `AutoCheckpointAdapter` + `extra/checkpoint.ts` + `tieredStorage` into one `StorageTier` primitive. Q&A decisions locked before execution:
+
+| # | Decision |
+|---|---|
+| Q1 | `save(key, record): void \| Promise<void>` — dual return. Sync tiers stay zero-microtask; callers awaiting a non-Promise get a no-op. |
+| Q2 | `tieredStorage` deleted. Users call `cascadingCache(tiers)` directly. |
+| Q3 | `*CheckpointAdapter` classes deleted. Replaced with factory fns: `memoryStorage()`, `dictStorage(obj)`, `fileStorage(dir)`, `sqliteStorage(path)`. Matches extra/ convention. |
+| Q4 | `indexedDbStorage(spec): StorageTier` added as async tier. `saveGraphCheckpointIndexedDb` / `restoreGraphCheckpointIndexedDb` deleted. `fromIDBRequest` / `fromIDBTransaction` kept (Wave 5 reactive sources, different layer). |
+| Q5 | Both `Graph.fromStorage(name, tiers)` (cold boot) and `attachStorage(tiers, {autoRestore: true})` (hot attach). Shared `_cascadeRestore` helper. |
+| Q6 | Per-tier `{lastSnapshot, lastFingerprint}`. `graph.snapshot()` memoized per-event across sync tiers; debounced tiers compute their own on timer fire. |
+
+Session log for the storage work: prior Q&A answered and captured above. Delivered surface in `extra/storage.ts` + `graph/graph.ts` + `core/config.ts`. 1634 tests pass post-landing.
+
+### Codec wire-protocol maturation → envelope + registry (landed 2026-04-17)
+
+Bundled Unit 17 G (CBOR snapshot option) + Unit 23 J+K (codec versioning + binary envelope) + Unit 11 M adjacent type tightening. Q&A decisions locked before execution:
+
+| # | Decision |
+|---|---|
+| Q1 | Registry on `GraphReFlyConfig` — `registerCodec` / `lookupCodec`, freeze-on-read (matches message-type registry). |
+| Q2 | Envelope v1: `[envelope_v=1:u8][name_len:u8][name:utf8][codec_v:u16 BE][payload:rest]`. Skip timestamp/producer_id; defer to v2. |
+| Q3 | `GraphCodec.version: number` required. Pre-1.0 breaking (zero external callers). `decode(buf, codecVersion?)` — codec dispatches on historical layouts. |
+| Q4 | `negotiateCodec` deleted. Zero callers; envelope self-describes on the read side. YAGNI for write-side peer negotiation until peerGraph lands. |
+| Q5 | `snapshot()` overloads: no arg → object; `{format: "json-string"}` → string; `{format: "bytes", codec: name}` → `Uint8Array`. `"json-string"` name (not `"json"`) to avoid conflict with `describe({format: "json"})`. |
+| Q6 | Scope bounded to: registry on config + `snapshot({format})` + `Graph.decode(bytes)`. WAL records / `GraphCheckpointRecord` stay as JS objects; envelope is a boundary format only. |
+
+Delivered surface in `codec.ts` (`encodeEnvelope` / `decodeEnvelope` / `registerBuiltinCodecs`) + `graph.ts` (`Graph.decode` static + `snapshot({format})` overloads) + `core/config.ts` (`_codecs` map).
+
 ## Deferred — separate sessions
 
-Added to `docs/optimizations.md` as tracked items (or referenced for future sessions):
+Tracked in `docs/optimizations.md` for future sessions:
 
-1. **Unify persistence surface under `graph.attachStorage(tiers)`** (added to optimizations.md 2026-04-16). Collapses `Graph.autoCheckpoint` + `AutoCheckpointAdapter` + `extra/checkpoint.ts` CheckpointAdapter + `extra/cascading-cache.ts` tieredStorage into a single `StorageTier` interface with per-tier `debounceMs` / `compactEvery` / `filter`. Hot tier sync, warm tier 1s debounce, cold tier 60s diff — independent cadences, same snapshot cascades without blocking the hot path.
+1. **Codec lazy decode + eviction policy** (Unit 23 F + G) — post-1.0. `LazyGraphCodec.decodeLazy` Proxy-backed nodes record; dormant subgraph serialization + release. Pairs with `attachStorage` cold-tier work.
 
-2. **Codec lazy decode + eviction policy** (Unit 23 F + G) — post-1.0. Proxy-wrap nodes record for on-demand decode. Dormant subgraph serialization + release.
+2. **Reactive-operator rewrite of `attachStorage`** (supersedes Unit 19 D) — rewrite the observe/debounce/flush pipeline as composable operators. Blocked pending a "sample" operator or lives inside the storage subsystem.
 
-3. **Reactive-operator rewrite of autoCheckpoint** (Unit 19 D) — `observe() → filter(tier≥3) → debounce → effect(flush)` composable chain. Significant refactor; defer.
+3. **Streaming snapshot for huge graphs** (Unit 17 L, Unit 23 N) — async iterable yielding sections. Low priority; deferred post-1.0.
 
-4. **Streaming snapshot for huge graphs** (Unit 17 L, Unit 23 N) — async iterable yielding sections. Low priority.
+4. **Observe tier-surfacing gaps** — INVALIDATE/PAUSE/RESUME/TEARDOWN event variants on the discriminated `ObserveEvent` union. Small, self-contained; blocked on nothing.
 
 ---
 
