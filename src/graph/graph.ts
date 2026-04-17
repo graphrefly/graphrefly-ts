@@ -234,6 +234,95 @@ function parseSnapshotEnvelope(data: GraphPersistSnapshot): void {
 	}
 }
 
+/**
+ * Structural deep equality — handles cycles, BigInt, Map, Set, Date, RegExp,
+ * TypedArray, and nested objects/arrays. Used by `Graph.diff` to compare
+ * node values without the cycle/BigInt/Map/Set footguns of `JSON.stringify`.
+ *
+ * Semantics: `Object.is` on primitives (so `NaN === NaN`, `-0 !== 0`), same
+ * constructor required for object types, key-order-insensitive for plain
+ * objects, order-sensitive for arrays + TypedArrays, unordered for Set,
+ * key-equality for Map.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+	const seen = new WeakMap<object, WeakSet<object>>();
+	const walk = (x: unknown, y: unknown): boolean => {
+		if (Object.is(x, y)) return true;
+		if (x == null || y == null || typeof x !== "object" || typeof y !== "object") return false;
+		// Cycle handling: assume equal on re-encounter (cycles match iff they
+		// correspond structurally — standard "optimistic" deep-equal rule).
+		let seenRhs = seen.get(x as object);
+		if (seenRhs == null) {
+			seenRhs = new WeakSet();
+			seen.set(x as object, seenRhs);
+		}
+		if (seenRhs.has(y as object)) return true;
+		seenRhs.add(y as object);
+
+		const ctorA = (x as object).constructor;
+		const ctorB = (y as object).constructor;
+		if (ctorA !== ctorB) return false;
+
+		if (x instanceof Date) return (x as Date).getTime() === (y as Date).getTime();
+		if (x instanceof RegExp)
+			return (
+				(x as RegExp).source === (y as RegExp).source && (x as RegExp).flags === (y as RegExp).flags
+			);
+		if (Array.isArray(x)) {
+			const arrB = y as unknown[];
+			if ((x as unknown[]).length !== arrB.length) return false;
+			for (let i = 0; i < (x as unknown[]).length; i++) {
+				if (!walk((x as unknown[])[i], arrB[i])) return false;
+			}
+			return true;
+		}
+		if (x instanceof Map) {
+			const mB = y as Map<unknown, unknown>;
+			if ((x as Map<unknown, unknown>).size !== mB.size) return false;
+			for (const [k, v] of x as Map<unknown, unknown>) {
+				if (!mB.has(k) || !walk(v, mB.get(k))) return false;
+			}
+			return true;
+		}
+		if (x instanceof Set) {
+			const sB = y as Set<unknown>;
+			if ((x as Set<unknown>).size !== sB.size) return false;
+			// O(n²) fallback — Sets have no ordering, and walking each pair
+			// is the only way to support structural equality on non-primitive
+			// members. Acceptable: diff scale is describe-output-sized.
+			for (const v of x as Set<unknown>) {
+				let found = false;
+				for (const w of sB) {
+					if (walk(v, w)) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) return false;
+			}
+			return true;
+		}
+		if (ArrayBuffer.isView(x)) {
+			const taA = x as unknown as { length: number; [i: number]: number };
+			const taB = y as unknown as { length: number; [i: number]: number };
+			if (taA.length !== taB.length) return false;
+			for (let i = 0; i < taA.length; i++) if (taA[i] !== taB[i]) return false;
+			return true;
+		}
+		// Plain object: same key-set, same values (key order irrelevant).
+		const keysA = Object.keys(x as Record<string, unknown>);
+		const keysB = Object.keys(y as Record<string, unknown>);
+		if (keysA.length !== keysB.length) return false;
+		const setB = new Set(keysB);
+		for (const k of keysA) {
+			if (!setB.has(k)) return false;
+			if (!walk((x as Record<string, unknown>)[k], (y as Record<string, unknown>)[k])) return false;
+		}
+		return true;
+	};
+	return walk(a, b);
+}
+
 /** Recursively sort object keys for deterministic JSON (git-diffable). */
 function sortJsonValue(value: unknown): unknown {
 	if (value === null || typeof value !== "object") {
@@ -903,6 +992,58 @@ export class Graph {
 		this._nodes.delete(name);
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
 		return { kind: "node", nodes: [name], mounts: [] };
+	}
+
+	/**
+	 * Bulk remove — invokes {@link Graph.remove} for every local name matching
+	 * `filter`. Audit records merge into a single result. Mounted subgraphs
+	 * are included via `filter` receiving the mount name; internal subtree
+	 * entries are not walked directly (use describe + scan for tree-level
+	 * queries).
+	 *
+	 * @param filter - Predicate or glob. Glob strings support `*` within a
+	 *   segment and `**` across segments (same grammar as `restore({only})`).
+	 * @returns Combined audit of all nodes + mounts removed.
+	 */
+	removeAll(filter: ((name: string) => boolean) | string): GraphRemoveAudit {
+		const match =
+			typeof filter === "function"
+				? filter
+				: (() => {
+						const re = globToRegex(filter);
+						return (n: string) => re.test(n);
+					})();
+		const audit: GraphRemoveAudit = { kind: "mount", nodes: [], mounts: [] };
+		// Snapshot names first — remove mutates the maps.
+		const localNames = [...this._nodes.keys(), ...this._mounts.keys()].filter((n) => match(n));
+		for (const name of localNames) {
+			const sub = this.remove(name);
+			audit.nodes.push(...sub.nodes);
+			audit.mounts.push(...sub.mounts);
+		}
+		audit.nodes.sort();
+		audit.mounts.sort();
+		return audit;
+	}
+
+	/**
+	 * Iterable over locally-registered `[localName, Node]` pairs (sorted).
+	 * Does not recurse into mounts.
+	 */
+	[Symbol.iterator](): IterableIterator<[string, Node]> {
+		const sorted = [...this._nodes.keys()].sort();
+		const nodes = this._nodes;
+		let i = 0;
+		return {
+			[Symbol.iterator]() {
+				return this;
+			},
+			next(): IteratorResult<[string, Node]> {
+				if (i >= sorted.length) return { value: undefined, done: true };
+				const name = sorted[i++];
+				return { value: [name, nodes.get(name)!], done: false };
+			},
+		};
 	}
 
 	/**
@@ -1966,7 +2107,19 @@ export class Graph {
 	 * @param data - Snapshot envelope with matching `name` and node slices.
 	 * @throws If `data.name` does not equal {@link Graph.name}.
 	 */
-	restore(data: GraphPersistSnapshot, options?: { only?: string | readonly string[] }): void {
+	restore(
+		data: GraphPersistSnapshot,
+		options?: {
+			only?: string | readonly string[];
+			/**
+			 * Fires per failing write. Default behavior (omitted) is silent —
+			 * missing paths and guard denials are swallowed to match the
+			 * historical semantics. Provide a callback to surface failures
+			 * without aborting the remaining restores.
+			 */
+			onError?: (path: string, err: unknown) => void;
+		},
+	): void {
 		parseSnapshotEnvelope(data);
 		if (data.name !== this.name) {
 			throw new Error(
@@ -1997,8 +2150,8 @@ export class Graph {
 			}
 			try {
 				this.set(path, slice.value);
-			} catch {
-				/* missing path or set not applicable */
+			} catch (err) {
+				options?.onError?.(path, err);
 			}
 		}
 	}
@@ -2299,29 +2452,42 @@ export class Graph {
 		const nodesAdded = [...bKeys].filter((k) => !aKeys.has(k)).sort();
 		const nodesRemoved = [...aKeys].filter((k) => !bKeys.has(k)).sort();
 		const nodesChanged: GraphDiffChange[] = [];
+		const versionChanges: GraphVersionChange[] = [];
 
 		for (const key of aKeys) {
 			if (!bKeys.has(key)) continue;
 			const na = a.nodes[key];
 			const nb = b.nodes[key];
-			// V0 optimization: skip value comparison when both nodes have matching versions.
 			const av = na.v;
 			const bv = nb.v;
-			if (av != null && bv != null && av.id === bv.id && av.version === bv.version) {
-				// Version unchanged — only check type/status (cheap string compare).
-				for (const field of ["type", "status"] as const) {
-					const va = (na as Record<string, unknown>)[field];
-					const vb = (nb as Record<string, unknown>)[field];
-					if (va !== vb) {
-						nodesChanged.push({ path: key, field, from: va, to: vb });
-					}
-				}
-				continue;
+			// Surface version bumps (even if value is identical, the bump itself
+			// is meaningful for audit / wire-efficient sync).
+			if (av != null && bv != null && av.id === bv.id && av.version !== bv.version) {
+				versionChanges.push({
+					path: key,
+					id: av.id,
+					from: av.version,
+					to: bv.version,
+				});
 			}
-			for (const field of ["type", "status", "value"] as const) {
+			const versionMatches =
+				av != null && bv != null && av.id === bv.id && av.version === bv.version;
+			// V0 fast path: when versions match, skip value / meta compare —
+			// upstream is guaranteed unchanged by protocol. Only type/status
+			// (cheap string compare) + sentinel flip are possible.
+			for (const field of ["type", "status", "sentinel"] as const) {
 				const va = (na as Record<string, unknown>)[field];
 				const vb = (nb as Record<string, unknown>)[field];
-				if (!Object.is(va, vb) && JSON.stringify(va) !== JSON.stringify(vb)) {
+				if (va !== vb) {
+					nodesChanged.push({ path: key, field, from: va, to: vb });
+				}
+			}
+			if (versionMatches) continue;
+			// Full slow-path: deep-equal on value + meta.
+			for (const field of ["value", "meta"] as const) {
+				const va = (na as Record<string, unknown>)[field];
+				const vb = (nb as Record<string, unknown>)[field];
+				if (!deepEqual(va, vb)) {
 					nodesChanged.push({ path: key, field, from: va, to: vb });
 				}
 			}
@@ -2342,6 +2508,7 @@ export class Graph {
 			nodesAdded,
 			nodesRemoved,
 			nodesChanged,
+			versionChanges,
 			edgesAdded,
 			edgesRemoved,
 			subgraphsAdded,
@@ -2362,6 +2529,11 @@ export type GraphDiffResult = {
 	nodesAdded: string[];
 	nodesRemoved: string[];
 	nodesChanged: GraphDiffChange[];
+	/**
+	 * V0 version bumps (same `v.id`, different `v.version`). Surfaced even
+	 * when values are identical — the bump itself is audit-meaningful.
+	 */
+	versionChanges: GraphVersionChange[];
 	edgesAdded: Array<{ from: string; to: string }>;
 	edgesRemoved: Array<{ from: string; to: string }>;
 	subgraphsAdded: string[];
@@ -2374,6 +2546,14 @@ export type GraphDiffChange = {
 	field: string;
 	from: unknown;
 	to: unknown;
+};
+
+/** A single V0 version bump within a diff. */
+export type GraphVersionChange = {
+	path: string;
+	id: string;
+	from: number;
+	to: number;
 };
 
 /** Audit record returned by {@link Graph.remove}. */
