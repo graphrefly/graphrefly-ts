@@ -2,6 +2,7 @@
  * Graph container: registry, wiring, introspection (Phase 1).
  */
 
+export { OVERHEAD as SIZEOF_OVERHEAD, SIZEOF_SYMBOL, sizeof } from "../extra/utils/sizeof.js";
 export {
 	createDagCborCodec,
 	createDagCborZstdCodec,
@@ -53,4 +54,3 @@ export {
 	graphProfile,
 	type NodeProfile,
 } from "./profile.js";
-export { sizeof } from "./sizeof.js";
