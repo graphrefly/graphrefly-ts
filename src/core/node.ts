@@ -1777,6 +1777,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// coherence (user P2 option (i)).
 		const { finalMessages, equalsError } = this._updateState(deliverable);
 
+		// Global inspector fan-out (Redux-DevTools-style tracer). Fires once
+		// per outgoing batch, gated by `inspectorEnabled` so production paths
+		// pay one boolean check. Hook errors are swallowed — instrumentation
+		// must not break the data plane.
+		if (finalMessages.length > 0 && this._config.inspectorEnabled) {
+			const inspector = this._config.globalInspector;
+			if (inspector != null) {
+				try {
+					inspector({ kind: "emit", node: this, messages: finalMessages });
+				} catch {
+					/* best-effort */
+				}
+			}
+		}
+
 		if (finalMessages.length > 0) {
 			// BufferAll: while paused with `pausable: "resumeAll"`, buffer
 			// tier-3/4 payloads in order. Tier 0–2 and tier 5 continue to

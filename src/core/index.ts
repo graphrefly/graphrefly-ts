@@ -5,6 +5,8 @@ export * from "./actor.js";
 export { batch, downWithBatch, isBatching } from "./batch.js";
 export { monotonicNs, wallClockNs } from "./clock.js";
 export {
+	type GlobalInspectorEvent,
+	type GlobalInspectorHook,
 	GraphReFlyConfig,
 	type MessageContext,
 	type NodeActions,

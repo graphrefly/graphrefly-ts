@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { batch, downWithBatch, isBatching } from "../../core/batch.js";
+import type { GlobalInspectorEvent } from "../../core/config.js";
+import { GraphReFlyConfig, registerBuiltins } from "../../core/config.js";
 import {
 	COMPLETE,
 	DATA,
@@ -636,5 +638,86 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 		s.emit(99);
 		expect(log).toContain(99);
 		unsub2();
+	});
+});
+
+describe("globalInspector hook", () => {
+	function freshConfig(): GraphReFlyConfig {
+		const cfg = new GraphReFlyConfig({
+			onMessage: defaultConfig.onMessage,
+			onSubscribe: defaultConfig.onSubscribe,
+		});
+		registerBuiltins(cfg);
+		return cfg;
+	}
+
+	it("fires once per outgoing batch with the final messages", () => {
+		const cfg = freshConfig();
+		const events: GlobalInspectorEvent[] = [];
+		cfg.globalInspector = (ev) => events.push(ev);
+
+		const s = state(0, { config: cfg });
+		const off = s.subscribe(() => {});
+		// Subscribe handshake delivers START + cached DATA via `downToSink`,
+		// not through `_emit`'s framing waist — hook does not fire on handshake.
+		expect(events.length).toBe(0);
+
+		s.emit(1);
+		expect(events.length).toBe(1);
+		const ev = events[0]!;
+		expect(ev.kind).toBe("emit");
+		expect(ev.node).toBe(s);
+		// finalMessages is post-equals: DIRTY + DATA(1).
+		const types = ev.messages.map((m) => m[0]);
+		expect(types).toContain(DIRTY);
+		expect(types).toContain(DATA);
+
+		off();
+	});
+
+	it("respects inspectorEnabled toggle (no fire when disabled)", () => {
+		const cfg = freshConfig();
+		cfg.inspectorEnabled = false;
+		let calls = 0;
+		cfg.globalInspector = () => {
+			calls++;
+		};
+
+		const s = state(0, { config: cfg });
+		const off = s.subscribe(() => {});
+		s.emit(1);
+		expect(calls).toBe(0);
+		off();
+	});
+
+	it("swallows hook exceptions (instrumentation cannot break the data plane)", () => {
+		const cfg = freshConfig();
+		cfg.globalInspector = () => {
+			throw new Error("inspector blew up");
+		};
+
+		const s = state(0, { config: cfg });
+		const log: number[] = [];
+		const off = s.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) log.push(m[1] as number);
+		});
+		expect(() => s.emit(42)).not.toThrow();
+		expect(log).toContain(42);
+		off();
+	});
+
+	it("settable at any time (does not freeze the config)", () => {
+		const cfg = freshConfig();
+		const s = state(0, { config: cfg });
+		// Touching a hook getter freezes the config; touching globalInspector must not.
+		const initial = cfg.globalInspector;
+		expect(initial).toBeUndefined();
+		// Setting after a node exists should still work.
+		cfg.globalInspector = () => {};
+		expect(cfg.globalInspector).toBeDefined();
+		// Resetting to undefined unsubscribes.
+		cfg.globalInspector = undefined;
+		expect(cfg.globalInspector).toBeUndefined();
+		void s;
 	});
 });
