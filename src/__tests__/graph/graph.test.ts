@@ -834,17 +834,17 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(snap.nodes.z?.value).toBe(1);
 	});
 
-	it("toObject returns stable snapshot with sorted keys", () => {
+	it("snapshot returns stable output with sorted keys", () => {
 		const g = new Graph("g");
 		g.add("b", state(0));
 		g.add("a", state(0));
-		const o1 = g.toObject();
-		const o2 = g.toObject();
+		const o1 = g.snapshot();
+		const o2 = g.snapshot();
 		expect(JSON.stringify(o1)).toBe(JSON.stringify(o2));
 		expect(Object.keys(o1.nodes).sort()).toEqual(["a", "b"]);
 	});
 
-	it("JSON.stringify(graph) works via toJSON alias", () => {
+	it("JSON.stringify(graph) works via toJSON hook", () => {
 		const g = new Graph("g");
 		g.add("b", state(0));
 		g.add("a", state(0));
@@ -853,14 +853,6 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(j1).toBe(j2);
 		const parsed = JSON.parse(j1) as GraphPersistSnapshot;
 		expect(Object.keys(parsed.nodes).sort()).toEqual(["a", "b"]);
-	});
-
-	it("toJSONString is stable and ends with newline", () => {
-		const g = new Graph("g");
-		g.add("a", state(0));
-		const s = g.toJSONString();
-		expect(s).toBe(g.toJSONString());
-		expect(s.endsWith("\n")).toBe(true);
 	});
 
 	it("restore applies state (and producer) values; skips derived", () => {
