@@ -14,7 +14,7 @@
  *   PEEK — FlatBuffers (zero-copy read from dormant graph)
  */
 
-import type { GraphPersistSnapshot } from "./graph.js";
+import type { GraphCheckpointRecord, GraphPersistSnapshot } from "./graph.js";
 
 // ---------------------------------------------------------------------------
 // Core codec interface
@@ -63,47 +63,24 @@ export interface LazyGraphCodec extends GraphCodec {
 // ---------------------------------------------------------------------------
 
 /**
- * A delta checkpoint: only the nodes that changed since last checkpoint.
+ * **Deprecated** (Unit 23 A, batch 9) — `DeltaCheckpoint` was a wire-efficient
+ * per-node-version delta format designed before `autoCheckpoint` landed. The
+ * active `GraphCheckpointRecord` type in `graph.ts` uses `GraphDiffResult`
+ * (structural, audit-friendly) which is what `replayWAL` and callers actually
+ * consume. No code produces `DeltaCheckpoint` today.
  *
- * Append-only: each delta is identified by `seq` (monotonic). A full
- * snapshot is taken every `compactEvery` deltas for WAL compaction.
- *
- * **Note (Unit 7):** edges are derived from node `_deps` post edge-registry
- * deletion — they're not stored independently and therefore not part of
- * delta records. Adds/removes in the `nodes` and `removed` fields implicitly
- * carry the corresponding edge changes.
+ * Kept as a type alias to `GraphCheckpointRecord & {mode: "diff-only"}` so
+ * legacy references still resolve — new code should use `GraphCheckpointRecord`
+ * directly. Likely to be deleted entirely when the wire-protocol work lands.
  */
-export interface DeltaCheckpoint {
-	/** Monotonic sequence number. */
-	seq: number;
-	/** Graph name. */
-	name: string;
-	/** Base snapshot seq this delta applies to (0 = initial full snapshot). */
-	baseSeq: number;
-	/** Only nodes with version > lastCheckpoint. Keyed by node name. */
-	nodes: Record<
-		string,
-		{
-			/** V0 version at time of checkpoint. */
-			version: number;
-			/** Serialized node value (codec-dependent). */
-			value: unknown;
-			/** Meta snapshot (only if materialized). */
-			meta?: Record<string, unknown>;
-		}
-	>;
-	/** Nodes removed since last checkpoint. */
-	removed: string[];
-	/** Timestamp (wall-clock ns) of this checkpoint. */
-	timestampNs: bigint;
-}
+export type DeltaCheckpoint = Extract<GraphCheckpointRecord, { mode: "diff-only" }>;
 
 /**
- * WAL entry: either a full snapshot or a delta.
+ * WAL entry. Unified with {@link GraphCheckpointRecord} — every record
+ * already carries `mode` / `seq` / `timestamp_ns` / `format_version`, so the
+ * WAL is just an ordered list of records. `replayWAL` walks this list.
  */
-export type WALEntry =
-	| { type: "full"; snapshot: GraphPersistSnapshot; seq: number }
-	| { type: "delta"; delta: DeltaCheckpoint };
+export type WALEntry = GraphCheckpointRecord;
 
 // ---------------------------------------------------------------------------
 // Eviction policy (dormant subgraph management)
@@ -245,14 +222,18 @@ export function negotiateCodec(
 // ---------------------------------------------------------------------------
 
 /**
- * Reconstruct a snapshot from a WAL (full snapshot + sequence of deltas).
+ * Reconstruct a snapshot from a WAL (sequence of {@link GraphCheckpointRecord}s).
  *
- * - Must start with a `"full"` entry.
+ * - Must start with a `"full"` (or `"diff"`) record carrying a baseline
+ *   snapshot.
  * - Subsequent `"full"` entries (compaction points) **replace** the result
- *   wholesale (Unit 23 D fix — prior `Object.assign` left stale keys from
- *   the earlier state visible).
- * - Subsequent `"delta"` entries roll forward. Validates that each delta's
- *   `baseSeq` matches the previous `seq` (Unit 23 H).
+ *   wholesale.
+ * - `"diff"` entries carry a baseline snapshot; used as-is (equivalent to
+ *   `"full"` for replay purposes — the diff is audit-side-channel data).
+ * - `"diff-only"` entries roll forward by applying the structural diff —
+ *   nodes added/removed/changed are reflected into the accumulated snapshot.
+ *
+ * Validates monotonic `seq` progression across entries.
  */
 export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 	if (entries.length === 0) {
@@ -260,51 +241,46 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 	}
 
 	const first = entries[0]!;
-	if (first.type !== "full") {
-		throw new Error("WAL must start with a full snapshot");
+	if (first.mode === "diff-only") {
+		throw new Error("WAL must start with a full or diff record (with baseline snapshot)");
 	}
 
-	// Deep clone the base snapshot so we can mutate it.
 	let result: GraphPersistSnapshot = JSON.parse(JSON.stringify(first.snapshot));
 	let prevSeq: number = first.seq;
 
 	for (let i = 1; i < entries.length; i++) {
 		const entry = entries[i]!;
-		if (entry.type === "full") {
-			// Compaction point — replace the entire result (not Object.assign,
-			// which would leave stale keys from the pre-compact state).
+		if (entry.seq <= prevSeq) {
+			throw new Error(
+				`WAL chain broken at index ${i}: seq=${entry.seq} must exceed prev seq=${prevSeq}`,
+			);
+		}
+
+		if (entry.mode === "full" || entry.mode === "diff") {
+			// Replace baseline wholesale (Unit 23 D fix — Object.assign left
+			// stale keys from pre-compact state visible).
 			result = JSON.parse(JSON.stringify(entry.snapshot));
 			prevSeq = entry.seq;
 			continue;
 		}
 
-		const delta = entry.delta;
-		// Chain validation: each delta must apply to the immediately-preceding
-		// seq, else the WAL is corrupt or out-of-order.
-		if (delta.baseSeq !== prevSeq) {
-			throw new Error(
-				`WAL chain broken at index ${i}: delta.baseSeq=${delta.baseSeq} expected ${prevSeq}`,
-			);
+		// mode === "diff-only": apply structural diff to the accumulated snapshot.
+		const diff = entry.diff;
+		for (const path of diff.nodesRemoved) {
+			delete result.nodes[path];
 		}
-
-		// Apply node changes.
-		for (const [name, patch] of Object.entries(delta.nodes)) {
-			if (result.nodes[name]) {
-				result.nodes[name]!.value = patch.value;
-				if (patch.meta) {
-					result.nodes[name]!.meta = patch.meta;
-				}
-			}
+		for (const change of diff.nodesChanged) {
+			const existing = result.nodes[change.path];
+			if (existing == null) continue;
+			(existing as Record<string, unknown>)[change.field] = change.to;
 		}
+		// `nodesAdded` cannot be reconstructed from a diff alone (no value/meta
+		// payload in GraphDiffResult). If callers need full round-trip with
+		// diff-only entries, they must ship full snapshots at `compactEvery`.
 
-		// Apply removals.
-		for (const name of delta.removed) {
-			delete result.nodes[name];
-		}
-
-		// Edges are derived from node `_deps` at restore time (Unit 7) —
-		// no separate edge-patch pass needed.
-		prevSeq = delta.seq;
+		// Edges are derived from node `_deps` at restore time (Unit 7) — no
+		// separate edge-patch pass.
+		prevSeq = entry.seq;
 	}
 
 	return result;
