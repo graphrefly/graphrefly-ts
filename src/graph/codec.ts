@@ -247,7 +247,17 @@ export function encodeEnvelope(
 			`encodeEnvelope: codec.version ${cv} out of u16 range (expected integer 0–65535)`,
 		);
 	}
-	const out = new Uint8Array(1 + 1 + nameBytes.length + 2 + payload.length);
+	// Guard against RangeError-on-alloc for very large payloads — we need
+	// `Number.isSafeInteger` math on `1 + 1 + nameBytes.length + 2 +
+	// payload.length` and the resulting Uint8Array must fit within the
+	// platform limit (2³² − 1 bytes on 64-bit JS engines).
+	const totalLen = 1 + 1 + nameBytes.length + 2 + payload.length;
+	if (totalLen > 0xffffffff) {
+		throw new Error(
+			`encodeEnvelope: total envelope size ${totalLen} exceeds 2^32-1 bytes (payload ${payload.length} bytes)`,
+		);
+	}
+	const out = new Uint8Array(totalLen);
 	let i = 0;
 	out[i++] = ENVELOPE_VERSION;
 	out[i++] = nameBytes.length;
@@ -283,6 +293,9 @@ export function decodeEnvelope(
 		);
 	}
 	const nameLen = bytes[i++]!;
+	if (nameLen === 0) {
+		throw new Error("decodeEnvelope: name_len must be >= 1");
+	}
 	if (i + nameLen + 2 > bytes.length) {
 		throw new Error(
 			`decodeEnvelope: envelope truncated (need ${i + nameLen + 2} bytes, have ${bytes.length})`,
@@ -325,7 +338,8 @@ export function registerBuiltinCodecs(config: GraphReFlyConfig): void {
  * - Subsequent `"full"` entries (compaction points) **replace** the result
  *   wholesale.
  * - `"diff"` entries roll forward by applying the structural diff —
- *   nodes added/removed/changed are reflected into the accumulated snapshot.
+ *   added nodes (via `nodesAddedFull`), removed nodes, and changed fields
+ *   are reflected into the accumulated snapshot.
  *
  * Validates monotonic `seq` progression across entries.
  */
@@ -360,17 +374,25 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 
 		// mode === "diff": apply structural diff to the accumulated snapshot.
 		const diff = entry.diff;
+		// Apply removes first so a path reused across a remove+add in a single
+		// diff lands on the `nodesAddedFull` slice rather than being wiped.
 		for (const path of diff.nodesRemoved) {
 			delete result.nodes[path];
+		}
+		// Reinstate added nodes from the full-slice payload carried by
+		// GraphWALDiff. Deep-clone so later mutations don't alias the WAL
+		// entry's source slice.
+		const addedFull = diff.nodesAddedFull;
+		if (addedFull != null) {
+			for (const [path, slice] of Object.entries(addedFull)) {
+				result.nodes[path] = JSON.parse(JSON.stringify(slice));
+			}
 		}
 		for (const change of diff.nodesChanged) {
 			const existing = result.nodes[change.path];
 			if (existing == null) continue;
 			(existing as Record<string, unknown>)[change.field] = change.to;
 		}
-		// `nodesAdded` cannot be reconstructed from a diff alone (no value/meta
-		// payload in GraphDiffResult). If callers need full round-trip with
-		// diff entries, they must ship full snapshots at `compactEvery`.
 
 		// Edges are derived from node `_deps` at restore time (Unit 7) — no
 		// separate edge-patch pass.

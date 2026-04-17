@@ -3,6 +3,7 @@ import { GraphReFlyConfig, registerBuiltins } from "../../core/config.js";
 import { state } from "../../core/sugar.js";
 import {
 	decodeEnvelope,
+	diffForWAL,
 	ENVELOPE_VERSION,
 	encodeEnvelope,
 	Graph,
@@ -291,7 +292,7 @@ describe("replayWAL (unaffected by codec changes)", () => {
 			},
 			{
 				mode: "diff",
-				diff: Graph.diff(first, second),
+				diff: diffForWAL(first, second),
 				seq: 2,
 				timestamp_ns: 200,
 				format_version: 1,
@@ -299,5 +300,29 @@ describe("replayWAL (unaffected by codec changes)", () => {
 		];
 		const replayed = replayWAL(entries);
 		expect(replayed.nodes.a).toBeDefined();
+	});
+
+	it("reconstructs nodes added between full anchors via nodesAddedFull", () => {
+		// Regression guard for D3: diffs must carry full slices for added
+		// nodes, otherwise replay between compacts loses topology.
+		const g = new Graph("g");
+		g.add("a", state(1));
+		const first = g.snapshot();
+		g.add("b", state(42));
+		const second = g.snapshot();
+		const entries: WALEntry[] = [
+			{ mode: "full", snapshot: first, seq: 1, timestamp_ns: 100, format_version: 1 },
+			{
+				mode: "diff",
+				diff: diffForWAL(first, second),
+				seq: 2,
+				timestamp_ns: 200,
+				format_version: 1,
+			},
+		];
+		const replayed = replayWAL(entries);
+		expect(replayed.nodes.a).toBeDefined();
+		expect(replayed.nodes.b).toBeDefined();
+		expect(replayed.nodes.b.value).toBe(42);
 	});
 });

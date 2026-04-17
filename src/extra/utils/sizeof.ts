@@ -168,7 +168,9 @@ function _shallowSize(
 		const view = obj as { byteLength: number; buffer: ArrayBufferLike };
 		if (seenBuffers.has(view.buffer)) return 48; // view header only
 		seenBuffers.add(view.buffer);
-		return view.byteLength;
+		// Charge the full underlying buffer — a small view over a large
+		// buffer still retains all of it. Add the view header on top.
+		return view.buffer.byteLength + 48;
 	}
 
 	// Plain object — sum key overhead + recurse into values.

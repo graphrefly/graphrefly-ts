@@ -68,7 +68,7 @@ describe("Graph (Phase 1.1)", () => {
 		expect(g.edges().length).toBe(1);
 		g.remove("a");
 		// `a` is gone from _nodes, so the derived edge a→b no longer surfaces
-		// (scanEdges only emits edges where both endpoints resolve to a
+		// (`edges()` only emits edges where both endpoints resolve to a
 		// registered node in the tree).
 		expect(g.edges()).toEqual([]);
 	});
