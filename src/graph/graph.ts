@@ -28,6 +28,7 @@ import {
 } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
@@ -234,10 +235,6 @@ function sortJsonValue(value: unknown): unknown {
 	return out;
 }
 
-function stableJsonStringify(value: unknown): string {
-	return `${JSON.stringify(sortJsonValue(value))}\n`;
-}
-
 function escapeMermaidLabel(value: string): string {
 	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
@@ -318,30 +315,6 @@ function globToRegex(pattern: string): RegExp {
 	}
 	re += "$";
 	return new RegExp(re);
-}
-
-/** Fixed-capacity ring buffer — O(1) push and eviction. */
-class RingBuffer<T> {
-	private buf: (T | undefined)[];
-	private head = 0;
-	private _size = 0;
-	constructor(private capacity: number) {
-		this.buf = new Array(capacity);
-	}
-	get size(): number {
-		return this._size;
-	}
-	push(item: T): void {
-		const idx = (this.head + this._size) % this.capacity;
-		this.buf[idx] = item;
-		if (this._size < this.capacity) this._size++;
-		else this.head = (this.head + 1) % this.capacity;
-	}
-	toArray(): T[] {
-		const result: T[] = [];
-		for (let i = 0; i < this._size; i++) result.push(this.buf[(this.head + i) % this.capacity]!);
-		return result;
-	}
 }
 
 const OBSERVE_ANSI_THEME: Required<ObserveTheme> = {
@@ -535,26 +508,43 @@ export type GraphDumpOptions = {
 	logger?: (text: string) => void;
 };
 
-function assertLocalName(name: string, graphName: string, label: string): void {
-	if (name === "") {
-		throw new Error(`Graph "${graphName}": ${label} name must be non-empty`);
+/**
+ * Reject characters that would collide with internal serialization or path
+ * grammar. Control chars (0x00–0x1F, 0x7F) break `edgeKey` (tab-delimited),
+ * `describe()` key stability, and diagram rendering. Keep the test tight so
+ * the error message points at the first offending code point.
+ */
+function assertNoControlChars(name: string, graphName: string, label: string): void {
+	for (let i = 0; i < name.length; i++) {
+		const c = name.charCodeAt(i);
+		if (c < 0x20 || c === 0x7f) {
+			throw new Error(
+				`Graph "${graphName}": ${label} "${name}" must not contain control character (U+${c.toString(16).padStart(4, "0").toUpperCase()} at index ${i})`,
+			);
+		}
 	}
 }
 
-function assertNoPathSep(name: string, graphName: string, label: string): void {
+/**
+ * Validate a registerable local name (`add`, `mount`, `remove` inputs):
+ * non-empty, no `::` separator, not the reserved `__meta__` segment, and no
+ * control characters.
+ */
+function assertRegisterableName(name: string, graphName: string, label: string): void {
+	if (name === "") {
+		throw new Error(`Graph "${graphName}": ${label} name must be non-empty`);
+	}
 	if (name.includes(PATH_SEP)) {
 		throw new Error(
 			`Graph "${graphName}": ${label} "${name}" must not contain '${PATH_SEP}' (path separator)`,
 		);
 	}
-}
-
-function assertNotReservedMetaSegment(name: string, graphName: string, label: string): void {
 	if (name === GRAPH_META_SEGMENT) {
 		throw new Error(
 			`Graph "${graphName}": ${label} name "${GRAPH_META_SEGMENT}" is reserved for meta companion paths`,
 		);
 	}
+	assertNoControlChars(name, graphName, label);
 }
 
 /** `connect` / `disconnect` endpoints must be registered graph nodes, not meta paths (graphrefly-py parity). */
@@ -791,9 +781,7 @@ export class Graph {
 	 * @param node - Node instance to own.
 	 */
 	add(name: string, node: Node): void {
-		assertLocalName(name, this.name, "add");
-		assertNoPathSep(name, this.name, "add");
-		assertNotReservedMetaSegment(name, this.name, "node");
+		assertRegisterableName(name, this.name, "add");
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": name "${name}" is already a mount point`);
 		}
@@ -862,8 +850,7 @@ export class Graph {
 	 * @param name - Local mount or node name.
 	 */
 	remove(name: string): void {
-		assertLocalName(name, this.name, "remove");
-		assertNoPathSep(name, this.name, "remove");
+		assertRegisterableName(name, this.name, "remove");
 
 		// Case 1: unmount a subgraph
 		const child = this._mounts.get(name);
@@ -1055,9 +1042,7 @@ export class Graph {
 	 * @param child - Nested `Graph` instance.
 	 */
 	mount(name: string, child: Graph): void {
-		assertLocalName(name, this.name, "mount");
-		assertNoPathSep(name, this.name, "mount");
-		assertNotReservedMetaSegment(name, this.name, "mount");
+		assertRegisterableName(name, this.name, "mount");
 		if (this._nodes.has(name)) {
 			throw new Error(
 				`Graph "${this.name}": cannot mount at "${name}" — node with that name exists`,
@@ -1830,6 +1815,7 @@ export class Graph {
 	 * Subscribes to raw messages and accumulates events with timeline info.
 	 */
 	private _createFallbackObserveResult(path: string, options: ObserveOptions): ObserveResult {
+		const graph = this;
 		const timeline = options.timeline !== false;
 		const acc = {
 			values: {} as Record<string, unknown>,
@@ -1891,8 +1877,33 @@ export class Graph {
 			dispose() {
 				unsub();
 			},
-			expand() {
-				throw new Error("expand() requires inspector mode (graph.config.inspectorEnabled = true)");
+			expand(
+				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
+			): ObserveResult {
+				// Graceful degrade: if inspector is now enabled, upgrade to full
+				// structured observer. Otherwise re-create the fallback with merged
+				// options — caller always gets a working result, never a throw.
+				unsub();
+				const merged: ObserveOptions = { ...options };
+				if (typeof extra === "string") {
+					merged.detail = extra;
+				} else {
+					Object.assign(merged, extra);
+				}
+				const resolved = resolveObserveDetail(merged);
+				if (graph.config.inspectorEnabled) {
+					const resolvedTarget = graph.resolve(path);
+					const expanded = graph._createObserveResult(path, resolvedTarget, resolved);
+					if (merged.format != null) {
+						graph._attachFormatLogger(expanded, merged);
+					}
+					return expanded;
+				}
+				const fallback = graph._createFallbackObserveResult(path, resolved);
+				if (merged.format != null) {
+					graph._attachFormatLogger(fallback, merged);
+				}
+				return fallback;
 			},
 		};
 	}
@@ -1901,6 +1912,7 @@ export class Graph {
 	 * Fallback ObserveResult for graph-wide when inspector is disabled but `format` is requested.
 	 */
 	private _createFallbackObserveResultForAll(options: ObserveOptions): ObserveResult {
+		const graph = this;
 		const timeline = options.timeline !== false;
 		const actor = options.actor;
 		const acc = {
@@ -1970,8 +1982,29 @@ export class Graph {
 			dispose() {
 				for (const u of unsubs) u();
 			},
-			expand() {
-				throw new Error("expand() requires inspector mode (graph.config.inspectorEnabled = true)");
+			expand(
+				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
+			): ObserveResult {
+				for (const u of unsubs) u();
+				const merged: ObserveOptions = { ...options };
+				if (typeof extra === "string") {
+					merged.detail = extra;
+				} else {
+					Object.assign(merged, extra);
+				}
+				const resolved = resolveObserveDetail(merged);
+				if (graph.config.inspectorEnabled) {
+					const expanded = graph._createObserveResultForAll(resolved);
+					if (merged.format != null) {
+						graph._attachFormatLogger(expanded, merged);
+					}
+					return expanded;
+				}
+				const fallback = graph._createFallbackObserveResultForAll(resolved);
+				if (merged.format != null) {
+					graph._attachFormatLogger(fallback, merged);
+				}
+				return fallback;
 			},
 		};
 	}
@@ -2305,35 +2338,12 @@ export class Graph {
 	}
 
 	/**
-	 * Plain snapshot object with **recursively sorted object keys** for deterministic serialization (§3.8).
-	 *
-	 * @remarks
-	 * For a single UTF-8 string with a trailing newline (convenient for git), use {@link Graph.toJSONString}.
-	 *
-	 * @returns Same object as {@link Graph.snapshot}.
-	 */
-	toObject(): GraphPersistSnapshot {
-		return this.snapshot();
-	}
-
-	/**
-	 * ECMAScript `JSON.stringify` hook — delegates to {@link Graph.toObject}.
-	 *
-	 * @remarks
-	 * Must return a plain object (not a string) so `JSON.stringify(graph)` works correctly
+	 * ECMAScript `JSON.stringify` hook — returns the same object as
+	 * {@link Graph.snapshot}. Makes `JSON.stringify(graph)` "just work"
 	 * without double-encoding.
 	 */
 	toJSON(): GraphPersistSnapshot {
-		return this.toObject();
-	}
-
-	/**
-	 * Deterministic JSON **text**: `JSON.stringify` of {@link Graph.toObject} plus a trailing newline (§3.8).
-	 *
-	 * @returns Stable string suitable for diffs.
-	 */
-	toJSONString(): string {
-		return stableJsonStringify(this.snapshot());
+		return this.snapshot();
 	}
 
 	/**
