@@ -58,6 +58,12 @@ export interface GraphOptions {
 	config?: GraphReFlyConfig;
 	versioning?: VersioningLevel;
 	factories?: Record<string, GraphNodeFactory>;
+	/**
+	 * Capacity of the reasoning-trace ring buffer. Default: `1000`. Set lower
+	 * to reduce memory; higher for audit-heavy workloads. Set at construction
+	 * time — not mutable afterward (ring buffers can't resize cleanly).
+	 */
+	traceCapacity?: number;
 	[key: string]: unknown;
 }
 
@@ -172,13 +178,42 @@ export type AutoCheckpointAdapter = {
 	save(key: string, data: unknown): void;
 };
 
-export type GraphCheckpointRecord =
-	| { mode: "full"; snapshot: GraphPersistSnapshot; seq: number }
-	| { mode: "diff"; diff: GraphDiffResult; snapshot: GraphPersistSnapshot; seq: number };
+/**
+ * Checkpoint record shape passed to {@link AutoCheckpointAdapter.save}.
+ *
+ * `mode: "full"` → full snapshot only; the cheapest to replay but the
+ * largest write.
+ * `mode: "diff"` → diff against the previous snapshot plus a full snapshot
+ *   (default; delta applied for wire efficiency, full preserved for recovery
+ *   without WAL replay).
+ * `mode: "diff-only"` → diff against the previous snapshot without the full
+ *   baseline. Minimal payload; caller is responsible for WAL replay to
+ *   reconstruct state. Enable via {@link GraphAutoCheckpointOptions.mode}.
+ *
+ * Every record includes `seq` (monotonic counter), `timestamp_ns`
+ * (wall-clock at flush time for audit), and `format_version` (envelope
+ * version for cross-version WAL replay).
+ */
+export type GraphCheckpointRecord = {
+	seq: number;
+	timestamp_ns: number;
+	format_version: number;
+} & (
+	| { mode: "full"; snapshot: GraphPersistSnapshot }
+	| { mode: "diff"; diff: GraphDiffResult; snapshot: GraphPersistSnapshot }
+	| { mode: "diff-only"; diff: GraphDiffResult }
+);
 
 export type GraphAutoCheckpointOptions = {
 	debounceMs?: number;
 	compactEvery?: number;
+	/**
+	 * Record mode. Default `"diff"` — every Nth record is `"full"` (compact),
+	 * others are diff + full baseline. Set `"full"` to always ship full
+	 * snapshots. Set `"diff-only"` to ship just the diff (every Nth is still
+	 * `"full"` — needed so WAL replay has a baseline to roll forward from).
+	 */
+	mode?: "full" | "diff" | "diff-only";
 	filter?: (name: string, described: DescribeNodeOutput) => boolean;
 	onError?: (error: unknown) => void;
 };
@@ -869,6 +904,7 @@ export class Graph {
 		this.name = name;
 		this.opts = Object.freeze({ ...(opts ?? {}) });
 		this.config = opts?.config ?? defaultConfig;
+		this._traceRing = new RingBuffer<TraceEntry>(opts?.traceCapacity ?? 1000);
 		if (opts?.versioning != null) {
 			// No nodes yet, but keep the API consistent — apply at construction
 			// so opts.versioning is honored as a startup default via this helper.
@@ -2334,10 +2370,11 @@ export class Graph {
 	): GraphAutoCheckpointHandle {
 		const debounceMs = Math.max(0, options.debounceMs ?? 500);
 		const compactEvery = Math.max(1, options.compactEvery ?? 10);
+		const mode = options.mode ?? "diff";
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let seq = 0;
 		let pending = false;
-		let lastDescribe: GraphDescribeOutput | undefined;
+		let lastSnapshot: GraphPersistSnapshot | undefined;
 		let lastVersionFingerprint = "";
 
 		/**
@@ -2361,40 +2398,51 @@ export class Graph {
 			if (!pending) return;
 			pending = false;
 			try {
-				const { expand: _expand, ...raw } = this.describe({ detail: "full" });
-				// Strip non-restorable fields for persistence idempotency
-				const cleanNodes: Record<string, DescribeNodeOutput> = {};
-				for (const [p, n] of Object.entries(raw.nodes)) {
-					const { lastMutation: _lm, guard: _g, ...node } = n!;
-					cleanNodes[p] = node;
-				}
-				const described = { ...raw, nodes: cleanNodes };
-				// V0 shortcut: if the graph-level version fingerprint is
-				// unchanged from the last save AND we already have a
-				// lastDescribe (i.e. we've saved at least once before),
-				// skip the save. Non-versioned graphs produce an empty
-				// fingerprint, so the guard is a no-op for them.
-				const fingerprint = computeVersionFingerprint(cleanNodes);
-				if (lastDescribe != null && fingerprint !== "" && fingerprint === lastVersionFingerprint) {
+				// Delegate snapshot-stripping to `this.snapshot()` (Unit 19 B) —
+				// one source of truth for the non-restorable-field strip.
+				const snapshot = this.snapshot();
+				// V0 shortcut: identical version fingerprint AND we've saved at
+				// least once → skip this cycle. Non-versioned graphs produce an
+				// empty fingerprint so the shortcut is a no-op for them.
+				const fingerprint = computeVersionFingerprint(snapshot.nodes);
+				if (lastSnapshot != null && fingerprint !== "" && fingerprint === lastVersionFingerprint) {
 					return;
 				}
 				lastVersionFingerprint = fingerprint;
-				const snapshot = { ...described, version: SNAPSHOT_VERSION };
 				seq += 1;
-				const shouldCompact = lastDescribe == null || seq % compactEvery === 0;
+				const timestamp_ns = monotonicNs();
+				const isFirst = lastSnapshot == null;
+				const shouldCompact = isFirst || seq % compactEvery === 0 || mode === "full";
+
+				let record: GraphCheckpointRecord;
 				if (shouldCompact) {
-					adapter.save(this.name, { mode: "full", snapshot, seq } satisfies GraphCheckpointRecord);
-				} else {
-					const previous = lastDescribe;
-					if (previous == null) return;
-					adapter.save(this.name, {
-						mode: "diff",
-						diff: Graph.diff(previous, described),
+					record = {
+						mode: "full",
 						snapshot,
 						seq,
-					} satisfies GraphCheckpointRecord);
+						timestamp_ns,
+						format_version: SNAPSHOT_VERSION,
+					};
+				} else if (mode === "diff-only") {
+					record = {
+						mode: "diff-only",
+						diff: Graph.diff(lastSnapshot!, snapshot),
+						seq,
+						timestamp_ns,
+						format_version: SNAPSHOT_VERSION,
+					};
+				} else {
+					record = {
+						mode: "diff",
+						diff: Graph.diff(lastSnapshot!, snapshot),
+						snapshot,
+						seq,
+						timestamp_ns,
+						format_version: SNAPSHOT_VERSION,
+					};
 				}
-				lastDescribe = described;
+				adapter.save(this.name, record);
+				lastSnapshot = snapshot;
 			} catch (error) {
 				options.onError?.(error);
 			}
@@ -2444,7 +2492,7 @@ export class Graph {
 	// `core/config.ts`). Default: `true` outside `NODE_ENV === "production"`.
 
 	private _annotations = new Map<string, string>();
-	private _traceRing = new RingBuffer<TraceEntry>(1000);
+	private readonly _traceRing: RingBuffer<TraceEntry>;
 
 	/**
 	 * Unified reasoning trace: write annotations or read the ring buffer.
@@ -2457,16 +2505,26 @@ export class Graph {
 	 * Read: `graph.trace()` — returns a chronological log of all annotations.
 	 * Returns `[]` when `config.inspectorEnabled` is `false`.
 	 */
-	trace(path: string, reason: string): void;
+	trace(path: string, reason: string, opts?: { actor?: Actor }): void;
 	trace(): readonly TraceEntry[];
-	trace(path?: string, reason?: string): undefined | readonly TraceEntry[] {
+	trace(
+		path?: string,
+		reason?: string,
+		opts?: { actor?: Actor },
+	): undefined | readonly TraceEntry[] {
 		if (path != null && reason != null) {
 			if (!this.config.inspectorEnabled) return;
 			// Silent-drop unknown paths — matches `observe` resilience. Callers
 			// with robust path-hygiene needs can pre-check via `tryResolve`.
 			if (this.tryResolve(path) == null) return;
 			this._annotations.set(path, reason);
-			this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
+			const entry: TraceEntry = {
+				path,
+				reason,
+				timestamp_ns: monotonicNs(),
+				...(opts?.actor != null ? { actor: opts.actor } : {}),
+			};
+			this._traceRing.push(entry);
 			return;
 		}
 		if (!this.config.inspectorEnabled) return [];
@@ -2589,6 +2647,12 @@ export type TraceEntry = {
 	path: string;
 	reason: string;
 	timestamp_ns: number;
+	/**
+	 * Actor that produced the annotation (optional). Enables multi-agent
+	 * attribution: distinguish "LLM set this rootCause" from "human approved
+	 * this intervention" in the trace log.
+	 */
+	actor?: Actor;
 };
 
 /** Result of {@link Graph.diff}. */
