@@ -11,8 +11,43 @@
  * @module
  */
 
+import { DATA, DIRTY } from "../core/messages.js";
+import type { Node } from "../core/node.js";
+
 // Re-export general-purpose utilities from extra (canonical home).
 export { keepalive, reactiveCounter } from "../extra/sources.js";
+
+// ---------------------------------------------------------------------------
+// tryIncrementBounded
+// ---------------------------------------------------------------------------
+
+/**
+ * Bounded increment for a self-owned counter state node.
+ *
+ * Reads `counter.cache`, bumps by 1 if under `cap`, writes back. Returns
+ * `false` when the cap is reached. Documented P3 exception: the counter is
+ * not a declared dep of the caller — it's a private budget read+written from
+ * a single call site. This helper keeps the `.cache` access in one named
+ * place.
+ *
+ * **Safety today:**
+ *   1. Single-threaded JS runner never invokes the caller concurrently.
+ *   2. `counter.down` writes the cache synchronously before returning, so
+ *      synchronous re-entry through a downstream publish reads the
+ *      freshly-incremented value — no double-count.
+ *
+ * **Future risk:** under a free-threaded runner (PY no-GIL or hypothetical
+ * concurrent TS runner), two concurrent firings could still race. Revisit
+ * when that surfaces.
+ *
+ * @internal
+ */
+export function tryIncrementBounded(counter: Node<number>, cap: number): boolean {
+	const cur = (counter.cache as number | undefined) ?? 0;
+	if (cur >= cap) return false;
+	counter.down([[DIRTY], [DATA, cur + 1]]);
+	return true;
+}
 
 // ---------------------------------------------------------------------------
 // domainMeta

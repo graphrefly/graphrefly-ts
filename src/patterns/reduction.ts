@@ -33,7 +33,7 @@ import { Graph, type GraphOptions } from "../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
 
-import { domainMeta, keepalive } from "./_internal.js";
+import { domainMeta, keepalive, tryIncrementBounded } from "./_internal.js";
 
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("reduction", kind, meta);
@@ -421,13 +421,12 @@ export function feedback(
 				for (const msg of msgs) {
 					const t = msg[0];
 					if (t === DATA) {
-						const currentCount = counter.cache as number;
-						if (currentCount >= maxIter) return;
 						const condValue = msg[1];
 						if (condValue == null) return;
 						batch(() => {
-							counter.down([[DATA, currentCount + 1]]);
-							reentryNode.down([[DATA, condValue]]);
+							if (tryIncrementBounded(counter, maxIter)) {
+								reentryNode.down([[DATA, condValue]]);
+							}
 						});
 					} else if (t === COMPLETE || t === ERROR) {
 						const terminal: Message = t === ERROR && msg.length > 1 ? [ERROR, msg[1]] : [t];

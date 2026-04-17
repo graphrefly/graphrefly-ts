@@ -326,6 +326,11 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 	const fetchCount = state(0, { name: `${rest.name ?? "http"}/fetchCount` });
 	const lastUpdated = state(0, { name: `${rest.name ?? "http"}/lastUpdated` });
 	const fetched = state(false, { name: `${rest.name ?? "http"}/fetched` });
+	// Closure-owned counter: `fetchCount` is a write-only observable of this
+	// local count. Avoids the `fetchCount.cache + 1` read-modify-write pattern
+	// (P3 audit #6) — the node stays in sync because every write flows through
+	// here.
+	let fetchCountLocal = 0;
 
 	const body =
 		bodyOpt !== undefined
@@ -367,7 +372,8 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 				const data = await transform(res);
 				if (!active) return;
 				batch(() => {
-					fetchCount.down([[DATA, (fetchCount.cache ?? 0) + 1]]);
+					fetchCountLocal += 1;
+					fetchCount.down([[DATA, fetchCountLocal]]);
 					lastUpdated.down([[DATA, wallClockNs()]]);
 					fetched.down([[DATA, true]]);
 					a.emit(data as T);

@@ -387,7 +387,18 @@ export function streamingPromptNode<T = string>(
 export function streamExtractor<T>(
 	streamTopic: TopicGraph<StreamChunk>,
 	extractFn: (accumulated: string) => T | null,
-	opts?: { name?: string },
+	opts?: {
+		name?: string;
+		/**
+		 * Optional structural equals for the extractor output. When two
+		 * consecutive chunks produce structurally-equal outputs, the framework
+		 * emits `RESOLVED` instead of `DATA`, saving downstream work. Default:
+		 * reference equality (`Object.is`). The library cannot know your
+		 * output shape — supply this when your `extractFn` returns structured
+		 * objects or arrays.
+		 */
+		equals?: (a: T | null, b: T | null) => boolean;
+	},
 ): Node<T | null> {
 	return derived<T | null>(
 		[streamTopic.latest as Node<StreamChunk | null>],
@@ -399,6 +410,8 @@ export function streamExtractor<T>(
 			name: opts?.name ?? "extractor",
 			describeKind: "derived",
 			initial: null,
+			meta: aiMeta("stream_extractor"),
+			...(opts?.equals ? { equals: opts.equals } : {}),
 		},
 	);
 }
@@ -418,6 +431,34 @@ export type KeywordFlag = {
 export type KeywordFlagExtractorOptions = {
 	patterns: readonly { pattern: RegExp; label: string }[];
 	name?: string;
+	/**
+	 * Maximum length of any pattern's literal text. Used as an overlap window
+	 * when cursoring through the accumulated stream so matches that span
+	 * chunk boundaries aren't missed. Default: 128.
+	 */
+	maxPatternLength?: number;
+};
+
+const keywordFlagsEqual = (
+	a: readonly KeywordFlag[] | null,
+	b: readonly KeywordFlag[] | null,
+): boolean => {
+	if (a === b) return true;
+	if (a == null || b == null) return a === b;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i];
+		const y = b[i];
+		if (
+			x.label !== y.label ||
+			x.pattern !== y.pattern ||
+			x.match !== y.match ||
+			x.position !== y.position
+		) {
+			return false;
+		}
+	}
+	return true;
 };
 
 /**
@@ -426,30 +467,58 @@ export type KeywordFlagExtractorOptions = {
  *
  * Use cases: design invariant violations (`setTimeout`, `EventEmitter`), PII
  * detection (SSN, email, phone), toxicity keywords, off-track reasoning.
+ *
+ * **Streaming optimization.** Maintains a cursor across chunks in `ctx.store`
+ * so each chunk scans only the delta region `accumulated.slice(scannedTo -
+ * maxPatternLength)` — not the full string. Default structural equals
+ * suppresses DATA emission when no new flags were found this chunk.
  */
 export function keywordFlagExtractor(
 	streamTopic: TopicGraph<StreamChunk>,
 	opts: KeywordFlagExtractorOptions,
 ): Node<readonly KeywordFlag[]> {
+	const maxPatternLength = opts.maxPatternLength ?? 128;
 	return derived<readonly KeywordFlag[]>(
 		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk]) => {
+		([chunk], ctx) => {
 			if (chunk == null) return [];
 			const accumulated = (chunk as StreamChunk).accumulated;
-			const flags: KeywordFlag[] = [];
+
+			if (!("flags" in ctx.store)) {
+				ctx.store.flags = [] as KeywordFlag[];
+				ctx.store.scannedTo = 0;
+			}
+			const flags = ctx.store.flags as KeywordFlag[];
+			const scannedTo = ctx.store.scannedTo as number;
+
+			// Scan the delta plus an overlap window so matches that span
+			// chunk boundaries (e.g. "EventE" + "mitter") are still found.
+			const startOffset = Math.max(0, scannedTo - maxPatternLength);
+			const region = accumulated.slice(startOffset);
+			let added = false;
 			for (const { pattern, label } of opts.patterns) {
-				// Reset lastIndex for stateful (global) regexes
 				const re = new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`);
-				for (const m of accumulated.matchAll(re)) {
-					flags.push({ label, pattern, match: m[0], position: m.index! });
+				for (const m of region.matchAll(re)) {
+					const pos = startOffset + m.index!;
+					// Skip matches that end inside the already-scanned prefix.
+					if (pos + m[0].length <= scannedTo) continue;
+					flags.push({ label, pattern, match: m[0], position: pos });
+					added = true;
 				}
 			}
-			return flags;
+			ctx.store.scannedTo = accumulated.length;
+
+			// Always return a fresh copy so downstream never holds a live
+			// reference to ctx.store.flags. Structural equals suppresses the
+			// emission when no new flag was added this chunk.
+			return added ? [...flags] : flags.slice();
 		},
 		{
 			name: opts.name ?? "keyword-flag-extractor",
 			describeKind: "derived",
 			initial: [],
+			meta: aiMeta("keyword_flag_extractor"),
+			equals: keywordFlagsEqual,
 		},
 	);
 }
@@ -466,12 +535,35 @@ export type ExtractedToolCall = {
 	readonly startIndex: number;
 };
 
+const toolCallsEqual = (
+	a: readonly ExtractedToolCall[] | null,
+	b: readonly ExtractedToolCall[] | null,
+): boolean => {
+	if (a === b) return true;
+	if (a == null || b == null) return a === b;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i];
+		const y = b[i];
+		if (x.startIndex !== y.startIndex || x.name !== y.name || x.raw !== y.raw) {
+			return false;
+		}
+	}
+	return true;
+};
+
 /**
  * Mounts a tool-call extractor on a streaming topic. Scans accumulated text
  * for complete JSON objects containing `"name"` and `"arguments"` keys (the
  * standard tool_call shape). Partial JSON is ignored until the closing brace.
  *
  * Feeds into the tool interception chain for reactive tool gating mid-stream.
+ *
+ * **Streaming optimization.** Maintains a cursor (`scanFrom`) in `ctx.store`
+ * so each chunk resumes brace-scanning from the position after the last
+ * complete parse (or the last incomplete open brace). Already-parsed objects
+ * are not re-parsed. Default structural equals suppresses DATA emission when
+ * no new tool call completed this chunk.
  */
 export function toolCallExtractor(
 	streamTopic: TopicGraph<StreamChunk>,
@@ -479,16 +571,24 @@ export function toolCallExtractor(
 ): Node<readonly ExtractedToolCall[]> {
 	return derived<readonly ExtractedToolCall[]>(
 		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk]) => {
+		([chunk], ctx) => {
 			if (chunk == null) return [];
 			const accumulated = (chunk as StreamChunk).accumulated;
-			const calls: ExtractedToolCall[] = [];
-			// Scan for top-level JSON objects containing "name" and "arguments".
-			// String-aware: skips braces inside double-quoted strings.
-			let i = 0;
+
+			if (!("calls" in ctx.store)) {
+				ctx.store.calls = [] as ExtractedToolCall[];
+				ctx.store.scanFrom = 0;
+			}
+			const calls = ctx.store.calls as ExtractedToolCall[];
+			let i = ctx.store.scanFrom as number;
+			let added = false;
+
 			while (i < accumulated.length) {
 				const start = accumulated.indexOf("{", i);
-				if (start === -1) break;
+				if (start === -1) {
+					ctx.store.scanFrom = accumulated.length;
+					break;
+				}
 				let depth = 0;
 				let end = -1;
 				let inString = false;
@@ -512,7 +612,12 @@ export function toolCallExtractor(
 						}
 					}
 				}
-				if (end === -1) break; // incomplete JSON — wait for more chunks
+				if (end === -1) {
+					// Incomplete — resume brace-scanning from this open brace
+					// next chunk. Do NOT advance past it.
+					ctx.store.scanFrom = start;
+					break;
+				}
 				const raw = accumulated.slice(start, end + 1);
 				try {
 					const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -527,18 +632,25 @@ export function toolCallExtractor(
 							raw,
 							startIndex: start,
 						});
+						added = true;
 					}
 				} catch {
 					// Not valid JSON — skip
 				}
 				i = end + 1;
+				ctx.store.scanFrom = i;
 			}
-			return calls;
+
+			// Always return a fresh copy so downstream never holds a live
+			// reference to ctx.store.calls.
+			return added ? [...calls] : calls.slice();
 		},
 		{
 			name: opts?.name ?? "tool-call-extractor",
 			describeKind: "derived",
 			initial: [],
+			meta: aiMeta("tool_call_extractor"),
+			equals: toolCallsEqual,
 		},
 	);
 }
@@ -560,10 +672,22 @@ export type CostMeterOptions = {
 	name?: string;
 };
 
+const costMeterEqual = (a: CostMeterReading, b: CostMeterReading): boolean => {
+	if (a === b) return true;
+	return (
+		a.chunkCount === b.chunkCount &&
+		a.charCount === b.charCount &&
+		a.estimatedTokens === b.estimatedTokens
+	);
+};
+
 /**
  * Mounts a cost meter on a streaming topic. Counts chunks, characters, and
  * estimates token count. Compose with `budgetGate` for hard-stop when LLM
  * output exceeds budget mid-generation.
+ *
+ * Default structural equals suppresses DATA emission when two consecutive
+ * readings are identical (same chunk count + char count + token estimate).
  */
 export function costMeterExtractor(
 	streamTopic: TopicGraph<StreamChunk>,
@@ -586,6 +710,8 @@ export function costMeterExtractor(
 			name: opts?.name ?? "cost-meter",
 			describeKind: "derived",
 			initial: { chunkCount: 0, charCount: 0, estimatedTokens: 0 },
+			meta: aiMeta("cost_meter_extractor"),
+			equals: costMeterEqual,
 		},
 	);
 }
