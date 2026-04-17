@@ -137,6 +137,9 @@ export class GraphReFlyConfig {
 	private _onSubscribe: OnSubscribeHandler;
 	private _defaultVersioning: VersioningLevel | undefined;
 	private _defaultHashFn: HashFn | undefined;
+	private _inspectorEnabled: boolean = !(
+		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
+	);
 	private _frozen = false;
 
 	/**
@@ -232,6 +235,21 @@ export class GraphReFlyConfig {
 		this._defaultHashFn = v;
 	}
 
+	/**
+	 * When `false`, structured observation options (`causal`, `timeline`)
+	 * and `Graph.trace()` writes are no-ops. Raw `Graph.observe()` always
+	 * works. Default: `true` outside production (`NODE_ENV !== "production"`).
+	 *
+	 * Settable at any time — inspector gating is an operational concern, not
+	 * a protocol invariant, so it does NOT require freeze before node creation.
+	 */
+	get inspectorEnabled(): boolean {
+		return this._inspectorEnabled;
+	}
+	set inspectorEnabled(v: boolean) {
+		this._inspectorEnabled = v;
+	}
+
 	// --- Registry (writes require unfrozen; reads are free lookups) ---
 
 	/**
@@ -244,6 +262,7 @@ export class GraphReFlyConfig {
 		this._messageTypes.set(t, {
 			tier: input.tier,
 			wireCrossing: input.wireCrossing ?? input.tier >= 3,
+			metaPassthrough: input.metaPassthrough ?? true,
 		});
 		return this;
 	}
@@ -266,6 +285,16 @@ export class GraphReFlyConfig {
 	/** Convenience inverse of {@link isWireCrossing}. */
 	isLocalOnly(t: symbol): boolean {
 		return !this.isWireCrossing(t);
+	}
+
+	/**
+	 * Whether `t` is forwarded to meta companions by `Graph.signal`. Defaults
+	 * to `true` for unknowns (forward-compat — new types pass through meta by
+	 * default; opt-in filter via `registerMessageType({metaPassthrough: false})`).
+	 */
+	isMetaPassthrough(t: symbol): boolean {
+		const reg = this._messageTypes.get(t);
+		return reg != null ? reg.metaPassthrough : true;
 	}
 
 	/** Whether `t` is a registered (built-in or custom) type. */
@@ -300,12 +329,31 @@ export class GraphReFlyConfig {
 export function registerBuiltins(cfg: GraphReFlyConfig): void {
 	cfg.registerMessageType(START, { tier: 0, wireCrossing: false });
 	cfg.registerMessageType(DIRTY, { tier: 1, wireCrossing: false });
-	cfg.registerMessageType(INVALIDATE, { tier: 1, wireCrossing: false });
+	// INVALIDATE, COMPLETE, ERROR, TEARDOWN do NOT pass through to meta
+	// companions via Graph.signal (spec §2.3). Meta still sees them via the
+	// primary's own down-cascade.
+	cfg.registerMessageType(INVALIDATE, {
+		tier: 1,
+		wireCrossing: false,
+		metaPassthrough: false,
+	});
 	cfg.registerMessageType(PAUSE, { tier: 2, wireCrossing: false });
 	cfg.registerMessageType(RESUME, { tier: 2, wireCrossing: false });
 	cfg.registerMessageType(DATA, { tier: 3, wireCrossing: true });
 	cfg.registerMessageType(RESOLVED, { tier: 3, wireCrossing: true });
-	cfg.registerMessageType(COMPLETE, { tier: 4, wireCrossing: true });
-	cfg.registerMessageType(ERROR, { tier: 4, wireCrossing: true });
-	cfg.registerMessageType(TEARDOWN, { tier: 5, wireCrossing: true });
+	cfg.registerMessageType(COMPLETE, {
+		tier: 4,
+		wireCrossing: true,
+		metaPassthrough: false,
+	});
+	cfg.registerMessageType(ERROR, {
+		tier: 4,
+		wireCrossing: true,
+		metaPassthrough: false,
+	});
+	cfg.registerMessageType(TEARDOWN, {
+		tier: 5,
+		wireCrossing: true,
+		metaPassthrough: false,
+	});
 }

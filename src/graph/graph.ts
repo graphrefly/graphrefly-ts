@@ -1,13 +1,13 @@
 import type { Actor } from "../core/actor.js";
 import { isBatching } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
+import type { GraphReFlyConfig } from "../core/config.js";
 import { GuardDenied } from "../core/guard.js";
 import {
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
-	INVALIDATE,
 	type Messages,
 	RESOLVED,
 	TEARDOWN,
@@ -39,8 +39,25 @@ const PATH_SEP = "::";
  */
 export const GRAPH_META_SEGMENT = "__meta__";
 
-/** Options for {@link Graph} (reserved for future hooks). */
-export type GraphOptions = Record<string, unknown>;
+/**
+ * Options for {@link Graph}. Named fields documented below; the open index
+ * signature is preserved so callers can stash extension data on the graph
+ * without losing type discipline on the reserved names.
+ *
+ * - `config` — bind this graph to a specific {@link GraphReFlyConfig} for
+ *   tier/metaPassthrough/inspector lookups. Defaults to the singleton
+ *   `defaultConfig` exported from `core/node.ts`.
+ * - `versioning` — convenience for `graph.setVersioning(level)` at
+ *   construction time. Monotonic bulk-apply; see {@link Graph.setVersioning}.
+ * - `factories` — reserved for future per-graph factory registration;
+ *   currently factories flow through `Graph.fromSnapshot(data, {factories})`.
+ */
+export interface GraphOptions {
+	config?: GraphReFlyConfig;
+	versioning?: VersioningLevel;
+	factories?: Record<string, GraphNodeFactory>;
+	[key: string]: unknown;
+}
 
 /** Filter for {@link Graph.describe} — object-style partial match or predicate. */
 export type DescribeFilter =
@@ -573,17 +590,26 @@ function parseEdgeKey(key: string): [string, string] {
 }
 
 /**
- * Lifecycle-destructive message types that meta companion nodes ignore
- * during graph-wide signal propagation (spec §2.3 Companion lifecycle).
- * TEARDOWN: parent already cascades explicitly.
- * INVALIDATE/COMPLETE/ERROR: meta stores outlive these lifecycle events.
- * To target a meta node directly, call `meta.down(...)` on it.
+ * Strip messages that are not marked `metaPassthrough` on the given config
+ * (spec §2.3 Companion lifecycle). Built-ins: `INVALIDATE`, `COMPLETE`,
+ * `ERROR`, `TEARDOWN` are registered `metaPassthrough: false` in
+ * `registerBuiltins`. Custom types default to `true` (meta receives them).
+ *
+ * To target a meta node directly without the filter, call `meta.down(...)`.
+ *
+ * Returns empty array when nothing remains.
  */
-const META_FILTERED_TYPES = new Set([TEARDOWN, INVALIDATE, COMPLETE, ERROR]);
-
-/** Strip lifecycle-destructive messages; returns empty array when nothing remains. */
-function filterMetaMessages(messages: Messages): Messages {
-	const kept = messages.filter((m) => !META_FILTERED_TYPES.has(m[0]));
+function filterMetaMessages(messages: Messages, config: GraphReFlyConfig): Messages {
+	// Fast path: if every message is metaPassthrough, reuse the input array.
+	let anyFiltered = false;
+	for (const m of messages) {
+		if (!config.isMetaPassthrough(m[0])) {
+			anyFiltered = true;
+			break;
+		}
+	}
+	if (!anyFiltered) return messages;
+	const kept = messages.filter((m) => config.isMetaPassthrough(m[0]));
 	return kept as unknown as Messages;
 }
 
@@ -624,6 +650,8 @@ export class Graph {
 
 	readonly name: string;
 	readonly opts: Readonly<GraphOptions>;
+	/** Protocol config bound to this graph (defaults to `defaultConfig`). */
+	readonly config: GraphReFlyConfig;
 	/** @internal — exposed for {@link teardownMountedGraph} and cross-graph helpers. */
 	readonly _nodes = new Map<string, Node>();
 	private readonly _edges = new Set<string>();
@@ -631,8 +659,6 @@ export class Graph {
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
-	/** Graph-level default versioning level; forwarded to new nodes via {@link add}. */
-	private _defaultVersioningLevel: VersioningLevel | undefined;
 
 	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
 		if (!pattern) {
@@ -648,8 +674,9 @@ export class Graph {
 	}
 
 	/**
-	 * @param name - Non-empty graph id (must not contain `::`).
-	 * @param opts - Reserved for future hooks; currently unused.
+	 * @param name - Non-empty graph id (must not contain `::` and must not
+	 *   equal the reserved meta segment `__meta__`).
+	 * @param opts - See {@link GraphOptions}. Stored frozen on the instance.
 	 */
 	constructor(name: string, opts?: GraphOptions) {
 		if (name === "") {
@@ -658,8 +685,17 @@ export class Graph {
 		if (name.includes(PATH_SEP)) {
 			throw new Error(`Graph name must not contain '${PATH_SEP}' (got "${name}")`);
 		}
+		if (name === GRAPH_META_SEGMENT) {
+			throw new Error(`Graph name "${GRAPH_META_SEGMENT}" is reserved for meta companion paths`);
+		}
 		this.name = name;
-		this.opts = opts ?? {};
+		this.opts = Object.freeze({ ...(opts ?? {}) });
+		this.config = opts?.config ?? defaultConfig;
+		if (opts?.versioning != null) {
+			// No nodes yet, but keep the API consistent — apply at construction
+			// so opts.versioning is honored as a startup default via this helper.
+			this.setVersioning(opts.versioning);
+		}
 	}
 
 	private static _factoryForPath(path: string): GraphNodeFactory | undefined {
@@ -773,12 +809,6 @@ export class Graph {
 		}
 		this._nodes.set(name, node);
 		if (node instanceof NodeImpl) {
-			// Inherit graph-level default versioning if the node didn't
-			// explicitly opt in. `_applyVersioning` is monotonic, so a
-			// node that already has v1 and joins a v0 graph stays at v1.
-			if (this._defaultVersioningLevel != null) {
-				node._applyVersioning(this._defaultVersioningLevel);
-			}
 			// Auto-register edges from constructor deps (eliminates dual-bookkeeping).
 			// Forward: this node's deps → already-registered nodes.
 			if (node._deps.length > 0) {
@@ -802,24 +832,22 @@ export class Graph {
 	}
 
 	/**
-	 * Set a default versioning level for all nodes added to this graph (roadmap §6.0).
+	 * Bulk-apply a minimum versioning level to every currently-registered node
+	 * in this graph (roadmap §6.0). `_applyVersioning` is monotonic — nodes
+	 * already at a higher level are untouched. The method refuses to run
+	 * mid-wave; invoke at setup time before any external subscribers attach.
 	 *
-	 * Nodes already registered are retroactively upgraded. Nodes added later via
-	 * {@link add} will inherit this level unless they already have versioning.
+	 * **Not** a default-for-future-adds mechanism — that's what
+	 * `config.defaultVersioning` is for. Nodes added after this call do NOT
+	 * automatically inherit `level`; register new nodes with their own
+	 * `opts.versioning` or set `config.defaultVersioning` before construction.
 	 *
-	 * **Scope:** Does not propagate to mounted subgraphs. Call `setVersioning`
-	 * on each child graph separately if needed.
+	 * **Scope:** local only. Does not propagate to mounted subgraphs.
 	 *
-	 * @param level - `0` for V0, `1` for V1, or `undefined` to clear.
+	 * @param level - `0` for V0, `1` for V1, or `undefined` to no-op.
 	 */
 	setVersioning(level: VersioningLevel | undefined): void {
-		this._defaultVersioningLevel = level;
 		if (level == null) return;
-		// Retroactively bump already-registered nodes to the new minimum
-		// level. `_applyVersioning` is monotonic — nodes already at a
-		// higher level are untouched. The method refuses to run mid-wave,
-		// so callers should invoke `setVersioning` at graph setup time
-		// (before any external subscribers are connected).
 		for (const node of this._nodes.values()) {
 			if (node instanceof NodeImpl) {
 				node._applyVersioning(level);
@@ -1195,7 +1223,7 @@ export class Graph {
 		const downOpts: NodeTransportOptions = internal
 			? { internal: true }
 			: { actor: opts.actor, delivery: "signal" };
-		const metaMessages = filterMetaMessages(messages);
+		const metaMessages = filterMetaMessages(messages, this.config);
 		for (const localName of [...this._nodes.keys()].sort()) {
 			const n = this._nodes.get(localName)!;
 			if (vis.has(n)) continue;
@@ -1411,7 +1439,7 @@ export class Graph {
 	 * Overloads: `(path, options?)` for one node; `(options?)` for all nodes. Whole-graph mode
 	 * subscribes in **sorted path order** (code-point order). With structured options
 	 * (`structured`, `timeline`, `causal`, `derived`), returns an {@link ObserveResult}.
-	 * Inspector-gated extras (`causal` / `derived`) require {@link Graph.inspectorEnabled}.
+	 * Inspector-gated extras (`causal` / `derived`) require `graph.config.inspectorEnabled`.
 	 *
 	 * @param pathOrOpts - Qualified `path` string, or omit and pass only `options` for graph-wide observation.
 	 * @param options - Optional `actor`, `structured`, `causal`, `timeline` (inspector-gated).
@@ -1454,7 +1482,7 @@ export class Graph {
 				resolved.detail === "full" ||
 				resolved.format != null;
 			if (wantsStructured) {
-				const result = Graph.inspectorEnabled
+				const result = this.config.inspectorEnabled
 					? this._createObserveResult(path, target, resolved)
 					: this._createFallbackObserveResult(path, resolved);
 				if (resolved.format != null) {
@@ -1487,7 +1515,7 @@ export class Graph {
 			opts.detail === "full" ||
 			opts.format != null;
 		if (wantsStructured) {
-			const result = Graph.inspectorEnabled
+			const result = this.config.inspectorEnabled
 				? this._createObserveResultForAll(opts)
 				: this._createFallbackObserveResultForAll(opts);
 			if (opts.format != null) {
@@ -1864,7 +1892,7 @@ export class Graph {
 				unsub();
 			},
 			expand() {
-				throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
+				throw new Error("expand() requires inspector mode (graph.config.inspectorEnabled = true)");
 			},
 		};
 	}
@@ -1943,7 +1971,7 @@ export class Graph {
 				for (const u of unsubs) u();
 			},
 			expand() {
-				throw new Error("expand() requires inspector mode (Graph.inspectorEnabled = true)");
+				throw new Error("expand() requires inspector mode (graph.config.inspectorEnabled = true)");
 			},
 		};
 	}
@@ -2367,7 +2395,13 @@ export class Graph {
 		};
 
 		const off = this.observe().subscribe((path, messages) => {
-			const triggeredByTier = messages.some((m) => defaultConfig.messageTier(m[0]) >= 3);
+			// Trigger on tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR).
+			// Exclude tier 5 (TEARDOWN) — checkpointing a dying graph wastes
+			// work; graceful shutdown is the caller's responsibility.
+			const triggeredByTier = messages.some((m) => {
+				const tier = this.config.messageTier(m[0]);
+				return tier >= 3 && tier < 5;
+			});
 			if (!triggeredByTier) return;
 			if (options.filter) {
 				const nd = this.resolve(path);
@@ -2454,15 +2488,8 @@ export class Graph {
 	//  Inspector (roadmap 3.3) — reasoning trace, overhead gating
 	// ——————————————————————————————————————————————————————————————
 
-	/**
-	 * When `false`, structured observation options (`causal`, `timeline`),
-	 * and `trace()` writes are no-ops. Raw `observe()` always works.
-	 *
-	 * Default: `true` outside production (`process.env.NODE_ENV !== "production"`).
-	 */
-	static inspectorEnabled = !(
-		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
-	);
+	// Inspector gating lives on `this.config.inspectorEnabled` (see
+	// `core/config.ts`). Default: `true` outside `NODE_ENV === "production"`.
 
 	private _annotations = new Map<string, string>();
 	private _traceRing = new RingBuffer<TraceEntry>(1000);
@@ -2472,22 +2499,22 @@ export class Graph {
 	 *
 	 * Write: `graph.trace("path", "reason")` — attaches a reasoning annotation
 	 * to a node, capturing *why* an AI agent set a value.
-	 * No-op when {@link Graph.inspectorEnabled} is `false`.
+	 * No-op when `config.inspectorEnabled` is `false`.
 	 *
 	 * Read: `graph.trace()` — returns a chronological log of all annotations.
-	 * Returns `[]` when {@link Graph.inspectorEnabled} is `false`.
+	 * Returns `[]` when `config.inspectorEnabled` is `false`.
 	 */
 	trace(path: string, reason: string): void;
 	trace(): readonly TraceEntry[];
 	trace(path?: string, reason?: string): undefined | readonly TraceEntry[] {
 		if (path != null && reason != null) {
-			if (!Graph.inspectorEnabled) return;
+			if (!this.config.inspectorEnabled) return;
 			this.resolve(path); // validate path exists
 			this._annotations.set(path, reason);
 			this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
 			return;
 		}
-		if (!Graph.inspectorEnabled) return [];
+		if (!this.config.inspectorEnabled) return [];
 		return this._traceRing.toArray();
 	}
 

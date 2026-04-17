@@ -161,6 +161,11 @@
 - **Graph causal trace logs `latestData` scalars, not `batchData` (deferred, 2026-04-13):**
   `Graph.observe` causal trace hooks fire in `_execFn` with the `latestData` snapshot (one scalar per dep), not the full `batchData` batch. Multi-value waves (batch size > 1) are invisible to observability tooling — trace shows only the last known value per dep, not all the values that arrived this wave. Low priority pre-1.0 because multi-value batches are rare in practice (most sources emit one value per wave). Fix when adding structured tracing: pass `batchData` alongside `latestData` in the inspector hook payload so observability consumers can distinguish scalar and batch waves.
 
+- **Unify persistence surface under `graph.attachStorage(tiers)` (proposed, 2026-04-16):**
+  Three parallel persistence layers today — (1) `Graph.autoCheckpoint` + `AutoCheckpointAdapter` (graph.ts, save-only), (2) `extra/checkpoint.ts` `CheckpointAdapter` (load/save/clear) with `saveGraphCheckpoint`/`restoreGraphCheckpoint` one-shot helpers and concrete `Memory`/`Dict`/`File`/`Sqlite`/`IndexedDb` adapters, (3) `extra/cascading-cache.ts` `CacheTier<V>` + `tieredStorage` wrapping adapters via `adapterToTier`. Near-duplicate adapter interfaces; cadence is uniform across tiers (every tier saves on every write, or only tier 0 if not writeThrough).
+  **Fix shape:** single `StorageTier` interface with `load` / `save` / `clear?` + per-tier `debounceMs?` / `compactEvery?` / `filter?`. Replace `Graph.autoCheckpoint(adapter, opts)` with `graph.attachStorage(tiers, { autoRestore? })`. Hot tier = sync, warm tier = 1s debounce, cold tier = 60s diff-only — the same snapshot cascades through tiers at their own cadences without blocking the hot path. `Graph.fromStorage(name, tiers)` (or `attachStorage(..., {autoRestore: true})`) replaces `restoreGraphCheckpoint`. Deletes `AutoCheckpointAdapter`, `saveGraphCheckpoint`, `restoreGraphCheckpoint`, `tieredStorage` as separate concepts. `cascadingCache` (keyed lookup cache) stays distinct but shares the `StorageTier` type.
+  **Why deferred:** pattern-level redesign across graph/graph.ts + extra/checkpoint.ts + extra/cascading-cache.ts. Pairs with Unit 19 (autoCheckpoint) cleanups but warrants its own session. Pre-1.0 breaking change — no shim needed.
+
 ---
 
 ## Implementation anti-patterns

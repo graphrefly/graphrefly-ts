@@ -735,13 +735,13 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(g.trace().some((e) => e.reason === "first")).toBe(true);
 		expect(() => g.trace("missing", "x")).toThrow();
 
-		const prev = Graph.inspectorEnabled;
+		const prev = g.config.inspectorEnabled;
 		try {
-			Graph.inspectorEnabled = false;
+			g.config.inspectorEnabled = false;
 			expect(g.trace()).toEqual([]);
 			g.trace("a", "second");
 		} finally {
-			Graph.inspectorEnabled = prev;
+			g.config.inspectorEnabled = prev;
 		}
 		expect(g.trace().some((e) => e.reason === "second")).toBe(false);
 	});
