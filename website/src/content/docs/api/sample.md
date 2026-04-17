@@ -6,9 +6,8 @@ description: "Emits the most recent source value whenever `notifier` emits `DATA
 Emits the most recent source value whenever `notifier` emits `DATA` (`sample`).
 
 Source `COMPLETE` stops sampling (clears held value); notifier `COMPLETE` terminates the
-operator. `ERROR` from either dep terminates immediately. Unknown message types from
-either dep are forwarded per spec §1.3.6. At most one terminal message is emitted
-downstream (latch). Supports `resubscribable` — closure state resets on resubscribe.
+operator. `ERROR` from either dep terminates immediately. At most one terminal message is
+emitted downstream (latch). Supports `resubscribable` — `ctx.store` resets automatically.
 
 ## Signature
 

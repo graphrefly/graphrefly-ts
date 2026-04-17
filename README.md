@@ -200,10 +200,10 @@ import { node, map, Graph } from "@graphrefly/graphrefly";
 
 ## Resilience & checkpoints
 
-Built-in retry, circuit breakers, rate limiters, and persistent checkpoints:
+Built-in retry, circuit breakers, rate limiters, and persistent storage:
 
 ```ts
-import { retry, circuitBreaker, saveGraphCheckpoint, FileCheckpointAdapter } from "@graphrefly/graphrefly";
+import { retry, circuitBreaker, fileStorage, memoryStorage } from "@graphrefly/graphrefly";
 
 // Retry with exponential backoff
 const resilient = pipe(source, retry({ strategy: "exponential" }));
@@ -211,9 +211,11 @@ const resilient = pipe(source, retry({ strategy: "exponential" }));
 // Circuit breaker
 const breaker = circuitBreaker({ threshold: 5, resetTimeout: 30_000 });
 
-// Checkpoint to file system
-const adapter = new FileCheckpointAdapter("./checkpoints");
-await saveGraphCheckpoint(graph, adapter);
+// Multi-tier storage with auto-restore: hot in-memory + warm on disk.
+graph.attachStorage(
+  [memoryStorage(), fileStorage("./checkpoints")],
+  { autoRestore: true },
+);
 ```
 
 ## Project layout

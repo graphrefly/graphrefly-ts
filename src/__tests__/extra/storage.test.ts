@@ -3,21 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
 import {
-	checkpointNodeValue,
-	DictCheckpointAdapter,
-	FileCheckpointAdapter,
+	dictStorage,
+	fileStorage,
 	fromIDBRequest,
 	fromIDBTransaction,
-	MemoryCheckpointAdapter,
-	restoreGraphCheckpoint,
-	restoreGraphCheckpointIndexedDb,
-	SqliteCheckpointAdapter,
-	saveGraphCheckpoint,
-	saveGraphCheckpointIndexedDb,
-} from "../../extra/checkpoint.js";
-import { Graph } from "../../graph/graph.js";
+	indexedDbStorage,
+	memoryStorage,
+	sqliteStorage,
+} from "../../extra/storage.js";
 import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {
@@ -41,7 +35,7 @@ function installFakeIndexedDb() {
 	const original = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
 	let stored: unknown = null;
 	const stores = new Set<string>();
-	const closed: Array<{ close: () => void }> = [];
+	const opens: Array<{ close: () => void }> = [];
 	const api = {
 		open(_dbName: string, _version?: number): IDBOpenDBRequest {
 			const req = new FakeIDBRequest<IDBDatabase>();
@@ -84,6 +78,17 @@ function installFakeIndexedDb() {
 									});
 									return getReq as unknown as IDBRequest<unknown>;
 								},
+								delete() {
+									const delReq = new FakeIDBRequest<unknown>();
+									queueMicrotask(() => {
+										stored = null;
+										delReq.succeed(undefined);
+										queueMicrotask(() =>
+											tx.oncomplete?.call(tx as unknown as IDBTransaction, {} as Event),
+										);
+									});
+									return delReq as unknown as IDBRequest<unknown>;
+								},
 							} as unknown as IDBObjectStore;
 						},
 					};
@@ -93,7 +98,7 @@ function installFakeIndexedDb() {
 					/* noop */
 				},
 			} as unknown as IDBDatabase;
-			closed.push(db as unknown as { close: () => void });
+			opens.push(db as unknown as { close: () => void });
 			queueMicrotask(() => {
 				req.result = db;
 				req.onupgradeneeded?.call(req as unknown as IDBOpenDBRequest, {} as Event);
@@ -107,88 +112,86 @@ function installFakeIndexedDb() {
 		restore() {
 			(globalThis as { indexedDB?: IDBFactory }).indexedDB = original;
 		},
-		closed,
+		opens,
 	};
 }
 
-describe("extra checkpoint (roadmap §3.1)", () => {
-	it("MemoryCheckpointAdapter round-trips snapshot", () => {
-		const g = new Graph("g");
-		g.add("x", state(7));
-		const mem = new MemoryCheckpointAdapter();
-		saveGraphCheckpoint(g, mem);
-		const g2 = new Graph("g");
-		g2.add("x", state(0));
-		expect(restoreGraphCheckpoint(g2, mem)).toBe(true);
-		expect(g2.get("x")).toBe(7);
+describe("storage tier factories", () => {
+	it("memoryStorage round-trips", () => {
+		const tier = memoryStorage();
+		tier.save("k", { v: 42 });
+		expect(tier.load("k")).toEqual({ v: 42 });
+		tier.clear?.("k");
+		expect(tier.load("k")).toBeNull();
 	});
 
-	it("DictCheckpointAdapter uses caller-provided key", () => {
-		const g = new Graph("app");
-		g.add("n", state("hi"));
-		const bag: Record<string, unknown> = {};
-		const ad = new DictCheckpointAdapter(bag);
-		saveGraphCheckpoint(g, ad);
-		expect(bag.app).toBeDefined();
-		const g2 = new Graph("app");
-		g2.add("n", state(""));
-		expect(restoreGraphCheckpoint(g2, ad)).toBe(true);
-		expect(g2.get("n")).toBe("hi");
+	it("memoryStorage isolates via JSON clone", () => {
+		const tier = memoryStorage();
+		const obj = { v: 1 };
+		tier.save("k", obj);
+		obj.v = 2;
+		expect((tier.load("k") as { v: number }).v).toBe(1);
 	});
 
-	it("FileCheckpointAdapter writes atomically", () => {
-		const dir = join(tmpdir(), `grf-ckpt-${Date.now()}`);
+	it("dictStorage uses caller-provided store", () => {
+		const store: Record<string, unknown> = {};
+		const tier = dictStorage(store);
+		tier.save("app", { hello: "world" });
+		expect(store.app).toEqual({ hello: "world" });
+		expect(tier.load("app")).toEqual({ hello: "world" });
+		tier.clear?.("app");
+		expect(store.app).toBeUndefined();
+	});
+
+	it("fileStorage writes atomically", () => {
+		const dir = join(tmpdir(), `grf-storage-${Date.now()}`);
 		try {
-			const g = new Graph("g");
-			g.add("a", state(1));
-			const file = new FileCheckpointAdapter(dir);
-			saveGraphCheckpoint(g, file);
-			const g2 = new Graph("g");
-			g2.add("a", state(0));
-			expect(restoreGraphCheckpoint(g2, file)).toBe(true);
-			expect(g2.get("a")).toBe(1);
+			const tier = fileStorage(dir);
+			tier.save("app", { n: 1 });
+			expect(tier.load("app")).toEqual({ n: 1 });
+			tier.clear?.("app");
+			expect(tier.load("app")).toBeNull();
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("SqliteCheckpointAdapter round-trips", () => {
-		const path = join(tmpdir(), `grf-sqlite-${Date.now()}.db`);
-		const g = new Graph("g");
-		g.add("z", state(99));
-		const sql = new SqliteCheckpointAdapter(path);
-		saveGraphCheckpoint(g, sql);
-		const g2 = new Graph("g");
-		g2.add("z", state(0));
-		expect(restoreGraphCheckpoint(g2, sql)).toBe(true);
-		expect(g2.get("z")).toBe(99);
-		sql.close();
+	it("fileStorage sanitizes unsafe key chars", () => {
+		const dir = join(tmpdir(), `grf-storage-${Date.now()}-sanitize`);
 		try {
-			rmSync(path, { force: true });
-		} catch {
-			/* ignore */
+			const tier = fileStorage(dir);
+			tier.save("app/with:slashes", { ok: true });
+			expect(tier.load("app/with:slashes")).toEqual({ ok: true });
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("CheckpointAdapter clear removes data", () => {
-		const mem = new MemoryCheckpointAdapter();
-		mem.save("k", { v: 1 });
-		expect(mem.load("k")).toEqual({ v: 1 });
-		mem.clear("k");
-		expect(mem.load("k")).toBeNull();
+	it("sqliteStorage round-trips and closes", () => {
+		const path = join(tmpdir(), `grf-storage-${Date.now()}.db`);
+		try {
+			const tier = sqliteStorage(path);
+			tier.save("g", { x: 99 });
+			expect(tier.load("g")).toEqual({ x: 99 });
+			tier.close();
+			// double-close is idempotent
+			tier.close();
+		} finally {
+			try {
+				rmSync(path, { force: true });
+			} catch {
+				/* ignore */
+			}
+		}
 	});
 
-	it("restore returns false when empty", () => {
-		const g = new Graph("g");
-		g.add("x", state(1));
-		expect(restoreGraphCheckpoint(g, new MemoryCheckpointAdapter())).toBe(false);
+	it("load returns null on miss", () => {
+		expect(memoryStorage().load("nope")).toBeNull();
+		expect(dictStorage({}).load("nope")).toBeNull();
 	});
+});
 
-	it("checkpointNodeValue", () => {
-		const n = state(3);
-		expect(checkpointNodeValue(n)).toEqual({ version: 1, value: 3 });
-	});
-
+describe("IndexedDB helpers", () => {
 	it("fromIDBRequest emits DATA then COMPLETE", async () => {
 		const req = new FakeIDBRequest<number>();
 		const { batches, unsub } = collect(fromIDBRequest(req as unknown as IDBRequest<number>));
@@ -200,7 +203,7 @@ describe("extra checkpoint (roadmap §3.1)", () => {
 		unsub();
 	});
 
-	it("fromIDBTransaction emits ERROR on abort/error", async () => {
+	it("fromIDBTransaction emits ERROR on abort", async () => {
 		const tx = {
 			oncomplete: null as ((this: IDBTransaction, ev: Event) => unknown) | null,
 			onerror: null as ((this: IDBTransaction, ev: Event) => unknown) | null,
@@ -214,57 +217,36 @@ describe("extra checkpoint (roadmap §3.1)", () => {
 		unsub();
 	});
 
-	it("save/restore IndexedDB checkpoint via reactive nodes", async () => {
+	it("indexedDbStorage save/load round-trip", async () => {
 		const fake = installFakeIndexedDb();
 		try {
-			const g = new Graph("g");
-			g.add("x", state(7));
-			const save = collect(
-				saveGraphCheckpointIndexedDb(g, {
-					dbName: "test-db",
-					storeName: "snapshots",
-				}),
-			);
-			await tick(0);
-			await tick(0);
-			const saveFlat = save.batches.flat();
-			expect(saveFlat.some((m) => m[0] === ERROR)).toBe(false);
-			expect(saveFlat.some((m) => m[0] === DATA && Object.is(m[1], undefined))).toBe(true);
-			expect(saveFlat.some((m) => m[0] === COMPLETE)).toBe(true);
-			save.unsub();
-
-			const g2 = new Graph("g");
-			g2.add("x", state(0));
-			const restore = collect(
-				restoreGraphCheckpointIndexedDb(g2, {
-					dbName: "test-db",
-					storeName: "snapshots",
-				}),
-			);
-			await tick(0);
-			await tick(0);
-			expect(restore.batches.flat().some((m) => m[0] === ERROR)).toBe(false);
-			restore.unsub();
-			expect(fake.closed.length).toBeGreaterThanOrEqual(2);
+			const tier = indexedDbStorage({ dbName: "t", storeName: "cp" });
+			await tier.save("g", { v: 7 });
+			const loaded = await tier.load("g");
+			expect(loaded).toEqual({ v: 7 });
 		} finally {
 			fake.restore();
 		}
 	});
 
-	it("indexedDB helpers emit ERROR when indexedDB is unavailable", async () => {
+	it("indexedDbStorage clear removes record", async () => {
+		const fake = installFakeIndexedDb();
+		try {
+			const tier = indexedDbStorage({ dbName: "t", storeName: "cp" });
+			await tier.save("g", { v: 7 });
+			await tier.clear?.("g");
+			expect(await tier.load("g")).toBeNull();
+		} finally {
+			fake.restore();
+		}
+	});
+
+	it("indexedDbStorage rejects when indexedDB unavailable", async () => {
 		const original = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
 		(globalThis as { indexedDB?: IDBFactory }).indexedDB = undefined;
 		try {
-			const g = new Graph("g");
-			const { batches, unsub } = collect(
-				saveGraphCheckpointIndexedDb(g, {
-					dbName: "missing-db",
-					storeName: "missing-store",
-				}),
-			);
-			await tick(0);
-			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
-			unsub();
+			const tier = indexedDbStorage({ dbName: "missing", storeName: "missing" });
+			await expect(tier.load("g")).rejects.toThrow(/not available/);
 		} finally {
 			(globalThis as { indexedDB?: IDBFactory }).indexedDB = original;
 		}

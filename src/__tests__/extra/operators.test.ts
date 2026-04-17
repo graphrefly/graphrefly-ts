@@ -1693,7 +1693,7 @@ describe("withLatestFrom — secondary dep semantics", () => {
 
 	it("secondary COMPLETE — operator continues, primary still emits with frozen secondary value", () => {
 		// Secondary completes; autoComplete requires ALL deps terminal so
-		// withLatestFrom does not complete. ctx.latestData[1] retains the
+		// withLatestFrom does not complete. ctx.prevData[1] retains the
 		// last secondary value for future primary emissions.
 		const primary = node<number>();
 		const secondary = state(10);

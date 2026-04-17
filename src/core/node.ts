@@ -14,6 +14,7 @@
  * contract. See SESSION-foundation-redesign.md §§1–10 for design history.
  */
 
+import { registerBuiltinCodecs } from "../graph/codec.js";
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
 import { downWithBatch } from "./batch.js";
@@ -106,7 +107,7 @@ export type NodeSink = (messages: Messages) => void;
  *   one event per message received from a dep. Includes `depIndex` and
  *   the raw `Message` tuple.
  * - `"run"` — fires in `_execFn` just before the user fn runs. Includes
- *   the per-dep `latestData` snapshot that will be passed to fn.
+ *   the per-dep `prevData` snapshot that will be passed to fn.
  */
 export type NodeInspectorHookEvent =
 	| { kind: "dep_message"; depIndex: number; message: Message }
@@ -433,6 +434,7 @@ export const defaultConfig = new GraphReFlyConfig({
 	onSubscribe: defaultOnSubscribe,
 });
 registerBuiltins(defaultConfig);
+registerBuiltinCodecs(defaultConfig);
 
 /**
  * Apply configuration to {@link defaultConfig}. Must be called before the
@@ -1299,7 +1301,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	// --- Centralized dep-state transitions (A3 settlement counters) ---
 	//
-	// Every mutation to `DepRecord.dirty` / `DepRecord.latestData` /
+	// Every mutation to `DepRecord.dirty` / `DepRecord.prevData` /
 	// `DepRecord.terminal` must go through one of these helpers so the
 	// `_dirtyDepCount` and `_sentinelDepCount` counters stay in sync with
 	// the per-record flags. `_maybeRunFnOnSettlement` reads the counters
@@ -1339,7 +1341,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	/**
 	 * Called when a dep emits RESOLVED (wave settled, value unchanged).
-	 * Clears dirty; does NOT touch `latestData` / `terminal` / sentinel
+	 * Clears dirty; does NOT touch `prevData` / `terminal` / sentinel
 	 * count — sentinel only exits on first DATA or terminal, not RESOLVED.
 	 */
 	private _depSettledAsResolved(dep: DepRecord): void {

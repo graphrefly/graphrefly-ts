@@ -6,7 +6,6 @@ export * from "./adapters.js";
 export * from "./backoff.js";
 export * from "./backpressure.js";
 export * from "./cascading-cache.js";
-export * from "./checkpoint.js";
 export * from "./composite.js";
 export * from "./cron.js";
 export * from "./external-register.js";
@@ -46,5 +45,6 @@ export {
 	withStatus,
 } from "./resilience.js";
 export * from "./sources.js";
+export * from "./storage.js";
 export { ResettableTimer } from "./timer.js";
 export * from "./worker/index.js";

@@ -33,6 +33,10 @@ describe("fromHTTP", () => {
 		expect(bundle.status.cache).toBe("active");
 		expect(bundle.fetchCount.cache).toBe(1);
 		expect(bundle.lastUpdated.cache).toBeGreaterThan(0);
+		// `fetched` flips true on first successful fetch — the "fetch done"
+		// signal users reach for when `status` stays "active" under the
+		// cached default.
+		expect(bundle.fetched.cache).toBe(true);
 		expect(global.fetch).toHaveBeenCalledWith("https://example.com", expect.any(Object));
 
 		// Late subscriber receives cached DATA.
@@ -89,7 +93,28 @@ describe("fromHTTP", () => {
 
 		expect(bundle.error.cache).toBeInstanceOf(Error);
 		expect((bundle.error.cache as Error).message).toBe("Network failure");
+		// `fetched` stays false when the fetch errored — only success flips it.
+		expect(bundle.fetched.cache).toBe(false);
 		unsub();
+	});
+
+	it("fetched stays true across resubscribes (cumulative semantics)", async () => {
+		const mockData = { ok: 1 };
+		(global.fetch as any).mockResolvedValue({
+			ok: true,
+			json: async () => mockData,
+		});
+
+		const bundle = fromHTTP("https://example.com", { refetchOnSubscribe: true });
+		const unsub1 = bundle.node.subscribe(() => {});
+		await vi.waitUntil(() => bundle.fetched.cache === true);
+		expect(bundle.fetched.cache).toBe(true);
+		unsub1();
+
+		// Resubscribe — `fetched` must stay true across activations.
+		const unsub2 = bundle.node.subscribe(() => {});
+		expect(bundle.fetched.cache).toBe(true);
+		unsub2();
 	});
 });
 

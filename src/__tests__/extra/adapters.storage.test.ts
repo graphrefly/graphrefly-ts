@@ -511,25 +511,25 @@ describe("toTempo", () => {
 // ——————————————————————————————————————————————————————————————
 
 describe("checkpointToS3", () => {
-	it("creates an autoCheckpoint adapter that saves to S3", () => {
+	it("attaches a storage tier that saves to S3", () => {
 		const saved: unknown[] = [];
 		const s3: S3ClientLike = {
 			putObject: async (params) => {
 				saved.push(params);
 			},
 		};
-		let savedAdapter: { save(key: string, data: unknown): void } | undefined;
+		type Tier = { save(key: string, data: unknown): void | Promise<void> };
+		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "test-graph",
-			autoCheckpoint: (adapter: { save(key: string, data: unknown): void }, _opts?: unknown) => {
-				savedAdapter = adapter;
+			attachStorage: (tiers: readonly Tier[], _opts?: unknown) => {
+				capturedTier = tiers[0];
 				return { dispose: () => {} };
 			},
 		};
 		const handle = checkpointToS3(mockGraph, s3, "my-bucket", { prefix: "cp/" });
 		expect(handle.dispose).toBeTypeOf("function");
-		// Simulate the adapter being called
-		savedAdapter!.save("test-graph", { snapshot: true });
+		capturedTier!.save("test-graph", { snapshot: true });
 		expect(saved).toHaveLength(1);
 		const params = saved[0] as { Bucket: string; Key: string };
 		expect(params.Bucket).toBe("my-bucket");
@@ -542,7 +542,7 @@ describe("checkpointToS3", () => {
 // ——————————————————————————————————————————————————————————————
 
 describe("checkpointToRedis", () => {
-	it("creates an autoCheckpoint adapter that saves to Redis", () => {
+	it("attaches a storage tier that saves to Redis", () => {
 		const saved: { key: string; value: string }[] = [];
 		const redis = {
 			set: async (key: string, value: string) => {
@@ -550,17 +550,18 @@ describe("checkpointToRedis", () => {
 			},
 			get: async () => null,
 		};
-		let savedAdapter: { save(key: string, data: unknown): void } | undefined;
+		type Tier = { save(key: string, data: unknown): void | Promise<void> };
+		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "my-graph",
-			autoCheckpoint: (adapter: { save(key: string, data: unknown): void }, _opts?: unknown) => {
-				savedAdapter = adapter;
+			attachStorage: (tiers: readonly Tier[], _opts?: unknown) => {
+				capturedTier = tiers[0];
 				return { dispose: () => {} };
 			},
 		};
 		const handle = checkpointToRedis(mockGraph, redis);
 		expect(handle.dispose).toBeTypeOf("function");
-		savedAdapter!.save("my-graph", { snapshot: true });
+		capturedTier!.save("my-graph", { snapshot: true });
 		expect(saved).toHaveLength(1);
 		expect(saved[0].key).toBe("graphrefly:checkpoint:my-graph");
 		expect(JSON.parse(saved[0].value)).toEqual({ snapshot: true });

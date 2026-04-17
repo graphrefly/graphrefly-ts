@@ -1,17 +1,19 @@
 /**
- * N-tier cascading cache and tiered storage — roadmap §3.1c.
+ * N-tier cascading cache — roadmap §3.1c.
  *
  * Each cached entry is a `state()` node. On miss, tiers are tried in order
  * (tier 0 = hottest). Hits auto-promote to faster tiers. Supports eviction
  * policy and write-through.
  *
- * Adapted from callbag-recharge `cascadingCache` / `tieredStorage` to use
- * GraphReFly `state()` / `node` + message protocol.
+ * Consumes {@link StorageTier} directly (the same primitive used by
+ * {@link Graph.attachStorage}) — no separate `CacheTier` interface. Async
+ * tiers participate via `Promise<unknown>` returns from `load`; sync tiers
+ * stay zero-microtask (the cascade inspects the return type and branches).
  */
 import { DATA, TEARDOWN } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { state } from "../core/sugar.js";
-import type { CheckpointAdapter } from "./checkpoint.js";
+import type { StorageTier } from "./storage.js";
 
 // ——————————————————————————————————————————————————————————————
 //  Eviction policy
@@ -34,11 +36,10 @@ export interface CacheEvictionPolicy<K> {
  * @category extra
  */
 export function lru<K>(): CacheEvictionPolicy<K> {
-	// Doubly-linked list node
 	type LNode = { key: K; prev: LNode | null; next: LNode | null };
 	const map = new Map<K, LNode>();
-	let head: LNode | null = null; // most recent
-	let tail: LNode | null = null; // least recent
+	let head: LNode | null = null;
+	let tail: LNode | null = null;
 
 	function unlink(n: LNode): void {
 		if (n.prev) n.prev.next = n.next;
@@ -99,16 +100,6 @@ export function lru<K>(): CacheEvictionPolicy<K> {
 //  CascadingCache
 // ——————————————————————————————————————————————————————————————
 
-/** A single lookup/storage tier for {@link cascadingCache}. */
-export interface CacheTier<V> {
-	/** Read a value. `undefined` / `null` = miss. */
-	load(key: string): V | undefined | null;
-	/** Write a value. Optional — tiers without save are read-only. */
-	save?(key: string, value: V): void;
-	/** Delete a value. Optional. */
-	clear?(key: string): void;
-}
-
 export interface CascadingCacheOptions {
 	/** Max entries before eviction. 0 = unlimited (default). */
 	maxSize?: number;
@@ -133,16 +124,32 @@ export interface CascadingCache<V> {
 	readonly size: number;
 }
 
+function isPromiseLike(v: unknown): v is Promise<unknown> {
+	return v != null && typeof (v as Promise<unknown>).then === "function";
+}
+
+function fireAndForget(result: void | Promise<void>): void {
+	if (isPromiseLike(result)) {
+		(result as Promise<void>).catch(() => {
+			/* ignore — users opt into onError via attachStorage, not cache */
+		});
+	}
+}
+
 /**
  * Creates a singleton reactive cache with N-tier cascading lookup.
  *
  * Each cached entry is a `state()` node. On cache miss, tiers are tried in order
  * (index 0 = hottest/fastest). When a lower tier hits, the value is auto-promoted
- * to all faster tiers. Concurrent lookups for the same key share the same state
+ * to all faster tiers. Concurrent loads for the same key share the same state
  * instance — natural dedup.
  *
- * **Note:** `undefined` is the "not yet loaded" sentinel. Tiers that return
- * `undefined` or `null` are treated as misses.
+ * **Sync vs async tiers:** if `tier.load` returns a plain value, the cache node
+ * cache is populated synchronously (`c.load("k").cache` is readable immediately).
+ * If it returns a `Promise`, the node emits `DATA` when the promise resolves.
+ *
+ * **Miss sentinel:** `undefined` and `null` are both treated as misses — the
+ * cascade continues to the next tier.
  *
  * @param tiers - Ordered lookup tiers, hottest first.
  * @param opts - Optional configuration (maxSize, eviction policy, writeThrough).
@@ -150,20 +157,17 @@ export interface CascadingCache<V> {
  *
  * @example
  * ```ts
- * import { cascadingCache } from "@graphrefly/graphrefly-ts";
+ * import { cascadingCache, memoryStorage, fileStorage } from "@graphrefly/graphrefly-ts";
  *
- * const cache = cascadingCache([
- *   { load: k => memMap.get(k), save: (k, v) => memMap.set(k, v) },
- *   { load: k => JSON.parse(fs.readFileSync(`cache/${k}`, "utf8")) },
- * ]);
+ * const cache = cascadingCache<User>([memoryStorage(), fileStorage("./cache")]);
  * const user = cache.load("user:42"); // Node<User | undefined>
  * user.subscribe(msgs => console.log(msgs));
  * ```
  *
  * @category extra
  */
-export function cascadingCache<V>(
-	tiers: CacheTier<V>[],
+export function cascadingCache<V = unknown>(
+	tiers: readonly StorageTier[],
 	opts?: CascadingCacheOptions,
 ): CascadingCache<V> {
 	const entries = new Map<string, Node<V | undefined>>();
@@ -173,26 +177,51 @@ export function cascadingCache<V>(
 
 	function promote(key: string, value: V, hitTierIndex: number): void {
 		for (let i = 0; i < hitTierIndex; i++) {
-			const tier = tiers[i];
-			if (tier.save) tier.save(key, value);
+			try {
+				fireAndForget(tiers[i]!.save(key, value));
+			} catch {
+				/* ignore promote failures — cache still serves this request */
+			}
 		}
 	}
 
-	function cascade(key: string, nd: Node<V | undefined>): void {
-		for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
-			let result: V | undefined | null;
+	/**
+	 * Cascade from `startTier` onward. Sync tiers resolve inline; async tiers
+	 * yield control via Promise chaining and recurse on miss. Both paths end
+	 * by emitting `[[DATA, value]]` on `nd` and promoting to faster tiers.
+	 */
+	function cascade(key: string, nd: Node<V | undefined>, startTier = 0): void {
+		for (let tierIndex = startTier; tierIndex < tiers.length; tierIndex++) {
+			let result: unknown;
 			try {
-				result = tiers[tierIndex].load(key);
+				result = tiers[tierIndex]!.load(key);
 			} catch {
-				continue; // tier threw — skip to next
+				continue; // sync throw — next tier
 			}
-			if (result !== undefined) {
+			if (isPromiseLike(result)) {
+				const captured = tierIndex;
+				(result as Promise<unknown>).then(
+					(val) => {
+						if (val !== undefined && val !== null) {
+							nd.down([[DATA, val]]);
+							promote(key, val as V, captured);
+						} else {
+							cascade(key, nd, captured + 1);
+						}
+					},
+					() => {
+						cascade(key, nd, captured + 1);
+					},
+				);
+				return; // async branch continues the cascade
+			}
+			if (result !== undefined && result !== null) {
 				nd.down([[DATA, result]]);
 				promote(key, result as V, tierIndex);
 				return;
 			}
 		}
-		// All tiers missed — value stays undefined
+		// all tiers missed — value stays undefined
 	}
 
 	function evictIfNeeded(): void {
@@ -203,17 +232,21 @@ export function cascadingCache<V>(
 			for (const key of victims) {
 				const nd = entries.get(key);
 				if (nd) {
-					// Demote to deepest tier with save before evicting
 					const value = nd.cache;
-					if (nd.status !== "sentinel") {
-						for (let i = tiers.length - 1; i >= 0; i--) {
-							if (tiers[i].save) {
-								tiers[i].save!(key, value as V);
-								// Clear faster tiers
-								for (let j = 0; j < i; j++) {
-									if (tiers[j].clear) tiers[j].clear!(key);
-								}
-								break;
+					if (nd.status !== "sentinel" && tiers.length > 0) {
+						// Demote to last tier, clear faster tiers.
+						const lastIndex = tiers.length - 1;
+						try {
+							fireAndForget(tiers[lastIndex]!.save(key, value as V));
+						} catch {
+							/* ignore */
+						}
+						for (let j = 0; j < lastIndex; j++) {
+							try {
+								const clearFn = tiers[j]!.clear;
+								if (clearFn) fireAndForget(clearFn.call(tiers[j], key));
+							} catch {
+								/* ignore */
 							}
 						}
 					}
@@ -231,18 +264,12 @@ export function cascadingCache<V>(
 				policy?.touch(key);
 				return existing;
 			}
-
-			// Evict before inserting to avoid evicting the new entry
 			if (policy && maxSize > 0 && policy.size() >= maxSize) {
 				evictIfNeeded();
 			}
-
 			const nd = state<V | undefined>(undefined);
 			entries.set(key, nd);
-			if (policy) {
-				policy.insert(key);
-			}
-
+			policy?.insert(key);
 			cascade(key, nd);
 			return nd;
 		},
@@ -250,35 +277,36 @@ export function cascadingCache<V>(
 		save(key: string, value: V): void {
 			if (writeThrough) {
 				for (const tier of tiers) {
-					if (tier.save) tier.save(key, value);
+					try {
+						fireAndForget(tier.save(key, value));
+					} catch {
+						/* ignore */
+					}
 				}
-			} else if (tiers[0]?.save) {
-				tiers[0].save(key, value);
+			} else if (tiers[0]) {
+				try {
+					fireAndForget(tiers[0].save(key, value));
+				} catch {
+					/* ignore */
+				}
 			}
-
 			const existing = entries.get(key);
 			if (existing) {
-				existing.down([[DATA, value]]); // update in-place
+				existing.down([[DATA, value]]);
 				policy?.touch(key);
 			} else {
-				// Evict before inserting to avoid evicting the new entry
 				if (policy && maxSize > 0 && policy.size() >= maxSize) {
 					evictIfNeeded();
 				}
-
 				const nd = state<V | undefined>(value);
 				entries.set(key, nd);
-				if (policy) {
-					policy.insert(key);
-				}
+				policy?.insert(key);
 			}
 		},
 
 		invalidate(key: string): void {
 			const existing = entries.get(key);
-			if (existing) {
-				cascade(key, existing);
-			}
+			if (existing) cascade(key, existing);
 		},
 
 		delete(key: string): void {
@@ -287,7 +315,12 @@ export function cascadingCache<V>(
 			if (nd) nd.down([[TEARDOWN]]);
 			entries.delete(key);
 			for (const tier of tiers) {
-				if (tier.clear) tier.clear(key);
+				try {
+					const clearFn = tier.clear;
+					if (clearFn) fireAndForget(clearFn.call(tier, key));
+				} catch {
+					/* ignore */
+				}
 			}
 		},
 
@@ -298,85 +331,5 @@ export function cascadingCache<V>(
 		get size(): number {
 			return entries.size;
 		},
-	};
-}
-
-// ——————————————————————————————————————————————————————————————
-//  TieredStorage
-// ——————————————————————————————————————————————————————————————
-
-export interface TieredStorageOptions {
-	/** Max entries before eviction. 0 = no limit (default). */
-	maxSize?: number;
-	/** Eviction policy. Default: LRU. Only used when maxSize > 0. */
-	eviction?: CacheEvictionPolicy<string>;
-}
-
-export interface TieredStorage {
-	/** Get or create a singleton state node for this key. Cascades tiers on miss. */
-	load(key: string): Node<unknown | undefined>;
-	/** Write value to tier 0 (hottest) and update cache node in-place. */
-	save(key: string, value: unknown): void;
-	/** Re-cascade tiers into the existing cache node. */
-	invalidate(key: string): void;
-	/** Remove from all tiers and delete cache entry. */
-	delete(key: string): void;
-	/** Check if key exists in cache. */
-	has(key: string): boolean;
-	/** Number of cached entries. */
-	readonly size: number;
-	/** The underlying cascading cache (for advanced use). */
-	readonly cache: CascadingCache<unknown>;
-}
-
-/** Convert a CheckpointAdapter to a CacheTier. */
-function adapterToTier(adapter: CheckpointAdapter): CacheTier<unknown> {
-	return {
-		load: (key) => adapter.load(key),
-		save: (key, value) => adapter.save(key, value),
-		clear: (key) => adapter.clear(key),
-	};
-}
-
-/**
- * Creates a reactive tiered storage cache backed by {@link CheckpointAdapter}s.
- *
- * Each cached key is a `state()` node. On cache miss, adapters are tried in order
- * (index 0 = hottest). Hits auto-promote to faster adapters.
- *
- * @param adapters - Ordered `CheckpointAdapter`s, hottest first.
- * @param opts - Optional configuration (maxSize, eviction policy).
- * @returns A reactive tiered storage where each entry is a `Node<unknown | undefined>`.
- *
- * @example
- * ```ts
- * import { tieredStorage, MemoryCheckpointAdapter } from "@graphrefly/graphrefly-ts";
- *
- * const storage = tieredStorage([new MemoryCheckpointAdapter()], { maxSize: 100 });
- * const val = storage.load("key"); // Node<unknown | undefined>
- * ```
- *
- * @category extra
- */
-export function tieredStorage(
-	adapters: CheckpointAdapter[],
-	opts?: TieredStorageOptions,
-): TieredStorage {
-	const inner = cascadingCache<unknown>(adapters.map(adapterToTier), {
-		maxSize: opts?.maxSize,
-		eviction: opts?.eviction,
-		writeThrough: true,
-	});
-
-	return {
-		load: (key) => inner.load(key),
-		save: (key, value) => inner.save(key, value),
-		invalidate: (key) => inner.invalidate(key),
-		delete: (key) => inner.delete(key),
-		has: (key) => inner.has(key),
-		get size() {
-			return inner.size;
-		},
-		cache: inner,
 	};
 }

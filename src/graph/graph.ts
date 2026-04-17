@@ -10,7 +10,9 @@ import {
 	ERROR,
 	INVALIDATE,
 	type Messages,
+	PAUSE,
 	RESOLVED,
+	RESUME,
 	TEARDOWN,
 } from "../core/messages.js";
 import {
@@ -29,7 +31,10 @@ import {
 } from "../core/node.js";
 import { state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import type { StorageHandle, StorageTier } from "../extra/storage.js";
+import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
+import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
@@ -173,62 +178,47 @@ export type GraphFactoryContext = {
 
 export type GraphNodeFactory = (name: string, context: GraphFactoryContext) => Node;
 
-/** @deprecated Use `CheckpointAdapter` from `extra/checkpoint` instead. */
-export type AutoCheckpointAdapter = {
-	save(key: string, data: unknown): void;
-};
-
 /**
- * Checkpoint record shape passed to {@link AutoCheckpointAdapter.save}.
+ * Checkpoint record shape passed to `StorageTier.save`. Written by
+ * {@link Graph.attachStorage} per-tier according to each tier's
+ * `compactEvery` cadence.
  *
- * `mode: "full"` → full snapshot only; the cheapest to replay but the
- * largest write.
- * `mode: "diff"` → diff against the previous snapshot plus a full snapshot
- *   (default; delta applied for wire efficiency, full preserved for recovery
- *   without WAL replay).
- * `mode: "diff-only"` → diff against the previous snapshot without the full
- *   baseline. Minimal payload; caller is responsible for WAL replay to
- *   reconstruct state. Enable via {@link GraphAutoCheckpointOptions.mode}.
+ * `mode: "full"` → full snapshot. Baseline anchor emitted on the first save
+ *   and every `compactEvery`-th save thereafter. Sufficient to recover state
+ *   on its own without WAL replay.
+ * `mode: "diff"` → delta payload only, relative to this tier's most recent
+ *   `"full"` baseline. Between compacts. Wire-efficient; requires WAL replay
+ *   over the preceding `"full"` record to reconstruct state.
  *
- * Every record includes `seq` (monotonic counter), `timestamp_ns`
- * (wall-clock at flush time for audit), and `format_version` (envelope
- * version for cross-version WAL replay).
+ * Every record includes `seq` (per-tier monotonic counter), `timestamp_ns`
+ * (wall-clock at flush time), and `format_version` (envelope version for
+ * cross-version WAL replay).
  */
 export type GraphCheckpointRecord = {
 	seq: number;
 	timestamp_ns: number;
 	format_version: number;
-} & (
-	| { mode: "full"; snapshot: GraphPersistSnapshot }
-	| { mode: "diff"; diff: GraphDiffResult; snapshot: GraphPersistSnapshot }
-	| { mode: "diff-only"; diff: GraphDiffResult }
-);
+} & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphDiffResult });
 
-export type GraphAutoCheckpointOptions = {
-	debounceMs?: number;
-	compactEvery?: number;
+/** Options for {@link Graph.attachStorage}. */
+export type GraphAttachStorageOptions = {
 	/**
-	 * Record mode. Default `"diff"` — every Nth record is `"full"` (compact),
-	 * others are diff + full baseline. Set `"full"` to always ship full
-	 * snapshots. Set `"diff-only"` to ship just the diff (every Nth is still
-	 * `"full"` — needed so WAL replay has a baseline to roll forward from).
+	 * Before the first save, attempt to restore from the first tier whose
+	 * `load(graph.name)` hits. Runs asynchronously in the background for
+	 * async tiers; errors surface via `onError`. Default `false`.
 	 */
-	mode?: "full" | "diff" | "diff-only";
+	autoRestore?: boolean;
 	/**
-	 * Limit the subscription surface (Unit 19 F). By default autoCheckpoint
-	 * subscribes to every node in the graph tree; on large graphs this is
-	 * thousands of subscriptions just for tier-gating. Pass a path list (or
-	 * glob) to observe only those nodes — trigger-sensitivity drops to just
-	 * the scoped set, while the full snapshot is still emitted when any of
-	 * them fires.
+	 * Limit the subscription surface (scoped observe). By default
+	 * `attachStorage` observes every node in the graph tree; on large graphs
+	 * that's thousands of subscriptions just for tier-gating. Pass a path
+	 * list (or a single glob) to observe only those nodes.
 	 */
 	paths?: readonly string[] | string;
+	/** Pre-save path-level filter — skip records triggered by paths that fail this predicate. */
 	filter?: (name: string, described: DescribeNodeOutput) => boolean;
-	onError?: (error: unknown) => void;
-};
-
-export type GraphAutoCheckpointHandle = {
-	dispose(): void;
+	/** Surfaced on tier save errors and autoRestore failures. */
+	onError?: (error: unknown, tier: StorageTier) => void;
 };
 
 /** Direction options for diagram export helpers. */
@@ -248,6 +238,22 @@ export type GraphDiagramOptions = {
 
 /** Snapshot format version (§3.8). */
 const SNAPSHOT_VERSION = 1;
+
+/**
+ * Cheap graph-level V0 version fingerprint: concatenate `v.id@v.version` for
+ * every node that carries V0 info. Used by {@link Graph.attachStorage} to
+ * short-circuit per-tier flushes when nothing versioned has changed since
+ * the tier's last save. Non-versioned graphs produce an empty string so the
+ * shortcut is a no-op for them (every scheduled flush writes).
+ */
+function computeVersionFingerprint(nodes: Record<string, DescribeNodeOutput>): string {
+	const parts: string[] = [];
+	for (const path of Object.keys(nodes).sort()) {
+		const v = nodes[path]!.v;
+		if (v != null) parts.push(`${path}\t${v.id}\t${v.version}`);
+	}
+	return parts.join("\n");
+}
 
 /**
  * Validate the snapshot envelope: version, required keys, types. Aligned with
@@ -554,8 +560,12 @@ const OBSERVE_ANSI_THEME: Required<ObserveTheme> = {
 	data: "\u001b[32m",
 	dirty: "\u001b[33m",
 	resolved: "\u001b[36m",
+	invalidate: "\u001b[93m",
+	pause: "\u001b[90m",
+	resume: "\u001b[96m",
 	complete: "\u001b[34m",
 	error: "\u001b[31m",
+	teardown: "\u001b[91m",
 	derived: "\u001b[35m",
 	path: "\u001b[90m",
 	reset: "\u001b[0m",
@@ -565,8 +575,12 @@ const OBSERVE_NO_COLOR_THEME: Required<ObserveTheme> = {
 	data: "",
 	dirty: "",
 	resolved: "",
+	invalidate: "",
+	pause: "",
+	resume: "",
 	complete: "",
 	error: "",
+	teardown: "",
 	derived: "",
 	path: "",
 	reset: "",
@@ -590,8 +604,12 @@ function resolveObserveTheme(theme: ObserveOptions["theme"]): Required<ObserveTh
 		data: theme.data ?? "",
 		dirty: theme.dirty ?? "",
 		resolved: theme.resolved ?? "",
+		invalidate: theme.invalidate ?? "",
+		pause: theme.pause ?? "",
+		resume: theme.resume ?? "",
 		complete: theme.complete ?? "",
 		error: theme.error ?? "",
+		teardown: theme.teardown ?? "",
 		derived: theme.derived ?? "",
 		path: theme.path ?? "",
 		reset: theme.reset ?? "",
@@ -651,7 +669,8 @@ export type GraphObserveAll = {
 /**
  * Detail level for `observe()` progressive disclosure (Phase 3.3b).
  * - `"minimal"` — DATA events only, no timestamps, no causal info.
- * - `"standard"` — all message types (DATA, DIRTY, RESOLVED, COMPLETE, ERROR).
+ * - `"standard"` — all message types (DATA, DIRTY, RESOLVED, INVALIDATE,
+ *   PAUSE, RESUME, COMPLETE, ERROR, TEARDOWN).
  * - `"full"` — standard + timeline + causal + derived.
  */
 export type ObserveDetail = "minimal" | "standard" | "full";
@@ -705,6 +724,14 @@ export type ObserveResult<T = unknown> = AsyncIterable<ObserveEvent> & {
 	readonly dirtyCount: number;
 	/** Number of RESOLVED messages received. */
 	readonly resolvedCount: number;
+	/** Number of INVALIDATE messages received (tier 1 cache-clear). */
+	readonly invalidateCount: number;
+	/** Number of PAUSE messages received (tier 2 backpressure). */
+	readonly pauseCount: number;
+	/** Number of RESUME messages received (tier 2 backpressure). */
+	readonly resumeCount: number;
+	/** Number of TEARDOWN messages received (tier 5 permanent cleanup). */
+	readonly teardownCount: number;
 	/**
 	 * All events in order — ring-buffered when `options.maxEvents` is set,
 	 * unbounded otherwise. Always materialized as an `ObserveEvent[]`
@@ -753,7 +780,20 @@ export interface ObserveCausalContext {
 	 * not the pre-emission version that caused this node's recomputation.
 	 */
 	trigger_version?: { id: string; version: number };
+	/**
+	 * One scalar per dep: the last value that arrived in the current wave,
+	 * or the pre-wave cached value for deps that didn't fire. Convenient
+	 * for single-value-wave tooling (the common case).
+	 */
 	dep_values?: unknown[];
+	/**
+	 * Full per-dep batches for the wave that fired the fn — `dep_batches[i]`
+	 * is the array of values dep `i` delivered this wave (`undefined` for
+	 * deps that didn't fire). Use this to distinguish a single-value wave
+	 * from a multi-value wave; `dep_values` compresses each batch to its
+	 * last element and hides that difference.
+	 */
+	dep_batches?: ReadonlyArray<ReadonlyArray<unknown> | undefined>;
 }
 
 /** A single event in the structured observation log (discriminated on `type`). */
@@ -761,8 +801,12 @@ export type ObserveEvent =
 	| (ObserveEventBase & ObserveCausalContext & { type: "data"; data: unknown })
 	| (ObserveEventBase & { type: "dirty" })
 	| (ObserveEventBase & ObserveCausalContext & { type: "resolved" })
+	| (ObserveEventBase & { type: "invalidate" })
+	| (ObserveEventBase & { type: "pause"; lockId: unknown })
+	| (ObserveEventBase & { type: "resume"; lockId: unknown })
 	| (ObserveEventBase & { type: "complete" })
 	| (ObserveEventBase & { type: "error"; data: unknown })
+	| (ObserveEventBase & { type: "teardown" })
 	| (ObserveEventBase & ObserveCausalContext & { type: "derived"; dep_values: unknown[] });
 
 /** Built-in color preset names for observe `format` rendering. */
@@ -898,7 +942,7 @@ export class Graph {
 	 * reparenting rejection + O(depth) ancestor walks.
 	 */
 	_parent: Graph | undefined = undefined;
-	private readonly _autoCheckpointDisposers = new Set<() => void>();
+	private readonly _storageDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
 
 	/**
@@ -1874,6 +1918,10 @@ export class Graph {
 		const nodeErrored = new Set<string>();
 		let dirtyCount = 0;
 		let resolvedCount = 0;
+		let invalidateCount = 0;
+		let pauseCount = 0;
+		let resumeCount = 0;
+		let teardownCount = 0;
 		let anyCompletedCleanly = false;
 		let anyErrored = false;
 		let batchSeq = 0;
@@ -1881,6 +1929,7 @@ export class Graph {
 		// Per-target causal context (keyed by target index).
 		const lastTriggerDepIndex = new Map<Node, number>();
 		const lastRunDepValues = new Map<Node, readonly unknown[]>();
+		const lastRunDepBatches = new Map<Node, ReadonlyArray<ReadonlyArray<unknown> | undefined>>();
 
 		const recordEvent = (event: ObserveEvent): void => {
 			if (ring) ring.push(event);
@@ -1901,11 +1950,20 @@ export class Graph {
 						b != null && b.length > 0 ? b.at(-1) : ev.prevData[i],
 					);
 					lastRunDepValues.set(target, effective);
+					// Snapshot the full per-dep batches so multi-value waves stay
+					// visible to observers. `ev.batchData` references run-local
+					// arrays, so clone the outer array (inner arrays are
+					// effectively immutable from the observer's POV).
+					const batches: ReadonlyArray<ReadonlyArray<unknown> | undefined> = ev.batchData.map(
+						(b) => (b != null ? [...b] : undefined),
+					);
+					lastRunDepBatches.set(target, batches);
 					if (derived) {
 						recordEvent({
 							type: "derived",
 							path,
 							dep_values: effective,
+							dep_batches: batches,
 							...baseMeta(),
 						} as ObserveEvent);
 					}
@@ -1921,11 +1979,13 @@ export class Graph {
 				idx != null && idx >= 0 && target instanceof NodeImpl ? target._deps[idx] : undefined;
 			const triggerNode = triggerDep?.node;
 			const tv = triggerNode?.v;
+			const depBatches = lastRunDepBatches.get(target);
 			return {
 				trigger_dep_index: idx,
 				trigger_dep_name: triggerNode?.name,
 				...(tv != null ? { trigger_version: { id: tv.id, version: tv.version } } : {}),
 				dep_values: [...depValues],
+				...(depBatches != null ? { dep_batches: depBatches } : {}),
 			};
 		};
 
@@ -1952,6 +2012,10 @@ export class Graph {
 						} else if (minimal) {
 							if (t === DIRTY) dirtyCount++;
 							else if (t === RESOLVED) resolvedCount++;
+							else if (t === INVALIDATE) invalidateCount++;
+							else if (t === PAUSE) pauseCount++;
+							else if (t === RESUME) resumeCount++;
+							else if (t === TEARDOWN) teardownCount++;
 							else if (t === COMPLETE && !nodeErrored.has(path)) anyCompletedCleanly = true;
 							else if (t === ERROR) {
 								anyErrored = true;
@@ -1968,6 +2032,15 @@ export class Graph {
 								...base,
 								...buildCausal(target),
 							} as ObserveEvent);
+						} else if (t === INVALIDATE) {
+							invalidateCount++;
+							recordEvent({ type: "invalidate", path, ...base } as ObserveEvent);
+						} else if (t === PAUSE) {
+							pauseCount++;
+							recordEvent({ type: "pause", path, lockId: m[1], ...base } as ObserveEvent);
+						} else if (t === RESUME) {
+							resumeCount++;
+							recordEvent({ type: "resume", path, lockId: m[1], ...base } as ObserveEvent);
 						} else if (t === COMPLETE) {
 							if (!nodeErrored.has(path)) anyCompletedCleanly = true;
 							recordEvent({ type: "complete", path, ...base } as ObserveEvent);
@@ -1980,6 +2053,9 @@ export class Graph {
 								data: m[1],
 								...base,
 							} as ObserveEvent);
+						} else if (t === TEARDOWN) {
+							teardownCount++;
+							recordEvent({ type: "teardown", path, ...base } as ObserveEvent);
 						}
 					}
 				}),
@@ -2015,6 +2091,18 @@ export class Graph {
 			},
 			get resolvedCount() {
 				return resolvedCount;
+			},
+			get invalidateCount() {
+				return invalidateCount;
+			},
+			get pauseCount() {
+				return pauseCount;
+			},
+			get resumeCount() {
+				return resumeCount;
+			},
+			get teardownCount() {
+				return teardownCount;
 			},
 			get events() {
 				return ring ? ring.toArray() : [...events];
@@ -2099,8 +2187,13 @@ export class Graph {
 			}
 			const color = theme[event.type] ?? "";
 			const pathPart = event.path ? `${theme.path}${event.path}${theme.reset} ` : "";
-			const hasData = event.type === "data" || event.type === "error";
-			const dataPart = hasData ? ` ${describeData((event as { data: unknown }).data)}` : "";
+			const isDataBearing = event.type === "data" || event.type === "error";
+			const isLockBearing = event.type === "pause" || event.type === "resume";
+			const dataPart = isDataBearing
+				? ` ${describeData((event as { data: unknown }).data)}`
+				: isLockBearing
+					? ` ${describeData((event as { lockId: unknown }).lockId)}`
+					: "";
 			const causal =
 				event.type === "data" || event.type === "resolved" || event.type === "derived"
 					? (event as ObserveCausalContext)
@@ -2160,14 +2253,14 @@ export class Graph {
 		}
 		this._disposers.clear();
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
-		for (const dispose of [...this._autoCheckpointDisposers]) {
+		for (const dispose of [...this._storageDisposers]) {
 			try {
 				dispose();
 			} catch {
 				/* ignore */
 			}
 		}
-		this._autoCheckpointDisposers.clear();
+		this._storageDisposers.clear();
 		for (const child of [...this._mounts.values()]) {
 			child._parent = undefined;
 			child._destroyClearOnly();
@@ -2189,12 +2282,26 @@ export class Graph {
 	}
 
 	/**
-	 * Serializes structure and current values to JSON-shaped data (§3.8). Same information
-	 * as {@link Graph.describe} plus a `version` field for format evolution.
+	 * Serializes structure and current values to JSON-shaped data (§3.8). Same
+	 * information as {@link Graph.describe} plus a `version` field for format
+	 * evolution.
 	 *
-	 * @returns Persistable snapshot with sorted keys.
+	 * The overload path supports three outputs:
+	 * - no arg → `GraphPersistSnapshot` (plain JS object).
+	 * - `{format: "json-string"}` → deterministic JSON `string`
+	 *   (key-sorted; safe for hashing or file write).
+	 * - `{format: "bytes", codec: name}` → `Uint8Array` wrapped in the v1
+	 *   envelope from {@link encodeEnvelope}. The codec must be registered
+	 *   on this graph's {@link GraphReFlyConfig} via `config.registerCodec`.
+	 *   Paired with {@link Graph.decode} for auto-dispatch on the read side.
 	 */
-	snapshot(): GraphPersistSnapshot {
+	snapshot(): GraphPersistSnapshot;
+	snapshot(opts: { format: "json-string" }): string;
+	snapshot(opts: { format: "bytes"; codec: string }): Uint8Array;
+	snapshot(opts?: {
+		format?: "json-string" | "bytes";
+		codec?: string;
+	}): GraphPersistSnapshot | string | Uint8Array {
 		const { expand: _, ...d } = this.describe({ detail: "full" });
 		// Explicit key sorting for deterministic output — don't rely on
 		// describe() iteration order (audit batch-3, §3.8).
@@ -2206,7 +2313,44 @@ export class Graph {
 			sortedNodes[key] = node;
 		}
 		const sortedSubgraphs = [...d.subgraphs].sort();
-		return { ...d, version: 1, nodes: sortedNodes, subgraphs: sortedSubgraphs };
+		const snap: GraphPersistSnapshot = {
+			...d,
+			version: 1,
+			nodes: sortedNodes,
+			subgraphs: sortedSubgraphs,
+		};
+		if (opts?.format == null) return snap;
+		if (opts.format === "json-string") return JSON.stringify(snap);
+		if (opts.format === "bytes") {
+			if (opts.codec == null) {
+				throw new Error("snapshot({format: 'bytes'}) requires a `codec` name");
+			}
+			const codec = this.config.lookupCodec<GraphCodec>(opts.codec);
+			if (codec == null) {
+				throw new Error(
+					`snapshot: codec "${opts.codec}" is not registered on this graph's config. ` +
+						`Call config.registerCodec(...) before creating nodes.`,
+				);
+			}
+			return encodeEnvelope(codec, codec.encode(snap));
+		}
+		throw new Error(`snapshot: unknown format "${String(opts.format)}"`);
+	}
+
+	/**
+	 * Auto-dispatch a byte buffer produced by {@link Graph.snapshot} with
+	 * `{format: "bytes", codec: name}`. Reads the v1 envelope, resolves the
+	 * named codec on `config` (defaults to `defaultConfig`), and returns the
+	 * decoded snapshot. Combine with {@link Graph.fromSnapshot} to rehydrate
+	 * a full graph topology from bytes.
+	 *
+	 * @throws If the envelope is malformed or the named codec isn't
+	 *   registered on the target config.
+	 */
+	static decode(bytes: Uint8Array, opts?: { config?: GraphReFlyConfig }): GraphPersistSnapshot {
+		const cfg = opts?.config ?? defaultConfig;
+		const { codec, codecVersion, payload } = decodeEnvelope(bytes, cfg);
+		return codec.decode(payload, codecVersion);
 	}
 
 	/**
@@ -2401,109 +2545,98 @@ export class Graph {
 	}
 
 	/**
-	 * Debounced persistence wired to graph-wide observe stream (spec §3.8 auto-checkpoint).
+	 * Unified persistence surface (§3.8). Cascades snapshot records through
+	 * one or more {@link StorageTier}s, each with its own `debounceMs` /
+	 * `compactEvery` cadence and independent diff baseline.
 	 *
-	 * Checkpoint trigger uses {@link messageTier}: only batches containing tier >= 3 messages
-	 * schedule a save (`DATA`/`RESOLVED`/terminal/destruction), never pure tier-0/1/2 control
-	 * waves (`START`/`DIRTY`/`INVALIDATE`/`PAUSE`/`RESUME`).
+	 * Subscription gates on {@link messageTier} ≥ 3 (DATA/RESOLVED/terminal),
+	 * never on tier-0/1/2 control waves (START/DIRTY/INVALIDATE/PAUSE/RESUME)
+	 * or tier-5 TEARDOWN (graceful shutdown is the caller's responsibility).
+	 *
+	 * Per-tier cadence lets the hot tier stay sync while cold tiers absorb
+	 * async writes without blocking the hot path. Each tier holds its own
+	 * `{lastSnapshot, lastVersionFingerprint}` so cold-tier diff baselines
+	 * aren't polluted by hot-tier flushes. Tiers with `debounceMs === 0`
+	 * share a single snapshot computation per observe event; debounced tiers
+	 * compute their own snapshot when their timer fires.
 	 */
-	autoCheckpoint(
-		adapter: AutoCheckpointAdapter,
-		options: GraphAutoCheckpointOptions = {},
-	): GraphAutoCheckpointHandle {
-		const debounceMs = Math.max(0, options.debounceMs ?? 500);
-		const compactEvery = Math.max(1, options.compactEvery ?? 10);
-		const mode = options.mode ?? "diff";
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		let seq = 0;
-		let pending = false;
-		let lastSnapshot: GraphPersistSnapshot | undefined;
-		let lastVersionFingerprint = "";
-
-		/**
-		 * Cheap graph-level version fingerprint: concatenate `v.id@v.version` for
-		 * every node that carries V0 info. Unchanged fingerprint → nothing to
-		 * save this cycle (V0 shortcut per SESSION-serialization-memory-footprint).
-		 * Falls back gracefully to the empty string when no nodes are versioned —
-		 * in that case the shortcut never fires and every scheduled flush writes.
-		 */
-		const computeVersionFingerprint = (nodes: Record<string, DescribeNodeOutput>): string => {
-			const parts: string[] = [];
-			for (const path of Object.keys(nodes).sort()) {
-				const v = nodes[path]!.v;
-				if (v != null) parts.push(`${path}\t${v.id}\t${v.version}`);
-			}
-			return parts.join("\n");
+	attachStorage(
+		tiers: readonly StorageTier[],
+		options: GraphAttachStorageOptions = {},
+	): StorageHandle {
+		type TierState = {
+			tier: StorageTier;
+			debounceMs: number;
+			compactEvery: number;
+			timer: ResettableTimer | undefined;
+			seq: number;
+			lastSnapshot: GraphPersistSnapshot | undefined;
+			lastFingerprint: string;
+			disposed: boolean;
 		};
+		const states: TierState[] = tiers.map((tier) => ({
+			tier,
+			debounceMs: Math.max(0, tier.debounceMs ?? 0),
+			compactEvery: Math.max(1, tier.compactEvery ?? 10),
+			timer: undefined,
+			seq: 0,
+			lastSnapshot: undefined,
+			lastFingerprint: "",
+			disposed: false,
+		}));
 
-		const flush = () => {
-			timer = undefined;
-			if (!pending) return;
-			pending = false;
+		if (options.autoRestore === true) {
+			// Fire-and-forget cascade restore; errors surface via onError.
+			const tierList = tiers;
+			void this._cascadeRestore(tierList).catch((err) => {
+				options.onError?.(err, tierList[0]!);
+			});
+		}
+
+		const flushTier = (s: TierState, snapshot: GraphPersistSnapshot): void => {
+			if (s.disposed) return;
 			try {
-				// Delegate snapshot-stripping to `this.snapshot()` (Unit 19 B) —
-				// one source of truth for the non-restorable-field strip.
-				const snapshot = this.snapshot();
-				// V0 shortcut: identical version fingerprint AND we've saved at
-				// least once → skip this cycle. Non-versioned graphs produce an
-				// empty fingerprint so the shortcut is a no-op for them.
 				const fingerprint = computeVersionFingerprint(snapshot.nodes);
-				if (lastSnapshot != null && fingerprint !== "" && fingerprint === lastVersionFingerprint) {
+				if (s.lastSnapshot != null && fingerprint !== "" && fingerprint === s.lastFingerprint) {
 					return;
 				}
-				lastVersionFingerprint = fingerprint;
-				seq += 1;
+				s.seq += 1;
 				const timestamp_ns = monotonicNs();
-				const isFirst = lastSnapshot == null;
-				const shouldCompact = isFirst || seq % compactEvery === 0 || mode === "full";
-
-				let record: GraphCheckpointRecord;
-				if (shouldCompact) {
-					record = {
-						mode: "full",
-						snapshot,
-						seq,
-						timestamp_ns,
-						format_version: SNAPSHOT_VERSION,
-					};
-				} else if (mode === "diff-only") {
-					record = {
-						mode: "diff-only",
-						diff: Graph.diff(lastSnapshot!, snapshot),
-						seq,
-						timestamp_ns,
-						format_version: SNAPSHOT_VERSION,
-					};
-				} else {
-					record = {
-						mode: "diff",
-						diff: Graph.diff(lastSnapshot!, snapshot),
-						snapshot,
-						seq,
-						timestamp_ns,
-						format_version: SNAPSHOT_VERSION,
-					};
+				const isFirst = s.lastSnapshot == null;
+				const shouldCompact = isFirst || s.seq % s.compactEvery === 0;
+				const record: GraphCheckpointRecord = shouldCompact
+					? {
+							mode: "full",
+							snapshot,
+							seq: s.seq,
+							timestamp_ns,
+							format_version: SNAPSHOT_VERSION,
+						}
+					: {
+							mode: "diff",
+							diff: Graph.diff(s.lastSnapshot!, snapshot),
+							seq: s.seq,
+							timestamp_ns,
+							format_version: SNAPSHOT_VERSION,
+						};
+				if (s.tier.filter && !s.tier.filter(this.name, record)) {
+					// Filter rejected — roll back seq so next record uses the same
+					// slot (preserves compactEvery alignment against persisted records).
+					s.seq -= 1;
+					return;
 				}
-				adapter.save(this.name, record);
-				lastSnapshot = snapshot;
+				const result = s.tier.save(this.name, record);
+				s.lastSnapshot = snapshot;
+				s.lastFingerprint = fingerprint;
+				if (result && typeof (result as Promise<void>).catch === "function") {
+					(result as Promise<void>).catch((err) => options.onError?.(err, s.tier));
+				}
 			} catch (error) {
-				options.onError?.(error);
+				options.onError?.(error, s.tier);
 			}
 		};
 
-		const schedule = () => {
-			pending = true;
-			if (timer !== undefined) clearTimeout(timer);
-			timer = setTimeout(flush, debounceMs);
-		};
-
-		// Scoped observation (Unit 19 F): when `paths` is set, subscribe only
-		// to the listed paths (literal list or a single glob). Default: whole
-		// graph via `graph.observe()`.
-		const tierGate = (path: string, messages: Messages): void => {
-			// Trigger on tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR).
-			// Exclude tier 5 (TEARDOWN) — checkpointing a dying graph wastes
-			// work; graceful shutdown is the caller's responsibility.
+		const onEvent = (path: string, messages: Messages): void => {
 			const triggeredByTier = messages.some((m) => {
 				const tier = this.config.messageTier(m[0]);
 				return tier >= 3 && tier < 5;
@@ -2515,7 +2648,24 @@ export class Graph {
 				const described = describeNode(nd, resolveDescribeFields("standard"));
 				if (!options.filter(path, described)) return;
 			}
-			schedule();
+			// Shared snapshot for all sync (debounceMs=0) tiers firing on this event.
+			let sharedSnapshot: GraphPersistSnapshot | undefined;
+			const getSnapshot = (): GraphPersistSnapshot => {
+				if (sharedSnapshot == null) sharedSnapshot = this.snapshot();
+				return sharedSnapshot;
+			};
+			for (const s of states) {
+				if (s.disposed) continue;
+				if (s.debounceMs === 0) {
+					flushTier(s, getSnapshot());
+				} else {
+					if (s.timer == null) s.timer = new ResettableTimer();
+					s.timer.start(s.debounceMs, () => {
+						if (s.disposed) return;
+						flushTier(s, this.snapshot());
+					});
+				}
+			}
 		};
 
 		let off: () => void;
@@ -2527,25 +2677,90 @@ export class Graph {
 			const unsubs = paths.map((p) => {
 				const nd = this.tryResolve(p);
 				if (nd == null) return () => {};
-				return nd.subscribe((msgs) => tierGate(p, msgs));
+				return nd.subscribe((msgs) => onEvent(p, msgs));
 			});
 			off = () => {
 				for (const u of unsubs) u();
 			};
 		} else {
-			off = this.observe().subscribe((path, messages) => tierGate(path, messages));
+			off = this.observe().subscribe((path, messages) => onEvent(path, messages));
 		}
 
 		const dispose = () => {
 			off();
-			if (timer !== undefined) {
-				clearTimeout(timer);
-				timer = undefined;
+			for (const s of states) {
+				s.disposed = true;
+				s.timer?.cancel();
 			}
-			this._autoCheckpointDisposers.delete(dispose);
+			this._storageDisposers.delete(dispose);
 		};
-		this._autoCheckpointDisposers.add(dispose);
+		this._storageDisposers.add(dispose);
 		return { dispose };
+	}
+
+	/**
+	 * Try tiers in order (hottest first); apply the first record that hits
+	 * via {@link Graph.restore}. Returns `true` if any tier produced a
+	 * restorable snapshot, `false` if all missed.
+	 *
+	 * Internal helper shared by {@link Graph.attachStorage}'s `autoRestore`
+	 * option and the static {@link Graph.fromStorage} factory.
+	 */
+	private async _cascadeRestore(tiers: readonly StorageTier[]): Promise<boolean> {
+		for (const tier of tiers) {
+			const raw = await tier.load(this.name);
+			if (raw == null) continue;
+			if (typeof raw !== "object" || Array.isArray(raw)) continue;
+			const record = raw as Record<string, unknown>;
+			// Accept both a `GraphCheckpointRecord` envelope (`mode === "full"`)
+			// and a bare `GraphPersistSnapshot` (the shape written by
+			// `saveGraphCheckpoint`). Bare snapshots carry `version: 1`.
+			if (record.mode === "full" && record.snapshot != null) {
+				this.restore(record.snapshot as GraphPersistSnapshot);
+				return true;
+			}
+			if (record.version === SNAPSHOT_VERSION && record.nodes != null) {
+				this.restore(record as GraphPersistSnapshot);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Construct a fresh {@link Graph} pre-hydrated from the first tier that
+	 * hits. Delegates topology reconstruction to {@link Graph.fromSnapshot}
+	 * on `"full"` records and direct {@link Graph.restore} on bare snapshots.
+	 *
+	 * Always asynchronous — awaits `tier.load()` for async tier support even
+	 * when all tiers are sync. Callers that know they only pass sync tiers
+	 * can safely `await` immediately.
+	 *
+	 * @throws If no tier holds a restorable record matching `name` *and* no
+	 *   `factories` override is provided for dynamic nodes.
+	 */
+	static async fromStorage(
+		name: string,
+		tiers: readonly StorageTier[],
+		opts?: GraphOptions & { factories?: Record<string, GraphNodeFactory> },
+	): Promise<Graph> {
+		for (const tier of tiers) {
+			const raw = await tier.load(name);
+			if (raw == null) continue;
+			if (typeof raw !== "object" || Array.isArray(raw)) continue;
+			const record = raw as Record<string, unknown>;
+			const snapshot: GraphPersistSnapshot | undefined =
+				record.mode === "full" && record.snapshot != null
+					? (record.snapshot as GraphPersistSnapshot)
+					: record.version === SNAPSHOT_VERSION && record.nodes != null
+						? (record as GraphPersistSnapshot)
+						: undefined;
+			if (snapshot == null) continue;
+			return Graph.fromSnapshot(snapshot, opts);
+		}
+		throw new Error(
+			`Graph.fromStorage: no tier held a restorable record for "${name}" across ${tiers.length} tier(s)`,
+		);
 	}
 
 	// ——————————————————————————————————————————————————————————————
