@@ -484,6 +484,20 @@ function resolveObserveDetail(opts?: ObserveOptions): ObserveOptions {
 	return opts;
 }
 
+/**
+ * Option shapes that trigger structured-mode dispatch in {@link Graph.observe}.
+ * Presence of any of these fields (truthy) → returns {@link ObserveResult};
+ * otherwise `observe()` returns the raw-stream variants.
+ */
+export type StructuredTriggers = {
+	structured?: true;
+	timeline?: true;
+	causal?: true;
+	derived?: true;
+	format?: "pretty" | "json";
+	detail?: "minimal" | "full";
+};
+
 /** {@link Graph.observe} on a single node or meta path — sink receives plain message batches. */
 export type GraphObserveOne = {
 	subscribe(sink: NodeSink): () => void;
@@ -542,17 +556,27 @@ export type ObserveOptions = {
 	excludeTypes?: ObserveEvent["type"][];
 	/** Built-in color preset (`ansi` default) or explicit color tokens. Only used when `format` is set. */
 	theme?: ObserveThemeName | ObserveTheme;
+	/**
+	 * Cap the `events` buffer. When set, the result uses a {@link RingBuffer}
+	 * under the hood: oldest events are dropped on overflow. Unbounded when
+	 * omitted (default).
+	 */
+	maxEvents?: number;
 };
 
 /** Accumulated observation result (structured mode). */
-export type ObserveResult<T = unknown> = {
+export type ObserveResult<T = unknown> = AsyncIterable<ObserveEvent> & {
 	/** Latest DATA value by observed path. */
 	readonly values: Record<string, T>;
 	/** Number of DIRTY messages received. */
 	readonly dirtyCount: number;
 	/** Number of RESOLVED messages received. */
 	readonly resolvedCount: number;
-	/** All events in order. */
+	/**
+	 * All events in order — ring-buffered when `options.maxEvents` is set,
+	 * unbounded otherwise. Always materialized as an `ObserveEvent[]`
+	 * snapshot on read.
+	 */
 	readonly events: ObserveEvent[];
 	/** True if any observed node sent COMPLETE without prior ERROR on that node. */
 	readonly anyCompletedCleanly: boolean;
@@ -560,6 +584,11 @@ export type ObserveResult<T = unknown> = {
 	readonly anyErrored: boolean;
 	/** True if at least one COMPLETE received and no ERROR from any observed node. */
 	readonly completedWithoutErrors: boolean;
+	/**
+	 * Attach a live listener that fires for each event as it arrives.
+	 * Returns an unsubscribe fn. Independent of the `events` buffer.
+	 */
+	onEvent(listener: (event: ObserveEvent) => void): () => void;
 	/** Stop observing. */
 	dispose(): void;
 	/**
@@ -571,15 +600,18 @@ export type ObserveResult<T = unknown> = {
 	): ObserveResult<T>;
 };
 
-/** A single event in the structured observation log. */
-export type ObserveEvent = {
-	type: "data" | "dirty" | "resolved" | "complete" | "error" | "derived";
+/** Fields common to every {@link ObserveEvent} variant. */
+export interface ObserveEventBase {
 	path?: string;
-	data?: unknown;
+	/** Optional `timeline` context — wall-clock when `options.timeline === true`. */
 	timestamp_ns?: number;
 	in_batch?: boolean;
 	/** Monotonically increasing counter per subscribe-callback invocation. All events in one delivery share the same id. */
 	batch_id?: number;
+}
+
+/** Optional `causal` context present on `data`/`resolved`/`derived` events. */
+export interface ObserveCausalContext {
 	trigger_dep_index?: number;
 	trigger_dep_name?: string;
 	/**
@@ -589,7 +621,16 @@ export type ObserveEvent = {
 	 */
 	trigger_version?: { id: string; version: number };
 	dep_values?: unknown[];
-};
+}
+
+/** A single event in the structured observation log (discriminated on `type`). */
+export type ObserveEvent =
+	| (ObserveEventBase & ObserveCausalContext & { type: "data"; data: unknown })
+	| (ObserveEventBase & { type: "dirty" })
+	| (ObserveEventBase & ObserveCausalContext & { type: "resolved" })
+	| (ObserveEventBase & { type: "complete" })
+	| (ObserveEventBase & { type: "error"; data: unknown })
+	| (ObserveEventBase & ObserveCausalContext & { type: "derived"; dep_values: unknown[] });
 
 /** Built-in color preset names for observe `format` rendering. */
 export type ObserveThemeName = "none" | "ansi";
@@ -1439,60 +1480,49 @@ export class Graph {
 	/**
 	 * Live message stream from one node (or meta path), or from the whole graph (§3.6).
 	 *
-	 * Overloads: `(path, options?)` for one node; `(options?)` for all nodes. Whole-graph mode
-	 * subscribes in **sorted path order** (code-point order). With structured options
-	 * (`structured`, `timeline`, `causal`, `derived`), returns an {@link ObserveResult}.
-	 * Inspector-gated extras (`causal` / `derived`) require `graph.config.inspectorEnabled`.
+	 * Two modes dispatched on first argument:
+	 * - `observe(path, options?)` — one node. Returns {@link GraphObserveOne}
+	 *   (raw stream), or {@link ObserveResult} when `options` requests structured
+	 *   accumulation (`structured`, `timeline`, `causal`, `derived`, `format`,
+	 *   `detail: "minimal"|"full"`).
+	 * - `observe(options?)` — all nodes. Returns {@link GraphObserveAll} (raw),
+	 *   or {@link ObserveResult} under the same structured trigger conditions.
 	 *
-	 * @param pathOrOpts - Qualified `path` string, or omit and pass only `options` for graph-wide observation.
-	 * @param options - Optional `actor`, `structured`, `causal`, `timeline` (inspector-gated).
-	 * @returns `GraphObserveOne`, `GraphObserveAll`, or `ObserveResult` depending on overload/options.
+	 * Structured mode subscribes in sorted path order (code-point). Inspector
+	 * extras (`causal`/`derived`) require `graph.config.inspectorEnabled`;
+	 * when disabled, those fields silently drop and the rest still works.
+	 *
+	 * `ObserveResult` is also an `AsyncIterable<ObserveEvent>` — use
+	 * `for await (const ev of result)` for pull-based consumption.
 	 */
-	observe(
-		path: string,
-		options?: ObserveOptions & {
-			structured?: true;
-			timeline?: true;
-			causal?: true;
-			derived?: true;
-		},
-	): ObserveResult;
-	observe(path: string, options: ObserveOptions & { format: "pretty" | "json" }): ObserveResult;
+	observe(path: string, options?: ObserveOptions & StructuredTriggers): ObserveResult;
 	observe(path: string, options?: ObserveOptions): GraphObserveOne;
-	observe(
-		options: ObserveOptions & { structured?: true; timeline?: true; causal?: true; derived?: true },
-	): ObserveResult;
-	observe(options: ObserveOptions & { format: "pretty" | "json" }): ObserveResult;
+	observe(options: ObserveOptions & StructuredTriggers): ObserveResult;
 	observe(options?: ObserveOptions): GraphObserveAll;
 	observe(
 		pathOrOpts?: string | ObserveOptions,
 		options?: ObserveOptions,
 	): GraphObserveOne | GraphObserveAll | ObserveResult {
-		if (typeof pathOrOpts === "string") {
-			const path = pathOrOpts;
-			const resolved = resolveObserveDetail(options);
-			const actor = resolved.actor;
+		const isPath = typeof pathOrOpts === "string";
+		const rawOpts = isPath ? options : (pathOrOpts as ObserveOptions | undefined);
+		const resolved = resolveObserveDetail(rawOpts);
+		const wantsStructured =
+			resolved.structured === true ||
+			resolved.timeline === true ||
+			resolved.causal === true ||
+			resolved.derived === true ||
+			resolved.detail === "minimal" ||
+			resolved.detail === "full" ||
+			resolved.format != null;
+		const actor = resolved.actor;
+
+		if (isPath) {
+			const path = pathOrOpts as string;
 			const target = this.resolve(path);
 			if (actor != null && !target.allowsObserve(actor)) {
 				throw new GuardDenied({ actor, action: "observe", nodeName: path });
 			}
-			const wantsStructured =
-				resolved.structured === true ||
-				resolved.timeline === true ||
-				resolved.causal === true ||
-				resolved.derived === true ||
-				resolved.detail === "minimal" ||
-				resolved.detail === "full" ||
-				resolved.format != null;
-			if (wantsStructured) {
-				const result = this.config.inspectorEnabled
-					? this._createObserveResult(path, target, resolved)
-					: this._createFallbackObserveResult(path, resolved);
-				if (resolved.format != null) {
-					this._attachFormatLogger(result, resolved);
-				}
-				return result;
-			}
+			if (wantsStructured) return this._buildStructuredObserver([[path, target]], resolved, "one");
 			return {
 				subscribe(sink: NodeSink) {
 					return target.subscribe(sink);
@@ -1501,38 +1531,21 @@ export class Graph {
 					try {
 						target.up?.(messages);
 					} catch (err) {
-						if (err instanceof GuardDenied) return; // silently drop — guard denied flow control
+						if (err instanceof GuardDenied) return;
 						throw err;
 					}
 				},
 			};
 		}
-		const opts = resolveObserveDetail(pathOrOpts as ObserveOptions | undefined);
-		const actor = opts.actor;
-		const wantsStructured =
-			opts.structured === true ||
-			opts.timeline === true ||
-			opts.causal === true ||
-			opts.derived === true ||
-			opts.detail === "minimal" ||
-			opts.detail === "full" ||
-			opts.format != null;
-		if (wantsStructured) {
-			const result = this.config.inspectorEnabled
-				? this._createObserveResultForAll(opts)
-				: this._createFallbackObserveResultForAll(opts);
-			if (opts.format != null) {
-				this._attachFormatLogger(result, opts);
-			}
-			return result;
-		}
+
+		const collected: [string, Node][] = [];
+		this._collectObserveTargets("", collected);
+		collected.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+		const picked =
+			actor == null ? collected : collected.filter(([, nd]) => nd.allowsObserve(actor));
+		if (wantsStructured) return this._buildStructuredObserver(picked, resolved, "all");
 		return {
 			subscribe: (sink: (nodePath: string, messages: Messages) => void) => {
-				const targets: [string, Node][] = [];
-				this._collectObserveTargets("", targets);
-				targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-				const picked =
-					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
 				const unsubs = picked.map(([p, nd]) =>
 					nd.subscribe((msgs) => {
 						sink(p, msgs);
@@ -1547,502 +1560,282 @@ export class Graph {
 					const nd = this.resolve(upPath);
 					nd.up?.(messages);
 				} catch (err) {
-					if (err instanceof GuardDenied) return; // silently drop — guard denied flow control
+					if (err instanceof GuardDenied) return;
 					throw err;
 				}
 			},
 		};
 	}
 
-	private _createObserveResult<T>(
-		path: string,
-		target: Node<T>,
+	/** Dispatch helper — builds a unified observer + its expand closure. */
+	private _buildStructuredObserver<T>(
+		targets: ReadonlyArray<[string, Node]>,
 		options: ObserveOptions,
+		mode: "one" | "all",
+	): ObserveResult<T> {
+		const firstPath = mode === "one" ? targets[0]?.[0] : undefined;
+		const expand = (merged: ObserveOptions): ObserveResult<T> => {
+			if (mode === "one" && firstPath != null) {
+				const target = this.resolve(firstPath);
+				return this._buildStructuredObserver([[firstPath, target]], merged, "one");
+			}
+			const collected: [string, Node][] = [];
+			this._collectObserveTargets("", collected);
+			collected.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+			const actor = merged.actor;
+			const picked =
+				actor == null ? collected : collected.filter(([, nd]) => nd.allowsObserve(actor));
+			return this._buildStructuredObserver(picked, merged, "all");
+		};
+		return this._createObserveResult<T>(targets, options, expand);
+	}
+
+	/**
+	 * Unified observer builder — replaces the four ex-creators
+	 * (`_createObserveResult` / `...ForAll` / `_createFallback…`). Accepts a
+	 * list of `[path, node]` targets (single-element for one-node observe,
+	 * N-element for all-nodes). Inspector hooks attach per-target when
+	 * `causal`/`derived` requested AND `config.inspectorEnabled`; otherwise
+	 * those fields gracefully drop.
+	 *
+	 * Events flow through a `recordEvent()` helper so the format logger,
+	 * ring-buffer, and async-iterable hooks all share one push path.
+	 */
+	private _createObserveResult<T>(
+		targets: ReadonlyArray<[string, Node]>,
+		options: ObserveOptions,
+		expand: (merged: ObserveOptions) => ObserveResult<T>,
 	): ObserveResult<T> {
 		const timeline = options.timeline === true;
 		const causal = options.causal === true;
 		const derived = options.derived === true;
 		const minimal = options.detail === "minimal";
-		const result: {
-			values: Record<string, T>;
-			dirtyCount: number;
-			resolvedCount: number;
-			events: ObserveEvent[];
-			anyCompletedCleanly: boolean;
-			anyErrored: boolean;
-		} = {
-			values: {},
-			dirtyCount: 0,
-			resolvedCount: 0,
-			events: [],
-			anyCompletedCleanly: false,
-			anyErrored: false,
+		const inspectorOn = this.config.inspectorEnabled;
+		const wantInspector = (causal || derived) && inspectorOn;
+
+		// Event buffer: unbounded array, or RingBuffer when maxEvents capped.
+		const maxEvents = options.maxEvents;
+		const ring =
+			maxEvents != null && maxEvents > 0 ? new RingBuffer<ObserveEvent>(maxEvents) : null;
+		const events: ObserveEvent[] = [];
+
+		// Listener set — format logger, async iterable, and user `onEvent` hooks.
+		const listeners = new Set<(event: ObserveEvent) => void>();
+
+		const values: Record<string, T> = {};
+		const nodeErrored = new Set<string>();
+		let dirtyCount = 0;
+		let resolvedCount = 0;
+		let anyCompletedCleanly = false;
+		let anyErrored = false;
+		let batchSeq = 0;
+
+		// Per-target causal context (keyed by target index).
+		const lastTriggerDepIndex = new Map<Node, number>();
+		const lastRunDepValues = new Map<Node, readonly unknown[]>();
+
+		const recordEvent = (event: ObserveEvent): void => {
+			if (ring) ring.push(event);
+			else events.push(event);
+			for (const listener of listeners) listener(event);
 		};
 
-		let lastTriggerDepIndex: number | undefined;
-		let lastRunDepValues: unknown[] | undefined;
-		let batchSeq = 0;
-		// Attach inspector hook for causal/derived tracing.
-		let detachInspectorHook: (() => void) | undefined;
-		if ((causal || derived) && target instanceof NodeImpl) {
-			detachInspectorHook = target._setInspectorHook((event) => {
-				if (event.kind === "dep_message") {
-					lastTriggerDepIndex = event.depIndex;
-				} else if (event.kind === "run") {
-					// Effective dep values: this wave's last DATA if dep fired,
-					// else the stable value from the previous wave (prevData).
-					const effectiveDepValues = event.batchData.map((batch, i) =>
-						batch != null && batch.length > 0 ? batch.at(-1) : event.prevData[i],
+		const baseMeta = (): Partial<ObserveEventBase> =>
+			timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq } : {};
+
+		const attachInspector = (target: Node, path: string): (() => void) | undefined => {
+			if (!wantInspector || !(target instanceof NodeImpl)) return undefined;
+			return target._setInspectorHook((ev) => {
+				if (ev.kind === "dep_message") {
+					lastTriggerDepIndex.set(target, ev.depIndex);
+				} else if (ev.kind === "run") {
+					const effective = ev.batchData.map((b, i) =>
+						b != null && b.length > 0 ? b.at(-1) : ev.prevData[i],
 					);
-					lastRunDepValues = effectiveDepValues;
-					// Emit a synthetic "derived" event when requested.
+					lastRunDepValues.set(target, effective);
 					if (derived) {
-						const base = timeline
-							? {
-									timestamp_ns: monotonicNs(),
-									in_batch: isBatching(),
-									batch_id: batchSeq,
-								}
-							: {};
-						result.events.push({
+						recordEvent({
 							type: "derived",
 							path,
-							dep_values: effectiveDepValues,
-							...base,
+							dep_values: effective,
+							...baseMeta(),
 						} as ObserveEvent);
 					}
 				}
 			});
+		};
+
+		const buildCausal = (target: Node): ObserveCausalContext => {
+			const idx = lastTriggerDepIndex.get(target);
+			const depValues = lastRunDepValues.get(target);
+			if (!causal || depValues == null) return {};
+			const triggerDep =
+				idx != null && idx >= 0 && target instanceof NodeImpl ? target._deps[idx] : undefined;
+			const triggerNode = triggerDep?.node;
+			const tv = triggerNode?.v;
+			return {
+				trigger_dep_index: idx,
+				trigger_dep_name: triggerNode?.name,
+				...(tv != null ? { trigger_version: { id: tv.id, version: tv.version } } : {}),
+				dep_values: [...depValues],
+			};
+		};
+
+		const inspectorDetaches: Array<() => void> = [];
+		const unsubs: Array<() => void> = [];
+		for (const [path, target] of targets) {
+			const detach = attachInspector(target, path);
+			if (detach) inspectorDetaches.push(detach);
+			unsubs.push(
+				target.subscribe((msgs) => {
+					batchSeq++;
+					for (const m of msgs) {
+						const t = m[0];
+						const base = baseMeta();
+						if (t === DATA) {
+							values[path] = m[1] as T;
+							recordEvent({
+								type: "data",
+								path,
+								data: m[1],
+								...base,
+								...buildCausal(target),
+							} as ObserveEvent);
+						} else if (minimal) {
+							if (t === DIRTY) dirtyCount++;
+							else if (t === RESOLVED) resolvedCount++;
+							else if (t === COMPLETE && !nodeErrored.has(path)) anyCompletedCleanly = true;
+							else if (t === ERROR) {
+								anyErrored = true;
+								nodeErrored.add(path);
+							}
+						} else if (t === DIRTY) {
+							dirtyCount++;
+							recordEvent({ type: "dirty", path, ...base } as ObserveEvent);
+						} else if (t === RESOLVED) {
+							resolvedCount++;
+							recordEvent({
+								type: "resolved",
+								path,
+								...base,
+								...buildCausal(target),
+							} as ObserveEvent);
+						} else if (t === COMPLETE) {
+							if (!nodeErrored.has(path)) anyCompletedCleanly = true;
+							recordEvent({ type: "complete", path, ...base } as ObserveEvent);
+						} else if (t === ERROR) {
+							anyErrored = true;
+							nodeErrored.add(path);
+							recordEvent({
+								type: "error",
+								path,
+								data: m[1],
+								...base,
+							} as ObserveEvent);
+						}
+					}
+				}),
+			);
 		}
 
-		const unsub = target.subscribe((msgs) => {
-			batchSeq++;
-			for (const m of msgs) {
-				const t = m[0];
-				const base = timeline
-					? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
-					: {};
-				const withCausal =
-					causal && lastRunDepValues != null
-						? (() => {
-								const triggerDepRecord =
-									lastTriggerDepIndex != null &&
-									lastTriggerDepIndex >= 0 &&
-									target instanceof NodeImpl
-										? target._deps[lastTriggerDepIndex]
-										: undefined;
-								const triggerNode = triggerDepRecord?.node;
-								const tv = triggerNode?.v;
-								return {
-									trigger_dep_index: lastTriggerDepIndex,
-									trigger_dep_name: triggerNode?.name,
-									...(tv != null ? { trigger_version: { id: tv.id, version: tv.version } } : {}),
-									dep_values: [...lastRunDepValues],
-								};
-							})()
-						: {};
-				if (t === DATA) {
-					result.values[path] = m[1] as T;
-					result.events.push({ type: "data", path, data: m[1], ...base, ...withCausal });
-				} else if (minimal) {
-					// minimal: track state but don't push non-DATA events
-					if (t === DIRTY) result.dirtyCount++;
-					else if (t === RESOLVED) result.resolvedCount++;
-					else if (t === COMPLETE && !result.anyErrored) result.anyCompletedCleanly = true;
-					else if (t === ERROR) result.anyErrored = true;
-				} else if (t === DIRTY) {
-					result.dirtyCount++;
-					result.events.push({ type: "dirty", path, ...base });
-				} else if (t === RESOLVED) {
-					result.resolvedCount++;
-					result.events.push({ type: "resolved", path, ...base, ...withCausal });
-				} else if (t === COMPLETE) {
-					if (!result.anyErrored) result.anyCompletedCleanly = true;
-					result.events.push({ type: "complete", path, ...base });
-				} else if (t === ERROR) {
-					result.anyErrored = true;
-					result.events.push({ type: "error", path, data: m[1], ...base });
-				}
-			}
+		let disposed = false;
+		const dispose = (): void => {
+			if (disposed) return;
+			disposed = true;
+			for (const u of unsubs) u();
+			for (const d of inspectorDetaches) d();
+			for (const resolve of asyncResolvers) resolve({ value: undefined, done: true });
+			asyncResolvers.length = 0;
+		};
+
+		// AsyncIterator plumbing: queue events until a pull arrives, or wake
+		// a pending pull when a new event lands.
+		const asyncQueue: ObserveEvent[] = [];
+		const asyncResolvers: Array<(r: IteratorResult<ObserveEvent>) => void> = [];
+		listeners.add((ev) => {
+			const resolve = asyncResolvers.shift();
+			if (resolve) resolve({ value: ev, done: false });
+			else asyncQueue.push(ev);
 		});
 
-		const graph = this;
-		const basePath = path;
-
-		return {
+		const result: ObserveResult<T> = {
 			get values() {
-				return result.values;
+				return values;
 			},
 			get dirtyCount() {
-				return result.dirtyCount;
+				return dirtyCount;
 			},
 			get resolvedCount() {
-				return result.resolvedCount;
+				return resolvedCount;
 			},
 			get events() {
-				return result.events;
+				return ring ? ring.toArray() : [...events];
 			},
 			get anyCompletedCleanly() {
-				return result.anyCompletedCleanly;
+				return anyCompletedCleanly;
 			},
 			get anyErrored() {
-				return result.anyErrored;
+				return anyErrored;
 			},
 			get completedWithoutErrors() {
-				return result.anyCompletedCleanly && !result.anyErrored;
+				return anyCompletedCleanly && !anyErrored;
 			},
-			dispose() {
-				unsub();
-				detachInspectorHook?.();
+			onEvent(listener) {
+				listeners.add(listener);
+				return () => listeners.delete(listener);
 			},
-			expand(
-				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
-			): ObserveResult<T> {
-				unsub();
-				detachInspectorHook?.();
+			dispose,
+			expand(extra) {
+				dispose();
 				const merged: ObserveOptions = { ...options };
 				if (typeof extra === "string") {
 					merged.detail = extra;
 				} else {
 					Object.assign(merged, extra);
 				}
-				const resolvedTarget = graph.resolve(basePath);
-				const expanded = graph._createObserveResult<T>(
-					basePath,
-					resolvedTarget as Node<T>,
-					resolveObserveDetail(merged),
-				);
-				if (merged.format != null) {
-					graph._attachFormatLogger(expanded, merged);
-				}
-				return expanded;
+				return expand(resolveObserveDetail(merged));
 			},
-		};
-	}
-
-	private _createObserveResultForAll(options: ObserveOptions): ObserveResult {
-		const timeline = options.timeline === true;
-		const minimal = options.detail === "minimal";
-		const result: {
-			values: Record<string, unknown>;
-			dirtyCount: number;
-			resolvedCount: number;
-			events: ObserveEvent[];
-			anyCompletedCleanly: boolean;
-			anyErrored: boolean;
-		} = {
-			values: {},
-			dirtyCount: 0,
-			resolvedCount: 0,
-			events: [],
-			anyCompletedCleanly: false,
-			anyErrored: false,
-		};
-		/** Per-node terminal state for allCompletedCleanly computation. */
-		const nodeErrored = new Set<string>();
-		const actor = options.actor;
-		const targets: [string, Node][] = [];
-		this._collectObserveTargets("", targets);
-		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
-		let batchSeq = 0;
-		const unsubs = picked.map(([path, nd]) =>
-			nd.subscribe((msgs) => {
-				batchSeq++;
-				for (const m of msgs) {
-					const t = m[0];
-					const base = timeline
-						? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
-						: {};
-					if (t === DATA) {
-						result.values[path] = m[1];
-						result.events.push({ type: "data", path, data: m[1], ...base });
-					} else if (minimal) {
-						if (t === DIRTY) result.dirtyCount++;
-						else if (t === RESOLVED) result.resolvedCount++;
-						else if (t === COMPLETE && !nodeErrored.has(path)) result.anyCompletedCleanly = true;
-						else if (t === ERROR) {
-							result.anyErrored = true;
-							nodeErrored.add(path);
+			[Symbol.asyncIterator](): AsyncIterator<ObserveEvent> {
+				return {
+					next(): Promise<IteratorResult<ObserveEvent>> {
+						if (asyncQueue.length > 0) {
+							return Promise.resolve({ value: asyncQueue.shift()!, done: false });
 						}
-					} else if (t === DIRTY) {
-						result.dirtyCount++;
-						result.events.push({ type: "dirty", path, ...base });
-					} else if (t === RESOLVED) {
-						result.resolvedCount++;
-						result.events.push({ type: "resolved", path, ...base });
-					} else if (t === COMPLETE) {
-						if (!nodeErrored.has(path)) result.anyCompletedCleanly = true;
-						result.events.push({ type: "complete", path, ...base });
-					} else if (t === ERROR) {
-						result.anyErrored = true;
-						nodeErrored.add(path);
-						result.events.push({ type: "error", path, data: m[1], ...base });
-					}
-				}
-			}),
-		);
-
-		const graph = this;
-		return {
-			get values() {
-				return result.values;
-			},
-			get dirtyCount() {
-				return result.dirtyCount;
-			},
-			get resolvedCount() {
-				return result.resolvedCount;
-			},
-			get events() {
-				return result.events;
-			},
-			get anyCompletedCleanly() {
-				return result.anyCompletedCleanly;
-			},
-			get anyErrored() {
-				return result.anyErrored;
-			},
-			get completedWithoutErrors() {
-				return result.anyCompletedCleanly && !result.anyErrored;
-			},
-			dispose() {
-				for (const u of unsubs) u();
-			},
-			expand(
-				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
-			): ObserveResult {
-				for (const u of unsubs) u();
-				const merged: ObserveOptions = { ...options };
-				if (typeof extra === "string") {
-					merged.detail = extra;
-				} else {
-					Object.assign(merged, extra);
-				}
-				const expanded = graph._createObserveResultForAll(resolveObserveDetail(merged));
-				if (merged.format != null) {
-					graph._attachFormatLogger(expanded, merged);
-				}
-				return expanded;
+						if (disposed) return Promise.resolve({ value: undefined, done: true });
+						return new Promise((resolve) => asyncResolvers.push(resolve));
+					},
+					return(): Promise<IteratorResult<ObserveEvent>> {
+						dispose();
+						return Promise.resolve({ value: undefined, done: true });
+					},
+				};
 			},
 		};
+
+		// Format logger: subscribes to event stream, renders via theme/format.
+		if (options.format != null) this._attachFormatLogger(result, options);
+
+		return result;
 	}
 
 	/**
-	 * Fallback ObserveResult for single-node when inspector is disabled but `format` is requested.
-	 * Subscribes to raw messages and accumulates events with timeline info.
-	 */
-	private _createFallbackObserveResult(path: string, options: ObserveOptions): ObserveResult {
-		const graph = this;
-		const timeline = options.timeline !== false;
-		const acc = {
-			values: {} as Record<string, unknown>,
-			dirtyCount: 0,
-			resolvedCount: 0,
-			events: [] as ObserveEvent[],
-			anyCompletedCleanly: false,
-			anyErrored: false,
-		};
-		const target = this.resolve(path);
-		let batchSeq = 0;
-		const unsub = target.subscribe((msgs) => {
-			batchSeq++;
-			for (const m of msgs) {
-				const t = m[0];
-				const base = timeline
-					? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
-					: {};
-				if (t === DATA) {
-					acc.values[path] = m[1];
-					acc.events.push({ type: "data", path, data: m[1], ...base });
-				} else if (t === DIRTY) {
-					acc.dirtyCount++;
-					acc.events.push({ type: "dirty", path, ...base });
-				} else if (t === RESOLVED) {
-					acc.resolvedCount++;
-					acc.events.push({ type: "resolved", path, ...base });
-				} else if (t === COMPLETE) {
-					if (!acc.anyErrored) acc.anyCompletedCleanly = true;
-					acc.events.push({ type: "complete", path, ...base });
-				} else if (t === ERROR) {
-					acc.anyErrored = true;
-					acc.events.push({ type: "error", path, data: m[1], ...base });
-				}
-			}
-		});
-		return {
-			get values() {
-				return acc.values;
-			},
-			get dirtyCount() {
-				return acc.dirtyCount;
-			},
-			get resolvedCount() {
-				return acc.resolvedCount;
-			},
-			get events() {
-				return acc.events;
-			},
-			get anyCompletedCleanly() {
-				return acc.anyCompletedCleanly;
-			},
-			get anyErrored() {
-				return acc.anyErrored;
-			},
-			get completedWithoutErrors() {
-				return acc.anyCompletedCleanly && !acc.anyErrored;
-			},
-			dispose() {
-				unsub();
-			},
-			expand(
-				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
-			): ObserveResult {
-				// Graceful degrade: if inspector is now enabled, upgrade to full
-				// structured observer. Otherwise re-create the fallback with merged
-				// options — caller always gets a working result, never a throw.
-				unsub();
-				const merged: ObserveOptions = { ...options };
-				if (typeof extra === "string") {
-					merged.detail = extra;
-				} else {
-					Object.assign(merged, extra);
-				}
-				const resolved = resolveObserveDetail(merged);
-				if (graph.config.inspectorEnabled) {
-					const resolvedTarget = graph.resolve(path);
-					const expanded = graph._createObserveResult(path, resolvedTarget, resolved);
-					if (merged.format != null) {
-						graph._attachFormatLogger(expanded, merged);
-					}
-					return expanded;
-				}
-				const fallback = graph._createFallbackObserveResult(path, resolved);
-				if (merged.format != null) {
-					graph._attachFormatLogger(fallback, merged);
-				}
-				return fallback;
-			},
-		};
-	}
-
-	/**
-	 * Fallback ObserveResult for graph-wide when inspector is disabled but `format` is requested.
-	 */
-	private _createFallbackObserveResultForAll(options: ObserveOptions): ObserveResult {
-		const graph = this;
-		const timeline = options.timeline !== false;
-		const actor = options.actor;
-		const acc = {
-			values: {} as Record<string, unknown>,
-			dirtyCount: 0,
-			resolvedCount: 0,
-			events: [] as ObserveEvent[],
-			anyCompletedCleanly: false,
-			anyErrored: false,
-		};
-		const nodeErrored = new Set<string>();
-		const targets: [string, Node][] = [];
-		this._collectObserveTargets("", targets);
-		targets.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-		const picked = actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
-		let batchSeq = 0;
-		const unsubs = picked.map(([path, nd]) =>
-			nd.subscribe((msgs) => {
-				batchSeq++;
-				for (const m of msgs) {
-					const t = m[0];
-					const base = timeline
-						? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq }
-						: {};
-					if (t === DATA) {
-						acc.values[path] = m[1];
-						acc.events.push({ type: "data", path, data: m[1], ...base });
-					} else if (t === DIRTY) {
-						acc.dirtyCount++;
-						acc.events.push({ type: "dirty", path, ...base });
-					} else if (t === RESOLVED) {
-						acc.resolvedCount++;
-						acc.events.push({ type: "resolved", path, ...base });
-					} else if (t === COMPLETE) {
-						if (!nodeErrored.has(path)) acc.anyCompletedCleanly = true;
-						acc.events.push({ type: "complete", path, ...base });
-					} else if (t === ERROR) {
-						acc.anyErrored = true;
-						nodeErrored.add(path);
-						acc.events.push({ type: "error", path, data: m[1], ...base });
-					}
-				}
-			}),
-		);
-		return {
-			get values() {
-				return acc.values;
-			},
-			get dirtyCount() {
-				return acc.dirtyCount;
-			},
-			get resolvedCount() {
-				return acc.resolvedCount;
-			},
-			get events() {
-				return acc.events;
-			},
-			get anyCompletedCleanly() {
-				return acc.anyCompletedCleanly;
-			},
-			get anyErrored() {
-				return acc.anyErrored;
-			},
-			get completedWithoutErrors() {
-				return acc.anyCompletedCleanly && !acc.anyErrored;
-			},
-			dispose() {
-				for (const u of unsubs) u();
-			},
-			expand(
-				extra: Partial<Pick<ObserveOptions, "causal" | "timeline" | "derived">> | ObserveDetail,
-			): ObserveResult {
-				for (const u of unsubs) u();
-				const merged: ObserveOptions = { ...options };
-				if (typeof extra === "string") {
-					merged.detail = extra;
-				} else {
-					Object.assign(merged, extra);
-				}
-				const resolved = resolveObserveDetail(merged);
-				if (graph.config.inspectorEnabled) {
-					const expanded = graph._createObserveResultForAll(resolved);
-					if (merged.format != null) {
-						graph._attachFormatLogger(expanded, merged);
-					}
-					return expanded;
-				}
-				const fallback = graph._createFallbackObserveResultForAll(resolved);
-				if (merged.format != null) {
-					graph._attachFormatLogger(fallback, merged);
-				}
-				return fallback;
-			},
-		};
-	}
-
-	/**
-	 * Attaches a format logger to an ObserveResult, rendering events as they arrive.
-	 * Wraps the result's dispose to flush pending events.
+	 * Attach format-rendering logger to an ObserveResult by subscribing to its
+	 * event stream (no monkey-patching). Renders each event per `format` and
+	 * `theme`, filtered by `includeTypes` / `excludeTypes`.
 	 */
 	private _attachFormatLogger(result: ObserveResult, options: ObserveOptions): void {
-		const format = options.format!;
+		const format = options.format;
+		if (format == null) return;
 		const logger = options.logger ?? ((line: string) => console.log(line));
+		// Compile include/exclude predicates once.
 		const include = options.includeTypes ? new Set(options.includeTypes) : null;
 		const exclude = options.excludeTypes ? new Set(options.excludeTypes) : null;
+		const shouldLog =
+			include == null && exclude == null
+				? () => true
+				: (type: ObserveEvent["type"]): boolean =>
+						(include == null || include.has(type)) && (exclude == null || !exclude.has(type));
 		const theme = resolveObserveTheme(options.theme);
-
-		const shouldLog = (type: ObserveEvent["type"]): boolean => {
-			if (include?.has(type) === false) return false;
-			if (exclude?.has(type) === true) return false;
-			return true;
-		};
 
 		const renderEvent = (event: ObserveEvent): string => {
 			if (format === "json") {
@@ -2058,45 +1851,25 @@ export class Graph {
 			}
 			const color = theme[event.type] ?? "";
 			const pathPart = event.path ? `${theme.path}${event.path}${theme.reset} ` : "";
-			const dataPart = event.data !== undefined ? ` ${describeData(event.data)}` : "";
+			const hasData = event.type === "data" || event.type === "error";
+			const dataPart = hasData ? ` ${describeData((event as { data: unknown }).data)}` : "";
+			const causal =
+				event.type === "data" || event.type === "resolved" || event.type === "derived"
+					? (event as ObserveCausalContext)
+					: undefined;
 			const triggerPart =
-				event.trigger_dep_name != null
-					? ` <- ${event.trigger_dep_name}`
-					: event.trigger_dep_index != null
-						? ` <- #${event.trigger_dep_index}`
+				causal?.trigger_dep_name != null
+					? ` <- ${causal.trigger_dep_name}`
+					: causal?.trigger_dep_index != null
+						? ` <- #${causal.trigger_dep_index}`
 						: "";
 			const batchPart = event.in_batch ? " [batch]" : "";
 			return `${pathPart}${color}${event.type.toUpperCase()}${theme.reset}${dataPart}${triggerPart}${batchPart}`;
 		};
 
-		// Poll-free event flushing: watch the events array length via a cursor.
-		// The fallback ObserveResult pushes events synchronously during subscribe callbacks,
-		// so we use Object.defineProperty to intercept event pushes.
-		let cursor = 0;
-		const flush = () => {
-			const events = result.events;
-			while (cursor < events.length) {
-				const event = events[cursor++];
-				if (shouldLog(event.type)) {
-					logger(renderEvent(event), event);
-				}
-			}
-		};
-
-		// Wrap the events array's push to flush on each new event.
-		const origPush = (result.events as ObserveEvent[]).push;
-		(result.events as ObserveEvent[]).push = function (...items: ObserveEvent[]) {
-			const ret = origPush.apply(this, items);
-			flush();
-			return ret;
-		};
-
-		// Wrap dispose to flush any remaining events.
-		const origDispose = result.dispose.bind(result);
-		(result as { dispose(): void }).dispose = () => {
-			origDispose();
-			flush();
-		};
+		result.onEvent((event) => {
+			if (shouldLog(event.type)) logger(renderEvent(event), event);
+		});
 	}
 
 	// `dumpGraph` is folded into `describe({format: "pretty" | "json"})` (Unit 12).
