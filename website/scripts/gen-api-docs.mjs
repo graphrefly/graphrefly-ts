@@ -44,7 +44,6 @@ const REGISTRY = {
 	isBatching: "src/core/batch.ts",
 	partitionForBatch: "src/core/batch.ts",
 	downWithBatch: "src/core/batch.ts",
-	dynamicNode: "src/core/dynamic-node.ts",
 
 	// Core — guard
 	policy: "src/core/guard.ts",
@@ -115,17 +114,13 @@ const REGISTRY = {
 	rateLimiter: "src/extra/resilience.ts",
 	withBreaker: "src/extra/resilience.ts",
 	withStatus: "src/extra/resilience.ts",
-	MemoryCheckpointAdapter: "src/extra/checkpoint.ts",
-	DictCheckpointAdapter: "src/extra/checkpoint.ts",
-	FileCheckpointAdapter: "src/extra/checkpoint.ts",
-	SqliteCheckpointAdapter: "src/extra/checkpoint.ts",
-	saveGraphCheckpoint: "src/extra/checkpoint.ts",
-	restoreGraphCheckpoint: "src/extra/checkpoint.ts",
-	checkpointNodeValue: "src/extra/checkpoint.ts",
-	saveGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
-	restoreGraphCheckpointIndexedDb: "src/extra/checkpoint.ts",
-	fromIDBRequest: "src/extra/checkpoint.ts",
-	fromIDBTransaction: "src/extra/checkpoint.ts",
+	memoryStorage: "src/extra/storage.ts",
+	dictStorage: "src/extra/storage.ts",
+	fileStorage: "src/extra/storage.ts",
+	sqliteStorage: "src/extra/storage.ts",
+	indexedDbStorage: "src/extra/storage.ts",
+	fromIDBRequest: "src/extra/storage.ts",
+	fromIDBTransaction: "src/extra/storage.ts",
 
 	// Extra — data structures (roadmap §3.2)
 	reactiveMap: "src/extra/reactive-map.ts",

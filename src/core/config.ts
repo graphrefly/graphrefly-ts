@@ -133,6 +133,7 @@ export type OnSubscribeHandler = (
  */
 export class GraphReFlyConfig {
 	private _messageTypes = new Map<symbol, MessageTypeRegistration>();
+	private _codecs = new Map<string, { readonly name: string; readonly version: number }>();
 	private _onMessage: OnMessageHandler;
 	private _onSubscribe: OnSubscribeHandler;
 	private _defaultVersioning: VersioningLevel | undefined;
@@ -300,6 +301,36 @@ export class GraphReFlyConfig {
 	/** Whether `t` is a registered (built-in or custom) type. */
 	isKnownMessageType(t: symbol): boolean {
 		return this._messageTypes.has(t);
+	}
+
+	// --- Codec registry (writes require unfrozen; reads are free lookups) ---
+
+	/**
+	 * Register a graph codec by `codec.name`. Used by the envelope-based
+	 * `graph.snapshot({format: "bytes", codec: name})` path and
+	 * `Graph.decode(bytes)` auto-dispatch. Must be called before any node
+	 * bound to this config is created — otherwise throws.
+	 *
+	 * Re-registering the same name overwrites, so user codecs can shadow
+	 * built-in ones before freeze (e.g., to swap a zstd-wrapped dag-cbor in
+	 * for `"dag-cbor"`).
+	 */
+	registerCodec<T extends { readonly name: string; readonly version: number }>(codec: T): this {
+		this._assertUnfrozen();
+		this._codecs.set(codec.name, codec);
+		return this;
+	}
+
+	/**
+	 * Resolve a registered codec by name. Returns `undefined` for unknown
+	 * names. Typed callers cast to their concrete codec interface (e.g.,
+	 * `config.lookupCodec<GraphCodec>("json")`) — this method stays
+	 * layer-pure (no import of graph-layer types into `core/`).
+	 */
+	lookupCodec<T = { readonly name: string; readonly version: number }>(
+		name: string,
+	): T | undefined {
+		return this._codecs.get(name) as T | undefined;
 	}
 
 	/** @internal Used by tests and dev tooling — check freeze state without triggering it. */

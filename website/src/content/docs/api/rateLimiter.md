@@ -1,14 +1,18 @@
 ---
 title: "rateLimiter()"
-description: "Enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`."
+description: "Token-bucket rate limiter: at most `maxEvents` `DATA` values per `windowNs`.\n\nUses tokenBucket internally (capacity = `maxEvents`, refill = `maxEvents / windowS"
 ---
 
-Enforces a sliding window: at most `maxEvents` `DATA` values per `windowNs`.
+Token-bucket rate limiter: at most `maxEvents` `DATA` values per `windowNs`.
+
+Uses tokenBucket internally (capacity = `maxEvents`, refill = `maxEvents / windowSeconds`).
+Excess items are queued FIFO until a token is available. The queue may be bounded via
+`maxBuffer` with a configurable overflow policy.
 
 ## Signature
 
 ```ts
-function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): Node<T>
+function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<T>
 ```
 
 ## Parameters
@@ -16,12 +20,11 @@ function rateLimiter<T>(source: Node<T>, maxEvents: number, windowNs: number): N
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `maxEvents` | `number` | Maximum `DATA` emissions per window (must be positive). |
-| `windowNs` | `number` | Window length in nanoseconds (must be positive). |
+| `opts` | `RateLimiterOptions` | Rate + optional bounded-buffer configuration. |
 
 ## Returns
 
-Node that queues excess values FIFO until a slot frees.
+Node that emits DATA at most `maxEvents` per `windowNs`.
 
 ## Basic Usage
 
@@ -29,11 +32,10 @@ Node that queues excess values FIFO until a slot frees.
 import { rateLimiter, state, NS_PER_SEC } from "@graphrefly/graphrefly-ts";
 
 const src = state(0);
-// Allow at most 5 DATA values per second
-const limited = rateLimiter(src, 5, NS_PER_SEC);
-limited.subscribe((msgs) => console.log(msgs));
+// Allow at most 5 DATA values per second; queue up to 100 excess items, drop newest beyond.
+const limited = rateLimiter(src, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 100 });
 ```
 
 ## Behavior Details
 
-- **Terminal:** `COMPLETE` / `ERROR` cancel timers, drop pending queue, and clear window state.
+- **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue, and propagate.

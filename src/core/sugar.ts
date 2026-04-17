@@ -70,7 +70,7 @@ export function state<T>(initial: T, opts?: Omit<NodeOptions<T>, "initial">): No
 /**
  * User-level producer compute: runs once on first-subscriber activation.
  * Receives `actions` for imperative emission and `ctx` for FnCtx (typically
- * only `store` is useful on a producer — no deps means `latestData` and
+ * only `store` is useful on a producer — no deps means `prevData` and
  * `terminalDeps` are empty).
  */
 export type ProducerFn = (
@@ -218,8 +218,9 @@ export function effect(
  * Proxy handed to a {@link DynamicFn}. `track(dep)` returns the dep's
  * latest DATA payload, as delivered through the protocol. Reading from
  * `track` does NOT bypass the message protocol — it reads the internal
- * `DepRecord.latestData` that `_onDepMessage` already populated. If a
- * dep has not yet sent DATA, `track` returns `undefined`.
+ * `DepRecord.prevData` (the stable end-of-previous-wave value) that
+ * `_onDepMessage` already populated. If a dep has not yet sent DATA,
+ * `track` returns `undefined`.
  */
 export type TrackFn = (dep: Node) => unknown;
 
@@ -234,7 +235,7 @@ export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
  * outputs as RESOLVED.
  *
  * P3-compliant: `track(dep)` reads from the framework-managed
- * `DepRecord.latestData` populated by the protocol, never from
+ * `DepRecord.prevData` populated by the protocol, never from
  * `dep.cache`.
  *
  * @example

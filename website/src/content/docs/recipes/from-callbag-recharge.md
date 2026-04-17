@@ -107,7 +107,7 @@ All 70+ operators carry forward with the same names and semantics. A few notes:
 | `circuitBreaker(opts)` | `circuitBreaker(opts)` | Same |
 | `withRetry(opts)` | `retry(opts)` | Consolidated |
 | `withBreaker(breaker)` | `withBreaker(breaker)` | Same |
-| `checkpoint()` | `saveGraphCheckpoint(graph, adapter)` | Now Graph-level, not per-store |
+| `checkpoint()` | `graph.attachStorage([tier])` | Graph-level via unified `StorageTier`; one-shot saves via `tier.save(graph.name, graph.snapshot())` |
 
 ### Patterns (new in GraphReFly)
 

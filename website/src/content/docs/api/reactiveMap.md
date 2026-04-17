@@ -8,18 +8,19 @@ Creates a reactive `Map` with optional per-key TTL and optional LRU max size.
 ## Signature
 
 ```ts
-function reactiveMap<K, V>(options: ReactiveMapOptions = {}): ReactiveMapBundle<K, V>
+function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMapBundle<K, V>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `ReactiveMapOptions` | Node options plus `maxSize` / `defaultTtl` (seconds). |
+| `options` | `ReactiveMapOptions&lt;K, V&gt;` | `name`, `maxSize`, `defaultTtl` (seconds), or custom `backend`. |
 
 ## Returns
 
-`ReactiveMapBundle` — imperative `get` / `set` / `delete` / `clear` / `pruneExpired` and an `entries` node emitting `ReadonlyMap` snapshots.
+`ReactiveMapBundle` — imperative methods (`has`/`get`/`set`/`setMany`/`delete`/
+`deleteMany`/`clear`/`pruneExpired`), reactive `entries` node, and O(1)-ish `size`.
 
 ## Basic Usage
 
@@ -28,19 +29,22 @@ import { reactiveMap } from "@graphrefly/graphrefly-ts";
 
 const m = reactiveMap<string, number>({ name: "cache", maxSize: 100, defaultTtl: 60 });
 m.set("x", 1);
-m.entries.subscribe((msgs) => {
-    console.log(msgs);
-  });
+m.setMany([["y", 2], ["z", 3]]);
+m.entries.subscribe((msgs) => { console.log(msgs); });
 ```
 
 ## Behavior Details
 
 - **TTL:** Expiry is checked on `get`, `has`, `size`, `pruneExpired`, and before each
-snapshot emission (expired keys are pruned first). There is no
-background timer; monotonic-clock–expired keys may still appear in the last-emitted
-snapshot on `node` until a read or `pruneExpired` removes them.
-Uses `monotonicNs()` — immune to wall-clock adjustments.
+snapshot emission (expired keys are pruned first). Reads that discover expired keys
+emit a snapshot so subscribers see state consistent with the read's return value.
+There is no background timer; monotonic-clock expiry is immune to wall-clock changes.
 
-**LRU:** Uses native `Map` insertion order — `get` / `has` refreshes position; under
-`maxSize` pressure the first key in iteration order is evicted. When `maxSize` is
-omitted or is less than 1, no size-based eviction runs.
+**LRU:** Uses native `Map` insertion order — `get` / `has` refreshes position via
+delete-then-reinsert; under `maxSize` pressure the first key in iteration order is
+evicted. LRU touching does NOT trigger emission (internal optimization).
+
+**Backend:** The default NativeMapBackend owns LRU/TTL. For persistent /
+HAMT / shared-state semantics plug in a custom MapBackend. `maxSize` and
+`defaultTtl` on the options object are only applied to the default backend — if
+you supply `backend`, configure those on your backend directly.

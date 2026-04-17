@@ -28,7 +28,7 @@ Node that retries on error.
 import { ERROR, NS_PER_SEC, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
 
 const src = producer(
-  (_d, a) => {
+  (a) => {
     a.down([[ERROR, new Error("x")]]);
   },
 { resubscribable: true },

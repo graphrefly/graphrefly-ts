@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TEARDOWN } from "../../core/messages.js";
-import { type CacheTier, cascadingCache, lru, tieredStorage } from "../../extra/cascading-cache.js";
-import { MemoryCheckpointAdapter } from "../../extra/checkpoint.js";
+import { cascadingCache, lru } from "../../extra/cascading-cache.js";
+import type { StorageTier } from "../../extra/storage.js";
 
 describe("lru eviction policy", () => {
 	it("evicts least-recently-used entries", () => {
@@ -10,7 +10,6 @@ describe("lru eviction policy", () => {
 		policy.insert("b");
 		policy.insert("c");
 		expect(policy.size()).toBe(3);
-		// LRU order: c (head) → b → a (tail)
 		const evicted = policy.evict(1);
 		expect(evicted).toEqual(["a"]);
 		expect(policy.size()).toBe(2);
@@ -21,8 +20,7 @@ describe("lru eviction policy", () => {
 		policy.insert("a");
 		policy.insert("b");
 		policy.insert("c");
-		policy.touch("a"); // a moves to front
-		// Order: a → c → b (tail)
+		policy.touch("a");
 		const evicted = policy.evict(1);
 		expect(evicted).toEqual(["b"]);
 	});
@@ -40,20 +38,24 @@ describe("lru eviction policy", () => {
 		const policy = lru<string>();
 		policy.insert("a");
 		policy.insert("b");
-		policy.insert("a"); // re-insert touches
+		policy.insert("a");
 		const evicted = policy.evict(1);
-		expect(evicted).toEqual(["b"]); // b is now LRU
+		expect(evicted).toEqual(["b"]);
 	});
 });
 
 describe("cascadingCache", () => {
-	function memTier<V>(): CacheTier<V> & { store: Map<string, V> } {
+	function memTier<V>(): StorageTier & { store: Map<string, V> } {
 		const store = new Map<string, V>();
 		return {
 			store,
-			load: (key) => store.get(key),
-			save: (key, value) => store.set(key, value),
-			clear: (key) => store.delete(key),
+			load: (key) => (store.has(key) ? (store.get(key) as V) : null),
+			save: (key, value) => {
+				store.set(key, value as V);
+			},
+			clear: (key) => {
+				store.delete(key);
+			},
 		};
 	}
 
@@ -62,17 +64,16 @@ describe("cascadingCache", () => {
 		const cold = memTier<number>();
 		cold.store.set("x", 42);
 
-		const c = cascadingCache([hot, cold]);
+		const c = cascadingCache<number>([hot, cold]);
 		const nd = c.load("x");
 		expect(nd.cache).toBe(42);
-		// Auto-promoted to hot tier
 		expect(hot.store.get("x")).toBe(42);
 	});
 
 	it("returns same node for repeated loads", () => {
 		const tier = memTier<number>();
 		tier.store.set("k", 1);
-		const c = cascadingCache([tier]);
+		const c = cascadingCache<number>([tier]);
 		const n1 = c.load("k");
 		const n2 = c.load("k");
 		expect(n1).toBe(n2);
@@ -80,8 +81,8 @@ describe("cascadingCache", () => {
 
 	it("save updates existing node in-place", () => {
 		const tier = memTier<string>();
-		const c = cascadingCache([tier]);
-		const nd = c.load("k"); // undefined
+		const c = cascadingCache<string>([tier]);
+		const nd = c.load("k");
 		expect(nd.cache).toBeUndefined();
 		c.save("k", "hello");
 		expect(nd.cache).toBe("hello");
@@ -90,7 +91,7 @@ describe("cascadingCache", () => {
 
 	it("save creates new node if key not yet loaded", () => {
 		const tier = memTier<number>();
-		const c = cascadingCache([tier]);
+		const c = cascadingCache<number>([tier]);
 		c.save("new", 99);
 		expect(c.has("new")).toBe(true);
 		expect(c.load("new").cache).toBe(99);
@@ -99,7 +100,7 @@ describe("cascadingCache", () => {
 	it("writeThrough saves to all tiers", () => {
 		const hot = memTier<number>();
 		const cold = memTier<number>();
-		const c = cascadingCache([hot, cold], { writeThrough: true });
+		const c = cascadingCache<number>([hot, cold], { writeThrough: true });
 		c.save("k", 7);
 		expect(hot.store.get("k")).toBe(7);
 		expect(cold.store.get("k")).toBe(7);
@@ -108,7 +109,7 @@ describe("cascadingCache", () => {
 	it("default save writes to first tier only", () => {
 		const hot = memTier<number>();
 		const cold = memTier<number>();
-		const c = cascadingCache([hot, cold]); // writeThrough defaults false
+		const c = cascadingCache<number>([hot, cold]);
 		c.save("k", 7);
 		expect(hot.store.get("k")).toBe(7);
 		expect(cold.store.has("k")).toBe(false);
@@ -118,23 +119,21 @@ describe("cascadingCache", () => {
 		const hot = memTier<number>();
 		const cold = memTier<number>();
 		cold.store.set("k", 10);
-		const c = cascadingCache([hot, cold]);
+		const c = cascadingCache<number>([hot, cold]);
 		const nd = c.load("k");
 		expect(nd.cache).toBe(10);
 
-		// Change cold tier value
 		cold.store.set("k", 20);
-		hot.store.delete("k"); // clear hot cache
+		hot.store.delete("k");
 		c.invalidate("k");
 		expect(nd.cache).toBe(20);
-		// Re-promoted to hot
 		expect(hot.store.get("k")).toBe(20);
 	});
 
 	it("delete removes from all tiers and teardowns node", () => {
 		const tier = memTier<number>();
 		tier.store.set("k", 5);
-		const c = cascadingCache([tier]);
+		const c = cascadingCache<number>([tier]);
 		const nd = c.load("k");
 
 		const msgs: unknown[][] = [];
@@ -150,7 +149,7 @@ describe("cascadingCache", () => {
 
 	it("has and size", () => {
 		const tier = memTier<number>();
-		const c = cascadingCache([tier]);
+		const c = cascadingCache<number>([tier]);
 		expect(c.size).toBe(0);
 		expect(c.has("a")).toBe(false);
 		c.load("a");
@@ -160,10 +159,10 @@ describe("cascadingCache", () => {
 
 	it("evicts when maxSize exceeded", () => {
 		const tier = memTier<number>();
-		const c = cascadingCache([tier], { maxSize: 2 });
+		const c = cascadingCache<number>([tier], { maxSize: 2 });
 		c.save("a", 1);
 		c.save("b", 2);
-		c.save("c", 3); // should evict "a" (LRU)
+		c.save("c", 3);
 		expect(c.has("a")).toBe(false);
 		expect(c.has("b")).toBe(true);
 		expect(c.has("c")).toBe(true);
@@ -173,58 +172,59 @@ describe("cascadingCache", () => {
 	it("eviction demotes to deepest tier with save", () => {
 		const hot = memTier<number>();
 		const cold = memTier<number>();
-		const c = cascadingCache([hot, cold], { maxSize: 1 });
+		const c = cascadingCache<number>([hot, cold], { maxSize: 1 });
 		c.save("a", 10);
-		c.save("b", 20); // evicts "a", demotes to cold
+		c.save("b", 20);
 		expect(cold.store.get("a")).toBe(10);
 	});
 
 	it("skips tiers that throw on load", () => {
-		const broken: CacheTier<number> = {
+		const broken: StorageTier = {
 			load() {
 				throw new Error("boom");
+			},
+			save() {
+				/* no-op — tier is effectively read-only for this test */
 			},
 		};
 		const good = memTier<number>();
 		good.store.set("k", 42);
-		const c = cascadingCache([broken, good]);
+		const c = cascadingCache<number>([broken, good]);
 		expect(c.load("k").cache).toBe(42);
 	});
 
 	it("all tiers miss → value stays undefined", () => {
 		const empty = memTier<number>();
-		const c = cascadingCache([empty]);
+		const c = cascadingCache<number>([empty]);
 		expect(c.load("missing").cache).toBeUndefined();
 	});
-});
 
-describe("tieredStorage", () => {
-	it("wraps CheckpointAdapters as cascadingCache", () => {
-		const mem = new MemoryCheckpointAdapter();
-		mem.save("k", { value: 42 });
-
-		const ts = tieredStorage([mem]);
-		const nd = ts.load("k");
-		expect(nd.cache).toEqual({ value: 42 });
+	it("async tier load resolves via Promise", async () => {
+		const cold: StorageTier = {
+			load: async (key) => (key === "k" ? 123 : null),
+			save: () => {
+				/* no-op */
+			},
+		};
+		const c = cascadingCache<number>([cold]);
+		const nd = c.load("k");
+		expect(nd.cache).toBeUndefined();
+		await new Promise((r) => setTimeout(r, 0));
+		expect(nd.cache).toBe(123);
 	});
 
-	it("save/load/invalidate/delete/has/size work", () => {
-		const mem = new MemoryCheckpointAdapter();
-		const ts = tieredStorage([mem]);
-		ts.save("x", "hello");
-		expect(ts.has("x")).toBe(true);
-		expect(ts.size).toBe(1);
-		expect(ts.load("x").cache).toBe("hello");
-
-		ts.invalidate("x");
-		expect(ts.load("x").cache).toBe("hello"); // re-cascaded from adapter
-
-		ts.delete("x");
-		expect(ts.has("x")).toBe(false);
-	});
-
-	it("exposes inner cache", () => {
-		const ts = tieredStorage([new MemoryCheckpointAdapter()]);
-		expect(ts.cache).toBeDefined();
+	it("async tier promotes to sync hot tier on hit", async () => {
+		const hot = memTier<number>();
+		const cold: StorageTier = {
+			load: async (key) => (key === "k" ? 77 : null),
+			save: () => {
+				/* no-op */
+			},
+		};
+		const c = cascadingCache<number>([hot, cold]);
+		const nd = c.load("k");
+		await new Promise((r) => setTimeout(r, 0));
+		expect(nd.cache).toBe(77);
+		expect(hot.store.get("k")).toBe(77);
 	});
 });

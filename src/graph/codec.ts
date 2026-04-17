@@ -12,8 +12,17 @@
  *   WARM — DAG-CBOR in-memory buffer (lazy hydration, delta checkpoints)
  *   COLD — Arrow/Parquet (bulk storage, ML pipelines, archival)
  *   PEEK — FlatBuffers (zero-copy read from dormant graph)
+ *
+ * Wire-protocol envelope (v1):
+ *
+ *   [envelope_v=1: u8][name_len: u8][name: utf8][codec_v: u16 BE][payload: rest]
+ *
+ * `graph.snapshot({format: "bytes", codec: name})` wraps the codec's
+ * `encode` output in this envelope; `Graph.decode(bytes)` auto-dispatches
+ * via the config's codec registry — no out-of-band content-type needed.
  */
 
+import type { GraphReFlyConfig } from "../core/config.js";
 import type { GraphCheckpointRecord, GraphPersistSnapshot } from "./graph.js";
 
 // ---------------------------------------------------------------------------
@@ -28,11 +37,18 @@ import type { GraphCheckpointRecord, GraphPersistSnapshot } from "./graph.js";
  * and snapshot hash-comparison.
  */
 export interface GraphCodec {
-	/** MIME-like content type identifier (e.g. "application/dag-cbor+zstd"). */
-	readonly contentType: string;
-
-	/** Human-readable name for diagnostics. */
+	/** Human-readable name; used as the lookup key in the envelope and config registry. */
 	readonly name: string;
+
+	/**
+	 * Codec version. Bumps on breaking wire format changes; `decode` receives
+	 * this via the envelope so codecs can dispatch on historical layouts.
+	 * Must fit in a `u16` (0–65535).
+	 */
+	readonly version: number;
+
+	/** MIME-like content type identifier (e.g. `"application/dag-cbor+zstd"`). */
+	readonly contentType: string;
 
 	/** Encode a snapshot to binary. */
 	encode(snapshot: GraphPersistSnapshot): Uint8Array;
@@ -40,10 +56,15 @@ export interface GraphCodec {
 	/**
 	 * Decode binary back to a snapshot.
 	 *
+	 * `codecVersion` is the version that produced `buffer` (read from the
+	 * envelope). Omit when the caller is sure of the version (tests, one-shot
+	 * round-trips). Codecs that support multiple historical layouts dispatch
+	 * on this value.
+	 *
 	 * For lazy codecs, this may return a proxy that decodes nodes on access
 	 * (see {@link LazyGraphCodec}).
 	 */
-	decode(buffer: Uint8Array): GraphPersistSnapshot;
+	decode(buffer: Uint8Array, codecVersion?: number): GraphPersistSnapshot;
 }
 
 /**
@@ -55,25 +76,12 @@ export interface GraphCodec {
  */
 export interface LazyGraphCodec extends GraphCodec {
 	/** Decode envelope and topology; defer node value decoding to access time. */
-	decodeLazy(buffer: Uint8Array): GraphPersistSnapshot;
+	decodeLazy(buffer: Uint8Array, codecVersion?: number): GraphPersistSnapshot;
 }
 
 // ---------------------------------------------------------------------------
 // Delta checkpoint types (requires V0 — Phase 6.0)
 // ---------------------------------------------------------------------------
-
-/**
- * **Deprecated** (Unit 23 A, batch 9) — `DeltaCheckpoint` was a wire-efficient
- * per-node-version delta format designed before `autoCheckpoint` landed. The
- * active `GraphCheckpointRecord` type in `graph.ts` uses `GraphDiffResult`
- * (structural, audit-friendly) which is what `replayWAL` and callers actually
- * consume. No code produces `DeltaCheckpoint` today.
- *
- * Kept as a type alias to `GraphCheckpointRecord & {mode: "diff-only"}` so
- * legacy references still resolve — new code should use `GraphCheckpointRecord`
- * directly. Likely to be deleted entirely when the wire-protocol work lands.
- */
-export type DeltaCheckpoint = Extract<GraphCheckpointRecord, { mode: "diff-only" }>;
 
 /**
  * WAL entry. Unified with {@link GraphCheckpointRecord} — every record
@@ -121,8 +129,9 @@ export interface EvictedSubgraphInfo {
  * key ordering (matching current `snapshot()` behavior).
  */
 export const JsonCodec: GraphCodec = {
-	contentType: "application/json",
 	name: "json",
+	version: 1,
+	contentType: "application/json",
 
 	encode(snapshot: GraphPersistSnapshot): Uint8Array {
 		// Deterministic: snapshot() already sorts keys.
@@ -130,14 +139,14 @@ export const JsonCodec: GraphCodec = {
 		return new TextEncoder().encode(json);
 	},
 
-	decode(buffer: Uint8Array): GraphPersistSnapshot {
+	decode(buffer: Uint8Array, _codecVersion?: number): GraphPersistSnapshot {
 		const json = new TextDecoder().decode(buffer);
 		return JSON.parse(json) as GraphPersistSnapshot;
 	},
 };
 
 // ---------------------------------------------------------------------------
-// DAG-CBOR codec (stub — requires @ipld/dag-cbor)
+// DAG-CBOR codec (factory — requires @ipld/dag-cbor DI)
 // ---------------------------------------------------------------------------
 
 /**
@@ -150,7 +159,8 @@ export const JsonCodec: GraphCodec = {
  * ```ts
  * import * as dagCbor from "@ipld/dag-cbor";
  * const codec = createDagCborCodec(dagCbor);
- * const bytes = codec.encode(graph.snapshot());
+ * config.registerCodec(codec);
+ * const bytes = graph.snapshot({ format: "bytes", codec: "dag-cbor" });
  * ```
  */
 export function createDagCborCodec(dagCbor: {
@@ -158,10 +168,11 @@ export function createDagCborCodec(dagCbor: {
 	decode: (bytes: Uint8Array) => unknown;
 }): GraphCodec {
 	return {
-		contentType: "application/dag-cbor",
 		name: "dag-cbor",
+		version: 1,
+		contentType: "application/dag-cbor",
 		encode: (snapshot) => dagCbor.encode(snapshot),
-		decode: (buffer) => dagCbor.decode(buffer) as GraphPersistSnapshot,
+		decode: (buffer, _codecVersion) => dagCbor.decode(buffer) as GraphPersistSnapshot,
 	};
 }
 
@@ -176,6 +187,7 @@ export function createDagCborCodec(dagCbor: {
  * import * as dagCbor from "@ipld/dag-cbor";
  * import { compressSync, decompressSync } from "fzstd";
  * const codec = createDagCborZstdCodec(dagCbor, { compressSync, decompressSync });
+ * config.registerCodec(codec);
  * ```
  */
 export function createDagCborZstdCodec(
@@ -189,32 +201,115 @@ export function createDagCborZstdCodec(
 	},
 ): GraphCodec {
 	return {
-		contentType: "application/dag-cbor+zstd",
 		name: "dag-cbor-zstd",
+		version: 1,
+		contentType: "application/dag-cbor+zstd",
 		encode: (snapshot) => zstd.compressSync(dagCbor.encode(snapshot)),
-		decode: (buffer) => dagCbor.decode(zstd.decompressSync(buffer)) as GraphPersistSnapshot,
+		decode: (buffer, _codecVersion) =>
+			dagCbor.decode(zstd.decompressSync(buffer)) as GraphPersistSnapshot,
 	};
 }
 
 // ---------------------------------------------------------------------------
-// Codec negotiation (for peerGraph)
+// Envelope (v1) — self-describing codec metadata prepended to payload bytes
 // ---------------------------------------------------------------------------
 
+/** Current envelope format version. Bump on breaking layout changes. */
+export const ENVELOPE_VERSION = 1;
+
+const ENVELOPE_MIN_LEN = 4; // env_v(1) + name_len(1) + codec_v(2) + name/payload(≥0)
+
 /**
- * Negotiate a common codec between two peers.
+ * Prepend the v1 envelope to `payload` identifying `codec`. The resulting
+ * bytes are self-describing — any caller with access to the registering
+ * {@link GraphReFlyConfig} can {@link decodeEnvelope} without knowing the
+ * codec up front.
  *
- * Each peer advertises its supported codecs (ordered by preference).
- * Returns the first codec supported by both, or null if none.
+ * Layout:
+ * `[envelope_v=1: u8][name_len: u8][name: utf8][codec_v: u16 BE][payload: rest]`
+ *
+ * @throws If `codec.name` encodes to more than 255 UTF-8 bytes or
+ *   `codec.version` doesn't fit in a u16.
  */
-export function negotiateCodec(
-	localPreference: readonly GraphCodec[],
-	remoteContentTypes: readonly string[],
-): GraphCodec | null {
-	const remoteSet = new Set(remoteContentTypes);
-	for (const codec of localPreference) {
-		if (remoteSet.has(codec.contentType)) return codec;
+export function encodeEnvelope(
+	codec: Pick<GraphCodec, "name" | "version">,
+	payload: Uint8Array,
+): Uint8Array {
+	const nameBytes = new TextEncoder().encode(codec.name);
+	if (nameBytes.length === 0 || nameBytes.length > 255) {
+		throw new Error(
+			`encodeEnvelope: codec name "${codec.name}" encodes to ${nameBytes.length} bytes (must be 1–255)`,
+		);
 	}
-	return null;
+	const cv = codec.version;
+	if (!Number.isInteger(cv) || cv < 0 || cv > 0xffff) {
+		throw new Error(
+			`encodeEnvelope: codec.version ${cv} out of u16 range (expected integer 0–65535)`,
+		);
+	}
+	const out = new Uint8Array(1 + 1 + nameBytes.length + 2 + payload.length);
+	let i = 0;
+	out[i++] = ENVELOPE_VERSION;
+	out[i++] = nameBytes.length;
+	out.set(nameBytes, i);
+	i += nameBytes.length;
+	out[i++] = (cv >>> 8) & 0xff;
+	out[i++] = cv & 0xff;
+	out.set(payload, i);
+	return out;
+}
+
+/**
+ * Inverse of {@link encodeEnvelope}. Reads the header, resolves the codec
+ * via `config.lookupCodec(name)`, and returns the codec + its version + the
+ * inner payload slice. The caller feeds `payload` to `codec.decode(payload,
+ * codecVersion)` — or uses {@link Graph.decode} which does both steps.
+ *
+ * @throws If the envelope is truncated, the version is unsupported, or the
+ *   named codec isn't registered on `config`.
+ */
+export function decodeEnvelope(
+	bytes: Uint8Array,
+	config: GraphReFlyConfig,
+): { codec: GraphCodec; codecVersion: number; payload: Uint8Array } {
+	if (bytes.length < ENVELOPE_MIN_LEN) {
+		throw new Error(`decodeEnvelope: bytes too short (${bytes.length} < ${ENVELOPE_MIN_LEN})`);
+	}
+	let i = 0;
+	const envVersion = bytes[i++]!;
+	if (envVersion !== ENVELOPE_VERSION) {
+		throw new Error(
+			`decodeEnvelope: unsupported envelope version ${envVersion} (expected ${ENVELOPE_VERSION})`,
+		);
+	}
+	const nameLen = bytes[i++]!;
+	if (i + nameLen + 2 > bytes.length) {
+		throw new Error(
+			`decodeEnvelope: envelope truncated (need ${i + nameLen + 2} bytes, have ${bytes.length})`,
+		);
+	}
+	const name = new TextDecoder().decode(bytes.subarray(i, i + nameLen));
+	i += nameLen;
+	const codecVersion = ((bytes[i]! << 8) | bytes[i + 1]!) >>> 0;
+	i += 2;
+	const payload = bytes.subarray(i);
+	const codec = config.lookupCodec<GraphCodec>(name);
+	if (codec == null) {
+		throw new Error(
+			`decodeEnvelope: codec "${name}" not registered (envelope codec_v=${codecVersion})`,
+		);
+	}
+	return { codec, codecVersion, payload };
+}
+
+/**
+ * Register the built-in {@link JsonCodec} on a config. Called once on
+ * `defaultConfig` at module load so `graph.snapshot({format: "bytes", codec:
+ * "json"})` works out of the box. Test / isolated configs should call this
+ * manually before the first node is created.
+ */
+export function registerBuiltinCodecs(config: GraphReFlyConfig): void {
+	config.registerCodec(JsonCodec);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,13 +319,12 @@ export function negotiateCodec(
 /**
  * Reconstruct a snapshot from a WAL (sequence of {@link GraphCheckpointRecord}s).
  *
- * - Must start with a `"full"` (or `"diff"`) record carrying a baseline
- *   snapshot.
+ * - Must start with a `"full"` record carrying a baseline snapshot — that's
+ *   the anchor {@link Graph.attachStorage} always emits on the first flush
+ *   of any tier (and every `compactEvery`-th flush thereafter).
  * - Subsequent `"full"` entries (compaction points) **replace** the result
  *   wholesale.
- * - `"diff"` entries carry a baseline snapshot; used as-is (equivalent to
- *   `"full"` for replay purposes — the diff is audit-side-channel data).
- * - `"diff-only"` entries roll forward by applying the structural diff —
+ * - `"diff"` entries roll forward by applying the structural diff —
  *   nodes added/removed/changed are reflected into the accumulated snapshot.
  *
  * Validates monotonic `seq` progression across entries.
@@ -241,8 +335,8 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 	}
 
 	const first = entries[0]!;
-	if (first.mode === "diff-only") {
-		throw new Error("WAL must start with a full or diff record (with baseline snapshot)");
+	if (first.mode !== "full") {
+		throw new Error("WAL must start with a full record carrying a baseline snapshot");
 	}
 
 	let result: GraphPersistSnapshot = JSON.parse(JSON.stringify(first.snapshot));
@@ -256,7 +350,7 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 			);
 		}
 
-		if (entry.mode === "full" || entry.mode === "diff") {
+		if (entry.mode === "full") {
 			// Replace baseline wholesale (Unit 23 D fix — Object.assign left
 			// stale keys from pre-compact state visible).
 			result = JSON.parse(JSON.stringify(entry.snapshot));
@@ -264,7 +358,7 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 			continue;
 		}
 
-		// mode === "diff-only": apply structural diff to the accumulated snapshot.
+		// mode === "diff": apply structural diff to the accumulated snapshot.
 		const diff = entry.diff;
 		for (const path of diff.nodesRemoved) {
 			delete result.nodes[path];
@@ -276,7 +370,7 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 		}
 		// `nodesAdded` cannot be reconstructed from a diff alone (no value/meta
 		// payload in GraphDiffResult). If callers need full round-trip with
-		// diff-only entries, they must ship full snapshots at `compactEvery`.
+		// diff entries, they must ship full snapshots at `compactEvery`.
 
 		// Edges are derived from node `_deps` at restore time (Unit 7) — no
 		// separate edge-patch pass.

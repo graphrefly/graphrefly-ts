@@ -357,6 +357,19 @@ export function gate<T>(
 
 	let queue: T[] = [];
 	let torn = false;
+	// Capture `isOpenNode` DATA into a closure variable fed by its own subscribe
+	// handler. The output producer consults `latestIsOpen` instead of reading
+	// `isOpenNode.cache` from inside its callback — keeps the gate decision on
+	// the protocol delivery path (P3 audit #11). Seeded with `startOpen` at
+	// wiring time so the first item arriving before any open()/close() uses
+	// the same value the state node was constructed with. Same template as
+	// the `stratify` rule-capture pattern.
+	let latestIsOpen = startOpen;
+	const isOpenUnsub = isOpenNode.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] === DATA) latestIsOpen = m[1] as boolean;
+		}
+	});
 
 	function syncPending(): void {
 		pendingNode.down([[DATA, [...queue]]]);
@@ -395,7 +408,7 @@ export function gate<T>(
 				return;
 			}
 			for (const v of batch0 as T[]) {
-				if (isOpenNode.cache) {
+				if (latestIsOpen) {
 					actions.emit(v);
 				} else {
 					enqueue(v);
@@ -454,6 +467,8 @@ export function gate<T>(
 
 	// Activate count so it stays reactive
 	graph.addDisposer(countNode.subscribe(() => undefined));
+	// Tear down the isOpen capture when the owning graph disposes.
+	graph.addDisposer(isOpenUnsub);
 
 	// Register output + internal state as a mounted subgraph (aligned with PY)
 	registerStep(graph, name, output as unknown as Node<unknown>, src.path ? [src.path] : []);

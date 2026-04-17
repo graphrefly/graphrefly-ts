@@ -19,15 +19,5 @@ function fromIDBTransaction(tx: IDBTransaction): Node<void>
 
 ## Returns
 
-`Node&lt;void&gt;` that emits `DATA` (`undefined`) then `COMPLETE` on success; emits `ERROR` on `error`/`abort`.
-
-## Basic Usage
-
-```ts
-import { fromIDBTransaction } from "@graphrefly/graphrefly-ts";
-
-const db: IDBDatabase = ...; // obtained from indexedDB.open
-const tx = db.transaction("store", "readwrite");
-fromIDBTransaction(tx).subscribe((msgs) => console.log(msgs));
-// Emits [[DATA, undefined], [COMPLETE]] when the transaction commits
-```
+`Node&lt;void&gt;` that emits `DATA` (`undefined`) then `COMPLETE` on
+success; emits `ERROR` on `error`/`abort`.

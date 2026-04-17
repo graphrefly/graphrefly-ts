@@ -295,6 +295,14 @@ export type HTTPBundle<T> = WithStatusBundle<T> & {
 	fetchCount: Node<number>;
 	/** Nanosecond wall-clock timestamp of the last successful fetch. */
 	lastUpdated: Node<number>;
+	/**
+	 * `true` after at least one successful fetch; stays `true` across
+	 * resubscribes. Orthogonal to {@link withStatus}'s `active`/`completed`
+	 * lifecycle — use this as the "fetch done" signal under the default
+	 * (cached, stays-live) behavior where `withStatus` never transitions to
+	 * `"completed"` unless `completeAfterFetch: true` is set.
+	 */
+	fetched: Node<boolean>;
 };
 
 /**
@@ -317,6 +325,7 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 
 	const fetchCount = state(0, { name: `${rest.name ?? "http"}/fetchCount` });
 	const lastUpdated = state(0, { name: `${rest.name ?? "http"}/lastUpdated` });
+	const fetched = state(false, { name: `${rest.name ?? "http"}/fetched` });
 
 	const body =
 		bodyOpt !== undefined
@@ -360,6 +369,7 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 				batch(() => {
 					fetchCount.down([[DATA, (fetchCount.cache ?? 0) + 1]]);
 					lastUpdated.down([[DATA, wallClockNs()]]);
+					fetched.down([[DATA, true]]);
 					a.emit(data as T);
 				});
 				if (completeAfterFetch) a.down([[COMPLETE]]);
@@ -399,6 +409,7 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 		...tracked,
 		fetchCount,
 		lastUpdated,
+		fetched,
 	};
 }
 
@@ -3855,15 +3866,28 @@ export function toTempo<T>(
 export type CheckpointToS3Options = {
 	/** S3 key prefix. Default: `"checkpoints/"`. */
 	prefix?: string;
-	/** Debounce ms for autoCheckpoint. Default: `500`. */
+	/** Debounce ms on the S3 tier. Default: `500`. */
 	debounceMs?: number;
 	/** Full snapshot compaction interval. Default: `10`. */
 	compactEvery?: number;
 	onError?: (error: unknown) => void;
 };
 
+type StorageTierLike = {
+	load(key: string): unknown | Promise<unknown>;
+	save(key: string, data: unknown): void | Promise<void>;
+	clear?(key: string): void | Promise<void>;
+	debounceMs?: number;
+	compactEvery?: number;
+};
+
+type AttachStorageGraphLike = {
+	attachStorage: (tiers: readonly StorageTierLike[], opts?: unknown) => { dispose(): void };
+	name: string;
+};
+
 /**
- * Wires `graph.autoCheckpoint()` to persist snapshots to S3.
+ * Wires `graph.attachStorage()` with an S3-backed tier.
  *
  * @param graph - Graph instance to checkpoint.
  * @param client - S3-compatible client with `putObject()`.
@@ -3874,20 +3898,16 @@ export type CheckpointToS3Options = {
  * @category extra
  */
 export function checkpointToS3(
-	graph: {
-		autoCheckpoint: (
-			adapter: { save(key: string, data: unknown): void },
-			opts?: unknown,
-		) => { dispose(): void };
-		name: string;
-	},
+	graph: AttachStorageGraphLike,
 	client: S3ClientLike,
 	bucket: string,
 	opts?: CheckpointToS3Options,
 ): { dispose(): void } {
-	const { prefix = "checkpoints/", debounceMs, compactEvery, onError } = opts ?? {};
-	const adapter = {
-		save(_key: string, data: unknown) {
+	const { prefix = "checkpoints/", debounceMs = 500, compactEvery = 10, onError } = opts ?? {};
+	const tier: StorageTierLike = {
+		debounceMs,
+		compactEvery,
+		save(_key, data) {
 			const ms = Math.floor(wallClockNs() / 1_000_000);
 			const s3Key = `${prefix}${graph.name}/checkpoint-${ms}.json`;
 			let body: string;
@@ -3906,8 +3926,13 @@ export function checkpointToS3(
 				})
 				.catch((err) => onError?.(err));
 		},
+		load() {
+			// S3 tier is write-only here — one object per checkpoint timestamp,
+			// no canonical "latest" key for load.
+			return null;
+		},
 	};
-	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });
+	return graph.attachStorage([tier], { onError: (err: unknown) => onError?.(err) });
 }
 
 // ——— checkpointToRedis ———
@@ -3922,7 +3947,7 @@ export type RedisCheckpointClientLike = {
 export type CheckpointToRedisOptions = {
 	/** Key prefix. Default: `"graphrefly:checkpoint:"`. */
 	prefix?: string;
-	/** Debounce ms for autoCheckpoint. Default: `500`. */
+	/** Debounce ms on the Redis tier. Default: `500`. */
 	debounceMs?: number;
 	/** Full snapshot compaction interval. Default: `10`. */
 	compactEvery?: number;
@@ -3930,7 +3955,7 @@ export type CheckpointToRedisOptions = {
 };
 
 /**
- * Wires `graph.autoCheckpoint()` to persist snapshots to Redis.
+ * Wires `graph.attachStorage()` with a Redis-backed tier.
  *
  * @param graph - Graph instance to checkpoint.
  * @param client - Redis client with `set()`/`get()`.
@@ -3940,20 +3965,21 @@ export type CheckpointToRedisOptions = {
  * @category extra
  */
 export function checkpointToRedis(
-	graph: {
-		autoCheckpoint: (
-			adapter: { save(key: string, data: unknown): void },
-			opts?: unknown,
-		) => { dispose(): void };
-		name: string;
-	},
+	graph: AttachStorageGraphLike,
 	client: RedisCheckpointClientLike,
 	opts?: CheckpointToRedisOptions,
 ): { dispose(): void } {
-	const { prefix = "graphrefly:checkpoint:", debounceMs, compactEvery, onError } = opts ?? {};
+	const {
+		prefix = "graphrefly:checkpoint:",
+		debounceMs = 500,
+		compactEvery = 10,
+		onError,
+	} = opts ?? {};
 	const redisKey = `${prefix}${graph.name}`;
-	const adapter = {
-		save(_key: string, data: unknown) {
+	const tier: StorageTierLike = {
+		debounceMs,
+		compactEvery,
+		save(_key, data) {
 			let body: string;
 			try {
 				body = JSON.stringify(data);
@@ -3963,8 +3989,17 @@ export function checkpointToRedis(
 			}
 			void client.set(redisKey, body).catch((err) => onError?.(err));
 		},
+		async load() {
+			const raw = await client.get(redisKey);
+			if (raw == null) return null;
+			try {
+				return JSON.parse(raw) as unknown;
+			} catch {
+				return null;
+			}
+		},
 	};
-	return graph.autoCheckpoint(adapter, { debounceMs, compactEvery, onError });
+	return graph.attachStorage([tier], { onError: (err: unknown) => onError?.(err) });
 }
 
 // ——————————————————————————————————————————————————————————————

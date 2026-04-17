@@ -1,9 +1,9 @@
 ---
 title: "pausable()"
-description: "While `PAUSE` is in effect, buffers `DIRTY` / `DATA` / `RESOLVED`; flushes on `RESUME`."
+description: "Identity passthrough — `pausable()` has been promoted to default node behavior in v5 (§4)."
 ---
 
-While `PAUSE` is in effect, buffers `DIRTY` / `DATA` / `RESOLVED`; flushes on `RESUME`.
+Identity passthrough — `pausable()` has been promoted to default node behavior in v5 (§4).
 
 ## Signature
 
@@ -20,15 +20,14 @@ function pausable<T>(source: Node<T>, opts?: ExtraOpts): Node<T>
 
 ## Returns
 
-`Node&lt;T&gt;` - Pass-through with pause buffering.
+`Node&lt;T&gt;` - Pass-through (identity).
 
 ## Basic Usage
 
 ```ts
-import { pausable, state, PAUSE, RESUME } from "@graphrefly/graphrefly-ts";
+import { pausable, state } from "@graphrefly/graphrefly-ts";
 
+// No longer needed — default nodes handle PAUSE/RESUME.
 const s = state(0);
-pausable(s);
-s.down([[PAUSE]]);
-s.down([[RESUME]]);
+pausable(s); // identity passthrough
 ```

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { batch } from "../../core/batch.js";
 import { GuardDenied, policy } from "../../core/guard.js";
-import { DATA, DIRTY, PAUSE, TEARDOWN } from "../../core/messages.js";
+import { DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
 import {
@@ -537,12 +537,43 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const derivedEvents = obs.events.filter((e) => e.type === "derived");
 		const derivedEvent = derivedEvents[derivedEvents.length - 1];
 		expect(derivedEvent?.dep_values).toEqual([5]);
+		// Single-value wave: dep_batches[0] is a 1-element array of the same value.
+		expect(derivedEvent?.dep_batches?.[0]).toEqual([5]);
 		const dataEvents = obs.events.filter((e) => e.type === "data");
 		const dataEvent = dataEvents[dataEvents.length - 1];
 		expect(dataEvent?.trigger_dep_index).toBe(0);
 		expect(dataEvent?.trigger_dep_name).toBe("a");
 		expect(dataEvent?.dep_values).toEqual([5]);
+		expect(dataEvent?.dep_batches?.[0]).toEqual([5]);
 		expect(obs.values.b).toBe(6);
+	});
+
+	it("dep_batches tracks per-dep wave batches", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		const b = state(100, { name: "b" });
+		const c = derived([a, b], ([va, vb]) => (va as number) + (vb as number), { name: "c" });
+		g.add("a", a);
+		g.add("b", b);
+		g.add("c", c);
+		const obs = g.observe("c", { causal: true, derived: true });
+		// Drive a single wave with both deps updating via batch().
+		batch(() => {
+			g.set("a", 5);
+			g.set("b", 200);
+		});
+		obs.dispose();
+		const derivedEvents = obs.events.filter((e) => e.type === "derived");
+		// After the batched update, the most recent derived run should see both
+		// deps' batches — each of length 1 (single DATA per dep in this wave).
+		const last = derivedEvents[derivedEvents.length - 1];
+		expect(last).toBeDefined();
+		expect(last?.dep_batches).toBeDefined();
+		expect(last?.dep_batches?.length).toBe(2);
+		expect(last?.dep_batches?.[0]).toEqual([5]);
+		expect(last?.dep_batches?.[1]).toEqual([200]);
+		// dep_values holds the last scalar per dep — matches older tooling.
+		expect(last?.dep_values).toEqual([5, 200]);
 	});
 
 	it("observe(path, { causal: true, derived: true }) includes initial derived run", () => {
@@ -819,18 +850,21 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(g1.get(metaPath)).toBe("hi");
 	});
 
-	it("autoCheckpoint triggers only for messageTier >= 3", async () => {
+	it("attachStorage triggers only for messageTier >= 3", async () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));
 		const saves: unknown[] = [];
-		const h = g.autoCheckpoint(
-			{
-				save(_key: string, data: unknown) {
-					saves.push(data);
-				},
+		const tier = {
+			save(_key: string, data: unknown) {
+				saves.push(data);
 			},
-			{ debounceMs: 5, compactEvery: 2 },
-		);
+			load(_key: string) {
+				return null;
+			},
+			debounceMs: 5,
+			compactEvery: 2,
+		};
+		const h = g.attachStorage([tier]);
 		// Wait for any initial push-on-subscribe checkpoint to drain
 		await new Promise((r) => setTimeout(r, 15));
 		saves.length = 0;
@@ -1477,5 +1511,81 @@ describe("observe() expand() (3.3b)", () => {
 		full.dispose();
 		g.destroy();
 		Graph.inspectorEnabled = false;
+	});
+});
+
+describe("observe() tier-surfacing variants", () => {
+	it("surfaces INVALIDATE events with counter", () => {
+		const g = new Graph("obs-inv");
+		g.add("a", state(1, { name: "a" }));
+		const obs = g.observe("a", { structured: true }) as ObserveResult;
+		obs.events.length = 0;
+		g.invalidate("a");
+		obs.dispose();
+		expect(obs.events.some((e) => e.type === "invalidate" && e.path === "a")).toBe(true);
+		expect(obs.invalidateCount).toBe(1);
+	});
+
+	it("surfaces PAUSE and RESUME events with lockId payload", () => {
+		const g = new Graph("obs-pr");
+		g.add("a", state(1, { name: "a" }));
+		const obs = g.observe("a", { structured: true }) as ObserveResult;
+		obs.events.length = 0;
+		g.node("a").down([[PAUSE, "lock-1"]], { internal: true });
+		g.node("a").down([[RESUME, "lock-1"]], { internal: true });
+		obs.dispose();
+		const pause = obs.events.find((e) => e.type === "pause");
+		const resume = obs.events.find((e) => e.type === "resume");
+		expect(pause).toBeDefined();
+		expect(resume).toBeDefined();
+		expect((pause as { lockId: unknown }).lockId).toBe("lock-1");
+		expect((resume as { lockId: unknown }).lockId).toBe("lock-1");
+		expect(obs.pauseCount).toBe(1);
+		expect(obs.resumeCount).toBe(1);
+	});
+
+	it("surfaces TEARDOWN when graph.destroy() runs", () => {
+		const g = new Graph("obs-td");
+		g.add("a", state(1, { name: "a" }));
+		const obs = g.observe("a", { structured: true }) as ObserveResult;
+		obs.events.length = 0;
+		g.destroy();
+		expect(obs.events.some((e) => e.type === "teardown" && e.path === "a")).toBe(true);
+		expect(obs.teardownCount).toBe(1);
+		obs.dispose();
+	});
+
+	it('detail: "minimal" bumps new counters without emitting events', () => {
+		const g = new Graph("obs-min-new");
+		g.add("a", state(1, { name: "a" }));
+		const obs = g.observe("a", { detail: "minimal" }) as ObserveResult;
+		obs.events.length = 0;
+		g.invalidate("a");
+		g.node("a").down([[PAUSE, "l"]], { internal: true });
+		g.node("a").down([[RESUME, "l"]], { internal: true });
+		obs.dispose();
+		expect(obs.events.every((e) => e.type === "data")).toBe(true);
+		expect(obs.invalidateCount).toBe(1);
+		expect(obs.pauseCount).toBe(1);
+		expect(obs.resumeCount).toBe(1);
+	});
+
+	it("pretty format renders lockId for pause/resume", () => {
+		const g = new Graph("obs-fmt");
+		g.add("a", state(1, { name: "a" }));
+		const lines: string[] = [];
+		const obs = g.observe("a", {
+			format: "pretty",
+			theme: "none",
+			includeTypes: ["pause", "resume", "invalidate", "teardown"],
+			logger: (line) => lines.push(line),
+		}) as ObserveResult;
+		g.invalidate("a");
+		g.node("a").down([[PAUSE, "lk"]], { internal: true });
+		g.node("a").down([[RESUME, "lk"]], { internal: true });
+		obs.dispose();
+		expect(lines.some((l) => l.includes("INVALIDATE"))).toBe(true);
+		expect(lines.some((l) => l.includes("PAUSE") && l.includes('"lk"'))).toBe(true);
+		expect(lines.some((l) => l.includes("RESUME") && l.includes('"lk"'))).toBe(true);
 	});
 });

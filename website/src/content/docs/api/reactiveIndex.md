@@ -9,7 +9,7 @@ Creates a reactive index: unique primary key per row, rows sorted by `(secondary
 
 ```ts
 function reactiveIndex<K, V = unknown>(
-	options: ReactiveIndexOptions = {},
+	options: ReactiveIndexOptions<K, V> = {},
 ): ReactiveIndexBundle<K, V>
 ```
 
@@ -17,11 +17,12 @@ function reactiveIndex<K, V = unknown>(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options` | `ReactiveIndexOptions` | Optional `name` for `describe()` / debugging. |
+| `options` | `ReactiveIndexOptions&lt;K, V&gt;` | Optional `name` for `describe()` / debugging, and optional `backend` (see IndexBackend). |
 
 ## Returns
 
-Bundle with `ordered` (sorted rows), `byPrimary` (map), and imperative `upsert` / `delete` / `clear`.
+Bundle with `ordered` (sorted rows), `byPrimary` (map), O(1) `has` / `get` / `size`,
+imperative `upsert` / `upsertMany` / `delete` / `deleteMany` / `clear`.
 
 ## Basic Usage
 
@@ -38,3 +39,7 @@ idx.upsert("id2", 5, "row-b");
 - **Ordering:** `secondary` and `primary` are compared via a small total order: same primitive `typeof` uses
 numeric/string/boolean/bigint comparison; mixed or object keys fall back to `String(a).localeCompare(String(b))`
 (not identical to Python's rich comparison for exotic types).
+
+**Backend:** The default NativeIndexBackend offers O(1) primary-key lookups and O(n) upserts.
+For scale beyond a few thousand rows, supply a user-pluggable persistent/B-tree backend via the
+`backend` option — reactive emission semantics are unchanged.

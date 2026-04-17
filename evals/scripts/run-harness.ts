@@ -51,11 +51,8 @@ import { createInterface } from "node:readline/promises";
 import { DATA } from "../../src/core/messages.js";
 import type { Node } from "../../src/core/node.js";
 import { state } from "../../src/core/sugar.js";
-import {
-	FileCheckpointAdapter,
-	restoreGraphCheckpoint,
-	saveGraphCheckpoint,
-} from "../../src/extra/checkpoint.js";
+import { fileStorage } from "../../src/extra/storage.js";
+import type { GraphPersistSnapshot } from "../../src/graph/graph.js";
 import { agentMemory } from "../../src/patterns/ai.js";
 import { type EvalResult, evalIntakeBridge } from "../../src/patterns/harness/bridge.js";
 import { harnessLoop } from "../../src/patterns/harness/loop.js";
@@ -354,7 +351,7 @@ async function main() {
 	// Wire agentMemory to verifyResults with FileCheckpointAdapter for persistence.
 	// extractFn is pure (no LLM) — VerifyResult is already structured.
 	const retrospectiveDir = join(resultsDir, "harness-retrospective");
-	const checkpointAdapter = new FileCheckpointAdapter(retrospectiveDir);
+	const retrospectiveTier = fileStorage(retrospectiveDir);
 
 	const memory = agentMemory<RetrospectiveLearning>("retrospective", harness.verifyResults.latest, {
 		extractFn: (raw: unknown) => {
@@ -384,8 +381,11 @@ async function main() {
 	// Restore previous session's retrospective.
 	// Must happen after graph wiring but before any data flows — reversing the
 	// order causes distill to re-extract persisted entries.
-	const restored = restoreGraphCheckpoint(memory, checkpointAdapter);
-	if (restored) console.log("Loaded previous retrospective from disk.\n");
+	const raw = retrospectiveTier.load("retrospective") as GraphPersistSnapshot | null;
+	if (raw != null) {
+		memory.restore(raw);
+		console.log("Loaded previous retrospective from disk.\n");
+	}
 
 	// --- Collectors ---
 	const triaged: TriagedItem[] = [];
@@ -531,7 +531,7 @@ async function main() {
 	}
 
 	// --- Persist retrospective ---
-	saveGraphCheckpoint(memory, checkpointAdapter);
+	retrospectiveTier.save("retrospective", memory.snapshot());
 	const memSize = memory.size.get() ?? 0;
 	console.log(`\nRetrospective: ${memSize} learnings persisted to ${retrospectiveDir}`);
 

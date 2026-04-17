@@ -8,18 +8,6 @@
 
 ## Active work items
 
-- **`fromHTTP` cached-default status companion — `withStatus` reports `"active"` instead of `"completed"` (proposed, 2026-04-16):**
-  Wave 5 changed `fromHTTP`'s default from "emit DATA + COMPLETE" to "emit DATA, stay live, replay cached DATA to late subscribers" (push-on-subscribe §2.2). Consequence: the `withStatus` companion never transitions to `"completed"` under the new default — it stays `"active"` forever even when the single fetch has succeeded. Users who previously gated on `bundle.status === "completed"` as a "fetch done" signal are broken.
-  **Workaround today:** opt back into the old behavior via `{ completeAfterFetch: true }`, then `withStatus` reports `"completed"` as before.
-  **Fix shape:** add a `fetched: Node<boolean>` companion (or similar signal) to `HTTPBundle<T>` that flips true once the first fetch resolves — orthogonal to `withStatus`'s active/completed/errored lifecycle. Document `{completeAfterFetch: true}` as the "one-shot" preset.
-  **Why deferred:** cosmetic companion addition; not blocking. Ship alongside the next `fromHTTP` doc pass.
-
-- **`ctx.latestData` has wrong semantics — rename to `prevData` requires new `dep.prevLatestData` field (noted, 2026-04-13):**
-  `dep.latestData` is updated in `_depSettledAsData` during wave processing, BEFORE `_execFn` runs. So `ctx.latestData[i]` equals the **current wave's last DATA** for involved deps — not the "previous wave's cached value" as intended. For non-involved deps it correctly holds the last known value from a prior wave, creating an inconsistency.
-  This is why `distinctUntilChanged`/`pairwise` cannot use `ctx.latestData[0]` as a substitute for `store.prev` — the invariant "after each wave, `store.prev == latestData[0]`" is false.
-  **Fix shape:** add `dep.prevLatestData` field; snapshot `dep.latestData` into `dep.prevLatestData` on the first DATA of each wave (in `_depSettledAsData` before overwriting). In `_execFn`, build `prevData` from `dep.prevLatestData` instead of `dep.latestData`. Rename `ctx.latestData` → `ctx.prevData`. This would also allow eliminating `store.hasPrev`/`store.prev` in `distinctUntilChanged` and `pairwise`.
-  **Why deferred:** Touches `FnCtx` public API + all operators that read `ctx.latestData`. Wave 3 scope.
-
 - **Message array allocation in hot path (proposed, 2026-04-11):**
   Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify. **Partially landed 2026-04-12 (A2):** 6 payload-free tuples interned (`DIRTY_MSG`, `RESOLVED_MSG`, `INVALIDATE_MSG`, `START_MSG`, `COMPLETE_MSG`, `TEARDOWN_MSG`) plus 5 pre-wrapped batch singletons. Closes the alloc cost for tier-1/tier-5 control signals. Tier-3 DATA/ERROR still allocate per-call because they carry payloads — see passthrough `[msg]` wrapper item below.
 
@@ -87,15 +75,6 @@
     - #11 `orchestration.ts` gate — own item below.
   - **Later:** #2, #6 (original audit) — each needs case-by-case structural work. #14 (feedback counter) pairs with harness-counter exception. #7 (composite/asReadonlyMap) + #3 pair with distill eviction redesign (below). (#1, #4, #5 resolved 2026-04-13–15, archived.)
 
-- **`orchestration.ts` `gate()` — `isOpenNode.cache` inside producer subscribe (proposed, 2026-04-12):**
-  `gate()` at `src/patterns/orchestration.ts:350` reads `isOpenNode.cache` inside its producer's manual `src.node.subscribe` DATA handler. `isOpenNode` is not declared as a dep of the producer (`node<T>([], ...)` with empty deps), so the entire gate decision — pass the item through or enqueue it — rides on an out-of-protocol cache read. Same class as the stratify #12 issue: producer pattern with multiple effective dependencies that bypass the framework's settlement machinery.
-  **High-impact:** gate is the harness's flow-control primitive (used by QUEUE→GATE→EXECUTE and by `promptNode`/`harnessLoop` approval flows). Under the current synchronous runner this works because cache reads are always fresh, but the decision is one wave off from "correct under any runner."
-  **Fix options:**
-  (a) Same pattern as stratify #12 Option A: capture `isOpenNode` DATA into a `latestIsOpen` closure variable updated from an `isOpenNode.subscribe` handler registered in the producer setup. Seed from `isOpenNode.cache` at wiring time.
-  (b) Declare `isOpenNode` as a secondary dep via `withLatestFrom(src.node, isOpenNode)` — but inherits the same "future items only" silence issue stratify ran into under rules-only changes; probably doesn't match gate's intended semantics either.
-  (c) Restructure gate to use a dep-declared node with `ctx.dataFrom` gating on the primary source, similar to how `withLatestFrom` handles primary-only emission — requires verifying terminal forwarding and RESOLVED suppression.
-  Option (a) is lowest-risk and matches the pattern we landed for stratify. Deferred to a dedicated session so the orchestration test suite can be exercised thoroughly after the change.
-
 - **Framework primitive: wave-final state for multi-dep derived (proposed, 2026-04-12):**
   The worker-bridge aggregator #8 blocker shows a real gap: there's no clean way for a `derived`'s fn to access the **wave-final** values of all deps when callers use raw `state.down([[DATA, v]])` without a DIRTY prefix. Under raw-down delivery, each dep's DATA fires the fn independently (because no dep is marked dirty to block `allSettled`), so `data[]` only contains progressive snapshots. `.cache` works today because `state.down()` writes the cache synchronously before queuing downstream delivery — but that's a runner-invariant exception, not a protocol guarantee.
   **Design options to explore:**
@@ -158,13 +137,11 @@
   `gate.open()` calls `isOpenNode.down([[DATA, true]])` then immediately loops over queued items calling `output.down([[DATA, item]])`. The `isOpenNode` update dirtied `output` (it's a dep), but `output`'s fn hasn't run yet to settle the wave. The external `output.down` calls fire while that dep wave is still in progress, so queued items interleave with the `isOpenNode` settlement wave. Item order relative to the open signal is non-deterministic in async runners.
   **Fix options:** (a) Wrap the flush loop in `batch()` so all queued emissions are deferred until after the `isOpenNode` wave settles. (b) Restructure the flush to be reactive — subscribe to `isOpenNode` and drain the queue when it transitions to `true`, instead of an imperative post-set loop. Option (b) aligns with the broader `gate()` P3 cache-read fix (see `orchestration.ts gate()` item above) and should land as part of that dedicated session.
 
-- **Graph causal trace logs `latestData` scalars, not `batchData` (deferred, 2026-04-13):**
-  `Graph.observe` causal trace hooks fire in `_execFn` with the `latestData` snapshot (one scalar per dep), not the full `batchData` batch. Multi-value waves (batch size > 1) are invisible to observability tooling — trace shows only the last known value per dep, not all the values that arrived this wave. Low priority pre-1.0 because multi-value batches are rare in practice (most sources emit one value per wave). Fix when adding structured tracing: pass `batchData` alongside `latestData` in the inspector hook payload so observability consumers can distinguish scalar and batch waves.
-
-- **Unify persistence surface under `graph.attachStorage(tiers)` (proposed, 2026-04-16):**
-  Three parallel persistence layers today — (1) `Graph.autoCheckpoint` + `AutoCheckpointAdapter` (graph.ts, save-only), (2) `extra/checkpoint.ts` `CheckpointAdapter` (load/save/clear) with `saveGraphCheckpoint`/`restoreGraphCheckpoint` one-shot helpers and concrete `Memory`/`Dict`/`File`/`Sqlite`/`IndexedDb` adapters, (3) `extra/cascading-cache.ts` `CacheTier<V>` + `tieredStorage` wrapping adapters via `adapterToTier`. Near-duplicate adapter interfaces; cadence is uniform across tiers (every tier saves on every write, or only tier 0 if not writeThrough).
-  **Fix shape:** single `StorageTier` interface with `load` / `save` / `clear?` + per-tier `debounceMs?` / `compactEvery?` / `filter?`. Replace `Graph.autoCheckpoint(adapter, opts)` with `graph.attachStorage(tiers, { autoRestore? })`. Hot tier = sync, warm tier = 1s debounce, cold tier = 60s diff-only — the same snapshot cascades through tiers at their own cadences without blocking the hot path. `Graph.fromStorage(name, tiers)` (or `attachStorage(..., {autoRestore: true})`) replaces `restoreGraphCheckpoint`. Deletes `AutoCheckpointAdapter`, `saveGraphCheckpoint`, `restoreGraphCheckpoint`, `tieredStorage` as separate concepts. `cascadingCache` (keyed lookup cache) stays distinct but shares the `StorageTier` type.
-  **Why deferred:** pattern-level redesign across graph/graph.ts + extra/checkpoint.ts + extra/cascading-cache.ts. Pairs with Unit 19 (autoCheckpoint) cleanups but warrants its own session. Pre-1.0 breaking change — no shim needed.
+- **Codec lazy decode + dormant subgraph eviction (proposed, 2026-04-17, post-1.0):**
+  `codec.ts` declares `LazyGraphCodec.decodeLazy()` and `EvictionPolicy` types but neither is implemented. Covers two post-1.0 scale features:
+  1. **Lazy decode** — `decodeLazy(buffer)` returns a `GraphPersistSnapshot` whose `nodes` record is Proxy-backed: individual nodes are CBOR-decoded only on access. Enables near-zero cold-start for large graphs (decode envelope + topology, defer node values until read). Requires a codec implementation that supports length-prefixed per-node entries (DAG-CBOR with streaming framing, or Arrow row groups).
+  2. **Eviction policy** — when a subgraph hasn't propagated for `idleTimeoutMs`, serialize it using the graph's codec and release JS objects. Re-hydrate on next read/propagation/describe. Needs a "dormant" status marker on `Graph` + re-hydrate trigger.
+  Both are post-1.0; the interfaces in `codec.ts` serve as design scaffolds. Paired with `attachStorage` — cold tier eviction is one concrete use case.
 
 ---
 

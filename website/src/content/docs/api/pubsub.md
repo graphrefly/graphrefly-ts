@@ -1,19 +1,26 @@
 ---
 title: "pubsub()"
-description: "Creates an empty PubSubHub for lazy topic nodes."
+description: "Creates a lazy per-topic state hub."
 ---
 
-Creates an empty PubSubHub for lazy topic nodes.
+Creates a lazy per-topic state hub.
 
 ## Signature
 
 ```ts
-function pubsub(): PubSubHub
+function pubsub(options: PubSubHubOptions = {}): PubSubHub
 ```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `PubSubHubOptions` | Optional pluggable `backend` (defaults to `NativePubSubBackend`). |
 
 ## Returns
 
-A new hub with no topics until PubSubHub.topic or PubSubHub.publish runs.
+Hub with lazy `topic()` / `publish()` / `publishMany()` / `removeTopic()` /
+`has()` / `size` / `topicNames()`.
 
 ## Basic Usage
 
@@ -24,5 +31,16 @@ const hub = pubsub();
 const t = hub.topic("events");
 t.subscribe((msgs) => console.log(msgs));
 hub.publish("events", { ok: true });
-hub.removeTopic("events"); // tears down the node
+hub.publishMany([["events", 1], ["status", "ready"]]);
 ```
+
+## Behavior Details
+
+- **Scope:** Each topic is a sentinel node — retains only the last published
+value (no push-on-subscribe before the first publish). For Pulsar-inspired
+retention + cursor reading, use
+`messagingHub()` in `patterns/messaging.ts`.
+
+**`removeTopic`:** Sends `TEARDOWN` to the topic node; all subscribers receive
+the TEARDOWN message. Subsequent `publish(name, value)` silently recreates the
+topic with a fresh node — existing subscribers to the old node do NOT reconnect.

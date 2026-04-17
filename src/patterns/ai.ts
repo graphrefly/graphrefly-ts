@@ -20,12 +20,11 @@ import {
 import { switchMap } from "../extra/operators.js";
 import { type ReactiveLogBundle, reactiveLog } from "../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../extra/sources.js";
+import type { StorageHandle, StorageTier } from "../extra/storage.js";
 import { ResettableTimer } from "../extra/timer.js";
 import {
-	type AutoCheckpointAdapter,
 	Graph,
-	type GraphAutoCheckpointHandle,
-	type GraphAutoCheckpointOptions,
+	type GraphAttachStorageOptions,
 	type GraphOptions,
 	type GraphPersistSnapshot,
 } from "../graph/graph.js";
@@ -1375,10 +1374,10 @@ export type MemoryTiersOptions<TMem> = {
 	archiveThreshold?: number;
 	/** Predicate: true → entry belongs in permanent tier (default: never). */
 	permanentFilter?: (key: string, mem: TMem) => boolean;
-	/** Persistence adapter for the archive tier. Omit to disable archiving. */
-	archiveAdapter?: AutoCheckpointAdapter;
-	/** Auto-checkpoint options for archive adapter. */
-	archiveCheckpointOptions?: GraphAutoCheckpointOptions;
+	/** Storage tier for the archive. Omit to disable archiving. */
+	archiveTier?: StorageTier;
+	/** Options forwarded to `graph.attachStorage` for the archive tier. */
+	archiveStorageOptions?: GraphAttachStorageOptions;
 };
 
 const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 86_400); // 7-day half-life
@@ -1388,8 +1387,8 @@ export type MemoryTiersBundle<TMem> = {
 	readonly permanent: LightCollectionBundle<TMem>;
 	/** Active entries node (reactive, holds ReadonlyMap). */
 	readonly activeEntries: Node<unknown>;
-	/** Archive checkpoint handle (null if no adapter). */
-	readonly archiveHandle: GraphAutoCheckpointHandle | null;
+	/** Archive storage handle (null if no tier configured). */
+	readonly archiveHandle: StorageHandle | null;
 	/** Classify a key into its current tier. */
 	tierOf: (key: string) => MemoryTier;
 	/** Move a key to the permanent tier. */
@@ -1540,7 +1539,7 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 /**
  * Pre-wired agentic memory graph. Composes `distill()` with optional
  * `knowledgeGraph()`, `vectorIndex()`, `lightCollection()` (permanent tier),
- * `decay()`, and `autoCheckpoint()` (archive tier). Supports 3D admission
+ * `decay()`, and `attachStorage()` (archive tier). Supports 3D admission
  * scoring, a default retrieval pipeline, periodic reflection, and
  * retrieval observability traces.
  */
@@ -1739,11 +1738,11 @@ export function agentMemory<TMem = unknown>(
 		keepaliveSubs.push(tierClassifier.subscribe(() => undefined));
 
 		// Archive checkpoint
-		let archiveHandle: GraphAutoCheckpointHandle | null = null;
-		if (tiersOpts.archiveAdapter) {
-			archiveHandle = graph.autoCheckpoint(
-				tiersOpts.archiveAdapter,
-				tiersOpts.archiveCheckpointOptions,
+		let archiveHandle: StorageHandle | null = null;
+		if (tiersOpts.archiveTier) {
+			archiveHandle = graph.attachStorage(
+				[tiersOpts.archiveTier],
+				tiersOpts.archiveStorageOptions ?? {},
 			);
 		}
 

@@ -16,7 +16,7 @@ function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]>
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `source` | `Node&lt;T&gt;` | Upstream node. |
-| `opts` | `ExtraOpts` | Optional node options (operator describe kind). |
+| `opts` | `ExtraOpts` | Optional node options (derived describe kind). |
 
 ## Returns
 
