@@ -91,17 +91,24 @@ export const TEARDOWN_ONLY_BATCH: Messages = Object.freeze([TEARDOWN_MSG]) as Me
  *   the phase model used by `batch.ts`).
  * - `wireCrossing` — when `true`, forwarded across SSE/WebSocket/worker
  *   adapters. Defaults to `tier >= 3` if omitted in registration input.
+ * - `metaPassthrough` — when `false`, this message type is filtered out of
+ *   `Graph.signal` deliveries to meta companion nodes (spec §2.3). Meta
+ *   companions still receive everything via their primary's own cascade.
+ *   Defaults to `true` (meta receives the message).
  */
 export interface MessageTypeRegistration {
 	tier: number;
 	wireCrossing: boolean;
+	metaPassthrough: boolean;
 }
 
 /**
  * Input accepted by {@link GraphReFlyConfig.registerMessageType}. Only `tier`
- * is required; `wireCrossing` defaults to `tier >= 3`.
+ * is required; `wireCrossing` defaults to `tier >= 3`; `metaPassthrough`
+ * defaults to `true`.
  */
 export interface MessageTypeRegistrationInput {
 	tier: number;
 	wireCrossing?: boolean;
+	metaPassthrough?: boolean;
 }

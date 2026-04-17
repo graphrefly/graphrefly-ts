@@ -244,11 +244,13 @@ export interface Node<T = unknown> {
 	readonly status: NodeStatus;
 	/**
 	 * Current cached value. Returns `undefined` when the node is in
-	 * `"sentinel"` state (no value ever). `undefined` and `null` are valid
-	 * cached values — use `node.status` to distinguish "absent" from
-	 * "present but undefined/null".
+	 * `"sentinel"` state (no DATA ever emitted). v5 reserves `undefined`
+	 * globally as the sentinel value — the valid DATA type is `T | null`.
+	 * Therefore `node.cache === undefined` is a valid "never emitted" guard.
+	 * `node.status` distinguishes the richer states (`"sentinel"`,
+	 * `"settled"`, `"errored"`, etc.) when you need more than has-value.
 	 */
-	readonly cache: T | undefined | null;
+	readonly cache: T | null | undefined;
 	readonly meta: Record<string, Node>;
 	readonly lastMutation: Readonly<{ actor: Actor; timestamp_ns: number }> | undefined;
 	readonly v: Readonly<NodeVersionInfo> | undefined;
