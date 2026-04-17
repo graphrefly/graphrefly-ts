@@ -20,8 +20,8 @@
 
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
-import { defaultConfig, type Node, type NodeSink } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { defaultConfig, type Node, type NodeSink, node } from "../../core/node.js";
+import { effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";
@@ -85,37 +85,38 @@ export function workerSelf<TImport extends readonly string[]>(
 	const exposedNodes = opts.expose(importedObj as WorkerImported<TImport>);
 	const exposeEntries = Object.entries(exposedNodes);
 
-	// -- Send coalescing via derived + effect ----------------------------------
-	const lastSent = new Map<string, unknown>();
+	// -- Send coalescing via raw `node` + `effect` ----------------------------
+	// See bridge.ts for the Option B rationale — raw `node([deps], fn)` with
+	// wave-form `data[]` replaces the prior `lastSent` diff + `.cache` reads.
 	let effectUnsub: (() => void) | undefined;
 	let destroyed = false;
 
 	if (exposeEntries.length > 0) {
-		const nodes = exposeEntries.map(([, n]) => n);
+		const nodes = exposeEntries.map(([, n]) => n) as Node[];
 
-		// See bridge.ts for the full rationale — aggregator needs wave-final
-		// state, which `n.cache` provides under the synchronous-cache-write
-		// invariant. Folded into the long-term Option B worker-bridge redesign.
-		const aggregated = derived(
+		const aggregated = node<Record<string, unknown>>(
 			nodes,
-			() => {
+			(data, a) => {
 				const updates: Record<string, unknown> = {};
-				for (const [name, n] of exposeEntries) {
-					const v = n.cache;
-					if (v !== lastSent.get(name)) {
-						updates[name] = v;
-						lastSent.set(name, v);
+				for (let i = 0; i < exposeEntries.length; i++) {
+					const [name] = exposeEntries[i];
+					const batch0 = data[i];
+					if (batch0 != null && batch0.length > 0) {
+						updates[name] = batch0.at(-1);
 					}
 				}
-				return updates;
+				if (Object.keys(updates).length === 0) return;
+				a.emit(updates);
 			},
-			{ equals: () => false, name: "workerSelf::aggregated" },
+			// Fresh `updates` object per wave → default reference equality is
+			// correct; no `equals: () => false` override needed.
+			{ name: "workerSelf::aggregated" },
 		);
 
-		const effectNode = effect([aggregated], () => {
+		const effectNode = effect([aggregated], (data) => {
 			if (destroyed) return;
-			const updates = aggregated.cache as Record<string, unknown>;
-			if (Object.keys(updates).length === 0) return;
+			const updates = data[0] as Record<string, unknown> | undefined;
+			if (updates == null || Object.keys(updates).length === 0) return;
 
 			const transferList: Transferable[] = [];
 			for (const name of Object.keys(updates)) {
@@ -249,10 +250,11 @@ export function workerSelf<TImport extends readonly string[]>(
 	});
 
 	// -- Send ready message ----------------------------------------------------
+	// `.cache` is a documented transport-boundary snapshot read here — not a
+	// reactive access (§5.10 boundary).
 	const readyValues: Record<string, unknown> = {};
 	for (const [name, n] of exposeEntries) {
 		readyValues[name] = n.cache;
-		lastSent.set(name, readyValues[name]);
 	}
 	transport.post({ t: "r", stores: readyValues } satisfies BridgeMessage);
 
@@ -269,7 +271,6 @@ export function workerSelf<TImport extends readonly string[]>(
 		unlisten();
 		transport.terminate?.();
 
-		lastSent.clear();
 		lastSeenImportVersions.clear();
 		proxyNodes.clear();
 	}

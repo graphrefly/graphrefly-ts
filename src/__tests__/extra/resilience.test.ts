@@ -20,6 +20,7 @@ import {
 	RateLimiterOverflowError,
 	rateLimiter,
 	retry,
+	retrySource,
 	TimeoutError,
 	timeout,
 	tokenBucket,
@@ -178,6 +179,157 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(errors.length).toBe(1);
 			// 1 initial + 2 retries = 3 total runs
 			expect(runs).toBe(3);
+			unsub();
+		});
+	});
+
+	describe("retrySource", () => {
+		it("builds a fresh source per attempt", async () => {
+			vi.useFakeTimers();
+			let builds = 0;
+			const factory = () => {
+				builds += 1;
+				return producer<number>((a) => {
+					if (builds < 3) {
+						a.down([[ERROR, new Error(`boom-${builds}`)]]);
+					} else {
+						a.emit(42);
+					}
+				});
+			};
+			const out = retrySource(factory, { count: 5, backoff: constant(0) });
+			const { batches, unsub } = collect(out);
+			await vi.advanceTimersByTimeAsync(10);
+			const data = batches.flat().filter((m) => m[0] === DATA);
+			expect(data.some((m) => m[1] === 42)).toBe(true);
+			// 1 initial attempt + 2 retries after errors = 3 builds total
+			expect(builds).toBe(3);
+			unsub();
+		});
+
+		it("surfaces ERROR when count is 0", () => {
+			const factory = () =>
+				producer<number>((a) => {
+					a.down([[ERROR, new Error("x")]]);
+				});
+			const out = retrySource(factory, { count: 0 });
+			const { batches, unsub } = collect(out);
+			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
+			unsub();
+		});
+
+		it("surfaces ERROR when maxRetries exhausted", async () => {
+			vi.useFakeTimers();
+			let builds = 0;
+			const factory = () => {
+				builds += 1;
+				return producer<number>((a) => {
+					a.down([[ERROR, new Error(`build-${builds}`)]]);
+				});
+			};
+			const out = retrySource(factory, { count: 2, backoff: constant(0) });
+			const { batches, unsub } = collect(out);
+			await vi.advanceTimersByTimeAsync(10);
+			const errors = batches.flat().filter((m) => m[0] === ERROR);
+			expect(errors.length).toBe(1);
+			// 1 initial + 2 retries = 3 builds
+			expect(builds).toBe(3);
+			unsub();
+		});
+
+		it("synchronous throw from factory is retried like inner ERROR", async () => {
+			vi.useFakeTimers();
+			let builds = 0;
+			const factory = () => {
+				builds += 1;
+				if (builds < 2) throw new Error("factory threw");
+				return producer<number>((a) => {
+					a.emit(7);
+				});
+			};
+			const out = retrySource(factory, { count: 3, backoff: constant(0) });
+			const { batches, unsub } = collect(out);
+			await vi.advanceTimersByTimeAsync(10);
+			const data = batches.flat().filter((m) => m[0] === DATA);
+			expect(data.some((m) => m[1] === 7)).toBe(true);
+			expect(builds).toBe(2);
+			unsub();
+		});
+
+		it("forwards COMPLETE without building a new source", () => {
+			let builds = 0;
+			const factory = () => {
+				builds += 1;
+				return producer<number>((a) => {
+					a.emit(1);
+					a.down([[COMPLETE]]);
+				});
+			};
+			const out = retrySource(factory, { count: 5, backoff: constant(0) });
+			const { batches, unsub } = collect(out);
+			expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+			expect(builds).toBe(1);
+			unsub();
+		});
+
+		it("resets attempt counter after a successful DATA", async () => {
+			vi.useFakeTimers();
+			let builds = 0;
+			const factory = () => {
+				builds += 1;
+				return producer<number>((a) => {
+					if (builds === 1) {
+						a.emit(10);
+						// Then error — next build should start fresh (attempt=0)
+						a.down([[ERROR, new Error("mid-stream")]]);
+					} else if (builds <= 4) {
+						a.down([[ERROR, new Error(`e-${builds}`)]]);
+					} else {
+						a.emit(20);
+					}
+				});
+			};
+			// Without reset-on-DATA, count=4 permits builds 1..5 regardless.
+			// With reset-on-DATA semantics, after build=1 emits 10 the attempt
+			// counter is cleared, so the subsequent errors all fit within the
+			// same retry budget. We assert the happy path reaches build 5.
+			const out = retrySource(factory, { count: 4, backoff: constant(0) });
+			const { batches, unsub } = collect(out);
+			await vi.advanceTimersByTimeAsync(20);
+			const data = batches.flat().filter((m) => m[0] === DATA);
+			expect(data.map((m) => m[1])).toEqual([10, 20]);
+			expect(builds).toBe(5);
+			unsub();
+		});
+
+		it("teardown cancels pending retry timer and unsubs active source", async () => {
+			vi.useFakeTimers();
+			let builds = 0;
+			let innerTeardowns = 0;
+			const factory = () => {
+				builds += 1;
+				return producer<number>((_a) => {
+					return () => {
+						innerTeardowns += 1;
+					};
+				});
+			};
+			const out = retrySource(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) });
+			const { unsub } = collect(out);
+			unsub();
+			await vi.advanceTimersByTimeAsync(10 * NS_PER_SEC);
+			// No further builds should happen after unsub
+			expect(builds).toBe(1);
+			expect(innerTeardowns).toBe(1);
+		});
+
+		it("forwards DATA / DIRTY / RESOLVED transparently", async () => {
+			const src = state<number>(1);
+			const out = retrySource(() => src, { count: 0 });
+			const { batches, unsub } = collect(out);
+			src.down([[DATA, 2]]);
+			const data = batches.flat().filter((m) => m[0] === DATA);
+			expect(data.map((m) => m[1])).toEqual([1, 2]);
 			unsub();
 		});
 	});

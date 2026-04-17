@@ -119,7 +119,17 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 					a.down([[ERROR, err]]);
 					return;
 				}
-				const delayNs = coerceDelayNs(raw);
+				// A misbehaving strategy (returns NaN / non-finite) MUST NOT
+				// escape into the upstream drain — treat it as "stop retrying"
+				// and emit the original error.
+				let delayNs: number;
+				try {
+					delayNs = coerceDelayNs(raw);
+				} catch {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
 				prevDelay = delayNs;
 				attempt += 1;
 				disconnectUpstream();
@@ -167,6 +177,155 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
+		},
+	);
+}
+
+/**
+ * Options for {@link retrySource}. Superset of {@link RetryOptions} with an
+ * optional `initial` forwarded to the outer node cache.
+ *
+ * @category extra
+ */
+export type RetrySourceOptions<T> = RetryOptions & {
+	/** Initial cache value for the outer node (forwarded to `NodeOptions.initial`). */
+	initial?: T;
+};
+
+/**
+ * Fresh-instance variant of {@link retry}: invokes the `factory` to build a
+ * new `Node<T>` on every connect / reconnect. Unlike {@link retry}, which
+ * re-subscribes to the same node (requiring `resubscribable: true`), this
+ * creates a new source per attempt — ideal for producers that capture
+ * per-attempt resources (sockets, clients, file handles) that become unusable
+ * after an error.
+ *
+ * Synchronous exceptions thrown by `factory` are treated as terminal ERROR
+ * and run through the same retry pipeline as inner-node ERROR.
+ *
+ * @param factory - Called to build a fresh source per attempt.
+ * @param opts - `count` caps attempts; `backoff` supplies delay (ns) or preset.
+ * @returns Node that retries by rebuilding the source.
+ *
+ * @example
+ * ```ts
+ * import { NS_PER_SEC, exponential, retrySource, fromWebSocket } from "@graphrefly/graphrefly-ts";
+ *
+ * // Each reconnect opens a fresh WebSocket:
+ * const connected$ = retrySource(
+ *   () => fromWebSocket(new WebSocket("wss://example/stream")),
+ *   { count: 10, backoff: exponential({ baseNs: 1 * NS_PER_SEC }) },
+ * );
+ * ```
+ *
+ * @category extra
+ */
+export function retrySource<T>(factory: () => Node<T>, opts?: RetrySourceOptions<T>): Node<T> {
+	const count = opts?.count;
+	const backoffOpt = opts?.backoff;
+	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
+	if (maxRetries < 0) throw new RangeError("retry count must be >= 0");
+
+	const strategy: BackoffStrategy | null =
+		backoffOpt === undefined
+			? null
+			: typeof backoffOpt === "string"
+				? resolveBackoffPreset(backoffOpt)
+				: backoffOpt;
+
+	return producer<T>(
+		(a) => {
+			let attempt = 0;
+			let stopped = false;
+			let prevDelay: number | null = null;
+			let unsub: (() => void) | undefined;
+			const timer = new ResettableTimer();
+
+			function disconnectUpstream(): void {
+				unsub?.();
+				unsub = undefined;
+			}
+
+			function scheduleRetryOrFinish(err: unknown): void {
+				if (stopped) return;
+				if (attempt >= maxRetries) {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
+				const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
+				if (raw === null || raw === undefined) {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
+				// A misbehaving strategy (returns NaN / non-finite / negative)
+				// MUST NOT escape into the upstream drain. Treat it like
+				// `strategy === null` (stop retrying) and emit the original
+				// error — the strategy bug is a separate concern the user
+				// can inspect via the emitted error's stack.
+				let delayNs: number;
+				try {
+					delayNs = coerceDelayNs(raw);
+				} catch {
+					disconnectUpstream();
+					a.down([[ERROR, err]]);
+					return;
+				}
+				prevDelay = delayNs;
+				attempt += 1;
+				disconnectUpstream();
+				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
+				// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
+				// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
+				timer.start(delayMs, () => {
+					if (stopped) return;
+					connect();
+				});
+			}
+
+			function connect(): void {
+				timer.cancel();
+				disconnectUpstream();
+				let src: Node<T>;
+				try {
+					src = factory();
+				} catch (err) {
+					scheduleRetryOrFinish(err);
+					return;
+				}
+				unsub = src.subscribe((msgs) => {
+					if (stopped) return;
+					for (const m of msgs) {
+						const t = m[0];
+						if (t === DIRTY) a.down([[DIRTY]]);
+						else if (t === DATA) {
+							attempt = 0;
+							prevDelay = null;
+							a.emit(m[1] as T);
+						} else if (t === RESOLVED) a.down([[RESOLVED]]);
+						else if (t === COMPLETE) {
+							disconnectUpstream();
+							a.down([[COMPLETE]]);
+						} else if (t === ERROR) {
+							scheduleRetryOrFinish(msgVal(m));
+							return;
+						} else a.down([m]);
+					}
+				});
+			}
+
+			connect();
+
+			return () => {
+				stopped = true;
+				timer.cancel();
+				disconnectUpstream();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: opts?.initial,
 		},
 	);
 }

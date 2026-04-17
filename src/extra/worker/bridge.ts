@@ -20,8 +20,10 @@
 
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
-import { defaultConfig, type Node, type NodeSink } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { defaultConfig, type Node, type NodeSink, node } from "../../core/node.js";
+import { effect, state } from "../../core/sugar.js";
+import { filter, first, map, merge } from "../operators.js";
+import { fromTimer } from "../sources.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";
@@ -111,42 +113,43 @@ export function workerBridge<
 		proxyNodes.set(name, proxy);
 	}
 
-	// -- Send coalescing via derived + effect ----------------------------------
-	const lastSent = new Map<string, unknown>();
+	// -- Send coalescing via raw `node` + `effect` -----------------------------
+	//
+	// Aggregator uses raw `node([deps], (data, a) => ...)` so it can inspect
+	// the full **wave-form** `data[i]`: a per-dep batch of DATA values emitted
+	// this wave (or `undefined` if the dep was silent). Deps whose `equals`
+	// absorb a repeat emission send `RESOLVED` instead of `DATA`, so silent
+	// slots correctly mean "no change" and are omitted from the wire message.
+	//
+	// Net effect: no `.cache` reads inside fn, no `equals: () => false`, no
+	// closure `lastSent` Map — Option B shape under v5 semantics.
 	let effectUnsub: (() => void) | undefined;
 
 	if (exposeEntries.length > 0) {
-		const exposedNodes = exposeEntries.map(([, n]) => n);
+		const exposedNodes = exposeEntries.map(([, n]) => n) as Node[];
 
-		// DOCUMENTED PROTOCOL EXCEPTION (P3 audit #8, see docs/optimizations.md):
-		// This fn reads `n.cache` on each exposed node instead of using the
-		// `data` array because the aggregator needs the **wave-final** state of
-		// all exposed nodes in a single wire message. Under the current TS v5
-		// runner, `state.down([[DATA, v]])` writes the cache synchronously before
-		// queuing downstream delivery, so cache reads always return the latest
-		// committed value. The `data` array, by contrast, is wave-progressive
-		// and can return stale values during multi-dep settlement (when callers
-		// use raw `.down` without a DIRTY prefix, each dep delivery runs the fn
-		// independently). A proper fix requires a framework-level "wave-end"
-		// hook — folded into the long-term Option B worker-bridge redesign.
-		const aggregated = derived(
+		const aggregated = node<Record<string, unknown>>(
 			exposedNodes,
-			() => {
+			(data, a) => {
 				const updates: Record<string, unknown> = {};
-				for (const [name, n] of exposeEntries) {
-					const v = n.cache;
-					if (v !== lastSent.get(name)) {
-						updates[name] = v;
-						lastSent.set(name, v);
+				for (let i = 0; i < exposeEntries.length; i++) {
+					const [name] = exposeEntries[i];
+					const batch0 = data[i];
+					if (batch0 != null && batch0.length > 0) {
+						updates[name] = batch0.at(-1);
 					}
 				}
-				return updates;
+				if (Object.keys(updates).length === 0) return;
+				a.emit(updates);
 			},
-			{ equals: () => false, name: `${bridgeName}::aggregated` },
+			// Each `updates` object is a fresh allocation, so default reference
+			// equality correctly propagates every aggregation wave — no
+			// `equals: () => false` override needed.
+			{ name: `${bridgeName}::aggregated` },
 		);
 
 		const effectNode = effect([aggregated], (data) => {
-			const updates = (data[0] ?? aggregated.cache) as Record<string, unknown> | undefined | null;
+			const updates = data[0] as Record<string, unknown> | undefined;
 			if (updates == null || Object.keys(updates).length === 0) return;
 
 			const transferList: Transferable[] = [];
@@ -182,9 +185,10 @@ export function workerBridge<
 		const msg = data as BridgeMessage;
 
 		switch (msg.t) {
-			// Worker ready — set proxy nodes with initial values
+			// Worker ready — set proxy nodes with initial values.
+			// The handshake deadline auto-cancels via the reactive race
+			// (`statusNode → "connected"` wins) — no explicit clearTimeout.
 			case "r": {
-				if (handshakeTimer !== undefined) clearTimeout(handshakeTimer);
 				batch(() => {
 					for (const [name, value] of Object.entries(msg.stores)) {
 						const proxy = proxyNodes.get(name);
@@ -193,11 +197,13 @@ export function workerBridge<
 				});
 				statusNode.down([[DATA, "connected"]]);
 
-				// Send initial values of exposed nodes
+				// Send initial values of exposed nodes.
+				// `.cache` here is a documented transport-boundary read: at the
+				// worker's "ready" moment we need a point-in-time snapshot of
+				// every exposed node, not a reactive wave. (§5.10 boundary.)
 				const initValues: Record<string, unknown> = {};
 				for (const [name, n] of exposeEntries) {
 					initValues[name] = n.cache;
-					lastSent.set(name, initValues[name]);
 				}
 				transport.post({ t: "i", stores: initValues } satisfies BridgeMessage);
 				break;
@@ -287,15 +293,28 @@ export function workerBridge<
 		exposeUnsubs.push(unsub);
 	}
 
-	// -- Handshake timeout -----------------------------------------------------
-	let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+	// -- Handshake timeout — reactive race between status→"connected" and a
+	// one-shot `fromTimer` deadline. Whichever fires first wins via `first()`,
+	// which completes and auto-unsubs upstream (cancelling the deadline if
+	// ready arrived first, or vice-versa).
+	let handshakeUnsub: (() => void) | undefined;
 	if (opts.timeoutMs != null && opts.timeoutMs > 0) {
-		handshakeTimer = setTimeout(() => {
-			if (statusNode.cache === "connecting") {
-				errorNode.down([[DATA, new Error("Worker bridge handshake timeout")]]);
-				destroy();
+		const deadline$ = fromTimer(opts.timeoutMs);
+		const ready$ = filter(statusNode, (s) => s === "connected");
+		const race$ = first(
+			merge(
+				map(deadline$, () => "timeout" as const),
+				map(ready$, () => "ready" as const),
+			),
+		);
+		handshakeUnsub = race$.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA && m[1] === "timeout") {
+					errorNode.down([[DATA, new Error("Worker bridge handshake timeout")]]);
+					destroy();
+				}
 			}
-		}, opts.timeoutMs);
+		});
 	}
 
 	// -- Build result object ---------------------------------------------------
@@ -303,7 +322,7 @@ export function workerBridge<
 		if (destroyed) return;
 		destroyed = true;
 
-		if (handshakeTimer !== undefined) clearTimeout(handshakeTimer);
+		handshakeUnsub?.();
 
 		// Send bridge-level TEARDOWN to worker
 		transport.post({
@@ -321,7 +340,6 @@ export function workerBridge<
 
 		statusNode.down([[DATA, "closed"]]);
 
-		lastSent.clear();
 		lastSeenImportVersions.clear();
 		proxyNodes.clear();
 	}

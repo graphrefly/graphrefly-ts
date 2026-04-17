@@ -1,234 +1,109 @@
-# GraphReFly — @graphrefly/graphrefly-ts
+# GraphReFly — TypeScript package (`@graphrefly/graphrefly`)
 
-Describe automations in plain language. Review them visually. Run them persistently. Trace every decision back to its source.
+The reactive harness layer for agent workflows. Reactive graph runtime for human + LLM co-operation — causal tracing, persistent checkpoints, policy enforcement, zero dependencies.
 
-GraphReFly is a reactive graph engine for human + LLM co-operation. An LLM composes a reactive graph from a natural-language description (like SQL for data flows). The graph runs persistently, checkpoints state, and traces every decision through a causal chain — enabling explainability ("why was this flagged?"), auditability, and progressive trust accumulation. This repository is the TypeScript implementation. Zero dependencies.
+Keywords: harness engineering, agent harness, reactive graph, causal trace, explainPath, agent orchestration, LLM co-operation, human-in-the-loop, reactive middleware, universal reduction layer.
 
-## Authoritative behavior
+This file is an AI-oriented index for the TypeScript repo. It intentionally points to generated API docs and source-of-truth docs instead of duplicating a long API list that can drift.
 
-- Shared normative spec: the `GRAPHREFLY-SPEC.md` file in the **graphrefly** spec repository (sibling to this package in the GraphReFly workspace). Implementations must match that document, not legacy callbag-only behavior.
+## Canonical behavior and docs authority
 
-## Where to read in this repo
+- Behavior spec: `~/src/graphrefly/GRAPHREFLY-SPEC.md`
+- Composition guidance: `~/src/graphrefly/COMPOSITION-GUIDE.md`
+- Docs conventions: `docs/docs-guidance.md`
+- Roadmap/state: `docs/roadmap.md`
+- Testing standard: `docs/test-guidance.md`
 
-- `docs/roadmap.md` — phased implementation status
-- `docs/docs-guidance.md` — how API docs and examples are maintained
-- `docs/test-guidance.md` — how tests are organized
-- `website/src/content/docs/api/` — generated API pages (from `website/scripts/gen-api-docs.mjs` and source JSDoc)
-- `examples/` — small runnable sketches (verify against current exports before copy-paste)
+## Active strategy docs (read for current direction)
 
-## Imports
+- `archive/docs/SESSION-reactive-collaboration-harness.md` — 7-stage reactive collaboration loop, gate port from callbag-recharge, `promptNode`, `valve` rename, strategy model, `harnessLoop()` factory
+- `archive/docs/SESSION-harness-engineering-strategy.md` — 8-requirement coverage, three-wave announcement plan, MCP Server priority, eval system design
+- `archive/docs/SESSION-marketing-promotion-strategy.md` — positioning pillars, wave plan, reply-marketing playbooks, competitive intel, prompt optimization algorithms, blog content plan
 
-- Main entry: `@graphrefly/graphrefly-ts` (re-exports core, extra, graph)
-- Subpaths: `@graphrefly/graphrefly-ts/core`, `/extra`, `/graph`
+## Primary links
 
-## Public API
+- Site: https://graphrefly.dev
+- API reference: https://graphrefly.dev/api/node/
+- Python docs: https://graphrefly.dev/py/api/
 
-### core — node primitive + sugar constructors (`src/core/`)
+## Package entry points
 
-- `node(options)` — low-level reactive node factory; accepts `initial`, `fn`, `guard`, `meta`, `name`, `deps`
-- `state(initial)` — sugar: a writable state node
-- `producer(fn)` — sugar: a push-source node driven by its `fn`
-- `derived(deps, fn)` — sugar: a computed node that re-runs `fn` when deps change
-- `effect(deps, fn)` — sugar: a side-effect node (no value consumers)
-- `pipe(source, ...operators)` — sugar: chains operator functions onto a node
-- `dynamicNode(trackingFn)` — node that tracks its own reactive dependencies at runtime
+- Root: `@graphrefly/graphrefly`
+- Subpaths: `@graphrefly/graphrefly/core`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/graph`, `@graphrefly/graphrefly/compat/*`
 
-### core — batch (`src/core/batch.ts`)
+## Public API by subpath
 
-- `batch(fn)` — runs `fn` in a batch scope; defers DATA/RESOLVED until outermost batch returns
-- `isBatching()` — returns `true` while inside `batch()` or while the drain loop is running
-- `partitionForBatch(messages)` — splits a message array into immediate / deferred / terminal groups
-- `downWithBatch(sink, messages)` — delivers messages downstream respecting batch semantics and tier ordering
+Full export lists live in the generated API pages under `website/src/content/docs/api/`. The descriptions below explain *what lives in each subpath and why*, so an LLM reading this cold can navigate without consuming the drift-prone catalog.
 
-### core — guard (`src/core/guard.ts`)
+### `@graphrefly/graphrefly/core` — `src/core/`
 
-- `policy(build)` — declarative guard builder; registers `allow()`/`deny()` rules, deny wins on conflict
-- `GuardDenied` — error class thrown when a guard denies an action
-- `accessHintForGuard(guard)` — probes a guard with standard actor types, returns a human-readable access hint string
+The minimal reactive substrate. One primitive (`node`) plus sugar constructors (`state`, `derived`, `producer`, `effect`, `pipe`, `dynamicNode`). Protocol internals: message types (`DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`), two-phase batch semantics (`batch`, `isBatching`, `partitionForBatch`, `downWithBatch`), guard/policy (`policy`, `GuardDenied`, `accessHintForGuard`), actor identity (`Actor`), and the central clock (`monotonicNs`, `wallClockNs`). **Anything outside this package must not call `Date.now()` / `performance.now()` directly — use `src/core/clock.ts`.** This is also where spec §5.8–5.12 invariants are enforced.
 
-### core — messages (`src/core/messages.ts`)
+### `@graphrefly/graphrefly/graph` — `src/graph/`
 
-- Message type constants: `DATA`, `DIRTY`, `RESOLVED`, `COMPLETE`, `ERROR`, `TEARDOWN`, `INVALIDATE`, `PAUSE`, `RESUME`
+The `Graph` container: reactive node registry with `register` / `resolve` / `describe` / `observe` / `trace` / `snapshot` / `diff` / `diagram` / `mount` / `unmount` / `teardown`. Supports scoped describe via ABAC actor/guard. `reachable(graph, startPath)` computes the dependency closure from a node path — the foundation for `explainPath` (causal walkback) and persistence scope.
 
-### core — actor (`src/core/actor.ts`)
+### `@graphrefly/graphrefly/extra` — `src/extra/`
 
-- `Actor` type — `{ type: string; id: string }` identity used by guards
+Everything reactive that isn't the primitive. Organized into loosely grouped source files:
 
-### core — clock (`src/core/clock.ts`)
+- **Operators** (`operators.ts`) — 70+ combinators: transform (`map` / `filter` / `scan` / `reduce`), limiting / selection, combination (`combine` / `combineLatest` / `withLatestFrom`), merging (`merge` / `zip` / `concat` / `race`), higher-order (`switchMap` / `exhaustMap` / `concatMap` / `mergeMap` / `flatMap`), timing (`delay` / `debounceTime` / `throttleTime` / `sample` / `audit` / `timeout`), buffering/windowing, error recovery (`rescue` / `catchError`). **Note:** the existing `gate(signal)` operator in this file is a boolean control gate and is being renamed to `valve` per §9.0; the new human-approval `gate` lives under `patterns/orchestration`.
+- **Sources** (`sources.ts`) — `fromTimer` / `fromCron` / `fromPromise` / `fromIter` / `fromAsyncIter` / `fromEvent` / `fromAny` plus `of` / `empty` / `never` / `throwError` / `cached` / `replay` / `share` / `shareReplay` and Promise bridges (`forEach`, `toArray`, `firstValueFrom`). **All async boundaries in the reactive layer must enter through this file** — node fns and operators never touch raw Promises.
+- **Data structures** — `reactiveMap` (`reactive-map.ts`), `reactiveLog` (`reactive-log.ts`), `reactiveIndex` (`reactive-index.ts`), `reactiveList` (`reactive-list.ts`), `pubsub` (`pubsub.ts`). These are the building blocks for distill/memory/topic graphs in `patterns/`.
+- **Resilience** (`resilience.ts` + `backoff.ts`) — `retry`, `circuitBreaker` + `CircuitOpenError`, `tokenBucket`, `tokenTracker`, `rateLimiter`, `withBreaker`, `withStatus`, and backoff strategies (`constant` / `linear` / `exponential` / `fibonacci` / `decorrelatedJitter` / `withMaxAttempts` / `resolveBackoffPreset`). Strategies are pluggable into any retry/breaker.
+- **Cron** (`cron.ts`) — `parseCron` / `matchesCron` for 5-field cron expressions, used by `fromCron`.
+- **Checkpoint** (`checkpoint.ts`) — `Memory` / `Dict` / `File` / `Sqlite` / `IndexedDb` adapters, `saveGraphCheckpoint` / `restoreGraphCheckpoint`, `checkpointNodeValue`, IndexedDB interop (`fromIDBRequest`, `fromIDBTransaction`). Auto-checkpoint is gated by `messageTier >= 3`.
+- **Composite** (`composite.ts`) — `verifiable(source, opts)` wraps a node with verification tracking; `distill(raw, extract, opts)` compacts raw data into a budget-bounded summary (the reactive memory primitive that `agentMemory` plugs into).
+- **Backpressure** (`backpressure.ts`) — `createWatermarkController(sendUp, opts)` for PAUSE/RESUME watermark flow control.
+- **Observable interop** (`observable.ts`) — `toObservable(node, opts?)` exports to RxJS-compatible `Observable`.
 
-- `monotonicNs()` — monotonic nanosecond timestamp
-- `wallClockNs()` — wall-clock nanosecond timestamp
+### `@graphrefly/graphrefly/patterns` — `src/patterns/` (Phase 4+ domain APIs)
 
-### graph — Graph container (`src/graph/graph.ts`)
+Developer-facing factories that compose primitives into recognizable patterns. **Protocol internals (`DIRTY`, `RESOLVED`, bitmask) never surface here** — sensible defaults, minimal boilerplate, clear errors.
 
-- `Graph` — reactive node registry; methods: `register`, `resolve`, `describe`, `observe`, `trace`, `snapshot`, `diff`, `diagram`, `mount`, `unmount`, `teardown`
-- `reachable(graph, startPath, options?)` — returns the set of node paths reachable from `startPath` via dependency edges
+- **Orchestration** (`orchestration.ts`) — `pipeline`, `task`, `branch`, the boolean control `gate` *(being renamed to `valve`)*, `approval`, `forEach`, `join`, `loop`, `subPipeline`, `sensor`, `wait`, `onFailure`. The §9.0 port of the callbag-recharge human-approval gate (with `pending` / `count` / `isOpen` reactive nodes and `approve` / `reject` / `modify(fn, n?)` / `open` / `close` methods) also lands here.
+- **Messaging** (`messaging.ts`) — `topic` (TopicGraph), `subscription` (SubscriptionGraph with cursor / `pull` / `ack`), `jobQueue`, `jobFlow`, `topicBridge`, `messagingHub` (lazy Pulsar-inspired topic registry: `topic`/`publish`/`publishMany`/`subscribe`/`removeTopic`/`has`/`size`/`topicNames`, mounts topics as subgraphs with TEARDOWN on removal). These are the primitives the §9.0 harness loop uses for static-topology sinks and cursor-driven readers. **Note:** `src/extra/pubsub` is a lightweight last-value state hub — use `messagingHub` for retained message logs + cursor-based subscriptions.
+- **Memory** (`memory.ts`) — `collection`, `lightCollection`, `vectorIndex`, `knowledgeGraph`, `decay(source, opts)` (OpenViking exponential decay, 7-day default half-life). `decay` is the priority-scoring primitive for the §9.0 QUEUE stage.
+- **AI** (`ai.ts`) — `fromLLM`, `streamingPromptNode`, `streamExtractor`, `chatStream`, `toolRegistry`, `systemPromptBuilder`, `llmExtractor`, `llmConsolidator`, `agentMemory` (default: distill + vectors + KG + tiers), `agentLoop` (ReAct inner loop), `knobsAsTools`, `gaugesAsContext`, `validateGraphDef`. The §9.0 `promptNode` factory (wraps any LLM call in a derived node with retry / cache / structured output) also lives here and is what plugs into `distill` as `extractFn` / `consolidateFn`.
+- **CQRS** (`cqrs.ts`) — `cqrs(name, opts?)` creates a commands / events / projections / sagas Graph.
+- **Reactive layout** (`reactive-layout/`) — `reactiveLayout`, `reactiveBlockLayout`, `analyzeAndMeasure`, `computeLineBreaks`, `computeCharPositions`. DOM-free Knuth-Plass line breaking as a `state → derived` graph (inspired by Cheng Lou's Pretext).
 
-### extra — operators (`src/extra/operators.ts`)
+### `@graphrefly/graphrefly/compat/*` — `src/compat/`
 
-- `map(fn)`, `filter(pred)`, `scan(fn, seed)`, `reduce(fn, seed)` — transform
-- `take(n)`, `skip(n)`, `takeWhile(pred)`, `takeUntil(signal)` — limiting
-- `first()`, `last()`, `find(pred)`, `elementAt(i)` — selection
-- `tap(fn)`, `distinctUntilChanged(eq?)` — utility
-- `pairwise()` — emits `[prev, curr]` pairs
-- `combine(...nodes)`, `combineLatest(...nodes)`, `withLatestFrom(...nodes)` — combination
-- `merge(...nodes)`, `zip(...nodes)`, `concat(...nodes)`, `race(...nodes)` — merging
-- `switchMap(fn)`, `exhaustMap(fn)`, `concatMap(fn)`, `mergeMap(fn)`, `flatMap(fn)` — higher-order
-- `delay(ms)`, `debounce(ms)`, `debounceTime(ms)`, `throttle(ms)`, `throttleTime(ms)` — timing
-- `sample(signal)`, `audit(fn)`, `timeout(ms)` — sampling / timeout
-- `buffer(signal)`, `bufferCount(n)`, `bufferTime(ms)` — buffering
-- `window(signal)`, `windowCount(n)`, `windowTime(ms)` — windowing
-- `gate(signal)` — passes values only while gate node is truthy
-- `interval(ms)` — emits incrementing integers on a timer
-- `repeat(count?)` — resubscribes on COMPLETE
-- `pausable(pause$)` — gates emission on a pause signal
-- `rescue(fn)` / `catchError(fn)` — error recovery
+Framework bindings. Keep them thin — all logic belongs in `core` / `extra` / `patterns`. React (`useNode`), Vue (`useNode` → `Ref`), Svelte (`toStore`), Solid (`useNode` → `Signal`), NestJS (`GraphReflyModule.forRoot()`). Each compat layer lives in its own subpath so unused adapters tree-shake out.
 
-### extra — sources (`src/extra/sources.ts`)
+### Design docs that back the above
 
-- `fromTimer(ms)` — emits on a recurring timer
-- `fromCron(expr)` — emits on a cron schedule
-- `fromPromise(p)` — wraps a Promise as a node
-- `fromIter(iter)` — synchronously emits all values from an iterable
-- `fromAsyncIter(iter)` — emits values from an async iterable
-- `fromEvent(target, event)` — wraps a DOM/Node.js event emitter
-- `fromAny(source)` — normalises any source (Promise, iterable, Node, etc.) into a node
-- `of(...values)` — emits given values then completes
-- `empty()` — completes immediately
-- `never()` — never emits or completes
-- `throwError(err)` — emits an error immediately
-- `cached(fn)` — memoised producer; shares a single subscription
-- `replay(n)` — replays last `n` values to new subscribers
-- `share()` / `shareReplay(n)` — multicast operators
-- `forEach(node, fn)` — subscribes and calls `fn` for each DATA value
-- `toArray(node)` — collects all values into an array (Promise)
-- `firstValueFrom(node)` — returns a Promise resolving to the first DATA value
+- Phase 4+ factory authors must read `~/src/graphrefly/COMPOSITION-GUIDE.md` before composing primitives — covers lazy activation, subscription ordering, null guards, feedback cycles, `promptNode` SENTINEL, wiring order.
+- Backlog / anti-patterns / deferred follow-ups: `docs/optimizations.md`.
+- Historical design decisions and parity notes: `archive/optimizations/`.
 
-### extra — data structures (`src/extra/`)
+## Generated docs workflow
 
-- `reactiveMap(initial?)` — reactive key→value map node (`src/extra/reactive-map.ts`)
-- `reactiveLog(options?)` — append-only reactive log node (`src/extra/reactive-log.ts`)
-- `logSlice(log, from, to?)` — derived slice of a reactive log (`src/extra/reactive-log.ts`)
-- `reactiveIndex(options)` — reactive inverted index over a reactive map (`src/extra/reactive-index.ts`)
-- `reactiveList(initial?)` — reactive ordered list node (`src/extra/reactive-list.ts`)
-- `pubsub(options?)` — topic-based publish/subscribe primitive (`src/extra/pubsub.ts`)
+TypeScript API pages are generated from JSDoc:
 
-### extra — resilience (`src/extra/resilience.ts`)
+- Generator: `website/scripts/gen-api-docs.mjs`
+- Output: `website/src/content/docs/api/*.md`
+- Commands:
+  - `pnpm --dir website docs:gen`
+  - `pnpm --dir website docs:gen:check`
+  - `pnpm --dir website sync-docs`
+  - `pnpm --dir website sync-docs:check`
 
-- `retry(source, options)` — retries a failing source with configurable backoff
-- `circuitBreaker(options)` — circuit-breaker operator; opens after threshold failures
-- `CircuitOpenError` — error thrown when circuit is open
-- `tokenBucket(options)` — token-bucket rate-limiter node
-- `tokenTracker(options)` — tracks token usage against a budget
-- `rateLimiter(options)` — rate-limiter operator (wraps token bucket)
-- `withBreaker(breaker)` — operator that feeds into a circuit breaker
-- `withStatus(statusNode)` — operator that writes breaker/limiter status to a node
+Do not hand-edit generated API pages.
 
-### extra — backoff (`src/extra/backoff.ts`)
+## Core design invariants
 
-- `constant(delayNs)` — strategy that always returns the same delay
-- `linear(baseNs, stepNs?)` — linearly increasing delay
-- `exponential(options?)` — exponentially increasing delay with optional jitter and cap
-- `fibonacci(baseNs?, maxNs?)` — Fibonacci-scaled delays
-- `decorrelatedJitter(baseNs?, maxNs?)` — AWS decorrelated-jitter strategy
-- `withMaxAttempts(strategy, maxAttempts)` — caps any strategy at a maximum attempt count
-- `resolveBackoffPreset(name)` — maps a preset name string to a concrete `BackoffStrategy`
+- No polling; propagation is reactive.
+- No imperative triggers outside graph/message flow.
+- No raw async primitives inside reactive layer logic.
+- Use `src/core/clock.ts` and `messageTier` helpers for timing/tier semantics.
+- Keep Phase 4+ surfaces developer-oriented (hide protocol internals from primary API docs).
 
-### extra — cron (`src/extra/cron.ts`)
+## Harness engineering coverage
 
-- `parseCron(expr)` — parses a 5-field cron expression into a `CronSchedule`
-- `matchesCron(schedule, date)` — returns `true` if `date` matches the schedule
+GraphReFly covers the 8 requirements of a production agent harness — context/state control, execution boundary, control flow, verification, observability, policy/safety, human governance, continuous improvement. Mapping lives in `README.md` and `archive/docs/SESSION-harness-engineering-strategy.md`.
 
-### extra — checkpoint (`src/extra/checkpoint.ts`)
+## Reactive collaboration loop (§9.0)
 
-- `MemoryCheckpointAdapter` — in-memory checkpoint storage
-- `DictCheckpointAdapter` — plain-object checkpoint storage
-- `FileCheckpointAdapter` — file-system checkpoint storage
-- `SqliteCheckpointAdapter` — SQLite checkpoint storage
-- `saveGraphCheckpoint(graph, adapter)` — serialises graph state to an adapter
-- `restoreGraphCheckpoint(graph, adapter)` — restores graph state from an adapter
-- `checkpointNodeValue(node, adapter, key)` — checkpoints a single node value
-- `saveGraphCheckpointIndexedDb(graph, db)` — saves graph state to IndexedDB
-- `restoreGraphCheckpointIndexedDb(graph, db)` — restores graph state from IndexedDB
-- `fromIDBRequest(req)` — wraps an `IDBRequest` as a Promise-backed node
-- `fromIDBTransaction(tx)` — wraps an `IDBTransaction` completion as a node
-
-### extra — composite (`src/extra/composite.ts`)
-
-- `verifiable(source, options)` — wraps a node with verification tracking (checks, assertions)
-- `distill(raw, extract, options)` — memory-efficient extraction: compacts raw data into a budget-bounded summary
-
-### extra — backpressure (`src/extra/backpressure.ts`)
-
-- `createWatermarkController(sendUp, options)` — creates a PAUSE/RESUME watermark controller for flow control
-
-### extra — observable interop (`src/extra/observable.ts`)
-
-- `toObservable(node, opts?)` — converts a GraphReFly node to an RxJS-compatible Observable; default emits DATA values, `{ raw: true }` emits raw message batches
-
-### patterns — orchestration (`src/patterns/orchestration.ts`)
-
-- `pipeline(name, opts?)` — creates an orchestration pipeline Graph
-- `task(name, fn, opts?)` — adds a processing step to a pipeline
-- `branch(name, condition, opts?)` — conditional routing in a pipeline
-- `gate(name, signal, opts?)` — pauses pipeline flow until signal is truthy
-- `approval(name, opts?)` — human-in-the-loop approval gate
-- `forEach(name, fn)` — iterate over pipeline items
-- `join(name, ...sources)` — merge multiple pipeline branches
-- `loop(name, condition, opts?)` — repeat pipeline steps while condition holds
-- `subPipeline(name, parent)` — nest a child pipeline
-- `sensor(name, fn)` — monitoring node in a pipeline
-- `wait(name, fn)` — async wait step
-- `onFailure(name, fn)` — error handler for pipeline failures
-
-### patterns — messaging (`src/patterns/messaging.ts`)
-
-- `topic(name, opts?)` — creates a pub/sub topic Graph
-- `subscription(topic, name, opts?)` — subscribes to a topic
-- `jobQueue(name, opts?)` — creates a work queue Graph with workers
-- `jobFlow(name, opts?)` — creates a job flow Graph with stages
-- `topicBridge(from, to, opts?)` — bridges two topics with optional transform
-
-### patterns — memory (`src/patterns/memory.ts`)
-
-- `collection(name, opts?)` — reactive document collection with CRUD operations
-- `lightCollection(opts?)` — lightweight in-memory collection bundle
-- `vectorIndex(opts?)` — reactive vector similarity index
-- `knowledgeGraph(opts?)` — reactive knowledge graph with entities and relations
-- `decay(source, opts)` — time-based value decay
-
-### patterns — AI (`src/patterns/ai.ts`)
-
-- `fromLLM(opts)` — wraps an LLM API call as a reactive node
-- `streamingPromptNode(adapter, deps, prompt, opts?)` — streaming LLM transform with TopicGraph tap point and cancel-on-new-input
-- `streamExtractor(streamTopic, extractFn, opts?)` — mount an extractor on any streaming topic
-- `chatStream(name, opts?)` — creates a chat-style streaming Graph
-- `toolRegistry(name, opts?)` — reactive tool/function registry for agents
-- `systemPromptBuilder(opts)` — reactive system prompt composition
-- `llmExtractor(opts)` — LLM-powered extraction pipeline
-- `llmConsolidator(opts)` — LLM-powered consolidation pipeline
-- `agentMemory(opts)` — reactive agent memory with retrieval and consolidation
-- `agentLoop(name, opts)` — full agent loop Graph (observe → think → act → memory)
-- `knobsAsTools(graph, actor?)` — exposes graph knobs as LLM-callable tools
-- `gaugesAsContext(graph, opts?)` — formats graph gauges as LLM context
-- `validateGraphDef(def)` — validates a graph definition object
-
-### patterns — CQRS (`src/patterns/cqrs.ts`)
-
-- `cqrs(name, opts?)` — creates a CQRS Graph (commands, events, projections, sagas)
-
-### patterns — reactive layout (`src/patterns/reactive-layout/`)
-
-- `reactiveLayout(opts)` — creates a reactive text layout engine Graph
-- `reactiveBlockLayout(opts)` — creates a reactive block/mixed-content layout Graph
-- `analyzeAndMeasure(text, adapter)` — measures text segments for line breaking
-- `computeLineBreaks(prepared, maxWidth, opts?)` — computes optimal line breaks (Knuth-Plass)
-- `computeCharPositions(lines, opts?)` — computes per-character positions from line breaks
-
-## Design invariants (spec §5.8–5.12)
-
-- No polling — use reactive timer sources, never busy-wait on node values
-- No imperative triggers — all coordination via reactive signals and message flow
-- No raw Promises/microtasks — async boundaries belong in sources and runner layer
-- Central timer (`core/clock.ts`) and `messageTier` utilities — never hardcode type checks
-- Phase 4+ APIs are developer-friendly — protocol internals never surface in primary APIs
+`harnessLoop()` wires a static topology: INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → REFLECT. Static topology + flowing data (the Kafka insight). Humans steer via `gate.modify((value, index, pending) => T, n?)`. Strategy model (`rootCause × intervention → successRate`) feeds TRIAGE routing. Design source: `archive/docs/SESSION-reactive-collaboration-harness.md`.
