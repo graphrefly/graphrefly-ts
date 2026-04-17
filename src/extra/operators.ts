@@ -786,6 +786,17 @@ export function withLatestFrom<A, B>(
 	secondary: Node<B>,
 	opts?: ExtraOpts,
 ): Node<readonly [A, B]> {
+	// Known semantic (documented): on initial activation when BOTH deps are
+	// `state()` nodes with cached values, the paired emission is dropped.
+	// `_activate` (src/core/node.ts:1002) subscribes deps sequentially in
+	// declaration order; primary's push-on-subscribe fires before secondary
+	// has subscribed, so the first-run gate (§2.7) forces RESOLVED. Secondary
+	// then fires in a separate wave with primary silent, and the fn's
+	// "emit only when primary fired this wave" rule takes the else branch.
+	// Use the factory-time seed pattern for initial-value pairing (see
+	// stratify, budgetGate, distill for examples; COMPOSITION-GUIDE §21).
+	// A naïve `[secondary, primary]` flip breaks topology-sensitive diamond
+	// callers like `harness/loop.ts` — the fix needs a deeper design pass.
 	return node<readonly [A, B]>(
 		[primary as Node, secondary as Node],
 		(data, a, ctx) => {

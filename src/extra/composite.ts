@@ -75,7 +75,26 @@ export function verifiable<T, TVerify = VerifyValue>(
 	}
 
 	if (triggerNode !== null) {
-		const verifyStream = switchMap(triggerNode, () => verifyFn(sourceNode.cache as T));
+		// Closes P3 audit #2. Two patterns used depending on trigger shape:
+		//  - autoVerify-only (triggerNode === sourceNode): the projected
+		//    switchMap value IS the source DATA, pass it directly.
+		//  - explicit trigger: capture the source value into a closure
+		//    (`latestSource`) seeded from `sourceNode.cache` at wiring time
+		//    (§3.6 boundary read) and kept current via a subscribe handler.
+		//    The switchMap fn reads the closure, never `sourceNode.cache`
+		//    from a reactive context.
+		let verifyStream: Node<TVerify>;
+		if (triggerNode === (sourceNode as Node<unknown>)) {
+			verifyStream = switchMap(sourceNode, (src) => verifyFn(src as T));
+		} else {
+			let latestSource: T | undefined = sourceNode.cache as T | undefined;
+			sourceNode.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) latestSource = m[1] as T;
+				}
+			});
+			verifyStream = switchMap(triggerNode, () => verifyFn(latestSource as T));
+		}
 		forEach(verifyStream, (value) => {
 			batch(() => {
 				verified.down([[DATA, value]]);
@@ -124,10 +143,6 @@ function mapFromSnapshot<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
 	return new Map<string, TMem>();
 }
 
-function asReadonlyMap<TMem>(store: ReactiveMapBundle<string, TMem>): ReadonlyMap<string, TMem> {
-	return mapFromSnapshot<TMem>(store.entries.cache);
-}
-
 function applyExtraction<TMem>(
 	store: ReactiveMapBundle<string, TMem>,
 	extraction: Extraction<TMem>,
@@ -159,7 +174,20 @@ export function distill<TRaw, TMem>(
 	const hasContext = opts.context !== undefined && opts.context !== null;
 	const contextNode = hasContext ? fromAny(opts.context) : state<unknown>(null);
 
-	const extractionStream = switchMap(sourceNode, (raw) => extractFn(raw, asReadonlyMap(store)));
+	// Closes P3 audit #7. `latestStore` is seeded at wiring time (§3.6
+	// boundary read) and kept current via a subscribe handler. `extractFn`
+	// and `consolidate` read the closure, never `store.entries.cache` from
+	// inside a reactive callback. `withLatestFrom` would swallow the initial
+	// source emission because primary's push-on-subscribe fires before
+	// secondary subscribes — same reason stratify/budgetGate use this pattern.
+	let latestStore: ReadonlyMap<string, TMem> = mapFromSnapshot<TMem>(store.entries.cache);
+	store.entries.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] === DATA) latestStore = mapFromSnapshot<TMem>(m[1]);
+		}
+	});
+
+	const extractionStream = switchMap(sourceNode, (raw) => extractFn(raw as TRaw, latestStore));
 	forEach(extractionStream, (extraction) => {
 		applyExtraction(store, extraction);
 	});
@@ -181,8 +209,11 @@ export function distill<TRaw, TMem>(
 			for (const [key, mem] of entries) {
 				const verdict = opts.evict!(key, mem);
 				if (isNodeLike<boolean>(verdict)) {
-					if (verdict.cache === true) out.push(key);
-					// Subscribe to verdict node changes if not already subscribed.
+					// Subscribe if not already — push-on-subscribe fires with
+					// the verdict's current value on first subscribe, so an
+					// already-true verdict deletes via the callback without
+					// needing a `verdict.cache` read (closes P3 audit #3).
+					// Future transitions to `true` flow through the same path.
 					if (!verdictUnsubs.has(key)) {
 						const unsub = forEach(verdict, (val) => {
 							if (val === true && store.has(key)) {
@@ -211,7 +242,7 @@ export function distill<TRaw, TMem>(
 	if (opts.consolidate && hasConsolidateTrigger) {
 		const consolidateTriggerNode = fromAny(opts.consolidateTrigger);
 		const consolidationStream = switchMap(consolidateTriggerNode, () =>
-			opts.consolidate!(asReadonlyMap(store)),
+			opts.consolidate!(latestStore),
 		);
 		forEach(consolidationStream, (extraction) => {
 			applyExtraction(store, extraction);

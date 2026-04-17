@@ -6,6 +6,7 @@
  * Phase 2 operator names (for example `gate`, `forEach`).
  */
 
+import { batch } from "../core/batch.js";
 import type { NodeActions } from "../core/config.js";
 import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../core/messages.js";
 import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
@@ -451,13 +452,19 @@ export function gate<T>(
 		},
 		open() {
 			guardTorn("open");
-			isOpenNode.down([[DATA, true]]);
-			// Flush all pending
-			const items = dequeue(queue.length);
-			for (const item of items) {
-				if (torn) break;
-				output.down([[DATA, item]]);
-			}
+			// Wrap the isOpen transition + queued flush in one batch so every
+			// `output.down` is tier-3-deferred until after the `isOpenNode` dep
+			// wave settles. Without this, queued DATAs could interleave with
+			// the in-flight isOpen settlement wave under async runners — item
+			// order relative to the open signal would be non-deterministic.
+			batch(() => {
+				isOpenNode.down([[DATA, true]]);
+				const items = dequeue(queue.length);
+				for (const item of items) {
+					if (torn) break;
+					output.down([[DATA, item]]);
+				}
+			});
 		},
 		close() {
 			guardTorn("close");
