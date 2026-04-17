@@ -1486,6 +1486,13 @@ export class Graph {
 					: [];
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
+			// Unit 14 A: attach reason annotation from `trace(path, reason)`
+			// when one exists. Skipped for the `"spec"` format (input-schema
+			// use case — annotations don't round-trip through GraphSpec).
+			if (!isSpec) {
+				const reason = this._annotations.get(p);
+				if (reason != null) entry.reason = reason;
+			}
 			if (filter != null) {
 				if (typeof filter === "function") {
 					const fn = filter as
@@ -1594,6 +1601,31 @@ export class Graph {
 	 */
 	resourceProfile(opts?: GraphProfileOptions): GraphProfileResult {
 		return graphProfile(this, opts);
+	}
+
+	/**
+	 * Reachability query rooted at `from`. Instance convenience — wraps
+	 * `reachable(this.describe(), from, direction, opts)`. See
+	 * {@link reachable} for semantics.
+	 */
+	reachable(
+		from: string,
+		direction: ReachableDirection,
+		opts: ReachableOptions & { withDetail: true },
+	): ReachableResult;
+	reachable(from: string, direction: ReachableDirection, opts?: ReachableOptions): string[];
+	reachable(
+		from: string,
+		direction: ReachableDirection,
+		opts: ReachableOptions = {},
+	): string[] | ReachableResult {
+		if (opts.withDetail === true) {
+			return reachable(this.describe(), from, direction, {
+				...opts,
+				withDetail: true,
+			});
+		}
+		return reachable(this.describe(), from, direction, opts);
 	}
 
 	private _collectObserveTargets(prefix: string, out: [string, Node][]): void {
@@ -2418,8 +2450,9 @@ export class Graph {
 	 * Unified reasoning trace: write annotations or read the ring buffer.
 	 *
 	 * Write: `graph.trace("path", "reason")` — attaches a reasoning annotation
-	 * to a node, capturing *why* an AI agent set a value.
-	 * No-op when `config.inspectorEnabled` is `false`.
+	 * to a node, capturing *why* an AI agent set a value. Unknown paths are
+	 * silently dropped (matching `observe` resilience). No-op when
+	 * `config.inspectorEnabled` is `false`.
 	 *
 	 * Read: `graph.trace()` — returns a chronological log of all annotations.
 	 * Returns `[]` when `config.inspectorEnabled` is `false`.
@@ -2429,13 +2462,47 @@ export class Graph {
 	trace(path?: string, reason?: string): undefined | readonly TraceEntry[] {
 		if (path != null && reason != null) {
 			if (!this.config.inspectorEnabled) return;
-			this.resolve(path); // validate path exists
+			// Silent-drop unknown paths — matches `observe` resilience. Callers
+			// with robust path-hygiene needs can pre-check via `tryResolve`.
+			if (this.tryResolve(path) == null) return;
 			this._annotations.set(path, reason);
 			this._traceRing.push({ path, reason, timestamp_ns: monotonicNs() });
 			return;
 		}
 		if (!this.config.inspectorEnabled) return [];
 		return this._traceRing.toArray();
+	}
+
+	/**
+	 * Latest reason annotation attached to `path` via {@link Graph.trace},
+	 * or `undefined` if none. `describe()` surfaces this via the `reason`
+	 * field on each node entry (when present).
+	 */
+	annotation(path: string): string | undefined {
+		return this._annotations.get(path);
+	}
+
+	/**
+	 * Clear all reasoning-trace state (both the per-path annotations map and
+	 * the ring buffer). Useful for long-running processes that want periodic
+	 * resets, or tests that need a clean slate.
+	 */
+	clearTrace(): void {
+		this._annotations.clear();
+		this._traceRing.clear();
+	}
+
+	/**
+	 * Remove trace entries matching `predicate`. Returns the number of
+	 * entries removed. Does not touch the per-path annotations map — call
+	 * {@link Graph.clearTrace} for a full reset.
+	 */
+	pruneTrace(predicate: (entry: TraceEntry) => boolean): number {
+		const kept = this._traceRing.toArray().filter((e) => !predicate(e));
+		const removed = this._traceRing.size - kept.length;
+		this._traceRing.clear();
+		for (const e of kept) this._traceRing.push(e);
+		return removed;
 	}
 
 	/**
@@ -2582,133 +2649,155 @@ export type ReachableDirection = "upstream" | "downstream";
 export type ReachableOptions = {
 	/** Maximum hop depth from `from` (0 returns `[]`). Omit for unbounded traversal. */
 	maxDepth?: number;
+	/**
+	 * Traverse both directions in one pass (union of upstream + downstream).
+	 * Ignores the `direction` arg when set.
+	 */
+	both?: boolean;
+	/**
+	 * Return the richer {@link ReachableResult} shape (paths + per-path
+	 * hop depth + truncation flag) instead of the flat sorted string array.
+	 */
+	withDetail?: boolean;
+};
+
+/** Rich reachable result (opt-in via `{withDetail: true}`). */
+export type ReachableResult = {
+	/** Reachable paths, sorted lexicographically. */
+	paths: string[];
+	/** Hop depth from `from` to each reachable path. */
+	depths: Map<string, number>;
+	/** True when traversal hit `maxDepth` and some neighbors were not explored. */
+	truncated: boolean;
 };
 
 /**
  * Reachability query over a {@link Graph.describe} snapshot.
  *
- * Traversal combines dependency links (`deps`) and explicit graph edges (`edges`):
- * - `upstream`: follows `deps` plus incoming edges.
- * - `downstream`: follows reverse-`deps` plus outgoing edges.
+ * Traversal follows `deps` (upstream) and reverse-`deps` (downstream). Edges
+ * are derived from deps post Unit 7, so `edges[]` in the snapshot is
+ * redundant with deps — it's walked defensively in case a caller supplied a
+ * pre-Unit-7 snapshot.
  *
  * @param described - `graph.describe()` output to traverse.
  * @param from - Start path (qualified node path).
- * @param direction - Traversal direction.
- * @param options - Optional max depth bound.
- * @returns Sorted list of reachable paths (excluding `from`).
- *
- * @example
- * ```ts
- * import { Graph, reachable } from "@graphrefly/graphrefly-ts";
- *
- * const g = new Graph("app");
- * const a = g.register("a");
- * const b = g.register("b", [a]);
- * const described = g.describe();
- *
- * reachable(described, "app.a", "downstream"); // ["app.b"]
- * reachable(described, "app.b", "upstream");   // ["app.a"]
- * ```
+ * @param direction - Traversal direction (ignored when `opts.both` is `true`).
+ * @param options - Optional `maxDepth`, `both`, `withDetail`.
+ * @returns Sorted paths (flat) — or {@link ReachableResult} when `withDetail: true`.
  */
 export function reachable(
 	described: GraphDescribeOutput,
 	from: string,
 	direction: ReachableDirection,
+	options?: ReachableOptions & { withDetail: true },
+): ReachableResult;
+export function reachable(
+	described: GraphDescribeOutput,
+	from: string,
+	direction: ReachableDirection,
+	options?: ReachableOptions,
+): string[];
+export function reachable(
+	described: GraphDescribeOutput,
+	from: string,
+	direction: ReachableDirection,
 	options: ReachableOptions = {},
-): string[] {
-	if (!from) return [];
-	if (direction !== "upstream" && direction !== "downstream") {
+): string[] | ReachableResult {
+	const empty: ReachableResult = { paths: [], depths: new Map(), truncated: false };
+	if (!from) return options.withDetail ? empty : [];
+	if (!options.both && direction !== "upstream" && direction !== "downstream") {
 		throw new Error(`reachable: direction must be "upstream" or "downstream"`);
 	}
 	const maxDepth = options.maxDepth;
 	if (maxDepth != null && (!Number.isInteger(maxDepth) || maxDepth < 0)) {
 		throw new Error(`reachable: maxDepth must be an integer >= 0`);
 	}
-	if (maxDepth === 0) return [];
+	if (maxDepth === 0) return options.withDetail ? empty : [];
 
-	const depsByPath = new Map<string, string[]>();
+	const depsByPath = new Map<string, readonly string[]>();
 	const reverseDeps = new Map<string, Set<string>>();
 	const incomingEdges = new Map<string, Set<string>>();
 	const outgoingEdges = new Map<string, Set<string>>();
 	const universe = new Set<string>();
 
-	const nodesRaw =
-		described != null &&
-		typeof described === "object" &&
-		"nodes" in described &&
-		typeof (described as Record<string, unknown>).nodes === "object" &&
-		(described as Record<string, unknown>).nodes !== null &&
-		!Array.isArray((described as Record<string, unknown>).nodes)
-			? ((described as Record<string, unknown>).nodes as Record<string, unknown>)
-			: {};
-	const edgesRaw =
-		described != null &&
-		typeof described === "object" &&
-		"edges" in described &&
-		Array.isArray((described as Record<string, unknown>).edges)
-			? ((described as Record<string, unknown>).edges as unknown[])
-			: [];
-
-	for (const [path, node] of Object.entries(nodesRaw)) {
+	for (const [path, node] of Object.entries(described.nodes)) {
 		if (!path) continue;
 		universe.add(path);
-		const deps =
-			node != null && typeof node === "object" && Array.isArray((node as { deps?: unknown[] }).deps)
-				? (node as { deps: unknown[] }).deps
-				: [];
-		const cleanDeps = deps.filter((d): d is string => typeof d === "string" && d.length > 0);
-		depsByPath.set(path, cleanDeps);
-		for (const dep of cleanDeps) {
+		const deps = node.deps ?? [];
+		depsByPath.set(path, deps);
+		for (const dep of deps) {
+			if (!dep) continue;
 			universe.add(dep);
 			if (!reverseDeps.has(dep)) reverseDeps.set(dep, new Set());
 			reverseDeps.get(dep)!.add(path);
 		}
 	}
-	for (const edge of edgesRaw) {
+	// Edges are normally derived from deps post Unit 7, but synthetic snapshots
+	// (e.g. test fixtures) may declare edges independently — walk both for
+	// compatibility. Minimal null/string checks for malformed JSON.
+	for (const edge of described.edges) {
 		if (edge == null || typeof edge !== "object") continue;
-		const edgeFrom =
-			"from" in edge && typeof (edge as { from?: unknown }).from === "string"
-				? ((edge as { from: string }).from as string)
-				: "";
-		const edgeTo =
-			"to" in edge && typeof (edge as { to?: unknown }).to === "string"
-				? ((edge as { to: string }).to as string)
-				: "";
-		if (!edgeFrom || !edgeTo) continue;
-		universe.add(edgeFrom);
-		universe.add(edgeTo);
-		if (!outgoingEdges.has(edgeFrom)) outgoingEdges.set(edgeFrom, new Set());
-		outgoingEdges.get(edgeFrom)!.add(edgeTo);
-		if (!incomingEdges.has(edgeTo)) incomingEdges.set(edgeTo, new Set());
-		incomingEdges.get(edgeTo)!.add(edgeFrom);
+		const from = typeof edge.from === "string" ? edge.from : "";
+		const to = typeof edge.to === "string" ? edge.to : "";
+		if (!from || !to) continue;
+		universe.add(from);
+		universe.add(to);
+		if (!outgoingEdges.has(from)) outgoingEdges.set(from, new Set());
+		outgoingEdges.get(from)!.add(to);
+		if (!incomingEdges.has(to)) incomingEdges.set(to, new Set());
+		incomingEdges.get(to)!.add(from);
 	}
 
-	if (!universe.has(from)) return [];
+	if (!universe.has(from)) return options.withDetail ? empty : [];
 
-	const neighbors = (path: string): string[] => {
-		if (direction === "upstream") {
-			const depNeighbors = depsByPath.get(path) ?? [];
-			const edgeNeighbors = [...(incomingEdges.get(path) ?? [])];
-			return [...depNeighbors, ...edgeNeighbors];
+	const doBoth = options.both === true;
+	const visit = (path: string): readonly string[] => {
+		if (doBoth) {
+			const up = depsByPath.get(path) ?? [];
+			const upEdges = incomingEdges.get(path);
+			const down = reverseDeps.get(path);
+			const downEdges = outgoingEdges.get(path);
+			const acc: string[] = [...up];
+			if (upEdges) acc.push(...upEdges);
+			if (down) acc.push(...down);
+			if (downEdges) acc.push(...downEdges);
+			return acc;
 		}
-		const depNeighbors = [...(reverseDeps.get(path) ?? [])];
-		const edgeNeighbors = [...(outgoingEdges.get(path) ?? [])];
-		return [...depNeighbors, ...edgeNeighbors];
+		if (direction === "upstream") {
+			const up = depsByPath.get(path) ?? [];
+			const upEdges = incomingEdges.get(path);
+			if (!upEdges) return up;
+			return [...up, ...upEdges];
+		}
+		const down = reverseDeps.get(path);
+		const downEdges = outgoingEdges.get(path);
+		const acc: string[] = down ? [...down] : [];
+		if (downEdges) acc.push(...downEdges);
+		return acc;
 	};
 
+	// Head-index BFS — avoids O(n²) from `Array.prototype.shift`.
 	const visited = new Set<string>([from]);
-	const out = new Set<string>();
+	const depths = new Map<string, number>();
 	const queue: Array<{ path: string; depth: number }> = [{ path: from, depth: 0 }];
-	while (queue.length > 0) {
-		const next = queue.shift()!;
-		if (maxDepth != null && next.depth >= maxDepth) continue;
-		for (const nb of neighbors(next.path)) {
+	let head = 0;
+	let truncated = false;
+	while (head < queue.length) {
+		const next = queue[head++]!;
+		if (maxDepth != null && next.depth >= maxDepth) {
+			// Flag truncation only if this node actually has unexplored neighbors.
+			if (visit(next.path).length > 0) truncated = true;
+			continue;
+		}
+		for (const nb of visit(next.path)) {
 			if (!nb || visited.has(nb)) continue;
 			visited.add(nb);
-			out.add(nb);
+			depths.set(nb, next.depth + 1);
 			queue.push({ path: nb, depth: next.depth + 1 });
 		}
 	}
 
-	return [...out].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+	const paths = [...depths.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+	if (options.withDetail) return { paths, depths, truncated };
+	return paths;
 }

@@ -8,7 +8,7 @@
  * @module
  */
 
-import { NodeImpl } from "../core/node.js";
+import { type Node, NodeImpl } from "../core/node.js";
 import { sizeof } from "../extra/utils/sizeof.js";
 import type { Graph, GraphDescribeOutput } from "./graph.js";
 
@@ -30,8 +30,21 @@ export interface NodeProfile {
 	subscriberCount: number;
 	/** Number of upstream dependencies. */
 	depCount: number;
-	/** True if this is an effect node with no external subscribers (potential leak). */
+	/**
+	 * True if this is an effect node with no external subscribers — a classic
+	 * leak pattern. See {@link GraphProfileResult.orphans} for the broader
+	 * orphan-node detection across `derived` / `producer` / `effect`.
+	 */
 	isOrphanEffect: boolean;
+	/**
+	 * Orphan category (batch 8 Unit 13 D). `null` when the node is healthy.
+	 * - `"orphan-effect"` — effect with zero subscribers (pre-existing class).
+	 * - `"idle-derived"` — derived with zero subscribers (wasted compute path
+	 *   if it ever activates; may indicate a factory forgot keepalive).
+	 * - `"idle-producer"` — producer with zero subscribers (no external
+	 *   consumer; may be an over-eager factory or forgotten cleanup).
+	 */
+	orphanKind: "orphan-effect" | "idle-derived" | "idle-producer" | null;
 }
 
 /** Aggregate graph profile. */
@@ -46,9 +59,21 @@ export interface GraphProfileResult {
 	nodes: NodeProfile[];
 	/** Total approximate value memory across all nodes. */
 	totalValueSizeBytes: number;
-	/** Nodes sorted by valueSizeBytes descending (top N). */
-	hotspots: NodeProfile[];
-	/** Effect nodes with no external subscribers (potential leaks). */
+	/**
+	 * Top-N hotspots by dimension. Each list is sorted descending. See
+	 * {@link GraphProfileOptions.topN} for the cap (default 10).
+	 */
+	hotspots: {
+		byValueSize: NodeProfile[];
+		bySubscriberCount: NodeProfile[];
+		byDepCount: NodeProfile[];
+	};
+	/**
+	 * Every orphan across types — `effect`, `derived`, `producer` with zero
+	 * subscribers. See {@link NodeProfile.orphanKind} for category.
+	 */
+	orphans: NodeProfile[];
+	/** Effect nodes with no external subscribers (legacy; subset of `orphans`). */
 	orphanEffects: NodeProfile[];
 }
 
@@ -70,7 +95,7 @@ export interface GraphProfileOptions {
  *
  * @param graph - The graph to profile.
  * @param opts - Optional configuration.
- * @returns Aggregate profile with per-node details and hotspots.
+ * @returns Aggregate profile with per-node details, hotspots (multi-dim), and orphans.
  */
 export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphProfileResult {
 	const topN = opts?.topN ?? 10;
@@ -80,14 +105,15 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 	// Build path→Node lookup via _collectObserveTargets (same as describe uses).
 	// Runtime guard: if the internal method is missing (refactored), degrade
 	// gracefully — profiles will show 0 for valueSizeBytes and subscriberCount.
-	const targets: [string, import("../core/node.js").Node][] = [];
-	if (typeof (graph as any)._collectObserveTargets === "function") {
-		(graph as any)._collectObserveTargets("", targets);
+	const targets: [string, Node][] = [];
+	const collector = (
+		graph as unknown as { _collectObserveTargets?: (prefix: string, out: [string, Node][]) => void }
+	)._collectObserveTargets;
+	if (typeof collector === "function") {
+		collector.call(graph, "", targets);
 	}
-	const pathToNode = new Map<string, import("../core/node.js").Node>();
-	for (const [p, n] of targets) {
-		pathToNode.set(p, n);
-	}
+	const pathToNode = new Map<string, Node>();
+	for (const [p, n] of targets) pathToNode.set(p, n);
 
 	const profiles: NodeProfile[] = [];
 
@@ -100,6 +126,16 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 		const depCount = nodeDesc.deps?.length ?? 0;
 
 		const isOrphanEffect = nodeDesc.type === "effect" && subscriberCount === 0;
+		const orphanKind: NodeProfile["orphanKind"] =
+			subscriberCount === 0
+				? nodeDesc.type === "effect"
+					? "orphan-effect"
+					: nodeDesc.type === "derived"
+						? "idle-derived"
+						: nodeDesc.type === "producer"
+							? "idle-producer"
+							: null
+				: null;
 
 		profiles.push({
 			path,
@@ -109,13 +145,19 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 			subscriberCount,
 			depCount,
 			isOrphanEffect,
+			orphanKind,
 		});
 	}
 
 	const totalValueSizeBytes = profiles.reduce((sum, p) => sum + p.valueSizeBytes, 0);
 
-	const hotspots = [...profiles].sort((a, b) => b.valueSizeBytes - a.valueSizeBytes).slice(0, topN);
+	const topBy = <K extends keyof NodeProfile>(
+		key: K,
+		cmp?: (a: NodeProfile, b: NodeProfile) => number,
+	): NodeProfile[] =>
+		[...profiles].sort(cmp ?? ((a, b) => (b[key] as number) - (a[key] as number))).slice(0, topN);
 
+	const orphans = profiles.filter((p) => p.orphanKind != null);
 	const orphanEffects = profiles.filter((p) => p.isOrphanEffect);
 
 	return {
@@ -124,7 +166,12 @@ export function graphProfile(graph: Graph, opts?: GraphProfileOptions): GraphPro
 		subgraphCount: desc.subgraphs.length,
 		nodes: profiles,
 		totalValueSizeBytes,
-		hotspots,
+		hotspots: {
+			byValueSize: topBy("valueSizeBytes"),
+			bySubscriberCount: topBy("subscriberCount"),
+			byDepCount: topBy("depCount"),
+		},
+		orphans,
 		orphanEffects,
 	};
 }

@@ -1134,7 +1134,7 @@ describe("harnessLoop with mockLLM", () => {
 		expect(after.strategyEntries).toBe(1);
 		expect(after.queueDepths["auto-fix"]).toBe(1);
 		expect(after.totalValueSizeBytes).toBeGreaterThan(before.totalValueSizeBytes);
-		expect(after.hotspots[0].status).toBe("settled");
+		expect(after.hotspots.byValueSize[0]?.status).toBe("settled");
 	});
 
 	it("strategy model accumulates across multiple items", async () => {
