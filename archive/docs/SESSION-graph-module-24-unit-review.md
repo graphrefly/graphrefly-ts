@@ -252,9 +252,9 @@ Tracked in `docs/optimizations.md` for future sessions:
 
 2. **Unit 9 H — primary vs meta filter asymmetry.** Today primaries get the unfiltered batch while meta gets the filtered batch. Alt H proposes always-filtered (symmetric). Needs TEARDOWN cascade audit before committing.
 
-3. **Unit 21 — disposer added during disposer iteration.** Current: spread copy means new disposers added during drain are NOT run this round. Either document or redesign.
+3. **Unit 21 — disposer added during disposer iteration.** Resolved 2026-04-17 via QA pass: `destroy()` now drains `_disposers` / `_storageDisposers` iteratively (pop-and-run with a safety cap) so disposers registered mid-drain are still executed. Exceptions route through `config.onMessage` (or logged) rather than silently swallowed.
 
-4. **Unit 11 observe tier-surfacing gaps** — INVALIDATE, PAUSE, RESUME, TEARDOWN are not surfaced as observe events. Should any of them be?
+4. **Unit 11 observe tier-surfacing gaps** — Landed in commit `ad908a4`. The `ObserveEvent` discriminated union carries `invalidate`, `pause` (with `lockId`), `resume` (with `lockId`), and `teardown` variants, and `recordEvent()` emits them for every non-minimal subscription. Minimal mode increments `invalidateCount` / `pauseCount` / `resumeCount` / `teardownCount`. Removed from "open questions."
 
 ---
 

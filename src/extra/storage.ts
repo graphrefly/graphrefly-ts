@@ -67,7 +67,10 @@ function sortJsonValue(value: unknown): unknown {
 }
 
 function stableJsonString(data: unknown): string {
-	return `${JSON.stringify(sortJsonValue(data), undefined, 0)}\n`;
+	// No trailing newline — tiers that want POSIX newline convention (e.g.
+	// fileStorage) append their own; in-database tiers (sqliteStorage) keep
+	// the payload byte-identical for cross-tier hash/CID comparison.
+	return JSON.stringify(sortJsonValue(data), undefined, 0);
 }
 
 /**
@@ -163,7 +166,8 @@ export function fileStorage(dir: string): StorageTier {
 		save(key, record) {
 			mkdirSync(dir, { recursive: true });
 			const filePath = pathFor(key);
-			const payload = stableJsonString(record);
+			// POSIX newline for file-on-disk convention; does not affect payload hash.
+			const payload = `${stableJsonString(record)}\n`;
 			const base = basename(filePath);
 			const d = dirname(filePath);
 			const tmp = join(d, `.${base}.${randomBytes(8).toString("hex")}.tmp`);
@@ -226,7 +230,7 @@ export function sqliteStorage(path: string): StorageTier & { close(): void } {
 	db.exec(`CREATE TABLE IF NOT EXISTS graphrefly_checkpoint (k TEXT PRIMARY KEY, v TEXT NOT NULL)`);
 	return {
 		save(key, record) {
-			const payload = stableJsonString(record).trimEnd();
+			const payload = stableJsonString(record);
 			db.prepare(`INSERT OR REPLACE INTO graphrefly_checkpoint (k, v) VALUES (?, ?)`).run(
 				key,
 				payload,
@@ -391,6 +395,15 @@ function idbOp<T>(
 				};
 				tx.oncomplete = () => {
 					txDone = true;
+					if (!reqDone) {
+						// Transaction completed without a request success callback —
+						// spec guarantees this shouldn't happen for successful tx,
+						// but defensively reject so the caller's promise doesn't
+						// hang silently.
+						db.close();
+						reject(new Error("IndexedDB transaction completed without request result"));
+						return;
+					}
 					finish();
 				};
 				tx.onerror = () => {

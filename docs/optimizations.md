@@ -8,6 +8,9 @@
 
 ## Active work items
 
+- **PY parity: port `attachStorage` + codec envelope (opened 2026-04-17):**
+  TS shipped `Graph.attachStorage` / `Graph.fromStorage` / `StorageTier` + codec envelope (v1 wire format) / `Graph.decode(bytes)` / `snapshot({format: "bytes"|"json-string"})` / `GraphWALDiff` in the graph-module 24-unit review wave (see `archive/docs/SESSION-graph-module-24-unit-review.md`). PY still uses the legacy `auto_checkpoint` + `extra/checkpoint.py` path with no envelope. **Wire format is frozen at v1** in `~/src/graphrefly/GRAPHREFLY-SPEC.md` § "Codec registry and envelope" — a PY implementation must produce byte-identical envelopes. **Scope:** port `StorageTier`, `attach_storage`, `from_storage`, codec registry on `GraphReFlyConfig`, `encode_envelope` / `decode_envelope`, `Graph.decode(bytes)`, `snapshot(format=...)`, `GraphWALDiff` with `nodes_added_full`, `diff_for_wal`. **Deadline:** v1.0 so the wire format doesn't diverge post-release. **Blocked on:** nothing; schedule when PY capacity opens.
+
 - **Message array allocation in hot path (proposed, 2026-04-11):**
   Every `down([[DIRTY], [DATA, v]])` allocates two inner arrays + one outer array per write. This is the primary GC pressure source in write-heavy workloads. Options: (a) intern common message tuples (singleton `DIRTY_MSG = [DIRTY]` as frozen object), (b) accept pre-allocated message batches, (c) `emit()` path already frames internally — encourage `emit` over raw `down` for state writes. Benchmark `emit` vs `down` to quantify. **Partially landed 2026-04-12 (A2):** 6 payload-free tuples interned (`DIRTY_MSG`, `RESOLVED_MSG`, `INVALIDATE_MSG`, `START_MSG`, `COMPLETE_MSG`, `TEARDOWN_MSG`) plus 5 pre-wrapped batch singletons. Closes the alloc cost for tier-1/tier-5 control signals. Tier-3 DATA/ERROR still allocate per-call because they carry payloads — see passthrough `[msg]` wrapper item below.
 

@@ -20,6 +20,7 @@ export {
 } from "./codec.js";
 export {
 	type DescribeFilter,
+	diffForWAL,
 	GRAPH_META_SEGMENT,
 	Graph,
 	type GraphActorOptions,
@@ -38,6 +39,7 @@ export {
 	type GraphOptions,
 	type GraphPersistSnapshot,
 	type GraphVersionChange,
+	type GraphWALDiff,
 	type ObserveDetail,
 	type ObserveEvent,
 	type ObserveOptions,

@@ -198,7 +198,7 @@ export type GraphCheckpointRecord = {
 	seq: number;
 	timestamp_ns: number;
 	format_version: number;
-} & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphDiffResult });
+} & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphWALDiff });
 
 /** Options for {@link Graph.attachStorage}. */
 export type GraphAttachStorageOptions = {
@@ -238,6 +238,36 @@ export type GraphDiagramOptions = {
 
 /** Snapshot format version (§3.8). */
 const SNAPSHOT_VERSION = 1;
+
+/**
+ * Drain a disposer set iteratively — pop, remove, run. Disposers registered
+ * mid-drain are picked up by the next iteration. Capped to guard against a
+ * disposer that re-registers itself in an infinite loop. Exceptions are
+ * surfaced via `console.error` rather than silently swallowed so leaks in
+ * cleanup code remain visible.
+ */
+function drainDisposers(set: Set<() => void>, graphName: string): void {
+	const cap = Math.max(16, set.size * 4);
+	let iterations = 0;
+	while (set.size > 0) {
+		if (iterations++ >= cap) {
+			console.error(
+				`[Graph "${graphName}".destroy] disposer drain exceeded cap (${cap}); ${set.size} disposer(s) discarded`,
+			);
+			set.clear();
+			return;
+		}
+		const it = set.values().next();
+		if (it.done) return;
+		const dispose = it.value;
+		set.delete(dispose);
+		try {
+			dispose();
+		} catch (err) {
+			console.error(`[Graph "${graphName}".destroy] disposer threw:`, err);
+		}
+	}
+}
 
 /**
  * Cheap graph-level V0 version fingerprint: concatenate `v.id@v.version` for
@@ -934,6 +964,13 @@ export class Graph {
 	readonly config: GraphReFlyConfig;
 	/** @internal — exposed for {@link teardownMountedGraph} and cross-graph helpers. */
 	readonly _nodes = new Map<string, Node>();
+	/**
+	 * @internal Reverse lookup for duplicate-instance detection in
+	 * {@link Graph.add} — O(1) replacement for an O(n) scan of `_nodes`.
+	 * Weak so nodes can be GC'd after `remove()` even if a caller keeps the
+	 * map alive via some unusual pattern.
+	 */
+	private readonly _nodeToName = new WeakMap<Node, string>();
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
 	/**
@@ -1010,15 +1047,15 @@ export class Graph {
 		if (this._nodes.has(name)) {
 			throw new Error(`Graph "${this.name}": node "${name}" already exists`);
 		}
-		for (const [existingName, existing] of this._nodes) {
-			if (existing === node) {
-				throw new Error(
-					`Graph "${this.name}": node instance already registered as "${existingName}"`,
-				);
-			}
+		const existingName = this._nodeToName.get(node);
+		if (existingName !== undefined) {
+			throw new Error(
+				`Graph "${this.name}": node instance already registered as "${existingName}"`,
+			);
 		}
 		this._nodes.set(name, node);
-		// Edges are derived on demand from node `_deps` via `scanEdges` — no
+		this._nodeToName.set(node, name);
+		// Edges are derived on demand from node `_deps` (see `edges()`) — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
 		return node;
 	}
@@ -1090,6 +1127,7 @@ export class Graph {
 			throw new Error(`Graph "${this.name}": unknown node or mount "${name}"`);
 		}
 		this._nodes.delete(name);
+		this._nodeToName.delete(node);
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
 		return { kind: "node", nodes: [name], mounts: [] };
 	}
@@ -1458,9 +1496,14 @@ export class Graph {
 	 * local nodes (sorted by name). Each {@link Node} receives at most one delivery
 	 * per call (deduped by reference).
 	 *
-	 * Companion `meta` nodes receive the same batch for control-plane types (e.g.
-	 * PAUSE) that the primary does not forward. **TEARDOWN-only** batches skip the
-	 * extra meta pass — the primary’s `down()` already cascades TEARDOWN to meta.
+	 * **Primary-vs-meta filter asymmetry (intentional):** primary nodes receive the
+	 * unfiltered `messages` batch — that's the canonical data-plane flow. Companion
+	 * `meta` nodes receive a filtered subset keyed by the per-type `metaPassthrough`
+	 * flag on {@link GraphReFlyConfig}. This keeps meta observers focused on
+	 * control-plane types they opted into (default: PAUSE/RESUME/INVALIDATE) while
+	 * the primary still sees the whole wave for routing. **TEARDOWN-only** batches
+	 * skip the extra meta pass entirely — the primary's `down()` already cascades
+	 * TEARDOWN to meta.
 	 *
 	 * @param messages - Batch to deliver to every registered node (and mounts, recursively).
 	 * @param options - Optional `actor` / `internal` for transport.
@@ -2244,23 +2287,14 @@ export class Graph {
 	destroy(): void {
 		// Drain disposers (keepalive unsubs etc.) BEFORE TEARDOWN so that
 		// internal effect nodes are disconnected before the cascade fires.
-		for (const dispose of [...this._disposers]) {
-			try {
-				dispose();
-			} catch {
-				/* ignore */
-			}
-		}
-		this._disposers.clear();
+		// Drain iteratively so disposers registered mid-drain also run; cap
+		// iterations to guard against a disposer that re-registers itself.
+		drainDisposers(this._disposers, this.name);
+		// TEARDOWN is tier 5 — below `attachStorage`'s `tier < 5` gate, so no
+		// final checkpoint fires; storage disposers unsubscribe after TEARDOWN
+		// has propagated through the subscription pipeline.
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
-		for (const dispose of [...this._storageDisposers]) {
-			try {
-				dispose();
-			} catch {
-				/* ignore */
-			}
-		}
-		this._storageDisposers.clear();
+		drainDisposers(this._storageDisposers, this.name);
 		for (const child of [...this._mounts.values()]) {
 			child._parent = undefined;
 			child._destroyClearOnly();
@@ -2373,6 +2407,16 @@ export class Graph {
 			 * without aborting the remaining restores.
 			 */
 			onError?: (path: string, err: unknown) => void;
+			/**
+			 * Restore `producer` node values alongside `state`. Default `false`:
+			 * producers are reactive sources whose value recomputes on
+			 * activation, so restoring from a snapshot is usually a no-op
+			 * overwritten on the next wave. Audit / forensic round-trip use
+			 * cases that need the stored value to survive restoration can
+			 * opt in. Does not change `derived` / `effect` handling — those
+			 * are always skipped.
+			 */
+			includeProducers?: boolean;
 		},
 	): void {
 		parseSnapshotEnvelope(data);
@@ -2385,11 +2429,33 @@ export class Graph {
 			options?.only == null
 				? null
 				: (Array.isArray(options.only) ? options.only : [options.only]).map((p) => globToRegex(p));
+		const includeProducers = options?.includeProducers === true;
 		for (const path of Object.keys(data.nodes).sort()) {
 			if (onlyPatterns !== null && !onlyPatterns.some((re) => re.test(path))) continue;
 			const slice = data.nodes[path];
-			if (slice === undefined || slice.value === undefined) continue;
+			if (slice === undefined) continue;
+			if (!("value" in slice) || slice.value === undefined) {
+				// Value absent (valid slice with no snapshotted value) or
+				// value === undefined (malformed — undefined is the global
+				// SENTINEL per spec §2.5, not valid DATA). Surface the
+				// malformed case so torn snapshots don't round-trip silently.
+				if ("value" in slice && slice.value === undefined) {
+					options?.onError?.(
+						path,
+						new Error(
+							`restore: slice.value is undefined for "${path}" (undefined is the global SENTINEL; not valid DATA)`,
+						),
+					);
+				}
+				continue;
+			}
 			if (slice.type === "derived" || slice.type === "effect") {
+				continue;
+			}
+			if (slice.type === "producer" && !includeProducers) {
+				// Reactive producers recompute on activation — restoring would
+				// be overwritten on the first wave. Opt in via
+				// `{includeProducers: true}` for audit use cases.
 				continue;
 			}
 			// V0 shortcut: if the snapshot slice and the live node both carry
@@ -2573,6 +2639,11 @@ export class Graph {
 			lastSnapshot: GraphPersistSnapshot | undefined;
 			lastFingerprint: string;
 			disposed: boolean;
+			// Chain of pending async saves for this tier. Each flush awaits the
+			// previous one so baseline advances only after persistence confirms;
+			// on rejection the chain resets (next flush starts from the last
+			// successfully-persisted baseline). Sync tiers never populate this.
+			savePending: Promise<void> | undefined;
 		};
 		const states: TierState[] = tiers.map((tier) => ({
 			tier,
@@ -2583,54 +2654,88 @@ export class Graph {
 			lastSnapshot: undefined,
 			lastFingerprint: "",
 			disposed: false,
+			savePending: undefined,
 		}));
 
 		if (options.autoRestore === true) {
-			// Fire-and-forget cascade restore; errors surface via onError.
-			const tierList = tiers;
-			void this._cascadeRestore(tierList).catch((err) => {
-				options.onError?.(err, tierList[0]!);
-			});
+			// Fire-and-forget cascade restore; errors surface via onError with
+			// the specific tier that failed.
+			void this._cascadeRestore(tiers, options.onError);
 		}
 
-		const flushTier = (s: TierState, snapshot: GraphPersistSnapshot): void => {
+		const runFlush = (s: TierState, snapshot: GraphPersistSnapshot): void => {
 			if (s.disposed) return;
+			const fingerprint = computeVersionFingerprint(snapshot.nodes);
+			if (s.lastSnapshot != null && fingerprint !== "" && fingerprint === s.lastFingerprint) {
+				return;
+			}
+			const nextSeq = s.seq + 1;
+			const timestamp_ns = monotonicNs();
+			const isFirst = s.lastSnapshot == null;
+			const shouldCompact = isFirst || nextSeq % s.compactEvery === 0;
+			const record: GraphCheckpointRecord = shouldCompact
+				? {
+						mode: "full",
+						snapshot,
+						seq: nextSeq,
+						timestamp_ns,
+						format_version: SNAPSHOT_VERSION,
+					}
+				: {
+						mode: "diff",
+						diff: diffForWAL(s.lastSnapshot!, snapshot),
+						seq: nextSeq,
+						timestamp_ns,
+						format_version: SNAPSHOT_VERSION,
+					};
+			if (s.tier.filter && !s.tier.filter(this.name, record)) {
+				// Filter rejected — don't advance seq or baseline.
+				return;
+			}
+			let result: void | Promise<void>;
 			try {
-				const fingerprint = computeVersionFingerprint(snapshot.nodes);
-				if (s.lastSnapshot != null && fingerprint !== "" && fingerprint === s.lastFingerprint) {
-					return;
-				}
-				s.seq += 1;
-				const timestamp_ns = monotonicNs();
-				const isFirst = s.lastSnapshot == null;
-				const shouldCompact = isFirst || s.seq % s.compactEvery === 0;
-				const record: GraphCheckpointRecord = shouldCompact
-					? {
-							mode: "full",
-							snapshot,
-							seq: s.seq,
-							timestamp_ns,
-							format_version: SNAPSHOT_VERSION,
-						}
-					: {
-							mode: "diff",
-							diff: Graph.diff(s.lastSnapshot!, snapshot),
-							seq: s.seq,
-							timestamp_ns,
-							format_version: SNAPSHOT_VERSION,
-						};
-				if (s.tier.filter && !s.tier.filter(this.name, record)) {
-					// Filter rejected — roll back seq so next record uses the same
-					// slot (preserves compactEvery alignment against persisted records).
-					s.seq -= 1;
-					return;
-				}
-				const result = s.tier.save(this.name, record);
+				result = s.tier.save(this.name, record);
+			} catch (error) {
+				// Synchronous throw — baseline untouched; surface and bail.
+				options.onError?.(error, s.tier);
+				return;
+			}
+			if (result && typeof (result as Promise<void>).then === "function") {
+				// Async tier: defer baseline + seq advance until the promise
+				// settles. Chain saves per-tier so they land in order without
+				// overlapping baselines. On rejection, baseline is left intact
+				// so the next flush diffs against the last successfully
+				// persisted snapshot.
+				const prev = s.savePending ?? Promise.resolve();
+				const chained = prev.then(
+					() => result as Promise<void>,
+					// Previous rejection already surfaced; don't block this save.
+					() => result as Promise<void>,
+				);
+				const final = chained.then(
+					() => {
+						if (s.disposed) return;
+						s.seq = nextSeq;
+						s.lastSnapshot = snapshot;
+						s.lastFingerprint = fingerprint;
+					},
+					(err) => {
+						options.onError?.(err, s.tier);
+					},
+				);
+				s.savePending = final.finally(() => {
+					if (s.savePending === final) s.savePending = undefined;
+				});
+			} else {
+				s.seq = nextSeq;
 				s.lastSnapshot = snapshot;
 				s.lastFingerprint = fingerprint;
-				if (result && typeof (result as Promise<void>).catch === "function") {
-					(result as Promise<void>).catch((err) => options.onError?.(err, s.tier));
-				}
+			}
+		};
+
+		const flushTier = (s: TierState, snapshot: GraphPersistSnapshot): void => {
+			try {
+				runFlush(s, snapshot);
 			} catch (error) {
 				options.onError?.(error, s.tier);
 			}
@@ -2703,25 +2808,51 @@ export class Graph {
 	 * via {@link Graph.restore}. Returns `true` if any tier produced a
 	 * restorable snapshot, `false` if all missed.
 	 *
+	 * Resilience: a tier that returns data which cannot be restored (load
+	 * throws, shape unrecognized, or `restore()` itself throws) does not abort
+	 * the cascade — the error is routed through `onError` (if supplied) and
+	 * the next colder tier is tried. This mirrors how a multi-tier cache
+	 * falls through on a corrupt hot entry.
+	 *
+	 * Note: `restore()` mutates state incrementally. If a restore throws
+	 * partway through, the graph may hold a mixed state (some slices from
+	 * the bad tier, some pre-existing). A subsequent successful tier's
+	 * `restore()` overwrites the overlapping slices.
+	 *
 	 * Internal helper shared by {@link Graph.attachStorage}'s `autoRestore`
 	 * option and the static {@link Graph.fromStorage} factory.
 	 */
-	private async _cascadeRestore(tiers: readonly StorageTier[]): Promise<boolean> {
+	private async _cascadeRestore(
+		tiers: readonly StorageTier[],
+		onError?: (err: unknown, tier: StorageTier) => void,
+	): Promise<boolean> {
 		for (const tier of tiers) {
-			const raw = await tier.load(this.name);
+			let raw: unknown;
+			try {
+				raw = await tier.load(this.name);
+			} catch (err) {
+				onError?.(err, tier);
+				continue;
+			}
 			if (raw == null) continue;
 			if (typeof raw !== "object" || Array.isArray(raw)) continue;
 			const record = raw as Record<string, unknown>;
-			// Accept both a `GraphCheckpointRecord` envelope (`mode === "full"`)
-			// and a bare `GraphPersistSnapshot` (the shape written by
-			// `saveGraphCheckpoint`). Bare snapshots carry `version: 1`.
-			if (record.mode === "full" && record.snapshot != null) {
-				this.restore(record.snapshot as GraphPersistSnapshot);
-				return true;
-			}
-			if (record.version === SNAPSHOT_VERSION && record.nodes != null) {
-				this.restore(record as GraphPersistSnapshot);
-				return true;
+			try {
+				// Accept both a `GraphCheckpointRecord` envelope
+				// (`mode === "full"`) and a bare `GraphPersistSnapshot` (the
+				// shape written by `saveGraphCheckpoint`). Bare snapshots
+				// carry `version: 1`.
+				if (record.mode === "full" && record.snapshot != null) {
+					this.restore(record.snapshot as GraphPersistSnapshot);
+					return true;
+				}
+				if (record.version === SNAPSHOT_VERSION && record.nodes != null) {
+					this.restore(record as GraphPersistSnapshot);
+					return true;
+				}
+			} catch (err) {
+				onError?.(err, tier);
+				// Fall through to the next tier.
 			}
 		}
 		return false;
@@ -2742,10 +2873,24 @@ export class Graph {
 	static async fromStorage(
 		name: string,
 		tiers: readonly StorageTier[],
-		opts?: GraphOptions & { factories?: Record<string, GraphNodeFactory> },
+		opts?: GraphOptions & {
+			factories?: Record<string, GraphNodeFactory>;
+			/**
+			 * Called when a tier throws during `load()` or when
+			 * {@link Graph.fromSnapshot} rejects a tier's record. The cascade
+			 * falls through to the next colder tier regardless.
+			 */
+			onError?: (err: unknown, tier: StorageTier) => void;
+		},
 	): Promise<Graph> {
 		for (const tier of tiers) {
-			const raw = await tier.load(name);
+			let raw: unknown;
+			try {
+				raw = await tier.load(name);
+			} catch (err) {
+				opts?.onError?.(err, tier);
+				continue;
+			}
 			if (raw == null) continue;
 			if (typeof raw !== "object" || Array.isArray(raw)) continue;
 			const record = raw as Record<string, unknown>;
@@ -2756,7 +2901,12 @@ export class Graph {
 						? (record as GraphPersistSnapshot)
 						: undefined;
 			if (snapshot == null) continue;
-			return Graph.fromSnapshot(snapshot, opts);
+			try {
+				return Graph.fromSnapshot(snapshot, opts);
+			} catch (err) {
+				opts?.onError?.(err, tier);
+				// Fall through to colder tier.
+			}
 		}
 		throw new Error(
 			`Graph.fromStorage: no tier held a restorable record for "${name}" across ${tiers.length} tier(s)`,
@@ -2949,6 +3099,39 @@ export type GraphDiffResult = {
 	subgraphsAdded: string[];
 	subgraphsRemoved: string[];
 };
+
+/**
+ * WAL-oriented diff — extends {@link GraphDiffResult} with the full node
+ * slice for each added path so {@link replayWAL} can reconstruct nodes added
+ * between full anchors (topology mutations inside a `compactEvery` window).
+ *
+ * `Graph.diff()` returns the audit shape (no payload); `attachStorage` writes
+ * this WAL shape. The two shapes stay structurally compatible — `GraphWALDiff`
+ * is a superset.
+ */
+export type GraphWALDiff = GraphDiffResult & {
+	/**
+	 * Full node slices for every path in `nodesAdded`, keyed by path. Applied
+	 * verbatim to `snapshot.nodes[path]` during replay.
+	 */
+	nodesAddedFull: Record<string, DescribeNodeOutput>;
+};
+
+/**
+ * Build a WAL-ready diff between two snapshots: the structural diff from
+ * {@link Graph.diff} plus the full node slice for each added path (pulled
+ * from `b.nodes`). Callers that only need the audit shape should use
+ * `Graph.diff` directly.
+ */
+export function diffForWAL(a: GraphDescribeOutput, b: GraphDescribeOutput): GraphWALDiff {
+	const base = Graph.diff(a, b);
+	const nodesAddedFull: Record<string, DescribeNodeOutput> = {};
+	for (const path of base.nodesAdded) {
+		const slice = b.nodes[path];
+		if (slice != null) nodesAddedFull[path] = slice;
+	}
+	return { ...base, nodesAddedFull };
+}
 
 /** A single field change within a diff. */
 export type GraphDiffChange = {
