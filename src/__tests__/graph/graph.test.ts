@@ -425,7 +425,11 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(reachable(d, "a", "upstream", { maxDepth: 0 })).toEqual([]);
 	});
 
-	it("reachable handles unknown start and malformed describe payloads defensively", () => {
+	it("reachable handles unknown start and malformed edge entries", () => {
+		// Unit 16 B (batch 8) dropped the full defensive coercion: we now
+		// trust top-level GraphDescribeOutput shape (pre-1.0, no legacy
+		// snapshots circulating). Minimal guards remain for malformed edge
+		// array entries (common when a persisted snapshot loses its schema).
 		const malformed = {
 			name: "g",
 			nodes: { a: { type: "state", status: "settled", deps: ["b"], meta: {} } },
@@ -433,20 +437,6 @@ describe("Graph introspection (Phase 1.3)", () => {
 			subgraphs: [],
 		} as unknown as GraphPersistSnapshot;
 		expect(reachable(malformed, "missing", "upstream")).toEqual([]);
-		expect(() =>
-			reachable(
-				{ name: "g", nodes: null, edges: null, subgraphs: [] } as unknown as GraphPersistSnapshot,
-				"a",
-				"upstream",
-			),
-		).not.toThrow();
-		expect(
-			reachable(
-				{ name: "g", nodes: null, edges: null, subgraphs: [] } as unknown as GraphPersistSnapshot,
-				"a",
-				"upstream",
-			),
-		).toEqual([]);
 	});
 
 	it("describe lists each meta companion as its own node entry (Python parity)", () => {
@@ -646,12 +636,15 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(d2).toContain("->");
 	});
 
-	it("trace() validates path and follows inspector gating", () => {
+	it("trace() silently drops unknown paths and follows inspector gating", () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));
 		g.trace("a", "first");
 		expect(g.trace().some((e) => e.reason === "first")).toBe(true);
-		expect(() => g.trace("missing", "x")).toThrow();
+		// Unit 14 E (batch 8): unknown path → silent drop (matches observe
+		// resilience), no throw. The entry is not recorded.
+		g.trace("missing", "x");
+		expect(g.trace().some((e) => e.reason === "x")).toBe(false);
 
 		const prev = g.config.inspectorEnabled;
 		try {

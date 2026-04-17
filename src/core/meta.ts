@@ -18,6 +18,12 @@ export type DescribeNodeOutput = {
 	v?: { id: string; version: number; cid?: string; prev?: string | null };
 	guard?: string;
 	lastMutation?: Readonly<{ actor: Actor; timestamp_ns: number }>;
+	/**
+	 * Latest reason annotation attached via `graph.trace(path, reason)`,
+	 * when present. Populated by `Graph.describe` only — `describeNode`
+	 * has no graph context.
+	 */
+	reason?: string;
 };
 
 /** Detail level for progressive disclosure (Phase 3.3b). */
