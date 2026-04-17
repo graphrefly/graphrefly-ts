@@ -67,6 +67,11 @@ export interface LazyGraphCodec extends GraphCodec {
  *
  * Append-only: each delta is identified by `seq` (monotonic). A full
  * snapshot is taken every `compactEvery` deltas for WAL compaction.
+ *
+ * **Note (Unit 7):** edges are derived from node `_deps` post edge-registry
+ * deletion — they're not stored independently and therefore not part of
+ * delta records. Adds/removes in the `nodes` and `removed` fields implicitly
+ * carry the corresponding edge changes.
  */
 export interface DeltaCheckpoint {
 	/** Monotonic sequence number. */
@@ -74,7 +79,7 @@ export interface DeltaCheckpoint {
 	/** Graph name. */
 	name: string;
 	/** Base snapshot seq this delta applies to (0 = initial full snapshot). */
-	baseSec: number;
+	baseSeq: number;
 	/** Only nodes with version > lastCheckpoint. Keyed by node name. */
 	nodes: Record<
 		string,
@@ -89,10 +94,6 @@ export interface DeltaCheckpoint {
 	>;
 	/** Nodes removed since last checkpoint. */
 	removed: string[];
-	/** Edges added since last checkpoint. */
-	edgesAdded: ReadonlyArray<{ from: string; to: string }>;
-	/** Edges removed since last checkpoint. */
-	edgesRemoved: ReadonlyArray<{ from: string; to: string }>;
 	/** Timestamp (wall-clock ns) of this checkpoint. */
 	timestampNs: bigint;
 }
@@ -246,8 +247,12 @@ export function negotiateCodec(
 /**
  * Reconstruct a snapshot from a WAL (full snapshot + sequence of deltas).
  *
- * Applies deltas in order on top of the base snapshot. Validates that
- * delta `baseSec` chains correctly.
+ * - Must start with a `"full"` entry.
+ * - Subsequent `"full"` entries (compaction points) **replace** the result
+ *   wholesale (Unit 23 D fix — prior `Object.assign` left stale keys from
+ *   the earlier state visible).
+ * - Subsequent `"delta"` entries roll forward. Validates that each delta's
+ *   `baseSeq` matches the previous `seq` (Unit 23 H).
  */
 export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 	if (entries.length === 0) {
@@ -260,17 +265,27 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 	}
 
 	// Deep clone the base snapshot so we can mutate it.
-	const result: GraphPersistSnapshot = JSON.parse(JSON.stringify(first.snapshot));
+	let result: GraphPersistSnapshot = JSON.parse(JSON.stringify(first.snapshot));
+	let prevSeq: number = first.seq;
 
 	for (let i = 1; i < entries.length; i++) {
 		const entry = entries[i]!;
 		if (entry.type === "full") {
-			// A compaction point — replace the entire result.
-			Object.assign(result, JSON.parse(JSON.stringify(entry.snapshot)));
+			// Compaction point — replace the entire result (not Object.assign,
+			// which would leave stale keys from the pre-compact state).
+			result = JSON.parse(JSON.stringify(entry.snapshot));
+			prevSeq = entry.seq;
 			continue;
 		}
 
 		const delta = entry.delta;
+		// Chain validation: each delta must apply to the immediately-preceding
+		// seq, else the WAL is corrupt or out-of-order.
+		if (delta.baseSeq !== prevSeq) {
+			throw new Error(
+				`WAL chain broken at index ${i}: delta.baseSeq=${delta.baseSeq} expected ${prevSeq}`,
+			);
+		}
 
 		// Apply node changes.
 		for (const [name, patch] of Object.entries(delta.nodes)) {
@@ -287,16 +302,9 @@ export function replayWAL(entries: readonly WALEntry[]): GraphPersistSnapshot {
 			delete result.nodes[name];
 		}
 
-		// Apply edge changes.
-		const edges = [...result.edges];
-		for (const edge of delta.edgesRemoved) {
-			const idx = edges.findIndex((e) => e.from === edge.from && e.to === edge.to);
-			if (idx !== -1) edges.splice(idx, 1);
-		}
-		for (const edge of delta.edgesAdded) {
-			edges.push(edge);
-		}
-		(result as unknown as { edges: typeof edges }).edges = edges;
+		// Edges are derived from node `_deps` at restore time (Unit 7) —
+		// no separate edge-patch pass needed.
+		prevSeq = delta.seq;
 	}
 
 	return result;
