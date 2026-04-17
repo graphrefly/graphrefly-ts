@@ -153,10 +153,8 @@ describe("patterns.demoShell", () => {
 		const demo = new Graph("test-demo");
 		const a = state(1, { name: "a" });
 		demo.add("a", a);
-		// derived node with a as constructor dep — connect requires real deps
 		const b = derived([a], ([v]) => v, { name: "b" });
 		demo.add("b", b);
-		demo.connect("a", "b");
 
 		shell.setDemoGraph(demo);
 		const mermaid = shell.graph.get("graph/mermaid") as string;
@@ -347,7 +345,6 @@ describe("patterns.demoShell", () => {
 			"display",
 			derived([demo.node("counter")!], ([v]) => v, { name: "display" }),
 		);
-		demo.connect("counter", "display");
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
 

@@ -250,14 +250,12 @@ function _addBranch<T>(
 	}
 
 	graph.add(branchName, filterNode as Node<unknown>);
-	graph.connect("source", branchName);
 
 	// If the rule has an ops chain, apply it and connect the edge
 	if (rule.ops) {
 		const transformed = rule.ops(filterNode);
 		const transformedName = `branch/${rule.name}/out`;
 		graph.add(transformedName, transformed as Node<unknown>);
-		graph.connect(branchName, transformedName);
 	}
 }
 
@@ -347,7 +345,6 @@ export function funnel<T>(
 			{ name: bridgeName },
 		);
 		g.add(bridgeName, br as Node<unknown>);
-		g.connect(prevOutputPath, bridgeName);
 		g.addDisposer(keepalive(br));
 
 		prevOutputPath = `${stage.name}::output`;
@@ -453,7 +450,6 @@ export function feedback(
 		},
 	);
 	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
-	graph.connect(condition, feedbackEffectName);
 	graph.addDisposer(keepalive(feedbackEffect));
 
 	return graph;

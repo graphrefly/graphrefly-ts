@@ -73,7 +73,6 @@ export class TopicGraph<T> extends Graph {
 			},
 		);
 		this.add("latest", this.latest);
-		this.connect("events", "latest");
 		this.addDisposer(keepalive(this.latest));
 
 		this.hasLatest = derived<boolean>(
@@ -86,7 +85,6 @@ export class TopicGraph<T> extends Graph {
 			},
 		);
 		this.add("hasLatest", this.hasLatest);
-		this.connect("events", "hasLatest");
 		this.addDisposer(keepalive(this.hasLatest));
 
 		// D1(a): on teardown, propagate COMPLETE on `events` so downstream
@@ -165,8 +163,6 @@ export class SubscriptionGraph<T> extends Graph {
 		this.add("available", this.available);
 		// No `connect("topic::events", "source")` — topic is not mounted here.
 		// The node-level dep `derived([topicEvents], …)` above is the live wire.
-		this.connect("source", "available");
-		this.connect("cursor", "available");
 		this.addDisposer(keepalive(this.source));
 		this.addDisposer(keepalive(this.available));
 	}
@@ -236,7 +232,6 @@ export class JobQueueGraph<T> extends Graph {
 			initial: 0,
 		});
 		this.add("depth", this.depth);
-		this.connect("pending", "depth");
 		this.addDisposer(keepalive(this.depth));
 	}
 
@@ -341,7 +336,6 @@ export class JobFlowGraph<T> extends Graph {
 			},
 		);
 		this.add("completedCount", this.completedCount);
-		this.connect("completed", "completedCount");
 		this.addDisposer(keepalive(this.completedCount));
 
 		const maxPerPump = Math.max(
@@ -383,7 +377,6 @@ export class JobFlowGraph<T> extends Graph {
 				},
 			);
 			this.add(`pump_${stage}`, pump);
-			this.connect(`${stage}::pending`, `pump_${stage}`);
 			this.addDisposer(keepalive(pump));
 		}
 	}
@@ -467,7 +460,6 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 			},
 		);
 		this.add("pump", pump);
-		this.connect("subscription::available", "pump");
 		this.addDisposer(keepalive(pump));
 	}
 }

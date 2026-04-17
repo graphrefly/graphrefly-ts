@@ -1033,7 +1033,6 @@ export class ChatStreamGraph extends Graph {
 			},
 		);
 		this.add("latest", this.latest);
-		this.connect("messages", "latest");
 		this.addDisposer(keepalive(this.latest));
 
 		this.messageCount = derived<number>(
@@ -1047,7 +1046,6 @@ export class ChatStreamGraph extends Graph {
 			},
 		);
 		this.add("messageCount", this.messageCount);
-		this.connect("messages", "messageCount");
 		this.addDisposer(keepalive(this.messageCount));
 	}
 
@@ -1105,7 +1103,6 @@ export class ToolRegistryGraph extends Graph {
 			},
 		);
 		this.add("schemas", this.schemas);
-		this.connect("definitions", "schemas");
 		this.addDisposer(keepalive(this.schemas));
 	}
 
@@ -1628,8 +1625,6 @@ export function agentMemory<TMem = unknown>(
 	graph.add("store", distillBundle.store.entries);
 	graph.add("compact", distillBundle.compact);
 	graph.add("size", distillBundle.size);
-	graph.connect("store", "compact");
-	graph.connect("store", "size");
 
 	// --- Vector index (optional) ---
 	let vectors: VectorIndexBundle<TMem> | null = null;

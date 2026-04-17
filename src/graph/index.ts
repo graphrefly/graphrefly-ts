@@ -30,7 +30,6 @@ export {
 	type GraphDiagramOptions,
 	type GraphDiffChange,
 	type GraphDiffResult,
-	type GraphDumpOptions,
 	type GraphFactoryContext,
 	type GraphNodeFactory,
 	type GraphObserveAll,

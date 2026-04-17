@@ -110,11 +110,26 @@ export type GraphDescribeOptions = {
 	 */
 	fields?: DescribeField[];
 	/**
-	 * Output format (Phase 3.3b).
-	 * - `undefined` — normal describe output
-	 * - `"spec"` — GraphSpec input format (no status, no value, deps as edges, type labels)
+	 * Output format.
+	 * - `undefined` / omitted — return the full {@link GraphDescribeOutput} object.
+	 * - `"spec"` — GraphSpec input format (object; no status/value, deps as edges).
+	 * - `"json"` — stable JSON **text** with sorted keys.
+	 * - `"pretty"` — human-readable plaintext (optionally colorized; see
+	 *   `colorize` / `indent` / `logger` / `includeEdges` / `includeSubgraphs`).
+	 * - `"mermaid"` — Mermaid flowchart text.
+	 * - `"d2"` — D2 diagram text.
 	 */
-	format?: "spec";
+	format?: "spec" | "json" | "pretty" | "mermaid" | "d2";
+	/** Pretty/diagram render: direction for diagram formats (default `LR`). */
+	direction?: GraphDiagramDirection;
+	/** Pretty/JSON render: indent (default 2 for JSON, ignored for pretty). */
+	indent?: number;
+	/** Pretty render: optional logger hook; fires with the rendered text before return. */
+	logger?: (text: string) => void;
+	/** Pretty render: include an Edges section (default `true`). */
+	includeEdges?: boolean;
+	/** Pretty render: include a Subgraphs section (default `true`). */
+	includeSubgraphs?: boolean;
 };
 
 /** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
@@ -280,6 +295,90 @@ function normalizeDiagramDirection(direction: unknown): GraphDiagramDirection {
 	throw new Error(
 		`invalid diagram direction ${String(direction)}; expected one of: TD, LR, BT, RL`,
 	);
+}
+
+// ---------------------------------------------------------------------------
+//  describe({format}) renderers — consolidated from the ex-dumpGraph /
+//  ex-toMermaid / ex-toD2 methods (Unit 12 + Unit 20).
+// ---------------------------------------------------------------------------
+
+function renderDescribeAsJson(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
+	const includeEdges = options.includeEdges ?? true;
+	const includeSubgraphs = options.includeSubgraphs ?? true;
+	const { expand: _expand, ...rest } = d;
+	const payload: GraphDescribeOutput = {
+		...rest,
+		edges: includeEdges ? d.edges : [],
+		subgraphs: includeSubgraphs ? d.subgraphs : [],
+	};
+	const text = JSON.stringify(sortJsonValue(payload), null, options.indent ?? 2);
+	options.logger?.(text);
+	return text;
+}
+
+function renderDescribeAsPretty(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
+	const includeEdges = options.includeEdges ?? true;
+	const includeSubgraphs = options.includeSubgraphs ?? true;
+	const lines: string[] = [];
+	lines.push(`Graph ${d.name}`);
+	lines.push("Nodes:");
+	for (const path of Object.keys(d.nodes).sort()) {
+		const n = d.nodes[path]!;
+		lines.push(`- ${path} (${n.type}/${n.status}): ${describeData(n.value)}`);
+	}
+	if (includeEdges) {
+		lines.push("Edges:");
+		for (const edge of d.edges) {
+			lines.push(`- ${edge.from} -> ${edge.to}`);
+		}
+	}
+	if (includeSubgraphs) {
+		lines.push("Subgraphs:");
+		for (const sg of d.subgraphs) {
+			lines.push(`- ${sg}`);
+		}
+	}
+	const text = lines.join("\n");
+	options.logger?.(text);
+	return text;
+}
+
+function renderDescribeAsMermaid(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
+	const direction = normalizeDiagramDirection(options.direction);
+	const paths = Object.keys(d.nodes).sort();
+	const ids = new Map<string, string>();
+	for (let i = 0; i < paths.length; i += 1) ids.set(paths[i]!, `n${i}`);
+	const lines: string[] = [`flowchart ${direction}`];
+	for (const path of paths) {
+		const id = ids.get(path)!;
+		lines.push(`  ${id}["${escapeMermaidLabel(path)}"]`);
+	}
+	for (const [from, to] of collectDiagramArrows(d)) {
+		const fromId = ids.get(from);
+		const toId = ids.get(to);
+		if (!fromId || !toId) continue;
+		lines.push(`  ${fromId} --> ${toId}`);
+	}
+	return lines.join("\n");
+}
+
+function renderDescribeAsD2(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
+	const direction = normalizeDiagramDirection(options.direction);
+	const paths = Object.keys(d.nodes).sort();
+	const ids = new Map<string, string>();
+	for (let i = 0; i < paths.length; i += 1) ids.set(paths[i]!, `n${i}`);
+	const lines: string[] = [`direction: ${d2DirectionFromGraphDirection(direction)}`];
+	for (const path of paths) {
+		const id = ids.get(path)!;
+		lines.push(`${id}: "${escapeD2Label(path)}"`);
+	}
+	for (const [from, to] of collectDiagramArrows(d)) {
+		const fromId = ids.get(from);
+		const toId = ids.get(to);
+		if (!fromId || !toId) continue;
+		lines.push(`${fromId} -> ${toId}`);
+	}
+	return lines.join("\n");
 }
 
 function escapeRegexLiteral(value: string): string {
@@ -497,22 +596,11 @@ export type ObserveThemeName = "none" | "ansi";
 /** ANSI/style overrides for observe `format` event rendering. */
 export type ObserveTheme = Partial<Record<ObserveEvent["type"] | "path" | "reset", string>>;
 
-/** Options for {@link Graph.dumpGraph}. */
-export type GraphDumpOptions = {
-	actor?: Actor;
-	filter?: DescribeFilter;
-	format?: "pretty" | "json";
-	indent?: number;
-	includeEdges?: boolean;
-	includeSubgraphs?: boolean;
-	logger?: (text: string) => void;
-};
-
 /**
  * Reject characters that would collide with internal serialization or path
- * grammar. Control chars (0x00–0x1F, 0x7F) break `edgeKey` (tab-delimited),
- * `describe()` key stability, and diagram rendering. Keep the test tight so
- * the error message points at the first offending code point.
+ * grammar. Control chars (0x00–0x1F, 0x7F) break `describe()` key stability,
+ * diagram rendering, and any tab-delimited log/trace format. Keep the test
+ * tight so the error message points at the first offending code point.
  */
 function assertNoControlChars(name: string, graphName: string, label: string): void {
 	for (let i = 0; i < name.length; i++) {
@@ -547,15 +635,6 @@ function assertRegisterableName(name: string, graphName: string, label: string):
 	assertNoControlChars(name, graphName, label);
 }
 
-/** `connect` / `disconnect` endpoints must be registered graph nodes, not meta paths (graphrefly-py parity). */
-function assertConnectPathNotMeta(path: string, graphName: string): void {
-	if (path.split(PATH_SEP).includes(GRAPH_META_SEGMENT)) {
-		throw new Error(
-			`Graph "${graphName}": connect/disconnect endpoints must be registered graph nodes, not meta paths (got "${path}")`,
-		);
-	}
-}
-
 function splitPath(path: string, graphName: string): string[] {
 	if (path === "") {
 		throw new Error(`Graph "${graphName}": resolve path must be non-empty`);
@@ -567,16 +646,6 @@ function splitPath(path: string, graphName: string): string[] {
 		}
 	}
 	return segments;
-}
-
-/** Canonical string key for an edge pair (deterministic, splittable). */
-function edgeKey(from: string, to: string): string {
-	return `${from}\t${to}`;
-}
-
-function parseEdgeKey(key: string): [string, string] {
-	const i = key.indexOf("\t");
-	return [key.slice(0, i), key.slice(i + 1)];
 }
 
 /**
@@ -632,36 +701,16 @@ function teardownMountedGraph(root: Graph): void {
  * @category graph
  */
 export class Graph {
-	private static readonly _factories: Array<{
-		pattern: string;
-		re: RegExp;
-		factory: GraphNodeFactory;
-	}> = [];
-
 	readonly name: string;
 	readonly opts: Readonly<GraphOptions>;
 	/** Protocol config bound to this graph (defaults to `defaultConfig`). */
 	readonly config: GraphReFlyConfig;
 	/** @internal — exposed for {@link teardownMountedGraph} and cross-graph helpers. */
 	readonly _nodes = new Map<string, Node>();
-	private readonly _edges = new Set<string>();
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
-
-	static registerFactory(pattern: string, factory: GraphNodeFactory): void {
-		if (!pattern) {
-			throw new Error("Graph.registerFactory requires a non-empty pattern");
-		}
-		Graph.unregisterFactory(pattern);
-		Graph._factories.push({ pattern, re: globToRegex(pattern), factory });
-	}
-
-	static unregisterFactory(pattern: string): void {
-		const i = Graph._factories.findIndex((entry) => entry.pattern === pattern);
-		if (i >= 0) Graph._factories.splice(i, 1);
-	}
 
 	/**
 	 * @param name - Non-empty graph id (must not contain `::` and must not
@@ -688,29 +737,6 @@ export class Graph {
 		}
 	}
 
-	private static _factoryForPath(path: string): GraphNodeFactory | undefined {
-		for (let i = Graph._factories.length - 1; i >= 0; i -= 1) {
-			const entry = Graph._factories[i]!;
-			if (entry.re.test(path)) return entry.factory;
-		}
-		return undefined;
-	}
-
-	private static _ownerForPath(root: Graph, path: string): [Graph, string] {
-		const segments = path.split(PATH_SEP);
-		const local = segments.pop();
-		if (local == null || local.length === 0) {
-			throw new Error(`invalid snapshot path "${path}"`);
-		}
-		let owner = root;
-		for (const seg of segments) {
-			const next = owner._mounts.get(seg);
-			if (!next) throw new Error(`unknown mount "${seg}" in path "${path}"`);
-			owner = next;
-		}
-		return [owner, local];
-	}
-
 	/**
 	 * Graphs reachable from this instance via nested {@link Graph.mount} (includes `this`).
 	 */
@@ -721,52 +747,6 @@ export class Graph {
 			child._graphsReachableViaMounts(seen);
 		}
 		return seen;
-	}
-
-	/**
-	 * Resolve an endpoint: returns `[owningGraph, localName, node]`.
-	 * Accepts both local names and `::` qualified paths.
-	 */
-	private _resolveEndpoint(path: string): [Graph, string, Node] {
-		if (!path.includes(PATH_SEP)) {
-			const n = this._nodes.get(path);
-			if (!n) {
-				throw new Error(`Graph "${this.name}": unknown node "${path}"`);
-			}
-			return [this, path, n];
-		}
-		const segments = splitPath(path, this.name);
-		return this._resolveEndpointFromSegments(segments, path);
-	}
-
-	private _resolveEndpointFromSegments(
-		segments: readonly string[],
-		fullPath: string,
-	): [Graph, string, Node] {
-		const head = segments[0] as string;
-		const rest = segments.slice(1);
-
-		if (rest.length === 0) {
-			const n = this._nodes.get(head);
-			if (n) return [this, head, n];
-			throw new Error(`Graph "${this.name}": unknown node "${head}" (from path "${fullPath}")`);
-		}
-
-		const localN = this._nodes.get(head);
-		if (localN && rest.length > 0 && rest[0] === GRAPH_META_SEGMENT) {
-			return this._resolveMetaEndpointKeys(localN, head, rest, fullPath);
-		}
-
-		const child = this._mounts.get(head);
-		if (!child) {
-			if (this._nodes.has(head)) {
-				throw new Error(
-					`Graph "${this.name}": "${head}" is a node; trailing path "${rest.join(PATH_SEP)}" is invalid`,
-				);
-			}
-			throw new Error(`Graph "${this.name}": unknown mount or node "${head}"`);
-		}
-		return child._resolveEndpointFromSegments(rest, fullPath);
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -796,27 +776,8 @@ export class Graph {
 			}
 		}
 		this._nodes.set(name, node);
-		if (node instanceof NodeImpl) {
-			// Auto-register edges from constructor deps (eliminates dual-bookkeeping).
-			// Forward: this node's deps → already-registered nodes.
-			if (node._deps.length > 0) {
-				for (const dep of node._deps) {
-					for (const [depName, depNode] of this._nodes) {
-						if (depNode === dep.node) {
-							this._edges.add(edgeKey(depName, name));
-							break;
-						}
-					}
-				}
-			}
-			// Reverse: already-registered nodes that depend on this newly added node.
-			for (const [otherName, otherNode] of this._nodes) {
-				if (otherName === name) continue;
-				if (otherNode instanceof NodeImpl && otherNode._deps.some((d) => d.node === node)) {
-					this._edges.add(edgeKey(name, otherName));
-				}
-			}
-		}
+		// Edges are derived on demand from node `_deps` via `scanEdges` — no
+		// stored registry to keep in sync. See Unit 7 of the graph review.
 	}
 
 	/**
@@ -856,14 +817,6 @@ export class Graph {
 		const child = this._mounts.get(name);
 		if (child) {
 			this._mounts.delete(name);
-			// Drop edges touching this mount name or qualified paths under it.
-			const prefix = `${name}${PATH_SEP}`;
-			for (const key of [...this._edges]) {
-				const [from, to] = parseEdgeKey(key);
-				if (from === name || to === name || from.startsWith(prefix) || to.startsWith(prefix)) {
-					this._edges.delete(key);
-				}
-			}
 			teardownMountedGraph(child);
 			return;
 		}
@@ -874,10 +827,6 @@ export class Graph {
 			throw new Error(`Graph "${this.name}": unknown node or mount "${name}"`);
 		}
 		this._nodes.delete(name);
-		for (const key of [...this._edges]) {
-			const [from, to] = parseEdgeKey(key);
-			if (from === name || to === name) this._edges.delete(key);
-		}
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
 	}
 
@@ -928,101 +877,52 @@ export class Graph {
 	}
 
 	// ——————————————————————————————————————————————————————————————
-	//  Edges
+	//  Edges (derived on-demand from node `_deps`)
 	// ——————————————————————————————————————————————————————————————
 
 	/**
-	 * Record a wire from `fromPath` → `toPath` (§3.3). Accepts local names or
-	 * `::` qualified paths. The target must be a {@link NodeImpl} whose `_deps`
-	 * includes the source node (same reference). Idempotent.
+	 * Returns the full edge list for this graph tree, derived on demand from
+	 * each registered node's `_deps` (no stored registry). Local-only
+	 * (non-recursive) by default to match the historical `edges()` surface;
+	 * pass `{recursive: true}` to include mounted subgraphs with qualified
+	 * paths relative to this graph.
 	 *
-	 * Same-owner edges are stored on the owning child graph; cross-subgraph edges
-	 * are stored on this (parent) graph's registry.
-	 *
-	 * @param fromPath - Source endpoint (local or qualified).
-	 * @param toPath - Target endpoint whose deps already include the source node.
+	 * Use {@link Graph.describe} for full-tree snapshots with edges already
+	 * qualified and paired with node metadata.
 	 */
-	connect(fromPath: string, toPath: string): void {
-		if (!fromPath || !toPath) {
-			throw new Error(`Graph "${this.name}": connect paths must be non-empty`);
-		}
-		assertConnectPathNotMeta(fromPath, this.name);
-		assertConnectPathNotMeta(toPath, this.name);
-
-		const [fromGraph, fromLocal, fromNode] = this._resolveEndpoint(fromPath);
-		const [toGraph, toLocal, toNode] = this._resolveEndpoint(toPath);
-
-		if (fromNode === toNode) {
-			throw new Error(`Graph "${this.name}": cannot connect a node to itself`);
-		}
-
-		if (!(toNode instanceof NodeImpl)) {
-			throw new Error(
-				`Graph "${this.name}": connect(${fromPath}, ${toPath}) requires the target to be a graphrefly NodeImpl so deps can be validated`,
+	edges(opts?: { recursive?: boolean }): ReadonlyArray<[string, string]> {
+		const recursive = opts?.recursive === true;
+		const nodeToLocal = new Map<Node, string>();
+		if (!recursive) {
+			for (const [localName, n] of this._nodes) nodeToLocal.set(n, localName);
+			const result: [string, string][] = [];
+			for (const [localName, n] of this._nodes) {
+				if (!(n instanceof NodeImpl)) continue;
+				for (const dep of n._deps) {
+					const from = nodeToLocal.get(dep.node);
+					if (from != null) result.push([from, localName]);
+				}
+			}
+			result.sort((a, b) =>
+				a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
 			);
+			return result;
 		}
-		if (!toNode._deps.some((d) => d.node === fromNode)) {
-			// Post-construction dep addition via _addDep: subscribes
-			// immediately, new dep participates in wave tracking.
-			toNode._addDep(fromNode);
-		}
-
-		if (fromGraph === toGraph) {
-			// Same-owner: store on the child graph
-			const key = edgeKey(fromLocal, toLocal);
-			fromGraph._edges.add(key);
-		} else {
-			// Cross-subgraph: store on this (parent) graph
-			const key = edgeKey(fromPath, toPath);
-			this._edges.add(key);
-		}
-	}
-
-	/**
-	 * Remove a registered edge (§3.3). Accepts local names or `::` qualified paths.
-	 *
-	 * **Registry-only (§C resolved):** This drops the edge from the graph's edge
-	 * registry only. It does **not** mutate the target node's constructor-time
-	 * dependency list, bitmasks, or upstream subscriptions. Message flow follows
-	 * constructor-time deps, not the edge registry. For runtime dep rewiring, use
-	 * {@link dynamicNode}.
-	 *
-	 * @param fromPath - Registered edge tail.
-	 * @param toPath - Registered edge head.
-	 */
-	disconnect(fromPath: string, toPath: string): void {
-		if (!fromPath || !toPath) {
-			throw new Error(`Graph "${this.name}": disconnect paths must be non-empty`);
-		}
-		assertConnectPathNotMeta(fromPath, this.name);
-		assertConnectPathNotMeta(toPath, this.name);
-
-		const [fromGraph, fromLocal] = this._resolveEndpoint(fromPath);
-		const [toGraph, toLocal] = this._resolveEndpoint(toPath);
-
-		if (fromGraph === toGraph) {
-			const key = edgeKey(fromLocal, toLocal);
-			if (!fromGraph._edges.delete(key)) {
-				throw new Error(`Graph "${this.name}": no registered edge ${fromPath} → ${toPath}`);
-			}
-		} else {
-			const key = edgeKey(fromPath, toPath);
-			if (!this._edges.delete(key)) {
-				throw new Error(`Graph "${this.name}": no registered edge ${fromPath} → ${toPath}`);
-			}
-		}
-	}
-
-	/**
-	 * Returns registered `[from, to]` edge pairs (read-only snapshot).
-	 *
-	 * @returns Edge pairs recorded on this graph instance’s local `_edges` set.
-	 */
-	edges(): ReadonlyArray<[string, string]> {
+		const targets: [string, Node][] = [];
+		this._collectObserveTargets("", targets);
+		const nodeToPath = new Map<Node, string>();
+		for (const [p, n] of targets) nodeToPath.set(n, p);
 		const result: [string, string][] = [];
-		for (const key of this._edges) {
-			result.push(parseEdgeKey(key));
+		for (const [path, n] of targets) {
+			if (!(n instanceof NodeImpl)) continue;
+			for (const dep of n._deps) {
+				const from = nodeToPath.get(dep.node);
+				if (from != null) result.push([from, path]);
+			}
 		}
+		result.sort((a, b) =>
+			a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
+		);
 		return result;
 	}
 
@@ -1148,41 +1048,6 @@ export class Graph {
 		return current;
 	}
 
-	private _resolveMetaEndpointKeys(
-		baseNode: Node,
-		baseLocalKey: string,
-		parts: readonly string[],
-		fullPath: string,
-	): [Graph, string, Node] {
-		let current = baseNode;
-		let localKey = baseLocalKey;
-		let i = 0;
-		const p = [...parts];
-		while (i < p.length) {
-			if (p[i] !== GRAPH_META_SEGMENT) {
-				throw new Error(
-					`Graph "${this.name}": expected ${GRAPH_META_SEGMENT} segment in meta path "${fullPath}"`,
-				);
-			}
-			if (i + 1 >= p.length) {
-				throw new Error(
-					`Graph "${this.name}": meta path requires a key after ${GRAPH_META_SEGMENT} in "${fullPath}"`,
-				);
-			}
-			const metaKey = p[i + 1] as string;
-			const next = current.meta[metaKey];
-			if (!next) {
-				throw new Error(
-					`Graph "${this.name}": unknown meta "${metaKey}" on node (in "${fullPath}")`,
-				);
-			}
-			localKey = `${localKey}${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}${metaKey}`;
-			current = next;
-			i += 2;
-		}
-		return [this, localKey, current];
-	}
-
 	/**
 	 * Deliver a message batch to every registered node in this graph and, recursively,
 	 * in mounted child graphs (§3.7). Recurses into mounts first, then delivers to
@@ -1237,18 +1102,27 @@ export class Graph {
 	/**
 	 * Static structure snapshot: qualified node keys, edges, mount names (GRAPHREFLY-SPEC §3.6, Appendix B).
 	 *
-	 * @param options - Optional `actor` for guard-scoped visibility and/or `filter` for selective output.
-	 * @returns JSON-shaped describe payload for this graph tree.
+	 * `format` controls the return type:
+	 * - omitted or `"spec"` → {@link GraphDescribeOutput} object.
+	 * - `"json"` / `"pretty"` / `"mermaid"` / `"d2"` → rendered string.
+	 *
+	 * @param options - Optional `actor` for guard-scoped visibility, `filter` for
+	 *   selective output, or `format` to render.
 	 *
 	 * @example
 	 * ```ts
-	 * graph.describe()                                         // full snapshot
-	 * graph.describe({ actor: llm })                           // guard-scoped
-	 * graph.describe({ filter: { status: "errored" } })        // only errored nodes
-	 * graph.describe({ filter: (n) => n.type === "state" })    // predicate filter
+	 * graph.describe()                                         // full snapshot object
+	 * graph.describe({ filter: { status: "errored" } })        // filtered object
+	 * graph.describe({ format: "pretty" })                     // human-readable text
+	 * graph.describe({ format: "mermaid" })                    // Mermaid flowchart
+	 * graph.describe({ format: "d2", direction: "TD" })        // D2 top-down
 	 * ```
 	 */
-	describe(options?: GraphDescribeOptions): GraphDescribeOutput {
+	describe(
+		options: GraphDescribeOptions & { format: "json" | "pretty" | "mermaid" | "d2" },
+	): string;
+	describe(options?: GraphDescribeOptions): GraphDescribeOutput;
+	describe(options?: GraphDescribeOptions): GraphDescribeOutput | string {
 		const actor = options?.actor;
 		const filter = options?.filter;
 		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
@@ -1312,17 +1186,14 @@ export class Graph {
 			nodes[p] = entry;
 		}
 		const nodeKeys = new Set(Object.keys(nodes));
-		let edges = this._collectAllEdges("");
+		// Edges are derived from node `_deps` via `edges({recursive: true})`
+		// (sorted, fully qualified relative to this graph).
+		let edges: { from: string; to: string }[] = this.edges({ recursive: true }).map(
+			([from, to]) => ({ from, to }),
+		);
 		if (actor != null || filter != null) {
 			edges = edges.filter((e) => nodeKeys.has(e.from) && nodeKeys.has(e.to));
 		}
-		edges.sort((a, b) => {
-			if (a.from < b.from) return -1;
-			if (a.from > b.from) return 1;
-			if (a.to < b.to) return -1;
-			if (a.to > b.to) return 1;
-			return 0;
-		});
 		const allSubgraphs = this._collectSubgraphs("");
 		const subgraphs =
 			actor != null || filter != null
@@ -1336,7 +1207,7 @@ export class Graph {
 		const graph = this;
 		const baseOpts = options;
 
-		return {
+		const struct: GraphDescribeOutput = {
 			name: this.name,
 			nodes,
 			edges,
@@ -1353,6 +1224,15 @@ export class Graph {
 				return graph.describe(merged);
 			},
 		};
+
+		// Text-format dispatch. `"spec"` and undefined return the struct as-is.
+		const opts = options ?? {};
+		const fmt = opts.format;
+		if (fmt === "json") return renderDescribeAsJson(struct, opts);
+		if (fmt === "pretty") return renderDescribeAsPretty(struct, opts);
+		if (fmt === "mermaid") return renderDescribeAsMermaid(struct, opts);
+		if (fmt === "d2") return renderDescribeAsD2(struct, opts);
+		return struct;
 	}
 
 	private _collectSubgraphs(prefix: string): string[] {
@@ -1361,21 +1241,6 @@ export class Graph {
 			const q = prefix === "" ? m : `${prefix}${m}`;
 			out.push(q);
 			out.push(...this._mounts.get(m)!._collectSubgraphs(`${q}${PATH_SEP}`));
-		}
-		return out;
-	}
-
-	private _collectAllEdges(prefix: string): { from: string; to: string }[] {
-		const out: { from: string; to: string }[] = [];
-		for (const m of [...this._mounts.keys()].sort()) {
-			const p2 = prefix === "" ? m : `${prefix}${PATH_SEP}${m}`;
-			out.push(...this._mounts.get(m)!._collectAllEdges(p2));
-		}
-		for (const [f, t] of this.edges()) {
-			out.push({
-				from: this._qualifyEdgeEndpoint(f, prefix),
-				to: this._qualifyEdgeEndpoint(t, prefix),
-			});
 		}
 		return out;
 	}
@@ -1389,11 +1254,6 @@ export class Graph {
 	 */
 	resourceProfile(opts?: GraphProfileOptions): GraphProfileResult {
 		return graphProfile(this, opts);
-	}
-
-	private _qualifyEdgeEndpoint(part: string, prefix: string): string {
-		if (part.includes(PATH_SEP)) return part;
-		return prefix === "" ? part : `${prefix}${PATH_SEP}${part}`;
 	}
 
 	private _collectObserveTargets(prefix: string, out: [string, Node][]): void {
@@ -2081,54 +1941,8 @@ export class Graph {
 		};
 	}
 
-	/**
-	 * CLI/debug-friendly graph dump built on {@link Graph.describe}.
-	 *
-	 * @param options - Optional actor/filter/format toggles.
-	 * @returns Rendered graph text.
-	 */
-	dumpGraph(options: GraphDumpOptions = {}): string {
-		const { expand: _, ...described } = this.describe({
-			actor: options.actor,
-			filter: options.filter,
-			detail: "standard",
-		});
-		const includeEdges = options.includeEdges ?? true;
-		const includeSubgraphs = options.includeSubgraphs ?? true;
-		if (options.format === "json") {
-			const payload: GraphDescribeOutput = {
-				...described,
-				edges: includeEdges ? described.edges : [],
-				subgraphs: includeSubgraphs ? described.subgraphs : [],
-			};
-			const text = JSON.stringify(sortJsonValue(payload), null, options.indent ?? 2);
-			options.logger?.(text);
-			return text;
-		}
-
-		const lines: string[] = [];
-		lines.push(`Graph ${described.name}`);
-		lines.push("Nodes:");
-		for (const path of Object.keys(described.nodes).sort()) {
-			const n = described.nodes[path]!;
-			lines.push(`- ${path} (${n.type}/${n.status}): ${describeData(n.value)}`);
-		}
-		if (includeEdges) {
-			lines.push("Edges:");
-			for (const edge of described.edges) {
-				lines.push(`- ${edge.from} -> ${edge.to}`);
-			}
-		}
-		if (includeSubgraphs) {
-			lines.push("Subgraphs:");
-			for (const sg of described.subgraphs) {
-				lines.push(`- ${sg}`);
-			}
-		}
-		const text = lines.join("\n");
-		options.logger?.(text);
-		return text;
-	}
+	// `dumpGraph` is folded into `describe({format: "pretty" | "json"})` (Unit 12).
+	// `toMermaid` / `toD2` are folded into `describe({format: "mermaid" | "d2"})` (Unit 20).
 
 	// ——————————————————————————————————————————————————————————————
 	//  Lifecycle & persistence (§3.7–§3.8)
@@ -2180,7 +1994,6 @@ export class Graph {
 		}
 		this._mounts.clear();
 		this._nodes.clear();
-		this._edges.clear();
 	}
 
 	/** Clear structure after parent already signaled TEARDOWN through this subtree. */
@@ -2190,7 +2003,6 @@ export class Graph {
 		}
 		this._mounts.clear();
 		this._nodes.clear();
-		this._edges.clear();
 	}
 
 	/**
@@ -2254,11 +2066,22 @@ export class Graph {
 	 * and mounts, then {@link Graph.restore} values (§3.8).
 	 *
 	 * @param data - Snapshot envelope (`version` checked).
-	 * @param build - Optional callback to construct topology before values are applied.
+	 * @param opts - Either a legacy `build(g)` callback, or an options object:
+	 *   - `build?` — topology constructor; skips auto-hydration when present.
+	 *   - `factories?` — map from glob pattern to {@link GraphNodeFactory},
+	 *     used by auto-hydration to reconstruct non-state nodes. Per-call (no
+	 *     process-global registry). First matching pattern wins.
 	 * @returns Hydrated `Graph` instance.
 	 */
-	static fromSnapshot(data: GraphPersistSnapshot, build?: (g: Graph) => void): Graph {
+	static fromSnapshot(
+		data: GraphPersistSnapshot,
+		opts?:
+			| ((g: Graph) => void)
+			| { build?: (g: Graph) => void; factories?: Record<string, GraphNodeFactory> },
+	): Graph {
 		parseSnapshotEnvelope(data);
+		const build = typeof opts === "function" ? opts : opts?.build;
+		const factoryMap = typeof opts === "function" ? undefined : opts?.factories;
 		const g = new Graph(data.name);
 		if (build) {
 			build(g);
@@ -2284,6 +2107,36 @@ export class Graph {
 			}
 		}
 
+		// Compile factory glob patterns once. First match in insertion order wins.
+		const factories = factoryMap
+			? Object.entries(factoryMap).map(([pattern, factory]) => ({
+					re: globToRegex(pattern),
+					factory,
+				}))
+			: [];
+		const factoryForPath = (path: string): GraphNodeFactory | undefined => {
+			for (const entry of factories) {
+				if (entry.re.test(path)) return entry.factory;
+			}
+			return undefined;
+		};
+
+		// Resolve the owning graph + local name for a qualified snapshot path.
+		const ownerForPath = (path: string): [Graph, string] => {
+			const segments = path.split(PATH_SEP);
+			const local = segments.pop();
+			if (local == null || local.length === 0) {
+				throw new Error(`invalid snapshot path "${path}"`);
+			}
+			let owner: Graph = g;
+			for (const seg of segments) {
+				const next = owner._mounts.get(seg);
+				if (!next) throw new Error(`unknown mount "${seg}" in path "${path}"`);
+				owner = next;
+			}
+			return [owner, local];
+		};
+
 		const primaryEntries = Object.entries(data.nodes)
 			.filter(([path]) => !path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`))
 			.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
@@ -2296,9 +2149,9 @@ export class Graph {
 			for (const [path, slice] of [...pending.entries()]) {
 				const deps = slice?.deps ?? [];
 				if (!deps.every((dep) => created.has(dep))) continue;
-				const [owner, localName] = Graph._ownerForPath(g, path);
+				const [owner, localName] = ownerForPath(path);
 				const meta: Record<string, unknown> = { ...(slice?.meta ?? {}) };
-				const factory = Graph._factoryForPath(path);
+				const factory = factoryForPath(path);
 				let node: Node;
 				if (slice?.type === "state") {
 					node = stateNode(slice.value, { meta });
@@ -2323,16 +2176,11 @@ export class Graph {
 			const unresolved = [...pending.keys()].sort().join(", ");
 			throw new Error(
 				`Graph.fromSnapshot could not reconstruct nodes without build callback: ${unresolved}. ` +
-					`Register matching factories with Graph.registerFactory(pattern, factory).`,
+					`Pass matching factories via fromSnapshot(data, { factories: { pattern: factoryFn } }).`,
 			);
 		}
-		for (const edge of data.edges) {
-			try {
-				g.connect(edge.from, edge.to);
-			} catch {
-				/* ignore malformed or non-reconstructable edge */
-			}
-		}
+		// Edges are derived from node `_deps` reconstructed during node
+		// creation above — no explicit edge replay needed (Unit 7).
 		g.restore(data);
 		return g;
 	}
@@ -2432,66 +2280,6 @@ export class Graph {
 		};
 		this._autoCheckpointDisposers.add(dispose);
 		return { dispose };
-	}
-
-	/**
-	 * Export the current graph topology as Mermaid flowchart text.
-	 *
-	 * Renders qualified node paths and registered edges from {@link Graph.describe}.
-	 *
-	 * @param options - Optional diagram direction (`LR` by default).
-	 * @returns Mermaid flowchart source.
-	 */
-	toMermaid(options?: GraphDiagramOptions): string {
-		const direction = normalizeDiagramDirection(options?.direction);
-		const described = this.describe();
-		const paths = Object.keys(described.nodes).sort();
-		const ids = new Map<string, string>();
-		for (let i = 0; i < paths.length; i += 1) {
-			ids.set(paths[i]!, `n${i}`);
-		}
-		const lines: string[] = [`flowchart ${direction}`];
-		for (const path of paths) {
-			const id = ids.get(path)!;
-			lines.push(`  ${id}["${escapeMermaidLabel(path)}"]`);
-		}
-		for (const [from, to] of collectDiagramArrows(described)) {
-			const fromId = ids.get(from);
-			const toId = ids.get(to);
-			if (!fromId || !toId) continue;
-			lines.push(`  ${fromId} --> ${toId}`);
-		}
-		return lines.join("\n");
-	}
-
-	/**
-	 * Export the current graph topology as D2 diagram text.
-	 *
-	 * Renders qualified node paths, constructor deps, and registered edges from {@link Graph.describe}.
-	 *
-	 * @param options - Optional diagram direction (`LR` by default).
-	 * @returns D2 source text.
-	 */
-	toD2(options?: GraphDiagramOptions): string {
-		const direction = normalizeDiagramDirection(options?.direction);
-		const described = this.describe();
-		const paths = Object.keys(described.nodes).sort();
-		const ids = new Map<string, string>();
-		for (let i = 0; i < paths.length; i += 1) {
-			ids.set(paths[i]!, `n${i}`);
-		}
-		const lines: string[] = [`direction: ${d2DirectionFromGraphDirection(direction)}`];
-		for (const path of paths) {
-			const id = ids.get(path)!;
-			lines.push(`${id}: "${escapeD2Label(path)}"`);
-		}
-		for (const [from, to] of collectDiagramArrows(described)) {
-			const fromId = ids.get(from);
-			const toId = ids.get(to);
-			if (!fromId || !toId) continue;
-			lines.push(`${fromId} -> ${toId}`);
-		}
-		return lines.join("\n");
 	}
 
 	// ——————————————————————————————————————————————————————————————

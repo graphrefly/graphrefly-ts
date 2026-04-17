@@ -1228,8 +1228,6 @@ describe("knobsAsTools", () => {
 		g.add("temperature", temp);
 		g.add("mode", mode);
 		g.add("summary", summary);
-		g.connect("temperature", "summary");
-		g.connect("mode", "summary");
 
 		const result = knobsAsTools(g);
 

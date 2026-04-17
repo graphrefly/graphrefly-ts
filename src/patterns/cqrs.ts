@@ -372,7 +372,6 @@ export class CqrsGraph extends Graph {
 		);
 
 		this.add(name, projNode);
-		for (const eName of eventNames) this.connect(eName, name);
 		this._keepaliveDisposers.push(keepalive(projNode));
 		this._projections.add(name);
 		return projNode;
@@ -440,7 +439,6 @@ export class CqrsGraph extends Graph {
 		sagaRef.n = sagaNode;
 
 		this.add(name, sagaNode);
-		for (const eName of eventNames) this.connect(eName, name);
 		this._keepaliveDisposers.push(keepalive(sagaNode));
 		this._sagas.add(name);
 		return sagaNode;

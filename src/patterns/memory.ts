@@ -288,8 +288,6 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 	graph.add("items", items);
 	graph.add("ranked", ranked);
 	graph.add("size", size);
-	graph.connect("items", "ranked");
-	graph.connect("items", "size");
 
 	function effective(entry: CollectionEntry<T>, now: number): number {
 		const ageSeconds = (now - entry.lastAccessNs) / 1_000_000_000;
@@ -463,7 +461,6 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	graph.add("entities", entities);
 	graph.add("edges", edges);
 	graph.add("adjacency", adjacency);
-	graph.connect("edges", "adjacency");
 
 	function commitEntities(next: Map<string, TEntity>): void {
 		entities.down([[DATA, next]]);
