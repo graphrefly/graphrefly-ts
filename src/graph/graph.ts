@@ -214,6 +214,15 @@ export type GraphAutoCheckpointOptions = {
 	 * `"full"` — needed so WAL replay has a baseline to roll forward from).
 	 */
 	mode?: "full" | "diff" | "diff-only";
+	/**
+	 * Limit the subscription surface (Unit 19 F). By default autoCheckpoint
+	 * subscribes to every node in the graph tree; on large graphs this is
+	 * thousands of subscriptions just for tier-gating. Pass a path list (or
+	 * glob) to observe only those nodes — trigger-sensitivity drops to just
+	 * the scoped set, while the full snapshot is still emitted when any of
+	 * them fires.
+	 */
+	paths?: readonly string[] | string;
 	filter?: (name: string, described: DescribeNodeOutput) => boolean;
 	onError?: (error: unknown) => void;
 };
@@ -883,6 +892,12 @@ export class Graph {
 	readonly _nodes = new Map<string, Node>();
 	/** @internal — exposed for {@link teardownMountedGraph}. */
 	readonly _mounts = new Map<string, Graph>();
+	/**
+	 * @internal Parent graph if this instance is mounted. `undefined` when
+	 * this is the root or when the graph has been unmounted. Used for
+	 * reparenting rejection + O(depth) ancestor walks.
+	 */
+	_parent: Graph | undefined = undefined;
 	private readonly _autoCheckpointDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
 
@@ -913,15 +928,19 @@ export class Graph {
 	}
 
 	/**
-	 * Graphs reachable from this instance via nested {@link Graph.mount} (includes `this`).
+	 * Walk ancestors up through `_parent`. Returns the chain starting at this
+	 * instance, ending at the root (a graph with no parent). O(depth).
+	 *
+	 * @param includeSelf - Include `this` in the chain (default `true`).
 	 */
-	private _graphsReachableViaMounts(seen = new Set<Graph>()): Set<Graph> {
-		if (seen.has(this)) return seen;
-		seen.add(this);
-		for (const child of this._mounts.values()) {
-			child._graphsReachableViaMounts(seen);
+	ancestors(includeSelf = true): Graph[] {
+		const out: Graph[] = [];
+		let p: Graph | undefined = includeSelf ? this : this._parent;
+		while (p != null) {
+			out.push(p);
+			p = p._parent;
 		}
-		return seen;
+		return out;
 	}
 
 	// ——————————————————————————————————————————————————————————————
@@ -1016,6 +1035,7 @@ export class Graph {
 			audit.mounts.push(name);
 			audit.mounts.push(...child._collectSubgraphs(`${name}${PATH_SEP}`));
 			this._mounts.delete(name);
+			child._parent = undefined;
 			teardownMountedGraph(child);
 			return audit;
 		}
@@ -1267,16 +1287,24 @@ export class Graph {
 		if ((child as Graph) === this) {
 			throw new Error(`Graph "${this.name}": cannot mount a graph into itself`);
 		}
-		// Reject same child instance mounted twice on this parent.
-		for (const existing of this._mounts.values()) {
-			if (existing === child) {
-				throw new Error(`Graph "${this.name}": this child graph is already mounted on this graph`);
+		// Reject reparenting (Unit 6 B): same child instance may only be
+		// mounted once across the entire tree. Cheap O(1) check via the
+		// back-pointer (replaces both the "mounted twice on this parent"
+		// loop AND the O(G) cycle DFS).
+		if (child._parent != null) {
+			throw new Error(
+				`Graph "${this.name}": this child graph is already mounted on "${child._parent.name}"`,
+			);
+		}
+		// Cycle rejection — walk UP from `this` to detect if we are already in
+		// `child`'s descendant tree. O(depth), independent of tree size.
+		for (let p: Graph | undefined = this; p != null; p = p._parent) {
+			if (p === (child as Graph)) {
+				throw new Error(`Graph "${this.name}": mount("${name}", …) would create a mount cycle`);
 			}
 		}
-		if (child._graphsReachableViaMounts().has(this)) {
-			throw new Error(`Graph "${this.name}": mount("${name}", …) would create a mount cycle`);
-		}
 		this._mounts.set(name, child);
+		child._parent = this;
 		return child;
 	}
 
@@ -1662,6 +1690,17 @@ export class Graph {
 			});
 		}
 		return reachable(this.describe(), from, direction, opts);
+	}
+
+	/**
+	 * @internal Collect all qualified paths in this graph tree matching a
+	 * glob pattern. Used by scoped autoCheckpoint subscription.
+	 */
+	private _pathsMatching(glob: string): string[] {
+		const re = globToRegex(glob);
+		const targets: [string, Node][] = [];
+		this._collectObserveTargets("", targets);
+		return targets.map(([p]) => p).filter((p) => re.test(p));
 	}
 
 	private _collectObserveTargets(prefix: string, out: [string, Node][]): void {
@@ -2130,19 +2169,23 @@ export class Graph {
 		}
 		this._autoCheckpointDisposers.clear();
 		for (const child of [...this._mounts.values()]) {
+			child._parent = undefined;
 			child._destroyClearOnly();
 		}
 		this._mounts.clear();
 		this._nodes.clear();
+		this._parent = undefined;
 	}
 
 	/** Clear structure after parent already signaled TEARDOWN through this subtree. */
 	private _destroyClearOnly(): void {
 		for (const child of [...this._mounts.values()]) {
+			child._parent = undefined;
 			child._destroyClearOnly();
 		}
 		this._mounts.clear();
 		this._nodes.clear();
+		this._parent = undefined;
 	}
 
 	/**
@@ -2454,7 +2497,10 @@ export class Graph {
 			timer = setTimeout(flush, debounceMs);
 		};
 
-		const off = this.observe().subscribe((path, messages) => {
+		// Scoped observation (Unit 19 F): when `paths` is set, subscribe only
+		// to the listed paths (literal list or a single glob). Default: whole
+		// graph via `graph.observe()`.
+		const tierGate = (path: string, messages: Messages): void => {
 			// Trigger on tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR).
 			// Exclude tier 5 (TEARDOWN) — checkpointing a dying graph wastes
 			// work; graceful shutdown is the caller's responsibility.
@@ -2464,13 +2510,31 @@ export class Graph {
 			});
 			if (!triggeredByTier) return;
 			if (options.filter) {
-				const nd = this.resolve(path);
+				const nd = this.tryResolve(path);
 				if (nd == null) return;
 				const described = describeNode(nd, resolveDescribeFields("standard"));
 				if (!options.filter(path, described)) return;
 			}
 			schedule();
-		});
+		};
+
+		let off: () => void;
+		if (options.paths != null) {
+			const paths =
+				typeof options.paths === "string"
+					? this._pathsMatching(options.paths)
+					: (options.paths as readonly string[]);
+			const unsubs = paths.map((p) => {
+				const nd = this.tryResolve(p);
+				if (nd == null) return () => {};
+				return nd.subscribe((msgs) => tierGate(p, msgs));
+			});
+			off = () => {
+				for (const u of unsubs) u();
+			};
+		} else {
+			off = this.observe().subscribe((path, messages) => tierGate(path, messages));
+		}
 
 		const dispose = () => {
 			off();
