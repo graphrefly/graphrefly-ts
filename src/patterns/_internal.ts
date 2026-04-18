@@ -11,11 +11,38 @@
  * @module
  */
 
+import { downWithBatch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import type { Node } from "../core/node.js";
+import { defaultConfig } from "../core/node.js";
 
 // Re-export general-purpose utilities from extra (canonical home).
 export { keepalive, reactiveCounter } from "../extra/sources.js";
+
+// ---------------------------------------------------------------------------
+// emitToMeta
+// ---------------------------------------------------------------------------
+
+/**
+ * Forward a single `[DATA, value]` to a meta companion node via tier-3
+ * deferral, tolerating absent companions. Used by patterns that publish
+ * per-wave statistics alongside their main output (cache-hit-rate,
+ * segment-count, layout-time-ns, etc.) — subscribers see the parent's
+ * DATA first because phase-2 completes before phase-3 during drain.
+ *
+ * Equivalent to the expanded form:
+ * ```ts
+ * downWithBatch((msgs) => metaNode?.down(msgs), [[DATA, value]], tierOf);
+ * ```
+ * but captures the "meta may not be mounted" null guard and the
+ * `defaultConfig.tierOf` boilerplate in one name.
+ *
+ * @internal
+ */
+export function emitToMeta<T>(metaNode: Node<T> | undefined, value: T): void {
+	if (metaNode == null) return;
+	downWithBatch((msgs) => metaNode.down(msgs), [[DATA, value]], defaultConfig.tierOf);
+}
 
 // ---------------------------------------------------------------------------
 // tryIncrementBounded

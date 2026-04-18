@@ -28,11 +28,27 @@ src/
 │   ├── core/           # protocol, node, batch, sugar, diamonds
 │   ├── graph/          # Graph add/connect/mount/describe/observe/snapshot
 │   ├── extra/          # operators, sources (tier 1 / tier 2)
+│   ├── properties/     # property-based protocol invariants (fast-check)
 │   └── integrations/   # cross-layer or interop
 ├── core/
 ├── graph/
 └── extra/
 ```
+
+**Property-based suite (`src/__tests__/properties/`):** invariant catalog driven by `fast-check`. Add a new invariant by appending an entry to `_invariants.ts`'s `INVARIANTS` registry — the test file iterates it automatically. Generators live in `_generators.ts`. Background and sequencing in `archive/docs/SESSION-rigor-infrastructure-plan.md` § "Project 1".
+
+### Subscriber-throw contract
+
+**Subscriber callbacks must not throw.** There are two distinct error paths to keep straight:
+
+| Source of throw | Isolation? | Effect |
+|---|---|---|
+| **Node `fn` throws** (the compute body of a `derived`/`effect`/`producer`) | Yes — framework-handled | Node emits `[[ERROR, err]]` downstream; node transitions to `errored` status; terminal per §1.3.4. Downstream operators (`retry`, `fallback`, `withStatus`) may catch. |
+| **External subscriber callback throws** (the function passed to `node.subscribe(cb)`) | **No** | Throw propagates out of `emit()`. Any subscribers registered after the thrower in the callback list miss the in-flight wave. |
+
+If your subscriber callback may throw (e.g. it writes to a DOM, flushes to disk, posts to a service) **wrap your own try/catch** and surface the error through your own channel. The protocol deliberately doesn't swallow subscriber throws — silent swallowing would hide bugs, and the framework doesn't know your tolerance. Node-fn errors are different: the protocol handles those as ERROR messages, because that's part of the message semantic.
+
+Property-based coverage: invariant 8 (`throw-recovery-consistency`) asserts that a throwing subscriber doesn't corrupt the node's cache/version. It deliberately does NOT assert sibling-subscriber delivery — that would contradict the contract above.
 
 ### Python
 

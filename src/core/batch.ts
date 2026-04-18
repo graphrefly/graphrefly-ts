@@ -1,10 +1,25 @@
 /**
- * Batch deferral for tier-3+ messages.
+ * Batch deferral for tier-3+ messages, plus per-node emit coalescing inside
+ * explicit `batch()` scopes.
  *
  * §1.3.7 — Inside a batch, tier 0–2 signals propagate immediately. Tier 3
  * (DATA/RESOLVED), tier 4 (COMPLETE/ERROR), and tier 5 (TEARDOWN) are queued
  * and drained in ascending phase order after the outermost `batch()` callback
  * returns.
+ *
+ * **Per-node emit coalescing (Bug 2 fix, 2026-04-17).** Inside an explicit
+ * `batch()` scope, consecutive emissions from the same node accumulate in
+ * `NodeImpl._batchPendingMessages` instead of each producing a separate
+ * downstream wave. At batch end, each node flushes its accumulated messages
+ * as ONE multi-message `downWithBatch` call — K `.emit()`s to the same
+ * source collapse to K DIRTYs in one tier-1 sink call + K DATAs in one
+ * tier-3 sink call. Downstream nodes' fns run once per wave with the full
+ * `batchData` (dep's `dataBatch` accumulates all K values, fn sees
+ * `[[v1, v2, ..., vK]]`). Resolves the K+1 fan-in over-fire.
+ *
+ * Outside batch — and during drain (where `flushInProgress` is true but
+ * `batchDepth` is 0) — coalescing does NOT apply: each emit goes through
+ * its own `downWithBatch` call and produces its own wave.
  *
  * **Phase vocabulary:**
  * - Phase 1 = tiers 0–2 — immediate, never queued.
@@ -12,14 +27,17 @@
  * - Phase 3 = tier 4 — {@link drainPhase3}. Terminal signals.
  * - Phase 4 = tier 5 — {@link drainPhase4}. TEARDOWN (unified deferral).
  *
- * Drain rule: lowest non-empty phase first. Re-enqueues during drain bump the
- * loop back to the lowest non-empty phase, preserving "earlier values settle
- * before later terminals/teardown" across callback re-entry.
+ * Drain rule: fire any pending flush hooks first, then the lowest non-empty
+ * phase. Re-enqueues during drain (and hooks registered by reentrant batches
+ * inside subscriber callbacks) bump the loop back to the top so newly-added
+ * hooks and closures get processed.
  *
  * **Pre-sorted input invariant.** `downWithBatch` assumes `messages` is
  * already sorted in ascending tier order (produced by `_frameBatch` in
  * `node.ts`). The walker exploits monotonicity for a single O(n) pass and
- * slices at phase boundaries without re-sorting.
+ * slices at phase boundaries without re-sorting. Flushed multi-emit batches
+ * re-run `_frameBatch` to restore monotonicity (the per-emit framings
+ * accumulate in interleaved order: `[DIRTY, DATA, DIRTY, DATA, ...]`).
  */
 
 import type { Messages } from "./messages.js";
@@ -37,12 +55,51 @@ const drainPhase3: Array<() => void> = [];
 const drainPhase4: Array<() => void> = [];
 
 /**
+ * Per-batch flush hooks. Each hook is registered by a node the first time
+ * it accumulates an emission inside an explicit `batch()` scope (Bug 2 —
+ * per-node emit coalescing). Hooks fire at the head of `drainPending`,
+ * before the standard tier-3/4/5 drain queues — they call `downWithBatch`
+ * with the node's accumulated multi-message batch, which enqueues the
+ * tier-3+ portion into `drainPhase2/3/4` for the standard loop.
+ *
+ * On a `batch()` throw, hooks still fire so each node clears its pending
+ * state (they're idempotent — the side-effects are wiped because the
+ * drainPhase queues that they enqueue into are cleared in the same finally
+ * block).
+ */
+const flushHooks: Array<() => void> = [];
+
+/**
  * Returns whether the current call stack is inside a batch scope **or** while
  * a deferred drain is in progress. Nested `downWithBatch` calls during drain
  * still defer (they bump the drain loop).
  */
 export function isBatching(): boolean {
 	return batchDepth > 0 || flushInProgress;
+}
+
+/**
+ * Returns whether the current call stack is inside an **explicit** `batch()`
+ * scope. Excludes `flushInProgress` — i.e. emissions that happen during a
+ * drain (e.g. inside a fn callback) are NOT explicitly batched and should
+ * not trigger per-node coalescing (Bug 2).
+ */
+export function isExplicitlyBatching(): boolean {
+	return batchDepth > 0;
+}
+
+/**
+ * Register a hook to fire at the head of the next `drainPending`. Used by
+ * `NodeImpl._emit` to flush its per-batch accumulator (Bug 2). If called
+ * outside an explicit batch the hook fires immediately, since there's no
+ * drain coming.
+ */
+export function registerBatchFlushHook(hook: () => void): void {
+	if (batchDepth > 0) {
+		flushHooks.push(hook);
+	} else {
+		hook();
+	}
 }
 
 /**
@@ -63,6 +120,19 @@ export function batch(fn: () => void): void {
 		if (batchDepth === 0) {
 			if (threw) {
 				if (!flushInProgress) {
+					// Fire any per-node flush hooks so nodes clear their
+					// pending state. The downWithBatch calls those hooks
+					// make enqueue into drainPhase queues — those queues
+					// are cleared right after, so the side-effects are
+					// wiped. Net result: clean node state, no delivery.
+					const hooks = flushHooks.splice(0);
+					for (const h of hooks) {
+						try {
+							h();
+						} catch {
+							/* best-effort */
+						}
+					}
 					drainPhase2.length = 0;
 					drainPhase3.length = 0;
 					drainPhase4.length = 0;
@@ -79,9 +149,32 @@ function drainPending(): void {
 	if (ownsFlush) flushInProgress = true;
 
 	const errors: unknown[] = [];
+
 	let iterations = 0;
 	try {
-		while (drainPhase2.length > 0 || drainPhase3.length > 0 || drainPhase4.length > 0) {
+		// Loop while EITHER tier-3+ deferred work OR pending flush hooks exist.
+		// Hooks can be re-registered mid-drain by reentrant `batch()` calls
+		// inside subscriber callbacks; checking `flushHooks` each iteration
+		// (not just before the loop) ensures those late hooks fire too.
+		while (
+			drainPhase2.length > 0 ||
+			drainPhase3.length > 0 ||
+			drainPhase4.length > 0 ||
+			(ownsFlush && flushHooks.length > 0)
+		) {
+			// Fire any pending flush hooks FIRST so their downWithBatch calls
+			// enqueue tier-3+ work into drainPhase before we process it.
+			if (ownsFlush && flushHooks.length > 0) {
+				const hooks = flushHooks.splice(0);
+				for (const h of hooks) {
+					try {
+						h();
+					} catch (e) {
+						errors.push(e);
+					}
+				}
+				continue; // restart loop — hooks may have enqueued tier-3+ work or more hooks
+			}
 			iterations += 1;
 			if (iterations > MAX_DRAIN_ITERATIONS) {
 				drainPhase2.length = 0;

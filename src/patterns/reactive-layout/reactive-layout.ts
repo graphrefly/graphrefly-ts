@@ -9,13 +9,12 @@
  * - `reactiveLayout({ adapter, text?, font?, lineHeight?, maxWidth?, name? })` — convenience factory
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
-import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
-import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { defaultConfig, node } from "../../core/node.js";
+import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
+import { emitToMeta } from "../_internal.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -762,17 +761,13 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 
 			// After parent `segments` auto-emits DATA/RESOLVED, deliver metrics
 			// via phase-3 deferral so observers see the parent value first.
-			// Phase-3 drains after all phase-2 work (parent settlements) completes
-			// (parity with Python `defer_down` → `down_with_batch` phase 3).
+			// `emitToMeta` wraps the tier-3 downWithBatch forwarding + absent-meta
+			// null guard (parity with Python `defer_down` → `down_with_batch` phase 3).
 			const meta = segmentsNode.meta;
 			if (meta) {
-				const hr = hitRate;
-				const len = result.length;
-				const el = elapsed;
-				const tierOf = defaultConfig.tierOf;
-				downWithBatch((msgs) => meta["cache-hit-rate"]?.down(msgs), [[DATA, hr]], tierOf);
-				downWithBatch((msgs) => meta["segment-count"]?.down(msgs), [[DATA, len]], tierOf);
-				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, el]], tierOf);
+				emitToMeta(meta["cache-hit-rate"], hitRate);
+				emitToMeta(meta["segment-count"], result.length);
+				emitToMeta(meta["layout-time-ns"], elapsed);
 			}
 
 			actions.emit(result);

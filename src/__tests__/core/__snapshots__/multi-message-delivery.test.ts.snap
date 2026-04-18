@@ -1,0 +1,100 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`multi-message delivery — fn-run contract > diamond: K emits inside batch — fan-in D's fn-run count (the K+1 finding) 1`] = `
+{
+  "finalD": 14,
+  "runCount": 1,
+  "runs": [
+    [
+      [
+        2,
+      ],
+      [
+        12,
+      ],
+    ],
+  ],
+}
+`;
+
+exports[`multi-message delivery — fn-run contract > single-dep: K emits inside batch — documents current fn-run count at derived 1`] = `
+{
+  "runCount": 1,
+  "runs": [
+    [
+      [
+        1,
+        2,
+        3,
+      ],
+    ],
+  ],
+}
+`;
+
+exports[`multi-message delivery — fn-run contract > single-dep: multi-DATA .down() on source fires derived fn per message today (design intent: once) 1`] = `
+{
+  "runCount": 1,
+  "runs": [
+    [
+      [
+        10,
+        20,
+        30,
+      ],
+    ],
+  ],
+}
+`;
+
+exports[`multi-message delivery — fn-run contract > single-dep: source.emit() three times outside batch fires fn three times (one per wave) 1`] = `
+{
+  "runCount": 3,
+  "runs": [
+    [
+      [
+        1,
+      ],
+    ],
+    [
+      [
+        2,
+      ],
+    ],
+    [
+      [
+        3,
+      ],
+    ],
+  ],
+}
+`;
+
+exports[`multi-message delivery — subscriber batch structure > derived's own subscriber sees multi-DATA from a single source .down() as how many sink calls? 1`] = `
+{
+  "calls": [
+    [
+      [
+        "graphrefly/DIRTY",
+        undefined,
+      ],
+    ],
+    [
+      [
+        "graphrefly/DATA",
+        30,
+      ],
+    ],
+  ],
+  "sinkCallCount": 2,
+}
+`;
+
+exports[`multi-message delivery — subscriber batch structure > diamond: K=2 emits in batch — per-node sink call counts 1`] = `
+{
+  "a": 2,
+  "b": 2,
+  "c": 2,
+  "d": 2,
+}
+`;

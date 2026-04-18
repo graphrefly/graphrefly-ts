@@ -17,7 +17,7 @@
 import { registerBuiltinCodecs } from "../graph/codec.js";
 import type { Actor } from "./actor.js";
 import { normalizeActor } from "./actor.js";
-import { downWithBatch } from "./batch.js";
+import { downWithBatch, isExplicitlyBatching, registerBatchFlushHook } from "./batch.js";
 import { wallClockNs } from "./clock.js";
 import type {
 	MessageContext,
@@ -513,6 +513,23 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * treats `0` as "wave settled" — O(1) check for full dep settlement.
 	 */
 	_dirtyDepCount = 0;
+
+	// --- Per-batch emit accumulator (Bug 2: K+1 fan-in fix) ---
+	/**
+	 * Inside an explicit `batch(() => ...)` scope, every `_emit` accumulates
+	 * its already-framed messages here instead of dispatching synchronously.
+	 * At batch end, `_flushBatchPending` runs (registered via
+	 * `registerBatchFlushHook`) and delivers the whole accumulated batch as
+	 * one `downWithBatch` call — collapsing what would otherwise be K
+	 * separate sink invocations into one. This is the fix for the diamond
+	 * fan-in K+1 over-fire.
+	 *
+	 * `null` outside batch (or after flush). Only ever appended to within
+	 * a single explicit batch lifetime; reset to `null` on flush. State
+	 * updates (cache, version, status) still happen per-emit via
+	 * `_updateState` — only the downstream delivery is coalesced.
+	 */
+	_batchPendingMessages: Message[] | null = null;
 
 	// --- PAUSE/RESUME lock tracking (C0) ---
 	/**
@@ -1012,7 +1029,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// cancelled by _deactivate. Drop deliveries from stale drainPhase2
 					// closures that outlived the subscription.
 					if (dep.unsub === null) return;
+					// Track whether any tier-3+ settlement-class message arrived
+					// (DATA/RESOLVED at tier 3, COMPLETE/ERROR at tier 4). We only
+					// fire `_maybeRunFnOnSettlement` once per sink call when at
+					// least one settlement was processed — preserves the old
+					// `_onDepMessage` semantic (which only triggered the check
+					// after settlement-class messages) while letting multi-DATA
+					// batches fire `fn` exactly once with the full wave (Bug 1
+					// fix). Tier classification goes through the central
+					// `config.tierOf` utility per spec §5.11 — never hardcode
+					// message-type checks here.
+					const tierOf = this._config.tierOf;
+					let sawSettlement = false;
 					for (const m of msgs) {
+						if (tierOf(m[0]) >= 3) sawSettlement = true;
 						this._config.onMessage(
 							this as unknown as NodeCtx,
 							m,
@@ -1020,6 +1050,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							this._actions,
 						);
 					}
+					if (sawSettlement) this._maybeRunFnOnSettlement();
 				});
 				subscribedCount++;
 			}
@@ -1097,7 +1128,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		try {
 			record.unsub = depNode.subscribe((msgs) => {
 				if (record.unsub === null) return;
+				// Tier-3+ classification via central `tierOf` per spec §5.11
+				// (Bug 1 fix — see _activate for details).
+				const tierOf = this._config.tierOf;
+				let sawSettlement = false;
 				for (const m of msgs) {
+					if (tierOf(m[0]) >= 3) sawSettlement = true;
 					this._config.onMessage(
 						this as unknown as NodeCtx,
 						m,
@@ -1105,6 +1141,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 						this._actions,
 					);
 				}
+				if (sawSettlement) this._maybeRunFnOnSettlement();
 			});
 		} catch (err) {
 			// Rollback: remove the dep record we just pushed and undo the dirty
@@ -1296,7 +1333,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			return;
 		}
 
-		this._maybeRunFnOnSettlement();
+		// NOTE: `_maybeRunFnOnSettlement()` is intentionally NOT called here.
+		// It is invoked once at the end of the dep-subscribe callback's
+		// message-iteration loop so that a multi-message sink call —
+		// e.g. `dep.down([[DATA, a], [DATA, b]])` — fires `fn` exactly
+		// once with the full wave batch (`batchData = [[a, b]]`), per the
+		// `_execFn` contract at line 1462: "fn must see the full wave batch".
 	}
 
 	// --- Centralized dep-state transitions (A3 settlement counters) ---
@@ -1812,10 +1854,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					}
 				}
 				if (immediate.length > 0) {
-					downWithBatch(this._deliverToSinks, immediate, tierOf);
+					this._dispatchOrAccumulate(immediate);
 				}
 			} else {
-				downWithBatch(this._deliverToSinks, finalMessages, this._config.tierOf);
+				this._dispatchOrAccumulate(finalMessages);
 			}
 		}
 
@@ -1971,6 +2013,52 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const snapshot = [...this._sinks];
 		for (const sink of snapshot) sink(messages);
 	};
+
+	/**
+	 * @internal Dispatch entry point that respects the per-batch emit
+	 * accumulator (Bug 2). Inside an explicit `batch()` scope, append to
+	 * `_batchPendingMessages` and register a flush hook on first append.
+	 * Outside batch — or during a drain (where `flushInProgress` is true
+	 * but `batchDepth` is 0) — dispatch synchronously through `downWithBatch`.
+	 *
+	 * Per-emit state updates (`_frameBatch`, `_updateState`) have already
+	 * happened by the time we reach here; only the **downstream delivery**
+	 * is coalesced. Cache, version, and status are visible mid-batch on
+	 * the emitting node itself.
+	 */
+	private _dispatchOrAccumulate(messages: Messages): void {
+		if (isExplicitlyBatching()) {
+			if (this._batchPendingMessages === null) {
+				this._batchPendingMessages = [];
+				registerBatchFlushHook(() => this._flushBatchPending());
+			}
+			for (const m of messages) this._batchPendingMessages.push(m);
+			return;
+		}
+		downWithBatch(this._deliverToSinks, messages, this._config.tierOf);
+	}
+
+	/**
+	 * @internal Flushes the accumulated batch through `downWithBatch` and
+	 * clears the pending state. Idempotent — safe to call when pending is
+	 * already null or empty (e.g. on a `batch()` throw, where the hook
+	 * fires for cleanup but the drainPhase queues are wiped after).
+	 *
+	 * Critical: the accumulated batch is interleaved per-emit framings like
+	 * `[DIRTY, DATA(1), DIRTY, DATA(2)]` — non-monotone tier order. We must
+	 * re-frame to sort by tier before handing to `downWithBatch`, which
+	 * assumes pre-sorted input. `_frameBatch` also handles the synthetic
+	 * DIRTY prepend rule (no-op here — `hasDirty` is true since each
+	 * accumulated emit already carries its own DIRTY prefix).
+	 */
+	private _flushBatchPending(): void {
+		const pending = this._batchPendingMessages;
+		if (pending === null) return;
+		this._batchPendingMessages = null;
+		if (pending.length === 0) return;
+		const framed = this._frameBatch(pending);
+		downWithBatch(this._deliverToSinks, framed, this._config.tierOf);
+	}
 }
 
 // ---------------------------------------------------------------------------

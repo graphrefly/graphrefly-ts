@@ -11,9 +11,12 @@
  *   - Presets: OpenAI, Ollama, OpenRouter, Groq
  */
 
+import { type BudgetGateOptions, withBudgetGate } from "./budget-gate.js";
+import { createDryRunProvider } from "./dry-run-provider.js";
 import type { ResolvedLimits } from "./limits.js";
 import { resolveLimits } from "./limits.js";
 import { AdaptiveRateLimiter } from "./rate-limiter.js";
+import { type ReplayMode, withReplayCache } from "./replay-cache.js";
 import type { EvalConfig, ProviderName } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -253,6 +256,68 @@ export function createProvider(config: EvalConfig): LLMProvider {
 				`Unknown provider "${name}". Valid: anthropic, openai, google, ollama, openrouter, groq`,
 			);
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Cost-safe provider stack (replay cache + budget gate + dry-run toggle)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a cost-safe provider stack controlled by env vars:
+ *
+ * - `EVAL_MODE=dry-run` — swaps in `createDryRunProvider`; zero tokens.
+ * - `EVAL_MAX_CALLS` (default 100) — hard ceiling on call count.
+ * - `EVAL_MAX_PRICE_USD` (default 2) — hard USD ceiling.
+ * - `EVAL_MAX_INPUT_TOKENS` / `EVAL_MAX_OUTPUT_TOKENS` — optional token caps.
+ * - `EVAL_REPLAY` (default `read-write`) — replay-cache mode.
+ *
+ * **Wrapping order is load-bearing**: cache OUTSIDE budget so cache hits
+ * short-circuit before any spend is charged. Flip the order and reruns
+ * stop being free.
+ *
+ * See `archive/docs/SESSION-rigor-infrastructure-plan.md`
+ * § "LLM EVAL COST SAFETY" for the full rationale.
+ */
+export function createSafeProvider(
+	config: EvalConfig,
+	opts: {
+		readonly cacheDir?: string;
+		readonly budgetOverride?: Partial<BudgetGateOptions["caps"]>;
+	} = {},
+): LLMProvider {
+	const mode = process.env.EVAL_MODE ?? "real";
+	const base =
+		mode === "dry-run"
+			? createDryRunProvider({
+					onCall: (req, n) =>
+						console.error(`[dry-run #${n}] ${req.user.slice(0, 80).replace(/\n/g, " ")}`),
+				})
+			: createProvider(config);
+
+	const gated = withBudgetGate(base, {
+		caps: {
+			maxCalls: opts.budgetOverride?.maxCalls ?? Number(process.env.EVAL_MAX_CALLS ?? 100),
+			maxPriceUsd: opts.budgetOverride?.maxPriceUsd ?? Number(process.env.EVAL_MAX_PRICE_USD ?? 2),
+			maxInputTokens:
+				opts.budgetOverride?.maxInputTokens ??
+				(process.env.EVAL_MAX_INPUT_TOKENS ? Number(process.env.EVAL_MAX_INPUT_TOKENS) : undefined),
+			maxOutputTokens:
+				opts.budgetOverride?.maxOutputTokens ??
+				(process.env.EVAL_MAX_OUTPUT_TOKENS
+					? Number(process.env.EVAL_MAX_OUTPUT_TOKENS)
+					: undefined),
+		},
+		onUpdate: (s) =>
+			process.stderr.write(`\r[budget] ${s.calls} calls | $${s.priceUsd.toFixed(4)}    `),
+		onExceed: (err) => console.error(`\n❌ ${err.message}`),
+	});
+
+	const cached = withReplayCache(gated, {
+		cacheDir: opts.cacheDir ?? "evals/results/replay-cache",
+		mode: (process.env.EVAL_REPLAY as ReplayMode) ?? "read-write",
+	});
+
+	return cached;
 }
 
 // ---------------------------------------------------------------------------

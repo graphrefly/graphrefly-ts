@@ -127,30 +127,27 @@ describe("reactiveList stress tests", () => {
 		unsub();
 
 		const newInvocations = callbackInvocations.slice(beforeLen);
-		// Actual contract per batch.ts: each down() call produces a separate
-		// subscriber callback for each tier group (immediate, deferred, terminal).
-		// Multiple emissions inside one batch do NOT coalesce into a single callback.
-		// They DO maintain tier ordering: all DIRTY (immediate, tier 1) deliver
-		// before any DATA (deferred, tier 3) across the whole batch drain.
-		expect(newInvocations.length).toBe(2 * N);
+		// Updated contract (Bug 2 fix, per-node emit coalescing inside batch):
+		// N consecutive emits to the same node inside one explicit `batch()`
+		// scope coalesce into ONE multi-message delivery — N DIRTYs in one
+		// tier-1 sink call, then N DATAs in one tier-3 sink call. Total: 2
+		// callbacks regardless of N. This is the source-side correctness fix
+		// that also resolves the K+1 fan-in over-fire at diamond nodes.
+		expect(newInvocations.length).toBe(2);
 
-		// First N invocations are DIRTY (immediate, delivered during batch body)
-		for (let i = 0; i < N; i++) {
-			const msgs = newInvocations[i] as [symbol, unknown][];
-			expect(msgs.length).toBe(1);
-			expect(msgs[0]![0]).toBe(DIRTY);
-		}
-		// Next N invocations are DATA (deferred, drained after batch closes)
-		for (let i = N; i < 2 * N; i++) {
-			const msgs = newInvocations[i] as [symbol, unknown][];
-			expect(msgs.length).toBe(1);
-			expect(msgs[0]![0]).toBe(DATA);
-		}
+		// First callback: tier-1 batch with N DIRTY messages.
+		const dirtyCall = newInvocations[0] as [symbol, unknown][];
+		expect(dirtyCall.length).toBe(N);
+		for (const msg of dirtyCall) expect(msg[0]).toBe(DIRTY);
 
-		// Final DATA payload has all N values
-		const lastMsgs = newInvocations.at(-1) as [symbol, unknown][];
-		const snap = lastMsgs[0]![1] as readonly number[];
-		expect(snap).toEqual([0, 1, 2, 3, 4]);
+		// Second callback: tier-3 batch with N DATA messages.
+		const dataCall = newInvocations[1] as [symbol, unknown][];
+		expect(dataCall.length).toBe(N);
+		for (const msg of dataCall) expect(msg[0]).toBe(DATA);
+
+		// Final DATA payload has all N values.
+		const lastSnap = dataCall.at(-1)?.[1] as readonly number[];
+		expect(lastSnap).toEqual([0, 1, 2, 3, 4]);
 	});
 
 	// ── Scenario 7b: appendMany collapses the N-callback problem ────────

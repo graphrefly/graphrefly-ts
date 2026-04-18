@@ -700,6 +700,71 @@ Flip the order and cache hits would still count toward budget. Get this backward
 
 ---
 
+## EXECUTION PROGRESS
+
+Updated 2026-04-17 after the implementation pass across the full plan.
+
+### Project 1 — fast-check protocol harness ✅ DONE
+
+- `src/__tests__/properties/_generators.ts` + `_invariants.ts` + `protocol-invariants.test.ts`. Hybrid encoding: a typed `INVARIANTS` registry iterated by a single vitest runner — LLM-readable contract surface, enumerable by downstream tooling.
+- All 9 invariants from the plan's target list shipped:
+  1. `no-data-without-dirty` (§1.3 invariant 1)
+  2. `resolved-per-wave` (§1.3 invariant 7)
+  3. `terminal-monotonicity` (§1.3 invariant 4)
+  4. `diamond-resolution` (§1.3 invariant 3)
+  5. `equals-substitution` (§1.3 invariant 2)
+  6. `version-counter-per-emit` (§7)
+  7. `start-handshake` (§2.2) — covers source / derived / derived-multi-dep / sentinel activation shapes
+  8. `throw-recovery-consistency` (§1.3 invariant 7) — weakened from "batch drain atomicity" to the property that actually holds: state consistency post-throw
+  9. `subscribe-unsubscribe-reentry` (§2.2) — unsub from inside a subscribe callback
+- `FC_SEED` env var supported for reproducing counter-examples.
+- Registry name-uniqueness asserted at module load.
+- **Bugs surfaced by the harness** during authoring: (a) multi-DATA `.down()` fires fn per message rather than once with full wave batch; (b) multi-emit batch K+1 over-fire at diamond fan-in. Both fixed (see Substrate fixes below).
+
+### Project 3 — TLA+ core protocol spec ✅ DONE
+
+- `~/src/graphrefly/formal/wave_protocol.tla` + `wave_protocol_MC.tla` + `wave_protocol.cfg` + `README.md` + `.gitignore`.
+- 4-node diamond topology, 3-value alphabet, `MaxEmits = 3`. Runs in ~4 seconds.
+- 7 TLC invariants verified under exhaustive exploration: 76,984 distinct states, 0 counter-examples.
+- Models subscribe lifecycle via `SubscribeSink(sid)` action + `handshake[sid]` ghost variable, with `StartHandshakeValid` invariant covering source / derived / terminated handshake shapes.
+- Models batch coalescing via `BatchEmitMulti(src, vs)` action (2026-04-17, after Bug 2 fix) — K-value sequence from `BatchSeqs` constant produces one coalesced bundle per child edge.
+- `DeliverDirty` / `DeliverSettle` consume same-tier prefix atomically (matches runtime's "one sink() call per tier group" after Bug 1 fix).
+- Open question #2 (file location): resolved — `~/src/graphrefly/formal/` alongside the prose spec.
+- Tooling: TLA+ Toolbox via `brew install --cask tla+-toolbox`; CLI via bundled `tla2tools.jar`.
+
+### Substrate fixes landed during the rigor work
+
+Two bugs surfaced that required real code changes, not just invariant encoding:
+
+- **Bug 1 — per-message fn invocation.** `_maybeRunFnOnSettlement()` at the tail of `_onDepMessage` meant a multi-message dep batch (e.g. `a.down([[DATA, 1], [DATA, 2]])`) fired `fn` once per message instead of once with the full wave batch — contradicting the `_execFn` comment at `src/core/node.ts:1462` that says "fn must see the full wave batch." Fix: moved the call to the end of the dep subscribe callback's message-iteration loop in `_activate` + `_addDep` (`src/core/node.ts`), guarded by `config.tierOf(m[0]) >= 3` (central utility per spec §5.11). Ships with regression coverage in `src/__tests__/core/multi-message-delivery.test.ts`.
+
+- **Bug 2 — multi-emit-in-batch K+1 fan-in over-fire.** Inside an explicit `batch()` scope, K `.emit()` calls to the same source produced K+1 DIRTY+settlement pairs at diamond fan-in nodes (not K, as the "deferred but separate" semantic would predict, and not 1 as atomic coalescing would predict). Fix (option α per the design discussion): per-node emit coalescing inside explicit batch. New `_batchPendingMessages` field + `_dispatchOrAccumulate` + `_flushBatchPending` methods in `NodeImpl`; new `registerBatchFlushHook` / `isExplicitlyBatching` API in `src/core/batch.ts`; flush hook fires at head of `drainPending` (with in-loop re-check for reentrant batches). Flush path re-runs `_frameBatch` to tier-sort the interleaved accumulation. `GRAPHREFLY-SPEC.md` §1.3 invariant 7 amended with the new batch-coalescing rule. Applies to all node types, not just state sources (per user direction: "don't make it special around state/producer/derived").
+
+  Downstream of this fix: diamond invariant 4's `maxBatchEmits: 1` workaround removed; `reactive-list-stress S7` test updated to the new 2-callback contract (was asserting 2N callbacks under the old contract).
+
+### LLM eval cost safety ✅ DONE
+
+- `evals/lib/replay-cache.ts` — `withReplayCache(inner, opts)` with modes `read-write` / `read-only` / `write-only` / `off`, keyed on `sha256(provider + model + prompt + params)`.
+- `evals/lib/budget-gate.ts` — `withBudgetGate(inner, { caps, onUpdate, onExceed })` with `maxCalls` / `maxInputTokens` / `maxOutputTokens` / `maxPriceUsd`. `maxCalls` uses pre-check only; token/price caps use both pre- and post-check (surfaces the crossing call).
+- `evals/lib/dry-run-provider.ts` — `createDryRunProvider(opts?)` returns canned content + per-call observer; no tokens spent.
+- `evals/lib/llm-client.ts` — new `createSafeProvider(config, opts?)` composes `withReplayCache(withBudgetGate(base))` in the load-bearing order (cache hits short-circuit before budget charges). Env vars: `EVAL_MODE=dry-run`, `EVAL_MAX_CALLS`, `EVAL_MAX_PRICE_USD`, `EVAL_MAX_INPUT_TOKENS`, `EVAL_MAX_OUTPUT_TOKENS`, `EVAL_REPLAY`.
+- Tests in `src/__tests__/evals/cost-safety.test.ts` — 13 cases covering every cap, both hook callbacks, reset, unknown-model zero-pricing fallback, all 4 cache modes, key-by-model distinction, and the load-bearing `withReplayCache(withBudgetGate)` composition.
+- `emitToMeta(metaNode, value)` helper extracted to `src/patterns/_internal.ts` — consolidates the 5 `downWithBatch` boilerplate sites across `patterns/reactive-layout/` for the meta-companion forwarding pattern.
+
+### Project 2 — TS↔PY executable contract — DEFERRED
+
+Still blocked on the graph-level audit per the plan's original sequencing note. Not started.
+
+### Documentation updates
+
+- `docs/optimizations.md` — Tier-B diamond finding closed with a changelog pointing at Bug 1 + Bug 2 fixes. New "Formal TLA+ spec lives at..." active item.
+- `docs/test-guidance.md` — added property-based suite section, subscriber-throw contract note.
+- `src/core/batch.ts` — top-of-file comment rewritten to document per-node emit coalescing.
+- `GRAPHREFLY-SPEC.md` §1.3 invariant 7 — amended with the coalescing rule.
+- `~/src/graphrefly/formal/README.md` — documents the 7 TLC invariants, run instructions, porting workflow, and the batch-coalescing model extension.
+
+---
+
 ## OPEN QUESTIONS
 
 1. **fast-check invariant encoding format.** Should invariants be: (a) plain vitest tests with property-based generators inline, or (b) a separate invariant registry module that CI can enumerate? Option (b) makes the invariant list LLM-readable but adds indirection.

@@ -16,13 +16,12 @@
  * └── meta: { block-count, layout-time-ns }
  * ```
  */
-import { downWithBatch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
-import { DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { defaultConfig, node } from "../../core/node.js";
+import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
+import { emitToMeta } from "../_internal.js";
 import {
 	analyzeAndMeasure,
 	type CharPosition,
@@ -320,9 +319,8 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 			// Phase-3 meta deferral (parity with reactiveLayout)
 			const meta = measuredBlocksNode.meta;
 			if (meta) {
-				const tierOf = defaultConfig.tierOf;
-				downWithBatch((msgs) => meta["block-count"]?.down(msgs), [[DATA, result.length]], tierOf);
-				downWithBatch((msgs) => meta["layout-time-ns"]?.down(msgs), [[DATA, elapsed]], tierOf);
+				emitToMeta(meta["block-count"], result.length);
+				emitToMeta(meta["layout-time-ns"], elapsed);
 			}
 
 			actions.emit(result);
