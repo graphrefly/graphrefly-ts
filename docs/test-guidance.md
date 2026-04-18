@@ -37,6 +37,14 @@ src/
 
 **Property-based suite (`src/__tests__/properties/`):** invariant catalog driven by `fast-check`. Add a new invariant by appending an entry to `_invariants.ts`'s `INVARIANTS` registry — the test file iterates it automatically. Generators live in `_generators.ts`. Background and sequencing in `archive/docs/SESSION-rigor-infrastructure-plan.md` § "Project 1".
 
+#### Property-based protocol invariants
+
+**Property-based protocol invariants** live in `src/__tests__/properties/_invariants.ts` as an `INVARIANTS` registry. The runner at `protocol-invariants.test.ts` iterates the registry — adding a new invariant means appending one entry `{ name, specRef, generator, property, numRuns? }`.
+
+Reproduce a counter-example with `FC_SEED=<n> pnpm test -- src/__tests__/properties` (fast-check prints the seed in every failure report).
+
+Each invariant should map to a `specRef` pointing into `GRAPHREFLY-SPEC.md` (e.g. `§1.3 invariant 7`) — the registry doubles as the LLM-readable substrate contract.
+
 ### Subscriber-throw contract
 
 **Subscriber callbacks must not throw.** There are two distinct error paths to keep straight:

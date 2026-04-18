@@ -80,6 +80,8 @@ Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv
 
 These are non-negotiable across all implementations. Validate every change against them.
 
+*Summary; canonical text in `~/src/graphrefly/GRAPHREFLY-SPEC.md` §5.8–5.12. Treat that as the authority if anything below disagrees.*
+
 1. **No polling.** State changes propagate reactively via messages. Never poll a node's value on a timer or busy-wait for status. Use reactive timer sources (`fromTimer`/`from_timer`, `fromCron`/`from_cron`) instead.
 2. **No imperative triggers.** All coordination uses reactive `NodeInput` signals and message flow through topology. No event emitters, callbacks, or `setTimeout`/`threading.Timer` + `set()` workarounds. If you need a trigger, it's a reactive source node.
 3. **No raw async primitives in the reactive layer.** TS: no bare `Promise`, `queueMicrotask`, `setTimeout`, or `process.nextTick`. PY: no bare `asyncio.ensure_future`, `asyncio.create_task`, `threading.Timer`, or raw coroutines. Async boundaries belong in sources (`fromPromise`/`from_awaitable`, `fromAsyncIter`/`from_async_iter`) and the runner layer, not in node fns or operators.
@@ -88,10 +90,8 @@ These are non-negotiable across all implementations. Validate every change again
 
 ## Time utility rule
 
-- **TS:** Use `src/core/clock.ts` utilities. Do not call `Date.now()` / `performance.now()` directly outside `core/clock.ts`.
-- **PY:** Use `src/graphrefly/core/clock.py` utilities. Do not call `time.time_ns()` / `time.monotonic_ns()` directly outside `core/clock.py`.
-- Internal/event-order durations must use `monotonicNs()` / `monotonic_ns()`.
-- Wall-clock attribution payloads must use `wallClockNs()` / `wall_clock_ns()`.
+- **TS:** all timestamps go through `src/core/clock.ts`. Internal/event-order durations: `monotonicNs()`. Wall-clock attribution: `wallClockNs()`.
+- **PY:** same rule with `src/graphrefly/core/clock.py`. Functions: `monotonic_ns()` and `wall_clock_ns()`.
 
 ## Auto-checkpoint trigger rule
 

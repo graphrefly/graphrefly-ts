@@ -2,24 +2,17 @@
  * Batch deferral for tier-3+ messages, plus per-node emit coalescing inside
  * explicit `batch()` scopes.
  *
- * §1.3.7 — Inside a batch, tier 0–2 signals propagate immediately. Tier 3
- * (DATA/RESOLVED), tier 4 (COMPLETE/ERROR), and tier 5 (TEARDOWN) are queued
- * and drained in ascending phase order after the outermost `batch()` callback
- * returns.
+ * **Canonical invariant:** GRAPHREFLY-SPEC.md §1.3.7 — inside a batch,
+ * tier 0–2 signals propagate immediately; tier 3 (DATA/RESOLVED), tier 4
+ * (COMPLETE/ERROR), and tier 5 (TEARDOWN) are queued and drained in ascending
+ * phase order after the outermost `batch()` callback returns.
  *
  * **Per-node emit coalescing (Bug 2 fix, 2026-04-17).** Inside an explicit
  * `batch()` scope, consecutive emissions from the same node accumulate in
- * `NodeImpl._batchPendingMessages` instead of each producing a separate
- * downstream wave. At batch end, each node flushes its accumulated messages
- * as ONE multi-message `downWithBatch` call — K `.emit()`s to the same
- * source collapse to K DIRTYs in one tier-1 sink call + K DATAs in one
- * tier-3 sink call. Downstream nodes' fns run once per wave with the full
- * `batchData` (dep's `dataBatch` accumulates all K values, fn sees
- * `[[v1, v2, ..., vK]]`). Resolves the K+1 fan-in over-fire.
- *
- * Outside batch — and during drain (where `flushInProgress` is true but
- * `batchDepth` is 0) — coalescing does NOT apply: each emit goes through
- * its own `downWithBatch` call and produces its own wave.
+ * `NodeImpl._batchPendingMessages` (see JSDoc there) instead of each producing
+ * a separate downstream wave. K `.emit()` calls to the same source collapse to
+ * one coalesced `downWithBatch` call per child edge at batch end. Outside batch
+ * (or during drain), coalescing does NOT apply — each emit produces its own wave.
  *
  * **Phase vocabulary:**
  * - Phase 1 = tiers 0–2 — immediate, never queued.
@@ -31,13 +24,6 @@
  * phase. Re-enqueues during drain (and hooks registered by reentrant batches
  * inside subscriber callbacks) bump the loop back to the top so newly-added
  * hooks and closures get processed.
- *
- * **Pre-sorted input invariant.** `downWithBatch` assumes `messages` is
- * already sorted in ascending tier order (produced by `_frameBatch` in
- * `node.ts`). The walker exploits monotonicity for a single O(n) pass and
- * slices at phase boundaries without re-sorting. Flushed multi-emit batches
- * re-run `_frameBatch` to restore monotonicity (the per-emit framings
- * accumulate in interleaved order: `[DIRTY, DATA, DIRTY, DATA, ...]`).
  */
 
 import type { Messages } from "./messages.js";

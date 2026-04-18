@@ -759,10 +759,9 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 			const lookups = measureStats.hits + measureStats.misses;
 			const hitRate = lookups === 0 ? 1 : measureStats.hits / lookups;
 
-			// After parent `segments` auto-emits DATA/RESOLVED, deliver metrics
-			// via phase-3 deferral so observers see the parent value first.
-			// `emitToMeta` wraps the tier-3 downWithBatch forwarding + absent-meta
-			// null guard (parity with Python `defer_down` → `down_with_batch` phase 3).
+			// After parent `segments` emits, deliver metrics via phase-3 deferral
+			// so observers see the parent value first.
+			// Forwards via `emitToMeta` (see `patterns/_internal.ts`).
 			const meta = segmentsNode.meta;
 			if (meta) {
 				emitToMeta(meta["cache-hit-rate"], hitRate);

@@ -30,12 +30,7 @@ export { keepalive, reactiveCounter } from "../extra/sources.js";
  * segment-count, layout-time-ns, etc.) — subscribers see the parent's
  * DATA first because phase-2 completes before phase-3 during drain.
  *
- * Equivalent to the expanded form:
- * ```ts
- * downWithBatch((msgs) => metaNode?.down(msgs), [[DATA, value]], tierOf);
- * ```
- * but captures the "meta may not be mounted" null guard and the
- * `defaultConfig.tierOf` boilerplate in one name.
+ * // Expands to: `if (meta) downWithBatch(meta, [[Type, value]])` with null-guard.
  *
  * @internal
  */

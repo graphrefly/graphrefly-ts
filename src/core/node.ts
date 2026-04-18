@@ -86,7 +86,11 @@ const MAX_RERUN_DEPTH = 100;
 // Public types
 // ---------------------------------------------------------------------------
 
-/** Lifecycle status of a node (GRAPHREFLY-SPEC §2.2). */
+/**
+ * Lifecycle status of a node.
+ *
+ * @see GRAPHREFLY-SPEC.md §2.2
+ */
 export type NodeStatus =
 	| "sentinel"
 	| "pending"
@@ -1030,15 +1034,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// closures that outlived the subscription.
 					if (dep.unsub === null) return;
 					// Track whether any tier-3+ settlement-class message arrived
-					// (DATA/RESOLVED at tier 3, COMPLETE/ERROR at tier 4). We only
-					// fire `_maybeRunFnOnSettlement` once per sink call when at
-					// least one settlement was processed — preserves the old
-					// `_onDepMessage` semantic (which only triggered the check
-					// after settlement-class messages) while letting multi-DATA
-					// batches fire `fn` exactly once with the full wave (Bug 1
-					// fix). Tier classification goes through the central
-					// `config.tierOf` utility per spec §5.11 — never hardcode
-					// message-type checks here.
+					// (DATA/RESOLVED at tier 3, COMPLETE/ERROR at tier 4). Fire
+					// `_maybeRunFnOnSettlement` once at the end of the iteration
+					// loop when at least one settlement was seen — one invocation
+					// per dep batch, not per message, so `fn` sees the full wave
+					// (Bug 1 fix, 2026-04-17). Guarded by `config.tierOf(m[0])
+					// >= 3` per spec §5.11 — never hardcode message-type checks.
 					const tierOf = this._config.tierOf;
 					let sawSettlement = false;
 					for (const m of msgs) {
@@ -1334,11 +1335,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 
 		// NOTE: `_maybeRunFnOnSettlement()` is intentionally NOT called here.
-		// It is invoked once at the end of the dep-subscribe callback's
-		// message-iteration loop so that a multi-message sink call —
-		// e.g. `dep.down([[DATA, a], [DATA, b]])` — fires `fn` exactly
-		// once with the full wave batch (`batchData = [[a, b]]`), per the
-		// `_execFn` contract at line 1462: "fn must see the full wave batch".
+		// It fires at the end of the dep-subscribe callback's message-iteration
+		// loop in `_activate`/`_addDep`, guarded by `config.tierOf(m[0]) >= 3`
+		// — one invocation per dep batch so `fn` sees the full wave (Bug 1).
 	}
 
 	// --- Centralized dep-state transitions (A3 settlement counters) ---
@@ -1653,37 +1652,35 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	/**
 	 * @internal The unified dispatch waist — one call = one wave.
+	 * See `GRAPHREFLY-SPEC.md` §1.3.1 for protocol context — the stages
+	 * below are the implementation order.
 	 *
 	 * Pipeline stages, in order:
 	 *
-	 *   1. Early-return on empty batch.
-	 *   2. Terminal filter — post-COMPLETE/ERROR only TEARDOWN/INVALIDATE
+	 *   1. Terminal filter — post-COMPLETE/ERROR only TEARDOWN/INVALIDATE
 	 *      still propagate so graph teardown and cache-clear still work.
-	 *   3. Tier sort (stable) — the batch can be in any order when it
+	 *   2. Tier sort (stable) — the batch can be in any order when it
 	 *      arrives; the walker downstream (`downWithBatch`) assumes
 	 *      ascending tier monotone, and so does `_updateState`'s tier-3
 	 *      slice walk. This is the single source of truth for ordering.
-	 *   4. Synthetic DIRTY prefix — if a tier-3 payload is present, no
+	 *   3. Synthetic DIRTY prefix — if a tier-3 payload is present, no
 	 *      DIRTY is already in the batch, and the node isn't already in
 	 *      `"dirty"` status, prepend `[DIRTY]` after any tier-0 START
 	 *      entries. Guarantees spec §1.3.1 (DIRTY precedes DATA within
 	 *      the same batch) uniformly across every entry point.
-	 *   5. PAUSE/RESUME lock bookkeeping (C0) — update `_pauseLocks`,
+	 *   4. PAUSE/RESUME lock bookkeeping (C0) — update `_pauseLocks`,
 	 *      derive `_paused`, filter unknown-lockId RESUME, replay
 	 *      bufferAll buffer on final lock release.
-	 *   6. Meta TEARDOWN fan-out — notify meta children before
+	 *   5. Meta TEARDOWN fan-out — notify meta children before
 	 *      `_updateState`'s TEARDOWN branch calls `_deactivate`. Hoisted
 	 *      out of the walk to keep `_updateState` re-entrance-free.
-	 *   7. `_updateState` — walk the batch in tier order, advancing
+	 *   6. `_updateState` — walk the batch in tier order, advancing
 	 *      `_cached` / `_status` / `_versioning` and running equals
 	 *      substitution on tier-3 DATA (§3.5.1). Returns
 	 *      `{finalMessages, equalsError?}`.
-	 *   8. `downWithBatch` dispatch (or bufferAll capture if paused with
+	 *   7. `downWithBatch` dispatch (or bufferAll capture if paused with
 	 *      `pausable: "resumeAll"`).
-	 *   9. Recursive ERROR emission if equals threw mid-walk.
-	 *
-	 * `node.down` / `node.emit` / `actions.down` / `actions.emit` all
-	 * converge here — the unified `_emit` waist (spec §1.3.1).
+	 *   8. Recursive ERROR emission if equals threw mid-walk.
 	 */
 	_emit(messages: Messages): void {
 		if (messages.length === 0) return;

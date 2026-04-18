@@ -13,31 +13,7 @@
 - **Formal TLA+ spec lives at `~/src/graphrefly/formal/` (2026-04-17):**
   Project 3 of the rigor plan landed in the spec repo. `wave_protocol.tla` + `wave_protocol_MC.tla` + `wave_protocol.cfg` encode the 6 fast-check invariants as TLC model-checkable properties over a 4-node diamond with `Values={0,1,2}`, `MaxEmits=3` (~6K distinct states, exhaustive, ~1s runtime). All 6 invariants hold under exhaustive exploration once tier-ordering guards (§1.3 invariant 7) are enforced. See [`~/src/graphrefly/formal/README.md`](../../graphrefly/formal/README.md) for the workflow: TLC counter-examples port directly to new `fast-check` properties in `src/__tests__/properties/_invariants.ts`. **Author-time tool only** — CI does not run TLC. Install via `brew install --cask tla+-toolbox`.
 
-- ~~**Diamond fan-in over-fires inside multi-emit batch**~~ — **RESOLVED 2026-04-17.** Fixed by two independent changes:
-  1. **Per-message fn-invocation bug** (Bug 1): `_maybeRunFnOnSettlement()` moved from tail of `_onDepMessage` to end of the dep subscribe callback's message-iteration loop (guarded by `tierOf >= 3`). Multi-message batches like `a.down([[DATA, 1], [DATA, 2]])` now fire the dep node's fn exactly once with `batchData = [[1, 2]]`, matching the `_execFn` comment ("fn must see the full wave batch"). See `src/core/node.ts` `_activate` + `_addDep` subscribe callbacks.
-  2. **Per-node emit coalescing inside explicit batch** (Bug 2, option α): inside `batch(() => ...)` every node's `_emit` accumulates framed messages into `_batchPendingMessages` instead of calling `downWithBatch` directly. At batch end, `registerBatchFlushHook` fires each node's `_flushBatchPending` which re-runs `_frameBatch` (to tier-sort the interleaved `[DIRTY, DATA, DIRTY, DATA, ...]` accumulation) then delivers as ONE `downWithBatch` call. K `.emit()`s to the same node inside a batch → K DIRTYs in one tier-1 sink call + K DATAs in one tier-3 sink call. Downstream fn runs once per wave with the full accumulated `dataBatch`. Outside batch (and during drain, where `flushInProgress` is true but `batchDepth` is 0) coalescing does NOT apply — each emit remains its own wave.
-  Diamond invariant 4's `maxBatchEmits: 1` workaround removed. Tests capturing the old "K callbacks per batch" contract (e.g. `reactive-list-stress S7`) updated to the new "2 callbacks per batch" semantic. Touch points: `src/core/batch.ts` (new `registerBatchFlushHook`, `isExplicitlyBatching`, flushHooks loop), `src/core/node.ts` (new `_batchPendingMessages` field, `_dispatchOrAccumulate`, `_flushBatchPending`). See `src/__tests__/core/multi-message-delivery.test.ts` snapshots for before/after behaviour.
-
-- **Diamond fan-in over-fires inside multi-emit batch (archived 2026-04-17):**
-  Diamond `A → B; A → C; D = derived([B, C])`. For a batch of **K** source emits on A, D used to fire **2K − 1** DIRTY+settlement pairs. Outside batch, K emits → K settlements at D (correct).
-  **Exact pattern** (verified via `tmp/probe-diamond.ts`):
-
-  | K emits in one batch | D's fires |
-  |---|---|
-  | 1 | 1 |
-  | 2 | 3 |
-  | 3 | 5 |
-  | K | 2K − 1 |
-
-  Counts are balanced (DIRTY = settlement) so invariants `#1`/`#2` (no-data-without-dirty, resolved-per-wave) hold; what breaks is **diamond coalescing across multiple deferred DATAs from the same source**.
-  **Mechanism:** during batch flush, B processes its K deferred DATAs one at a time, each triggering a full recompute and new DATA emission to D. C does the same, interleaved. D's bitmask coalesces the FIRST pair correctly (both B's and C's 1st DATA settle D's mask → 1 fire); subsequent DATAs through B and C each clear D's mask individually and re-fire D — producing 2K − 1 fires total.
-  **Semantic decision required before fixing.** Two valid designs:
-  1. **Deferred but separate** (current comment in `batch.ts`) — K emits = K downstream waves, just deferred. Under this rule, D should fire K times, not 2K − 1. Fix: node-level DATA coalescing at B/C during batch flush — emit one final DATA per dep per batch, not one per source emit.
-  2. **Atomic coalescing** (MobX-transaction style) — K emits = 1 downstream wave with the final value. Fix: source-level coalescing in `_updateState` — inside a batch, subsequent emits update the pending DATA payload in place rather than queueing a new emission.
-
-  Current behaviour matches neither — it's a mid-point artifact of the bitmask clearing + recompute loop.
-  **Workaround in harness (active):** fast-check invariant `#4` generator caps `maxBatchEmits: 1` so the test exercises real diamond protection (single-emit and outside-batch cases) without flagging this as a regression.
-  **Tier B per `archive/docs/SESSION-rigor-infrastructure-plan.md` § "Split audit bar"** — invariant violation but works under the sync runner; defer until the semantic decision lands. Touch points: `_frameBatch` / `_updateState` in `src/core/node.ts`, and the bitmask coalescing path inside `batch.ts:downWithBatch`.
+- ~~**Diamond fan-in over-fires inside multi-emit batch**~~ — **RESOLVED 2026-04-17** via two independent fixes (Bug 1: per-message fn-invocation moved to end of dep message-iteration loop; Bug 2: per-node emit coalescing inside `batch(() => ...)` via `_batchPendingMessages` + `registerBatchFlushHook`). Diamond invariant 4's `maxBatchEmits: 1` workaround removed. See rigor infrastructure session (`archive/docs/SESSION-rigor-infrastructure-plan.md`) and `src/__tests__/core/multi-message-delivery.test.ts` for before/after behaviour. Full pre-fix analysis archived to `archive/optimizations/resolved-decisions.jsonl` (id: `diamond-fan-in-over-fires`).
 
 - **PY parity: port `attachStorage` + codec envelope (opened 2026-04-17):**
   TS shipped `Graph.attachStorage` / `Graph.fromStorage` / `StorageTier` + codec envelope (v1 wire format) / `Graph.decode(bytes)` / `snapshot({format: "bytes"|"json-string"})` / `GraphWALDiff` in the graph-module 24-unit review wave (see `archive/docs/SESSION-graph-module-24-unit-review.md`). PY still uses the legacy `auto_checkpoint` + `extra/checkpoint.py` path with no envelope. **Wire format is frozen at v1** in `~/src/graphrefly/GRAPHREFLY-SPEC.md` § "Codec registry and envelope" — a PY implementation must produce byte-identical envelopes. **Scope:** port `StorageTier`, `attach_storage`, `from_storage`, codec registry on `GraphReFlyConfig`, `encode_envelope` / `decode_envelope`, `Graph.decode(bytes)`, `snapshot(format=...)`, `GraphWALDiff` with `nodes_added_full`, `diff_for_wal`. **Deadline:** v1.0 so the wire format doesn't diverge post-release. **Blocked on:** nothing; schedule when PY capacity opens.
@@ -143,6 +119,9 @@
   **PY status:** not yet ported. `~/src/graphrefly-py/src/graphrefly/core/node_base.py` still runs equals inside `_down_auto_value` (pre-foundation-redesign shape), and raw `down` does NOT participate in equals substitution. Matches TS's pre-2026-04-12 behavior. Blocked on PY completing the foundation redesign (see §9.5 PY implementation plan). When that lands, port the TS invariant verbatim: move equals to the dispatch-layer walk, add synthetic-DIRTY prefix rule, implement equals-throw atomicity contract, port the `§3.5` test block. Ship atomically with the PY foundation rewrite.
 
 - ~~**`gate.open()` flush ordering — external `output.down()` interleaves with in-flight `isOpenNode` dep wave (deferred, 2026-04-14):**~~ **Landed 2026-04-17 (Option A)** — flush loop wrapped in `batch(() => ...)` so all queued `output.down` emissions are deferred until after the `isOpenNode` dep wave settles. Option (b) (reactive drain) deferred to a future session; item order under the current sync runner is now deterministic regardless.
+
+- **Tier-2 documentation cleanup (composition guide redundancy + decision tables):**
+  A follow-up cleanup pass should consolidate SENTINEL-explanation duplication across COMPOSITION-GUIDE §1/§3/§10, trim §14 PY async-deadlock and §19 terminal-operators verbosity, add a top-of-guide "when to use X vs Y" decision table, audit cross-reference line numbers for staleness, and add a pattern-registry table. Not load-bearing for any current work — tracked here so it is not lost.
 
 - **Codec lazy decode + dormant subgraph eviction (proposed, 2026-04-17, post-1.0):**
   `codec.ts` declares `LazyGraphCodec.decodeLazy()` and `EvictionPolicy` types but neither is implemented. Covers two post-1.0 scale features:
