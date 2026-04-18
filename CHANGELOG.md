@@ -1,3 +1,10 @@
+# [0.23.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.22.0...v0.23.0) (2026-04-18)
+
+
+### Features
+
+* rigor infrastructure — fast-check + TLA+ + substrate bug fixes + eval cost safety ([6f8736c](https://github.com/graphrefly/graphrefly-ts/commit/6f8736cb53d1c46c3e1b0dc7098bec635b65f270))
+
 # [0.22.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.21.0...v0.22.0) (2026-04-17)
 
 
