@@ -9,6 +9,8 @@ on:
     paths:
       - "website/**"
       - "docs/**"
+      - "demos/**"
+      - "package.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -42,8 +44,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build Astro site
-        run: pnpm --dir website run build
+      # docs:build = website + demos/compat-matrix + demos/reactive-layout, copied into website/dist/demos/
+      - name: Build docs and demos
+        run: pnpm run docs:build
         env:
           ASTRO_SITE_URL: https://graphrefly.dev
           ASTRO_BASE_PATH: /
