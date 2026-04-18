@@ -1,16 +1,15 @@
 import type { Node } from "@graphrefly/graphrefly";
 import type { ReadableAtom, WritableAtom } from "@graphrefly/graphrefly/compat/jotai";
-import type { NanoAtom } from "@graphrefly/graphrefly/compat/nanostores";
-import type { NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
+import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
 import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/react";
 import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
 import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
-	getCodeSnippets,
 	counterGraph,
 	counterNodeFactory,
+	getCodeSnippets,
 	jotaiCounter,
 	jotaiDoubled,
 	keysNode,
@@ -403,9 +402,13 @@ export default function ReactDemo() {
 		// width (`paneSideWidth` = viewport - main) changes.
 		const codeLinesNode = shell.graph.resolve("layout/code-lines");
 		const unsubCodeLines = codeLinesNode.subscribe(() => {
-			setCodeLayout(summarizeCodeLines(codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0]));
+			setCodeLayout(
+				summarizeCodeLines(codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0]),
+			);
 		});
-		setCodeLayout(summarizeCodeLines(codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0]));
+		setCodeLayout(
+			summarizeCodeLines(codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0]),
+		);
 
 		// (#2) Leaderboard total height from reactiveBlockLayout. For 4 fixed
 		// rows this is static, but subscribe anyway — the plumbing is what
@@ -562,11 +565,7 @@ export default function ReactDemo() {
 					<h3>Graph topology — mermaid</h3>
 					<MermaidGraph text={mermaidText} />
 				</div>
-				<div
-					className="pane-split-divider"
-					onMouseDown={onSplitMouseDown}
-					title="Drag to resize"
-				/>
+				<div className="pane-split-divider" onMouseDown={onSplitMouseDown} title="Drag to resize" />
 				<div className="pane-code">
 					<h3>
 						{codeTitle}

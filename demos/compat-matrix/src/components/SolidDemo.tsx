@@ -9,9 +9,9 @@ import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell
 import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
-	getCodeSnippets,
 	counterGraph,
 	counterNodeFactory,
+	getCodeSnippets,
 	jotaiCounter,
 	jotaiDoubled,
 	keysNode,
@@ -116,7 +116,10 @@ export default function SolidDemo() {
 	const [graphRatio, setGraphRatio] = createSignal(0.5);
 	const [isDragging, setDragging] = createSignal(false);
 	const [isDraggingSplit, setDraggingSplit] = createSignal(false);
-	const [codeLayout, setCodeLayout] = createSignal<CodeLayoutSummary>({ lineCount: 0, maxWidth: 0 });
+	const [codeLayout, setCodeLayout] = createSignal<CodeLayoutSummary>({
+		lineCount: 0,
+		maxWidth: 0,
+	});
 	const [leaderboardH, setLeaderboardH] = createSignal(0);
 	const [codeHit, setCodeHit] = createSignal<{ line: number; graphemeIndex: number } | null>(null);
 

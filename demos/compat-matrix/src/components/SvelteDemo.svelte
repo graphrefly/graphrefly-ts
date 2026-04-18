@@ -6,9 +6,9 @@ import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { onMount } from "svelte";
 import { readable, writable } from "svelte/store";
 import {
-	getCodeSnippets,
 	counterGraph,
 	counterNodeFactory,
+	getCodeSnippets,
 	jotaiCounter,
 	jotaiDoubled,
 	keysNode,
@@ -101,8 +101,7 @@ const zustandSvelteStore = readable<ZustandState>(zustandStore.getState() as Zus
 // Zustand selector-derived value — bridges store.subscribe + selector into a readable
 const zustandDoubledSvelteStore = readable<number>(
 	zustandDoubledSelector(zustandStore.getState() as ZustandState),
-	(set) =>
-		zustandStore.subscribe((state) => set(zustandDoubledSelector(state as ZustandState))),
+	(set) => zustandStore.subscribe((state) => set(zustandDoubledSelector(state as ZustandState))),
 );
 
 // ── Total & leaderboard ──────────────────────────────────────────
@@ -162,9 +161,7 @@ onMount(() => {
 			codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0],
 		);
 	});
-	codeLayout = summarizeCodeLines(
-		codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0],
-	);
+	codeLayout = summarizeCodeLines(codeLinesNode.cache as Parameters<typeof summarizeCodeLines>[0]);
 
 	leaderboardUnsub = leaderboardTotalHeight.subscribe(() => {
 		leaderboardH = (leaderboardTotalHeight.cache as number) ?? 0;

@@ -8,9 +8,9 @@ import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell
 import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
-	getCodeSnippets,
 	counterGraph,
 	counterNodeFactory,
+	getCodeSnippets,
 	jotaiCounter,
 	jotaiDoubled,
 	keysNode,

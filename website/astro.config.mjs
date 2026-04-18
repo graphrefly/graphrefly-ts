@@ -285,6 +285,7 @@ export default defineConfig({
 					items: [
 						{ label: "Overview", link: "/demos" },
 						{ label: "Compat matrix", link: "/demos/compat-matrix/" },
+						{ label: "Reactive layout", link: "/demos/reactive-layout/" },
 					],
 				},
 			],

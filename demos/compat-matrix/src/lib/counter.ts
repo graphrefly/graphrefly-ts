@@ -1,7 +1,10 @@
 import type { Node } from "@graphrefly/graphrefly";
 import { DATA, derived, state } from "@graphrefly/graphrefly";
 import { atom as jotaiAtom } from "@graphrefly/graphrefly/compat/jotai";
-import { atom as nanoAtom, computed as nanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
+import {
+	atom as nanoAtom,
+	computed as nanoComputed,
+} from "@graphrefly/graphrefly/compat/nanostores";
 import { create as zustandCreate } from "@graphrefly/graphrefly/compat/zustand";
 import { Graph } from "@graphrefly/graphrefly/graph";
 import { createLeaderboardLayout } from "./layout-integration";
@@ -14,11 +17,9 @@ export const rawNode = state(0, { name: "graphrefly/count" });
 counterGraph.add("graphrefly/count", rawNode);
 
 // Derived: doubled — using GraphReFly's native `derived` primitive
-export const rawDoubledNode = derived(
-	[rawNode],
-	([n]) => ((n as number) ?? 0) * 2,
-	{ name: "graphrefly/doubled" },
-);
+export const rawDoubledNode = derived([rawNode], ([n]) => ((n as number) ?? 0) * 2, {
+	name: "graphrefly/doubled",
+});
 counterGraph.add("graphrefly/doubled", rawDoubledNode);
 
 // ── 2. Jotai compat ───────────────────────────────────────
@@ -124,17 +125,13 @@ export const counterNodeFactory = (key: string): { count: Node<number> } => {
 // Rebuilds when `keysNode` emits new library labels — each framework can
 // subscribe to `leaderboardTotalHeight` for an auto-sizing leaderboard.
 const leaderboardLayout = createLeaderboardLayout(
-	["graphrefly", "jotai", "nanostores", "zustand"].map(
-		(k) => `${k.toUpperCase()}  ${k}/count`,
-	),
+	["graphrefly", "jotai", "nanostores", "zustand"].map((k) => `${k.toUpperCase()}  ${k}/count`),
 );
 export const leaderboardTotalHeight = leaderboardLayout.totalHeight;
 keysNode.subscribe((msgs) => {
 	for (const [t, v] of msgs) {
 		if (t === DATA) {
-			leaderboardLayout.setBlocks(
-				(v as string[]).map((k) => `${k.toUpperCase()}  ${k}/count`),
-			);
+			leaderboardLayout.setBlocks((v as string[]).map((k) => `${k.toUpperCase()}  ${k}/count`));
 		}
 	}
 });

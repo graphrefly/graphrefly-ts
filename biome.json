@@ -13,6 +13,7 @@
 			"!dist",
 			"!node_modules",
 			"!**/dist",
+			"!**/.astro",
 			"!benchmarks",
 			"!website",
 			"!examples/nestjs-*"
@@ -37,13 +38,15 @@
 	},
 	"overrides": [
 		{
-			"includes": ["demos/compat-matrix/**"],
+			"includes": ["demos/compat-matrix/**", "demos/reactive-layout/**"],
 			"linter": {
 				"rules": {
 					"a11y": {
 						"noStaticElementInteractions": "off",
 						"useButtonType": "off",
-						"useKeyWithClickEvents": "off"
+						"useKeyWithClickEvents": "off",
+						"noLabelWithoutControl": "off",
+						"useSemanticElements": "off"
 					},
 					"correctness": {
 						"noUnusedFunctionParameters": "off",
@@ -51,6 +54,20 @@
 						"noUnusedVariables": "off",
 						"useHookAtTopLevel": "off",
 						"useJsxKeyInIterable": "off"
+					},
+					"suspicious": {
+						"noArrayIndexKey": "off",
+						"noAssignInExpressions": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["demos/reactive-layout/src/components/chapters/BlocksChapter.tsx"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noDangerouslySetInnerHtml": "off"
 					}
 				}
 			}

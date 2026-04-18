@@ -1,11 +1,5 @@
-// Pan + zoom for the mermaid graph container. Framework-agnostic DOM helper —
-// each framework mounts it once (useEffect / onMount / createEffect / $effect)
-// against the `.mermaid-graph` element and calls the returned cleanup on
-// unmount. Pan/zoom is pure DOM interaction — no framework state involved —
-// so sharing the helper is cleaner than duplicating 60 lines of listener
-// wiring across React/Vue/Solid/Svelte.
-//
-// Controls: wheel zooms toward cursor, drag pans, double-click resets.
+// Pan + zoom for the mermaid graph container. Same helper as compat-matrix —
+// kept local so each demo stays self-contained.
 
 export function attachPanZoom(container: HTMLElement): () => void {
 	let scale = 1;
@@ -30,7 +24,6 @@ export function attachPanZoom(container: HTMLElement): () => void {
 		const rect = container.getBoundingClientRect();
 		const mx = e.clientX - rect.left;
 		const my = e.clientY - rect.top;
-		// Zoom around cursor: keep the point under the pointer fixed.
 		tx = mx - (mx - tx) * factor;
 		ty = my - (my - ty) * factor;
 		scale = Math.max(0.1, Math.min(10, scale * factor));
@@ -38,8 +31,6 @@ export function attachPanZoom(container: HTMLElement): () => void {
 	};
 
 	const onPointerDown = (e: PointerEvent) => {
-		// Left-click + drag pans. Ignore other buttons so the browser's
-		// native context menu / middle-click-autoscroll still work.
 		if (e.button !== 0) return;
 		dragging = true;
 		lastX = e.clientX;
@@ -63,7 +54,7 @@ export function attachPanZoom(container: HTMLElement): () => void {
 		try {
 			container.releasePointerCapture(e.pointerId);
 		} catch {
-			// pointer capture may have already been released (e.g. leaving the window)
+			// pointer capture may already be released
 		}
 		container.style.cursor = "grab";
 	};
@@ -84,8 +75,6 @@ export function attachPanZoom(container: HTMLElement): () => void {
 	container.style.cursor = "grab";
 	container.style.touchAction = "none";
 
-	// Mermaid re-renders replace the SVG inside the container. Reapply the
-	// current transform to the new SVG so pan/zoom state survives re-renders.
 	const observer = new MutationObserver(() => applyTransform());
 	observer.observe(container, { childList: true });
 

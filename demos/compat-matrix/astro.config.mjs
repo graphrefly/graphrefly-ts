@@ -20,7 +20,7 @@ const sveltePkgDir = path.dirname(sveltePkgJson);
 const svelteClientEntry = path.join(sveltePkgDir, "src/index-client.js");
 
 export default defineConfig({
-	base: '/demos/compat-matrix',
+	base: "/demos/compat-matrix",
 	// Both React and Solid use .tsx — scope each plugin to its own file so
 	// Vite picks the right JSX transformer (otherwise the "More than one JSX
 	// renderer is enabled" warning becomes an actual hydration bug).
@@ -71,15 +71,42 @@ export default defineConfig({
 			conditions: ["browser"],
 			alias: [
 				{ find: /^svelte$/, replacement: svelteClientEntry },
-				{ find: "@graphrefly/graphrefly/compat/react", replacement: `${root}/src/compat/react/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/vue", replacement: `${root}/src/compat/vue/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/solid", replacement: `${root}/src/compat/solid/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/svelte", replacement: `${root}/src/compat/svelte/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/jotai", replacement: `${root}/src/compat/jotai/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/nanostores", replacement: `${root}/src/compat/nanostores/index.ts` },
-				{ find: "@graphrefly/graphrefly/compat/zustand", replacement: `${root}/src/compat/zustand/index.ts` },
-				{ find: "@graphrefly/graphrefly/patterns/demo-shell", replacement: `${root}/src/patterns/demo-shell.ts` },
-				{ find: "@graphrefly/graphrefly/patterns/reactive-layout", replacement: `${root}/src/patterns/reactive-layout/index.ts` },
+				{
+					find: "@graphrefly/graphrefly/compat/react",
+					replacement: `${root}/src/compat/react/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/vue",
+					replacement: `${root}/src/compat/vue/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/solid",
+					replacement: `${root}/src/compat/solid/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/svelte",
+					replacement: `${root}/src/compat/svelte/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/jotai",
+					replacement: `${root}/src/compat/jotai/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/nanostores",
+					replacement: `${root}/src/compat/nanostores/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/compat/zustand",
+					replacement: `${root}/src/compat/zustand/index.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/patterns/demo-shell",
+					replacement: `${root}/src/patterns/demo-shell.ts`,
+				},
+				{
+					find: "@graphrefly/graphrefly/patterns/reactive-layout",
+					replacement: `${root}/src/patterns/reactive-layout/index.ts`,
+				},
 				{ find: "@graphrefly/graphrefly/graph", replacement: `${root}/src/graph/index.ts` },
 				{ find: "@graphrefly/graphrefly/core", replacement: `${root}/src/core/index.ts` },
 				// NOTE: the top-level `@graphrefly/graphrefly` barrel re-exports

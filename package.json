@@ -158,7 +158,7 @@
 	},
 	"scripts": {
 		"docs:dev": "pnpm --dir website dev",
-		"docs:build": "pnpm --dir website build && pnpm --dir demos/compat-matrix build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/",
+		"docs:build": "pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/",
 		"docs:preview": "pnpm --dir website preview",
 		"build": "tsup",
 		"test": "vitest run",
