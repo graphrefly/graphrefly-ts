@@ -34,5 +34,26 @@
 		"enabled": true,
 		"indentStyle": "tab",
 		"lineWidth": 100
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["demos/compat-matrix/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noStaticElementInteractions": "off",
+						"useButtonType": "off",
+						"useKeyWithClickEvents": "off"
+					},
+					"correctness": {
+						"noUnusedFunctionParameters": "off",
+						"noUnusedImports": "off",
+						"noUnusedVariables": "off",
+						"useHookAtTopLevel": "off",
+						"useJsxKeyInIterable": "off"
+					}
+				}
+			}
+		}
+	]
 }

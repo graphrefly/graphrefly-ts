@@ -48,17 +48,19 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 	});
 	g.add("state", s);
 
+	// `getState` and `setState` read/write through `s` directly — the single
+	// source of truth. `s.cache` is `undefined` (SENTINEL) until `emit()` is
+	// called, but action closures (e.g. `inc: () => set(...)`) are only ever
+	// invoked after initialization, so `s.cache` is valid by that time.
 	const getState = () => s.cache as T;
 	const setState = (partial: any, replace?: boolean): void => {
-		const prev = getState();
+		const prev = s.cache as T;
 		const next = typeof partial === "function" ? partial(prev) : partial;
-		const nextState = replace ? next : { ...prev, ...next };
 		// `n.emit` goes through `_actionEmit` → `bundle()`, which auto-
 		// prefixes `[DIRTY]` so diamond legs coordinate under downstream
 		// composition. The `alwaysDiffer` equals keeps zustand's "fire
-		// on every setState" semantics — the framing is what matters
-		// here, not the equality folding.
-		s.emit(nextState);
+		// on every setState" semantics.
+		s.emit(replace ? next : { ...prev, ...next });
 	};
 
 	const api: StoreApi<T> = {
@@ -66,9 +68,9 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 		setState,
 		getInitialState: () => initialValue,
 		subscribe: (listener) => {
-			let prev = getState();
 			// Skip the initial push-on-subscribe DATA — zustand subscribe fires on changes only.
 			let initial = true;
+			let prev = s.cache as T;
 			return s.subscribe((msgs) => {
 				for (const [t, v] of msgs) {
 					if (t === DATA) {

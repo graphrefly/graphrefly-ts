@@ -1,0 +1,90 @@
+---
+import "../styles/demo.css";
+
+const base = import.meta.env.BASE_URL;
+const href = (p: string) => `${base.replace(/\/$/, '')}/${p.replace(/^\//, '')}`;
+---
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GraphReFly Compat Matrix</title>
+  </head>
+  <body>
+    <nav class="demo-nav">
+      <a class="nav-brand" href="/">GraphReFly</a>
+      <a href={href('/')} class="active">Overview</a>
+      <a href={href('/react')}>React</a>
+      <a href={href('/vue')}>Vue</a>
+      <a href={href('/solid')}>SolidJS</a>
+      <a href={href('/svelte')}>Svelte</a>
+    </nav>
+
+    <div class="landing">
+      <h1>GraphReFly Compat Matrix</h1>
+      <p class="tagline">One reactive graph. Four frameworks. Four state libraries.</p>
+
+      <div class="framework-tabs">
+        <a href={href('/react')} class="framework-tab react">React</a>
+        <a href={href('/vue')} class="framework-tab vue">Vue</a>
+        <a href={href('/solid')} class="framework-tab solid">SolidJS</a>
+        <a href={href('/svelte')} class="framework-tab svelte">Svelte</a>
+      </div>
+
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>State library</th>
+            <th>React</th>
+            <th>Vue</th>
+            <th>SolidJS</th>
+            <th>Svelte</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="row-label graphrefly">GraphReFly raw</span></td>
+            <td class="matrix-cell"><span class="check">✓</span>useStore / useSubscribe</td>
+            <td class="matrix-cell"><span class="check">✓</span>useStore → Ref (writable)</td>
+            <td class="matrix-cell"><span class="check">✓</span>useStore → [Accessor, setter]</td>
+            <td class="matrix-cell"><span class="check">✓</span>useStore → SvelteWritable</td>
+          </tr>
+          <tr>
+            <td><span class="row-label jotai">Jotai</span></td>
+            <td class="matrix-cell"><span class="check">✓</span>atom(read, write) · useSyncExternalStore</td>
+            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → Ref bridge</td>
+            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → createSignal</td>
+            <td class="matrix-cell"><span class="check">✓</span>atom.subscribe → writable bridge</td>
+          </tr>
+          <tr>
+            <td><span class="row-label nanostores">Nanostores</span></td>
+            <td class="matrix-cell"><span class="check">✓</span>NanoAtom · useSyncExternalStore</td>
+            <td class="matrix-cell"><span class="check">✓</span>NanoAtom.subscribe → Ref bridge</td>
+            <td class="matrix-cell"><span class="check">✓</span>NanoAtom.subscribe → createSignal</td>
+            <td class="matrix-cell"><span class="check">✓</span>NanoAtom ↔ Svelte readable bridge</td>
+          </tr>
+          <tr>
+            <td><span class="row-label zustand">Zustand</span></td>
+            <td class="matrix-cell"><span class="check">✓</span>StoreApi · useSyncExternalStore</td>
+            <td class="matrix-cell"><span class="check">✓</span>store.subscribe → Ref bridge</td>
+            <td class="matrix-cell"><span class="check">✓</span>store.subscribe → createSignal</td>
+            <td class="matrix-cell"><span class="check">✓</span>store → Svelte readable</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="color: var(--color-text-dim); margin-bottom: 1.5rem; font-size: 0.9rem;">
+        All four state libraries share the same underlying <strong style="color: var(--color-text)">GraphReFly reactive graph</strong>
+        — their counts flow into a shared total via derived nodes, inspectable in the graph topology pane.
+        The demo shell coordinates the three-pane layout reactively via its own internal graph.
+      </p>
+
+      <div class="cta-group">
+        <a href={href('/react')} class="cta-btn primary">Run the demo &rarr; React</a>
+        <a href={href('/vue')} class="cta-btn secondary">Vue</a>
+        <a href={href('/solid')} class="cta-btn secondary">SolidJS</a>
+        <a href={href('/svelte')} class="cta-btn secondary">Svelte</a>
+      </div>
+    </div>
+  </body>
+</html>

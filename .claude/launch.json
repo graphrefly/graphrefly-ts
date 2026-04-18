@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "compat-matrix-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "demos/compat-matrix", "dev"],
+      "port": 4321
+    }
+  ]
+}

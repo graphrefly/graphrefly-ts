@@ -280,6 +280,13 @@ export default defineConfig({
 						{ label: "Compat", link: "/integrations/compat" },
 					],
 				},
+				{
+					label: "Demos",
+					items: [
+						{ label: "Overview", link: "/demos" },
+						{ label: "Compat matrix", link: "/demos/compat-matrix/" },
+					],
+				},
 			],
 		}),
 	],

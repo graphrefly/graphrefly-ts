@@ -93,21 +93,12 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 
 	// Track active subscriptions per key (strictly enclosed memory mapping)
 	const activeSubs = new Map<K, { subs: Array<() => void>; values: R }>();
-	let disposed = false;
-
-	let batchPending = false;
-	function scheduleBatch() {
-		if (batchPending) return;
-		batchPending = true;
-		queueMicrotask(() => {
-			if (disposed) return;
-			batchPending = false;
-			const snap = {} as Record<K, R>;
-			for (const [key, entry] of activeSubs) {
-				snap[key] = { ...entry.values };
-			}
-			result.value = snap;
-		});
+	function flushResult() {
+		const snap = {} as Record<K, R>;
+		for (const [key, entry] of activeSubs) {
+			snap[key] = { ...entry.values };
+		}
+		result.value = snap;
 	}
 
 	function sync(newKeys: K[]) {
@@ -127,7 +118,7 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 				values[field] = node.cache as R[keyof R];
 				const unsub = node.subscribe(() => {
 					values[field] = node.cache as R[keyof R];
-					scheduleBatch();
+					flushResult();
 				});
 				subs.push(unsub);
 			}
@@ -151,7 +142,6 @@ export function useSubscribeRecord<K extends string, R extends Record<string, an
 
 	if (getCurrentScope()) {
 		onScopeDispose(() => {
-			disposed = true;
 			for (const entry of activeSubs.values()) {
 				for (const unsub of entry.subs) unsub();
 			}
