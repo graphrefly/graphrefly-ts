@@ -69,6 +69,8 @@ The safety properties to verify:
 
 TLA+'s model checker runs exhaustively: every state reachable from every initial state under every valid transition ordering. It doesn't sample. It doesn't use heuristics. If a safety violation exists within the state space you've modeled, it will find it.
 
+The checked-in models live in the GraphReFly **monorepo** under [`formal/`](https://github.com/graphrefly/graphrefly/tree/main/formal) (for example `wave_protocol.tla` and TLC configs alongside them) — next to the TypeScript and Python packages, not inside `graphrefly-ts` alone.
+
 The spec doesn't replace the implementation — it constrains it. The implementation must be consistent with the spec. When the spec says PAUSE with a lockId that isn't held is a no-op (for dispose idempotency), the implementation must follow that exactly. When we change the implementation, we verify the change against the spec first.
 
 ## The TS↔PY behavioral contract

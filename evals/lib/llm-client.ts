@@ -335,7 +335,9 @@ function getProviderWithLimiter(
 	let entry = _providerCache.get(name);
 	if (!entry) {
 		const overrideConfig = name === config.provider ? config : { ...config, provider: name };
-		const provider = createProvider(overrideConfig);
+		// Cost-safe stack: replay cache + budget gate + dry-run toggle. Env vars
+		// (EVAL_MODE / EVAL_MAX_CALLS / EVAL_MAX_PRICE_USD / EVAL_REPLAY) control it.
+		const provider = createSafeProvider(overrideConfig);
 		const limiter = new AdaptiveRateLimiter(provider.limits);
 		entry = { provider, limiter };
 		_providerCache.set(name, entry);

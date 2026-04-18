@@ -14,7 +14,7 @@ tags:
 
 # The Audit Trail Your Compliance Team Will Ask For: SENTINEL, Equals, and Causal Trace by Design
 
-*Arc 7, Post 43 — SENTINEL, Equals Substitution, and `explainPath`*
+*Arc 7, Post 43 — SENTINEL, Equals Substitution, and Observable Causality*
 
 ---
 
@@ -53,26 +53,17 @@ In v0.4, `undefined` is reserved globally as the SENTINEL value. Valid DATA payl
 
 This matters for the start of an audit trail. When an agent system first activates, before any inputs have been processed, every node is in SENTINEL state. The transition from SENTINEL to first DATA is an observable event — the moment the node became active. An auditor can ask "when did this node first produce a value?" and get a definitive answer.
 
-## `explainPath`: the causal chain as a queryable structure
+## Causality: V1 history, `observe`, and `describe` — not `graph.trace`
 
-For V1 nodes (where full history is tracked), `graph.trace(node)` returns the causal chain: this emission had this cid, it came from these dep emissions (by cid), which came from these upstream nodes, and so on.
+**`graph.trace`** in v0.4 is the **reasoning-trace** API: write `graph.trace(path, reason)` to record why a value was set, or call `graph.trace()` to read the ring buffer of those annotations. It does **not** return a V1 `cid` chain or dep graph.
 
-The result is a structured graph, not a log. You can query it:
+For audit-relevant **computation causality**, use the tools that attach to the real protocol:
 
-```typescript
-const chain = graph.trace("risk-score");
+- **V1 nodes:** `cid`, `prev`, and `meta` appear in snapshots and **`describe()`** — you can walk history that the graph actually recorded.
+- **Per-emission triggers:** **`graph.observe(targetPath, { causal: true, derived?: true, detail: "full" })`** (when `inspectorEnabled` allows structured observation) surfaces which dependency triggered an update and with what payloads.
+- **Structure:** **`describe({ detail: "full" })`** gives a consistent node-and-edge view including versioning fields.
 
-// "Which inputs contributed to the current risk score?"
-chain.deps.map(d => ({ node: d.path, value: d.value, version: d.version }))
-
-// "When did the primary data source last change?"
-chain.upstream("data-source/primary").lastChanged
-
-// "Was this derived from a human-approved value or an AI-generated one?"
-chain.upstream("approval-gate").meta.producer
-```
-
-This is the "why was this flagged?" question answered structurally, not with log searching. The causal chain is a first-class data structure built from the same protocol that delivers values — not reconstructed from logs after the fact.
+Together, these answer "which inputs contributed to this value?" from **messages and describe output**, not from a separate `trace("risk-score")` query object. The compliance story stays honest: provenance comes from protocol-visible data, not a parallel API that could drift from runtime behavior.
 
 ## PAUSE/RESUME lockId: who holds the gate
 
@@ -100,7 +91,7 @@ Put these together and you have a compliance-ready audit trail without bolting o
 3. **Equals substitution** guarantees DATA means "actually changed" — no false positives in the audit trail
 4. **V1 cid chains** link every value to the upstream values that produced it
 5. **PAUSE/RESUME lockId** records who gated which outputs and when
-6. **`graph.trace()`** makes the causal graph queryable by an auditor (or an LLM asked to explain a decision)
+6. **`graph.trace(path, reason)`** records human- or agent-stated *reasons*; **`observe` / `describe` / V1 fields** supply *computational* causality for reviews
 
 This isn't an afterthought compliance layer. It's the protocol itself. Every value in a GraphReFly system carries provenance, and the graph structure makes that provenance traversable.
 

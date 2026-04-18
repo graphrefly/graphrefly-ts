@@ -41,17 +41,31 @@ You can opt in per-node at construction:
 const memory = node([sources], fn, { versioning: 1 }); // V1 from birth
 ```
 
-Or set a graph-wide default:
+Or set a **default for newly constructed nodes** (without repeating `{ versioning: … }` on every primitive). **`defaultVersioning` is not a field on `Graph` or `GraphOptions`** — it lives on **`GraphReFlyConfig`** (the object behind **`graph.config`**, usually the shared **`defaultConfig`**). **`GraphOptions` only has `versioning`**, which runs **`setVersioning(level)`** at graph construction on **nodes already registered** on that graph (often none); for the default that applies when **new** nodes are built, use **`config.defaultVersioning`**.
+
+**`defaultVersioning` must be set before any node is created** — the config freezes on first use, and mutating it after nodes exist is not supported.
+
+Use **`configure`** from the core module (it mutates **`defaultConfig`** safely at startup):
 
 ```typescript
-const graph = new Graph("agent", { versioning: 0 }); // V0 for all nodes
+import { configure, Graph } from "@graphrefly/graphrefly";
+
+configure((cfg) => {
+  cfg.defaultVersioning = 0;
+});
+
+const graph = new Graph("agent");
 ```
 
-Or bump a specific node later:
+If you need an **isolated** `GraphReFlyConfig` (for example parallel tests), instantiate **`new GraphReFlyConfig({ onMessage, onSubscribe, defaultVersioning: 0 })`** — the constructor requires the same protocol hook pair as **`defaultConfig`** — and pass **`new Graph("agent", { config })`**. That graph does not share the singleton.
+
+To raise the floor for **every node already registered** on a graph, use bulk `setVersioning` — it takes a **level only** (not a path) and applies monotonically to each current node:
 
 ```typescript
-graph.setVersioning("memory", 1); // Upgrade memory node to V1
+graph.setVersioning(1); // minimum V1 for all nodes registered so far
 ```
+
+There is no per-path `setVersioning("memory", …)` on the container: a single node is versioned by passing `{ versioning: … }` when you construct it, by **`defaultVersioning`** on the config (via **`configure`** or a dedicated **`GraphReFlyConfig`**), or by **`graph.setVersioning(level)`** for a bulk bump.
 
 The upgrade is monotonic — you can only bump upward (V0 → V1, never V1 → V0). The existing identity is preserved. The V0 version counter continues incrementing. V1 adds the cid chain on top.
 
@@ -59,7 +73,7 @@ The upgrade is monotonic — you can only bump upward (V0 → V1, never V1 → V
 
 The most interesting case is upgrading a node that's already running — mid-production, without a restart.
 
-`_applyVersioning` handles this with a well-defined semantic: when a V0 node is upgraded to V1, the cid chain starts fresh. The first V1 emission has `prev = null` — an intentional fresh root. There's no synthetic history fabricated for emissions that happened before versioning was attached.
+Internally, `NodeImpl._applyVersioning` implements the bump; you invoke it through **`graph.setVersioning(level)`** (bulk) or by constructing a node with `{ versioning: … }`. When a V0 node is upgraded to V1, the cid chain starts fresh. The first V1 emission has `prev = null` — an intentional fresh root. There's no synthetic history fabricated for emissions that happened before versioning was attached.
 
 Why intentional, rather than trying to back-fill? Because back-filling would be a lie. The content hashes of pre-upgrade emissions weren't computed, can't be recovered, and inserting synthetic ones would create a chain that looks authoritative but isn't. A fresh root is honest: "versioning started here."
 

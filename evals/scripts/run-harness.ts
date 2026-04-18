@@ -164,8 +164,8 @@ function createAdapter(config: EvalConfig) {
 
 	return {
 		invoke: async (msgs: Array<{ role: string; content: string }>) => {
-			const { createProvider } = await import("../lib/llm-client.js");
-			const provider = createProvider(config.provider, config);
+			const { createSafeProvider } = await import("../lib/llm-client.js");
+			const provider = createSafeProvider(config);
 			const system = msgs
 				.filter((m) => m.role === "system")
 				.map((m) => m.content)

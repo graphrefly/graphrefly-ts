@@ -78,13 +78,13 @@ In development, this gets full detail. In production, it gets structure. The cal
 
 Beyond `describe`, v0.4 ships three operational tools that answer the questions agent teams most frequently need during incidents:
 
-**`graph.reachable(from, to?)`** — given a set of source nodes, which nodes can be reached through the dependency graph? Given a target node, which source nodes can affect it? Answers "why is this node recomputing?" and "what does this node's change affect?"
+**`graph.reachable(from, direction, opts?)`** — walk upstream or downstream from a path (`direction: "upstream" | "downstream"`), with optional depth limits and detail. Answers "what can affect this node?" and "what does this node's change affect?"
 
-**`graph.trace(node, depth?)`** — for nodes with V1 versioning, return the causal chain: this value came from these deps at these versions, which came from these upstream nodes, and so on. Not a log dump — a structured causal graph that you can query.
+**`graph.trace(path, reason)`** / **`graph.trace()`** — not a value-history API. **Write:** attach a reasoning annotation to a node (for example why an agent set a value). **Read:** return the chronological ring buffer of those annotations (`TraceEntry[]`). For **per-emission causality** (which dep triggered a recompute), use **`graph.observe(targetPath, { causal: true, … })`** when `inspectorEnabled` allows it; V1 history and versioning fields show up in **`describe()`** output.
 
 **`graph.resourceProfile()`** — memory footprint, retained value sizes, queue depths, activation counts per node. The same data that `graphProfile()` and `harnessProfile()` expose, but at the graph container level rather than the harness level.
 
-Together these answer: "What happened?" (`trace`), "What's affected?" (`reachable`), "How much does it cost?" (`resourceProfile`).
+Together these answer: "What did we record?" (`trace` annotations), "What's connected?" (`reachable`), "How much does it cost?" (`resourceProfile`). Pair with **`observe(..., { causal: true })`** and rich **`describe()`** when you need computation causality, not the annotation log alone.
 
 ## The `metaPassthrough` flag: configurable protocol filtering
 
