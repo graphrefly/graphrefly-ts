@@ -27,6 +27,10 @@ coverage/
 .vite/
 *.tmp
 
+# Eval LLM replay cache — local, machine-specific, regenerated on first run.
+# Each entry is sha256(provider+model+prompt+...) → response.json. Do not commit.
+evals/results/replay-cache/
+
 # Environment (keep examples)
 .env
 .env.*

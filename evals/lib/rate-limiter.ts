@@ -13,6 +13,7 @@
  */
 
 import type { ResolvedLimits } from "./limits.js";
+import type { LLMProvider, LLMRequest, LLMResponse } from "./llm-client.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -433,4 +434,55 @@ function parseDurationString(val: string): number | undefined {
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ---------------------------------------------------------------------------
+// Provider wrapper — placed INSIDE the replay cache so cache hits short-circuit
+// before pacing. See `createSafeProvider` for the full stack order.
+// ---------------------------------------------------------------------------
+
+export interface RateLimiterWrapperOptions {
+	/** When false, calls pass through unpaced; usage is still recorded for stats. */
+	readonly enabled: boolean;
+}
+
+/**
+ * Wrap a provider so each call passes through the {@link AdaptiveRateLimiter}.
+ *
+ * Wrap with `withRateLimiter(inner, limiter, { enabled })`. The intended stack
+ * order in {@link createSafeProvider} is:
+ *
+ *   `withReplayCache(withBudgetGate(withRateLimiter(base, limiter)))`
+ *
+ * Cache hits short-circuit at the outermost wrapper and never reach the
+ * limiter — so cached reruns are not paced. This is the load-bearing fix for
+ * the symptom where re-running a fully cached corpus took ~2 min/4 tasks
+ * because the limiter was outside the cache.
+ */
+export function withRateLimiter(
+	inner: LLMProvider,
+	limiter: AdaptiveRateLimiter,
+	opts: RateLimiterWrapperOptions,
+): LLMProvider {
+	return {
+		// Honest debug label. The cache no longer keys on wrapper chain names —
+		// it uses `ReplayCacheOptions.providerKey` — so suffixing here is safe.
+		name: `${inner.name}+ratelimit`,
+		limits: inner.limits,
+		async generate(req: LLMRequest): Promise<LLMResponse> {
+			if (!opts.enabled) {
+				const response = await inner.generate(req);
+				limiter.recordUsage(response.inputTokens + response.outputTokens);
+				return response;
+			}
+			// Estimate input tokens (~chars/4) and output tokens (~maxTokens/2)
+			// for pacing. Replaced with actual usage post-call.
+			const estimatedInput = Math.ceil((req.system.length + req.user.length) / 4);
+			const estimatedOutput = Math.ceil((req.maxTokens ?? inner.limits.maxOutputTokens) / 2);
+			const estimatedTotal = estimatedInput + estimatedOutput;
+			const response = await limiter.call(() => inner.generate(req), estimatedTotal);
+			limiter.recordUsage(response.inputTokens + response.outputTokens);
+			return response;
+		},
+	};
 }

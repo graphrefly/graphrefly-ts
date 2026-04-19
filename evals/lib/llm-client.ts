@@ -18,7 +18,7 @@ import { type BudgetGateOptions, withBudgetGate } from "./budget-gate.js";
 import { createDryRunProvider } from "./dry-run-provider.js";
 import type { ResolvedLimits } from "./limits.js";
 import { resolveLimits } from "./limits.js";
-import { AdaptiveRateLimiter } from "./rate-limiter.js";
+import { AdaptiveRateLimiter, withRateLimiter } from "./rate-limiter.js";
 import { type ReplayMode, withReplayCache } from "./replay-cache.js";
 import type { EvalConfig, ProviderName } from "./types.js";
 
@@ -286,10 +286,20 @@ export function createProvider(config: EvalConfig): LLMProvider {
  * - `EVAL_MAX_PRICE_USD` (default 2) — hard USD ceiling.
  * - `EVAL_MAX_INPUT_TOKENS` / `EVAL_MAX_OUTPUT_TOKENS` — optional token caps.
  * - `EVAL_REPLAY` (default `read-write`) — replay-cache mode.
+ * - `EVAL_RATE_LIMIT=false` — disable adaptive rate-limit pacing.
  *
- * **Wrapping order is load-bearing**: cache OUTSIDE budget so cache hits
- * short-circuit before any spend is charged. Flip the order and reruns
- * stop being free.
+ * **Wrapping order is load-bearing:**
+ *
+ *   `cache → budget → rateLimiter → base`
+ *
+ * - **Cache outside budget**: cache hits short-circuit before any spend is
+ *   charged — reruns stay free.
+ * - **Cache outside rate limiter**: cache hits short-circuit before any pacing
+ *   — fully cached reruns aren't slowed by the per-minute window. Flip these
+ *   and a 30-task cached corpus takes minutes instead of seconds.
+ *
+ * Returns both the wrapped provider and the underlying limiter so callers can
+ * read `limiter.stats()` for end-of-run reporting.
  *
  * See `archive/docs/SESSION-rigor-infrastructure-plan.md`
  * § "LLM EVAL COST SAFETY" for the full rationale.
@@ -300,7 +310,7 @@ export function createSafeProvider(
 		readonly cacheDir?: string;
 		readonly budgetOverride?: Partial<BudgetGateOptions["caps"]>;
 	} = {},
-): LLMProvider {
+): { provider: LLMProvider; limiter: AdaptiveRateLimiter } {
 	const mode = process.env.EVAL_MODE ?? "real";
 	const base =
 		mode === "dry-run"
@@ -310,7 +320,10 @@ export function createSafeProvider(
 				})
 			: createProvider(config);
 
-	const gated = withBudgetGate(base, {
+	const limiter = new AdaptiveRateLimiter(base.limits);
+	const limited = withRateLimiter(base, limiter, { enabled: config.rateLimitEnabled });
+
+	const gated = withBudgetGate(limited, {
 		caps: {
 			maxCalls: opts.budgetOverride?.maxCalls ?? Number(process.env.EVAL_MAX_CALLS ?? 100),
 			maxPriceUsd: opts.budgetOverride?.maxPriceUsd ?? Number(process.env.EVAL_MAX_PRICE_USD ?? 2),
@@ -332,9 +345,13 @@ export function createSafeProvider(
 		cacheDir: opts.cacheDir ?? "evals/results/replay-cache",
 		mode: (process.env.EVAL_REPLAY as ReplayMode) ?? "read-write",
 		keyMaterialExtra: compatChatExtraCacheSalt(config),
+		// Stable identity — decouples cache key from wrapper-chain naming.
+		// Adding/reordering inner wrappers (budget, rate limiter, future ones)
+		// will not silently invalidate previously-cached entries.
+		providerKey: config.provider,
 	});
 
-	return cached;
+	return { provider: cached, limiter };
 }
 
 // ---------------------------------------------------------------------------
@@ -359,11 +376,10 @@ function getProviderWithLimiter(
 	if (!entry) {
 		const name = providerName ?? config.provider;
 		const overrideConfig = name === config.provider ? config : { ...config, provider: name };
-		// Cost-safe stack: replay cache + budget gate + dry-run toggle. Env vars
-		// (EVAL_MODE / EVAL_MAX_CALLS / EVAL_MAX_PRICE_USD / EVAL_REPLAY) control it.
-		const provider = createSafeProvider(overrideConfig);
-		const limiter = new AdaptiveRateLimiter(provider.limits);
-		entry = { provider, limiter };
+		// Cost-safe stack: replay cache + budget gate + rate limiter + dry-run.
+		// Env vars EVAL_MODE / EVAL_MAX_CALLS / EVAL_MAX_PRICE_USD / EVAL_REPLAY
+		// / EVAL_RATE_LIMIT control it.
+		entry = createSafeProvider(overrideConfig);
 		_providerCache.set(cacheKey, entry);
 	}
 	return entry;
@@ -384,23 +400,10 @@ export async function callLLM(
 	config: EvalConfig,
 	providerOverride?: ProviderName,
 ): Promise<LLMResponse> {
-	const { provider, limiter } = getProviderWithLimiter(config, providerOverride);
-
-	// Estimate tokens for pacing: input prompt ~chars/4, output ~maxTokens/2
-	const estimatedInput = Math.ceil((req.system.length + req.user.length) / 4);
-	const estimatedOutput = Math.ceil((req.maxTokens ?? provider.limits.maxOutputTokens) / 2);
-	const estimatedTotal = estimatedInput + estimatedOutput;
-
-	if (!config.rateLimitEnabled) {
-		const response = await provider.generate(req);
-		limiter.recordUsage(response.inputTokens + response.outputTokens);
-		return response;
-	}
-
-	const response = await limiter.call(() => provider.generate(req), estimatedTotal);
-	// Update with actual usage for accurate TPM tracking
-	limiter.recordUsage(response.inputTokens + response.outputTokens);
-	return response;
+	const { provider } = getProviderWithLimiter(config, providerOverride);
+	// Rate limiting + token pacing happen inside the provider stack
+	// (`withRateLimiter` is the innermost wrapper, so cache hits skip pacing).
+	return provider.generate(req);
 }
 
 // ---------------------------------------------------------------------------

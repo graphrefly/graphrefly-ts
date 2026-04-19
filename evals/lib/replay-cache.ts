@@ -42,6 +42,15 @@ export interface ReplayCacheOptions {
 	 * completion fields that change model output or routing).
 	 */
 	readonly keyMaterialExtra?: string;
+	/**
+	 * Stable provider identity for the cache key. **Strongly recommended** —
+	 * when omitted the key falls back to `inner.name`, which means adding,
+	 * removing, or renaming any inner wrapper (rate limiter, budget gate, etc.)
+	 * silently invalidates every previously-cached entry. Set to a value that
+	 * uniquely identifies the *underlying* provider (e.g. `"openrouter"`,
+	 * `"anthropic"`) and it stays stable across wrapper reshuffles.
+	 */
+	readonly providerKey?: string;
 }
 
 function cacheKey(
@@ -78,7 +87,7 @@ export function withReplayCache(inner: LLMProvider, opts: ReplayCacheOptions): L
 		async generate(req: LLMRequest): Promise<LLMResponse> {
 			if (mode === "off") return inner.generate(req);
 			const key = cacheKey(
-				inner.name,
+				opts.providerKey ?? inner.name,
 				req,
 				opts.includeTemperature ?? false,
 				opts.keyMaterialExtra,

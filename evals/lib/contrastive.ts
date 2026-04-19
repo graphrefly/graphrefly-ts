@@ -89,8 +89,15 @@ You are composing a reactive graph using GraphReFly's GraphSpec format.
 
 ## GraphSpec Schema
 
-A GraphSpec is JSON with \`nodes\` (required), optional \`templates\`, and
-optional \`feedback\` edges. Each node has:
+A GraphSpec is JSON with these top-level fields:
+
+- \`name\`: **Required.** Short identifier for the graph (e.g. "rss-to-slack").
+  Used for \`describe()\` and \`snapshot()\`.
+- \`nodes\`: Required. Object keyed by node name.
+- \`templates\`: Optional. Reusable subgraph patterns.
+- \`feedback\`: Optional. Bounded feedback edges.
+
+Each node has:
 
 - \`type\`: \`producer\` (data source), \`state\` (mutable value), \`derived\`
   (computed from deps), \`effect\` (side effect from deps), \`template\`

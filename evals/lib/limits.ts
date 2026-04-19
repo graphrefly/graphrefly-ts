@@ -194,13 +194,26 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		tpm: Infinity,
 	},
 
-	// --- OpenRouter (varies by model, conservative free tier) ---
+	// --- OpenRouter ---
+	// Paid routes (default): no daily cap — your $-spending limit on OpenRouter's
+	// side (set in their dashboard) is the real safety net. Combine with
+	// EVAL_MAX_PRICE_USD locally for a belt + suspenders.
 	"openrouter/*": {
 		contextWindow: 128_000,
 		maxOutputTokens: 4_096,
 		rpm: 20,
-		rpd: 200,
+		rpd: Infinity,
 		tpm: 200_000,
+	},
+	// `:free` routes — OpenRouter caps daily request volume (varies by route,
+	// commonly ~50-1000/day depending on whether your account has $10+ topped up).
+	// Use EVAL_RPD to pin to your account's actual cap when running :free routes.
+	"openrouter/:free": {
+		contextWindow: 128_000,
+		maxOutputTokens: 4_096,
+		rpm: 10,
+		rpd: 50,
+		tpm: 100_000,
 	},
 
 	// --- Groq (generous RPM, strict TPM) ---
