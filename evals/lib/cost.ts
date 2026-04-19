@@ -20,6 +20,16 @@ const PRICING: Record<string, { input: number; output: number }> = {
 	"gemini-2.5-pro": { input: 1.25, output: 10 },
 	"gemini-2.5-flash": { input: 0.15, output: 0.6 },
 	"gemini-2.0-flash": { input: 0.1, output: 0.4 },
+	"gemini-3-flash-preview": { input: 0.1, output: 0.4 }, // verify on Google AI Studio console
+	// OpenRouter / Chutes — recommended cheap-tier (see evals/CHEAP-AND-SAFE.md)
+	"z-ai/glm-5.1": { input: 0.95, output: 3.15 },
+	"z-ai/glm-4.7": { input: 0.39, output: 1.75 },
+	"deepseek/deepseek-v3.2": { input: 0.28, output: 0.42 },
+	"deepseek/deepseek-chat-v3.1": { input: 0.27, output: 1.0 },
+	"moonshotai/kimi-k2.5": { input: 0.38, output: 1.72 },
+	"minimax/minimax-m2.5": { input: 0.118, output: 0.99 },
+	"xiaomi/mimo-v2-flash": { input: 0.09, output: 0.29 },
+	"qwen/qwen3-32b": { input: 0.08, output: 0.24 },
 	// Ollama (local) — free
 	"gemma3:12b": { input: 0, output: 0 },
 	"gemma3:27b": { input: 0, output: 0 },

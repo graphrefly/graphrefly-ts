@@ -2,6 +2,8 @@
 
 One-pager for contributors and blog readers.
 
+> **Before any paid run:** follow the pre-flight ladder in [CHEAP-AND-SAFE.md](CHEAP-AND-SAFE.md). The default budget cap is `$2 / 100 calls`, but the USD cap only trips for models in the local pricing table — for OpenRouter routes and preview models, rely on `EVAL_MAX_CALLS`. The safe habit is `EVAL_MODE=dry-run` first, then a single task at `$0.10` ceiling, then full corpus.
+
 ---
 
 ## What are the evals?

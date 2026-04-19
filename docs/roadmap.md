@@ -67,14 +67,7 @@ Supports both graph-subgraph (tight coupling, same propagation cycle) and cursor
 
 ##### Closed-loop automation (eval → harness → implement → verify → re-eval)
 
-The harness loop stages are wired but EXECUTE and VERIFY are currently promptNode shells — they output JSON assessments but don't touch code or re-run evals. The full closed loop requires:
-
-- [ ] **EXECUTE actuators** — pluggable implementations that can apply catalog entry updates, template additions, doc edits, or `CatalogFnEntry` modifications. Default: promptNode (current). Advanced: tool-use agent that writes code + runs lint.
-- [ ] **VERIFY re-eval** — after EXECUTE produces a fix, re-run *only the affected eval tasks* (not full suite). Wire `affectsEvalTasks` from the triaged item → eval runner → compare before/after scores. Default: promptNode review (current). Advanced: actual eval execution via `evals/lib/runner.ts`.
-- [ ] **4-treatment runner script** (`evals/scripts/run-treatments.ts`) — automate the A→D experiment: iterate treatments, run evals per treatment, collect results, feed into harness loop for comparative analysis. Currently fully manual.
-- [ ] **CI-triggered eval→harness pipeline** — on push/merge, run affected evals → feed results into harness → strategy model updates → report delta. Deferred until EXECUTE actuators are real.
-
-**Design note:** EXECUTE and VERIFY are intentionally pluggable (the developer or LLM fills in the "how"). The above items wire *our specific* actuators for the catalog automation use case. Other users would plug in their own. The harness loop infrastructure is general; the actuators are domain-specific.
+> **Moved to §9.1.3** — the closed-loop automation work is now tracked as the "Harness-driven" execution method inside the unified §9.1 Eval Program. It's *how a run is performed*, not a separate phase.
 
 ##### Streaming promptNode + mountable stream extractors (promptNode v2)
 
@@ -283,49 +276,74 @@ const persistent = persistentState(graph, {
 
 Goal: establish credibility by showing eval → schema fix → re-eval feedback loop publicly. Low risk, no full architecture reveal.
 
-#### 9.1 — Eval harness (presentable)
+#### 9.1 — Eval Program (umbrella)
 
-> **Portable eval tier, automated eval tier, and eval-driven schema fixes:** mostly DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl`.
+> **Replaces former §9.1 (eval harness), §9.1b (catalog automation), §9.0 closed-loop subsection, and §9.4 (scorecard).** Single source of truth for the eval work.
+>
+> **Cost safety:** Always run `EVAL_MODE=dry-run` first. Default budget cap is `$2 / 100 calls` with replay cache on. See [evals/CHEAP-AND-SAFE.md](../evals/CHEAP-AND-SAFE.md) for the 4-step pre-flight ladder, the USD-cap gotcha for OpenRouter routes, and the cheap-model preset table (GLM, DeepSeek, Gemini Flash, GPT-nano).
 
-##### Remaining items
+##### Next-action sequence (the dependency chain)
 
-- [ ] 5+ automated runs across 2+ models with trend data committed
-- [ ] Track schema gaps as running metric: gaps found → gaps resolved
+1. **Now → unblock automation** (no LLM): write `CatalogFnEntry` objects for portable catalog. Treatment B prereq. → §9.1.2
+2. **Run B + C** automated, two models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`), 5 runs each, commit trend data. → §9.1.1 L0 + §9.1.2 + §9.1.3 automated
+3. **Build templates** (`resilientFetch`, `adaptivePoller`, `conditionalMap`, `median`, `llmScore` desc). Treatment D prereq. → §9.1.2
+4. **Run D** — compare A→B→C→D progression. → §9.1.2
+5. **Wire harness execution method** (EXECUTE actuator + VERIFY re-eval + `run-treatments.ts`). Wave 1 dogfood demo. → §9.1.3
+6. **Cross-model validation** — promote to publish-tier models (`claude-sonnet-4-6`, `gpt-4.1`) for the blog numbers. → §9.1.1 + §9.1.3
+7. **Publish**: blog + scorecard + reproduce-guide + design-partner outreach. → §9.1.5
 
-#### 9.1b — Catalog automation (the eval-proven product feature)
+Steps 1-4 are the **internal evidence track**. Step 5 is the **demo track** (we use our own harness to run our own evals — the meta-story for Wave 1). Steps 6-7 are the **external story track**.
 
-> **Rich catalog types:** DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1b-rich-catalog`).
+##### 9.1.0 — Eval matrix (orientation)
 
-##### Remaining gaps to close (identified Run 4, both models)
+Every eval run picks a value from each axis. The intersection determines cost, signal, and audience.
+
+| Axis | Values |
+|---|---|
+| **Tier** (what is measured) | L0 contrastive · L1 generation · L1 comprehension · Dev-DX |
+| **Treatment** (catalog delivery) | A manual · B auto-prompt · C +refine · D +templates · E +subsetting |
+| **Method** (how the run happens) | Portable copy-paste · Local Ollama · Automated API · Harness-driven · CI scheduled |
+| **Audience** (what we do with results) | Internal telemetry · External story |
+
+##### 9.1.1 — Active eval tiers (the "what is measured")
+
+- **L0 — Graph > Functions contrastive** — DONE infra; Run 1-4 archived. Open: trend data (§9.1.5).
+- **L1 — NL → GraphSpec generation** — DONE infra; uses real `validateSpec()` + `compileSpec()` from `src/patterns/graphspec.ts`.
+- **L1 — Comprehension** — debug/modify/explain via `nl-mod` + `contrastive-bugs` corpora.
+- **Dev-DX** — vitest, no LLM calls; validates `validateSpec()` error messages. Implementation: [evals/dev-dx/seeded-errors.test.ts](../evals/dev-dx/seeded-errors.test.ts).
+
+##### 9.1.2 — Treatment progression (the eval-driven catalog experiment)
+
+Four treatments, same 12 tasks, measuring delta at each automation step.
+
+| Treatment | Developer does | Library does | Status |
+|-----------|---------------|-------------|--------|
+| A: Manual catalog | Writes `catalogDescription` string | Nothing | DONE — Run 4 baseline 173/180 |
+| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | Blocked on `CatalogFnEntry` authoring |
+| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Blocked on B |
+| D: + templates | Same as C + selects templates | + pre-built templates | Blocked on template authoring |
+| E: + catalog subsetting | Same as D | + task-relevant subset | Future |
+
+**Treatment B/C prerequisites:**
+
+- [ ] Write `CatalogFnEntry` objects for all portable-eval catalog fns/sources
+- [ ] Run Treatment B (auto-gen prompt) — L0 across two models (Claude + Gemini, or `z-ai/glm-4.7` + `deepseek/deepseek-v3.2` for cheap-tier validation)
+- [ ] Run Treatment C (auto-gen + refine) — L0 across same two models, track refine counts
+
+**Treatment D prerequisites (from Run 4 gap analysis, both Claude + Gemini):**
 
 - [ ] **Pre-built `resilientFetch` template** — correct resilience ordering (rateLimiter→breaker→retry→timeout→fallback→cache feedback→status). Closes T5/T8a/T8b ordering + cache bugs.
 - [ ] **Pre-built `adaptivePoller` template** — switchMap-based dynamic interval + feedback to interval state. Closes T6 producer-can't-read-state gap.
 - [ ] **`conditionalMap` catalog wrapper** — thin wrapper over `dynamicNode` (not a new primitive). Exposed as rich `CatalogFnEntry`. Closes T6 interval computation gap.
 - [ ] **`median` aggregate op** — add to `aggregate` fn config enum. Closes T8a "avg ≠ median" gap.
-- [ ] **`llmScore` description update** — add guidance: "When comparing against existing data, add a database producer node as a second dep." Closes T11 missing-DB-query gap.
-
-##### Eval validation: 4-treatment comparison (the 9.1b experiment)
-
-Four treatments, same 12 tasks, measuring delta at each automation step:
-
-| Treatment | Developer does | Library does | Measures |
-|-----------|---------------|-------------|----------|
-| A: Manual catalog | Writes `catalogDescription` string | Nothing | Baseline (Run 4: 173/180) |
-| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | Auto-prompt quality |
-| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Error self-correction |
-| D: + templates | Same as C + selects templates | + pre-built templates | Architectural gap closure |
-
-- [ ] Write `CatalogFnEntry` objects for all portable-eval catalog fns/sources
-- [ ] Run Treatment B (auto-gen prompt) — L0 across Claude + Gemini
-- [ ] Run Treatment C (auto-gen + refine) — L0 across Claude + Gemini, track refine counts
-- [ ] Build pre-built templates (`resilientFetch`, `adaptivePoller`)
-- [ ] Run Treatment D (auto-gen + refine + templates) — L0 across Claude + Gemini
+- [ ] **`llmScore` description update** — "When comparing against existing data, add a database producer node as a second dep." Closes T11 missing-DB-query gap.
+- [ ] Run Treatment D — L0 across two models after templates ship
 - [ ] Compare A→D progression, write up for blog
-- [ ] Cross-model validation: GPT-4o
+- [ ] Cross-model validation on publish-tier model (GPT-4o or Claude Sonnet)
 
-##### Decision framework: when to add vs when to prune
+> **Rich catalog types** (`CatalogFnEntry` schema, `generateCatalogPrompt()`): DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1b-rich-catalog`).
 
-The eval itself governs catalog growth. Decision rules:
+**Decision framework — when to add vs when to prune:**
 
 | Signal | Meaning | Action |
 |--------|---------|--------|
@@ -336,24 +354,56 @@ The eval itself governs catalog growth. Decision rules:
 | Auto-refine fixes same error repeatedly | Bad description | Fix description, don't rely on refine |
 | Per-task delta = 0 across A→D | Task at ceiling | Stop adding catalog for it |
 
-**Principle:** Add a catalog fn only when the operation genuinely doesn't exist. Add a template when the LLM composes correct fns in wrong structure. Add docs when the LLM doesn't reach for an existing fn. Add a catalog wrapper (not a primitive) when dynamicNode already supports the pattern. See session log `evals/results/session-2026-04-06-catalog-automation.md` §6 for full analysis.
+**Principle:** Add a catalog fn only when the operation genuinely doesn't exist. Add a template when the LLM composes correct fns in wrong structure. Add docs when the LLM doesn't reach for an existing fn. Add a catalog wrapper (not a primitive) when `dynamicNode` already supports the pattern. See session log [evals/results/session-2026-04-06-catalog-automation.md](../evals/results/session-2026-04-06-catalog-automation.md) §6 for full analysis.
 
 **Key metric: score per prompt token.** If this ratio declines, the catalog is growing faster than quality. Declining efficiency = time to prune or subset.
 
-##### Catalog quality telemetry (future)
+##### 9.1.3 — Execution methods (how a run happens)
+
+Pick one per run. The first three are zero or low cost — exhaust them before reaching for paid API runs.
+
+> **Mandatory pre-flight ladder for any paid run:** see [evals/CHEAP-AND-SAFE.md](../evals/CHEAP-AND-SAFE.md). Step 1 = `EVAL_MODE=dry-run`. Step 2 = local Ollama. Step 3 = single task with `EVAL_MAX_PRICE_USD=0.10` and `EVAL_REPLAY=write-only`. Step 4 = full corpus with replay cache on. Cost-safety implementation: [evals/lib/llm-client.ts:281](../evals/lib/llm-client.ts) (`createSafeProvider`).
+
+- **Portable / copy-paste** — DONE; [evals/portable-eval-prompts.md](../evals/portable-eval-prompts.md). Zero cost, any AI. Used for first-look credibility checks and reproducibility claims.
+- **Local Ollama** — DONE; zero cost, slower. Validates pipeline end-to-end before paid runs. `EVAL_PROVIDER=ollama EVAL_MODEL=gemma4:e4b pnpm eval`.
+- **Automated API (cheap budget tier)** — DONE infra; cost-safety wired. Default cheap picks: `gemini-2.0-flash` (in pricing table — USD cap works), `z-ai/glm-4.7` and `deepseek/deepseek-v3.2` via OpenRouter (rely on `EVAL_MAX_CALLS`). Used for treatment-progression iteration.
+- **Automated API (publish tier)** — DONE infra; gated by budget caps. Sonnet/Opus/GPT-4.1 for blog numbers. Used only after cheap-tier validates the methodology.
+- **Harness-driven (dogfood demo)** — partially DONE; the §9.0 harness loop wraps eval runs via `evalIntakeBridge`. Closed-loop automation work moved here from §9.0:
+  - [ ] **EXECUTE actuators** — pluggable implementations that apply catalog entry updates, template additions, doc edits, or `CatalogFnEntry` modifications. Default: promptNode (current). Advanced: tool-use agent that writes code + runs lint.
+  - [ ] **VERIFY re-eval** — after EXECUTE produces a fix, re-run *only the affected eval tasks* (not full suite). Wire `affectsEvalTasks` from the triaged item → eval runner → compare before/after scores. Default: promptNode review (current). Advanced: actual eval execution via [evals/lib/runner.ts](../evals/lib/runner.ts).
+  - [ ] **4-treatment runner script** ([evals/scripts/run-treatments.ts](../evals/scripts/run-treatments.ts)) — automate the A→D experiment: iterate treatments, run evals per treatment, collect results, feed into harness loop for comparative analysis. Currently fully manual.
+  - [ ] **CI-triggered eval→harness pipeline** — on push/merge, run affected evals → feed results into harness → strategy model updates → report delta. Deferred until EXECUTE actuators are real.
+- **CI scheduled** — DONE; `eval.yml` runs weekly Mon 6am UTC + on manual dispatch. Generates scorecard, runs regression gate (fails if validity drops >5%).
+
+**Design note:** EXECUTE and VERIFY are intentionally pluggable. The above wires *our specific* actuators for the catalog automation use case. Other users plug in their own. The harness loop infrastructure is general; the actuators are domain-specific.
+
+##### 9.1.4 — Internal telemetry (what we learn each run)
 
 - [ ] Track common `validateSpecAgainstCatalog` errors across runs (which fns get hallucinated most?)
 - [ ] Surface "catalog improvement suggestions" from aggregated validation errors
 - [ ] Auto-suggest new catalog entries when LLMs consistently invent the same fn name
 - [ ] **Catalog subsetting** (Treatment E) — select only task-relevant fns/templates for the prompt. Hypothesis: for simple tasks, smaller catalog outperforms comprehensive one. Smart subsetting as the next automation layer after templates.
 
-#### 9.1 deliverables for announcement
+##### 9.1.5 — External deliverables (what we publish)
 
-- [ ] Blog post: "How our eval harness found two schema bugs LLMs couldn't work around" → updated narrative: "How evals proved catalog quality is the #1 lever, and we automated it"
+The Wave 1 announcement payload. Folds in former §9.4 (scorecard).
+
+- [ ] 5+ automated runs across 2+ models with trend data committed
+- [ ] Schema gaps as running metric: gaps found → gaps resolved (with links to fixes)
+- [ ] **Scorecard page** at `graphrefly.dev/scorecard` (was §9.4):
+  - First-pass GraphSpec validity rate (from L0)
+  - Hallucination rate by model
+  - Schema gap count: open → resolved
+  - Causal trace completeness (added once §9.2 `explainPath` ships)
+  - Checkpoint restore integrity (from existing snapshot round-trip tests)
+  - Multi-model comparison trend lines
+- [ ] Updated weekly from CI eval runs
+- [ ] Machine-readable `scorecard/latest.json` for programmatic consumption
+- [ ] Blog post: "How evals proved catalog quality is the #1 lever, and we automated it"
 - [ ] Open-source the eval runner (already in repo — make it prominent)
 - [ ] Multi-model comparison results page
 - [ ] "Reproduce our evals" guide (portable prompts for anyone)
-- [ ] **Pre-launch outreach: 20-30 personalized "design partner" emails** (see marketing strategy §16A) — send 1-2 weeks before Wave 1 announcement. Target: harness engineering blog authors, LangGraph/CrewAI contributors, reactive programming maintainers, agent reliability researchers, MCP ecosystem builders
+- [ ] **Pre-launch outreach: 20-30 personalized "design partner" emails** (see marketing strategy §16A) — send 1-2 weeks before Wave 1 announcement. Target: harness engineering blog authors, LangGraph/CrewAI contributors, reactive programming maintainers, agent reliability researchers, MCP ecosystem builders.
 
 ---
 
@@ -432,21 +482,13 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 
 #### 9.4 — Harness scorecard (public)
 
-- [ ] Scorecard page at `graphrefly.dev/scorecard` (or docs section):
-  - First-pass GraphSpec validity rate (from 9.1 evals)
-  - Hallucination rate by model
-  - Schema gap count: open → resolved (with links to fixes)
-  - Causal trace completeness (from 9.2 `explainPath` coverage — added once 9.2 ships)
-  - Checkpoint restore integrity (from existing snapshot round-trip tests)
-  - Multi-model comparison trend lines
-- [ ] Updated weekly from CI eval runs
-- [ ] Machine-readable `scorecard/latest.json` for programmatic consumption
+> **Moved to §9.1.5** — folded into the Eval Program external deliverables. The scorecard is an eval artifact, not a separate work stream.
 
 #### 9.2 deliverables for announcement
 
 - [ ] `@graphrefly/mcp-server` on npm
 - [ ] `@graphrefly/cli` on npm (`npx @graphrefly/cli eval` works — copy-pasteable in blog posts)
-- [ ] Harness scorecard page live
+- [ ] Harness scorecard page live (owned by §9.1.5)
 - [ ] "GraphReFly vs LangGraph" comparison page (reactive push vs static DAG, causal trace, glitch-free)
 - [ ] Blog: "Why agent harnesses need reactive graphs"
 
