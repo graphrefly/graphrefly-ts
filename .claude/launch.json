@@ -12,6 +12,12 @@
 			"runtimeExecutable": "pnpm",
 			"runtimeArgs": ["--dir", "demos/reactive-layout", "dev"],
 			"port": 4322
+		},
+		{
+			"name": "website",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--dir", "website", "dev"],
+			"port": 4323
 		}
 	]
 }

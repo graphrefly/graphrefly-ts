@@ -8,6 +8,8 @@ const base = process.env.ASTRO_BASE_PATH ?? "/";
 export default defineConfig({
 	site: process.env.ASTRO_SITE_URL ?? "https://example.invalid",
 	base,
+	// Fixed dev-server port so the preview tool + other demos don't collide.
+	server: { port: 4323 },
 	integrations: [
 		starlight({
 			plugins: [
@@ -52,6 +54,13 @@ export default defineConfig({
 				{
 					label: "Protocol",
 					items: [{ label: "Specification", link: "/spec" }],
+				},
+				{
+					label: "Solutions",
+					items: [
+						{ label: "Overview", link: "/solutions" },
+						{ label: "Reactive Layout", link: "/solutions/reactive-layout" },
+					],
 				},
 				{
 					label: "API — Core",

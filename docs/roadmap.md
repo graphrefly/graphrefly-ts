@@ -372,7 +372,13 @@ The missing layer that makes "harness" real, not just "substrate."
 
 #### 9.3 — MCP Server (`@graphrefly/mcp-server`)
 
-- [ ] MCP Server package exposing GraphReFly operations as tools:
+Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI are two projections of the same operations — the core lives in `src/patterns/surface/` and re-exports from both packages.
+
+- [ ] **9.3-core** — shared surface core in `src/patterns/surface/`:
+  - Pure functions: `create(spec)`, `observe(nodeId, level)`, `reduce(input, pipelineSpec)`, `explain(nodeId)`, `snapshot.{save,restore,diff}(id)`, `describe(graphId)`
+  - No I/O coupling: returns plain JSON-serializable results, errors as typed failures
+  - Consumed by both `@graphrefly/mcp-server` and `@graphrefly/cli`
+- [ ] MCP Server package exposing 9.3-core as tools:
   - `graphrefly_create` — create graph from GraphSpec JSON or natural language
   - `graphrefly_observe` — observe node/graph state (progressive detail levels)
   - `graphrefly_reduce` — run a reduction pipeline on input data
@@ -400,6 +406,30 @@ Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook
 - [ ] Publish to npm as `@graphrefly/openclaw-context-engine`
 - [ ] OpenClaw plugin registry submission
 
+#### 9.3c — CLI surface (`@graphrefly/cli`)
+
+Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / Codex CLI / Gemini CLI / Aider audience that already has a Bash tool — zero plugin install, usable from shell pipes, CI, and humans. Distribution vehicle for Wave 1 eval story (blog-quotable commands).
+
+**Rationale:** April-2026 landscape — three dominant terminal agents, Uni-CLI pattern (declarative adapters → `unicli mcp serve` auto-registers MCP tools), ~80 tokens per CLI invocation vs. MCP's schema/discovery overhead for high-frequency calls. Non-MCP contexts (Aider, CI, bash-tool-only, humans) win too.
+
+- [ ] `graphrefly` binary (Node, shipped as `@graphrefly/cli`), subcommands:
+  - `graphrefly eval [run|matrix|scorecard]` — runs 9.1 evals, emits JSON scorecard to stdout
+  - `graphrefly describe <graph>` — topology dump (JSON or Mermaid)
+  - `graphrefly explain <nodeId> [--why]` — causal walkback (requires 9.2 `explainPath`)
+  - `graphrefly snapshot [save|restore|diff] <id>` — state management
+  - `graphrefly observe <nodeId> [--level=L1|L2|L3]` — progressive detail dump
+  - `graphrefly run <spec.yaml|.json>` — execute a GraphSpec from file or stdin
+  - `graphrefly mcp` — start the MCP server from the same binary (Uni-CLI pattern)
+- [ ] Output contract: stdout = JSON by default, `--format=pretty|mermaid|ndjson` flags; stderr = logs; exit codes map to typed failures
+- [ ] Stdin pipe support for `run`, `reduce`, `observe` — enables `cat events.ndjson | graphrefly reduce …`
+- [ ] Publish to npm as `@graphrefly/cli`, single `bin` entry, `npx @graphrefly/cli` works without install
+- [ ] "Try it in 30 seconds" section in README: single `npx` command producing visible eval output
+- [ ] Man page / `--help` parity with MCP tool descriptions (shared JSDoc source)
+- [ ] CI: smoke test every subcommand in GitHub Actions alongside MCP server tests
+- [ ] Homebrew formula (post-Wave 2, if demand warrants)
+
+**Constraint:** The CLI MUST NOT duplicate graph logic. If a command can't be a thin shell around 9.3-core, the gap belongs in 9.3-core, not in the CLI package.
+
 #### 9.4 — Harness scorecard (public)
 
 - [ ] Scorecard page at `graphrefly.dev/scorecard` (or docs section):
@@ -415,6 +445,7 @@ Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook
 #### 9.2 deliverables for announcement
 
 - [ ] `@graphrefly/mcp-server` on npm
+- [ ] `@graphrefly/cli` on npm (`npx @graphrefly/cli eval` works — copy-pasteable in blog posts)
 - [ ] Harness scorecard page live
 - [ ] "GraphReFly vs LangGraph" comparison page (reactive push vs static DAG, causal trace, glitch-free)
 - [ ] Blog: "Why agent harnesses need reactive graphs"
