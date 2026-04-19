@@ -15,8 +15,6 @@ const href = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`
     <nav class="demo-nav">
       <a class="nav-brand" href="/">GraphReFly</a>
       <a href={href('/')} class="active">Reactive Layout</a>
-      <a href="/demos/compat-matrix/">Compat matrix</a>
-      <a href="/docs/api/reactivelayout/">API</a>
     </nav>
     <App client:only="react" />
   </body>

@@ -110,11 +110,7 @@ export default function InspectStrip({
 										: typeof detail.value}
 						</span>
 					</>
-				) : (
-					<span className="muted">
-						hover a node in the graph to inspect; click to pin the selection
-					</span>
-				)}
+				) : null}
 			</div>
 		</div>
 	);
