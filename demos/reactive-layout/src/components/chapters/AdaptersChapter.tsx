@@ -1,4 +1,4 @@
-import type { LineBreaksResult } from "@graphrefly/graphrefly/reactive-layout";
+import type { LineBreaksResult } from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { useEffect, useRef, useState } from "react";
 import { type AdaptersChapter, buildAdaptersChapter } from "../../lib/chapters/adapters";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";

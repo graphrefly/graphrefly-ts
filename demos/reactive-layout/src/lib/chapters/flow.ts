@@ -5,7 +5,7 @@ import {
 	type Obstacle,
 	type ReactiveFlowLayoutBundle,
 	reactiveFlowLayout,
-} from "@graphrefly/graphrefly/reactive-layout";
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const FLOW_SOURCE = `// Multi-column text that wraps around moving ASCII obstacles.

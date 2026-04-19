@@ -1,0 +1,22 @@
+{
+	"name": "@graphrefly-examples/framework-vue",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"description": "Vue 3 binding for GraphReFly — useStore / useSubscribe.",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"@graphrefly/graphrefly": "workspace:*",
+		"vue": "^3.5.0"
+	},
+	"devDependencies": {
+		"@vitejs/plugin-vue": "^5.2.0",
+		"typescript": "^5.7.0",
+		"vite": "^6.0.0",
+		"vue-tsc": "^2.2.0"
+	}
+}

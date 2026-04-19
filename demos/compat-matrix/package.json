@@ -8,6 +8,7 @@
 		"preview": "astro preview"
 	},
 	"dependencies": {
+		"@graphrefly/graphrefly": "workspace:*",
 		"astro": "^5.16.0",
 		"@astrojs/react": "^4.0.0",
 		"@astrojs/vue": "^5.1.4",

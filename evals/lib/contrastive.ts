@@ -19,6 +19,27 @@ import { validateSpec } from "./validator.js";
 export type ContrastiveResumeConfig = Pick<EvalConfig, "l0FromTaskId" | "l0ResumeAfterTaskId">;
 
 /**
+ * Compute L0 contrastive aggregate scores from a flat task-result array.
+ *
+ * Pure — exported so the writer can recompute after merging two partial runs
+ * (`mergeRuns` in {@link reporter}). When either treatment has zero results
+ * (mid-resume slice), its error-rate is `0` and the ratio falls back to `0`.
+ */
+export function computeContrastiveScores(results: TaskResult[]): Record<string, number> {
+	const graphResults = results.filter((r) => r.treatment === "graphspec");
+	const funcResults = results.filter((r) => r.treatment === "functions");
+	const graphErrorRate =
+		graphResults.length > 0 ? graphResults.filter((r) => !r.valid).length / graphResults.length : 0;
+	const funcErrorRate =
+		funcResults.length > 0 ? funcResults.filter((r) => !r.valid).length / funcResults.length : 0;
+	return {
+		"L0-M1-graphspec-error-rate": graphErrorRate,
+		"L0-M1-functions-error-rate": funcErrorRate,
+		"L0-M1-ratio": funcErrorRate > 0 ? graphErrorRate / funcErrorRate : 0,
+	};
+}
+
+/**
  * Slice the L0 corpus for resume runs. Full corpus order is preserved; unknown ids throw.
  */
 export function sliceContrastiveTasksForResume(
@@ -321,12 +342,7 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		results.push(graphResult, funcResult);
 	}
 
-	// Compute aggregate scores
-	const graphResults = results.filter((r) => r.treatment === "graphspec");
-	const funcResults = results.filter((r) => r.treatment === "functions");
-
-	const graphErrorRate = graphResults.filter((r) => !r.valid).length / graphResults.length;
-	const funcErrorRate = funcResults.filter((r) => !r.valid).length / funcResults.length;
+	const scores = computeContrastiveScores(results);
 
 	// Log rate limiter stats
 	const rlStats = getRateLimiterStats(config);
@@ -339,17 +355,13 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 	}
 
 	return {
-		run_id: `l0-${Date.now()}`,
+		run_id: config.runId ?? `l0-${Date.now()}`,
 		timestamp: new Date().toISOString(),
 		layer: "L0",
 		model: config.model,
 		provider: config.provider,
 		schema_version: "scaffold",
-		scores: {
-			"L0-M1-graphspec-error-rate": graphErrorRate,
-			"L0-M1-functions-error-rate": funcErrorRate,
-			"L0-M1-ratio": funcErrorRate > 0 ? graphErrorRate / funcErrorRate : 0,
-		},
+		scores,
 		tasks: results,
 		total_cost_usd: totalCost(results.map((r) => r.cost_usd)),
 		rate_limit_stats: config.rateLimitEnabled

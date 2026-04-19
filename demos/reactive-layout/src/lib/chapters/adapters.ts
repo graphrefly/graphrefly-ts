@@ -6,7 +6,7 @@ import {
 	PrecomputedAdapter,
 	type ReactiveLayoutBundle,
 	reactiveLayout,
-} from "@graphrefly/graphrefly/reactive-layout";
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const ADAPTERS_SOURCE = `// Same topology, three adapters.

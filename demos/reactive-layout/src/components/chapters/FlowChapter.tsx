@@ -4,7 +4,7 @@ import type {
 	FlowContainer,
 	Obstacle,
 	PositionedLine,
-} from "@graphrefly/graphrefly/reactive-layout";
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { useEffect, useRef, useState } from "react";
 import { buildFlowChapter, type FlowChapter } from "../../lib/chapters/flow.js";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types.js";

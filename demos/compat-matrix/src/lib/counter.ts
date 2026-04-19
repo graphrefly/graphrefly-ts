@@ -1,11 +1,11 @@
-import type { Node } from "@graphrefly/graphrefly";
-import { DATA, derived, state } from "@graphrefly/graphrefly";
 import { atom as jotaiAtom } from "@graphrefly/graphrefly/compat/jotai";
 import {
 	atom as nanoAtom,
 	computed as nanoComputed,
 } from "@graphrefly/graphrefly/compat/nanostores";
 import { create as zustandCreate } from "@graphrefly/graphrefly/compat/zustand";
+import type { Node } from "@graphrefly/graphrefly/core";
+import { DATA, derived, state } from "@graphrefly/graphrefly/core";
 import { Graph } from "@graphrefly/graphrefly/graph";
 import { createLeaderboardLayout } from "./layout-integration";
 

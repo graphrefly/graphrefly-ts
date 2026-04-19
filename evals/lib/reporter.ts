@@ -2,8 +2,10 @@
  * Result aggregation and reporting.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import type { EvalRun } from "./types.js";
+import { computeContrastiveScores } from "./contrastive.js";
+import type { EvalRun, TaskResult } from "./types.js";
 
 /**
  * Write eval results to a JSON file.
@@ -11,6 +13,79 @@ import type { EvalRun } from "./types.js";
 export async function writeResults(run: EvalRun, outputPath: string): Promise<void> {
 	await writeFile(outputPath, JSON.stringify(run, null, 2));
 	console.log(`Results written to ${outputPath}`);
+}
+
+/**
+ * Merge a previous run with a new partial run.
+ *
+ * Used for incremental / resume runs gated by `EVAL_MAX_CALLS` or
+ * `EVAL_L0_FROM`. Tasks dedupe by `task_id+treatment` (last write wins —
+ * the new run's results supersede prior ones for the same task). For L0
+ * runs, scores are recomputed over the merged set; otherwise the new
+ * run's scores are kept as-is. Costs sum, rate-limit totals sum,
+ * timestamp = newer.
+ *
+ * Caller is responsible for matching `run_id` (writer below enforces it).
+ */
+export function mergeRuns(prev: EvalRun, current: EvalRun): EvalRun {
+	const seen = new Set(current.tasks.map((t) => `${t.task_id}::${t.treatment}`));
+	const carriedOver = prev.tasks.filter((t) => !seen.has(`${t.task_id}::${t.treatment}`));
+	const tasks: TaskResult[] = [...carriedOver, ...current.tasks];
+
+	const scores = current.layer === "L0" ? computeContrastiveScores(tasks) : current.scores;
+
+	const total_cost_usd = (prev.total_cost_usd ?? 0) + (current.total_cost_usd ?? 0) || undefined;
+
+	const rate_limit_stats =
+		prev.rate_limit_stats && current.rate_limit_stats
+			? {
+					total_retries:
+						prev.rate_limit_stats.total_retries + current.rate_limit_stats.total_retries,
+					total_wait_ms:
+						prev.rate_limit_stats.total_wait_ms + current.rate_limit_stats.total_wait_ms,
+					effective_rpm: current.rate_limit_stats.effective_rpm,
+					effective_tpm: current.rate_limit_stats.effective_tpm,
+				}
+			: (current.rate_limit_stats ?? prev.rate_limit_stats);
+
+	return {
+		...current,
+		tasks,
+		scores,
+		total_cost_usd,
+		rate_limit_stats,
+	};
+}
+
+/**
+ * Write eval results to disk, merging into an existing file when present.
+ *
+ * - File missing → write `current` as-is.
+ * - File present, same `run_id` → merge with prior, write back.
+ * - File present, different `run_id` → throw (silent overwrite hides bugs).
+ *
+ * The `run_id` match is the contract for "resume into this file." Set
+ * `EVAL_RUN_ID=<your-stable-id>` across resume invocations to opt in.
+ */
+export async function mergeAndWriteResults(current: EvalRun, outputPath: string): Promise<EvalRun> {
+	if (existsSync(outputPath)) {
+		const prev = JSON.parse(readFileSync(outputPath, "utf-8")) as EvalRun;
+		if (prev.run_id !== current.run_id) {
+			throw new Error(
+				`Run id mismatch at ${outputPath}: existing run_id="${prev.run_id}" but new run_id="${current.run_id}". ` +
+					`Refusing to overwrite. Set EVAL_RUN_ID="${prev.run_id}" to merge into the existing file, or pick a fresh id.`,
+			);
+		}
+		const merged = mergeRuns(prev, current);
+		await writeFile(outputPath, JSON.stringify(merged, null, 2));
+		console.log(
+			`Results merged into ${outputPath} (${current.tasks.length} new task results, ${merged.tasks.length} total)`,
+		);
+		return merged;
+	}
+	await writeFile(outputPath, JSON.stringify(current, null, 2));
+	console.log(`Results written to ${outputPath}`);
+	return current;
 }
 
 /**

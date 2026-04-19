@@ -17,7 +17,7 @@ On top of single-column `reactiveLayout`, the module adds **heterogeneous vertic
 import {
   reactiveLayout,
   CanvasMeasureAdapter,
-} from "@graphrefly/graphrefly/reactive-layout";
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { DATA } from "@graphrefly/graphrefly/core";
 
 const layout = reactiveLayout({
@@ -50,7 +50,7 @@ import {
   reactiveLayout,
   CanvasMeasureAdapter,
   type LineBreaksResult,
-} from "@graphrefly/graphrefly/reactive-layout";
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { DATA } from "@graphrefly/graphrefly/core";
 
 const lineHeightPx = 22;
@@ -90,7 +90,7 @@ You can also subscribe with `layout.lineBreaks.subscribe(() => { paint(el, layou
 
 ```tsx
 import { useMemo } from "react";
-import { reactiveLayout, CanvasMeasureAdapter } from "@graphrefly/graphrefly/reactive-layout";
+import { reactiveLayout, CanvasMeasureAdapter } from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { useSubscribe } from "@graphrefly/graphrefly/compat/react";
 
 const lineHeightPx = 22;

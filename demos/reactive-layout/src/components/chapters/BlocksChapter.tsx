@@ -1,4 +1,4 @@
-import type { PositionedBlock } from "@graphrefly/graphrefly/reactive-layout";
+import type { PositionedBlock } from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { useState } from "react";
 import { type BlocksChapter, buildBlocksChapter } from "../../lib/chapters/blocks";
 import { type ChapterProps, hoverProps } from "../../lib/chapters/types";

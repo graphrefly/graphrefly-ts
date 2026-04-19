@@ -1,6 +1,9 @@
 import { batch } from "@graphrefly/graphrefly/core";
 import type { NodeRegistry } from "@graphrefly/graphrefly/patterns/demo-shell";
-import { type ReactiveLayoutBundle, reactiveLayout } from "@graphrefly/graphrefly/reactive-layout";
+import {
+	type ReactiveLayoutBundle,
+	reactiveLayout,
+} from "@graphrefly/graphrefly/patterns/reactive-layout";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 
 export const BATCH_SOURCE = `// Unbatched — 5 writes fan out as 5 separate recompute cycles.

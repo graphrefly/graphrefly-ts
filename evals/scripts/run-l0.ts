@@ -12,7 +12,7 @@
 
 import { join } from "node:path";
 import { runContrastiveEval } from "../lib/contrastive.js";
-import { printSummary, writeResults } from "../lib/reporter.js";
+import { mergeAndWriteResults, printSummary } from "../lib/reporter.js";
 import { DEFAULT_CONFIG } from "../lib/types.js";
 
 async function main() {
@@ -20,6 +20,9 @@ async function main() {
 	console.log(`Model: ${DEFAULT_CONFIG.model}`);
 	console.log(`Judge: ${DEFAULT_CONFIG.judgeModel}`);
 	console.log(`Spec evals: ${DEFAULT_CONFIG.specEvalsPath}`);
+	if (DEFAULT_CONFIG.runId) {
+		console.log(`Run id: ${DEFAULT_CONFIG.runId} (merging into existing file if present)`);
+	}
 	if (DEFAULT_CONFIG.l0FromTaskId) {
 		console.log(`Resume: EVAL_L0_FROM=${DEFAULT_CONFIG.l0FromTaskId} (inclusive)`);
 	} else if (DEFAULT_CONFIG.l0ResumeAfterTaskId) {
@@ -29,10 +32,10 @@ async function main() {
 
 	const run = await runContrastiveEval(DEFAULT_CONFIG);
 
-	printSummary(run);
-
 	const outputPath = join(import.meta.dirname, "..", "results", `${run.run_id}.json`);
-	await writeResults(run, outputPath);
+	const persisted = await mergeAndWriteResults(run, outputPath);
+
+	printSummary(persisted);
 }
 
 main().catch((err) => {

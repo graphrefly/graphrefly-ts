@@ -3,3 +3,8 @@ packages:
   - website
   - demos/compat-matrix
   - demos/reactive-layout
+  - examples/basic/*
+  - examples/compat/*
+  - examples/framework/*
+  - examples/reactive-layout/*
+  - examples/nestjs/*

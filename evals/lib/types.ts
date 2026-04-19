@@ -176,6 +176,16 @@ export interface EvalConfig {
 	 * Set via `EVAL_TREATMENT=A|B|C|D`.
 	 */
 	catalogTreatment: CatalogTreatment;
+	/**
+	 * Stable run id for incremental / resume runs.
+	 * When set via `EVAL_RUN_ID`, the runner reuses this id (instead of a fresh
+	 * `l0-<Date.now()>`), and the writer **merges** the new tasks into the
+	 * existing result file — dedupe by `task_id+treatment`, last write wins,
+	 * scores recomputed over the merged set. Lets you split a single logical
+	 * run across multiple invocations gated by `EVAL_MAX_CALLS` / `EVAL_L0_FROM`
+	 * without losing earlier task results.
+	 */
+	runId?: string;
 }
 
 function normalizeCatalogTreatment(raw?: string): CatalogTreatment {
@@ -198,4 +208,5 @@ export const DEFAULT_CONFIG: EvalConfig = {
 	l0ResumeAfterTaskId: process.env.EVAL_L0_AFTER?.trim() || undefined,
 	rateLimitEnabled: process.env.EVAL_RATE_LIMIT !== "false",
 	catalogTreatment: normalizeCatalogTreatment(process.env.EVAL_TREATMENT),
+	runId: process.env.EVAL_RUN_ID?.trim() || undefined,
 };

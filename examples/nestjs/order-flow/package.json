@@ -1,0 +1,24 @@
+{
+	"name": "@graphrefly-examples/nestjs-order-flow",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"description": "NestJS + GraphReFly — full CQRS order flow with SSE, WebSocket, and admin endpoints.",
+	"scripts": {
+		"start": "tsx --tsconfig tsconfig.json index.ts"
+	},
+	"dependencies": {
+		"@graphrefly/graphrefly": "workspace:*",
+		"@nestjs/common": "^11.1.17",
+		"@nestjs/core": "^11.1.17",
+		"@nestjs/platform-express": "^11.1.18",
+		"@nestjs/platform-ws": "^11.1.18",
+		"@nestjs/websockets": "^11.1.18",
+		"reflect-metadata": "^0.2.2",
+		"rxjs": "^7.8.2"
+	},
+	"devDependencies": {
+		"tsx": "^4.21.0",
+		"typescript": "^5.7.0"
+	}
+}

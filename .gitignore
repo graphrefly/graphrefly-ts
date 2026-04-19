@@ -41,6 +41,8 @@ coverage/
 # Misc scratch
 tmp/
 temp/
+TRASH/
+TRASH-FILES.md
 
 # OS
 .DS_Store

@@ -24,7 +24,6 @@ import {
 	fromAsyncIter,
 	fromCron,
 	fromEvent,
-	fromFSWatch,
 	fromIter,
 	fromPromise,
 	fromRaf,
@@ -36,6 +35,7 @@ import {
 	throwError,
 	toArray,
 } from "../../extra/sources.js";
+import { fromFSWatch } from "../../extra/sources-fs.js";
 import { collect } from "../test-helpers.js";
 
 /** Next macrotick (GraphReFly + Vitest: do not use `vi.waitFor` with a sync boolean — it resolves immediately). */

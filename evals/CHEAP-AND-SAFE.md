@@ -41,10 +41,35 @@ Run **one task only** with a $0.10 ceiling. `BudgetExceededError` halts the pipe
 ### Step 4 — Full corpus, replay cache enabled (default)
 
 ```bash
-EVAL_PROVIDER=google EVAL_MODEL=gemini-2.0-flash pnpm eval:contrastive
+EVAL_MAX_CALLS=200 \
+EVAL_PROVIDER=google EVAL_MODEL=gemini-2.0-flash \
+pnpm eval:contrastive
 ```
 
-`EVAL_REPLAY=read-write` is the default. Reruns return cached responses in 0ms for $0 — only changed prompts incur cost.
+`EVAL_REPLAY=read-write` is the default. Reruns return cached responses in 0ms for $0 — only changed prompts incur cost. **Bump `EVAL_MAX_CALLS=200`** because the full L0 corpus needs ~120-150 calls (12 tasks × 2 treatments × ~5 calls each) — the default `100` trips the budget gate mid-corpus.
+
+### Resume across multiple invocations (incremental cost-controlled run)
+
+If you'd rather keep `EVAL_MAX_CALLS=100` and split the corpus across two or more invocations, set a stable `EVAL_RUN_ID` so each run **merges into the same result file** instead of writing siloed partials.
+
+```bash
+# Run 1 — first slice (caps at 100 calls, ~5-6 tasks)
+EVAL_RUN_ID=l0-glm-trial1 \
+EVAL_MAX_CALLS=100 \
+EVAL_TREATMENT=B \
+EVAL_PROVIDER=openrouter EVAL_MODEL=z-ai/glm-4.7 \
+pnpm eval:contrastive
+
+# Run 2 — pick up where Run 1 stopped
+EVAL_RUN_ID=l0-glm-trial1 \
+EVAL_MAX_CALLS=100 \
+EVAL_L0_AFTER=<last-completed-task-id> \
+EVAL_TREATMENT=B \
+EVAL_PROVIDER=openrouter EVAL_MODEL=z-ai/glm-4.7 \
+pnpm eval:contrastive
+```
+
+The writer dedupes by `task_id+treatment` (last write wins), recomputes scores over the merged set, and sums costs / rate-limit totals. **Without `EVAL_RUN_ID` each invocation gets a fresh `l0-<timestamp>` filename — partial files don't merge automatically.** A run-id mismatch on an existing file throws (no silent overwrite).
 
 ### CI-friendly: read-only (fail loud on cache miss)
 
@@ -68,6 +93,7 @@ Useful in CI where you want runs to fail rather than silently incur cost when th
 | `EVAL_REPLAY` | `read-write` | `read-write` \| `read-only` \| `write-only` \| `off` |
 | `EVAL_L0_FROM` | — | Run L0 starting from this task id (slice corpus head) |
 | `EVAL_L0_AFTER` | — | Run L0 starting after this task id (resume) |
+| `EVAL_RUN_ID` | — | Stable run id for incremental runs. Reuses the existing `<id>.json` and **merges** new task results into it (dedupe by task_id+treatment). Required when splitting one logical run across multiple invocations. |
 
 Replay cache lives at `evals/results/replay-cache/`. Safe to delete to force fresh calls. Wrapping order is **cache outside budget** — cache hits never count toward `EVAL_MAX_PRICE_USD`. See [evals/lib/llm-client.ts:281](lib/llm-client.ts) (`createSafeProvider`).
 

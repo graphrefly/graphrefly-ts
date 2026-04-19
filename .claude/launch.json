@@ -18,6 +18,18 @@
 			"runtimeExecutable": "pnpm",
 			"runtimeArgs": ["--dir", "website", "dev"],
 			"port": 4323
+		},
+		{
+			"name": "example-react",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--dir", "examples/framework/react", "dev"],
+			"port": 5173
+		},
+		{
+			"name": "example-flow",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--dir", "examples/reactive-layout/flow", "dev"],
+			"port": 5174
 		}
 	]
 }

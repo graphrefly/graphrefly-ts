@@ -2,19 +2,6 @@
 	"extends": "astro/tsconfigs/strict",
 	"compilerOptions": {
 		"jsx": "react-jsx",
-		"jsxImportSource": "react",
-		"baseUrl": ".",
-		"paths": {
-			"@graphrefly/graphrefly/compat/react": ["../../src/compat/react/index.ts"],
-			"@graphrefly/graphrefly/compat/vue": ["../../src/compat/vue/index.ts"],
-			"@graphrefly/graphrefly/compat/solid": ["../../src/compat/solid/index.ts"],
-			"@graphrefly/graphrefly/compat/svelte": ["../../src/compat/svelte/index.ts"],
-			"@graphrefly/graphrefly/compat/jotai": ["../../src/compat/jotai/index.ts"],
-			"@graphrefly/graphrefly/compat/nanostores": ["../../src/compat/nanostores/index.ts"],
-			"@graphrefly/graphrefly/compat/zustand": ["../../src/compat/zustand/index.ts"],
-			"@graphrefly/graphrefly/patterns/demo-shell": ["../../src/patterns/demo-shell.ts"],
-			"@graphrefly/graphrefly/graph": ["../../src/graph/index.ts"],
-			"@graphrefly/graphrefly": ["../../src/index.ts"]
-		}
+		"jsxImportSource": "react"
 	}
 }

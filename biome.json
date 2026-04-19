@@ -14,9 +14,12 @@
 			"!node_modules",
 			"!**/dist",
 			"!**/.astro",
+			"!.tmp",
+			"!TRASH",
 			"!benchmarks",
 			"!website",
-			"!examples/nestjs-*"
+			"!examples/nestjs",
+			"!evals/results/replay-cache"
 		]
 	},
 	"linter": {
@@ -68,6 +71,16 @@
 				"rules": {
 					"security": {
 						"noDangerouslySetInnerHtml": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["examples/framework/vue/**", "examples/framework/svelte/**"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedVariables": "off"
 					}
 				}
 			}

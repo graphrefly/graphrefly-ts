@@ -2,14 +2,6 @@
 	"extends": "astro/tsconfigs/strict",
 	"compilerOptions": {
 		"jsx": "react-jsx",
-		"jsxImportSource": "react",
-		"baseUrl": ".",
-		"paths": {
-			"@graphrefly/graphrefly/reactive-layout": ["../../src/patterns/reactive-layout/index.ts"],
-			"@graphrefly/graphrefly/patterns/demo-shell": ["../../src/patterns/demo-shell.ts"],
-			"@graphrefly/graphrefly/graph": ["../../src/graph/index.ts"],
-			"@graphrefly/graphrefly/core": ["../../src/core/index.ts"],
-			"@graphrefly/graphrefly": ["../../src/core/index.ts"]
-		}
+		"jsxImportSource": "react"
 	}
 }

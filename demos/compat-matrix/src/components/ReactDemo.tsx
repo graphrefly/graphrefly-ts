@@ -1,8 +1,8 @@
-import type { Node } from "@graphrefly/graphrefly";
 import type { ReadableAtom, WritableAtom } from "@graphrefly/graphrefly/compat/jotai";
 import type { NanoAtom, NanoComputed } from "@graphrefly/graphrefly/compat/nanostores";
 import { useStore, useSubscribe, useSubscribeRecord } from "@graphrefly/graphrefly/compat/react";
 import type { StoreApi } from "@graphrefly/graphrefly/compat/zustand";
+import type { Node } from "@graphrefly/graphrefly/core";
 import type { DemoShellHandle } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { demoShell } from "@graphrefly/graphrefly/patterns/demo-shell";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";

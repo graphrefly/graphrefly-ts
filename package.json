@@ -47,6 +47,16 @@
 				"default": "./dist/extra/index.cjs"
 			}
 		},
+		"./extra/sources": {
+			"import": {
+				"types": "./dist/extra/sources.d.ts",
+				"default": "./dist/extra/sources.js"
+			},
+			"require": {
+				"types": "./dist/extra/sources.d.cts",
+				"default": "./dist/extra/sources.cjs"
+			}
+		},
 		"./graph": {
 			"import": {
 				"types": "./dist/graph/index.d.ts",
@@ -75,6 +85,16 @@
 			"require": {
 				"types": "./dist/compat/jotai/index.d.cts",
 				"default": "./dist/compat/jotai/index.cjs"
+			}
+		},
+		"./compat/nanostores": {
+			"import": {
+				"types": "./dist/compat/nanostores/index.d.ts",
+				"default": "./dist/compat/nanostores/index.js"
+			},
+			"require": {
+				"types": "./dist/compat/nanostores/index.d.cts",
+				"default": "./dist/compat/nanostores/index.cjs"
 			}
 		},
 		"./compat/zustand": {
@@ -137,7 +157,7 @@
 				"default": "./dist/compat/nestjs/index.cjs"
 			}
 		},
-		"./reactive-layout": {
+		"./patterns/reactive-layout": {
 			"import": {
 				"types": "./dist/patterns/reactive-layout/index.d.ts",
 				"default": "./dist/patterns/reactive-layout/index.js"
@@ -145,6 +165,16 @@
 			"require": {
 				"types": "./dist/patterns/reactive-layout/index.d.cts",
 				"default": "./dist/patterns/reactive-layout/index.cjs"
+			}
+		},
+		"./patterns/demo-shell": {
+			"import": {
+				"types": "./dist/patterns/demo-shell.d.ts",
+				"default": "./dist/patterns/demo-shell.js"
+			},
+			"require": {
+				"types": "./dist/patterns/demo-shell.d.cts",
+				"default": "./dist/patterns/demo-shell.cjs"
 			}
 		}
 	},
