@@ -192,6 +192,108 @@ export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number
 }
 
 /**
+ * Animation-frame-driven source. Emits on every `requestAnimationFrame` tick,
+ * yielding the frame timestamp (DOMHighResTimeStamp, ms since navigation).
+ *
+ * Use instead of `fromTimer({ period: 16 })` when animation smoothness matters.
+ * In a real browser, `requestAnimationFrame` synchronizes with the display
+ * refresh. The source keeps ticking even when the tab is hidden — it
+ * transparently switches to `setTimeout` while the tab is backgrounded (so
+ * downstream state updates continue) and returns to `requestAnimationFrame`
+ * when the tab regains focus.
+ *
+ * When `requestAnimationFrame` is unavailable (Node test environments, SSR),
+ * this falls back to `setTimeout(~16ms)` unconditionally. Abortable via
+ * `signal` (emits `ERROR`).
+ *
+ * @example
+ * ```ts
+ * import { fromRaf, derived } from "@graphrefly/graphrefly-ts";
+ *
+ * const frame = fromRaf();
+ * const bouncingX = derived([frame], ([t]) => 50 + 40 * Math.sin((t as number) * 0.001));
+ * ```
+ *
+ * @category extra
+ */
+export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
+	const { signal, ...rest } = opts ?? {};
+	return producer<number>((a) => {
+		let done = false;
+		let rafId: number | undefined;
+		let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+		let abortListenerAdded = false;
+		let visibilityListenerAdded = false;
+
+		const raf: typeof requestAnimationFrame | undefined =
+			typeof requestAnimationFrame === "function" ? requestAnimationFrame : undefined;
+		const caf: typeof cancelAnimationFrame | undefined =
+			typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : undefined;
+		const doc: Document | undefined = typeof document !== "undefined" ? document : undefined;
+
+		const clearPending = () => {
+			if (rafId !== undefined && caf) caf(rafId);
+			if (fallbackTimer !== undefined) clearTimeout(fallbackTimer);
+			rafId = undefined;
+			fallbackTimer = undefined;
+		};
+		const cleanup = () => {
+			done = true;
+			clearPending();
+			if (abortListenerAdded) {
+				signal?.removeEventListener("abort", onAbort);
+				abortListenerAdded = false;
+			}
+			if (visibilityListenerAdded && doc) {
+				doc.removeEventListener("visibilitychange", onVisibilityChange);
+				visibilityListenerAdded = false;
+			}
+		};
+		const onAbort = () => {
+			if (done) return;
+			cleanup();
+			a.down([[ERROR, signal!.reason]]);
+		};
+		const tick = (now: number) => {
+			if (done) return;
+			a.emit(now);
+			scheduleNext();
+		};
+		const scheduleNext = () => {
+			if (done) return;
+			// Prefer rAF for display-synced ticks when the tab is visible; when
+			// hidden, rAF is throttled to ~0 by the browser, so fall back to
+			// setTimeout so downstream state continues updating.
+			if (raf && (!doc || doc.visibilityState !== "hidden")) {
+				rafId = raf(tick);
+			} else {
+				fallbackTimer = setTimeout(() => tick(performance.now()), 16);
+			}
+		};
+		const onVisibilityChange = () => {
+			if (done) return;
+			// Cancel any pending schedule and re-schedule via the path now
+			// appropriate for the current visibility state.
+			clearPending();
+			scheduleNext();
+		};
+
+		if (signal?.aborted) {
+			onAbort();
+			return cleanup;
+		}
+		signal?.addEventListener("abort", onAbort, { once: true });
+		abortListenerAdded = signal !== undefined;
+		if (doc && raf) {
+			doc.addEventListener("visibilitychange", onVisibilityChange);
+			visibilityListenerAdded = true;
+		}
+		scheduleNext();
+		return cleanup;
+	}, sourceOpts(rest));
+}
+
+/**
  * Polls on an interval; when the current minute matches a 5-field cron expression, emits once (see {@link parseCron}).
  *
  * @param expr - Cron string (`min hour dom month dow`).

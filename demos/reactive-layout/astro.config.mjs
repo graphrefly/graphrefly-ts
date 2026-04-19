@@ -41,6 +41,10 @@ export default defineConfig({
 					replacement: `${root}/src/patterns/reactive-layout/index.ts`,
 				},
 				{
+					find: "@graphrefly/graphrefly/extra/sources",
+					replacement: `${root}/src/extra/sources.ts`,
+				},
+				{
 					find: "@graphrefly/graphrefly/patterns/demo-shell",
 					replacement: `${root}/src/patterns/demo-shell.ts`,
 				},

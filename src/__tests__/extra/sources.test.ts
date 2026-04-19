@@ -27,6 +27,7 @@ import {
 	fromFSWatch,
 	fromIter,
 	fromPromise,
+	fromRaf,
 	fromTimer,
 	never,
 	of,
@@ -87,6 +88,43 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		expect(d2.map((m) => m[1])).toContain(2);
 		// Should NOT have completed
 		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(false);
+		unsub();
+	});
+
+	it("fromRaf emits frame timestamps while subscribed", async () => {
+		const n = fromRaf();
+		const { batches, unsub } = collect(n);
+		// rAF fires at display refresh; give it a few frames.
+		await tick(120);
+		const data = batches.flat().filter((m) => m[0] === DATA);
+		expect(data.length).toBeGreaterThanOrEqual(2);
+		// Timestamps monotonically non-decreasing.
+		for (let i = 1; i < data.length; i++) {
+			expect((data[i]![1] as number) >= (data[i - 1]![1] as number)).toBe(true);
+		}
+		unsub();
+	});
+
+	it("fromRaf stops emitting after unsubscribe", async () => {
+		const n = fromRaf();
+		const { batches, unsub } = collect(n);
+		await tick(60);
+		unsub();
+		const countAfterUnsub = batches.flat().filter((m) => m[0] === DATA).length;
+		await tick(120);
+		const countLater = batches.flat().filter((m) => m[0] === DATA).length;
+		expect(countLater).toBe(countAfterUnsub);
+	});
+
+	it("fromRaf aborts with ERROR via signal", async () => {
+		const ac = new AbortController();
+		const n = fromRaf({ signal: ac.signal });
+		const { batches, unsub } = collect(n);
+		await tick(30);
+		ac.abort(new Error("raf-abort"));
+		expect(
+			batches.some((b) => b.some((m) => m[0] === ERROR && (m[1] as Error).message === "raf-abort")),
+		).toBe(true);
 		unsub();
 	});
 

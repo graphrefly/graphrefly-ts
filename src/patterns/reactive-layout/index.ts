@@ -8,4 +8,5 @@
 
 export * from "./measurement-adapters.js";
 export * from "./reactive-block-layout.js";
+export * from "./reactive-flow-layout.js";
 export * from "./reactive-layout.js";

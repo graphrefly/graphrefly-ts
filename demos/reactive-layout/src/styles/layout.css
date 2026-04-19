@@ -492,6 +492,105 @@ code {
 	color: var(--gr-text);
 }
 
+/* ── Flow (multi-column with moving ASCII obstacles) ────────────── */
+.flow-chapter .controls {
+	align-items: center;
+}
+.flow-metrics {
+	font-size: 12px;
+	color: var(--gr-text-muted);
+}
+.flow-metrics strong {
+	color: var(--gr-text);
+	font-family: var(--font-mono);
+}
+.flow-frame {
+	position: relative;
+	background: var(--gr-deep);
+	border: 1px dashed var(--gr-border);
+	border-radius: 6px;
+	overflow: hidden;
+	font-family: var(--font-mono);
+	color: var(--gr-text);
+	margin-top: 0.25rem;
+	user-select: text;
+}
+.flow-lines {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.flow-line {
+	position: absolute;
+	/* `white-space: normal` lets `text-align: justify` stretch inter-word
+	   spaces; `pre` would preserve them at fixed width and defeat justify. */
+	white-space: normal;
+	overflow: hidden;
+	text-align: justify;
+	/* Justify EVERY line (CSS default leaves the last line of a block
+	   left-aligned; each .flow-line is its own block, so every line would
+	   be "last" without this). */
+	text-align-last: justify;
+	font-family: var(--font-mono);
+	font-size: 14px;
+	line-height: 22px;
+	color: var(--gr-text);
+	pointer-events: auto;
+}
+.flow-obstacles {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.flow-obstacle {
+	position: absolute;
+	pointer-events: auto;
+	cursor: grab;
+	touch-action: none;
+	color: var(--gr-aqua);
+	opacity: 0.85;
+	transition: opacity 0.15s;
+}
+.flow-obstacle-circle {
+	/* DOM container is the geometric circle's bounding square (2r × 2r).
+	   `border-radius: 50%` + `overflow: hidden` clip the ASCII cell grid
+	   (which is slightly wider than 2r due to fractional character widths)
+	   to the circular shape — so dev-tools / pointer hit-testing match the
+	   obstacle's actual shape rather than the cell grid. The inner `<pre>`
+	   is flex-centered so the circle renders symmetrically within 2r × 2r. */
+	border-radius: 50%;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.flow-obstacle-rect .flow-obstacle-rect {
+	/* (no clip / flex for rect — the <pre>'s visible outline IS the rect,
+	   and its actual rendered size depends on the monospace glyph width
+	   which may not equal CELL_W exactly). */
+}
+.flow-obstacle.dragging,
+.flow-obstacle:active {
+	cursor: grabbing;
+	opacity: 1;
+}
+.flow-obstacle pre {
+	margin: 0;
+	padding: 0;
+	font-family: var(--font-mono);
+	font-size: 14px;
+	line-height: 14px;
+	color: inherit;
+	white-space: pre;
+	letter-spacing: 0;
+	user-select: none;
+	text-shadow: 0 0 8px var(--gr-aqua-glow);
+}
+.flow-obstacle-rect pre {
+	color: #f0c86a;
+	text-shadow: 0 0 6px rgba(240, 200, 106, 0.25);
+}
+
 /* ── Blocks ─────────────────────────────────────────────────────── */
 .block-frame {
 	position: relative;

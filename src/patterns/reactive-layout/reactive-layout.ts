@@ -67,6 +67,36 @@ export type LineBreaksResult = {
 	lineCount: number;
 };
 
+/**
+ * A position within `PreparedSegment[]` — segment + grapheme offset.
+ * `graphemeIndex: 0` at segment boundaries.
+ *
+ * Used by {@link layoutNextLine} for cursor-based line walking; needed when
+ * lines have varying widths (multi-column flow, text wrapping around obstacles).
+ */
+export type LayoutCursor = {
+	segmentIndex: number;
+	graphemeIndex: number;
+};
+
+/** A horizontal span `[left, right]` in pixels — used by flow-layout slot carving. */
+export type Interval = { left: number; right: number };
+
+/** Result of a single `layoutNextLine` call. */
+export type LayoutNextLineResult = {
+	text: string;
+	width: number;
+	start: LayoutCursor;
+	end: LayoutCursor;
+};
+
+/** Optional context for `layoutNextLine` — enables soft-hyphen visible-hyphen rendering. */
+export type LayoutNextLineContext = {
+	adapter?: MeasurementAdapter;
+	font?: string;
+	cache?: Map<string, Map<string, number>>;
+};
+
 /** Result of the reactive layout graph's describe-accessible state. */
 export type ReactiveLayoutBundle = {
 	graph: Graph;
@@ -299,7 +329,11 @@ export function analyzeAndMeasure(
 		let w = fontCache!.get(seg);
 		if (w === undefined) {
 			if (stats) stats.misses += 1;
-			w = adapter.measureSegment(seg, font).width;
+			const raw = adapter.measureSegment(seg, font).width;
+			// Coerce adapter misbehavior (NaN / Infinity / negative) to 0 — downstream
+			// arithmetic would propagate NaN widths, breaking line-break decisions and
+			// rendering. Cached so the coercion happens once per (font, segment).
+			w = Number.isFinite(raw) && raw >= 0 ? raw : 0;
 			fontCache!.set(seg, w);
 		} else if (stats) {
 			stats.hits += 1;
@@ -612,6 +646,393 @@ export function computeLineBreaks(
 			lineEndGrapheme = 0;
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Cursor-based single-line layout (for multi-column flow / shape wrapping)
+// ---------------------------------------------------------------------------
+
+function canBreakAfter(kind: SegmentBreakKind): boolean {
+	return kind === "space" || kind === "zero-width-break" || kind === "soft-hyphen";
+}
+
+// Module-scoped segmenter — `Intl.Segmenter` construction is non-trivial and
+// its `segment()` method is stateless per-call, so one shared instance is safe
+// and avoids ~N-per-frame allocations when many lines cross segment boundaries.
+let _graphemeSegmenter: Intl.Segmenter | null = null;
+function graphemeSegmenter(): Intl.Segmenter {
+	if (_graphemeSegmenter === null) {
+		_graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+	}
+	return _graphemeSegmenter;
+}
+
+function sliceSegmentText(seg: PreparedSegment, startG: number, endG: number): string {
+	if (startG === 0 && endG < 0) return seg.text;
+	const graphemes = [...graphemeSegmenter().segment(seg.text)].map((g) => g.segment);
+	const stop = endG < 0 ? graphemes.length : endG;
+	return graphemes.slice(startG, stop).join("");
+}
+
+function buildLineText(
+	segments: PreparedSegment[],
+	startSeg: number,
+	startG: number,
+	endSeg: number,
+	endG: number,
+	appendHyphen: boolean,
+): string {
+	let text = "";
+	for (let i = startSeg; i < endSeg; i++) {
+		const seg = segments[i]!;
+		if (seg.kind === "soft-hyphen" || seg.kind === "hard-break") continue;
+		if (i === startSeg && startG > 0) {
+			text += sliceSegmentText(seg, startG, -1);
+		} else {
+			text += seg.text;
+		}
+	}
+	if (endG > 0 && endSeg < segments.length) {
+		const seg = segments[endSeg]!;
+		const from = startSeg === endSeg ? startG : 0;
+		text += sliceSegmentText(seg, from, endG);
+	}
+	if (appendHyphen) text += "-";
+	return text;
+}
+
+function resolveHyphenWidth(ctx: LayoutNextLineContext | undefined): number {
+	if (!ctx || !ctx.adapter || !ctx.font) return 0;
+	const cache = ctx.cache;
+	if (cache) {
+		let fc = cache.get(ctx.font);
+		if (!fc) {
+			fc = new Map<string, number>();
+			cache.set(ctx.font, fc);
+		}
+		let hw = fc.get("-");
+		if (hw === undefined) {
+			hw = ctx.adapter.measureSegment("-", ctx.font).width;
+			fc.set("-", hw);
+		}
+		return hw;
+	}
+	return ctx.adapter.measureSegment("-", ctx.font).width;
+}
+
+/**
+ * Lay out the next single line starting from `cursor`, fitting into `slotWidth`.
+ *
+ * Unlike `computeLineBreaks`, which consumes whole text with one `maxWidth`,
+ * this is the cursor-based primitive needed when successive lines have different
+ * widths (multi-column flow, text wrapping around shape obstacles, mixed
+ * column+pullquote layouts).
+ *
+ * Returns `null` when the cursor is past all segments (text exhausted).
+ * At a hard-break with no preceding content, returns an empty line and advances
+ * the cursor past the break so the caller can continue.
+ *
+ * ```ts
+ * let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
+ * while (true) {
+ *   const line = layoutNextLine(segments, cursor, availableWidth);
+ *   if (line === null) break;
+ *   render(line);
+ *   cursor = line.end;
+ * }
+ * ```
+ */
+export function layoutNextLine(
+	segments: PreparedSegment[],
+	cursor: LayoutCursor,
+	slotWidth: number,
+	ctx?: LayoutNextLineContext,
+): LayoutNextLineResult | null {
+	let i = cursor.segmentIndex;
+	const initialG = cursor.graphemeIndex;
+
+	if (i >= segments.length) return null;
+
+	if (initialG === 0) {
+		while (i < segments.length) {
+			const seg = segments[i]!;
+			if (seg.kind === "hard-break") {
+				return {
+					text: "",
+					width: 0,
+					start: { segmentIndex: cursor.segmentIndex, graphemeIndex: 0 },
+					end: { segmentIndex: i + 1, graphemeIndex: 0 },
+				};
+			}
+			if (seg.kind === "space" || seg.kind === "zero-width-break" || seg.kind === "soft-hyphen") {
+				i += 1;
+				continue;
+			}
+			break;
+		}
+		if (i >= segments.length) return null;
+	}
+
+	const hyphenWidth = resolveHyphenWidth(ctx);
+
+	const startSeg = i;
+	const startG = i === cursor.segmentIndex ? initialG : 0;
+
+	let lineW = 0;
+	let lineEndSeg = startSeg;
+	let lineEndG = 0;
+	let hasContent = false;
+	let pendingBreakSeg = -1;
+	let pendingBreakG = 0;
+	let pendingBreakWidth = 0;
+	let pendingBreakSoftHyphen = false;
+
+	const recordPending = (
+		sIdx: number,
+		gIdx: number,
+		widthAtBreak: number,
+		kind: SegmentBreakKind,
+	): void => {
+		pendingBreakSeg = sIdx;
+		pendingBreakG = gIdx;
+		pendingBreakWidth = widthAtBreak;
+		pendingBreakSoftHyphen = kind === "soft-hyphen";
+	};
+
+	const consumeBreakable = (segIdx: number, gStart: number, gWidths: number[]): boolean => {
+		for (let g = gStart; g < gWidths.length; g++) {
+			const gw = gWidths[g]!;
+			if (!hasContent) {
+				lineW = gw;
+				lineEndSeg = segIdx;
+				lineEndG = g + 1;
+				hasContent = true;
+				continue;
+			}
+			if (lineW + gw > slotWidth + 0.005) {
+				return true;
+			}
+			lineW += gw;
+			lineEndSeg = segIdx;
+			lineEndG = g + 1;
+		}
+		if (lineEndSeg === segIdx && lineEndG === gWidths.length) {
+			lineEndSeg = segIdx + 1;
+			lineEndG = 0;
+		}
+		return false;
+	};
+
+	if (startG > 0 && startSeg < segments.length) {
+		const seg = segments[startSeg]!;
+		if (seg.graphemeWidths) {
+			const overflowed = consumeBreakable(startSeg, startG, seg.graphemeWidths);
+			if (overflowed) {
+				const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+				return {
+					text,
+					width: lineW,
+					start: { segmentIndex: startSeg, graphemeIndex: startG },
+					end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+				};
+			}
+			i = lineEndSeg;
+		} else {
+			// Mid-segment cursor on a non-breakable segment is an invariant
+			// violation (cursor should only advance to a grapheme boundary via
+			// `consumeBreakable` on a segment that HAS graphemeWidths). Treat as
+			// segment-start so the caller gets well-formed output instead of
+			// silently re-including the prefix.
+			//
+			// Not reachable through `computeFlowLines` but possible with
+			// externally-constructed cursors.
+		}
+	}
+
+	for (; i < segments.length; ) {
+		const seg = segments[i]!;
+
+		if (seg.kind === "hard-break") {
+			if (hasContent) {
+				const endsAtSoftHyphen = lineEndSeg > 0 && segments[lineEndSeg - 1]?.kind === "soft-hyphen";
+				const text = buildLineText(
+					segments,
+					startSeg,
+					startG,
+					lineEndSeg,
+					lineEndG,
+					endsAtSoftHyphen,
+				);
+				return {
+					text,
+					width: lineW + (endsAtSoftHyphen ? hyphenWidth : 0),
+					start: { segmentIndex: startSeg, graphemeIndex: startG },
+					end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+				};
+			}
+			return {
+				text: "",
+				width: 0,
+				start: { segmentIndex: startSeg, graphemeIndex: startG },
+				end: { segmentIndex: i + 1, graphemeIndex: 0 },
+			};
+		}
+
+		const w = seg.width;
+
+		if (!hasContent) {
+			if (w > slotWidth && seg.graphemeWidths) {
+				const overflowed = consumeBreakable(i, 0, seg.graphemeWidths);
+				if (overflowed) {
+					const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+					return {
+						text,
+						width: lineW,
+						start: { segmentIndex: startSeg, graphemeIndex: startG },
+						end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+					};
+				}
+				// No `recordPending` here: segments with `graphemeWidths` are always
+				// `kind === "text"` (see `analyzeAndMeasure`), which is not a break-
+				// after kind, so the check would always fail.
+				i = lineEndSeg;
+				continue;
+			}
+			lineW = w;
+			lineEndSeg = i + 1;
+			lineEndG = 0;
+			hasContent = true;
+			if (canBreakAfter(seg.kind)) {
+				recordPending(i + 1, 0, seg.kind === "space" ? lineW - w : lineW, seg.kind);
+			}
+			i += 1;
+			continue;
+		}
+
+		const newW = lineW + w;
+
+		if (newW > slotWidth + 0.005) {
+			if (canBreakAfter(seg.kind)) {
+				// `lineW` is carried from before this segment — no mutation needed;
+				// trailing space/soft-hyphen width is excluded from the line width.
+				lineEndSeg = i + 1;
+				lineEndG = 0;
+				const endsAtSoftHyphen = seg.kind === "soft-hyphen";
+				const finalWidth =
+					seg.kind === "space" ? lineW : lineW + (endsAtSoftHyphen ? hyphenWidth : 0);
+				const text = buildLineText(
+					segments,
+					startSeg,
+					startG,
+					lineEndSeg,
+					lineEndG,
+					endsAtSoftHyphen,
+				);
+				return {
+					text,
+					width: finalWidth,
+					start: { segmentIndex: startSeg, graphemeIndex: startG },
+					end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+				};
+			}
+
+			if (pendingBreakSeg >= 0) {
+				const text = buildLineText(
+					segments,
+					startSeg,
+					startG,
+					pendingBreakSeg,
+					pendingBreakG,
+					pendingBreakSoftHyphen,
+				);
+				return {
+					text,
+					width: pendingBreakWidth + (pendingBreakSoftHyphen ? hyphenWidth : 0),
+					start: { segmentIndex: startSeg, graphemeIndex: startG },
+					end: { segmentIndex: pendingBreakSeg, graphemeIndex: pendingBreakG },
+				};
+			}
+
+			if (w > slotWidth && seg.graphemeWidths) {
+				const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+				return {
+					text,
+					width: lineW,
+					start: { segmentIndex: startSeg, graphemeIndex: startG },
+					end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+				};
+			}
+
+			const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, false);
+			return {
+				text,
+				width: lineW,
+				start: { segmentIndex: startSeg, graphemeIndex: startG },
+				end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+			};
+		}
+
+		lineW = newW;
+		lineEndSeg = i + 1;
+		lineEndG = 0;
+		if (canBreakAfter(seg.kind)) {
+			recordPending(i + 1, 0, seg.kind === "space" ? lineW - w : lineW, seg.kind);
+		}
+		i += 1;
+	}
+
+	if (!hasContent) return null;
+
+	const endsAtSoftHyphen = lineEndSeg > 0 && segments[lineEndSeg - 1]?.kind === "soft-hyphen";
+	const text = buildLineText(segments, startSeg, startG, lineEndSeg, lineEndG, endsAtSoftHyphen);
+	return {
+		text,
+		width: lineW + (endsAtSoftHyphen ? hyphenWidth : 0),
+		start: { segmentIndex: startSeg, graphemeIndex: startG },
+		end: { segmentIndex: lineEndSeg, graphemeIndex: lineEndG },
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Slot carving (flow-layout helper)
+// ---------------------------------------------------------------------------
+
+/**
+ * Subtract blocked horizontal intervals from a base interval, producing
+ * remaining ordered, non-overlapping slots wide enough to fit text.
+ *
+ * Pure geometry — no text dependency. Used by flow-layout to turn obstacle
+ * intersections into per-line layout slots.
+ *
+ * ```ts
+ * carveTextLineSlots({left: 0, right: 600}, [{left: 200, right: 280}])
+ * // → [{left: 0, right: 200}, {left: 280, right: 600}]
+ * ```
+ */
+export function carveTextLineSlots(
+	base: Interval,
+	blocked: Interval[],
+	minSlotWidth = 0,
+): Interval[] {
+	let slots: Interval[] = [base];
+	for (let bi = 0; bi < blocked.length; bi++) {
+		const block = blocked[bi]!;
+		const next: Interval[] = [];
+		for (let si = 0; si < slots.length; si++) {
+			const slot = slots[si]!;
+			if (block.right <= slot.left || block.left >= slot.right) {
+				next.push(slot);
+				continue;
+			}
+			if (block.left > slot.left) next.push({ left: slot.left, right: block.left });
+			if (block.right < slot.right) next.push({ left: block.right, right: slot.right });
+		}
+		slots = next;
+	}
+	if (minSlotWidth > 0) {
+		return slots.filter((s) => s.right - s.left >= minSlotWidth);
+	}
+	return slots;
 }
 
 // ---------------------------------------------------------------------------

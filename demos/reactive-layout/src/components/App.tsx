@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildAdaptersChapter } from "../lib/chapters/adapters";
 import { buildBatchChapter } from "../lib/chapters/batch";
 import { buildBlocksChapter } from "../lib/chapters/blocks";
+import { buildFlowChapter } from "../lib/chapters/flow";
 import { buildPlaygroundChapter } from "../lib/chapters/playground";
 import { buildRecomputesChapter } from "../lib/chapters/recomputes";
 import type { Chapter } from "../lib/chapters/types";
@@ -11,6 +12,7 @@ import CodePane from "./CodePane";
 import AdaptersChapterUI, { getAdaptersChapter } from "./chapters/AdaptersChapter";
 import BatchChapterUI, { getBatchChapter } from "./chapters/BatchChapter";
 import BlocksChapterUI, { getBlocksChapter } from "./chapters/BlocksChapter";
+import FlowChapterUI, { getFlowChapter } from "./chapters/FlowChapter";
 import PlaygroundChapterUI, { getPlaygroundChapter } from "./chapters/PlaygroundChapter";
 import RecomputesChapterUI, { getRecomputesChapter } from "./chapters/RecomputesChapter";
 import GraphPane from "./GraphPane";
@@ -25,6 +27,7 @@ void buildRecomputesChapter;
 void buildBatchChapter;
 void buildAdaptersChapter;
 void buildBlocksChapter;
+void buildFlowChapter;
 
 const CHAPTERS: Chapter[] = [
 	(() => {
@@ -85,6 +88,18 @@ const CHAPTERS: Chapter[] = [
 			sourceCode: c.sourceCode,
 			registry: c.registry,
 			UI: BlocksChapterUI,
+		};
+	})(),
+	(() => {
+		const c = getFlowChapter();
+		return {
+			id: "flow",
+			label: "Flow",
+			tagline: "Two columns wrapping around moving ASCII obstacles (drag them).",
+			graph: c.graph,
+			sourceCode: c.sourceCode,
+			registry: c.registry,
+			UI: FlowChapterUI,
 		};
 	})(),
 ];
