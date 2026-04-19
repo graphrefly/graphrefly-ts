@@ -37,11 +37,22 @@ export interface ReplayCacheOptions {
 	 * (eval harness typically locks temperature; user re-runs at same temp).
 	 */
 	readonly includeTemperature?: boolean;
+	/**
+	 * When set, included in the cache key (e.g. serialized vendor-specific chat
+	 * completion fields that change model output or routing).
+	 */
+	readonly keyMaterialExtra?: string;
 }
 
-function cacheKey(provider: string, req: LLMRequest, includeTemp: boolean): string {
+function cacheKey(
+	provider: string,
+	req: LLMRequest,
+	includeTemp: boolean,
+	keyMaterialExtra?: string,
+): string {
 	const payload = JSON.stringify({
 		provider,
+		keyMaterialExtra: keyMaterialExtra ?? "",
 		model: req.model ?? "",
 		system: req.system,
 		user: req.user,
@@ -66,7 +77,12 @@ export function withReplayCache(inner: LLMProvider, opts: ReplayCacheOptions): L
 		limits: inner.limits,
 		async generate(req: LLMRequest): Promise<LLMResponse> {
 			if (mode === "off") return inner.generate(req);
-			const key = cacheKey(inner.name, req, opts.includeTemperature ?? false);
+			const key = cacheKey(
+				inner.name,
+				req,
+				opts.includeTemperature ?? false,
+				opts.keyMaterialExtra,
+			);
 			const path = join(opts.cacheDir, `${key}.json`);
 			if (mode !== "write-only" && existsSync(path)) {
 				const cached = JSON.parse(readFileSync(path, "utf-8")) as LLMResponse;

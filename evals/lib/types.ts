@@ -186,11 +186,38 @@ export interface EvalConfig {
 	 * without losing earlier task results.
 	 */
 	runId?: string;
+	/**
+	 * Merged into OpenAI-compatible `chat.completions.create` requests (OpenRouter,
+	 * Groq, Ollama OpenAI shim, OpenAI, etc.). Use for vendor extensions such as
+	 * OpenRouter `provider` routing. Set via `EVAL_COMPAT_CHAT_EXTRA_JSON`.
+	 * Ignored by Anthropic and Google providers.
+	 */
+	compatChatExtra?: Record<string, unknown>;
 }
 
 function normalizeCatalogTreatment(raw?: string): CatalogTreatment {
 	const v = (raw ?? "").trim().toUpperCase();
 	return v === "B" || v === "C" || v === "D" ? (v as CatalogTreatment) : "A";
+}
+
+/** Parse `EVAL_COMPAT_CHAT_EXTRA_JSON` — must be a JSON object when set. */
+export function parseCompatChatExtraFromEnv(raw?: string): Record<string, unknown> | undefined {
+	const s = raw?.trim();
+	if (!s) return undefined;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(s) as unknown;
+	} catch (e) {
+		throw new Error(
+			`EVAL_COMPAT_CHAT_EXTRA_JSON must be valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		throw new Error(
+			"EVAL_COMPAT_CHAT_EXTRA_JSON must be a JSON object (not an array or primitive)",
+		);
+	}
+	return parsed as Record<string, unknown>;
 }
 
 import { homedir } from "node:os";
@@ -209,4 +236,5 @@ export const DEFAULT_CONFIG: EvalConfig = {
 	rateLimitEnabled: process.env.EVAL_RATE_LIMIT !== "false",
 	catalogTreatment: normalizeCatalogTreatment(process.env.EVAL_TREATMENT),
 	runId: process.env.EVAL_RUN_ID?.trim() || undefined,
+	compatChatExtra: parseCompatChatExtraFromEnv(process.env.EVAL_COMPAT_CHAT_EXTRA_JSON),
 };

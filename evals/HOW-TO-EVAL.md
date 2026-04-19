@@ -98,6 +98,7 @@ pnpm eval:compare evals/results/baseline.json evals/results/current.json
 | `EVAL_PROVIDERS` | — | Comma-separated provider per model (for matrix) |
 | `EVAL_OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Base URL for Ollama provider |
 | `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Base URL override for OpenRouter provider |
+| `EVAL_COMPAT_CHAT_EXTRA_JSON` | — | JSON object merged into OpenAI-compatible chat completions (e.g. OpenRouter [`provider` routing](https://openrouter.ai/docs/guides/routing/provider-selection)); ignored by Anthropic / Google |
 | `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Base URL override for Groq provider |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Path to spec repo eval corpus |
 | `EVAL_TREATMENT` | `A` | L0 contrastive only: `A` (manual catalog, Run 4 baseline), `B` (auto-gen prompt via `generateCatalogPrompt`), `C` (B + auto-refine), `D` (C + pre-built `resilientFetch`/`adaptivePoller` templates). See `docs/roadmap.md` §9.1.2. |

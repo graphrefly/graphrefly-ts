@@ -111,7 +111,9 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		tpm: 800_000,
 	},
 
-	// --- Google (free tier — conservative) ---
+	// --- Google (free tier — verified from AI Studio https://aistudio.google.com/rate-limit ) ---
+	// Verified 2026-04-19 for Gemini 2.5 Flash and Gemini 3 Flash Preview.
+	// Override per run with EVAL_RPM / EVAL_RPD / EVAL_TPM if your account is on a paid tier.
 	"google/gemini-2.5-pro": {
 		contextWindow: 1_048_576,
 		maxOutputTokens: 65_536,
@@ -122,8 +124,8 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 	"google/gemini-2.5-flash": {
 		contextWindow: 1_048_576,
 		maxOutputTokens: 65_536,
-		rpm: 10,
-		rpd: 500,
+		rpm: 5,
+		rpd: 20,
 		tpm: 250_000,
 	},
 	"google/gemini-2.0-flash": {
@@ -136,15 +138,15 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 	"google/gemini-3-flash-preview": {
 		contextWindow: 1_048_576,
 		maxOutputTokens: 65_536,
-		rpm: 10,
-		rpd: 500,
+		rpm: 5,
+		rpd: 20,
 		tpm: 250_000,
 	},
 	"google/*": {
 		contextWindow: 1_048_576,
 		maxOutputTokens: 8_192,
-		rpm: 10,
-		rpd: 500,
+		rpm: 5,
+		rpd: 20,
 		tpm: 250_000,
 	},
 

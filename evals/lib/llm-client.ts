@@ -9,6 +9,9 @@
  *   - OpenAI-compatible: `openai`
  *   - Google:    `@google/generative-ai`
  *   - Presets: OpenAI, Ollama, OpenRouter, Groq
+ *
+ * OpenAI-compatible extras (OpenRouter `provider` routing, etc.): `EVAL_COMPAT_CHAT_EXTRA_JSON`
+ * → `EvalConfig.compatChatExtra`, merged into each chat completion.
  */
 
 import { type BudgetGateOptions, withBudgetGate } from "./budget-gate.js";
@@ -124,7 +127,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 		const maxTokens = req.maxTokens ?? this.limits.maxOutputTokens;
 		const start = performance.now();
 
-		const response = await client.chat.completions.create({
+		const baseBody = {
 			model,
 			max_tokens: maxTokens,
 			temperature: req.temperature ?? this.config.temperature,
@@ -132,7 +135,13 @@ export class OpenAICompatibleProvider implements LLMProvider {
 				{ role: "system", content: req.system },
 				{ role: "user", content: req.user },
 			],
-		});
+		};
+		const extra = this.config.compatChatExtra;
+		// Vendor extensions (e.g. OpenRouter `provider`) are not in OpenAI's typings.
+		const response = await client.chat.completions.create({
+			...baseBody,
+			...(extra ?? {}),
+		} as never);
 
 		const latencyMs = performance.now() - start;
 		const content = response.choices[0]?.message?.content ?? "";
@@ -239,6 +248,13 @@ export class GoogleProvider implements LLMProvider {
 // re-export for backward compat
 export type { ProviderName } from "./types.js";
 
+/** Stable string for cache keys when `compatChatExtra` affects routing/output. */
+function compatChatExtraCacheSalt(config: EvalConfig): string | undefined {
+	const ex = config.compatChatExtra;
+	if (!ex || Object.keys(ex).length === 0) return undefined;
+	return JSON.stringify(ex);
+}
+
 export function createProvider(config: EvalConfig): LLMProvider {
 	const name = config.provider;
 	switch (name) {
@@ -315,6 +331,7 @@ export function createSafeProvider(
 	const cached = withReplayCache(gated, {
 		cacheDir: opts.cacheDir ?? "evals/results/replay-cache",
 		mode: (process.env.EVAL_REPLAY as ReplayMode) ?? "read-write",
+		keyMaterialExtra: compatChatExtraCacheSalt(config),
 	});
 
 	return cached;
@@ -324,23 +341,30 @@ export function createSafeProvider(
 // Convenience wrapper (backward-compatible)
 // ---------------------------------------------------------------------------
 
-/** Provider + rate limiter instances cached by provider name. */
+/** Provider + rate limiter instances cached by provider name + compat extras. */
 const _providerCache = new Map<string, { provider: LLMProvider; limiter: AdaptiveRateLimiter }>();
+
+function providerInstanceCacheKey(config: EvalConfig, providerName?: ProviderName): string {
+	const name = providerName ?? config.provider;
+	const salt = compatChatExtraCacheSalt(config);
+	return salt !== undefined ? `${name}::${salt}` : name;
+}
 
 function getProviderWithLimiter(
 	config: EvalConfig,
 	providerName?: ProviderName,
 ): { provider: LLMProvider; limiter: AdaptiveRateLimiter } {
-	const name = providerName ?? config.provider;
-	let entry = _providerCache.get(name);
+	const cacheKey = providerInstanceCacheKey(config, providerName);
+	let entry = _providerCache.get(cacheKey);
 	if (!entry) {
+		const name = providerName ?? config.provider;
 		const overrideConfig = name === config.provider ? config : { ...config, provider: name };
 		// Cost-safe stack: replay cache + budget gate + dry-run toggle. Env vars
 		// (EVAL_MODE / EVAL_MAX_CALLS / EVAL_MAX_PRICE_USD / EVAL_REPLAY) control it.
 		const provider = createSafeProvider(overrideConfig);
 		const limiter = new AdaptiveRateLimiter(provider.limits);
 		entry = { provider, limiter };
-		_providerCache.set(name, entry);
+		_providerCache.set(cacheKey, entry);
 	}
 	return entry;
 }

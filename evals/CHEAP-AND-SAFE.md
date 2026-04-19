@@ -177,6 +177,8 @@ EVAL_PROVIDER=openrouter EVAL_MODEL=moonshotai/kimi-k2.5 pnpm eval              
 EVAL_PROVIDER=openai EVAL_MODEL=gpt-4.1-mini pnpm eval                              # $0.40 / $1.60
 ```
 
+Optional: restrict OpenRouter to specific inference hosts by merging [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection) into the request — set `EVAL_COMPAT_CHAT_EXTRA_JSON` to a JSON object, for example `'{"provider":{"only":["chutes"]}}'` or `'{"provider":{"order":["chutes"],"allow_fallbacks":false}}'`. The same hook applies to any OpenAI-compatible endpoint that accepts extra body fields.
+
 ### Tier 3 — Mid-range (~$0.80–$1.00 / 1M input)
 
 ```bash

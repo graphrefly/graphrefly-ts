@@ -120,6 +120,7 @@ Analysis: [eval-analysis.md](results/eval-analysis.md)
 | `EVAL_PROVIDERS` | — | Provider per model (matrix) |
 | `EVAL_OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint |
 | `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter endpoint override |
+| `EVAL_COMPAT_CHAT_EXTRA_JSON` | — | JSON merged into OpenAI-compatible chat requests (e.g. OpenRouter provider routing) |
 | `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq endpoint override |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Spec repo evals path |
 | `EVAL_L0_FROM` | — | L0 only: task id to start at (inclusive); set only one of this or `EVAL_L0_AFTER` |
