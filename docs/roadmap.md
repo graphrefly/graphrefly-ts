@@ -284,15 +284,15 @@ Goal: establish credibility by showing eval → schema fix → re-eval feedback 
 
 ##### Next-action sequence (the dependency chain)
 
-1. **Now → unblock automation** (no LLM): write `CatalogFnEntry` objects for portable catalog. Treatment B prereq. → §9.1.2
-2. **Run B + C** automated, two models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`), 5 runs each, commit trend data. → §9.1.1 L0 + §9.1.2 + §9.1.3 automated
-3. **Build templates** (`resilientFetch`, `adaptivePoller`, `conditionalMap`, `median`, `llmScore` desc). Treatment D prereq. → §9.1.2
+1. ~~Write `CatalogFnEntry` objects + Treatment-D templates~~ — DONE (archived id `9.1.2-portable-catalog-and-templates`). `EVAL_TREATMENT=A|B|C|D` env var live in [evals/lib/contrastive.ts](../evals/lib/contrastive.ts).
+2. **Now → Run B + C** automated, two cheap models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`), 5 runs each, commit trend data. → §9.1.1 L0 + §9.1.2 + §9.1.3 automated
+3. ~~Build templates (`resilientFetch`, `adaptivePoller`, `conditionalMap`, `median`, `llmScore` desc)~~ — DONE (same archive entry).
 4. **Run D** — compare A→B→C→D progression. → §9.1.2
 5. **Wire harness execution method** (EXECUTE actuator + VERIFY re-eval + `run-treatments.ts`). Wave 1 dogfood demo. → §9.1.3
 6. **Cross-model validation** — promote to publish-tier models (`claude-sonnet-4-6`, `gpt-4.1`) for the blog numbers. → §9.1.1 + §9.1.3
 7. **Publish**: blog + scorecard + reproduce-guide + design-partner outreach. → §9.1.5
 
-Steps 1-4 are the **internal evidence track**. Step 5 is the **demo track** (we use our own harness to run our own evals — the meta-story for Wave 1). Steps 6-7 are the **external story track**.
+Steps 2 and 4 are the **internal evidence track**. Step 5 is the **demo track** (we use our own harness to run our own evals — the meta-story for Wave 1). Steps 6-7 are the **external story track**.
 
 ##### 9.1.0 — Eval matrix (orientation)
 
@@ -319,25 +319,20 @@ Four treatments, same 12 tasks, measuring delta at each automation step.
 | Treatment | Developer does | Library does | Status |
 |-----------|---------------|-------------|--------|
 | A: Manual catalog | Writes `catalogDescription` string | Nothing | DONE — Run 4 baseline 173/180 |
-| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | Blocked on `CatalogFnEntry` authoring |
-| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Blocked on B |
-| D: + templates | Same as C + selects templates | + pre-built templates | Blocked on template authoring |
+| B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | **Ready to run** — `EVAL_TREATMENT=B pnpm eval:contrastive` |
+| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Ready to run (refine loop owned by `llmCompose`; contrastive runner currently mirrors B) |
+| D: + templates | Same as C + selects templates | + pre-built templates | **Ready to run** — `EVAL_TREATMENT=D pnpm eval:contrastive` |
 | E: + catalog subsetting | Same as D | + task-relevant subset | Future |
 
-**Treatment B/C prerequisites:**
+**Treatment B/C/D enablement (DONE):**
 
-- [ ] Write `CatalogFnEntry` objects for all portable-eval catalog fns/sources
-- [ ] Run Treatment B (auto-gen prompt) — L0 across two models (Claude + Gemini, or `z-ai/glm-4.7` + `deepseek/deepseek-v3.2` for cheap-tier validation)
-- [ ] Run Treatment C (auto-gen + refine) — L0 across same two models, track refine counts
+> Authoring of `CatalogFnEntry` data, Treatment-D templates, the 5 Run-4 gap fixes, the `EVAL_TREATMENT` env var, and contrastive-runner wiring archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1.2-portable-catalog-and-templates`). Files: [evals/lib/portable-catalog.ts](../evals/lib/portable-catalog.ts), [evals/lib/portable-templates.ts](../evals/lib/portable-templates.ts), [evals/lib/contrastive.ts](../evals/lib/contrastive.ts).
 
-**Treatment D prerequisites (from Run 4 gap analysis, both Claude + Gemini):**
+**Treatment B/C/D — execution remaining:**
 
-- [ ] **Pre-built `resilientFetch` template** — correct resilience ordering (rateLimiter→breaker→retry→timeout→fallback→cache feedback→status). Closes T5/T8a/T8b ordering + cache bugs.
-- [ ] **Pre-built `adaptivePoller` template** — switchMap-based dynamic interval + feedback to interval state. Closes T6 producer-can't-read-state gap.
-- [ ] **`conditionalMap` catalog wrapper** — thin wrapper over `dynamicNode` (not a new primitive). Exposed as rich `CatalogFnEntry`. Closes T6 interval computation gap.
-- [ ] **`median` aggregate op** — add to `aggregate` fn config enum. Closes T8a "avg ≠ median" gap.
-- [ ] **`llmScore` description update** — "When comparing against existing data, add a database producer node as a second dep." Closes T11 missing-DB-query gap.
-- [ ] Run Treatment D — L0 across two models after templates ship
+- [ ] Run Treatment B (auto-gen prompt) — L0 across two cheap models (e.g. `gemini-2.0-flash` + `z-ai/glm-4.7`)
+- [ ] Run Treatment C (auto-gen + refine) — L0 across same two models, track refine counts. Requires wiring `llmCompose` (with `maxAutoRefine: 2`) into contrastive runner; current path is equivalent to B.
+- [ ] Run Treatment D (auto-gen + refine + templates) — L0 across same two models
 - [ ] Compare A→D progression, write up for blog
 - [ ] Cross-model validation on publish-tier model (GPT-4o or Claude Sonnet)
 

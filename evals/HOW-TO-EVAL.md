@@ -100,6 +100,7 @@ pnpm eval:compare evals/results/baseline.json evals/results/current.json
 | `EVAL_OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Base URL override for OpenRouter provider |
 | `EVAL_GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Base URL override for Groq provider |
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Path to spec repo eval corpus |
+| `EVAL_TREATMENT` | `A` | L0 contrastive only: `A` (manual catalog, Run 4 baseline), `B` (auto-gen prompt via `generateCatalogPrompt`), `C` (B + auto-refine), `D` (C + pre-built `resilientFetch`/`adaptivePoller` templates). See `docs/roadmap.md` §9.1.2. |
 
 Results are written to `evals/results/` as timestamped JSON files.
 Scorecards are written to `evals/scorecard/latest.{json,md}`.

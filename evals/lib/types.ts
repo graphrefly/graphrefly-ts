@@ -84,6 +84,16 @@ export interface BugTask {
 
 export type Treatment = "graphspec" | "functions" | "single";
 
+/**
+ * Catalog-automation treatment progression (roadmap §9.1.2).
+ *
+ * - `A`: manual catalog string from `graphspec-treatment.md` (Run 4 baseline).
+ * - `B`: auto-generated catalog prompt via `generateCatalogPrompt(portableCatalog)`.
+ * - `C`: B + auto-refine on catalog validation errors (`maxAutoRefine: 2`).
+ * - `D`: C + pre-built templates (`resilientFetch`, `adaptivePoller`) injected.
+ */
+export type CatalogTreatment = "A" | "B" | "C" | "D";
+
 // --- Result types ---
 
 export interface JudgeScore {
@@ -160,6 +170,17 @@ export interface EvalConfig {
 	 * Disable with EVAL_RATE_LIMIT=false for local providers like Ollama.
 	 */
 	rateLimitEnabled: boolean;
+	/**
+	 * Catalog-automation treatment for L0 contrastive (roadmap §9.1.2).
+	 * Default: `"A"` (manual catalog — Run 4 baseline).
+	 * Set via `EVAL_TREATMENT=A|B|C|D`.
+	 */
+	catalogTreatment: CatalogTreatment;
+}
+
+function normalizeCatalogTreatment(raw?: string): CatalogTreatment {
+	const v = (raw ?? "").trim().toUpperCase();
+	return v === "B" || v === "C" || v === "D" ? (v as CatalogTreatment) : "A";
 }
 
 import { homedir } from "node:os";
@@ -176,4 +197,5 @@ export const DEFAULT_CONFIG: EvalConfig = {
 	l0FromTaskId: process.env.EVAL_L0_FROM?.trim() || undefined,
 	l0ResumeAfterTaskId: process.env.EVAL_L0_AFTER?.trim() || undefined,
 	rateLimitEnabled: process.env.EVAL_RATE_LIMIT !== "false",
+	catalogTreatment: normalizeCatalogTreatment(process.env.EVAL_TREATMENT),
 };

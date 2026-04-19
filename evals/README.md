@@ -124,6 +124,7 @@ Analysis: [eval-analysis.md](results/eval-analysis.md)
 | `SPEC_EVALS_PATH` | `~/src/graphrefly/evals` | Spec repo evals path |
 | `EVAL_L0_FROM` | — | L0 only: task id to start at (inclusive); set only one of this or `EVAL_L0_AFTER` |
 | `EVAL_L0_AFTER` | — | L0 only: task id to resume after (exclusive); set only one of this or `EVAL_L0_FROM` |
+| `EVAL_TREATMENT` | `A` | L0 only: `A` (manual catalog) \| `B` (auto-gen prompt) \| `C` (B + auto-refine) \| `D` (C + templates). See [`docs/roadmap.md`](../docs/roadmap.md) §9.1.2. |
 | `ANTHROPIC_API_KEY` | — | Anthropic provider |
 | `OPENAI_API_KEY` | — | OpenAI provider |
 | `GOOGLE_API_KEY` | — | Google provider |

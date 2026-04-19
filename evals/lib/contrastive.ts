@@ -7,10 +7,13 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { generateCatalogPrompt, validateSpecAgainstCatalog } from "../../src/patterns/graphspec.js";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import { callLLM, extractJSON, getProviderLimits, getRateLimiterStats } from "./llm-client.js";
-import type { EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
+import { portableCatalog } from "./portable-catalog.js";
+import { portableTemplateDescriptions, portableTemplates } from "./portable-templates.js";
+import type { CatalogTreatment, EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
 import { validateSpec } from "./validator.js";
 
 export type ContrastiveResumeConfig = Pick<EvalConfig, "l0FromTaskId" | "l0ResumeAfterTaskId">;
@@ -55,6 +58,77 @@ async function loadTemplate(name: string, config: EvalConfig): Promise<string> {
 	return readFile(join(config.specEvalsPath, "templates", `${name}.md`), "utf-8");
 }
 
+// ---------------------------------------------------------------------------
+// Treatment B/C/D — auto-generated GraphSpec prompt
+// ---------------------------------------------------------------------------
+
+const TREATMENT_B_HEADER = `# GraphSpec Composition — Auto-Generated Prompt
+
+You are composing a reactive graph using GraphReFly's GraphSpec format.
+
+## GraphSpec Schema
+
+A GraphSpec is JSON with \`nodes\` (required), optional \`templates\`, and
+optional \`feedback\` edges. Each node has:
+
+- \`type\`: \`producer\` (data source), \`state\` (mutable value), \`derived\`
+  (computed from deps), \`effect\` (side effect from deps), \`template\`
+  (instantiate a reusable template).
+- \`deps\`: array of dep node names (required for derived/effect).
+- \`fn\`: catalog function name (required for derived/effect — must reference
+  the catalog below, NOT a source).
+- \`source\`: catalog source name (required for producer).
+- \`config\`: optional config object passed to fn/source.
+- \`initial\`: initial value (state nodes).
+- \`meta\`: \`{ description: "<purpose>" }\` recommended for every node.
+
+Edges are implicit from \`deps\`. Do not include an edges array.
+
+Resilience ordering when composing manually: rateLimiter → circuitBreaker →
+retry → timeout(innerCall) → fallback (outermost to innermost).
+
+Stratify routing: stratify tags items with a branch name; downstream nodes
+must use \`filterBy\` to select their branch.
+
+`;
+
+const TREATMENT_B_FOOTER = `
+
+## Your Task
+
+Compose a GraphSpec for the following description. Return ONLY valid JSON,
+no markdown fences, no explanation.
+
+**Description:** {{NL_DESCRIPTION}}
+`;
+
+function buildTemplateD_Section(): string {
+	const lines: string[] = [
+		"## Pre-built Templates (use when applicable)",
+		"",
+		"You may instantiate the following templates via",
+		'`{ "type": "template", "template": "<name>", "bind": { ... } }`.',
+		"Each template has a parameter list and an output node — bind your nodes",
+		"to its params and depend on the instance for downstream nodes. Some",
+		"templates require feedback edges (see template description).",
+		"",
+	];
+	for (const [name, desc] of Object.entries(portableTemplateDescriptions)) {
+		lines.push(`- **${name}**: ${desc}`);
+	}
+	return lines.join("\n");
+}
+
+function buildAutoGenPrompt(treatment: CatalogTreatment): string {
+	const catalogText = generateCatalogPrompt(portableCatalog);
+	const templateSection = treatment === "D" ? `\n\n${buildTemplateD_Section()}\n` : "";
+	return (
+		`${TREATMENT_B_HEADER}\n## Available catalog\n\n${catalogText}` +
+		templateSection +
+		TREATMENT_B_FOOTER
+	);
+}
+
 async function loadCorpus<T>(name: string, config: EvalConfig): Promise<T[]> {
 	const raw = await readFile(join(config.specEvalsPath, "corpus", `${name}.json`), "utf-8");
 	return JSON.parse(raw);
@@ -68,13 +142,23 @@ function addCost(result: TaskResult, model: string): void {
 
 /**
  * Run a single task through the GraphSpec treatment.
+ *
+ * Treatment selection (config.catalogTreatment, env `EVAL_TREATMENT`):
+ * - `A` (default): manual catalog from `graphspec-treatment.md`.
+ * - `B` / `C` / `D`: auto-generated prompt from `portableCatalog`.
+ *   - `D` additionally injects `Pre-built Templates` section.
+ *   - `C` would additionally enable auto-refine (requires llmCompose wiring;
+ *     currently equivalent to B inside the contrastive runner — refine loop
+ *     is owned by `llmCompose`, not the bare contrastive path).
  */
 async function runGraphSpecTreatment(
 	task: EvalTask,
 	template: string,
 	config: EvalConfig,
 ): Promise<TaskResult> {
-	const prompt = template.replace("{{NL_DESCRIPTION}}", task.nl_description);
+	const useAutoGen = config.catalogTreatment !== "A";
+	const promptSource = useAutoGen ? buildAutoGenPrompt(config.catalogTreatment) : template;
+	const prompt = promptSource.replace("{{NL_DESCRIPTION}}", task.nl_description);
 
 	const response = await callLLM(
 		{
@@ -86,16 +170,34 @@ async function runGraphSpecTreatment(
 
 	let valid = false;
 	let runnable = false;
+	const catalogErrors: string[] = [];
 	try {
 		const spec = JSON.parse(extractJSON(response.content));
+		// Treatment D: ensure pre-built templates are merged in so
+		// `validateSpecAgainstCatalog` accepts template references the LLM
+		// invokes by name (`{ type: "template", template: "resilientFetch", ... }`).
+		if (config.catalogTreatment === "D" && spec && typeof spec === "object") {
+			spec.templates = { ...portableTemplates, ...(spec.templates ?? {}) };
+		}
 		const validation = validateSpec(spec);
 		valid = validation.valid;
 		runnable = valid; // Placeholder until graphFromSpec exists
+
+		// Treatment B/C/D: also run catalog-aware validation. Failures here
+		// are surfaced as JudgeScore-shaped diagnostics on the result so they
+		// show up in the run output without breaking the existing valid/runnable
+		// contract that Treatment A uses.
+		if (useAutoGen && valid) {
+			const catalogValidation = validateSpecAgainstCatalog(spec, portableCatalog);
+			if (!catalogValidation.valid) {
+				catalogErrors.push(...catalogValidation.errors);
+			}
+		}
 	} catch {
 		// Invalid JSON
 	}
 
-	return {
+	const result: TaskResult = {
 		task_id: task.id,
 		treatment: "graphspec",
 		raw_output: response.content,
@@ -108,6 +210,16 @@ async function runGraphSpecTreatment(
 			output: response.outputTokens,
 		},
 	};
+
+	for (const err of catalogErrors) {
+		result.judge_scores.push({
+			claim: "catalog validation",
+			pass: false,
+			reasoning: err,
+		});
+	}
+
+	return result;
 }
 
 /**
