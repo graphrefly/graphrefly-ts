@@ -19,6 +19,12 @@ export {
 	type WALEntry,
 } from "./codec.js";
 export {
+	type CausalChain,
+	type CausalStep,
+	type ExplainPathOptions,
+	explainPath,
+} from "./explain.js";
+export {
 	type DescribeFilter,
 	diffForWAL,
 	GRAPH_META_SEGMENT,

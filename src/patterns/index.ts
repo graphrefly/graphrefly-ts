@@ -3,6 +3,7 @@
  */
 
 export * as ai from "./ai.js";
+export * as accountability from "./audit.js";
 export * as cqrs from "./cqrs.js";
 export * as demoShell from "./demo-shell.js";
 export * as domainTemplates from "./domain-templates.js";

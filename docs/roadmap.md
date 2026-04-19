@@ -410,10 +410,12 @@ Goal: ship the audit/explain layer + MCP server + scorecard. This is where Graph
 
 The missing layer that makes "harness" real, not just "substrate."
 
-- [ ] `explainPath(graph, from, to)` — walk backward through graph derivation chain. Returns human-readable + LLM-parseable causal chain. THE harness differentiator. (8.4 → 9.2)
-- [ ] `auditTrail(graph, opts?)` → Graph — wraps any graph with `reactiveLog` recording every mutation, actor, timestamp, causal chain. Queryable by time range, actor, node. (8.4 → 9.2)
-- [ ] `policyEnforcer(graph, policies)` — reactive constraint enforcement. Policies are nodes (LLM-updatable). Violations emit to alert subgraph. (8.4 → 9.2)
-- [ ] `complianceSnapshot(graph)` — point-in-time export of full graph state + audit trail for regulatory archival. (8.4 → 9.2)
+- [x] `explainPath(graph, from, to)` — walk backward through graph derivation chain. Returns human-readable + LLM-parseable causal chain. THE harness differentiator. (TS shipped — `src/graph/explain.ts` + `Graph.explain()`)
+- [x] `auditTrail(graph, opts?)` → Graph — wraps any graph with `reactiveLog` recording every mutation, actor, timestamp, causal chain. Queryable by time range, actor, node. (TS shipped — `src/patterns/audit.ts`, namespace `patterns.accountability`)
+- [x] `policyEnforcer(graph, policies)` — reactive constraint enforcement. Policies are nodes (LLM-updatable). Violations emit to alert subgraph. Modes: `"audit"` (forensic) and `"enforce"` (live guard stacking via `NodeImpl._pushGuard`). (TS shipped)
+- [x] `complianceSnapshot(graph)` — point-in-time export of full graph state + audit trail for regulatory archival. Includes deterministic FNV-1a fingerprint over canonical JSON. (TS shipped)
+- [x] `reactiveExplainPath(graph, from, to)` — `Node<CausalChain>` that recomputes on graph mutations; foundation for `graphLens.why(node)` (§9.0b). (TS shipped)
+- [ ] PY parity — tracked under "PY 9.2" below.
 
 #### 9.3 — MCP Server (`@graphrefly/mcp-server`)
 

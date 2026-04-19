@@ -35,6 +35,7 @@ import type { StorageHandle, StorageTier } from "../extra/storage.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
+import { type CausalChain, explainPath } from "./explain.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
@@ -1785,6 +1786,40 @@ export class Graph {
 			});
 		}
 		return reachable(this.describe(), from, direction, opts);
+	}
+
+	/**
+	 * Causal walkback: shortest dep-chain from `from` to `to`, enriched with
+	 * each node's value, status, last-mutation actor, and reasoning annotation
+	 * from {@link Graph.trace}. Wraps {@link explainPath} (roadmap §9.2).
+	 *
+	 * @param from - Upstream node (the cause).
+	 * @param to - Downstream node (the effect).
+	 * @param opts - Optional `maxDepth` and `findCycle`. When `findCycle:true`
+	 *   and `from === to`, returns the shortest cycle through other nodes
+	 *   (useful for diagnosing feedback loops, COMPOSITION-GUIDE §7).
+	 *   Annotations and lastMutations are collected automatically from the
+	 *   live graph.
+	 */
+	explain(
+		from: string,
+		to: string,
+		opts?: { maxDepth?: number; findCycle?: boolean },
+	): CausalChain {
+		// `detail: "full"` includes `value`, `status`, `lastMutation`, `v`, etc.
+		// — everything `explainPath` enriches each step with.
+		const described = this.describe({ detail: "full" });
+		const annotations = new Map<string, string>(this._annotations);
+		const lastMutations = new Map<string, Readonly<{ actor: Actor; timestamp_ns: number }>>();
+		for (const [path, n] of Object.entries(described.nodes)) {
+			if (n.lastMutation != null) lastMutations.set(path, n.lastMutation);
+		}
+		return explainPath(described, from, to, {
+			...(opts?.maxDepth != null ? { maxDepth: opts.maxDepth } : {}),
+			...(opts?.findCycle === true ? { findCycle: true as const } : {}),
+			annotations,
+			lastMutations,
+		});
 	}
 
 	/**

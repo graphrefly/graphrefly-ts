@@ -194,6 +194,13 @@ const REGISTRY = {
 	// Graph container
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",
+	explainPath: "src/graph/explain.ts",
+
+	// Audit & accountability (roadmap §9.2)
+	auditTrail: "src/patterns/audit.ts",
+	policyEnforcer: "src/patterns/audit.ts",
+	complianceSnapshot: "src/patterns/audit.ts",
+	reactiveExplainPath: "src/patterns/audit.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

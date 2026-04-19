@@ -562,6 +562,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _autoError: boolean;
 	readonly _pausable: boolean | "resumeAll";
 	readonly _guard: NodeGuard | undefined;
+	/**
+	 * @internal Additional guards stacked at runtime via {@link NodeImpl._pushGuard}
+	 * (e.g. by `policyEnforcer({ mode: "enforce" })`, roadmap §9.2). Effective
+	 * write/signal/observe checks AND the original `_guard` with every entry here.
+	 */
+	_extraGuards: Set<NodeGuard> | undefined;
 	_hashFn: HashFn;
 	_versioning: NodeVersionInfo | undefined;
 	/**
@@ -792,20 +798,69 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		};
 	}
 
+	/**
+	 * @internal Push an additional guard onto this node. Effective enforcement
+	 * is the AND of `_guard` and every guard pushed via this hook — any one
+	 * rejecting throws {@link GuardDenied}. Returns a disposer that removes
+	 * the pushed guard. Multiple guards may be stacked simultaneously.
+	 *
+	 * Used by `policyEnforcer({ mode: "enforce" })` (roadmap §9.2) to overlay
+	 * runtime constraint enforcement onto an existing graph without rebuilding
+	 * its nodes. Pre-1.0 internal API; not part of the public surface.
+	 *
+	 * **Identity semantics:** guards are tracked in a `Set`, so pushing the
+	 * same `NodeGuard` reference twice is a single registration. Wrap each
+	 * push in a unique closure if independent stacking is needed.
+	 *
+	 * **Iteration order:** insertion-ordered (`Set` semantics). Determinism
+	 * follows from single-threaded JS execution; nested re-entry from inside
+	 * a guard body (push/pop while iterating) is undefined-but-survivable.
+	 */
+	_pushGuard(guard: NodeGuard): () => void {
+		if (this._extraGuards == null) this._extraGuards = new Set();
+		this._extraGuards.add(guard);
+		return () => {
+			this._extraGuards?.delete(guard);
+			if (this._extraGuards?.size === 0) this._extraGuards = undefined;
+		};
+	}
+
 	allowsObserve(actor: Actor): boolean {
-		if (this._guard == null) return true;
-		return this._guard(normalizeActor(actor), "observe");
+		if (this._guard == null && this._extraGuards == null) return true;
+		const a = normalizeActor(actor);
+		if (this._guard != null && !this._guard(a, "observe")) return false;
+		if (this._extraGuards != null) {
+			for (const eg of this._extraGuards) {
+				if (!eg(a, "observe")) return false;
+			}
+		}
+		return true;
 	}
 
 	// --- Guard helper ---
 
 	private _checkGuard(options?: NodeTransportOptions): void {
-		if (options?.internal || this._guard == null) return;
+		if (options?.internal) return;
+		const hasGuard = this._guard != null || this._extraGuards != null;
+		const hasActor = options?.actor != null;
+		// Skip work entirely when there's nothing to check or attribute.
+		if (!hasGuard && !hasActor) return;
 		const actor = normalizeActor(options?.actor);
 		const action: GuardAction = options?.delivery === "signal" ? "signal" : "write";
-		if (!this._guard(actor, action)) {
+		if (this._guard != null && !this._guard(actor, action)) {
 			throw new GuardDenied({ actor, action, nodeName: this.name });
 		}
+		if (this._extraGuards != null) {
+			for (const eg of this._extraGuards) {
+				if (!eg(actor, action)) {
+					throw new GuardDenied({ actor, action, nodeName: this.name });
+				}
+			}
+		}
+		// Populate `_lastMutation` whenever guards ran OR an explicit actor was
+		// passed — `auditTrail` (roadmap §9.2) relies on this for attribution
+		// on graphs without ABAC. Internal writes (no actor, no guard) skip
+		// attribution to avoid recording derived recompute storms.
 		this._lastMutation = { actor, timestamp_ns: wallClockNs() };
 	}
 
