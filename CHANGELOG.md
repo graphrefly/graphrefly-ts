@@ -7,6 +7,15 @@
 * add reactive layout demo ([b0a173b](https://github.com/graphrefly/graphrefly-ts/commit/b0a173b5ef042d65ee09b61926d19d2a2d8b9b35))
 * reactive-layout demo ([96a7c73](https://github.com/graphrefly/graphrefly-ts/commit/96a7c739ce2ac45e67da7198339e1dc2488c3f87))
 
+# [0.24.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.23.0...v0.24.0) (2026-04-19)
+
+
+### Features
+
+* add compat demo ([1c76856](https://github.com/graphrefly/graphrefly-ts/commit/1c768568a31dfa7ef43696a242816c9da614d8b0))
+* add reactive layout demo ([b0a173b](https://github.com/graphrefly/graphrefly-ts/commit/b0a173b5ef042d65ee09b61926d19d2a2d8b9b35))
+* reactive-layout demo ([96a7c73](https://github.com/graphrefly/graphrefly-ts/commit/96a7c739ce2ac45e67da7198339e1dc2488c3f87))
+
 # [0.24.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.23.0...v0.24.0) (2026-04-18)
 
 
