@@ -7,7 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "../..");
 
 export default defineConfig({
-	base: "/demos/reactive-layout",
+	site: process.env.ASTRO_SITE_URL ?? "https://example.invalid",
+	base: "/demos/reactive-layout/",
 	server: { port: 4322 },
 	integrations: [react()],
 	vite: {
