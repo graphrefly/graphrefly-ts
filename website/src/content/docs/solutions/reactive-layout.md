@@ -1,92 +1,17 @@
 ---
 title: Reactive Layout
-description: "Pretext-class text measurement plus a reactive graph. Multi-column flow, shape obstacles, heterogeneous blocks. Animate obstacles and reflow text every frame without re-measuring."
+description: "DOM-free text layout as a reactive graph: pretext-class measurement, cached derived nodes, block and flow layouts, adapters, and hooks into the rest of GraphReFly."
 ---
 
-[Pretext](https://github.com/chenglou/pretext) solved text measurement without DOM thrash — it's one of the cleanest pieces of infrastructure to appear on the web in years. Reactive Layout builds on that insight — the same canvas-based measurement, the same cursor-driven line walker — and adds the reactive composition and higher-level primitives a real application needs.
+## What it is
 
-This page is about **when to pick Reactive Layout, when to pick pretext, and what you get when you plug Reactive Layout into the rest of GraphReFly.**
+**Reactive Layout** wraps pretext-class text analysis and canvas-based measurement in a **GraphReFly graph**. You get `state` inputs (text, font, line height, max width) and **derived** nodes (`segments`, line breaks, heights, character positions) that **recompute only when their dependencies change** — with measurement caching and meta companions (`cache-hit-rate`, `layout-time-ns`, …) for debugging.
 
-## When to pick Reactive Layout
+On top of single-column `reactiveLayout`, the module adds **heterogeneous vertical stacks** (`reactiveBlockLayout`), **multi-column flow around obstacles** (`reactiveFlowLayout`), and **adapters** from browser canvas to CLI fixed-width measurement.
 
-- **Your layout has changing inputs.** Slider-driven font size, user-typed text, animated obstacles, window resize, streaming LLM output. Pretext gives you measurement; you wire the reactivity. Reactive Layout gives you a graph where only the dependent derived nodes recompute — change `maxWidth` alone and `segments` stays cached across the change.
+**Choosing vs raw [pretext](https://github.com/chenglou/pretext)?** See **[Reactive Layout vs Pretext](/comparisons/pretext/)** for bundle size, i18n coverage, and primitive-by-primitive tradeoffs.
 
-- **You need more than single-column text.** `reactiveBlockLayout` vertically stacks heterogeneous content (text, SVG, image) with per-block adapters. `reactiveFlowLayout` flows text across columns around circle / rectangle obstacles — editorial magazines, drop caps, text-wrapping-images, pull quotes.
-
-- **You want to inspect and debug the layout.** `graph.describe()` → mermaid. Meta companions report `cache-hit-rate`, `layout-time-ns`, `line-count`, `overflow-segments`. Snapshot + deserialize the whole layout graph with one call.
-
-- **You're composing layout with other reactive behavior.** Streaming LLM output rewrapping in real time. Form validation gating a layout preview. Chat bubbles virtualized with exact predicted heights. Ingestion pipelines that feed document state. This is where GraphReFly's same-protocol composition compounds.
-
-## When to pick pretext instead
-
-- **Size-sensitive embedding.** Pretext is ~15KB min+gz, zero-dep, self-contained. A widget script tag, a landing-page hero — you don't want the GraphReFly core's weight.
-
-- **Text-only, one-shot rendering.** A static blog, a CMS preview, a server-rendered article. Measure once, render. You don't benefit from reactive recomputation — pretext is the direct path with less surface area.
-
-- **Full-fidelity internationalization.** Pretext has bidi, keep-all word-break, emoji-width correction, tab-stop handling, rich-path segment metadata. Our port is a **clean subset** — CJK (per-grapheme breaking), soft-hyphen, break-word, kinsoku, left-sticky punctuation, but **not** the full i18n stack. If you ship to an RTL-heavy market or have serious emoji + CJK mixing requirements, pretext is more battle-tested.
-
-- **You want to own the reactive layer.** Some teams have an opinionated store (Redux, MobX, Signals) and don't want a second protocol. Pretext plugs into whatever you've already built.
-
-## How the primitives line up
-
-| Problem | pretext | Reactive Layout |
-|---|---|---|
-| Measure text width without DOM reflow | `prepare(text, font)` + `layout(prepared, maxWidth, lineHeight)` | `reactiveLayout({ adapter, text, font, lineHeight, maxWidth })` — same canvas-based measurement, wrapped in a reactive graph |
-| Cursor-based single-line layout (multi-slot, multi-column) | `layoutNextLine(prepared, cursor, width)` | `layoutNextLine(segments, cursor, slotWidth)` — same shape, same cursor semantics |
-| Carve blocked intervals from a column | Hand-rolled per call site | `carveTextLineSlots(base, blocked, minSlotWidth)` — exported primitive |
-| Stacked heterogeneous blocks (text + image + SVG) | Not in core | `reactiveBlockLayout({ adapters, blocks, maxWidth, gap })` |
-| Multi-column flow around shape obstacles | Hand-rolled over `layoutNextLine` | `reactiveFlowLayout({ text, container, columns, obstacles })` + `Obstacle = Circle \| Rect` + built-in slot carving |
-| Headless / SSR (no DOM / no Canvas) | DOM-dependent | `CliMeasureAdapter` (fixed character width) |
-| Observability | None | `graph.describe()` → mermaid; `.meta` companions; snapshot serialization |
-| Composable with other reactive work | Bring your own | Native — same protocol as harness, orchestration, messaging, resilience |
-| Bidi / tab stops / emoji-width correction | ✓ | Not yet — roadmap |
-
-## Composition stories
-
-Reactive Layout isn't meant to sit alone. The multiplicative value is what happens when it plugs into the rest of GraphReFly:
-
-### Layout × Harness
-
-The agent harness generates an essay with streaming LLM output. `reactiveLayout` rewraps the partial text every frame — but `segments` stays cached until the font changes, so the cost is *just* the re-layout, not re-measurement. The harness gates, verifies, and retries; layout just reacts.
-
-```ts
-// harness drives the text; layout reacts
-const harness = harnessLoop({ /* 7-stage config */ });
-const layout = reactiveLayout({ adapter, font, lineHeight, maxWidth });
-
-// wire the harness's output stream into the layout's text input
-harness.outputs.subscribe(([[t, v]]) => {
-  if (t === DATA) layout.setText(v.text);
-});
-```
-
-### Layout × Resilience
-
-The text source is a fragile websocket. Wrap the stream in `circuitBreaker` + `retry`, feed the debounced output into `reactiveFlowLayout`'s text state. When the breaker opens, the layout freezes on the last good text; when it closes, layout picks up seamlessly.
-
-### Layout × Virtualization
-
-`reactiveList` + `reactiveLayout` per item: exact predicted heights before paint. No estimated-height jank, no late corrections, no scroll-anchor drift. Every message in a virtualized chat knows its height before it's positioned.
-
-### Layout × CQRS
-
-Document is an event log. CQRS projection → `reactiveBlockLayout`'s blocks state. Undo/redo snapshots the whole reactive chain — `graph.snapshot()` captures not just the document but the layout downstream of it. Live collaborators mutate blocks; the layout reflows per keystroke without re-measurement.
-
-### Layout × Layout
-
-Two `reactiveFlowLayout` bundles sharing one measurement adapter cache. Change the font on one, the adapter's font-specific cache is warm for the other. The demo's Adapters chapter shows three backends (Canvas, Offscreen, CLI) behind the same adapter shape — swap at mount, no consumer changes.
-
-## Live demos
-
-- **[Reactive layout demo →](/demos/reactive-layout/)** — six chapters:
-  - **Playground** — edit text / width / font / line-height, only dependent derived nodes re-run
-  - **Recomputes** — reactive fan-out vs. re-run-from-scratch baseline
-  - **Batch** — 5 writes, 1 coalesced recompute via `batch()`
-  - **Adapters** — same topology, three measurement backends
-  - **Blocks** — mixed content (text + SVG + image) reflowing in a vertical stack
-  - **Flow** — two columns of essay text wrapping around moving ASCII-rendered obstacles (the pretext editorial-engine idea as a reactive graph)
-
-## 60-second start
+## Quick start
 
 ```ts
 import {
@@ -103,34 +28,171 @@ const layout = reactiveLayout({
   maxWidth: 480,
 });
 
-// Subscribe once; re-renders flow from the graph.
 layout.lineBreaks.subscribe(([[type, lb]]) => {
   if (type === DATA) render(lb);
 });
 
-// Change any input — only the dependent derived nodes re-run.
-layout.setMaxWidth(320);          // segments stays cached
-layout.setText("Try typing here."); // segments + line-breaks re-run
-layout.setFont("16px serif");     // both re-run (new font key)
+layout.setMaxWidth(320);           // segments can stay cached
+layout.setText("Try typing here.");
+layout.setFont("16px serif");      // new font key → segments + line-breaks
 ```
 
-That's roughly 15 lines. In pretext, add ~50 lines of observer plumbing (a store, a change-detection pass, a subscriber list, a re-layout trigger) to get equivalent reactive recompute behavior.
+Change any input — only dependent derived nodes re-run. For batching multiple writes into one recompute, use `batch()` like any other GraphReFly graph.
 
-## Build notes (honest)
+## Rendering from `layout`
 
-- **Measurement fidelity.** Our `analyzeAndMeasure` ports pretext's analysis and measurement subset. CJK, soft-hyphen, break-word, kinsoku, left-sticky punctuation — yes. Full bidi, keep-all word-break, emoji-width correction, tab stops — not yet. If you rely on these, pretext is more battle-tested.
-- **Canvas adapter timing.** `CanvasMeasureAdapter` uses `OffscreenCanvas` when available, falls back to DOM `<canvas>`. First measurement on a new font is slower while the font loads; subsequent measurements hit the per-font cache.
-- **`fromRaf` semantics.** Our animation-frame source ticks via rAF when the tab is visible and falls back to `setTimeout` when the tab is hidden — so downstream layout state keeps updating. If you need strict rAF semantics (pause in background), wrap or opt out at the source level.
+**Reactive Layout does not draw to the screen by itself.** The bundle exposes graph **nodes** (`lineBreaks`, `height`, `segments`, `charPositions`). Implement `render` (or map to JSX) by consuming **`LineBreaksResult`** from `lineBreaks` — `{ lines, lineCount }` where each line has `text`, `width`, and segment bounds (see [`LineBreaksResult`](/api/reactivelayout)). Below: vanilla DOM and React using the same subscription pattern.
+
+### Vanilla: subscribe and paint DOM
+
+```ts
+import {
+  reactiveLayout,
+  CanvasMeasureAdapter,
+  type LineBreaksResult,
+} from "@graphrefly/graphrefly/reactive-layout";
+import { DATA } from "@graphrefly/graphrefly/core";
+
+const lineHeightPx = 22;
+
+const layout = reactiveLayout({
+  adapter: new CanvasMeasureAdapter(),
+  text: "GraphReFly — text layout as a reactive graph.",
+  font: "14px Fira Code",
+  lineHeight: lineHeightPx,
+  maxWidth: 480,
+});
+
+function paint(container: HTMLElement, lb: LineBreaksResult) {
+  container.replaceChildren();
+  for (const line of lb.lines) {
+    const row = document.createElement("div");
+    row.style.height = `${lineHeightPx}px`;
+    row.style.width = `${line.width}px`;
+    row.textContent = line.text || "\u00a0";
+    container.append(row);
+  }
+}
+
+const el = document.getElementById("body")!;
+layout.lineBreaks.subscribe(([[type, lb]]) => {
+  if (type === DATA) paint(el, lb);
+});
+const initial = layout.lineBreaks.cache as LineBreaksResult | undefined;
+if (initial) paint(el, initial);
+```
+
+You can also subscribe with `layout.lineBreaks.subscribe(() => { paint(el, layout.lineBreaks.cache as LineBreaksResult); })` and read **`node.cache`** after each push — the **[reactive-layout demo](/demos/reactive-layout/)** does this from React via a tiny `useNodeValue` helper.
+
+### React: `useSubscribe` on output nodes
+
+**`useSubscribe(node)`** from `@graphrefly/graphrefly/compat/react` bridges any `Node<T>` (including `layout.lineBreaks`) to React via `useSyncExternalStore`. There is no layout-specific hook.
+
+```tsx
+import { useMemo } from "react";
+import { reactiveLayout, CanvasMeasureAdapter } from "@graphrefly/graphrefly/reactive-layout";
+import { useSubscribe } from "@graphrefly/graphrefly/compat/react";
+
+const lineHeightPx = 22;
+
+function Paragraph() {
+  const layout = useMemo(
+    () =>
+      reactiveLayout({
+        adapter: new CanvasMeasureAdapter(),
+        text: "Hello",
+        font: "14px system-ui",
+        lineHeight: lineHeightPx,
+        maxWidth: 480,
+      }),
+    [],
+  );
+  const lb = useSubscribe(layout.lineBreaks);
+  const h = useSubscribe(layout.height);
+  if (!lb) return null;
+  return (
+    <div style={{ minHeight: h ?? 0, lineHeight: `${lineHeightPx}px`, font: "14px system-ui" }}>
+      {lb.lines.map((line, i) => (
+        <div key={i} style={{ height: lineHeightPx, width: line.width }}>
+          {line.text || "\u00a0"}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+Create the bundle **once** per logical paragraph (`useMemo`, module scope, or context), not on every render.
+
+## Advanced usage
+
+### Block and flow layouts
+
+- **`reactiveBlockLayout`** — vertically stack heterogeneous blocks (text, SVG, image) with per-block measurement adapters and a shared `maxWidth` / `gap`.
+- **`reactiveFlowLayout`** — flow body text across columns with **circle / rectangle obstacles** (editorial-style wraps, pull quotes, images). Uses the same measurement pipeline with slot carving helpers.
+
+Use the **[interactive demo](/demos/reactive-layout/)** Blocks and Flow chapters to see topology and parameters in motion.
+
+### Adapters and headless measurement
+
+- **Browser:** `CanvasMeasureAdapter` (uses `OffscreenCanvas` when available).
+- **Terminal / snapshots:** `CliMeasureAdapter` for fixed character width without a DOM.
+- **Precomputed / shared cache:** swap adapters without changing consumer code — the demo's **Adapters** chapter runs multiple backends against the same graph shape.
+
+First measurement on a **new font** is slower while the font loads; later calls hit the per-font cache.
+
+### Fidelity and runtime caveats
+
+- **Measurement subset.** CJK (per-grapheme breaking), soft-hyphen, break-word, kinsoku, left-sticky punctuation — yes. Full bidi, keep-all word-break, emoji-width correction, tab stops — **not yet**. If you depend on those, compare with pretext on **[Reactive Layout vs Pretext](/comparisons/pretext/)**.
+
+- **`fromRaf` semantics.** Animation-frame sources tick via `requestAnimationFrame` when the tab is visible and fall back to `setTimeout` when hidden, so downstream layout state keeps updating. If you need strict “pause in background” rAF behavior, wrap or replace at the source.
+
+## With the rest of GraphReFly
+
+Reactive Layout is meant to compose with other primitives on the **same protocol**:
+
+### Layout × Harness
+
+The agent harness streams LLM output; `reactiveLayout` rewraps partial text each tick while `segments` stays cached until the font changes — cost is re-layout, not full re-measurement. Gates, verify, and retry live in the harness; layout only reacts.
+
+```ts
+const harness = harnessLoop({ /* … */ });
+const layout = reactiveLayout({ adapter, font, lineHeight, maxWidth });
+
+harness.outputs.subscribe(([[t, v]]) => {
+  if (t === DATA) layout.setText(v.text);
+});
+```
+
+### Layout × Resilience
+
+Wrap a fragile websocket in `circuitBreaker` + `retry`, debounce into `reactiveFlowLayout`'s text state: when the breaker opens, layout holds the last good text; when it closes, layout resumes.
+
+### Layout × Virtualization
+
+`reactiveList` + per-item `reactiveLayout`: **exact predicted heights** before paint — less scroll-anchor drift than estimate-then-correct patterns.
+
+### Layout × CQRS
+
+Event-sourced document → projection drives `reactiveBlockLayout`'s blocks. `graph.snapshot()` can capture document + downstream layout; collaborators mutate blocks and layout reflows per keystroke without redundant measurement where caches apply.
+
+### Layout × Layout
+
+Multiple layout bundles can **share warm adapter caches** (for example two flow layouts with the same adapter). The demo's Adapters chapter shows **Canvas, Offscreen, and CLI** behind one interface.
+
+## Live demo
+
+**[Reactive layout demo →](/demos/reactive-layout/)** — six chapters: **Playground**, **Recomputes**, **Batch**, **Adapters**, **Blocks**, **Flow**.
 
 ## Where next
 
-- **[API: `reactiveLayout()`](/api/reactivelayout)** — the text-only factory
-- **[API: `reactiveBlockLayout()`](/api/reactiveblocklayout)** — heterogeneous blocks
-- **[API: `analyzeAndMeasure()`](/api/analyzeandmeasure)** — the pure measurement function
-- **[API: `computeLineBreaks()`](/api/computelinebreaks)** — the pure line breaker
-- **[Specification](/spec)** — the reactive protocol Reactive Layout is built on
+- **[Reactive Layout vs Pretext](/comparisons/pretext/)** — when to pick each, primitive mapping, i18n and bundle tradeoffs
+- **[API: `reactiveLayout()`](/api/reactivelayout)**
+- **[API: `reactiveBlockLayout()`](/api/reactiveblocklayout)**
+- **[API: `analyzeAndMeasure()`](/api/analyzeandmeasure)** · **[API: `computeLineBreaks()`](/api/computelinebreaks)**
+- **[Specification](/spec)** — the reactive protocol Reactive Layout builds on
 - **[vs RxJS](/comparisons/rxjs)** — how `derived` + `batch` compare to streaming libraries
 
 ---
 
-*Credit where it's due: Reactive Layout is deeply indebted to [Cheng Lou's pretext](https://github.com/chenglou/pretext) — the algorithms, the naming, the idea that text measurement can be pure arithmetic over cached widths. We've added the reactive composition layer on top; the foundation is pretext-class.*
+*Credit: Reactive Layout stands on [Cheng Lou's pretext](https://github.com/chenglou/pretext) — algorithms, naming, and the insight that text measurement can be pure arithmetic over cached widths. GraphReFly adds the reactive graph on top.*
