@@ -1,3 +1,10 @@
+# [0.25.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.24.0...v0.25.0) (2026-04-19)
+
+
+### Features
+
+* add cost safety ([49fb70e](https://github.com/graphrefly/graphrefly-ts/commit/49fb70ec28cbfb1eca1d1d292c17953394b99fc4))
+
 # [0.24.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.23.0...v0.24.0) (2026-04-19)
 
 
