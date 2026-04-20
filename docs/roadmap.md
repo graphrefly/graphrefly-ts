@@ -190,85 +190,11 @@ This connects §9.0 (harness) with §9.8 (refineLoop) — the harness routes ite
 
 ---
 
-### §9.0b — Mid-Level Harness Blocks (between Wave 0 and Wave 1)
+### §9.0b — Mid-Level Harness Blocks
 
-Goal: composed building blocks between raw primitives and `harnessLoop()`. Power users compose custom harness variants without wiring 5+ primitives per requirement. `harnessLoop()` uses these internally.
-
-**Design reference:** `archive/docs/SESSION-mid-level-harness-blocks.md`
-
-**Design principle:** The library produces structured, reactive data. It never generates natural language — that's the LLM's or UI's job. All block outputs are typed nodes, composable with any downstream consumer.
-
-#### graphLens() — reactive graph observability
-
-Small subgraph that rides on a target graph via `bridge()`. Each field is a reactive node — subscribable, composable with gates, alerts, memory.
-
-```typescript
-const lens = graphLens(graph)
-lens.topology   // Node<TopologyStats> — nodeCount, edgeCount, sources, sinks, depth, hasCycles
-lens.health     // Node<HealthReport> — { ok, problems: [{ node, status, since, upstreamCause? }] }
-lens.flow       // Node<FlowStats> — per-node throughput, lastUpdate, staleSince?, bottlenecks[]
-lens.why(node)  // Node<CausalChain> — reactive explainPath subscription (live, not one-shot)
-```
-
-- [ ] `TopologyStats` derived node — computed from `describe()`, pushes on topology change
-- [ ] `HealthReport` derived node — aggregates node statuses, identifies upstream causes
-- [ ] `FlowStats` derived node — rolling-window throughput per node, stale detection, bottleneck identification
-- [ ] `why(node)` — reactive `explainPath` wrapper. Works after §9.2 ships; topology/health/flow work without it
-- [ ] `graphLens()` factory — wires all four as a mounted subgraph via `bridge()`
-
-#### resilientPipeline() — resilience composition with correct ordering
-
-Encodes the nesting order discovered during eval runs: `rateLimiter → breaker → retry → timeout → fallback → cache feedback → status`.
-
-```typescript
-const step = resilientPipeline(graph, targetNode, {
-  retry: { max: 3 },
-  backoff: { strategy: 'exponential', base: 1000 },
-  breaker: { threshold: 5, resetAfter: 30_000 },
-  timeout: 10_000,
-  budget: { maxTokens: 50_000 },
-})
-```
-
-- [ ] `resilientPipeline()` factory — composes retry + backoff + withBreaker + timeout + budgetGate in correct order
-- [ ] All options optional with sensible defaults — omit what you don't need
-- [ ] Status node exposed: `step.status` — `Node<'ok' | 'retrying' | 'open-circuit' | 'timeout'>` for wiring into graphLens or dashboards
-- [ ] Subsumes `resilientFetch` template (§9.1b) — template becomes a preconfigured instance
-
-#### guardedExecution() — composable safety layer
-
-Wraps any subgraph with ABAC + policy + budgetGate. Returns scoped view (actor sees only what they're allowed to).
-
-```typescript
-const guarded = guardedExecution(graph, subgraph, {
-  actor: currentUser,
-  policies: [allow('read', '*'), deny('write', 'system:*')],
-  budget: { maxCost: 1.00 },
-})
-```
-
-- [ ] `guardedExecution()` factory — composes Actor/Guard + `policyFromRules()` + `budgetGate`
-- [ ] Scoped `describe()` — returns only nodes the actor can see
-- [ ] Violation events emitted to alert subgraph (composable with `graphLens().health`)
-- [ ] Depends on: Actor/Guard (Phase 1.5, done), `policyEnforcer` (§9.2)
-
-#### persistentState() — survive restarts in one call
-
-Bundles autoCheckpoint + snapshot + restore + incremental diff.
-
-```typescript
-const persistent = persistentState(graph, {
-  store: sqliteStore('./data/checkpoint.db'),
-  debounce: 500,
-  incremental: true,  // uses Graph.diff() for delta checkpoints
-})
-```
-
-- [ ] `persistentState()` factory — composes autoCheckpoint + snapshot + restore
-- [ ] Incremental mode using `Graph.diff()` for delta checkpoints (existing)
-- [ ] Auto-saves gated by `messageTier >= 3` (per CLAUDE.md auto-checkpoint rule)
-- [ ] `persistent.save()` / `persistent.restore()` for manual control
-- [ ] Depends on: autoCheckpoint (Phase 1.4b, done), Graph.diff() (done)
+> **DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl`** (id: `9.0b-mid-level-harness-blocks`, resolved 2026-04-19).
+>
+> Shipped in this wave: `graphLens()` ([src/patterns/lens.ts](../src/patterns/lens.ts)), `resilientPipeline()` ([src/patterns/resilient-pipeline.ts](../src/patterns/resilient-pipeline.ts)), `guardedExecution()` ([src/patterns/guarded-execution.ts](../src/patterns/guarded-execution.ts)), plus the `Graph.topology` event companion and `watchTopologyTree()` helper ([src/graph/topology-tree.ts](../src/graph/topology-tree.ts)) — the transitive structural-change subscription used by graphLens and by policyEnforcer's dynamic-coverage upgrade. `persistentState()` retired (superseded by `Graph.attachStorage()`). Design reference: `archive/docs/SESSION-mid-level-harness-blocks.md`.
 
 ---
 
@@ -455,7 +381,7 @@ Reactive agent memory as an OpenClaw ContextEngine plugin. Implements the 3-hook
 - [ ] Implement ContextEngine 3-hook interface (select, budget, compact)
 - [ ] Reactive memory graph: store, extractor, stale-filter, consolidator, compact-view
 - [ ] Work context signal derived from OpenClaw session state
-- [ ] Persistence via autoCheckpoint to workspace `.graphrefly/` dir
+- [ ] Persistence via `Graph.attachStorage([fileStorage('.graphrefly/')])` with `autoRestore: true`
 - [ ] Unit tests: packIntoBudget, scoreRelevance, stale-filter, consolidation
 - [ ] Integration tests: ContextEngine interface compliance
 - [ ] Regression tests: no degradation of default OpenClaw behavior
@@ -669,7 +595,7 @@ return best(candidates)
 ##### Core API
 
 - [ ] `refineLoop(seed, evaluator, strategy, opts?)` → `RefineGraph` — the universal optimization loop as a Graph. `seed`: initial artifact. `evaluator`: scores candidates. `strategy`: generates improved candidates from feedback. Returns graph with `best: Node<T>`, `history: Node<Iteration[]>`, `score: Node<number>`, `status: Node<"running"|"converged"|"budget"|"paused">`.
-- [ ] `RefineGraph` is a standard `Graph` — `describe()`, `observe()`, `snapshot()`/`restore()`, `autoCheckpoint()` all work. Pause via PAUSE signal, resume via RESUME.
+- [ ] `RefineGraph` is a standard `Graph` — `describe()`, `observe()`, `snapshot()`/`restore()`, `attachStorage()` all work. Pause via PAUSE signal, resume via RESUME.
 - [ ] `Evaluator<T>` interface: `(candidate: T, dataset: DatasetItem[]) => Node<EvalResult[]>` — reactive, not Promise.
 
 ##### RefineStrategy interface (the pluggable slot)
@@ -703,7 +629,7 @@ return best(candidates)
 - [ ] **Parallel evaluation** — dataset eval via `funnel()` (§8.1) with configurable concurrency.
 - [ ] **Multi-objective scoring** — `scorer()` (§8.1) with reactive weights. Pareto front via derived node over history.
 - [ ] **Early stopping** — reactive condition node: patience, min_score, min_delta, max_evaluations.
-- [ ] **Checkpoint/resume** — `autoCheckpoint()`. Interrupt overnight, resume from exact state.
+- [ ] **Checkpoint/resume** — `Graph.attachStorage()` with `autoRestore: true`. Interrupt overnight, resume from exact state.
 - [ ] **Causal tracing** — every selection decision traceable.
 
 ##### Catalog-specific optimization (extends 9.1b)
@@ -841,14 +767,16 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 - [ ] **Guard-aware describe for UI** — `describe({ showDenied: true })` variant
 - [ ] **Mock LLM fixture system** — `mockLLM(responses[])` adapter for `fromLLM()`. **Partially done:** scenario-scripted `mockLLM` with stage detection, call recording, per-stage cycling, and `callsFor(stage)` inspection exists in `src/__tests__/helpers/mock-llm.ts`. Needs promotion to a public library export (e.g. `src/patterns/testing.ts` or `src/testing/mock-llm.ts`) so any developer testing AI patterns can use it.
 - [ ] **Time simulation** — `monotonicNs()` test-mode override for `vi.useFakeTimers()` integration
-- [ ] **`restoreGraphAutoCheckpoint(graph, adapter)`** — restore counterpart for `autoCheckpoint`. Currently `autoCheckpoint` saves `GraphCheckpointRecord` (`{mode, snapshot, seq}`) but `restoreGraphCheckpoint` expects bare `GraphPersistSnapshot` — the shapes are incompatible. Need a restore function that unwraps `GraphCheckpointRecord`, applies diff-mode records, and feeds the snapshot to `graph.restore()`. Discovered during QA of `run-harness.ts` where `tiers.archiveAdapter` + manual `saveGraphCheckpoint` created a dual-writer collision on the same key.
+- [x] ~~`restoreGraphAutoCheckpoint(graph, adapter)`~~ — **superseded 2026-04-19** by `Graph.attachStorage(tiers, { autoRestore: true })`. The new path unwraps full and diff `GraphCheckpointRecord` modes internally via `_cascadeRestore`, eliminating the dual-writer collision. No follow-up work required.
 
 ### Phase 8.4 — Audit & accountability
 
-- [ ] `auditTrail(graph, opts?)` → Graph
-- [ ] `explainPath(graph, from, to)` — causal chain
-- [ ] `policyEnforcer(graph, policies)` — reactive constraint enforcement
-- [ ] `complianceSnapshot(graph)` — regulatory archival
+> **All four items shipped under §9.2 (TS) — see roadmap lines 409–420.** Originally scoped here pre-Wave 0 reordering; listed below for audit trail completeness.
+
+- [x] `auditTrail(graph, opts?)` → Graph — shipped in `src/patterns/audit.ts`
+- [x] `explainPath(graph, from, to)` — causal chain, shipped in `src/graph/explain.ts`
+- [x] `policyEnforcer(graph, policies)` — reactive constraint enforcement, shipped in `src/patterns/audit.ts`
+- [x] `complianceSnapshot(graph)` — regulatory archival, shipped in `src/patterns/audit.ts`
 
 ### Phase 8.5 — Performance & scale (remaining)
 

@@ -241,6 +241,88 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		expect(g.get("b")).toBe(1);
 		expect(enforcer.all()).toHaveLength(1);
 	});
+
+	it("enforce mode: dynamic coverage — nodes added after construction are guarded (closes optimizations.md dynamic-coverage gap)", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		// paths omitted → dynamic coverage mode
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+
+		// Pre-existing node blocked.
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+
+		// Add a new node AFTER enforcer is built — it should be guarded too.
+		g.add("b", state(0, { name: "b" }));
+		expect(() => g.set("b", 1, { actor: { type: "human", id: "x" } })).toThrow();
+	});
+
+	it("enforce mode: static paths option does NOT dynamically cover late adds (documented caveat)", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+			mode: "enforce",
+			paths: ["a"],
+		});
+
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+
+		// Late-added node — NOT covered because paths was explicit.
+		g.add("b", state(0, { name: "b" }));
+		g.set("b", 1, { actor: { type: "human", id: "x" } });
+		expect(g.get("b")).toBe(1);
+	});
+
+	it("enforce mode: dynamic coverage — mount added after construction gets its contents guarded", () => {
+		const g = new Graph("g");
+		const child = new Graph("child");
+		child.add("x", state(0, { name: "x" }));
+		// paths omitted → dynamic coverage mode
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+
+		// No coverage yet — child not mounted
+		child.set("x", 1, { actor: { type: "human", id: "a" } });
+		expect(child.get("x")).toBe(1);
+
+		// Mount after enforcer built — contents get guarded
+		g.mount("kids", child);
+		expect(() => g.set("kids::x", 5, { actor: { type: "human", id: "a" } })).toThrow();
+	});
+
+	it("enforce mode: dynamic coverage — removed node releases guard bookkeeping (re-add under same name re-wraps)", () => {
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a" }));
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+
+		// Remove and re-add under the same name — the new node should be guarded too.
+		g.remove("a");
+		g.add("a", state(0, { name: "a" }));
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+	});
+
+	it("enforce mode: transitive dynamic coverage — nodes added to a subgraph mounted BEFORE the enforcer was built are guarded (closes watchTopologyTree gap)", () => {
+		const g = new Graph("g");
+		const child = new Graph("child");
+		g.mount("kids", child); // mount BEFORE enforcer
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+
+		// Add to the already-mounted child — watchTopologyTree should cover this.
+		child.add("x", state(0, { name: "x" }));
+		expect(() => g.set("kids::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
+	});
+
+	it("enforce mode: transitive dynamic coverage — deeply nested mount additions are guarded", () => {
+		const root = new Graph("root");
+		const mid = new Graph("mid");
+		const leaf = new Graph("leaf");
+		mid.mount("leaf", leaf);
+		root.mount("mid", mid);
+		policyEnforcer(root, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+
+		leaf.add("x", state(0, { name: "x" }));
+		expect(() => root.set("mid::leaf::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
+	});
 });
 
 describe("reactiveExplainPath (roadmap §9.2)", () => {

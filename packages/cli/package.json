@@ -3,6 +3,15 @@
 	"version": "0.0.1",
 	"description": "Command-line interface for GraphReFly — stateless shell over the surface layer (describe, explain, reduce, snapshot, run an MCP server).",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/graphrefly/graphrefly-ts",
+		"directory": "packages/cli"
+	},
+	"bugs": {
+		"url": "https://github.com/graphrefly/graphrefly-ts/issues"
+	},
+	"homepage": "https://graphrefly.dev",
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -12,6 +21,7 @@
 	"files": [
 		"dist",
 		"README.md",
+		"CHANGELOG.md",
 		"LICENSE"
 	],
 	"exports": {
@@ -24,7 +34,8 @@
 		"build": "tsc -p tsconfig.json",
 		"test": "vitest run",
 		"lint": "biome check .",
-		"typecheck": "tsc -p tsconfig.json --noEmit"
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"prepublishOnly": "pnpm build && pnpm test"
 	},
 	"publishConfig": {
 		"access": "public"

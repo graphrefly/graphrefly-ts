@@ -9,6 +9,14 @@ GraphReFly makes long-running human + LLM co-operation reactive, resumable, and 
 
 [Docs](https://graphrefly.dev) | [Spec](https://graphrefly.dev/spec/) | [Python API](https://graphrefly.dev/py/api/) | [TS API Reference](https://graphrefly.dev/api/node/)
 
+## Packages
+
+| Package | What it is |
+|---|---|
+| [`@graphrefly/graphrefly`](https://www.npmjs.com/package/@graphrefly/graphrefly) | The library — reactive graph primitives, operators, `Graph` container, framework adapters. |
+| [`@graphrefly/mcp-server`](./packages/mcp-server) | Model Context Protocol server — expose GraphReFly to Claude Desktop, Claude Code, Cline, Cursor, and any MCP client as `graphrefly_*` tools. |
+| [`@graphrefly/cli`](./packages/cli) | Stateless command-line shell — `describe`, `explain`, `observe`, `reduce`, `snapshot`, and `mcp` (boot the server) from your terminal or CI. |
+
 ---
 
 <!-- TODO: Demo 0 GIF/video — NL → flow view → running → "why was this flagged?" -->

@@ -3,6 +3,16 @@
 	"version": "0.0.1",
 	"description": "Model Context Protocol server for GraphReFly — expose graph operations (create, describe, observe, explain, reduce, snapshot) as MCP tools.",
 	"license": "MIT",
+	"mcpName": "io.github.graphrefly/mcp-server",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/graphrefly/graphrefly-ts",
+		"directory": "packages/mcp-server"
+	},
+	"bugs": {
+		"url": "https://github.com/graphrefly/graphrefly-ts/issues"
+	},
+	"homepage": "https://graphrefly.dev",
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -12,6 +22,7 @@
 	"files": [
 		"dist",
 		"README.md",
+		"CHANGELOG.md",
 		"LICENSE"
 	],
 	"exports": {
@@ -24,7 +35,8 @@
 		"build": "tsc -p tsconfig.json",
 		"test": "vitest run",
 		"lint": "biome check .",
-		"typecheck": "tsc -p tsconfig.json --noEmit"
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"prepublishOnly": "pnpm build && pnpm test"
 	},
 	"publishConfig": {
 		"access": "public"

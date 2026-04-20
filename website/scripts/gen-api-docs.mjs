@@ -195,12 +195,18 @@ const REGISTRY = {
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",
 	explainPath: "src/graph/explain.ts",
+	watchTopologyTree: "src/graph/topology-tree.ts",
 
 	// Audit & accountability (roadmap §9.2)
 	auditTrail: "src/patterns/audit.ts",
 	policyEnforcer: "src/patterns/audit.ts",
 	complianceSnapshot: "src/patterns/audit.ts",
 	reactiveExplainPath: "src/patterns/audit.ts",
+
+	// Mid-level harness blocks (roadmap §9.0b)
+	graphLens: "src/patterns/lens.ts",
+	resilientPipeline: "src/patterns/resilient-pipeline.ts",
+	guardedExecution: "src/patterns/guarded-execution.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

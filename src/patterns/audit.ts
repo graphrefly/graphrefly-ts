@@ -30,6 +30,8 @@ import {
 	Graph,
 	type GraphOptions,
 	type GraphPersistSnapshot,
+	type TopologyEvent,
+	watchTopologyTree,
 } from "../graph/index.js";
 import { domainMeta, keepalive } from "./_internal.js";
 import { TopicGraph } from "./messaging.js";
@@ -252,15 +254,16 @@ export interface PolicyEnforcerOptions {
 	/**
 	 * Restrict enforcement to specific node paths (qualified). When omitted,
 	 * applies to every node visible in `target.describe()` at construction
-	 * time (subgraphs are walked transitively).
-	 *
-	 * **Limitation:** the path set is captured at construction. Nodes added
-	 * to `target` AFTER `policyEnforcer` is created (dynamic mounts, late
-	 * `add()`) are NOT guarded automatically — re-create the enforcer or
-	 * pass an explicit `paths` list that you maintain.
+	 * time (subgraphs are walked transitively) AND subscribes to the full
+	 * topology tree via {@link watchTopologyTree}, so nodes added to
+	 * `target` OR any transitively-mounted subgraph after construction are
+	 * guarded automatically (enforce mode only).
 	 *
 	 * **Cost:** unrestricted mode runs `describe({detail:"minimal"})` once
-	 * at construction (O(N) over the graph tree). Restricted mode skips that.
+	 * at construction (O(N) over the graph tree) plus one topology
+	 * subscription per graph instance in the mount tree. Restricted mode
+	 * skips both and disables dynamic coverage — callers providing
+	 * `paths` must re-create on subgraph changes.
 	 */
 	paths?: readonly string[];
 	/** Ring-buffer cap for the violations topic. Default: 1000. */
@@ -333,14 +336,13 @@ export class PolicyEnforcerGraph extends Graph {
 		const paths = opts.paths != null ? [...opts.paths] : collectPaths(target);
 
 		if (this._mode === "enforce") {
-			const restorers: Array<() => void> = [];
-			// Push a stacked guard onto every target node. Effective write/signal
-			// check is AND of the node's original `_guard` and the live
-			// `_currentGuard`. Each guard wrapper carries its qualified path so
-			// violations are attributable.
-			for (const path of paths) {
+			// Track which paths are currently guarded so dynamic adds don't
+			// double-wrap and removed nodes release guard handles.
+			const restorers = new Map<string, () => void>();
+			const wrapAndPush = (path: string): void => {
+				if (restorers.has(path)) return;
 				const node = safeNode(target, path);
-				if (!(node instanceof NodeImpl)) continue;
+				if (!(node instanceof NodeImpl)) return;
 				const pathGuard: NodeGuard = (actor, action) => {
 					const ok = this._currentGuard(actor, action);
 					if (!ok) {
@@ -348,10 +350,83 @@ export class PolicyEnforcerGraph extends Graph {
 					}
 					return ok;
 				};
-				restorers.push(node._pushGuard(pathGuard));
+				restorers.set(path, node._pushGuard(pathGuard));
+			};
+			// Initial sweep: guard every path present at construction.
+			for (const path of paths) wrapAndPush(path);
+
+			// Dynamic coverage: when `paths` was NOT explicitly provided, follow
+			// the full topology tree (target + every transitively-mounted
+			// subgraph, including subgraphs mounted after construction) so late
+			// adds at any depth get guarded. `prefix` carries the qualified
+			// path-prefix from `target` to the emitter graph.
+			if (opts.paths == null) {
+				const offTopology = watchTopologyTree(target, (event, emitter, prefix) => {
+					if (event.kind === "added") {
+						if (event.nodeKind === "node") {
+							wrapAndPush(`${prefix}${event.name}`);
+						} else {
+							// Mount added. Walk just the newly-mounted subgraph's local
+							// paths (scoped describe — O(M) in the mounted subtree)
+							// rather than re-describing the entire target tree. The
+							// emitter is the PARENT of the new mount; resolve the child
+							// via its `_mounts` map.
+							const child = emitter._mounts.get(event.name);
+							if (!(child instanceof Graph)) return;
+							const mountPrefix = `${prefix}${event.name}::`;
+							const localPaths = collectPaths(child);
+							for (const localPath of localPaths) {
+								// `localPath` is relative to `child`; qualify with the
+								// mount prefix so guard keys stay target-rooted.
+								wrapAndPush(
+									localPath === "" ? `${prefix}${event.name}` : `${mountPrefix}${localPath}`,
+								);
+							}
+						}
+					} else if (event.kind === "removed") {
+						// TEARDOWN already unhooks the guard; release bookkeeping so
+						// re-adds under the same qualified path re-wrap cleanly.
+						if (event.nodeKind === "node") {
+							const qp = `${prefix}${event.name}`;
+							const r = restorers.get(qp);
+							if (r != null) {
+								r();
+								restorers.delete(qp);
+							}
+						} else {
+							const mountQp = `${prefix}${event.name}`;
+							const mountPrefix = `${mountQp}::`;
+							for (const [p, r] of restorers) {
+								if (p === mountQp || p.startsWith(mountPrefix)) {
+									r();
+									restorers.delete(p);
+								}
+							}
+						}
+					}
+				});
+				this.addDisposer(offTopology);
+			} else {
+				// Restricted mode: subscribe to target.topology (own-graph only —
+				// explicit `paths` means caller owns the path set) so node removals
+				// release their restorers instead of leaking until enforcer dispose.
+				const offCleanup = target.topology.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] !== DATA) continue;
+						const event = m[1] as TopologyEvent;
+						if (event.kind !== "removed" || event.nodeKind !== "node") continue;
+						const r = restorers.get(event.name);
+						if (r != null) {
+							r();
+							restorers.delete(event.name);
+						}
+					}
+				});
+				this.addDisposer(offCleanup);
 			}
 			this.addDisposer(() => {
-				for (const r of restorers) r();
+				for (const r of restorers.values()) r();
+				restorers.clear();
 			});
 		} else {
 			// Audit mode: observe writes, evaluate against current guard, record

@@ -29,7 +29,7 @@ import {
 	type NodeSink,
 	type NodeTransportOptions,
 } from "../core/node.js";
-import { state as stateNode } from "../core/sugar.js";
+import { producer, state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import type { StorageHandle, StorageTier } from "../extra/storage.js";
 import { ResettableTimer } from "../extra/timer.js";
@@ -221,6 +221,26 @@ export type GraphAttachStorageOptions = {
 	/** Surfaced on tier save errors and autoRestore failures. */
 	onError?: (error: unknown, tier: StorageTier) => void;
 };
+
+/**
+ * Event emitted by {@link Graph.topology} on every structural change to the
+ * graph's own registry. Does NOT include value mutations (use `observe()` for
+ * those) or transitively nested subgraph events (subscribe to each mounted
+ * child's `topology` for that).
+ *
+ * - `"added"` — `name` is the local key registered via {@link Graph.add}
+ *   (`nodeKind: "node"`) or {@link Graph.mount} (`nodeKind: "mount"`).
+ * - `"removed"` — emitted AFTER {@link Graph.remove} completes teardown.
+ *   `audit` is the full {@link GraphRemoveAudit} returned to the caller.
+ */
+export type TopologyEvent =
+	| { kind: "added"; name: string; nodeKind: "node" | "mount" }
+	| {
+			kind: "removed";
+			name: string;
+			nodeKind: "node" | "mount";
+			audit: GraphRemoveAudit;
+	  };
 
 /** Direction options for diagram export helpers. */
 export type GraphDiagramDirection = "TD" | "LR" | "BT" | "RL";
@@ -987,6 +1007,20 @@ export class Graph {
 	_parent: Graph | undefined = undefined;
 	private readonly _storageDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
+	/**
+	 * @internal Lazy `TopologyEvent` producer. Created on first `.topology`
+	 * access. Zero cost until something subscribes — producer fn only runs when
+	 * the first sink attaches, registering one handler into
+	 * {@link Graph._topologyEmitters}.
+	 */
+	private _topology: Node<TopologyEvent> | undefined;
+	/**
+	 * @internal Active emit handlers for the topology producer. Each entry is
+	 * the closure registered by the producer fn on activation; cleared on
+	 * deactivation. `_emitTopology` broadcasts through every entry (there is at
+	 * most one per activation cycle of the producer).
+	 */
+	private readonly _topologyEmitters = new Set<(event: TopologyEvent) => void>();
 
 	/**
 	 * @param name - Non-empty graph id (must not contain `::` and must not
@@ -1031,6 +1065,58 @@ export class Graph {
 	}
 
 	// ——————————————————————————————————————————————————————————————
+	//  Topology companion (structural-change event stream)
+	// ——————————————————————————————————————————————————————————————
+
+	/**
+	 * Reactive stream of structural changes to this graph's own registry
+	 * (add / mount / remove). Value mutations live on `observe()`; this
+	 * companion only fires when the topology shape changes.
+	 *
+	 * Lazy: the underlying node is created on first access and activates when
+	 * something subscribes. No emission replay — late subscribers do not
+	 * receive historical events and should snapshot via {@link Graph.describe}
+	 * before listening for incremental changes. Events that fire while the
+	 * producer has zero subscribers are dropped (no retention).
+	 *
+	 * Own-graph only: a parent's `topology` does NOT emit for structural
+	 * changes inside a mounted child. Transitive consumers subscribe to each
+	 * child's topology separately (recurse through `topology`'s own "added"
+	 * events with `nodeKind: "mount"` to discover new children).
+	 *
+	 * See {@link TopologyEvent} for payload shape.
+	 *
+	 * @category observability
+	 */
+	get topology(): Node<TopologyEvent> {
+		if (this._topology == null) {
+			this._topology = producer<TopologyEvent>(
+				(actions) => {
+					const handler = (event: TopologyEvent): void => {
+						actions.emit(event);
+					};
+					this._topologyEmitters.add(handler);
+					return () => {
+						this._topologyEmitters.delete(handler);
+					};
+				},
+				{ name: `${this.name}_topology` },
+			);
+		}
+		return this._topology;
+	}
+
+	/**
+	 * @internal Fire a {@link TopologyEvent} to every active subscriber of
+	 * `this.topology`. No-op when the topology node has never been accessed or
+	 * currently has no sinks — zero cost for graphs nobody observes.
+	 */
+	private _emitTopology(event: TopologyEvent): void {
+		if (this._topology == null || this._topologyEmitters.size === 0) return;
+		for (const h of this._topologyEmitters) h(event);
+	}
+
+	// ——————————————————————————————————————————————————————————————
 	//  Node registry
 	// ——————————————————————————————————————————————————————————————
 
@@ -1063,6 +1149,7 @@ export class Graph {
 		this._nodeToName.set(node, name);
 		// Edges are derived on demand from node `_deps` (see `edges()`) — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
+		this._emitTopology({ kind: "added", name, nodeKind: "node" });
 		return node;
 	}
 
@@ -1124,6 +1211,7 @@ export class Graph {
 			this._mounts.delete(name);
 			child._parent = undefined;
 			teardownMountedGraph(child);
+			this._emitTopology({ kind: "removed", name, nodeKind: "mount", audit });
 			return audit;
 		}
 
@@ -1135,7 +1223,9 @@ export class Graph {
 		this._nodes.delete(name);
 		this._nodeToName.delete(node);
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
-		return { kind: "node", nodes: [name], mounts: [] };
+		const audit: GraphRemoveAudit = { kind: "node", nodes: [name], mounts: [] };
+		this._emitTopology({ kind: "removed", name, nodeKind: "node", audit });
+		return audit;
 	}
 
 	/**
@@ -1393,6 +1483,7 @@ export class Graph {
 		}
 		this._mounts.set(name, child);
 		child._parent = this;
+		this._emitTopology({ kind: "added", name, nodeKind: "mount" });
 		return child;
 	}
 

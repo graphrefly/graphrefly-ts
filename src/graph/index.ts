@@ -56,6 +56,7 @@ export {
 	type ReachableOptions,
 	reachable,
 	SNAPSHOT_VERSION,
+	type TopologyEvent,
 	type TraceEntry,
 } from "./graph.js";
 export {
@@ -64,3 +65,4 @@ export {
 	graphProfile,
 	type NodeProfile,
 } from "./profile.js";
+export { watchTopologyTree } from "./topology-tree.js";
