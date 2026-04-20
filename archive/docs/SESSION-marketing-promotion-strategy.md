@@ -400,7 +400,7 @@ MCP Server should be built **alongside Demo 0**, not after it. Reasons:
 **Why this first:** The harness engineering community is hungry for engineering discipline content. This doesn't reveal full architecture — it shows eval rigor. Safest possible first move.
 
 **Content deliverables:**
-- Blog post: "How our eval harness found two schema bugs LLMs couldn't work around" (the T6 feedback + T8 template story)
+- Blog post: "How our eval harness found two schema bugs LLMs couldn't work around" (the T6 feedback + T8 template story). **Close with the Wave 2 bridge:** "The eval tells you *which* gaps remain. Wave 2 ships `explainPath` to show *why* — every failed composition has a causal chain, readable in one call. Watch the scorecard."
 - Open-source eval runner (already in repo — make prominent in README)
 - Multi-model comparison results (Claude vs GPT-4o vs Gemini)
 - "Reproduce our evals" guide using portable prompts (anyone can verify)

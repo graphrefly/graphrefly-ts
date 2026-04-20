@@ -312,10 +312,10 @@ The Wave 1 announcement payload. Folds in former §9.4 (scorecard).
 - [ ] 5+ automated runs across 2+ models with trend data committed
 - [ ] Schema gaps as running metric: gaps found → gaps resolved (with links to fixes)
 - [ ] **Scorecard page** at `graphrefly.dev/scorecard` (was §9.4):
+  - **Causal trace completeness** — `explainPath` available on all shipped graphs (§9.2 shipped; this is the P0 differentiator, lead with it)
   - First-pass GraphSpec validity rate (from L0)
   - Hallucination rate by model
   - Schema gap count: open → resolved
-  - Causal trace completeness (added once §9.2 `explainPath` ships)
   - Checkpoint restore integrity (from existing snapshot round-trip tests)
   - Multi-model comparison trend lines
 - [ ] Updated weekly from CI eval runs
@@ -562,10 +562,38 @@ const extractor = llmExtractor("user-context", { adapter });
 
 > **Moved to §9.1.5** — folded into the Eval Program external deliverables. The scorecard is an eval artifact, not a separate work stream.
 
+#### 9.3e — Spending Alerts demo (Wave 2, pairs with MCP + CLI launch)
+
+Minimal demo that backs homepage pain point 02 ("Action Without Explanation") and proves `explainPath` as the P0 differentiator. Intentionally simple — no NL→GraphSpec, just a reactive pipeline with a visible causal chain.
+
+**Topology:**
+```
+fromTimer(interval) → fetchTransactions → anomalyDetector → flagNode
+                                                                 ↓
+                                          user asks: "why was this flagged?"
+                                          graphrefly explain spending-alerts.json \
+                                            --from transactions --to flag
+                                          → CausalChain: flagNode ← anomalyDetector
+                                                         (score: 0.94, z-score: 4.2)
+                                                       ← fetchTransactions
+                                                         (vendor: AMZN, amount: $847)
+```
+
+**Presentation:** `examples/spending-alerts/` (runnable code) + `website/src/content/docs/demos/spending-alerts.md` (code walkthrough + causal chain output as structured text). Homepage "Demo: Spending Alerts →" links here. No GIF required — static walkthrough is sufficient for Wave 2.
+
+**Try it yourself CTA (two paths):**
+- CLI: `npx @graphrefly/cli explain spending-alerts.json --from transactions --to flag` — zero install, copy-paste in terminal, best for blog post
+- MCP: `graphrefly_explain` from Claude Code — best for the "inside your agent" story
+
+- [ ] `examples/spending-alerts/index.ts` — runnable pipeline with `fromTimer` + anomaly detector + `explainPath` call **S**
+- [ ] `website/src/content/docs/demos/spending-alerts.md` — walkthrough page with causal chain output block **S**
+- [ ] Wire homepage "Demo: Spending Alerts →" link to the docs page **S**
+
 #### 9.2 deliverables for announcement
 
 - [ ] `@graphrefly/mcp-server` on npm
-- [ ] `@graphrefly/cli` on npm (`npx @graphrefly/cli eval` works — copy-pasteable in blog posts)
+- [ ] `@graphrefly/cli` on npm (`npx @graphrefly/cli explain` as the demo CTA — copy-pasteable in blog posts)
+- [ ] Spending Alerts demo page live (`website/src/content/docs/demos/spending-alerts.md`) — backs homepage 02 and proves `explainPath`
 - [ ] Harness scorecard page live (owned by §9.1.5)
 - [ ] "GraphReFly vs LangGraph" comparison page (reactive push vs static DAG, causal trace, glitch-free)
 - [ ] Blog: "Why agent harnesses need reactive graphs"
@@ -580,6 +608,10 @@ Goal: Demo 0 + framework integrations. Unlocks HN launch.
 
 NL → GraphSpec → flow view → run → persist → explain. The demo that proves the reason to exist.
 
+**Narrative frame (pain-point-first):** "Your email is scattered across Gmail, Slack, Linear. Demo 0 shows one graph watching all three, reducing noise to 3 actionable items, persisting across restarts — and explaining every flag." Closes the loop on homepage pain points 01 (state scattered → one reactive topology) and 02 (why was this flagged → `explainPath` output). The "explain" step at the end of the walkthrough is the bridge to homepage 02 and to the Spending Alerts demo.
+
+**Presentation:** video/GIF required (gates Show HN). Demo 0 is the centerpiece of Wave 3 announcement.
+
 - [ ] Demo 0: Personal email triage (7.3 → 9.5, see §7.3 for full ACs in archive)
 
 #### 9.6 — Framework infiltration packages
@@ -593,11 +625,23 @@ NL → GraphSpec → flow view → run → persist → explain. The demo that pr
 
 #### 9.7 — Demo 6: AI Agent Observatory (7.3b → 9.7)
 
-The harness engineering showcase. Instrument agentLoop, LLM observes LLM, distills "why agent went off-track."
+The harness engineering showcase and the full self-improving loop in one screen.
+
+**Narrative frame:** An agent runs a multi-step task, goes off-track mid-way. `explainPath` surfaces the causal chain of the failure. `harnessLoop`'s REFLECT stage distills it into `agentMemory`. On the next run, the same failure route is avoided — the strategy model updated. Explainability (Wave 2) + self-improvement (the harness) visible together.
+
+```
+agentLoop (multi-step task)
+  → something fails mid-task
+  → graphrefly_explain shows WHY (causal chain to the failure node)
+  → REFLECT distills into agentMemory + strategy model update
+  → re-run: different routing, failure avoided
+```
+
+This is the answer to the 小红书 post's "how do you make your agent learn from its mistakes?" — not gene gimmicks, but reactive feedback through inspectable topology.
 
 - [ ] Demo 6 (7.3b → 9.7)
 
-**Demo candidate: stream extractor showcase.** Part or all of the stream extractor pattern as a live demo — a single `streamingPromptNode` with multiple extractors mounted simultaneously, each visible in real time. Demonstrates that every flow is inspectable and pluggable — the core GraphReFly thesis applied to streaming. Scope decided at demo time.
+**Stream extractor showcase** (optional scope extension): mount multiple extractors on a single `streamingPromptNode` simultaneously — each visible in real time. Shows that every flow is inspectable and pluggable. Can be folded into Demo 6 or kept as a standalone appendix.
 
 ```
 streamingPromptNode
@@ -612,7 +656,16 @@ streamingPromptNode
 
 #### Wave 3 deliverables for announcement
 
-- [ ] Demo 0 video/GIF
+**Homepage demo link inventory (all three must be live before Wave 3 launch):**
+
+| Homepage link | Pain point | Demo | Wave shipped |
+|---|---|---|---|
+| "Demo: Email Triage →" | 01 Context Without Control | Demo 0 (`website/src/content/docs/demos/email-triage.md`) | Wave 3 |
+| "Demo: Spending Alerts →" | 02 Action Without Explanation | §9.3e (`website/src/content/docs/demos/spending-alerts.md`) | **Wave 2** |
+| "Demo: Knowledge Graph →" | 03 Composition Without Guardrails | Quickstart code sample on GraphSpec docs page — not a full demo | Wave 2 (static) |
+
+- [ ] Demo 0 video/GIF — required to gate Show HN
+- [ ] `website/src/content/docs/demos/email-triage.md` (Demo 0 companion page)
 - [ ] Show HN: "GraphReFly — the reactive harness layer for agent workflows [harness scorecard inside]"
 - [ ] `@graphrefly/ai-sdk` and/or `@graphrefly/langgraph` on npm
 - [ ] 3 template repos public
