@@ -1,2122 +1,2122 @@
 {
-  "run_id": "l0-1776616713662",
-  "timestamp": "2026-04-19T16:38:33.662Z",
-  "layer": "L0",
-  "model": "claude-sonnet-4-6",
-  "provider": "anthropic",
-  "schema_version": "scaffold",
-  "scores": {
-    "L0-M1-graphspec-error-rate": 1,
-    "L0-M1-functions-error-rate": 1,
-    "L0-M1-ratio": 1
-  },
-  "tasks": [
-    {
-      "task_id": "linear-rss-filter-notify",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-rss-filter-notify",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-csv-transform-store",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-csv-transform-store",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-log-parse-report",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-log-parse-report",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-image-resize-upload",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-image-resize-upload",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-dns-lookup-cache-respond",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-dns-lookup-cache-respond",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-markdown-render-deploy",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "linear-markdown-render-deploy",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-email-classify",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-email-classify",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-iot-sensor-broadcast",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-iot-sensor-broadcast",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-order-fulfillment",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-order-fulfillment",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-video-process",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-video-process",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-deploy-notify",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanout-deploy-notify",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-morning-brief",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-morning-brief",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-patient-summary",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-patient-summary",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-social-sentiment",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-social-sentiment",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-fraud-scoring",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-fraud-scoring",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-infrastructure-health",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "fanin-infrastructure-health",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-validate-transform-merge",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-validate-transform-merge",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-image-classify-watermark",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-image-classify-watermark",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-loan-underwrite",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-loan-underwrite",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-content-publish",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-content-publish",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-shipping-label",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "diamond-shipping-label",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-running-average",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-running-average",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-rate-limiter",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-rate-limiter",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-shopping-cart",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-shopping-cart",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-leaderboard",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "stateful-leaderboard",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-retry-fallback",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-retry-fallback",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-circuit-breaker",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-circuit-breaker",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-dead-letter-queue",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "error-dead-letter-queue",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-threshold-alert",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-threshold-alert",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-user-signup",
-      "treatment": "graphspec",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    },
-    {
-      "task_id": "multi-step-user-signup",
-      "treatment": "functions",
-      "raw_output": "[DRY RUN] No LLM call was made.",
-      "valid": false,
-      "runnable": false,
-      "judge_scores": [
-        {
-          "claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "The output correctly implements all key behaviors specified in the task",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        },
-        {
-          "claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
-          "pass": false,
-          "reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
-        }
-      ],
-      "latency_ms": 0,
-      "token_count": {
-        "input": 0,
-        "output": 0
-      },
-      "cost_usd": 0
-    }
-  ],
-  "total_cost_usd": 0,
-  "rate_limit_stats": {
-    "total_retries": 0,
-    "total_wait_ms": 0,
-    "effective_rpm": null,
-    "effective_tpm": null
-  }
+	"run_id": "l0-1776616713662",
+	"timestamp": "2026-04-19T16:38:33.662Z",
+	"layer": "L0",
+	"model": "claude-sonnet-4-6",
+	"provider": "anthropic",
+	"schema_version": "scaffold",
+	"scores": {
+		"L0-M1-graphspec-error-rate": 1,
+		"L0-M1-functions-error-rate": 1,
+		"L0-M1-ratio": 1
+	},
+	"tasks": [
+		{
+			"task_id": "linear-rss-filter-notify",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-rss-filter-notify",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-csv-transform-store",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-csv-transform-store",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-log-parse-report",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-log-parse-report",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-image-resize-upload",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-image-resize-upload",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-dns-lookup-cache-respond",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-dns-lookup-cache-respond",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-markdown-render-deploy",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "linear-markdown-render-deploy",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-email-classify",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-email-classify",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-iot-sensor-broadcast",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-iot-sensor-broadcast",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-order-fulfillment",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-order-fulfillment",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-video-process",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-video-process",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-deploy-notify",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanout-deploy-notify",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-morning-brief",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-morning-brief",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-patient-summary",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-patient-summary",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-social-sentiment",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-social-sentiment",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-fraud-scoring",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-fraud-scoring",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-infrastructure-health",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "fanin-infrastructure-health",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-validate-transform-merge",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-validate-transform-merge",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-image-classify-watermark",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-image-classify-watermark",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-loan-underwrite",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-loan-underwrite",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-content-publish",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-content-publish",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-shipping-label",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "diamond-shipping-label",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-running-average",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-running-average",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-rate-limiter",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-rate-limiter",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-shopping-cart",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-shopping-cart",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-leaderboard",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "stateful-leaderboard",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-retry-fallback",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-circuit-breaker",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-circuit-breaker",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-dead-letter-queue",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "error-dead-letter-queue",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-threshold-alert",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-threshold-alert",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-user-signup",
+			"treatment": "graphspec",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		},
+		{
+			"task_id": "multi-step-user-signup",
+			"treatment": "functions",
+			"raw_output": "[DRY RUN] No LLM call was made.",
+			"valid": false,
+			"runnable": false,
+			"judge_scores": [
+				{
+					"claim": "The generated output is syntactically valid (valid JSON for graphspec, valid TypeScript for functions)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "The output correctly implements all key behaviors specified in the task",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All references (fn names, source names, imports) exist in the provided catalog/utilities",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				},
+				{
+					"claim": "All dependencies/data flows are correctly declared (no missing deps, no unused inputs)",
+					"pass": false,
+					"reasoning": "Judge response was not valid JSON: [DRY RUN] No LLM call was made."
+				}
+			],
+			"latency_ms": 0,
+			"token_count": {
+				"input": 0,
+				"output": 0
+			},
+			"cost_usd": 0
+		}
+	],
+	"total_cost_usd": 0,
+	"rate_limit_stats": {
+		"total_retries": 0,
+		"total_wait_ms": 0,
+		"effective_rpm": null,
+		"effective_tpm": null
+	}
 }

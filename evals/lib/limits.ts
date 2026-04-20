@@ -198,9 +198,37 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 	// Paid routes (default): no daily cap — your $-spending limit on OpenRouter's
 	// side (set in their dashboard) is the real safety net. Combine with
 	// EVAL_MAX_PRICE_USD locally for a belt + suspenders.
+	//
+	// `maxOutputTokens` set generously (32K) because most modern routed models
+	// are reasoning models — their <think> phase eats output budget, so a low
+	// cap (e.g. 4K) makes the model burn the whole budget on reasoning and
+	// emit zero content. Override per-call via `req.maxTokens` if you want a
+	// tighter ceiling.
 	"openrouter/*": {
 		contextWindow: 128_000,
-		maxOutputTokens: 4_096,
+		maxOutputTokens: 32_768,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	// Specific cheap-tier reasoning models with known higher budgets.
+	"openrouter/z-ai/glm-4.7": {
+		contextWindow: 200_000,
+		maxOutputTokens: 65_536,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/z-ai/glm-5.1": {
+		contextWindow: 203_000,
+		maxOutputTokens: 65_536,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/deepseek/deepseek-v3.2": {
+		contextWindow: 131_000,
+		maxOutputTokens: 32_768,
 		rpm: 20,
 		rpd: Infinity,
 		tpm: 200_000,
@@ -210,7 +238,7 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 	// Use EVAL_RPD to pin to your account's actual cap when running :free routes.
 	"openrouter/:free": {
 		contextWindow: 128_000,
-		maxOutputTokens: 4_096,
+		maxOutputTokens: 8_192,
 		rpm: 10,
 		rpd: 50,
 		tpm: 100_000,

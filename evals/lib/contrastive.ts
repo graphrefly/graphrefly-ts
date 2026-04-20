@@ -192,6 +192,11 @@ async function runGraphSpecTreatment(
 		{
 			system: prompt.split("## Your Task")[0],
 			user: prompt.split("## Your Task")[1] ?? task.nl_description,
+			// Required so the budget gate can attribute spend to the model
+			// (otherwise estimateTokenCost(req.model=undefined) returns 0 and
+			// generation cost is silently uncounted — the judge calls were the
+			// only thing showing up in [budget] output).
+			model: config.model,
 		},
 		config,
 	);
@@ -264,6 +269,8 @@ async function runFunctionsTreatment(
 		{
 			system: prompt.split("## Your Task")[0],
 			user: prompt.split("## Your Task")[1] ?? task.nl_description,
+			// Same reason as runGraphSpecTreatment: model attribution for cost.
+			model: config.model,
 		},
 		config,
 	);
@@ -320,33 +327,60 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 	for (const task of tasks) {
 		console.log(`  [L0] Task: ${task.id}`);
 
-		// Run both treatments
-		const graphResult = await runGraphSpecTreatment(task, graphspecTemplate, config);
-		const funcResult = await runFunctionsTreatment(task, functionsTemplate, config);
+		try {
+			// Run both treatments
+			const graphResult = await runGraphSpecTreatment(task, graphspecTemplate, config);
+			const funcResult = await runFunctionsTreatment(task, functionsTemplate, config);
 
-		// Add cost estimates
-		addCost(graphResult, config.model);
-		addCost(funcResult, config.model);
+			// Add cost estimates
+			addCost(graphResult, config.model);
+			addCost(funcResult, config.model);
 
-		// Judge correctness for both
-		if (task.contrastive?.key_behaviors) {
-			for (const result of [graphResult, funcResult]) {
-				const { scores } = await scoreRubric(
-					rubric.filter((r) => r.metric === "L0-M1"),
-					correctnessPrompt,
-					{
-						NL_DESCRIPTION: task.nl_description,
-						OUTPUT: result.raw_output,
-						TREATMENT: result.treatment,
-						KEY_BEHAVIORS: task.contrastive.key_behaviors.join("\n- "),
-					},
-					config,
-				);
-				result.judge_scores = scores;
+			// Judge correctness for both
+			if (task.contrastive?.key_behaviors) {
+				for (const result of [graphResult, funcResult]) {
+					const { scores } = await scoreRubric(
+						rubric.filter((r) => r.metric === "L0-M1"),
+						correctnessPrompt,
+						{
+							NL_DESCRIPTION: task.nl_description,
+							OUTPUT: result.raw_output,
+							TREATMENT: result.treatment,
+							KEY_BEHAVIORS: task.contrastive.key_behaviors.join("\n- "),
+						},
+						config,
+					);
+					result.judge_scores = scores;
+				}
+			}
+
+			results.push(graphResult, funcResult);
+		} catch (err) {
+			// Transient API errors (truncated JSON, connection drops, 5xx after
+			// retries are exhausted in the limiter) shouldn't kill the whole
+			// run. Record a diagnostic failure for both treatments and continue.
+			// Successful prior tasks stay in `results`; the cache still holds
+			// any individual responses that did complete this iteration.
+			const errMsg = err instanceof Error ? err.message : String(err);
+			console.error(`  [L0] Task ${task.id} aborted: ${errMsg}`);
+			for (const treatment of ["graphspec", "functions"] as const) {
+				results.push({
+					task_id: task.id,
+					treatment,
+					raw_output: "",
+					valid: false,
+					runnable: false,
+					judge_scores: [
+						{
+							claim: "task aborted",
+							pass: false,
+							reasoning: `Transient API error during ${treatment} treatment: ${errMsg}. Re-run to retry — successful response fragments are cached.`,
+						},
+					],
+					latency_ms: 0,
+				});
 			}
 		}
-
-		results.push(graphResult, funcResult);
 	}
 
 	const scores = computeContrastiveScores(results);

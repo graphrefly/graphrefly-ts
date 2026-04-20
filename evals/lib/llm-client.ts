@@ -146,10 +146,25 @@ export class OpenAICompatibleProvider implements LLMProvider {
 		const latencyMs = performance.now() - start;
 		const content = response.choices[0]?.message?.content ?? "";
 
+		// Reasoning-token handling — load-bearing for cost accuracy on models
+		// like GLM-5.1, Claude with thinking, GPT-o1, etc. that emit hidden
+		// chain-of-thought tokens billed at the output rate.
+		//
+		// OpenRouter's convention: `usage.completion_tokens` excludes reasoning,
+		// `usage.completion_tokens_details.reasoning_tokens` is reported
+		// separately. So we add them. (OpenAI's direct API includes reasoning
+		// in completion_tokens for o1 — that path would double-count, but
+		// `EVAL_PROVIDER=openai` users typically run non-o1 models where
+		// reasoning_tokens is 0 or absent, so the impact is bounded.)
+		const completionTokens = response.usage?.completion_tokens ?? 0;
+		const reasoningTokens =
+			(response.usage as { completion_tokens_details?: { reasoning_tokens?: number } })
+				?.completion_tokens_details?.reasoning_tokens ?? 0;
+
 		return {
 			content,
 			inputTokens: response.usage?.prompt_tokens ?? 0,
-			outputTokens: response.usage?.completion_tokens ?? 0,
+			outputTokens: completionTokens + reasoningTokens,
 			latencyMs,
 		};
 	}
@@ -341,14 +356,25 @@ export function createSafeProvider(
 		onExceed: (err) => console.error(`\n❌ ${err.message}`),
 	});
 
+	// Bake the registry-resolved maxOutputTokens into the cache key salt.
+	// Without this, bumping the registry's `maxOutputTokens` doesn't change
+	// the key (req.maxTokens is undefined → cached as null), so the next run
+	// returns yesterday's truncated/empty responses regardless of the new cap.
+	// The salt also captures vendor-specific chat extras already.
+	const baseSalt = compatChatExtraCacheSalt(config);
+	const limitsSalt = `maxOutput=${base.limits.maxOutputTokens}`;
+	const keyMaterialExtra = baseSalt ? `${baseSalt}|${limitsSalt}` : limitsSalt;
+
 	const cached = withReplayCache(gated, {
 		cacheDir: opts.cacheDir ?? "evals/results/replay-cache",
 		mode: (process.env.EVAL_REPLAY as ReplayMode) ?? "read-write",
-		keyMaterialExtra: compatChatExtraCacheSalt(config),
+		keyMaterialExtra,
 		// Stable identity — decouples cache key from wrapper-chain naming.
 		// Adding/reordering inner wrappers (budget, rate limiter, future ones)
 		// will not silently invalidate previously-cached entries.
-		providerKey: config.provider,
+		// Mode is part of the key so dry-run canned responses ("[DRY RUN] ...")
+		// don't poison the real-run cache.
+		providerKey: mode === "dry-run" ? `${config.provider}+dryrun` : config.provider,
 	});
 
 	return { provider: cached, limiter };

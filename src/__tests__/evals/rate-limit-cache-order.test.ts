@@ -82,6 +82,49 @@ describe("rate limiter wrapping order — cache hits skip pacing", () => {
 		expect(limited.name).toBe(`${base.name}+ratelimit`);
 	});
 
+	it("changing keyMaterialExtra invalidates the cache (registry-resolved maxOutput salt)", async () => {
+		const base = makeMockProvider();
+		const cacheV1 = withReplayCache(base, {
+			cacheDir: dir,
+			providerKey: "openrouter",
+			keyMaterialExtra: "maxOutput=4096",
+		});
+		const cacheV2 = withReplayCache(base, {
+			cacheDir: dir,
+			providerKey: "openrouter",
+			keyMaterialExtra: "maxOutput=32768", // bumped registry default
+		});
+
+		await cacheV1.generate(sampleReq);
+		expect(base.calls).toBe(1);
+		// Same provider, same prompt, but different keyMaterialExtra → cache miss.
+		await cacheV2.generate(sampleReq);
+		expect(base.calls).toBe(2);
+	});
+
+	it("dry-run and real responses must NOT share a cache key", async () => {
+		const baseReal = makeMockProvider();
+		const baseReal2 = makeMockProvider();
+		// Two providers with different responses, simulating real vs dry-run.
+		baseReal.calls = 0;
+		const cacheReal = withReplayCache(baseReal, {
+			cacheDir: dir,
+			providerKey: "openrouter",
+		});
+		const cacheDry = withReplayCache(baseReal2, {
+			cacheDir: dir,
+			providerKey: "openrouter+dryrun",
+		});
+
+		await cacheReal.generate(sampleReq);
+		expect(baseReal.calls).toBe(1);
+
+		// Different providerKey → different cache key → cacheDry is a miss
+		// even though every other parameter matches.
+		await cacheDry.generate(sampleReq);
+		expect(baseReal2.calls).toBe(1);
+	});
+
 	it("withReplayCache key is stable when providerKey is set, regardless of inner.name", async () => {
 		const base = makeMockProvider();
 		const limiter = new AdaptiveRateLimiter(base.limits);
