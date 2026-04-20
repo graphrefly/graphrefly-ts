@@ -34,7 +34,13 @@ export function mergeRuns(prev: EvalRun, current: EvalRun): EvalRun {
 
 	const scores = current.layer === "L0" ? computeContrastiveScores(tasks) : current.scores;
 
-	const total_cost_usd = (prev.total_cost_usd ?? 0) + (current.total_cost_usd ?? 0) || undefined;
+	// Recompute cost from the deduplicated task set — NOT prev+current.
+	// A resume invocation's `current.total_cost_usd` already includes any
+	// tasks served from cache (whose cost was counted in the prior run's
+	// file); summing prev+current double-counts those. Computing from
+	// `tasks` (merged + deduped) gives the real total.
+	const taskCostSum = tasks.reduce((s, t) => s + (t.cost_usd ?? 0), 0);
+	const total_cost_usd = taskCostSum > 0 ? taskCostSum : undefined;
 
 	const rate_limit_stats =
 		prev.rate_limit_stats && current.rate_limit_stats

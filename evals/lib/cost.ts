@@ -6,10 +6,10 @@
  */
 
 const PRICING: Record<string, { input: number; output: number }> = {
-	// Anthropic
-	"claude-opus-4-6": { input: 15, output: 75 },
+	// Anthropic (verified 2026-04-20 from docs.anthropic.com/pricing)
+	"claude-opus-4-6": { input: 5, output: 25 }, // 4.6 dropped from 4.1's $15/$75
 	"claude-sonnet-4-6": { input: 3, output: 15 },
-	"claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
+	"claude-haiku-4-5-20251001": { input: 1, output: 5 },
 	// OpenAI
 	"gpt-4o": { input: 2.5, output: 10 },
 	"gpt-4o-mini": { input: 0.15, output: 0.6 },

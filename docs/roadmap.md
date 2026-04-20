@@ -246,7 +246,7 @@ Four treatments, same 12 tasks, measuring delta at each automation step.
 |-----------|---------------|-------------|--------|
 | A: Manual catalog | Writes `catalogDescription` string | Nothing | DONE — Run 4 baseline 173/180 |
 | B: Auto-gen prompt | Writes `CatalogFnEntry` objects | `generateCatalogPrompt()` | **Ready to run** — `EVAL_TREATMENT=B pnpm eval:contrastive` |
-| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | Ready to run (refine loop owned by `llmCompose`; contrastive runner currently mirrors B) |
+| C: + auto-refine | Same as B | + `maxAutoRefine: 2` | **Ready to run** — `EVAL_TREATMENT=C pnpm eval:contrastive`. Refine loop wired via `llmRefine` + a cost-safe adapter shim. Records `auto-refine attempts used` as a JudgeScore diagnostic per task. |
 | D: + templates | Same as C + selects templates | + pre-built templates | **Ready to run** — `EVAL_TREATMENT=D pnpm eval:contrastive` |
 | E: + catalog subsetting | Same as D | + task-relevant subset | Future |
 
@@ -367,7 +367,7 @@ Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI a
   - Session holds `Map<graphId, Graph>` + default `memoryStorage` (opt-in `fileStorage` via `GRAPHREFLY_STORAGE_DIR` env or `storageDir` option)
   - Server operators register fn/source catalog at startup (`buildMcpServer(session, { catalog })`) — catalog delivery over the wire is a separate design pass
   - Errors throw `SurfaceError`; wrap layer converts to MCP `isError` content
-- [ ] NL→spec (`llmCompose`) bridged through a tool — deferred. Requires adapter-from-env design (`ANTHROPIC_API_KEY` → Anthropic adapter, etc.) as its own pass.
+- [ ] NL→spec (`llmCompose`) bridged through a tool — deferred. Depends on §9.3d adapter layer (`createAdapter` from env/config).
 - [ ] Publish to npm as `@graphrefly/mcp-server`
 - [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
 - [ ] "Try it with Claude Code in 2 minutes" quickstart
@@ -414,6 +414,149 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 - [ ] Homebrew formula (post-Wave 2, if demand warrants)
 
 **Constraint:** The CLI MUST NOT duplicate graph logic. If a command can't be a thin shell around 9.3-core, the gap belongs in 9.3-core, not in the CLI package.
+
+#### 9.3d — LLM Adapter Layer (`src/patterns/adapters/`)
+
+Promote the eval LLM provider stack (`evals/lib/llm-client.ts`, `rate-limiter.ts`, `budget-gate.ts`, `replay-cache.ts`, `limits.ts`) into the library as proper `LLMAdapter` implementations. Adds browser-tier adapters and an N-tier cascade. Unblocks §9.3 MCP `llmCompose` tool, §9.5 Demo 0, and the Demo 4 documentation assistant.
+
+**Design principles:**
+
+1. **`LLMAdapter` stays the public interface** — already wired into `promptNode`, `streamingPromptNode`, `agentLoop`, `chatStream`, `llmCompose`. No consumer changes.
+2. **N-tier `cascadingLlmAdapter` follows the same pattern as `cascadingCache` and `Graph.attachStorage`** — ordered tiers, first-to-succeed wins, observable fallback chain. Cascades on **failure/breaker-open** (vs. cache's null/undefined miss). Any number of tiers; user picks the stack depth.
+3. **Middleware composes on the adapter level** — `withRateLimiter(adapter)`, `withBudgetGate(adapter)`, `withReplayCache(adapter)` wrap any `LLMAdapter`, not just eval providers. Same composability as `resilientPipeline()`.
+4. **Browser adapters are first-class** — `webllmAdapter` and `chromeNanoAdapter` implement `LLMAdapter` natively, not via shims. Dynamic import / feature detection for browser-only APIs.
+5. **`evals/lib/` becomes a thin wrapper** — imports from `src/patterns/adapters/` + adds eval-specific config (`EvalConfig`, env var parsing, `EVAL_MODE=dry-run`). No duplication.
+
+**Relationship to `docs/optimizations.md` entries:**
+
+- The **reactive adaptive rate limiter** proposal (optimizations.md, 2026-04-10) describes the v2 reactive version using `tokenBucket` + `slidingWindow()` + `fromTimer`. That is the **reactive layer** (library primitive in `src/extra/`). The adapter middleware `withRateLimiter` is the **imperative bridge**: it wraps the reactive rate limiter for use in the `LLMAdapter` `Promise`-based call path. Both land together.
+- The **`http429Parser`** (optimizations.md item 2) becomes a shared utility consumed by both the reactive `adaptiveRateLimiter` operator and the adapter middleware.
+- The **`resilientPipeline()` integration** (optimizations.md item 3) composes naturally: `resilientPipeline(adapterCallNode, { rateLimit, breaker, retry, timeout, fallback })` wraps the reactive call path, while `cascadingLlmAdapter` handles the tier selection at the adapter level. They operate at different layers and compose without conflict.
+
+##### Core adapters (`src/patterns/adapters/`)
+
+- [ ] **`AnthropicAdapter`** — bridges `@anthropic-ai/sdk` → `LLMAdapter`. Dynamic import. Supports `invoke()` (messages API) and `stream()` (streaming messages). Promoted from `evals/lib/llm-client.ts` `AnthropicProvider` with full `ChatMessage[]` support (not just system+user string).
+- [ ] **`OpenAICompatAdapter`** — bridges `openai` SDK → `LLMAdapter`. Presets: OpenAI, Ollama, OpenRouter, Groq. Dynamic import. Promoted from `evals/lib/llm-client.ts` `OpenAICompatibleProvider`.
+- [ ] **`GoogleAdapter`** — bridges `@google/genai` → `LLMAdapter`. Dynamic import. Promoted from `evals/lib/llm-client.ts` `GoogleProvider`.
+- [ ] **`WebLLMAdapter`** — bridges `@mlc-ai/web-llm` `CreateMLCEngine()` → `LLMAdapter`. Browser-only. `invoke()` via `engine.chat.completions.create()`, `stream()` via same with `stream: true`. Model cached in IndexedDB. WebGPU feature detection.
+- [ ] **`ChromeNanoAdapter`** — bridges Chrome Built-in AI Prompt API (`navigator.ai.languageModel`) → `LLMAdapter`. Zero download, instant startup. Feature detection via `"ai" in navigator`. Chrome 131+. Limited capability (no tool use, no system prompt on some versions).
+- [ ] **`DryRunAdapter`** — zero-cost mock. Promoted from `evals/lib/dry-run-provider.ts`. Useful for pipeline validation and testing.
+- [ ] **`createAdapter(config)`** — factory: `{ provider, apiKey?, model?, baseURL? }` → `LLMAdapter`. Replaces `evals/lib/createProvider` for library consumers. Env-var fallback for API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). No eval-specific config.
+
+##### Adapter middleware (`src/patterns/adapters/middleware/`)
+
+- [ ] **`withRateLimiter(adapter, opts?)`** — wraps `LLMAdapter` with adaptive rate limiting. Promotes `evals/lib/rate-limiter.ts` logic. Uses reactive `adaptiveRateLimiter` (from optimizations.md v2 plan) internally when available; falls back to imperative sliding-window for non-reactive callers.
+- [ ] **`withBudgetGate(adapter, caps)`** — wraps `LLMAdapter` with hard caps (calls, tokens, USD). Promotes `evals/lib/budget-gate.ts`. Exposes `.state` and `.reset()` for live monitoring.
+- [ ] **`withReplayCache(adapter, opts?)`** — wraps `LLMAdapter` with sha256-keyed response cache. Promotes `evals/lib/replay-cache.ts`. Node-only (fs-based). Optional — browser consumers skip this layer.
+- [ ] **Limits registry** — `lookupLimits(provider, model)` + `resolveLimits(provider, model)`. Promotes `evals/lib/limits.ts`. 25+ model entries. Extensible via `registerLimits()`.
+
+##### N-tier cascade (`cascadingLlmAdapter`)
+
+- [ ] **`cascadingLlmAdapter(tiers, opts?)`** — N-tier LLM adapter with ordered fallback. Same structural pattern as `cascadingCache(tiers)` and `Graph.attachStorage(tiers)`:
+
+  ```ts
+  type AdapterTier = {
+    adapter: LLMAdapter;
+    name: string;
+    /** Per-tier breaker — opens on repeated failures, cascade moves to next tier. */
+    breaker?: BreakerOptions;
+    /** Per-tier rate limiter (optional — cascade-level limiter also available). */
+    rateLimit?: RateLimiterOptions;
+    /** Feature filter — skip this tier for requests it can't handle. */
+    filter?: (messages: ChatMessage[], opts?: LLMInvokeOptions) => boolean;
+  };
+
+  function cascadingLlmAdapter(tiers: AdapterTier[], opts?: {
+    /** Callback on tier fallback — for observability. */
+    onFallback?: (from: string, to: string, error: unknown) => void;
+    /** Callback when all tiers exhausted. */
+    onExhausted?: (errors: Map<string, unknown>) => void;
+  }): LLMAdapter;
+  ```
+
+  **Cascade semantics:**
+  - `invoke()` / `stream()` tries tier 0 first. On error or breaker-open, falls through to tier 1, then tier 2, etc.
+  - `filter` allows per-tier capability gating: e.g., Chrome Nano can't do tool use, so requests with `tools` skip it.
+  - Per-tier `breaker` uses the existing `withBreaker` from `src/extra/resilience.ts` — same half-open/reset semantics.
+  - `onFallback` fires on each tier transition — wire to `observe()` or `reactiveLog` for audit.
+  - All tiers exhausted → throws with aggregated error map.
+  - **Any number of tiers.** 1 tier = direct adapter, 2 = primary + fallback, 3 = the demo's BYOK → WebLLM → Chrome Nano, N = user's choice.
+
+##### BYOK (Bring Your Own Key) pattern
+
+No new primitive needed. BYOK is a **configuration pattern** on top of `createAdapter`:
+
+```ts
+// Browser: keys from localStorage, user provides via settings UI
+const byokAdapter = createAdapter({
+  provider: settings.provider,   // "anthropic" | "openai" | "google"
+  apiKey: settings.apiKey,       // from localStorage
+  model: settings.model,
+});
+
+// Node: keys from env vars (existing behavior)
+const serverAdapter = createAdapter({ provider: "anthropic" });
+// reads ANTHROPIC_API_KEY from process.env
+```
+
+The settings UI is a demo/app concern, not a library concern. The library provides the adapter factory; the app provides the key source.
+
+##### Presets (convenience compositions)
+
+Named presets are thin wrappers over `cascadingLlmAdapter` — zero new logic, just curated tier stacks. Users who need custom stacks call `cascadingLlmAdapter` directly.
+
+- [ ] **`cloudFirstPreset(byokSettings?, opts?)`** — BYOK → WebLLM → Chrome Nano. Default for demos. Max quality when key is provided; graceful degradation to local.
+- [ ] **`localFirstPreset(opts?)`** — Ollama → WebLLM → Chrome Nano. Nothing leaves the machine. Privacy-sensitive users, air-gapped environments, corporate firewalls. Ollama `baseURL` configurable (default `localhost:11434`).
+- [ ] **`offlinePreset(opts?)`** — WebLLM → Chrome Nano. No network at all. Model must be pre-cached in IndexedDB. For demos at conferences, planes, or restricted networks.
+- [ ] **`grepOnlyPreset(docsIndex)`** — FTS adapter only. Zero AI. For users who want fast keyword search without any model overhead, or as an explicit "no AI" opt-out toggle in the settings UI.
+
+```ts
+// Local-first: nothing leaves the machine
+const localFirst = localFirstPreset({ ollamaModel: "gemma4:26b" });
+// equivalent to:
+const localFirst = cascadingLlmAdapter([
+  { name: "ollama", adapter: createAdapter({ provider: "ollama", model: "gemma4:26b" }) },
+  { name: "webllm", adapter: webllmAdapter("gemma-4-e4b"), breaker: { failureThreshold: 2 } },
+  { name: "nano",   adapter: chromeNanoAdapter(), filter: (_, opts) => !opts?.tools },
+]);
+
+// Offline: no network at all
+const offline = offlinePreset({ webllmModel: "phi-3.5-mini" });
+
+// Grep-only: zero AI
+const grepOnly = grepOnlyPreset(docsIndex);
+```
+
+**Design note:** Presets compose with middleware. `withBudgetGate(localFirstPreset(), caps)` works — the cascade is just another `LLMAdapter`. Same for `withRateLimiter`. The user doesn't need to know about tiers to add a budget cap.
+
+##### Demo 4 wiring (3-tier documentation assistant)
+
+```ts
+const adapter = cascadingLlmAdapter([
+  { name: "byok",   adapter: createAdapter(userSettings), breaker: { failureThreshold: 3 } },
+  { name: "webllm", adapter: webllmAdapter("gemma-4-e4b"), breaker: { failureThreshold: 2 } },
+  {
+    name: "nano",
+    adapter: chromeNanoAdapter(),
+    filter: (msgs, opts) => !opts?.tools,  // skip for tool-use requests
+  },
+]);
+
+// All existing patterns compose unchanged
+const chat = chatStream("conversation", { adapter });
+const recommender = agentLoop("recommender", { adapter, tools });
+const extractor = llmExtractor("user-context", { adapter });
+```
+
+##### Migration plan (eval stack)
+
+- [ ] **Phase 1:** Extract provider logic from `evals/lib/llm-client.ts` into `src/patterns/adapters/`. Adapt from `LLMProvider.generate(LLMRequest)` to `LLMAdapter.invoke(ChatMessage[])` + `.stream()`.
+- [ ] **Phase 2:** Extract middleware from `evals/lib/{rate-limiter,budget-gate,replay-cache}.ts` into `src/patterns/adapters/middleware/`.
+- [ ] **Phase 3:** Rewrite `evals/lib/llm-client.ts` as thin wrapper: `createProvider(config)` → `createAdapter(config)` + backward-compat `LLMProvider` shim for eval runner.
+- [ ] **Phase 4:** Add browser adapters (`webllmAdapter`, `chromeNanoAdapter`) + `cascadingLlmAdapter`.
+- [ ] **Phase 5:** Wire into MCP server's deferred `llmCompose` tool (§9.3 item).
+
+**Constraint:** Adapters MUST NOT import Node.js builtins at module level. Browser adapters use dynamic import + feature detection. Node-only middleware (`withReplayCache`) is tree-shakeable.
 
 #### 9.4 — Harness scorecard (public)
 
@@ -731,7 +874,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 - [ ] **Demo 1: Order Processing Pipeline** — 4.1 + 4.2 + 4.5 + 1.5 + 3.3 (vanilla JS, 10 ACs)
 - [ ] **Demo 2: Multi-Agent Task Board** — 4.1 + 4.3 + 4.4 + 3.2b + 1.5 (React, WebLLM + Gemma 4 E2B, 11 ACs)
 - [ ] **Demo 3: Real-Time Monitoring Dashboard** — 4.1 + 4.2 + 4.3 + 3.1 + 3.2 (Vue, 12 ACs)
-- [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 3.2b + 3.2 + 3.1 (Preact, WebLLM + Gemma 4 E4B, 12 ACs)
+- [ ] **Demo 4: AI Documentation Assistant** — 4.3 + 4.4 + 9.3d + 3.2b + 3.2 + 3.1 (Preact, `cascadingLlmAdapter`: BYOK + WebLLM + Chrome Nano + FTS5, 13 ACs)
 
 ### Phase 7.3b — Universal reduction demos
 

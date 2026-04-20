@@ -851,6 +851,70 @@ These are not positioning language. They are the *reason* self-healing actually 
 
 ---
 
+## 20. Competitive Intelligence: Self-Evolution Landscape (added April 20, 2026)
+
+**Sources researched:** Evolver/EvoMap (github.com/EvoMap/evolver), Hermes Agent (github.com/nousresearch/hermes-agent), OpenAI Agents SDK (github.com/openai/openai-agents-python), QMD (github.com/tobi/qmd), xiaohongshu structured-output post (6-layer defense)
+
+### The convergence: "self-improving agents" as category
+
+Three independent projects (Evolver, Hermes, and GraphReFly) landed on nearly identical architecture in early 2026:
+
+| Component | Evolver (EvoMap) | Hermes (NousResearch) | GraphReFly |
+|-----------|-----------------|----------------------|------------|
+| **Learning loop** | GEP: scan→signal→intent→mutate→validate→solidify | Skill creation + memory nudges + self-improvement during use | INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT |
+| **Reusable artifacts** | Genes (prompt/code fragments), Capsules (execution paths) | Skills (markdown docs, agentskills.io standard) | Catalog entries (typed GraphSpec) + domain templates |
+| **Memory** | Log files in `memory/` (unstructured) | 2 bounded markdown files (2200 + 1375 chars) | agentMemory (vector + KG + decay + distill + multi-tier) |
+| **Safety** | Blast radius (file count), protected files | Command approval, container isolation | policyEnforcer + ABAC + valve + gate + budgetGate |
+| **Multi-agent** | EvoMap network (shared evolution leaderboards) | Subagents (isolated parallel) | TopicGraph + handoff pattern + toolSelector |
+| **Observability** | Evolution events (immutable log) | `/insights` command | describe() + observe() + graphProfile() + explainPath + auditTrail |
+
+### Positioning against each
+
+**Evolver/EvoMap:**
+- *Their strength:* "Evolution" vocabulary is compelling; Gene/Capsule naming is sticky
+- *Their weakness:* Evolver is a **prompt generator only** — it doesn't execute, verify, or learn from results. It's half of REFLECT without EXECUTE or VERIFY. No reactive coordination, no graph semantics, no composability.
+- *Our narrative:* "Evolver generates evolution prompts. GraphReFly closes the loop — executes, verifies, learns, and evolves the graph itself."
+- *Channel opportunity:* Evolver integrates with Cursor/Claude Code hooks. We could ship an `evolver-bridge` that consumes their Evolution Events as an INTAKE source, then runs the full harness loop. Show their output as our input.
+
+**Hermes Agent (NousResearch):**
+- *Their strength:* End-user product (CLI + Telegram + Discord). Low friction to try. "The agent that grows with you."
+- *Their weakness:* Monolithic, non-composable. Memory is 2 flat files. Skills are markdown. No reactive coordination, no causal trace, no graph composition. Single-model loop. Can't be embedded into another system.
+- *Our narrative:* "Hermes reinvents a subset of GraphReFly's memory and skills — but as a monolithic agent, not composable infrastructure. Build your own Hermes-quality agent in 50 LOC with GraphReFly."
+- *Channel opportunity:* Hermes runs on any model via OpenRouter. We target the same multi-model audience. Blog: "What Hermes does with 4000 lines of Python, GraphReFly does reactively in 50 lines of composition."
+
+**OpenAI Agents SDK:**
+- *Their strength:* Official OpenAI backing, 23.8k stars, simple API, good docs
+- *Their weakness:* No learning loop. No reactive coordination. Guardrails are one-shot (no strategy model feedback). Handoffs are imperative (no graph semantics). Tracing is passive (no reactive observability). OpenAI-centric (Responses API by default).
+- *Our narrative:* "OpenAI Agents SDK gives you handoffs and guardrails. GraphReFly gives you reactive handoffs that learn, guardrails that evolve, and a strategy model that makes routing better every iteration."
+
+**QMD (Tobi Lütke):**
+- *Not a competitor* — complementary retrieval infrastructure
+- *Our narrative:* "QMD is the retrieval engine. GraphReFly is the reactive coordination layer. Together: QMD provides the knowledge; GraphReFly orchestrates how that knowledge flows between agents, gates, and humans."
+- *Integration opportunity:* `fromQMD(query)` source adapter that wraps QMD's SDK. Ship as a connector in Wave 2/3.
+
+### New pain-point reply templates (from this research)
+
+**"How do I make my agent learn from its mistakes?"**
+> Static prompt iteration is last year. We built GraphReFly to close the loop: every success strengthens future routing (strategy model), every failure narrows the search space (triage improvement), and every intervention compounds (effectivenessTracker). The graph literally evolves. No "gene" gimmicks — just reactive feedback through inspectable topology.
+
+**"Hermes/Evolver has self-improvement, why build my own?"**
+> Hermes is a product — great if you want *their* agent. GraphReFly is infrastructure — build *your* agent with the same learning loop, but composable, reactive, and embeddable in your stack. Like the difference between using Gmail vs building your own email system.
+
+**"OpenAI Agents SDK vs GraphReFly?"**
+> OpenAI gives you the inner loop (tool calls → LLM → repeat). GraphReFly gives you the outer loop (intake → triage → gate → execute → verify → reflect). They're complementary — but when you need explainability, persistence, policy enforcement, and continuous improvement, the outer loop is where the value lives. We ship an OpenAI adapter.
+
+### Vocabulary to claim
+
+| Concept | Their word | Our word (claim) |
+|---------|-----------|-----------------|
+| Learning from success | Solidify (Evolver), Skill creation (Hermes) | **Auto-solidify** — reactive, typed, validated |
+| Reusable artifact | Gene (Evolver), Skill (Hermes) | **Catalog entry** — composable GraphSpec, not a file |
+| Safety boundary | Blast radius (Evolver), Container (Hermes) | **Policy stack** — composable valve+gate+budget+ABAC |
+| Evolution direction | Strategy preset (Evolver) | **Strategy model** — learned, not hardcoded |
+| Memory | Log files / flat markdown | **Reactive multi-tier memory** — vector+KG+decay+distill |
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords

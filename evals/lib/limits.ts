@@ -18,8 +18,23 @@ export interface ProviderLimits {
 	rpm: number;
 	/** Requests per day (Infinity if unlimited). */
 	rpd: number;
-	/** Tokens per minute (input + output combined). */
+	/**
+	 * Tokens per minute — aggregate fallback. Used when provider doesn't
+	 * publish split ITPM/OTPM (e.g. Google, Ollama, some OpenRouter routes).
+	 * When `itpm`/`otpm` are set, they take precedence.
+	 */
 	tpm: number;
+	/**
+	 * Input tokens per minute — Anthropic, OpenAI, and others publish this
+	 * separately from OTPM. Leave undefined when the provider uses a single
+	 * combined TPM.
+	 */
+	itpm?: number;
+	/**
+	 * Output tokens per minute — published alongside ITPM by Anthropic, OpenAI,
+	 * and others. Leave undefined when the provider uses a single combined TPM.
+	 */
+	otpm?: number;
 }
 
 /**
@@ -37,37 +52,49 @@ export type ResolvedLimits = ProviderLimits;
  * Values are conservative defaults (free-tier where applicable).
  */
 const KNOWN_LIMITS: Record<string, ProviderLimits> = {
-	// --- Anthropic ---
+	// --- Anthropic — Tier 1 (verified docs.anthropic.com/api/rate-limits 2026-04-20) ---
+	// Providers with split ITPM/OTPM. `tpm` below = ITPM for backward-compat
+	// in code paths that read only tpm.
 	"anthropic/claude-opus-4-6": {
 		contextWindow: 200_000,
 		maxOutputTokens: 32_000,
 		rpm: 50,
 		rpd: Infinity,
-		tpm: 40_000,
+		tpm: 30_000,
+		itpm: 30_000,
+		otpm: 8_000,
 	},
 	"anthropic/claude-sonnet-4-6": {
 		contextWindow: 200_000,
-		maxOutputTokens: 16_000,
+		maxOutputTokens: 64_000,
 		rpm: 50,
 		rpd: Infinity,
-		tpm: 80_000,
+		tpm: 30_000,
+		itpm: 30_000,
+		otpm: 8_000,
 	},
 	"anthropic/claude-haiku-4-5-20251001": {
 		contextWindow: 200_000,
-		maxOutputTokens: 8_192,
+		maxOutputTokens: 64_000,
 		rpm: 50,
 		rpd: Infinity,
-		tpm: 100_000,
+		tpm: 50_000,
+		itpm: 50_000,
+		otpm: 10_000,
 	},
 	"anthropic/*": {
 		contextWindow: 200_000,
 		maxOutputTokens: 8_192,
 		rpm: 50,
 		rpd: Infinity,
-		tpm: 80_000,
+		tpm: 30_000,
+		itpm: 30_000,
+		otpm: 8_000,
 	},
 
-	// --- OpenAI ---
+	// --- OpenAI (Tier 1 published limits) ---
+	// OpenAI publishes TPM as a combined field for most models; where ITPM/OTPM
+	// are published separately we set both.
 	"openai/gpt-4o": {
 		contextWindow: 128_000,
 		maxOutputTokens: 16_384,
@@ -268,7 +295,14 @@ export function lookupLimits(provider: string, model: string): ProviderLimits | 
 
 /**
  * Resolve limits with env-var overrides.
- * Env vars: EVAL_RPM, EVAL_RPD, EVAL_TPM, EVAL_MAX_OUTPUT_TOKENS, EVAL_CONTEXT_WINDOW.
+ *
+ * Env vars:
+ *   EVAL_RPM, EVAL_RPD — request limits
+ *   EVAL_TPM — combined tokens/minute fallback (used when provider doesn't
+ *     publish split input/output)
+ *   EVAL_ITPM — input tokens/minute (Anthropic, OpenAI style)
+ *   EVAL_OTPM — output tokens/minute
+ *   EVAL_MAX_OUTPUT_TOKENS, EVAL_CONTEXT_WINDOW — per-request caps
  */
 export function resolveLimits(provider: string, model: string): ResolvedLimits {
 	const base = lookupLimits(provider, model) ?? {
@@ -285,6 +319,8 @@ export function resolveLimits(provider: string, model: string): ResolvedLimits {
 		rpm: envInt("EVAL_RPM") ?? base.rpm,
 		rpd: envInt("EVAL_RPD") ?? base.rpd,
 		tpm: envInt("EVAL_TPM") ?? base.tpm,
+		itpm: envInt("EVAL_ITPM") ?? base.itpm,
+		otpm: envInt("EVAL_OTPM") ?? base.otpm,
 	};
 }
 

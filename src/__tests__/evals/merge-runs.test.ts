@@ -84,13 +84,28 @@ describe("mergeRuns", () => {
 		expect(merged.scores["L0-M1-ratio"]).toBeCloseTo(0.5);
 	});
 
-	it("sums total_cost_usd and rate-limit totals", () => {
+	it("recomputes total_cost_usd from merged task set (no double counting on resume)", () => {
+		// Each task fixture has cost_usd=0.01 → 2 unique tasks merged = $0.02.
+		// A naive prev+current sum would give $0.05+$0.07=$0.12, wrong because
+		// cached task costs re-appear in `current.total_cost_usd`.
 		const prev = makeRun("l0-trial1", [task("t1", "graphspec", true)], 0.05);
 		const current = makeRun("l0-trial1", [task("t2", "graphspec", true)], 0.07);
 		const merged = mergeRuns(prev, current);
-		expect(merged.total_cost_usd).toBeCloseTo(0.12);
+		expect(merged.total_cost_usd).toBeCloseTo(0.02);
 		expect(merged.rate_limit_stats?.total_retries).toBe(2);
 		expect(merged.rate_limit_stats?.total_wait_ms).toBe(1000);
+	});
+
+	it("total_cost_usd reflects dedupe — a resume that re-runs cached tasks doesn't double-count", () => {
+		const t1 = task("t1", "graphspec", true);
+		const t2 = task("t2", "graphspec", true);
+		// Scenario: Run 1 completes t1+t2 (cost $0.02), Run 2 resumes and
+		// re-sees both as cache hits (cost $0.02), then completes t3.
+		const prev = makeRun("l0-trial1", [t1, t2], 0.02);
+		const current = makeRun("l0-trial1", [t1, t2, task("t3", "graphspec", true)], 0.03);
+		const merged = mergeRuns(prev, current);
+		expect(merged.tasks).toHaveLength(3);
+		expect(merged.total_cost_usd).toBeCloseTo(0.03); // 3 tasks × $0.01, not $0.05
 	});
 
 	it("uses the new run's timestamp + scores' shape (newer metadata wins)", () => {

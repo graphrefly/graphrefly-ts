@@ -7,14 +7,104 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { generateCatalogPrompt, validateSpecAgainstCatalog } from "../../src/patterns/graphspec.js";
+import type {
+	LLMResponse as AdapterLLMResponse,
+	ChatMessage,
+	LLMAdapter,
+} from "../../src/patterns/ai.js";
+import {
+	type GraphSpec,
+	generateCatalogPrompt,
+	llmRefine,
+	validateSpecAgainstCatalog,
+} from "../../src/patterns/graphspec.js";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import { callLLM, extractJSON, getProviderLimits, getRateLimiterStats } from "./llm-client.js";
 import { portableCatalog } from "./portable-catalog.js";
 import { portableTemplateDescriptions, portableTemplates } from "./portable-templates.js";
-import type { CatalogTreatment, EvalConfig, EvalRun, EvalTask, TaskResult } from "./types.js";
+import type {
+	CatalogTreatment,
+	EvalConfig,
+	EvalRun,
+	EvalTask,
+	JudgeScore,
+	TaskResult,
+} from "./types.js";
 import { validateSpec } from "./validator.js";
+
+// ---------------------------------------------------------------------------
+// LLMAdapter shim — wraps our cost-safe `callLLM` so `llmRefine`/`llmCompose`
+// in src/patterns/graphspec.ts can drive the same provider stack (cache,
+// budget gate, rate limiter, cost tracking). Invocation count is exposed so
+// Treatment C can report refine attempts.
+// ---------------------------------------------------------------------------
+
+interface RefineAdapter {
+	adapter: LLMAdapter;
+	/** Total invocations — initial compose (if routed here) + each refine. */
+	readonly calls: number;
+	/** Cumulative input tokens across all invocations. */
+	readonly inputTokens: number;
+	/** Cumulative output tokens across all invocations. */
+	readonly outputTokens: number;
+	/** Last response content seen (post-refine if any). */
+	readonly lastContent: string;
+	/** Cumulative wall latency (ms) across all invocations. */
+	readonly latencyMs: number;
+}
+
+function createRefineAdapter(config: EvalConfig): RefineAdapter {
+	let calls = 0;
+	let inputTokens = 0;
+	let outputTokens = 0;
+	let lastContent = "";
+	let latencyMs = 0;
+
+	const adapter: LLMAdapter = {
+		async invoke(messages: readonly ChatMessage[]): Promise<AdapterLLMResponse> {
+			calls += 1;
+			const system = messages.find((m) => m.role === "system")?.content ?? "";
+			const user = messages.find((m) => m.role === "user")?.content ?? "";
+			const response = await callLLM({ system, user, model: config.model }, config);
+			inputTokens += response.inputTokens;
+			outputTokens += response.outputTokens;
+			latencyMs += response.latencyMs;
+			lastContent = response.content;
+			return {
+				content: response.content,
+				usage: {
+					inputTokens: response.inputTokens,
+					outputTokens: response.outputTokens,
+				},
+			};
+		},
+		// `stream` is required by the LLMAdapter contract but llmRefine/llmCompose
+		// don't use it. Return an empty async iterable so the shape is valid.
+		stream: (async function* () {
+			/* unused by refine path */
+		})(),
+	};
+
+	return {
+		adapter,
+		get calls() {
+			return calls;
+		},
+		get inputTokens() {
+			return inputTokens;
+		},
+		get outputTokens() {
+			return outputTokens;
+		},
+		get lastContent() {
+			return lastContent;
+		},
+		get latencyMs() {
+			return latencyMs;
+		},
+	};
+}
 
 export type ContrastiveResumeConfig = Pick<EvalConfig, "l0FromTaskId" | "l0ResumeAfterTaskId">;
 
@@ -173,11 +263,15 @@ function addCost(result: TaskResult, model: string): void {
  *
  * Treatment selection (config.catalogTreatment, env `EVAL_TREATMENT`):
  * - `A` (default): manual catalog from `graphspec-treatment.md`.
- * - `B` / `C` / `D`: auto-generated prompt from `portableCatalog`.
- *   - `D` additionally injects `Pre-built Templates` section.
- *   - `C` would additionally enable auto-refine (requires llmCompose wiring;
- *     currently equivalent to B inside the contrastive runner — refine loop
- *     is owned by `llmCompose`, not the bare contrastive path).
+ * - `B`: auto-generated prompt from `portableCatalog` (no refine).
+ * - `C`: `B` + auto-refine — when the initial spec fails catalog validation,
+ *   feed errors back to the LLM via `llmRefine` up to `maxAutoRefine` times.
+ *   Refine attempts are recorded as judge-shaped diagnostic entries.
+ * - `D`: `B` + pre-built templates section injected into the prompt and merged
+ *   into the spec's `templates` field before validation.
+ *
+ * Treatments B/C/D share the same initial prompt (buildAutoGenPrompt) for
+ * apples-to-apples comparison — only the post-generation handling differs.
  */
 async function runGraphSpecTreatment(
 	task: EvalTask,
@@ -203,56 +297,128 @@ async function runGraphSpecTreatment(
 
 	let valid = false;
 	let runnable = false;
-	const catalogErrors: string[] = [];
+	const diagnostics: JudgeScore[] = [];
+	// Mutable across the refine loop — final values go into the returned result.
+	let rawOutput = response.content;
+	let accumulatedLatencyMs = response.latencyMs;
+	let accumulatedInputTokens = response.inputTokens;
+	let accumulatedOutputTokens = response.outputTokens;
+	let spec: GraphSpec | undefined;
+
 	try {
-		const spec = JSON.parse(extractJSON(response.content));
+		const parsed = JSON.parse(extractJSON(response.content));
 		// Treatment D: ensure pre-built templates are merged in so
 		// `validateSpecAgainstCatalog` accepts template references the LLM
 		// invokes by name (`{ type: "template", template: "resilientFetch", ... }`).
-		if (config.catalogTreatment === "D" && spec && typeof spec === "object") {
-			spec.templates = { ...portableTemplates, ...(spec.templates ?? {}) };
+		if (config.catalogTreatment === "D" && parsed && typeof parsed === "object") {
+			parsed.templates = { ...portableTemplates, ...(parsed.templates ?? {}) };
 		}
-		const validation = validateSpec(spec);
+		const validation = validateSpec(parsed);
 		valid = validation.valid;
 		runnable = valid; // Placeholder until graphFromSpec exists
+		if (valid) {
+			spec = parsed as GraphSpec;
+		}
 
-		// Treatment B/C/D: also run catalog-aware validation. Failures here
-		// are surfaced as JudgeScore-shaped diagnostics on the result so they
-		// show up in the run output without breaking the existing valid/runnable
-		// contract that Treatment A uses.
-		if (useAutoGen && valid) {
+		// Treatment B/C/D: catalog-aware validation. For C, failures drive the
+		// refine loop; for B/D, they're recorded as diagnostics only.
+		if (useAutoGen && spec) {
 			const catalogValidation = validateSpecAgainstCatalog(spec, portableCatalog);
 			if (!catalogValidation.valid) {
-				catalogErrors.push(...catalogValidation.errors);
+				if (config.catalogTreatment === "C") {
+					// Treatment C: auto-refine loop. Use `llmRefine` with our
+					// cost-safe adapter shim so refine calls go through the same
+					// cache + budget + rate-limiter stack as generation calls.
+					const maxRefine = 2;
+					const refineAdapter = createRefineAdapter(config);
+					let currentSpec = spec;
+					let currentErrors = catalogValidation.errors;
+					let refinesUsed = 0;
+					for (let attempt = 1; attempt <= maxRefine; attempt++) {
+						try {
+							currentSpec = await llmRefine(
+								currentSpec,
+								`Fix these catalog errors:\n${currentErrors.join("\n")}\n\nUse ONLY functions and sources from the catalog.`,
+								refineAdapter.adapter,
+								{ catalog: portableCatalog },
+							);
+							refinesUsed = attempt;
+							const revalidated = validateSpecAgainstCatalog(currentSpec, portableCatalog);
+							if (revalidated.valid) {
+								spec = currentSpec;
+								currentErrors = [];
+								break;
+							}
+							currentErrors = revalidated.errors;
+						} catch (err) {
+							// Refine call itself failed (invalid JSON, budget cap,
+							// transient error). Record and stop refining.
+							diagnostics.push({
+								claim: `auto-refine attempt ${attempt}`,
+								pass: false,
+								reasoning: err instanceof Error ? err.message : String(err),
+							});
+							refinesUsed = attempt;
+							break;
+						}
+					}
+					// Fold refine-adapter accounting back into the task result.
+					rawOutput = refineAdapter.lastContent || rawOutput;
+					accumulatedLatencyMs += refineAdapter.latencyMs;
+					accumulatedInputTokens += refineAdapter.inputTokens;
+					accumulatedOutputTokens += refineAdapter.outputTokens;
+					diagnostics.push({
+						claim: "auto-refine attempts used",
+						pass: currentErrors.length === 0,
+						reasoning: `${refinesUsed}/${maxRefine} refines used. Final catalog ${currentErrors.length === 0 ? "valid" : "invalid"} — ${currentErrors.length} remaining errors.`,
+					});
+					// If still invalid after max refines, surface errors as diagnostics.
+					for (const errMsg of currentErrors) {
+						diagnostics.push({
+							claim: "catalog validation (post-refine)",
+							pass: false,
+							reasoning: errMsg,
+						});
+					}
+					// Treatment C's `valid` reflects post-refine structural+catalog
+					// validity so a successful refine counts as a task pass.
+					if (currentErrors.length === 0) {
+						valid = true;
+						runnable = true;
+					} else {
+						valid = false;
+						runnable = false;
+					}
+				} else {
+					// B/D: record catalog errors as diagnostics, no refine.
+					for (const errMsg of catalogValidation.errors) {
+						diagnostics.push({
+							claim: "catalog validation",
+							pass: false,
+							reasoning: errMsg,
+						});
+					}
+				}
 			}
 		}
 	} catch {
-		// Invalid JSON
+		// Initial JSON parse failed — treatment C does not attempt refine on
+		// malformed JSON (llmRefine requires a parseable starting spec).
 	}
 
-	const result: TaskResult = {
+	return {
 		task_id: task.id,
 		treatment: "graphspec",
-		raw_output: response.content,
+		raw_output: rawOutput,
 		valid,
 		runnable,
-		judge_scores: [], // Populated by judge pass
-		latency_ms: response.latencyMs,
+		judge_scores: diagnostics,
+		latency_ms: accumulatedLatencyMs,
 		token_count: {
-			input: response.inputTokens,
-			output: response.outputTokens,
+			input: accumulatedInputTokens,
+			output: accumulatedOutputTokens,
 		},
 	};
-
-	for (const err of catalogErrors) {
-		result.judge_scores.push({
-			claim: "catalog validation",
-			pass: false,
-			reasoning: err,
-		});
-	}
-
-	return result;
 }
 
 /**

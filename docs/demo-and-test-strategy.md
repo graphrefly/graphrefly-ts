@@ -97,12 +97,17 @@ Each demo can use a different framework binding (5.1) to showcase breadth:
 
 Python demos use Pyodide/WASM lab in `graphrefly-py/website/`.
 
-### 5. LLM demos use WebLLM
+### 5. LLM demos use `cascadingLlmAdapter` (§9.3d)
 
-No API keys required. Following callbag-recharge's H2 design:
-- **Gemma 4** (instruction-tuned **E2B** / **E4B** sizes) via WebLLM and WebGPU, in-browser inference — aligns with Google’s April 2026 open release (Apache 2.0, agentic / edge focus; see [Gemma 4 overview](https://ai.google.dev/gemma/docs/core/model_card_4))
-- Web Worker for inference, SharedWorker for memory state, Service Worker for model cache
-- Graceful degradation: if no WebGPU, show pre-recorded traces with a "requires WebGPU" banner
+All LLM demos use the library’s N-tier `cascadingLlmAdapter` — the demo itself IS the showcase for the adapter layer. Default stack (no API key required to start):
+
+1. **BYOK tier (opt-in):** user pastes their own API key in a settings panel → `createAdapter({ provider, apiKey, model })`. Best quality. Settings persisted in `localStorage`.
+2. **WebLLM tier:** **Gemma 4** (instruction-tuned **E2B** / **E4B** sizes) via WebLLM and WebGPU, in-browser inference — aligns with Google’s April 2026 open release (Apache 2.0, agentic / edge focus; see [Gemma 4 overview](https://ai.google.dev/gemma/docs/core/model_card_4)). Web Worker for inference, SharedWorker for memory state, Service Worker for model cache.
+3. **Chrome Nano tier:** `chromeNanoAdapter()` — zero download, instant startup on Chrome 131+. `filter` skips tool-use requests (Nano can’t do structured output).
+4. **FTS/pre-recorded fallback:** if all LLM tiers fail, degrade to keyword search or show pre-recorded traces with a "requires WebGPU or API key" banner.
+
+Per-tier `withBreaker` — breaker opens on repeated failures, cascade falls through automatically. A status badge shows which tier is active. `onFallback` events visible in the debug panel.
+
 - **Pinning models:** pass the exact `model_id` string accepted by `CreateMLCEngine()` from the installed `@mlc-ai/web-llm` package’s `prebuiltAppConfig.model_list`. MLC Hugging Face artifacts for Gemma 4 may land shortly after each Google drop; until a Gemma 4 entry appears there, use the newest compatible prebuilt in that list (do not hardcode a stale Qwen-only assumption in new demo code)
 
 ---
@@ -292,16 +297,32 @@ pipeline("monitor")
 
 **Framework:** Preact island (lightweight, embedded in docs site)
 
-**LLM:** WebLLM (**Gemma 4 E4B** IT) with graceful degradation to FTS5 search
+**LLM:** 3-tier `cascadingLlmAdapter` (§9.3d) with graceful degradation:
 
-**Predecessor:** callbag-recharge H2 design (WebLLM, three workers, FTS5 fallback)
+| Tier | Adapter | UX | Quality | Capability |
+|------|---------|-----|---------|------------|
+| **Full-power (BYOK)** | `createAdapter(userSettings)` | Settings panel, paste API key | Best — Claude/GPT/Gemini | Full: tool use, structured extraction, streaming |
+| **Privacy/offline** | `webllmAdapter("gemma-4-e4b")` | 1-4GB download, then offline | Good — quantized 4B | Moderate: chat, summarization, basic extraction |
+| **Zero-friction** | `chromeNanoAdapter()` | Instant, zero download | Basic — Gemini Nano 1.8B | Limited: simple Q&A, no tool use |
+| **Keyword fallback** | FTS5 search (no LLM) | Always available | N/A | Keyword search only |
+
+Per-tier `withBreaker` from `src/extra/resilience.ts` — breaker opens on repeated failures, cascade falls through. `filter` skips Chrome Nano for tool-use requests. Settings UI persists BYOK keys in `localStorage` (encrypted at rest via Web Crypto API). Tier selection is automatic — user just starts chatting. A status badge shows which tier is active.
+
+**Predecessor:** callbag-recharge H2 design (WebLLM, three workers, FTS5 fallback). Upgraded from single-tier (WebLLM-only) to N-tier cascade per §9.3d.
 
 ### Architecture
 
 ```
 pipeline("docs-assistant")
+├── cascadingLlmAdapter("llm")            — 9.3d: N-tier LLM with automatic fallback
+│   ├── tier[0]: createAdapter(byok)   — BYOK: user's own API key (Claude/GPT/Gemini)
+│   │   └── withBudgetGate(caps)       — 9.3d: per-session spend cap (user-configurable)
+│   ├── tier[1]: webllmAdapter(model)  — WebLLM: Gemma 4 E4B via WebGPU, cached in IndexedDB
+│   │   └── withBreaker(threshold: 2)  — 3.1: OOM/WebGPU failure → fall through
+│   ├── tier[2]: chromeNanoAdapter()   — Chrome Built-in AI: Gemini Nano, zero download
+│   │   └── filter: skip tool-use reqs — Nano can't do structured tool calls
+│   └── tier[3]: ftsOnly               — keyword search fallback, always available
 ├── chatStream("conversation")         — 4.4: streaming LLM responses
-├── fromLLM(webllm)                   — 4.4: browser-local inference
 ├── agentLoop("recommender")           — 4.4: analyze need → search docs → recommend
 │   ├── toolRegistry("search-tools")   — 4.4: fts-search, vector-search, browse-api, list-examples
 │   └── systemPromptBuilder()          — 4.4: inject library knowledge + user context
@@ -317,8 +338,7 @@ pipeline("docs-assistant")
 │   ├── edges: "composes", "alternative-to", "requires", "used-by"
 │   └── reachable() for "what else might help?" recommendations
 ├── resilience
-│   ├── retry("llm-inference")         — 3.1: retry on OOM/timeout
-│   └── withBreaker("webllm")          — 3.1: fall back to FTS if WebLLM crashes
+│   └── retry("llm-inference")         — 3.1: retry on OOM/timeout (per-tier, inside cascade)
 ├── pubsub("analytics")                — 3.2: track which docs pages users visit
 └── reactiveLog("search-history")      — 3.2: append-only search log for improving recommendations
 ```
@@ -330,6 +350,7 @@ pipeline("docs-assistant")
 - "Recommended for you" sidebar based on agent memory
 - API relationship graph (mini version of `knowledgeGraph`, clickable)
 - Memory debug panel (toggle-able, shows what the assistant remembers about the user)
+- **LLM tier selector** in settings: radio group — "Cloud (BYOK)", "Local only", "Offline", "No AI (keyword search)". Maps to §9.3d presets: `cloudFirstPreset`, `localFirstPreset`, `offlinePreset`, `grepOnlyPreset`. Active tier badge in the chat header.
 
 ### Acceptance criteria
 
@@ -337,14 +358,15 @@ pipeline("docs-assistant")
 - **AC-2:** Follow-up: "What about handling API failures?" Assistant remembers the dashboard context (from `agentMemory`) and recommends `retry`, `withBreaker`, `rateLimiter` — not generic error handling, but specifically for the dashboard use case. Memory panel shows the extracted context: "user building real-time dashboard with React."
 - **AC-3:** `knowledgeGraph` traversal: when recommending `reactiveMap`, the assistant also suggests `reactiveIndex` (related via "composes" edge) and `pubsub` (related via "alternative-to" for the pub/sub pattern). `reachable("reactiveMap", "downstream")` shows the recommendation chain.
 - **AC-4:** `vectorIndex` search: user types "cancel previous request when new one comes in". Vector search finds `switchMap` (semantically similar to "cancel previous") even though the user didn't use the operator name. Relevance score shown.
-- **AC-5:** FTS fallback: disable WebGPU (or simulate breaker open). Search degrades to full-text search via `reactiveMap("fts")`. Results are less semantically rich but still functional. A banner shows "AI search unavailable — using keyword search."
-- **AC-6:** Session persistence: refresh the page. Agent memory restores from IndexedDB. The assistant still knows the user is building a React dashboard. No need to re-explain context.
-- **AC-7:** Streaming responses: LLM output appears token-by-token. Code examples in responses render with syntax highlighting as they stream (not after completion).
+- **AC-5:** Cascade degradation: simulate each tier failing in sequence. (a) Remove BYOK key → cascade skips tier 0, uses WebLLM. (b) Disable WebGPU → WebLLM breaker opens, cascade falls to Chrome Nano. (c) Non-Chrome browser → Nano unavailable, falls to FTS5. Each transition shows a status badge: "Using: Claude API" → "Using: Local AI (Gemma 4)" → "Using: Chrome AI" → "Using: Keyword search". `onFallback` events visible in debug panel.
+- **AC-5b:** BYOK settings: user opens settings panel, selects provider (Anthropic/OpenAI/Google), pastes API key, picks model. Key persisted in `localStorage` (encrypted via Web Crypto). On save, cascade tier 0 re-initializes with new adapter. Requests immediately route through BYOK. Budget gate shows per-session spend.
+- **AC-6:** Session persistence: refresh the page. Agent memory restores from IndexedDB. The assistant still knows the user is building a React dashboard. No need to re-explain context. BYOK key persists across sessions (encrypted in localStorage). WebLLM model cached in IndexedDB (no re-download).
+- **AC-7:** Streaming responses: LLM output appears token-by-token. Code examples in responses render with syntax highlighting as they stream (not after completion). Streaming works across all tiers that support it (BYOK and WebLLM stream; Chrome Nano may not; FTS5 returns instantly).
 - **AC-8:** Analytics: `pubsub("analytics")` tracks page visits. After the user browses 3+ API pages, the "Recommended for you" sidebar updates to show related operators. This is a derived node over the analytics topic + knowledge graph, not a hardcoded recommendation list.
 - **AC-9:** Search history: `reactiveLog("search-history")` persists queries. The assistant uses this to avoid repeating recommendations. If the user searches for the same concept twice, the assistant says "You looked at this before — here's what changed since then" (or "here's a deeper dive").
-- **AC-10:** Cross-highlighting in debug mode: toggle "Show graph" → the full assistant graph renders in a panel. Hover over a recommendation → graph highlights the `knowledgeGraph` node and the path that led to the recommendation. Hover over a memory → graph highlights the `distill` chain that extracted it.
-- **AC-11:** Three-worker architecture: inference in Web Worker (no main-thread blocking), memory state in SharedWorker (survives tab close), model weights cached in Service Worker (no re-download). Verify: close tab, reopen → model loads from cache, memory intact.
-- **AC-12:** `llmExtractor` structured output: extraction results are typed `{ framework: string, useCase: string, painPoints: string[], experienceLevel: string }`. Malformed LLM output is caught by validation and retried (not silently dropped). Graph view shows the extractor node's error/retry cycle.
+- **AC-10:** Cross-highlighting in debug mode: toggle "Show graph" → the full assistant graph renders in a panel. Hover over a recommendation → graph highlights the `knowledgeGraph` node and the path that led to the recommendation. Hover over a memory → graph highlights the `distill` chain that extracted it. The cascade adapter's tier selection is visible as a node with live status.
+- **AC-11:** Three-worker architecture: inference in Web Worker (no main-thread blocking), memory state in SharedWorker (survives tab close), model weights cached in Service Worker (no re-download). Verify: close tab, reopen → model loads from cache, memory intact. BYOK tier runs API calls in the main thread (no worker needed — just fetch).
+- **AC-12:** `llmExtractor` structured output: extraction results are typed `{ framework: string, useCase: string, painPoints: string[], experienceLevel: string }`. Malformed LLM output is caught by validation and retried (not silently dropped). Graph view shows the extractor node's error/retry cycle. BYOK tier produces highest-quality extraction; lower tiers may produce partial results that merge into the profile over time.
 
 ---
 

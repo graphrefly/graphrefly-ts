@@ -94,9 +94,23 @@ class SlidingWindow {
 export class AdaptiveRateLimiter {
 	private limits: ResolvedLimits;
 	private effectiveRpm: number;
+	/**
+	 * Effective combined tokens/minute cap. Used when the provider reports a
+	 * single TPM (Google, Ollama, most OpenRouter routes). When the provider
+	 * publishes split ITPM/OTPM (Anthropic, OpenAI), `effectiveItpm` and
+	 * `effectiveOtpm` take over and `effectiveTpm` stays at Infinity as a
+	 * no-op secondary check.
+	 */
 	private effectiveTpm: number;
+	private effectiveItpm: number;
+	private effectiveOtpm: number;
 	private requestWindow = new SlidingWindow();
+	/** Combined input+output token window (used when itpm/otpm are not set). */
 	private tokenWindow = new SlidingWindow();
+	/** Input-only token window (used when itpm is set). */
+	private inputTokenWindow = new SlidingWindow();
+	/** Output-only token window (used when otpm is set). */
+	private outputTokenWindow = new SlidingWindow();
 	private dailyRequests = 0;
 	private dayStart = Date.now();
 	private consecutiveBackoffs = 0;
@@ -108,22 +122,34 @@ export class AdaptiveRateLimiter {
 		this.limits = limits;
 		// Start at 85% of stated limits to avoid edge-case 429s
 		this.effectiveRpm = Math.floor(limits.rpm * 0.85);
-		this.effectiveTpm = Math.floor(limits.tpm * 0.85);
+		// If the provider publishes split ITPM/OTPM, each window gets its own
+		// effective cap and the combined TPM is relaxed to Infinity (no double
+		// gating). Otherwise the combined TPM acts on the merged window.
+		this.effectiveItpm = limits.itpm != null ? Math.floor(limits.itpm * 0.85) : Infinity;
+		this.effectiveOtpm = limits.otpm != null ? Math.floor(limits.otpm * 0.85) : Infinity;
+		this.effectiveTpm =
+			limits.itpm != null || limits.otpm != null ? Infinity : Math.floor(limits.tpm * 0.85);
 	}
 
 	/**
 	 * Wait until it's safe to make a call, then execute `fn`.
 	 * Handles 429 retries internally.
+	 *
+	 * `estimatedInput` / `estimatedOutput` are used for pacing against the
+	 * provider's ITPM/OTPM caps (Anthropic, OpenAI). If the provider only
+	 * publishes a combined TPM (Google, Ollama), both counts are summed into
+	 * the combined window. Pass a single number as the second argument for
+	 * backward compatibility — treated as an input estimate with 0 output.
 	 */
-	async call<T>(fn: () => Promise<T>, estimatedTokens: number): Promise<T> {
+	async call<T>(fn: () => Promise<T>, estimatedInput: number, estimatedOutput = 0): Promise<T> {
 		const maxAttempts = 5;
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			// Proactive pacing: wait if we're at the limit
-			await this.paceBeforeCall(estimatedTokens);
+			await this.paceBeforeCall(estimatedInput, estimatedOutput);
 
 			try {
 				const result = await fn();
-				this.recordSuccess(estimatedTokens);
+				this.recordSuccess(estimatedInput, estimatedOutput);
 				return result;
 			} catch (err: unknown) {
 				const signal = parseRateLimitError(err);
@@ -136,7 +162,7 @@ export class AdaptiveRateLimiter {
 				console.log(
 					`  [rate-limit] 429 on attempt ${attempt + 1}/${maxAttempts}, ` +
 						`waiting ${(waitMs / 1000).toFixed(1)}s ` +
-						`(effective RPM: ${this.effectiveRpm}, TPM: ${this.effectiveTpm})`,
+						`(RPM: ${this.effectiveRpm}, ITPM: ${this.effectiveItpm}, OTPM: ${this.effectiveOtpm}, TPM: ${this.effectiveTpm})`,
 				);
 				this.totalWaitMs += waitMs;
 				await sleep(waitMs);
@@ -144,15 +170,26 @@ export class AdaptiveRateLimiter {
 		}
 		throw new Error(
 			`Rate limit: exhausted ${maxAttempts} retries. ` +
-				`Effective RPM=${this.effectiveRpm}, TPM=${this.effectiveTpm}. ` +
-				`Consider raising EVAL_RPM/EVAL_TPM or using a higher-tier API key.`,
+				`Effective RPM=${this.effectiveRpm}, ITPM=${this.effectiveItpm}, OTPM=${this.effectiveOtpm}, TPM=${this.effectiveTpm}. ` +
+				`Consider raising EVAL_RPM / EVAL_ITPM / EVAL_OTPM / EVAL_TPM or using a higher-tier API key.`,
 		);
 	}
 
-	/** Record token usage after a successful call (for accurate TPM tracking). */
-	recordUsage(actualTokens: number): void {
-		// Update the token window with the delta between actual and estimated
-		this.tokenWindow.record(actualTokens);
+	/**
+	 * Record actual token usage after a successful call.
+	 * `actualInput` and `actualOutput` keep the ITPM and OTPM windows in sync
+	 * with what the API actually reported; the combined window receives the sum.
+	 * Single-argument form treats the value as combined tokens (backward-compat).
+	 */
+	recordUsage(actualInput: number, actualOutput?: number): void {
+		if (actualOutput === undefined) {
+			// Legacy single-arg: combined count only, no way to split
+			this.tokenWindow.record(actualInput);
+			return;
+		}
+		this.inputTokenWindow.record(actualInput);
+		this.outputTokenWindow.record(actualOutput);
+		this.tokenWindow.record(actualInput + actualOutput);
 	}
 
 	stats(): RateLimiterStats {
@@ -170,7 +207,7 @@ export class AdaptiveRateLimiter {
 	// Internals
 	// -----------------------------------------------------------------------
 
-	private async paceBeforeCall(estimatedTokens: number): Promise<void> {
+	private async paceBeforeCall(estimatedInput: number, estimatedOutput: number): Promise<void> {
 		// Reset daily counter if new day
 		if (Date.now() - this.dayStart > 86_400_000) {
 			this.dailyRequests = 0;
@@ -187,42 +224,82 @@ export class AdaptiveRateLimiter {
 
 		// RPM pacing
 		while (this.requestWindow.count() >= this.effectiveRpm) {
-			const waitMs = 2_000; // Check every 2s
+			const waitMs = 2_000;
 			this.totalWaitMs += waitMs;
 			await sleep(waitMs);
 		}
 
-		// TPM pacing
+		// Combined TPM pacing (only active when provider uses combined TPM)
 		while (
 			this.effectiveTpm < Infinity &&
-			this.tokenWindow.sum() + estimatedTokens > this.effectiveTpm
+			this.tokenWindow.sum() + estimatedInput + estimatedOutput > this.effectiveTpm
 		) {
-			const waitMs = 3_000; // Check every 3s
+			const waitMs = 3_000;
+			this.totalWaitMs += waitMs;
+			await sleep(waitMs);
+		}
+
+		// ITPM pacing (only active when provider publishes input cap)
+		while (
+			this.effectiveItpm < Infinity &&
+			this.inputTokenWindow.sum() + estimatedInput > this.effectiveItpm
+		) {
+			const waitMs = 3_000;
+			this.totalWaitMs += waitMs;
+			await sleep(waitMs);
+		}
+
+		// OTPM pacing (only active when provider publishes output cap)
+		while (
+			this.effectiveOtpm < Infinity &&
+			this.outputTokenWindow.sum() + estimatedOutput > this.effectiveOtpm
+		) {
+			const waitMs = 3_000;
 			this.totalWaitMs += waitMs;
 			await sleep(waitMs);
 		}
 	}
 
-	private recordSuccess(estimatedTokens: number): void {
+	private recordSuccess(estimatedInput: number, estimatedOutput: number): void {
 		this.totalCalls++;
 		this.dailyRequests++;
 		this.requestWindow.record(1);
-		this.tokenWindow.record(estimatedTokens);
+		this.inputTokenWindow.record(estimatedInput);
+		this.outputTokenWindow.record(estimatedOutput);
+		this.tokenWindow.record(estimatedInput + estimatedOutput);
 
 		// Slowly relax back toward configured limits after successful calls
 		if (this.consecutiveBackoffs > 0) {
 			this.consecutiveBackoffs = Math.max(0, this.consecutiveBackoffs - 1);
 		}
 		const configuredRpm = Math.floor(this.limits.rpm * 0.85);
-		const configuredTpm = Math.floor(this.limits.tpm * 0.85);
 		if (this.effectiveRpm < configuredRpm) {
 			this.effectiveRpm = Math.min(configuredRpm, this.effectiveRpm + 1);
 		}
-		if (this.effectiveTpm < configuredTpm) {
+		const configuredTpm = Math.floor(this.limits.tpm * 0.85);
+		if (this.effectiveTpm < configuredTpm && this.effectiveTpm !== Infinity) {
 			this.effectiveTpm = Math.min(
 				configuredTpm,
 				this.effectiveTpm + Math.floor(configuredTpm * 0.05),
 			);
+		}
+		if (this.limits.itpm != null) {
+			const configured = Math.floor(this.limits.itpm * 0.85);
+			if (this.effectiveItpm < configured) {
+				this.effectiveItpm = Math.min(
+					configured,
+					this.effectiveItpm + Math.floor(configured * 0.05),
+				);
+			}
+		}
+		if (this.limits.otpm != null) {
+			const configured = Math.floor(this.limits.otpm * 0.85);
+			if (this.effectiveOtpm < configured) {
+				this.effectiveOtpm = Math.min(
+					configured,
+					this.effectiveOtpm + Math.floor(configured * 0.05),
+				);
+			}
 		}
 	}
 
@@ -472,16 +549,21 @@ export function withRateLimiter(
 		async generate(req: LLMRequest): Promise<LLMResponse> {
 			if (!opts.enabled) {
 				const response = await inner.generate(req);
-				limiter.recordUsage(response.inputTokens + response.outputTokens);
+				limiter.recordUsage(response.inputTokens, response.outputTokens);
 				return response;
 			}
 			// Estimate input tokens (~chars/4) and output tokens (~maxTokens/2)
-			// for pacing. Replaced with actual usage post-call.
+			// for pacing. Each component paces against its own window (ITPM/OTPM)
+			// when the provider publishes split limits; otherwise they sum into
+			// the combined TPM window.
 			const estimatedInput = Math.ceil((req.system.length + req.user.length) / 4);
 			const estimatedOutput = Math.ceil((req.maxTokens ?? inner.limits.maxOutputTokens) / 2);
-			const estimatedTotal = estimatedInput + estimatedOutput;
-			const response = await limiter.call(() => inner.generate(req), estimatedTotal);
-			limiter.recordUsage(response.inputTokens + response.outputTokens);
+			const response = await limiter.call(
+				() => inner.generate(req),
+				estimatedInput,
+				estimatedOutput,
+			);
+			limiter.recordUsage(response.inputTokens, response.outputTokens);
 			return response;
 		},
 	};

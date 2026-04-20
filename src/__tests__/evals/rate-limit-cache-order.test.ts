@@ -143,6 +143,47 @@ describe("rate limiter wrapping order — cache hits skip pacing", () => {
 		expect(r.content).toBe("ok");
 	});
 
+	it("split ITPM/OTPM caps each pace their own window independently", async () => {
+		// Tight OTPM, generous ITPM — output window should be the binding
+		// constraint. Two calls each recording 8K output → 16K sits above
+		// effectiveOtpm (10K × 0.85 = 8.5K). Third call's pace loop exits when
+		// window drains naturally; we can't assert the wait here without
+		// fake timers, so we assert the limiter counted the calls (no crash
+		// from split pacing path).
+		const base = makeMockProvider();
+		const limiter = new AdaptiveRateLimiter({
+			contextWindow: 100_000,
+			maxOutputTokens: 10_000,
+			rpm: 100, // RPM not binding
+			rpd: 10_000,
+			tpm: Infinity, // split caps take over
+			itpm: 100_000,
+			otpm: 10_000,
+		});
+		const limited = withRateLimiter(base, limiter, { enabled: true });
+
+		await limited.generate({ ...sampleReq, maxTokens: 5_000 });
+		await limited.generate({ ...sampleReq, maxTokens: 5_000 });
+		expect(base.calls).toBe(2);
+		expect(limiter.stats().totalCalls).toBe(2);
+	});
+
+	it("single-TPM provider still works — combined window paces when itpm/otpm absent", async () => {
+		const base = makeMockProvider();
+		const limiter = new AdaptiveRateLimiter({
+			contextWindow: 100_000,
+			maxOutputTokens: 10_000,
+			rpm: 100,
+			rpd: 10_000,
+			tpm: 50_000, // combined only, no itpm/otpm
+		});
+		const limited = withRateLimiter(base, limiter, { enabled: true });
+
+		await limited.generate(sampleReq);
+		expect(base.calls).toBe(1);
+		expect(limiter.stats().totalCalls).toBe(1);
+	});
+
 	it("withRateLimiter wrapper passes through unmetered calls when disabled", async () => {
 		const base = makeMockProvider();
 		const limiter = new AdaptiveRateLimiter(base.limits);
