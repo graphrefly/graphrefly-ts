@@ -92,9 +92,8 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		otpm: 8_000,
 	},
 
-	// --- OpenAI (Tier 1 published limits) ---
-	// OpenAI publishes TPM as a combined field for most models; where ITPM/OTPM
-	// are published separately we set both.
+	// --- OpenAI direct (legacy, for api.openai.com). GPT-4.x is deprecated on
+	// OpenRouter (see `openrouter/openai/gpt-5.x-*` below for routed variants).
 	"openai/gpt-4o": {
 		contextWindow: 128_000,
 		maxOutputTokens: 16_384,
@@ -130,6 +129,36 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		rpd: Infinity,
 		tpm: 4_000_000,
 	},
+	// GPT-5.x family via direct API (same limits as OpenRouter-routed variants
+	// below — OpenAI published the 400K context + 128K max output bump at 5.2+).
+	"openai/gpt-5.4-nano": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 500,
+		rpd: Infinity,
+		tpm: 800_000,
+	},
+	"openai/gpt-5.4-mini": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 500,
+		rpd: Infinity,
+		tpm: 800_000,
+	},
+	"openai/gpt-5.4": {
+		contextWindow: 1_050_000,
+		maxOutputTokens: 128_000,
+		rpm: 500,
+		rpd: Infinity,
+		tpm: 800_000,
+	},
+	"openai/gpt-5.3-codex": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 500,
+		rpd: Infinity,
+		tpm: 800_000,
+	},
 	"openai/*": {
 		contextWindow: 128_000,
 		maxOutputTokens: 16_384,
@@ -138,9 +167,10 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		tpm: 800_000,
 	},
 
-	// --- Google (free tier — verified from AI Studio https://aistudio.google.com/rate-limit ) ---
-	// Verified 2026-04-19 for Gemini 2.5 Flash and Gemini 3 Flash Preview.
-	// Override per run with EVAL_RPM / EVAL_RPD / EVAL_TPM if your account is on a paid tier.
+	// --- Google direct (AI Studio free tier — verified 2026-04-19) ---
+	// Free-tier RPD is tight (~20/day on flash, 25 on pro). Override per run
+	// with EVAL_RPM / EVAL_RPD / EVAL_TPM when your account is on a paid tier.
+	// For routed access see `openrouter/google/*` further down.
 	"google/gemini-2.5-pro": {
 		contextWindow: 1_048_576,
 		maxOutputTokens: 65_536,
@@ -167,6 +197,20 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		maxOutputTokens: 65_536,
 		rpm: 5,
 		rpd: 20,
+		tpm: 250_000,
+	},
+	"google/gemini-3.1-flash-lite-preview": {
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
+		rpm: 5,
+		rpd: 20,
+		tpm: 250_000,
+	},
+	"google/gemini-3.1-pro-preview": {
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
+		rpm: 5,
+		rpd: 25,
 		tpm: 250_000,
 	},
 	"google/*": {
@@ -256,6 +300,77 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 	"openrouter/deepseek/deepseek-v3.2": {
 		contextWindow: 131_000,
 		maxOutputTokens: 32_768,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	// OpenRouter publish-tier picks (verified 2026-04-20 from openrouter.ai/api).
+	// OpenRouter doesn't publish per-model per-key RPM; 20 is conservative. Your
+	// OpenRouter $-spending dashboard is the real safety net.
+	// --- OpenAI routed via OpenRouter (GPT-5.x; GPT-4.x is deprecated) ---
+	"openrouter/openai/gpt-5.4-nano": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/openai/gpt-5.4-mini": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/openai/gpt-5.4": {
+		contextWindow: 1_050_000,
+		maxOutputTokens: 128_000,
+		rpm: 30,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/openai/gpt-5.3-codex": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/openai/gpt-5.2-codex": {
+		contextWindow: 400_000,
+		maxOutputTokens: 128_000,
+		rpm: 20,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	// --- Google routed via OpenRouter (Gemini 3.x) ---
+	"openrouter/google/gemini-3-flash-preview-20251217": {
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/google/gemini-3-flash-preview": {
+		// Non-stamped alias — OpenRouter routes to the latest preview snapshot.
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/google/gemini-3.1-flash-lite-preview": {
+		// Cheapest Gemini 3.x — $0.25/$1.50, reasoning at output rate.
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/google/gemini-3.1-pro-preview": {
+		// "Thinking Pro" preview. Reasoning tokens billed at output rate ($12/1M).
+		contextWindow: 1_048_576,
+		maxOutputTokens: 65_536,
 		rpm: 20,
 		rpd: Infinity,
 		tpm: 200_000,
