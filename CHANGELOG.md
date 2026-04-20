@@ -1,3 +1,15 @@
+# [0.26.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.25.0...v0.26.0) (2026-04-20)
+
+
+### Features
+
+* 9.2 ([a444186](https://github.com/graphrefly/graphrefly-ts/commit/a4441862d3f6eaea8d8d2fed7972da94adb5945c))
+* 9.3 ([50b2714](https://github.com/graphrefly/graphrefly-ts/commit/50b2714819b6109ce3b36aee1086431085823119))
+* 9.3 and 9.0 ([b65b3fe](https://github.com/graphrefly/graphrefly-ts/commit/b65b3fef225623e8969fd96d8163e0613e477513))
+* add examples ([818eef4](https://github.com/graphrefly/graphrefly-ts/commit/818eef4d71f0d2c026d4e3fb38d1addbc881acd0))
+* fix cache ([3af0ebd](https://github.com/graphrefly/graphrefly-ts/commit/3af0ebde5d814a40bc375a7bff1803959cb805f9))
+* update eval ([a9b7fab](https://github.com/graphrefly/graphrefly-ts/commit/a9b7faba330c4c12c1d89402b3f74ff6669b6a5f))
+
 # [0.25.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.24.0...v0.25.0) (2026-04-19)
 
 
