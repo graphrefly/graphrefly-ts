@@ -15,7 +15,14 @@
 /// <reference lib="dom" />
 
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
@@ -35,6 +42,14 @@ export interface StorageTier {
 	save(key: string, data: unknown): void | Promise<void>;
 	/** Delete a value. Optional — tiers without `clear` are append/overwrite-only. */
 	clear?(key: string): void | Promise<void>;
+	/**
+	 * Enumerate known keys. Optional — tiers that only address a single record
+	 * (e.g. `indexedDbStorage`) or that can't cheaply enumerate (e.g. a remote
+	 * write-only sink) may omit it. Callers that require enumeration (the
+	 * surface `snapshot.list()` helper, MCP `graphrefly_snapshot_list`, CLI
+	 * `graphrefly snapshot list`) should check before calling.
+	 */
+	list?(): readonly string[] | Promise<readonly string[]>;
 	/**
 	 * Debounce saves on this tier (ms). Hot tier: `0` (sync-through).
 	 * Warm: `1000`. Cold: `60000`. Each tier holds its own last-save baseline,
@@ -101,6 +116,9 @@ export function memoryStorage(): StorageTier {
 		clear(key) {
 			data.delete(key);
 		},
+		list() {
+			return [...data.keys()].sort();
+		},
 	};
 }
 
@@ -133,6 +151,9 @@ export function dictStorage(storage: Record<string, unknown>): StorageTier {
 		clear(key) {
 			delete storage[key];
 		},
+		list() {
+			return Object.keys(storage).sort();
+		},
 	};
 }
 
@@ -155,12 +176,57 @@ export function dictStorage(storage: Record<string, unknown>): StorageTier {
  * @category extra
  */
 export function fileStorage(dir: string): StorageTier {
+	// Encoder: keep `[a-zA-Z0-9_-]` literal (cross-platform-safe filename
+	// chars); everything else — including dot, slash, and all non-ASCII —
+	// gets UTF-8-encoded and percent-escaped per byte. This guarantees
+	// round-trip for arbitrary Unicode snapshot ids (e.g. paths with
+	// `/`, dots, or non-ASCII text): encode → filename → list() → decode
+	// yields the original key.
+	const encoder = new TextEncoder();
+	const decoder = new TextDecoder("utf-8", { fatal: true });
 	const pathFor = (key: string): string => {
-		const safe = key.replace(
-			/[^a-zA-Z0-9_-]/g,
-			(c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
-		);
-		return join(dir, `${safe}.json`);
+		let out = "";
+		for (const ch of key) {
+			if (ch.length === 1 && /[a-zA-Z0-9_-]/.test(ch)) {
+				out += ch;
+				continue;
+			}
+			for (const byte of encoder.encode(ch)) {
+				out += `%${byte.toString(16).padStart(2, "0")}`;
+			}
+		}
+		return join(dir, `${out}.json`);
+	};
+	const keyFromFilename = (filename: string): string | null => {
+		if (!filename.endsWith(".json")) return null;
+		const stem = filename.slice(0, -".json".length);
+		// Walk the stem, collecting raw bytes from `%HH` sequences so the
+		// decoder can reassemble multi-byte UTF-8 characters correctly.
+		const bytes: number[] = [];
+		const encodeAscii = (s: string): void => {
+			for (let i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i));
+		};
+		let i = 0;
+		while (i < stem.length) {
+			const ch = stem[i]!;
+			if (ch === "%" && i + 2 < stem.length) {
+				const hex = stem.slice(i + 1, i + 3);
+				if (/^[0-9a-f]{2}$/i.test(hex)) {
+					bytes.push(Number.parseInt(hex, 16));
+					i += 3;
+					continue;
+				}
+			}
+			encodeAscii(ch);
+			i += 1;
+		}
+		try {
+			return decoder.decode(new Uint8Array(bytes));
+		} catch {
+			// Invalid UTF-8 byte sequence — filename wasn't produced by
+			// our encoder. Skip rather than round-trip a lossy string.
+			return null;
+		}
 	};
 	return {
 		save(key, record) {
@@ -197,6 +263,21 @@ export function fileStorage(dir: string): StorageTier {
 				unlinkSync(pathFor(key));
 			} catch (e) {
 				if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+			}
+		},
+		list() {
+			try {
+				const entries = readdirSync(dir);
+				const keys: string[] = [];
+				for (const entry of entries) {
+					if (entry.startsWith(".")) continue;
+					const k = keyFromFilename(entry);
+					if (k !== null) keys.push(k);
+				}
+				return keys.sort();
+			} catch (e) {
+				if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+				throw e;
 			}
 		},
 	};
@@ -245,6 +326,12 @@ export function sqliteStorage(path: string): StorageTier & { close(): void } {
 		},
 		clear(key) {
 			db.prepare(`DELETE FROM graphrefly_checkpoint WHERE k = ?`).run(key);
+		},
+		list() {
+			const rows = db.prepare(`SELECT k FROM graphrefly_checkpoint ORDER BY k`).all() as {
+				k: string;
+			}[];
+			return rows.map((r) => r.k);
 		},
 		close() {
 			try {

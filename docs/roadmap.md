@@ -421,17 +421,27 @@ The missing layer that makes "harness" real, not just "substrate."
 
 Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI are two projections of the same operations — the core lives in `src/patterns/surface/` and re-exports from both packages.
 
-- [ ] **9.3-core** — shared surface core in `src/patterns/surface/`:
-  - Pure functions: `create(spec)`, `observe(nodeId, level)`, `reduce(input, pipelineSpec)`, `explain(nodeId)`, `snapshot.{save,restore,diff}(id)`, `describe(graphId)`
-  - No I/O coupling: returns plain JSON-serializable results, errors as typed failures
-  - Consumed by both `@graphrefly/mcp-server` and `@graphrefly/cli`
-- [ ] MCP Server package exposing 9.3-core as tools:
-  - `graphrefly_create` — create graph from GraphSpec JSON or natural language
-  - `graphrefly_observe` — observe node/graph state (progressive detail levels)
-  - `graphrefly_reduce` — run a reduction pipeline on input data
-  - `graphrefly_explain` — causal chain for a decision (requires 9.2 `explainPath`)
-  - `graphrefly_snapshot` — checkpoint/restore graph state
-  - `graphrefly_describe` — graph topology introspection
+**Design note — the delta from the original roadmap sketch:** §9.2 and the graph-module 24-unit review already shipped most of the operations the roadmap called out (`graph.describe`, `graph.observe` with progressive detail levels + structured/causal/timeline flags, `graph.explain` returning `CausalChain`, `graph.snapshot`/`restore`, static `Graph.diff`, `Graph.attachStorage` over multi-tier `StorageTier` with full/diff `GraphCheckpointRecord`). The surface layer is therefore a thin projection: a typed-error envelope (`SurfaceError`), a `createGraph` wrapper over `compileSpec`, and one genuinely new operation — `runReduction` (named to avoid collision with the reactive `reduce` operator in `extra/operators.ts`). Snapshot save/restore/diff/list reuses the existing `StorageTier` substrate — a surface-saved snapshot is a `mode: "full"` `GraphCheckpointRecord` interoperable with `attachStorage({autoRestore: true})`. No new wire format. The registry (`graphId → Graph`) lives in the MCP server session, not in core — consistent with the graph-module review's "derive from live state, don't maintain a parallel registry" principle.
+
+- [x] **9.3-core** — shared surface core in `src/patterns/surface/` (TS shipped):
+  - `createGraph(spec, opts?)` — wraps `compileSpec` with typed `SurfaceError` on validation failure
+  - `runReduction(spec, input, opts?)` — one-shot `input → pipeline → output`, subscribe-before-push ordering to catch both sync and async graphs
+  - `saveSnapshot` / `restoreSnapshot` / `diffSnapshots` / `listSnapshots` / `deleteSnapshot` — over existing `StorageTier` adapters
+  - `SurfaceError` — JSON-safe `{code, message, details?}` + `toJSON()`; codes: `invalid-spec`, `graph-not-found`, `snapshot-not-found`, `node-not-found`, `reduce-timeout`, `catalog-error`, `restore-failed`, `snapshot-failed`, `tier-no-list`, `internal-error`
+  - `StorageTier.list?()` added as optional method; implemented on `memoryStorage`, `dictStorage`, `fileStorage`, `sqliteStorage`
+  - Top-level + namespaced exports: `import { createGraph } from "@graphrefly/graphrefly"` or `import { patterns } from "@graphrefly/graphrefly"; patterns.surface.createGraph`
+- [x] **MCP Server package** (`packages/mcp-server/`, TS shipped) exposing 9.3-core as tools:
+  - `graphrefly_create` — compile a GraphSpec into a graph registered under `graphId`
+  - `graphrefly_describe` — topology + values snapshot with progressive detail + mermaid/d2 export
+  - `graphrefly_observe` — one-shot node/graph state (live streaming is a wrapper concern, not a stdio tool)
+  - `graphrefly_explain` — causal chain via `graph.explain` (requires §9.2 `explainPath`, shipped)
+  - `graphrefly_reduce` — wraps `runReduction` for stateless pipeline runs
+  - `graphrefly_snapshot_save` / `_restore` / `_diff` / `_list` / `_delete` — checkpoint/restore over the session's storage tier
+  - `graphrefly_delete` / `graphrefly_list` — registry lifecycle
+  - Session holds `Map<graphId, Graph>` + default `memoryStorage` (opt-in `fileStorage` via `GRAPHREFLY_STORAGE_DIR` env or `storageDir` option)
+  - Server operators register fn/source catalog at startup (`buildMcpServer(session, { catalog })`) — catalog delivery over the wire is a separate design pass
+  - Errors throw `SurfaceError`; wrap layer converts to MCP `isError` content
+- [ ] NL→spec (`llmCompose`) bridged through a tool — deferred. Requires adapter-from-env design (`ANTHROPIC_API_KEY` → Anthropic adapter, etc.) as its own pass.
 - [ ] Publish to npm as `@graphrefly/mcp-server`
 - [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
 - [ ] "Try it with Claude Code in 2 minutes" quickstart
@@ -459,19 +469,21 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 
 **Rationale:** April-2026 landscape — three dominant terminal agents, Uni-CLI pattern (declarative adapters → `unicli mcp serve` auto-registers MCP tools), ~80 tokens per CLI invocation vs. MCP's schema/discovery overhead for high-frequency calls. Non-MCP contexts (Aider, CI, bash-tool-only, humans) win too.
 
-- [ ] `graphrefly` binary (Node, shipped as `@graphrefly/cli`), subcommands:
-  - `graphrefly eval [run|matrix|scorecard]` — runs 9.1 evals, emits JSON scorecard to stdout
-  - `graphrefly describe <graph>` — topology dump (JSON or Mermaid)
-  - `graphrefly explain <nodeId> [--why]` — causal walkback (requires 9.2 `explainPath`)
-  - `graphrefly snapshot [save|restore|diff] <id>` — state management
-  - `graphrefly observe <nodeId> [--level=L1|L2|L3]` — progressive detail dump
-  - `graphrefly run <spec.yaml|.json>` — execute a GraphSpec from file or stdin
-  - `graphrefly mcp` — start the MCP server from the same binary (Uni-CLI pattern)
-- [ ] Output contract: stdout = JSON by default, `--format=pretty|mermaid|ndjson` flags; stderr = logs; exit codes map to typed failures
-- [ ] Stdin pipe support for `run`, `reduce`, `observe` — enables `cat events.ndjson | graphrefly reduce …`
+- [x] `graphrefly` binary (Node, shipped as `@graphrefly/cli`) — TS shipped. Subcommands:
+  - `graphrefly describe <spec>` — compile + emit topology (JSON default, `--format=pretty|mermaid|d2`)
+  - `graphrefly explain <spec> --from X --to Y` — compile + emit `CausalChain`
+  - `graphrefly observe <spec> [--path P]` — compile + emit one-shot node/graph state
+  - `graphrefly reduce <spec> --input <path|->` — one-shot `runReduction`
+  - `graphrefly snapshot diff <a> <b>` — diff two snapshot files
+  - `graphrefly snapshot validate <file>` — validate a snapshot file envelope
+  - `graphrefly mcp` — start the MCP server on stdio from the same binary (Uni-CLI pattern, lazy-imports `@graphrefly/mcp-server`)
+- [x] Output contract — stdout = JSON by default, `--format=pretty` toggles pretty JSON; `describe` supports `--format=mermaid|d2` for diagram export; stderr = `SurfaceError` JSON payload on failure; exit codes `0` (ok), `1` (error), `2` (usage)
+- [x] Stdin pipe support — any `<spec>` positional accepts `-` for stdin; `reduce --input -` piping works (`cat input.json | graphrefly reduce spec.json --input -`)
+- [x] Zero external args-parser — hand-rolled dispatcher. Keeps the package dependency surface tiny; no `commander`/`yargs`.
+- [ ] `graphrefly eval [run|matrix|scorecard]` — deferred. Existing `tsx evals/scripts/run-all.ts` pipelines cover the workflow today; folding into CLI requires deciding whether eval logic moves into `@graphrefly/cli` or stays in the repo's `evals/` dir.
 - [ ] Publish to npm as `@graphrefly/cli`, single `bin` entry, `npx @graphrefly/cli` works without install
 - [ ] "Try it in 30 seconds" section in README: single `npx` command producing visible eval output
-- [ ] Man page / `--help` parity with MCP tool descriptions (shared JSDoc source)
+- [ ] Man page / `--help` parity with MCP tool descriptions (shared JSDoc source) — `printHelp()` stub exists, parity pass deferred
 - [ ] CI: smoke test every subcommand in GitHub Actions alongside MCP server tests
 - [ ] Homebrew formula (post-Wave 2, if demand warrants)
 

@@ -1,6 +1,6 @@
 import type { Actor } from "../core/actor.js";
 import { batch, isBatching } from "../core/batch.js";
-import { monotonicNs } from "../core/clock.js";
+import { monotonicNs, wallClockNs } from "../core/clock.js";
 import type { GraphReFlyConfig } from "../core/config.js";
 import { GuardDenied } from "../core/guard.js";
 import {
@@ -237,8 +237,13 @@ export type GraphDiagramOptions = {
 	direction?: GraphDiagramDirection;
 };
 
-/** Snapshot format version (§3.8). */
-const SNAPSHOT_VERSION = 1;
+/**
+ * Snapshot format version (§3.8). Exported so the surface layer's
+ * `saveSnapshot` writes the same `format_version` as
+ * `Graph.attachStorage` — one source of truth prevents silent wire
+ * drift between auto-checkpoint and one-shot persistence paths.
+ */
+export const SNAPSHOT_VERSION = 1;
 
 /**
  * Drain a disposer set iteratively — pop, remove, run. Disposers registered
@@ -2716,7 +2721,11 @@ export class Graph {
 				return;
 			}
 			const nextSeq = s.seq + 1;
-			const timestamp_ns = monotonicNs();
+			// Persisted records carry wall-clock attribution (CLAUDE.md time-util
+			// rule). Internal event-order timestamps use monotonicNs — this is the
+			// output-to-durable-store boundary, so wall clock is correct and
+			// cross-source comparable with surface.saveSnapshot records.
+			const timestamp_ns = wallClockNs();
 			const isFirst = s.lastSnapshot == null;
 			const shouldCompact = isFirst || nextSeq % s.compactEvery === 0;
 			const record: GraphCheckpointRecord = shouldCompact

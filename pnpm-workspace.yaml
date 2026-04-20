@@ -8,3 +8,4 @@ packages:
   - examples/framework/*
   - examples/reactive-layout/*
   - examples/nestjs/*
+  - packages/*

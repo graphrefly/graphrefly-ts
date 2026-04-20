@@ -167,6 +167,29 @@ describe("storage tier factories", () => {
 		}
 	});
 
+	it("fileStorage round-trips non-ASCII keys via UTF-8 percent escaping", () => {
+		const dir = join(tmpdir(), `grf-storage-${Date.now()}-utf8`);
+		try {
+			const tier = fileStorage(dir);
+			const keys = ["caf\u00e9", "\u20ac100", "\ud83d\udc4b hello"];
+			for (const k of keys) tier.save(k, { k });
+			for (const k of keys) expect(tier.load(k)).toEqual({ k });
+			// list() must recover every key we stored, unchanged.
+			const listed = tier.list?.();
+			expect(Array.isArray(listed) || listed === undefined).toBe(true);
+			expect([...(listed as readonly string[])].sort()).toEqual([...keys].sort());
+			for (const k of keys) tier.clear?.(k);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("fileStorage.list returns [] when directory does not exist", () => {
+		const dir = join(tmpdir(), `grf-storage-${Date.now()}-nonexistent`);
+		const tier = fileStorage(dir);
+		expect(tier.list?.()).toEqual([]);
+	});
+
 	it("sqliteStorage round-trips and closes", () => {
 		const path = join(tmpdir(), `grf-storage-${Date.now()}.db`);
 		try {

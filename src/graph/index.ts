@@ -55,6 +55,7 @@ export {
 	type ReachableDirection,
 	type ReachableOptions,
 	reachable,
+	SNAPSHOT_VERSION,
 	type TraceEntry,
 } from "./graph.js";
 export {
