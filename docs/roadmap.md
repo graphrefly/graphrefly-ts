@@ -662,7 +662,7 @@ streamingPromptNode
 |---|---|---|---|
 | "Demo: Email Triage →" | 01 Context Without Control | Demo 0 (`website/src/content/docs/demos/email-triage.md`) | Wave 3 |
 | "Demo: Spending Alerts →" | 02 Action Without Explanation | §9.3e (`website/src/content/docs/demos/spending-alerts.md`) | **Wave 2** |
-| "Demo: Knowledge Graph →" | 03 Composition Without Guardrails | Quickstart code sample on GraphSpec docs page — not a full demo | Wave 2 (static) |
+| "Demo: Knowledge Graph →" | 03 Composition Without Guardrails | Interactive 4-chapter demo at `demos/knowledge-graph/` (Chrome Nano on-device extraction; mock fallback). Docs page at `website/src/content/docs/demos/knowledge-graph.md`. Node-runnable mirror at `examples/knowledge-graph/`. | Wave 2 (interactive) |
 
 - [ ] Demo 0 video/GIF — required to gate Show HN
 - [ ] `website/src/content/docs/demos/email-triage.md` (Demo 0 companion page)

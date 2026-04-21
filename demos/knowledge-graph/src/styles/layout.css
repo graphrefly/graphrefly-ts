@@ -1,0 +1,604 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap");
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+:root {
+	--gr-aqua: #4de8c2;
+	--gr-aqua-dim: #2bb89a;
+	--gr-aqua-glow: #4de8c244;
+	--gr-deep: #0a0a1a;
+	--gr-surface: #0e1020;
+	--gr-surface-raised: #14162a;
+	--gr-text: #f0f4ff;
+	--gr-text-muted: #a0b3c8;
+	--gr-border: #1e2444;
+	--gr-border-subtle: #161a32;
+	--gr-warn: #f0c86a;
+	--gr-danger: #ef6e7a;
+
+	--font-mono: "Fira Code", ui-monospace, "JetBrains Mono", monospace;
+	--font-sans:
+		"Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		sans-serif;
+}
+
+html,
+body {
+	height: 100%;
+	font-family: var(--font-sans);
+	background: var(--gr-deep);
+	color: var(--gr-text);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+code {
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+	color: var(--gr-aqua);
+}
+
+/* ── Nav ───────────────────────────────────────────────────────── */
+.demo-nav {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding: 0.85rem 1.5rem;
+	background: rgba(10, 10, 26, 0.88);
+	backdrop-filter: blur(20px) saturate(1.35);
+	-webkit-backdrop-filter: blur(20px) saturate(1.35);
+	border-bottom: 1px solid var(--gr-border-subtle);
+	position: sticky;
+	top: 0;
+	z-index: 100;
+}
+.demo-nav .nav-brand {
+	font-weight: 800;
+	font-size: 18px;
+	letter-spacing: -0.01em;
+	color: var(--gr-aqua);
+	text-decoration: none;
+	margin-right: 0.75rem;
+}
+.demo-nav a:not(.nav-brand) {
+	padding: 0.4em 0.55em;
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	text-decoration: none;
+	color: var(--gr-text-muted);
+	border-radius: 4px;
+	transition:
+		color 0.15s,
+		background 0.15s;
+}
+.demo-nav a.active {
+	color: var(--gr-deep);
+	background: var(--gr-aqua);
+}
+
+/* ── Tab bar ───────────────────────────────────────────────────── */
+.app {
+	display: flex;
+	flex-direction: column;
+	height: calc(100vh - 50px);
+}
+.tab-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.6rem 1rem;
+	border-bottom: 1px solid var(--gr-border-subtle);
+	background: var(--gr-surface);
+}
+.tab {
+	background: transparent;
+	color: var(--gr-text-muted);
+	border: 1px solid transparent;
+	border-radius: 6px;
+	padding: 0.45em 0.9em;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	transition:
+		color 0.12s,
+		background 0.12s,
+		border-color 0.12s;
+}
+.tab:hover {
+	color: var(--gr-text);
+	background: var(--gr-surface-raised);
+}
+.tab.active {
+	color: var(--gr-deep);
+	background: var(--gr-aqua);
+	border-color: var(--gr-aqua);
+}
+.tab-tagline {
+	margin-left: auto;
+	font-size: 12px;
+	color: var(--gr-text-muted);
+	font-style: italic;
+}
+
+/* ── Three-pane shell ──────────────────────────────────────────── */
+.demo-shell {
+	display: flex;
+	flex: 1 1 auto;
+	overflow: hidden;
+	min-height: 0;
+}
+.pane-main {
+	flex: 0 0 auto;
+	overflow-y: auto;
+	padding: 1.25rem 1.5rem 2rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	min-width: 360px;
+}
+.pane-divider {
+	flex: 0 0 5px;
+	background: var(--gr-border);
+	cursor: col-resize;
+	transition: background 0.15s;
+}
+.pane-divider:hover {
+	background: var(--gr-aqua-dim);
+}
+.pane-side {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	min-width: 320px;
+	background: var(--gr-surface);
+	border-left: 1px solid var(--gr-border-subtle);
+}
+.pane-graph,
+.pane-code {
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.pane-graph h3,
+.pane-code h3 {
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--gr-text-muted);
+	padding: 0.6rem 1rem;
+	border-bottom: 1px solid var(--gr-border-subtle);
+	font-weight: 600;
+}
+.pane-split-divider {
+	flex: 0 0 5px;
+	background: var(--gr-border);
+	cursor: row-resize;
+}
+.pane-split-divider:hover {
+	background: var(--gr-aqua-dim);
+}
+.mermaid-graph {
+	flex: 1 1 auto;
+	overflow: hidden;
+	padding: 0.75rem;
+	min-height: 0;
+}
+.mermaid-graph svg {
+	max-width: none;
+}
+
+/* ── Code pane ─────────────────────────────────────────────────── */
+.code-pre {
+	flex: 1 1 auto;
+	overflow: auto;
+	padding: 0.6rem 1rem;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	line-height: 1.55;
+	color: var(--gr-text);
+	background: var(--gr-surface);
+	white-space: pre;
+}
+.code-line {
+	display: flex;
+	gap: 0.75rem;
+	padding: 0 0.25rem;
+}
+.code-line.active {
+	background: var(--gr-aqua-glow);
+	border-radius: 3px;
+}
+.code-lineno {
+	color: var(--gr-text-muted);
+	width: 2.2em;
+	text-align: right;
+	user-select: none;
+	flex-shrink: 0;
+}
+.code-linetext {
+	flex: 1 1 auto;
+	white-space: pre;
+}
+
+/* ── Inspect strip ─────────────────────────────────────────────── */
+.inspect-strip {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+	padding: 0.55rem 1.25rem;
+	border-top: 1px solid var(--gr-border-subtle);
+	background: var(--gr-surface-raised);
+	font-size: 12px;
+	color: var(--gr-text-muted);
+}
+.inspect-meta {
+	display: flex;
+	gap: 1rem;
+}
+.inspect-meta strong {
+	color: var(--gr-text);
+	font-weight: 600;
+}
+.inspect-detail {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	margin-left: auto;
+}
+.inspect-detail code {
+	color: var(--gr-aqua);
+}
+.inspect-detail .pill {
+	background: var(--gr-surface);
+	color: var(--gr-text-muted);
+	border: 1px solid var(--gr-border);
+	border-radius: 999px;
+	padding: 0.05em 0.6em;
+	font-size: 11px;
+}
+
+/* ── Chapter shared ────────────────────────────────────────────── */
+.chapter {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+.chapter-lede {
+	color: var(--gr-text-muted);
+	max-width: 60em;
+}
+.chapter .controls {
+	display: flex;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.chapter .controls input[type="text"],
+.chapter .controls input[type="url"] {
+	flex: 1 1 320px;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+	background: var(--gr-surface);
+	color: var(--gr-text);
+	border: 1px solid var(--gr-border);
+	border-radius: 6px;
+	padding: 0.5rem 0.65rem;
+	min-width: 280px;
+}
+.chapter .controls input:focus {
+	outline: none;
+	border-color: var(--gr-aqua);
+}
+.chapter .controls button {
+	background: var(--gr-aqua);
+	color: var(--gr-deep);
+	border: none;
+	border-radius: 6px;
+	padding: 0.5rem 0.85rem;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+.chapter .controls button:hover {
+	background: #6af2d1;
+}
+.chapter .controls button.secondary {
+	background: var(--gr-surface-raised);
+	color: var(--gr-text);
+	border: 1px solid var(--gr-border);
+}
+.chapter .controls button.secondary:hover {
+	border-color: var(--gr-aqua);
+}
+.chapter .controls button.danger {
+	background: var(--gr-danger);
+	color: var(--gr-deep);
+}
+
+/* ── Adapter banner ────────────────────────────────────────────── */
+.adapter-banner {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.55rem 0.85rem;
+	border-radius: 6px;
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border);
+	font-size: 12.5px;
+}
+.adapter-banner .pill {
+	font-family: var(--font-mono);
+	font-size: 11px;
+	padding: 0.1em 0.55em;
+	border-radius: 999px;
+	background: var(--gr-surface-raised);
+	color: var(--gr-text-muted);
+	border: 1px solid var(--gr-border);
+}
+.adapter-banner.ready .pill {
+	color: var(--gr-aqua);
+	border-color: var(--gr-aqua);
+}
+.adapter-banner.downloading .pill {
+	color: var(--gr-warn);
+	border-color: var(--gr-warn);
+}
+.adapter-banner.unavailable .pill {
+	color: var(--gr-warn);
+	border-color: var(--gr-warn);
+}
+.adapter-banner code {
+	font-size: 11.5px;
+}
+
+/* ── Extraction main pane (paper text + KG canvas) ────────────── */
+.extraction-grid {
+	display: grid;
+	grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.4fr);
+	gap: 1rem;
+	flex: 1 1 auto;
+	min-height: 420px;
+	/* Two-column layout where each column manages its own height. The KG
+	   pane sticks to the top of the scroll viewport (see .kg-pane below)
+	   while the paper pane scrolls internally up to its capped height. */
+	align-items: start;
+}
+/* Narrower viewports: shrink the column minimums so two columns still fit
+   (and sticky still works). Only collapse to a single column when truly
+   too narrow to render side-by-side. */
+@media (max-width: 1100px) {
+	.extraction-grid {
+		grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr);
+	}
+}
+@media (max-width: 720px) {
+	.extraction-grid {
+		grid-template-columns: 1fr;
+	}
+	/* Override the sticky kg-pane for single-column stacked layout. Use a
+	   matching specific selector instead of !important so the cascade is
+	   predictable. */
+	.extraction-grid .kg-pane {
+		position: static;
+	}
+}
+.paper-pane {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+	overflow: hidden;
+	min-height: 0;
+	/* Cap so the paper doesn't stretch the grid row indefinitely on long
+	   articles. Internal `.paper-text` scrolls. */
+	max-height: calc(100vh - 220px);
+}
+.paper-pane h4,
+.kg-pane h4 {
+	font-size: 11px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--gr-text-muted);
+	font-weight: 700;
+}
+.paper-meta {
+	font-size: 11.5px;
+	color: var(--gr-text-muted);
+}
+.paper-meta a {
+	color: var(--gr-aqua);
+	text-decoration: none;
+}
+.paper-meta a:hover {
+	text-decoration: underline;
+}
+.paper-text {
+	flex: 1 1 auto;
+	overflow: auto;
+	font-family: var(--font-sans);
+	font-size: 13.5px;
+	line-height: 1.55;
+	color: var(--gr-text);
+	white-space: pre-wrap;
+	background: var(--gr-deep);
+	border: 1px dashed var(--gr-border);
+	border-radius: 6px;
+	padding: 0.6rem 0.85rem;
+}
+.paper-text .paragraph {
+	padding: 0.35rem 0.4rem;
+	border-radius: 4px;
+	margin: 0 -0.4rem;
+}
+.paper-text .paragraph.current {
+	background: var(--gr-aqua-glow);
+	box-shadow: inset 2px 0 0 var(--gr-aqua);
+}
+.kg-pane {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	overflow: hidden;
+	min-height: 0;
+	/* Float with scroll within its grid column — stays visible as the user
+	   scrolls the main pane (which is the nearest scrollable ancestor). */
+	position: sticky;
+	top: 0.5rem;
+	max-height: calc(100vh - 180px);
+}
+.kg-stats {
+	display: flex;
+	gap: 1rem;
+	font-size: 11.5px;
+	color: var(--gr-text-muted);
+}
+.kg-stats strong {
+	color: var(--gr-text);
+	font-family: var(--font-mono);
+}
+.kg-canvas {
+	flex: 1 1 auto;
+	background: var(--gr-deep);
+	border: 1px dashed var(--gr-border);
+	border-radius: 6px;
+	overflow: hidden;
+	position: relative;
+	min-height: 320px;
+}
+.kg-canvas svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+.kg-empty {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--gr-text-muted);
+	font-size: 13px;
+	pointer-events: none;
+}
+.kg-node circle {
+	fill: var(--gr-surface-raised);
+	stroke: var(--gr-aqua);
+	stroke-width: 1.2;
+	cursor: grab;
+	transition: stroke-width 0.1s;
+}
+.kg-node.kind-risk circle {
+	stroke: var(--gr-danger);
+}
+.kg-node.kind-method circle {
+	stroke: var(--gr-warn);
+}
+.kg-node.kind-actor circle {
+	stroke: #8aa7ff;
+}
+.kg-node.kind-metric circle {
+	stroke: #ce9af5;
+}
+.kg-node.hover circle,
+.kg-node.dragging circle {
+	stroke-width: 2.5;
+	filter: drop-shadow(0 0 6px var(--gr-aqua-glow));
+}
+.kg-node text {
+	fill: var(--gr-text);
+	font-family: var(--font-sans);
+	font-size: 11.5px;
+	font-weight: 600;
+	pointer-events: none;
+	user-select: none;
+}
+.kg-edge line {
+	stroke: var(--gr-border);
+	stroke-width: 1;
+}
+.kg-edge.hover line {
+	stroke: var(--gr-aqua);
+	stroke-width: 1.6;
+}
+.kg-edge text {
+	fill: var(--gr-text-muted);
+	font-family: var(--font-mono);
+	font-size: 9.5px;
+	pointer-events: none;
+	user-select: none;
+}
+
+/* ── Explain chain (chapter 3) ────────────────────────────────── */
+.explain-chain {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 0.85rem 1rem;
+	font-family: var(--font-mono);
+	font-size: 12px;
+	color: var(--gr-text-muted);
+	white-space: pre-wrap;
+	max-height: 14em;
+	overflow: auto;
+}
+.explain-chain strong {
+	color: var(--gr-aqua);
+}
+.explain-chain .step {
+	padding: 0.15rem 0;
+}
+
+/* ── Guard violations (chapter 4) ─────────────────────────────── */
+.guard-banner {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 0.85rem 1rem;
+	font-size: 12.5px;
+	color: var(--gr-text);
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.guard-banner.denied {
+	border-color: var(--gr-danger);
+}
+.guard-banner code {
+	color: var(--gr-aqua);
+}
+.guard-banner .denied-reason {
+	color: var(--gr-danger);
+	font-family: var(--font-mono);
+	font-size: 12px;
+}
+
+/* ── Baseline note ─────────────────────────────────────────────── */
+.baseline-note {
+	background: var(--gr-surface);
+	border: 1px dashed var(--gr-border);
+	border-radius: 8px;
+	padding: 0.75rem 1rem;
+	font-size: 12.5px;
+	color: var(--gr-text-muted);
+}
+.baseline-note strong {
+	color: var(--gr-warn);
+}

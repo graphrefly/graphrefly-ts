@@ -176,6 +176,36 @@
 				"types": "./dist/patterns/demo-shell.d.cts",
 				"default": "./dist/patterns/demo-shell.cjs"
 			}
+		},
+		"./patterns/memory": {
+			"import": {
+				"types": "./dist/patterns/memory.d.ts",
+				"default": "./dist/patterns/memory.js"
+			},
+			"require": {
+				"types": "./dist/patterns/memory.d.cts",
+				"default": "./dist/patterns/memory.cjs"
+			}
+		},
+		"./patterns/ai": {
+			"import": {
+				"types": "./dist/patterns/ai.d.ts",
+				"default": "./dist/patterns/ai.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai.d.cts",
+				"default": "./dist/patterns/ai.cjs"
+			}
+		},
+		"./patterns/audit": {
+			"import": {
+				"types": "./dist/patterns/audit.d.ts",
+				"default": "./dist/patterns/audit.js"
+			},
+			"require": {
+				"types": "./dist/patterns/audit.d.cts",
+				"default": "./dist/patterns/audit.cjs"
+			}
 		}
 	},
 	"files": [
@@ -187,7 +217,7 @@
 	},
 	"scripts": {
 		"docs:dev": "pnpm --dir website dev",
-		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/",
+		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/",
 		"docs:preview": "pnpm --dir website preview",
 		"build": "tsup",
 		"test": "vitest run",

@@ -150,6 +150,39 @@ One `explainPath(kg, "entities", "adjacency")` call. Output shows: `adjacency �
 
 ---
 
+---
+
+## Strategic Pivot: Composition Success Rate as the Single Metric (end of session)
+
+**Decision:** Stop focusing on blog/marketing. The single metric that matters is: can an LLM reliably compose GraphReFly primitives into correct solutions? Everything else (demos, blog, users) is derivative of this working.
+
+**Current state:** 87% first-pass graphspec validity, 70% all-treatments-pass. Target: >95% first-pass, zero structural failures.
+
+**Priority stack (highest leverage first):**
+
+1. **Treatment E: catalog subsetting** — progressive disclosure. Don't dump full catalog. Give LLM only what's relevant to the task. Notion's #1 technique.
+2. **GraphSpec format revision** — make structurally impossible errors (F3 template-param overreach) impossible at the schema level. Validation should catch mistakes at parse time, not require the LLM to "know the rules."
+3. **Tighter validateSpec error messages** — when composition fails, the error message IS the next prompt. LLM-parseable errors enable Treatment C (auto-refine) to actually work.
+4. **EXECUTE actuator (§9.1.3)** — close the loop: failure → diagnosis → fix → re-eval. No manual treatment switching.
+5. **COMPOSITION-GUIDE as LLM context** — progressively disclosed guide content in the prompt.
+
+**The dogfood loop:** The development process itself runs through the harness. Issue → triage → implementation → AC → eval → verification → insight → next issue. Each is a node. The strategy model accumulates effectiveness data. Triage gets smarter over time.
+
+**What this means for the roadmap:**
+- Blog (§9.1.5): deprioritized. Publish when we have something that actually works reliably.
+- Demos (§9.3e, §9.5, §9.7): build when composition is reliable enough to demo without caveats.
+- Treatment E + format revision: promoted to immediate priority, above Wave 1 external deliverables.
+- EXECUTE actuator: promoted to unblock the internal iteration loop.
+
+**Immediate next actions:**
+1. Classify the 9 failing tasks by root cause category (format? catalog overload? missing primitive? reasoning exhaustion?)
+2. Prototype catalog subsetting (even naive keyword-match)
+3. Tighten `validateSpec` error messages for the most common failure modes
+
+**Insight from Notion article (latent.space/p/notion):** Notion's key learning: "give the model what it wants." They adapted FROM their internal format TO formats LLMs already know (markdown, SQL). They invested in progressive tool disclosure. They built 3-tier evals with "frontier" tier at ~30% pass rate (intentionally hard). They created "Model Behavior Engineers" role. They use agents to debug their own evals. GraphReFly is directionally correct (eval-driven, schema as lever, iteration loop) but behind on format adaptation, progressive disclosure, and automated iteration.
+
+---
+
 ## Files Changed
 
 - `docs/roadmap.md` — §9.3e added, §9.5/§9.7 sharpened, scorecard metrics reordered, Wave 3 demo link inventory added

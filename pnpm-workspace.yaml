@@ -3,9 +3,11 @@ packages:
   - website
   - demos/compat-matrix
   - demos/reactive-layout
+  - demos/knowledge-graph
   - examples/basic/*
   - examples/compat/*
   - examples/framework/*
   - examples/reactive-layout/*
+  - examples/knowledge-graph
   - examples/nestjs/*
   - packages/*
