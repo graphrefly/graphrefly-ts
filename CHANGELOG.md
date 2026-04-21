@@ -1,3 +1,13 @@
+# [0.27.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.26.0...v0.27.0) (2026-04-21)
+
+
+### Features
+
+* add knowledge graph demo ([a3e90ee](https://github.com/graphrefly/graphrefly-ts/commit/a3e90eed508158d10bbe5fb3747c0d1265f2750f))
+* fix eval ([f555199](https://github.com/graphrefly/graphrefly-ts/commit/f55519981864e775cdece78cdeca7adeeb394e36))
+* in the middle of treatment A ([b69d07c](https://github.com/graphrefly/graphrefly-ts/commit/b69d07c8d4e790d7f7759d3d4207f9b16bbedd10))
+* wire the knowledge graph demo ([0a340b7](https://github.com/graphrefly/graphrefly-ts/commit/0a340b7fcef635bc9030a6a10a61507b640c9fb8))
+
 # [0.26.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.25.0...v0.26.0) (2026-04-20)
 
 
