@@ -124,17 +124,23 @@ export function mockLLM(script: MockScript = {}): MockLLMAdapter {
 		const responseData = getResponse(stage);
 		const response: LLMResponse = {
 			content: typeof responseData === "string" ? responseData : JSON.stringify(responseData),
+			usage: { input: { regular: 0 }, output: { regular: 0 } },
 		};
 
 		calls.push({ stage, messages, response });
 		return Promise.resolve(response);
 	}
 
-	async function* stream(): AsyncIterable<string> {
-		yield "mock stream";
+	async function* stream(): AsyncIterable<
+		import("../../patterns/ai/adapters/core/types.js").StreamDelta
+	> {
+		yield { type: "token", delta: "mock stream" };
+		yield { type: "usage", usage: { input: { regular: 0 }, output: { regular: 0 } } };
+		yield { type: "finish", reason: "stop" };
 	}
 
 	return {
+		provider: "mock",
 		calls,
 		get stageCounts() {
 			return stageCounts as ReadonlyMap<string, number>;

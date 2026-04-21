@@ -63,8 +63,13 @@ function mockAdapter(responses: LLMResponse[], streamChunks?: string[][]): LLMAd
 				// Yield to microtask queue between tokens — real adapters always
 				// have async I/O between chunks (network, SSE frame parsing, etc.)
 				await Promise.resolve();
-				yield chunk;
+				yield { type: "token" as const, delta: chunk };
 			}
+			yield {
+				type: "usage" as const,
+				usage: { input: { regular: 0 }, output: { regular: 0 } },
+			};
+			yield { type: "finish" as const, reason: "stop" };
 		},
 	};
 }
@@ -367,10 +372,16 @@ describe("patterns.ai.streamingPromptNode", () => {
 
 	it("parses JSON when format is json", async () => {
 		const adapter: LLMAdapter = {
-			invoke: () => ({ content: "" }),
+			provider: "mock",
+			invoke: () => ({
+				content: "",
+				usage: { input: { regular: 0 }, output: { regular: 0 } },
+			}),
 			async *stream() {
-				yield '{"key":';
-				yield '"value"}';
+				yield { type: "token" as const, delta: '{"key":' };
+				yield { type: "token" as const, delta: '"value"}' };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
 		const input = state("go");
@@ -742,12 +753,17 @@ describe("patterns.ai.gatedStream", () => {
 	it("reject discards pending and aborts the stream", async () => {
 		let streamStarted = false;
 		const adapter: LLMAdapter = {
-			invoke: () => ({ content: "", finishReason: "end_turn" }),
+			provider: "mock",
+			invoke: () => ({
+				content: "",
+				finishReason: "end_turn",
+				usage: { input: { regular: 0 }, output: { regular: 0 } },
+			}),
 			async *stream(_msgs, opts) {
 				streamStarted = true;
 				for (let i = 0; i < 100; i++) {
 					if (opts?.signal?.aborted) return;
-					yield `chunk${i} `;
+					yield { type: "token" as const, delta: `chunk${i} ` };
 					await new Promise((r) => setTimeout(r, 5));
 				}
 			},
@@ -931,10 +947,20 @@ describe("patterns.ai.agentLoop", () => {
 	});
 
 	it("resolves async LLM adapter invoke (Promise)", async () => {
-		const resp: LLMResponse = { content: "async-ok", finishReason: "end_turn" };
+		const resp: LLMResponse = {
+			content: "async-ok",
+			finishReason: "end_turn",
+			usage: { input: { regular: 0 }, output: { regular: 0 } },
+		};
 		const adapter: LLMAdapter = {
+			provider: "mock",
 			invoke() {
 				return Promise.resolve(resp);
+			},
+			async *stream() {
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
 		const loop = agentLoop("test-agent", { adapter });
@@ -1582,12 +1608,19 @@ describe("patterns.ai.promptNode", () => {
 	it("cache deduplicates identical invocations", async () => {
 		let callCount = 0;
 		const adapter: LLMAdapter = {
+			provider: "mock",
 			invoke(_messages, _opts) {
 				callCount++;
-				return { content: "result", finishReason: "end_turn" };
+				return {
+					content: "result",
+					finishReason: "end_turn",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				};
 			},
 			async *stream() {
-				yield "";
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
 
@@ -1619,11 +1652,18 @@ describe("patterns.ai.promptNode", () => {
 
 	it("strips markdown fences for JSON format", async () => {
 		const adapter: LLMAdapter = {
+			provider: "mock",
 			invoke() {
-				return { content: '```json\n{"key": "value"}\n```', finishReason: "end_turn" };
+				return {
+					content: '```json\n{"key": "value"}\n```',
+					finishReason: "end_turn",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				};
 			},
 			async *stream() {
-				yield "";
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
 
@@ -1638,12 +1678,19 @@ describe("patterns.ai.promptNode", () => {
 	it("passes systemPrompt in invoke opts", async () => {
 		let receivedOpts: Record<string, unknown> = {};
 		const adapter: LLMAdapter = {
+			provider: "mock",
 			invoke(_messages, opts) {
 				receivedOpts = opts as Record<string, unknown>;
-				return { content: "ok", finishReason: "end_turn" };
+				return {
+					content: "ok",
+					finishReason: "end_turn",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				};
 			},
 			async *stream() {
-				yield "";
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
 

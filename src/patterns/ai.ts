@@ -42,62 +42,27 @@ import { type TopicGraph, topic } from "./messaging.js";
 import { type GateController, type GateOptions, gate } from "./orchestration.js";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — single source of truth lives in ./ai/adapters/core/types.ts
 // ---------------------------------------------------------------------------
 
-/** A single chat message in a conversation. */
-export type ChatMessage = {
-	readonly role: "system" | "user" | "assistant" | "tool";
-	readonly content: string;
-	readonly name?: string;
-	readonly toolCallId?: string;
-	readonly toolCalls?: readonly ToolCall[];
-	readonly metadata?: Record<string, unknown>;
-};
+export type {
+	ChatMessage,
+	LLMAdapter,
+	LLMInvokeOptions,
+	LLMResponse,
+	StreamDelta,
+	TokenUsage,
+	ToolCall,
+	ToolDefinition,
+} from "./ai/adapters/core/types.js";
 
-/** A tool invocation request from an LLM. */
-export type ToolCall = {
-	readonly id: string;
-	readonly name: string;
-	readonly arguments: Record<string, unknown>;
-};
-
-/** The response from an LLM invocation. */
-export type LLMResponse = {
-	readonly content: string;
-	readonly toolCalls?: readonly ToolCall[];
-	readonly usage?: { readonly inputTokens: number; readonly outputTokens: number };
-	readonly finishReason?: string;
-	readonly metadata?: Record<string, unknown>;
-};
-
-/** Provider-agnostic LLM client adapter protocol. */
-export type LLMAdapter = {
-	invoke(messages: readonly ChatMessage[], opts?: LLMInvokeOptions): NodeInput<LLMResponse>;
-	stream(messages: readonly ChatMessage[], opts?: LLMInvokeOptions): AsyncIterable<string>;
-};
-
-export type LLMInvokeOptions = {
-	model?: string;
-	temperature?: number;
-	maxTokens?: number;
-	tools?: readonly ToolDefinition[];
-	systemPrompt?: string;
-	signal?: AbortSignal;
-};
-
-/** A tool definition for LLM consumption. */
-export type ToolDefinition = {
-	readonly name: string;
-	readonly description: string;
-	readonly parameters: Record<string, unknown>; // JSON Schema
-	readonly handler: (args: Record<string, unknown>) => NodeInput<unknown>;
-	/**
-	 * V0 version of the backing node at `knobsAsTools()` call time (§6.0b).
-	 * Snapshot — re-call `knobsAsTools()` to refresh.
-	 */
-	readonly version?: { id: string; version: number };
-};
+import type {
+	ChatMessage,
+	LLMAdapter,
+	LLMResponse,
+	ToolCall,
+	ToolDefinition,
+} from "./ai/adapters/core/types.js";
 
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 
@@ -321,13 +286,15 @@ export function streamingPromptNode<T = string>(
 			let accumulated = "";
 			let index = 0;
 			try {
-				for await (const token of adapter.stream(chatMsgs, {
+				for await (const delta of adapter.stream(chatMsgs, {
 					model: opts?.model,
 					temperature: opts?.temperature,
 					maxTokens: opts?.maxTokens,
 					systemPrompt: opts?.systemPrompt,
 					signal: ac.signal,
 				})) {
+					if (delta.type !== "token") continue;
+					const token = delta.delta;
 					accumulated += token;
 					streamTopic.publish({
 						source: sourceName,
@@ -919,13 +886,15 @@ export function gatedStream<T = string>(
 			let accumulated = "";
 			let index = 0;
 			try {
-				for await (const token of adapter.stream(chatMsgs, {
+				for await (const delta of adapter.stream(chatMsgs, {
 					model: opts?.model,
 					temperature: opts?.temperature,
 					maxTokens: opts?.maxTokens,
 					systemPrompt: opts?.systemPrompt,
 					signal: ac.signal,
 				})) {
+					if (delta.type !== "token") continue;
+					const token = delta.delta;
 					accumulated += token;
 					streamTopic.publish({
 						source: sourceName,

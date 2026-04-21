@@ -80,7 +80,8 @@ export default defineConfig({
 	format: ["esm", "cjs"],
 	dts: true,
 	clean: true,
-	sourcemap: true,
+	sourcemap: process.env.NODE_ENV !== "production",
+	minify: process.env.NODE_ENV === "production",
 	platform: "node",
 	target: "node22",
 	external: [

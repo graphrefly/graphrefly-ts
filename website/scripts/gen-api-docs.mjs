@@ -207,6 +207,43 @@ const REGISTRY = {
 	graphLens: "src/patterns/lens.ts",
 	resilientPipeline: "src/patterns/resilient-pipeline.ts",
 	guardedExecution: "src/patterns/guarded-execution.ts",
+
+	// Extra — singleflight + adaptive rate limiter (roadmap §9.3d)
+	singleFromAny: "src/extra/single-from-any.ts",
+	singleNodeFromAny: "src/extra/single-from-any.ts",
+	adaptiveRateLimiter: "src/extra/adaptive-rate-limiter.ts",
+
+	// LLM Adapter Layer — core (roadmap §9.3d)
+	createAdapter: "src/patterns/ai/adapters/core/factory.ts",
+	createPricingRegistry: "src/patterns/ai/adapters/core/pricing.ts",
+	registryPricing: "src/patterns/ai/adapters/core/pricing.ts",
+	composePricing: "src/patterns/ai/adapters/core/pricing.ts",
+	computePrice: "src/patterns/ai/adapters/core/pricing.ts",
+	createCapabilitiesRegistry: "src/patterns/ai/adapters/core/capabilities.ts",
+	observableAdapter: "src/patterns/ai/adapters/core/observable.ts",
+
+	// LLM Adapter Layer — providers
+	anthropicAdapter: "src/patterns/ai/adapters/providers/anthropic.ts",
+	openAICompatAdapter: "src/patterns/ai/adapters/providers/openai-compat.ts",
+	googleAdapter: "src/patterns/ai/adapters/providers/google.ts",
+	dryRunAdapter: "src/patterns/ai/adapters/providers/dry-run.ts",
+	webllmAdapter: "src/patterns/ai/adapters/providers/browser/webllm.ts",
+	chromeNanoAdapter: "src/patterns/ai/adapters/providers/browser/chrome-nano.ts",
+
+	// LLM Adapter Layer — middleware
+	withBudgetGate: "src/patterns/ai/adapters/middleware/budget-gate.ts",
+	withRateLimiter: "src/patterns/ai/adapters/middleware/rate-limiter.ts",
+	withReplayCache: "src/patterns/ai/adapters/middleware/replay-cache.ts",
+	withRetry: "src/patterns/ai/adapters/middleware/retry.ts",
+	parseRateLimitFromError: "src/patterns/ai/adapters/middleware/http429-parser.ts",
+	withDryRun: "src/patterns/ai/adapters/middleware/dry-run.ts",
+
+	// LLM Adapter Layer — routing
+	cascadingLlmAdapter: "src/patterns/ai/adapters/routing/cascading.ts",
+	cloudFirstPreset: "src/patterns/ai/adapters/routing/presets.ts",
+	localFirstPreset: "src/patterns/ai/adapters/routing/presets.ts",
+	offlinePreset: "src/patterns/ai/adapters/routing/presets.ts",
+	dryRunPreset: "src/patterns/ai/adapters/routing/presets.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

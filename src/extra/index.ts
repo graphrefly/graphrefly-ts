@@ -44,6 +44,7 @@ export {
 	withBreaker,
 	withStatus,
 } from "./resilience.js";
+export * from "./single-from-any.js";
 export * from "./sources.js";
 export * from "./sources-fs.js";
 export * from "./storage.js";

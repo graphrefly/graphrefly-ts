@@ -573,6 +573,14 @@ export interface TokenBucket {
 	available(): number;
 	/** Try to consume `cost` tokens. Returns `true` if successful. */
 	tryConsume(cost?: number): boolean;
+	/**
+	 * Return `cost` tokens to the bucket (capped at capacity). Used when a
+	 * multi-bucket admission fails partway — e.g., `adaptiveRateLimiter`
+	 * consumes from an rpm bucket, then a tpm bucket; if tpm fails, call
+	 * `rpmBucket.putBack(requestCost)` so the rpm slot isn't wasted.
+	 * No-op for non-positive `cost`.
+	 */
+	putBack(cost?: number): void;
 }
 
 /**
@@ -622,6 +630,11 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 				return true;
 			}
 			return false;
+		},
+		putBack(cost = 1): void {
+			if (cost <= 0) return;
+			refill(monotonicNs());
+			tokens = Math.min(capacity, tokens + cost);
 		},
 	};
 }
