@@ -374,6 +374,22 @@ code {
 	   while the paper pane scrolls internally up to its capped height. */
 	align-items: start;
 }
+.kg-pane {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	overflow: hidden;
+	min-height: 0;
+	/* Float with scroll within its grid column — stays visible as the user
+	   scrolls the main pane (which is the nearest scrollable ancestor). */
+	position: sticky;
+	top: 0.5rem;
+	max-height: calc(100vh - 180px);
+}
 /* Narrower viewports: shrink the column minimums so two columns still fit
    (and sticky still works). Only collapse to a single column when truly
    too narrow to render side-by-side. */
@@ -447,22 +463,6 @@ code {
 .paper-text .paragraph.current {
 	background: var(--gr-aqua-glow);
 	box-shadow: inset 2px 0 0 var(--gr-aqua);
-}
-.kg-pane {
-	background: var(--gr-surface);
-	border: 1px solid var(--gr-border-subtle);
-	border-radius: 8px;
-	padding: 1rem;
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	overflow: hidden;
-	min-height: 0;
-	/* Float with scroll within its grid column — stays visible as the user
-	   scrolls the main pane (which is the nearest scrollable ancestor). */
-	position: sticky;
-	top: 0.5rem;
-	max-height: calc(100vh - 180px);
 }
 .kg-stats {
 	display: flex;
