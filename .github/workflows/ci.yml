@@ -33,8 +33,11 @@ jobs:
 
       - run: pnpm run build
 
-      - name: Docs site build
-        run: pnpm --dir website run build
+      - name: Docs + demos build
+        run: pnpm run docs:build
+        env:
+          ASTRO_SITE_URL: https://graphrefly.dev
+          ASTRO_BASE_PATH: /
 
       # GITHUB_ACTIONS sets CI=true by default — perf-smoke.test.ts skips wall-clock (matches graphrefly-py).
       - name: Benchmark smoke

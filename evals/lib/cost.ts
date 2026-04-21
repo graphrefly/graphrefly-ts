@@ -56,6 +56,12 @@ const PRICING: Record<string, { input: number; output: number }> = {
 	"minimax/minimax-m2.5": { input: 0.118, output: 0.99 },
 	"xiaomi/mimo-v2-flash": { input: 0.09, output: 0.29 },
 	"qwen/qwen3-32b": { input: 0.08, output: 0.24 },
+	// Qwen 3.5 family (verified 2026-04-21 from openrouter.ai/api/v1/models)
+	"qwen/qwen3.5-flash-02-23": { input: 0.065, output: 0.26 }, // cheapest flash, 1M context
+	"qwen/qwen3.5-397b-a17b": { input: 0.39, output: 2.34 }, // MoE, reasoning at $0.20/M (discounted, not modeled)
+	// Google Gemma 4 (edge-model tier — check if ":free" variant is truly free)
+	"google/gemma-4-26b-a4b-it": { input: 0.08, output: 0.35 },
+	"google/gemma-4-26b-a4b-it:free": { input: 0, output: 0 },
 	// (Older OpenRouter publish-tier picks merged into the unified sections above.)
 	// Ollama (local) — free
 	"gemma3:12b": { input: 0, output: 0 },

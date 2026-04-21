@@ -304,6 +304,36 @@ const KNOWN_LIMITS: Record<string, ProviderLimits> = {
 		rpd: Infinity,
 		tpm: 200_000,
 	},
+	"openrouter/qwen/qwen3.5-flash-02-23": {
+		contextWindow: 1_000_000,
+		maxOutputTokens: 65_536,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 400_000,
+	},
+	"openrouter/qwen/qwen3.5-397b-a17b": {
+		contextWindow: 262_144,
+		maxOutputTokens: 65_536,
+		rpm: 30,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/google/gemma-4-26b-a4b-it": {
+		contextWindow: 262_144,
+		maxOutputTokens: 32_768,
+		rpm: 60,
+		rpd: Infinity,
+		tpm: 200_000,
+	},
+	"openrouter/google/gemma-4-26b-a4b-it:free": {
+		// Free route — OpenRouter caps vary by account, often 20-50 RPD.
+		// Override with EVAL_RPD when you know your account's specific cap.
+		contextWindow: 262_144,
+		maxOutputTokens: 32_768,
+		rpm: 10,
+		rpd: 50,
+		tpm: 100_000,
+	},
 	// OpenRouter publish-tier picks (verified 2026-04-20 from openrouter.ai/api).
 	// OpenRouter doesn't publish per-model per-key RPM; 20 is conservative. Your
 	// OpenRouter $-spending dashboard is the real safety net.

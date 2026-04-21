@@ -44,7 +44,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # docs:build = website + demos/compat-matrix + demos/reactive-layout, copied into website/dist/demos/
+      # docs:build = website + demos/{compat-matrix,reactive-layout,knowledge-graph}, copied into website/dist/demos/
       - name: Build docs and demos
         run: pnpm run docs:build
         env:

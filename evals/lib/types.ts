@@ -91,8 +91,13 @@ export type Treatment = "graphspec" | "functions" | "single";
  * - `B`: auto-generated catalog prompt via `generateCatalogPrompt(portableCatalog)`.
  * - `C`: B + auto-refine on catalog validation errors (`maxAutoRefine: 2`).
  * - `D`: C + pre-built templates (`resilientFetch`, `adaptivePoller`) injected.
+ * - `E`: B + catalog subsetting — select task-relevant fns/sources via keyword
+ *   matching on the task description. Hypothesis: smaller prompt →
+ *   fewer tokens, faster generation, and on middle-tier models possibly
+ *   fewer catalog-hallucination failures. See `portable-catalog.ts`
+ *   `selectCatalogSubset()`.
  */
-export type CatalogTreatment = "A" | "B" | "C" | "D";
+export type CatalogTreatment = "A" | "B" | "C" | "D" | "E";
 
 // --- Result types ---
 
@@ -197,7 +202,7 @@ export interface EvalConfig {
 
 function normalizeCatalogTreatment(raw?: string): CatalogTreatment {
 	const v = (raw ?? "").trim().toUpperCase();
-	return v === "B" || v === "C" || v === "D" ? (v as CatalogTreatment) : "A";
+	return v === "B" || v === "C" || v === "D" || v === "E" ? (v as CatalogTreatment) : "A";
 }
 
 /** Parse `EVAL_COMPAT_CHAT_EXTRA_JSON` — must be a JSON object when set. */

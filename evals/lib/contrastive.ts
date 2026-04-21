@@ -21,7 +21,7 @@ import {
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import { callLLM, extractJSON, getProviderLimits, getRateLimiterStats } from "./llm-client.js";
-import { portableCatalog } from "./portable-catalog.js";
+import { portableCatalog, selectCatalogSubset } from "./portable-catalog.js";
 import { portableTemplateDescriptions, portableTemplates } from "./portable-templates.js";
 import type {
 	CatalogTreatment,
@@ -237,8 +237,11 @@ function buildTemplateD_Section(): string {
 	return lines.join("\n");
 }
 
-function buildAutoGenPrompt(treatment: CatalogTreatment): string {
-	const catalogText = generateCatalogPrompt(portableCatalog);
+function buildAutoGenPrompt(
+	treatment: CatalogTreatment,
+	catalog: GraphSpecCatalog = portableCatalog,
+): string {
+	const catalogText = generateCatalogPrompt(catalog);
 	const templateSection = treatment === "D" ? `\n\n${buildTemplateD_Section()}\n` : "";
 	return (
 		`${TREATMENT_B_HEADER}\n## Available catalog\n\n${catalogText}` +
@@ -269,9 +272,13 @@ function addCost(result: TaskResult, model: string): void {
  *   Refine attempts are recorded as judge-shaped diagnostic entries.
  * - `D`: `B` + pre-built templates section injected into the prompt and merged
  *   into the spec's `templates` field before validation.
+ * - `E`: `B` + catalog subsetting — `selectCatalogSubset(task.nl, portableCatalog)`
+ *   keeps only task-relevant fns/sources + essentials. Validates against the
+ *   subset so a referenced-but-unlisted fn is flagged. Diagnostic records
+ *   subset size (x/N fns, y/M sources).
  *
- * Treatments B/C/D share the same initial prompt (buildAutoGenPrompt) for
- * apples-to-apples comparison — only the post-generation handling differs.
+ * Treatments B/C/D/E share the same initial prompt skeleton — only the
+ * catalog content and post-generation handling differ.
  */
 async function runGraphSpecTreatment(
 	task: EvalTask,
@@ -279,7 +286,14 @@ async function runGraphSpecTreatment(
 	config: EvalConfig,
 ): Promise<TaskResult> {
 	const useAutoGen = config.catalogTreatment !== "A";
-	const promptSource = useAutoGen ? buildAutoGenPrompt(config.catalogTreatment) : template;
+	// Treatment E: compute task-specific catalog subset. Other treatments use full catalog.
+	const activeCatalog =
+		config.catalogTreatment === "E"
+			? selectCatalogSubset(task.nl_description, portableCatalog)
+			: portableCatalog;
+	const promptSource = useAutoGen
+		? buildAutoGenPrompt(config.catalogTreatment, activeCatalog)
+		: template;
 	const prompt = promptSource.replace("{{NL_DESCRIPTION}}", task.nl_description);
 
 	const response = await callLLM(
@@ -305,6 +319,20 @@ async function runGraphSpecTreatment(
 	let accumulatedOutputTokens = response.outputTokens;
 	let spec: GraphSpec | undefined;
 
+	// Treatment E: record subset size up-front so diagnostics show the catalog
+	// reduction even when the run produces a valid spec (no catalog errors).
+	if (config.catalogTreatment === "E") {
+		const fullFns = Object.keys(portableCatalog.fns ?? {}).length;
+		const fullSources = Object.keys(portableCatalog.sources ?? {}).length;
+		const selFns = Object.keys(activeCatalog.fns ?? {}).length;
+		const selSources = Object.keys(activeCatalog.sources ?? {}).length;
+		diagnostics.push({
+			claim: "catalog subset size",
+			pass: true,
+			reasoning: `Selected ${selFns}/${fullFns} fns and ${selSources}/${fullSources} sources from task keywords.`,
+		});
+	}
+
 	try {
 		const parsed = JSON.parse(extractJSON(response.content));
 		// Treatment D: ensure pre-built templates are merged in so
@@ -323,7 +351,7 @@ async function runGraphSpecTreatment(
 		// Treatment B/C/D: catalog-aware validation. For C, failures drive the
 		// refine loop; for B/D, they're recorded as diagnostics only.
 		if (useAutoGen && spec) {
-			const catalogValidation = validateSpecAgainstCatalog(spec, portableCatalog);
+			const catalogValidation = validateSpecAgainstCatalog(spec, activeCatalog);
 			if (!catalogValidation.valid) {
 				if (config.catalogTreatment === "C") {
 					// Treatment C: auto-refine loop. Use `llmRefine` with our

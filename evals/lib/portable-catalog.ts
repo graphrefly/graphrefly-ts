@@ -705,3 +705,176 @@ export const portableCatalog: GraphSpecCatalog = {
 	fns: portableFns,
 	sources: portableSources,
 };
+
+// ---------------------------------------------------------------------------
+// Treatment E — catalog subsetting via keyword matching
+// ---------------------------------------------------------------------------
+
+/** Options for {@link selectCatalogSubset}. */
+export interface CatalogSubsetOptions {
+	/** Minimum number of fns to include (pads with highest-ranked remaining if few matches). Default 8. */
+	minFns?: number;
+	/** Minimum number of sources to include. Default 3. */
+	minSources?: number;
+	/** Stopwords removed from task-description keyword extraction. */
+	stopwords?: ReadonlySet<string>;
+	/** Always-include fn names (core primitives the LLM should always see). */
+	essentialFns?: readonly string[];
+}
+
+/**
+ * Stopwords stripped from task-description keywords before scoring.
+ * Intentionally small — we're pruning noise, not imposing linguistic style.
+ */
+const DEFAULT_STOPWORDS: ReadonlySet<string> = new Set([
+	"a",
+	"an",
+	"the",
+	"and",
+	"or",
+	"but",
+	"not",
+	"of",
+	"to",
+	"in",
+	"on",
+	"at",
+	"for",
+	"from",
+	"by",
+	"with",
+	"as",
+	"is",
+	"are",
+	"be",
+	"it",
+	"its",
+	"this",
+	"that",
+	"these",
+	"those",
+	"into",
+	"when",
+	"if",
+	"then",
+	"else",
+	"do",
+	"each",
+	"every",
+	"all",
+	"any",
+	"some",
+	"more",
+	"most",
+	"via",
+	"using",
+	"use",
+	"i",
+	"we",
+	"you",
+	"our",
+	"your",
+	"my",
+	"new",
+	"old",
+]);
+
+/** Fns always included regardless of task — universal composition primitives. */
+const DEFAULT_ESSENTIALS: readonly string[] = ["filterBy", "mapFields", "merge"];
+
+function extractKeywords(text: string, stopwords: ReadonlySet<string>): string[] {
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, " ")
+		.split(/\s+/)
+		.filter((w) => w.length >= 3 && !stopwords.has(w));
+}
+
+function scoreEntryText(
+	name: string,
+	description: string,
+	tags: readonly string[] | undefined,
+	keywords: readonly string[],
+): number {
+	const haystack = `${name} ${description} ${(tags ?? []).join(" ")}`.toLowerCase();
+	let score = 0;
+	for (const kw of keywords) {
+		if (haystack.includes(kw)) score += 1;
+	}
+	return score;
+}
+
+/**
+ * Produce a task-specific subset of a catalog using keyword matching against
+ * each entry's `name + description + tags`. Used by Treatment E to test the
+ * hypothesis that **smaller context → higher composition success rate**.
+ *
+ * Selection rules:
+ * 1. All entries in `essentialFns` are kept unconditionally.
+ * 2. All entries with keyword-score > 0 are kept.
+ * 3. If fewer than `minFns`/`minSources` entries are kept, pad with the
+ *    highest-scoring remaining entries until the minimum is reached.
+ *
+ * @param taskDescription Natural-language task (e.g. `EvalTask.nl_description`).
+ * @param catalog Full catalog to subset.
+ * @param opts Subsetting knobs. See {@link CatalogSubsetOptions}.
+ * @returns A smaller `GraphSpecCatalog` preserving the essentials + relevant entries.
+ */
+export function selectCatalogSubset(
+	taskDescription: string,
+	catalog: GraphSpecCatalog,
+	opts: CatalogSubsetOptions = {},
+): GraphSpecCatalog {
+	const stopwords = opts.stopwords ?? DEFAULT_STOPWORDS;
+	const essentials = new Set(opts.essentialFns ?? DEFAULT_ESSENTIALS);
+	const minFns = opts.minFns ?? 8;
+	const minSources = opts.minSources ?? 3;
+	const keywords = extractKeywords(taskDescription, stopwords);
+
+	const subsetFns: Record<string, CatalogFnEntry> = {};
+	const subsetSources: Record<string, CatalogSourceEntry> = {};
+
+	if (catalog.fns) {
+		const scored: Array<[string, CatalogFnEntry, number]> = [];
+		for (const [name, entry] of Object.entries(catalog.fns)) {
+			if (typeof entry === "function") continue; // bare factories have no metadata
+			const rich = entry as CatalogFnEntry;
+			const score = scoreEntryText(name, rich.description, rich.tags, keywords);
+			scored.push([name, rich, score]);
+		}
+		// Step 1: essentials first.
+		for (const [name, rich] of scored) {
+			if (essentials.has(name)) subsetFns[name] = rich;
+		}
+		// Step 2: all positive-scoring entries.
+		for (const [name, rich, score] of scored) {
+			if (score > 0) subsetFns[name] = rich;
+		}
+		// Step 3: pad to minFns with highest-scoring remaining.
+		scored.sort((a, b) => b[2] - a[2]);
+		for (const [name, rich] of scored) {
+			if (Object.keys(subsetFns).length >= minFns) break;
+			subsetFns[name] = rich;
+		}
+	}
+
+	if (catalog.sources) {
+		const scored: Array<[string, CatalogSourceEntry, number]> = [];
+		for (const [name, entry] of Object.entries(catalog.sources)) {
+			if (typeof entry === "function") continue;
+			const rich = entry as CatalogSourceEntry;
+			const score = scoreEntryText(name, rich.description, rich.tags, keywords);
+			scored.push([name, rich, score]);
+		}
+		for (const [name, rich, score] of scored) {
+			if (score > 0) subsetSources[name] = rich;
+		}
+		scored.sort((a, b) => b[2] - a[2]);
+		for (const [name, rich] of scored) {
+			if (Object.keys(subsetSources).length >= minSources) break;
+			subsetSources[name] = rich;
+		}
+	}
+
+	return { fns: subsetFns, sources: subsetSources };
+}
