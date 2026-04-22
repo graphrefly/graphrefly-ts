@@ -28,8 +28,8 @@ export interface CausalStep {
 	value?: unknown;
 	/** Hop distance from `from` (0 = `from`, N = `to`). */
 	hop: number;
-	/** Reason annotation set via `graph.trace(path, reason)`, when present. */
-	reason?: string;
+	/** Annotation set via `graph.trace(path, annotation)` or `graph.add(path, node, { annotation })`, when present. */
+	annotation?: string;
 	/** Most recent guarded mutation, when known. */
 	lastMutation?: Readonly<{ actor: Actor; timestamp_ns: number }>;
 	/** V0/V1 versioning info, when present. */
@@ -296,8 +296,8 @@ function buildStep(
 	if (node.status !== undefined) step.status = node.status;
 	if ("value" in node) step.value = node.value;
 	if (node.v != null) step.v = node.v;
-	const annotation = opts.annotations?.get(path) ?? node.reason;
-	if (annotation != null) step.reason = annotation;
+	const annotation = opts.annotations?.get(path) ?? node.annotation;
+	if (annotation != null) step.annotation = annotation;
 	const lastMutation = opts.lastMutations?.get(path) ?? node.lastMutation;
 	if (lastMutation != null) step.lastMutation = lastMutation;
 	return step;
@@ -359,8 +359,8 @@ function renderChain(
 		if ("value" in step) {
 			lines.push(`      value: ${formatValue(step.value)}`);
 		}
-		if (step.reason != null) {
-			lines.push(`      reason: ${step.reason}`);
+		if (step.annotation != null) {
+			lines.push(`      annotation: ${step.annotation}`);
 		}
 		if (step.lastMutation != null) {
 			const a = step.lastMutation.actor;

@@ -20,7 +20,13 @@ import {
 } from "../../src/patterns/graphspec.js";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
-import { callLLM, extractJSON, getProviderLimits, getRateLimiterStats } from "./llm-client.js";
+import {
+	callLLM,
+	extractJSON,
+	getAllBudgetStats,
+	getProviderLimits,
+	getRateLimiterStats,
+} from "./llm-client.js";
 import { portableCatalog, selectCatalogSubset } from "./portable-catalog.js";
 import { portableTemplateDescriptions, portableTemplates } from "./portable-templates.js";
 import type {
@@ -544,7 +550,12 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 						},
 						config,
 					);
-					result.judge_scores = scores;
+					// Preserve any diagnostics pushed by runGraphSpecTreatment
+					// (catalog-subset size, auto-refine attempts, task-aborted,
+					// catalog validation errors). Previously this line was
+					// `result.judge_scores = scores` which silently clobbered
+					// those per-task observability entries.
+					result.judge_scores = [...result.judge_scores, ...scores];
 				}
 			}
 
@@ -589,6 +600,14 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		);
 	}
 
+	// Sum budget-gate state across every provider (gen + judge) — previously
+	// `total_cost_usd` only summed per-task generation cost, hiding judge
+	// spend that often dominated on reasoning-model judges (e.g. qwen-397b
+	// judge contributed 3-5x generation cost during qwen A run).
+	const budgetStats = getAllBudgetStats();
+	const taskGenCost = totalCost(results.map((r) => r.cost_usd));
+	const total_cost_usd = budgetStats.totalPriceUsd > 0 ? budgetStats.totalPriceUsd : taskGenCost;
+
 	return {
 		run_id: config.runId ?? `l0-${Date.now()}`,
 		timestamp: new Date().toISOString(),
@@ -598,7 +617,7 @@ export async function runContrastiveEval(config: EvalConfig): Promise<EvalRun> {
 		schema_version: "scaffold",
 		scores,
 		tasks: results,
-		total_cost_usd: totalCost(results.map((r) => r.cost_usd)),
+		total_cost_usd,
 		rate_limit_stats: config.rateLimitEnabled
 			? {
 					total_retries: rlStats.totalRetries,

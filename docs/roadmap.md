@@ -367,7 +367,7 @@ Thin surface over the shared **9.3-core** domain layer (see 9.3c). MCP and CLI a
   - Session holds `Map<graphId, Graph>` + default `memoryStorage` (opt-in `fileStorage` via `GRAPHREFLY_STORAGE_DIR` env or `storageDir` option)
   - Server operators register fn/source catalog at startup (`buildMcpServer(session, { catalog })`) — catalog delivery over the wire is a separate design pass
   - Errors throw `SurfaceError`; wrap layer converts to MCP `isError` content
-- [ ] NL→spec (`llmCompose`) bridged through a tool — deferred. Depends on §9.3d adapter layer (`createAdapter` from env/config).
+- [x] NL→spec (`llmCompose`) bridged through `graphrefly_compose` — SHIPPED 2026-04-21. See §9.3d bullet above.
 - [ ] Publish to npm as `@graphrefly/mcp-server`
 - [ ] Submit to: official MCP registry (`registry.modelcontextprotocol.io`), Cline Marketplace, PulseMCP
 - [ ] "Try it with Claude Code in 2 minutes" quickstart
@@ -419,9 +419,9 @@ Peer projection of **9.3-core** as a terminal binary. Targets the Claude Code / 
 
 Full adapter layer archived to `archive/optimizations/resolved-decisions.jsonl` (id: `llm-adapter-layer-9-3d`). Core, providers, middleware, and routing all landed together. Open follow-ups:
 
-- [ ] **`resilientPipeline()` integration** — compose `adaptiveRateLimiter` + `withBreaker` + `withRetry` + `withTimeout` + `withFallback` as a reactive call-path wrapper. Design in §9.0b. Not blocking any wave.
+- [x] **`resilientAdapter()` call-path wrapper** — SHIPPED 2026-04-21 at [src/patterns/ai/adapters/middleware/resilient-adapter.ts](../src/patterns/ai/adapters/middleware/resilient-adapter.ts). Composes `withRateLimiter` + `withBudgetGate` + `withBreaker` + `withTimeout` + `withRetry` + `cascadingLlmAdapter` fallback in the documented order; per-attempt deadline rearm; `withTimeout` re-throws `LLMTimeoutError` (so retry's default predicate recognizes it against real fetch/SDK providers). Follow-ups tracked in [docs/optimizations.md](optimizations.md): `onFallback`/`onExhausted` surface, shared limiter across calls.
 - [ ] **`evals/lib/` migration** — fresh eval work after §9.1 will use the new adapter layer directly; the existing imperative stack at `evals/lib/{llm-client, rate-limiter, budget-gate, replay-cache, limits}.ts` stays untouched until then (per QA direction).
-- [ ] **MCP `llmCompose` wiring** — bridge the adapter layer into `packages/mcp-server/` (§9.3 deferred item).
+- [x] **MCP `llmCompose` wiring** — SHIPPED 2026-04-21 as `graphrefly_compose` tool in [packages/mcp-server/src/tools.ts](../packages/mcp-server/src/tools.ts) with `composeAdapter` + `composeModelAllowlist` options on `BuildMcpServerOptions`. Compose-only (returns validated spec; caller follows with `graphrefly_create`). New surface error codes: `compose-not-configured`, `compose-failed`.
 - [ ] **Limits registry population** — library ships shape only. Users populate a `CapabilitiesRegistry` with their own data. A first-party curated table can ship as an opt-in `@graphrefly/capabilities-*` package post-1.0 if demand warrants.
 
 
@@ -452,9 +452,10 @@ fromTimer(interval) → fetchTransactions → anomalyDetector → flagNode
 - CLI: `npx @graphrefly/cli explain spending-alerts.json --from transactions --to flag` — zero install, copy-paste in terminal, best for blog post
 - MCP: `graphrefly_explain` from Claude Code — best for the "inside your agent" story
 
-- [ ] `examples/spending-alerts/index.ts` — runnable pipeline with `fromTimer` + anomaly detector + `explainPath` call **S**
-- [ ] `website/src/content/docs/demos/spending-alerts.md` — walkthrough page with causal chain output block **S**
-- [ ] Wire homepage "Demo: Spending Alerts →" link to the docs page **S**
+- [x] `examples/spending-alerts/` — SHIPPED 2026-04-21. 5-hop deterministic pipeline (`txFeed → anomalyScore → thresholdGate → reasonFactors → alertMessage`, with `vendorStats`/`userProfile` as side inputs). Runnable via `pnpm --filter @graphrefly-examples/spending-alerts start`.
+- [x] `website/src/content/docs/demos/spending-alerts.md` — SHIPPED 2026-04-21. Walkthrough + causal chain output + "how you get this in your own code" + agent-extension path (swap `alertMessage` for a `promptNode` with `resilientAdapter`).
+- [x] Wire homepage "Demo: Spending Alerts →" link to the docs page.
+- [ ] Interactive 3-pane Astro shell at `demos/spending-alerts/` — follow-up. Will reuse `demoShell` + `lazyAdapter` patterns from `demos/knowledge-graph/`; adds a Chrome-Nano-backed `promptNode` justifier with mock fallback. Non-blocking for Wave 2 (roadmap note: "No GIF required — static walkthrough is sufficient").
 
 #### 9.2 deliverables for announcement
 
@@ -533,6 +534,14 @@ streamingPromptNode
 
 - [ ] Demo 0 video/GIF — required to gate Show HN
 - [ ] `website/src/content/docs/demos/email-triage.md` (Demo 0 companion page)
+- [ ] **Port `examples/inbox-reducer` to a website demo page (opened 2026-04-21):** `website/src/content/docs/demos/inbox-reducer.md` companion to the Node-runnable example. Highlights what this example shows well (correct + concise + intuitive + capable): 7-node pipeline, 3 LLM calls over 50 emails, live stage-by-stage trace, `graph.explain` causal chain, dry-run with exact token counts, mermaid.live clickable diagram, fallback/replay-cache/resilience stack in one line, reactive delta demo (honestly framed — see next item for the true reactive-savings demo). Keep as a "here's a complete, production-shaped pipeline" reference. Does NOT replace Email Triage (Demo 0) or Spending Alerts — it's a more thorough walkthrough of adapter stack + observability than those.
+- [ ] **Second inbox-like demo that genuinely shows reactive-savings + explainability (opened 2026-04-21):** The current `inbox-reducer` batches classify over all emails, so a 1-email delta re-runs every stage at full cost — it doesn't sell the reactive-push efficiency claim. Build a sibling example (working name: `inbox-stream` or `live-inbox-reducer`) that:
+  - **Classifies per-email** — a `map(emails, classifyOne)`-shaped topology where each email is classified individually (50 small LLM calls initially). Compose via `funnel` or `mergeMap` with configurable concurrency.
+  - **Shows real delta savings** — push a 51st email, only THAT email re-classifies (1 small call), downstream extract/rank/brief recompute deterministically plus maybe one small brief call. Vs. a full rerun = 51+N+1 calls.
+  - **Leans into `graph.explain`** — for any action item in the final brief, `graph.explain("emails[e42]", "brief")` walks back through its own classify call, its extract call, and the rank decision. Shows causal-chain UX on a DAG with real fan-in/out, not just a linear pipeline.
+  - **Streams incoming emails** via `fromTimer` or `fromAsyncIter` so the "arrive live, re-triage" story is visible.
+  - Optional: fan-out multiple consumers of `classifications` (actionable / notifications / deferred digest) to show multi-sink reactivity.
+  **Ship as a website demo**: `website/src/content/docs/demos/inbox-stream.md`. This is the demo that sells the "reactive + explainable" moat; `inbox-reducer` stays as the approachable baseline.
 - [ ] Show HN: "GraphReFly — the reactive harness layer for agent workflows [harness scorecard inside]"
 - [ ] `@graphrefly/ai-sdk` and/or `@graphrefly/langgraph` on npm
 - [ ] 3 template repos public

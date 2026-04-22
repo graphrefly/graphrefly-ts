@@ -6,6 +6,10 @@
  *   passes through and stores the result.
  * - `"write-only"`: never reads; populates the cache for later runs.
  * - `"read"`: reads only; on miss, passes through without writing.
+ * - `"read-strict"`: reads only; on miss, **throws `ReplayCacheMissError`**
+ *   instead of passing through. Use for fixture-driven tests or offline
+ *   fallback adapters where any cache miss is a test failure or a signal to
+ *   degrade.
  *
  * Reuses the library's existing `StorageTier` abstraction — the same tiers
  * that power `Graph.attachStorage` (memory / file / sqlite / indexeddb / custom).
@@ -17,12 +21,20 @@
  * **Circular-ref safe:** `canonicalJson` uses a seen-set replacer so
  * user-supplied `ToolDefinition.parameters` with `$ref` cycles don't stack-
  * overflow the key computation.
+ *
+ * **Stream cadence capture:** when `cacheStreaming: true` AND
+ * `captureStreamCadence: true`, per-chunk delays (ms since previous chunk)
+ * are recorded alongside the content. Replay honors the recorded cadence
+ * unless `replaySpeed` is set, which multiplies the effective per-chunk
+ * delay (`replaySpeed: 2` → 2× faster; `replaySpeed: 0` → instant).
+ * Without `captureStreamCadence`, replay is instant regardless.
  */
 
 import { createHash } from "node:crypto";
 import { wallClockNs } from "../../../../core/clock.js";
 import { singleFromAny } from "../../../../extra/single-from-any.js";
 import type { StorageTier } from "../../../../extra/storage.js";
+import { ResettableTimer } from "../../../../extra/timer.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -31,7 +43,17 @@ import type {
 	StreamDelta,
 } from "../core/types.js";
 
-export type ReplayCacheMode = "read" | "write-only" | "read-write";
+export type ReplayCacheMode = "read" | "read-strict" | "write-only" | "read-write";
+
+export class ReplayCacheMissError extends Error {
+	override name = "ReplayCacheMissError";
+	constructor(
+		public readonly key: string,
+		public readonly method: "invoke" | "stream",
+	) {
+		super(`withReplayCache: no cached response for ${method} (key=${key}, mode=read-strict)`);
+	}
+}
 
 export interface WithReplayCacheOptions {
 	storage: StorageTier;
@@ -45,11 +67,33 @@ export interface WithReplayCacheOptions {
 	 * and replaying it as one synthetic token chunk). Default `false`.
 	 */
 	cacheStreaming?: boolean;
+	/**
+	 * When `cacheStreaming: true`, also record per-chunk delays (ms since
+	 * previous chunk) so replay can honor the original streaming cadence.
+	 * Default `false` (chunks replay instantly).
+	 */
+	captureStreamCadence?: boolean;
+	/**
+	 * Stream replay speed multiplier. `1` = original cadence (requires
+	 * `captureStreamCadence`). `2` = 2× faster. `0` = instant. Default `1`.
+	 */
+	replaySpeed?: number;
 }
 
 interface CachedEntry {
 	response: LLMResponse;
 	storedAtNs: number;
+	/**
+	 * Per-chunk deltas in milliseconds — populated only when `captureStreamCadence`
+	 * is `true` during the write. Replayed via `ResettableTimer` in stream().
+	 */
+	streamCadenceMs?: readonly number[];
+	/**
+	 * Per-chunk bodies in order (tokens only — `usage`/`finish` are reconstructed
+	 * from `response.usage` / `response.finishReason`). Populated only when
+	 * `captureStreamCadence` is `true`, used for cadence-faithful replay.
+	 */
+	streamChunks?: ReadonlyArray<{ delta: string }>;
 }
 
 type ResolveArgs = {
@@ -61,8 +105,11 @@ type ResolveArgs = {
 export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions): LLMAdapter {
 	const mode = opts.mode ?? "read-write";
 	const cacheStreaming = opts.cacheStreaming ?? false;
+	const captureStreamCadence = opts.captureStreamCadence ?? false;
+	const replaySpeed = opts.replaySpeed ?? 1;
 	const keyPrefix = opts.keyPrefix ?? "llm-replay";
 	const tier = opts.storage;
+	const isReadOnly = mode === "read" || mode === "read-strict";
 
 	const makeKey = (
 		messages: readonly ChatMessage[],
@@ -74,23 +121,45 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 		return `${keyPrefix}:${createHash("sha256").update(canonical).digest("hex")}`;
 	};
 
-	const readCache = async (key: string): Promise<LLMResponse | undefined> => {
+	const readEntry = async (key: string): Promise<CachedEntry | undefined> => {
 		if (mode === "write-only") return undefined;
 		const raw = await tier.load(key);
 		if (raw == null) return undefined;
 		try {
-			const entry = (typeof raw === "string" ? JSON.parse(raw) : raw) as CachedEntry;
-			return entry?.response;
+			return (typeof raw === "string" ? JSON.parse(raw) : raw) as CachedEntry;
 		} catch {
 			return undefined;
 		}
 	};
 
-	const writeCache = async (key: string, resp: LLMResponse): Promise<void> => {
-		if (mode === "read") return;
-		const entry: CachedEntry = { response: resp, storedAtNs: wallClockNs() };
+	const readCache = async (key: string): Promise<LLMResponse | undefined> => {
+		const entry = await readEntry(key);
+		return entry?.response;
+	};
+
+	const writeCache = async (
+		key: string,
+		resp: LLMResponse,
+		streamCadence?: { chunks: ReadonlyArray<{ delta: string }>; delaysMs: readonly number[] },
+	): Promise<void> => {
+		if (isReadOnly) return;
+		const entry: CachedEntry = {
+			response: resp,
+			storedAtNs: wallClockNs(),
+			...(streamCadence
+				? { streamChunks: streamCadence.chunks, streamCadenceMs: streamCadence.delaysMs }
+				: {}),
+		};
 		await tier.save(key, entry as unknown as Parameters<typeof tier.save>[1]);
 	};
+
+	const sleepMs = (ms: number): Promise<void> =>
+		ms <= 0
+			? Promise.resolve()
+			: new Promise<void>((resolve) => {
+					const t = new ResettableTimer();
+					t.start(ms, () => resolve());
+				});
 
 	// Singleflight — concurrent cache-miss requests with the same key share one upstream call.
 	const upstreamInFlight = singleFromAny<ResolveArgs, LLMResponse>(
@@ -112,6 +181,7 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 			if (cached)
 				return { ...cached, metadata: { ...(cached.metadata ?? {}), replayCache: "hit" } };
 
+			if (mode === "read-strict") throw new ReplayCacheMissError(key, "invoke");
 			const resp = await upstreamInFlight({ messages, invokeOpts });
 			await writeCache(key, resp);
 			return resp;
@@ -119,36 +189,79 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 
 		async *stream(messages, invokeOpts): AsyncGenerator<StreamDelta> {
 			if (!cacheStreaming) {
+				// `read-strict` only applies to cache-checked paths. When
+				// `cacheStreaming: false` the cache isn't consulted for
+				// streams at all, so passthrough is correct — throwing would
+				// make the adapter's stream() permanently unusable.
 				for await (const delta of inner.stream(messages, invokeOpts)) yield delta;
 				return;
 			}
 			const key = makeKey(messages, invokeOpts);
-			const cached = await readCache(key);
-			if (cached) {
-				if (cached.content) yield { type: "token", delta: cached.content };
+			const entry = await readEntry(key);
+			if (entry) {
+				const cached = entry.response;
+				// Cadence-faithful replay when both recorded chunks + delays are present.
+				if (entry.streamChunks && entry.streamCadenceMs) {
+					for (let i = 0; i < entry.streamChunks.length; i++) {
+						const delay = entry.streamCadenceMs[i] ?? 0;
+						const effective = replaySpeed > 0 ? delay / replaySpeed : 0;
+						if (effective > 0) await sleepMs(effective);
+						yield { type: "token", delta: entry.streamChunks[i]?.delta ?? "" };
+					}
+				} else if (cached.content) {
+					yield { type: "token", delta: cached.content };
+				}
 				if (cached.usage) yield { type: "usage", usage: cached.usage };
 				yield { type: "finish", reason: cached.finishReason ?? "stop" };
 				return;
 			}
+			if (mode === "read-strict") throw new ReplayCacheMissError(key, "stream");
 			// Miss: accumulate, store, re-yield.
 			let content = "";
 			let usage: LLMResponse["usage"] | undefined;
 			let finishReason: string | undefined;
+			const chunks: { delta: string }[] = [];
+			const delaysMs: number[] = [];
+			// Time-to-first-token (TTFT — provider latency / network / queue
+			// warmup) is NOT cadence; setting lastNs inside the loop on first
+			// chunk means chunk-0's delay is 0 (boundary-clean) and subsequent
+			// delays measure only inter-chunk gaps.
+			let lastNs: bigint | undefined;
 			for await (const delta of inner.stream(messages, invokeOpts)) {
-				if (delta.type === "token") content += delta.delta;
+				if (delta.type === "token") {
+					content += delta.delta;
+					if (captureStreamCadence) {
+						const now = process.hrtime.bigint();
+						const gap = lastNs === undefined ? 0 : Number(now - lastNs) / 1_000_000;
+						delaysMs.push(gap);
+						lastNs = now;
+						chunks.push({ delta: delta.delta });
+					}
+				}
 				if (delta.type === "usage") usage = delta.usage;
 				if (delta.type === "finish") finishReason = delta.reason;
 				yield delta;
 			}
-			if (usage) {
+			// Persist when ANY meaningful output was produced — not only on
+			// `usage` frames. Many providers stream tokens + finish but never
+			// emit a usage frame (OpenAI without `stream_options.include_usage`);
+			// gating on `usage` would silently drop every such response from
+			// the cache. Caller replay tolerates `usage: undefined` — the
+			// `yield {type: "usage", ...}` branch on replay is already gated
+			// on `cached.usage` being present.
+			if (content || usage) {
 				const resp: LLMResponse = {
 					content,
-					usage,
+					// LLMResponse requires a usage shape; stub zero when the
+					// provider didn't report one. Callers that care can
+					// distinguish a real zero from "not reported" via the
+					// cached entry's raw metadata if needed.
+					usage: usage ?? { input: { regular: 0 }, output: { regular: 0 } },
 					finishReason,
 					model: inner.model ?? invokeOpts?.model ?? "",
 					provider: inner.provider,
 				};
-				await writeCache(key, resp);
+				await writeCache(key, resp, captureStreamCadence ? { chunks, delaysMs } : undefined);
 			}
 		},
 	};
@@ -164,8 +277,11 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
  * siblings that share the same reference (legitimate for JSON Schema
  * fragments reused across tool definitions) serialize normally, producing
  * identical hashes to a freshly-reconstructed equivalent.
+ *
+ * Exported so `fallbackAdapter` (and other cache-adjacent code) can share
+ * the same key shape — fixtures produced by either tool stay interchangeable.
  */
-function canonicalJson(value: unknown): string {
+export function canonicalJson(value: unknown): string {
 	const ancestors = new Set<object>();
 
 	const canon = (v: unknown): unknown => {

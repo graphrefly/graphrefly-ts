@@ -1,8 +1,9 @@
-import type { GraphSpecCatalog } from "@graphrefly/graphrefly";
+import type { GraphSpecCatalog, LLMAdapter, LLMResponse } from "@graphrefly/graphrefly";
 import { derived } from "@graphrefly/graphrefly";
 import { describe, expect, it } from "vitest";
 import {
 	createSession,
+	graphreflyCompose,
 	graphreflyCreate,
 	graphreflyDelete,
 	graphreflyDescribe,
@@ -139,5 +140,103 @@ describe("mcp-server tools", () => {
 			/graph "missing"/,
 		);
 		session.dispose();
+	});
+
+	it("compose returns validated GraphSpec via wired adapter", async () => {
+		const validSpec = {
+			name: "composed",
+			nodes: {
+				input: {
+					type: "state",
+					initial: 0,
+					meta: { description: "user-supplied input" },
+				},
+				output: {
+					type: "derived",
+					deps: ["input"],
+					fn: "double",
+					meta: { description: "doubles the input" },
+				},
+			},
+		};
+		const mockAdapter: LLMAdapter = {
+			provider: "mock",
+			model: "mock-m",
+			invoke(): Promise<LLMResponse> {
+				return Promise.resolve({
+					content: JSON.stringify(validSpec),
+					usage: { input: { regular: 10 }, output: { regular: 20 } },
+				});
+			},
+			// biome-ignore lint/correctness/useYield: throws intentionally; compose uses invoke.
+			async *stream() {
+				throw new Error("stream not used by compose");
+			},
+		};
+		const result = await graphreflyCompose({ problem: "double the input" }, catalog, {
+			adapter: mockAdapter,
+		});
+		expect(result.validated).toBe(true);
+		expect(result.spec).toMatchObject({ name: "composed" });
+	});
+
+	it("compose surfaces compose-not-configured when no adapter wired", async () => {
+		await expect(
+			graphreflyCompose({ problem: "x" }, catalog, { adapter: undefined }),
+		).rejects.toMatchObject({ code: "compose-not-configured" });
+	});
+
+	it("compose maps llmCompose failures to compose-failed with a sanitized message", async () => {
+		const secretEcho = "SYSTEM-PROMPT-ECHO: you are a graph architect; the internal catalog is …";
+		const brokenAdapter: LLMAdapter = {
+			provider: "mock",
+			model: "mock-m",
+			invoke(): Promise<LLMResponse> {
+				return Promise.resolve({
+					// Non-JSON content containing something that LOOKS like a
+					// system-prompt echo. The handler must NOT surface this as
+					// the user-facing message — only in details.excerpt.
+					content: secretEcho,
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				});
+			},
+			stream: async function* () {
+				yield* [] as never[];
+			},
+		};
+		try {
+			await graphreflyCompose({ problem: "x" }, catalog, { adapter: brokenAdapter });
+			throw new Error("expected throw");
+		} catch (err) {
+			const payload = (err as { toJSON?: () => Record<string, unknown> }).toJSON?.();
+			expect(payload).toMatchObject({ code: "compose-failed" });
+			expect(payload?.message).not.toContain("SYSTEM-PROMPT-ECHO");
+			expect((payload?.details as { excerpt?: string } | undefined)?.excerpt).toBeDefined();
+		}
+	});
+
+	it("compose rejects models outside composeModelAllowlist before calling the adapter", async () => {
+		let called = false;
+		const guardedAdapter: LLMAdapter = {
+			provider: "mock",
+			model: "cheap-m",
+			invoke(): Promise<LLMResponse> {
+				called = true;
+				return Promise.resolve({
+					content: "{}",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				});
+			},
+			stream: async function* () {
+				yield* [] as never[];
+			},
+		};
+		await expect(
+			graphreflyCompose({ problem: "x", model: "claude-opus-4-7" }, catalog, {
+				adapter: guardedAdapter,
+				modelAllowlist: ["cheap-m"],
+			}),
+		).rejects.toMatchObject({ code: "compose-failed" });
+		expect(called).toBe(false);
 	});
 });

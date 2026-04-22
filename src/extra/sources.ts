@@ -934,6 +934,69 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
 	});
 }
 
+/**
+ * Await the first non-nullish DATA value from `source`, with optional
+ * timeout. Composition sugar over `firstWhere` + reactive timeout.
+ *
+ * Designed as the CLI/boundary sink for reactive pipelines that end in a
+ * nullable node (e.g. `promptNode` — per COMPOSITION-GUIDE §8, it emits
+ * `null` before it settles with a real value). Replaces the common pattern
+ * `firstValueFrom(filter(source, v => v != null))` with a deadline.
+ *
+ * - Rejects with `TimeoutError` (from `extra/resilience`) if no matching
+ *   value arrives within `timeoutMs`. Omit `timeoutMs` for unbounded wait.
+ * - `predicate` defaults to `v => v != null`. Pass a custom predicate to
+ *   gate on a stronger condition (e.g. `v => typeof v === "string"`).
+ *
+ * ```ts
+ * const brief = await awaitSettled(briefNode, { timeoutMs: 120_000 });
+ * // or with a predicate:
+ * const rich = await awaitSettled(node, {
+ *   predicate: (v): v is MyShape => typeof v === "object" && v != null && "key" in v,
+ *   timeoutMs: 60_000,
+ * });
+ * ```
+ *
+ * Reactive inside, sync propagation — the one async boundary is the
+ * returned `Promise<T>` (spec §5.10: async belongs at sources and
+ * boundaries, not in the graph).
+ *
+ * @param source - Upstream node to observe.
+ * @param opts - `{ predicate?, timeoutMs? }`.
+ * @returns Promise that resolves with the first matching value, or rejects on timeout / ERROR / COMPLETE-without-DATA.
+ *
+ * @category extra
+ */
+// Lazy module-cache to avoid the `resilience.ts` → `sources.ts` circular
+// import (`resilience.ts` imports `fromAny`). First call pays the one-shot
+// dynamic import; subsequent calls hit cached references.
+let _timeoutOp: typeof import("./resilience.js").timeout | undefined;
+let _nsPerMs: number | undefined;
+
+export async function awaitSettled<T>(
+	source: Node<T>,
+	opts?: { predicate?: (value: T) => boolean; timeoutMs?: number },
+): Promise<NonNullable<T>> {
+	const predicate = opts?.predicate ?? ((v: T) => v != null);
+	if (opts?.timeoutMs == null || opts.timeoutMs <= 0) {
+		return (await firstWhere(source, predicate)) as NonNullable<T>;
+	}
+	// Reactive composition: `timeout()` wraps the source as a Node that
+	// emits ERROR(TimeoutError) on deadline. `firstWhere` then resolves on
+	// the first matching DATA or rejects on that ERROR. One async boundary
+	// (the returned Promise), everything inside is sync reactive.
+	if (_timeoutOp === undefined) {
+		const [resilience, backoff] = await Promise.all([
+			import("./resilience.js"),
+			import("./backoff.js"),
+		]);
+		_timeoutOp = resilience.timeout;
+		_nsPerMs = backoff.NS_PER_MS;
+	}
+	const guarded = _timeoutOp(source, opts.timeoutMs * (_nsPerMs as number));
+	return (await firstWhere(guarded, predicate)) as NonNullable<T>;
+}
+
 // ——————————————————————————————————————————————————————————————
 //  RxJS-compatible aliases
 // ——————————————————————————————————————————————————————————————

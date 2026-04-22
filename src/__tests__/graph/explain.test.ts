@@ -106,8 +106,8 @@ describe("explainPath (roadmap §9.2)", () => {
 
 		g.trace("b", "doubled because pricing rule R7");
 		const chain = g.explain("a", "b");
-		expect(chain.steps[1]?.reason).toBe("doubled because pricing rule R7");
-		expect(chain.text).toMatch(/reason: doubled because/);
+		expect(chain.steps[1]?.annotation).toBe("doubled because pricing rule R7");
+		expect(chain.text).toMatch(/annotation: doubled because/);
 	});
 
 	it("standalone explainPath works on a hand-built describe snapshot", () => {
@@ -220,5 +220,84 @@ describe("explainPath (roadmap §9.2)", () => {
 		expect(chain.steps).toHaveLength(2);
 		expect(chain.steps[0]?.dep_index).toBe(0);
 		expect(chain.steps[0]?.dep_indices).toEqual([0, 1]);
+	});
+
+	it("walks transitively through factory-internal nodes that weren't graph.add-ed", () => {
+		// Shape mirrors `promptNode` — a factory adds the terminal output to
+		// the graph but not the intermediate `derived` it used to build its
+		// input. Before the transitive-deps fix, describe emitted a dangling
+		// dep pointer (e.g. `out.deps = ["intermediate"]` with no entry under
+		// `intermediate`), so explainPath's BFS had nowhere to walk from
+		// `out`. Post-fix the intermediate is surfaced under its meta.name and
+		// the chain completes.
+		const g = new Graph("factory-internals");
+		const src = state(1, { name: "src" });
+		// Intermediate is NOT graph.add-ed — simulates promptNode's internal
+		// `brief::messages` derived helper.
+		const intermediate = derived([src], ([v]) => (v as number) * 2, {
+			name: "prompt::messages",
+		});
+		const out = derived([intermediate], ([v]) => (v as number) + 100, { name: "out" });
+		g.add("src", src);
+		g.add("out", out);
+		// Activate so every node computes.
+		g.observe("out").subscribe(() => {});
+
+		const d = g.describe({ detail: "standard" });
+		// All three nodes present in describe — no dangling pointer.
+		expect(Object.keys(d.nodes).sort()).toEqual(["out", "prompt::messages", "src"]);
+		// Edges derived from _deps cover every hop, including through the
+		// un-add-ed intermediate.
+		const edgeSet = new Set(d.edges.map((e) => `${e.from}→${e.to}`));
+		expect(edgeSet.has("src→prompt::messages")).toBe(true);
+		expect(edgeSet.has("prompt::messages→out")).toBe(true);
+
+		const chain = g.explain("src", "out");
+		expect(chain.found).toBe(true);
+		expect(chain.reason).toBe("ok");
+		expect(chain.steps.map((s) => s.path)).toEqual(["src", "prompt::messages", "out"]);
+		expect(chain.steps[0]?.value).toBe(1);
+		expect(chain.steps[1]?.value).toBe(2);
+		expect(chain.steps[2]?.value).toBe(102);
+	});
+
+	it("deduplicates orphan-dep paths when two internals share a meta.name", () => {
+		// Two factory-internal derived nodes both named "internal" — the
+		// describe walk must not collapse them. Second one gets "#2" suffix.
+		const g = new Graph("dup-internals");
+		const a = state(1, { name: "a" });
+		const b = state(10, { name: "b" });
+		const internalA = derived([a], ([v]) => (v as number) + 1, { name: "internal" });
+		const internalB = derived([b], ([v]) => (v as number) + 1, { name: "internal" });
+		// Neither internal is graph.add-ed; both are upstream of their own
+		// registered terminal.
+		const outA = derived([internalA], ([v]) => (v as number) * 10, { name: "outA" });
+		const outB = derived([internalB], ([v]) => (v as number) * 10, { name: "outB" });
+		g.add("a", a);
+		g.add("b", b);
+		g.add("outA", outA);
+		g.add("outB", outB);
+		g.observe("outA").subscribe(() => {});
+		g.observe("outB").subscribe(() => {});
+
+		const d = g.describe({ detail: "standard" });
+		const keys = Object.keys(d.nodes).sort();
+		expect(keys).toContain("internal");
+		expect(keys).toContain("internal#2");
+		// Both terminals walk back to their own state via the suffixed pair.
+		const chainA = g.explain("a", "outA");
+		const chainB = g.explain("b", "outB");
+		expect(chainA.found).toBe(true);
+		expect(chainB.found).toBe(true);
+		expect(chainA.steps.map((s) => s.path)).toEqual([
+			"a",
+			expect.stringMatching(/^internal/),
+			"outA",
+		]);
+		expect(chainB.steps.map((s) => s.path)).toEqual([
+			"b",
+			expect.stringMatching(/^internal/),
+			"outB",
+		]);
 	});
 });

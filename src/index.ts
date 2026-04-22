@@ -13,5 +13,18 @@ export * from "./extra/index.js";
 export * as extra from "./extra/index.js";
 export * from "./graph/index.js";
 export * as graph from "./graph/index.js";
+// Top-level convenience re-exports of the AI adapter types so downstream
+// packages (MCP server, CLI, userland) can `import type { LLMAdapter }`
+// without reaching into the `patterns.ai` namespace.
+export type {
+	ChatMessage,
+	LLMAdapter,
+	LLMInvokeOptions,
+	LLMResponse,
+	StreamDelta,
+	TokenUsage,
+	ToolCall,
+	ToolDefinition,
+} from "./patterns/ai/adapters/core/types.js";
 export * from "./patterns/index.js";
 export * as patterns from "./patterns/index.js";

@@ -12,13 +12,14 @@
  * @module
  */
 
-import type { GraphDescribeOptions, GraphSpecCatalog } from "@graphrefly/graphrefly";
+import type { GraphDescribeOptions, GraphSpecCatalog, LLMAdapter } from "@graphrefly/graphrefly";
 import {
 	createGraph,
 	deleteSnapshot,
 	diffSnapshots,
 	type Graph,
 	listSnapshots,
+	patterns,
 	restoreSnapshot,
 	runReduction,
 	SurfaceError,
@@ -300,4 +301,87 @@ export function graphreflyDelete(
 
 export function graphreflyList(session: Session): { graphs: readonly string[] } {
 	return { graphs: [...session.graphs.keys()].sort() };
+}
+
+// ---------------------------------------------------------------------------
+// graphrefly_compose
+// ---------------------------------------------------------------------------
+
+export interface ComposeParams {
+	problem: string;
+	model?: string;
+	temperature?: number;
+	maxAutoRefine?: number;
+}
+
+export interface ComposeResult {
+	spec: Record<string, unknown>;
+	validated: true;
+}
+
+export interface ComposeSettings {
+	/** Pre-configured adapter. Required; when `undefined` the handler rejects. */
+	readonly adapter: LLMAdapter | undefined;
+	/**
+	 * Operator-curated list of model IDs the client may pass via `params.model`.
+	 * When set, any value outside the list is rejected with `compose-failed`
+	 * before the LLM is called. `undefined` disables model gating (the adapter's
+	 * default model always wins).
+	 */
+	readonly modelAllowlist?: readonly string[];
+}
+
+/**
+ * NL→GraphSpec composition via `llmCompose`. The server operator wires a
+ * pre-configured `LLMAdapter` (BYOK + credentials stay out of tool params);
+ * this handler only receives the problem description and per-call knobs.
+ *
+ * Compose-only by design — returns the validated GraphSpec. Callers that
+ * want to persist a compiled graph should follow with `graphrefly_create`.
+ * Keeps tools atomic and error-shape consistent.
+ */
+export async function graphreflyCompose(
+	params: ComposeParams,
+	catalog: GraphSpecCatalog,
+	settings: ComposeSettings,
+): Promise<ComposeResult> {
+	const { adapter, modelAllowlist } = settings;
+	if (adapter == null) {
+		throw new SurfaceError(
+			"compose-not-configured",
+			"graphrefly_compose: no composeAdapter wired at server startup; pass `composeAdapter` to buildMcpServer.",
+		);
+	}
+	if (params.model != null && modelAllowlist != null && !modelAllowlist.includes(params.model)) {
+		throw new SurfaceError(
+			"compose-failed",
+			`graphrefly_compose: model "${params.model}" is not in the server's composeModelAllowlist.`,
+			{ model: params.model, allowlist: [...modelAllowlist] },
+		);
+	}
+	try {
+		const spec = await patterns.graphspec.llmCompose(params.problem, adapter, {
+			...(params.model != null ? { model: params.model } : {}),
+			...(params.temperature != null ? { temperature: params.temperature } : {}),
+			...(params.maxAutoRefine != null ? { maxAutoRefine: params.maxAutoRefine } : {}),
+			catalog,
+		});
+		return { spec: spec as unknown as Record<string, unknown>, validated: true };
+	} catch (err) {
+		// Preserve typed SurfaceError shape if llmCompose (or its internals)
+		// ever grows to throw one — don't flatten the code to `compose-failed`.
+		if (err instanceof SurfaceError) throw err;
+		// Raw LLM content can appear in `llmCompose`'s parse-failure message
+		// ("LLM response is not valid JSON: <200 chars>"). Surface a generic
+		// user-facing message and stash the truncated excerpt in `details` so
+		// operators debugging server-side still have it, but MCP clients don't
+		// get a free echo of system-prompt / catalog fragments.
+		const raw = err instanceof Error ? err.message : String(err);
+		const excerpt = raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
+		throw new SurfaceError(
+			"compose-failed",
+			"llmCompose failed — see `details.excerpt` for diagnostic text.",
+			{ excerpt },
+		);
+	}
 }

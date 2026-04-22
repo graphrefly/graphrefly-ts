@@ -160,7 +160,13 @@ export function withRetry(inner: LLMAdapter, opts: WithRetryOptions = {}): LLMAd
 function defaultShouldRetry(err: unknown, _attempt: number): boolean {
 	if (err == null) return false;
 	const e = err as { name?: string; status?: number; code?: string; message?: string };
-	// Abort-family errors — never retry.
+	// Timeout-family errors — retry by default so each attempt re-arms the
+	// per-attempt deadline set by `withTimeout`. Checked BEFORE the abort
+	// guards below because `withTimeout` re-throws its timer-fire path as
+	// `LLMTimeoutError` even when the underlying fetch rejected with
+	// AbortError.
+	if (e.name === "LLMTimeoutError") return true;
+	// Abort-family errors — never retry (caller initiated).
 	if (e.name === "AbortError") return false;
 	if (e.message === "aborted") return false;
 	if (e.name === "DOMException" && e.code != null && Number(e.code) === 20 /* ABORT_ERR */) {

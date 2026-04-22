@@ -23,6 +23,8 @@ export type SurfaceErrorCode =
 	| "restore-failed"
 	| "snapshot-failed"
 	| "tier-no-list"
+	| "compose-not-configured"
+	| "compose-failed"
 	| "internal-error";
 
 /** JSON-safe shape surfaces should echo back through the wrapper. */

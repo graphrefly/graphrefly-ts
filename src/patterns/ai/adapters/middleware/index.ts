@@ -4,5 +4,6 @@ export * from "./dry-run.js";
 export * from "./http429-parser.js";
 export * from "./rate-limiter.js";
 export * from "./replay-cache.js";
+export * from "./resilient-adapter.js";
 export * from "./retry.js";
 export * from "./timeout.js";

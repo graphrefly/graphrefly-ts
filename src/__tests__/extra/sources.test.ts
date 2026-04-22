@@ -15,6 +15,7 @@ import {
 import { parseCron } from "../../extra/cron.js";
 import { valve } from "../../extra/operators.js";
 import {
+	awaitSettled,
 	cached,
 	empty,
 	firstValueFrom,
@@ -704,6 +705,33 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	it("firstWhere resolves with first matching value (skips earlier)", async () => {
 		const result = await firstWhere(fromIter([1, 2, 3, 4]), (v) => v > 2);
 		expect(result).toBe(3);
+	});
+
+	it("awaitSettled resolves on first non-nullish DATA (default predicate)", async () => {
+		const s = state<string | null>(null);
+		const p = awaitSettled(s);
+		s.emit("hello");
+		expect(await p).toBe("hello");
+	});
+
+	it("awaitSettled respects custom predicate", async () => {
+		const s = state<number>(0);
+		const p = awaitSettled(s, { predicate: (v) => v > 5 });
+		s.emit(3);
+		s.emit(7);
+		expect(await p).toBe(7);
+	});
+
+	it("awaitSettled rejects with TimeoutError on deadline", async () => {
+		const s = state<string | null>(null);
+		await expect(awaitSettled(s, { timeoutMs: 25 })).rejects.toThrow(/Timed out/);
+	});
+
+	it("awaitSettled with timeoutMs resolves before deadline", async () => {
+		const s = state<string | null>(null);
+		const p = awaitSettled(s, { timeoutMs: 500 });
+		setTimeout(() => s.emit("before-deadline"), 5);
+		expect(await p).toBe("before-deadline");
 	});
 
 	it("firstWhere resolves on synchronous source — shouldUnsub path", async () => {

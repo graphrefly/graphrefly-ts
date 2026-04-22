@@ -59,7 +59,7 @@ export interface AuditEntry {
 	actor?: Actor;
 	value?: unknown;
 	error?: unknown;
-	reason?: string;
+	annotation?: string;
 }
 
 function auditMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
@@ -153,8 +153,8 @@ export class AuditTrailGraph extends Graph {
 			if (lastMutation != null) entry.actor = lastMutation.actor;
 			if (type === "data") entry.value = (event as { data: unknown }).data;
 			if (type === "error") entry.error = (event as { data: unknown }).data;
-			const reason = path ? safeAnnotation(target, path) : undefined;
-			if (reason != null) entry.reason = reason;
+			const annotation = path ? safeAnnotation(target, path) : undefined;
+			if (annotation != null) entry.annotation = annotation;
 			if (filter != null && !filter(entry)) return;
 			this._log.append(entry);
 		});
@@ -567,7 +567,7 @@ function causalStepsEqual(a: readonly CausalStep[], b: readonly CausalStep[]): b
 		if (x.status !== y.status) return false;
 		if (x.hop !== y.hop) return false;
 		if (x.dep_index !== y.dep_index) return false;
-		if (x.reason !== y.reason) return false;
+		if (x.annotation !== y.annotation) return false;
 		// Value identity — derived snapshots reuse same refs unless changed.
 		if (x.value !== y.value) return false;
 		// `lastMutation` is `Readonly<{actor, timestamp_ns}>`; identity compare

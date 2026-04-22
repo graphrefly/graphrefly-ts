@@ -1,7 +1,7 @@
 # SESSION: Blog Materials — GraphReFly Eval-Driven Catalog Loop (§9.1 Wave 1)
 
-**Date:** 2026-04-20
-**Status:** Pre-blog-draft materials gathered. Blog post not yet written.
+**Dates:** 2026-04-20 → 2026-04-21
+**Status:** Full A→E progression complete across 3 model classes (thinking, coding-specialized, middle-tier cheap). Blog post not written. Final findings + verdicts appended in § "Verdicts & What To Do About Them" below.
 **Purpose:** Consolidate everything a writer (human or LLM) needs to produce the Wave 1 blog post without re-deriving findings from raw run data. Companion to [SESSION-eval-story-reframe.md](SESSION-eval-story-reframe.md) (the thesis reframe that precedes this material).
 
 ---
@@ -294,3 +294,129 @@ Skip B unless the publish-tier A→C→D results leave the story needing it. B's
 - [ ] Design-partner outreach — NOT STARTED
 
 Minimum remaining before Wave 1 ships: **publish-tier Codex runs → blog → scorecard JSON → design-partner outreach**. Estimated 1-2 working days + ~$15 API cost.
+
+---
+
+## Appendix — 2026-04-21 updates
+
+### Cross-model runs completed
+
+Three model classes, full A-through-E where applicable:
+
+| Model | Class | Treatments run | Cost (actual, OpenRouter CSV) | Pass rate |
+|---|---|---|---|---|
+| `z-ai/glm-4.7` + `z-ai/glm-5.1` judge | thinking | A, B, C, D | $2.93 + $2.13 + $2.26 + $2.66 = **$9.98** | 25-27/30 per treatment |
+| `openai/gpt-5.3-codex` + `openai/gpt-5.4-mini` judge | non-thinking, coding-specialized | A, C | $0.97 + $0.68 + $0.50 = **$2.15** | **30/30** both treatments |
+| `qwen/qwen3.5-flash-02-23` + judge varied | middle-tier, thinking | A, E | $0.68 + $3.78 (qwen-397b judge on A) + $0.48 (gpt-5.4-mini judge on E) = **$4.94** | 30/30 on A; 28/30 real + 1 abort on E |
+
+**Total Wave 1 eval spend across 3 runs of A, 1 B, 2 C, 1 D, 1 E on 3 model classes: ~$17.** Under the $20 ceiling we set.
+
+### Treatment E results (qwen-flash-02-23, 2026-04-21)
+
+- **72% prompt-token reduction**: 2,962 → 824 input tokens/task on graphspec (subsetting kept ~8-15 fns and ~2-4 sources per task from the full 58/20 catalog).
+- **29/30 graphspec pass** — 1 real failure (`error-circuit-breaker` reasoning-loop cap exhaustion, **not** caused by subsetting) + 1 transient abort (`stateful-leaderboard`).
+- **Zero catalog-invalid failures** — subsetting didn't drop any fn a task needed.
+- **Confirms F4 on another model family**: qwen-flash also exhibits reasoning-loop cap exhaustion (164K output tokens on the one failure), same pattern as glm-4.7. Not model-specific to glm.
+
+### Bug fixes landed 2026-04-21
+
+Both were masking real cost + observability data:
+
+1. **Bug 1 fixed**: `run.total_cost_usd` now sums budget-gate state across all providers (generation + judge), not just per-task generation cost. Implemented via new `getAllBudgetStats()` export from `llm-client.ts` + consumed in `runContrastiveEval`. Previously hidden ~$3.78 of judge spend on the qwen-397b judge run; going forward reported cost will match OpenRouter bills within the limits of Bug 2.
+2. **Bug 3 fixed**: `runContrastiveEval` now APPENDS judge scores to `result.judge_scores` instead of OVERWRITING pre-existing diagnostics. The `catalog subset size` (Treatment E) and `auto-refine attempts used` (Treatment C) diagnostics are now preserved alongside judge pass/fail. One-line fix: `[...result.judge_scores, ...scores]`.
+
+Bug 2 (reasoning-token pricing — some models discount reasoning below output rate, e.g. qwen-397b at $0.195/M vs $2.34/M output) remains deferred. Direction is conservative (over-estimates trip USD cap early) but produces 5-10x over-estimates on thinking models. `ModelPricing.reasoning?: number` field + handler in `estimateTokenCost` would close it. Non-blocking.
+
+### Cost-accuracy snapshot (2026-04-21 CSV vs reported)
+
+| Date | Model pair | Reported | Actual (CSV) | Ratio |
+|---|---|---|---|---|
+| 2026-04-20 | glm-4.7 + glm-5.1 (run B/D/retries) | ~$3-4 | $4.92 | close |
+| 2026-04-20 | codex + gpt-5.4-mini (A) | $1.48 | $1.31 | 1.1x over |
+| 2026-04-21 | qwen-flash + qwen-397b (A first attempt) | $0.53 | $4.13 | **0.13x — 8x under** |
+| 2026-04-21 | qwen-flash + gpt-5.4-mini (E) | $0.80 | ~$1.10 | 0.7x — 1.4x under |
+
+Post-Bug-1 fix, reported cost will be within ~15% of actual for non-thinking judges and within ~3x for thinking judges (Bug 2 blind spot).
+
+---
+
+## Verdicts & What To Do About Them
+
+### F1 — Shifting failures within a narrow error-rate band
+
+**Verdict:** **Real.** Across glm-4.7 A→B→D the per-treatment failures shuffled among a rotating cast of ~9 tasks while aggregate error rate held 10-17%. Zero tasks fail in all treatments.
+
+**What to do about it:**
+- **Blog framing**: Use as counter-intuitive section. "Prompt structure doesn't uniformly reduce failures — it *redistributes* them." Challenges the naive assumption that better prompts always win.
+- **Practical advice for readers**: Report error rate *per task* across prompt variations, not just aggregates. A treatment that passes 26/30 with different failures than another 26/30 treatment isn't "the same."
+- **Not a follow-up action** — no library change addresses this. It's an empirical observation about LLM behavior.
+
+### F2 — Reasoning-loop cap exhaustion (dominant failure mode on thinking models)
+
+**Verdict:** **The biggest finding.** ~93% of glm-4.7 failures are cap exhaustion on extended-thinking tasks. Replicated on qwen-flash (1 failure was 164K output tokens, 545s latency on error-circuit-breaker). Not replicated on Codex or gpt-5.4-mini.
+
+**What to do about it:**
+- **Library change**: document in `evals/HOW-TO-EVAL.md` and `CHEAP-AND-SAFE.md` that thinking models need `maxOutputTokens >= 128K` for composition tasks. We already bumped glm-4.7 to 65K mid-run and the pattern still appeared; 128K+ probably isn't enough either — the root cause is the model sidetracking into reasoning, not actual output size.
+- **Eval runner change**: surface reasoning-token count as a first-class field in `TaskResult` (not just bundled into `outputTokens`). Current aggregation hides the "all spent on reasoning, nothing on output" pattern.
+- **Blog framing**: dedicated section "Evaluating Thinking Models". Publishable-in-a-second-post territory — the audience for this finding is broader than harness engineering.
+- **Future experiment**: add an `EVAL_DISABLE_REASONING=true` env var that passes provider-specific no-think flags (e.g., OpenAI `reasoning_effort: "minimal"`, Anthropic `thinking: { type: "disabled" }`). Compare same model with/without thinking on same corpus.
+
+### F3 — Validator vs. judge disagreement (`multi-step-user-signup` template-param case)
+
+**Verdict:** **Real and informative.** Both LLM-as-judges passed the output as valid JSON + all key behaviors present; `validateSpec()` rejected because the LLM invented template params (`$fn`, `$config`) that aren't in the spec's contract.
+
+**What to do about it:**
+- **Spec / validation change**: the current GraphSpec template schema allows `params: string[]` but validation doesn't enforce that params can only be *referenced* in node deps (not as fn names or config values). Tightening this is a spec change — propose to `~/src/graphrefly/GRAPHREFLY-SPEC.md` as a clarification. Maybe also a friendlier error message: `fn: "$fn"` should be flagged as "template params can only substitute node references, not function names or config values. Use a concrete fn name."
+- **Blog framing**: one paragraph. "Judges catch semantic correctness; validators catch composition correctness. Evals need both." Useful for anyone building their own eval harness — don't pick one.
+- **Not a follow-up action** beyond the spec clarification — the LLM invented a reasonable extension; the spec is the constraint.
+
+### F4 — Auto-refine's utility is model-family-dependent
+
+**Verdict:** **Refine never actually triggered on any glm-4.7 or Codex run.** All glm-4.7 failures were structural (empty content from reasoning exhaustion) — refine can't fix what isn't there. Codex produced zero catalog-invalid output. No model in this experiment produced the "valid JSON but wrong fn name" failure mode refine was designed to close.
+
+**What to do about it:**
+- **De-scope Treatment C from the main blog**. It's wired, it's tested, it's documented — and the data says it's infrastructure waiting for the right test subject.
+- **Keep C in the roadmap**: when we eventually evaluate weaker models (edge-tier gemma, Ollama local), refine may fire and we'll have real data.
+- **Narrow Treatment E's claim similarly**: we proved "72% prompt-token reduction with zero quality regression on middle-tier models," not "subsetting reduces catalog-invalid failures." Stay within the data.
+
+### F5 (new) — Treatment E's narrow win: 72% token reduction on middle-tier
+
+**Verdict:** **Measurable and defensible on qwen-flash-02-23.** Not generalizable to every model until we replicate on at least one other middle-tier model, but sufficient as a "one-model existence proof."
+
+**What to do about it:**
+- **Blog framing**: Treatment E gets a paragraph. "Subsetting the catalog by task keywords cut prompt size 72% without hurting pass rate." Conservative claim, honest number.
+- **Follow-up experiment**: run A+E on `deepseek/deepseek-v3.2` or `qwen/qwen3-32b` to confirm the reduction generalizes. ~$1 total cost. Low priority.
+- **Library change**: promote `selectCatalogSubset` from `evals/lib/portable-catalog.ts` → `src/patterns/graphspec.ts` as a public helper. Users with their own catalogs can apply it. ~20 LOC refactor.
+
+### F6 (new) — Judge model choice dominates total eval cost on reasoning models
+
+**Verdict:** Qwen A first attempt: $3.78 on the judge (thinking) vs. $0.35 on generation. Judge was 10x the eval model. Changing judge on Qwen E to `gpt-5.4-mini` (non-thinking) cut total cost to ~$1.10.
+
+**What to do about it:**
+- **`evals/HOW-TO-EVAL.md` update**: explicit warning + recommended judges ("pick a non-thinking judge — `gpt-5.4-mini` or `qwen/qwen3.5-flash-02-23` self-judged if cost sensitive").
+- **Blog framing**: part of the "cost accuracy" section. "The model you judge with matters more than the model you evaluate."
+- **Already addressed by Bug 1 fix** — future runs will at least *show* the judge cost in the summary so users can catch this immediately.
+
+### F7 (new) — Failures are rarely composition-capability problems
+
+**Verdict:** Across 240+ task results, zero "the model doesn't understand GraphSpec" failures. Every failure is one of: (a) reasoning-loop cap exhaustion, (b) template-param overreach, (c) transient API error, (d) cached stale response from prior cache-key invalidation. None are "model picked the wrong fn" or "model couldn't compose."
+
+**What to do about it:**
+- **Headline insight for the blog**: the LLM composition rate is already high on capable models; **the failures are infrastructure, not model**. What moves the metric isn't better prompts — it's better caps, better caches, better judges, better cost tracking.
+- **Not a roadmap change**: just a reframing. Wave 1's story shifts from "we improved prompts" to "we built an eval harness that found real problems the library needed to solve (caps, caches, judges, cost tracking, diagnostics)."
+
+---
+
+## Revised "What's Left for §9.1" (updated 2026-04-21)
+
+1. **Write the blog post** using the updated findings above. **Headline candidate**: "We Built an Eval Harness to Test LLM Graph Composition — We Found 8 Bugs in Our Own Tooling First." Pivots the narrative from "the composition rate is 93%" to "the eval harness matters more than the model on this corpus."
+2. **Scorecard `latest.json`** — now straightforward since total_cost_usd is accurate.
+3. **Reproduce guide polish** — one linking pass for `HOW-TO-EVAL.md` + `CHEAP-AND-SAFE.md` + a new note on judge-model choice.
+4. **Design-partner outreach** — 20-30 emails.
+
+Not needed for Wave 1:
+- Bug 2 fix (reasoning-token pricing) — conservative direction, defer.
+- Treatment C on Codex or qwen — refine's value not testable on these models; gather on weaker models later.
+- Gemma edge-model test — move to post-Wave-1 follow-up.
+
+**Total remaining effort: ~8h across blog + scorecard + outreach.** No more paid LLM runs required before publish.

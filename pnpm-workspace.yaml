@@ -9,5 +9,7 @@ packages:
   - examples/framework/*
   - examples/reactive-layout/*
   - examples/knowledge-graph
+  - examples/spending-alerts
+  - examples/inbox-reducer
   - examples/nestjs/*
   - packages/*

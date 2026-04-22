@@ -102,6 +102,16 @@ These are non-negotiable across all implementations. Validate every change again
 
 When debugging OOM, infinite loops, silent failures, or unexpected values in composed factories, follow the **"Debugging composition"** section in `~/src/graphrefly/COMPOSITION-GUIDE.md`. That is the single source of truth for the procedure. Do not skip or improvise around it.
 
+## Dry-run equivalence rule
+
+**Dry-run must be behaviorally identical to the real run except for the actual LLM wire call.** Every observability surface the real run exercises — stage trace, budget stream, `graph.describe`, `graph.explain`, `observe`, stats readouts — must also be exercised in dry-run on the same graph topology. Regressions in `describe`/`explain`/`observe` or in graph wiring must surface in dry-run BEFORE the user pays for a real run.
+
+When building an example or demo that has a dry-run path:
+- Construct the exact same graph as the real run; only the adapter differs (shipped `dryRunAdapter` or a shaped mock swapped in via `withDryRun`).
+- Call every inspection / explainability method the real run calls. If the real run prints a causal chain, so must dry-run. If the real run subscribes to `budget.totals`, so must dry-run (totals at zero is fine — presence is the point).
+- On regression, exit non-zero from dry-run with a diagnostic so the user sees the bug *before* the confirmation prompt.
+- Inspection tools to reach for first (all shipped): `graph.describe({ format: "pretty" | "mermaid" | "d2" })`, `graph.explain(from, to)`, `graph.observe(path)`, `reachable(graph, from)`, `graphProfile(graph)`, `harnessProfile(graph)`. If you need a new inspection tool that isn't in this list, flag it in `docs/optimizations.md` as a library candidate before shipping ad-hoc scripts.
+
 ## Python-specific invariants
 
 - **Thread safety:** Design for GIL and free-threaded Python. Per-subgraph `RLock`, per-node `_cache_lock`. Core APIs documented as thread-safe (see roadmap Phase 0.4).

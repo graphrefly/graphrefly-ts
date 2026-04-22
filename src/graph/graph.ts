@@ -1128,10 +1128,19 @@ export class Graph {
 	 * Returns the registered node so callers can chain:
 	 * `const counter = g.add("counter", state(0))`.
 	 *
+	 * The optional `opts.annotation` installs an initial
+	 * `graph.trace(name, annotation)` entry — same effect as calling
+	 * `graph.trace` right after, but reads naturally next to the registration.
+	 *
+	 * Upcoming (tracked in `docs/optimizations.md`): new `graph.add(node, opts?)`
+	 * signature with `name` moved into `opts` to eliminate the current
+	 * double-naming. Breaking change; sequenced as its own migration session.
+	 *
 	 * @param name - Local key (no `::`).
 	 * @param node - Node instance to own.
+	 * @param opts - Optional `{ annotation? }`.
 	 */
-	add<T extends Node>(name: string, node: T): T {
+	add<T extends Node>(name: string, node: T, opts?: { annotation?: string }): T {
 		assertRegisterableName(name, this.name, "add");
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": name "${name}" is already a mount point`);
@@ -1150,6 +1159,22 @@ export class Graph {
 		// Edges are derived on demand from node `_deps` (see `edges()`) — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
 		this._emitTopology({ kind: "added", name, nodeKind: "node" });
+		// Install the initial annotation, if supplied. The `_annotations` map
+		// always gets the entry so annotations aren't silently lost when the
+		// inspector is disabled at construction time (reads via `trace(path)`
+		// stay cheap either way). Only the chronological ring-buffer push is
+		// gated on `inspectorEnabled`, since that buffer is the "debug log"
+		// half of the feature.
+		if (opts?.annotation != null) {
+			this._annotations.set(name, opts.annotation);
+			if (this.config.inspectorEnabled) {
+				this._traceRing.push({
+					path: name,
+					annotation: opts.annotation,
+					timestamp_ns: monotonicNs(),
+				});
+			}
+		}
 		return node;
 	}
 
@@ -1732,8 +1757,59 @@ export class Graph {
 		for (const [p, n] of targets) {
 			nodeToPath.set(n, p);
 		}
+
+		// Transitive-deps expansion. Factories like `promptNode` create
+		// unnamed derived helpers (the `::messages` node, switchMap internals)
+		// and only expose their terminal output via `graph.add`. Those helpers
+		// still show up as real `_deps` pointers on their downstream consumer,
+		// so without this walk `describe()` emits dangling path strings that
+		// don't resolve to any entry in `.nodes` — breaking `explainPath` and
+		// any other snapshot walker. Per COMPOSITION-GUIDE §24 ("edges are
+		// derived, not declared — if describe shows an edge, there is a real
+		// protocol subscription"), every dep surfaced as an edge must also be
+		// described. This BFS walks upstream through `_deps` from every
+		// registered member, assigns each orphan a stable path (from its
+		// `meta.name` if unique, else `${name}#N`, else a synthetic
+		// `__internal__/...` key), and feeds them to the existing describe
+		// loop below.
+		const additionalTargets: [string, Node][] = [];
+		{
+			const queue: Node[] = targets.map(([, n]) => n);
+			const usedPaths = new Set(nodeToPath.values());
+			let synthetic = 0;
+			while (queue.length > 0) {
+				const current = queue.shift() as Node;
+				if (!(current instanceof NodeImpl)) continue;
+				for (const dep of current._deps) {
+					const dn = dep.node;
+					if (nodeToPath.has(dn)) continue;
+					// Assign a path. Prefer meta.name so the string matches the
+					// dangling pointer that the consumer's `deps` already
+					// showed — callers who previously saw `"brief::messages"`
+					// in `deps[]` now find a matching entry under that key.
+					const metaName = (dn as { name?: string }).name ?? "";
+					let path = metaName;
+					if (!path || usedPaths.has(path)) {
+						if (metaName) {
+							let n = 2;
+							while (usedPaths.has(`${metaName}#${n}`)) n++;
+							path = `${metaName}#${n}`;
+						} else {
+							path = `__internal__/${synthetic++}`;
+							while (usedPaths.has(path)) path = `__internal__/${synthetic++}`;
+						}
+					}
+					nodeToPath.set(dn, path);
+					usedPaths.add(path);
+					additionalTargets.push([path, dn]);
+					queue.push(dn);
+				}
+			}
+		}
+		const allTargets: [string, Node][] = [...targets, ...additionalTargets];
+
 		const nodes: Record<string, DescribeNodeOutput> = {};
-		for (const [p, n] of targets) {
+		for (const [p, n] of allTargets) {
 			if (actor != null && !n.allowsObserve(actor)) continue;
 			const raw = describeNode(n, effectiveFields);
 			const deps =
@@ -1742,12 +1818,13 @@ export class Graph {
 					: [];
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
-			// Unit 14 A: attach reason annotation from `trace(path, reason)`
-			// when one exists. Skipped for the `"spec"` format (input-schema
-			// use case — annotations don't round-trip through GraphSpec).
+			// Attach annotation from `trace(path, annotation)` or from
+			// `graph.add(path, node, { annotation })` when one exists. Skipped
+			// for the `"spec"` format (input-schema use case — annotations
+			// don't round-trip through GraphSpec).
 			if (!isSpec) {
-				const reason = this._annotations.get(p);
-				if (reason != null) entry.reason = reason;
+				const annotation = this._annotations.get(p);
+				if (annotation != null) entry.annotation = annotation;
 			}
 			if (filter != null) {
 				if (typeof filter === "function") {
@@ -1789,11 +1866,23 @@ export class Graph {
 			nodes[p] = entry;
 		}
 		const nodeKeys = new Set(Object.keys(nodes));
-		// Edges are derived from node `_deps` via `edges({recursive: true})`
-		// (sorted, fully qualified relative to this graph).
-		let edges: { from: string; to: string }[] = this.edges({ recursive: true }).map(
-			([from, to]) => ({ from, to }),
+		// Edges derived from node `_deps` over the expanded `nodeToPath` (so
+		// transitive-deps entries — e.g. `brief::messages` — have edges to
+		// their own upstream + from their downstream consumer, not just the
+		// registered-member-only subset `this.edges({recursive: true})` would
+		// give). Sorted to match the old contract.
+		const edgeList: [string, string][] = [];
+		for (const [path, n] of allTargets) {
+			if (!(n instanceof NodeImpl)) continue;
+			for (const dep of n._deps) {
+				const from = nodeToPath.get(dep.node);
+				if (from != null) edgeList.push([from, path]);
+			}
+		}
+		edgeList.sort((a, b) =>
+			a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0,
 		);
+		let edges: { from: string; to: string }[] = edgeList.map(([from, to]) => ({ from, to }));
 		if (actor != null || filter != null) {
 			edges = edges.filter((e) => nodeKeys.has(e.from) && nodeKeys.has(e.to));
 		}
@@ -3072,44 +3161,63 @@ export class Graph {
 	/**
 	 * Unified reasoning trace: write annotations or read the ring buffer.
 	 *
-	 * Write: `graph.trace("path", "reason")` — attaches a reasoning annotation
-	 * to a node, capturing *why* an AI agent set a value. Unknown paths are
-	 * silently dropped (matching `observe` resilience). No-op when
-	 * `config.inspectorEnabled` is `false`.
-	 *
-	 * Read: `graph.trace()` — returns a chronological log of all annotations.
-	 * Returns `[]` when `config.inspectorEnabled` is `false`.
+	 * - `graph.trace("path", "annotation")` — attaches a reasoning annotation
+	 *   to a node, capturing *why* an AI agent set a value. Overwrites the
+	 *   current annotation (if any) and appends to the chronological ring.
+	 *   Unknown paths are silently dropped (matching `observe` resilience).
+	 *   No-op when `config.inspectorEnabled` is `false`.
+	 * - `graph.trace("path")` — returns the current annotation for `path`,
+	 *   or `undefined` if none. Precedence: most recent `trace(path, ...)`
+	 *   wins; if no trace call, whatever `graph.add("path", node, { annotation })`
+	 *   installed; otherwise `undefined`.
+	 * - `graph.trace()` — returns a chronological log of all write entries.
+	 *   Returns `[]` when `config.inspectorEnabled` is `false`.
 	 */
-	trace(path: string, reason: string, opts?: { actor?: Actor }): void;
+	trace(path: string, annotation: string, opts?: { actor?: Actor }): void;
+	trace(path: string): string | undefined;
 	trace(): readonly TraceEntry[];
 	trace(
 		path?: string,
-		reason?: string,
+		annotation?: string,
 		opts?: { actor?: Actor },
-	): undefined | readonly TraceEntry[] {
-		if (path != null && reason != null) {
-			if (!this.config.inspectorEnabled) return;
+	): void | string | undefined | readonly TraceEntry[] {
+		// Write: (path, annotation[, opts])
+		// Write: (path, annotation[, opts])
+		if (path != null && annotation != null) {
 			// Silent-drop unknown paths — matches `observe` resilience. Callers
 			// with robust path-hygiene needs can pre-check via `tryResolve`.
 			if (this.tryResolve(path) == null) return;
-			this._annotations.set(path, reason);
-			const entry: TraceEntry = {
-				path,
-				reason,
-				timestamp_ns: monotonicNs(),
-				...(opts?.actor != null ? { actor: opts.actor } : {}),
-			};
-			this._traceRing.push(entry);
+			// The `_annotations` map is always kept current so reads don't
+			// lose annotations installed before the inspector flag flipped.
+			// Only the chronological ring-buffer push is gated on inspector.
+			this._annotations.set(path, annotation);
+			if (this.config.inspectorEnabled) {
+				const entry: TraceEntry = {
+					path,
+					annotation,
+					timestamp_ns: monotonicNs(),
+					...(opts?.actor != null ? { actor: opts.actor } : {}),
+				};
+				this._traceRing.push(entry);
+			}
 			return;
 		}
+		// Read single: (path). Symmetric with read-all — short-circuit when
+		// inspector is disabled so callers treat both overloads identically.
+		if (path != null) {
+			if (!this.config.inspectorEnabled) return undefined;
+			return this._annotations.get(path);
+		}
+		// Read all: ()
 		if (!this.config.inspectorEnabled) return [];
 		return this._traceRing.toArray();
 	}
 
 	/**
-	 * Latest reason annotation attached to `path` via {@link Graph.trace},
-	 * or `undefined` if none. `describe()` surfaces this via the `reason`
-	 * field on each node entry (when present).
+	 * Latest annotation attached to `path` — via {@link Graph.trace} or via
+	 * {@link Graph.add}'s `{annotation}` option. Returns `undefined` if none.
+	 * `describe()` surfaces this via the `annotation` field on each node entry
+	 * (when present). Equivalent to `graph.trace(path)`.
 	 */
 	annotation(path: string): string | undefined {
 		return this._annotations.get(path);
@@ -3220,7 +3328,7 @@ export class Graph {
 /** Entry in the reasoning trace ring buffer (roadmap 3.3). */
 export type TraceEntry = {
 	path: string;
-	reason: string;
+	annotation: string;
 	timestamp_ns: number;
 	/**
 	 * Actor that produced the annotation (optional). Enables multi-agent

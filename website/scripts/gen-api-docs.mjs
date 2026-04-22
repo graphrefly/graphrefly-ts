@@ -235,6 +235,9 @@ const REGISTRY = {
 	withRateLimiter: "src/patterns/ai/adapters/middleware/rate-limiter.ts",
 	withReplayCache: "src/patterns/ai/adapters/middleware/replay-cache.ts",
 	withRetry: "src/patterns/ai/adapters/middleware/retry.ts",
+	withTimeout: "src/patterns/ai/adapters/middleware/timeout.ts",
+	withBreaker: "src/patterns/ai/adapters/middleware/breaker.ts",
+	resilientAdapter: "src/patterns/ai/adapters/middleware/resilient-adapter.ts",
 	parseRateLimitFromError: "src/patterns/ai/adapters/middleware/http429-parser.ts",
 	withDryRun: "src/patterns/ai/adapters/middleware/dry-run.ts",
 

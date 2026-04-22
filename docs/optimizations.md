@@ -10,6 +10,87 @@
 
 ## Active work items
 
+- **`fallbackAdapter` fixtures API — three fields instead of one union (opened + resolved 2026-04-21, inbox-reducer QA):**
+  **DONE.** Shipped in [src/patterns/ai/adapters/providers/fallback.ts](../src/patterns/ai/adapters/providers/fallback.ts). `fixtures: readonly FallbackFixture[]` (inline hand-authored, messages-keyed or hash-keyed; adapter auto-hashes at init), `fixturesDir: string` (cache-format files), `fixturesStorage: StorageTier` (advanced backends). Mutually exclusive — `TypeError` at init if more than one is set. Init-time validator on `fixturesDir` throws a clear `TypeError` on non-cache-format files (checks for `response.content` + `storedAtNs`, flags top-level `messages` as hand-authored-leak) — users drop hand-authored fixtures into a directory and silently miss no more. Tests: 17 in [fallback.test.ts](../src/__tests__/patterns/ai/adapters/fallback.test.ts) (+4 new: mutex validators, messages-keyed auto-hashing, record.dir inherit, record.storage/dir mutex). Below kept for history.
+  **Original design shape (kept below for history):**
+  Current `fixtures?: string | readonly FallbackFixture[] | StorageTier` stuffs three distinct concerns into one shape-discriminated option. Pre-1.0 refactor — split into three fields, mutually exclusive:
+  ```ts
+  fixtures?: readonly FallbackFixture[];   // hand-authored inline (messages-keyed OR hash-keyed)
+  fixturesDir?: string;                    // directory of cache-format files — auto-namespaced
+  fixturesStorage?: StorageTier;           // advanced: custom backend (sqlite/indexeddb/remote)
+  ```
+  **Why:** `fixtures` unambiguously means "inline". `fixturesDir` is the filesystem happy path with auto-namespacing baked in. `fixturesStorage` is the bring-your-own-backend escape hatch, clearly marked advanced.
+  **Messages-keyed stays in `fixtures`** — hash-by-hand is dev-hostile. Hash-keyed lives in `fixturesDir` because that's the record-mode file format (copy-pastable filenames from prior record runs).
+  **Directory mode: hash-keyed only** — a hand-authored `{messages, response}` file dropped into `fixturesDir` is silently missed today. Add a ~10-LOC init-time validator: scan the dir, parse a sample, throw a clear `TypeError` if shape doesn't match `CachedEntry`. Document clearly. If a user wants hand-authored in a directory, the fix is: hoist to `fixtures: [...]` and let the adapter compute hashes in memory.
+  **Alternatives considered:** (A2) auto-convert messages-keyed files via pre-scan wrapper — breaks "file format matches withReplayCache" promise; write-conflict ambiguity with record mode. (A4) hybrid merged tier — same issues plus more code. (A3) two separate directories — more config surface.
+
+- **`fallbackAdapter` + `withReplayCache` directory commingling — auto-namespace `fixturesDir` (opened + resolved 2026-04-21, inbox-reducer QA):**
+  **DONE.** Shipped as B2 in the same session. `fixturesDir: "./dir"` now resolves internally to `fileStorage(join("./dir", keyPrefix))` — multiple adapters sharing a root directory get distinct subdirs per `keyPrefix`. Same auto-namespacing applied to `record.dir`. `fixturesStorage` (B5) preserved as the escape hatch for custom backends (sqlite/indexeddb/cascading) and for opting out of auto-namespace. `record.dir` defaults to `fixturesDir` when omitted — enables the "read baseline, append misses to same dir" pattern. Below kept for history.
+  **Original design shape (kept below for history):**
+  Two adapters pointed at the same `dir` with different `keyPrefix` (e.g. `fallback:` vs `llm-replay:`) produce distinct keys so lookups don't collide — but files commingle. Bulk-ops (rm, diff, backup scripts) can't tell tenants apart.
+  **Recommendation: auto-namespace when `fixturesDir` / `record.dir` is a string → `fileStorage(join(dir, keyPrefix))`.** This becomes the default: physical separation, zero commingle risk.
+  **`fixturesStorage` (StorageTier) is NOT just for back-compat** — it's the door for every non-filesystem backend (sqlite / indexeddb / remote / cascading), which a pure `fixturesDir` can't express. Users who want to OPT OUT of auto-namespacing (e.g., interop with an existing fixture set) can reach for `fixturesStorage: fileStorage(dir)` directly. 95% of users never need this; the `fixturesDir` default just works.
+  **Alternatives considered:** (B1) do nothing — operational footgun remains. (B3) manifest file — race-prone. (B4) one-time warning on construction of two adapters sharing a dir — orthogonal; could ship as belt-and-suspenders alongside B2. (B5 as back-compat only) — rejected: B5 serves genuine custom-backend use cases.
+
+- **Developer-defined cache key generator for `withReplayCache` / `fallbackAdapter` (opened 2026-04-21, inbox-reducer session):**
+  Today `WithReplayCacheOptions.keyFn?: (messages, opts?) => string` accepts a custom function, but the function only gets `messages` + `invokeOpts` — not any caller-supplied per-call context. A developer who wants to key on user id, session, feature flag, or any other dimension has to close over it at wrap time (one adapter per user) or hand-roll middleware.
+  **Fix shape:** widen `keyFn` to accept a richer context object, e.g. `keyFn: (ctx: { messages, opts, context?: unknown }) => string`, where `context` comes from the call site. Two ways to thread it:
+  - Extend `LLMInvokeOptions` with an open-ended `keyContext?: unknown` / `extensions?: Record<string, unknown>` slot that callers populate per `adapter.invoke(msgs, { keyContext })`, and that `keyFn` receives unchanged.
+  - Or pair with a `withContext(adapter, staticContext)` middleware that stamps a fixed context onto every call — less flexible, but zero changes to call sites.
+  Same widening applies to `fallbackAdapter` (it shares `withReplayCache`'s key path). Would let fixtures be sharded by tenant/flag/environment without wrapping the adapter N times. Non-breaking (additive).
+
+- **`graph.add(node, opts)` — signature flip (opened 2026-04-21, inbox-reducer session):**
+  Today's signature is `graph.add(name, node, opts?)` with name duplicated between the node factory's `name` option and `graph.add`'s first arg. Per session discussion, new signature is `graph.add(node, { name?, annotation? })` — name lives in opts, falls back to `node.meta.name`. **Deferred — the flip touches ~400 call sites across src/, examples/, packages/, and evals/** (mostly test code) and would take 2-3h of mechanical migration with test-regression risk. Scope as its own focused session. In the interim, `graph.add(name, node, opts?)` accepts `{ annotation? }` in opts so the "annotation lives next to registration" ergonomics work ships now.
+
+- **Inspection-surface consolidation pass #2 (opened 2026-04-21, inbox-reducer session):**
+  Following the 2026-04-08 consolidation (see `archive/docs/SESSION-inspection-consolidation.md`), new additions have re-introduced confusion. Candidates for a second pass:
+  - `explain` / `reactiveExplainPath` → `explain({ reactive })` — same question (how did X become Y?), static vs. live.
+  - `describe` / `graphLens` → `describe({ reactive })` — same question (what's the structure?), static vs. live.
+  - `harnessTrace` absorbed into `observe({ format: "stage-log", nodes? })` — `harnessTrace` is `observe` specialized to named harness stages. Make the specialization a format option, not a separate function.
+  Out of scope for the inbox-reducer session. Run as its own QA-gated pass.
+
+- **Stdout-native DAG flowchart renderer: library feature (opened 2026-04-21, inbox-reducer session):**
+  Extend `graph.describe({ format })` with `"ascii"` (scalable stdout diagram) and/or `"sixel"` (color, high-density). reactive-layout's `CliMeasureAdapter` gives accurate terminal cell widths (CJK/combining-mark safe) — use it for box content width measurement. The HARD parts not in reactive-layout: layered DAG layout (Sugiyama-lite: layer assignment + crossing minimization) and orthogonal edge routing. ~400-500 LOC, zero deps, graph-size independent. Benefits: `graphrefly describe --format=ascii` CLI subcommand, any pipeline demo's stdout story, diagnostic dumps in tests. **Workaround until then:** `mermaidLiveUrl(describe({format: "mermaid"}))` helper — one clickable link to a live interactive diagram. Shipped in `examples/inbox-reducer/index.ts`; candidate to promote as a library helper `describe({ format: "mermaid-url" })`.
+
+- **`fallbackAdapter` — library provider with `provider: "fallback"` (opened + resolved 2026-04-21, inbox-reducer session):**
+  **DONE.** Shipped at [src/patterns/ai/adapters/providers/fallback.ts](../src/patterns/ai/adapters/providers/fallback.ts), wired into `createAdapter({ provider: "fallback", ... })`, re-exported via `@graphrefly/graphrefly/patterns/ai`. 13 tests at [src/__tests__/patterns/ai/adapters/fallback.test.ts](../src/__tests__/patterns/ai/adapters/fallback.test.ts). Covers: inline-map / directory / array fixture sources; `onMiss: "throw" | "respond"`; canned degraded response when no `respond` supplied; record mode persisting invoke + stream transcripts (with per-chunk delay capture); `fixtures + record` combined (replay-then-record-on-miss); stream replay respects `replaySpeed`; invoke-only fixture synthesizes a single-chunk stream. Key shape matches `withReplayCache` — fixture files are interchangeable. Duplicated `canonicalJson` from replay-cache.ts; flagged to dedupe when a second consumer needs it.
+  **Original design shape (kept below for history):**
+  A first-class `LLMAdapter` alongside `anthropicAdapter` / `openAICompatAdapter` / `googleAdapter` / `ollamaAdapter` / `dryRunAdapter`, but whose role is to serve pre-recorded or canned responses when real providers aren't reachable. `adapter.provider === "fallback"` makes its role self-documenting in logs, stats, and cost tables (it charges $0).
+  **Not a composer.** Users install it as a tier via the existing mechanisms — no new wrapper needed:
+  ```ts
+  cascadingLlmAdapter([
+    { name: "primary",  adapter: anthropicAdapter(...) },
+    { name: "fallback", adapter: fallbackAdapter({ fixtures: "./fixtures" }) },
+  ]);
+  // or via the resilientAdapter sugar:
+  resilientAdapter(anthropicAdapter(...), {
+    fallback: fallbackAdapter({ fixtures: "./fixtures" }),
+  });
+  ```
+  **Fix shape:** `fallbackAdapter(opts)` returning an `LLMAdapter`, where `opts` supports:
+  - `fixtures: string | { [key: string]: LLMResponse }` — directory of recorded `{request, response}` JSON files, OR an inline map keyed on prompt+model hash. Streaming fixtures record chunks + cadence and replay at original pace (or accelerated via `replaySpeed`).
+  - `respond?: (messages, opts?) => string | LLMResponse` — scripted fallback for cases without a fixture. Same shape as `dryRunAdapter`'s `respond` callback.
+  - `onMiss?: "throw" | "respond" | "degrade"` — miss policy. `"degrade"` returns a canned "service unavailable" response marked with `metadata.degraded: true` so callers can render a UX hint.
+  - `record?: { adapter: LLMAdapter, dir: string }` — record mode: wrap a real adapter, persist every `{request, response}` pair to `dir` as it flows through, keyed on a stable hash (same pattern as `withReplayCache`). Running `fallbackAdapter` in record mode against real traffic populates a fixture set that later runs can replay offline.
+  **Three use cases, one adapter:**
+  1. **Users' apps** — install as the `fallback` tier in `cascadingLlmAdapter` / `resilientAdapter` so their app degrades gracefully when cloud provider fails or network is offline.
+  2. **Tests** — `record-missing` style: first CI run records, committed fixtures drive deterministic replays thereafter. Miss in read-only mode fails loudly.
+  3. **Evals offline fallback** — replaces the ad-hoc `evals/lib/replay-cache.ts` implementation. `fallbackAdapter` fed a fixtures dir produces identical eval traces with no API spend. (Today's `evals/lib/replay-cache.ts` is essentially this pattern with its own key function + storage shape — consolidate.)
+  **Shared implementation.** Obviates the "should `mock-llm.ts` be a public test helper?" question from roadmap Phase 7.6 — this adapter IS the shared mechanism. `src/__tests__/helpers/mock-llm.ts` can be retired or simplified to thin wrapper on top.
+  **Scope:** `src/patterns/ai/adapters/providers/fallback.ts` — the adapter itself. Fixture file format shared with `withReplayCache` (JSON Lines, sha256 key) so fixtures produced by either tool work with the other. Streaming support mandatory. ~250 LOC, no new deps. `createAdapter({ provider: "fallback", … })` dispatches to it so users can configure via the same preset flow as other providers.
+
+- **Dry-run should exercise every observability code path the real run exercises (opened 2026-04-21, inbox-reducer session):**
+  Bug caught in QA: `inbox-reducer`'s dry-run didn't call `graph.explain('emails', 'brief')`, so a dangling-pointer bug in `describe()` (factory-internal deps not surfaced) only manifested on the paid real-run. Fixed at the example level by adding the `graph.explain` check + pretty causal-chain print to the dry-run block; if `chain.found === false`, exit 3 before any spend. **Library-level question:** is this a per-example discipline, or should `dryRunAdapter` expose a "smoke-exercise" hook that walks a configurable list of observability calls (`describe()`, `explain(from, to)`, `observe(node)`) after the pipeline settles? Arguable. Flagging so future examples (and the MCP server reduce path?) apply the same discipline. Non-blocking; precedent set in `examples/inbox-reducer/index.ts:dryRun`.
+
+- **`withBudgetGate` `onExhausted` fires on every blocked attempt, not on the open→closed edge (opened 2026-04-21, §9.3d QA):**
+  `buildClosedError` at [src/patterns/ai/adapters/middleware/budget-gate.ts:132-144](src/patterns/ai/adapters/middleware/budget-gate.ts) unconditionally calls `opts.onExhausted?.(which)` whenever an invoke hits a closed gate — not only on the open→closed transition. Consumers that wire this as an alert (dashboard, Slack page) receive N duplicates for N post-cap attempts. JSDoc reads edge-triggered ("Called when any cap trips"), so callers may not expect the flood. **Fix shape:** track a `wasOpen` flag inside the bundle and fire `onExhausted` only on the edge; document per-attempt subscribers should use `isOpen` directly. Cross-cutting because the same edge-vs-level question applies to breaker callbacks — keep consistent. Non-blocking; existing callers happen to tolerate the current shape.
+
+- **`resilientAdapter` should expose `onFallback` / `onExhausted` from `cascadingLlmAdapter` (opened 2026-04-21, §9.3d QA):**
+  When `opts.fallback` is set, [src/patterns/ai/adapters/middleware/resilient-adapter.ts:139-144](src/patterns/ai/adapters/middleware/resilient-adapter.ts) constructs `cascadingLlmAdapter([primary, fallback])` with no options, so `cascadingLlmAdapter`'s `onFallback(from, to, err)` and `onExhausted(report)` hooks are unreachable through the sugar. The bundle markets itself for "dashboards + alerts" so fallback-engagement telemetry is a natural ask. **Fix shape:** add `onFallback?` / `onExhausted?` to `ResilientAdapterOptions`, thread them into the `cascadingLlmAdapter` options. One layer of plumbing; no design question.
+
+- **Rate-limiter sharing across multiple `resilientAdapter` instances (opened 2026-04-21, §9.3d QA):**
+  `withRateLimiter(inner, opts.rateLimit)` creates a fresh limiter per `resilientAdapter(...)` call. Users who call `resilientAdapter` twice — e.g. to separately harden primary and fallback before wrapping them with `cascadingLlmAdapter` manually — get two independent limiters even when the RPM/TPM cap is logically per-provider. Today the only workaround is constructing the stack by hand. **Fix shape:** accept an optional shared `AdaptiveRateLimiterBundle` in `ResilientAdapterOptions.rateLimit` (e.g. `rateLimit: { ..., limiter?: AdaptiveRateLimiterBundle }`) that `withRateLimiter` can reuse instead of constructing. Docstring nudge alongside. Non-blocking.
+
 - **Surface `restoreSnapshot` rejects `mode: "diff"` records — revisit after §8.7 WAL replay (opened 2026-04-19, §9.3 QA):**
   `src/patterns/surface/snapshot.ts` `unwrapCheckpoint` throws `restore-failed` when the tier's latest record is a `mode: "diff"` `GraphCheckpointRecord`. Today that's unreplayable (no WAL history storage), so callers must either use `saveSnapshot` (always writes full) or configure `attachStorage({compactEvery: 1})`. **Fix shape:** once Phase 8.7 (Delta checkpoints & WAL) lands, `restoreSnapshot` should read the baseline + replay WAL entries up to the target seq. The StorageTier contract will need to grow a `listByPrefix(prefix)` / `readWAL(key)` to expose the history. **Coordinate with §8.7 design** so the surface and auto-checkpoint paths share the same replay implementation. JSDoc on `restoreSnapshot` currently documents the constraint and points at this item.
 

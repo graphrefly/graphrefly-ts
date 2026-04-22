@@ -9,6 +9,7 @@
 
 import { type AnthropicAdapterOptions, anthropicAdapter } from "../providers/anthropic.js";
 import { type DryRunAdapterOptions, dryRunAdapter } from "../providers/dry-run.js";
+import { type FallbackAdapterOptions, fallbackAdapter } from "../providers/fallback.js";
 import { type GoogleAdapterOptions, googleAdapter } from "../providers/google.js";
 import {
 	type OpenAICompatAdapterOptions,
@@ -21,7 +22,8 @@ export type AdapterProvider =
 	| "anthropic"
 	| OpenAICompatPreset // "openai" | "openrouter" | "groq" | "ollama" | "deepseek" | "xai"
 	| "google"
-	| "dry-run";
+	| "dry-run"
+	| "fallback";
 
 export interface CreateAdapterOptions {
 	provider: AdapterProvider;
@@ -71,6 +73,17 @@ export function createAdapter(opts: CreateAdapterOptions): LLMAdapter {
 				...(opts.extras as DryRunAdapterOptions | undefined),
 			};
 			return dryRunAdapter(d);
+		}
+		case "fallback": {
+			// `provider`/`model` threaded as labels; `fixtures`/`record`/etc.
+			// must come through `extras` since `CreateAdapterOptions` doesn't
+			// have dedicated slots for them.
+			const f: FallbackAdapterOptions = {
+				provider: opts.provider,
+				model: opts.model,
+				...(opts.extras as FallbackAdapterOptions | undefined),
+			};
+			return fallbackAdapter(f);
 		}
 		// OpenAI-compat presets
 		case "openai":

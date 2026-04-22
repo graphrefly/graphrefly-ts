@@ -6,12 +6,13 @@
  * @module
  */
 
-import type { GraphSpecCatalog } from "@graphrefly/graphrefly";
+import type { GraphSpecCatalog, LLMAdapter } from "@graphrefly/graphrefly";
 import { SurfaceError } from "@graphrefly/graphrefly";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Session } from "./session.js";
 import {
+	graphreflyCompose,
 	graphreflyCreate,
 	graphreflyDelete,
 	graphreflyDescribe,
@@ -34,6 +35,22 @@ export interface BuildMcpServerOptions {
 	 * design pass — server operators register the catalog at startup.
 	 */
 	catalog?: GraphSpecCatalog;
+	/**
+	 * Pre-configured LLM adapter for `graphrefly_compose` (NL→GraphSpec).
+	 * Server operators wire this at startup from env/config — credentials
+	 * stay off the MCP wire. Typically: `resilientAdapter(createAdapter({
+	 * provider, apiKey, model }))`. Omit to disable the compose tool.
+	 */
+	composeAdapter?: LLMAdapter;
+	/**
+	 * Optional allowlist of model IDs clients may request via `graphrefly_compose`
+	 * `params.model`. Any value outside this list is rejected with a typed
+	 * `compose-failed` error BEFORE the adapter is invoked — so a malicious
+	 * caller can't coerce an expensive frontier model onto operator-funded
+	 * credentials. Omit to allow any model the caller passes (adapter default
+	 * still wins when `params.model` is unset).
+	 */
+	composeModelAllowlist?: readonly string[];
 	/** Server metadata; defaults match the npm package. */
 	name?: string;
 	version?: string;
@@ -285,6 +302,39 @@ export function buildMcpServer(session: Session, opts?: BuildMcpServerOptions): 
 			inputSchema: {},
 		},
 		wrap(async () => graphreflyList(session)),
+	);
+
+	server.registerTool(
+		"graphrefly_compose",
+		{
+			title: "Compose a GraphSpec from natural language",
+			description:
+				"NL→GraphSpec via llmCompose. Returns a validated spec only — follow with graphrefly_create to register and run it. Requires composeAdapter wired at server startup.",
+			inputSchema: {
+				problem: z.string().min(1).describe("Natural-language description of the graph to build."),
+				model: z
+					.string()
+					.optional()
+					.describe("Override the adapter's default model for this call."),
+				temperature: z.number().min(0).max(2).optional(),
+				maxAutoRefine: z
+					.number()
+					.int()
+					.nonnegative()
+					.optional()
+					.describe(
+						"Max catalog-validation refine attempts. Default 0. Each retry costs one LLM call.",
+					),
+			},
+		},
+		wrap((p: { problem: string; model?: string; temperature?: number; maxAutoRefine?: number }) =>
+			graphreflyCompose(p, catalog, {
+				adapter: opts?.composeAdapter,
+				...(opts?.composeModelAllowlist != null
+					? { modelAllowlist: opts.composeModelAllowlist }
+					: {}),
+			}),
+		),
 	);
 
 	return server;

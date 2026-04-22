@@ -14,7 +14,12 @@
  * → `EvalConfig.compatChatExtra`, merged into each chat completion.
  */
 
-import { type BudgetGateOptions, withBudgetGate } from "./budget-gate.js";
+import {
+	type BudgetGateOptions,
+	type BudgetState,
+	type GatedProvider,
+	withBudgetGate,
+} from "./budget-gate.js";
 import { createDryRunProvider } from "./dry-run-provider.js";
 import type { ResolvedLimits } from "./limits.js";
 import { resolveLimits } from "./limits.js";
@@ -325,7 +330,7 @@ export function createSafeProvider(
 		readonly cacheDir?: string;
 		readonly budgetOverride?: Partial<BudgetGateOptions["caps"]>;
 	} = {},
-): { provider: LLMProvider; limiter: AdaptiveRateLimiter } {
+): { provider: LLMProvider; limiter: AdaptiveRateLimiter; budget: GatedProvider } {
 	const mode = process.env.EVAL_MODE ?? "real";
 	const base =
 		mode === "dry-run"
@@ -377,7 +382,7 @@ export function createSafeProvider(
 		providerKey: mode === "dry-run" ? `${config.provider}+dryrun` : config.provider,
 	});
 
-	return { provider: cached, limiter };
+	return { provider: cached, limiter, budget: gated };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +390,10 @@ export function createSafeProvider(
 // ---------------------------------------------------------------------------
 
 /** Provider + rate limiter instances cached by provider name + compat extras. */
-const _providerCache = new Map<string, { provider: LLMProvider; limiter: AdaptiveRateLimiter }>();
+const _providerCache = new Map<
+	string,
+	{ provider: LLMProvider; limiter: AdaptiveRateLimiter; budget: GatedProvider }
+>();
 
 function providerInstanceCacheKey(config: EvalConfig, providerName?: ProviderName): string {
 	const name = providerName ?? config.provider;
@@ -396,7 +404,7 @@ function providerInstanceCacheKey(config: EvalConfig, providerName?: ProviderNam
 function getProviderWithLimiter(
 	config: EvalConfig,
 	providerName?: ProviderName,
-): { provider: LLMProvider; limiter: AdaptiveRateLimiter } {
+): { provider: LLMProvider; limiter: AdaptiveRateLimiter; budget: GatedProvider } {
 	const cacheKey = providerInstanceCacheKey(config, providerName);
 	let entry = _providerCache.get(cacheKey);
 	if (!entry) {
@@ -419,6 +427,39 @@ export function getProviderLimits(config: EvalConfig, providerName?: ProviderNam
 /** Get rate limiter stats for the configured provider. */
 export function getRateLimiterStats(config: EvalConfig, providerName?: ProviderName) {
 	return getProviderWithLimiter(config, providerName).limiter.stats();
+}
+
+/**
+ * Sum budget-gate state across every provider instantiated this process.
+ *
+ * Use at the end of a run to report total spend — covers both generation
+ * calls (`config.provider`) and judge calls (`config.judgeProvider`), which
+ * are separate budget gates when the two providers differ. Without this,
+ * `run.total_cost_usd` only captured per-task generation cost and missed
+ * the often-dominant judge spend (qwen/glm reasoning-model judges routinely
+ * cost 3-5x the generation cost).
+ */
+export function getAllBudgetStats(): {
+	readonly totalCalls: number;
+	readonly totalInputTokens: number;
+	readonly totalOutputTokens: number;
+	readonly totalPriceUsd: number;
+	readonly perProvider: Record<string, Readonly<BudgetState>>;
+} {
+	let totalCalls = 0;
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
+	let totalPriceUsd = 0;
+	const perProvider: Record<string, Readonly<BudgetState>> = {};
+	for (const [key, entry] of _providerCache.entries()) {
+		const s = entry.budget.state;
+		totalCalls += s.calls;
+		totalInputTokens += s.inputTokens;
+		totalOutputTokens += s.outputTokens;
+		totalPriceUsd += s.priceUsd;
+		perProvider[key] = { ...s };
+	}
+	return { totalCalls, totalInputTokens, totalOutputTokens, totalPriceUsd, perProvider };
 }
 
 export async function callLLM(

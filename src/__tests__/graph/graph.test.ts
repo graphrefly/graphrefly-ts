@@ -662,11 +662,11 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));
 		g.trace("a", "first");
-		expect(g.trace().some((e) => e.reason === "first")).toBe(true);
+		expect(g.trace().some((e) => e.annotation === "first")).toBe(true);
 		// Unit 14 E (batch 8): unknown path → silent drop (matches observe
 		// resilience), no throw. The entry is not recorded.
 		g.trace("missing", "x");
-		expect(g.trace().some((e) => e.reason === "x")).toBe(false);
+		expect(g.trace().some((e) => e.annotation === "x")).toBe(false);
 
 		const prev = g.config.inspectorEnabled;
 		try {
@@ -676,7 +676,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		} finally {
 			g.config.inspectorEnabled = prev;
 		}
-		expect(g.trace().some((e) => e.reason === "second")).toBe(false);
+		expect(g.trace().some((e) => e.annotation === "second")).toBe(false);
 	});
 
 	it("observe({ format }) logs events with include/exclude filters", () => {

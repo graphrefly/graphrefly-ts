@@ -356,6 +356,19 @@ importers:
         specifier: ^2.2.0
         version: 2.2.12(typescript@5.9.3)
 
+  examples/inbox-reducer:
+    dependencies:
+      '@graphrefly/graphrefly':
+        specifier: workspace:*
+        version: link:../..
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   examples/knowledge-graph:
     dependencies:
       '@graphrefly/graphrefly':
@@ -415,6 +428,19 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.1(@types/node@25.5.0)(tsx@4.21.0)
+
+  examples/spending-alerts:
+    dependencies:
+      '@graphrefly/graphrefly':
+        specifier: workspace:*
+        version: link:../..
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
   packages/cli:
     dependencies:

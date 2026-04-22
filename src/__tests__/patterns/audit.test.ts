@@ -57,7 +57,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 		g.set("a", 99);
 
 		const all = audit.all();
-		expect(all[0]?.reason).toBe("set by pricing rule R7");
+		expect(all[0]?.annotation).toBe("set by pricing rule R7");
 	});
 
 	it("respects includeTypes filter", () => {

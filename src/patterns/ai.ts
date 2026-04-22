@@ -42,6 +42,33 @@ import { type TopicGraph, topic } from "./messaging.js";
 import { type GateController, type GateOptions, gate } from "./orchestration.js";
 
 // ---------------------------------------------------------------------------
+// Adapter layer (§9.3d) — providers, middleware, routing primitives
+// re-exported so users reach `createAdapter`, `resilientAdapter`, etc. via
+// `patterns.ai.<name>`. Browser-only adapters (WebLLM, ChromeNano) stay
+// behind a subpath to keep Node bundles lean.
+// ---------------------------------------------------------------------------
+
+export * from "./ai/adapters/core/capabilities.js";
+export * from "./ai/adapters/core/factory.js";
+export * from "./ai/adapters/core/observable.js";
+export * from "./ai/adapters/core/pricing.js";
+export * from "./ai/adapters/middleware/breaker.js";
+export * from "./ai/adapters/middleware/budget-gate.js";
+export * from "./ai/adapters/middleware/dry-run.js";
+export * from "./ai/adapters/middleware/http429-parser.js";
+export * from "./ai/adapters/middleware/rate-limiter.js";
+export * from "./ai/adapters/middleware/replay-cache.js";
+export * from "./ai/adapters/middleware/resilient-adapter.js";
+export * from "./ai/adapters/middleware/retry.js";
+export * from "./ai/adapters/middleware/timeout.js";
+export * from "./ai/adapters/providers/anthropic.js";
+export * from "./ai/adapters/providers/dry-run.js";
+export * from "./ai/adapters/providers/google.js";
+export * from "./ai/adapters/providers/openai-compat.js";
+export * from "./ai/adapters/routing/cascading.js";
+export * from "./ai/adapters/routing/presets.js";
+
+// ---------------------------------------------------------------------------
 // Types — single source of truth lives in ./ai/adapters/core/types.ts
 // ---------------------------------------------------------------------------
 
