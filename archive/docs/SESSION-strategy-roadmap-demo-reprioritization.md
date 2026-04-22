@@ -183,8 +183,76 @@ One `explainPath(kg, "entities", "adjacency")` call. Output shows: `adjacency �
 
 ---
 
+## LangChain "Your Harness, Your Memory" — Analysis & Lock-In Assessment (added April 22, 2026)
+
+**Trigger:** Harrison Chase (LangChain) published "Your Harness, Your Memory" blog post arguing that agent harnesses are permanent infrastructure and that memory creates vendor lock-in. Analyzed against SESSION-harness-engineering-strategy.md, SESSION-reactive-collaboration-harness.md, SESSION-agentic-memory-research.md, SESSION-marketing-promotion-strategy.md, and this file.
+
+**Source:** https://www.langchain.com/blog/your-harness-your-memory
+
+### Chase's Core Claims
+
+1. **Harnesses are permanent.** Even as models improve, scaffolding grows — Claude Code's 512k lines proves better models create *more* harness, not less. Harnesses are "transmissions" — as fundamental as engines.
+2. **Memory is the moat.** Without memory, agents are "easily replicable by anyone with access to the same tools." With memory, developers build "proprietary datasets of user interactions."
+3. **Three escalating lock-in levels:** (a) Mild — stateful APIs (OpenAI Responses) store state server-side; (b) Bad — closed harnesses (Claude Agent SDK) obscure memory mechanics; (c) Worst — entire harness + long-term memory behind proprietary APIs (Anthropic Managed Agents).
+4. **Model providers are incentivized to move memory behind APIs** because it creates lock-in that pricing alone cannot achieve. OpenAI Codex generates "encrypted compaction summaries not usable outside OpenAI's ecosystem."
+5. **Product announcement: Deep Agents** — open source, model-agnostic, database plugins (Mongo/Postgres/Redis), self-hosted via LangSmith, user-controlled memory storage.
+
+### Where Chase Is Correct
+
+- Memory IS the moat for agent applications. This validates our `agentMemory()` investment (SESSION-agentic-memory-research).
+- Harnesses are permanent infrastructure. Aligns with our harness engineering analysis (SESSION-harness-engineering-strategy Part 1).
+- Provider incentive to lock memory behind APIs is real. This is a genuine risk for any team using Managed Agents or Codex without export paths.
+
+### Where Chase Is Self-Serving
+
+- The article frames LangChain as the "open" alternative to proprietary lock-in. But "open source" ≠ "no lock-in" — it's lock-in with visible source code. LangSmith (their hosted platform) is where they monetize; their OSS tools funnel users there.
+- Deep Agents' "database plugins" are data-layer portability — you can export your bytes. But your agent's *coordination logic* (LangGraph state machines, node definitions, edge routing) is still locked to their abstractions.
+- Chase doesn't address structural lock-in (coordination model becomes irreplaceable because domain logic is woven into it). Data is exportable; topology is not.
+
+### GraphReFly's Lock-In Vectors (three deeper levels)
+
+Chase sells *data-layer* lock-in (where your bytes live) as the whole story. GraphReFly operates at three deeper levels:
+
+#### 1. Memory lock-in — we have this AND more
+
+| Dimension | LangChain Deep Agents | GraphReFly |
+|---|---|---|
+| Memory model | Database plugins (Mongo, Postgres, Redis) — externalized, portable | In-process reactive: vector + KG + decay + distill + multi-tier — 10,000x faster, push-based |
+| Memory evolution | Static store-and-retrieve | `llmConsolidator` + periodic reflection + `decay()` — memories that survive consolidation compound in value |
+| Memory observability | Opaque | `observe({ causal: true })` — "why did this memory surface?" |
+
+The lock-in: once agent memory is structured as a reactive graph with decay, consolidation, and causal tracing, migrating to a flat key-value store (what every competitor offers) means losing the *intelligence* of the memory, not just the data.
+
+#### 2. Topology lock-in — Chase doesn't address this
+
+When users wire domain logic into the 7-stage reactive loop (INTAKE→TRIAGE→QUEUE→GATE→EXECUTE→VERIFY→REFLECT), with `gate.modify()` as steering point and a strategy model learning from every iteration — **the topology itself becomes proprietary**. It's not data that's locked in, it's operational knowledge encoded as graph structure.
+
+LangGraph's state machines are flat: node → edge → node. GraphReFly's composition — diamond resolution, two-phase push, feedback cycles, backpressure, causal tracing — creates structures meaningfully harder to replicate elsewhere.
+
+The strategy model (`rootCause × intervention → successRate`) is the sharpest example: it accumulates organizational knowledge about what works. Switching means starting the learning curve from zero.
+
+#### 3. Explainability lock-in — the compliance angle
+
+Once an organization uses `explainPath` for compliance ("why was this flagged?"), switching to a system without causal tracing means losing audit trail capability. Particularly sticky in regulated industries. Chase mentions "compliance logging" as a concern but offers data portability, not structural causality.
+
+### What Chase Reveals About Our Gap
+
+Chase's Deep Agents pitch is: database plugins, open standards, self-hosted, model-agnostic. Simple. This validates the adoption friction concern from the strategic pivot (this file, "Composition Success Rate as the Single Metric" section).
+
+Lock-in only works if users get in first. Chase can ship "open" mediocrity at scale because LangChain already has users. Our lock-in is structurally superior but requires composition success rate >95% before it compounds. The priority stack (Treatment E → format revision → tighter validateSpec → EXECUTE actuator) is the correct path to unlock this.
+
+### Actionable Additions
+
+1. **New reply marketing keyword:** Add "agent memory lock-in", "harness lock-in", "agent vendor lock-in" to §12 search keywords (SESSION-marketing-promotion-strategy). Chase's article will generate discussion threads we should enter.
+2. **New comparison angle:** Add "memory portability" row to the "GraphReFly vs LangGraph" comparison page (Wave 2). Our reactive memory is *more* portable than theirs — it's in-process, no external service dependency, and `describe()`/`observe()` make the memory graph fully inspectable. "Open source" alone doesn't make memory portable; structural transparency does.
+3. **Blog candidate (Wave 2):** "Data Portability Is Not Memory Portability — Why 'Open Source' Doesn't Prevent Agent Lock-In." Direct response to Chase's framing, positioning GraphReFly's reactive memory + causal tracing as genuine portability vs LangChain's "you own the Postgres rows."
+4. **Vocabulary to claim:** "topology lock-in" and "structural portability" — neither term exists in the current harness engineering discourse. Claiming them positions GraphReFly as thinking about lock-in at a level competitors haven't articulated.
+
+---
+
 ## Files Changed
 
 - `docs/roadmap.md` — §9.3e added, §9.5/§9.7 sharpened, scorecard metrics reordered, Wave 3 demo link inventory added
 - `archive/docs/SESSION-marketing-promotion-strategy.md` — §15 Wave 1 blog close updated with Wave 1→2 bridge
 - `~/src/graphrefly_github/profile/README.md` — `persistentState()` → `Graph.attachStorage()`, `auto-solidify` removed from harnessLoop
+- `archive/docs/SESSION-strategy-roadmap-demo-reprioritization.md` — added LangChain "Your Harness, Your Memory" analysis + lock-in assessment (April 22, 2026)

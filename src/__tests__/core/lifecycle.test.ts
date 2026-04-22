@@ -72,6 +72,170 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 	});
 });
 
+describe("NodeFnCleanup object form — granular hooks", () => {
+	it("{ beforeRun } fires only before re-runs, not on deactivation or INVALIDATE", () => {
+		const src = node<number>({ initial: 0 });
+		let beforeRuns = 0;
+		let fnRuns = 0;
+		const n = node([src], (_data, _actions, _ctx) => {
+			fnRuns += 1;
+			return {
+				beforeRun: () => {
+					beforeRuns += 1;
+				},
+			};
+		});
+		const unsub = n.subscribe(() => undefined);
+		expect(fnRuns).toBe(1);
+		expect(beforeRuns).toBe(0);
+
+		// Trigger a re-run by emitting new DATA from src.
+		src.down([[DIRTY], [DATA, 1]]);
+		expect(fnRuns).toBe(2);
+		expect(beforeRuns).toBe(1);
+
+		// INVALIDATE must NOT fire beforeRun.
+		n.down([[INVALIDATE]]);
+		expect(beforeRuns).toBe(1);
+
+		// Deactivation must NOT fire beforeRun.
+		unsub();
+		expect(beforeRuns).toBe(1);
+	});
+
+	it("{ deactivate } fires only on deactivation, not on re-run or INVALIDATE", () => {
+		const src = node<number>({ initial: 0 });
+		let deactivates = 0;
+		const n = node([src], (_data, _actions, _ctx) => ({
+			deactivate: () => {
+				deactivates += 1;
+			},
+		}));
+		const unsub = n.subscribe(() => undefined);
+		expect(deactivates).toBe(0);
+
+		src.down([[DIRTY], [DATA, 1]]);
+		expect(deactivates).toBe(0);
+
+		n.down([[INVALIDATE]]);
+		expect(deactivates).toBe(0);
+
+		unsub();
+		expect(deactivates).toBe(1);
+	});
+
+	it("{ invalidate } fires only on INVALIDATE, not on re-run or deactivation", () => {
+		const src = node<number>({ initial: 0 });
+		let invalidates = 0;
+		const n = node([src], (_data, _actions, _ctx) => ({
+			invalidate: () => {
+				invalidates += 1;
+			},
+		}));
+		const unsub = n.subscribe(() => undefined);
+		expect(invalidates).toBe(0);
+
+		src.down([[DIRTY], [DATA, 1]]);
+		expect(invalidates).toBe(0);
+
+		n.down([[INVALIDATE]]);
+		expect(invalidates).toBe(1);
+
+		unsub();
+		expect(invalidates).toBe(1);
+	});
+
+	it("object with multiple hooks fires each on its own transition", () => {
+		const src = node<number>({ initial: 0 });
+		let br = 0;
+		let de = 0;
+		let iv = 0;
+		const n = node([src], (_data, _actions, _ctx) => ({
+			beforeRun: () => {
+				br += 1;
+			},
+			deactivate: () => {
+				de += 1;
+			},
+			invalidate: () => {
+				iv += 1;
+			},
+		}));
+		const unsub = n.subscribe(() => undefined);
+		expect([br, de, iv]).toEqual([0, 0, 0]);
+
+		src.down([[DIRTY], [DATA, 1]]);
+		expect([br, de, iv]).toEqual([1, 0, 0]);
+
+		n.down([[INVALIDATE]]);
+		expect([br, de, iv]).toEqual([1, 0, 1]);
+
+		unsub();
+		expect([br, de, iv]).toEqual([1, 1, 1]);
+	});
+
+	it("function-form cleanup still fires on all three transitions (backward compat)", () => {
+		const src = node<number>({ initial: 0 });
+		let cleanups = 0;
+		const n = node([src], (_data, _actions, _ctx) => () => {
+			cleanups += 1;
+		});
+		const unsub = n.subscribe(() => undefined);
+		expect(cleanups).toBe(0);
+
+		// Re-run: pre-run cleanup fires, new cleanup attached.
+		src.down([[DIRTY], [DATA, 1]]);
+		expect(cleanups).toBe(1);
+
+		// INVALIDATE: current cleanup fires and is cleared (NOT replaced
+		// until fn re-runs).
+		n.down([[INVALIDATE]]);
+		expect(cleanups).toBe(2);
+
+		// Next DATA re-runs fn and attaches a fresh cleanup.
+		src.down([[DIRTY], [DATA, 2]]);
+		expect(cleanups).toBe(2);
+
+		// Deactivate: the fresh cleanup fires.
+		unsub();
+		expect(cleanups).toBe(3);
+	});
+
+	it("object cleanup is preserved across re-runs (deactivate still fires after many re-runs)", () => {
+		const src = node<number>({ initial: 0 });
+		let deactivates = 0;
+		const n = node([src], (_data, _actions, _ctx) => ({
+			deactivate: () => {
+				deactivates += 1;
+			},
+		}));
+		const unsub = n.subscribe(() => undefined);
+
+		for (let i = 1; i <= 5; i++) {
+			src.down([[DIRTY], [DATA, i]]);
+		}
+		expect(deactivates).toBe(0);
+
+		unsub();
+		expect(deactivates).toBe(1);
+	});
+
+	it("object cleanup with only beforeRun does not block deactivation", () => {
+		const src = node<number>({ initial: 0 });
+		let beforeRuns = 0;
+		const n = node([src], (_data, _actions, _ctx) => ({
+			beforeRun: () => {
+				beforeRuns += 1;
+			},
+		}));
+		const unsub = n.subscribe(() => undefined);
+		src.down([[DIRTY], [DATA, 1]]);
+		expect(beforeRuns).toBe(1);
+		unsub(); // should not throw; absent deactivate hook is a no-op
+		expect(beforeRuns).toBe(1);
+	});
+});
+
 describe("0.6 lifecycle: node.up fan-out", () => {
 	it("up() invokes each dependency's up with the same message batch", () => {
 		const a = node<number>({ initial: 0 });

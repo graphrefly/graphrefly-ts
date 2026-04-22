@@ -259,4 +259,55 @@ describe("surface.snapshot", () => {
 			code: "tier-no-list",
 		});
 	});
+
+	it("listSnapshots filters non-surface keys on a shared tier (B6 namespacing)", async () => {
+		const g = createGraph(basicSpec, { catalog });
+		const tier = memoryStorage();
+		// Surface-written snapshot — should appear in listSnapshots.
+		await saveSnapshot(g, "surface-1", tier);
+		// Simulate an attachStorage-style bare key — should NOT appear.
+		await tier.save("some-graph-name", {
+			mode: "full",
+			seq: 0,
+			timestamp_ns: 0,
+			format_version: 1,
+			snapshot: g.snapshot(),
+		});
+		const ids = await listSnapshots(tier);
+		expect([...ids]).toEqual(["surface-1"]);
+		// Opt-in to legacy behavior for users reading pre-namespacing sets.
+		const all = await listSnapshots(tier, { includeUnprefixed: true });
+		expect([...all].sort()).toEqual(["some-graph-name", "surface-1"]);
+		g.destroy();
+	});
+
+	it("restoreSnapshot reads both namespaced and bare keys (back-compat)", async () => {
+		const g = createGraph(basicSpec, { catalog });
+		const tier = memoryStorage();
+		await saveSnapshot(g, "ns", tier);
+		// Bare-key write for legacy compat simulation.
+		await tier.save("legacy", {
+			mode: "full",
+			seq: 0,
+			timestamp_ns: 0,
+			format_version: 1,
+			snapshot: g.snapshot(),
+		});
+		const factories = {
+			"spec:basic-reduce/doubled": basicSpec.nodes.doubled,
+			"spec:basic-reduce/output": basicSpec.nodes.output,
+		};
+		await expect(
+			restoreSnapshot("ns", tier, {
+				factories: { doubled: catalog.fns!.double, output: catalog.fns!.addOne },
+			}),
+		).resolves.toBeInstanceOf(Graph);
+		await expect(
+			restoreSnapshot("legacy", tier, {
+				factories: { doubled: catalog.fns!.double, output: catalog.fns!.addOne },
+			}),
+		).resolves.toBeInstanceOf(Graph);
+		void factories; // avoid unused-var
+		g.destroy();
+	});
 });

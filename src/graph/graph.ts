@@ -1,4 +1,4 @@
-import type { Actor } from "../core/actor.js";
+import { type Actor, DEFAULT_ACTOR } from "../core/actor.js";
 import { batch, isBatching } from "../core/batch.js";
 import { monotonicNs, wallClockNs } from "../core/clock.js";
 import type { GraphReFlyConfig } from "../core/config.js";
@@ -824,6 +824,20 @@ export interface ObserveEventBase {
 	in_batch?: boolean;
 	/** Monotonically increasing counter per subscribe-callback invocation. All events in one delivery share the same id. */
 	batch_id?: number;
+	/**
+	 * Attribution for `data`/`error` events (B9 — actor threading). When
+	 * the originating `node.down(...)` call supplied an `actor` via
+	 * `NodeTransportOptions`, it's forwarded here as read from
+	 * `Node.lastMutation`. Internal / unattributed writes stamp the
+	 * library's `DEFAULT_ACTOR` (`{type: "system", id: ""}`) rather than
+	 * being silently dropped, so downstream policy/audit consumers can
+	 * evaluate policies against a well-formed actor in every case.
+	 *
+	 * Not populated for tier-1/tier-2 protocol events (`dirty`, `resolved`,
+	 * `pause`, `resume`, `invalidate`, `teardown`) — those don't carry
+	 * caller attribution.
+	 */
+	actor?: Actor;
 }
 
 /** Optional `causal` context present on `data`/`resolved`/`derived` events. */
@@ -2273,10 +2287,18 @@ export class Graph {
 						const base = baseMeta();
 						if (t === DATA) {
 							values[path] = m[1] as T;
+							// B9: thread attribution onto the event so audit
+							// consumers can evaluate policy against every
+							// write. Unattributed writes stamp DEFAULT_ACTOR.
+							const attr =
+								target instanceof NodeImpl
+									? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+									: DEFAULT_ACTOR;
 							recordEvent({
 								type: "data",
 								path,
 								data: m[1],
+								actor: attr,
 								...base,
 								...buildCausal(target),
 							} as ObserveEvent);
@@ -2318,10 +2340,15 @@ export class Graph {
 						} else if (t === ERROR) {
 							anyErrored = true;
 							nodeErrored.add(path);
+							const attr =
+								target instanceof NodeImpl
+									? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+									: DEFAULT_ACTOR;
 							recordEvent({
 								type: "error",
 								path,
 								data: m[1],
+								actor: attr,
 								...base,
 							} as ObserveEvent);
 						} else if (t === TEARDOWN) {

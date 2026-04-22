@@ -84,6 +84,7 @@ import type {
 } from "../core/types.js";
 import {
 	canonicalJson,
+	type ReplayCacheKeyContext,
 	ReplayCacheMissError,
 	withReplayCache,
 } from "../middleware/replay-cache.js";
@@ -180,6 +181,16 @@ export interface FallbackAdapterOptions {
 	readonly replaySpeed?: number;
 	/** Key prefix. Kept compatible with `withReplayCache` defaults. Default `"fallback"`. */
 	readonly keyPrefix?: string;
+	/**
+	 * Custom key function — forwarded directly to the underlying
+	 * {@link withReplayCache}. Use to shard fixtures by `invokeOpts.keyContext`
+	 * (tenant, session, feature flag). Accepts either the new
+	 * {@link ReplayCacheKeyContext} object form or the legacy 2-arg
+	 * `(messages, opts?)` form.
+	 */
+	readonly keyFn?:
+		| ((ctx: ReplayCacheKeyContext) => string)
+		| ((messages: readonly ChatMessage[], opts?: LLMInvokeOptions) => string);
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +439,7 @@ export function fallbackAdapter(opts: FallbackAdapterOptions = {}): LLMAdapter {
 		cacheStreaming: true,
 		captureStreamCadence: true,
 		replaySpeed: opts.replaySpeed,
+		...(opts.keyFn ? { keyFn: opts.keyFn } : {}),
 	});
 
 	// Stamp the "fallback" provider/model labels for observability.

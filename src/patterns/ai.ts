@@ -9,7 +9,7 @@ import type { Actor } from "../core/actor.js";
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
-import type { Node } from "../core/node.js";
+import { type Node, node as nodeFactory } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
 import {
 	type DistillBundle,
@@ -199,6 +199,114 @@ async function resolveToolHandlerResult(value: unknown): Promise<unknown> {
 		return firstDataFromNode(fromAny(value as NodeInput<unknown>));
 	}
 	return value;
+}
+
+// ---------------------------------------------------------------------------
+// frozenContext — prefix-cache-friendly snapshot of upstream context
+// ---------------------------------------------------------------------------
+
+export type FrozenContextOptions = {
+	/**
+	 * Reactive signal that triggers re-materialization. Each `DATA` emission
+	 * from this node re-reads the source and refreshes the frozen value.
+	 * Typical shapes: `fromTimer(ms)` for periodic refresh, a stage-transition
+	 * node for event-driven refresh, or a manual `state<number>` the caller
+	 * increments via `setState(n + 1)`.
+	 *
+	 * When omitted, the frozen value is materialized exactly once (on first
+	 * subscribe) and never refreshes — use this for session-start snapshots
+	 * that must stay stable for the lifetime of the activation.
+	 */
+	refreshTrigger?: NodeInput<unknown>;
+	name?: string;
+};
+
+/**
+ * Freeze a reactive source into a stable snapshot that only re-materializes
+ * on explicit trigger. Built for long-running harness loops where system
+ * prompts include `agentMemory` / stage context — every reactive change to
+ * the source invalidates the LLM provider's prefix cache, so re-rendering
+ * the prompt every turn is expensive.
+ *
+ * `frozenContext(source)` reads the source once and caches the value;
+ * downstream `promptNode` compositions see a stable reference until the
+ * optional `refreshTrigger` fires.
+ *
+ * Trade-off: slightly stale context vs. prefix cache hit rate. For most
+ * harness apps, the memory snapshot at session start is "good enough" —
+ * refreshing on a coarse-grained trigger (`fromCron("*\/30min")`, stage
+ * transition) preserves 90%+ prefix cache hits while keeping context useful.
+ *
+ * @example
+ * ```ts
+ * // Freeze agent memory for the duration of a stage.
+ * const frozen = frozenContext(memory.context, {
+ *   refreshTrigger: stage,  // re-materialize on stage change
+ * });
+ * const reply = promptNode({ context: frozen, ... });
+ * ```
+ *
+ * @category patterns.ai
+ */
+export function frozenContext<T>(
+	source: NodeInput<T>,
+	opts?: FrozenContextOptions,
+): Node<T | null> {
+	const src = fromAny(source);
+	const trigger = opts?.refreshTrigger != null ? fromAny(opts.refreshTrigger) : null;
+
+	// Single-shot path: deps = [src] only. Emit the first src value and then
+	// hold regardless of source drift.
+	if (trigger == null) {
+		return nodeFactory<T | null>(
+			[src],
+			(data, actions, ctx) => {
+				const alreadyEmitted = ctx.store.emitted === true;
+				if (alreadyEmitted) return;
+				const srcBatch = data[0];
+				const srcValue =
+					srcBatch != null && srcBatch.length > 0 ? srcBatch.at(-1) : ctx.prevData[0];
+				// Only emit once src has produced a settled value.
+				if (srcValue === undefined) return;
+				ctx.store.emitted = true;
+				actions.emit(srcValue as T);
+			},
+			{
+				name: opts?.name ?? "frozenContext",
+				describeKind: "derived",
+				initial: null,
+				meta: aiMeta("frozen_context"),
+			},
+		);
+	}
+
+	// Refresh-on-trigger path: deps = [src, trigger]. Emit the current src
+	// value ONLY when the trigger dep is involved in the wave. Source-only
+	// changes are silently held so downstream prompt composition sees the
+	// same value between triggers, preserving the LLM provider's prefix cache.
+	//
+	// Uses raw `node()` to inspect per-dep wave involvement — `derived` fires
+	// on any dep change and can't distinguish. The declaration-order semantic
+	// gap in multi-dep push-on-subscribe (§2.7) works in our favor on
+	// activation: src fires first (captured into ctx.prevData), trigger fires
+	// in a second wave → emit via prevData[0] fallback.
+	return nodeFactory<T | null>(
+		[src, trigger],
+		(data, actions, ctx) => {
+			const triggerBatch = data[1];
+			const triggered = triggerBatch != null && triggerBatch.length > 0;
+			if (!triggered) return;
+			const srcBatch = data[0];
+			const srcValue = srcBatch != null && srcBatch.length > 0 ? srcBatch.at(-1) : ctx.prevData[0];
+			actions.emit(srcValue as T);
+		},
+		{
+			name: opts?.name ?? "frozenContext",
+			describeKind: "derived",
+			initial: null,
+			meta: aiMeta("frozen_context"),
+		},
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -1117,6 +1225,105 @@ export function promptNode<T = string>(
 }
 
 // ---------------------------------------------------------------------------
+// handoff — multi-agent routing sugar (B10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for {@link handoff}.
+ */
+export type HandoffOptions = {
+	/**
+	 * Reactive gate: when this node's value is `true`, output flows from
+	 * `from` to the `to` specialist; when `false`, `from`'s output flows
+	 * through unchanged and `to` stays dormant. Omit to always hand off —
+	 * useful when `from` is itself a router whose output shape already
+	 * encodes routing intent.
+	 */
+	condition?: NodeInput<boolean>;
+	name?: string;
+};
+
+/**
+ * Multi-agent handoff recipe — route `from`'s output into a specialist
+ * agent `toFactory` when `condition` is open. Thin composition over
+ * `switchMap` + gate; not a new primitive, just a named shape.
+ *
+ * The "handoff" pattern (popularized by the OpenAI Agents SDK) covers two
+ * idioms:
+ *
+ * 1. **Full handoff** — a triage agent routes the conversation to a
+ *    specialist, and the specialist becomes the active agent for the rest
+ *    of the turn. Accumulated context (memory, tool definitions) can travel
+ *    along by threading the same `agentMemory` bundle into both.
+ * 2. **Agents-as-tools** — the manager keeps control and calls the
+ *    specialist like a tool for a bounded subtask. Build this by registering
+ *    a `promptNode` instance as a `ToolDefinition` on the parent via
+ *    `toolRegistry`.
+ *
+ * This sugar covers (1) — a reactive route from one agent's output into a
+ * specialist factory. For (2) wire a tool registry manually; the pattern is
+ * additive with this one.
+ *
+ * @example Full handoff on a triage signal.
+ * ```ts
+ * import { handoff, promptNode } from "@graphrefly/graphrefly/patterns/ai";
+ *
+ * const triage = promptNode(adapter, [userMessage], (msg) =>
+ *   `Classify urgency of: ${msg}. Reply "high" or "normal".`);
+ * const isUrgent = derived([triage], ([v]) => v === "high");
+ *
+ * const specialist = handoff(
+ *   userMessage,
+ *   (input) => promptNode(specialistAdapter, [input], (m) => `Respond urgently: ${m}`),
+ *   { condition: isUrgent },
+ * );
+ * ```
+ *
+ * @param from - Source node whose value is threaded into the specialist.
+ * @param toFactory - Factory that takes `from` (as a reactive source) and
+ *   returns the specialist node. Called once, lazily, when the first
+ *   subscriber activates.
+ * @param opts - Optional reactive `condition` gate + name.
+ * @returns Node emitting the specialist's output when the gate is open, or
+ *   `from`'s value when the gate is closed. Null when `from` is null.
+ *
+ * @category patterns.ai
+ */
+export function handoff<T>(
+	from: NodeInput<T | null>,
+	toFactory: (input: Node<T>) => Node<T | null>,
+	opts?: HandoffOptions,
+): Node<T | null> {
+	const src = fromAny(from);
+	const cond = opts?.condition != null ? fromAny(opts.condition) : null;
+
+	// When no condition is supplied, always route through the specialist.
+	if (cond == null) {
+		return switchMap<T | null, T | null>(src, (v) => {
+			if (v == null) return state<T | null>(null) as NodeInput<T | null>;
+			const input = state<T>(v);
+			return toFactory(input) as NodeInput<T | null>;
+		});
+	}
+
+	// With a condition: pair src + cond into a router object, then switchMap
+	// to either the specialist (when open) or a pass-through state (when
+	// closed). Each router emission may re-instantiate the specialist — the
+	// switchMap cancels the stale branch.
+	const router = derived<{ v: T | null; open: boolean }>(
+		[src, cond],
+		([v, open]) => ({ v: v as T | null, open: open === true }),
+		{ name: opts?.name ? `${opts.name}::router` : "handoff::router", describeKind: "derived" },
+	);
+	return switchMap<{ v: T | null; open: boolean }, T | null>(router, ({ v, open }) => {
+		if (v == null) return state<T | null>(null) as NodeInput<T | null>;
+		if (!open) return state<T | null>(v) as NodeInput<T | null>;
+		const input = state<T>(v);
+		return toFactory(input) as NodeInput<T | null>;
+	});
+}
+
+// ---------------------------------------------------------------------------
 // chatStream
 // ---------------------------------------------------------------------------
 
@@ -1525,6 +1732,15 @@ export type RetrievalQuery = {
 	readonly text?: string;
 	readonly vector?: readonly number[];
 	readonly entityIds?: readonly string[];
+	/**
+	 * Optional hierarchical context breadcrumb — e.g.
+	 * `["projects", "auth", "tokens"]`. When both the query and a candidate
+	 * entry supply a `context`, the retrieval pipeline applies a score boost
+	 * proportional to `contextWeight` for entries whose context overlaps
+	 * (shared prefix). Entries or queries without `context` are scored
+	 * flatly (backward-compatible).
+	 */
+	readonly context?: readonly string[];
 };
 
 export type RetrievalPipelineOptions<TMem> = {
@@ -1538,6 +1754,20 @@ export type RetrievalPipelineOptions<TMem> = {
 	cost: (mem: TMem) => number;
 	/** Score function for ranking. */
 	score: (mem: TMem, context: unknown) => number;
+	/**
+	 * Optional accessor: extracts the hierarchical context breadcrumb from a
+	 * memory entry. Used with {@link RetrievalQuery.context} and
+	 * `contextWeight` to boost entries whose context overlaps the query.
+	 * Entries that don't expose context stay at flat behavior.
+	 */
+	contextOf?: (mem: TMem) => readonly string[] | undefined;
+	/**
+	 * Boost multiplier applied to a candidate's score when its `context`
+	 * shares a prefix with the query's `context`. Score is multiplied by
+	 * `(1 + contextWeight * sharedDepth / queryDepth)`. Default: 0 (no
+	 * context boost).
+	 */
+	contextWeight?: number;
 };
 
 /** A single entry in the retrieval result, with causal trace metadata. */
@@ -1546,6 +1776,11 @@ export type RetrievalEntry<TMem> = {
 	readonly value: TMem;
 	readonly score: number;
 	readonly sources: ReadonlyArray<"vector" | "graph" | "store">;
+	/**
+	 * Hierarchical context breadcrumb for this entry, when
+	 * `RetrievalPipelineOptions.contextOf` is supplied and returns a value.
+	 */
+	readonly context?: readonly string[];
 };
 
 /** Causal trace for a retrieval run. */
@@ -1586,6 +1821,20 @@ export type AgentMemoryOptions<TMem = unknown> = {
 	admissionFilter?: (candidate: unknown) => boolean;
 	/** Vector index dimensions (> 0 enables vector index for retrieval). */
 	vectorDimensions?: number;
+	/**
+	 * B12: optional accessor for an entry's hierarchical context breadcrumb
+	 * (e.g. `["projects", "auth", "tokens"]`). When supplied alongside
+	 * `contextWeight > 0`, retrieval applies a score boost for entries whose
+	 * context shares a prefix with the query's `context`. Entries without
+	 * a breadcrumb are scored flatly.
+	 */
+	contextOf?: (mem: TMem) => readonly string[] | undefined;
+	/**
+	 * B12: hierarchical context boost multiplier. Score is scaled by
+	 * `(1 + contextWeight * sharedDepth / queryDepth)` when both the query
+	 * and entry supply a `context`. Default: 0.
+	 */
+	contextWeight?: number;
 
 	// --- In-factory composition (new) ---
 
@@ -1656,6 +1905,16 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	 * need fresh state after batched mutations, call `retrieve` after the batch returns.
 	 */
 	readonly retrieve: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null;
+	/**
+	 * Reactive sibling of {@link retrieve}. Given a reactive
+	 * `RetrievalQuery | null` source, returns a `Node` emitting the packed
+	 * retrieval results. Composable with graph topology — subscribe it,
+	 * chain it into `promptNode`, or switchMap over a user-input node.
+	 * Null when no retrieval pipeline is configured.
+	 */
+	readonly retrieveReactive:
+		| ((queryInput: NodeInput<RetrievalQuery | null>) => Node<ReadonlyArray<RetrievalEntry<TMem>>>)
+		| null;
 };
 
 /**
@@ -1912,6 +2171,9 @@ export function agentMemory<TMem = unknown>(
 	let retrievalNode: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null = null;
 	let retrievalTraceNode: Node<RetrievalTrace<TMem> | null> | null = null;
 	let retrieveFn: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null = null;
+	let retrieveReactive:
+		| ((queryInput: NodeInput<RetrievalQuery | null>) => Node<ReadonlyArray<RetrievalEntry<TMem>>>)
+		| null = null;
 
 	if (vectors || kg) {
 		const topK = opts.retrieval?.topK ?? 20;
@@ -1919,8 +2181,113 @@ export function agentMemory<TMem = unknown>(
 		const budget = opts.budget ?? 2000;
 		const costFn = opts.cost;
 		const scoreFn = opts.score;
+		const contextOfFn = opts.contextOf;
+		const contextWeight = opts.contextWeight ?? 0;
 
 		const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
+
+		// B12: shared prefix depth between a query context and an entry context.
+		// Returns 0 when either side is missing or no prefix is shared.
+		const sharedPrefixDepth = (
+			q: readonly string[] | undefined,
+			e: readonly string[] | undefined,
+		): number => {
+			if (!q || !e) return 0;
+			const n = Math.min(q.length, e.length);
+			let i = 0;
+			while (i < n && q[i] === e[i]) i++;
+			return i;
+		};
+
+		// Core retrieval pipeline, reused by both the imperative `retrieve()`
+		// and the reactive `retrieveReactive()` sibling.
+		const runRetrieval = (
+			storeMap: ReadonlyMap<string, TMem>,
+			ctx: unknown,
+			query: RetrievalQuery,
+		): { packed: RetrievalEntry<TMem>[]; trace: RetrievalTrace<TMem> } => {
+			const candidateMap = new Map<
+				string,
+				{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
+			>();
+
+			let vectorCandidates: VectorSearchResult<TMem>[] = [];
+			if (vectors && query.vector) {
+				vectorCandidates = vectors.search(query.vector, topK) as VectorSearchResult<TMem>[];
+				for (const vc of vectorCandidates) {
+					const mem = storeMap.get(vc.id);
+					if (mem) candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
+				}
+			}
+
+			const graphExpanded: string[] = [];
+			if (kg) {
+				const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
+				const visited = new Set<string>();
+				let frontier = seedIds;
+				for (let depth = 0; depth < graphDepth; depth++) {
+					const nextFrontier: string[] = [];
+					for (const id of frontier) {
+						if (visited.has(id)) continue;
+						visited.add(id);
+						const related = kg.related(id);
+						for (const edge of related) {
+							const targetId = edge.to;
+							if (!visited.has(targetId)) {
+								nextFrontier.push(targetId);
+								const mem = storeMap.get(targetId);
+								if (mem) {
+									const existing = candidateMap.get(targetId);
+									if (existing) existing.sources.add("graph");
+									else candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
+									graphExpanded.push(targetId);
+								}
+							}
+						}
+					}
+					frontier = nextFrontier;
+				}
+			}
+			for (const [key, mem] of storeMap) {
+				if (!candidateMap.has(key)) {
+					candidateMap.set(key, { value: mem, sources: new Set(["store"]) });
+				}
+			}
+
+			const qDepth = query.context?.length ?? 0;
+			const ranked: RetrievalEntry<TMem>[] = [];
+			for (const [key, { value, sources }] of candidateMap) {
+				const entryContext = contextOfFn ? contextOfFn(value) : undefined;
+				let score = scoreFn(value, ctx);
+				// B12: hierarchical context boost.
+				if (contextWeight > 0 && qDepth > 0) {
+					const shared = sharedPrefixDepth(query.context, entryContext);
+					if (shared > 0) score = score * (1 + (contextWeight * shared) / qDepth);
+				}
+				const entry: RetrievalEntry<TMem> = entryContext
+					? { key, value, score, sources: [...sources], context: entryContext }
+					: { key, value, score, sources: [...sources] };
+				ranked.push(entry);
+			}
+			ranked.sort((a, b) => b.score - a.score);
+
+			const packed: RetrievalEntry<TMem>[] = [];
+			let usedBudget = 0;
+			for (const entry of ranked) {
+				const c = costFn(entry.value);
+				if (usedBudget + c > budget && packed.length > 0) break;
+				packed.push(entry);
+				usedBudget += c;
+			}
+
+			const trace: RetrievalTrace<TMem> = {
+				vectorCandidates,
+				graphExpanded,
+				ranked,
+				packed,
+			};
+			return { packed, trace };
+		};
 
 		// Observer-facing state nodes. `retrieve()` writes both in a batch on every call.
 		// (Option W from the 2026-04-12 P3 audit — retrieveFn is a sync consumer API that
@@ -1945,100 +2312,45 @@ export function agentMemory<TMem = unknown>(
 		// Sync consumer API. Reads `store.entries.cache` and `contextNode.cache` at
 		// call time — these are external-boundary reads, allowed per the foundation
 		// redesign. **Do not call from inside a reactive fn body**: the cache reads
-		// would become transitive P3 violations.
+		// would become transitive P3 violations. See `retrieveReactive()` for a
+		// reactive sibling that's safe to subscribe to from graph topology.
 		retrieveFn = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
 			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
-			const ctx = contextNode.cache;
-
-			const candidateMap = new Map<
-				string,
-				{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
-			>();
-
-			// Stage 1: Vector search
-			let vectorCandidates: VectorSearchResult<TMem>[] = [];
-			if (vectors && query.vector) {
-				vectorCandidates = vectors.search(query.vector, topK) as VectorSearchResult<TMem>[];
-				for (const vc of vectorCandidates) {
-					const mem = storeMap.get(vc.id);
-					if (mem) {
-						candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
-					}
-				}
-			}
-
-			// Stage 2: KG expansion
-			const graphExpanded: string[] = [];
-			if (kg) {
-				const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
-				const visited = new Set<string>();
-				let frontier = seedIds;
-				for (let depth = 0; depth < graphDepth; depth++) {
-					const nextFrontier: string[] = [];
-					for (const id of frontier) {
-						if (visited.has(id)) continue;
-						visited.add(id);
-						const related = kg.related(id);
-						for (const edge of related) {
-							const targetId = edge.to;
-							if (!visited.has(targetId)) {
-								nextFrontier.push(targetId);
-								const mem = storeMap.get(targetId);
-								if (mem) {
-									const existing = candidateMap.get(targetId);
-									if (existing) {
-										existing.sources.add("graph");
-									} else {
-										candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
-									}
-									graphExpanded.push(targetId);
-								}
-							}
-						}
-					}
-					frontier = nextFrontier;
-				}
-			}
-
-			// Also include direct store matches not yet in candidates
-			for (const [key, mem] of storeMap) {
-				if (!candidateMap.has(key)) {
-					candidateMap.set(key, { value: mem, sources: new Set(["store"]) });
-				}
-			}
-
-			// Stage 3: Score and rank
-			const ranked: RetrievalEntry<TMem>[] = [];
-			for (const [key, { value, sources }] of candidateMap) {
-				const score = scoreFn(value, ctx);
-				ranked.push({ key, value, score, sources: [...sources] });
-			}
-			ranked.sort((a, b) => b.score - a.score);
-
-			// Stage 4: Budget packing
-			const packed: RetrievalEntry<TMem>[] = [];
-			let usedBudget = 0;
-			for (const entry of ranked) {
-				const c = costFn(entry.value);
-				if (usedBudget + c > budget && packed.length > 0) break;
-				packed.push(entry);
-				usedBudget += c;
-			}
-
-			const trace: RetrievalTrace<TMem> = {
-				vectorCandidates,
-				graphExpanded,
-				ranked,
-				packed,
-			};
-
+			const { packed, trace } = runRetrieval(storeMap, contextNode.cache, query);
 			batch(() => {
 				retrievalOutput.down([[DATA, packed]]);
 				traceState.down([[DATA, trace]]);
 			});
-
 			return packed;
 		};
+
+		// B20: reactive sibling. Subscribe-driven retrieval — when `queryNode`
+		// emits a new `RetrievalQuery`, the returned node emits the packed
+		// results. Composable with graph topology (e.g. `switchMap` on a user
+		// input node, or chaining into a `promptNode`). Unlike `retrieveFn`
+		// which writes observer-facing state nodes and returns synchronously,
+		// this sibling stays purely reactive — no imperative cache reads in
+		// its fn body.
+		const retrieveReactiveFn = (
+			queryInput: NodeInput<RetrievalQuery | null>,
+		): Node<ReadonlyArray<RetrievalEntry<TMem>>> => {
+			const q = fromAny(queryInput);
+			return derived<ReadonlyArray<RetrievalEntry<TMem>>>(
+				[distillBundle.store.entries, contextNode, q],
+				([snapshot, ctx, query]) => {
+					if (query == null) return [];
+					const storeMap = extractStoreMap<TMem>(snapshot);
+					return runRetrieval(storeMap, ctx, query as RetrievalQuery).packed;
+				},
+				{
+					name: "retrievalReactive",
+					describeKind: "derived",
+					meta: aiMeta("retrieval_reactive"),
+					initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
+				},
+			);
+		};
+		retrieveReactive = retrieveReactiveFn;
 	}
 
 	// --- Cleanup ---
@@ -2057,6 +2369,7 @@ export function agentMemory<TMem = unknown>(
 		retrieval: retrievalNode,
 		retrievalTrace: retrievalTraceNode,
 		retrieve: retrieveFn,
+		retrieveReactive,
 	}) as AgentMemoryGraph<TMem>;
 }
 

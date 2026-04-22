@@ -325,15 +325,15 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 
 			actions.emit(result);
 
-			// Function-form cleanup: fires before the next run AND on
-			// deactivation AND on INVALIDATE (per `node.ts:_updateState`).
-			// Flushes the shared measurement cache + the text adapter's
-			// cache so stale measurements don't persist across INVALIDATE
-			// broadcasts. Image/SVG measurers don't expose a cache hook.
-			return () => {
+			// Object-form cleanup: flush on deactivation + INVALIDATE only,
+			// NOT before fn re-runs. Preserves cached measurements across
+			// block edits so a single-block change doesn't wipe entries from
+			// the other blocks. Image/SVG measurers don't expose a cache hook.
+			const flush = (): void => {
 				measureCache.clear();
 				adapters.text.clearCache?.();
 			};
+			return { deactivate: flush, invalidate: flush };
 		},
 		{
 			name: "measured-blocks",

@@ -110,6 +110,34 @@ describe("P9 EMPTY_TOTALS is isolated across instances", () => {
 });
 
 // ---------------------------------------------------------------------------
+// B8 — withBudgetGate: onExhausted is edge-triggered (open → closed only)
+// ---------------------------------------------------------------------------
+
+describe("B8 withBudgetGate: onExhausted fires once on open→closed edge", () => {
+	it("onExhausted fires exactly once across many blocked attempts", async () => {
+		let exhaustedCalls = 0;
+		const keys: unknown[] = [];
+		const { adapter } = withBudgetGate(dryRunAdapter(), {
+			caps: { calls: 2 },
+			onExhausted: (which) => {
+				exhaustedCalls += 1;
+				keys.push(which);
+			},
+		});
+		// First two calls succeed, tipping totals.calls to 2, closing the gate.
+		await adapter.invoke([{ role: "user", content: "a" }]);
+		await adapter.invoke([{ role: "user", content: "b" }]);
+		// Subsequent attempts throw — but onExhausted must fire only once,
+		// at the edge, not per blocked attempt.
+		for (let i = 0; i < 5; i++) {
+			await expect(adapter.invoke([{ role: "user", content: "x" }])).rejects.toThrow();
+		}
+		expect(exhaustedCalls).toBe(1);
+		expect(keys).toEqual(["calls"]);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // P6 — rpmCap: 0 honored as hard stop (doesn't silently fall through)
 // ---------------------------------------------------------------------------
 

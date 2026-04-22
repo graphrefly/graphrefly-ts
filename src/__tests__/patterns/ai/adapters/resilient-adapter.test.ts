@@ -251,6 +251,38 @@ describe("resilientAdapter", () => {
 		expect(secondary.streamCalls).toBe(0);
 	});
 
+	it("A1: onFallback is surfaced to resilientAdapter options", async () => {
+		const err500 = Object.assign(new Error("boom"), { status: 500 });
+		const primary = mockAdapter([err500]);
+		const secondary = mockAdapter([okResp("saved")]);
+		const calls: Array<{ from: string; to: string }> = [];
+		const { adapter } = resilientAdapter(primary, {
+			fallback: secondary,
+			name: "p1",
+			onFallback: (from, to) => calls.push({ from, to }),
+		});
+		await adapter.invoke([{ role: "user", content: "x" }]);
+		expect(calls).toEqual([{ from: "p1", to: "fallback" }]);
+	});
+
+	it("A1: onExhausted is surfaced when every cascade tier fails", async () => {
+		const err1 = new Error("primary failed");
+		const err2 = new Error("fallback failed");
+		const primary = mockAdapter([err1]);
+		const secondary = mockAdapter([err2]);
+		let report: unknown;
+		const { adapter } = resilientAdapter(primary, {
+			fallback: secondary,
+			onExhausted: (r) => {
+				report = r;
+			},
+		});
+		await expect(adapter.invoke([{ role: "user", content: "x" }])).rejects.toThrow();
+		expect(report).toBeDefined();
+		const failedNames = [...(report as { failed: ReadonlyMap<string, unknown> }).failed.keys()];
+		expect(failedNames.sort()).toEqual(["fallback", "primary"]);
+	});
+
 	it("stream: retry does not replay a partially-streamed output", async () => {
 		const err500 = Object.assign(new Error("boom"), { status: 500 });
 		const primary = streamingMock([

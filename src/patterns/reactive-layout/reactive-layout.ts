@@ -1192,14 +1192,18 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 
 			actions.emit(result);
 
-			// Function-form cleanup: fires before the next run AND on
-			// deactivation AND on INVALIDATE. Flushes the shared measurement
-			// cache + the adapter's own cache so stale measurements don't
-			// persist across INVALIDATE broadcasts.
-			return () => {
+			// Object-form cleanup: fires on deactivation AND on INVALIDATE, but
+			// NOT before re-runs. Re-runs that edit text / font retain the
+			// measurement cache — the per-segment entries still valid for the
+			// new text overlap the previous set and are reused. Before-run
+			// flushing (previous behaviour) wiped 100-segment caches on a
+			// one-character edit; this shape keeps cache hit-rate proportional
+			// to content overlap rather than invalidation frequency.
+			const flush = (): void => {
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
+			return { deactivate: flush, invalidate: flush };
 		},
 		{
 			name: "segments",

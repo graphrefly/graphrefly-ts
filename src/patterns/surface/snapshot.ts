@@ -45,6 +45,23 @@ export interface RestoreSnapshotOptions {
 	factories?: Record<string, GraphNodeFactory>;
 }
 
+/**
+ * Key prefix applied to every surface-written snapshot record. Isolates
+ * surface-saved snapshots from other keys on the same tier (notably
+ * `attachStorage` baseline/WAL keys written under `graph.name`).
+ */
+export const SNAPSHOT_KEY_PREFIX = "snapshot:";
+
+function encodeKey(snapshotId: string): string {
+	return snapshotId.startsWith(SNAPSHOT_KEY_PREFIX)
+		? snapshotId
+		: `${SNAPSHOT_KEY_PREFIX}${snapshotId}`;
+}
+
+function decodeKey(key: string): string | undefined {
+	return key.startsWith(SNAPSHOT_KEY_PREFIX) ? key.slice(SNAPSHOT_KEY_PREFIX.length) : undefined;
+}
+
 function unwrapCheckpoint(raw: unknown, snapshotId: string): GraphPersistSnapshot {
 	if (raw == null || typeof raw !== "object") {
 		throw new SurfaceError("snapshot-not-found", `snapshot "${snapshotId}" not found in tier`, {
@@ -114,7 +131,7 @@ export async function saveSnapshot(
 		snapshot,
 	};
 	try {
-		await tier.save(snapshotId, record);
+		await tier.save(encodeKey(snapshotId), record);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		throw new SurfaceError("snapshot-failed", `snapshot "${snapshotId}" save failed: ${message}`, {
@@ -149,7 +166,15 @@ export async function restoreSnapshot(
 	tier: StorageTier,
 	opts?: RestoreSnapshotOptions,
 ): Promise<Graph> {
-	const raw = await tier.load(snapshotId);
+	// Try namespaced key first (surface-written records), fall back to raw key
+	// so callers restoring snapshots that predate the namespacing change (or
+	// bare `GraphPersistSnapshot` payloads written by user test fixtures)
+	// still resolve. Once all writers are on encodeKey, the fallback can go.
+	const key = encodeKey(snapshotId);
+	let raw = await tier.load(key);
+	if (raw == null && key !== snapshotId) {
+		raw = await tier.load(snapshotId);
+	}
 	const snapshot = unwrapCheckpoint(raw, snapshotId);
 	try {
 		return Graph.fromSnapshot(
@@ -180,7 +205,16 @@ export async function diffSnapshots(
 	snapshotIdB: string,
 	tier: StorageTier,
 ): Promise<GraphDiffResult> {
-	const [rawA, rawB] = await Promise.all([tier.load(snapshotIdA), tier.load(snapshotIdB)]);
+	const loadWithFallback = async (id: string): Promise<unknown> => {
+		const key = encodeKey(id);
+		let raw = await tier.load(key);
+		if (raw == null && key !== id) raw = await tier.load(id);
+		return raw;
+	};
+	const [rawA, rawB] = await Promise.all([
+		loadWithFallback(snapshotIdA),
+		loadWithFallback(snapshotIdB),
+	]);
 	const snapshotA = unwrapCheckpoint(rawA, snapshotIdA);
 	const snapshotB = unwrapCheckpoint(rawB, snapshotIdB);
 	return Graph.diff(snapshotA, snapshotB);
@@ -189,26 +223,41 @@ export async function diffSnapshots(
 /**
  * Enumerate snapshot ids on a tier.
  *
- * **Scope caveat:** returns every key on the tier, not just those
- * written by {@link saveSnapshot}. When the same tier also backs
- * {@link Graph.attachStorage} (for auto-checkpoints keyed by
- * `graph.name`), those names appear in this list too. Wrappers that
- * want a namespaced snapshot store should use a dedicated tier or
- * encode an id prefix on write. Tracked in `docs/optimizations.md`
- * under "surface `listSnapshots` namespacing".
+ * Only keys written by {@link saveSnapshot} are returned. Surface-written
+ * records are stored under the `"snapshot:"` key prefix and decoded back to
+ * the caller-visible id before being returned — other keys on the same tier
+ * (notably `attachStorage` baseline/WAL keys written under `graph.name`) are
+ * filtered out automatically. This lets a single tier back both the surface
+ * and `attachStorage` without leaking graph names through `listSnapshots`.
+ *
+ * @param tier — the storage tier to enumerate.
+ * @param opts.includeUnprefixed — when `true`, also return keys that are
+ *   NOT under the namespacing prefix. Off by default; set this when reading
+ *   pre-namespacing snapshot sets.
  *
  * @throws {SurfaceError} `tier-no-list` when the tier does not implement
  *   the optional `list()` method. Check `typeof tier.list === "function"`
  *   before calling if you want to branch on capability.
  */
-export async function listSnapshots(tier: StorageTier): Promise<readonly string[]> {
+export async function listSnapshots(
+	tier: StorageTier,
+	opts?: { includeUnprefixed?: boolean },
+): Promise<readonly string[]> {
 	if (typeof tier.list !== "function") {
 		throw new SurfaceError(
 			"tier-no-list",
 			"StorageTier does not implement list(); wrap the tier with an enumerator or use a different backend",
 		);
 	}
-	return tier.list();
+	const keys = await tier.list();
+	const result: string[] = [];
+	const includeUnprefixed = opts?.includeUnprefixed === true;
+	for (const k of keys) {
+		const decoded = decodeKey(k);
+		if (decoded !== undefined) result.push(decoded);
+		else if (includeUnprefixed) result.push(k);
+	}
+	return result;
 }
 
 /**
@@ -229,7 +278,7 @@ export async function deleteSnapshot(snapshotId: string, tier: StorageTier): Pro
 		);
 	}
 	try {
-		await tier.clear(snapshotId);
+		await tier.clear(encodeKey(snapshotId));
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		throw new SurfaceError(

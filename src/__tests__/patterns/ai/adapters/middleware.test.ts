@@ -190,11 +190,83 @@ describe("withReplayCache", () => {
 		expect(r2.content).toBe("b");
 		expect(inner.calls).toBe(2);
 	});
+
+	it("B4: keyFn receives ctx.context from invokeOpts.keyContext", async () => {
+		const inner = mockAdapter([okResp("tenantA"), okResp("tenantB"), okResp("tenantA-2")]);
+		const adapter = withReplayCache(inner, {
+			storage: memoryStorage(),
+			// 1-arg ctx form — shards by tenant.
+			keyFn: (ctx) => {
+				const tenant = (ctx.context as { tenant?: string })?.tenant ?? "default";
+				return `t:${tenant}:${ctx.messages.at(-1)?.content ?? ""}`;
+			},
+		});
+		const msg = [{ role: "user" as const, content: "hi" }];
+		const r1 = await adapter.invoke(msg, { keyContext: { tenant: "A" } });
+		const r2 = await adapter.invoke(msg, { keyContext: { tenant: "B" } });
+		const r3 = await adapter.invoke(msg, { keyContext: { tenant: "A" } }); // cache hit on A
+		expect(r1.content).toBe("tenantA");
+		expect(r2.content).toBe("tenantB");
+		expect(r3.content).toBe("tenantA"); // served from A's cache
+		expect(inner.calls).toBe(2);
+	});
+
+	it("B4: legacy 2-arg keyFn form still works", async () => {
+		const inner = mockAdapter([okResp("one"), okResp("two")]);
+		let calls = 0;
+		const adapter = withReplayCache(inner, {
+			storage: memoryStorage(),
+			keyFn: (messages, _opts) => {
+				calls += 1;
+				return `msg:${messages.length}`;
+			},
+		});
+		await adapter.invoke([{ role: "user", content: "a" }]);
+		await adapter.invoke([{ role: "user", content: "b" }]); // same length → same key → hit
+		expect(calls).toBeGreaterThan(0);
+		expect(inner.calls).toBe(1);
+	});
+
+	it("B4: default key function ignores keyContext", async () => {
+		const inner = mockAdapter([okResp("shared")]);
+		const adapter = withReplayCache(inner, { storage: memoryStorage() });
+		const msg = [{ role: "user" as const, content: "ping" }];
+		const r1 = await adapter.invoke(msg, { keyContext: { any: 1 } });
+		const r2 = await adapter.invoke(msg, { keyContext: { any: 2 } });
+		// Without a custom keyFn, keyContext is stripped from canonical hashing
+		// — so the second call hits the cache even though keyContext differs.
+		expect(r1.content).toBe("shared");
+		expect(r2.content).toBe("shared");
+		expect(inner.calls).toBe(1);
+	});
 });
 
 // ---------------------------------------------------------------------------
 // withDryRun
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// withRateLimiter — A2: shared limiter across wraps
+// ---------------------------------------------------------------------------
+
+import { adaptiveRateLimiter } from "../../../../extra/adaptive-rate-limiter.js";
+import { withRateLimiter } from "../../../../patterns/ai/adapters/middleware/rate-limiter.js";
+
+describe("withRateLimiter", () => {
+	it("A2: shared AdaptiveRateLimiterBundle is reused across wraps", () => {
+		const shared = adaptiveRateLimiter({ name: "shared", rpm: 60 });
+		const a = withRateLimiter(mockAdapter([okResp()]), { limiter: shared });
+		const b = withRateLimiter(mockAdapter([okResp()]), { limiter: shared });
+		expect(a.limiter).toBe(shared);
+		expect(b.limiter).toBe(shared);
+	});
+
+	it("A2: fresh limiter constructed when not supplied", () => {
+		const a = withRateLimiter(mockAdapter([okResp()]), {});
+		const b = withRateLimiter(mockAdapter([okResp()]), {});
+		expect(a.limiter).not.toBe(b.limiter);
+	});
+});
 
 describe("withDryRun", () => {
 	it("bypasses inner when enabled:true", async () => {

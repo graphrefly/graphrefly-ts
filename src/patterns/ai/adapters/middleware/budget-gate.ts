@@ -15,6 +15,7 @@
  */
 
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
+import { DATA } from "../../../../core/messages.js";
 import type { Node } from "../../../../core/node.js";
 import { derived, state } from "../../../../core/sugar.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../../../extra/reactive-log.js";
@@ -70,7 +71,13 @@ export interface WithBudgetGateOptions {
 	 * ignored (caps.calls / caps.inputTokens / caps.outputTokens still apply).
 	 */
 	pricingFn?: PricingFn;
-	/** Called when any cap trips. Receives the key that triggered it. */
+	/**
+	 * Edge-triggered: fires exactly once when the gate transitions from
+	 * open to closed. Subsequent invoke/stream attempts against a closed
+	 * gate do NOT re-fire `onExhausted` — use the reactive `isOpen` node
+	 * if you need per-attempt notifications. Receives the cap key that
+	 * triggered the transition.
+	 */
 	onExhausted?: (which: keyof BudgetCaps) => void;
 	/** Name for logs / describe output. */
 	name?: string;
@@ -129,11 +136,32 @@ export function withBudgetGate(
 	// Keep the isOpen derived live so `.cache` stays current without an external subscriber.
 	keepalive(isOpen);
 
+	// Edge-trigger `onExhausted` on the open→closed transition. Subscribing
+	// here (instead of firing from `buildClosedError`) ensures the callback
+	// fires exactly once per transition, regardless of how many invoke/stream
+	// attempts hit the closed gate afterward. Callers that want per-attempt
+	// notifications should subscribe to `isOpen` directly.
+	if (opts.onExhausted != null) {
+		const handler = opts.onExhausted;
+		let wasOpen = true;
+		isOpen.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					const v = m[1] as boolean;
+					if (wasOpen && v === false) {
+						const which = pickExhaustedKey(totals.cache ?? EMPTY_TOTALS, opts.caps);
+						if (which) handler(which);
+					}
+					wasOpen = v;
+				}
+			}
+		});
+	}
+
 	const buildClosedError = (): BudgetExhaustedError | undefined => {
 		if (isOpen.cache === false) {
 			const t = totals.cache ?? EMPTY_TOTALS;
 			const which = pickExhaustedKey(t, opts.caps);
-			if (which) opts.onExhausted?.(which);
 			return new BudgetExhaustedError(
 				which ?? "budget",
 				opts.caps[which ?? "calls"] ?? 0,

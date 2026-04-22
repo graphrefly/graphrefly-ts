@@ -13,10 +13,12 @@ import {
 	costMeterExtractor,
 	type ExtractedToolCall,
 	fromLLM,
+	frozenContext,
 	type GatedStreamHandle,
 	gatedStream,
 	gaugesAsContext,
 	graphFromSpec,
+	handoff,
 	type KeywordFlag,
 	keywordFlagExtractor,
 	knobsAsTools,
@@ -241,6 +243,89 @@ describe("patterns.ai.fromLLM", () => {
 		// switchMap nodes need a subscriber to activate
 		const unsub = result.subscribe(() => {});
 		expect(result.cache).toEqual(resp);
+		unsub();
+	});
+});
+
+describe("patterns.ai.handoff (B10)", () => {
+	it("no condition: always routes through the specialist factory", () => {
+		const from = state<string | null>("hi");
+		let factoryCalls = 0;
+		const routed = handoff(from, (input) => {
+			factoryCalls += 1;
+			return derived([input], ([v]) => `[specialist] ${v}`);
+		});
+		const unsub = routed.subscribe(() => {});
+		expect(routed.cache).toBe("[specialist] hi");
+		expect(factoryCalls).toBeGreaterThanOrEqual(1);
+		unsub();
+	});
+
+	it("condition gates specialist engagement", () => {
+		const from = state<string | null>("q");
+		const urgent = state(false);
+		const routed = handoff(from, (input) => derived([input], ([v]) => `[urgent] ${v}`), {
+			condition: urgent,
+		});
+		const unsub = routed.subscribe(() => {});
+		// Condition closed — pass-through.
+		expect(routed.cache).toBe("q");
+		// Open the gate — specialist engages.
+		urgent.emit(true);
+		expect(routed.cache).toBe("[urgent] q");
+		// Close again — specialist output still shown (last) until src changes.
+		urgent.emit(false);
+		from.emit("q2");
+		expect(routed.cache).toBe("q2");
+		unsub();
+	});
+
+	it("null `from` value emits null regardless of condition", () => {
+		const from = state<string | null>(null);
+		const routed = handoff(from, (input) => derived([input], ([v]) => `[s] ${v}`), {
+			condition: state(true),
+		});
+		const unsub = routed.subscribe(() => {});
+		expect(routed.cache).toBeNull();
+		unsub();
+	});
+});
+
+describe("patterns.ai.frozenContext (B11)", () => {
+	it("materializes once without refresh trigger — source changes are ignored", () => {
+		const source = state("v1");
+		const frozen = frozenContext(source);
+		const unsub = frozen.subscribe(() => {});
+		expect(frozen.cache).toBe("v1");
+		source.emit("v2");
+		source.emit("v3");
+		// Frozen stays at v1 regardless of source changes.
+		expect(frozen.cache).toBe("v1");
+		unsub();
+	});
+
+	it("with refreshTrigger: emits current source only when trigger fires", () => {
+		const source = state("s1");
+		const trigger = state(0);
+		const frozen = frozenContext(source, { refreshTrigger: trigger });
+		const unsub = frozen.subscribe(() => {});
+		// Activation: src fires first (captured), trigger fires in its own
+		// wave → frozen emits the src value.
+		expect(frozen.cache).toBe("s1");
+
+		// Source drifts without a trigger tick — frozen stays put.
+		source.emit("s2");
+		source.emit("s3");
+		expect(frozen.cache).toBe("s1");
+
+		// Trigger fires → frozen catches up to current src.
+		trigger.emit(1);
+		expect(frozen.cache).toBe("s3");
+
+		// Another trigger with no src change re-emits the same value (RESOLVED suppression).
+		trigger.emit(2);
+		expect(frozen.cache).toBe("s3");
+
 		unsub();
 	});
 });
@@ -1039,6 +1124,71 @@ describe("patterns.ai.agentMemory", () => {
 		expect(mem.retrieval).toBeNull();
 		expect(mem.retrievalTrace).toBeNull();
 		expect(mem.retrieve).toBeNull();
+		expect(mem.retrieveReactive).toBeNull();
+		mem.destroy();
+	});
+
+	it("B20: retrieveReactive emits results when query node changes", () => {
+		type Mem = { text: string };
+		const mem = agentMemory<Mem>("reactive-retrieve", state<string>("seed"), {
+			extractFn: (raw) => ({
+				upsert: [
+					{ key: "a", value: { text: String(raw) } },
+					{ key: "b", value: { text: "other" } },
+				],
+			}),
+			score: (m) => (m.text.startsWith("seed") ? 2 : 1),
+			cost: () => 1,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+		expect(mem.retrieveReactive).not.toBeNull();
+		const query = state<{ vector?: readonly number[] } | null>(null);
+		const resultNode = mem.retrieveReactive!(query);
+		const unsub = resultNode.subscribe(() => {});
+		// Null query → empty.
+		expect(resultNode.cache).toEqual([]);
+		// Fire a query — packed entries materialize.
+		query.emit({ vector: [0.5, 0.5] });
+		const packed = resultNode.cache as ReadonlyArray<{ key: string; score: number }>;
+		expect(packed.length).toBeGreaterThan(0);
+		// Highest-score entry first (seed value scored 2).
+		expect(packed[0]!.score).toBeGreaterThanOrEqual(packed[packed.length - 1]!.score);
+		unsub();
+		mem.destroy();
+	});
+
+	it("B12: contextWeight boosts entries whose breadcrumb matches the query", () => {
+		type Mem = { text: string; context: readonly string[] };
+		const mem = agentMemory<Mem>("hier", state<string>("seed"), {
+			extractFn: () => ({
+				upsert: [
+					{ key: "authA", value: { text: "auth", context: ["projects", "auth", "tokens"] } },
+					{ key: "billA", value: { text: "bill", context: ["projects", "billing"] } },
+				],
+			}),
+			// Identical flat score — the hierarchical boost should decide ordering.
+			score: () => 1,
+			cost: () => 1,
+			contextOf: (m) => m.context,
+			contextWeight: 10,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+		const q = state<{ vector?: readonly number[]; context?: readonly string[] } | null>({
+			vector: [0.5, 0.5],
+			context: ["projects", "auth"],
+		});
+		const r = mem.retrieveReactive!(q);
+		const unsub = r.subscribe(() => {});
+		const packed = r.cache as ReadonlyArray<{ key: string; score: number }>;
+		// authA shares prefix depth 2 of 2 → boosted; billA shares depth 1 → smaller boost.
+		const authEntry = packed.find((p) => p.key === "authA");
+		const billEntry = packed.find((p) => p.key === "billA");
+		expect(authEntry).toBeDefined();
+		expect(billEntry).toBeDefined();
+		expect(authEntry!.score).toBeGreaterThan(billEntry!.score);
+		unsub();
 		mem.destroy();
 	});
 

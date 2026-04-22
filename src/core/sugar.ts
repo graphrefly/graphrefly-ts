@@ -81,8 +81,10 @@ export type ProducerFn = (
 
 /**
  * Creates a producer node with no deps; `fn` runs once when the first
- * subscriber connects. Return a cleanup function (`() => void`) or
- * `{ deactivation: () => void }` to register teardown.
+ * subscriber connects. Return a cleanup function (`() => void` — fires on
+ * every transition) or an object with granular hooks
+ * (`{ beforeRun?, deactivate?, invalidate? }` — each hook fires on its named
+ * transition only) to register teardown. See {@link NodeFnCleanup}.
  *
  * @example
  * ```ts
@@ -169,7 +171,9 @@ export function derived<T = unknown>(
  * User-level effect compute: fires when deps settle. Return value is NOT
  * auto-emitted — use `actions.emit(v)` / `actions.down(msgs)` explicitly if
  * the effect also wants to produce downstream messages. Return a cleanup
- * function or `{ deactivation }` to register teardown.
+ * function (`() => void`) or an object with granular hooks
+ * (`{ beforeRun?, deactivate?, invalidate? }`) to register teardown.
+ * See {@link NodeFnCleanup}.
  */
 export type EffectFn = (
 	data: readonly unknown[],

@@ -138,11 +138,34 @@ export type NodeTransportOptions = {
 
 /**
  * Cleanup return shape from a node {@link NodeFn}.
- * - `() => void` — fires before the next fn run AND on deactivation (default).
- * - `{ deactivation: () => void }` — fires only on deactivation (persistent
- *   resources that should survive across fn re-runs).
+ *
+ * Two forms, discriminated on return type:
+ *
+ * - `() => void` — fires before the next fn run AND on deactivation AND on
+ *   INVALIDATE. The simplest form: one cleanup function for every transition
+ *   away from the current run. Use when the same teardown logic applies to
+ *   all three.
+ *
+ * - `{ beforeRun?, deactivate?, invalidate? }` — granular hooks. Each hook
+ *   fires exactly once on its named transition; missing hooks are no-ops.
+ *   Use when only some transitions should flush resources (e.g. a measurement
+ *   cache that should survive re-runs but reset on deactivation).
+ *
+ *   - `beforeRun` fires before the next fn invocation (same point as the
+ *     function-form cleanup's pre-run hook).
+ *   - `deactivate` fires on deactivation (last-sink unsubscribe or TEARDOWN).
+ *   - `invalidate` fires on INVALIDATE (spec v0.4 graph-wide flush signal).
+ *
+ * Closure access: both forms are declared inside `NodeFn`, so hooks see the
+ * same closure as the fn body (per-run locals, `ctx.store`, dep refs).
  */
-export type NodeFnCleanup = (() => void) | { deactivation: () => void };
+export type NodeFnCleanup =
+	| (() => void)
+	| {
+			beforeRun?: () => void;
+			deactivate?: () => void;
+			invalidate?: () => void;
+	  };
 
 /**
  * Fn-time context exposing per-wave metadata and a per-node persistent
@@ -185,8 +208,10 @@ export interface FnCtx {
  *   the latest; iterate for multi-emission processing.
  *
  * Emission is explicit via `actions.emit(v)` (sugar: equals + framing) or
- * `actions.down(msgs)` (raw). Return a cleanup function (or
- * `{ deactivation }`) to register teardown — any non-cleanup return value
+ * `actions.down(msgs)` (raw). Return a cleanup shape to register teardown:
+ * `() => void` (fires on every transition) or
+ * `{ beforeRun?, deactivate?, invalidate? }` (each hook fires on its named
+ * transition only). See {@link NodeFnCleanup}. Any non-cleanup return value
  * is ignored. The `| void` leg lets arrow-block bodies satisfy `NodeFn`
  * without an explicit `return undefined`.
  *
@@ -1226,7 +1251,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 *   preserve their current status.
 	 */
 	_deactivate(skipStatusUpdate = false): void {
-		// Fn cleanup — both () => void and { deactivation } forms fire here.
+		// Fn cleanup — both () => void and object forms fire here.
+		// - Function form: fires on all three transitions (beforeRun, deactivate,
+		//   invalidate); this is the deactivate firing.
+		// - Object form: only the `deactivate` hook fires here.
 		// Note on cleanup-throw ERRORs: when deactivation runs as part of
 		// last-sink-unsubscribe, `_sinks` is already `null` by the time this
 		// method is reached, so any ERROR emitted here lands on
@@ -1242,14 +1270,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			} catch (err) {
 				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
 			}
-		} else if (
-			cleanup != null &&
-			typeof (cleanup as { deactivation?: unknown }).deactivation === "function"
-		) {
-			try {
-				(cleanup as { deactivation: () => void }).deactivation();
-			} catch (err) {
-				this._emit([[ERROR, this._wrapFnError("cleanup.deactivation threw", err)]]);
+		} else if (cleanup != null && typeof cleanup === "object") {
+			const hook = (cleanup as { deactivate?: unknown }).deactivate;
+			if (typeof hook === "function") {
+				try {
+					(hook as () => void)();
+				} catch (err) {
+					this._emit([[ERROR, this._wrapFnError("cleanup.deactivate threw", err)]]);
+				}
 			}
 		}
 
@@ -1526,8 +1554,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	// --- Fn execution ---
 
 	/**
-	 * @internal Runs the node fn once. Default cleanup (function form) fires
-	 * before the new run; `{ deactivation }` cleanup survives.
+	 * @internal Runs the node fn once.
+	 *
+	 * Cleanup firing:
+	 * - Function-form cleanup — fires here (pre-run) AND on deactivation AND
+	 *   on INVALIDATE. Cleared before the new fn runs.
+	 * - Object-form cleanup — only `beforeRun` fires here; `deactivate` and
+	 *   `invalidate` hooks survive across re-runs. The cleanup reference
+	 *   itself is preserved so `deactivate`/`invalidate` still fire later.
 	 */
 	private _execFn(): void {
 		if (!this._fn) return;
@@ -1540,7 +1574,10 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			return;
 		}
 
-		// Pre-run cleanup — only the function-form cleanup fires here.
+		// Pre-run cleanup:
+		// - Function form: fires in full, then cleared (next run sets a fresh one).
+		// - Object form: fires only the `beforeRun` hook; the cleanup object
+		//   itself is preserved so `deactivate`/`invalidate` survive re-runs.
 		const prevCleanup = this._cleanup;
 		if (typeof prevCleanup === "function") {
 			this._cleanup = undefined;
@@ -1550,8 +1587,17 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				this._emit([[ERROR, this._wrapFnError("cleanup threw", err)]]);
 				return;
 			}
+		} else if (prevCleanup != null && typeof prevCleanup === "object") {
+			const hook = (prevCleanup as { beforeRun?: unknown }).beforeRun;
+			if (typeof hook === "function") {
+				try {
+					(hook as () => void)();
+				} catch (err) {
+					this._emit([[ERROR, this._wrapFnError("cleanup.beforeRun threw", err)]]);
+					return;
+				}
+			}
 		}
-		// { deactivation } cleanup is preserved across runs.
 
 		// Snapshot dep state BEFORE clearing wave flags so the snapshot
 		// reflects "this wave" rather than "next wave".
@@ -1591,12 +1637,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			const result = this._fn(batchData, this._actions, ctx);
 			if (typeof result === "function") {
 				this._cleanup = result;
-			} else if (
-				result != null &&
-				typeof result === "object" &&
-				typeof (result as { deactivation?: unknown }).deactivation === "function"
-			) {
-				this._cleanup = result as { deactivation: () => void };
+			} else if (result != null && typeof result === "object") {
+				// Object form: store as-is if any recognized hook is a function.
+				// Other keys are ignored (forward-compat for future hooks).
+				const o = result as {
+					beforeRun?: unknown;
+					deactivate?: unknown;
+					invalidate?: unknown;
+				};
+				if (
+					typeof o.beforeRun === "function" ||
+					typeof o.deactivate === "function" ||
+					typeof o.invalidate === "function"
+				) {
+					this._cleanup = result as NodeFnCleanup;
+				}
 			}
 		} catch (err) {
 			this._emit([[ERROR, this._wrapFnError("fn threw", err)]]);
@@ -2023,7 +2078,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				} else if (t === INVALIDATE) {
 					this._cached = undefined;
 					this._status = "dirty";
-					// Function-form cleanup fires on invalidate (treats as "re-run").
+					// Cleanup firing on INVALIDATE:
+					// - Function form: fires in full (all three transitions share
+					//   the function) and is cleared.
+					// - Object form: fires only the `invalidate` hook; the cleanup
+					//   object itself is preserved so `deactivate` still fires
+					//   later if the node deactivates.
 					const c = this._cleanup;
 					if (typeof c === "function") {
 						this._cleanup = undefined;
@@ -2031,6 +2091,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							c();
 						} catch {
 							/* best-effort */
+						}
+					} else if (c != null && typeof c === "object") {
+						const hook = (c as { invalidate?: unknown }).invalidate;
+						if (typeof hook === "function") {
+							try {
+								(hook as () => void)();
+							} catch {
+								/* best-effort */
+							}
 						}
 					}
 				} else if (t === TEARDOWN) {

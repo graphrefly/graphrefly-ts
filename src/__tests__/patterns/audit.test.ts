@@ -157,6 +157,26 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		expect(enforcer.all()).toHaveLength(0);
 	});
 
+	it("B9: audit mode records anonymous writes under system actor instead of skipping", () => {
+		// Policy: deny *any* write that is not human.
+		const denyNonHuman = [
+			{ effect: "allow" as const, action: "write" as const, actorType: "human" },
+			{ effect: "deny" as const, action: "write" as const },
+		];
+		const g = new Graph("g");
+		g.add("a", state(0, { name: "a", guard: () => true }));
+		const enforcer = policyEnforcer(g, denyNonHuman, { mode: "audit" });
+
+		// Write with no actor — previously silently skipped, now must be
+		// recorded under the DEFAULT_ACTOR (type "system").
+		g.set("a", 42);
+		const violations = enforcer.all();
+		expect(violations).toHaveLength(1);
+		expect(violations[0]?.actor.type).toBe("system");
+		expect(violations[0]?.result).toBe("observed");
+		expect(violations[0]?.path).toBe("a");
+	});
+
 	it("enforce mode: blocks disallowed writes by throwing GuardDenied", () => {
 		const g = new Graph("g");
 		g.add("a", state(0, { name: "a" }));

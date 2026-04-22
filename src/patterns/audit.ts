@@ -431,19 +431,26 @@ export class PolicyEnforcerGraph extends Graph {
 		} else {
 			// Audit mode: observe writes, evaluate against current guard, record
 			// violations without blocking. Use the structured observe stream so
-			// `path` is supplied without per-node subscription bookkeeping.
+			// `path` and `actor` attribution are supplied without per-node
+			// subscription bookkeeping. B9: unattributed writes no longer skip
+			// — the ObserveEvent always carries a well-formed `actor` (falling
+			// back to `DEFAULT_ACTOR` for anonymous/internal writes), so the
+			// policy is evaluated against every write.
 			const handle = target.observe({ timeline: true, structured: true });
 			const off = handle.onEvent((event) => {
 				if (event.type !== "data" && event.type !== "error") return;
 				const path = event.path ?? "";
 				if (!path) return;
 				if (opts.paths != null && !opts.paths.includes(path)) return;
-				const node = safeNode(target, path);
-				const lastMutation = node?.lastMutation;
-				if (lastMutation == null) return; // cannot attribute → no policy decision
+				// Prefer the event-stamped actor (always populated for DATA/ERROR
+				// post-B9). Fall back to lastMutation for back-compat with any
+				// consumer stubbing observe events without the field.
+				const actor =
+					(event as { actor?: Actor }).actor ?? safeNode(target, path)?.lastMutation?.actor;
+				if (actor == null) return; // defensive — shouldn't happen post-B9
 				const action: GuardAction = "write";
-				if (this._currentGuard(lastMutation.actor, action)) return;
-				this._publishViolation(lastMutation.actor, action, path, "observed");
+				if (this._currentGuard(actor, action)) return;
+				this._publishViolation(actor, action, path, "observed");
 			});
 			this.addDisposer(() => {
 				off();

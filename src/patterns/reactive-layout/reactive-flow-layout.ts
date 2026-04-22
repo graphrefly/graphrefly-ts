@@ -345,10 +345,14 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 			const fontVal = (b1 != null && b1.length > 0 ? b1.at(-1) : ctx.prevData[1]) as string;
 			const result = analyzeAndMeasure(textVal, fontVal, adapter, measureCache);
 			actions.emit(result);
-			return () => {
+			// Flush on deactivation + INVALIDATE only — preserve cache across
+			// fn re-runs so text/font edits don't wipe per-segment entries that
+			// still match the new text.
+			const flush = (): void => {
 				measureCache.clear();
 				adapter.clearCache?.();
 			};
+			return { deactivate: flush, invalidate: flush };
 		},
 		{ name: "segments", describeKind: "derived" },
 	);

@@ -46,6 +46,18 @@ export interface WithRateLimiterOptions {
 	adaptation?: NodeInput<RateLimitSignal>;
 	burstMultiplier?: number;
 	name?: string;
+	/**
+	 * Share an existing {@link AdaptiveRateLimiterBundle} across multiple
+	 * adapter wraps. When provided, `withRateLimiter` reuses this bundle
+	 * instead of constructing a new one — useful when the RPM/TPM cap is
+	 * logically per-provider but the caller wants to harden multiple adapters
+	 * (e.g. primary + fallback of the same vendor) against the shared cap.
+	 *
+	 * When `limiter` is set, `rpm` / `tpm` / `adaptation` / `burstMultiplier`
+	 * / `name` are ignored (the supplied bundle owns those). `costFn` is still
+	 * used per-wrap — each wrap supplies its own cost estimator.
+	 */
+	limiter?: AdaptiveRateLimiterBundle;
 }
 
 /**
@@ -57,13 +69,15 @@ export function withRateLimiter(
 	inner: LLMAdapter,
 	opts: WithRateLimiterOptions = {},
 ): { adapter: LLMAdapter; limiter: AdaptiveRateLimiterBundle } {
-	const limiter = adaptiveRateLimiter({
-		name: opts.name ?? "rateLimiter",
-		rpm: opts.rpm,
-		tpm: opts.tpm,
-		adaptation: opts.adaptation,
-		burstMultiplier: opts.burstMultiplier,
-	});
+	const limiter =
+		opts.limiter ??
+		adaptiveRateLimiter({
+			name: opts.name ?? "rateLimiter",
+			rpm: opts.rpm,
+			tpm: opts.tpm,
+			adaptation: opts.adaptation,
+			burstMultiplier: opts.burstMultiplier,
+		});
 
 	const estimateCost = (
 		messages: readonly ChatMessage[],

@@ -43,6 +43,7 @@
 import type { AdaptiveRateLimiterBundle } from "../../../../extra/adaptive-rate-limiter.js";
 import type { CircuitBreaker } from "../../../../extra/resilience.js";
 import type { LLMAdapter } from "../core/types.js";
+import type { CascadeExhaustionReport } from "../routing/cascading.js";
 import { cascadingLlmAdapter } from "../routing/cascading.js";
 import { type WithBreakerOptions, withBreaker } from "./breaker.js";
 import {
@@ -75,6 +76,18 @@ export interface ResilientAdapterOptions {
 	fallback?: LLMAdapter;
 	/** Name used as the primary tier name in the fallback cascade. Default `"primary"`. */
 	name?: string;
+	/**
+	 * Called when the cascade switches from one tier to the next after a
+	 * failure. Only fires when `fallback` is set. Threaded directly to the
+	 * inner {@link cascadingLlmAdapter}.
+	 */
+	onFallback?: (from: string, to: string, error: unknown) => void;
+	/**
+	 * Called when every tier in the cascade has been exhausted (all failed,
+	 * skipped by filter, or skipped by breaker). Only fires when `fallback`
+	 * is set. Threaded directly to the inner {@link cascadingLlmAdapter}.
+	 */
+	onExhausted?: (report: CascadeExhaustionReport) => void;
 }
 
 /** Output bundle of {@link resilientAdapter}. */
@@ -146,10 +159,19 @@ export function resilientAdapter(
 				'resilientAdapter: `name` cannot be "fallback" — collides with the secondary tier label.',
 			);
 		}
-		current = cascadingLlmAdapter([
-			{ name: opts.name ?? "primary", adapter: current },
-			{ name: "fallback", adapter: opts.fallback },
-		]);
+		const cascadeOpts: {
+			onFallback?: (from: string, to: string, error: unknown) => void;
+			onExhausted?: (report: CascadeExhaustionReport) => void;
+		} = {};
+		if (opts.onFallback) cascadeOpts.onFallback = opts.onFallback;
+		if (opts.onExhausted) cascadeOpts.onExhausted = opts.onExhausted;
+		current = cascadingLlmAdapter(
+			[
+				{ name: opts.name ?? "primary", adapter: current },
+				{ name: "fallback", adapter: opts.fallback },
+			],
+			cascadeOpts,
+		);
 	}
 
 	bundle.adapter = current;

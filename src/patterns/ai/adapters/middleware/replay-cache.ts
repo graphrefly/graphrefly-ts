@@ -55,11 +55,33 @@ export class ReplayCacheMissError extends Error {
 	}
 }
 
+/**
+ * Context object passed to {@link WithReplayCacheOptions.keyFn}. Extending
+ * with additional fields is forward-compatible — current implementations
+ * ignoring unknown fields continue to work.
+ */
+export interface ReplayCacheKeyContext {
+	readonly messages: readonly ChatMessage[];
+	readonly opts: LLMInvokeOptions | undefined;
+	/** Shortcut to `opts?.keyContext` — avoids an extra guard in callers. */
+	readonly context: unknown;
+}
+
 export interface WithReplayCacheOptions {
 	storage: StorageTier;
 	mode?: ReplayCacheMode;
-	/** Custom key function (defaults to sha256 of canonical JSON). */
-	keyFn?: (messages: readonly ChatMessage[], opts?: LLMInvokeOptions) => string;
+	/**
+	 * Custom key function. Receives a {@link ReplayCacheKeyContext} with the
+	 * chat messages, the invoke options, and the caller-supplied
+	 * `opts.keyContext`. Defaults to sha256 of canonical JSON over
+	 * `(messages, opts without signal/keyContext)`.
+	 *
+	 * Legacy 2-arg form `(messages, opts?)` also accepted — the adapter
+	 * detects arity and dispatches. Prefer the object form for new code.
+	 */
+	keyFn?:
+		| ((ctx: ReplayCacheKeyContext) => string)
+		| ((messages: readonly ChatMessage[], opts?: LLMInvokeOptions) => string);
 	/** Prefix for cached keys (useful when sharing a tier across domains). */
 	keyPrefix?: string;
 	/**
@@ -115,8 +137,25 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 		messages: readonly ChatMessage[],
 		invokeOpts: LLMInvokeOptions | undefined,
 	): string => {
-		if (opts.keyFn) return `${keyPrefix}:${opts.keyFn(messages, invokeOpts)}`;
-		const { signal: _signal, ...rest } = invokeOpts ?? {};
+		if (opts.keyFn) {
+			// Arity-dispatch: 1-arg form receives the ctx object; 2-arg
+			// legacy form receives (messages, opts). Functions with 1 param
+			// (`Function.length === 1`) take the ctx shape.
+			const kf = opts.keyFn;
+			if (kf.length <= 1) {
+				const ctxKey: ReplayCacheKeyContext = {
+					messages,
+					opts: invokeOpts,
+					context: invokeOpts?.keyContext,
+				};
+				return `${keyPrefix}:${(kf as (ctx: ReplayCacheKeyContext) => string)(ctxKey)}`;
+			}
+			return `${keyPrefix}:${(kf as (m: readonly ChatMessage[], o?: LLMInvokeOptions) => string)(messages, invokeOpts)}`;
+		}
+		// Default keying: drop `signal` (AbortSignal is not serializable) and
+		// `keyContext` (per-call context should not affect the default hash —
+		// it only matters when a user opts in via `keyFn`).
+		const { signal: _signal, keyContext: _keyContext, ...rest } = invokeOpts ?? {};
 		const canonical = canonicalJson({ messages, opts: rest });
 		return `${keyPrefix}:${createHash("sha256").update(canonical).digest("hex")}`;
 	};

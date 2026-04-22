@@ -231,6 +231,15 @@ export interface LLMInvokeOptions {
 	 * Escape hatch for features not yet in the canonical options.
 	 */
 	providerExtras?: Record<string, unknown>;
+	/**
+	 * Open-ended per-call context threaded to cache / fallback key functions.
+	 * Callers who want to shard caches by tenant, session, feature flag, or
+	 * any other dimension populate this and supply a custom `keyFn` that
+	 * incorporates it. Not sent to providers — stripped from canonical key
+	 * hashing when no custom `keyFn` is supplied. Type is `unknown` to avoid
+	 * prescribing a shape; callers pick their own.
+	 */
+	keyContext?: unknown;
 }
 
 // ---------------------------------------------------------------------------
