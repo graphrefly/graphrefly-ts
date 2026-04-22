@@ -10,6 +10,26 @@ export default defineConfig({
 	base,
 	// Fixed dev-server port so the preview tool + other demos don't collide.
 	server: { port: 4323 },
+	vite: {
+		build: {
+			rollupOptions: {
+				// `@mlc-ai/web-llm` — peer dep of the library's browser
+				// `webllmAdapter` (dynamic import with `.catch()`). The
+				// website never calls it, but rollup tree-shakes the library
+				// dist and needs it externalized. Matches the library's
+				// peer-dep contract — users who actually need webllm install
+				// it in their own app.
+				// `node:*` builtins — the library's Node-only paths
+				// (`fallbackAdapter`, `withReplayCache`, `fileStorage`,
+				// `sqliteStorage`) import them; the website doesn't execute
+				// those paths, but rollup needs them externalized to tree-shake.
+				external: ["@mlc-ai/web-llm", /^node:/],
+			},
+		},
+		optimizeDeps: {
+			exclude: ["@mlc-ai/web-llm"],
+		},
+	},
 	integrations: [
 		starlight({
 			plugins: [
