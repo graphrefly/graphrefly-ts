@@ -75,6 +75,7 @@ export default defineConfig({
 		"src/patterns/reactive-layout/index.ts",
 		"src/patterns/memory.ts",
 		"src/patterns/ai.ts",
+		"src/patterns/ai/adapters/routing/browser-presets.ts",
 		"src/patterns/audit.ts",
 	],
 	format: ["esm", "cjs"],

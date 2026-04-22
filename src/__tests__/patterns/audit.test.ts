@@ -346,6 +346,25 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 });
 
 describe("reactiveExplainPath (roadmap §9.2)", () => {
+	it("B21: graph.explain({ reactive: true }) returns the same reactive chain", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add("a", a);
+		g.add("b", b);
+		g.observe("b").subscribe(() => {});
+
+		const direct = g.explain("a", "b", { reactive: true });
+		const unsub = direct.node.subscribe(() => {});
+		expect(direct.node.cache?.found).toBe(true);
+		expect(direct.node.cache?.steps[0]?.value).toBe(1);
+		g.set("a", 7);
+		expect(direct.node.cache?.steps[0]?.value).toBe(7);
+		expect(direct.node.cache?.steps[1]?.value).toBe(14);
+		unsub();
+		direct.dispose();
+	});
+
 	it("recomputes when audited graph mutates", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });

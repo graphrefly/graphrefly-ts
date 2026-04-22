@@ -197,6 +197,26 @@
 				"default": "./dist/patterns/ai.cjs"
 			}
 		},
+		"./patterns/ai/browser-presets": {
+			"browser": {
+				"import": {
+					"types": "./dist/patterns/ai/adapters/routing/browser-presets.d.ts",
+					"default": "./dist/patterns/ai/adapters/routing/browser-presets.js"
+				},
+				"require": {
+					"types": "./dist/patterns/ai/adapters/routing/browser-presets.d.cts",
+					"default": "./dist/patterns/ai/adapters/routing/browser-presets.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/patterns/ai/adapters/routing/browser-presets.d.ts",
+				"default": "./dist/patterns/ai/adapters/routing/browser-presets.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai/adapters/routing/browser-presets.d.cts",
+				"default": "./dist/patterns/ai/adapters/routing/browser-presets.cjs"
+			}
+		},
 		"./patterns/audit": {
 			"import": {
 				"types": "./dist/patterns/audit.d.ts",

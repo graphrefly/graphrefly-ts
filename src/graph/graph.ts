@@ -29,13 +29,14 @@ import {
 	type NodeSink,
 	type NodeTransportOptions,
 } from "../core/node.js";
-import { producer, state as stateNode } from "../core/sugar.js";
+import { derived, producer, state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import { keepalive } from "../extra/sources.js";
 import type { StorageHandle, StorageTier } from "../extra/storage.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
-import { type CausalChain, explainPath } from "./explain.js";
+import { type CausalChain, type CausalStep, explainPath } from "./explain.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
@@ -1992,15 +1993,43 @@ export class Graph {
 	 * each node's value, status, last-mutation actor, and reasoning annotation
 	 * from {@link Graph.trace}. Wraps {@link explainPath} (roadmap §9.2).
 	 *
+	 * Same question, two answers:
+	 * - **Static (default)** — `explain(from, to, opts?)` returns a single
+	 *   {@link CausalChain} snapshot of the graph at call time.
+	 * - **Reactive** — `explain(from, to, { reactive: true, ... })` returns
+	 *   `{ node: Node<CausalChain>; dispose: () => void }`. The node
+	 *   recomputes whenever a `data` / `error` / `complete` / `teardown`
+	 *   event fires anywhere on the graph's structured observe stream, so
+	 *   the chain stays live. Replaces the former `reactiveExplainPath`.
+	 *
 	 * @param from - Upstream node (the cause).
 	 * @param to - Downstream node (the effect).
 	 * @param opts - Optional `maxDepth` and `findCycle`. When `findCycle:true`
 	 *   and `from === to`, returns the shortest cycle through other nodes
 	 *   (useful for diagnosing feedback loops, COMPOSITION-GUIDE §7).
-	 *   Annotations and lastMutations are collected automatically from the
-	 *   live graph.
+	 *   When `reactive: true`, also accepts `name?`.
 	 */
+	explain(from: string, to: string, opts?: { maxDepth?: number; findCycle?: boolean }): CausalChain;
 	explain(
+		from: string,
+		to: string,
+		opts: { reactive: true; maxDepth?: number; findCycle?: boolean; name?: string },
+	): { node: Node<CausalChain>; dispose: () => void };
+	explain(
+		from: string,
+		to: string,
+		opts?: {
+			reactive?: boolean;
+			maxDepth?: number;
+			findCycle?: boolean;
+			name?: string;
+		},
+	): CausalChain | { node: Node<CausalChain>; dispose: () => void } {
+		if (opts?.reactive === true) return this._explainReactive(from, to, opts);
+		return this._explainStatic(from, to, opts);
+	}
+
+	private _explainStatic(
 		from: string,
 		to: string,
 		opts?: { maxDepth?: number; findCycle?: boolean },
@@ -2019,6 +2048,49 @@ export class Graph {
 			annotations,
 			lastMutations,
 		});
+	}
+
+	private _explainReactive(
+		from: string,
+		to: string,
+		opts?: { maxDepth?: number; findCycle?: boolean; name?: string },
+	): { node: Node<CausalChain>; dispose: () => void } {
+		// Closure-held version counter (COMPOSITION-GUIDE §28 / spec §3.6
+		// sanctioned pattern). Every settled observe event bumps `v`, which
+		// drives the derived to recompute.
+		let v = 0;
+		const version = stateNode(v, { name: "explain_version" });
+		const handle = this.observe({ timeline: true, structured: true });
+		const off = handle.onEvent((event) => {
+			const t = event.type;
+			if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
+			v += 1;
+			version.emit(v);
+		});
+
+		const explainOpts = {
+			...(opts?.maxDepth != null ? { maxDepth: opts.maxDepth } : {}),
+			...(opts?.findCycle === true ? { findCycle: true as const } : {}),
+		};
+		const node = derived<CausalChain>([version], () => this._explainStatic(from, to, explainOpts), {
+			name: opts?.name ?? "explain",
+			describeKind: "derived",
+			equals: (a, b) =>
+				a.found === b.found &&
+				a.reason === b.reason &&
+				a.steps.length === b.steps.length &&
+				causalStepsEqual(a.steps, b.steps),
+		});
+		const stopKeepalive = keepalive(node);
+
+		return {
+			node,
+			dispose() {
+				off();
+				handle.dispose();
+				stopKeepalive();
+			},
+		};
 	}
 
 	/**
@@ -3607,4 +3679,33 @@ export function reachable(
 	const paths = [...depths.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 	if (options.withDetail) return { paths, depths, truncated };
 	return paths;
+}
+
+/**
+ * Structural equals for a causal-chain step sequence, used by
+ * {@link Graph.explain} in reactive mode to suppress RESOLVED re-emits when
+ * the chain is unchanged between observe events.
+ */
+function causalStepsEqual(a: readonly CausalStep[], b: readonly CausalStep[]): boolean {
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i]!;
+		const y = b[i]!;
+		if (x.path !== y.path) return false;
+		if (x.type !== y.type) return false;
+		if (x.status !== y.status) return false;
+		if (x.hop !== y.hop) return false;
+		if (x.dep_index !== y.dep_index) return false;
+		if (x.annotation !== y.annotation) return false;
+		// Value identity — derived snapshots reuse same refs unless changed.
+		if (x.value !== y.value) return false;
+		// `lastMutation` is replaced on every write, so identity compare is sufficient.
+		if (x.lastMutation !== y.lastMutation) return false;
+		const xv = x.v;
+		const yv = y.v;
+		if (xv !== yv) {
+			if (xv == null || yv == null) return false;
+			if (xv.id !== yv.id || xv.version !== yv.version) return false;
+		}
+	}
+	return true;
 }

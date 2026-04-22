@@ -26,7 +26,6 @@ import { defaultHash } from "../core/versioning.js";
 import { reactiveLog } from "../extra/reactive-log.js";
 import {
 	type CausalChain,
-	type CausalStep,
 	Graph,
 	type GraphOptions,
 	type GraphPersistSnapshot,
@@ -519,76 +518,19 @@ export function policyEnforcer(
  * `data`, `error`, `complete`, and `teardown` bump the version (matching the
  * audit defaults).
  */
+/**
+ * @deprecated Use `graph.explain(from, to, { reactive: true, ... })` directly.
+ *   This free-function wrapper now dispatches to the consolidated
+ *   {@link Graph.explain} overload for mental-model consistency with
+ *   `describe` / `observe`. Will be removed pre-1.0.
+ */
 export function reactiveExplainPath(
 	target: Graph,
 	from: string,
 	to: string,
 	opts?: { maxDepth?: number; name?: string; findCycle?: boolean },
 ): { node: Node<CausalChain>; dispose: () => void } {
-	// Closure-held counter (COMPOSITION-GUIDE §28 / spec §3.6 sanctioned
-	// pattern). We do NOT read `version.cache` from inside the subscribe
-	// callback — that would be a P3 violation under batched waves where
-	// multiple events deliver to the same listener with stale cache.
-	let v = 0;
-	const version = state(v, { name: "explain_version" });
-	const handle = target.observe({ timeline: true, structured: true });
-	const off = handle.onEvent((event) => {
-		const t = event.type;
-		if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
-		v += 1;
-		version.emit(v);
-	});
-
-	const explainOpts = {
-		...(opts?.maxDepth != null ? { maxDepth: opts.maxDepth } : {}),
-		...(opts?.findCycle === true ? { findCycle: true as const } : {}),
-	};
-	const node = derived<CausalChain>([version], () => target.explain(from, to, explainOpts), {
-		name: opts?.name ?? "explain",
-		describeKind: "derived",
-		equals: (a, b) =>
-			a.found === b.found &&
-			a.reason === b.reason &&
-			a.steps.length === b.steps.length &&
-			causalStepsEqual(a.steps, b.steps),
-		meta: auditMeta("explain_path", { from, to }),
-	});
-	const stopKeepalive = keepalive(node);
-
-	return {
-		node,
-		dispose() {
-			off();
-			handle.dispose();
-			stopKeepalive();
-		},
-	};
-}
-
-function causalStepsEqual(a: readonly CausalStep[], b: readonly CausalStep[]): boolean {
-	for (let i = 0; i < a.length; i++) {
-		const x = a[i]!;
-		const y = b[i]!;
-		if (x.path !== y.path) return false;
-		if (x.type !== y.type) return false;
-		if (x.status !== y.status) return false;
-		if (x.hop !== y.hop) return false;
-		if (x.dep_index !== y.dep_index) return false;
-		if (x.annotation !== y.annotation) return false;
-		// Value identity — derived snapshots reuse same refs unless changed.
-		if (x.value !== y.value) return false;
-		// `lastMutation` is `Readonly<{actor, timestamp_ns}>`; identity compare
-		// is sufficient because `_lastMutation` is replaced on every mutation
-		// (new object per write) — same identity ⇒ no actor/timestamp change.
-		if (x.lastMutation !== y.lastMutation) return false;
-		const xv = x.v;
-		const yv = y.v;
-		if (xv !== yv) {
-			if (xv == null || yv == null) return false;
-			if (xv.id !== yv.id || xv.version !== yv.version) return false;
-		}
-	}
-	return true;
+	return target.explain(from, to, { reactive: true, ...opts });
 }
 
 // ---------------------------------------------------------------------------

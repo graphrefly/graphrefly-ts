@@ -8,6 +8,7 @@
 import { afterAll, bench, describe } from "vitest";
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY, type Messages } from "../core/messages.js";
+import { node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 
 const push = (n: { down: (m: Messages) => void }, v: number) => {
@@ -179,6 +180,67 @@ describe("fan-out: 100 subscribers", () => {
 	afterAll(() => {
 		for (const u of unsubs) u();
 	});
+});
+
+// B18 — extended fan-out scaling to validate the sink-notification cost trend.
+describe("fan-out: 1000 subscribers", () => {
+	const src = state<number>(0);
+	const unsubs = Array.from({ length: 1000 }, () => src.subscribe(() => undefined));
+	let i = 0;
+	bench("set with 1000 subscribers", () => {
+		push(src, i++);
+	});
+	afterAll(() => {
+		for (const u of unsubs) u();
+	});
+});
+
+// ─── B7 — passthrough-heavy chains (measure `_emit([msg])` wrapper cost) ─────
+//
+// Fn-less nodes (`node([dep])` without a `fn`) forward DATA/RESOLVED via the
+// passthrough branch at `_onDepMessage`, which calls `this._emit([msg])` per
+// forwarded message — one fresh single-element wrapper allocation per node
+// per message. A 5-level chain runs the path 5× per source write; a 10-level
+// chain runs it 10×. Baseline for the single-message `_emit` overload
+// decision in B7.
+
+describe("passthrough: 5-level fn-less chain", () => {
+	const head = state<number>(0);
+	let cur: ReturnType<typeof state<number>> = head;
+	for (let j = 0; j < 5; j++) cur = node<number>([cur]);
+	const tail = cur;
+	const unsub = tail.subscribe(() => undefined);
+	let i = 0;
+	bench("set head + propagate through 5 fn-less passthroughs", () => {
+		push(head, i++);
+	});
+	afterAll(() => unsub());
+});
+
+describe("passthrough: 10-level fn-less chain", () => {
+	const head = state<number>(0);
+	let cur: ReturnType<typeof state<number>> = head;
+	for (let j = 0; j < 10; j++) cur = node<number>([cur]);
+	const tail = cur;
+	const unsub = tail.subscribe(() => undefined);
+	let i = 0;
+	bench("set head + propagate through 10 fn-less passthroughs", () => {
+		push(head, i++);
+	});
+	afterAll(() => unsub());
+});
+
+describe("passthrough: 20-level fn-less chain", () => {
+	const head = state<number>(0);
+	let cur: ReturnType<typeof state<number>> = head;
+	for (let j = 0; j < 20; j++) cur = node<number>([cur]);
+	const tail = cur;
+	const unsub = tail.subscribe(() => undefined);
+	let i = 0;
+	bench("set head + propagate through 20 fn-less passthroughs", () => {
+		push(head, i++);
+	});
+	afterAll(() => unsub());
 });
 
 // ─── Batching ──────────────────────────────────────────────
