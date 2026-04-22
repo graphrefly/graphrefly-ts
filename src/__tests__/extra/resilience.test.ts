@@ -600,8 +600,8 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = state(1);
 			const bundle = withBreaker(b)(s);
 			const g = new Graph("test");
-			g.add("src", s);
-			g.add("guarded", bundle.node);
+			g.add(s, { name: "src" });
+			g.add(bundle.node, { name: "guarded" });
 			const desc = g.describe({ detail: "standard" });
 			const metaPath = "guarded::__meta__::breakerState";
 			expect(desc.nodes[metaPath]).toBeDefined();
@@ -612,8 +612,8 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = state(0);
 			const bundle = withStatus(s);
 			const g = new Graph("test");
-			g.add("src", s);
-			g.add("tracked", bundle.node);
+			g.add(s, { name: "src" });
+			g.add(bundle.node, { name: "tracked" });
 			const desc = g.describe({ detail: "standard" });
 			expect(desc.nodes["tracked::__meta__::status"]).toBeDefined();
 			expect(desc.nodes["tracked::__meta__::status"].value).toBe("pending");

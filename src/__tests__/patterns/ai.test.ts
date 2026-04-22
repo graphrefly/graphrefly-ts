@@ -1052,6 +1052,92 @@ describe("patterns.ai.agentLoop", () => {
 		const result = await loop.run("hi");
 		expect(result?.content).toBe("async-ok");
 	});
+
+	// --- QA regressions (2026-04-22) ---
+
+	it("QA C1: concurrent run() rejects with RangeError", async () => {
+		// Use a never-resolving adapter so the first run() stays pending.
+		let pendingResolve: ((v: LLMResponse) => void) | undefined;
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke() {
+				return new Promise<LLMResponse>((resolve) => {
+					pendingResolve = resolve;
+				});
+			},
+			async *stream() {},
+		};
+		const loop = agentLoop("test-agent", { adapter });
+		const first = loop.run("first");
+		// `run()` is async → reentrant throw surfaces as a rejected Promise.
+		await expect(loop.run("second")).rejects.toThrow(RangeError);
+		// Release the first run so test teardown doesn't hang.
+		pendingResolve?.({ content: "done", finishReason: "end_turn" });
+		await first;
+	});
+
+	it("QA C2: abort() cancels in-flight invocation via AbortSignal", async () => {
+		let abortedSignal = false;
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke(_messages, opts) {
+				return new Promise<LLMResponse>((_resolve, reject) => {
+					opts?.signal?.addEventListener("abort", () => {
+						abortedSignal = true;
+						reject(new Error("aborted"));
+					});
+				});
+			},
+			async *stream() {},
+		};
+		const loop = agentLoop("test-agent", { adapter });
+		const running = loop.run("go");
+		// Give the invoke a turn to register its abort listener.
+		await new Promise((resolve) => setImmediate(resolve));
+		loop.abort();
+		await expect(running).rejects.toThrow();
+		expect(abortedSignal).toBe(true);
+	});
+
+	it("QA C3: abort before response rejects with AbortError", async () => {
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke() {
+				return new Promise<LLMResponse>(() => {
+					/* never resolves */
+				});
+			},
+			async *stream() {},
+		};
+		const loop = agentLoop("test-agent", { adapter });
+		const running = loop.run("go");
+		await new Promise((resolve) => setImmediate(resolve));
+		loop.abort();
+		await expect(running).rejects.toMatchObject({ name: "AbortError" });
+	});
+
+	it("QA m8: string tool-result is not double-JSON-stringified", async () => {
+		const toolCallResp: LLMResponse = {
+			content: "",
+			toolCalls: [{ id: "tc1", name: "search", arguments: { q: "x" } }],
+		};
+		const finalResp: LLMResponse = {
+			content: "done",
+			finishReason: "end_turn",
+		};
+		const adapter = mockAdapter([toolCallResp, finalResp]);
+		const searchTool: ToolDefinition = {
+			name: "search",
+			description: "",
+			parameters: {},
+			handler: () => "hello world",
+		};
+		const loop = agentLoop("test-agent", { adapter, tools: [searchTool] });
+		await loop.run("query");
+		const msgs = loop.chat.allMessages();
+		const toolMsg = msgs.find((m) => m.role === "tool");
+		expect(toolMsg?.content).toBe("hello world");
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -1401,9 +1487,9 @@ describe("knobsAsTools", () => {
 			name: "summary",
 			meta: { description: "Summary display" },
 		});
-		g.add("temperature", temp);
-		g.add("mode", mode);
-		g.add("summary", summary);
+		g.add(temp, { name: "temperature" });
+		g.add(mode, { name: "mode" });
+		g.add(summary, { name: "summary" });
 
 		const result = knobsAsTools(g);
 
@@ -1453,7 +1539,7 @@ describe("knobsAsTools", () => {
 			name: "secret",
 			meta: { description: "Human-only secret", access: "human" },
 		});
-		g.add("secret", secret);
+		g.add(secret, { name: "secret" });
 
 		const result = knobsAsTools(g);
 		expect(result.openai).toHaveLength(0);
@@ -1467,7 +1553,7 @@ describe("knobsAsTools", () => {
 			versioning: 0,
 			meta: { description: "Versioned knob", access: "both" },
 		});
-		g.add("knob", knob);
+		g.add(knob, { name: "knob" });
 
 		const result = knobsAsTools(g);
 		const def = result.definitions.find((d) => d.name === "knob");
@@ -1496,9 +1582,9 @@ describe("gaugesAsContext", () => {
 			name: "status",
 			meta: { description: "System status", format: "status" },
 		});
-		g.add("revenue", revenue);
-		g.add("growth", growth);
-		g.add("status", status);
+		g.add(revenue, { name: "revenue" });
+		g.add(growth, { name: "growth" });
+		g.add(status, { name: "status" });
 
 		const ctx = gaugesAsContext(g);
 
@@ -1513,7 +1599,7 @@ describe("gaugesAsContext", () => {
 	it("returns empty string when no gauges", () => {
 		const g = new Graph("empty");
 		const plain = state(42, { name: "plain" });
-		g.add("plain", plain);
+		g.add(plain, { name: "plain" });
 
 		expect(gaugesAsContext(g)).toBe("");
 		g.destroy();
@@ -1526,7 +1612,7 @@ describe("gaugesAsContext", () => {
 			versioning: 0,
 			meta: { description: "Metric", access: "both" },
 		});
-		g.add("metric", metric);
+		g.add(metric, { name: "metric" });
 
 		const since = new Map<string, { id: string; version: number }>();
 		since.set("metric", { id: metric.v!.id, version: metric.v!.version });
@@ -1712,7 +1798,7 @@ describe("suggestStrategy", () => {
 
 		const g = new Graph("api");
 		const maxRate = state(50, { name: "max_rate", meta: { description: "Max rate" } });
-		g.add("max_rate", maxRate);
+		g.add(maxRate, { name: "max_rate" });
 
 		const result = await suggestStrategy(g, "API calls are being throttled", adapter);
 

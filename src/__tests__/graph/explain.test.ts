@@ -7,8 +7,8 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		// Activate so derived computes.
 		g.observe("b").subscribe(() => {});
 
@@ -28,10 +28,10 @@ describe("explainPath (roadmap §9.2)", () => {
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
 		const c = derived([a], ([v]) => (v as number) + 10, { name: "c" });
 		const d = derived([b, c], ([x, y]) => (x as number) + (y as number), { name: "d" });
-		g.add("a", a);
-		g.add("b", b);
-		g.add("c", c);
-		g.add("d", d);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.add(d, { name: "d" });
 		g.observe("d").subscribe(() => {});
 
 		const chain = g.explain("a", "d");
@@ -47,8 +47,8 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const z = state("z", { name: "z" });
-		g.add("a", a);
-		g.add("z", z);
+		g.add(a, { name: "a" });
+		g.add(z, { name: "z" });
 
 		const chain = g.explain("a", "z");
 		expect(chain.found).toBe(false);
@@ -59,7 +59,7 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("returns no-such-from / no-such-to for unknown nodes", () => {
 		const g = new Graph("g");
-		g.add("a", state(1, { name: "a" }));
+		g.add(state(1, { name: "a" }), { name: "a" });
 
 		expect(g.explain("missing", "a").reason).toBe("no-such-from");
 		expect(g.explain("a", "missing").reason).toBe("no-such-to");
@@ -67,7 +67,7 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("from === to returns single-step chain", () => {
 		const g = new Graph("g");
-		g.add("a", state(42, { name: "a" }));
+		g.add(state(42, { name: "a" }), { name: "a" });
 		const chain = g.explain("a", "a");
 		expect(chain.found).toBe(true);
 		expect(chain.steps).toHaveLength(1);
@@ -81,10 +81,10 @@ describe("explainPath (roadmap §9.2)", () => {
 		const b = derived([a], ([v]) => v, { name: "b" });
 		const c = derived([b], ([v]) => v, { name: "c" });
 		const d = derived([c], ([v]) => v, { name: "d" });
-		g.add("a", a);
-		g.add("b", b);
-		g.add("c", c);
-		g.add("d", d);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.add(d, { name: "d" });
 		g.observe("d").subscribe(() => {});
 
 		const ok = g.explain("a", "d");
@@ -100,8 +100,8 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
 		g.trace("b", "doubled because pricing rule R7");
@@ -135,7 +135,7 @@ describe("explainPath (roadmap §9.2)", () => {
 			name: "a",
 			guard: () => true, // permissive — we just want the lastMutation populated
 		});
-		g.add("a", a);
+		g.add(a, { name: "a" });
 		g.set("a", 5, { actor: { type: "llm", id: "agent-7" } });
 		const chain = g.explain("a", "a");
 		expect(chain.steps[0]?.lastMutation?.actor.type).toBe("llm");
@@ -145,7 +145,7 @@ describe("explainPath (roadmap §9.2)", () => {
 	it("includes lastMutation for unguarded nodes when actor is provided", () => {
 		// QA fix A1: actor attribution no longer requires a guard.
 		const g = new Graph("g");
-		g.add("a", state<number>(0, { name: "a" })); // no guard
+		g.add(state<number>(0, { name: "a" }), { name: "a" }); // no guard
 		g.set("a", 9, { actor: { type: "human", id: "alice" } });
 		const chain = g.explain("a", "a");
 		expect(chain.steps[0]?.lastMutation?.actor.id).toBe("alice");
@@ -156,8 +156,8 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = state(2, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		// Synthesize cycle topology via raw describe (the standalone explainPath
 		// works on any GraphDescribeOutput, including hand-built cycles).
 		const described = {
@@ -238,8 +238,8 @@ describe("explainPath (roadmap §9.2)", () => {
 			name: "prompt::messages",
 		});
 		const out = derived([intermediate], ([v]) => (v as number) + 100, { name: "out" });
-		g.add("src", src);
-		g.add("out", out);
+		g.add(src, { name: "src" });
+		g.add(out, { name: "out" });
 		// Activate so every node computes.
 		g.observe("out").subscribe(() => {});
 
@@ -273,10 +273,10 @@ describe("explainPath (roadmap §9.2)", () => {
 		// registered terminal.
 		const outA = derived([internalA], ([v]) => (v as number) * 10, { name: "outA" });
 		const outB = derived([internalB], ([v]) => (v as number) * 10, { name: "outB" });
-		g.add("a", a);
-		g.add("b", b);
-		g.add("outA", outA);
-		g.add("outB", outB);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(outA, { name: "outA" });
+		g.add(outB, { name: "outB" });
 		g.observe("outA").subscribe(() => {});
 		g.observe("outB").subscribe(() => {});
 

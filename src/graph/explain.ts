@@ -28,7 +28,7 @@ export interface CausalStep {
 	value?: unknown;
 	/** Hop distance from `from` (0 = `from`, N = `to`). */
 	hop: number;
-	/** Annotation set via `graph.trace(path, annotation)` or `graph.add(path, node, { annotation })`, when present. */
+	/** Annotation set via `graph.trace(path, annotation)` or `graph.add(node, { name: path, annotation })`, when present. */
 	annotation?: string;
 	/** Most recent guarded mutation, when known. */
 	lastMutation?: Readonly<{ actor: Actor; timestamp_ns: number }>;

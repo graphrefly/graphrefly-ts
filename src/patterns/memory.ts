@@ -285,9 +285,9 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 	void ranked.subscribe(() => undefined);
 	void size.subscribe(() => undefined);
 
-	graph.add("items", items);
-	graph.add("ranked", ranked);
-	graph.add("size", size);
+	graph.add(items, { name: "items" });
+	graph.add(ranked, { name: "ranked" });
+	graph.add(size, { name: "size" });
 
 	function effective(entry: CollectionEntry<T>, now: number): number {
 		const ageSeconds = (now - entry.lastAccessNs) / 1_000_000_000;
@@ -458,9 +458,9 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	);
 	void adjacency.subscribe(() => undefined);
 
-	graph.add("entities", entities);
-	graph.add("edges", edges);
-	graph.add("adjacency", adjacency);
+	graph.add(entities, { name: "entities" });
+	graph.add(edges, { name: "edges" });
+	graph.add(adjacency, { name: "adjacency" });
 
 	function commitEntities(next: Map<string, TEntity>): void {
 		entities.down([[DATA, next]]);

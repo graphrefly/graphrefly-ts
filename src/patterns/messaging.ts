@@ -59,7 +59,7 @@ export class TopicGraph<T> extends Graph {
 		super(name, opts.graph);
 		this._log = reactiveLog<T>([], { name: "events", maxSize: opts.retainedLimit });
 		this.events = this._log.entries;
-		this.add("events", this.events);
+		this.add(this.events, { name: "events" });
 		this.latest = derived<T | null>(
 			[this.events],
 			([snapshot]) => {
@@ -72,7 +72,7 @@ export class TopicGraph<T> extends Graph {
 				meta: messagingMeta("topic_latest"),
 			},
 		);
-		this.add("latest", this.latest);
+		this.add(this.latest, { name: "latest" });
 		this.addDisposer(keepalive(this.latest));
 
 		this.hasLatest = derived<boolean>(
@@ -84,7 +84,7 @@ export class TopicGraph<T> extends Graph {
 				meta: messagingMeta("topic_has_latest"),
 			},
 		);
-		this.add("hasLatest", this.hasLatest);
+		this.add(this.hasLatest, { name: "hasLatest" });
 		this.addDisposer(keepalive(this.hasLatest));
 
 		// D1(a): on teardown, propagate COMPLETE on `events` so downstream
@@ -139,13 +139,13 @@ export class SubscriptionGraph<T> extends Graph {
 			meta: messagingMeta("subscription_source"),
 			initial: topicEvents.cache as readonly T[],
 		});
-		this.add("source", this.source);
+		this.add(this.source, { name: "source" });
 		this.cursor = state(initialCursor, {
 			name: "cursor",
 			describeKind: "state",
 			meta: messagingMeta("subscription_cursor"),
 		});
-		this.add("cursor", this.cursor);
+		this.add(this.cursor, { name: "cursor" });
 		this.available = derived(
 			[this.source, this.cursor],
 			([sourceSnapshot, cursor]) => {
@@ -160,7 +160,7 @@ export class SubscriptionGraph<T> extends Graph {
 				initial: [],
 			},
 		);
-		this.add("available", this.available);
+		this.add(this.available, { name: "available" });
 		// No `connect("topic::events", "source")` — topic is not mounted here.
 		// The node-level dep `derived([topicEvents], …)` above is the live wire.
 		this.addDisposer(keepalive(this.source));
@@ -223,15 +223,15 @@ export class JobQueueGraph<T> extends Graph {
 		this._jobs = reactiveMap<string, JobEnvelope<T>>({ name: "jobs" });
 		this.pending = this._pending.items;
 		this.jobs = this._jobs.entries;
-		this.add("pending", this.pending);
-		this.add("jobs", this.jobs);
+		this.add(this.pending, { name: "pending" });
+		this.add(this.jobs, { name: "jobs" });
 		this.depth = derived([this.pending], ([snapshot]) => (snapshot as readonly string[]).length, {
 			name: "depth",
 			describeKind: "derived",
 			meta: messagingMeta("queue_depth"),
 			initial: 0,
 		});
-		this.add("depth", this.depth);
+		this.add(this.depth, { name: "depth" });
 		this.addDisposer(keepalive(this.depth));
 	}
 
@@ -324,7 +324,7 @@ export class JobFlowGraph<T> extends Graph {
 		}
 		this._completed = reactiveLog<JobEnvelope<T>>([], { name: "completed" });
 		this.completed = this._completed.entries;
-		this.add("completed", this.completed);
+		this.add(this.completed, { name: "completed" });
 		this.completedCount = derived(
 			[this.completed],
 			([snapshot]) => (snapshot as readonly JobEnvelope<T>[]).length,
@@ -335,7 +335,7 @@ export class JobFlowGraph<T> extends Graph {
 				initial: 0,
 			},
 		);
-		this.add("completedCount", this.completedCount);
+		this.add(this.completedCount, { name: "completedCount" });
 		this.addDisposer(keepalive(this.completedCount));
 
 		const maxPerPump = Math.max(
@@ -376,7 +376,7 @@ export class JobFlowGraph<T> extends Graph {
 					meta: messagingMeta("job_flow_pump"),
 				},
 			);
-			this.add(`pump_${stage}`, pump);
+			this.add(pump, { name: `pump_${stage}` });
 			this.addDisposer(keepalive(pump));
 		}
 	}
@@ -429,7 +429,7 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 			describeKind: "state",
 			meta: messagingMeta("topic_bridge_count"),
 		});
-		this.add("bridgedCount", this.bridgedCount);
+		this.add(this.bridgedCount, { name: "bridgedCount" });
 
 		const maxPerPump = Math.max(
 			1,
@@ -459,7 +459,7 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 				meta: messagingMeta("topic_bridge_pump"),
 			},
 		);
-		this.add("pump", pump);
+		this.add(pump, { name: "pump" });
 		this.addDisposer(keepalive(pump));
 	}
 }

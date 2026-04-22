@@ -144,7 +144,8 @@ export function inboxReducerGraph(
 	const graph = new Graph("inbox-reducer");
 
 	const emails = state<readonly Email[]>(initialEmails, { name: "emails" });
-	graph.add("emails", emails, {
+	graph.add(emails, {
+		name: "emails",
 		annotation: "Raw inbox. In production: fromStorage / fromIMAP / fromGmail.",
 	});
 
@@ -154,7 +155,8 @@ export function inboxReducerGraph(
 		(es) => classifyPrompt(es as readonly Email[]),
 		{ name: "classify", format: "json", systemPrompt: CLASSIFY_SYSTEM, retries: 1 },
 	);
-	graph.add("classifications", classifications, {
+	graph.add(classifications, {
+		name: "classifications",
 		annotation:
 			"LLM-classified {actionable, priority, category, confidence} per email. One batched call.",
 	});
@@ -173,7 +175,8 @@ export function inboxReducerGraph(
 		},
 		{ name: "actionable" },
 	);
-	graph.add("actionable", actionable, {
+	graph.add(actionable, {
+		name: "actionable",
 		annotation: "Filter: keep emails where classification.actionable === true.",
 	});
 
@@ -183,7 +186,8 @@ export function inboxReducerGraph(
 		(as) => extractPrompt(as as readonly Email[]),
 		{ name: "extract", format: "json", systemPrompt: EXTRACT_SYSTEM, retries: 1 },
 	);
-	graph.add("extractions", extractions, {
+	graph.add(extractions, {
+		name: "extractions",
 		annotation: "Structured action items for the actionable subset. One batched call.",
 	});
 
@@ -205,7 +209,8 @@ export function inboxReducerGraph(
 		},
 		{ name: "ranked" },
 	);
-	graph.add("ranked", ranked, {
+	graph.add(ranked, {
+		name: "ranked",
 		annotation: "Rank by classification.priority × classification.confidence. Deterministic.",
 	});
 
@@ -217,7 +222,7 @@ export function inboxReducerGraph(
 		},
 		{ name: "top3" },
 	);
-	graph.add("top3", top3, { annotation: "Top 3 by score — the daily action list." });
+	graph.add(top3, { name: "top3", annotation: "Top 3 by score — the daily action list." });
 
 	const brief = promptNode<string>(
 		adapter,
@@ -225,7 +230,8 @@ export function inboxReducerGraph(
 		(t3) => briefPrompt(t3 as readonly RankedItem[]),
 		{ name: "brief", format: "text", systemPrompt: BRIEF_SYSTEM, retries: 1 },
 	);
-	graph.add("brief", brief, {
+	graph.add(brief, {
+		name: "brief",
 		annotation: "Human-readable 3-bullet morning brief authored by the LLM from the top-3.",
 	});
 

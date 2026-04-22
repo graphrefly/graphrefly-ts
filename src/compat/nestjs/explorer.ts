@@ -135,7 +135,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		const nodeName = `__schedule__.${className}.${String(meta.methodKey)}.${scheduleSeq++}`;
 
 		const timerNode = fromTimer(meta.ms, { period: meta.ms, name: nodeName });
-		this.graph.add(nodeName, timerNode);
+		this.graph.add(timerNode);
 		this.scheduleNodeNames.push(nodeName);
 
 		// Subscribe through graph.observe() for consistency.
@@ -176,7 +176,7 @@ export class GraphReflyEventExplorer implements OnModuleInit, OnModuleDestroy {
 		const nodeName = `__schedule__.${className}.${String(meta.methodKey)}.${scheduleSeq++}`;
 
 		const cronNode = fromCron(meta.expr, { name: nodeName });
-		this.graph.add(nodeName, cronNode);
+		this.graph.add(cronNode);
 		this.scheduleNodeNames.push(nodeName);
 
 		// Subscribe through graph.observe() for consistency.

@@ -71,7 +71,7 @@ const DOCS: readonly Doc[] = [
 const kg = knowledgeGraph<Entity, Relation>("paper-kg");
 
 const docs = fromIter<Doc>(DOCS, { name: "docs" });
-kg.add("docs", docs);
+kg.add(docs, { name: "docs" });
 
 const apply = effect(
 	[docs],
@@ -87,7 +87,7 @@ const apply = effect(
 	},
 	{ name: "apply-extraction" },
 );
-kg.add("apply-extraction", apply);
+kg.add(apply, { name: "apply-extraction" });
 
 // Live causal chain. Re-derives whenever any node along the path fires.
 const explain = reactiveExplainPath(kg, "docs", "adjacency");

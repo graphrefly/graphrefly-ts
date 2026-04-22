@@ -147,7 +147,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	it("toObservable: graph node values via graph.resolve", async () => {
 		const g = new Graph("test");
 		const s = node<number>();
-		g.add("counter", s);
+		g.add(s, { name: "counter" });
 
 		const values$ = toObservable<number>(g.resolve("counter")).pipe(take(2), toArray());
 		const p = rxFirstValueFrom(values$);
@@ -232,7 +232,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 			imports: [
 				GraphReflyModule.forRoot({
 					build: (g) => {
-						g.add("counter", state(42));
+						g.add(state(42), { name: "counter" });
 					},
 				}),
 			],
@@ -246,14 +246,14 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 
 	it("restores from snapshot after build", async () => {
 		const seed = new Graph("root");
-		seed.add("counter", state(0));
+		seed.add(state(0), { name: "counter" });
 		const snapshot = seed.snapshot();
 		snapshot.nodes.counter.value = 99;
 
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("counter", state(0)),
+					build: (g) => g.add(state(0), { name: "counter" }),
 					snapshot,
 				}),
 			],
@@ -269,7 +269,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("count", state(7)),
+					build: (g) => g.add(state(7), { name: "count" }),
 					nodes: ["count"],
 				}),
 			],
@@ -294,7 +294,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 								if (m[0] === TEARDOWN) teardownSpy();
 							}
 						});
-						g.add("s", s);
+						g.add(s, { name: "s" });
 					},
 				}),
 			],
@@ -318,7 +318,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "payments",
-					build: (g) => g.add("amount", state(100)),
+					build: (g) => g.add(state(100), { name: "amount" }),
 				}),
 			],
 		}).compile();
@@ -348,7 +348,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 								if (m[0] === TEARDOWN) teardownSpy();
 							}
 						});
-						g.add("x", s);
+						g.add(s, { name: "x" });
 					},
 				}),
 			],
@@ -368,7 +368,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "orders",
-					build: (g) => g.add("total", state(250)),
+					build: (g) => g.add(state(250), { name: "total" }),
 					nodes: ["total"],
 				}),
 			],
@@ -386,11 +386,11 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "auth",
-					build: (g) => g.add("user", state("alice")),
+					build: (g) => g.add(state("alice"), { name: "user" }),
 				}),
 				GraphReflyModule.forFeature({
 					name: "billing",
-					build: (g) => g.add("plan", state("pro")),
+					build: (g) => g.add(state("pro"), { name: "plan" }),
 				}),
 			],
 		}).compile();
@@ -466,7 +466,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("counter", node<number>()),
+					build: (g) => g.add(node<number>(), { name: "counter" }),
 				}),
 			],
 			providers: [OrderHandler],
@@ -498,7 +498,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("s", s),
+					build: (g) => g.add(s, { name: "s" }),
 				}),
 			],
 			providers: [Listener],
@@ -532,7 +532,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add("s", s),
+					build: (g) => g.add(s, { name: "s" }),
 				}),
 			],
 			providers: [Listener],
@@ -565,7 +565,7 @@ describe("nestjs compat — @OnGraphEvent", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "payments",
-					build: (g) => g.add("status", node<string>()),
+					build: (g) => g.add(node<string>(), { name: "status" }),
 				}),
 			],
 			providers: [PaymentHandler],
@@ -602,8 +602,8 @@ describe("nestjs compat — @OnGraphEvent", () => {
 			imports: [
 				GraphReflyModule.forRoot({
 					build: (g) => {
-						g.add("a", node<number>());
-						g.add("b", node<number>());
+						g.add(node<number>(), { name: "a" });
+						g.add(node<number>(), { name: "b" });
 					},
 				}),
 			],
@@ -899,7 +899,7 @@ describe("nestjs compat — observeSSE", () => {
 	it("streams DATA values as SSE frames", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sse-test");
-		g.add("counter", s);
+		g.add(s, { name: "counter" });
 
 		const stream = observeSSE(g, "counter");
 		const reader = stream.getReader();
@@ -926,7 +926,7 @@ describe("nestjs compat — observeSSE", () => {
 	it("closes on ERROR", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sse-err");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const stream = observeSSE(g, "n");
 		const reader = stream.getReader();
@@ -952,7 +952,7 @@ describe("nestjs compat — observeSSE", () => {
 			}),
 		});
 		const g = new Graph("sse-guard");
-		g.add("guarded", s);
+		g.add(s, { name: "guarded" });
 
 		// LLM actor should be denied
 		expect(() => observeSSE(g, "guarded", { actor: { type: "llm", id: "a1" } })).toThrow(
@@ -970,7 +970,7 @@ describe("nestjs compat — observeSSE", () => {
 		vi.useFakeTimers();
 		const s = state<number>(0);
 		const g = new Graph("sse-ka");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const ac = new AbortController();
 		const stream = observeSSE(g, "n", { keepAliveMs: 100, signal: ac.signal });
@@ -997,7 +997,7 @@ describe("nestjs compat — observeSubscription", () => {
 	it("yields DATA values as async iterator", async () => {
 		const s = node<string>();
 		const g = new Graph("sub-test");
-		g.add("msg", s);
+		g.add(s, { name: "msg" });
 
 		const iter = observeSubscription<string>(g, "msg");
 
@@ -1017,7 +1017,7 @@ describe("nestjs compat — observeSubscription", () => {
 	it("rejects on ERROR", async () => {
 		const s = node<number>();
 		const g = new Graph("sub-err");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const iter = observeSubscription<number>(g, "n");
 		s.down([[ERROR, new Error("fail")]]);
@@ -1029,7 +1029,7 @@ describe("nestjs compat — observeSubscription", () => {
 	it("supports filter option", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sub-filter");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const iter = observeSubscription<number>(g, "n", {
 			filter: (v) => v > 5,
@@ -1050,7 +1050,7 @@ describe("nestjs compat — observeSubscription", () => {
 	it("return() disposes the subscription", async () => {
 		const s = node<number>();
 		const g = new Graph("sub-return");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const iter = observeSubscription<number>(g, "n");
 		s.down([[DATA, 1]]);
@@ -1072,7 +1072,7 @@ describe("nestjs compat — observeSubscription", () => {
 			}),
 		});
 		const g = new Graph("sub-guard");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		expect(() => observeSubscription(g, "n", { actor: { type: "human", id: "u1" } })).toThrow(
 			GuardDenied,
@@ -1089,7 +1089,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("subscribe and receive DATA", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-test");
-		g.add("counter", s);
+		g.add(s, { name: "counter" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1114,7 +1114,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("unsubscribe removes subscription", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-unsub");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1135,7 +1135,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("forwards DATA to client via default send", () => {
 		const s = node<number>();
 		const g = new Graph("gw-send");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1191,7 +1191,7 @@ describe("nestjs compat — ObserveGateway", () => {
 			}),
 		});
 		const g = new Graph("gw-guard");
-		g.add("guarded", s);
+		g.add(s, { name: "guarded" });
 
 		const gw = new ObserveGateway(g, {
 			extractActor: (client: any) => client.actor,
@@ -1219,8 +1219,8 @@ describe("nestjs compat — ObserveGateway", () => {
 
 	it("disconnect disposes all client subscriptions", () => {
 		const g = new Graph("gw-disc");
-		g.add("a", state(1));
-		g.add("b", state(2));
+		g.add(state(1), { name: "a" });
+		g.add(state(2), { name: "b" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1240,7 +1240,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("forwards ERROR and COMPLETE to client", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-term");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1260,7 +1260,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("COMPLETE auto-cleans subscription — allows resubscribe", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-resub");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1283,7 +1283,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	it("TEARDOWN closes WS subscription", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-td");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1306,7 +1306,7 @@ describe("nestjs compat — TEARDOWN handling", () => {
 	it("observeSSE closes on TEARDOWN", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sse-td");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const stream = observeSSE(g, "n");
 		const reader = stream.getReader();
@@ -1329,7 +1329,7 @@ describe("nestjs compat — TEARDOWN handling", () => {
 	it("observeSubscription completes on TEARDOWN", async () => {
 		const s = node<string>();
 		const g = new Graph("sub-td");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const iter = observeSubscription<string>(g, "n");
 
@@ -1348,7 +1348,7 @@ describe("nestjs compat — TEARDOWN handling", () => {
 	it("observeSubscription disposes subscription on COMPLETE", async () => {
 		const s = node<number>();
 		const g = new Graph("sub-dispose");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const iter = observeSubscription<number>(g, "n");
 		s.down([[DATA, 1]]);

@@ -1,0 +1,19 @@
+---
+// biome-ignore lint/correctness/noUnusedImports: <App /> in template below
+import App from "../components/App.tsx";
+import "../styles/layout.css";
+---
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PagerDuty triage — GraphReFly</title>
+  </head>
+  <body>
+    <nav class="demo-nav">
+      <a class="nav-brand" href="/">GraphReFly</a>
+      <a href="./" class="active">PagerDuty Triage</a>
+    </nav>
+    <App client:only="react" />
+  </body>
+</html>

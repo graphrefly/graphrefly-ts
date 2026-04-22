@@ -52,7 +52,7 @@ export function buildInspectChapter(adapter: LLMAdapter, initialPaperText: strin
 		name: "explain-paper-to-current",
 		maxDepth: 12,
 	});
-	base.kg.add("explain-paper-to-current", explainHandle.node);
+	base.kg.add(explainHandle.node, { name: "explain-paper-to-current" });
 
 	const registry: NodeRegistry = new Map(base.registry);
 	registry.set("explain-paper-to-current", {

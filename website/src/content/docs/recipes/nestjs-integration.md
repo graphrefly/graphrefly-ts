@@ -174,11 +174,11 @@ import { fromTimer, fromCron } from "@graphrefly/graphrefly/extra";
 
 // Metrics heartbeat every 10s
 const timerNode = fromTimer(10_000, { period: 10_000, name: "__schedule__.metrics" });
-this.graph.add("__schedule__.metrics", timerNode);
+this.graph.add(timerNode);
 
 // Daily cleanup at midnight
 const cronNode = fromCron("0 0 * * *", { name: "__schedule__.dailyCleanup" });
-this.graph.add("__schedule__.dailyCleanup", cronNode);
+this.graph.add(cronNode);
 ```
 
 Both are visible in `graph.describe()` and participate in the reactive topology like any other node.

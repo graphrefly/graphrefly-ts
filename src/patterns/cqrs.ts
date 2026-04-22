@@ -248,7 +248,7 @@ export class CqrsGraph extends Graph {
 				initial: entries.cache as readonly CqrsEvent[],
 			},
 		);
-		this.add(name, guarded);
+		this.add(guarded, { name: name });
 		this._keepaliveDisposers.push(keepalive(guarded));
 		this._eventLogs.set(name, { log, node: guarded });
 		return guarded;
@@ -300,7 +300,7 @@ export class CqrsGraph extends Graph {
 			},
 			guard: COMMAND_GUARD,
 		});
-		this.add(name, cmdNode);
+		this.add(cmdNode, { name: name });
 		this._commandHandlers.set(name, handler as CommandHandler<any>);
 		return cmdNode;
 	}
@@ -371,7 +371,7 @@ export class CqrsGraph extends Graph {
 			},
 		);
 
-		this.add(name, projNode);
+		this.add(projNode, { name: name });
 		this._keepaliveDisposers.push(keepalive(projNode));
 		this._projections.add(name);
 		return projNode;
@@ -438,7 +438,7 @@ export class CqrsGraph extends Graph {
 		) as Node<unknown>;
 		sagaRef.n = sagaNode;
 
-		this.add(name, sagaNode);
+		this.add(sagaNode, { name: name });
 		this._keepaliveDisposers.push(keepalive(sagaNode));
 		this._sagas.add(name);
 		return sagaNode;

@@ -414,14 +414,14 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		},
 	);
 
-	g.add("text", textNode);
-	g.add("font", fontNode);
-	g.add("line-height", lineHeightNode);
-	g.add("container", containerNode);
-	g.add("columns", columnsNode);
-	g.add("obstacles", obstaclesNode);
-	g.add("segments", segmentsNode);
-	g.add("flow-lines", flowLinesNode);
+	g.add(textNode, { name: "text" });
+	g.add(fontNode, { name: "font" });
+	g.add(lineHeightNode, { name: "line-height" });
+	g.add(containerNode, { name: "container" });
+	g.add(columnsNode, { name: "columns" });
+	g.add(obstaclesNode, { name: "obstacles" });
+	g.add(segmentsNode, { name: "segments" });
+	g.add(flowLinesNode, { name: "flow-lines" });
 
 	return {
 		graph: g,

@@ -215,9 +215,9 @@ describe("reduction.funnel", () => {
 					name: "double",
 					build(sub) {
 						const input = state<number>(0);
-						sub.add("input", input);
+						sub.add(input, { name: "input" });
 						const output = state<number>(0);
-						sub.add("output", output);
+						sub.add(output, { name: "output" });
 						// Wire: when input gets DATA, double it and set output
 						input.subscribe((msgs: Messages) => {
 							for (const msg of msgs) {
@@ -267,7 +267,7 @@ describe("reduction.funnel", () => {
 					{
 						name: "noInput",
 						build(sub) {
-							sub.add("output", state(0));
+							sub.add(state(0), { name: "output" });
 						},
 					},
 				],
@@ -284,7 +284,7 @@ describe("reduction.funnel", () => {
 					{
 						name: "noOutput",
 						build(sub) {
-							sub.add("input", state(0));
+							sub.add(state(0), { name: "input" });
 						},
 					},
 				],
@@ -301,11 +301,11 @@ describe("reduction.feedback", () => {
 	it("routes condition output back to reentry", () => {
 		const g = new Graph("fb");
 		const input = state<number>(0);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 
 		// Condition: pass through if < 5
 		const cond = state<number | null>(null);
-		g.add("condition", cond);
+		g.add(cond, { name: "condition" });
 
 		// Wire: input → condition (simplified: effect watches input, writes to condition)
 		const inputNode = g.resolve("input");
@@ -341,11 +341,11 @@ describe("reduction.feedback", () => {
 	it("respects maxIterations bound", () => {
 		const g = new Graph("bounded");
 		const input = state<number>(0);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 
 		// Always-true condition → infinite feedback without bound
 		const cond = state<number>(0);
-		g.add("condition", cond);
+		g.add(cond, { name: "condition" });
 
 		input.subscribe((msgs: Messages) => {
 			for (const msg of msgs) {

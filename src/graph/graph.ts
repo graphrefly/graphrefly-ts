@@ -993,7 +993,7 @@ function teardownMountedGraph(root: Graph): void {
  * import { Graph, state } from "@graphrefly/graphrefly-ts";
  *
  * const g = new Graph("app");
- * g.add("counter", state(0));
+ * g.add(state(0, { name: "counter" }));
  * ```
  *
  * @category graph
@@ -1141,21 +1141,29 @@ export class Graph {
 	 * the node is torn down.
 	 *
 	 * Returns the registered node so callers can chain:
-	 * `const counter = g.add("counter", state(0))`.
+	 * `const counter = g.add(state(0, { name: "counter" }))`.
+	 *
+	 * **Signature:** `add(node, { name?, annotation? })`. Name lives in opts;
+	 * falls back to `node.name` from the node's own options. Throws if neither
+	 * is a non-empty string.
 	 *
 	 * The optional `opts.annotation` installs an initial
 	 * `graph.trace(name, annotation)` entry — same effect as calling
 	 * `graph.trace` right after, but reads naturally next to the registration.
 	 *
-	 * Upcoming (tracked in `docs/optimizations.md`): new `graph.add(node, opts?)`
-	 * signature with `name` moved into `opts` to eliminate the current
-	 * double-naming. Breaking change; sequenced as its own migration session.
-	 *
-	 * @param name - Local key (no `::`).
 	 * @param node - Node instance to own.
-	 * @param opts - Optional `{ annotation? }`.
+	 * @param opts - `{ name?, annotation? }`.
 	 */
-	add<T extends Node>(name: string, node: T, opts?: { annotation?: string }): T {
+	add<T extends Node>(node: T, opts?: { name?: string; annotation?: string }): T {
+		const fallback = (node as unknown as { name?: string }).name;
+		const resolved = opts?.name ?? fallback;
+		if (resolved == null || resolved === "") {
+			throw new Error(
+				`Graph "${this.name}": graph.add requires a non-empty name — pass via opts.name or set it on the node (e.g. state(0, { name: "x" }))`,
+			);
+		}
+		const name = resolved;
+		const annotation = opts?.annotation;
 		assertRegisterableName(name, this.name, "add");
 		if (this._mounts.has(name)) {
 			throw new Error(`Graph "${this.name}": name "${name}" is already a mount point`);
@@ -1180,12 +1188,12 @@ export class Graph {
 		// stay cheap either way). Only the chronological ring-buffer push is
 		// gated on `inspectorEnabled`, since that buffer is the "debug log"
 		// half of the feature.
-		if (opts?.annotation != null) {
-			this._annotations.set(name, opts.annotation);
+		if (annotation != null) {
+			this._annotations.set(name, annotation);
 			if (this.config.inspectorEnabled) {
 				this._traceRing.push({
 					path: name,
-					annotation: opts.annotation,
+					annotation,
 					timestamp_ns: monotonicNs(),
 				});
 			}
@@ -1834,7 +1842,7 @@ export class Graph {
 			const { name: _name, ...rest } = raw;
 			const entry: DescribeNodeOutput = { ...rest, deps };
 			// Attach annotation from `trace(path, annotation)` or from
-			// `graph.add(path, node, { annotation })` when one exists. Skipped
+			// `graph.add(node, { name: path, annotation })` when one exists. Skipped
 			// for the `"spec"` format (input-schema use case — annotations
 			// don't round-trip through GraphSpec).
 			if (!isSpec) {
@@ -2072,15 +2080,32 @@ export class Graph {
 			...(opts?.maxDepth != null ? { maxDepth: opts.maxDepth } : {}),
 			...(opts?.findCycle === true ? { findCycle: true as const } : {}),
 		};
-		const node = derived<CausalChain>([version], () => this._explainStatic(from, to, explainOpts), {
-			name: opts?.name ?? "explain",
-			describeKind: "derived",
-			equals: (a, b) =>
-				a.found === b.found &&
-				a.reason === b.reason &&
-				a.steps.length === b.steps.length &&
-				causalStepsEqual(a.steps, b.steps),
-		});
+		// Try to construct the reactive derived; if it throws (invalid options
+		// etc.), release the observe handle + onEvent listener so we don't
+		// leak resources. Nominal path: push the try-catch out-of-band.
+		let node: Node<CausalChain>;
+		try {
+			node = derived<CausalChain>([version], () => this._explainStatic(from, to, explainOpts), {
+				name: opts?.name ?? "explain",
+				describeKind: "derived",
+				// `audit` domain tag preserves parity with the legacy
+				// `reactiveExplainPath` in `patterns/audit.ts`, so audit
+				// dashboards / policy enforcers that filter on
+				// `meta.domain === "audit"` and `meta.kind === "explain_path"`
+				// still pick up reactive-explain nodes after the B21
+				// consolidation.
+				meta: { domain: "audit", kind: "explain_path", from, to } as const,
+				equals: (a, b) =>
+					a.found === b.found &&
+					a.reason === b.reason &&
+					a.steps.length === b.steps.length &&
+					causalStepsEqual(a.steps, b.steps),
+			});
+		} catch (err) {
+			off();
+			handle.dispose();
+			throw err;
+		}
 		const stopKeepalive = keepalive(node);
 
 		return {
@@ -2912,7 +2937,7 @@ export class Graph {
 						resolvedDeps: deps.map((dep) => created.get(dep)!),
 					});
 				}
-				owner.add(localName, node);
+				owner.add(node, { name: localName });
 				created.set(path, node);
 				pending.delete(path);
 				progressed = true;
@@ -3267,7 +3292,7 @@ export class Graph {
 	 *   No-op when `config.inspectorEnabled` is `false`.
 	 * - `graph.trace("path")` — returns the current annotation for `path`,
 	 *   or `undefined` if none. Precedence: most recent `trace(path, ...)`
-	 *   wins; if no trace call, whatever `graph.add("path", node, { annotation })`
+	 *   wins; if no trace call, whatever `graph.add(node, { name: "path", annotation })`
 	 *   installed; otherwise `undefined`.
 	 * - `graph.trace()` — returns a chronological log of all write entries.
 	 *   Returns `[]` when `config.inspectorEnabled` is `false`.
@@ -3687,6 +3712,7 @@ export function reachable(
  * the chain is unchanged between observe events.
  */
 function causalStepsEqual(a: readonly CausalStep[], b: readonly CausalStep[]): boolean {
+	if (a.length !== b.length) return false;
 	for (let i = 0; i < a.length; i++) {
 		const x = a[i]!;
 		const y = b[i]!;

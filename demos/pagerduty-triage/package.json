@@ -1,0 +1,20 @@
+{
+	"name": "@graphrefly/demo-pagerduty-triage",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview"
+	},
+	"dependencies": {
+		"@graphrefly/graphrefly": "workspace:*",
+		"@astrojs/react": "^4.0.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"astro": "^5.16.0",
+		"mermaid": "^11.4.1",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	}
+}

@@ -20,7 +20,7 @@ export type DescribeNodeOutput = {
 	lastMutation?: Readonly<{ actor: Actor; timestamp_ns: number }>;
 	/**
 	 * Latest annotation attached via `graph.trace(path, annotation)` or via
-	 * `graph.add(path, node, { annotation })`, when present. Populated by
+	 * `graph.add(node, { name: path, annotation })`, when present. Populated by
 	 * `Graph.describe` only — `describeNode` has no graph context.
 	 */
 	annotation?: string;

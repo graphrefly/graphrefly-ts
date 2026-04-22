@@ -288,7 +288,7 @@ class ScheduleService implements OnModuleInit, OnModuleDestroy {
 	onModuleInit() {
 		// Metrics heartbeat every 10s — visible in graph.describe()
 		const timerNode = fromTimer(10_000, { period: 10_000, name: "__schedule__.metrics" });
-		this.graph.add("__schedule__.metrics", timerNode);
+		this.graph.add(timerNode, { name: "__schedule__.metrics" });
 
 		const timerHandle = this.graph.observe("__schedule__.metrics") as unknown as GraphObserveOne;
 		const timerUnsub = timerHandle.subscribe((msgs: Messages) => {
@@ -303,7 +303,7 @@ class ScheduleService implements OnModuleInit, OnModuleDestroy {
 
 		// Daily cleanup cron (midnight) — registered but won't fire in short demo runs
 		const cronNode = fromCron("0 0 * * *", { name: "__schedule__.dailyCleanup" });
-		this.graph.add("__schedule__.dailyCleanup", cronNode);
+		this.graph.add(cronNode, { name: "__schedule__.dailyCleanup" });
 
 		const cronHandle = this.graph.observe(
 			"__schedule__.dailyCleanup",

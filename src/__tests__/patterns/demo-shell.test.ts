@@ -152,9 +152,9 @@ describe("patterns.demoShell", () => {
 
 		const demo = new Graph("test-demo");
 		const a = state(1, { name: "a" });
-		demo.add("a", a);
+		demo.add(a, { name: "a" });
 		const b = derived([a], ([v]) => v, { name: "b" });
-		demo.add("b", b);
+		demo.add(b, { name: "b" });
 
 		shell.setDemoGraph(demo);
 		const mermaid = shell.graph.get("graph/mermaid") as string;
@@ -169,12 +169,12 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/mermaid");
 
 		const demo = new Graph("test-demo");
-		demo.add("x", state(1, { name: "x" }));
+		demo.add(state(1, { name: "x" }), { name: "x" });
 		shell.setDemoGraph(demo);
 		const before = shell.graph.get("graph/mermaid") as string;
 		expect(before).toContain("x");
 
-		demo.add("y", state(2, { name: "y" }));
+		demo.add(state(2, { name: "y" }), { name: "y" });
 		shell.bumpGraphTick();
 		const after = shell.graph.get("graph/mermaid") as string;
 		expect(after).toContain("y");
@@ -192,7 +192,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/describe");
 
 		const demo = new Graph("test-demo");
-		demo.add("node1", state(42, { name: "node1" }));
+		demo.add(state(42, { name: "node1" }), { name: "node1" });
 		shell.setDemoGraph(demo);
 
 		const desc = shell.graph.get("graph/describe") as Record<string, unknown>;
@@ -260,7 +260,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "inspect/node-detail");
 
 		const demo = new Graph("test-demo");
-		demo.add("counter", state(7, { name: "counter" }));
+		demo.add(state(7, { name: "counter" }), { name: "counter" });
 		shell.setDemoGraph(demo);
 		shell.selectNode("counter");
 
@@ -340,10 +340,10 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "layout/graph-labels");
 
 		const demo = new Graph("test-demo");
-		demo.add("counter", state(1, { name: "counter" }));
+		demo.add(state(1, { name: "counter" }), { name: "counter" });
 		demo.add(
-			"display",
 			derived([demo.node("counter")!], ([v]) => v, { name: "display" }),
+			{ name: "display" },
 		);
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
@@ -401,8 +401,8 @@ describe("patterns.demoShell", () => {
 		expect(shell.graph.get("layout/side-width-hint")).toBe(200);
 
 		const demo = new Graph("test-demo");
-		demo.add("short", state(1, { name: "short" }));
-		demo.add("a-much-longer-node-name", state(2, { name: "a-much-longer-node-name" }));
+		demo.add(state(1, { name: "short" }), { name: "short" });
+		demo.add(state(2, { name: "a-much-longer-node-name" }), { name: "a-much-longer-node-name" });
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
 

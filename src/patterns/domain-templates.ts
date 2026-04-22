@@ -92,7 +92,7 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	const g = new Graph(name, opts);
 
 	// --- Source ---
-	g.add("source", opts.source);
+	g.add(opts.source, { name: "source" });
 
 	// --- Stratify ---
 	const defaultBranches: ObservabilityBranch[] = [
@@ -129,7 +129,7 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 			meta: baseMeta("observability", { stage: "correlate" }),
 		},
 	);
-	g.add("correlate", correlateNode);
+	g.add(correlateNode, { name: "correlate" });
 
 	// --- SLO verification ---
 	const sloCheckFn = opts.sloCheck ?? (() => ({ pass: true }));
@@ -139,8 +139,8 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	const sloVerified = derived<unknown>([sloValue], (vals) => sloCheckFn(vals[0]), {
 		meta: baseMeta("observability", { stage: "slo_verified" }),
 	});
-	g.add("slo_value", sloValue);
-	g.add("slo_verified", sloVerified);
+	g.add(sloValue, { name: "slo_value" });
+	g.add(sloVerified, { name: "slo_verified" });
 
 	// --- Alert scorer ---
 	const weightValues = opts.weights ?? branches.map(() => 1);
@@ -149,14 +149,14 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	);
 	const weightNodes = weightValues.map((w) => state<number>(w));
 	for (let i = 0; i < signalNodes.length; i++) {
-		g.add(`__signal_${i}`, signalNodes[i] as Node<unknown>);
-		g.add(`__weight_${i}`, weightNodes[i] as Node<unknown>);
+		g.add(signalNodes[i] as Node<unknown>, { name: `__signal_${i}` });
+		g.add(weightNodes[i] as Node<unknown>, { name: `__weight_${i}` });
 	}
 	const alerts = scorer(
 		signalNodes as ReadonlyArray<Node<number>>,
 		weightNodes as ReadonlyArray<Node<number>>,
 	);
-	g.add("alerts", alerts as Node<unknown>);
+	g.add(alerts as Node<unknown>, { name: "alerts" });
 
 	// --- Output alias ---
 	const output = derived<unknown>(
@@ -169,14 +169,14 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 			meta: baseMeta("observability", { stage: "output" }),
 		},
 	);
-	g.add("output", output);
+	g.add(output, { name: "output" });
 
 	// --- Feedback (false-positive learning) ---
 	// SLO failures feed back to re-check with updated context.
 	const fbReentry = state<unknown>(null, {
 		meta: baseMeta("observability", { stage: "feedback_reentry" }),
 	});
-	g.add("feedback_reentry", fbReentry);
+	g.add(fbReentry, { name: "feedback_reentry" });
 	const fbCondition = derived<unknown>(
 		[sloVerified],
 		(vals) => {
@@ -188,7 +188,7 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 			meta: baseMeta("observability", { stage: "feedback_condition" }),
 		},
 	);
-	g.add("feedback_condition", fbCondition as Node<unknown>);
+	g.add(fbCondition as Node<unknown>, { name: "feedback_condition" });
 	feedback(g, "feedback_condition", "feedback_reentry", {
 		maxIterations: opts.maxFeedbackIterations ?? 5,
 	});
@@ -256,7 +256,7 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 	const g = new Graph(name, opts);
 
 	// --- Source ---
-	g.add("source", opts.source);
+	g.add(opts.source, { name: "source" });
 
 	// --- Extract ---
 	let _issueCounter = 0;
@@ -271,7 +271,7 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 	const extractNode = derived<ExtractedIssue>([opts.source], (vals) => extractFn(vals[0]), {
 		meta: baseMeta("issue_tracker", { stage: "extract" }),
 	});
-	g.add("extract", extractNode as Node<unknown>);
+	g.add(extractNode as Node<unknown>, { name: "extract" });
 
 	// --- Verify ---
 	const verifyFn = opts.verify ?? (() => ({ valid: true }));
@@ -285,13 +285,13 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 			meta: baseMeta("issue_tracker", { stage: "verify" }),
 		},
 	);
-	g.add("verify", verifyNode);
+	g.add(verifyNode, { name: "verify" });
 
 	// --- Known patterns (memory / distillation state) ---
 	const knownPatterns = state<unknown[]>([], {
 		meta: baseMeta("issue_tracker", { stage: "known_patterns" }),
 	});
-	g.add("known_patterns", knownPatterns as Node<unknown>);
+	g.add(knownPatterns as Node<unknown>, { name: "known_patterns" });
 
 	// --- Regression detection ---
 	const detectFn = opts.detectRegression ?? (() => ({ regression: false }));
@@ -304,7 +304,7 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		},
 		{ meta: baseMeta("issue_tracker", { stage: "regression" }) },
 	);
-	g.add("regression", regressionNode);
+	g.add(regressionNode, { name: "regression" });
 
 	// --- Priority scoring ---
 	const severitySignal = derived<number>([extractNode as Node], (vals) => {
@@ -315,16 +315,16 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		const r = vals[0] as Record<string, unknown> | null;
 		return r?.regression ? 2 : 0;
 	});
-	g.add("__severity_signal", severitySignal as Node<unknown>);
-	g.add("__regression_signal", regressionSignal as Node<unknown>);
+	g.add(severitySignal as Node<unknown>, { name: "__severity_signal" });
+	g.add(regressionSignal as Node<unknown>, { name: "__regression_signal" });
 
 	const severityWeight = state<number>(1);
 	const regressionWeight = state<number>(1.5);
-	g.add("__severity_weight", severityWeight as Node<unknown>);
-	g.add("__regression_weight", regressionWeight as Node<unknown>);
+	g.add(severityWeight as Node<unknown>, { name: "__severity_weight" });
+	g.add(regressionWeight as Node<unknown>, { name: "__regression_weight" });
 
 	const priority = scorer([severitySignal, regressionSignal], [severityWeight, regressionWeight]);
-	g.add("priority", priority as Node<unknown>);
+	g.add(priority as Node<unknown>, { name: "priority" });
 
 	// --- Output ---
 	const output = derived<unknown>(
@@ -336,13 +336,13 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		}),
 		{ meta: baseMeta("issue_tracker", { stage: "output" }) },
 	);
-	g.add("output", output);
+	g.add(output, { name: "output" });
 
 	// --- Feedback (re-scan on verification failure) ---
 	const fbReentry = state<unknown>(null, {
 		meta: baseMeta("issue_tracker", { stage: "feedback_reentry" }),
 	});
-	g.add("feedback_reentry", fbReentry);
+	g.add(fbReentry, { name: "feedback_reentry" });
 	const fbCondition = derived<unknown>(
 		[verifyNode],
 		(vals) => {
@@ -357,7 +357,7 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 			meta: baseMeta("issue_tracker", { stage: "feedback_condition" }),
 		},
 	);
-	g.add("feedback_condition", fbCondition as Node<unknown>);
+	g.add(fbCondition as Node<unknown>, { name: "feedback_condition" });
 	feedback(g, "feedback_condition", "feedback_reentry", {
 		maxIterations: opts.maxFeedbackIterations ?? 3,
 	});
@@ -420,7 +420,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	const g = new Graph(name, opts);
 
 	// --- Source ---
-	g.add("source", opts.source);
+	g.add(opts.source, { name: "source" });
 
 	// --- Classify ---
 	const defaultClassify = (content: unknown): ModerationResult => ({
@@ -432,7 +432,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	const classifyNode = derived<ModerationResult>([opts.source], (vals) => classifyFn(vals[0]), {
 		meta: baseMeta("content_moderation", { stage: "classify" }),
 	});
-	g.add("classify", classifyNode as Node<unknown>);
+	g.add(classifyNode as Node<unknown>, { name: "classify" });
 
 	// --- Stratify (safe / review / block) ---
 	const strat = stratify<ModerationResult>("stratify", classifyNode, [
@@ -447,7 +447,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		name: "review_queue",
 		maxSize: opts.maxQueueSize,
 	});
-	g.add("review_queue", reviewLog.entries as Node<unknown>);
+	g.add(reviewLog.entries as Node<unknown>, { name: "review_queue" });
 
 	// Bridge review branch → review queue accumulator
 	let reviewBranch: Node<unknown>;
@@ -455,7 +455,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		reviewBranch = g.resolve("stratify::branch/review");
 	} catch {
 		reviewBranch = state<unknown>(null);
-		g.add("__review_fallback", reviewBranch);
+		g.add(reviewBranch, { name: "__review_fallback" });
 	}
 	const reviewAccumulator = effect([reviewBranch], (vals) => {
 		const item = vals[0] as ModerationResult | null;
@@ -463,7 +463,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 			reviewLog.append(item);
 		}
 	});
-	g.add("__review_accumulator", reviewAccumulator as Node<unknown>);
+	g.add(reviewAccumulator as Node<unknown>, { name: "__review_accumulator" });
 	g.addDisposer(keepalive(reviewAccumulator as Node<unknown>));
 	try {
 	} catch {
@@ -481,7 +481,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 			}),
 		},
 	);
-	g.add("policy", policy as Node<unknown>);
+	g.add(policy as Node<unknown>, { name: "policy" });
 
 	// --- Priority scorer ---
 	const weights = opts.weights ?? [0.1, 1, 2];
@@ -494,16 +494,16 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		if (!r) return 0;
 		return r.label === "block" ? weights[2] : r.label === "review" ? weights[1] : weights[0];
 	});
-	g.add("__confidence_signal", confidenceSignal as Node<unknown>);
-	g.add("__severity_signal", severitySignal as Node<unknown>);
+	g.add(confidenceSignal as Node<unknown>, { name: "__confidence_signal" });
+	g.add(severitySignal as Node<unknown>, { name: "__severity_signal" });
 
 	const wConfidence = state<number>(1);
 	const wSeverity = state<number>(1);
-	g.add("__w_confidence", wConfidence as Node<unknown>);
-	g.add("__w_severity", wSeverity as Node<unknown>);
+	g.add(wConfidence as Node<unknown>, { name: "__w_confidence" });
+	g.add(wSeverity as Node<unknown>, { name: "__w_severity" });
 
 	const priority = scorer([confidenceSignal, severitySignal], [wConfidence, wSeverity]);
-	g.add("priority", priority as Node<unknown>);
+	g.add(priority as Node<unknown>, { name: "priority" });
 
 	// --- Output ---
 	const output = derived<unknown>(
@@ -514,7 +514,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		}),
 		{ meta: baseMeta("content_moderation", { stage: "output" }) },
 	);
-	g.add("output", output);
+	g.add(output, { name: "output" });
 
 	// --- Feedback (false positive → policy refinement) ---
 	// Feedback condition: human marks a review item as false positive.
@@ -536,7 +536,7 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 			meta: baseMeta("content_moderation", { stage: "feedback_condition" }),
 		},
 	);
-	g.add("feedback_condition", fbCondition as Node<unknown>);
+	g.add(fbCondition as Node<unknown>, { name: "feedback_condition" });
 	feedback(g, "feedback_condition", "policy", {
 		maxIterations: opts.maxFeedbackIterations ?? 5,
 	});
@@ -615,7 +615,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 	const g = new Graph(name, opts);
 
 	// --- Source ---
-	g.add("source", opts.source);
+	g.add(opts.source, { name: "source" });
 
 	// --- Schema validation ---
 	const validateFn =
@@ -630,7 +630,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		(vals) => (vals[0] != null ? validateFn(vals[0]) : undefined),
 		{ meta: baseMeta("data_quality", { stage: "validate" }) },
 	);
-	g.add("validate", validateNode as Node<unknown>);
+	g.add(validateNode as Node<unknown>, { name: "validate" });
 
 	// --- Anomaly detection ---
 	const detectAnomalyFn =
@@ -645,7 +645,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		(vals) => (vals[0] != null ? detectAnomalyFn(vals[0]) : undefined),
 		{ meta: baseMeta("data_quality", { stage: "anomaly" }) },
 	);
-	g.add("anomaly", anomalyNode as Node<unknown>);
+	g.add(anomalyNode as Node<unknown>, { name: "anomaly" });
 
 	// --- Baseline (rolling state) ---
 	const baseline = state<unknown>(null, {
@@ -654,7 +654,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			description: "Rolling baseline for drift detection",
 		}),
 	});
-	g.add("baseline", baseline);
+	g.add(baseline, { name: "baseline" });
 
 	// Update baseline on valid records
 	const baselineUpdater = effect([validateNode as Node], (vals) => {
@@ -665,7 +665,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			});
 		}
 	});
-	g.add("__baseline_updater", baselineUpdater as Node<unknown>);
+	g.add(baselineUpdater as Node<unknown>, { name: "__baseline_updater" });
 	keepalive(baselineUpdater as Node<unknown>);
 
 	// --- Drift detection ---
@@ -675,7 +675,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		(vals) => detectDriftFn(vals[0], vals[1]),
 		{ meta: baseMeta("data_quality", { stage: "drift" }) },
 	);
-	g.add("drift", driftNode);
+	g.add(driftNode, { name: "drift" });
 
 	// --- Remediation suggestions ---
 	const suggestFn = opts.suggest ?? (() => null);
@@ -688,7 +688,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			}),
 		{ meta: baseMeta("data_quality", { stage: "remediate" }) },
 	);
-	g.add("remediate", remediateNode);
+	g.add(remediateNode, { name: "remediate" });
 
 	// --- Output ---
 	const output = derived<unknown>(
@@ -701,13 +701,13 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		}),
 		{ meta: baseMeta("data_quality", { stage: "output" }) },
 	);
-	g.add("output", output);
+	g.add(output, { name: "output" });
 
 	// --- Feedback (anomaly → validation rule refinement) ---
 	const validationRules = state<unknown[]>([], {
 		meta: baseMeta("data_quality", { stage: "validation_rules" }),
 	});
-	g.add("validation_rules", validationRules as Node<unknown>);
+	g.add(validationRules as Node<unknown>, { name: "validation_rules" });
 
 	const fbCondition = derived<unknown>(
 		[anomalyNode as Node],
@@ -720,7 +720,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			meta: baseMeta("data_quality", { stage: "feedback_condition" }),
 		},
 	);
-	g.add("feedback_condition", fbCondition as Node<unknown>);
+	g.add(fbCondition as Node<unknown>, { name: "feedback_condition" });
 	feedback(g, "feedback_condition", "validation_rules", {
 		maxIterations: opts.maxFeedbackIterations ?? 3,
 	});

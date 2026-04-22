@@ -12,7 +12,7 @@ const llm: Actor = { type: "llm", id: "agent-1" };
 describe("guardedExecution", () => {
 	it("wraps target with policyEnforcer and blocks disallowed writes (enforce mode default)", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		guardedExecution(g, {
 			actor: alice,
 			policies: [
@@ -30,7 +30,7 @@ describe("guardedExecution", () => {
 
 	it("audit mode records violations without blocking writes", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write", actorType: "llm" }],
@@ -53,8 +53,8 @@ describe("guardedExecution", () => {
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add("alice-only", state(0, { name: "alice-only", guard: onlyAlice }));
-		g.add("public", state(1, { name: "public" }));
+		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
+		g.add(state(1, { name: "public" }), { name: "public" });
 
 		// Use audit mode: the enforcer observes writes but does NOT stack a
 		// deny-by-default guard on every node, so describe() sees through to
@@ -77,7 +77,7 @@ describe("guardedExecution", () => {
 
 	it("scopedDescribe passes through detail option to the target describe", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [] as readonly PolicyRuleData[],
@@ -95,7 +95,7 @@ describe("guardedExecution", () => {
 
 	it("policies can be a live Node for runtime updates", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const policies = state<readonly PolicyRuleData[]>([{ effect: "allow", action: "write" }]);
 
 		guardedExecution(g, {
@@ -113,7 +113,7 @@ describe("guardedExecution", () => {
 
 	it("violations topic is exposed and composable", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write" }],
@@ -133,7 +133,7 @@ describe("guardedExecution", () => {
 			policies: [{ effect: "deny", action: "write" }],
 		});
 
-		child.add("x", state(0, { name: "x" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
 		expect(() => g.set("kids::x", 1, { actor: alice })).toThrow();
 	});
 

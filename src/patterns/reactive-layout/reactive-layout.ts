@@ -1301,14 +1301,14 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	);
 
 	// --- Register in graph ---
-	g.add("text", textNode);
-	g.add("font", fontNode);
-	g.add("line-height", lineHeightNode);
-	g.add("max-width", maxWidthNode);
-	g.add("segments", segmentsNode);
-	g.add("line-breaks", lineBreaksNode);
-	g.add("height", heightNode);
-	g.add("char-positions", charPositionsNode);
+	g.add(textNode, { name: "text" });
+	g.add(fontNode, { name: "font" });
+	g.add(lineHeightNode, { name: "line-height" });
+	g.add(maxWidthNode, { name: "max-width" });
+	g.add(segmentsNode, { name: "segments" });
+	g.add(lineBreaksNode, { name: "line-breaks" });
+	g.add(heightNode, { name: "height" });
+	g.add(charPositionsNode, { name: "char-positions" });
 
 	// --- Edges (for describe() visibility) ---
 

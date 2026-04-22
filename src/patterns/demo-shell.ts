@@ -124,10 +124,10 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	});
 	const viewportWidth = state(viewportInit, { name: "viewport/width" });
 
-	g.add("pane/main-ratio", paneMainRatio);
-	g.add("pane/side-split", paneSideSplit);
-	g.add("pane/fullscreen", paneFullscreen);
-	g.add("viewport/width", viewportWidth);
+	g.add(paneMainRatio, { name: "pane/main-ratio" });
+	g.add(paneSideSplit, { name: "pane/side-split" });
+	g.add(paneFullscreen, { name: "pane/fullscreen" });
+	g.add(viewportWidth, { name: "viewport/width" });
 
 	// ── Derived pane dimensions ──────────────────────────
 	const paneMainWidth = derived(
@@ -178,10 +178,10 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		{ name: "pane/code-height-ratio" },
 	);
 
-	g.add("pane/main-width", paneMainWidth);
-	g.add("pane/side-width", paneSideWidth);
-	g.add("pane/graph-height-ratio", paneGraphHeight);
-	g.add("pane/code-height-ratio", paneCodeHeight);
+	g.add(paneMainWidth, { name: "pane/main-width" });
+	g.add(paneSideWidth, { name: "pane/side-width" });
+	g.add(paneGraphHeight, { name: "pane/graph-height-ratio" });
+	g.add(paneCodeHeight, { name: "pane/code-height-ratio" });
 
 	// ── External graph observation ───────────────────────
 	const demoGraphRef = state<Graph | null>(null, {
@@ -189,8 +189,8 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	});
 	const demoGraphTick = state(0, { name: "demo/graph-tick" });
 
-	g.add("demo/graph-ref", demoGraphRef);
-	g.add("demo/graph-tick", demoGraphTick);
+	g.add(demoGraphRef, { name: "demo/graph-ref" });
+	g.add(demoGraphTick, { name: "demo/graph-tick" });
 
 	const graphMermaid = derived(
 		[demoGraphRef, demoGraphTick],
@@ -213,12 +213,12 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		{ name: "graph/describe" },
 	);
 
-	g.add("graph/mermaid", graphMermaid);
-	g.add("graph/describe", graphDescribe);
+	g.add(graphMermaid, { name: "graph/mermaid" });
+	g.add(graphDescribe, { name: "graph/describe" });
 
 	// ── Cross-highlighting ───────────────────────────────
 	const hoverTarget = state<HoverTarget>(null, { name: "hover/target" });
-	g.add("hover/target", hoverTarget);
+	g.add(hoverTarget, { name: "hover/target" });
 
 	const highlightCodeScroll = derived(
 		[hoverTarget],
@@ -252,9 +252,9 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		{ name: "highlight/graph" },
 	);
 
-	g.add("highlight/code-scroll", highlightCodeScroll);
-	g.add("highlight/visual", highlightVisual);
-	g.add("highlight/graph", highlightGraph);
+	g.add(highlightCodeScroll, { name: "highlight/code-scroll" });
+	g.add(highlightVisual, { name: "highlight/visual" });
+	g.add(highlightGraph, { name: "highlight/graph" });
 
 	// ── Cross-highlighting effect nodes (optional) ─────
 	// Created when onHighlight callbacks are provided, making the full
@@ -265,7 +265,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		const applyCodeScroll = effect([highlightCodeScroll], ([line]) => {
 			cb(line as number | null);
 		});
-		g.add("highlight/apply-code-scroll", applyCodeScroll);
+		g.add(applyCodeScroll, { name: "highlight/apply-code-scroll" });
 	}
 
 	if (onHighlight?.visual) {
@@ -273,7 +273,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		const applyVisual = effect([highlightVisual], ([selector]) => {
 			cb(selector as string | null);
 		});
-		g.add("highlight/apply-visual", applyVisual);
+		g.add(applyVisual, { name: "highlight/apply-visual" });
 	}
 
 	if (onHighlight?.graph) {
@@ -281,14 +281,14 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		const applyGraph = effect([highlightGraph], ([nodeId]) => {
 			cb(nodeId as string | null);
 		});
-		g.add("highlight/apply-graph", applyGraph);
+		g.add(applyGraph, { name: "highlight/apply-graph" });
 	}
 
 	// ── Inspect panel ────────────────────────────────────
 	const inspectSelected = state<string | null>(null, {
 		name: "inspect/selected-node",
 	});
-	g.add("inspect/selected-node", inspectSelected);
+	g.add(inspectSelected, { name: "inspect/selected-node" });
 
 	const standardFields = resolveDescribeFields("standard");
 
@@ -319,12 +319,12 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		{ name: "inspect/trace-log" },
 	);
 
-	g.add("inspect/node-detail", inspectNodeDetail);
-	g.add("inspect/trace-log", inspectTraceLog);
+	g.add(inspectNodeDetail, { name: "inspect/node-detail" });
+	g.add(inspectTraceLog, { name: "inspect/trace-log" });
 
 	// ── Meta debug toggle ────────────────────────────────
 	const metaDebug = state(false, { name: "meta/debug" });
-	g.add("meta/debug", metaDebug);
+	g.add(metaDebug, { name: "meta/debug" });
 
 	const metaShellMermaid = derived(
 		[metaDebug, demoGraphTick],
@@ -334,11 +334,11 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		},
 		{ name: "meta/shell-mermaid" },
 	);
-	g.add("meta/shell-mermaid", metaShellMermaid);
+	g.add(metaShellMermaid, { name: "meta/shell-mermaid" });
 
 	// ── Layout engine integration (optional, requires adapter) ──
 	const codeTextNode = state("", { name: "layout/code-text" });
-	g.add("layout/code-text", codeTextNode);
+	g.add(codeTextNode, { name: "layout/code-text" });
 
 	if (adapter) {
 		const measureCache = new Map<string, Map<string, number>>();
@@ -401,9 +401,9 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			{ name: "layout/side-width-hint" },
 		);
 
-		g.add("layout/graph-labels", graphLabels);
-		g.add("layout/code-lines", codeLines);
-		g.add("layout/side-width-hint", sideWidthHint);
+		g.add(graphLabels, { name: "layout/graph-labels" });
+		g.add(codeLines, { name: "layout/code-lines" });
+		g.add(sideWidthHint, { name: "layout/side-width-hint" });
 	}
 
 	// ── Edges (explicit wiring for describe/toMermaid) ───

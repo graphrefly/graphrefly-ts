@@ -12,7 +12,7 @@ import {
 describe("auditTrail (roadmap §9.2)", () => {
 	it("records DATA mutations with seq, timestamps, value", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g);
 
 		g.set("a", 1);
@@ -31,8 +31,8 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("byNode / byActor / byTimeRange queries", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
-		g.add("b", state(0, { name: "b", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(state(0, { name: "b", guard: () => true }), { name: "b" });
 		const audit = auditTrail(g);
 
 		const t0 = performance.now() * 1e6;
@@ -50,7 +50,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("captures graph.trace() reason annotations on entries", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g);
 
 		g.trace("a", "set by pricing rule R7");
@@ -62,7 +62,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("respects includeTypes filter", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g, { includeTypes: ["data"] });
 
 		g.set("a", 1);
@@ -71,7 +71,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("respects custom filter predicate", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g, {
 			filter: (e) => typeof e.value === "number" && (e.value as number) >= 10,
 		});
@@ -86,7 +86,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("count node updates reactively as entries accrue", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g);
 		audit.observe("count").subscribe(() => {});
 
@@ -99,7 +99,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 		// Previously _lastMutation only populated when a guard ran; auditTrail
 		// missed actor attribution for the common case of unguarded nodes.
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" })); // no guard
+		g.add(state(0, { name: "a" }), { name: "a" }); // no guard
 		const audit = auditTrail(g);
 
 		g.set("a", 1, { actor: { type: "llm", id: "agent-7" } });
@@ -114,7 +114,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("ring-buffer cap (maxSize) drops oldest entries", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const audit = auditTrail(g, { maxSize: 3 });
 
 		for (let i = 1; i <= 5; i++) g.set("a", i);
@@ -133,7 +133,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("audit mode: records would-be denials without blocking writes", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "audit" });
 
 		// LLM write should succeed (audit mode doesn't block) but be recorded.
@@ -150,7 +150,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("audit mode: human writes pass without recording violations", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "audit" });
 
 		g.set("a", 5, { actor: { type: "human", id: "alice" } });
@@ -164,7 +164,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 			{ effect: "deny" as const, action: "write" as const },
 		];
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: () => true }));
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		const enforcer = policyEnforcer(g, denyNonHuman, { mode: "audit" });
 
 		// Write with no actor — previously silently skipped, now must be
@@ -179,7 +179,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("enforce mode: blocks disallowed writes by throwing GuardDenied", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "enforce" });
 
 		// Human ok
@@ -198,7 +198,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("enforce mode: dispose restores original guards", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "llm", id: "bot" } })).toThrow();
@@ -210,7 +210,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("reactive policies: updating policies node changes enforcement", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const policies = state<readonly PolicyRuleData[]>(denyLlmWrites, { name: "policies" });
 		policyEnforcer(g, policies, { mode: "enforce" });
 
@@ -233,7 +233,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 			allow("write", { where: (a) => a.type === "human" });
 		});
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a", guard: onlyHumans }));
+		g.add(state(0, { name: "a", guard: onlyHumans }), { name: "a" });
 		policyEnforcer(g, [{ effect: "allow", action: "write", actorId: "alice" }], {
 			mode: "enforce",
 		});
@@ -248,8 +248,8 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("paths option restricts which nodes are watched", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
 		const enforcer = policyEnforcer(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
@@ -264,7 +264,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("enforce mode: dynamic coverage — nodes added after construction are guarded (closes optimizations.md dynamic-coverage gap)", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		// paths omitted → dynamic coverage mode
 		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
@@ -272,13 +272,13 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Add a new node AFTER enforcer is built — it should be guarded too.
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "b" }), { name: "b" });
 		expect(() => g.set("b", 1, { actor: { type: "human", id: "x" } })).toThrow();
 	});
 
 	it("enforce mode: static paths option does NOT dynamically cover late adds (documented caveat)", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
@@ -287,7 +287,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Late-added node — NOT covered because paths was explicit.
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "b" }), { name: "b" });
 		g.set("b", 1, { actor: { type: "human", id: "x" } });
 		expect(g.get("b")).toBe(1);
 	});
@@ -295,7 +295,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("enforce mode: dynamic coverage — mount added after construction gets its contents guarded", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
-		child.add("x", state(0, { name: "x" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
 		// paths omitted → dynamic coverage mode
 		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
@@ -310,14 +310,14 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 
 	it("enforce mode: dynamic coverage — removed node releases guard bookkeeping (re-add under same name re-wraps)", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Remove and re-add under the same name — the new node should be guarded too.
 		g.remove("a");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 	});
 
@@ -328,7 +328,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		// Add to the already-mounted child — watchTopologyTree should cover this.
-		child.add("x", state(0, { name: "x" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
 		expect(() => g.set("kids::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
 	});
 
@@ -340,7 +340,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		root.mount("mid", mid);
 		policyEnforcer(root, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
-		leaf.add("x", state(0, { name: "x" }));
+		leaf.add(state(0, { name: "x" }), { name: "x" });
 		expect(() => root.set("mid::leaf::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
 	});
 });
@@ -350,8 +350,8 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
 		const direct = g.explain("a", "b", { reactive: true });
@@ -369,8 +369,8 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
 		const live = reactiveExplainPath(g, "a", "b");
@@ -403,7 +403,7 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 describe("complianceSnapshot (roadmap §9.2)", () => {
 	it("returns full graph state + audit + policies + fingerprint", () => {
 		const g = new Graph("g");
-		g.add("a", state(1, { name: "a", guard: () => true }));
+		g.add(state(1, { name: "a", guard: () => true }), { name: "a" });
 		const audit = auditTrail(g);
 		const enforcer = policyEnforcer(g, [{ effect: "allow", action: "write" }], { mode: "audit" });
 
@@ -426,7 +426,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("fingerprint is deterministic across calls with same input", () => {
 		const g = new Graph("g");
-		g.add("a", state(1, { name: "a" }));
+		g.add(state(1, { name: "a" }), { name: "a" });
 
 		const s1 = complianceSnapshot(g);
 		const s2 = complianceSnapshot(g);
@@ -441,7 +441,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("fingerprint changes when graph state changes", () => {
 		const g = new Graph("g");
-		g.add("a", state(1, { name: "a" }));
+		g.add(state(1, { name: "a" }), { name: "a" });
 		const snap1 = complianceSnapshot(g);
 		g.set("a", 999);
 		const snap2 = complianceSnapshot(g);
@@ -450,7 +450,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("works without optional audit/policies bundles", () => {
 		const g = new Graph("g");
-		g.add("a", state(1, { name: "a" }));
+		g.add(state(1, { name: "a" }), { name: "a" });
 		const snap = complianceSnapshot(g);
 		expect(snap.audit).toBeUndefined();
 		expect(snap.policies).toBeUndefined();

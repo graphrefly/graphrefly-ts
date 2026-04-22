@@ -16,8 +16,8 @@ describe("graphLens — topology stats", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 
 		const lens = graphLens(g);
 		// Activate
@@ -34,7 +34,7 @@ describe("graphLens — topology stats", () => {
 
 	it("recomputes when a node is added to the target", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
 
 		const seen: TopologyStats[] = [];
@@ -45,15 +45,15 @@ describe("graphLens — topology stats", () => {
 		});
 
 		expect(seen.at(-1)?.nodeCount).toBe(1);
-		g.add("b", state(1, { name: "b" }));
+		g.add(state(1, { name: "b" }), { name: "b" });
 		expect(seen.at(-1)?.nodeCount).toBe(2);
 	});
 
 	it("includes transitively-mounted subgraph nodes in the counts", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const child = new Graph("child");
-		child.add("x", state(1, { name: "x" }));
+		child.add(state(1, { name: "x" }), { name: "x" });
 		g.mount("kids", child);
 
 		const lens = graphLens(g);
@@ -77,7 +77,7 @@ describe("graphLens — topology stats", () => {
 		expect(getStatsCache(lens.stats).nodeCount).toBe(0);
 
 		// Add into the already-mounted child — transitive subscription should catch this.
-		child.add("x", state(0, { name: "x" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
 		expect(getStatsCache(lens.stats).nodeCount).toBe(1);
 	});
 
@@ -87,12 +87,12 @@ describe("graphLens — topology stats", () => {
 		lens.stats.subscribe(() => {});
 
 		const child = new Graph("late");
-		child.add("x", state(0));
+		child.add(state(0), { name: "x" });
 		g.mount("late", child);
 		expect(getStatsCache(lens.stats).nodeCount).toBe(1);
 
 		// Add a second node to the newly-mounted child — auto-wired subscription.
-		child.add("y", state(0));
+		child.add(state(0), { name: "y" });
 		expect(getStatsCache(lens.stats).nodeCount).toBe(2);
 	});
 });
@@ -100,7 +100,7 @@ describe("graphLens — topology stats", () => {
 describe("graphLens — health", () => {
 	it("ok=true when no nodes are errored", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
 		lens.health.subscribe(() => {});
 		expect(getHealthCache(lens.health).ok).toBe(true);
@@ -118,8 +118,8 @@ describe("graphLens — health", () => {
 			},
 			{ name: "b" },
 		);
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 
 		const lens = graphLens(g);
 		lens.health.subscribe(() => {});
@@ -146,9 +146,9 @@ describe("graphLens — health", () => {
 		);
 		// c depends on b — if b errors, c also errors via ERROR propagation
 		const c = derived([b], ([v]) => (v as number) * 2, { name: "c" });
-		g.add("a", a);
-		g.add("b", b);
-		g.add("c", c);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
 
 		const lens = graphLens(g);
 		lens.health.subscribe(() => {});
@@ -165,7 +165,7 @@ describe("graphLens — flow (reactiveMap)", () => {
 	it("counts DATA emissions per path via sync .get()", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
-		g.add("a", a);
+		g.add(a, { name: "a" });
 
 		const lens = graphLens(g);
 		// Subscribe to entries so `observe()` + flow map stay active
@@ -184,8 +184,8 @@ describe("graphLens — flow (reactiveMap)", () => {
 
 	it("exposes O(1) size + has queries", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
 
 		const lens = graphLens(g);
 		lens.flow.entries.subscribe(() => {});
@@ -200,8 +200,8 @@ describe("graphLens — flow (reactiveMap)", () => {
 
 	it("pathFilter scopes which paths are tracked", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
 
 		const lens = graphLens(g, { pathFilter: (p) => p === "a" });
 		lens.flow.entries.subscribe(() => {});
@@ -215,8 +215,8 @@ describe("graphLens — flow (reactiveMap)", () => {
 
 	it("drops per-path entries when a node is removed", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
-		g.add("b", state(0, { name: "b" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
 
 		const lens = graphLens(g);
 		lens.flow.entries.subscribe(() => {});
@@ -231,9 +231,9 @@ describe("graphLens — flow (reactiveMap)", () => {
 
 	it("maxFlowPaths caps the map via LRU eviction", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
-		g.add("b", state(0, { name: "b" }));
-		g.add("c", state(0, { name: "c" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(state(0, { name: "c" }), { name: "c" });
 
 		const lens = graphLens(g, { maxFlowPaths: 2 });
 		lens.flow.entries.subscribe(() => {});
@@ -250,7 +250,7 @@ describe("graphLens — flow (reactiveMap)", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
 		g.mount("kids", child);
-		child.add("x", state(0, { name: "x" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
 
 		const lens = graphLens(g);
 		lens.flow.entries.subscribe(() => {});
@@ -265,8 +265,8 @@ describe("graphLens — flow (reactiveMap)", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
 		g.mount("kids", child);
-		child.add("x", state(0, { name: "x" }));
-		child.add("y", state(0, { name: "y" }));
+		child.add(state(0, { name: "x" }), { name: "x" });
+		child.add(state(0, { name: "y" }), { name: "y" });
 
 		const lens = graphLens(g);
 		lens.flow.entries.subscribe(() => {});
@@ -286,8 +286,8 @@ describe("graphLens — why", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
 		const lens = graphLens(g);
@@ -311,7 +311,7 @@ describe("graphLens — why", () => {
 describe("graphLens — lifecycle", () => {
 	it("destroy disposes every internal subscription", () => {
 		const g = new Graph("g");
-		g.add("a", state(0, { name: "a" }));
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
 		lens.stats.subscribe(() => {});
 		lens.health.subscribe(() => {});
@@ -319,7 +319,7 @@ describe("graphLens — lifecycle", () => {
 		// Just call destroy — if a handler leaked it would throw or corrupt later asserts.
 		lens.destroy();
 		// Mutate after destroy; lens should not react (no assertion beyond "no crash").
-		g.add("b", state(1));
+		g.add(state(1), { name: "b" });
 		g.set("a", 99);
 	});
 });

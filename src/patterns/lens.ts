@@ -306,8 +306,8 @@ export class LensGraph extends Graph {
 		let healthVersion = 0;
 		const statsTick = state(0, { name: "stats_tick" });
 		const healthTick = state(0, { name: "health_tick" });
-		this.add("stats_tick", statsTick);
-		this.add("health_tick", healthTick);
+		this.add(statsTick, { name: "stats_tick" });
+		this.add(healthTick, { name: "health_tick" });
 
 		// ——————————————————————————————————————————————————————————————
 		// flow — reactiveMap<qualifiedPath, FlowEntry>
@@ -315,7 +315,7 @@ export class LensGraph extends Graph {
 		const mapOpts: { name: string; maxSize?: number } = { name: "flow" };
 		if (opts.maxFlowPaths != null) mapOpts.maxSize = opts.maxFlowPaths;
 		this.flow = reactiveMap<string, FlowEntry>(mapOpts);
-		this.add("flow", this.flow.entries);
+		this.add(this.flow.entries, { name: "flow" });
 
 		const pathFilter = opts.pathFilter;
 
@@ -393,7 +393,7 @@ export class LensGraph extends Graph {
 				meta: lensMeta("stats"),
 			},
 		);
-		this.add("stats", this.stats);
+		this.add(this.stats, { name: "stats" });
 		this.addDisposer(keepalive(this.stats));
 
 		// ——————————————————————————————————————————————————————————————
@@ -409,7 +409,7 @@ export class LensGraph extends Graph {
 				meta: lensMeta("health"),
 			},
 		);
-		this.add("health", this.health);
+		this.add(this.health, { name: "health" });
 		this.addDisposer(keepalive(this.health));
 	}
 
@@ -461,7 +461,7 @@ export class LensGraph extends Graph {
  * @example
  * ```ts
  * const g = new Graph("app");
- * g.add("counter", state(0));
+ * g.add(state(0, { name: "counter" }));
  * const lens = graphLens(g);
  * lens.stats.subscribe((msgs) => console.log(msgs[0]?.[1])); // TopologyStats
  * // Flow queries — O(1) without subscribing to snapshots:

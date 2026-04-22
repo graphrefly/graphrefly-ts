@@ -379,7 +379,7 @@ describe("graphspec.decompileGraph", () => {
 	it("decompiles a simple graph", () => {
 		const g = new Graph("simple");
 		const a = state(42, { name: "a", meta: { description: "input" } });
-		g.add("a", a);
+		g.add(a, { name: "a" });
 
 		const spec = decompileGraph(g);
 		expect(spec.name).toBe("simple");
@@ -393,8 +393,8 @@ describe("graphspec.decompileGraph", () => {
 		const g = new Graph("deps");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		b.subscribe(() => {});
 
 		const spec = decompileGraph(g);
@@ -430,7 +430,7 @@ describe("graphspec.decompileGraph", () => {
 	it("skips meta segment nodes", () => {
 		const g = new Graph("meta-skip");
 		const a = state(1, { name: "a", meta: { label: "test" } });
-		g.add("a", a);
+		g.add(a, { name: "a" });
 
 		const spec = decompileGraph(g);
 		const paths = Object.keys(spec.nodes);

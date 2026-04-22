@@ -392,12 +392,12 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	);
 
 	// --- Register in graph ---
-	g.add("blocks", blocksNode);
-	g.add("max-width", maxWidthNode);
-	g.add("gap", gapNode);
-	g.add("measured-blocks", measuredBlocksNode);
-	g.add("block-flow", blockFlowNode);
-	g.add("total-height", totalHeightNode);
+	g.add(blocksNode, { name: "blocks" });
+	g.add(maxWidthNode, { name: "max-width" });
+	g.add(gapNode, { name: "gap" });
+	g.add(measuredBlocksNode, { name: "measured-blocks" });
+	g.add(blockFlowNode, { name: "block-flow" });
+	g.add(totalHeightNode, { name: "total-height" });
 
 	// --- Edges (for describe() visibility) ---
 

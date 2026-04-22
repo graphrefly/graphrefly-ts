@@ -86,11 +86,11 @@ export function stratify<T>(
 ): Graph {
 	const g = new Graph(name, opts);
 
-	g.add("source", source as Node<unknown>);
+	g.add(source as Node<unknown>, { name: "source" });
 	const rulesNode = state<ReadonlyArray<StratifyRule<T>>>(rules, {
 		meta: baseMeta("stratify_rules"),
 	});
-	g.add("rules", rulesNode as Node<unknown>);
+	g.add(rulesNode as Node<unknown>, { name: "rules" });
 
 	for (const rule of rules) {
 		_addBranch(g, source, rulesNode, rule);
@@ -249,13 +249,13 @@ function _addBranch<T>(
 		return false;
 	}
 
-	graph.add(branchName, filterNode as Node<unknown>);
+	graph.add(filterNode as Node<unknown>, { name: branchName });
 
 	// If the rule has an ops chain, apply it and connect the edge
 	if (rule.ops) {
 		const transformed = rule.ops(filterNode);
 		const transformedName = `branch/${rule.name}/out`;
-		graph.add(transformedName, transformed as Node<unknown>);
+		graph.add(transformed as Node<unknown>, { name: transformedName });
 	}
 }
 
@@ -304,7 +304,7 @@ export function funnel<T>(
 
 	// Merge all sources
 	const merged = sources.length === 1 ? sources[0] : merge(...(sources as unknown as Node<T>[]));
-	g.add("merged", merged as Node<unknown>);
+	g.add(merged as Node<unknown>, { name: "merged" });
 
 	// Build and mount each stage linearly.
 	// Stage inputs are standalone state nodes, so we bridge via subscribe
@@ -344,7 +344,7 @@ export function funnel<T>(
 			},
 			{ name: bridgeName },
 		);
-		g.add(bridgeName, br as Node<unknown>);
+		g.add(br as Node<unknown>, { name: bridgeName });
 		g.addDisposer(keepalive(br));
 
 		prevOutputPath = `${stage.name}::output`;
@@ -402,7 +402,7 @@ export function feedback(
 			feedbackTo: reentry,
 		}),
 	});
-	graph.add(counterName, counter as Node<unknown>);
+	graph.add(counter as Node<unknown>, { name: counterName });
 
 	// Resolve the condition and reentry nodes
 	const condNode = graph.resolve(condition);
@@ -448,7 +448,7 @@ export function feedback(
 			},
 		},
 	);
-	graph.add(feedbackEffectName, feedbackEffect as Node<unknown>);
+	graph.add(feedbackEffect as Node<unknown>, { name: feedbackEffectName });
 	graph.addDisposer(keepalive(feedbackEffect));
 
 	return graph;

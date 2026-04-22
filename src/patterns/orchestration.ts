@@ -81,7 +81,7 @@ function registerStep(
 	step: Node<unknown>,
 	depPaths: ReadonlyArray<string>,
 ): void {
-	graph.add(name, step);
+	graph.add(step, { name: name });
 	// depPaths used to drive graph.connect() edge-registry calls; after
 	// Unit 7 edges are derived from node _deps and this wiring is a no-op.
 	void depPaths;
@@ -480,9 +480,9 @@ export function gate<T>(
 	// Register output + internal state as a mounted subgraph (aligned with PY)
 	registerStep(graph, name, output as unknown as Node<unknown>, src.path ? [src.path] : []);
 	const internal = new Graph(`${name}_state`);
-	internal.add("pending", pendingNode);
-	internal.add("isOpen", isOpenNode);
-	internal.add("count", countNode);
+	internal.add(pendingNode, { name: "pending" });
+	internal.add(isOpenNode, { name: "isOpen" });
+	internal.add(countNode, { name: "count" });
 	graph.mount(`${name}_state`, internal);
 
 	return controller;
@@ -754,7 +754,7 @@ export function wait<T>(
 	// exclusively; this producer's logical dep on `src` is not reflected in
 	// `describe()` — by design, since there is no real constructor-time
 	// dependency to show.
-	graph.add(name, step as unknown as Node<unknown>);
+	graph.add(step as unknown as Node<unknown>, { name: name });
 	return step;
 }
 

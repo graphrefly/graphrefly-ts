@@ -235,6 +235,16 @@ export async function diffSnapshots(
  *   NOT under the namespacing prefix. Off by default; set this when reading
  *   pre-namespacing snapshot sets.
  *
+ *   **Caveat:** when a tier is shared with {@link Graph.attachStorage}, its
+ *   auto-checkpoint baseline + WAL keys (written under `graph.name`) are
+ *   unprefixed. Calling with `includeUnprefixed: true` returns those keys
+ *   alongside surface snapshots — and subsequent `restoreSnapshot` /
+ *   `deleteSnapshot` will operate on them via the fallback-lookup path,
+ *   potentially overwriting or deleting live auto-checkpoint state. Use
+ *   `includeUnprefixed` only against tiers you know are NOT shared with
+ *   `attachStorage`, or follow up with a predicate filter to separate
+ *   ids you own from ones owned by other subsystems.
+ *
  * @throws {SurfaceError} `tier-no-list` when the tier does not implement
  *   the optional `list()` method. Check `typeof tier.list === "function"`
  *   before calling if you want to branch on capability.

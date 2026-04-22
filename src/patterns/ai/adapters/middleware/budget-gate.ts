@@ -143,16 +143,24 @@ export function withBudgetGate(
 	// notifications should subscribe to `isOpen` directly.
 	if (opts.onExhausted != null) {
 		const handler = opts.onExhausted;
+		// Seed `wasOpen` from the FIRST observed DATA rather than assuming
+		// `true`. If caps are already exhausted at construction (e.g.
+		// `calls: 0` or a pre-filled totals source), the push-on-subscribe
+		// DATA=`false` would otherwise be interpreted as an open→closed
+		// transition and fire `onExhausted` before any invoke has been
+		// attempted. `seeded` guards that first observation.
+		let seeded = false;
 		let wasOpen = true;
 		isOpen.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {
 					const v = m[1] as boolean;
-					if (wasOpen && v === false) {
+					if (seeded && wasOpen && v === false) {
 						const which = pickExhaustedKey(totals.cache ?? EMPTY_TOTALS, opts.caps);
 						if (which) handler(which);
 					}
 					wasOpen = v;
+					seeded = true;
 				}
 			}
 		});

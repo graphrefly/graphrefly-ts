@@ -151,11 +151,11 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 
 		// Build artifact
 		const artifact = state({ version: "1.2.0", sha: "abc123" });
-		g.add("artifact", artifact);
+		g.add(artifact, { name: "artifact" });
 
 		// Human approval control
 		const isApproved = state(false);
-		g.add("approved", isApproved);
+		g.add(isApproved, { name: "approved" });
 
 		// Gate: holds artifact until approved
 		const gated = approval<{ version: string; sha: string }>(g, "review", "artifact", "approved");
@@ -174,7 +174,7 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 			},
 			{ name: "deploy" },
 		);
-		g.add("deploy", deployNode);
+		g.add(deployNode, { name: "deploy" });
 		deployNode.subscribe(() => {});
 
 		// Initially: nothing deployed (approval is false)
@@ -436,15 +436,15 @@ describe("Phase 5 — Scenario 7: LLM graph self-awareness via describe + gauges
 				access: "both",
 			},
 		});
-		g.add("retry_limit", retryLimit);
-		g.add("model", model);
+		g.add(retryLimit, { name: "retry_limit" });
+		g.add(model, { name: "model" });
 
 		// Gauges: read-only metrics
 		const successRate = state(0.95, {
 			name: "success_rate",
 			meta: { description: "Current success rate", format: "percentage", access: "system" },
 		});
-		g.add("success_rate", successRate);
+		g.add(successRate, { name: "success_rate" });
 
 		// LLM reads the graph
 		const desc = g.describe({ detail: "standard" });
@@ -483,13 +483,13 @@ describe("Phase 5 — Scenario 8: Multi-source merge with error isolation", () =
 		const source1 = state<number>(10);
 		const source2 = state<number>(20);
 		const source3 = state<number>(30);
-		g.add("s1", source1);
-		g.add("s2", source2);
-		g.add("s3", source3);
+		g.add(source1, { name: "s1" });
+		g.add(source2, { name: "s2" });
+		g.add(source3, { name: "s3" });
 
 		// Merge all sources
 		const merged = merge(source1, source2, source3);
-		g.add("merged", merged);
+		g.add(merged, { name: "merged" });
 
 		// Collect values
 		const values: number[] = [];

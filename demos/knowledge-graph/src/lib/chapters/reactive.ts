@@ -130,12 +130,12 @@ export function buildReactiveChapter(
 
 	// Mount the upstream pipeline onto the kg Graph so demo-shell's
 	// `graph/mermaid` shows the WHOLE causal chain, not just the KG nodes.
-	kg.add("paper-text", paperText);
-	kg.add("paragraph-idx", paragraphIdx);
-	kg.add("paragraphs", paragraphs);
-	kg.add("current-paragraph", currentParagraph);
-	kg.add("extraction", extraction);
-	kg.add("apply-extraction", applyExtraction);
+	kg.add(paperText, { name: "paper-text" });
+	kg.add(paragraphIdx, { name: "paragraph-idx" });
+	kg.add(paragraphs, { name: "paragraphs" });
+	kg.add(currentParagraph, { name: "current-paragraph" });
+	kg.add(extraction, { name: "extraction" });
+	kg.add(applyExtraction, { name: "apply-extraction" });
 
 	// Keep the lazy chain warm: subscribe to the terminal effect so each push
 	// from `paper-text` actually walks the topology. The effect's dep on

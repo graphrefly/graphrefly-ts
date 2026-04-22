@@ -30,7 +30,7 @@ describe("patterns.orchestration", () => {
 	it("task registers a computed step and wires dependency edges", () => {
 		const g = pipeline("wf");
 		const input = state(1);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const doubled = task<number>(g, "double", ([v]) => ((v as number) * 2) as number, {
 			deps: ["input"],
 		});
@@ -43,7 +43,7 @@ describe("patterns.orchestration", () => {
 	it("task with Node deps still records explicit graph edges", () => {
 		const g = pipeline("wf");
 		const input = state(2);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		task<number>(g, "doubleByRef", ([v]) => ((v as number) * 2) as number, {
 			deps: [input],
 		});
@@ -53,7 +53,7 @@ describe("patterns.orchestration", () => {
 	it("branch emits tagged branch results", () => {
 		const g = pipeline("wf");
 		const input = state(1);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const out = branch<number>(g, "route", "input", (v) => v >= 2);
 		const seen: Array<"then" | "else"> = [];
 		out.subscribe((msgs) => {
@@ -72,7 +72,7 @@ describe("patterns.orchestration", () => {
 	it("task and branch describe as derived with canonical orchestration metadata", () => {
 		const g = pipeline("wf");
 		const input = state(1);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		task<number>(g, "t", ([v]) => v as number, { deps: ["input"] });
 		branch<number>(g, "b", "input", (v) => v > 0);
 		const desc = g.describe({ detail: "standard" });
@@ -94,9 +94,9 @@ describe("patterns.orchestration", () => {
 		const input = state(1);
 		const open = state(true);
 		const approved = state(true);
-		g.add("input", input);
-		g.add("open", open);
-		g.add("approved", approved);
+		g.add(input, { name: "input" });
+		g.add(open, { name: "open" });
+		g.add(approved, { name: "approved" });
 		const gated = valve<number>(g, "gated", "input", "open");
 		const reviewed = approval<number>(g, "reviewed", gated, "approved");
 		gated.subscribe(() => undefined);
@@ -117,7 +117,7 @@ describe("patterns.orchestration", () => {
 	it("forEach runs side effects and forwards messages", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const seen: number[] = [];
 		const sink = forEach<number>(g, "sink", "input", (value) => {
 			seen.push(value);
@@ -132,8 +132,8 @@ describe("patterns.orchestration", () => {
 		const g = pipeline("wf");
 		const a = state(1);
 		const b = state("x");
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 		const j = join<[number, string]>(g, "j", ["a", "b"]);
 		j.subscribe(() => undefined);
 		g.set("a", 5);
@@ -143,7 +143,7 @@ describe("patterns.orchestration", () => {
 	it("loop applies iterate function fixed times", () => {
 		const g = pipeline("wf");
 		const input = state(2);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const l = loop<number>(g, "pow2x3", "input", (value) => value * 2, { iterations: 3 });
 		l.subscribe(() => undefined);
 		expect(g.get("pow2x3")).toBe(16);
@@ -152,7 +152,7 @@ describe("patterns.orchestration", () => {
 	it("subPipeline mounts child workflow graph", () => {
 		const root = pipeline("root");
 		const child = subPipeline(root, "child", (sub) => {
-			sub.add("n", state(1));
+			sub.add(state(1), { name: "n" });
 		});
 		expect(child).toBeInstanceOf(Graph);
 		expect(root.get("child::n")).toBe(1);
@@ -177,7 +177,7 @@ describe("patterns.orchestration", () => {
 	it("wait delays DATA while preserving final value", async () => {
 		const g = pipeline("wf");
 		const input = state(1);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const delayed = wait<number>(g, "delayed", "input", 10);
 		delayed.subscribe(() => undefined);
 		g.set("input", 2);
@@ -190,7 +190,7 @@ describe("patterns.orchestration", () => {
 	it("onFailure recovers from errors", () => {
 		const g = pipeline("wf");
 		const src = state(1);
-		g.add("src", src);
+		g.add(src, { name: "src" });
 		const failing = task<number>(
 			g,
 			"failing",
@@ -210,7 +210,7 @@ describe("patterns.orchestration", () => {
 	it("forEach does not run user callback after terminal error", () => {
 		const g = pipeline("wf");
 		const src = node<number>();
-		g.add("src", src);
+		g.add(src, { name: "src" });
 		const seen: number[] = [];
 		const sink = forEach<number>(g, "sink", "src", (value) => {
 			seen.push(value);
@@ -227,7 +227,7 @@ describe("patterns.orchestration", () => {
 	it("wait cancels pending timers on teardown", async () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const delayed = wait<number>(g, "delayed", "input", 20);
 		delayed.subscribe(() => undefined);
 		g.set("input", 2);
@@ -240,7 +240,7 @@ describe("patterns.orchestration", () => {
 	it("onFailure stops recovery attempts after terminal error", () => {
 		const g = pipeline("wf");
 		const src = state(0);
-		g.add("src", src);
+		g.add(src, { name: "src" });
 		const failing = task<number>(
 			g,
 			"failing",
@@ -265,8 +265,8 @@ describe("patterns.orchestration", () => {
 		const g = pipeline("wf");
 		const input = state(2);
 		const iter = state<unknown>("2.9");
-		g.add("input", input);
-		g.add("iter", iter);
+		g.add(input, { name: "input" });
+		g.add(iter, { name: "iter" });
 		const l = loop<number>(g, "looped", "input", (value) => value * 2, {
 			iterations: "iter",
 		});
@@ -286,7 +286,7 @@ describe("patterns.orchestration", () => {
 	it("gate queues values and approve forwards them", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input");
 
 		const approved: number[] = [];
@@ -314,7 +314,7 @@ describe("patterns.orchestration", () => {
 	it("gate reject discards pending values", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input");
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 10);
@@ -330,7 +330,7 @@ describe("patterns.orchestration", () => {
 	it("gate modify transforms and forwards", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input");
 
 		const approved: number[] = [];
@@ -348,7 +348,7 @@ describe("patterns.orchestration", () => {
 	it("gate open flushes pending and auto-approves future", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input");
 
 		const approved: number[] = [];
@@ -371,7 +371,7 @@ describe("patterns.orchestration", () => {
 	it("gate close re-enables manual gating", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input", { startOpen: true });
 
 		const approved: number[] = [];
@@ -391,7 +391,7 @@ describe("patterns.orchestration", () => {
 	it("gate maxPending drops oldest values (FIFO)", () => {
 		const g = pipeline("wf");
 		const input = state(0);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input", { maxPending: 2 });
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 1);
@@ -404,7 +404,7 @@ describe("patterns.orchestration", () => {
 	it("gate approve(n) forwards multiple values", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		const ctrl = gate<number>(g, "gated", "input");
 
 		const approved: number[] = [];
@@ -424,7 +424,7 @@ describe("patterns.orchestration", () => {
 	it("gate registers internal state nodes in graph", () => {
 		const g = pipeline("wf");
 		const input = state(0);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		gate<number>(g, "gated", "input");
 		const desc = g.describe();
 		expect(desc.nodes).toHaveProperty("gated");
@@ -436,7 +436,7 @@ describe("patterns.orchestration", () => {
 	it("gate maxPending < 1 throws RangeError", () => {
 		const g = pipeline("wf");
 		const input = state(0);
-		g.add("input", input);
+		g.add(input, { name: "input" });
 		expect(() => gate<number>(g, "gated", "input", { maxPending: 0 })).toThrow(RangeError);
 	});
 });

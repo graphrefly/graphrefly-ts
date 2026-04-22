@@ -46,7 +46,7 @@ export function create<T extends object>(initializer: StateCreator<T>): Graph & 
 		name: "state",
 		equals: alwaysDiffer,
 	});
-	g.add("state", s);
+	g.add(s, { name: "state" });
 
 	// `getState` and `setState` read/write through `s` directly — the single
 	// source of truth. `s.cache` is `undefined` (SENTINEL) until `emit()` is

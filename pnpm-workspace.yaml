@@ -4,6 +4,7 @@ packages:
   - demos/compat-matrix
   - demos/reactive-layout
   - demos/knowledge-graph
+  - demos/pagerduty-triage
   - examples/basic/*
   - examples/compat/*
   - examples/framework/*

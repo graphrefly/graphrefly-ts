@@ -157,7 +157,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "txFeed" },
 	);
-	graph.add("txFeed", txFeed);
+	graph.add(txFeed, { name: "txFeed" });
 	trace("txFeed", "Raw transaction stream from bank API / simulator.");
 
 	// 2. Running per-vendor stats (mean / std). Stateful accumulator —
@@ -184,13 +184,13 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "vendorStats" },
 	);
-	graph.add("vendorStats", vendorStats);
+	graph.add(vendorStats, { name: "vendorStats" });
 	trace("vendorStats", "Running per-vendor mean + sample std (Welford online update).");
 
 	// 3. User profile — static state for this demo; in a real app this is
 	// `fromStorage(...)` so it persists across sessions.
 	const userProfile = state<UserProfile>(profile, { name: "userProfile" });
-	graph.add("userProfile", userProfile);
+	graph.add(userProfile, { name: "userProfile" });
 	trace("userProfile", "User baseline: daily-average spend + typical categories.");
 
 	// 4. Anomaly score — composes txn × vendor stats × user profile. This is
@@ -210,7 +210,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "anomalyScore" },
 	);
-	graph.add("anomalyScore", anomalyScore);
+	graph.add(anomalyScore, { name: "anomalyScore" });
 	trace("anomalyScore", "z-score vs vendor history + daily-spend ratio + category familiarity.");
 
 	// 5. Threshold gate — binary flagged? + the threshold used. Echoes
@@ -228,7 +228,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "thresholdGate" },
 	);
-	graph.add("thresholdGate", thresholdGate);
+	graph.add(thresholdGate, { name: "thresholdGate" });
 	trace(
 		"thresholdGate",
 		`Flag when zScore > ${zThreshold} OR dailyRatio > ${dailyRatioThreshold} OR category is unknown.`,
@@ -260,7 +260,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "reasonFactors" },
 	);
-	graph.add("reasonFactors", reasonFactors);
+	graph.add(reasonFactors, { name: "reasonFactors" });
 	trace("reasonFactors", "Decomposes the flag into contributing signals — trustable breakdown.");
 
 	// 7. Alert message — human-readable final output. Only depends on
@@ -276,7 +276,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		},
 		{ name: "alertMessage" },
 	);
-	graph.add("alertMessage", alertMessage);
+	graph.add(alertMessage, { name: "alertMessage" });
 	trace(
 		"alertMessage",
 		"Final human-readable alert. Swap the justifier for a promptNode to get LLM-authored rationale.",

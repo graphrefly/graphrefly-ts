@@ -647,18 +647,18 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				name,
 				meta: n.meta ? { ...n.meta } : undefined,
 			});
-			g.add(name, nd);
+			g.add(nd, { name: name });
 			created.set(name, nd);
 		} else if (n.type === "producer") {
 			const sourceFactory = n.source ? resolveSource(n.source) : undefined;
 			const fnFactory = n.fn ? resolveFn(n.fn) : undefined;
 			if (sourceFactory) {
 				const nd = sourceFactory(n.config ?? {});
-				g.add(name, nd);
+				g.add(nd, { name: name });
 				created.set(name, nd);
 			} else if (fnFactory) {
 				const nd = fnFactory([], n.config ?? {});
-				g.add(name, nd);
+				g.add(nd, { name: name });
 				created.set(name, nd);
 			} else {
 				// No catalog entry — create a bare producer placeholder
@@ -666,7 +666,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 					name,
 					meta: { ...n.meta, _specFn: n.fn, _specSource: n.source },
 				});
-				g.add(name, nd);
+				g.add(nd, { name: name });
 				created.set(name, nd);
 			}
 		} else {
@@ -695,7 +695,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				// derived/operator without catalog fn — identity passthrough
 				nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 			}
-			g.add(name, nd);
+			g.add(nd, { name: name });
 			created.set(name, nd);
 			pending.delete(name);
 			progressed = true;
@@ -731,7 +731,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 					name: nName,
 					meta: nSpec.meta ? { ...nSpec.meta } : undefined,
 				});
-				sub.add(nName, nd);
+				sub.add(nd, { name: nName });
 				subCreated.set(nName, nd);
 			} else if (nSpec.type === "producer") {
 				// Handle producer nodes inside templates
@@ -739,18 +739,18 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				const fnFactory = nSpec.fn ? resolveFn(nSpec.fn) : undefined;
 				if (sourceFactory) {
 					const nd = sourceFactory(nSpec.config ?? {});
-					sub.add(nName, nd);
+					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				} else if (fnFactory) {
 					const nd = fnFactory([], nSpec.config ?? {});
-					sub.add(nName, nd);
+					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				} else {
 					const nd = producer(() => {}, {
 						name: nName,
 						meta: { ...nSpec.meta, _specFn: nSpec.fn, _specSource: nSpec.source },
 					});
-					sub.add(nName, nd);
+					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				}
 			} else {
@@ -779,7 +779,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				} else {
 					nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 				}
-				sub.add(nName, nd);
+				sub.add(nd, { name: nName });
 				subCreated.set(nName, nd);
 				subPending.delete(nName);
 				subProgressed = true;

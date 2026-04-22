@@ -113,14 +113,14 @@ export class AuditTrailGraph extends Graph {
 			...(opts.maxSize != null ? { maxSize: opts.maxSize } : {}),
 		});
 		this.entries = this._log.entries;
-		this.add("entries", this.entries);
+		this.add(this.entries, { name: "entries" });
 
 		this.count = derived<number>(
 			[this.entries],
 			([snapshot]) => (snapshot as readonly AuditEntry[]).length,
 			{ name: "count", describeKind: "derived", meta: auditMeta("count") },
 		);
-		this.add("count", this.count);
+		this.add(this.count, { name: "count" });
 		this.addDisposer(keepalive(this.count));
 
 		const includeTypes =
@@ -296,7 +296,7 @@ export class PolicyEnforcerGraph extends Graph {
 			? policies
 			: state<readonly PolicyRuleData[]>(policies, { name: "policies" });
 		this.policies = policiesNode;
-		this.add("policies", this.policies);
+		this.add(this.policies, { name: "policies" });
 
 		this.violations = new TopicGraph<PolicyViolation>("violations", {
 			retainedLimit: opts.violationsLimit ?? 1000,
@@ -312,7 +312,7 @@ export class PolicyEnforcerGraph extends Graph {
 				meta: auditMeta("policy_violation_count"),
 			},
 		);
-		this.add("violationCount", this.violationCount);
+		this.add(this.violationCount, { name: "violationCount" });
 		this.addDisposer(keepalive(this.violationCount));
 
 		// Factory-time seed (COMPOSITION-GUIDE §28): cache the latest rules

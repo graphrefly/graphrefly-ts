@@ -243,7 +243,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 
 		if (config.gated) {
 			// Register the topic's latest node in the gate graph so gate() can resolve it
-			gateGraph.add(`${route}/source`, topic.latest as Node<unknown>);
+			gateGraph.add(topic.latest as Node<unknown>, { name: `${route}/source` });
 			const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, `${route}/source`, {
 				maxPending: config.maxPending,
 				startOpen: config.startOpen,
@@ -455,10 +455,10 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	harness.addDisposer(strategy.dispose);
 
 	// Register stage nodes for introspection (harnessTrace, describe, observe)
-	harness.add("triage", triageNode as Node<unknown>);
-	harness.add("execute", executeNode as Node<unknown>);
-	harness.add("verify", verifyNode as Node<unknown>);
-	harness.add("strategy", strategy.node as Node<unknown>);
+	harness.add(triageNode as Node<unknown>, { name: "triage" });
+	harness.add(executeNode as Node<unknown>, { name: "execute" });
+	harness.add(verifyNode as Node<unknown>, { name: "verify" });
+	harness.add(strategy.node as Node<unknown>, { name: "strategy" });
 
 	// Mount subgraphs
 	harness.mount("intake", intake);

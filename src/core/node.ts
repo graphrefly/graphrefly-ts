@@ -1590,6 +1590,12 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		} else if (prevCleanup != null && typeof prevCleanup === "object") {
 			const hook = (prevCleanup as { beforeRun?: unknown }).beforeRun;
 			if (typeof hook === "function") {
+				// Null out the `beforeRun` field BEFORE invocation so a throw
+				// doesn't leave the hook armed for the next run (violating the
+				// documented "fires exactly once on its named transition"
+				// contract). Mirrors the function-form path's clear-before-call
+				// pattern at line 1583 above.
+				(prevCleanup as { beforeRun?: unknown }).beforeRun = undefined;
 				try {
 					(hook as () => void)();
 				} catch (err) {

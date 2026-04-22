@@ -154,7 +154,7 @@ describe("GraphObserveOne.up()", () => {
 	it("propagates PAUSE upstream through observed node", () => {
 		const s = state(0);
 		const g = new Graph("bp-up");
-		g.add("s", s);
+		g.add(s, { name: "s" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -177,8 +177,8 @@ describe("GraphObserveOne.up()", () => {
 		const a = state(0);
 		const b = state(0);
 		const g = new Graph("bp-up-all");
-		g.add("a", a);
-		g.add("b", b);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
 
 		const aMsgs: Messages[] = [];
 		const bMsgs: Messages[] = [];
@@ -211,7 +211,7 @@ describe("observeSubscription — backpressure", () => {
 	it("sends PAUSE when queue exceeds highWaterMark", () => {
 		const s = node<number>();
 		const g = new Graph("sub-bp");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -242,7 +242,7 @@ describe("observeSubscription — backpressure", () => {
 	it("no backpressure when options not set", async () => {
 		const s = node<number>();
 		const g = new Graph("sub-no-bp");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -267,7 +267,7 @@ describe("observeSubscription — backpressure", () => {
 	it("dispose sends RESUME on iterator return", () => {
 		const s = state<number>(0);
 		const g = new Graph("sub-bp-dispose");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -302,7 +302,7 @@ describe("ObserveGateway — backpressure", () => {
 	it("sends PAUSE when messages exceed highWaterMark, RESUME on ack", () => {
 		const s = node<number>();
 		const g = new Graph("gw-bp");
-		g.add("counter", s);
+		g.add(s, { name: "counter" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -334,7 +334,7 @@ describe("ObserveGateway — backpressure", () => {
 	it("disconnect disposes watermark controllers", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-bp-dc");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -362,7 +362,7 @@ describe("ObserveGateway — backpressure", () => {
 	it("no backpressure when watermarks not configured", () => {
 		const s = state<number>(0);
 		const g = new Graph("gw-no-bp");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -396,7 +396,7 @@ describe("observeSSE — backpressure", () => {
 	it("buffers and drains via pull when watermarks set", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sse-bp");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const upMsgs: Messages[] = [];
 		const orig = s.up;
@@ -438,7 +438,7 @@ describe("observeSSE — backpressure", () => {
 	it("works without backpressure (default)", async () => {
 		const s = state<number>(0);
 		const g = new Graph("sse-no-bp");
-		g.add("n", s);
+		g.add(s, { name: "n" });
 
 		const stream = observeSSE(g, "n");
 		const reader = stream.getReader();
