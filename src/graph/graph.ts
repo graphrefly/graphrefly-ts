@@ -3180,7 +3180,7 @@ export class Graph {
 		path?: string,
 		annotation?: string,
 		opts?: { actor?: Actor },
-	): void | string | undefined | readonly TraceEntry[] {
+	): string | undefined | readonly TraceEntry[] {
 		// Write: (path, annotation[, opts])
 		// Write: (path, annotation[, opts])
 		if (path != null && annotation != null) {
