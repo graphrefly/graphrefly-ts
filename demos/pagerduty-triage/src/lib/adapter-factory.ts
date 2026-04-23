@@ -37,6 +37,42 @@ export async function probeChromeNano(): Promise<{
 	}
 }
 
+// Chrome Nano commonly wraps JSON in prose ("Here's the classification: {...}")
+// or markdown fences. Extract the first balanced `{...}` so `JSON.parse`
+// downstream succeeds; if nothing extractable is found, return the raw text
+// and let the caller see the parse error.
+function extractJsonObject(text: string): string {
+	const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+	const source = fenced ? fenced[1]! : text;
+	const start = source.indexOf("{");
+	if (start < 0) return text;
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = start; i < source.length; i++) {
+		const ch = source[i]!;
+		if (escape) {
+			escape = false;
+			continue;
+		}
+		if (ch === "\\") {
+			escape = true;
+			continue;
+		}
+		if (ch === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (inString) continue;
+		if (ch === "{") depth++;
+		else if (ch === "}") {
+			depth--;
+			if (depth === 0) return source.slice(start, i + 1);
+		}
+	}
+	return text;
+}
+
 function createChromeNanoAdapter(): LLMAdapter {
 	let session: Promise<LanguageModel> | null = null;
 
@@ -46,6 +82,8 @@ function createChromeNanoAdapter(): LLMAdapter {
 			temperature: 0.2,
 			topK: 3,
 			systemPrompt: "You are an SRE triage assistant. Respond with JSON only.",
+			expectedInputs: [{ type: "text", languages: ["en"] }],
+			expectedOutputs: [{ type: "text", languages: ["en"] }],
 		}).catch((err) => {
 			// Clear the cached promise so the next call retries creation.
 			session = null;
@@ -61,8 +99,8 @@ function createChromeNanoAdapter(): LLMAdapter {
 			return (async (): Promise<LLMResponse> => {
 				const s = await ensureSession();
 				const userMsg = messages.find((m) => m.role === "user");
-				const text = await s.prompt(userMsg?.content ?? "");
-				return { content: text, finishReason: "stop" };
+				const raw = await s.prompt(userMsg?.content ?? "");
+				return { content: extractJsonObject(raw), finishReason: "stop" };
 			})() as unknown as ReturnType<LLMAdapter["invoke"]>;
 		},
 		stream() {

@@ -590,6 +590,38 @@ button.queue-item {
 	padding: 0 0.35em;
 	margin-left: auto;
 }
+.reason-badge {
+	font-family: var(--font-mono);
+	font-size: 9px;
+	border-radius: 999px;
+	padding: 0.05em 0.45em;
+	margin-left: auto;
+	letter-spacing: 0.02em;
+	cursor: help;
+	white-space: nowrap;
+}
+.reason-badge .reason-conf {
+	opacity: 0.75;
+}
+.reason-badge.reason-pattern {
+	color: var(--gr-aqua);
+	border: 1px solid var(--gr-aqua);
+	background: rgba(77, 232, 194, 0.08);
+}
+.reason-badge.reason-high-conf {
+	color: var(--gr-warn);
+	border: 1px solid var(--gr-warn);
+	background: rgba(240, 200, 106, 0.08);
+}
+.reason-badge.reason-timeout {
+	color: var(--gr-danger);
+	border: 1px solid var(--gr-danger);
+	background: rgba(239, 110, 122, 0.08);
+}
+.reason-badge.reason-manual {
+	color: var(--gr-text-muted);
+	border: 1px solid var(--gr-border);
+}
 .card-svc {
 	font-weight: 600;
 	font-size: 11px;
@@ -961,11 +993,16 @@ button.queue-item {
 	font-size: 13px;
 	color: var(--gr-aqua-dim);
 }
-.focus-note {
-	font-size: 13px;
-	font-style: italic;
-	color: var(--gr-text-muted);
-	max-width: 38rem;
+.in-progress-badge {
+	font-size: 11px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	font-weight: 700;
+	color: var(--gr-warn);
+	background: rgba(240, 160, 96, 0.12);
+	border: 1px solid var(--gr-warn);
+	border-radius: 999px;
+	padding: 0.1rem 0.55rem;
 }
 .focus-actions .action-btn {
 	font-size: 14.5px;

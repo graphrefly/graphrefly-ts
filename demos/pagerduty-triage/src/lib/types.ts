@@ -4,6 +4,13 @@ import type { Alert, Severity } from "./alerts.js";
 
 export type Disposition = "actionable" | "escalated" | "resolved" | "deferred";
 
+/** Which routing path landed the alert in its bin. Rendered as a pill on the bin card so users can see WHY a ticket skipped focus. */
+export type TriageReason =
+	| "pattern" // matched a learned pattern (AUTO path)
+	| "high-conf" // LLM confidence ≥ 0.8, bypassed queue
+	| "timeout" // sat in queue > auto-escalate threshold
+	| "manual"; // user decision from queue or re-triage
+
 export interface TriagedAlert {
 	readonly alert: Alert;
 	readonly disposition: Disposition;
@@ -15,6 +22,8 @@ export interface TriagedAlert {
 	readonly confidence: number;
 	/** Whether this was auto-classified by a learned pattern. */
 	readonly autoClassified: boolean;
+	/** Routing path that landed this alert in its bin. */
+	readonly reason: TriageReason;
 	/** Timestamp when triaged. */
 	readonly triagedAt: number;
 }

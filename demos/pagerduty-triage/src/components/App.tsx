@@ -16,13 +16,20 @@ import {
 	type TriagePipeline,
 } from "../lib/pipeline";
 import { getShell, setDemoGraph } from "../lib/shell";
-import type { AdapterMode, Disposition, LearnedPattern, TokenSnapshot } from "../lib/types";
+import type {
+	AdapterMode,
+	Disposition,
+	LearnedPattern,
+	TokenSnapshot,
+	TriageReason,
+} from "../lib/types";
 import { useNodeValue } from "../lib/use-node-value";
 import GraphPane from "./GraphPane";
 
 // ── Constants ───────────────────────────────────────────────────
 
 const TOTAL_TIME_MS = 5 * 60 * 1000;
+const ACTIONABLE_LIMIT = 8;
 
 // ── Severity color map ──────────────────────────────────────────
 
@@ -467,27 +474,27 @@ export default function App() {
 						<h3>Intake tempo</h3>
 						<ul className="tempo-list">
 							<li>
-								<span className="tempo-range">0:00 &rarr; 2:00</span>
+								<span className="tempo-range">0:00 &rarr; 1:00</span>
 								<span className="tempo-rate">one alert every 30s</span>{" "}
 								<span className="tempo-note">calm &mdash; read carefully</span>
 							</li>
 							<li>
-								<span className="tempo-range">2:00 &rarr; 3:00</span>
-								<span className="tempo-rate">one alert every 15s</span>{" "}
+								<span className="tempo-range">1:00 &rarr; 2:00</span>
+								<span className="tempo-rate">one alert every 20s</span>{" "}
 								<span className="tempo-note">steady</span>
 							</li>
 							<li>
-								<span className="tempo-range">3:00 &rarr; 4:00</span>
-								<span className="tempo-rate">one alert every 8s</span>{" "}
+								<span className="tempo-range">2:00 &rarr; 3:00</span>
+								<span className="tempo-rate">one alert every 15s</span>{" "}
 								<span className="tempo-note">elevated</span>
 							</li>
 							<li>
-								<span className="tempo-range">4:00 &rarr; 4:30</span>
-								<span className="tempo-rate">one alert every 4s</span>{" "}
+								<span className="tempo-range">3:00 &rarr; 4:50</span>
+								<span className="tempo-rate">one alert every 10s</span>{" "}
 								<span className="tempo-note">pressured</span>
 							</li>
 							<li>
-								<span className="tempo-range">4:30 &rarr; 5:00</span>
+								<span className="tempo-range">4:50 &rarr; 5:00</span>
 								<span className="tempo-rate">burst &mdash; ~1/sec</span>{" "}
 								<span className="tempo-note">chaos finale</span>
 							</li>
@@ -633,6 +640,7 @@ export default function App() {
 	// focus is already in the Actionable bin (moving actionable→actionable is
 	// a no-op) — see `FocusPane` for the per-button check.
 	const actionsDisabled = !focused || paused || phase !== "running";
+	const actionableFull = bins.actionable.length >= ACTIONABLE_LIMIT;
 
 	return (
 		<div className="app">
@@ -806,6 +814,7 @@ export default function App() {
 							phase={phase}
 							paused={paused}
 							actionsDisabled={actionsDisabled}
+							actionableFull={actionableFull}
 							onDecision={handleDecision}
 						/>
 					</div>
@@ -823,6 +832,7 @@ function FocusPane({
 	phase,
 	paused,
 	actionsDisabled,
+	actionableFull,
 	onDecision,
 }: {
 	focused: FocusedAlert | null;
@@ -830,6 +840,7 @@ function FocusPane({
 	phase: Phase;
 	paused: boolean;
 	actionsDisabled: boolean;
+	actionableFull: boolean;
 	onDecision: (d: Disposition, deferMs?: number) => void;
 }) {
 	if (!focused) {
@@ -852,6 +863,9 @@ function FocusPane({
 					<span className="severity-badge" style={{ color: SEV_COLORS[focused.alert.severity] }}>
 						{focused.alert.severity}
 					</span>
+					{focused.source === "actionable" && (
+						<span className="in-progress-badge">in-progress</span>
+					)}
 				</div>
 				<div className="focus-service">{focused.alert.service}</div>
 				<div className="focus-summary">{focused.alert.summary}</div>
@@ -860,21 +874,19 @@ function FocusPane({
 					<span className="brief-text">{focused.brief}</span>
 					<span className="confidence">{Math.round(focused.confidence * 100)}% confidence</span>
 				</div>
-				{focused.source === "actionable" && (
-					<div className="focus-note">
-						Already in the Actionable bin — you can re-route it. Click the card again in the bin to
-						release focus and hop to the next queue ticket.
-					</div>
-				)}
 			</div>
 			<div className="focus-actions">
 				<button
 					type="button"
 					className="action-btn actionable"
 					onClick={() => onDecision("actionable")}
-					disabled={actionsDisabled || focused.source === "actionable"}
+					disabled={actionsDisabled || focused.source === "actionable" || actionableFull}
 					title={
-						focused.source === "actionable" ? "Alert is already in the Actionable bin" : undefined
+						focused.source === "actionable"
+							? "Alert is already in the Actionable bin"
+							: actionableFull
+								? `Actionable bin is full (${ACTIONABLE_LIMIT} max) — resolve or escalate some first`
+								: undefined
 					}
 				>
 					Actionable
@@ -918,17 +930,42 @@ function FocusPane({
 
 // ── Bin card content (shared) ───────────────────────────────────
 
+const REASON_LABEL: Record<TriageReason, string> = {
+	pattern: "pattern",
+	"high-conf": "high-conf",
+	timeout: "timeout",
+	manual: "manual",
+};
+
+const REASON_TITLE: Record<TriageReason, string> = {
+	pattern: "Matched a learned pattern — no LLM call, bypassed focus",
+	"high-conf": "LLM returned disposition with ≥80% confidence — bypassed focus",
+	timeout: "Sat in queue past the auto-escalate threshold",
+	manual: "You triaged this from the focus pane",
+};
+
 function BinCardContent({
 	item,
 }: {
-	item: { alert: Alert; brief: string; autoClassified: boolean };
+	item: {
+		alert: Alert;
+		brief: string;
+		autoClassified: boolean;
+		confidence: number;
+		reason: TriageReason;
+	};
 }) {
 	return (
 		<>
 			<div className="card-top">
 				<span className="card-id">{item.alert.id}</span>
 				<span className="severity-dot" style={{ background: SEV_COLORS[item.alert.severity] }} />
-				{item.autoClassified && <span className="auto-badge">auto</span>}
+				<span className={`reason-badge reason-${item.reason}`} title={REASON_TITLE[item.reason]}>
+					{REASON_LABEL[item.reason]}
+					{item.reason !== "manual" && (
+						<span className="reason-conf"> · {Math.round(item.confidence * 100)}%</span>
+					)}
+				</span>
 			</div>
 			<div className="card-svc">{item.alert.service}</div>
 			<div className="card-brief">{item.brief}</div>
@@ -951,6 +988,7 @@ function BinColumn({
 		brief: string;
 		autoClassified: boolean;
 		confidence: number;
+		reason: TriageReason;
 	}[];
 	color: string;
 	onSelect?: (item: { alert: Alert; brief: string; confidence: number }) => void;
@@ -997,7 +1035,14 @@ function BinColumn({
 function DeferredColumn({
 	items,
 }: {
-	items: readonly { alert: Alert; brief: string; autoClassified: boolean; retryAt: number }[];
+	items: readonly {
+		alert: Alert;
+		brief: string;
+		autoClassified: boolean;
+		confidence: number;
+		reason: TriageReason;
+		retryAt: number;
+	}[];
 }) {
 	const [now, setNow] = useState(Date.now());
 	useEffect(() => {
@@ -1019,16 +1064,7 @@ function DeferredColumn({
 					const remaining = Math.max(0, Math.ceil((item.retryAt - now) / 1000));
 					return (
 						<div key={item.alert.id} className={`bin-card${item.autoClassified ? " auto" : ""}`}>
-							<div className="card-top">
-								<span className="card-id">{item.alert.id}</span>
-								<span
-									className="severity-dot"
-									style={{ background: SEV_COLORS[item.alert.severity] }}
-								/>
-								{item.autoClassified && <span className="auto-badge">auto</span>}
-							</div>
-							<div className="card-svc">{item.alert.service}</div>
-							<div className="card-brief">{item.brief}</div>
+							<BinCardContent item={item} />
 							<div className="defer-timer">
 								{remaining > 0 ? `re-queue in ${remaining}s` : "re-queuing…"}
 							</div>

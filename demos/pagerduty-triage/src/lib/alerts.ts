@@ -90,17 +90,17 @@ export function generateAlerts(opts?: AlertGeneratorOptions): readonly Alert[] {
 // ── Emission schedule ───────────────────────────────────────────
 // Returns next delay-in-ms based on elapsed run time (not alert index).
 // 5-minute round with a long readable ramp-up:
-//   0:00 – 2:00  → 30s between alerts   (4 alerts: calm, you read carefully)
-//   2:00 – 3:00  → 15s between alerts   (4 alerts: steady)
-//   3:00 – 4:00  → 8s between alerts    (~7 alerts: elevated)
-//   4:00 – 4:30  → 4s between alerts    (~7 alerts: pressured)
-//   4:30 – 5:00  → 1s burst             (~30 alerts: chaos finale)
+//   0:00 – 1:00  → 30s between alerts   (calm, you read carefully)
+//   1:00 – 2:00  → 20s between alerts   (steady)
+//   2:00 – 3:00  → 15s between alerts   (elevated)
+//   3:00 – 4:50  → 10s between alerts   (pressured)
+//   4:50 – 5:00  → 1s burst             (chaos finale)
 
 export const EMISSION_PHASES = [
-	{ untilMs: 120_000, delayMs: 30_000, label: "calm (30s)" },
-	{ untilMs: 180_000, delayMs: 15_000, label: "steady (15s)" },
-	{ untilMs: 240_000, delayMs: 8_000, label: "elevated (8s)" },
-	{ untilMs: 270_000, delayMs: 4_000, label: "pressured (4s)" },
+	{ untilMs: 60_000, delayMs: 30_000, label: "calm (30s)" },
+	{ untilMs: 120_000, delayMs: 20_000, label: "steady (20s)" },
+	{ untilMs: 180_000, delayMs: 15_000, label: "elevated (15s)" },
+	{ untilMs: 290_000, delayMs: 10_000, label: "pressured (10s)" },
 	{ untilMs: 300_000, delayMs: 1_000, label: "burst (1s)" },
 ] as const;
 

@@ -416,6 +416,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 							brief: `Auto: matches pattern "${match.patternKey}"`,
 							confidence: match.confidence,
 							autoClassified: true,
+							reason: "pattern",
 							triagedAt: wallClockMs(),
 						},
 					};
@@ -430,6 +431,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 						brief: cls.brief,
 						confidence: cls.confidence,
 						autoClassified: false,
+						reason: "high-conf",
 						triagedAt: wallClockMs(),
 					},
 				};
@@ -546,6 +548,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 						brief: `[Auto-escalated after ${Math.round(AUTO_ESCALATE_AFTER_MS / 1000)}s] ${entry.brief}`,
 						confidence: entry.confidence,
 						autoClassified: false,
+						reason: "timeout",
 						triagedAt: wallClockMs(),
 					},
 				});
@@ -640,6 +643,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 				brief: entry.brief,
 				confidence: entry.confidence,
 				autoClassified: false,
+				reason: "manual",
 				triagedAt: wallClockMs(),
 			},
 		});
@@ -661,6 +665,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 				brief: triaged.brief,
 				confidence: triaged.confidence,
 				autoClassified: false,
+				reason: "manual",
 				triagedAt: wallClockMs(),
 			},
 		});
