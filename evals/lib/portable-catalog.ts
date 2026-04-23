@@ -24,7 +24,7 @@ import type {
 	CatalogFnEntry,
 	CatalogSourceEntry,
 	GraphSpecCatalog,
-} from "../../src/patterns/graphspec.js";
+} from "../../src/patterns/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // Tag constants — section headers, matched exactly to the manual prompt

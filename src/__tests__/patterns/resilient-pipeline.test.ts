@@ -6,7 +6,7 @@ import { NS_PER_MS, NS_PER_SEC } from "../../extra/backoff.js";
 import {
 	type ResilientPipelineOptions,
 	resilientPipeline,
-} from "../../patterns/resilient-pipeline.js";
+} from "../../patterns/resilient-pipeline/index.js";
 
 function collect<T>(n: { subscribe: (fn: (msgs: unknown[][]) => void) => () => void }): {
 	events: T[];

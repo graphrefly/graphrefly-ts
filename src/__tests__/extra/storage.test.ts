@@ -4,14 +4,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import {
-	dictStorage,
-	fileStorage,
 	fromIDBRequest,
 	fromIDBTransaction,
 	indexedDbStorage,
-	memoryStorage,
-	sqliteStorage,
-} from "../../extra/storage.js";
+} from "../../extra/storage-browser.js";
+import { dictStorage, memoryStorage } from "../../extra/storage-core.js";
+import { fileStorage, sqliteStorage } from "../../extra/storage-node.js";
 import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {

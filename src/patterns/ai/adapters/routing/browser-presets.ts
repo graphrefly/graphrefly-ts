@@ -5,7 +5,7 @@
  * Split out from `routing/presets.ts` so that importing `patterns/ai` in a
  * Node bundle doesn't transitively pull in `@mlc-ai/web-llm` / Chrome Nano
  * dynamic imports, and so browser-only consumers can opt in cleanly via
- * the `@graphrefly/graphrefly/patterns/ai/browser-presets` subpath.
+ * the `@graphrefly/graphrefly/patterns/ai/browser` subpath.
  *
  * @module
  */

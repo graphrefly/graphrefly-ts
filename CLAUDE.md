@@ -64,9 +64,19 @@ Python workspace managed by mise. `mise trust && mise install` to set up uv. `uv
 **TypeScript (`graphrefly-ts`):**
 - `src/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)
 - `src/graph/` — `Graph` container, describe/observe, snapshot (Phase 1+)
-- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3)
-- `src/patterns/` — domain-layer APIs: orchestration, messaging, memory, AI, CQRS, reactive layout (Phase 4+)
+- `src/extra/` — operators, sources, data structures, resilience (Phase 2–3). Browser-safe by default; Node-only additions in `extra/node.ts`, browser-only additions in `extra/browser.ts`.
+- `src/patterns/` — domain-layer APIs (Phase 4+). Each domain is its own folder (`patterns/<name>/index.ts`). Node-only additions in `patterns/<name>/node.ts`, browser-only in `patterns/<name>/browser.ts`.
 - `src/compat/` — framework adapters: NestJS (Phase 5+)
+
+### Browser / Node / Universal subpath convention (TS)
+
+Public TS APIs are split into three tiers so browser and Node consumers pull only runnable code:
+
+- **Universal default** (`@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/patterns/<domain>`) — browser + Node safe. Zero `node:*` imports, zero DOM globals.
+- **Node-only** (`@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/patterns/<domain>/node`) — may import `node:*`. Use for `fileStorage`, `sqliteStorage`, `fromGitHook`, `fromFSWatch`, the node `fallbackAdapter` variant, etc.
+- **Browser-only** (`@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/patterns/<domain>/browser`) — may use DOM globals. Use for `indexedDbStorage`, `webllmAdapter`, `chromeNanoAdapter`, browser cascade presets.
+
+The build enforces this via `assertBrowserSafeBundles` in `tsup.config.ts` `onSuccess` — any universal entry that transitively imports a Node builtin fails the build with a `via X → Y → Z` chain. Adding a new subpath requires updating `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` when Node-only) AND `package.json` `exports`. See `docs/docs-guidance.md` § "Browser / Node / Universal split" for the full convention.
 
 **Python (`graphrefly-py`):**
 - `src/graphrefly/core/` — message protocol, `node` primitive, batch, sugar constructors (Phase 0)

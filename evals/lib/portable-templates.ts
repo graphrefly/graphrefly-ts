@@ -14,7 +14,10 @@
  * full motivation and `docs/roadmap.md` §9.1.2 (Treatment D prerequisites).
  */
 
-import type { GraphSpecFeedbackEdge, GraphSpecTemplate } from "../../src/patterns/graphspec.js";
+import type {
+	GraphSpecFeedbackEdge,
+	GraphSpecTemplate,
+} from "../../src/patterns/graphspec/index.js";
 
 export const resilientFetchTemplate: GraphSpecTemplate = {
 	params: ["$source"],

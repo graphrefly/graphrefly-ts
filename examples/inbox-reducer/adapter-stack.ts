@@ -15,13 +15,8 @@
  * point; the others don't care.
  */
 
-import {
-	DATA,
-	fileStorage,
-	type LLMAdapter,
-	type Messages,
-	type TokenUsage,
-} from "@graphrefly/graphrefly";
+import { DATA, type LLMAdapter, type Messages, type TokenUsage } from "@graphrefly/graphrefly";
+import { fileStorage } from "@graphrefly/graphrefly/extra/node";
 import {
 	type AdapterStats,
 	type BudgetGateBundle,

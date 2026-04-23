@@ -12,7 +12,7 @@ import type { Node } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import { switchMap } from "../../extra/operators.js";
 import { fromAny } from "../../extra/sources.js";
-import type { TopicGraph } from "../messaging.js";
+import type { TopicGraph } from "../messaging/index.js";
 
 import type { IntakeItem, Severity, TriagedItem } from "./types.js";
 

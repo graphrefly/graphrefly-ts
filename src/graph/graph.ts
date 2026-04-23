@@ -32,7 +32,7 @@ import {
 import { derived, producer, state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import { keepalive } from "../extra/sources.js";
-import type { StorageHandle, StorageTier } from "../extra/storage.js";
+import type { StorageHandle, StorageTier } from "../extra/storage-core.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";

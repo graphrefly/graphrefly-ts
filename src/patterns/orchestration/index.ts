@@ -6,12 +6,12 @@
  * Phase 2 operator names (for example `gate`, `forEach`).
  */
 
-import { batch } from "../core/batch.js";
-import type { NodeActions } from "../core/config.js";
-import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../core/messages.js";
-import { type Node, type NodeFn, type NodeOptions, node } from "../core/node.js";
-import { type DerivedFn, derived, state } from "../core/sugar.js";
-import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../graph/graph.js";
+import { batch } from "../../core/batch.js";
+import type { NodeActions } from "../../core/config.js";
+import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../../core/messages.js";
+import { type Node, type NodeFn, type NodeOptions, node } from "../../core/node.js";
+import { type DerivedFn, derived, state } from "../../core/sugar.js";
+import { GRAPH_META_SEGMENT, Graph, type GraphOptions } from "../../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
 
@@ -85,7 +85,7 @@ function registerStep(
 	void depPaths;
 }
 
-import { domainMeta } from "./_internal.js";
+import { domainMeta } from "../_internal.js";
 
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("orchestration", kind, meta);

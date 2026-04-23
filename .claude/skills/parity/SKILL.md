@@ -37,6 +37,7 @@ For the scoped area, compare:
 2. **Error behavior** — what throws/raises, error messages, error types
 3. **Edge cases** — boundary conditions, validation rules (e.g. name constraints, duplicate handling)
 4. **Default behavior** — what happens when optional args are omitted
+5. **Subpath tier (TS-only; informational for PY)** — for each symbol, note its TS tier: universal (browser + Node safe), `<x>/node` (Node-only), or `<x>/browser` (DOM-only). See `docs/docs-guidance.md` § "Browser / Node / Universal split". Record this column even though PY has no equivalent split yet — when PY adds a comparable feature (e.g. `fileStorage`), the decision should match TS (filesystem I/O goes in a Node-only module). Treat tier mismatches where PY exposes something from a "universal"-shaped module that TS places under `<x>/node` as a flag for future PY-side consideration, not as a blocking divergence today.
 
 Present a table:
 
@@ -137,6 +138,8 @@ Run all checks on both repos and fix any failures:
 ```bash
 pnpm test && pnpm run lint:fix && pnpm run build
 ```
+
+`pnpm run build` runs `assertBrowserSafeBundles` post-build. If it fails, a TS change leaked a Node builtin into a universal entry — fix per `docs/docs-guidance.md` § "Browser / Node / Universal split" before closing the parity pass.
 
 **Python:**
 ```bash

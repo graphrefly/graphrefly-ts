@@ -5,7 +5,7 @@
  *
  * This module intentionally lives outside the main `patterns/ai` entry so
  * browser bundles don't pull `node:fs` / `node:path`. Import this variant
- * from `@graphrefly/graphrefly/patterns/ai/node-middleware` in Node
+ * from `@graphrefly/graphrefly/patterns/ai/node` in Node
  * environments when you want the ergonomic directory options.
  *
  * @module

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA, type Messages } from "../../core/messages.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
-import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
 import {
 	compileSpec,
 	decompileGraph,
@@ -12,7 +12,7 @@ import {
 	llmRefine,
 	specDiff,
 	validateSpec,
-} from "../../patterns/graphspec.js";
+} from "../../patterns/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // helpers

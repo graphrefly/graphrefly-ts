@@ -46,8 +46,7 @@ export {
 } from "./resilience.js";
 export * from "./single-from-any.js";
 export * from "./sources.js";
-export * from "./sources-fs.js";
-export * from "./storage.js";
+export * from "./storage-core.js";
 export * from "./stratify.js";
 export { ResettableTimer } from "./timer.js";
 export * from "./worker/index.js";

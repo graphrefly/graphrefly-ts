@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { derived } from "../../../core/sugar.js";
-import { memoryStorage } from "../../../extra/storage.js";
+import { memoryStorage } from "../../../extra/storage-core.js";
 import { Graph } from "../../../graph/graph.js";
-import type { GraphSpec, GraphSpecCatalog } from "../../../patterns/graphspec.js";
+import type { GraphSpec, GraphSpecCatalog } from "../../../patterns/graphspec/index.js";
 import {
 	createGraph,
 	deleteSnapshot,

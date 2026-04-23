@@ -10,7 +10,7 @@ import {
 	type GraphSpec,
 	type GraphSpecValidation,
 	validateSpec as realValidateSpec,
-} from "../../src/patterns/graphspec.js";
+} from "../../src/patterns/graphspec/index.js";
 
 export type { GraphSpecValidation as ValidationResult };
 

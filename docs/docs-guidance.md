@@ -24,6 +24,52 @@ Single-source-of-truth strategy: **protocol spec lives in `~/src/graphrefly`**; 
 
 ---
 
+## Browser / Node / Universal split (TS)
+
+The TS library ships a **three-tier subpath convention** so browser and Node consumers get only the code they can run. Every new public TS API picks a tier at documentation time.
+
+| Tier | Subpath shape | Contains | Allowed imports |
+|------|--------------|----------|-----------------|
+| **Universal** (default) | `@graphrefly/graphrefly`, `@graphrefly/graphrefly/extra`, `@graphrefly/graphrefly/patterns/<domain>` | Protocol, operators, reactive data structures, pattern factories that don't touch filesystem / DOM | Core, `core/hash` (uses `globalThis.crypto.subtle`), `storage-core`, other universal extras. Zero `node:*`. Zero DOM globals. |
+| **Node-only** | `@graphrefly/graphrefly/extra/node`, `@graphrefly/graphrefly/patterns/<domain>/node` | Filesystem sources, SQLite storage, `child_process` adapters, Node-specific middleware | May import `node:*`. May import universal modules. |
+| **Browser-only** | `@graphrefly/graphrefly/extra/browser`, `@graphrefly/graphrefly/patterns/<domain>/browser` | IndexedDB storage, WebLLM / Chrome Nano adapters, DOM-specific helpers | May use `window`, `document`, `indexedDB`, `Worker` globals. May import universal modules. |
+
+**Rule of thumb:** pick the lowest tier that can execute your code. A pattern factory that *mentions* `fileStorage` in its JSDoc but doesn't import it stays universal; a factory that *calls* `fileStorage()` must live under `<domain>/node`.
+
+### When to create a new subpath vs extending an existing one
+
+- New symbol fits an existing universal barrel (e.g. a new operator in `extra/operators`) → add it there, JSDoc + REGISTRY entry, done.
+- New symbol needs `node:*` or `fileStorage` / `sqliteStorage` → extend the relevant `<x>/node` aggregator (e.g. `src/extra/node.ts`, `src/patterns/ai/node.ts`) or create `<domain>/node` if one doesn't exist yet for that domain.
+- New symbol needs DOM globals → same pattern under `<x>/browser`.
+- New **domain** that needs its own package-style subpath → add `src/patterns/<domain>/index.ts` (+ optional `<domain>/node.ts`, `<domain>/browser.ts` aggregators).
+
+### Three files to update together when adding or moving a subpath
+
+1. **`tsup.config.ts` — `ENTRY_POINTS` array**: add the source path. Entry paths (no `src/` prefix, no `.ts`) are the authoritative allow-list consumed by the build-time guardrail (§ Build-time browser-safety guardrail below).
+2. **`tsup.config.ts` — `nodeOnlyEntries` set** (inside `assertBrowserSafeBundles`): if the new entry is genuinely Node-only, add its no-ext path here so the guardrail doesn't fail the build.
+3. **`package.json` — `exports` map**: add the matching `./<subpath>` block pointing at `dist/<subpath>.{js,cjs}` and `.d.ts` / `.d.cts`. Both `import` and `require` conditions required.
+
+Cross-reference: the exports map is `sideEffects: false` — individual entries shouldn't rely on module-level side effects.
+
+### Build-time browser-safety guardrail
+
+`tsup.config.ts`'s `onSuccess` runs `assertBrowserSafeBundles("dist")` after every build. It:
+
+1. Walks every file in `dist/`, extracts module specifiers via whitespace-tolerant regexes (handles minified output, side-effect imports, `require()`, `__require()`).
+2. Flags any specifier that matches `node:<builtin>` OR a bare Node builtin name (`BUILTIN_SET`) as a Node dependency.
+3. Seeds a BFS from every declared universal entry (`ENTRY_POINTS` minus `nodeOnlyEntries`) and keeps ESM (`.js`/`.mjs`) and CJS (`.cjs`) resolution trees disjoint.
+4. Fails the build with a `via X → Y → Z` chain if any universal entry transitively reaches a Node builtin.
+
+**Keep `NODE_BUILTINS` complete** — it's used both by `restoreNodePrefix` (to re-attach the `node:` prefix esbuild strips) and by the guardrail's bare-name detector. A missing entry silently escapes both.
+
+### Writing JSDoc for node-only / browser-only APIs
+
+- **Single-tier symbol:** JSDoc `@example` imports from the correct subpath — `import { fileStorage } from "@graphrefly/graphrefly/extra/node"`, not `"@graphrefly/graphrefly/extra"`.
+- **Adapter with both tiers** (e.g. `fallbackAdapter`): the browser-safe base lives in `patterns/ai`, the Node-extended variant in `patterns/ai/node`. Each file's JSDoc `@example` uses its own subpath; cross-reference the other via `{@link }` or a prose note.
+- **Aggregator files** (`extra/node.ts`, `patterns/<x>/browser.ts`): have a `@module` docstring explaining what the aggregator is for and which global APIs it assumes.
+
+---
+
 ## Documentation tiers
 
 | Tier | What | TS | PY |
@@ -236,7 +282,8 @@ cat archive/optimizations/resolved-decisions.jsonl | python3 -m json.tool --json
 
 | Change | TS | PY |
 |--------|----|----|
-| New public API | JSDoc + barrel export + `gen-api-docs.mjs` REGISTRY | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
+| New public API | JSDoc + barrel export + `gen-api-docs.mjs` REGISTRY. **Pick the universal / node / browser tier** (see § Browser / Node / Universal split) — if the symbol needs `node:*` or DOM globals, it goes in `<x>/node` or `<x>/browser`, not the universal barrel. | Docstring + `__init__.py` + `__all__` + `gen_api_docs.py` |
+| New subpath | `tsup.config.ts` `ENTRY_POINTS` + (if node-only) `nodeOnlyEntries` + `package.json` `exports` block + JSDoc `@example` uses the new subpath | n/a (PY doesn't have this split yet) |
 | Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc/docstring on both |
 | New runnable example | `examples/<name>.ts` | `examples/<name>.py` (in graphrefly-py) |
 | Phase completed | Archive done items to `archive/roadmap/*.jsonl`, update `docs/roadmap.md` (both in this repo) |
@@ -282,13 +329,15 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 ## Order of execution for new features
 
 **TypeScript:**
-1. Implementation in `src/` + tests (`docs/test-guidance.md`)
-2. Structured JSDoc on the exported function (Tier 1)
-3. Register in `website/scripts/gen-api-docs.mjs` REGISTRY, run `docs:gen`
-4. Runnable example in `examples/` (Tier 2)
-5. Recipe / interactive demo if warranted (Tier 3–4)
-6. Update `llms.txt` if user-facing (Tier 5)
-7. Roadmap — mark items done
+1. Implementation in `src/` + tests (`docs/test-guidance.md`). **Decide tier** (universal / node / browser) and place the file accordingly; see § Browser / Node / Universal split.
+2. Structured JSDoc on the exported function (Tier 1). `@example` imports from the correct subpath.
+3. If introducing a new subpath: add to `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` if node-only) and `package.json` `exports` map.
+4. Register in `website/scripts/gen-api-docs.mjs` REGISTRY, run `docs:gen`
+5. Run `pnpm run build` — the post-build guardrail (`assertBrowserSafeBundles`) catches Node-builtin leaks into universal entries; fix by moving the symbol to the right tier.
+6. Runnable example in `examples/` (Tier 2)
+7. Recipe / interactive demo if warranted (Tier 3–4)
+8. Update `llms.txt` if user-facing (Tier 5)
+9. Roadmap — mark items done
 
 **Python:**
 1. Implementation in `src/graphrefly/` + tests (`docs/test-guidance.md`)
@@ -309,6 +358,8 @@ Use consistent tags across posts: `architecture`, `performance`, `correctness`, 
 | TS source of truth (JSDoc) | `src/core/*.ts`, `src/extra/*.ts`, `src/graph/*.ts` | Yes — primary TS edit target |
 | PY source of truth (docstrings) | `~/src/graphrefly-py/src/graphrefly/*.py` | Yes — primary PY edit target |
 | TS API doc generator | `website/scripts/gen-api-docs.mjs` | Yes — add new entries to REGISTRY |
+| TS entry points + guardrail | `tsup.config.ts` (`ENTRY_POINTS`, `nodeOnlyEntries`, `NODE_BUILTINS`) | Yes — update when adding a subpath or a Node builtin |
+| TS package subpath map | `package.json` `exports` | Yes — add `./<subpath>` block for every new subpath |
 | PY API doc generator | `~/src/graphrefly-py/website/scripts/gen_api_docs.py` | Yes |
 | Generated API pages | `website/src/content/docs/api/*.md` | **No** — regenerated |
 | Sync script | `website/scripts/sync-docs.mjs` | Yes |

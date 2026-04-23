@@ -15,7 +15,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { portableCatalog } from "../../../evals/lib/portable-catalog.js";
-import { type GraphSpec, generateCatalogPrompt, validateSpec } from "../../patterns/graphspec.js";
+import {
+	type GraphSpec,
+	generateCatalogPrompt,
+	validateSpec,
+} from "../../patterns/graphspec/index.js";
 
 /** Extract every ```json … ``` block from a markdown file as parsed JSON. */
 function extractJsonBlocks(md: string): unknown[] {

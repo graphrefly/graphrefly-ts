@@ -15,7 +15,7 @@ import {
 	sensor,
 	subPipeline,
 	task,
-} from "../../patterns/orchestration.js";
+} from "../../patterns/orchestration/index.js";
 
 describe("patterns.orchestration", () => {
 	it("pipeline creates a Graph container", () => {

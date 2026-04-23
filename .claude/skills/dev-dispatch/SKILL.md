@@ -36,6 +36,7 @@ Read in parallel:
 **Roadmap §2.3 (sources & sinks):** implement as thin wrappers over the **`node` primitive** (`node`, `producer`, `derived`, `effect`) and the message protocol — no parallel source/sink protocol outside `node`.
 
 While planning, explicitly validate proposed changes against these invariants (from the spec and roadmap):
+- **Tier placement (TS)** — every new TS public symbol picks a tier: **universal** (default, browser + Node safe), **node-only** (`<x>/node` subpath, may import `node:*`), or **browser-only** (`<x>/browser` subpath, may use DOM globals). See `docs/docs-guidance.md` § "Browser / Node / Universal split". If the symbol imports `node:fs`, `node:path`, `node:crypto`, `node:sqlite`, `node:child_process`, etc., it belongs in `<x>/node` — NOT in the universal barrel. If it imports `window` / `document` / `indexedDB` / DOM types, it belongs in `<x>/browser`. Adding a new subpath means updating `tsup.config.ts` `ENTRY_POINTS` (+ `nodeOnlyEntries` for node-only) AND `package.json` `exports`.
 - **Control flows through the graph** — lifecycle and coordination use messages and topology, not imperative bypasses around the graph (spec §5.1).
 - **Messages are always** `[[Type, Data?], ...]` — no single-message shorthand.
 - **DIRTY before DATA/RESOLVED** in the same logical update where two-phase push applies; **batch** defers DATA, not DIRTY.
@@ -102,7 +103,7 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
    - Put tests in the most specific existing file under `src/__tests__/` (or colocated `*.test.ts` per project convention)
    - Use **`Graph.observe()`** / **`graph.observe()`** for live message assertions when the Graph API exists; until then, test at the **node** and **message** level per test-guidance
 3. Run checks:
-   - **TS:** `pnpm test`
+   - **TS:** `pnpm test` — and when the change touches `src/extra/` or `src/patterns/<x>/`, also `pnpm run build` so the post-build `assertBrowserSafeBundles` guardrail catches any Node-builtin that leaked into a universal entry.
    - **PY:** `cd ~/src/graphrefly-py && uv run pytest && uv run ruff check src/ tests/ && uv run mypy src/`
 4. Fix any failures
 

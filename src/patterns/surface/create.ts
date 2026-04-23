@@ -11,8 +11,8 @@
  */
 
 import type { Graph } from "../../graph/graph.js";
-import type { CompileSpecOptions, GraphSpec } from "../graphspec.js";
-import { compileSpec, validateSpec, validateSpecAgainstCatalog } from "../graphspec.js";
+import type { CompileSpecOptions, GraphSpec } from "../graphspec/index.js";
+import { compileSpec, validateSpec, validateSpecAgainstCatalog } from "../graphspec/index.js";
 import { SurfaceError } from "./errors.js";
 
 /** Options for {@link createGraph}. Same shape as {@link CompileSpecOptions}. */

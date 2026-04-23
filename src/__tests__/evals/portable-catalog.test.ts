@@ -14,7 +14,7 @@ import {
 	generateCatalogPrompt,
 	validateSpec,
 	validateSpecAgainstCatalog,
-} from "../../patterns/graphspec.js";
+} from "../../patterns/graphspec/index.js";
 
 // ---------------------------------------------------------------------------
 // Catalog shape

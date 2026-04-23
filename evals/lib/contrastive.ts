@@ -11,13 +11,13 @@ import type {
 	LLMResponse as AdapterLLMResponse,
 	ChatMessage,
 	LLMAdapter,
-} from "../../src/patterns/ai.js";
+} from "../../src/patterns/ai/index.js";
 import {
 	type GraphSpec,
 	generateCatalogPrompt,
 	llmRefine,
 	validateSpecAgainstCatalog,
-} from "../../src/patterns/graphspec.js";
+} from "../../src/patterns/graphspec/index.js";
 import { estimateTokenCost, totalCost } from "./cost.js";
 import { loadJudgePrompt, loadRubric, scoreRubric } from "./judge.js";
 import {

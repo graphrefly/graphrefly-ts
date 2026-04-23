@@ -177,19 +177,19 @@ const REGISTRY = {
 	createTransport: "src/extra/worker/transport.ts",
 
 	// Patterns — reduction (roadmap §8.1)
-	stratify: "src/patterns/reduction.ts",
-	funnel: "src/patterns/reduction.ts",
-	feedback: "src/patterns/reduction.ts",
-	budgetGate: "src/patterns/reduction.ts",
-	scorer: "src/patterns/reduction.ts",
+	stratify: "src/patterns/reduction/index.ts",
+	funnel: "src/patterns/reduction/index.ts",
+	feedback: "src/patterns/reduction/index.ts",
+	budgetGate: "src/patterns/reduction/index.ts",
+	scorer: "src/patterns/reduction/index.ts",
 
 	// Patterns — graphspec (roadmap §8.3)
-	validateSpec: "src/patterns/graphspec.ts",
-	compileSpec: "src/patterns/graphspec.ts",
-	decompileGraph: "src/patterns/graphspec.ts",
-	llmCompose: "src/patterns/graphspec.ts",
-	llmRefine: "src/patterns/graphspec.ts",
-	specDiff: "src/patterns/graphspec.ts",
+	validateSpec: "src/patterns/graphspec/index.ts",
+	compileSpec: "src/patterns/graphspec/index.ts",
+	decompileGraph: "src/patterns/graphspec/index.ts",
+	llmCompose: "src/patterns/graphspec/index.ts",
+	llmRefine: "src/patterns/graphspec/index.ts",
+	specDiff: "src/patterns/graphspec/index.ts",
 
 	// Graph container
 	Graph: "src/graph/graph.ts",
@@ -200,15 +200,15 @@ const REGISTRY = {
 	watchTopologyTree: "src/graph/topology-tree.ts",
 
 	// Audit & accountability (roadmap §9.2)
-	auditTrail: "src/patterns/audit.ts",
-	policyEnforcer: "src/patterns/audit.ts",
-	complianceSnapshot: "src/patterns/audit.ts",
-	reactiveExplainPath: "src/patterns/audit.ts",
+	auditTrail: "src/patterns/audit/index.ts",
+	policyEnforcer: "src/patterns/audit/index.ts",
+	complianceSnapshot: "src/patterns/audit/index.ts",
+	reactiveExplainPath: "src/patterns/audit/index.ts",
 
 	// Mid-level harness blocks (roadmap §9.0b)
-	graphLens: "src/patterns/lens.ts",
-	resilientPipeline: "src/patterns/resilient-pipeline.ts",
-	guardedExecution: "src/patterns/guarded-execution.ts",
+	graphLens: "src/patterns/lens/index.ts",
+	resilientPipeline: "src/patterns/resilient-pipeline/index.ts",
+	guardedExecution: "src/patterns/guarded-execution/index.ts",
 
 	// Extra — singleflight + adaptive rate limiter (roadmap §9.3d)
 	singleFromAny: "src/extra/single-from-any.ts",

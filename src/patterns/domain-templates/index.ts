@@ -13,19 +13,19 @@
  * @module
  */
 
-import { batch } from "../core/batch.js";
-import type { Node } from "../core/node.js";
-import { derived, effect, state } from "../core/sugar.js";
-import { reactiveLog } from "../extra/reactive-log.js";
-import { type StratifyRule, stratify } from "../extra/stratify.js";
-import { Graph, type GraphOptions } from "../graph/graph.js";
-import { feedback, scorer } from "./reduction.js";
+import { batch } from "../../core/batch.js";
+import type { Node } from "../../core/node.js";
+import { derived, effect, state } from "../../core/sugar.js";
+import { reactiveLog } from "../../extra/reactive-log.js";
+import { type StratifyRule, stratify } from "../../extra/stratify.js";
+import { Graph, type GraphOptions } from "../../graph/graph.js";
+import { feedback, scorer } from "../reduction/index.js";
 
 // ---------------------------------------------------------------------------
 // Shared
 // ---------------------------------------------------------------------------
 
-import { domainMeta, keepalive } from "./_internal.js";
+import { domainMeta, keepalive } from "../_internal.js";
 
 function baseMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("domain_template", kind, extra);

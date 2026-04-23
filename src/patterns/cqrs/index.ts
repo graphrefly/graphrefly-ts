@@ -11,12 +11,12 @@
  * - `CqrsGraph.saga(name, events, handler)` — event-driven side effects
  */
 
-import { batch } from "../core/batch.js";
-import { wallClockNs } from "../core/clock.js";
-import { policy } from "../core/guard.js";
-import { derived, type Node, node, state } from "../core/index.js";
-import { reactiveLog } from "../extra/reactive-log.js";
-import { Graph, type GraphOptions } from "../graph/index.js";
+import { batch } from "../../core/batch.js";
+import { wallClockNs } from "../../core/clock.js";
+import { policy } from "../../core/guard.js";
+import { derived, type Node, node, state } from "../../core/index.js";
+import { reactiveLog } from "../../extra/reactive-log.js";
+import { Graph, type GraphOptions } from "../../graph/index.js";
 
 // ---------------------------------------------------------------------------
 // Guards
@@ -47,7 +47,7 @@ const EVENT_GUARD = policy((allow, deny) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-import { domainMeta, keepalive } from "./_internal.js";
+import { domainMeta, keepalive } from "../_internal.js";
 
 function cqrsMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("cqrs", kind, extra);

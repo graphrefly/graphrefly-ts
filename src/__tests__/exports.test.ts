@@ -66,9 +66,13 @@ describe("graphrefly", () => {
 		expect(typeof patterns.messaging).toBe("object");
 		expect(typeof patterns.messaging.topic).toBe("function");
 		expect(typeof patterns.messaging.subscription).toBe("function");
-		expect(typeof patterns.messaging.jobQueue).toBe("function");
-		expect(typeof patterns.messaging.jobFlow).toBe("function");
 		expect(typeof patterns.messaging.topicBridge).toBe("function");
+	});
+
+	it("exports jobQueue patterns namespace", () => {
+		expect(typeof patterns.jobQueue).toBe("object");
+		expect(typeof patterns.jobQueue.jobQueue).toBe("function");
+		expect(typeof patterns.jobQueue.jobFlow).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {

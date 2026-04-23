@@ -5,30 +5,30 @@
  * agentic memory. Composed from core + extra + Phase 3–4.3 primitives.
  */
 
-import type { Actor } from "../core/actor.js";
-import { batch } from "../core/batch.js";
-import { monotonicNs } from "../core/clock.js";
-import { COMPLETE, DATA, ERROR, RESOLVED } from "../core/messages.js";
-import { type Node, node as nodeFactory } from "../core/node.js";
-import { derived, effect, producer, state } from "../core/sugar.js";
+import type { Actor } from "../../core/actor.js";
+import { batch } from "../../core/batch.js";
+import { monotonicNs } from "../../core/clock.js";
+import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
+import { type Node, node as nodeFactory } from "../../core/node.js";
+import { derived, effect, producer, state } from "../../core/sugar.js";
 import {
 	type DistillBundle,
 	type DistillOptions,
 	distill,
 	type Extraction,
-} from "../extra/composite.js";
-import { rescue, switchMap } from "../extra/operators.js";
-import { type ReactiveLogBundle, reactiveLog } from "../extra/reactive-log.js";
-import { retrySource } from "../extra/resilience.js";
-import { awaitSettled, fromAny, fromTimer, type NodeInput } from "../extra/sources.js";
-import type { StorageHandle, StorageTier } from "../extra/storage.js";
-import { ResettableTimer } from "../extra/timer.js";
+} from "../../extra/composite.js";
+import { rescue, switchMap } from "../../extra/operators.js";
+import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
+import { retrySource } from "../../extra/resilience.js";
+import { awaitSettled, fromAny, fromTimer, type NodeInput } from "../../extra/sources.js";
+import type { StorageHandle, StorageTier } from "../../extra/storage-core.js";
+import { ResettableTimer } from "../../extra/timer.js";
 import {
 	Graph,
 	type GraphAttachStorageOptions,
 	type GraphOptions,
 	type GraphPersistSnapshot,
-} from "../graph/graph.js";
+} from "../../graph/graph.js";
 import {
 	decay,
 	type KnowledgeGraphGraph,
@@ -38,9 +38,9 @@ import {
 	type VectorIndexBundle,
 	type VectorSearchResult,
 	vectorIndex,
-} from "./memory.js";
-import { type TopicGraph, topic } from "./messaging.js";
-import { type GateController, type GateOptions, gate } from "./orchestration.js";
+} from "../memory/index.js";
+import { type TopicGraph, topic } from "../messaging/index.js";
+import { type GateController, type GateOptions, gate } from "../orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // Adapter layer (§9.3d) — providers, middleware, routing primitives
@@ -49,26 +49,26 @@ import { type GateController, type GateOptions, gate } from "./orchestration.js"
 // behind a subpath to keep Node bundles lean.
 // ---------------------------------------------------------------------------
 
-export * from "./ai/adapters/core/capabilities.js";
-export * from "./ai/adapters/core/factory.js";
-export * from "./ai/adapters/core/observable.js";
-export * from "./ai/adapters/core/pricing.js";
-export * from "./ai/adapters/middleware/breaker.js";
-export * from "./ai/adapters/middleware/budget-gate.js";
-export * from "./ai/adapters/middleware/dry-run.js";
-export * from "./ai/adapters/middleware/http429-parser.js";
-export * from "./ai/adapters/middleware/rate-limiter.js";
-export * from "./ai/adapters/middleware/replay-cache.js";
-export * from "./ai/adapters/middleware/resilient-adapter.js";
-export * from "./ai/adapters/middleware/retry.js";
-export * from "./ai/adapters/middleware/timeout.js";
-export * from "./ai/adapters/providers/anthropic.js";
-export * from "./ai/adapters/providers/dry-run.js";
-export * from "./ai/adapters/providers/fallback.js";
-export * from "./ai/adapters/providers/google.js";
-export * from "./ai/adapters/providers/openai-compat.js";
-export * from "./ai/adapters/routing/cascading.js";
-export * from "./ai/adapters/routing/presets.js";
+export * from "./adapters/core/capabilities.js";
+export * from "./adapters/core/factory.js";
+export * from "./adapters/core/observable.js";
+export * from "./adapters/core/pricing.js";
+export * from "./adapters/middleware/breaker.js";
+export * from "./adapters/middleware/budget-gate.js";
+export * from "./adapters/middleware/dry-run.js";
+export * from "./adapters/middleware/http429-parser.js";
+export * from "./adapters/middleware/rate-limiter.js";
+export * from "./adapters/middleware/replay-cache.js";
+export * from "./adapters/middleware/resilient-adapter.js";
+export * from "./adapters/middleware/retry.js";
+export * from "./adapters/middleware/timeout.js";
+export * from "./adapters/providers/anthropic.js";
+export * from "./adapters/providers/dry-run.js";
+export * from "./adapters/providers/fallback.js";
+export * from "./adapters/providers/google.js";
+export * from "./adapters/providers/openai-compat.js";
+export * from "./adapters/routing/cascading.js";
+export * from "./adapters/routing/presets.js";
 
 // ---------------------------------------------------------------------------
 // Types — single source of truth lives in ./ai/adapters/core/types.ts
@@ -83,7 +83,7 @@ export type {
 	TokenUsage,
 	ToolCall,
 	ToolDefinition,
-} from "./ai/adapters/core/types.js";
+} from "./adapters/core/types.js";
 
 import type {
 	ChatMessage,
@@ -91,7 +91,7 @@ import type {
 	LLMResponse,
 	ToolCall,
 	ToolDefinition,
-} from "./ai/adapters/core/types.js";
+} from "./adapters/core/types.js";
 
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 
@@ -114,7 +114,7 @@ export type StreamChunk = {
 // Meta helpers
 // ---------------------------------------------------------------------------
 
-import { domainMeta, keepalive } from "./_internal.js";
+import { domainMeta, keepalive } from "../_internal.js";
 
 function aiMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("ai", kind, extra);

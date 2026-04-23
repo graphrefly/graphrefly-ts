@@ -8,12 +8,12 @@
  * The shell graph is headless and fully testable.
  */
 
-import { batch } from "../core/batch.js";
-import { describeNode, resolveDescribeFields } from "../core/meta.js";
-import { derived, effect, state } from "../core/sugar.js";
-import { Graph } from "../graph/graph.js";
-import type { MeasurementAdapter } from "./reactive-layout/reactive-layout.js";
-import { analyzeAndMeasure, computeLineBreaks } from "./reactive-layout/reactive-layout.js";
+import { batch } from "../../core/batch.js";
+import { describeNode, resolveDescribeFields } from "../../core/meta.js";
+import { derived, effect, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
+import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
+import { analyzeAndMeasure, computeLineBreaks } from "../reactive-layout/reactive-layout.js";
 
 // ——————————————————————————————————————————————————————————
 //  Types

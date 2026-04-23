@@ -14,16 +14,16 @@
  *
  * @module
  */
-import type { Actor } from "../core/actor.js";
-import { monotonicNs, wallClockNs } from "../core/clock.js";
-import type { GuardAction, NodeGuard, PolicyRuleData } from "../core/guard.js";
-import { policyFromRules } from "../core/guard.js";
-import { DATA } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { NodeImpl } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
-import { defaultHash } from "../core/versioning.js";
-import { reactiveLog } from "../extra/reactive-log.js";
+import type { Actor } from "../../core/actor.js";
+import { monotonicNs, wallClockNs } from "../../core/clock.js";
+import type { GuardAction, NodeGuard, PolicyRuleData } from "../../core/guard.js";
+import { policyFromRules } from "../../core/guard.js";
+import { DATA } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { NodeImpl } from "../../core/node.js";
+import { derived, state } from "../../core/sugar.js";
+import { defaultHash } from "../../core/versioning.js";
+import { reactiveLog } from "../../extra/reactive-log.js";
 import {
 	type CausalChain,
 	Graph,
@@ -31,9 +31,9 @@ import {
 	type GraphPersistSnapshot,
 	type TopologyEvent,
 	watchTopologyTree,
-} from "../graph/index.js";
-import { domainMeta, keepalive } from "./_internal.js";
-import { TopicGraph } from "./messaging.js";
+} from "../../graph/index.js";
+import { domainMeta, keepalive } from "../_internal.js";
+import { TopicGraph } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Shared types

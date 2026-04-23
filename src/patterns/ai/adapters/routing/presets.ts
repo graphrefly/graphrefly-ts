@@ -7,7 +7,7 @@
  *
  * Presets that depend on browser-only adapters (WebLLM, Chrome Nano) have
  * been split out to [`./browser-presets.ts`](./browser-presets.ts) and are
- * exported from the `@graphrefly/graphrefly/patterns/ai/browser-presets`
+ * exported from the `@graphrefly/graphrefly/patterns/ai/browser`
  * subpath so they don't leak into Node bundles.
  *
  * @module

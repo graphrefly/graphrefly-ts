@@ -37,7 +37,7 @@ export type {
 	GraphSpecTemplateRef,
 	GraphSpecValidation,
 	SourceFactory,
-} from "../graphspec.js";
+} from "../graphspec/index.js";
 export type { CreateGraphOptions } from "./create.js";
 export { createGraph } from "./create.js";
 export type { SurfaceErrorCode, SurfaceErrorPayload } from "./errors.js";

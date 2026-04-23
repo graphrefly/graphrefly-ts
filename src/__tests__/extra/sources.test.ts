@@ -4,15 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { producer, state } from "../../core/sugar.js";
-import {
-	fromGitHook,
-	fromMCP,
-	fromWebhook,
-	fromWebSocket,
-	toSSE,
-	toWebSocket,
-} from "../../extra/adapters.js";
+import { fromMCP, fromWebhook, fromWebSocket, toSSE, toWebSocket } from "../../extra/adapters.js";
 import { parseCron } from "../../extra/cron.js";
+import { fromGitHook } from "../../extra/git-hook.js";
 import { valve } from "../../extra/operators.js";
 import {
 	awaitSettled,

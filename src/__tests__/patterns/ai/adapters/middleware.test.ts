@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { memoryStorage } from "../../../../extra/storage.js";
+import { memoryStorage } from "../../../../extra/storage-core.js";
 import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
 import { withBreaker } from "../../../../patterns/ai/adapters/middleware/breaker.js";
 import {

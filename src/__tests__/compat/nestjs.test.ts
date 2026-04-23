@@ -48,7 +48,7 @@ import { type Node, node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
-import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs.js";
+import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs/index.js";
 
 // ---------------------------------------------------------------------------
 // RxJS bridge

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GuardDenied } from "../../core/guard.js";
-import { type CqrsEvent, CqrsGraph, cqrs, MemoryEventStore } from "../../patterns/cqrs.js";
+import { type CqrsEvent, CqrsGraph, cqrs, MemoryEventStore } from "../../patterns/cqrs/index.js";
 
 describe("cqrs — roadmap §4.5", () => {
 	// -- Factory --------------------------------------------------------------

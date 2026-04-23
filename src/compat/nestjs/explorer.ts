@@ -17,7 +17,7 @@ import type { ModuleRef } from "@nestjs/core";
 import { DATA, type Messages } from "../../core/messages.js";
 import { fromCron, fromTimer } from "../../extra/sources.js";
 import type { Graph, GraphObserveOne } from "../../graph/graph.js";
-import type { CqrsGraph } from "../../patterns/cqrs.js";
+import type { CqrsGraph } from "../../patterns/cqrs/index.js";
 import {
 	COMMAND_HANDLERS,
 	type CommandHandlerMeta,

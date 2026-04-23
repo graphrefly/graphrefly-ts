@@ -20,18 +20,18 @@
  *
  * @module
  */
-import type { Actor } from "../core/actor.js";
-import type { PolicyRuleData } from "../core/guard.js";
-import type { Node } from "../core/node.js";
+import type { Actor } from "../../core/actor.js";
+import type { PolicyRuleData } from "../../core/guard.js";
+import type { Node } from "../../core/node.js";
 import {
 	type DescribeFilter,
 	Graph,
 	type GraphDescribeOptions,
 	type GraphDescribeOutput,
 	type GraphOptions,
-} from "../graph/index.js";
-import { type PolicyEnforcerGraph, type PolicyViolation, policyEnforcer } from "./audit.js";
-import type { TopicGraph } from "./messaging.js";
+} from "../../graph/index.js";
+import { type PolicyEnforcerGraph, type PolicyViolation, policyEnforcer } from "../audit/index.js";
+import type { TopicGraph } from "../messaging/index.js";
 
 /** Options for {@link guardedExecution}. */
 export interface GuardedExecutionOptions {

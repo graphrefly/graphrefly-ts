@@ -5,7 +5,7 @@ import {
 	knowledgeGraph,
 	lightCollection,
 	vectorIndex,
-} from "../../patterns/memory.js";
+} from "../../patterns/memory/index.js";
 
 describe("patterns.memory.lightCollection", () => {
 	it("evicts oldest entry under fifo policy", () => {

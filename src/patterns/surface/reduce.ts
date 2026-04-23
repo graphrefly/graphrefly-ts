@@ -23,7 +23,7 @@
 
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import type { GraphSpec, GraphSpecCatalog } from "../graphspec.js";
+import type { GraphSpec, GraphSpecCatalog } from "../graphspec/index.js";
 import { createGraph } from "./create.js";
 import { SurfaceError } from "./errors.js";
 

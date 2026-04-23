@@ -25,7 +25,7 @@ import {
 	type CqrsOptions,
 	cqrs,
 	type EventStoreAdapter,
-} from "../../patterns/cqrs.js";
+} from "../../patterns/cqrs/index.js";
 import { GraphReflyEventExplorer } from "./explorer.js";
 import {
 	GRAPHREFLY_REQUEST_GRAPH,

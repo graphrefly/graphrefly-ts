@@ -25,23 +25,23 @@
  *  - §27 attachStorage: the whole graph is checkpointable — pause overnight,
  *    resume tomorrow from the exact iteration count, candidate set, strategy.
  *
- * Scope clamp (v1): core factory + `RefineStrategy<T>` + `blindVariation`
- * built-in + budget gating + checkpoint/resume. `errorCritique` /
+ * Scope clamp (v1): core factory + `RefineStrategy<T>` + `blindVariation` and
+ * `errorCritique` built-ins + budget gating + checkpoint/resume.
  * `mutateAndRefine` / registry / `autoSelectStrategy` / `optimizeCatalog` /
  * `refineExecutor` are deferred.
  *
  * @module
  */
 
-import { batch } from "../core/batch.js";
-import { monotonicNs } from "../core/clock.js";
-import { DATA, ERROR } from "../core/messages.js";
-import { type Node, node } from "../core/node.js";
-import { derived, effect, state } from "../core/sugar.js";
-import { switchMap } from "../extra/operators.js";
-import type { NodeInput } from "../extra/sources.js";
-import { Graph, type GraphOptions } from "../graph/graph.js";
-import { type TopicGraph, topic } from "./messaging.js";
+import { batch } from "../../core/batch.js";
+import { monotonicNs } from "../../core/clock.js";
+import { DATA, ERROR } from "../../core/messages.js";
+import { type Node, node } from "../../core/node.js";
+import { derived, effect, state } from "../../core/sugar.js";
+import { switchMap } from "../../extra/operators.js";
+import type { NodeInput } from "../../extra/sources.js";
+import { Graph, type GraphOptions } from "../../graph/graph.js";
+import { type TopicGraph, topic } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Core types
@@ -53,12 +53,21 @@ export interface DatasetItem {
 	readonly [k: string]: unknown;
 }
 
-/** One candidate's score on one task. Higher is better by convention. */
+/**
+ * One candidate's score on one task. Higher is better by convention.
+ *
+ * Set `candidateIndex` when the evaluator fans out scores across multiple
+ * candidates (e.g. `candidates × tasks`). `pickBest` aggregates mean scores
+ * per `candidateIndex` when present; when absent, falls back to positional
+ * alignment (`scores[i]` ↔ `candidates[i]`).
+ */
 export interface EvalResult {
 	readonly taskId: string;
 	readonly score: number;
 	readonly error?: string;
 	readonly detail?: unknown;
+	/** 0-based index into the `candidates` batch this score belongs to. */
+	readonly candidateIndex?: number;
 }
 
 /** Aggregated feedback the strategy produces from a scores batch. */
@@ -252,9 +261,31 @@ function pickBest<T>(
 		const mean = meanScore(scores);
 		return { best: candidates[0]!, bestScore: mean };
 	}
-	// With multiple candidates, assume scores[i] corresponds to candidates[i]
-	// (evaluator convention). If the evaluator fanned scores differently, it
-	// can surface its own best via analyze/feedback.
+	// Fan-out aware: when any score carries `candidateIndex`, aggregate mean
+	// score per candidate. When absent, fall back to positional `scores[i]` ↔
+	// `candidates[i]` alignment (one-score-per-candidate convention).
+	const hasFanOut = scores.some((s) => typeof s.candidateIndex === "number");
+	if (hasFanOut) {
+		const sums = new Array<{ sum: number; count: number }>(candidates.length);
+		for (let i = 0; i < candidates.length; i++) sums[i] = { sum: 0, count: 0 };
+		for (const s of scores) {
+			const idx = s.candidateIndex;
+			if (typeof idx === "number" && idx >= 0 && idx < candidates.length) {
+				sums[idx]!.sum += s.score;
+				sums[idx]!.count += 1;
+			}
+		}
+		let best = candidates[0]!;
+		let bestScore = sums[0]!.count > 0 ? sums[0]!.sum / sums[0]!.count : Number.NEGATIVE_INFINITY;
+		for (let i = 1; i < candidates.length; i++) {
+			const avg = sums[i]!.count > 0 ? sums[i]!.sum / sums[i]!.count : Number.NEGATIVE_INFINITY;
+			if (avg > bestScore) {
+				bestScore = avg;
+				best = candidates[i]!;
+			}
+		}
+		return { best, bestScore };
+	}
 	let best = candidates[0]!;
 	let bestScore = scores[0]?.score ?? Number.NEGATIVE_INFINITY;
 	for (let i = 1; i < candidates.length; i++) {
@@ -742,17 +773,47 @@ export function refineLoop<T>(
 // Built-in strategy: blindVariation
 // ---------------------------------------------------------------------------
 
+/**
+ * Context passed to a `blindVariation` teacher per call. `reportCost` is a
+ * per-call hook — see `BlindVariationOptions.tokens`.
+ */
+export interface BlindVariationContext<T> {
+	readonly prior: T;
+	/**
+	 * Report tokens consumed by this teacher call. Aggregated per iteration
+	 * and flushed to `opts.tokens` in the strategy's `finally` block so
+	 * partial spend is preserved when the teacher throws mid-batch.
+	 */
+	readonly reportCost: (tokens: number) => void;
+}
+
 export interface BlindVariationOptions<T> {
 	/** Name — default: `"blindVariation"`. */
 	name?: string;
 	/** Number of candidates generated per iteration. Default: 4. */
 	width?: number;
 	/**
-	 * Teacher — given the prior best candidate, produce one variant. Async
-	 * allowed. The strategy calls this `width` times per iteration and
-	 * returns the batch.
+	 * Run teacher calls in parallel via `Promise.all`. Default `true` — the
+	 * common case (independent LLM calls). Set `false` to run sequentially
+	 * via `for/await` when teachers share stateful resources (rate limiters,
+	 * rolling context, serial API ordering) that don't tolerate concurrency.
 	 */
-	teacher: (prior: T) => Promise<T> | T;
+	parallel?: boolean;
+	/**
+	 * Optional cost counter node. Running total tokens reported via
+	 * `ctx.reportCost` during each iteration is added to this node in the
+	 * strategy's `finally` block — fires on success AND on teacher throw so
+	 * partial spend is never lost. User owns the node; wire to `budgetGate`,
+	 * `attachStorage`, telemetry, etc.
+	 */
+	tokens?: Node<number>;
+	/**
+	 * Teacher — given `{prior, reportCost}`, produce one variant. Async
+	 * allowed. Called `width` times per iteration. Call `ctx.reportCost(n)`
+	 * to track tokens consumed per call (optional, no-op if `opts.tokens`
+	 * is not set).
+	 */
+	teacher: (ctx: BlindVariationContext<T>) => Promise<T> | T;
 }
 
 /**
@@ -788,11 +849,7 @@ export function blindVariation<T>(opts: BlindVariationOptions<T>): RefineStrateg
 			};
 		},
 		async generate(_feedback, candidates) {
-			// Pick the current best candidate. refineLoop's `pickBest` is the
-			// canonical selector and lives on the graph, not in the strategy —
-			// here we just take the last candidate as a crude "recent best".
-			const prior = candidates[candidates.length - 1] ?? candidates[0];
-			if (prior === undefined) {
+			if (candidates.length === 0) {
 				// Empty candidate batch is a contract violation — either the
 				// seed was empty or a previous generate returned nothing. Surface
 				// as an error rather than silently returning [] (which would
@@ -801,11 +858,250 @@ export function blindVariation<T>(opts: BlindVariationOptions<T>): RefineStrateg
 					"blindVariation.generate: empty candidate batch — cannot derive prior for teacher",
 				);
 			}
-			const out: T[] = [];
-			for (let i = 0; i < width; i++) {
-				out.push(await opts.teacher(prior));
+			// Pick the current "recent best" — `null` IS a valid domain value
+			// per COMPOSITION-GUIDE §3; the length guard above has already
+			// filtered the `undefined` protocol sentinel.
+			const prior = candidates[candidates.length - 1] as T;
+			let iterCost = 0;
+			const reportCost = (n: number) => {
+				iterCost += n;
+			};
+			const ctx: BlindVariationContext<T> = { prior, reportCost };
+			try {
+				if (opts.parallel !== false) {
+					return await Promise.all(Array.from({ length: width }, () => opts.teacher(ctx)));
+				}
+				const out: T[] = [];
+				for (let i = 0; i < width; i++) {
+					out.push(await opts.teacher(ctx));
+				}
+				return out;
+			} finally {
+				if (opts.tokens != null && iterCost > 0) {
+					// Self-owned counter boundary read (P3 gray zone, same pattern
+					// as `tryIncrementBounded` in patterns/_internal.ts).
+					const prev = (opts.tokens.cache as number | undefined) ?? 0;
+					opts.tokens.emit(prev + iterCost);
+				}
 			}
-			return out;
+		},
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Built-in strategy: errorCritique
+// ---------------------------------------------------------------------------
+
+/**
+ * Context passed to an `errorCritique` teacher. `critique` is the pre-formatted
+ * summary a prompt template can drop in verbatim; `failures` carries the
+ * structured evidence (per-task error / score / detail) for richer prompts.
+ */
+export interface ErrorCritiqueContext<T> {
+	readonly prior: T;
+	readonly critique: string;
+	readonly failures: readonly EvalResult[];
+	/**
+	 * Report tokens consumed by this teacher call. Aggregated per iteration
+	 * and flushed to `opts.tokens` in the strategy's `finally` block so
+	 * partial spend is preserved when the teacher throws mid-batch.
+	 */
+	readonly reportCost: (tokens: number) => void;
+}
+
+export interface ErrorCritiqueOptions<T> {
+	/** Name — default: `"errorCritique"`. */
+	name?: string;
+	/** Number of candidates generated per iteration. Default: 4. */
+	width?: number;
+	/**
+	 * Cut-off below which a task is classified as a failure and fed into the
+	 * critique. Default: the batch mean — any task scoring below the batch
+	 * mean is a failure. Pass a number for an absolute cut-off, or a function
+	 * for per-batch computation (e.g. a percentile). When the default mean
+	 * is non-finite (NaN / ±Infinity from a degenerate evaluator), ALL scores
+	 * are treated as failures so the critique loop continues to steer.
+	 */
+	failureThreshold?: number | ((scores: readonly EvalResult[]) => number);
+	/** Cap on failure samples packed into the critique. Default: 5. */
+	maxFailureSamples?: number;
+	/**
+	 * Format failures into the `critique` string passed to the teacher. Default
+	 * joins `- taskId (score=N) | error: …` lines. Override to shape LLM prompts.
+	 *
+	 * **Note:** the `feedback` argument is a shell with `{score, weakTasks}`
+	 * populated; `summary` is empty because `analyze` computes the final summary
+	 * AFTER `formatCritique` runs (the summary embeds the formatted count).
+	 * Rely on `failures` and `feedback.score` — do not read `feedback.summary`
+	 * here.
+	 */
+	formatCritique?: (failures: readonly EvalResult[], feedback: Feedback) => string;
+	/**
+	 * Run teacher calls in parallel via `Promise.all`. Default `true` — the
+	 * common case (independent LLM calls). Set `false` to run sequentially
+	 * via `for/await` when teachers share stateful resources (rate limiters,
+	 * rolling context, serial API ordering) that don't tolerate concurrency.
+	 */
+	parallel?: boolean;
+	/**
+	 * Optional cost counter node. Running total tokens reported via
+	 * `ctx.reportCost` during each iteration is added to this node in the
+	 * strategy's `finally` block — fires on success AND on teacher throw so
+	 * partial spend is never lost. User owns the node; wire to `budgetGate`,
+	 * `attachStorage`, telemetry, etc.
+	 */
+	tokens?: Node<number>;
+	/**
+	 * Teacher — given `{prior, critique, failures, reportCost}`, produce one
+	 * refined variant. Called `width` times per iteration. Async allowed.
+	 * Call `ctx.reportCost(n)` to track tokens consumed per call (optional,
+	 * no-op if `opts.tokens` is not set).
+	 */
+	teacher: (ctx: ErrorCritiqueContext<T>) => Promise<T> | T;
+}
+
+/**
+ * Private payload stashed inside `Feedback.critique` so `generate` can recover
+ * the analyze-time prior + failure set without another pass over scores.
+ */
+interface ErrorCritiquePrivate<T> {
+	readonly kind: "errorCritique";
+	readonly best: T | null;
+	readonly failures: readonly EvalResult[];
+	readonly critiqueText: string;
+}
+
+function isErrorCritiquePrivate<T>(v: unknown): v is ErrorCritiquePrivate<T> {
+	return typeof v === "object" && v !== null && (v as { kind?: unknown }).kind === "errorCritique";
+}
+
+function defaultFormatCritique(failures: readonly EvalResult[], feedback: Feedback): string {
+	if (failures.length === 0) {
+		return `No task scored below the batch mean (${feedback.score.toFixed(3)}). Reinforce the current direction.`;
+	}
+	const lines = failures.map((f) => {
+		const err = f.error != null ? ` | error: ${f.error}` : "";
+		return `- ${f.taskId} (score=${f.score.toFixed(3)})${err}`;
+	});
+	return `Failures below threshold:\n${lines.join("\n")}`;
+}
+
+/**
+ * Critique-driven strategy (ProTeGi-style "textual gradient"). Each iteration:
+ *   1. `analyze` classifies tasks scoring below a threshold as failures, picks
+ *      the best candidate from the batch, and packs both plus a formatted
+ *      critique string into `feedback.critique` as a private payload.
+ *   2. `generate` unpacks that payload and calls the teacher with
+ *      `{prior, critique, failures, reportCost}` `width` times, returning the
+ *      refined batch.
+ *
+ * The teacher receives a pre-formatted string (drop into an LLM prompt) AND
+ * the structured failure list (for richer prompts that want per-task detail).
+ * Throws on empty candidate batches — matches `blindVariation`'s contract
+ * (no silent zero-candidate cycles).
+ *
+ * When `setStrategy()` swaps this strategy in mid-run, the first `generate`
+ * may receive a `Feedback` produced by the prior strategy (no private payload);
+ * the fallback path uses `candidates[last]` as the prior and the feedback
+ * summary as the critique, so the loop keeps running without a stall. When a
+ * private payload IS present, `priv.critiqueText` takes precedence over any
+ * edits a caller made to `feedback.summary` — treat `critique` as the
+ * strategy-owned channel.
+ */
+export function errorCritique<T>(opts: ErrorCritiqueOptions<T>): RefineStrategy<T> {
+	const width = opts.width ?? 4;
+	const name = opts.name ?? "errorCritique";
+	const maxFailureSamples = opts.maxFailureSamples ?? 5;
+	const format = opts.formatCritique ?? defaultFormatCritique;
+
+	return {
+		name,
+		seed(seed) {
+			// Iteration 0 emits just the seed. The critique loop begins at
+			// iteration 1, once real scores exist to derive failures from.
+			return [seed];
+		},
+		analyze(scores, candidates) {
+			const score = meanScore(scores);
+			const userThreshold =
+				typeof opts.failureThreshold === "function"
+					? opts.failureThreshold(scores)
+					: opts.failureThreshold;
+			// A1: when the user didn't supply a threshold AND the batch-mean
+			// default is non-finite (e.g. evaluator produced NaN / ±Infinity),
+			// treat every score as a failure instead of filtering with `< NaN`
+			// (which would be false for every score → silent no-op).
+			const thresholdUnresolvable = userThreshold === undefined && !Number.isFinite(score);
+			const threshold = userThreshold ?? score;
+			const allFailures = thresholdUnresolvable
+				? [...scores].sort((a, b) => a.score - b.score)
+				: scores
+						.filter((s) => s.score < threshold)
+						.slice()
+						.sort((a, b) => a.score - b.score);
+			const failures = allFailures.slice(0, maxFailureSamples);
+
+			const { best, bestScore } = pickBest(candidates, scores);
+			const feedbackShell: Feedback = {
+				summary: "",
+				score,
+				weakTasks: failures.map((f) => f.taskId),
+			};
+			const critiqueText = format(failures, feedbackShell);
+
+			const priv: ErrorCritiquePrivate<T> = {
+				kind: "errorCritique",
+				best,
+				failures,
+				critiqueText,
+			};
+			const retainedSuffix =
+				allFailures.length > failures.length ? ` (top ${failures.length} retained)` : "";
+			return {
+				summary: `errorCritique iteration: mean=${score.toFixed(3)}, failures=${allFailures.length}${retainedSuffix}/${scores.length}, bestScore=${bestScore.toFixed(3)}`,
+				critique: priv,
+				weakTasks: failures.map((f) => f.taskId),
+				score,
+			};
+		},
+		async generate(feedback, candidates) {
+			// N1: Length guard FIRST. The only protocol-sentinel risk is
+			// `undefined` sneaking in via an empty candidates array; after
+			// this check, `null` values (including `priv.best === null` when
+			// T admits null) flow through as domain-valid per
+			// COMPOSITION-GUIDE §3 / spec §1.
+			if (candidates.length === 0) {
+				throw new Error(
+					"errorCritique.generate: empty candidate batch — cannot derive prior for teacher",
+				);
+			}
+			const priv = isErrorCritiquePrivate<T>(feedback.critique) ? feedback.critique : undefined;
+			const prior: T =
+				priv !== undefined ? (priv.best as T) : (candidates[candidates.length - 1] as T);
+			const critique = priv?.critiqueText ?? feedback.summary;
+			const failures = priv?.failures ?? [];
+			let iterCost = 0;
+			const reportCost = (n: number) => {
+				iterCost += n;
+			};
+			const ctx: ErrorCritiqueContext<T> = { prior, critique, failures, reportCost };
+			try {
+				if (opts.parallel !== false) {
+					return await Promise.all(Array.from({ length: width }, () => opts.teacher(ctx)));
+				}
+				const out: T[] = [];
+				for (let i = 0; i < width; i++) {
+					out.push(await opts.teacher(ctx));
+				}
+				return out;
+			} finally {
+				if (opts.tokens != null && iterCost > 0) {
+					// Self-owned counter boundary read (P3 gray zone, same
+					// pattern as `tryIncrementBounded` in patterns/_internal.ts).
+					const prev = (opts.tokens.cache as number | undefined) ?? 0;
+					opts.tokens.emit(prev + iterCost);
+				}
+			}
 		},
 	};
 }

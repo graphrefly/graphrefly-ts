@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
 
 // ---------------------------------------------------------------------------
 // Types

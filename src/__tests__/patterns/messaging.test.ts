@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-	jobFlow,
-	jobQueue,
-	messagingHub,
-	subscription,
-	topic,
-	topicBridge,
-} from "../../patterns/messaging.js";
+import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
+import { messagingHub, subscription, topic, topicBridge } from "../../patterns/messaging/index.js";
 
 describe("patterns.messaging", () => {
 	it("topic retains events and updates latest value", () => {

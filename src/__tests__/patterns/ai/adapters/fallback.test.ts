@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { memoryStorage } from "../../../../extra/storage.js";
+import { memoryStorage } from "../../../../extra/storage-core.js";
 import type {
 	ChatMessage,
 	LLMAdapter,

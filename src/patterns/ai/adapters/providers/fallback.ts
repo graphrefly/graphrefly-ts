@@ -40,7 +40,7 @@
  *    **Filesystem directories (Node only):** the core `fallbackAdapter`
  *    does NOT import `node:fs` / `node:path` — it's safe to bundle for
  *    browsers. For a directory convenience, import `fallbackAdapter` from
- *    `@graphrefly/graphrefly/patterns/ai/node-middleware` (node subpath);
+ *    `@graphrefly/graphrefly/patterns/ai/node` (node subpath);
  *    that variant adds `fixturesDir: string` (auto-namespaced to
  *    `join(dir, keyPrefix)`, cache-format validated at init).
  *

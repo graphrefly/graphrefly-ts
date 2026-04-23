@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import { graphLens, type HealthReport, type TopologyStats } from "../../patterns/lens.js";
+import { graphLens, type HealthReport, type TopologyStats } from "../../patterns/lens/index.js";
 
 function getStatsCache(node: { cache: unknown }): TopologyStats {
 	return node.cache as TopologyStats;

@@ -27,10 +27,10 @@
  *
  * @module
  */
-import { monotonicNs } from "../core/clock.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
-import { type ReactiveMapBundle, reactiveMap } from "../extra/reactive-map.js";
+import { monotonicNs } from "../../core/clock.js";
+import type { Node } from "../../core/node.js";
+import { derived, state } from "../../core/sugar.js";
+import { type ReactiveMapBundle, reactiveMap } from "../../extra/reactive-map.js";
 import {
 	type CausalChain,
 	Graph,
@@ -38,11 +38,11 @@ import {
 	type GraphOptions,
 	reachable,
 	watchTopologyTree,
-} from "../graph/index.js";
-import { domainMeta, keepalive } from "./_internal.js";
-import { reactiveExplainPath } from "./audit.js";
+} from "../../graph/index.js";
+import { domainMeta, keepalive } from "../_internal.js";
+import { reactiveExplainPath } from "../audit/index.js";
 
-export { watchTopologyTree } from "../graph/index.js";
+export { watchTopologyTree } from "../../graph/index.js";
 
 // ---------------------------------------------------------------------------
 // Payload types

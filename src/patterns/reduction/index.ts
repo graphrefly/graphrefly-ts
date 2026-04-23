@@ -8,8 +8,8 @@
  * @module
  */
 
-import { batch } from "../core/batch.js";
-import type { NodeActions } from "../core/config.js";
+import { batch } from "../../core/batch.js";
+import type { NodeActions } from "../../core/config.js";
 import {
 	COMPLETE,
 	DATA,
@@ -19,12 +19,12 @@ import {
 	PAUSE,
 	RESOLVED,
 	RESUME,
-} from "../core/messages.js";
-import { type Node, type NodeOptions, node } from "../core/node.js";
-import { derived, effect, state } from "../core/sugar.js";
-import { merge } from "../extra/operators.js";
-import { reactiveMap } from "../extra/reactive-map.js";
-import { Graph, type GraphOptions } from "../graph/graph.js";
+} from "../../core/messages.js";
+import { type Node, type NodeOptions, node } from "../../core/node.js";
+import { derived, effect, state } from "../../core/sugar.js";
+import { merge } from "../../extra/operators.js";
+import { reactiveMap } from "../../extra/reactive-map.js";
+import { Graph, type GraphOptions } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers (same pattern as orchestration.ts)
@@ -32,7 +32,7 @@ import { Graph, type GraphOptions } from "../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
 
-import { domainMeta, keepalive, tryIncrementBounded } from "./_internal.js";
+import { domainMeta, keepalive, tryIncrementBounded } from "../_internal.js";
 
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("reduction", kind, meta);

@@ -7,7 +7,7 @@ import {
 	type GraphLabelSize,
 	type HighlightCallbacks,
 	type NodeRegistry,
-} from "../../patterns/demo-shell.js";
+} from "../../patterns/demo-shell/index.js";
 import { CliMeasureAdapter } from "../../patterns/reactive-layout/measurement-adapters.js";
 import type { LineBreaksResult } from "../../patterns/reactive-layout/reactive-layout.js";
 

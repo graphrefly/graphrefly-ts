@@ -13,7 +13,7 @@
 import { DATA, TEARDOWN } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { state } from "../core/sugar.js";
-import type { StorageTier } from "./storage.js";
+import type { StorageTier } from "./storage-core.js";
 
 // ——————————————————————————————————————————————————————————————
 //  Eviction policy

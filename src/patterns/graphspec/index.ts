@@ -9,11 +9,11 @@
  * @module
  */
 
-import type { Node } from "../core/node.js";
-import { derived, effect, producer, state } from "../core/sugar.js";
-import { GRAPH_META_SEGMENT, Graph } from "../graph/graph.js";
-import type { ChatMessage, LLMAdapter, LLMResponse } from "./ai.js";
-import { feedback as feedbackPrimitive } from "./reduction.js";
+import type { Node } from "../../core/node.js";
+import { derived, effect, producer, state } from "../../core/sugar.js";
+import { GRAPH_META_SEGMENT, Graph } from "../../graph/graph.js";
+import type { ChatMessage, LLMAdapter, LLMResponse } from "../ai/index.js";
+import { feedback as feedbackPrimitive } from "../reduction/index.js";
 
 // ---------------------------------------------------------------------------
 // GraphSpec types

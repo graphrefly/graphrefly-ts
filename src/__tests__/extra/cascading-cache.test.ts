@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TEARDOWN } from "../../core/messages.js";
 import { cascadingCache, lru } from "../../extra/cascading-cache.js";
-import type { StorageTier } from "../../extra/storage.js";
+import type { StorageTier } from "../../extra/storage-core.js";
 
 describe("lru eviction policy", () => {
 	it("evicts least-recently-used entries", () => {

@@ -7,7 +7,7 @@ import {
 	complianceSnapshot,
 	policyEnforcer,
 	reactiveExplainPath,
-} from "../../patterns/audit.js";
+} from "../../patterns/audit/index.js";
 
 describe("auditTrail (roadmap §9.2)", () => {
 	it("records DATA mutations with seq, timestamps, value", () => {

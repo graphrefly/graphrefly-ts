@@ -12,7 +12,8 @@
  * @module
  */
 
-import { fileStorage, type Graph, memoryStorage, type StorageTier } from "@graphrefly/graphrefly";
+import { type Graph, memoryStorage, type StorageTier } from "@graphrefly/graphrefly";
+import { fileStorage } from "@graphrefly/graphrefly/extra/node";
 
 /** Session handle returned by {@link createSession}. Consumed by tool handlers. */
 export interface Session {

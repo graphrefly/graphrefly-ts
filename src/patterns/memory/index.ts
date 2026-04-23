@@ -6,10 +6,10 @@
  * optional dependency.
  */
 
-import { monotonicNs } from "../core/clock.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
-import { Graph } from "../graph/graph.js";
+import { monotonicNs } from "../../core/clock.js";
+import type { Node } from "../../core/node.js";
+import { derived, state } from "../../core/sugar.js";
+import { Graph } from "../../graph/graph.js";
 
 export type CollectionPolicy = "fifo" | "lru";
 export type VectorBackend = "flat" | "hnsw";

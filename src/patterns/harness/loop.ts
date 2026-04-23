@@ -14,10 +14,10 @@ import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
 import { trackingKey, tryIncrementBounded } from "../_internal.js";
-import type { LLMAdapter } from "../ai.js";
-import { promptNode } from "../ai.js";
-import { TopicGraph } from "../messaging.js";
-import { type GateController, gate } from "../orchestration.js";
+import type { LLMAdapter } from "../ai/index.js";
+import { promptNode } from "../ai/index.js";
+import { TopicGraph } from "../messaging/index.js";
+import { type GateController, gate } from "../orchestration/index.js";
 import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "./strategy.js";
 import {
 	DEFAULT_QUEUE_CONFIGS,

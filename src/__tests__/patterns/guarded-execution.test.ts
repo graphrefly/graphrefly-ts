@@ -3,7 +3,7 @@ import type { Actor } from "../../core/actor.js";
 import { type PolicyRuleData, policy } from "../../core/guard.js";
 import { state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import { guardedExecution } from "../../patterns/guarded-execution.js";
+import { guardedExecution } from "../../patterns/guarded-execution/index.js";
 
 const alice: Actor = { type: "human", id: "alice" };
 const bob: Actor = { type: "human", id: "bob" };

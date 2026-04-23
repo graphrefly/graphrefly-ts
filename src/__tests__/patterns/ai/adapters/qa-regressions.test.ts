@@ -17,7 +17,7 @@ import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-ru
 // Indirect test via withReplayCache: identical-structure prompts with shared
 // sub-objects produce the same cache key as freshly-reconstructed equivalents.
 
-import { memoryStorage } from "../../../../extra/storage.js";
+import { memoryStorage } from "../../../../extra/storage-core.js";
 import { withReplayCache } from "../../../../patterns/ai/adapters/middleware/replay-cache.js";
 
 function mockAdapter(responses: LLMResponse[]): LLMAdapter & { calls: number } {

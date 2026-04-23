@@ -39,7 +39,7 @@ import {
 	toolRegistry,
 	toolSelector,
 	validateGraphDef,
-} from "../../patterns/ai.js";
+} from "../../patterns/ai/index.js";
 
 // ---------------------------------------------------------------------------
 // Mock LLM adapter

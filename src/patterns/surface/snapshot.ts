@@ -16,7 +16,7 @@
  */
 
 import { wallClockNs } from "../../core/clock.js";
-import type { StorageTier } from "../../extra/storage.js";
+import type { StorageTier } from "../../extra/storage-core.js";
 import type {
 	GraphCheckpointRecord,
 	GraphDiffResult,

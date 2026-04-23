@@ -30,8 +30,8 @@ import {
 	systemPromptBuilder,
 	type ToolDefinition,
 	toolRegistry,
-} from "../patterns/ai.js";
-import { approval, join, pipeline, sensor, task } from "../patterns/orchestration.js";
+} from "../patterns/ai/index.js";
+import { approval, join, pipeline, sensor, task } from "../patterns/orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter

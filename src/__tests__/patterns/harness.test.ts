@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
-import { contentGate, redactor, type StreamChunk } from "../../patterns/ai.js";
+import { contentGate, redactor, type StreamChunk } from "../../patterns/ai/index.js";
 import {
 	affectedTaskFilter,
 	beforeAfterCompare,
@@ -26,7 +26,7 @@ import {
 	strategyKey,
 	type TriagedItem,
 } from "../../patterns/harness/types.js";
-import { TopicGraph, topic } from "../../patterns/messaging.js";
+import { TopicGraph, topic } from "../../patterns/messaging/index.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 // ---------------------------------------------------------------------------
