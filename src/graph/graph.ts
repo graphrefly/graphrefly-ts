@@ -36,6 +36,7 @@ import type { StorageHandle, StorageTier } from "../extra/storage-core.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
+import { renderDescribeAsAscii } from "./describe-ascii.js";
 import { type CausalChain, type CausalStep, explainPath } from "./explain.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
@@ -135,18 +136,33 @@ export type GraphDescribeOptions = {
 	 *   clickable URL, opens the `"mermaid"` source in the mermaid.live editor).
 	 *   No network calls — the payload is encoded into the URL fragment.
 	 * - `"d2"` — D2 diagram text.
+	 * - `"ascii"` — stdout-native DAG flowchart rendered with Unicode
+	 *   box-drawing glyphs (or `asciiCharset: "ascii"` for pure ASCII).
+	 *   Graph-size independent: proper Sugiyama layout handles wide + deep
+	 *   DAGs. Supports `direction: "LR" | "TD"`.
 	 */
-	format?: "spec" | "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+	format?: "spec" | "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
 	/** Pretty/diagram render: direction for diagram formats (default `LR`). */
 	direction?: GraphDiagramDirection;
 	/** Pretty/JSON render: indent (default 2 for JSON, ignored for pretty). */
 	indent?: number;
-	/** Pretty render: optional logger hook; fires with the rendered text before return. */
+	/** Pretty/ASCII render: optional logger hook; fires with the rendered text before return. */
 	logger?: (text: string) => void;
 	/** Pretty render: include an Edges section (default `true`). */
 	includeEdges?: boolean;
 	/** Pretty render: include a Subgraphs section (default `true`). */
 	includeSubgraphs?: boolean;
+	/**
+	 * ASCII render: per-box label cell cap; longer labels are truncated with `…`.
+	 * Default `24`. Applies only to `format: "ascii"`.
+	 */
+	maxLabelWidth?: number;
+	/**
+	 * ASCII render: Unicode box-drawing glyphs (`"unicode"`, default) or a
+	 * plain ASCII fallback (`"ascii"`, uses `-|+<>v`). Applies only to
+	 * `format: "ascii"`.
+	 */
+	asciiCharset?: "unicode" | "ascii";
 	/**
 	 * Reactive describe (D2): when `true`, return `{ node, dispose }` where `node`
 	 * emits a fresh `GraphDescribeOutput` (or format string, if `format` is set)
@@ -1829,12 +1845,13 @@ export class Graph {
 	 * graph.describe({ format: "pretty" })                     // human-readable text
 	 * graph.describe({ format: "mermaid" })                    // Mermaid flowchart
 	 * graph.describe({ format: "d2", direction: "TD" })        // D2 top-down
+	 * graph.describe({ format: "ascii" })                      // stdout DAG flowchart
 	 * ```
 	 */
 	describe(
 		options: GraphDescribeOptions & {
 			reactive: true;
-			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
 		},
 	): ReactiveDescribeHandle<string>;
 	describe(
@@ -1842,7 +1859,7 @@ export class Graph {
 	): ReactiveDescribeHandle<GraphDescribeOutput>;
 	describe(
 		options: GraphDescribeOptions & {
-			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
 		},
 	): string;
 	describe(options?: GraphDescribeOptions): GraphDescribeOutput;
@@ -2031,6 +2048,7 @@ export class Graph {
 		if (fmt === "mermaid") return renderDescribeAsMermaid(struct, opts);
 		if (fmt === "mermaid-url") return renderDescribeAsMermaidUrl(struct, opts);
 		if (fmt === "d2") return renderDescribeAsD2(struct, opts);
+		if (fmt === "ascii") return renderDescribeAsAscii(struct, opts);
 		return struct;
 	}
 

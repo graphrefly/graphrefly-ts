@@ -24,7 +24,13 @@ import type { CausalChain } from "./explain.js";
 import type { Graph } from "./graph.js";
 
 /** Describe render formats exercised by {@link validateGraphObservability}. */
-export type ObservabilityDescribeFormat = "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+export type ObservabilityDescribeFormat =
+	| "json"
+	| "pretty"
+	| "mermaid"
+	| "mermaid-url"
+	| "d2"
+	| "ascii";
 
 /** One observability check performed by {@link validateGraphObservability}. */
 export type ObservabilityCheck =
@@ -87,7 +93,8 @@ export interface ValidateObservabilityOptions {
 	 * Describe formats to exercise via `graph.describe({ format })`. Each
 	 * format renders the graph once and checks that the result is a non-empty
 	 * string. Useful in dry-run blocks so regressions in the render paths
-	 * (mermaid, pretty, json, d2, mermaid-url) surface before any wire spend.
+	 * (ascii, mermaid, pretty, json, d2, mermaid-url) surface before any wire
+	 * spend.
 	 */
 	readonly formats?: readonly ObservabilityDescribeFormat[];
 }

@@ -58,9 +58,10 @@ async function confirm(question: string): Promise<boolean> {
 	});
 }
 
-// (Mermaid.live URL encoder moved to library — `graph.describe({ format:
-// "mermaid-url" })` generates the deep link; `mermaidLiveUrl(src)` from
-// `@graphrefly/graphrefly/graph` is the re-usable helper.)
+// (Flowchart rendering — `graph.describe({ format: "ascii" })` produces a
+// stdout-native DAG diagram with Unicode box-drawing glyphs. For clickable
+// mermaid, `describe({ format: "mermaid-url" })` encodes a mermaid.live
+// deep link; for bare mermaid text use `format: "mermaid"`.)
 
 // ---------------------------------------------------------------------------
 // Stage-log formatter for subscribers
@@ -105,11 +106,11 @@ async function dryRun(): Promise<void> {
 		});
 
 		// Smoke-exercise every observability surface the real run touches —
-		// if describe / explain / mermaid renderers regress, we fail loud HERE
+		// if describe / explain / ascii renderers regress, we fail loud HERE
 		// instead of after any wire spend (CLAUDE.md "Dry-run equivalence rule").
 		const smoke = validateGraphObservability(graph, {
 			pairs: [["emails", "brief"]],
-			formats: ["mermaid", "pretty"],
+			formats: ["ascii", "pretty"],
 		});
 		if (!smoke.ok) {
 			console.error(`\n!! ${smoke.summary()}. Aborting before any spend.`);
@@ -125,9 +126,9 @@ async function dryRun(): Promise<void> {
 			console.error(`\n!! graph.explain().text render is degenerate. Aborting.`);
 			process.exit(3);
 		}
-		// Path 1B — clickable live flowchart via `describe({ format: "mermaid-url" })`.
-		console.log("\nFlowchart (open in any mermaid viewer):");
-		console.log(`  ${graph.describe({ format: "mermaid-url" })}`);
+		// Path 1B — stdout-native DAG flowchart via `describe({ format: "ascii" })`.
+		console.log("\nFlowchart:");
+		console.log(graph.describe({ format: "ascii" }));
 	} finally {
 		graph.destroy();
 	}
