@@ -702,7 +702,7 @@ function buildLineText(
 }
 
 function resolveHyphenWidth(ctx: LayoutNextLineContext | undefined): number {
-	if (!ctx || !ctx.adapter || !ctx.font) return 0;
+	if (!ctx?.adapter || !ctx.font) return 0;
 	const cache = ctx.cache;
 	if (cache) {
 		let fc = cache.get(ctx.font);

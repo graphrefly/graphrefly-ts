@@ -10,6 +10,7 @@
 	"files": {
 		"includes": [
 			"**",
+			"!.claude",
 			"!dist",
 			"!node_modules",
 			"!**/dist",

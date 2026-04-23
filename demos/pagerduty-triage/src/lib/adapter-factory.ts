@@ -48,15 +48,15 @@ function extractJsonObject(text: string): string {
 	if (start < 0) return text;
 	let depth = 0;
 	let inString = false;
-	let escape = false;
+	let inEscape = false;
 	for (let i = start; i < source.length; i++) {
 		const ch = source[i]!;
-		if (escape) {
-			escape = false;
+		if (inEscape) {
+			inEscape = false;
 			continue;
 		}
 		if (ch === "\\") {
-			escape = true;
+			inEscape = true;
 			continue;
 		}
 		if (ch === '"') {

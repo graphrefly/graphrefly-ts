@@ -287,7 +287,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			TriagedItem | null,
 			[IntakeItem | null, StrategySnapshot] | null,
 		];
-		if (!classification || !classification.route) return;
+		if (!classification?.route) return;
 		const intakeItem = triagePair?.[0];
 		// Intake fields win over classification: the LLM only owns the five
 		// triage-classification fields (rootCause, intervention, route,
