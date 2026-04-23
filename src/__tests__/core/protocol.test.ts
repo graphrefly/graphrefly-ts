@@ -602,6 +602,60 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 		unsub();
 	});
 
+	it("pausable: resumeAll — COMPLETE bypasses bufferAll and reaches subscribers even while paused", () => {
+		// Spec §2.6 bufferAll: tier-4 (COMPLETE/ERROR) dispatches synchronously
+		// even while a pause lock is held — stream-lifecycle signals must
+		// reach observers regardless of flow control, parallel to tier-5
+		// TEARDOWN's bypass. Prior to this: tier-4 was captured in pauseBuffer
+		// and silently discarded at _deactivate if no RESUME ever came,
+		// stranding subscribers without an end-of-stream signal.
+		const s = state(0, { pausable: "resumeAll" });
+		const seen: Array<[symbol, unknown?]> = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) seen.push([m[0], m[1]]);
+		});
+		// Capture the index right after the subscribe handshake so we can
+		// reason about only the post-activation trace (initial [[DATA, 0]]
+		// push-on-subscribe is part of the handshake and not relevant here).
+		const postActivation = seen.length;
+		const lock = Symbol("held-indefinitely");
+		s.down([[PAUSE, lock]]);
+		s.emit(1); // captured in buffer, never observed (expected lost)
+		s.emit(2); // captured in buffer, never observed (expected lost)
+		s.down([[COMPLETE]]);
+		const tail = seen.slice(postActivation);
+		// Subscriber MUST observe COMPLETE even though lock is still held.
+		expect(tail.map((m) => m[0])).toContain(COMPLETE);
+		// Emits (1) and (2) must stay buffered — no DATA payload 1 or 2
+		// reached the subscriber. (DIRTY/RESOLVED tier-1/3 bookkeeping is
+		// orthogonal; specifically the deferred DATA values are absent.)
+		for (const [t, v] of tail) {
+			if (t === DATA) {
+				expect(v).not.toBe(1);
+				expect(v).not.toBe(2);
+			}
+		}
+		unsub();
+	});
+
+	it("pausable: resumeAll — ERROR bypasses bufferAll and reaches subscribers even while paused", () => {
+		// Companion to the COMPLETE test: tier-4 ERROR also bypasses bufferAll.
+		const s = state(0, { pausable: "resumeAll" });
+		const seen: Array<{ type: symbol; value?: unknown }> = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) seen.push({ type: m[0], value: m[1] });
+		});
+		const lock = Symbol("held");
+		s.down([[PAUSE, lock]]);
+		s.emit(1);
+		const err = new Error("boom");
+		s.down([[ERROR, err]]);
+		const errorEntry = seen.find((e) => e.type === ERROR);
+		expect(errorEntry).toBeDefined();
+		expect(errorEntry?.value).toBe(err);
+		unsub();
+	});
+
 	it("pause state is cleared on teardown — no leak, no cross-lifecycle bleed", () => {
 		// Regression: bufferAll state (_pauseLocks, _pauseBuffer) used to
 		// leak across _deactivate, which was both a memory leak on

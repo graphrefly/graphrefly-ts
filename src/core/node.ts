@@ -2051,21 +2051,27 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		if (finalMessages.length > 0) {
 			// BufferAll: while paused with `pausable: "resumeAll"`, buffer
-			// tier-3/4 payloads in order. Tier 0–2 and tier 5 continue to
-			// dispatch synchronously — START/DIRTY/RESUME/PAUSE/TEARDOWN
-			// must stay live so subscribers, downstream pausers, and graph
-			// teardown all observe them. Cache/status advance has already
-			// happened via `_updateState`, so the replay later just pushes
-			// the deferred messages back through `downWithBatch`.
+			// tier-3 (DATA/RESOLVED) payloads in order. Everything else —
+			// tier 0–2 (START/DIRTY/INVALIDATE/PAUSE/RESUME), tier 4
+			// (COMPLETE/ERROR), and tier 5 (TEARDOWN) — dispatches
+			// synchronously so subscribers, downstream pausers, and graph
+			// teardown observe them regardless of flow control. Tier-4
+			// stream-lifecycle signals must reach subscribers even when a
+			// controller holds a lock and never issues RESUME — the
+			// alternative strands observers without an end-of-stream signal
+			// (leaked-controller + source-terminates = subscriber waits
+			// indefinitely). Cache/status advance has already happened via
+			// `_updateState`, so the replay later just pushes the deferred
+			// messages back through `downWithBatch`. Spec §2.6 bufferAll.
 			if (this._paused && this._pausable === "resumeAll" && this._pauseBuffer != null) {
 				const tierOf = this._config.tierOf;
 				const immediate: Message[] = [];
 				for (const m of finalMessages) {
 					const tier = tierOf(m[0]);
-					if (tier < 3 || tier === 5) {
-						immediate.push(m);
-					} else {
+					if (tier === 3) {
 						this._pauseBuffer.push(m);
+					} else {
+						immediate.push(m);
 					}
 				}
 				if (immediate.length > 0) {

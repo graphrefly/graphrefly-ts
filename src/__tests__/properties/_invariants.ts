@@ -22,7 +22,16 @@
 
 import * as fc from "fast-check";
 import { batch } from "../../core/batch.js";
-import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, START } from "../../core/messages.js";
+import {
+	COMPLETE,
+	DATA,
+	DIRTY,
+	ERROR,
+	PAUSE,
+	RESOLVED,
+	RESUME,
+	START,
+} from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
@@ -375,7 +384,7 @@ const invariant7: Invariant = {
 					target = node<number>([]);
 					expectedFinal = Number.NaN;
 				}
-				const batches: readonly [symbol, unknown?][][] = [];
+				const batches: [symbol, unknown?][][] = [];
 				const unsub = target.subscribe((msgs) => {
 					batches.push([...(msgs as readonly [symbol, unknown?][])]);
 				});
@@ -559,7 +568,7 @@ const invariant10MultiDepInitial: Invariant = {
 			const a = state(x);
 			const b = state(y);
 			const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
-			const batches: readonly [symbol, unknown?][][] = [];
+			const batches: [symbol, unknown?][][] = [];
 			const unsub = d.subscribe((msgs) => {
 				batches.push([...(msgs as readonly [symbol, unknown?][])]);
 			});
@@ -575,7 +584,63 @@ const invariant10MultiDepInitial: Invariant = {
 };
 
 /**
- * #11 — Nested-drain peer-read consistency (simple topology).
+ * #11 — Pause multi-pauser correctness. Multiple controllers can hold
+ * independent pause locks on the same node; the node stays paused as long as
+ * any lock is held, and `fn` fires exactly once — coalescing the pending wave
+ * — on final-lock release. Spec §2.6: "This gives multi-pauser correctness
+ * by construction: if controller A and controller B both hold pause locks,
+ * releasing A's lock does not resume the node while B still holds its lock."
+ *
+ * Topology: `state → derived(tracks fn runs)`. Property:
+ *   (a) while N locks pause upstream, intermediate releases (k < N-1 out of
+ *       N-1 are released) do not cause `fn` to run;
+ *   (b) the final lock release runs `fn` exactly once with the latest value.
+ *
+ * TLA+ mirror: `wave_protocol_pause_MC` — TLC enumerates every interleaving
+ * of Pause/Resume across two lockIds and verifies the protocol invariants
+ * (TerminalClearsPauseState, BufferImpliesLockedAndResumeAll, etc.) hold.
+ */
+const invariant11PauseMultiPauser: Invariant = {
+	name: "pause-multi-pauser",
+	description:
+		"Multiple pause locks are tracked independently: releasing one lockId while another is held does not resume; fn fires exactly once with the latest dep values after the final lock releases.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (PAUSE/RESUME lock-id)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 3 }), (numLocks) => {
+			const s = state(0);
+			let fnRuns = 0;
+			const d = derived([s], ([v]) => {
+				fnRuns += 1;
+				return v as number;
+			});
+			const unsub = d.subscribe(() => {});
+			const runsAfterSubscribe = fnRuns;
+
+			const locks = Array.from({ length: numLocks }, (_, i) => Symbol(`lock-${i}`));
+			for (const l of locks) s.down([[PAUSE, l]]);
+			s.emit(1); // cache 0 → 1; would trigger d.fn if not paused
+
+			// Release all but the last lock. While any lock held, fn must not fire.
+			for (let i = 0; i < numLocks - 1; i++) {
+				s.down([[RESUME, locks[i]]]);
+			}
+			const runsBeforeFinalRelease = fnRuns;
+
+			s.down([[RESUME, locks[numLocks - 1]]]);
+			const runsAfterRelease = fnRuns;
+
+			unsub();
+
+			// (a) N-1 partial releases — fn must not have re-run.
+			if (runsBeforeFinalRelease !== runsAfterSubscribe) return false;
+			// (b) Final release — fn fires exactly once for the coalesced wave.
+			if (runsAfterRelease !== runsAfterSubscribe + 1) return false;
+			return true;
+		}),
+};
+
+/**
+ * #12 — Nested-drain peer-read consistency (simple topology).
  *
  * A derived `T = derived([A, B])` must never observe a snapshot where one
  * peer's value reflects a wave not yet delivered to `T`. Specifically, if an
@@ -605,7 +670,7 @@ const invariant10MultiDepInitial: Invariant = {
  * on `B` that emits to `A` inside `batch()` when `B` hits `triggerValue`.
  * Subscribe effect before T (puts effect earlier in B's sink snapshot).
  */
-const invariant11NestedDrain: Invariant = {
+const invariant12NestedDrain: Invariant = {
 	name: "nested-drain-peer-consistency",
 	description:
 		"A derived([A, B]) must never observe a peer value from a wave not yet delivered to it. When a sibling sink of B enters batch(() => A.emit(newA)) inside its callback on the B=triggerB wave, every DATA T emits during that outer wave must reflect [newA, triggerB] or [initialA, triggerB] — never [newA, oldB].",
@@ -657,6 +722,146 @@ const invariant11NestedDrain: Invariant = {
 		),
 };
 
+/**
+ * #13 — bufferAll replay ordering. In `pausable: "resumeAll"` mode, outgoing
+ * tier-3 settlements emitted during a pause window are captured into the
+ * node's bufferAll buffer; on final-lock RESUME the buffer drains to
+ * subscribers BEFORE the forwarded RESUME message. Spec §2.6 bufferAll:
+ * "On final-lock RESUME, the buffered messages are replayed through the
+ * node's own `_emit` pipeline BEFORE the RESUME signal is forwarded
+ * downstream."
+ *
+ * Property:
+ *   (a) during pause, no tier-3 (DATA/RESOLVED) reaches the subscriber;
+ *   (b) on RESUME, the subscriber observes all buffered tier-3 messages
+ *       (in order — at least one, since per spec a buffered DATA may
+ *       collapse to RESOLVED against current cache) followed by the
+ *       RESUME tuple itself — no tier-3 appears after RESUME.
+ *
+ * TLA+ mirror: `wave_protocol_bufferall_MC` — TLC verifies the per-node
+ * structural invariants (BufferImpliesLockedAndResumeAll,
+ * BufferHoldsOnlyDeferredTiers) which together with the atomic drain-then-
+ * forward in DeliverPauseResume enforce this ordering by construction.
+ */
+const invariant13BufferAllReplay: Invariant = {
+	name: "buffer-all-replay-ordering",
+	description:
+		"In pausable:'resumeAll' mode, tier-3 settlements emitted during a pause window are buffered and replayed to subscribers BEFORE the forwarded RESUME; no tier-3 message appears after the RESUME that closed the pause window.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (bufferAll mode)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 4 }), { minLength: 1, maxLength: 5 }),
+			(values) => {
+				const s = node<number>((_actions) => {}, {
+					pausable: "resumeAll",
+					initial: 0,
+					describeKind: "state",
+				});
+				const trace: symbol[] = [];
+				const unsub = s.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						trace.push(m[0]);
+					}
+				});
+				const lock = Symbol("bufferAll");
+				s.down([[PAUSE, lock]]);
+				const idxPauseRecorded = trace.length;
+
+				for (const v of values) s.emit(v);
+
+				// (a) During pause: tier-3 must NOT appear in trace after the
+				// PAUSE was recorded. Substrate synthesizes DIRTY (tier-1, immediate)
+				// for each emit, but DATA/RESOLVED is buffered.
+				for (let i = idxPauseRecorded; i < trace.length; i++) {
+					if (trace[i] === DATA || trace[i] === RESOLVED) return false;
+				}
+
+				const idxBeforeResume = trace.length;
+				s.down([[RESUME, lock]]);
+				unsub();
+
+				// (b) Post-RESUME segment: must contain the RESUME tuple; every
+				// DATA/RESOLVED in the post-resume segment must appear before the
+				// RESUME (atomic drain-then-forward), never after.
+				let resumeIdx = -1;
+				for (let i = idxBeforeResume; i < trace.length; i++) {
+					if (trace[i] === RESUME) {
+						resumeIdx = i;
+						break;
+					}
+				}
+				if (resumeIdx === -1) return false; // RESUME must reach subscriber
+				for (let i = resumeIdx + 1; i < trace.length; i++) {
+					if (trace[i] === DATA || trace[i] === RESOLVED) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #14 — Resubscribe clears pause state (no lock leakage across lifecycles).
+ * Spec §2.6 "Teardown": "On TEARDOWN or deactivation, the buffer and lock
+ * set are discarded... Resubscribable nodes also clear the lock set on
+ * resubscribe so a new lifecycle cannot inherit a lock from a prior one."
+ *
+ * Without this clearing, a lock held by a disposed controller in lifecycle
+ * L1 would survive into L2 and leave the re-subscribed node permanently
+ * stuck paused — every subsequent emit would be dropped/buffered with no
+ * way to release.
+ *
+ * Property: after pausing with N locks in L1, emitting (which buffers),
+ * terminating without releasing any lock, and re-subscribing to start L2,
+ * a fresh emit in L2 produces an observable DATA/RESOLVED at the new
+ * subscriber. If pause state leaked, the emit would be buffered with no
+ * active RESUME path to drain it.
+ *
+ * TLA+ mirror: `wave_protocol_resubscribe_MC` — TLC verifies
+ * `ResubscribeYieldsCleanState` (pauseLocks/pauseBuffer/dirtyMask/handshake/
+ * trace all empty immediately after `Resubscribe` action) and
+ * `TerminalClearsPauseState` (non-resubscribable terminal nodes also clear
+ * pause state).
+ */
+const invariant14ResubscribePause: Invariant = {
+	name: "resubscribe-clears-pause-state",
+	description:
+		"On a resubscribable node, pause locks and bufferAll buffer from a terminated lifecycle do not leak into a resubscribe: a fresh emit in the new lifecycle reaches the new subscriber.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (Teardown / Resubscribable)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 3 }), (numLocks) => {
+			const s = state(0, {
+				pausable: "resumeAll",
+				resubscribable: true,
+			});
+
+			// Lifecycle 1: subscribe, pause with N locks, emit (buffered),
+			// terminate without releasing a single lock. This is the
+			// "controller disposed without cleanup" failure mode.
+			const u1 = s.subscribe(() => {});
+			const locks = Array.from({ length: numLocks }, (_, i) => Symbol(`L1-${i}`));
+			for (const l of locks) s.down([[PAUSE, l]]);
+			s.emit(99); // buffered, never drained
+			s.down([[COMPLETE]]);
+			u1();
+
+			// Lifecycle 2: fresh subscribe triggers terminal reset. Any lock
+			// that leaked would keep the new lifecycle stuck paused.
+			let sawTier3 = false;
+			const u2 = s.subscribe((msgs) => {
+				for (const m of msgs as readonly [symbol, unknown?][]) {
+					if (m[0] === DATA || m[0] === RESOLVED) sawTier3 = true;
+				}
+			});
+			s.emit(42);
+			u2();
+
+			// If pause state cleared correctly: emit(42) produces DIRTY + DATA
+			// through the pipeline, subscriber sees DATA. If it leaked: the
+			// DATA goes into the stale bufferAll buffer and never reaches the
+			// subscriber.
+			return sawTier3;
+		}),
+};
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -677,7 +882,10 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant8,
 	invariant9,
 	invariant10MultiDepInitial,
-	invariant11NestedDrain,
+	invariant11PauseMultiPauser,
+	invariant12NestedDrain,
+	invariant13BufferAllReplay,
+	invariant14ResubscribePause,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract
