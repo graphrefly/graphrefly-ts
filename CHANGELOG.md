@@ -1,3 +1,15 @@
+# [0.29.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.28.0...v0.29.0) (2026-04-23)
+
+
+### Features
+
+* add tla+ check ([febb4dd](https://github.com/graphrefly/graphrefly-ts/commit/febb4dd927655aad0004aafc6bd25d6f58a6afb5))
+* ascii dag renderer ([de2cb49](https://github.com/graphrefly/graphrefly-ts/commit/de2cb49e559b471d3260e2dc97469f1c61e93d59))
+* executor ([f80e5da](https://github.com/graphrefly/graphrefly-ts/commit/f80e5daa7e8c0ecb6be32baf4fc3e28ba7086176))
+* fix demo ([512999a](https://github.com/graphrefly/graphrefly-ts/commit/512999a1164f0a4b705868bc3d832bb71af76c13))
+* fix fanout ([5e73447](https://github.com/graphrefly/graphrefly-ts/commit/5e734472642b5277fa22a60d91acf6c5a36242cd))
+* split ai ([d161af1](https://github.com/graphrefly/graphrefly-ts/commit/d161af1a6f452372edcd04f60386e7e4c4acb850))
+
 # [0.28.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.27.0...v0.28.0) (2026-04-23)
 
 
