@@ -145,12 +145,8 @@ export default function App() {
 		const tick = () => {
 			const start = runStartTsRef.current;
 			if (start == null) return;
-			const pausedNow =
-				pauseStartTsRef.current !== null ? Date.now() - pauseStartTsRef.current : 0;
-			const elapsed = Math.max(
-				0,
-				Date.now() - start - totalPausedMsRef.current - pausedNow,
-			);
+			const pausedNow = pauseStartTsRef.current !== null ? Date.now() - pauseStartTsRef.current : 0;
+			const elapsed = Math.max(0, Date.now() - start - totalPausedMsRef.current - pausedNow);
 			const remaining = Math.max(0, TOTAL_TIME_MS - elapsed);
 			setTimeLeft(remaining);
 			setCurrentPhaseLabel(emissionPhaseLabel(elapsed));
@@ -437,9 +433,9 @@ export default function App() {
 				<div className="setup-screen">
 					<h2>PagerDuty Triage Demo</h2>
 					<p className="setup-desc">
-						You're the on-call SRE for the next <strong>5 minutes</strong>. Alerts stream in at
-						an accelerating pace — your job is to push each one to the right bin before the
-						queue backs up.
+						You're the on-call SRE for the next <strong>5 minutes</strong>. Alerts stream in at an
+						accelerating pace — your job is to push each one to the right bin before the queue backs
+						up.
 					</p>
 
 					<div className="setup-info">
@@ -456,15 +452,15 @@ export default function App() {
 							</li>
 							<li>
 								<strong>
-									Queue alerts auto-escalate after{" "}
-									{Math.round(AUTO_ESCALATE_AFTER_MS / 1000)} seconds
+									Queue alerts auto-escalate after {Math.round(AUTO_ESCALATE_AFTER_MS / 1000)}{" "}
+									seconds
 								</strong>{" "}
 								if you ignore them &mdash; simulates pager fatigue. Clear your queue or pay the
 								price.
 							</li>
 							<li>
-								<strong>Pause button</strong> freezes the clock, alert intake, and all actions.
-								Use it to read the graph or catch your breath.
+								<strong>Pause button</strong> freezes the clock, alert intake, and all actions. Use
+								it to read the graph or catch your breath.
 							</li>
 						</ul>
 
@@ -509,8 +505,8 @@ export default function App() {
 								<strong>Defer</strong> buys time, but the alert comes back.
 							</li>
 							<li>
-								<strong>Actionable</strong> means "I'm on it" &mdash; use it sparingly; it piles
-								up work.
+								<strong>Actionable</strong> means "I'm on it" &mdash; use it sparingly; it piles up
+								work.
 							</li>
 						</ol>
 					</div>
@@ -536,15 +532,15 @@ export default function App() {
 						<p className="mode-hint">
 							{pipelineMode === "baseline" ? (
 								<>
-									<strong>Baseline</strong> &mdash; no learning. Every low-confidence alert
-									lands in your queue; you triage manually from start to finish.
+									<strong>Baseline</strong> &mdash; no learning. Every low-confidence alert lands in
+									your queue; you triage manually from start to finish.
 								</>
 							) : (
 								<>
 									<strong>GraphReFly</strong> &mdash; agentMemory extracts a pattern after 2&ndash;3
-									similar decisions and auto-classifies matching alerts with zero LLM cost
-									(local cache hit). Try both modes and compare <em>LLM Calls</em>,{" "}
-									<em>Auto count</em>, and how many alerts you manually handle.
+									similar decisions and auto-classifies matching alerts with zero LLM cost (local
+									cache hit). Try both modes and compare <em>LLM Calls</em>, <em>Auto count</em>,
+									and how many alerts you manually handle.
 								</>
 							)}
 						</p>
@@ -593,8 +589,8 @@ export default function App() {
 						{adapterMode === "byok" && (
 							<div className="byok-fields">
 								<p className="mode-hint">
-									Bring your own key &mdash; any OpenAI-compatible API. Look for free tier
-									providers online.
+									Bring your own key &mdash; any OpenAI-compatible API. Look for free tier providers
+									online.
 								</p>
 								<input
 									type="password"
@@ -703,8 +699,8 @@ export default function App() {
 
 					{phase === "ready" && (
 						<div className="ready-banner">
-							<strong>Ready.</strong> Take a moment to explore the panels. The graph topology on
-							the right shows every node wired up. When you're ready, press{" "}
+							<strong>Ready.</strong> Take a moment to explore the panels. The graph topology on the
+							right shows every node wired up. When you're ready, press{" "}
 							<button type="button" className="inline-btn" onClick={startRun}>
 								Start
 							</button>{" "}
@@ -725,8 +721,8 @@ export default function App() {
 					{phase === "finished" && (
 						<div className="finished-banner">
 							<strong>Time's up!</strong> Review your bins below. Resolve count (highest-value),
-							Escalated count (cost), Auto count (GraphReFly savings), and LLM calls are the
-							numbers to compare between runs.
+							Escalated count (cost), Auto count (GraphReFly savings), and LLM calls are the numbers
+							to compare between runs.
 							<button type="button" className="btn-secondary" onClick={backToSetup}>
 								Try again
 							</button>
@@ -740,9 +736,7 @@ export default function App() {
 							items={bins.actionable}
 							color="var(--gr-danger)"
 							onSelect={handleActionableClick}
-							selectedId={
-								focused?.source === "actionable" ? focused.alert.id : null
-							}
+							selectedId={focused?.source === "actionable" ? focused.alert.id : null}
 						/>
 						<BinColumn title="Escalated" items={bins.escalated} color="#f0a060" />
 						<BinColumn title="Resolved" items={bins.resolved} color="var(--gr-aqua)" />
@@ -855,10 +849,7 @@ function FocusPane({
 			<div className="focus-detail">
 				<div className="focus-ids">
 					<span className="focus-id">{focused.alert.id}</span>
-					<span
-						className="severity-badge"
-						style={{ color: SEV_COLORS[focused.alert.severity] }}
-					>
+					<span className="severity-badge" style={{ color: SEV_COLORS[focused.alert.severity] }}>
 						{focused.alert.severity}
 					</span>
 				</div>
@@ -867,14 +858,12 @@ function FocusPane({
 				<div className="focus-brief">
 					<span className="brief-label">LLM brief</span>
 					<span className="brief-text">{focused.brief}</span>
-					<span className="confidence">
-						{Math.round(focused.confidence * 100)}% confidence
-					</span>
+					<span className="confidence">{Math.round(focused.confidence * 100)}% confidence</span>
 				</div>
 				{focused.source === "actionable" && (
 					<div className="focus-note">
-						Already in the Actionable bin — you can re-route it. Click the card again in the bin
-						to release focus and hop to the next queue ticket.
+						Already in the Actionable bin — you can re-route it. Click the card again in the bin to
+						release focus and hop to the next queue ticket.
 					</div>
 				)}
 			</div>
@@ -885,9 +874,7 @@ function FocusPane({
 					onClick={() => onDecision("actionable")}
 					disabled={actionsDisabled || focused.source === "actionable"}
 					title={
-						focused.source === "actionable"
-							? "Alert is already in the Actionable bin"
-							: undefined
+						focused.source === "actionable" ? "Alert is already in the Actionable bin" : undefined
 					}
 				>
 					Actionable

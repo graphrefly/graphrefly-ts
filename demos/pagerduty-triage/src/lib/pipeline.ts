@@ -35,11 +35,7 @@ import { reactiveLog } from "@graphrefly/graphrefly/extra/reactive";
 import { fromTimer, keepalive } from "@graphrefly/graphrefly/extra/sources";
 import { Graph } from "@graphrefly/graphrefly/graph";
 import type { LLMAdapter } from "@graphrefly/graphrefly/patterns/ai";
-import {
-	agentMemory,
-	observableAdapter,
-	promptNode,
-} from "@graphrefly/graphrefly/patterns/ai";
+import { agentMemory, observableAdapter, promptNode } from "@graphrefly/graphrefly/patterns/ai";
 import type { Alert } from "./alerts.js";
 import type {
 	ClassifyResult,
@@ -224,10 +220,7 @@ function reduceBins(prev: TriageBins, a: TriageAction): TriageBins {
 	}
 }
 
-function reduceQueue(
-	prev: readonly QueuedAlert[],
-	a: TriageAction,
-): readonly QueuedAlert[] {
+function reduceQueue(prev: readonly QueuedAlert[], a: TriageAction): readonly QueuedAlert[] {
 	switch (a.k) {
 		case "classify-low-conf":
 			return [...prev, a.entry];
@@ -451,12 +444,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 	graph.add(routingAction, { name: "routing-action" });
 
 	// ── Merge all action sources ────────────────────────────────
-	const allActions = merge(
-		routingAction,
-		userActionInput,
-		autoEscalateChan,
-		deferExpireChan,
-	);
+	const allActions = merge(routingAction, userActionInput, autoEscalateChan, deferExpireChan);
 	graph.add(allActions, { name: "all-actions" });
 
 	// ── Scan → bins / queue / auto-count ────────────────────────
@@ -657,11 +645,7 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 		});
 	}
 
-	function retriageActionable(
-		alertId: string,
-		disposition: Disposition,
-		deferMs?: number,
-	): void {
+	function retriageActionable(alertId: string, disposition: Disposition, deferMs?: number): void {
 		if (disposition === "actionable") return;
 		const binsNow = bins.cache as TriageBins | undefined;
 		if (!binsNow) return;
