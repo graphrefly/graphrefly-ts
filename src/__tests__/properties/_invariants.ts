@@ -21,9 +21,10 @@
  */
 
 import * as fc from "fast-check";
+import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, START } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { derived, effect, state } from "../../core/sugar.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,18 @@ export interface Invariant {
 	readonly property: () => fc.IPropertyWithHooks<unknown>;
 	/** fast-check run count override (default 100). */
 	readonly numRuns?: number;
+	/**
+	 * When set, this invariant is **authored ahead of a known substrate gap** —
+	 * it encodes the behavior the framework SHOULD guarantee, but the current
+	 * implementation does not. The test runner skips these (via `it.skip`) so
+	 * CI stays green, but the registry still surfaces them to LLMs and
+	 * docs-gen as part of the contract surface.
+	 *
+	 * Landing the substrate fix is the trigger to flip this to `undefined`
+	 * and let the test run — a failing property then means the fix regressed.
+	 * The value is the docs/optimizations.md anchor the fix is tracked under.
+	 */
+	readonly openUntilSubstrateFix?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -384,24 +397,22 @@ const invariant7: Invariant = {
 					const d2 = batches[2];
 					return d2.length === 1 && d2[0][0] === DATA && Object.is(d2[0][1], expectedFinal);
 				}
-				// kind === "derived-multi": accept two valid shapes.
-				// (a) Clean: [[START]], [[DIRTY]], [[DATA, sum]]
-				// (b) Gap-aware: [[START]], [[DIRTY]], [[RESOLVED]], [[DIRTY]], [[DATA, sum]]
-				// The final batch must carry exactly [DATA, expectedFinal]; every
-				// intermediate batch must be a single-message [DIRTY] or [RESOLVED].
-				// Positions 1..N-1 may contain any interleaving of DIRTY/RESOLVED;
-				// this invariant asserts the handshake begins with START, ends
-				// with the correct DATA, and contains no other message types.
-				if (batches.length < 3) return false;
-				const last = batches[batches.length - 1];
-				if (last.length !== 1 || last[0][0] !== DATA) return false;
-				if (!Object.is(last[0][1], expectedFinal)) return false;
-				for (let i = 1; i < batches.length - 1; i++) {
-					const b = batches[i];
-					if (b.length !== 1) return false;
-					if (b[0][0] !== DIRTY && b[0][0] !== RESOLVED) return false;
-				}
-				return true;
+				// kind === "derived-multi": tightened 2026-04-23 alongside the
+				// first-run gate landing (docs/optimizations.md: Multi-dep
+				// push-on-subscribe ordering — RESOLVED). Substrate now
+				// guarantees the clean handshake; the previous gap-aware form
+				// `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA]]` was the
+				// pre-fix substrate shape and is no longer reachable for sugar
+				// `derived` / `effect` with `partial: false` default. #10
+				// `multi-dep-initial-pair-clean` is the dedicated guard for
+				// this exact shape; #7 now asserts the same clean 3-batch form
+				// as the single-dep case, so a regression fails BOTH here and
+				// #10 (not only #10).
+				if (batches.length !== 3) return false;
+				if (batches[1].length !== 1 || batches[1][0][0] !== DIRTY) return false;
+				const lastMulti = batches[2];
+				if (lastMulti.length !== 1 || lastMulti[0][0] !== DATA) return false;
+				return Object.is(lastMulti[0][1], expectedFinal);
 			},
 		),
 };
@@ -521,6 +532,131 @@ const invariant9: Invariant = {
 		),
 };
 
+/**
+ * #10 — Multi-dep push-on-subscribe initial pair (OPEN, ahead of substrate fix).
+ *
+ * When a compute node has two already-cached `state()` deps and is subscribed,
+ * the handshake should deliver ONE combined initial DATA: `[[START],
+ * [DIRTY], [DATA, fn(initA, initB)]]`. Today `_activate` at
+ * src/core/node.ts:1002 subscribes deps sequentially — each push-on-subscribe
+ * is its own wave — so the actual handshake is
+ * `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA, fn(initA, initB)]]` (fast-
+ * check invariant #7 accepts both shapes for that reason).
+ *
+ * This is the stricter form: the handshake's tier-3 traffic must be EXACTLY
+ * `[DATA, fn(initA, initB)]` — no precursor RESOLVED. Driving this green
+ * unblocks docs/optimizations.md "Multi-dep push-on-subscribe ordering".
+ *
+ * Topology: `derived([state(x), state(y)], ([a, b]) => a + b)`.
+ */
+const invariant10MultiDepInitial: Invariant = {
+	name: "multi-dep-initial-pair-clean",
+	description:
+		"A two-dep derived with two already-cached state deps delivers exactly [[START], [DIRTY], [DATA, fn(initA, initB)]] on first subscribe — no precursor RESOLVED from sequential dep activation.",
+	specRef: "GRAPHREFLY-SPEC §2.7 (multi-dep push-on-subscribe)",
+	property: () =>
+		fc.property(fc.integer({ min: 0, max: 9 }), fc.integer({ min: 0, max: 9 }), (x, y) => {
+			const a = state(x);
+			const b = state(y);
+			const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+			const batches: readonly [symbol, unknown?][][] = [];
+			const unsub = d.subscribe((msgs) => {
+				batches.push([...(msgs as readonly [symbol, unknown?][])]);
+			});
+			unsub();
+			// Strict shape: exactly 3 sink calls — [START], [DIRTY], [DATA, sum].
+			if (batches.length !== 3) return false;
+			if (batches[0].length !== 1 || batches[0][0][0] !== START) return false;
+			if (batches[1].length !== 1 || batches[1][0][0] !== DIRTY) return false;
+			if (batches[2].length !== 1) return false;
+			const dataMsg = batches[2][0];
+			return dataMsg[0] === DATA && Object.is(dataMsg[1], x + y);
+		}),
+};
+
+/**
+ * #11 — Nested-drain peer-read consistency (simple topology).
+ *
+ * A derived `T = derived([A, B])` must never observe a snapshot where one
+ * peer's value reflects a wave not yet delivered to `T`. Specifically, if an
+ * effect on `B` enters `batch(() => A.emit(newA))` inside its sink callback,
+ * the nested drain can force `T`'s dep-0 callback to fire with `newA`
+ * BEFORE `B`'s outer sink-delivery loop reaches `T`'s dep-1 — leaving `T`'s
+ * B DepRecord holding the PRIOR wave's B value. Any intermediate DATA `T`
+ * emits must satisfy: if `a == newA`, then `b == triggerB` (the B value
+ * whose sink triggered the nested A.emit). A sighting of `[newA, oldB]`
+ * is a peer-read glitch.
+ *
+ * **Current status (probed 2026-04-23): PASSES on the current substrate.**
+ * The `_dirtyDepCount` gate (node.ts `_maybeRunFnOnSettlement`) correctly
+ * blocks T's fn from firing during the nested drain while dep-1 is still
+ * pending. The documented COMPOSITION-GUIDE §32 / agentLoop bug lives in
+ * **compound topologies** (switchMap resubscribe, feedback diamonds) that
+ * this simple-topology harness does not model.
+ *
+ * This invariant ships anyway as a **regression guard**: any future change
+ * to `_emit`, `_activate`, or `_maybeRunFnOnSettlement` that breaks the
+ * simple-topology case will fail here immediately. Fully unblocking
+ * docs/optimizations.md "Nested-drain wave-ordering" requires an
+ * additional compound-topology invariant (switchMap-shaped dep re-wire) —
+ * tracked separately.
+ *
+ * Topology: `A = state(0)`, `B = state(0)`, `T = derived([A, B])`, effect
+ * on `B` that emits to `A` inside `batch()` when `B` hits `triggerValue`.
+ * Subscribe effect before T (puts effect earlier in B's sink snapshot).
+ */
+const invariant11NestedDrain: Invariant = {
+	name: "nested-drain-peer-consistency",
+	description:
+		"A derived([A, B]) must never observe a peer value from a wave not yet delivered to it. When a sibling sink of B enters batch(() => A.emit(newA)) inside its callback on the B=triggerB wave, every DATA T emits during that outer wave must reflect [newA, triggerB] or [initialA, triggerB] — never [newA, oldB].",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 2 + COMPOSITION-GUIDE §32",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 9 }), // triggerB — B value that gates the nested drain (!= initial 0)
+			fc.integer({ min: 100, max: 199 }), // newA — A value emitted from inside the nested batch
+			(triggerB, newA) => {
+				const a = state(0);
+				const b = state(0);
+				const tEmits: (readonly [number, number])[] = [];
+				const t = derived([a, b], ([av, bv]) => [av as number, bv as number] as const);
+				// Sibling sink of B — enters nested batch when B hits triggerB.
+				const sibling = effect([b], ([bv]) => {
+					if (bv === triggerB) {
+						batch(() => a.emit(newA));
+					}
+				});
+				// Order matters: sibling subscribes first, so it precedes T in B's
+				// sinks snapshot — the pathological ordering the bug needs.
+				const uSibling = sibling.subscribe(() => {});
+				const uT = t.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) tEmits.push(m[1] as readonly [number, number]);
+					}
+				});
+				// Single external drive: B.emit(triggerB). Everything else is
+				// downstream drain traffic from that one wave (including the
+				// nested batch the sibling triggers).
+				b.emit(triggerB);
+				uT();
+				uSibling();
+				// Any DATA with a=newA must carry b=triggerB. A sighting of
+				// [newA, 0] (initial B) is the peer-read glitch: it means T's
+				// fn fired during the nested drain while its B DepRecord still
+				// held pre-trigger value. Likewise `[0, triggerB]` (initial A)
+				// is fine (outer B wave settling before the nested A arrives).
+				for (const [av, bv] of tEmits) {
+					if (av === newA && bv !== triggerB) return false;
+				}
+				// Final cache must also be consistent with both latest values.
+				if (t.cache !== undefined) {
+					const [av, bv] = t.cache as readonly [number, number];
+					if (av !== newA || bv !== triggerB) return false;
+				}
+				return true;
+			},
+		),
+};
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -540,6 +676,8 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant7,
 	invariant8,
 	invariant9,
+	invariant10MultiDepInitial,
+	invariant11NestedDrain,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

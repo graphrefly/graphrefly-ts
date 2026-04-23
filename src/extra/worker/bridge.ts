@@ -144,8 +144,11 @@ export function workerBridge<
 			},
 			// Each `updates` object is a fresh allocation, so default reference
 			// equality correctly propagates every aggregation wave — no
-			// `equals: () => false` override needed.
-			{ name: `${bridgeName}::aggregated` },
+			// `equals: () => false` override needed. `partial: true` opts out
+			// of the §2.7 first-run gate so the aggregator can fire on
+			// any-dep-settles waves (the worker may not expose all sources at
+			// the same time).
+			{ name: `${bridgeName}::aggregated`, partial: true },
 		);
 
 		const effectNode = effect([aggregated], (data) => {

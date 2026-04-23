@@ -32,6 +32,18 @@ function operatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
 }
 
 /**
+ * Like {@link operatorOpts} but declares `partial: true` — use for operators
+ * whose fn body deliberately handles partial-dep waves (fires on primary
+ * alone, emits RESOLVED when a required peer is still sentinel, etc.). Opts
+ * out of the core §2.7 first-run gate. User `opts.partial = false` override
+ * wins via the spread, but this is rare — the gate-on default only makes
+ * sense for fns that expect all deps to have delivered.
+ */
+function partialOperatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "derived", partial: true, ...opts } as NodeOptions<T>;
+}
+
+/**
  * Maps each settled value from `source` through `project`.
  *
  * @param source - Upstream node.
@@ -824,7 +836,11 @@ export function withLatestFrom<A, B>(
 				a.down([[RESOLVED]]);
 			}
 		},
-		operatorOpts(opts),
+		// withLatestFrom fires on primary alone (secondary handled via
+		// ctx.prevData fallback or RESOLVED when secondary never delivered)
+		// and on secondary-alone waves (emits RESOLVED). Needs the §2.7 gate
+		// disabled so these partial-dep waves can reach fn.
+		partialOperatorOpts(opts),
 	);
 }
 
@@ -2441,7 +2457,10 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOp
 			}
 			a.down([[RESOLVED]]);
 		},
-		operatorOpts(opts),
+		// valve fires on either source-alone (forwards) or control-alone
+		// (re-emits prior source when gate opens). Needs partial firing so
+		// the control wave can reach fn before source has ever delivered.
+		partialOperatorOpts(opts),
 	);
 }
 

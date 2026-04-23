@@ -12,7 +12,6 @@
  */
 
 import type { NodeActions } from "./config.js";
-import { RESOLVED } from "./messages.js";
 import {
 	type FnCtx,
 	type Node,
@@ -24,28 +23,24 @@ import {
 } from "./node.js";
 
 // ---------------------------------------------------------------------------
-// Shared sentinel guard
+// First-run gate — now enforced in core (spec §2.7)
 // ---------------------------------------------------------------------------
-
-/**
- * Returns `true` when fn should be suppressed (RESOLVED emitted instead).
- *
- * Fires when `allowPartial` is `false` and any dep has never delivered DATA:
- * `data[i]` absent this wave AND `ctx.prevData[i] === undefined`.
- *
- * `undefined` is the protocol-reserved "never sent DATA" sentinel. `null` is
- * a valid DATA value and will NOT trigger the guard.
- */
-function sentinelGuard(
-	batchData: readonly (readonly unknown[] | undefined)[],
-	ctx: FnCtx,
-	allowPartial: boolean,
-): boolean {
-	if (allowPartial) return false;
-	return batchData.some(
-		(batch, i) => !(batch != null && batch.length > 0) && ctx.prevData[i] === undefined,
-	);
-}
+//
+// Previous versions of this file carried a `sentinelGuard` helper that emitted
+// RESOLVED whenever any dep was still sentinel at fn-fire time. That guard
+// lived at the sugar layer, which made the first-run gate observable on the
+// wire as `[[DIRTY], [RESOLVED], [DIRTY], [DATA]]` for multi-parent derived
+// activation (one DIRTY/RESOLVED pair per partial-dep settle in the subscribe
+// loop).
+//
+// The gate is now in core (`NodeImpl._maybeRunFnOnSettlement`, controlled by
+// `NodeOptions.partial`). Sugar `derived` / `effect` inherit the default
+// `partial: false` so their wrapped fn only runs with all deps settled —
+// wire is the clean `[[START], [DIRTY], [DATA, fn(initial...)]]` shape.
+// Callers who need pre-gate partial firing pass `partial: true`; the sugar
+// wrapper falls back to `ctx.prevData[i]` (which is `undefined` for sentinel
+// deps) so user fn sees the same "undefined for unset dep" contract it had
+// under the old `allowPartial: true` path.
 
 // ---------------------------------------------------------------------------
 // state — manual source with an optional initial value
@@ -137,23 +132,14 @@ export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefin
 export function derived<T = unknown>(
 	deps: readonly Node[],
 	fn: DerivedFn<T>,
-	opts?: NodeOptions<T> & { partial?: boolean },
+	opts?: NodeOptions<T>,
 ): Node<T> {
-	const allowPartial = opts?.partial ?? false;
+	// First-run gate lives in core (§2.7). Core default `partial: false`
+	// matches sugar's intent — no explicit flag needed. Spread-order note: a
+	// hypothetical `opts.partial = undefined` still resolves to the core
+	// default because spread of an undefined property is a no-op (v8+); the
+	// `?? false` on the core side would cover it anyway.
 	const wrapped: NodeFn = (batchData, actions, ctx) => {
-		// Sentinel guard: if any dep has never sent DATA, emit RESOLVED.
-		// Uses ctx.prevData[i] === undefined (the "never sent" sentinel).
-		// null is valid DATA and won't trigger this. Skipped when partial:true.
-		if (sentinelGuard(batchData, ctx, allowPartial)) {
-			actions.down([[RESOLVED]]);
-			return undefined;
-		}
-		// Unwrap batch-per-dep to single latest scalar per dep.
-		// Batch non-null+non-empty → take last value from this wave;
-		// otherwise fall back to ctx.prevData[i] (last value from prior wave).
-		// undefined means "never sent DATA" — sentinelGuard already blocks this
-		// fn when partial:false and any dep is unset, so partial:true callers
-		// receive undefined for uninitiated deps (same as JS convention).
 		const data = batchData.map((batch, i) =>
 			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 		);
@@ -195,17 +181,11 @@ export type EffectFn = (
 export function effect(
 	deps: readonly Node[],
 	fn: EffectFn,
-	opts?: NodeOptions<unknown> & { partial?: boolean },
+	opts?: NodeOptions<unknown>,
 ): Node<unknown> {
-	const allowPartial = opts?.partial ?? false;
+	// First-run gate lives in core (§2.7). Core default matches sugar's
+	// intent. User override: pass `partial: true` to fire on partial deps.
 	const wrapped: NodeFn = (batchData, actions, ctx) => {
-		// Sentinel guard: hold effect until all deps have initialised.
-		// Matches pre-wave2 framework gate behaviour. Use partial:true to allow
-		// the effect to fire before all deps have delivered their first value.
-		if (sentinelGuard(batchData, ctx, allowPartial)) {
-			actions.down([[RESOLVED]]);
-			return undefined;
-		}
 		const data = batchData.map((batch, i) =>
 			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 		);
@@ -324,11 +304,13 @@ export interface AutoTrackOptions<T> extends NodeOptions<T> {
 	 * primary computation should continue while a secondary dep is still
 	 * initialising.
 	 *
-	 * When `false` (default), fn is held until every known dep has delivered at
-	 * least one DATA value — a RESOLVED is emitted for the wave instead.
-	 * This matches `derived()` semantics and is the correct default for
-	 * pull-based compat layers (Signals, Jotai) where all deps must be
-	 * initialised before the computation is meaningful.
+	 * When `false` (default), fn is held until every declared dep has delivered
+	 * at least one DATA value — core's first-run gate (spec §2.7) handles this.
+	 * Delegates to {@link NodeOptions.partial}; both semantics are aligned: the
+	 * gate is first-run-only (`_hasCalledFnOnce`), so INVALIDATE on a dep does
+	 * NOT re-gate after fn has fired once. Pull-based compat layers (Signals,
+	 * Jotai) that rely on "consistent compute across INVALIDATE" should
+	 * explicitly wrap their dep reads with null/undefined handling in fn.
 	 *
 	 * @default false
 	 */
@@ -341,7 +323,6 @@ export function autoTrackNode<T = unknown>(
 ): Node<T> {
 	let implRef: NodeImpl<T>;
 	const depIndexMap = new Map<Node, number>();
-	const allowPartial = opts?.partial ?? false;
 
 	const wrappedFn: NodeFn = (batchData, actions, ctx) => {
 		let foundNew = false;
@@ -365,27 +346,13 @@ export function autoTrackNode<T = unknown>(
 			return dep.cache; // P3 boundary exception (discovery stub)
 		};
 
-		// Sentinel guard (skipped when partial:true): if any known dep has never
-		// delivered DATA (no DATA this wave AND ctx.prevData[idx] === undefined), emit RESOLVED
-		// and defer. Mirrors derived()'s guard for the same sequential-handshake
-		// scenario: when a node re-activates outside a batch and dep A delivers
-		// synchronously before dep B is even subscribed, this holds fn until all
-		// known deps have initialised rather than running with B=undefined.
-		// Uses ctx.prevData[idx] === undefined — the protocol sentinel for
-		// "dep never sent DATA". null is valid DATA and won't trigger this.
-		// Only active when depIndexMap is non-empty (initial discovery runs are
-		// unaffected) and when partial:false (default).
-		if (!allowPartial && depIndexMap.size > 0) {
-			for (const [, idx] of depIndexMap) {
-				if (idx < batchData.length) {
-					const batch = batchData[idx];
-					if (!(batch != null && batch.length > 0) && ctx.prevData[idx] === undefined) {
-						actions.down([[RESOLVED]]);
-						return undefined;
-					}
-				}
-			}
-		}
+		// First-run gate for pre-discovery sentinel deps is now enforced by
+		// core (§2.7, `NodeOptions.partial`). The previous inline
+		// sentinel-on-every-wave guard (which also re-gated on INVALIDATE) was
+		// removed 2026-04-23 to align with the unified gate semantics. Users
+		// who need consistent compute across INVALIDATE should handle
+		// `undefined` / `null` dep values in their fn body — `track()` returns
+		// `ctx.prevData[idx]` which is `undefined` for a just-invalidated dep.
 
 		try {
 			const result = fn(track, ctx);

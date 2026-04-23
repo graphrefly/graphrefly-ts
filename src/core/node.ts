@@ -249,6 +249,29 @@ export interface NodeOptions<T = unknown> {
 	 */
 	errorWhenDepsError?: boolean;
 	/**
+	 * First-run gate (§2.7). When `false` (default — matches the universal
+	 * contract "fn does not fire until every declared dep has delivered"), fn
+	 * is held until every declared dep has delivered at least one DATA or
+	 * terminal. Sugar constructors (`derived`, `effect`) inherit the default
+	 * so multi-parent activation produces one combined initial wave
+	 * `[[START], [DIRTY], [DATA, fn(init...)]]` instead of the sequential
+	 * `[[START], [DIRTY], [RESOLVED], [DIRTY], [DATA]]` shape produced by
+	 * per-dep push-on-subscribe firings.
+	 *
+	 * When `true`, fn fires as soon as `_dirtyDepCount === 0` regardless of
+	 * whether any dep is still sentinel. Operators like `withLatestFrom`,
+	 * `valve`, and worker-bridge aggregators that deliberately fire on
+	 * partial deps pass `partial: true` explicitly. Zero-dep producer-pattern
+	 * factories (`stratify`, `budgetGate`, etc.) are unaffected either way —
+	 * an empty `_deps` array has nothing for the gate to hold on.
+	 *
+	 * Gate scope: applies only until fn has fired once (`_hasCalledFnOnce`).
+	 * Subsequent waves, INVALIDATE, and `_addDep` do not re-gate. Terminal
+	 * reset (resubscribable node reconnect) resets `_hasCalledFnOnce` and
+	 * re-arms the gate.
+	 */
+	partial?: boolean;
+	/**
 	 * Tier-2 PAUSE/RESUME handling.
 	 * - `true` (default): wave completion suppressed while paused; fn fires
 	 *   once on RESUME if gate is satisfied.
@@ -328,8 +351,9 @@ export interface Node<T = unknown> {
  * - `true` — dep sent COMPLETE.
  * - anything else — dep sent ERROR with that payload.
  *
- * Edge case: an ERROR carrying an `undefined` payload is indistinguishable
- * from "live". Pass meaningful error values (Error objects, domain tags).
+ * `[ERROR, undefined]` is rejected at the dispatch boundary (`_emit`) per
+ * spec §1.2 — `undefined` would collide with the "live" encoding here.
+ * Always pass meaningful error values (Error objects, domain tags).
  */
 export interface DepRecord {
 	readonly node: Node;
@@ -586,6 +610,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _autoComplete: boolean;
 	readonly _autoError: boolean;
 	readonly _pausable: boolean | "resumeAll";
+	/**
+	 * @internal First-run-gate override. `false` (default) holds fn until every
+	 * dep has delivered DATA or a terminal — spec §2.7 first-run gate. `true`
+	 * disables the gate; fn fires as soon as `_dirtyDepCount === 0`, regardless
+	 * of dep sentinel state. Operators that need partial firing
+	 * (`withLatestFrom`, `valve`, worker-bridge aggregators) pass
+	 * `partial: true` explicitly at construction.
+	 */
+	readonly _partial: boolean;
 	readonly _guard: NodeGuard | undefined;
 	/**
 	 * @internal Additional guards stacked at runtime via {@link NodeImpl._pushGuard}
@@ -639,6 +672,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._pausable = opts.pausable ?? true;
 		this._guard = opts.guard;
 		this._fn = fn;
+		// Spec §2.7 first-run gate. Default `false` = gate ON — matches the
+		// universal "fn does not fire until every declared dep has delivered"
+		// contract. Operators that deliberately fire on partial deps
+		// (`withLatestFrom`, `valve`, worker-bridge aggregators) opt out with
+		// `partial: true`. Zero-dep producer-pattern factories (`stratify`,
+		// `budgetGate`, `distill`, `verifiable`) are unaffected — the gate has
+		// no deps to hold on an empty `_deps` array.
+		this._partial = opts.partial ?? false;
 
 		// `undefined` is the sentinel ("no cached value") so `initial: undefined`
 		// is treated as absent. `null` is a valid DATA value and sets the cache.
@@ -983,6 +1024,30 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			this._pauseLocks = null;
 			this._pauseBuffer = null;
 			for (const d of this._deps) resetDepRecord(d);
+			// Defensive invariant: the first-run gate (§2.7) assumes
+			// `_hasCalledFnOnce === false` above AND every DepRecord in
+			// sentinel shape below were reset together. A future refactor
+			// that reorders these two resets (or skips `resetDepRecord` for
+			// any dep) would let the gate see a dep as "settled" from the
+			// prior lifecycle and release on first partial settlement with
+			// stale data. This assert catches the coupling in tests before
+			// users hit it in production.
+			if (this._partial === false) {
+				for (const d of this._deps) {
+					if (
+						d.prevData !== undefined ||
+						d.dataBatch.length !== 0 ||
+						d.terminal !== undefined ||
+						d.dirty
+					) {
+						throw new Error(
+							`resubscribable-reset invariant: DepRecord not fully reset for node ${
+								this._optsName ?? "(anonymous)"
+							}`,
+						);
+					}
+				}
+			}
 		}
 
 		this._sinkCount += 1;
@@ -1514,6 +1579,26 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// O(1) gate: `_dirtyDepCount === 0` means every dep has delivered its
 		// settlement for this wave (DATA, RESOLVED, or terminal).
 		if (this._dirtyDepCount > 0) return;
+		// Spec §2.7 first-run gate. Applied only until fn has fired once
+		// (`_hasCalledFnOnce`), so `_addDep` post-activation, subsequent
+		// waves, and INVALIDATE do not re-gate. Terminal reset on a
+		// resubscribable node clears `_hasCalledFnOnce` and re-arms.
+		// Scan is O(N) on declared-dep count, fires at most once per
+		// activation cycle — cheaper than maintaining a dedicated counter
+		// in lockstep across `_depSettledAsData` / `_depSettledAsTerminal`
+		// / `_depInvalidated` / `_addDep` / reset paths. `_maybeAutoTerminalAfterWave`
+		// is still called so ERROR propagates even while fn is gated.
+		if (!this._partial && !this._hasCalledFnOnce) {
+			for (let i = 0; i < this._deps.length; i++) {
+				const d = this._deps[i];
+				const isSentinel =
+					d.dataBatch.length === 0 && d.prevData === undefined && d.terminal === undefined;
+				if (isSentinel) {
+					this._maybeAutoTerminalAfterWave();
+					return;
+				}
+			}
+		}
 		if (this._paused) {
 			this._pendingWave = true;
 			return;
@@ -1800,6 +1885,23 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 */
 	_emit(messages: Messages): void {
 		if (messages.length === 0) return;
+
+		// Spec §1.2 — `[ERROR, payload]` requires a non-`undefined` payload.
+		// `undefined` is reserved as the protocol-internal "never sent" sentinel
+		// and would collide with `DepRecord.terminal === undefined` ("dep is
+		// live"), making the ERROR indistinguishable from no termination at
+		// downstream sinks and breaking the `_maybeAutoTerminalAfterWave`
+		// ERROR-propagation check (`d.terminal !== undefined`). Reject at the
+		// dispatch boundary with a developer-facing error — pass real error
+		// values (`new Error(reason)` / domain-tag strings).
+		for (let i = 0; i < messages.length; i++) {
+			const m = messages[i];
+			if (m[0] === ERROR && m[1] === undefined) {
+				throw new TypeError(
+					`[ERROR, payload] requires a non-undefined payload (spec §1.2). Pass an Error object or domain tag instead — e.g. node.down([[ERROR, new Error("reason")]])`,
+				);
+			}
+		}
 
 		// Terminal filter: after COMPLETE/ERROR (non-resubscribable), only
 		// TEARDOWN / INVALIDATE still propagate so graph teardown and cache-

@@ -109,8 +109,10 @@ export function workerSelf<TImport extends readonly string[]>(
 				a.emit(updates);
 			},
 			// Fresh `updates` object per wave → default reference equality is
-			// correct; no `equals: () => false` override needed.
-			{ name: "workerSelf::aggregated" },
+			// correct; no `equals: () => false` override needed. `partial: true`
+			// opts out of the §2.7 first-run gate so the aggregator can fire on
+			// any-dep-settles waves (deps deliver asynchronously).
+			{ name: "workerSelf::aggregated", partial: true },
 		);
 
 		const effectNode = effect([aggregated], (data) => {
