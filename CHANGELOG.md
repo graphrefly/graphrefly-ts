@@ -1,3 +1,19 @@
+# [0.28.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.27.0...v0.28.0) (2026-04-23)
+
+
+### Features
+
+* browser/node split ([d91320b](https://github.com/graphrefly/graphrefly-ts/commit/d91320b41e4308248c1abf76e3e2c3be4ef61a53))
+* fix demo ([e09032a](https://github.com/graphrefly/graphrefly-ts/commit/e09032a778fe737a9e9fe5b907abb423a0f1c582))
+* fix lint ([1fca905](https://github.com/graphrefly/graphrefly-ts/commit/1fca9052122efda554b7130b12fa6553e444683c))
+* fix lint ([ab9b52c](https://github.com/graphrefly/graphrefly-ts/commit/ab9b52cf0d95c3d2ecc4e39f3e361eeb9365e92c))
+* inbox reducer example ([52b74fd](https://github.com/graphrefly/graphrefly-ts/commit/52b74fd2e6eb32569991ed6d61c51957730714da))
+* LLM adapters and budget ([b45c3d9](https://github.com/graphrefly/graphrefly-ts/commit/b45c3d90e06324d3919b8bdc6fc6ab98ba286b28))
+* optimization 2 ([88d69ca](https://github.com/graphrefly/graphrefly-ts/commit/88d69ca25637e8b2d121acc406f41b88b655fc14))
+* optimization 3 + demo ([a4251f3](https://github.com/graphrefly/graphrefly-ts/commit/a4251f37576c5eec50dfe3ef61f20a479cb0a445))
+* optimization 4 ([02c13a7](https://github.com/graphrefly/graphrefly-ts/commit/02c13a72ddeb6e1c70c6920d51a255161b69b6d0))
+* optimization round 1 ([2ad1110](https://github.com/graphrefly/graphrefly-ts/commit/2ad1110429d63d8a8c0652be884230a5a3fc39cc))
+
 # [0.27.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.26.0...v0.27.0) (2026-04-21)
 
 
