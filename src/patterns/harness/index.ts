@@ -9,8 +9,10 @@
  */
 
 export * from "./bridge.js";
+export * from "./eval-verifier.js";
 export * from "./loop.js";
 export * from "./profile.js";
+export * from "./refine-executor.js";
 export * from "./strategy.js";
 export * from "./trace.js";
 export * from "./types.js";

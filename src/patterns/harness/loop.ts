@@ -22,16 +22,18 @@ import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "
 import {
 	DEFAULT_QUEUE_CONFIGS,
 	defaultErrorClassifier,
-	type ErrorClass,
 	type ErrorClassifier,
 	type ExecuteOutput,
 	type ExecutionResult,
+	type HarnessExecutor,
 	type HarnessLoopOptions,
+	type HarnessVerifier,
 	type IntakeItem,
 	QUEUE_NAMES,
 	type QueueConfig,
 	type QueueRoute,
 	type TriagedItem,
+	type VerifyOutput,
 	type VerifyResult,
 } from "./types.js";
 
@@ -85,6 +87,67 @@ Output JSON:
   "findings": ["<finding1>", ...],
   "errorClass": "self-correctable" | "structural"  // only if verified=false
 }`;
+
+// ---------------------------------------------------------------------------
+// Default LLM executor / verifier factories
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the default EXECUTE slot — a `promptNode` driven by the given
+ * adapter and prompt template. This is the factory behind the harness's
+ * zero-config execute stage.
+ *
+ * Obeys all four rules of the {@link HarnessExecutor} contract: `promptNode`
+ * internally uses `switchMap` + `fromAny` for cancellation (rule 2), emits
+ * once per resolved LLM invocation (rules 1 + 4), and reads the triaged
+ * item exclusively through its `deps` argument (rule 3).
+ *
+ * @param adapter - LLMAdapter for the execute call.
+ * @param prompt  - Prompt template (string or `(item) => string`). Defaults
+ *                   to the harness's built-in execute prompt.
+ */
+export function defaultLlmExecutor(
+	adapter: LLMAdapter,
+	prompt?: HarnessLoopOptions["executePrompt"],
+): HarnessExecutor {
+	const promptFn =
+		prompt ?? ((item: unknown) => DEFAULT_EXECUTE_PROMPT.replace("{{item}}", JSON.stringify(item)));
+	return (input: Node<TriagedItem | null>): Node<ExecuteOutput | null> =>
+		promptNode<ExecuteOutput>(adapter, [input as Node<unknown>], promptFn, {
+			name: "execute",
+			format: "json",
+			retries: 1,
+		});
+}
+
+/**
+ * Build the default VERIFY slot — a `promptNode` that reviews the
+ * `[executeOutput, item]` pair from the execute-context.
+ *
+ * @param adapter - LLMAdapter for the verify call.
+ * @param prompt  - Prompt template. Defaults to the harness's built-in
+ *                   verify prompt (receives the full pair, extracts both).
+ */
+export function defaultLlmVerifier(
+	adapter: LLMAdapter,
+	prompt?: HarnessLoopOptions["verifyPrompt"],
+): HarnessVerifier {
+	const promptFn =
+		prompt ??
+		((ctxPair: unknown) => {
+			const [execution, item] = ctxPair as [ExecuteOutput | null, unknown];
+			return DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
+				"{{item}}",
+				JSON.stringify(item),
+			);
+		});
+	return (context: Node<[ExecuteOutput | null, TriagedItem | null]>): Node<VerifyOutput | null> =>
+		promptNode<VerifyOutput>(adapter, [context as Node<unknown>], promptFn, {
+			name: "verify",
+			format: "json",
+			retries: 1,
+		});
+}
 
 // ---------------------------------------------------------------------------
 // HarnessGraph
@@ -226,7 +289,12 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		];
 		if (!classification || !classification.route) return;
 		const intakeItem = triagePair?.[0];
-		const merged: TriagedItem = { ...intakeItem, ...classification };
+		// Intake fields win over classification: the LLM only owns the five
+		// triage-classification fields (rootCause, intervention, route,
+		// priority, triageReasoning); any intake state it accidentally
+		// returns (e.g. stray `_reingestions`, `affectsAreas`) is overwritten
+		// by the real intake value via the trailing spread.
+		const merged: TriagedItem = { ...classification, ...intakeItem };
 		const topic = queueTopics.get(merged.route);
 		if (topic) topic.publish(merged);
 	});
@@ -270,17 +338,9 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 
 	const executeInput = merge<TriagedItem | null>(...queueOutputs);
 
-	const executeNode = promptNode<ExecuteOutput>(
-		adapter,
-		[executeInput as Node<unknown>],
-		opts.executePrompt ??
-			((item: unknown) => DEFAULT_EXECUTE_PROMPT.replace("{{item}}", JSON.stringify(item))),
-		{
-			name: "execute",
-			format: "json",
-			retries: 1,
-		},
-	);
+	const executor: HarnessExecutor =
+		opts.executor ?? defaultLlmExecutor(adapter, opts.executePrompt);
+	const executeNode = executor(executeInput as Node<TriagedItem | null>);
 
 	// --- Execute context: [execOutput, item] captured once per execute-wave ---
 	//
@@ -294,6 +354,14 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	// executeInput notifies executeNode first (depth-first), executeNode runs fn and
 	// settles in executeContextNode.dep[0], then executeInput settles in dep[1].
 	// dirtyDepCount reaches 0 only after both settle → fn runs once with correct data.
+	//
+	// **This wiring relies on the {@link HarnessExecutor} contract rule 4** —
+	// a custom `executor` must emit DATA on result completion, not on input
+	// arrival. An executor that synchronously mirrors its input into DATA
+	// would fire this node on every input wave with a stale/placeholder value
+	// and then fire again on the real result. `refineExecutor` and the
+	// default LLM executor both satisfy this. See `HarnessExecutor` JSDoc
+	// in `types.ts` for the full contract.
 	const executeContextNode = withLatestFrom(
 		executeNode as Node<unknown>,
 		executeInput as Node<unknown>,
@@ -302,28 +370,11 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 	// --- Stage 6: VERIFY ---
 	const verifyResults = new TopicGraph<VerifyResult>("verify-results", { retainedLimit });
 
-	// The LLM returns only {verified, findings, errorClass?}. We type the promptNode
-	// output as the partial shape and assemble the full VerifyResult downstream.
-	type VerifyOutput = { verified: boolean; findings: string[]; errorClass?: ErrorClass };
-
 	// verifyNode depends on executeContextNode ([execOutput, item]) — single dep.
-	// This ensures verifyNode fires once per execute-wave with the correct item.
-	const verifyNode = promptNode<VerifyOutput>(
-		adapter,
-		[executeContextNode as Node<unknown>],
-		opts.verifyPrompt ??
-			((ctxPair: unknown) => {
-				const [execution, item] = ctxPair as [ExecuteOutput | null, unknown];
-				return DEFAULT_VERIFY_PROMPT.replace("{{execution}}", JSON.stringify(execution)).replace(
-					"{{item}}",
-					JSON.stringify(item),
-				);
-			}),
-		{
-			name: "verify",
-			format: "json",
-			retries: 1,
-		},
+	// The pluggable verifier slot receives this context and returns VerifyOutput.
+	const verifier: HarnessVerifier = opts.verifier ?? defaultLlmVerifier(adapter, opts.verifyPrompt);
+	const verifyNode = verifier(
+		executeContextNode as Node<[ExecuteOutput | null, TriagedItem | null]>,
 	);
 
 	// --- Fast-retry path ---
@@ -366,6 +417,7 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 			item,
 			outcome: execRaw?.outcome ?? "failure",
 			detail: execRaw?.detail ?? "unknown",
+			artifact: execRaw?.artifact,
 		};
 		const vr: VerifyResult = {
 			item,

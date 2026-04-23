@@ -12,5 +12,6 @@ packages:
   - examples/knowledge-graph
   - examples/spending-alerts
   - examples/inbox-reducer
+  - examples/harness-refine-hello
   - examples/nestjs/*
   - packages/*
