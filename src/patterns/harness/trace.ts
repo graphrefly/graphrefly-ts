@@ -1,23 +1,19 @@
 /**
- * Harness pipeline trace (roadmap §9.0 — Inspection Tool Consolidation).
+ * Harness pipeline trace — thin sugar over `graph.observe({ format: "stage-log" })`.
  *
- * Attaches reactive observers (via `observe()`) to all harness stages.
- * One call gives full pipeline visibility with stage labels and elapsed
- * timestamps relative to the `harnessTrace()` invocation time.
+ * Since 2026-04-22 (D2), stage-labeled tracing is a first-class observe format
+ * on {@link Graph}. `harnessTrace` wires that format over the 7 pipeline stages
+ * (INTAKE → TRIAGE → QUEUE → GATE → EXECUTE → VERIFY → STRATEGY) with sensible
+ * defaults so harness consumers don't need to restate the stage map.
  *
- * Supports two output modes:
- * - **String logger** (default): rendered lines to `console.log` or a custom sink.
- * - **Structured events**: programmatic `TraceEvent[]` list for test assertions
- *   and tooling. Access via `handle.events`.
- *
- * Supports configurable detail levels (`"summary"`, `"standard"`, `"full"`)
- * to control output verbosity without composing different tool calls.
+ * For non-harness graphs, call `graph.observe({ format: "stage-log", stageLabels })`
+ * directly — the format is domain-agnostic.
  *
  * @module
  */
 
 import { monotonicNs } from "../../core/clock.js";
-import type { ObserveResult } from "../../graph/graph.js";
+import type { ObserveEvent, ObserveResult } from "../../graph/graph.js";
 import type { HarnessGraph } from "./loop.js";
 import { QUEUE_NAMES } from "./types.js";
 
@@ -65,8 +61,8 @@ export interface HarnessTraceHandle {
 
 /** Options for {@link harnessTrace}. */
 export interface HarnessTraceOptions {
-	/** Sink for rendered trace lines. Default: `console.log`. */
-	logger?: (line: string) => void;
+	/** Sink for rendered trace lines. Default: `console.log`. Pass `null` for structured-only. */
+	logger?: ((line: string) => void) | null;
 	/** Detail level for both string and structured output. Default: `"summary"`. */
 	detail?: TraceDetail;
 }
@@ -76,16 +72,21 @@ export interface HarnessTraceOptions {
 // ---------------------------------------------------------------------------
 
 /** Observe paths → stage labels for the 7 harness stages. */
-const STAGE_LABELS: Record<string, string> = {
-	"intake::latest": "INTAKE",
-	triage: "TRIAGE",
-	execute: "EXECUTE",
-	"verify-results::latest": "VERIFY",
-	strategy: "STRATEGY",
-};
-
-for (const route of QUEUE_NAMES) {
-	STAGE_LABELS[`queue/${route}::latest`] = "QUEUE";
+function buildStageLabels(harness: HarnessGraph): Record<string, string> {
+	const labels: Record<string, string> = {
+		"intake::latest": "INTAKE",
+		triage: "TRIAGE",
+		execute: "EXECUTE",
+		"verify-results::latest": "VERIFY",
+		strategy: "STRATEGY",
+	};
+	for (const route of QUEUE_NAMES) {
+		labels[`queue/${route}::latest`] = "QUEUE";
+	}
+	for (const [gatedRoute] of harness.gates) {
+		labels[`gates::${gatedRoute}/gate`] = "GATE";
+	}
+	return labels;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,16 +94,10 @@ for (const route of QUEUE_NAMES) {
 // ---------------------------------------------------------------------------
 
 /**
- * Attach reactive trace observers to all harness pipeline stages.
- *
- * Wires `graph.observe(path, { format: "json" })` to each stage node,
- * intercepting the logger callback to emit stage-labeled lines with
- * elapsed timestamps. Surfaces DATA, ERROR, and COMPLETE events.
- *
- * **Structured events:** Every trace event is also pushed to
- * `handle.events` — a plain array (not a reactive node) that tests and
- * tooling can inspect programmatically. To use structured events alone
- * without string output, pass `{ logger: null }`.
+ * Attach a stage-log trace over the harness pipeline. Delegates to
+ * `harness.observe({ format: "stage-log", ... })` for each stage path —
+ * every event is captured in `handle.events` (structured) AND rendered via
+ * the `logger` (string output).
  *
  * **Detail levels:**
  * - `"summary"` — stage + elapsed only. Minimal overhead.
@@ -111,87 +106,62 @@ for (const route of QUEUE_NAMES) {
  *
  * Elapsed timestamps are relative to the `harnessTrace()` invocation time,
  * not the first event.
- *
- * @param harness - The HarnessGraph to trace.
- * @param opts - Optional configuration.
- * @returns Handle with `dispose()` to stop tracing and `events` for structured access.
  */
 export function harnessTrace(
 	harness: HarnessGraph,
 	opts?: HarnessTraceOptions,
 ): HarnessTraceHandle {
-	const logger = opts?.logger ?? console.log;
+	const logger: ((line: string) => void) | null =
+		opts?.logger === null ? null : (opts?.logger ?? console.log);
 	const detail: TraceDetail = opts?.detail ?? "summary";
 	const startNs = monotonicNs();
 	const observations: ObserveResult[] = [];
 	const events: TraceEvent[] = [];
+	const stageLabels = buildStageLabels(harness);
 
 	function elapsedSecs(): number {
 		return (monotonicNs() - startNs) / 1e9;
 	}
 
-	function elapsedStr(): string {
-		return elapsedSecs().toFixed(3);
-	}
-
 	function recordEvent(stage: string, type: TraceEventType, rawData: unknown): void {
-		const e = elapsedSecs();
-		const ev: TraceEvent = { elapsed: e, stage, type };
-
-		if (detail !== "summary") {
-			ev.summary = summarize(rawData);
-		}
-		if (detail === "full") {
-			ev.data = rawData;
-		}
-
+		const ev: TraceEvent = { elapsed: elapsedSecs(), stage, type };
+		if (detail !== "summary") ev.summary = summarize(rawData);
+		if (detail === "full") ev.data = rawData;
 		events.push(ev);
 	}
 
-	function wireStage(path: string, stage: string): void {
+	// One observe call per path — keeps per-stage elapsed offsets anchored to
+	// this invocation (the shared stage-log format uses its own elapsed clock
+	// per observation, which matches the legacy behavior). We also intercept
+	// each event through `onEvent` so structured `events[]` stays populated
+	// regardless of `logger`.
+	for (const [path, stage] of Object.entries(stageLabels)) {
 		try {
 			const obs = harness.observe(path, {
-				format: "json",
-				logger: (_line, event) => {
-					if (event.type === "data") {
-						recordEvent(stage, "data", event.data);
-						if (logger) {
-							if (detail === "summary") {
-								logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ←`);
-							} else {
-								const dataStr = event.data !== undefined ? ` ${summarize(event.data)}` : "";
-								logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ←${dataStr}`);
-							}
-						}
-					} else if (event.type === "error") {
-						recordEvent(stage, "error", event.data);
-						if (logger) {
-							const errStr = event.data !== undefined ? ` ${summarize(event.data)}` : "";
-							logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ✗${errStr}`);
-						}
-					} else if (event.type === "complete") {
-						recordEvent(stage, "complete", undefined);
-						if (logger) {
-							logger(`[${elapsedStr()}s] ${stage.padEnd(9)} ■ complete`);
-						}
-					}
-				},
+				format: "stage-log",
+				stageLabels,
+				logger: logger ? (line: string) => logger(line) : () => {},
 				includeTypes: ["data", "error", "complete"],
 			});
+			obs.onEvent((event: ObserveEvent) => {
+				if (event.type === "data") recordEvent(stage, "data", (event as { data: unknown }).data);
+				else if (event.type === "error")
+					recordEvent(stage, "error", (event as { data: unknown }).data);
+				else if (event.type === "complete") recordEvent(stage, "complete", undefined);
+			});
 			observations.push(obs);
-		} catch {
-			// Node may not exist (e.g., queue route not mounted) — skip silently
+		} catch (err) {
+			// Node may not exist yet (e.g., a gated-queue route that hasn't been
+			// mounted on this harness). Record a synthetic error trace event so
+			// consumers see WHICH stage dropped out and why — silent swallow
+			// breaks dry-run equivalence (a regression in stage wiring would
+			// not surface in the trace).
+			const msg = err instanceof Error ? err.message : String(err);
+			recordEvent(stage, "error", `observe-unavailable: ${path} — ${msg}`);
+			if (logger) {
+				logger(`[${elapsedSecs().toFixed(3)}s] ${stage.padEnd(9)} ✗ observe-unavailable: ${msg}`);
+			}
 		}
-	}
-
-	// Wire stage nodes (COMPOSITION-GUIDE §5: sinks before sources)
-	for (const [path, stage] of Object.entries(STAGE_LABELS)) {
-		wireStage(path, stage);
-	}
-
-	// Wire gate outputs per gated queue
-	for (const [gatedRoute] of harness.gates) {
-		wireStage(`gates::${gatedRoute}/gate`, "GATE");
 	}
 
 	return {
@@ -206,7 +176,9 @@ export function harnessTrace(
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — kept here because `observe({ format: "stage-log" })` emits short
+// one-line previews; the structured `events[]` is free to carry richer
+// summaries with different truncation bounds (120 for JSON, 80 for strings).
 // ---------------------------------------------------------------------------
 
 function summarize(value: unknown): string {

@@ -57,6 +57,36 @@
 				"default": "./dist/extra/sources.cjs"
 			}
 		},
+		"./extra/storage-core": {
+			"import": {
+				"types": "./dist/extra/storage-core.d.ts",
+				"default": "./dist/extra/storage-core.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-core.d.cts",
+				"default": "./dist/extra/storage-core.cjs"
+			}
+		},
+		"./extra/storage-node": {
+			"import": {
+				"types": "./dist/extra/storage-node.d.ts",
+				"default": "./dist/extra/storage-node.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-node.d.cts",
+				"default": "./dist/extra/storage-node.cjs"
+			}
+		},
+		"./extra/storage-browser": {
+			"import": {
+				"types": "./dist/extra/storage-browser.d.ts",
+				"default": "./dist/extra/storage-browser.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-browser.d.cts",
+				"default": "./dist/extra/storage-browser.cjs"
+			}
+		},
 		"./graph": {
 			"import": {
 				"types": "./dist/graph/index.d.ts",
@@ -197,6 +227,16 @@
 				"default": "./dist/patterns/ai.cjs"
 			}
 		},
+		"./patterns/ai/node-middleware": {
+			"import": {
+				"types": "./dist/patterns/ai/adapters/providers/fallback-node.d.ts",
+				"default": "./dist/patterns/ai/adapters/providers/fallback-node.js"
+			},
+			"require": {
+				"types": "./dist/patterns/ai/adapters/providers/fallback-node.d.cts",
+				"default": "./dist/patterns/ai/adapters/providers/fallback-node.cjs"
+			}
+		},
 		"./patterns/ai/browser-presets": {
 			"browser": {
 				"import": {
@@ -237,7 +277,7 @@
 	},
 	"scripts": {
 		"docs:dev": "pnpm --dir website dev",
-		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/",
+		"docs:build": "pnpm build && pnpm --dir website build && pnpm --dir demos/compat-matrix build && pnpm --dir demos/reactive-layout build && pnpm --dir demos/knowledge-graph build && pnpm --dir demos/pagerduty-triage build && cp -r demos/compat-matrix/dist/. website/dist/demos/compat-matrix/ && cp -r demos/reactive-layout/dist/. website/dist/demos/reactive-layout/ && cp -r demos/knowledge-graph/dist/. website/dist/demos/knowledge-graph/ && cp -r demos/pagerduty-triage/dist/. website/dist/demos/pagerduty-triage/",
 		"docs:preview": "pnpm --dir website preview",
 		"build": "tsup",
 		"test": "vitest run",

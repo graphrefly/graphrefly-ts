@@ -1,11 +1,13 @@
 ---
 title: "producer()"
-description: "Creates a producer node with no deps; `fn` runs once when the first\nsubscriber connects. Return a cleanup function (`() => void`) or\n`{ deactivation: () => void"
+description: "Creates a producer node with no deps; `fn` runs once when the first\nsubscriber connects. Return a cleanup function (`() => void` — fires on\nevery transition) or"
 ---
 
 Creates a producer node with no deps; `fn` runs once when the first
-subscriber connects. Return a cleanup function (`() =&gt; void`) or
-`{ deactivation: () =&gt; void }` to register teardown.
+subscriber connects. Return a cleanup function (`() =&gt; void` — fires on
+every transition) or an object with granular hooks
+(`{ beforeRun?, deactivate?, invalidate? }` — each hook fires on its named
+transition only) to register teardown. See NodeFnCleanup.
 
 ## Signature
 

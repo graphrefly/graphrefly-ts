@@ -46,6 +46,7 @@ export {
 	type GraphPersistSnapshot,
 	type GraphVersionChange,
 	type GraphWALDiff,
+	mermaidLiveUrl,
 	type ObserveDetail,
 	type ObserveEvent,
 	type ObserveOptions,
@@ -66,3 +67,10 @@ export {
 	type NodeProfile,
 } from "./profile.js";
 export { watchTopologyTree } from "./topology-tree.js";
+export {
+	type ObservabilityCheck,
+	type ObservabilityDescribeFormat,
+	type ValidateObservabilityOptions,
+	type ValidateObservabilityResult,
+	validateGraphObservability,
+} from "./validate-observability.js";

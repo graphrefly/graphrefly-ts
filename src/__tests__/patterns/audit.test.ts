@@ -365,6 +365,38 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 		direct.dispose();
 	});
 
+	it("D5: debounces recompute across a batch — N events in one batch → one recompute", async () => {
+		const { batch } = await import("../../core/batch.js");
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const c = derived([b], ([v]) => (v as number) + 1, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+
+		const live = g.explain("a", "c", { reactive: true });
+		let fnRuns = 0;
+		const unsub = live.node.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === Symbol.for("graphrefly.DATA")) fnRuns++;
+		});
+		const initialRuns = fnRuns;
+		// Batched mutation touches a, b, c inside one outermost drain — without
+		// debouncing, each settled event bumps version and the explain derived
+		// recomputes N times. With the D5 flush-hook coalescer, one bump, one
+		// recompute (equals-dedup may even absorb it).
+		batch(() => {
+			g.set("a", 2);
+			g.set("a", 3);
+			g.set("a", 4);
+		});
+		// At most ONE new DATA delivery from the derived (equals may absorb).
+		expect(fnRuns - initialRuns).toBeLessThanOrEqual(1);
+		unsub();
+		live.dispose();
+	});
+
 	it("recomputes when audited graph mutates", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });

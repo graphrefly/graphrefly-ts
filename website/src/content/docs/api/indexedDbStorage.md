@@ -7,7 +7,7 @@ IndexedDB-backed async storage tier (browser runtime).
 
 All three methods return `Promise`s — pairs naturally with a warm/cold
 cadence where async writes are debounced per tier via
-Graph.attachStorage. Writes use `readwrite` transactions; reads use
+`Graph.attachStorage`. Writes use `readwrite` transactions; reads use
 `readonly`. Missing records resolve to `null`.
 
 ## Signature

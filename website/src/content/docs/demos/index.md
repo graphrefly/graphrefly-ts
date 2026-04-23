@@ -32,6 +32,12 @@ Live KG extraction from a long paper using Chrome's built-in Gemini Nano — run
 
 [Run the knowledge-graph demo →](/demos/knowledge-graph/)
 
+## PagerDuty triage
+
+Two-mode alert triage — Baseline (manual every time) vs GraphReFly (`agentMemory` learns your decisions and auto-classifies). A 3-minute stream of synthetic PagerDuty alerts flows through a `promptNode` classifier; in GraphReFly mode each user decision trains a pattern that is matched programmatically on future alerts (zero token cost). Runs with Chrome Nano, BYOK, or a deterministic dry-run adapter. The token counter is honest — local cache hits are separated from real LLM calls.
+
+[Run the PagerDuty triage demo →](/demos/pagerduty-triage/)
+
 ## Source
 
-Demo source lives at `demos/compat-matrix/`, `demos/reactive-layout/`, and `demos/knowledge-graph/` in the repo.
+Demo source lives at `demos/compat-matrix/`, `demos/reactive-layout/`, `demos/knowledge-graph/`, and `demos/pagerduty-triage/` in the repo.

@@ -27,6 +27,7 @@ import {
 	type Messages,
 	TimeoutError,
 	type TokenUsage,
+	validateGraphObservability,
 } from "@graphrefly/graphrefly";
 import { computePrice, observableAdapter } from "@graphrefly/graphrefly/patterns/ai";
 
@@ -57,23 +58,9 @@ async function confirm(question: string): Promise<boolean> {
 	});
 }
 
-// ---------------------------------------------------------------------------
-// Mermaid.live URL encoder (Path 1B — clickable live flowchart)
-// ---------------------------------------------------------------------------
-
-/** Encode a mermaid source string to a mermaid.live `/edit` deep link. */
-function mermaidLiveUrl(mermaidSrc: string): string {
-	// mermaid.live's share format: base64(JSON({code, mermaid: {theme:"default"}, ...}))
-	// with `base64-url` padding. The /edit/#pako: path is gzip-based; the
-	// simpler /edit#base64: path accepts a raw base64-encoded JSON payload.
-	const payload = { code: mermaidSrc, mermaid: { theme: "default" }, autoSync: true };
-	const b64 = Buffer.from(JSON.stringify(payload), "utf8")
-		.toString("base64")
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
-	return `https://mermaid.live/edit#base64:${b64}`;
-}
+// (Mermaid.live URL encoder moved to library — `graph.describe({ format:
+// "mermaid-url" })` generates the deep link; `mermaidLiveUrl(src)` from
+// `@graphrefly/graphrefly/graph` is the re-usable helper.)
 
 // ---------------------------------------------------------------------------
 // Stage-log formatter for subscribers
@@ -117,34 +104,30 @@ async function dryRun(): Promise<void> {
 			timeoutMs: BRIEF_TIMEOUT_MS,
 		});
 
-		// Every observability call the real run will make — run them here too,
-		// so regressions in `describe` / `explain` surface BEFORE any spend
-		// (per CLAUDE.md "Dry-run equivalence rule").
-		const chain = graph.explain("emails", "brief");
-		if (!chain.found) {
-			console.error(
-				`\n!! graph.explain('emails', 'brief') = no path (reason=${chain.reason}). Aborting.`,
-			);
+		// Smoke-exercise every observability surface the real run touches —
+		// if describe / explain / mermaid renderers regress, we fail loud HERE
+		// instead of after any wire spend (CLAUDE.md "Dry-run equivalence rule").
+		const smoke = validateGraphObservability(graph, {
+			pairs: [["emails", "brief"]],
+			formats: ["mermaid", "pretty"],
+		});
+		if (!smoke.ok) {
+			console.error(`\n!! ${smoke.summary()}. Aborting before any spend.`);
+			for (const f of smoke.failures) console.error(JSON.stringify(f));
 			process.exit(3);
 		}
+		const chain = graph.explain("emails", "brief");
 		console.log(
 			`Causal chain: ${chain.steps.length} hops (${chain.steps.map((s) => s.path).join(" → ")})`,
 		);
-
-		// Exercise the full `.text` render too, not just `.steps` — the real
-		// run prints `chain.text`, so the dry-run must as well (CLAUDE.md
-		// Dry-run equivalence rule). Keep the visible output short.
-		const textLen = chain.text.length;
-		if (textLen < 10) {
-			console.error(`\n!! graph.explain().text render is degenerate (${textLen} chars). Aborting.`);
+		// Exercise the `.text` render too — the real run prints it.
+		if (chain.text.length < 10) {
+			console.error(`\n!! graph.explain().text render is degenerate. Aborting.`);
 			process.exit(3);
 		}
-
-		// Path 1B — print mermaid source + clickable mermaid.live link so
-		// users can see the pipeline as a real diagram.
-		const mermaid = graph.describe({ format: "mermaid" });
+		// Path 1B — clickable live flowchart via `describe({ format: "mermaid-url" })`.
 		console.log("\nFlowchart (open in any mermaid viewer):");
-		console.log(`  ${mermaidLiveUrl(mermaid)}`);
+		console.log(`  ${graph.describe({ format: "mermaid-url" })}`);
 	} finally {
 		graph.destroy();
 	}

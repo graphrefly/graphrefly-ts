@@ -32,10 +32,12 @@ import {
 	streamingPromptNode,
 	suggestStrategy,
 	systemPromptBuilder,
+	type ToolCall,
 	type ToolDefinition,
 	ToolRegistryGraph,
 	toolCallExtractor,
 	toolRegistry,
+	toolSelector,
 	validateGraphDef,
 } from "../../patterns/ai.js";
 
@@ -197,6 +199,84 @@ describe("patterns.ai.toolRegistry", () => {
 			handler: async () => 7,
 		});
 		expect(await tr.execute("prom", {})).toBe(7);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// toolSelector (D8)
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.toolSelector (D8)", () => {
+	const search: ToolDefinition = {
+		name: "search",
+		description: "search the web",
+		parameters: {},
+		handler: () => "ok",
+		meta: { expensive: false, destructive: false },
+	};
+	const write: ToolDefinition = {
+		name: "write",
+		description: "write a file",
+		parameters: {},
+		handler: () => "ok",
+		meta: { expensive: false, destructive: true },
+	};
+	const llm: ToolDefinition = {
+		name: "llm",
+		description: "nested LLM call",
+		parameters: {},
+		handler: () => "ok",
+		meta: { expensive: true, destructive: false },
+	};
+
+	it("filters tools reactively when predicates flip", () => {
+		const all = state<readonly ToolDefinition[]>([search, write, llm], { name: "all" });
+		const hasBudget = state(true, { name: "budget" });
+		const destructiveAllowed = state(true, { name: "dstr" });
+		const sel = toolSelector(all, [
+			derived(
+				[hasBudget],
+				([b]) =>
+					(t: ToolDefinition) =>
+						!(t.meta?.expensive === true) || b === true,
+			),
+			derived(
+				[destructiveAllowed],
+				([d]) =>
+					(t: ToolDefinition) =>
+						!(t.meta?.destructive === true) || d === true,
+			),
+		]);
+		const unsub = sel.subscribe(() => {});
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"llm",
+			"search",
+			"write",
+		]);
+		// Deplete budget → drops expensive tools.
+		hasBudget.emit(false);
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"search",
+			"write",
+		]);
+		// Disallow destructive → drops write too.
+		destructiveAllowed.emit(false);
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name)).toEqual(["search"]);
+		unsub();
+	});
+
+	it("reactive allTools (e.g. registry.schemas) drives re-evaluation", () => {
+		const tr = toolRegistry("tools");
+		tr.register(search);
+		const sel = toolSelector(tr.schemas, []);
+		const unsub = sel.subscribe(() => {});
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name)).toEqual(["search"]);
+		tr.register(write);
+		expect((sel.cache as readonly ToolDefinition[]).map((t) => t.name).sort()).toEqual([
+			"search",
+			"write",
+		]);
+		unsub();
 	});
 });
 
@@ -1114,6 +1194,52 @@ describe("patterns.ai.agentLoop", () => {
 		await new Promise((resolve) => setImmediate(resolve));
 		loop.abort();
 		await expect(running).rejects.toMatchObject({ name: "AbortError" });
+	});
+
+	it("D9: interceptToolCalls splices a reactive gate between toolCalls and executor", async () => {
+		// Two LLM responses: first requests two tools (allow + forbid); intercept
+		// drops the "forbid" tool; final response wraps up.
+		const toolCallResp: LLMResponse = {
+			content: "",
+			toolCalls: [
+				{ id: "tc1", name: "allow", arguments: {} },
+				{ id: "tc2", name: "forbid", arguments: {} },
+			],
+		};
+		const finalResp: LLMResponse = { content: "done", finishReason: "end_turn" };
+		const adapter = mockAdapter([toolCallResp, finalResp]);
+
+		const allowTool: ToolDefinition = {
+			name: "allow",
+			description: "",
+			parameters: {},
+			handler: () => "ok",
+		};
+		const forbidTool: ToolDefinition = {
+			name: "forbid",
+			description: "",
+			parameters: {},
+			handler: () => {
+				throw new Error("should not execute");
+			},
+		};
+
+		const loop = agentLoop("test-agent", {
+			adapter,
+			tools: [allowTool, forbidTool],
+			interceptToolCalls: (calls) =>
+				derived([calls], ([raw]) =>
+					(raw as readonly ToolCall[]).filter((c) => c.name !== "forbid"),
+				),
+		});
+
+		await loop.run("go");
+		// Tool executor saw only the "allow" call → no throw.
+		const msgs = loop.chat.allMessages();
+		const toolMsgs = msgs.filter((m) => m.role === "tool");
+		expect(toolMsgs).toHaveLength(1);
+		// Public `toolCalls` surfaces the POST-intercept stream (auditable).
+		expect((loop.toolCalls.cache as readonly ToolCall[]).map((c) => c.name)).toEqual(["allow"]);
 	});
 
 	it("QA m8: string tool-result is not double-JSON-stringified", async () => {

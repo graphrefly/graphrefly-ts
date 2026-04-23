@@ -170,6 +170,17 @@ export type ReactiveFlowLayoutOptions = {
 	obstacles?: Obstacle[];
 	/** Minimum slot width (px) below which a slot is discarded rather than squeezed. Default `20`. */
 	minSlotWidth?: number;
+	/**
+	 * Vertical gap (px) inserted after a hard-break segment (the spacing
+	 * between paragraphs). When unset (or explicitly set to `null`), tracks
+	 * the current `lineHeight` reactively — one line-height of visible
+	 * paragraph gap, matching dense editorial layouts. Set to `0` for
+	 * paragraph-preserving layout that reclaims the break line; set larger
+	 * (e.g. `2 * lineHeight`) for looser manuscript settings. Reactive —
+	 * update via `setParagraphSpacing(n)` or restore to track-lineHeight
+	 * mode via `setParagraphSpacing(null)`.
+	 */
+	paragraphSpacing?: number | null;
 };
 
 /** Result bundle from `reactiveFlowLayout`. */
@@ -181,6 +192,7 @@ export type ReactiveFlowLayoutBundle = {
 	setContainer: (c: FlowContainer) => void;
 	setColumns: (c: FlowColumns) => void;
 	setObstacles: (o: Obstacle[]) => void;
+	setParagraphSpacing: (ps: number | null) => void;
 	segments: Node<PreparedSegment[]>;
 	flowLines: Node<PositionedLine[]>;
 };
@@ -199,6 +211,18 @@ export type FlowLinesResult = {
 	cursor: LayoutCursor;
 };
 
+/** Optional tuning knobs for {@link computeFlowLines}. */
+export type ComputeFlowLinesOptions = {
+	/**
+	 * Vertical gap (px) inserted after a hard-break segment (the spacing
+	 * between paragraphs). Defaults to `lineHeight` — one line-height of
+	 * visible paragraph gap, which matches dense editorial layouts. Set to
+	 * `0` for paragraph-preserving layout that reclaims the break line;
+	 * set larger (e.g. `2 * lineHeight`) for looser manuscript settings.
+	 */
+	paragraphSpacing?: number;
+};
+
 /**
  * Lay out `segments` across N columns, wrapping each line around `obstacles`.
  * Pure function — no reactive wiring. Exported for testing and for consumers
@@ -214,7 +238,9 @@ export function computeFlowLines(
 	obstacles: Obstacle[],
 	lineHeight: number,
 	minSlotWidth: number,
+	opts?: ComputeFlowLinesOptions,
 ): FlowLinesResult {
+	const paragraphSpacing = opts?.paragraphSpacing ?? lineHeight;
 	const lines: PositionedLine[] = [];
 	let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
 	if (segments.length === 0 || columns.count <= 0 || lineHeight <= 0) {
@@ -276,8 +302,14 @@ export function computeFlowLines(
 				cursor = line.end;
 			}
 
+			if (hardBreakThisBand) {
+				// Paragraph gap: `paragraphSpacing` (default lineHeight) of
+				// vertical space after the break. `0` reclaims the break line;
+				// larger values space paragraphs further apart.
+				bandTop += paragraphSpacing;
+				continue;
+			}
 			bandTop += lineHeight;
-			if (hardBreakThisBand) continue;
 			if (cursor.segmentIndex >= segments.length) break outerCol;
 		}
 
@@ -335,6 +367,15 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		name: "columns",
 	});
 	const obstaclesNode = state<Obstacle[]>(opts.obstacles ?? [], { name: "obstacles" });
+	// `paragraphSpacing` is reactive with a "track lineHeight" default. The
+	// state node holds `number | null` — when `null`, `flow-lines` substitutes
+	// the CURRENT `lineHeight` value, so the default stays truly reactive
+	// as lineHeight updates. A caller who wants a fixed independent gap sets
+	// an explicit number via the constructor or `setParagraphSpacing`; passing
+	// `null` back restores the track-lineHeight behavior.
+	const paragraphSpacingNode = state<number | null>(opts.paragraphSpacing ?? null, {
+		name: "paragraph-spacing",
+	});
 
 	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
 		[textNode, fontNode],
@@ -358,10 +399,14 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 	);
 
 	const flowLinesNode = derived<PositionedLine[]>(
-		[segmentsNode, containerNode, columnsNode, obstaclesNode, lineHeightNode],
-		([segs, cont, cols, obs, lh]) => {
+		[segmentsNode, containerNode, columnsNode, obstaclesNode, lineHeightNode, paragraphSpacingNode],
+		([segs, cont, cols, obs, lh, ps]) => {
 			const segments = segs as PreparedSegment[];
 			const t0 = monotonicNs();
+			// `ps === null` → track current lineHeight. Any explicit number
+			// (0, 60, …) overrides; passing `null` via `setParagraphSpacing`
+			// restores tracking.
+			const effectiveSpacing = (ps as number | null) ?? (lh as number);
 			const { lines: result, cursor } = computeFlowLines(
 				segments,
 				cont as FlowContainer,
@@ -369,6 +414,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 				obs as Obstacle[],
 				lh as number,
 				minSlotWidth,
+				{ paragraphSpacing: effectiveSpacing },
 			);
 			const elapsed = monotonicNs() - t0;
 			// Overflow signal: segments left unlaid-out after the container is
@@ -420,6 +466,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 	g.add(containerNode, { name: "container" });
 	g.add(columnsNode, { name: "columns" });
 	g.add(obstaclesNode, { name: "obstacles" });
+	g.add(paragraphSpacingNode, { name: "paragraph-spacing" });
 	g.add(segmentsNode, { name: "segments" });
 	g.add(flowLinesNode, { name: "flow-lines" });
 
@@ -431,6 +478,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		setContainer: (c: FlowContainer) => g.set("container", c),
 		setColumns: (c: FlowColumns) => g.set("columns", c),
 		setObstacles: (o: Obstacle[]) => g.set("obstacles", o),
+		setParagraphSpacing: (ps: number | null) => g.set("paragraph-spacing", ps),
 		segments: segmentsNode,
 		flowLines: flowLinesNode,
 	};

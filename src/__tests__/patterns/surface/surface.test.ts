@@ -310,4 +310,27 @@ describe("surface.snapshot", () => {
 		void factories; // avoid unused-var
 		g.destroy();
 	});
+
+	it("saveSnapshot / restoreSnapshot / deleteSnapshot / diffSnapshots reject ids with reserved prefix (D8)", async () => {
+		const g = createGraph(basicSpec, { catalog });
+		const tier = memoryStorage();
+		await expect(saveSnapshot(g, "snapshot:boom", tier)).rejects.toMatchObject({
+			code: "snapshot-failed",
+			message: expect.stringContaining('must not start with "snapshot:"'),
+		});
+		await expect(restoreSnapshot("snapshot:boom", tier)).rejects.toMatchObject({
+			code: "snapshot-failed",
+		});
+		await expect(deleteSnapshot("snapshot:boom", tier)).rejects.toMatchObject({
+			code: "snapshot-failed",
+		});
+		await expect(diffSnapshots("snapshot:a", "snapshot:b", tier)).rejects.toMatchObject({
+			code: "snapshot-failed",
+		});
+		// External id "snapshot" (no colon) is allowed — only the full prefix is reserved.
+		await expect(saveSnapshot(g, "snapshot", tier)).resolves.toMatchObject({
+			snapshotId: "snapshot",
+		});
+		g.destroy();
+	});
 });

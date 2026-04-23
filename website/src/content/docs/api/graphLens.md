@@ -27,7 +27,7 @@ function graphLens(target: Graph, opts?: GraphLensOptions): LensGraph
 
 ```ts
 const g = new Graph("app");
-g.add("counter", state(0));
+g.add(state(0, { name: "counter" }));
 const lens = graphLens(g);
 lens.stats.subscribe((msgs) => console.log(msgs[0]?.[1])); // TopologyStats
 // Flow queries — O(1) without subscribing to snapshots:

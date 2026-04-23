@@ -13,11 +13,14 @@ import type {
 	LLMResponse,
 	StreamDelta,
 } from "../../../../patterns/ai/adapters/core/types.js";
+// Filesystem-backed fixture options (`fixturesDir`, `record.dir`) live in the
+// node subpath — the base `fallbackAdapter` is browser-safe and only accepts
+// inline `fixtures` or a pre-built `fixturesStorage` tier.
+import { fallbackAdapter } from "../../../../patterns/ai/adapters/providers/fallback-node.js";
 import {
 	dryRunAdapter,
 	type FallbackFixture,
 	FallbackMissError,
-	fallbackAdapter,
 } from "../../../../patterns/ai/adapters/providers/index.js";
 
 function tmp(): string {

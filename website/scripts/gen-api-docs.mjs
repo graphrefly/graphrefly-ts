@@ -42,7 +42,6 @@ const REGISTRY = {
 	// Core — batch
 	batch: "src/core/batch.ts",
 	isBatching: "src/core/batch.ts",
-	partitionForBatch: "src/core/batch.ts",
 	downWithBatch: "src/core/batch.ts",
 
 	// Core — guard
@@ -110,17 +109,18 @@ const REGISTRY = {
 	circuitBreaker: "src/extra/resilience.ts",
 	CircuitOpenError: "src/extra/resilience.ts",
 	tokenBucket: "src/extra/resilience.ts",
-	tokenTracker: "src/extra/resilience.ts",
+	tokenBucket: "src/extra/resilience.ts",
 	rateLimiter: "src/extra/resilience.ts",
 	withBreaker: "src/extra/resilience.ts",
 	withStatus: "src/extra/resilience.ts",
-	memoryStorage: "src/extra/storage.ts",
-	dictStorage: "src/extra/storage.ts",
-	fileStorage: "src/extra/storage.ts",
-	sqliteStorage: "src/extra/storage.ts",
-	indexedDbStorage: "src/extra/storage.ts",
-	fromIDBRequest: "src/extra/storage.ts",
-	fromIDBTransaction: "src/extra/storage.ts",
+	// Storage — split across core (browser-safe) / node / browser backends 2026-04-22.
+	memoryStorage: "src/extra/storage-core.ts",
+	dictStorage: "src/extra/storage-core.ts",
+	fileStorage: "src/extra/storage-node.ts",
+	sqliteStorage: "src/extra/storage-node.ts",
+	indexedDbStorage: "src/extra/storage-browser.ts",
+	fromIDBRequest: "src/extra/storage-browser.ts",
+	fromIDBTransaction: "src/extra/storage-browser.ts",
 
 	// Extra — data structures (roadmap §3.2)
 	reactiveMap: "src/extra/reactive-map.ts",
@@ -195,6 +195,8 @@ const REGISTRY = {
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",
 	explainPath: "src/graph/explain.ts",
+	mermaidLiveUrl: "src/graph/graph.ts",
+	validateGraphObservability: "src/graph/validate-observability.ts",
 	watchTopologyTree: "src/graph/topology-tree.ts",
 
 	// Audit & accountability (roadmap §9.2)
@@ -243,9 +245,9 @@ const REGISTRY = {
 
 	// LLM Adapter Layer — routing
 	cascadingLlmAdapter: "src/patterns/ai/adapters/routing/cascading.ts",
-	cloudFirstPreset: "src/patterns/ai/adapters/routing/presets.ts",
-	localFirstPreset: "src/patterns/ai/adapters/routing/presets.ts",
-	offlinePreset: "src/patterns/ai/adapters/routing/presets.ts",
+	cloudFirstPreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
+	localFirstPreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
+	offlinePreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
 	dryRunPreset: "src/patterns/ai/adapters/routing/presets.ts",
 };
 

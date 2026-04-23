@@ -30,10 +30,10 @@
  * Without `captureStreamCadence`, replay is instant regardless.
  */
 
-import { createHash } from "node:crypto";
-import { wallClockNs } from "../../../../core/clock.js";
+import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
+import { sha256Hex } from "../../../../core/hash.js";
 import { singleFromAny } from "../../../../extra/single-from-any.js";
-import type { StorageTier } from "../../../../extra/storage.js";
+import type { StorageTier } from "../../../../extra/storage-core.js";
 import { ResettableTimer } from "../../../../extra/timer.js";
 import type {
 	ChatMessage,
@@ -80,8 +80,8 @@ export interface WithReplayCacheOptions {
 	 * detects arity and dispatches. Prefer the object form for new code.
 	 */
 	keyFn?:
-		| ((ctx: ReplayCacheKeyContext) => string)
-		| ((messages: readonly ChatMessage[], opts?: LLMInvokeOptions) => string);
+		| ((ctx: ReplayCacheKeyContext) => string | Promise<string>)
+		| ((messages: readonly ChatMessage[], opts?: LLMInvokeOptions) => string | Promise<string>);
 	/** Prefix for cached keys (useful when sharing a tier across domains). */
 	keyPrefix?: string;
 	/**
@@ -122,6 +122,7 @@ type ResolveArgs = {
 	messages: readonly ChatMessage[];
 	invokeOpts: LLMInvokeOptions | undefined;
 };
+type ResolveArgsWithKey = ResolveArgs & { _precomputedKey: string };
 
 /** Wrap an adapter with a replay cache. */
 export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions): LLMAdapter {
@@ -133,14 +134,15 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 	const tier = opts.storage;
 	const isReadOnly = mode === "read" || mode === "read-strict";
 
-	const makeKey = (
+	const makeKey = async (
 		messages: readonly ChatMessage[],
 		invokeOpts: LLMInvokeOptions | undefined,
-	): string => {
+	): Promise<string> => {
 		if (opts.keyFn) {
 			// Arity-dispatch: 1-arg form receives the ctx object; 2-arg
 			// legacy form receives (messages, opts). Functions with 1 param
-			// (`Function.length === 1`) take the ctx shape.
+			// (`Function.length === 1`) take the ctx shape. Either form may
+			// return `string` or `Promise<string>` — we await either.
 			const kf = opts.keyFn;
 			if (kf.length <= 1) {
 				const ctxKey: ReplayCacheKeyContext = {
@@ -148,16 +150,22 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 					opts: invokeOpts,
 					context: invokeOpts?.keyContext,
 				};
-				return `${keyPrefix}:${(kf as (ctx: ReplayCacheKeyContext) => string)(ctxKey)}`;
+				const out = await (kf as (ctx: ReplayCacheKeyContext) => string | Promise<string>)(ctxKey);
+				return `${keyPrefix}:${out}`;
 			}
-			return `${keyPrefix}:${(kf as (m: readonly ChatMessage[], o?: LLMInvokeOptions) => string)(messages, invokeOpts)}`;
+			const out = await (
+				kf as (m: readonly ChatMessage[], o?: LLMInvokeOptions) => string | Promise<string>
+			)(messages, invokeOpts);
+			return `${keyPrefix}:${out}`;
 		}
 		// Default keying: drop `signal` (AbortSignal is not serializable) and
 		// `keyContext` (per-call context should not affect the default hash —
-		// it only matters when a user opts in via `keyFn`).
+		// it only matters when a user opts in via `keyFn`). Hash via universal
+		// `crypto.subtle` (no `node:crypto` import) — runs in Node + browsers.
 		const { signal: _signal, keyContext: _keyContext, ...rest } = invokeOpts ?? {};
 		const canonical = canonicalJson({ messages, opts: rest });
-		return `${keyPrefix}:${createHash("sha256").update(canonical).digest("hex")}`;
+		const hex = await sha256Hex(canonical);
+		return `${keyPrefix}:${hex}`;
 	};
 
 	const readEntry = async (key: string): Promise<CachedEntry | undefined> => {
@@ -200,13 +208,17 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 					t.start(ms, () => resolve());
 				});
 
-	// Singleflight — concurrent cache-miss requests with the same key share one upstream call.
-	const upstreamInFlight = singleFromAny<ResolveArgs, LLMResponse>(
+	// Singleflight — concurrent cache-miss requests with the same key share one
+	// upstream call. `keyFn` must be synchronous (singleflight needs the key
+	// before dispatching), so we compute the key eagerly in `invoke`/`stream`
+	// and thread it through as `_precomputedKey`. The passed `keyFn` reads
+	// that precomputed value instead of re-hashing.
+	const upstreamInFlight = singleFromAny<ResolveArgsWithKey, LLMResponse>(
 		async ({ messages, invokeOpts }) => {
 			const respInput = inner.invoke(messages, invokeOpts);
 			return await resolveResponse(respInput);
 		},
-		{ keyFn: ({ messages, invokeOpts }) => makeKey(messages, invokeOpts) },
+		{ keyFn: ({ _precomputedKey }) => _precomputedKey },
 	);
 
 	return {
@@ -215,13 +227,13 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 		capabilities: inner.capabilities?.bind(inner),
 
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
-			const key = makeKey(messages, invokeOpts);
+			const key = await makeKey(messages, invokeOpts);
 			const cached = await readCache(key);
 			if (cached)
 				return { ...cached, metadata: { ...(cached.metadata ?? {}), replayCache: "hit" } };
 
 			if (mode === "read-strict") throw new ReplayCacheMissError(key, "invoke");
-			const resp = await upstreamInFlight({ messages, invokeOpts });
+			const resp = await upstreamInFlight({ messages, invokeOpts, _precomputedKey: key });
 			await writeCache(key, resp);
 			return resp;
 		},
@@ -235,7 +247,7 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 				for await (const delta of inner.stream(messages, invokeOpts)) yield delta;
 				return;
 			}
-			const key = makeKey(messages, invokeOpts);
+			const key = await makeKey(messages, invokeOpts);
 			const entry = await readEntry(key);
 			if (entry) {
 				const cached = entry.response;
@@ -264,14 +276,16 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 			// Time-to-first-token (TTFT — provider latency / network / queue
 			// warmup) is NOT cadence; setting lastNs inside the loop on first
 			// chunk means chunk-0's delay is 0 (boundary-clean) and subsequent
-			// delays measure only inter-chunk gaps.
-			let lastNs: bigint | undefined;
+			// delays measure only inter-chunk gaps. Use the central clock so
+			// the scale matches every other cadence measurement in the library
+			// and the module stays browser-safe (spec §5.11).
+			let lastNs: number | undefined;
 			for await (const delta of inner.stream(messages, invokeOpts)) {
 				if (delta.type === "token") {
 					content += delta.delta;
 					if (captureStreamCadence) {
-						const now = process.hrtime.bigint();
-						const gap = lastNs === undefined ? 0 : Number(now - lastNs) / 1_000_000;
+						const now = monotonicNs();
+						const gap = lastNs === undefined ? 0 : (now - lastNs) / 1e6;
 						delaysMs.push(gap);
 						lastNs = now;
 						chunks.push({ delta: delta.delta });

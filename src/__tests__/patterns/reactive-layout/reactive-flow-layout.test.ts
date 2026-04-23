@@ -302,6 +302,50 @@ describe("computeFlowLines", () => {
 		const beta = lines.find((l) => l.text === "beta");
 		expect(beta!.y - alpha!.y).toBeGreaterThanOrEqual(40);
 	});
+
+	it("D7: paragraphSpacing default tracks lineHeight reactively", () => {
+		// Pure `computeFlowLines` side: default is lineHeight when opts omitted.
+		const segs: PreparedSegment[] = [
+			{ text: "alpha", width: 40, kind: "text", graphemeWidths: null },
+			{ text: "\n", width: 0, kind: "hard-break", graphemeWidths: null },
+			{ text: "beta", width: 32, kind: "text", graphemeWidths: null },
+		];
+		const container = { width: 400, height: 400, paddingX: 0, paddingY: 0 };
+		const columns = { count: 1, gap: 0 };
+		// Default (no opts) = lineHeight → beta sits 2 * lineHeight below alpha.
+		const outA = computeFlowLines(segs, container, columns, [], 20, 10);
+		expect(outA.lines.find((l) => l.text === "beta")!.y).toBe(40);
+		const outB = computeFlowLines(segs, container, columns, [], 40, 10);
+		// With lineHeight=40 the gap scales: beta at 80 (= one line of alpha + one
+		// line-height gap). Proves default "= lineHeight" follows the parameter,
+		// not a snapshot.
+		expect(outB.lines.find((l) => l.text === "beta")!.y).toBe(80);
+	});
+
+	it("D7: paragraphSpacing controls the hard-break gap", () => {
+		const segs: PreparedSegment[] = [
+			{ text: "alpha", width: 40, kind: "text", graphemeWidths: null },
+			{ text: "\n", width: 0, kind: "hard-break", graphemeWidths: null },
+			{ text: "beta", width: 32, kind: "text", graphemeWidths: null },
+		];
+		const container = { width: 400, height: 400, paddingX: 0, paddingY: 0 };
+		const columns = { count: 1, gap: 0 };
+		// paragraphSpacing: 0 → "beta" is one line-height below "alpha" (no gap).
+		const tight = computeFlowLines(segs, container, columns, [], 20, 10, {
+			paragraphSpacing: 0,
+		}).lines;
+		const tightAlpha = tight.find((l) => l.text === "alpha")!;
+		const tightBeta = tight.find((l) => l.text === "beta")!;
+		expect(tightBeta.y - tightAlpha.y).toBe(20);
+
+		// paragraphSpacing: 60 → "beta" sits 20 (alpha's line) + 60 (gap) below.
+		const loose = computeFlowLines(segs, container, columns, [], 20, 10, {
+			paragraphSpacing: 60,
+		}).lines;
+		const looseAlpha = loose.find((l) => l.text === "alpha")!;
+		const looseBeta = loose.find((l) => l.text === "beta")!;
+		expect(looseBeta.y - looseAlpha.y).toBe(80);
+	});
 });
 
 // ---------------------------------------------------------------------------

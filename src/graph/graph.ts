@@ -1,5 +1,5 @@
 import { type Actor, DEFAULT_ACTOR } from "../core/actor.js";
-import { batch, isBatching } from "../core/batch.js";
+import { batch, isBatching, registerBatchFlushHook } from "../core/batch.js";
 import { monotonicNs, wallClockNs } from "../core/clock.js";
 import type { GraphReFlyConfig } from "../core/config.js";
 import { GuardDenied } from "../core/guard.js";
@@ -131,9 +131,12 @@ export type GraphDescribeOptions = {
 	 * - `"pretty"` — human-readable plaintext (optionally colorized; see
 	 *   `colorize` / `indent` / `logger` / `includeEdges` / `includeSubgraphs`).
 	 * - `"mermaid"` — Mermaid flowchart text.
+	 * - `"mermaid-url"` — `https://mermaid.live/edit#base64:…` deep link (one
+	 *   clickable URL, opens the `"mermaid"` source in the mermaid.live editor).
+	 *   No network calls — the payload is encoded into the URL fragment.
 	 * - `"d2"` — D2 diagram text.
 	 */
-	format?: "spec" | "json" | "pretty" | "mermaid" | "d2";
+	format?: "spec" | "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
 	/** Pretty/diagram render: direction for diagram formats (default `LR`). */
 	direction?: GraphDiagramDirection;
 	/** Pretty/JSON render: indent (default 2 for JSON, ignored for pretty). */
@@ -144,7 +147,24 @@ export type GraphDescribeOptions = {
 	includeEdges?: boolean;
 	/** Pretty render: include a Subgraphs section (default `true`). */
 	includeSubgraphs?: boolean;
+	/**
+	 * Reactive describe (D2): when `true`, return `{ node, dispose }` where `node`
+	 * emits a fresh `GraphDescribeOutput` (or format string, if `format` is set)
+	 * every time the graph state settles. Same coalescing as
+	 * {@link Graph.explain} with `{ reactive: true }` — one recompute per
+	 * outermost drain via the batch-flush hook, so large batched mutations
+	 * don't amplify describe work per event.
+	 */
+	reactive?: boolean;
+	/** Reactive-only: name for the backing derived node (default `"describe"`). */
+	reactiveName?: string;
 };
+
+/** Handle returned by {@link Graph.describe} with `{ reactive: true }`. */
+export interface ReactiveDescribeHandle<T> {
+	readonly node: Node<T>;
+	dispose(): void;
+}
 
 /** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
 export type GraphDescribeOutput = {
@@ -559,6 +579,37 @@ function renderDescribeAsMermaid(d: GraphDescribeOutput, options: GraphDescribeO
 	return lines.join("\n");
 }
 
+function renderDescribeAsMermaidUrl(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
+	const mermaidSrc = renderDescribeAsMermaid(d, options);
+	return mermaidLiveUrl(mermaidSrc);
+}
+
+/**
+ * Encode a mermaid source string to a `https://mermaid.live/edit#base64:…`
+ * deep link. Round-trip with the mermaid.live editor's `/edit#base64:`
+ * share format — payload is `base64url(JSON({code, mermaid: {theme}, ...}))`.
+ *
+ * Exported so callers that already have rendered mermaid text (e.g. from
+ * `describe({ format: "mermaid" })`) can upgrade to a live-editor URL
+ * without re-rendering. Pairs with `describe({ format: "mermaid-url" })`.
+ */
+export function mermaidLiveUrl(
+	mermaidSrc: string,
+	opts?: { theme?: "default" | "dark" | "forest" | "neutral" | "base"; autoSync?: boolean },
+): string {
+	const theme = opts?.theme ?? "default";
+	const autoSync = opts?.autoSync ?? true;
+	const payload = { code: mermaidSrc, mermaid: { theme }, autoSync };
+	const json = JSON.stringify(payload);
+	// Browsers + Node both expose globalThis.btoa; encode UTF-8 bytes first so
+	// non-ASCII node names don't explode btoa. Then url-safe base64 (`+/=`→`-_` strip).
+	const bytes = new TextEncoder().encode(json);
+	let binary = "";
+	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+	const b64 = globalThis.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	return `https://mermaid.live/edit#base64:${b64}`;
+}
+
 function renderDescribeAsD2(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
 	const direction = normalizeDiagramDirection(options.direction);
 	const paths = Object.keys(d.nodes).sort();
@@ -689,6 +740,11 @@ function resolveObserveDetail(opts?: ObserveOptions): ObserveOptions {
 	if (detail === "minimal") {
 		return { ...opts, structured: opts.structured ?? true };
 	}
+	// `stage-log` format is pipeline-oriented — needs elapsed-time stamps on
+	// every event, so auto-enable `timeline` unless the caller opts out.
+	if (opts.format === "stage-log") {
+		return { ...opts, structured: opts.structured ?? true, timeline: opts.timeline ?? true };
+	}
 	return opts;
 }
 
@@ -702,7 +758,7 @@ export type StructuredTriggers = {
 	timeline?: true;
 	causal?: true;
 	derived?: true;
-	format?: "pretty" | "json";
+	format?: "pretty" | "json" | "stage-log";
 	detail?: "minimal" | "full";
 };
 
@@ -754,9 +810,15 @@ export type ObserveOptions = {
 
 	/**
 	 * When set, auto-enables structured mode and attaches a logger.
-	 * `"pretty"` renders colored one-line output; `"json"` emits one JSON object per event.
+	 * - `"pretty"` — colored one-line output per event.
+	 * - `"json"` — one JSON object per event.
+	 * - `"stage-log"` — pipeline-stage-labeled output for multi-node
+	 *   observers. Auto-enables `timeline: true` so each line carries an
+	 *   elapsed-seconds offset from the subscription. Provide a
+	 *   {@link stageLabels} map to label each observed path; paths without a
+	 *   mapping fall back to the path string.
 	 */
-	format?: "pretty" | "json";
+	format?: "pretty" | "json" | "stage-log";
 	/** Sink for rendered lines (`console.log` by default). Only used when `format` is set. */
 	logger?: (line: string, event: ObserveEvent) => void;
 	/** Keep only these event types in formatted output. Only used when `format` is set. */
@@ -765,6 +827,13 @@ export type ObserveOptions = {
 	excludeTypes?: ObserveEvent["type"][];
 	/** Built-in color preset (`ansi` default) or explicit color tokens. Only used when `format` is set. */
 	theme?: ObserveThemeName | ObserveTheme;
+	/**
+	 * Stage labels for `format: "stage-log"`. Keys are observe paths; values
+	 * are short stage names (e.g. `{ "intake::latest": "INTAKE" }`). Paths
+	 * without a mapping render under the path string itself. Ignored for
+	 * other formats.
+	 */
+	stageLabels?: Record<string, string>;
 	/**
 	 * Cap the `events` buffer. When set, the result uses a {@link RingBuffer}
 	 * under the hood: oldest events are dropped on overflow. Unbounded when
@@ -1763,10 +1832,24 @@ export class Graph {
 	 * ```
 	 */
 	describe(
-		options: GraphDescribeOptions & { format: "json" | "pretty" | "mermaid" | "d2" },
+		options: GraphDescribeOptions & {
+			reactive: true;
+			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+		},
+	): ReactiveDescribeHandle<string>;
+	describe(
+		options: GraphDescribeOptions & { reactive: true },
+	): ReactiveDescribeHandle<GraphDescribeOutput>;
+	describe(
+		options: GraphDescribeOptions & {
+			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2";
+		},
 	): string;
 	describe(options?: GraphDescribeOptions): GraphDescribeOutput;
-	describe(options?: GraphDescribeOptions): GraphDescribeOutput | string {
+	describe(
+		options?: GraphDescribeOptions,
+	): GraphDescribeOutput | string | ReactiveDescribeHandle<unknown> {
+		if (options?.reactive === true) return this._describeReactive(options);
 		const actor = options?.actor;
 		const filter = options?.filter;
 		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
@@ -1946,6 +2029,7 @@ export class Graph {
 		if (fmt === "json") return renderDescribeAsJson(struct, opts);
 		if (fmt === "pretty") return renderDescribeAsPretty(struct, opts);
 		if (fmt === "mermaid") return renderDescribeAsMermaid(struct, opts);
+		if (fmt === "mermaid-url") return renderDescribeAsMermaidUrl(struct, opts);
 		if (fmt === "d2") return renderDescribeAsD2(struct, opts);
 		return struct;
 	}
@@ -2058,6 +2142,110 @@ export class Graph {
 		});
 	}
 
+	private _describeReactive(
+		options: GraphDescribeOptions,
+	): ReactiveDescribeHandle<GraphDescribeOutput | string> {
+		// Strip the `reactive` flag so the inner recompute returns a concrete
+		// result type (structured or string), not another reactive handle.
+		const innerOpts: GraphDescribeOptions = { ...options, reactive: false };
+		const name = options.reactiveName ?? "describe";
+		let v = 0;
+		const version = stateNode(v, { name: `${name}_version` });
+		const handle = this.observe({ timeline: true, structured: true });
+		let pendingBump = false;
+		let disposed = false;
+		const bump = (): void => {
+			if (pendingBump || disposed) return;
+			pendingBump = true;
+			// Same coalescer as _explainReactive (D5) — N events per batch → 1
+			// recompute at head of next drain. Outside a batch the hook fires
+			// immediately, preserving sync-wave behavior.
+			registerBatchFlushHook(() => {
+				pendingBump = false;
+				if (disposed) return;
+				v += 1;
+				version.emit(v);
+			});
+		};
+		const off = handle.onEvent((event) => {
+			const t = event.type;
+			if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
+			bump();
+		});
+
+		// Describe must reflect the FULL subtree (`_collectSubgraphs` walks
+		// mounted children), so the reactive variant subscribes to each
+		// mounted graph's `topology` too — `topology` is own-graph only
+		// per its JSDoc, so a parent's emitter never fires for structural
+		// changes inside a child. Walk at subscribe time, then listen for
+		// `added` events with `nodeKind: "mount"` to discover subgraphs that
+		// land after subscription and subscribe transitively.
+		const topoUnsubs: Array<() => void> = [];
+		const subscribedGraphs = new WeakSet<Graph>();
+		const subscribeToTopology = (g: Graph): void => {
+			if (subscribedGraphs.has(g) || disposed) return;
+			subscribedGraphs.add(g);
+			const unsub = g.topology.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] !== DATA) continue;
+					const event = m[1] as TopologyEvent;
+					bump();
+					// A newly-mounted child's own topology events won't surface
+					// here — subscribe to it too. `added` is the only variant
+					// that exposes a mount; `removed` drops the mount entirely
+					// and disposes its internals.
+					if (event.kind === "added" && event.nodeKind === "mount") {
+						const child = g._mounts.get(event.name);
+						if (child != null) subscribeToTopology(child);
+					}
+				}
+			});
+			topoUnsubs.push(unsub);
+			// Seed with already-mounted children — topology does not replay
+			// historical events to late subscribers (per §3.6).
+			for (const childName of g._mounts.keys()) {
+				const child = g._mounts.get(childName);
+				if (child != null) subscribeToTopology(child);
+			}
+		};
+		subscribeToTopology(this);
+
+		let node: Node<GraphDescribeOutput | string>;
+		try {
+			node = derived<GraphDescribeOutput | string>(
+				[version],
+				() => this.describe(innerOpts) as GraphDescribeOutput | string,
+				{
+					name,
+					describeKind: "derived",
+					meta: { domain: "audit", kind: "describe" } as const,
+					// Reference-only equals is fine — describe() rebuilds a fresh
+					// object every call. Users who want structural dedup can wrap
+					// with their own `derived` + structural `equals`.
+					equals: (a, b) => a === b,
+				},
+			);
+		} catch (err) {
+			off();
+			for (const u of topoUnsubs) u();
+			handle.dispose();
+			throw err;
+		}
+		const stopKeepalive = keepalive(node);
+
+		return {
+			node,
+			dispose() {
+				disposed = true;
+				off();
+				for (const u of topoUnsubs) u();
+				topoUnsubs.length = 0;
+				handle.dispose();
+				stopKeepalive();
+			},
+		};
+	}
+
 	private _explainReactive(
 		from: string,
 		to: string,
@@ -2066,14 +2254,30 @@ export class Graph {
 		// Closure-held version counter (COMPOSITION-GUIDE §28 / spec §3.6
 		// sanctioned pattern). Every settled observe event bumps `v`, which
 		// drives the derived to recompute.
+		//
+		// Debouncing (D5): without coalescing, each of N graph events inside an
+		// outer batch produces N version bumps — the derived's equals dedupes the
+		// steady state, but the recompute work amplifies with graph traffic.
+		// `registerBatchFlushHook` defers the single bump to the head of the
+		// outermost drain, so N events in one batch collapse to exactly one
+		// recompute. Outside a batch the hook fires immediately (see
+		// `registerBatchFlushHook` contract) — no change to sync-wave behavior.
 		let v = 0;
 		const version = stateNode(v, { name: "explain_version" });
 		const handle = this.observe({ timeline: true, structured: true });
+		let pendingBump = false;
+		let disposed = false;
 		const off = handle.onEvent((event) => {
 			const t = event.type;
 			if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
-			v += 1;
-			version.emit(v);
+			if (pendingBump || disposed) return;
+			pendingBump = true;
+			registerBatchFlushHook(() => {
+				pendingBump = false;
+				if (disposed) return;
+				v += 1;
+				version.emit(v);
+			});
 		});
 
 		const explainOpts = {
@@ -2111,6 +2315,7 @@ export class Graph {
 		return {
 			node,
 			dispose() {
+				disposed = true;
 				off();
 				handle.dispose();
 				stopKeepalive();
@@ -2567,8 +2772,40 @@ export class Graph {
 				: (type: ObserveEvent["type"]): boolean =>
 						(include == null || include.has(type)) && (exclude == null || !exclude.has(type));
 		const theme = resolveObserveTheme(options.theme);
+		// stage-log: anchor elapsed timestamps to subscription time. Each event
+		// renders `[Xs] STAGE ← preview` / `✗ err` / `■ complete`. No color,
+		// since this is a pipeline-diagnostic format — predictable + greppable.
+		const stageStartNs = format === "stage-log" ? monotonicNs() : 0;
+		const stageLabelFor = (path: string | undefined): string => {
+			if (path == null) return "";
+			return options.stageLabels?.[path] ?? path;
+		};
+		const truncate = (s: string, max: number): string =>
+			s.length > max ? `${s.slice(0, max - 1)}…` : s;
+		const stagePreview = (event: ObserveEvent): string => {
+			if (event.type === "data" || event.type === "error") {
+				return truncate(describeData((event as { data: unknown }).data), 120);
+			}
+			return "";
+		};
 
 		const renderEvent = (event: ObserveEvent): string => {
+			if (format === "stage-log") {
+				const elapsedS = (monotonicNs() - stageStartNs) / 1e9;
+				const stage = stageLabelFor(event.path).padEnd(9);
+				if (event.type === "data") {
+					const body = stagePreview(event);
+					return `[${elapsedS.toFixed(3)}s] ${stage} ←${body ? ` ${body}` : ""}`;
+				}
+				if (event.type === "error") {
+					const body = stagePreview(event);
+					return `[${elapsedS.toFixed(3)}s] ${stage} ✗${body ? ` ${body}` : ""}`;
+				}
+				if (event.type === "complete") {
+					return `[${elapsedS.toFixed(3)}s] ${stage} ■ complete`;
+				}
+				return `[${elapsedS.toFixed(3)}s] ${stage} ${event.type}`;
+			}
 			if (format === "json") {
 				try {
 					return JSON.stringify(event);

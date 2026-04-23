@@ -64,6 +64,7 @@ export * from "./ai/adapters/middleware/retry.js";
 export * from "./ai/adapters/middleware/timeout.js";
 export * from "./ai/adapters/providers/anthropic.js";
 export * from "./ai/adapters/providers/dry-run.js";
+export * from "./ai/adapters/providers/fallback.js";
 export * from "./ai/adapters/providers/google.js";
 export * from "./ai/adapters/providers/openai-compat.js";
 export * from "./ai/adapters/routing/cascading.js";
@@ -1484,6 +1485,90 @@ export function toolRegistry(name: string, opts?: ToolRegistryOptions): ToolRegi
 }
 
 // ---------------------------------------------------------------------------
+// toolSelector — reactive tool availability (D8 / COMPOSITION-GUIDE §31)
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for {@link toolSelector}.
+ */
+export interface ToolSelectorOptions {
+	readonly name?: string;
+}
+
+/**
+ * Reactive tool availability (COMPOSITION-GUIDE §31). Given a base tool set
+ * (reactive or static) and one or more reactive predicates, emit the filtered
+ * subset of tools currently allowed. Feeds into `promptNode({ tools: Node<...> })`
+ * so the LLM sees a reactive menu instead of a frozen config.
+ *
+ * Each predicate is a `NodeInput<(tool) => boolean>`. A tool is included iff
+ * **every** predicate returns `true`. When any predicate value is `null` /
+ * `undefined` (e.g. upstream not yet ready) that predicate is treated as a
+ * pass-through — the tool isn't excluded on its basis. Predicate updates
+ * recompute the selected set.
+ *
+ * Pairs with `toolInterceptor` (§D9 / §31): **selection** controls what's
+ * offered to the LLM (pre-generation UX); **interception** gates what's
+ * executed after the LLM chooses (post-generation security). Tool selection
+ * is NOT a security boundary — an LLM can hallucinate tool calls outside
+ * its offered set; always pair with `toolInterceptor` for enforcement.
+ *
+ * @example
+ * ```ts
+ * const hasBudget = derived([costMeter], (c) => c.total < BUDGET);
+ * const canDestroy = state(false, { name: "destructive-allowed" });
+ * const tools = toolSelector(registry.schemas, [
+ *   derived([hasBudget], (b) => (t) => !t.meta?.expensive || b === true),
+ *   derived([canDestroy], (c) => (t) => !t.meta?.destructive || c === true),
+ * ]);
+ * const agent = promptNode(graph, "agent", { ..., tools });
+ * ```
+ */
+export function toolSelector(
+	allTools: NodeInput<readonly ToolDefinition[]>,
+	constraints: readonly NodeInput<(tool: ToolDefinition) => boolean>[],
+	opts?: ToolSelectorOptions,
+): Node<readonly ToolDefinition[]> {
+	const allToolsNode = fromAny(allTools);
+	const constraintNodes = constraints.map((c) => fromAny(c));
+	const deps = [allToolsNode, ...constraintNodes] as const;
+	return derived<readonly ToolDefinition[]>(
+		deps,
+		(values) => {
+			const tools = (values[0] as readonly ToolDefinition[] | null | undefined) ?? [];
+			const preds = values.slice(1) as ReadonlyArray<
+				((t: ToolDefinition) => boolean) | null | undefined
+			>;
+			return tools.filter((tool) => {
+				for (const pred of preds) {
+					// Pass-through when a predicate hasn't settled — callers with
+					// async constraints should not have every tool silently dropped
+					// on the first emit. Constraints are "deny when false", not
+					// "deny when not yet ready".
+					if (pred == null) continue;
+					if (!pred(tool)) return false;
+				}
+				return true;
+			});
+		},
+		{
+			name: opts?.name ?? "tool-selector",
+			describeKind: "derived",
+			meta: aiMeta("tool_selector"),
+			equals: (a, b) => {
+				const la = a as readonly ToolDefinition[];
+				const lb = b as readonly ToolDefinition[];
+				if (la.length !== lb.length) return false;
+				for (let i = 0; i < la.length; i++) {
+					if (la[i] !== lb[i]) return false;
+				}
+				return true;
+			},
+		},
+	);
+}
+
+// ---------------------------------------------------------------------------
 // systemPromptBuilder
 // ---------------------------------------------------------------------------
 
@@ -2406,6 +2491,26 @@ export type AgentLoopOptions = {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
+	/**
+	 * Reactive tool-call splice (COMPOSITION-GUIDE §31 "interception is security").
+	 * When set, the raw `toolCalls` node is piped through this transform before
+	 * reaching the executor. The transform is a pure reactive composition —
+	 * `(calls: Node<readonly ToolCall[]>) => Node<readonly ToolCall[]>` — so the
+	 * gate is visible in `describe()` / `explain()` as a real edge (no hidden
+	 * imperative wraps; §24).
+	 *
+	 * Typical uses:
+	 * - **Filter / block** — `derived([calls, policy], ([raw, p]) => raw.filter(p))`
+	 * - **Throttle / debounce** — `throttle(calls, windowMs)`
+	 * - **Human-in-the-loop approval** — pipe through a `gate` controller so
+	 *   calls wait for human approval before reaching the executor.
+	 *
+	 * The public `agent.toolCalls` node surfaces the POST-intercept stream, so
+	 * audit / telemetry consumers see what the executor actually runs. The raw
+	 * pre-intercept stream is not exposed — tests that need it should run
+	 * without `interceptToolCalls` set (the identity case).
+	 */
+	interceptToolCalls?: (calls: Node<readonly ToolCall[]>) => Node<readonly ToolCall[]>;
 };
 
 /** A single tool execution outcome: `{id, content}` where content is a JSON string. */
@@ -2695,7 +2800,14 @@ export class AgentLoopGraph extends Graph {
 				meta: aiMeta("agent_tool_calls"),
 			},
 		);
-		this.toolCalls = toolCallsNode;
+		// Reactive splice (D9 / COMPOSITION-GUIDE §31). When `interceptToolCalls`
+		// is set, the raw tool-call stream is transformed in the graph — the
+		// executor sees the gated stream, and `agent.toolCalls` surfaces the
+		// post-intercept view so audit / telemetry match reality.
+		const gatedToolCallsNode = opts.interceptToolCalls
+			? opts.interceptToolCalls(toolCallsNode)
+			: toolCallsNode;
+		this.toolCalls = gatedToolCallsNode;
 
 		// toolResults: switchMap turns each non-empty batch into a per-call
 		// reactive pipeline with retry-once + rescue. `derived(perCall, …)`
@@ -2717,7 +2829,7 @@ export class AgentLoopGraph extends Graph {
 			}
 			return true;
 		};
-		const toolResultsNode: Node<readonly ToolResult[]> = switchMap(toolCallsNode, (calls) => {
+		const toolResultsNode: Node<readonly ToolResult[]> = switchMap(gatedToolCallsNode, (calls) => {
 			if (calls == null || calls.length === 0) {
 				// Invariant: `toolCallsNode` emits RESOLVED (not DATA([])) when
 				// there are no tool calls to execute — see the raw `node()`

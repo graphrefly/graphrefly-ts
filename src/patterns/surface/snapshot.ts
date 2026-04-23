@@ -52,10 +52,28 @@ export interface RestoreSnapshotOptions {
  */
 export const SNAPSHOT_KEY_PREFIX = "snapshot:";
 
+/**
+ * Reject caller-supplied ids that start with {@link SNAPSHOT_KEY_PREFIX}.
+ *
+ * Surface ids are keyed in the caller's external namespace; the `"snapshot:"`
+ * prefix is an implementation detail of tier layout. Allowing `"snapshot:foo"`
+ * through would produce surprising round-trips — `deleteSnapshot("foo")` and
+ * `deleteSnapshot("snapshot:foo")` would both target the same tier key, while
+ * `listSnapshots()` decodes to `"foo"` — so we enforce disjointness at the API
+ * boundary (pre-1.0, no back-compat).
+ */
+function assertExternalId(snapshotId: string): void {
+	if (snapshotId.startsWith(SNAPSHOT_KEY_PREFIX)) {
+		throw new SurfaceError(
+			"snapshot-failed",
+			`snapshot id must not start with "${SNAPSHOT_KEY_PREFIX}" (reserved); got "${snapshotId}"`,
+			{ snapshotId },
+		);
+	}
+}
+
 function encodeKey(snapshotId: string): string {
-	return snapshotId.startsWith(SNAPSHOT_KEY_PREFIX)
-		? snapshotId
-		: `${SNAPSHOT_KEY_PREFIX}${snapshotId}`;
+	return `${SNAPSHOT_KEY_PREFIX}${snapshotId}`;
 }
 
 function decodeKey(key: string): string | undefined {
@@ -112,6 +130,7 @@ export async function saveSnapshot(
 	snapshotId: string,
 	tier: StorageTier,
 ): Promise<SaveSnapshotResult> {
+	assertExternalId(snapshotId);
 	let snapshot: GraphPersistSnapshot;
 	try {
 		snapshot = graph.snapshot();
@@ -166,13 +185,14 @@ export async function restoreSnapshot(
 	tier: StorageTier,
 	opts?: RestoreSnapshotOptions,
 ): Promise<Graph> {
+	assertExternalId(snapshotId);
 	// Try namespaced key first (surface-written records), fall back to raw key
 	// so callers restoring snapshots that predate the namespacing change (or
 	// bare `GraphPersistSnapshot` payloads written by user test fixtures)
 	// still resolve. Once all writers are on encodeKey, the fallback can go.
 	const key = encodeKey(snapshotId);
 	let raw = await tier.load(key);
-	if (raw == null && key !== snapshotId) {
+	if (raw == null) {
 		raw = await tier.load(snapshotId);
 	}
 	const snapshot = unwrapCheckpoint(raw, snapshotId);
@@ -205,10 +225,12 @@ export async function diffSnapshots(
 	snapshotIdB: string,
 	tier: StorageTier,
 ): Promise<GraphDiffResult> {
+	assertExternalId(snapshotIdA);
+	assertExternalId(snapshotIdB);
 	const loadWithFallback = async (id: string): Promise<unknown> => {
 		const key = encodeKey(id);
 		let raw = await tier.load(key);
-		if (raw == null && key !== id) raw = await tier.load(id);
+		if (raw == null) raw = await tier.load(id);
 		return raw;
 	};
 	const [rawA, rawB] = await Promise.all([
@@ -280,6 +302,7 @@ export async function listSnapshots(
  *   or throws.
  */
 export async function deleteSnapshot(snapshotId: string, tier: StorageTier): Promise<void> {
+	assertExternalId(snapshotId);
 	if (typeof tier.clear !== "function") {
 		throw new SurfaceError(
 			"snapshot-failed",

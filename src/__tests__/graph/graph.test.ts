@@ -645,6 +645,58 @@ describe("Graph introspection (Phase 1.3)", () => {
 		);
 	});
 
+	it("D2: describe({ reactive: true }) returns a reactive handle that recomputes on graph change", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+
+		const live = g.describe({ reactive: true });
+		const unsub = live.node.subscribe(() => {});
+		const first = live.node.cache;
+		expect(first?.name).toBe("g");
+		expect(Object.keys(first?.nodes ?? {}).sort()).toEqual(["a", "b"]);
+
+		// Structural change — add a new node.
+		g.add(state(9, { name: "c" }), { name: "c" });
+		const next = live.node.cache;
+		expect(Object.keys(next?.nodes ?? {})).toContain("c");
+
+		unsub();
+		live.dispose();
+	});
+
+	it("D2: describe({ reactive: true, format: 'mermaid' }) returns Node<string>", () => {
+		const g = new Graph("g");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const live = g.describe({ reactive: true, format: "mermaid" });
+		const unsub = live.node.subscribe(() => {});
+		expect(typeof live.node.cache).toBe("string");
+		expect(live.node.cache).toContain("flowchart");
+		unsub();
+		live.dispose();
+	});
+
+	it("describe({ format: 'mermaid-url' }) emits mermaid.live deep link round-trippable to mermaid source", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const url = g.describe({ format: "mermaid-url" });
+		expect(url).toMatch(/^https:\/\/mermaid\.live\/edit#base64:/);
+		const b64 = url.slice("https://mermaid.live/edit#base64:".length);
+		// url-safe base64 → standard base64 + padding
+		let std = b64.replace(/-/g, "+").replace(/_/g, "/");
+		while (std.length % 4 !== 0) std += "=";
+		const json = JSON.parse(globalThis.atob(std));
+		expect(json.code).toContain("flowchart");
+		expect(json.code).toContain("-->");
+		expect(json.mermaid?.theme).toBe("default");
+	});
+
 	it("toMermaid and toD2 render constructor deps without explicit connect", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });

@@ -32,49 +32,44 @@
  *    canonical hash for messages-keyed entries at init time. Ideal when you
  *    want full control in code (tests, small demos).
  *
- * 2. **`fixturesDir: string`** — directory of cache-format JSON files, as
- *    written by `record` mode (or by `withReplayCache` with a shared prefix).
- *    Automatically namespaced to `join(dir, keyPrefix)` so multiple
- *    adapters pointing at the same root don't commingle files. An init-time
- *    validator throws a clear `TypeError` if the namespaced subdirectory
- *    contains files that aren't in cache format — hand-authored
- *    `{messages, response}` JSON files don't work here; use `fixtures: [...]`
- *    for hand-authoring.
+ * 2. **`fixturesStorage: StorageTier`** — the escape hatch for any backend.
+ *    Pass a `memoryStorage()`, `indexedDbStorage(...)`, `sqliteStorage(...)`,
+ *    `cascadingCache(...)`, or a custom tier. You own the layout — no
+ *    auto-namespacing.
  *
- * 3. **`fixturesStorage: StorageTier`** — advanced escape hatch for
- *    non-filesystem backends (`sqliteStorage` / `indexedDbStorage` / custom /
- *    cascading). Skips auto-namespacing — you own the layout.
+ *    **Filesystem directories (Node only):** the core `fallbackAdapter`
+ *    does NOT import `node:fs` / `node:path` — it's safe to bundle for
+ *    browsers. For a directory convenience, import `fallbackAdapter` from
+ *    `@graphrefly/graphrefly/patterns/ai/node-middleware` (node subpath);
+ *    that variant adds `fixturesDir: string` (auto-namespaced to
+ *    `join(dir, keyPrefix)`, cache-format validated at init).
  *
  * ## Record mode
  *
- * `record: { adapter: real, dir?, storage? }` proxies every call to `real`
- * AND persists the response. `record.dir` is auto-namespaced like
- * `fixturesDir`; `record.storage` is pass-through like `fixturesStorage`.
- * When `record.dir` is omitted and `fixturesDir` is set, `record.dir` defaults
- * to `fixturesDir` — the "read baseline, append misses to same dir" pattern.
+ * `record: { adapter: real, storage }` proxies every call to `real` AND
+ * persists the response through the provided tier. Use the node subpath's
+ * `fallbackAdapter` for `record.dir` (auto-namespaced + `record.dir` defaults
+ * to `fixturesDir` when both are file-backed).
  *
  * ## Three use cases, one implementation
  *
  * | Use case | Config |
  * |---|---|
- * | **User apps** — degrade when the cloud provider errors or network is down | `fallbackAdapter({ fixturesDir: ... })` installed as a fallback tier |
- * | **Tests** — deterministic replays, fail loudly on miss | `fallbackAdapter({ fixturesDir: ..., onMiss: "throw" })` |
- * | **Eval offline replay** — zero-spend repeat runs | `fallbackAdapter({ fixturesDir: "./fixtures" })` as the only adapter |
+ * | **User apps** — degrade when the cloud provider errors or network is down | `fallbackAdapter({ fixturesStorage: ... })` installed as a fallback tier |
+ * | **Tests** — deterministic replays, fail loudly on miss | `fallbackAdapter({ fixturesStorage: ..., onMiss: "throw" })` |
+ * | **Eval offline replay** — zero-spend repeat runs | `fallbackAdapter({ fixturesStorage: ... })` as the only adapter |
  *
  * ## Implementation
  *
  * Thin sugar over {@link withReplayCache}. Key shape comes from its
- * `canonicalJson` — fixtures written by either tool are interchangeable
- * (provided `fixturesDir` points at the matching namespaced subdirectory).
+ * `canonicalJson` — fixtures written by either tool are interchangeable.
  *
  * @module
  */
 
-import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { wallClockNs } from "../../../../core/clock.js";
-import { fileStorage, memoryStorage, type StorageTier } from "../../../../extra/storage.js";
+import { sha256Hex } from "../../../../core/hash.js";
+import { memoryStorage, type StorageTier } from "../../../../extra/storage-core.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -136,21 +131,12 @@ export interface FallbackAdapterOptions {
 	 */
 	readonly fixtures?: readonly FallbackFixture[];
 	/**
-	 * Directory of cache-format JSON files. Automatically namespaced to
-	 * `join(dir, keyPrefix)` so multiple adapters pointing at the same root
-	 * don't commingle files. An init-time validator throws a clear `TypeError`
-	 * if the namespaced subdirectory contains files that aren't in cache
-	 * format — hand-authored `{messages, response}` JSON files don't work
-	 * here; use `fixtures: [...]` for hand-authoring. Mutually exclusive with
-	 * `fixtures` and `fixturesStorage`.
-	 */
-	readonly fixturesDir?: string;
-	/**
-	 * Advanced: bring-your-own `StorageTier` (`memoryStorage`, `sqliteStorage`,
-	 * `indexedDbStorage`, `cascadingCache`, or a custom tier). Skips
-	 * auto-namespacing — you own the layout. 95% of users don't need this;
-	 * use `fixtures` or `fixturesDir` instead. Mutually exclusive with
-	 * `fixtures` and `fixturesDir`.
+	 * Bring-your-own `StorageTier` (`memoryStorage`, `sqliteStorage`,
+	 * `indexedDbStorage`, `cascadingCache`, or a custom tier). You own the
+	 * layout — no auto-namespacing. Mutually exclusive with `fixtures`.
+	 *
+	 * For filesystem directories, use the node subpath's `fallbackAdapter`
+	 * with its `fixturesDir` option (auto-namespaced + validated).
 	 */
 	readonly fixturesStorage?: StorageTier;
 	/**
@@ -166,15 +152,11 @@ export interface FallbackAdapterOptions {
 	readonly onMiss?: FallbackMissPolicy;
 	/**
 	 * Record mode. Proxies every call to `record.adapter` AND persists the
-	 * result. `record.dir` is auto-namespaced like `fixturesDir`; `record.storage`
-	 * is pass-through like `fixturesStorage`. If `record.dir` is omitted but
-	 * `fixturesDir` is set, record defaults to writing to `fixturesDir` — the
-	 * natural "read baseline, append misses to same dir" pattern.
+	 * result through `record.storage`. For filesystem `record.dir` convenience,
+	 * use the node subpath's `fallbackAdapter`.
 	 */
 	readonly record?: {
 		readonly adapter: LLMAdapter;
-		readonly dir?: string;
-		/** Override the storage tier directly (mutually exclusive with `dir`). */
 		readonly storage?: StorageTier;
 	};
 	/** Stream replay speed multiplier. See {@link withReplayCache}. Default `1`. */
@@ -232,12 +214,15 @@ function normalizeRespondResult(
 
 /**
  * Compute the key a `FallbackFixture` would hash to. Messages-keyed fixtures
- * get their key derived on the spot; hash-keyed fixtures pass through.
+ * get their key derived on the spot; hash-keyed fixtures pass through. Async
+ * because `sha256Hex` uses `globalThis.crypto.subtle` (universal, no
+ * `node:crypto` leak) — see {@link sha256Hex}.
  */
-function fixtureKey(fixture: FallbackFixture, keyPrefix: string): string {
+async function fixtureKey(fixture: FallbackFixture, keyPrefix: string): Promise<string> {
 	if ("key" in fixture) return fixture.key;
 	const canonical = canonicalJson({ messages: fixture.messages, opts: fixture.invokeOpts ?? {} });
-	return `${keyPrefix}:${createHash("sha256").update(canonical).digest("hex")}`;
+	const hex = await sha256Hex(canonical);
+	return `${keyPrefix}:${hex}`;
 }
 
 /**
@@ -267,87 +252,46 @@ function toCachedEntry(fixture: FallbackFixture): unknown {
 }
 
 /**
- * Validate that a namespaced `fixturesDir` subdirectory only contains files
- * in the cache format `withReplayCache` writes. Throws a clear `TypeError`
- * if a hand-authored `{messages, response}` JSON (or any non-cache JSON) is
- * present. Scans the first `.json` file found — doesn't read the whole set.
- * Silently returns if the directory doesn't exist yet (first-run case).
- */
-function validateDirShape(dir: string): void {
-	if (!existsSync(dir)) return;
-	const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
-	if (files.length === 0) return;
-	const sample = files[0] as string;
-	const path = join(dir, sample);
-	let raw: unknown;
-	try {
-		raw = JSON.parse(readFileSync(path, "utf8"));
-	} catch (err) {
-		throw new TypeError(`fallbackAdapter: ${path} is not valid JSON (${(err as Error).message}).`);
-	}
-	const asObj = raw as {
-		response?: { content?: unknown };
-		storedAtNs?: unknown;
-		messages?: unknown;
-	} | null;
-	// Cache format requires both `response.content` (string) and `storedAtNs`
-	// (number). A top-level `messages` field is a dead giveaway for a
-	// hand-authored `FallbackFixture` shape dropped into the directory by
-	// mistake — reject eagerly with a pointed error message.
-	const looksLikeHandAuthored = asObj != null && "messages" in asObj;
-	const missingFields =
-		asObj == null ||
-		typeof asObj.response?.content !== "string" ||
-		typeof asObj.storedAtNs !== "number";
-	if (looksLikeHandAuthored || missingFields) {
-		const hint = looksLikeHandAuthored
-			? "`messages` at the top level means this looks hand-authored. "
-			: "";
-		throw new TypeError(
-			`fallbackAdapter: ${path} is not in cache-file format. ${hint}` +
-				"Expected `{ response: { content, usage, ... }, storedAtNs, ... }` " +
-				"(the shape `withReplayCache` and this adapter's `record` mode write). " +
-				"For hand-authored fixtures, use the inline `fixtures: FallbackFixture[]` " +
-				"option — the adapter hashes messages for you.",
-		);
-	}
-}
-
-/**
  * Resolve the fixture source to a `StorageTier`. Enforces mutual exclusion
- * between `fixtures`, `fixturesDir`, and `fixturesStorage`. Auto-namespaces
- * `fixturesDir` to `join(dir, keyPrefix)` to prevent commingling when
- * multiple adapters share a root directory.
+ * between `fixtures` and `fixturesStorage`. When `fixtures` is provided, the
+ * seeded memory tier is returned synchronously but keys are populated
+ * asynchronously via the returned seeding promise (await before first use).
  */
 function resolveFixtureStorage(
 	opts: FallbackAdapterOptions,
 	keyPrefix: string,
-): StorageTier | undefined {
+): { tier: StorageTier | undefined; seedReady: Promise<void> } {
 	const sources: string[] = [];
 	if (opts.fixtures != null) sources.push("fixtures");
-	if (opts.fixturesDir != null) sources.push("fixturesDir");
 	if (opts.fixturesStorage != null) sources.push("fixturesStorage");
 	if (sources.length > 1) {
 		throw new TypeError(
-			`fallbackAdapter: \`fixtures\`, \`fixturesDir\`, and \`fixturesStorage\` ` +
-				`are mutually exclusive; got both ${sources.join(" and ")}. Pick one source.`,
+			`fallbackAdapter: \`fixtures\` and \`fixturesStorage\` are mutually ` +
+				`exclusive; got both ${sources.join(" and ")}. Pick one source. ` +
+				`For filesystem directories use the node subpath's \`fallbackAdapter\`.`,
 		);
 	}
 	if (opts.fixtures) {
 		const tier = memoryStorage();
-		for (const fixture of opts.fixtures) {
-			const key = fixtureKey(fixture, keyPrefix);
-			tier.save(key, toCachedEntry(fixture));
-		}
-		return tier;
+		const fixtures = opts.fixtures;
+		const seedReady = (async () => {
+			for (const fixture of fixtures) {
+				const key = await fixtureKey(fixture, keyPrefix);
+				await tier.save(key, toCachedEntry(fixture));
+			}
+		})();
+		// Attach a no-op catch so a failure inside the IIFE (e.g. `sha256Hex`
+		// throws because `globalThis.crypto.subtle` is unavailable) does NOT
+		// become an unhandled rejection when the adapter is constructed but
+		// never invoked. V8 records the handler attachment via this branch
+		// of the promise graph, so the Node `unhandledRejection` hook stays
+		// silent — yet subsequent `await seedReady` inside `invoke`/`stream`
+		// still throws the original error for the caller to see.
+		seedReady.catch(() => {});
+		return { tier, seedReady };
 	}
-	if (opts.fixturesDir != null) {
-		const namespaced = join(opts.fixturesDir, keyPrefix);
-		validateDirShape(namespaced);
-		return fileStorage(namespaced);
-	}
-	if (opts.fixturesStorage) return opts.fixturesStorage;
-	return undefined;
+	if (opts.fixturesStorage) return { tier: opts.fixturesStorage, seedReady: Promise.resolve() };
+	return { tier: undefined, seedReady: Promise.resolve() };
 }
 
 // ---------------------------------------------------------------------------
@@ -395,39 +339,30 @@ export function fallbackAdapter(opts: FallbackAdapterOptions = {}): LLMAdapter {
 					: degradedResponse(provider, model);
 				const r = normalizeRespondResult(raw, provider, model);
 				yield { type: "token", delta: r.content };
-				yield { type: "usage", usage: r.usage };
+				if (r.usage) yield { type: "usage", usage: r.usage };
 				yield { type: "finish", reason: r.finishReason ?? "stop" };
 			},
 		} satisfies LLMAdapter;
 	})();
 
-	// Resolve the storage tier. Precedence:
-	// - `record` mode: `record.storage` (pass-through) OR `record.dir` (auto-
-	//   namespaced) OR — as a convenience — defaults to `fixturesDir` when
-	//   that's set too, enabling the "read baseline, append to same dir" pattern.
-	// - Replay-only: whichever of `fixtures` / `fixturesDir` / `fixturesStorage`
-	//   is set. Mutually exclusive; validator throws in `resolveFixtureStorage`.
+	// Resolve the storage tier.
+	// - `record` mode: require `record.storage`.
+	// - Replay-only: `fixtures` seeds an in-memory tier (async) OR
+	//   `fixturesStorage` passes through.
 	let storage: StorageTier;
+	let seedReady: Promise<void> = Promise.resolve();
 	if (opts.record) {
-		if (opts.record.storage && opts.record.dir) {
+		if (!opts.record.storage) {
 			throw new TypeError(
-				"fallbackAdapter: `record.storage` and `record.dir` are mutually exclusive; pick one.",
+				"fallbackAdapter: `record.storage` is required in record mode. For filesystem " +
+					"`record.dir` convenience, use the node subpath's `fallbackAdapter`.",
 			);
 		}
-		if (opts.record.storage) {
-			storage = opts.record.storage;
-		} else {
-			const recordDir = opts.record.dir ?? opts.fixturesDir;
-			if (recordDir == null) {
-				throw new TypeError(
-					"fallbackAdapter: record mode requires either `record.dir`, `record.storage`, " +
-						"or an inherited `fixturesDir`.",
-				);
-			}
-			storage = fileStorage(join(recordDir, keyPrefix));
-		}
+		storage = opts.record.storage;
 	} else {
-		storage = resolveFixtureStorage(opts, keyPrefix) ?? memoryStorage();
+		const resolved = resolveFixtureStorage(opts, keyPrefix);
+		storage = resolved.tier ?? memoryStorage();
+		seedReady = resolved.seedReady;
 	}
 
 	const mode = opts.record ? "read-write" : onMiss === "throw" ? "read-strict" : "read";
@@ -442,10 +377,24 @@ export function fallbackAdapter(opts: FallbackAdapterOptions = {}): LLMAdapter {
 		...(opts.keyFn ? { keyFn: opts.keyFn } : {}),
 	});
 
-	// Stamp the "fallback" provider/model labels for observability.
+	// Wrap invoke/stream so the first call awaits the seed-complete Promise.
+	// Adapter construction stays synchronous (`fallbackAdapter(...)` returns
+	// immediately); inline fixture hashing happens lazily on first use.
 	return {
-		...cached,
 		provider,
 		model,
+		capabilities: cached.capabilities?.bind(cached),
+		async invoke(messages, invokeOpts): Promise<LLMResponse> {
+			await seedReady;
+			// `cached` came from `withReplayCache`, whose `invoke` always returns
+			// `Promise<LLMResponse>`. The `LLMAdapter` interface types it as the
+			// broader `NodeInput<LLMResponse>` union; narrow here to the actual
+			// shape so the wrapper surface stays `Promise<LLMResponse>`.
+			return cached.invoke(messages, invokeOpts) as Promise<LLMResponse>;
+		},
+		async *stream(messages, invokeOpts): AsyncGenerator<StreamDelta> {
+			await seedReady;
+			for await (const delta of cached.stream(messages, invokeOpts)) yield delta;
+		},
 	};
 }
