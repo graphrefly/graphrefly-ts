@@ -14,12 +14,12 @@
  */
 
 import { batch } from "../core/batch.js";
-import { DATA } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, state } from "../core/sugar.js";
 import { reactiveLog } from "../extra/reactive-log.js";
+import { type StratifyRule, stratify } from "../extra/stratify.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
-import { feedback, type StratifyRule, scorer, stratify } from "./reduction.js";
+import { feedback, scorer } from "./reduction.js";
 
 // ---------------------------------------------------------------------------
 // Shared
@@ -661,7 +661,7 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 		const result = vals[0] as ValidationResult;
 		if (result?.valid) {
 			batch(() => {
-				baseline.down([[DATA, result.record]]);
+				baseline.emit(result.record);
 			});
 		}
 	});

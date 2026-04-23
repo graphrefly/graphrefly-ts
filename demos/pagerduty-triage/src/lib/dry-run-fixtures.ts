@@ -130,13 +130,23 @@ export function createDryRunAdapter(): LLMAdapter {
 		model: "triage-mock",
 		latencyMs: 200,
 		respond: (messages: readonly ChatMessage[]) => {
-			// Find the user message with the alert details
 			const userMsg = messages.find((m) => m.role === "user");
 			if (!userMsg)
-				return JSON.stringify({ disposition: "actionable", confidence: 0.4, brief: "No input" });
+				return JSON.stringify({
+					alertId: "",
+					disposition: "actionable",
+					confidence: 0.4,
+					brief: "No input",
+				});
+
+			// Echo the Alert ID from the prompt — routeEffect uses it to look
+			// up the in-flight alert; an undefined/missing alertId silently
+			// skips via the staleness guard (pendingAlerts.get(undefined) → null).
+			const alertIdMatch = userMsg.content.match(/Alert ID:\s*(\S+)/);
+			const alertId = alertIdMatch?.[1] ?? "";
 
 			const result = classifyFromKeywords(userMsg.content);
-			return JSON.stringify(result);
+			return JSON.stringify({ alertId, ...result });
 		},
 		usage: () => ({
 			input: { regular: 120 },

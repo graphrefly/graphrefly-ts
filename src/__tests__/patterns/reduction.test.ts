@@ -7,15 +7,9 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
+import { type StratifyRule, stratify } from "../../extra/stratify.js";
 import { Graph } from "../../graph/graph.js";
-import {
-	budgetGate,
-	feedback,
-	funnel,
-	type StratifyRule,
-	scorer,
-	stratify,
-} from "../../patterns/reduction.js";
+import { budgetGate, feedback, funnel, scorer } from "../../patterns/reduction.js";
 
 // ---------------------------------------------------------------------------
 // stratify

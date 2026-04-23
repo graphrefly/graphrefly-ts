@@ -61,6 +61,8 @@ export default defineConfig({
 		"src/core/index.ts",
 		"src/extra/index.ts",
 		"src/extra/sources.ts",
+		"src/extra/operators.ts",
+		"src/extra/reactive.ts",
 		"src/extra/storage-core.ts",
 		"src/extra/storage-node.ts",
 		"src/extra/storage-browser.ts",

@@ -14,7 +14,7 @@
 import { batch } from "../core/batch.js";
 import { wallClockNs } from "../core/clock.js";
 import { policy } from "../core/guard.js";
-import { DATA, derived, type Node, node, state } from "../core/index.js";
+import { derived, type Node, node, state } from "../core/index.js";
 import { reactiveLog } from "../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../graph/index.js";
 
@@ -319,12 +319,12 @@ export class CqrsGraph extends Graph {
 		}
 		const cmdNode = this.resolve(commandName);
 		batch(() => {
-			cmdNode.down([[DATA, payload]], { internal: true });
+			cmdNode.emit(payload, { internal: true });
 			try {
 				handler(payload, { emit: (eName, data) => this._appendEvent(eName, data) });
-				cmdNode.meta.error.down([[DATA, null]], { internal: true });
+				cmdNode.meta.error.emit(null, { internal: true });
 			} catch (err) {
-				cmdNode.meta.error.down([[DATA, err]], { internal: true });
+				cmdNode.meta.error.emit(err, { internal: true });
 				throw err;
 			}
 		});
@@ -418,9 +418,9 @@ export class CqrsGraph extends Graph {
 						for (const entry of newEntries) {
 							try {
 								handler(entry as CqrsEvent<T>);
-								errNode.down([[DATA, null]], { internal: true });
+								errNode.emit(null, { internal: true });
 							} catch (err) {
-								errNode.down([[DATA, err]], { internal: true });
+								errNode.emit(err, { internal: true });
 							}
 						}
 						lastCounts.set(eName, entries.length);

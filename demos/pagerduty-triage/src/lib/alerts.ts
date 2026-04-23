@@ -66,7 +66,7 @@ export interface AlertGeneratorOptions {
 
 export function generateAlerts(opts?: AlertGeneratorOptions): readonly Alert[] {
 	const seed = opts?.seed ?? Date.now() ^ 0xdeadbeef;
-	const count = opts?.count ?? 60; // enough for a 3-minute run
+	const count = opts?.count ?? 80; // enough for a 5-minute run (~52 alerts produced across phases)
 	const rng = mulberry32(seed);
 
 	const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rng() * arr.length)]!;
@@ -88,16 +88,32 @@ export function generateAlerts(opts?: AlertGeneratorOptions): readonly Alert[] {
 }
 
 // ── Emission schedule ───────────────────────────────────────────
-// Returns delay-in-ms for the Nth alert. Starts slow, accelerates.
-//   0–20:  one every 4s  (0:00–1:20)
-//   20–40: one every 2s  (1:20–2:00)
-//   40+:   one every 1s  (2:00–3:00)
+// Returns next delay-in-ms based on elapsed run time (not alert index).
+// 5-minute round with a long readable ramp-up:
+//   0:00 – 2:00  → 30s between alerts   (4 alerts: calm, you read carefully)
+//   2:00 – 3:00  → 15s between alerts   (4 alerts: steady)
+//   3:00 – 4:00  → 8s between alerts    (~7 alerts: elevated)
+//   4:00 – 4:30  → 4s between alerts    (~7 alerts: pressured)
+//   4:30 – 5:00  → 1s burst             (~30 alerts: chaos finale)
 
-export function emissionDelayMs(index: number): number {
-	if (index < 20) return 4000;
-	if (index < 40) return 2000;
-	return 1000;
+export const EMISSION_PHASES = [
+	{ untilMs: 120_000, delayMs: 30_000, label: "calm (30s)" },
+	{ untilMs: 180_000, delayMs: 15_000, label: "steady (15s)" },
+	{ untilMs: 240_000, delayMs: 8_000, label: "elevated (8s)" },
+	{ untilMs: 270_000, delayMs: 4_000, label: "pressured (4s)" },
+	{ untilMs: 300_000, delayMs: 1_000, label: "burst (1s)" },
+] as const;
+
+export function emissionDelayMs(elapsedMs: number): number {
+	for (const phase of EMISSION_PHASES) {
+		if (elapsedMs < phase.untilMs) return phase.delayMs;
+	}
+	return EMISSION_PHASES[EMISSION_PHASES.length - 1].delayMs;
 }
 
-// Total alerts that fit in 3 minutes with the above schedule:
-// 20×4 + 20×2 + 60×1 = 80+40+60 = 180s worth ≈ 60 alerts is a good default.
+export function emissionPhaseLabel(elapsedMs: number): string {
+	for (const phase of EMISSION_PHASES) {
+		if (elapsedMs < phase.untilMs) return phase.label;
+	}
+	return EMISSION_PHASES[EMISSION_PHASES.length - 1].label;
+}

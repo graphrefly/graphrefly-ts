@@ -42,16 +42,15 @@ describe("graphrefly", () => {
 		expect(typeof patterns.orchestration.pipeline).toBe("function");
 		expect(typeof patterns.orchestration.task).toBe("function");
 		expect(typeof patterns.orchestration.branch).toBe("function");
-		expect(typeof patterns.orchestration.valve).toBe("function");
 		expect(typeof patterns.orchestration.gate).toBe("function");
 		expect(typeof patterns.orchestration.approval).toBe("function");
-		expect(typeof patterns.orchestration.forEach).toBe("function");
 		expect(typeof patterns.orchestration.join).toBe("function");
 		expect(typeof patterns.orchestration.loop).toBe("function");
 		expect(typeof patterns.orchestration.subPipeline).toBe("function");
 		expect(typeof patterns.orchestration.sensor).toBe("function");
-		expect(typeof patterns.orchestration.wait).toBe("function");
 		expect(typeof patterns.orchestration.onFailure).toBe("function");
+		// `valve` / `forEach` / `wait` removed from patterns/orchestration —
+		// use `valve` / `effect` / `delay` from `src/extra/*` with `graph.add(...)`.
 	});
 
 	it("exports memory patterns namespace", () => {

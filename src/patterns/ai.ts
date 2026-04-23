@@ -1098,7 +1098,7 @@ export function gatedStream<T = string>(
 		reject(count = 1) {
 			originalReject(count);
 			// Toggle cancel signal to force switchMap restart → abort
-			cancelSignal.down([[DATA, ++cancelCounter]]);
+			cancelSignal.emit(++cancelCounter);
 		},
 	};
 
@@ -1456,7 +1456,7 @@ export class ToolRegistryGraph extends Graph {
 		const current = this.definitions.cache as ReadonlyMap<string, ToolDefinition>;
 		const next = new Map(current);
 		next.set(tool.name, tool);
-		this.definitions.down([[DATA, next]]);
+		this.definitions.emit(next);
 	}
 
 	unregister(name: string): void {
@@ -1464,7 +1464,7 @@ export class ToolRegistryGraph extends Graph {
 		if (!current.has(name)) return;
 		const next = new Map(current);
 		next.delete(name);
-		this.definitions.down([[DATA, next]]);
+		this.definitions.emit(next);
 	}
 
 	async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -2420,8 +2420,8 @@ export function agentMemory<TMem = unknown>(
 			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
 			const { packed, trace } = runRetrieval(storeMap, contextNode.cache, query);
 			batch(() => {
-				retrievalOutput.down([[DATA, packed]]);
-				traceState.down([[DATA, trace]]);
+				retrievalOutput.emit(packed);
+				traceState.emit(trace);
 			});
 			return packed;
 		};

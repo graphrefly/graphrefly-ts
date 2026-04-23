@@ -7,7 +7,7 @@
  * - `jobQueue()` for queue claim/ack flow
  */
 
-import { batch, COMPLETE, DATA, derived, type Node, node, state } from "../core/index.js";
+import { batch, COMPLETE, derived, type Node, node, state } from "../core/index.js";
 import { reactiveList } from "../extra/reactive-list.js";
 import { reactiveLog } from "../extra/reactive-log.js";
 import { reactiveMap } from "../extra/reactive-map.js";
@@ -450,7 +450,7 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 				}
 				if (bridged > 0) {
 					const current = this.bridgedCount.cache as number;
-					this.bridgedCount.down([[DATA, current + bridged]]);
+					this.bridgedCount.emit(current + bridged);
 				}
 			},
 			{

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DATA, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { effect, state } from "../../core/sugar.js";
+import { delay, valve } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
 import {
 	approval,
 	branch,
-	forEach,
 	gate,
 	join,
 	loop,
@@ -15,8 +15,6 @@ import {
 	sensor,
 	subPipeline,
 	task,
-	valve,
-	wait,
 } from "../../patterns/orchestration.js";
 
 describe("patterns.orchestration", () => {
@@ -97,7 +95,8 @@ describe("patterns.orchestration", () => {
 		g.add(input, { name: "input" });
 		g.add(open, { name: "open" });
 		g.add(approved, { name: "approved" });
-		const gated = valve<number>(g, "gated", "input", "open");
+		const gated = valve<number>(input, open);
+		g.add(gated, { name: "gated" });
 		const reviewed = approval<number>(g, "reviewed", gated, "approved");
 		gated.subscribe(() => undefined);
 		reviewed.subscribe(() => undefined);
@@ -113,15 +112,16 @@ describe("patterns.orchestration", () => {
 		expect(g.get("reviewed")).toBe(3);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
-	it("forEach runs side effects and forwards messages", () => {
+	// forEach removed — use `effect([source], ...)` + `graph.add()`.
+	it("effect-based side-effect runs per value and is graph-observable", () => {
 		const g = pipeline("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
 		const seen: number[] = [];
-		const sink = forEach<number>(g, "sink", "input", (value) => {
-			seen.push(value);
+		const sink = effect([input], ([value]) => {
+			seen.push(value as number);
 		});
+		g.add(sink, { name: "sink" });
 		sink.subscribe(() => undefined);
 		g.set("input", 2);
 		g.set("input", 3);
@@ -174,12 +174,16 @@ describe("patterns.orchestration", () => {
 		expect(values).toEqual([10, 20]);
 	});
 
-	it("wait delays DATA while preserving final value", async () => {
+	it("delay shifts DATA by ms while forwarding eventual updates", async () => {
 		const g = pipeline("wf");
 		const input = state(1);
 		g.add(input, { name: "input" });
-		const delayed = wait<number>(g, "delayed", "input", 10);
+		const delayed = delay<number>(input, 10);
+		g.add(delayed, { name: "delayed" });
 		delayed.subscribe(() => undefined);
+		// extra/delay uses a per-DATA timer; initial 1 fires after the delay.
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		expect(g.get("delayed")).toBe(1);
 		g.set("input", 2);
 		expect(g.get("delayed")).toBe(1);
 		await new Promise((resolve) => setTimeout(resolve, 25));
@@ -206,29 +210,32 @@ describe("patterns.orchestration", () => {
 		expect(g.get("recovered")).toBe(999);
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
-	it("forEach does not run user callback after terminal error", () => {
+	// forEach removed — effect([source], fn) with a throwing fn terminates the
+	// effect node via auto-error propagation; downstream subscribers stop firing.
+	it("effect-based side-effect stops running user fn after an error", () => {
 		const g = pipeline("wf");
 		const src = node<number>();
 		g.add(src, { name: "src" });
 		const seen: number[] = [];
-		const sink = forEach<number>(g, "sink", "src", (value) => {
-			seen.push(value);
-			if (value >= 1) {
+		const sink = effect([src], ([value]) => {
+			seen.push(value as number);
+			if ((value as number) >= 1) {
 				throw new Error("stop");
 			}
 		});
+		g.add(sink, { name: "sink" });
 		sink.subscribe(() => undefined);
 		g.set("src", 1);
 		g.set("src", 2);
 		expect(seen).toEqual([1]);
 	});
 
-	it("wait cancels pending timers on teardown", async () => {
+	it("delay cancels pending timers on teardown", async () => {
 		const g = pipeline("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const delayed = wait<number>(g, "delayed", "input", 20);
+		const delayed = delay<number>(input, 20);
+		g.add(delayed, { name: "delayed" });
 		delayed.subscribe(() => undefined);
 		g.set("input", 2);
 		delayed.down([[TEARDOWN]]);

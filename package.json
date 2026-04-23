@@ -57,6 +57,26 @@
 				"default": "./dist/extra/sources.cjs"
 			}
 		},
+		"./extra/operators": {
+			"import": {
+				"types": "./dist/extra/operators.d.ts",
+				"default": "./dist/extra/operators.js"
+			},
+			"require": {
+				"types": "./dist/extra/operators.d.cts",
+				"default": "./dist/extra/operators.cjs"
+			}
+		},
+		"./extra/reactive": {
+			"import": {
+				"types": "./dist/extra/reactive.d.ts",
+				"default": "./dist/extra/reactive.js"
+			},
+			"require": {
+				"types": "./dist/extra/reactive.d.cts",
+				"default": "./dist/extra/reactive.cjs"
+			}
+		},
 		"./extra/storage-core": {
 			"import": {
 				"types": "./dist/extra/storage-core.d.ts",

@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import { node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { derived, effect, state } from "../core/sugar.js";
 import { merge, scan, withLatestFrom } from "../extra/operators.js";
 import { Graph } from "../graph/graph.js";
 import {
@@ -31,14 +31,7 @@ import {
 	type ToolDefinition,
 	toolRegistry,
 } from "../patterns/ai.js";
-import {
-	approval,
-	join,
-	forEach as orchForEach,
-	pipeline,
-	sensor,
-	task,
-} from "../patterns/orchestration.js";
+import { approval, join, pipeline, sensor, task } from "../patterns/orchestration.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter
@@ -105,14 +98,14 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 		// Stage 4: Join classification + extraction for validation
 		const _validated = join<[string, string[]]>(g, "validated", ["classify", "extract"]);
 
-		// Stage 5: Output effect — use orchestration forEach (not manual node wiring)
-		// KEY INSIGHT: Mixing manual node([dep], fn) with orchestration graph
-		// wiring is error-prone. Use orchestration helpers consistently.
+		// Stage 5: Output effect — use core `effect` + `graph.add` (post-A/B cleanup
+		// the old patterns/orchestration.forEach graph-registering sugar is gone).
 		const results: Array<{ type: string; entities: string[] }> = [];
-		const output = orchForEach<[string, string[]]>(g, "output", "validated", (val) => {
-			const [type, entities] = val;
+		const output = effect([g.resolve("validated")], ([val]) => {
+			const [type, entities] = val as [string, string[]];
 			results.push({ type, entities });
 		});
+		g.add(output, { name: "output" });
 
 		// KEY INSIGHT: Every leaf node needs a subscriber to activate the
 		// chain (composition guide §5). Without this, the derived pipeline

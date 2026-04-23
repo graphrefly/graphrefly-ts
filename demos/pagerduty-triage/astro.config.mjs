@@ -15,6 +15,6 @@ export default defineConfig({
 				external: ["@mlc-ai/web-llm", /^node:/],
 			},
 		},
-		optimizeDeps: { exclude: ["@mlc-ai/web-llm"] },
+		optimizeDeps: { exclude: ["@mlc-ai/web-llm", "@graphrefly/graphrefly"] },
 	},
 });

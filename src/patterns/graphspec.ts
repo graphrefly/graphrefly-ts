@@ -9,7 +9,6 @@
  * @module
  */
 
-import { DATA } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, effect, producer, state } from "../core/sugar.js";
 import { GRAPH_META_SEGMENT, Graph } from "../graph/graph.js";
@@ -801,8 +800,8 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		// so decompileGraph can recover it without structural fingerprinting.
 		try {
 			const outputNode = g.resolve(outputPath);
-			outputNode.meta._templateName?.down([[DATA, ref.template]]);
-			outputNode.meta._templateBind?.down([[DATA, ref.bind]]);
+			outputNode.meta._templateName?.emit(ref.template);
+			outputNode.meta._templateBind?.emit(ref.bind);
 		} catch {
 			/* meta nodes may not exist; template origin is best-effort */
 		}

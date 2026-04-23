@@ -44,8 +44,6 @@ export type LoopOptions = Omit<OrchestrationStepOptions, "deps"> & {
 	iterations?: number | StepRef;
 };
 
-export type WaitOptions = Omit<OrchestrationStepOptions, "deps">;
-
 export type SubPipelineBuilder = (sub: Graph) => void;
 
 function resolveDep(graph: Graph, dep: StepRef): { node: Node<unknown>; path?: string } {
@@ -183,56 +181,7 @@ export function branch<T>(
 	return step;
 }
 
-/**
- * Forwards source values only while `control` is truthy.
- */
-export function valve<T>(
-	graph: Graph,
-	name: string,
-	source: StepRef,
-	control: StepRef,
-	opts?: Omit<OrchestrationStepOptions, "deps">,
-): Node<T> {
-	const src = resolveDep(graph, source);
-	const ctrl = resolveDep(graph, control);
-	// Raw node so we can emit RESOLVED (hold) instead of DATA(undefined) when closed.
-	const step = node<T>(
-		[src.node, ctrl.node],
-		(batchData, actions, ctx) => {
-			const batch0 = batchData[0];
-			const batch1 = batchData[1];
-			// undefined = control never sent DATA (closed); falsy = explicitly closed.
-			const ctrlVal = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1];
-			// Control just opened and no new source data this wave: re-emit last source value.
-			if (batch0 == null || batch0.length === 0) {
-				if (batch1 != null && batch1.length > 0 && ctrlVal && ctx.prevData[0] !== undefined) {
-					actions.emit(ctx.prevData[0] as T);
-				} else {
-					actions.down([[RESOLVED]]);
-				}
-				return;
-			}
-			if (!ctrlVal) {
-				actions.down([[RESOLVED]]);
-				return;
-			}
-			for (const v of batch0 as T[]) actions.emit(v);
-		},
-		{
-			...opts,
-			name,
-			describeKind: "derived",
-			meta: baseMeta("valve", opts?.meta),
-		} as NodeOptions<T>,
-	);
-	registerStep(
-		graph,
-		name,
-		step as unknown as Node<unknown>,
-		[src.path, ctrl.path].filter((v): v is string => typeof v === "string"),
-	);
-	return step;
-}
+// valve moved to `src/extra/operators.ts` — use `valve(source, control)` + `graph.add(...)`.
 
 export type ApprovalOptions = Omit<OrchestrationStepOptions, "deps"> & {
 	isApproved?: (value: unknown) => boolean;
@@ -373,7 +322,7 @@ export function gate<T>(
 	});
 
 	function syncPending(): void {
-		pendingNode.down([[DATA, [...queue]]]);
+		pendingNode.emit([...queue]);
 	}
 
 	function enqueue(value: T): void {
@@ -434,7 +383,7 @@ export function gate<T>(
 			const items = dequeue(count);
 			for (const item of items) {
 				if (torn) break;
-				output.down([[DATA, item]]);
+				output.emit(item);
 			}
 		},
 		reject(count = 1) {
@@ -447,7 +396,7 @@ export function gate<T>(
 			const items = dequeue(count);
 			for (let i = 0; i < items.length; i++) {
 				if (torn) break;
-				output.down([[DATA, fn(items[i], i, snapshot)]]);
+				output.emit(fn(items[i], i, snapshot));
 			}
 		},
 		open() {
@@ -458,17 +407,17 @@ export function gate<T>(
 			// the in-flight isOpen settlement wave under async runners — item
 			// order relative to the open signal would be non-deterministic.
 			batch(() => {
-				isOpenNode.down([[DATA, true]]);
+				isOpenNode.emit(true);
 				const items = dequeue(queue.length);
 				for (const item of items) {
 					if (torn) break;
-					output.down([[DATA, item]]);
+					output.emit(item);
 				}
 			});
 		},
 		close() {
 			guardTorn("close");
-			isOpenNode.down([[DATA, false]]);
+			isOpenNode.emit(false);
 		},
 	};
 
@@ -488,67 +437,10 @@ export function gate<T>(
 	return controller;
 }
 
-/**
- * Registers a workflow side-effect step that runs `run` for each upstream
- * DATA value.
- *
- * `run` receives the full `NodeActions` and is the **sole emission point** —
- * call `actions.emit(v)` or `actions.down(msgs)` inside `run` to produce
- * downstream output. If `run` does not emit, this step acts as a pure
- * side-effect sink (graph-observable but no output). Throwing inside `run`
- * terminates the step with ERROR.
- */
-export function forEach<T>(
-	graph: Graph,
-	name: string,
-	source: StepRef,
-	run: (value: T, actions: NodeActions) => void,
-	opts?: Omit<OrchestrationStepOptions, "deps">,
-): Node<T> {
-	const src = resolveDep(graph, source);
-	let terminated = false;
-	const step = node<T>(
-		[src.node],
-		(batchData, actions, ctx) => {
-			if (terminated) {
-				actions.down([[RESOLVED]]);
-				return;
-			}
-			// Terminal from dep
-			const terminal = ctx.terminalDeps[0];
-			if (terminal !== undefined) {
-				terminated = true;
-				actions.down(terminal === true ? [[COMPLETE]] : [[ERROR, terminal]]);
-				return;
-			}
-			const batch0 = batchData[0];
-			if (batch0 == null || batch0.length === 0) {
-				actions.down([[RESOLVED]]);
-				return;
-			}
-			for (const v of batch0 as T[]) {
-				try {
-					run(v, actions);
-				} catch (err) {
-					terminated = true;
-					actions.down([[ERROR, err]]);
-					return;
-				}
-			}
-		},
-		{
-			...opts,
-			name,
-			describeKind: "effect",
-			completeWhenDepsComplete: false,
-			meta: baseMeta("forEach", opts?.meta),
-		} as NodeOptions<T>,
-	);
-	// registerStep registers the edge for graph visibility. g.connect's dedup
-	// check skips _addDep since src.node is already a constructor dep.
-	registerStep(graph, name, step as unknown as Node<unknown>, src.path ? [src.path] : []);
-	return step;
-}
+// forEach removed — use `effect([source], ([v], actions) => ...)` + `graph.add(...)`
+// for a graph-registered side-effect, or `extra/sources.forEach(source, fn)` for a
+// subscribe-based sink. The patterns/ variant duplicated `effect` + `graph.add` in
+// one call; pre-1.0 break drops the sugar rather than maintain a third path.
 
 /**
  * Registers a join step that emits a tuple of latest dependency values.
@@ -663,7 +555,7 @@ export function sensor<T>(
 	return {
 		node: source,
 		push(value: T) {
-			source.down([[DATA, value]] satisfies Messages);
+			source.emit(value);
 		},
 		error(err: unknown) {
 			source.down([[ERROR, err]] satisfies Messages);
@@ -674,89 +566,9 @@ export function sensor<T>(
 	};
 }
 
-/**
- * Registers a delayed-forwarding step (value-level wait).
- */
-export function wait<T>(
-	graph: Graph,
-	name: string,
-	source: StepRef,
-	ms: number,
-	opts?: WaitOptions,
-): Node<T> {
-	const src = resolveDep(graph, source);
-	const timers = new Set<ReturnType<typeof setTimeout>>();
-	let terminated = false;
-	let completed = false;
-
-	function clearAllTimers(): void {
-		for (const id of timers) clearTimeout(id);
-		timers.clear();
-	}
-
-	// Producer pattern: 0 deps, manual subscribe to source.
-	// Under Model B (push-on-subscribe) the fn runs eagerly via _startProducer,
-	// ensuring the cleanup is registered and timers are cleared on teardown.
-	// Only set initial if source has a real cached value (not SENTINEL/undefined).
-	const srcVal = src.node.cache;
-	const initialOpt = srcVal !== undefined ? { initial: srcVal as T } : {};
-
-	const step = node<T>(
-		[],
-		(_deps, actions) => {
-			clearAllTimers();
-			terminated = false;
-			completed = false;
-			const unsub = src.node.subscribe((msgs) => {
-				for (const msg of msgs) {
-					if (terminated) return;
-					if (msg[0] === DATA) {
-						const id = setTimeout(() => {
-							timers.delete(id);
-							actions.down([msg] satisfies Messages);
-							if (completed && timers.size === 0) {
-								actions.down([[COMPLETE]] satisfies Messages);
-							}
-						}, ms);
-						timers.add(id);
-					} else if (msg[0] === COMPLETE) {
-						terminated = true;
-						completed = true;
-						if (timers.size === 0) {
-							actions.down([[COMPLETE]] satisfies Messages);
-						}
-					} else if (msg[0] === ERROR) {
-						terminated = true;
-						clearAllTimers();
-						actions.down([msg] satisfies Messages);
-					} else {
-						actions.down([msg] satisfies Messages);
-					}
-				}
-			});
-			return () => {
-				unsub();
-				clearAllTimers();
-				terminated = true;
-			};
-		},
-		{
-			...opts,
-			name,
-			...initialOpt,
-			describeKind: "derived",
-			completeWhenDepsComplete: false,
-			meta: baseMeta("wait", opts?.meta),
-		} as NodeOptions<T>,
-	);
-	// Producer pattern: register in graph without dep edges (manual subscription).
-	// Post edge-registry deletion (Unit 7), edges are derived from node `_deps`
-	// exclusively; this producer's logical dep on `src` is not reflected in
-	// `describe()` — by design, since there is no real constructor-time
-	// dependency to show.
-	graph.add(step as unknown as Node<unknown>, { name: name });
-	return step;
-}
+// wait removed — use `delay(source, ms)` from `src/extra/operators.ts` +
+// `graph.add(...)` for a graph-registered delayed stream. `delay` has the same
+// per-DATA timer semantics and propagates COMPLETE after pending timers drain.
 
 /**
  * Registers an error-recovery step for a source.

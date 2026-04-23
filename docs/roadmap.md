@@ -625,21 +625,17 @@ N/A in TS — no runner abstraction (TS uses microtask scheduling natively via `
 
 #### Immediate follow-ups (from inspection-harness-revalidation session, 2026-04-08)
 
-##### Category A: Move protocol-level operators from patterns/ to extra/ or core/
+##### Category A: Move protocol-level operators from patterns/ to extra/ or core/ — **SHIPPED (TS) 2026-04-22**
 
-Several `patterns/` files contain protocol-level operators that belong in `extra/` or `core/`:
-- `reduction.stratify()` — tier classification, belongs in `extra/`
-- `orchestration.valve()` / `for_each()` / `wait()` — general reactive primitives, belong in `extra/`
+TS: `stratify` moved to [src/extra/stratify.ts](../src/extra/stratify.ts) (unique primitive). The patterns/ versions of `valve`, `forEach`, and `wait` were duplicates of existing extra/ operators ([extra/operators.valve](../src/extra/operators.ts), [extra/sources.forEach](../src/extra/sources.ts), [extra/operators.delay](../src/extra/operators.ts)) with a Graph-registering wrapper — removed in favor of `graph.add(op, { name })` composition. Test migrations + exports test updated. PY parity deferred.
 
-These are currently in `patterns/` because they were built for harness use cases, but they have no domain-layer assumptions. Move them so non-harness users can compose with them.
+- [ ] PY parity — move `stratify` → `extra/`, remove duplicate `valve` / `for_each` / `wait` from `patterns/orchestration.py`
 
-- [ ] Audit and move protocol-level operators from `patterns/` to `extra/` (TS + PY) **M**
+##### Category B: Replace direct `.down([(MessageType.DATA, value)])` with `.emit()` sugar — **SHIPPED (TS) 2026-04-22**
 
-##### Category B: Replace direct `.down([(MessageType.DATA, value)])` with `.set()` sugar
+TS: all 29 sites across 9 files (`memory.ts`, `reduction.ts`, `cqrs.ts`, `domain-templates.ts`, `ai.ts`, `orchestration.ts`, `graphspec.ts`, `messaging.ts`, `harness/bridge.ts`) migrated to `.emit(v)` (the actual sugar — `.set()` in the original roadmap line was a misnomer; see [src/core/node.ts:303](../src/core/node.ts:303)). `{ internal: true }` option preserved at the four `cqrs.ts` sites that use it. PY parity deferred.
 
-~30+ sites across `patterns/` in both TS and PY use `.down([(MessageType.DATA, value)])` instead of `.set(value)`. The `.down()` calls expose protocol internals (MessageType) in domain-layer code. Gate `approve()`/`reject()` are already sugar for this boundary — the remaining sites should use `.set()` or equivalent sugar.
-
-- [ ] Replace `.down([(DATA, value)])` with `.set()` sugar across patterns/ (TS + PY) **M**
+- [ ] PY parity — audit + migrate `.down([(DATA, v)])` sites in `graphrefly-py/src/graphrefly/patterns/**.py` to `.emit(v)`
 
 ---
 
@@ -664,49 +660,57 @@ loop:
 return best(candidates)
 ```
 
-##### Core API
+##### Core API — **SHIPPED (TS) 2026-04-22**
 
-- [ ] `refineLoop(seed, evaluator, strategy, opts?)` → `RefineGraph` — the universal optimization loop as a Graph. `seed`: initial artifact. `evaluator`: scores candidates. `strategy`: generates improved candidates from feedback. Returns graph with `best: Node<T>`, `history: Node<Iteration[]>`, `score: Node<number>`, `status: Node<"running"|"converged"|"budget"|"paused">`.
-- [ ] `RefineGraph` is a standard `Graph` — `describe()`, `observe()`, `snapshot()`/`restore()`, `attachStorage()` all work. Pause via PAUSE signal, resume via RESUME.
-- [ ] `Evaluator<T>` interface: `(candidate: T, dataset: DatasetItem[]) => Node<EvalResult[]>` — reactive, not Promise.
+Landed at [src/patterns/refine-loop.ts](../src/patterns/refine-loop.ts). Topology is Shape B + C-aspects: 4 mounted `TopicGraph`s (GENERATE / EVALUATE / ANALYZE / DECIDE) backbone + reactive feedback loop. Composition invariants honored: §7 (feedback cycle via closure-seeded strategy/feedback/prev-candidates reads, not reactive deps — avoids retriggering), §28 (factory-time seed pattern for multi-state subscribe ordering), §32 (state-mirror — decide-effect writes `lastFeedback` BEFORE `iterationTrigger` inside one `batch()` so the closure-updater drains between them and the next generate sees fresh feedback), inline convergence checks in decideEffect to avoid cache-round-trip deadlock. 9 tests at [src/__tests__/patterns/refine-loop.test.ts](../src/__tests__/patterns/refine-loop.test.ts).
 
-##### RefineStrategy interface (the pluggable slot)
+- [x] `refineLoop(seed, evaluator, strategy, opts)` → `RefineLoopGraph<T>` — extends `Graph` so `describe()`, `observe()`, `snapshot()` / `restore()`, `attachStorage()` all work via inheritance.
+- [x] Observable state nodes: `best`, `score`, `status` (`"running"|"converged"|"budget"|"paused"|"errored"`), `history`, `strategy`, `iteration`.
+- [x] 4 topics exposed as graph-mounted subgraphs — subscribe for streaming or cursor-based consumption.
+- [x] `Evaluator<T>` — **Shape 4** from 2026-04-22 architecture review: `(candidates: Node<readonly T[]>, dataset: Node<readonly DatasetItem[]>) => Node<readonly EvalResult[]>`. Both deps reactive; the evaluator's returned node IS the EVALUATE topic's source.
+- [x] `dataset: NodeInput | readonly DatasetItem[]` — arrays auto-wrapped in `state()` so the static-dataset case stays one line.
 
-- [ ] `RefineStrategy<T>` interface:
+##### RefineStrategy interface (the pluggable slot) — **SHIPPED (TS) 2026-04-22**
+
+- [x] `RefineStrategy<T>`:
   ```ts
-  {
-    name: string
-    analyze: (scores: EvalResult[], candidate: T) => Node<Feedback>
-    generate: (feedback: Feedback, candidates: T[]) => Node<T[]>
-    select?: (scored: ScoredItem<T>[]) => T[]
+  { name: string
+  , seed(seed: T): readonly T[]
+  , analyze(scores: readonly EvalResult[], candidates: readonly T[]): Feedback
+  , generate(feedback: Feedback, candidates: readonly T[]): Promise<readonly T[]> | readonly T[]
   }
   ```
-- [ ] Strategies are plain objects — no base class, no registration.
+  Plain object, no base class, no registration. `generate` may be sync or async — the loop bridges via `fromAny` + `switchMap` so in-flight generation is cancellable.
+- [x] Mid-run strategy swap: `loop.setStrategy(newStrategy)`. Human-in-the-loop handoff per COMPOSITION-GUIDE §29.
 
 ##### Built-in strategies (examples, not the product)
 
-- [ ] **`blindVariation(teacher, opts?)`** — teacher generates N diverse candidates. No feedback analysis. (Random Search equivalent.)
-- [ ] **`errorCritique(teacher, opts?)`** — identify errors, teacher generates critiques, apply critiques to produce improved candidates. (ProTeGi/Meta-Prompt equivalent.)
-- [ ] **`mutateAndRefine(teacher, styles?, opts?)`** — mutation via configurable "thinking styles", then critique + refine. (PromptWizard equivalent.)
+- [x] **`blindVariation(teacher, opts?)`** — teacher generates N variants per iteration; no feedback analysis. (Random Search equivalent.) SHIPPED.
+- [ ] **`errorCritique(teacher, opts?)`** — deferred to post-v1.
+- [ ] **`mutateAndRefine(teacher, styles?, opts?)`** — deferred to post-v1.
 
-##### Strategy registry (BMAD-inspired)
+##### Strategy registry (BMAD-inspired) — deferred
 
-- [ ] `strategyRegistry(entries)` — a `reactiveMap` of named strategies with metadata.
-- [ ] `autoSelectStrategy(registry, context)` — `promptNode` that picks the best strategy from the registry.
+- [ ] `strategyRegistry(entries)` — deferred to post-v1.
+- [ ] `autoSelectStrategy(registry, context)` — deferred to post-v1.
 
-##### Loop infrastructure (graph-native, what competitors lack)
+##### Loop infrastructure
 
-- [ ] **Budget gating** — `budgetGate()` (§8.1) constrains total eval calls, teacher calls, and token spend.
-- [ ] **Eval caching** — `cascadingCache()` (§3.1c) memoizes candidate→score.
-- [ ] **Parallel evaluation** — dataset eval via `funnel()` (§8.1) with configurable concurrency.
-- [ ] **Multi-objective scoring** — `scorer()` (§8.1) with reactive weights. Pareto front via derived node over history.
-- [ ] **Early stopping** — reactive condition node: patience, min_score, min_delta, max_evaluations.
-- [ ] **Checkpoint/resume** — `Graph.attachStorage()` with `autoRestore: true`. Interrupt overnight, resume from exact state.
-- [ ] **Causal tracing** — every selection decision traceable.
+- [x] **Budget gating** — `opts.budget` caps total candidate count; `opts.maxEvaluations` caps iteration × candidates. SHIPPED.
+- [x] **Early stopping** — reactive convergence nodes (`patience-check` / `min-score-check` / `min-delta-check` / `max-evaluations-check` / `max-iterations-check` / `budget-exhausted-check`) plus inline checks inside `decideEffect` (the derived convergence nodes surface in `describe()`; the inline check avoids a cache-round-trip deadlock). SHIPPED.
+- [x] **Checkpoint/resume** — works for free via `graph.attachStorage()` since `RefineLoopGraph` extends `Graph`. SHIPPED (no refine-loop-specific work needed).
+- [x] **Pause / resume** — `loop.pause()` / `loop.resume()` surface, `status: "paused"` observable. SHIPPED.
+- [ ] **Eval caching** — defer to user's `cascadingCache()` wiring around the evaluator; not baked into `refineLoop`.
+- [ ] **Parallel evaluation** — user composes with `funnel()` concurrency inside the evaluator.
+- [ ] **Multi-objective scoring** — user composes `scorer()` inside evaluator; Pareto front via `derived` over `history`.
 
 ##### Catalog-specific optimization (extends 9.1b)
 
-- [ ] `optimizeCatalog(catalog, dataset, opts?)` — wraps `refineLoop` for catalog description optimization.
+- [ ] `optimizeCatalog(catalog, dataset, opts?)` — wraps `refineLoop` for catalog description optimization. Deferred.
+
+##### Composition E — `refineExecutor`
+
+- [ ] `refineExecutor(refineLoopFactory, opts?)` — adapter that plugs a refineLoop into the EXECUTE slot of `harnessLoop`. Unblocked by the v1 landing above; ready to schedule.
 
 ##### Deliverables
 

@@ -671,7 +671,324 @@ button.queue-item {
 	font-family: var(--font-mono);
 }
 
-/* ── Queue list (side pane) ───────────────────────────────────── */
+/* ── Setup info block (pre-game instructions) ─────────────────── */
+.setup-info {
+	background: var(--gr-surface);
+	border: 1px solid var(--gr-border-subtle);
+	border-radius: 8px;
+	padding: 1rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+.setup-info h3 {
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--gr-aqua);
+	font-weight: 700;
+	margin-top: 0.4rem;
+}
+.setup-info h3:first-child {
+	margin-top: 0;
+}
+.setup-info ul,
+.setup-info ol {
+	padding-left: 1.25rem;
+	font-size: 13px;
+	color: var(--gr-text-muted);
+	line-height: 1.55;
+}
+.setup-info li {
+	margin-bottom: 0.35rem;
+}
+.setup-info strong {
+	color: var(--gr-text);
+}
+.setup-info em {
+	color: var(--gr-aqua);
+	font-style: normal;
+}
+.tempo-list {
+	list-style: none;
+	padding-left: 0;
+	font-family: var(--font-mono);
+	font-size: 12.5px;
+}
+.tempo-list li {
+	display: grid;
+	grid-template-columns: 9rem 12rem auto;
+	gap: 0.6rem;
+	padding: 0.15rem 0;
+	color: var(--gr-text);
+}
+.tempo-range {
+	color: var(--gr-aqua);
+	font-weight: 600;
+}
+.tempo-rate {
+	color: var(--gr-text);
+}
+.tempo-note {
+	color: var(--gr-text-muted);
+}
+
+/* ── Stat button (clickable queue count) ──────────────────────── */
+.stat-btn {
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	padding: 0.2rem 0.45rem;
+	cursor: pointer;
+	font: inherit;
+	transition:
+		border-color 0.12s,
+		background 0.12s;
+}
+.stat-btn:hover:not(:disabled) {
+	border-color: var(--gr-aqua);
+	background: var(--gr-surface-raised);
+}
+.stat-btn:disabled {
+	cursor: default;
+	opacity: 0.65;
+}
+.stat-btn.active {
+	border-color: var(--gr-aqua);
+	background: var(--gr-aqua-glow);
+}
+.stat-value.warn {
+	color: var(--gr-warn);
+}
+.stat-value.small {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: var(--gr-text-muted);
+	letter-spacing: 0.04em;
+}
+
+/* ── Header controls (pause / start pills) ───────────────────── */
+.header-controls {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.btn-pill {
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	border: 1px solid var(--gr-border);
+	background: var(--gr-surface-raised);
+	color: var(--gr-text);
+	border-radius: 999px;
+	padding: 0.35em 0.9em;
+	cursor: pointer;
+	transition:
+		border-color 0.12s,
+		color 0.12s,
+		background 0.12s;
+}
+.btn-pill:hover {
+	border-color: var(--gr-aqua);
+}
+.btn-pill.pause {
+	border-color: var(--gr-warn);
+	color: var(--gr-warn);
+}
+.btn-pill.resume {
+	border-color: var(--gr-aqua);
+	background: var(--gr-aqua);
+	color: var(--gr-deep);
+}
+.btn-pill.start {
+	border-color: var(--gr-aqua);
+	background: var(--gr-aqua);
+	color: var(--gr-deep);
+}
+
+/* ── Ready / Pause banners ───────────────────────────────────── */
+.ready-banner {
+	padding: 0.75rem 1rem;
+	background: var(--gr-surface);
+	border: 1px dashed var(--gr-aqua);
+	border-radius: 6px;
+	font-size: 13px;
+	color: var(--gr-text-muted);
+}
+.ready-banner strong {
+	color: var(--gr-aqua);
+	margin-right: 0.25rem;
+}
+.pause-banner {
+	padding: 0.75rem 1rem;
+	background: rgba(240, 200, 106, 0.08);
+	border: 1px solid var(--gr-warn);
+	border-radius: 6px;
+	font-size: 13px;
+	color: var(--gr-text);
+}
+.pause-banner strong {
+	color: var(--gr-warn);
+	font-family: var(--font-mono);
+	letter-spacing: 0.12em;
+	margin-right: 0.4rem;
+}
+
+/* ── Focus pane (lower right) ────────────────────────────────── */
+.pane-focus {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	background: var(--gr-surface);
+}
+.pane-focus h3 {
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--gr-text-muted);
+	padding: 0.6rem 1rem;
+	border-bottom: 1px solid var(--gr-border-subtle);
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.focus-source {
+	font-family: var(--font-mono);
+	font-size: 9.5px;
+	padding: 0.08em 0.55em;
+	border-radius: 999px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	border: 1px solid;
+}
+.focus-source.queue {
+	color: var(--gr-aqua);
+	border-color: var(--gr-aqua);
+}
+.focus-source.actionable {
+	color: var(--gr-danger);
+	border-color: var(--gr-danger);
+}
+.focus-empty {
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--gr-text-muted);
+	font-size: 13px;
+	padding: 2rem;
+	text-align: center;
+}
+.focus-content {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 1.25rem;
+	gap: 1rem;
+	min-height: 0;
+}
+.focus-detail {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	gap: 0.6rem;
+	padding: 0.5rem 0.5rem 1rem;
+	overflow: auto;
+}
+.focus-ids {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+.focus-ids .severity-badge {
+	font-size: 13.5px;
+}
+.focus-id {
+	font-family: var(--font-mono);
+	font-size: 14px;
+	color: var(--gr-text-muted);
+}
+.focus-service {
+	font-weight: 700;
+	font-size: 22px;
+	color: var(--gr-text);
+	letter-spacing: -0.01em;
+}
+.focus-summary {
+	font-family: var(--font-mono);
+	font-size: 16px;
+	color: var(--gr-text);
+	background: var(--gr-deep);
+	border: 1px dashed var(--gr-border);
+	border-radius: 6px;
+	padding: 0.75rem 1rem;
+	max-width: 48rem;
+	line-height: 1.55;
+}
+.focus-brief {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 15px;
+	color: var(--gr-text-muted);
+	margin-top: 0.2rem;
+}
+.focus-brief .brief-label {
+	font-size: 11px;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--gr-aqua);
+	font-weight: 700;
+}
+.focus-brief .brief-text {
+	color: var(--gr-text);
+	max-width: 42rem;
+	font-size: 15px;
+	line-height: 1.5;
+}
+.focus-brief .confidence {
+	font-family: var(--font-mono);
+	font-size: 13px;
+	color: var(--gr-aqua-dim);
+}
+.focus-note {
+	font-size: 13px;
+	font-style: italic;
+	color: var(--gr-text-muted);
+	max-width: 38rem;
+}
+.focus-actions .action-btn {
+	font-size: 14.5px;
+	padding: 0.55rem 1rem;
+}
+.focus-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+.action-btn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+/* ── Bin card selected state ─────────────────────────────────── */
+.bin-card.selected {
+	outline: 2px solid var(--gr-aqua);
+	outline-offset: -1px;
+}
+
+/* ── Queue list (side pane) — kept for legacy, unused ─────────── */
 .queue-list {
 	flex: 1 1 auto;
 	overflow-y: auto;

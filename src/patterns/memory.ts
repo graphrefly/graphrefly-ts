@@ -7,7 +7,6 @@
  */
 
 import { monotonicNs } from "../core/clock.js";
-import { DATA } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 import { Graph } from "../graph/graph.js";
@@ -197,7 +196,7 @@ export function lightCollection<T>(opts: LightCollectionOptions = {}): LightColl
 	}
 
 	function commit(next: Map<string, LightCollectionEntry<T>>): void {
-		entries.down([[DATA, next]]);
+		entries.emit(next);
 	}
 
 	return {
@@ -319,7 +318,7 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 	}
 
 	function commit(next: Map<string, CollectionEntry<T>>): void {
-		items.down([[DATA, next]]);
+		items.emit(next);
 	}
 
 	const out = Object.assign(graph, {
@@ -390,7 +389,7 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 	}
 
 	function commit(next: Map<string, VectorRecord<TMeta>>): void {
-		entries.down([[DATA, next]]);
+		entries.emit(next);
 	}
 
 	return {
@@ -463,11 +462,11 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	graph.add(adjacency, { name: "adjacency" });
 
 	function commitEntities(next: Map<string, TEntity>): void {
-		entities.down([[DATA, next]]);
+		entities.emit(next);
 	}
 
 	function commitEdges(next: ReadonlyArray<KnowledgeEdge<TRelation>>): void {
-		edges.down([[DATA, next]]);
+		edges.emit(next);
 	}
 
 	const out = Object.assign(graph, {

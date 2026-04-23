@@ -180,7 +180,7 @@ export function evalIntakeBridge(
  * const trigger = state(0);         // bump to trigger a new run
  * const results = evalSource(trigger, () => runEvals(config));
  * results.subscribe(msgs => { ... });
- * trigger.down([[DATA, 1]]);         // fires the runner
+ * trigger.emit(1);                   // fires the runner
  * ```
  *
  * @param trigger - Any node; each new DATA emission fires the runner.

@@ -20,6 +20,12 @@
 			"port": 4324
 		},
 		{
+			"name": "pagerduty-triage-demo",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["--dir", "demos/pagerduty-triage", "dev"],
+			"port": 4325
+		},
+		{
 			"name": "website",
 			"runtimeExecutable": "pnpm",
 			"runtimeArgs": ["--dir", "website", "dev"],
