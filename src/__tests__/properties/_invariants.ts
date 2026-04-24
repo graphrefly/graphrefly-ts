@@ -862,6 +862,214 @@ const invariant14ResubscribePause: Invariant = {
 			return sawTier3;
 		}),
 };
+/**
+ * #15 — Multi-sink trace convergence (§2.4). Two subscribers on the same
+ * node observe the same sequence of post-activation messages.
+ *
+ * Mirrors TLA+ `MultiSinkTracesConverge`. `_deliverToSinks` at
+ * src/core/node.ts:2248 iterates a snapshot of the sinks Set, so each
+ * subscriber receives every wave's settlement in order. A regression that
+ * dropped deliveries from a later-subscribed sink (or reordered the
+ * snapshot) would fail this property.
+ *
+ * Topology: `state(0)` with two observers; after activation (handshake
+ * filtered), the post-activation DATA/RESOLVED/DIRTY sequence at observer A
+ * must equal observer B's. COMPOSITION-GUIDE §32-class peer-read bugs at
+ * the multi-dep diamond level require a separate topology and are tracked
+ * in docs/optimizations.md as a follow-up.
+ */
+const invariant15MultiSinkConverge: Invariant = {
+	name: "multi-sink-trace-convergence",
+	description:
+		"Two sinks subscribed to the same source node observe the same post-activation sequence of DIRTY/DATA/RESOLVED messages.",
+	specRef: "GRAPHREFLY-SPEC §2.4 (node fn contract) + §2.2 (subscribe)",
+	property: () =>
+		fc.property(eventSequenceArb({ maxLen: 6 }), (events) => {
+			// Topology-fragility note: `activationEndA` / `activationEndB` are
+			// captured as `seq.length` at the instant `subscribe()` returns.
+			// This is correct for a plain `state(0)` where neither sink's
+			// subscribe induces side-effect traffic at the other sink. If
+			// this invariant ever grows to cover diamond/shared-ancestor
+			// topologies, the second subscribe could synthesize activation
+			// messages at the first sink via a mutual upstream mount, and
+			// length-at-time would understate A's activation by those
+			// messages. Anchor on "count of START messages observed" if that
+			// regime is exercised.
+			const s = state(0);
+			const seqA: symbol[] = [];
+			const seqB: symbol[] = [];
+			const pushOnce = (bucket: symbol[]) => (msgs: readonly [symbol, unknown?][]) => {
+				for (const msg of msgs) {
+					if (msg[0] === START) continue;
+					bucket.push(msg[0]);
+				}
+			};
+			const uA = s.subscribe(pushOnce(seqA));
+			const activationEndA = seqA.length;
+			const uB = s.subscribe(pushOnce(seqB));
+			const activationEndB = seqB.length;
+			const completed = { value: false };
+			for (const e of events) applyEvent(s, e, completed);
+			uA();
+			uB();
+			const postA = seqA.slice(activationEndA);
+			const postB = seqB.slice(activationEndB);
+			if (postA.length !== postB.length) return false;
+			for (let i = 0; i < postA.length; i++) {
+				if (postA[i] !== postB[i]) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #16 — Up-direction tier guard (§1.4). Calling `node.up(messages)` with a
+ * tier-3 (DATA/RESOLVED) or tier-4 (COMPLETE/ERROR) payload throws; tier-1
+ * (DIRTY), tier-2 (PAUSE/RESUME), and tier-5 (TEARDOWN) do not throw on a
+ * node that has deps.
+ *
+ * Mirrors TLA+ `UpQueuesCarryControlPlane`. The runtime enforces this at
+ * `_validateUpTiers` (src/core/node.ts ~L981). Spec §1.4: "up — upstream
+ * from sink toward source (PAUSE, RESUME, INVALIDATE, TEARDOWN)"; §2.2 `up`
+ * interface says tier-3/4 throw.
+ *
+ * Regression guard: any future refactor that drops the tier check would
+ * allow DATA/ERROR payloads to flow toward deps, bypassing equals
+ * substitution and cache advance — a protocol-invariant violation.
+ *
+ * Note: TLA+ models the ASPIRATIONAL semantic where `UpPause` at a leaf
+ * applies `pauseLocks` at the parent. The current runtime's `up()` only
+ * forwards to deps; sources with no deps silently absorb the message. This
+ * gap is tracked in docs/optimizations.md as "up-direction PAUSE semantics."
+ * This invariant covers the contract the runtime DOES honor today (tier
+ * guard + forwarding shape).
+ */
+const invariant16UpTierGuard: Invariant = {
+	name: "up-direction-tier-guard",
+	description:
+		"Calling `up()` with a tier-3 (DATA/RESOLVED) or tier-4 (COMPLETE/ERROR) payload throws; tier-1/2/5 payloads do not throw on a node with deps.",
+	specRef: "GRAPHREFLY-SPEC §1.4 (direction conventions) + §2.2 (up interface)",
+	property: () =>
+		fc.property(
+			fc.constantFrom<"DIRTY" | "PAUSE" | "RESUME" | "DATA" | "RESOLVED" | "COMPLETE" | "ERROR">(
+				"DIRTY",
+				"PAUSE",
+				"RESUME",
+				"DATA",
+				"RESOLVED",
+				"COMPLETE",
+				"ERROR",
+			),
+			(tierName) => {
+				const s = state(0);
+				const d = derived([s], ([x]) => x as number);
+				const unsub = d.subscribe(() => {});
+				try {
+					// Build the message. PAUSE/RESUME require a lockId payload.
+					let thrown = false;
+					try {
+						if (tierName === "DIRTY") {
+							d.up([[DIRTY]]);
+						} else if (tierName === "PAUSE") {
+							d.up([[PAUSE, Symbol("up-pause")]]);
+						} else if (tierName === "RESUME") {
+							d.up([[RESUME, Symbol("up-resume")]]);
+						} else if (tierName === "DATA") {
+							d.up([[DATA, 1]]);
+						} else if (tierName === "RESOLVED") {
+							d.up([[RESOLVED]]);
+						} else if (tierName === "COMPLETE") {
+							d.up([[COMPLETE]]);
+						} else {
+							d.up([[ERROR, new Error("up-error")]]);
+						}
+					} catch {
+						thrown = true;
+					}
+					const isTier34 =
+						tierName === "DATA" ||
+						tierName === "RESOLVED" ||
+						tierName === "COMPLETE" ||
+						tierName === "ERROR";
+					return thrown === isTier34;
+				} finally {
+					unsub();
+				}
+			},
+		),
+};
+
+/**
+ * #17 — Pausable:false structural + paired negative control (§2.6).
+ *
+ * Mirrors TLA+ `PausableOffStructural` and strengthens the test beyond a
+ * single-mode check. The runtime's `_emit` at src/core/node.ts ~L1953
+ * guards lock accumulation behind `this._pausable !== false` — so PAUSE
+ * arriving at a `pausable: false` node MUST be ignored, and fn execution
+ * MUST continue firing normally (per the spec §2.6 table: "fn fires
+ * normally regardless of flow control signals").
+ *
+ * The test uses a **derived node** whose fn execution is the observable
+ * (state sources bypass `_maybeRunFnOnSettlement`'s `_paused` gate — see
+ * node.ts:1602 — so pausable:on vs pausable:false at a pure source looks
+ * identical to downstream subscribers, which would make a source-level
+ * test silently false-positive). A derived node makes the mode matter.
+ *
+ * Paired property — with the same stimulus topology, flip only the
+ * `pausable` option:
+ * - `pausable: false`: `down([[PAUSE, lockId]])` on derived → subsequent
+ *   source emit triggers fn, DATA reaches subscriber. ✓ contract.
+ * - `pausable: true` (default): same stimulus, fn is suppressed via
+ *   `_maybeRunFnOnSettlement`'s `_paused` early-return; subscriber sees
+ *   NO DATA. ✓ confirms the option actually wires through. If both
+ *   branches produced the same observation, the option would be silently
+ *   ignored and this test would fail — i.e. it cannot pass for the
+ *   "false-positive because the option never reached the runtime" reason.
+ */
+const invariant17PausableOffStructural: Invariant = {
+	name: "pausable-off-structural",
+	description:
+		"A derived with `pausable: false` delivers DATA after PAUSE (lock ignored); same topology with `pausable: true` does NOT deliver (fn suppressed). The paired check rules out a test passing because the option was silently ignored.",
+	specRef: "GRAPHREFLY-SPEC §2.6 (pausable option — false)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 9 }), (emitVal) => {
+			const run = (pausable: boolean): boolean => {
+				const s = state(0);
+				const d = derived([s], ([x]) => (x as number) * 2, { pausable });
+				let sawData = false;
+				let dataValue: number | null = null;
+				const unsub = d.subscribe((msgs) => {
+					for (const m of msgs as readonly [symbol, unknown?][]) {
+						if (m[0] === DATA) {
+							sawData = true;
+							dataValue = m[1] as number;
+						}
+					}
+				});
+				// After activation-time handshake, hold a PAUSE lock at the
+				// derived. Then emit a fresh value upstream. Whether DATA
+				// reaches the subscriber depends on `pausable`:
+				// - false: lock ignored at _emit's `this._pausable !== false`
+				//   guard; fn fires; DATA flows through.
+				// - true: lock accumulates, `_paused` becomes true,
+				//   `_maybeRunFnOnSettlement` early-returns on `if (this._paused)`.
+				d.down([[PAUSE, Symbol("pausable-off-negcontrol")]]);
+				sawData = false;
+				dataValue = null;
+				s.emit(emitVal);
+				unsub();
+				return sawData && dataValue === emitVal * 2;
+			};
+			// Contract check (positive): pausable:false → DATA must arrive.
+			const positive = run(false);
+			// Negative control: pausable:true → DATA must NOT arrive. If both
+			// branches deliver DATA, the option was silently ignored and the
+			// positive check passed for the wrong reason.
+			const negative = !run(true);
+			return positive && negative;
+		}),
+};
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -886,6 +1094,9 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant12NestedDrain,
 	invariant13BufferAllReplay,
 	invariant14ResubscribePause,
+	invariant15MultiSinkConverge,
+	invariant16UpTierGuard,
+	invariant17PausableOffStructural,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract
