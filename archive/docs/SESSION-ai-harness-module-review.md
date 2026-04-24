@@ -2592,9 +2592,755 @@ Reasoning:
 
 ---
 
-## Wave B — Harness composition audit (pending)
+## Wave B — Harness composition audit
 
 _Same structure. Fold findings that cross Wave A/B boundaries here with back-refs._
+
+### Unit 15 — `types.ts` (harness wiring types)
+
+**Scope:** [src/patterns/harness/types.ts](../../src/patterns/harness/types.ts) (320 LOC). Covers: intake/triage/execute/verify data shapes, enums (`IntakeSource`, `Severity`, `RootCause`, `Intervention`, `QueueRoute`, `ErrorClass`), ordered constants (`QUEUE_NAMES`, `DEFAULT_SEVERITY_WEIGHTS`, `DEFAULT_DECAY_RATE`, `DEFAULT_QUEUE_CONFIGS`), helpers (`strategyKey`, `defaultErrorClassifier`), and the plug-in contracts (`HarnessExecutor`, `HarnessVerifier`, `HarnessLoopOptions`).
+
+#### Q1 — Semantics, purpose, implementation
+
+- **Enums as string-literal unions.** `IntakeSource`, `Severity`, `RootCause`, `Intervention`, `QueueRoute`, `ErrorClass` are all closed unions — extensibility only via source edit (no registry, no `extends`).
+- **`IntakeItem`** ([types.ts:58](../../src/patterns/harness/types.ts:58)) — uniform shape for all intake sources. Private-ish `_reingestions?: number` counter item-carried through the loop; incremented at [loop.ts:479](../../src/patterns/harness/loop.ts:479).
+- **`TriagedItem extends IntakeItem`** — adds classifier output (`rootCause`, `intervention`, `route`, `priority`, `triageReasoning`) plus `_retries?: number` (item-carried fast-retry count).
+- **Strategy model** — `StrategyEntry` + `StrategyKey` template literal type `${RootCause}→${Intervention}`. `strategyKey()` helper is the one place the join char (`→`) is declared; any code constructing keys outside this helper risks drift.
+- **Execute shapes** — `ExecuteOutput` ({ outcome, detail, artifact? }) is what a plug-in emits; `ExecutionResult` is what the harness assembles downstream (adds `item`). `artifact?: unknown` is the escape hatch that lets `refineExecutor` carry the converged candidate into `evalVerifier` (Unit 21).
+- **`ErrorClassifier`** — pure fn `(result) => "self-correctable" | "structural"`. Default at [types.ts:143](../../src/patterns/harness/types.ts:143) is a **substring match** on `detail.toLowerCase()` against five keywords (`parse | json | config | validation | syntax`) — anything else is structural.
+- **`VerifyResult` vs `VerifyOutput`** — same split as execute: the plug-in produces `VerifyOutput` ({ verified, findings, errorClass? }), the harness wraps it into `VerifyResult` (adds `item` + `execution`).
+- **Priority signals** — config bag only; actual scoring lives in `strategy.ts`'s `priorityScore` (Unit 19). `DEFAULT_DECAY_RATE = Math.LN2 / (7 * 24 * 3600)` — module-level eval; ~7-day half-life.
+- **Queue configs** — 4 default routes have differing `gated` flags; `backlog` carries `startOpen: false` even though it's not `gated` (noise — `startOpen` only matters when gated).
+- **Pluggable slots** — `HarnessExecutor` / `HarnessVerifier` are function types `(input) => Node<...>`. Rules 1–4 for executors live in JSDoc at [types.ts:234–246](../../src/patterns/harness/types.ts:234) (emit once per completed run, switchMap on supersede, don't bypass `input.cache` via a state mirror, don't fire on arrival).
+- **`HarnessLoopOptions.adapter: unknown`** — deliberately typed as `unknown` with the comment "kept as unknown to avoid circular dep" ([types.ts:266](../../src/patterns/harness/types.ts:266)). Callers narrow at the consumption site (`loop.ts:221 as LLMAdapter`).
+
+#### Q2 — Semantically correct?
+
+- ✅ `strategyKey()` and `StrategyKey` template literal agree on the `→` join char — single source of truth.
+- ✅ `QUEUE_NAMES` is `as const` — downstream iteration order (e.g. `loop.ts:229`) is stable.
+- ✅ `_reingestions` / `_retries` are item-carried per-item counters; combined with the `totalRetries` / `totalReingestions` circuit-breaker states in `loop.ts` gives both local + global caps.
+- ⚠️ **`defaultErrorClassifier` is a substring match.** False positives trivially: `detail = "Parsed successfully after retry"` or `detail = "configuration complete"` both classify as `self-correctable`. False negatives: a real JSON parse error phrased as "invalid output" or "malformed" classifies as `structural`. No regex word boundaries. The harness's fast-retry budget hinges on this classifier — ten `detail = "validation passed"` results that happen to fail verify would each consume a `self-correctable` retry slot.
+- ⚠️ **`ExecuteOutput.artifact: unknown`** — deliberate escape hatch, but typing `artifact` as `unknown` forces every consumer (evalVerifier, user toOutput mappers, observability tooling) to cast. A generic `ExecuteOutput<A = unknown>` would preserve the escape hatch while letting `refineExecutor<T>` flow `T` through to `evalVerifier`'s `extractArtifact` without the `as T` cast at [eval-verifier.ts:107](../../src/patterns/harness/eval-verifier.ts:107).
+- ⚠️ **`HarnessLoopOptions.adapter: unknown`** — the "circular dep" it dodges is `types.ts` importing from `patterns/ai`. The actual dep graph has `loop.ts` importing from `patterns/ai` just fine. `types.ts` could `import type { LLMAdapter } from "../ai/index.js"` — a type-only import doesn't create a runtime cycle. Current shape requires every caller to silently re-assert the type.
+- ⚠️ **`triagePrompt` / `executePrompt` / `verifyPrompt` typed as `string | (...args: unknown[]) => string`.** The actual callsite for triage is `(pair: [IntakeItem, StrategySnapshot]) => string`; for execute it's `(item: TriagedItem) => string`; for verify it's `(ctxPair: [ExecuteOutput|null, TriagedItem|null]) => string`. Users writing a custom prompt function get zero IDE help and no compile error on wrong shapes. Rule-4 misuse surfaces only at runtime.
+- ⚠️ **Ergonomic contradiction between `executePrompt` + `executor`.** JSDoc says "Ignored when `executor` is set" ([types.ts:275](../../src/patterns/harness/types.ts:275)). Types permit both. Users who pass both get silent ignore of the prompt string with no warning.
+- ⚠️ **`HarnessVerifier` tuple shape leaks `withLatestFrom` wiring.** The verifier receives `Node<[ExecuteOutput | null, TriagedItem | null]>` — an authored tuple reflecting the harness's internal pairing choice. A cleaner contract would be `(exec: Node<ExecuteOutput | null>, item: Node<TriagedItem | null>) => Node<VerifyOutput | null>` with the harness wiring `withLatestFrom` internally.
+- ⚠️ **`_reingestions` / `_retries` naming collision risk.** LLMs that see the JSON-stringified item in the triage prompt can round-trip the `_retries` field. The optimizations.md "Router spread order defaults to intake-wins" entry (2026-04-23) is exactly this class of bug — LLM returning `_reingestions` in classification silently clobbered the counter until the spread order was flipped. Pre-1.0 rename to `$retries` / `$reingestions` (unlikely to survive JSON round-trip) is low-risk insurance.
+- ⚠️ **`DEFAULT_QUEUE_CONFIGS.backlog.startOpen: false`** is meaningless (backlog is `gated: false`; `startOpen` is the gate's initial state). Not a bug — just noise that invites "does backlog get a gate?" confusion.
+
+#### Q3 — Design-invariant violations?
+
+- 🟢 **§5.8–§5.11 all clean** — pure-type file, no runtime. `DEFAULT_DECAY_RATE` is a constant config, not a timestamp; central-timer rule N/A.
+- 🟡 **§5.12 developer-friendly APIs** — `adapter: unknown` and `(...args: unknown[]) => string` prompt signatures push type erosion onto callers. The JSDoc carries the real contract; the type system doesn't. `HarnessVerifier`'s tuple shape exposes `withLatestFrom` wiring — a protocol detail leaking into the public domain surface, against the §5.12 "protocol internals never surface" spirit (the spec says "`DIRTY`, `RESOLVED`, bitmask" specifically but the intent generalizes).
+- 🟡 **COMPOSITION-GUIDE §3 null sentinels** — the `_retries?: number` / `_reingestions?: number` optional numbers with undefined-as-missing are fine on their own, but the arithmetic at `loop.ts:445` (`item._retries ?? 0`) + round-trip risk (Q2 above) mean a retry surviving an LLM round-trip silently resets to 0.
+
+#### Q4 — Open items (roadmap / optimizations.md)
+
+- [optimizations.md "Router spread order defaults to intake-wins (done 2026-04-23, QA)"](../../docs/optimizations.md) — the `_reingestions` / `_retries` field-collision fix lives in loop.ts, not types.ts. A typeshift (rename or brand) would neutralize the whole class.
+- [optimizations.md "Harness `executeAndVerify` unified slot"](../../docs/optimizations.md) — would add a third `HarnessLoopOptions` field (`executeAndVerify?: (input) => Node<VerifyResult | null>`), shape similar to current executor/verifier types. Types file would grow ~8 LOC.
+- [optimizations.md "Harness executor/verifier dev-mode sanity check"](../../docs/optimizations.md) — no type-level change; adds a `debug?: boolean` field and runtime counter.
+- **Not in optimizations.md yet — candidates for this review:**
+  - `ExecuteOutput<A>` generic for typed-artifact pass-through (Q2).
+  - Rename `_retries` / `_reingestions` to a brand or `$`-prefix (Q2 / §3).
+  - Typed-prompt signatures (`(item: TriagedItem) => string` etc.) (Q2).
+  - `HarnessVerifier` shape without the tuple leak (Q2).
+  - `adapter` field typed as `LLMAdapter` via type-only import (Q2).
+  - `defaultErrorClassifier` tightened with regex word boundaries or dropped in favor of an opt-in match (Q2).
+
+#### Q5 — Right abstraction? More generic possible?
+
+- **Right level.** A dedicated `types.ts` for the harness is the right pattern — every other `patterns/*/` folder does the same, and cross-file type reuse is the point.
+- **Over-sharing concern.** `types.ts` currently mixes (a) domain types that every consumer needs (IntakeItem, TriagedItem, VerifyResult), (b) plug-in contracts that only executor/verifier authors care about, and (c) configuration defaults. Could split into `types.ts` (a+b) + `defaults.ts` (c), but 320 LOC isn't unwieldy and the re-export surface is single.
+- **More generic possible.** `IntakeSource` / `RootCause` / `Intervention` unions are harness-specific; some user wants to add a `"schema"` intake source or `"test-gen"` intervention. Two shapes:
+  - Keep as closed unions, require pre-1.0 edit for additions.
+  - Widen to `IntakeSource = string` with a branded `KnownIntakeSource` re-export. Pro: user extensibility. Con: `DEFAULT_QUEUE_CONFIGS` / triage prompts break down — the closed set is a feature for the default behaviors.
+  - **Middle:** `IntakeSource = KnownIntakeSource | (string & {})` — preserves IDE autocomplete on the known set while allowing custom strings. Same pattern TypeScript uses for HTMLTagName. Low-risk, backwards-compatible extension.
+
+#### Q6 — Right long-term solution? Caveats / maintenance burden
+
+- **`adapter: unknown` will bite eventually.** Every new harness feature that wants to read the adapter's capabilities has to re-cast. When the adapter type gains new fields (tools? middleware stack introspection?), `loop.ts:221` silently compiles with stale assumptions.
+- **`defaultErrorClassifier` is the scariest piece of the file.** It silently decides retry budget. 12 months from now someone will debug "why did my harness retry 30 times on a structural bug?" and trace it to `detail.includes("validation")`. Replace with an explicit classifier-by-regex or require callers to supply one (breaking change, pre-1.0).
+- **`_retries` / `_reingestions` naming** — the mitigating router spread order fix is load-bearing. If a future refactor reorders that spread, the whole reingestion cap breaks silently. Brand-type or `$`-prefix removes the class entirely.
+- **`ExecuteOutput.artifact: unknown`** — low burden today (one consumer: evalVerifier). Burden grows linearly with escape-hatch consumers. Generic at introduction is almost free; retrofitting later breaks every consumer.
+- **Closed enums** — `RootCause` / `Intervention` are the strategy-model keys. Changing them (adding variants) means the strategy-model cache file format also changes. Lock as closed for the pre-1.0 baseline.
+
+#### Q7 — Simplify / reactive / composable + topology check + perf/memory
+
+**Proposed simpler shape (illustrative):**
+
+```ts
+// types.ts
+import type { LLMAdapter } from "../ai/index.js";  // type-only, no cycle
+
+export interface ExecuteOutput<A = unknown> {
+  outcome: "success" | "failure" | "partial";
+  detail: string;
+  artifact?: A;
+}
+
+export type HarnessVerifier<A = unknown> = (
+  exec: Node<ExecuteOutput<A> | null>,
+  item: Node<TriagedItem | null>,
+) => Node<VerifyOutput | null>;
+// Implementation wires withLatestFrom internally in loop.ts; callers never see the tuple.
+
+export interface HarnessLoopOptions<A = unknown> {
+  adapter: LLMAdapter;           // was: unknown
+  triagePrompt?: string | ((pair: readonly [IntakeItem, StrategySnapshot]) => string);
+  executePrompt?: string | ((item: TriagedItem) => string);
+  verifyPrompt?: string | ((ctxPair: readonly [ExecuteOutput<A> | null, TriagedItem | null]) => string);
+  executor?: HarnessExecutor<A>;
+  verifier?: HarnessVerifier<A>;
+  // ... rest
+}
+
+export interface IntakeItem {
+  // ... existing
+  $reingestions?: number;  // was: _reingestions
+}
+export interface TriagedItem extends IntakeItem {
+  // ... existing
+  $retries?: number;       // was: _retries
+}
+```
+
+**Deltas:** `adapter` typed via type-only import. `ExecuteOutput<A>` generic threads artifact type end-to-end. `HarnessVerifier<A>` takes two nodes, hides tuple internally. Prompt signatures typed. `$retries` / `$reingestions` rename survives LLM round-trips (no ergonomic JSON keyshape).
+
+**Topology check.** A types file participates in no runtime graph, so the "islands / explain" check is N/A — flag as the precedent for other type-only modules across this review. The indirect topology impact is through `defaultErrorClassifier`: a false-positive `self-correctable` classification produces a retry edge (`fastRetry` → `retryTopic` → `executeInput`) that wouldn't otherwise exist. If the classifier misfires, `describe()` shows the retry edge taken even though the failure was structural — the topology is correct but the data flowing through it isn't. Flag in Q9 coverage.
+
+**Performance & memory footprint:**
+- **Current:** `DEFAULT_SEVERITY_WEIGHTS` / `DEFAULT_QUEUE_CONFIGS` / `DEFAULT_DECAY_RATE` are module-singletons; zero per-harness cost. `defaultErrorClassifier` allocates a lowercase copy of `detail` and runs 5 `.includes` checks — O(n) in detail length, called once per failed-verify wave.
+- **Recommended:** identical module cost; error classifier micro-perf change is noise (maybe one regex alloc per call vs 5 `.includes`).
+
+#### Q8 — Alternative implementations (A/B/C…)
+
+- **(A) Status quo.** Pros: no churn. Cons: every Q2/Q6 concern lingers.
+- **(B) Type-only import for `LLMAdapter`, leave everything else.** Pros: 1 LOC change, removes the "circular dep" myth. Cons: doesn't address the prompt-signature, artifact-generic, or tuple-leak issues.
+- **(C) `ExecuteOutput<A>` generic + `HarnessVerifier<A>` + typed prompts.** Pros: end-to-end artifact type, IDE help on prompt fns, verifier shape doesn't leak `withLatestFrom`. Cons: breaking-change for `refineExecutor<T>` / `evalVerifier<T>` (need to update generics site-local; pre-1.0 OK). Signature of `harnessLoop` acquires a generic parameter that threads through `HarnessGraph<A>`.
+- **(D) Rename `_retries` / `_reingestions` to `$retries` / `$reingestions`.** Pros: removes LLM round-trip collision class. Cons: breaking change on serialized `IntakeItem` / `TriagedItem` (pre-1.0 OK, no known persistent consumers).
+- **(E) Tighten `defaultErrorClassifier`.** Pros: retry budget doesn't misfire on coincidental keywords. Sub-options: (E1) regex word-boundaries; (E2) require callers to supply a classifier (breaking); (E3) drop the default entirely and make `errorClassifier` required. **(E1) is the pragmatic middle.**
+- **(F) `IntakeSource` etc. widened to `Known | (string & {})`.** Pros: user extensibility without losing IDE autocomplete. Cons: closed-world reasoning in defaults / prompts breaks subtly — an unknown `IntakeSource` doesn't have a `DEFAULT_QUEUE_CONFIG` implication (not a mapping today, so moot), but prompts that branch on source may miss cases. Defer.
+- **(G) Split `types.ts` into `types.ts` + `defaults.ts`.** Pros: clearer read. Cons: import churn with no behavior change. Defer.
+
+**Recommendation: B + C + D + E1.** Together: type-only adapter import, artifact generic, tuple-free verifier contract, typed prompts, `$`-prefix rename, regex-hardened classifier. Single coherent type-layer cleanup pass; enables Unit 16–22 reviews to reference stable types.
+
+#### Q9 — Does the recommendation cover the concerns?
+
+| Concern (from Q2/Q3/Q6) | Covered by |
+|---|---|
+| `adapter: unknown` forces casts everywhere | B — type-only import of `LLMAdapter` |
+| Prompt signatures erase real arg shapes | C — typed prompt fns with readonly tuples |
+| `executePrompt` + `executor` silent-ignore | C — JSDoc stays authoritative; consider a runtime warn in the loop factory (orthogonal) |
+| `ExecuteOutput.artifact: unknown` forces downstream casts | C — `ExecuteOutput<A>` generic threads `T` through `refineExecutor<T>` → `evalVerifier<T>` |
+| `HarnessVerifier` tuple-leak of withLatestFrom wiring | C — two-node contract, harness wires internally |
+| `_retries` / `_reingestions` LLM round-trip collision | D — `$`-prefix keys unlikely to survive JSON round-trip |
+| `defaultErrorClassifier` substring false positives/negatives | E1 — regex word boundaries |
+| `backlog.startOpen: false` meaningless flag | (trim-only; unaddressed by B/C/D/E1 — drop in same change) |
+| Protocol-detail leakage (§5.12) | C — verifier tuple removed |
+
+**Open question — requires user call:**
+
+1. **Artifact generic rollout scope.** `HarnessLoopOptions<A>` + `HarnessGraph<A>` + `refineExecutor<T>` all need to thread `A = T`. Breaking change across 3–4 files; do we land it as one coherent type-layer change or defer to the evalVerifier/refineExecutor unit sessions?
+2. **Closed unions vs `Known | (string & {})`.** Option F kept off the recommendation. Confirm — is user-extensible `IntakeSource` / `Intervention` a v0 nice-to-have or truly pre-1.0 scope creep?
+3. **`defaultErrorClassifier` — keep the default at all?** Option E3 says drop the default and make `errorClassifier` required. Pre-1.0 policy allows. Do we lean ergonomic (E1) or strict (E3)?
+
+#### Decisions locked (2026-04-23)
+
+- **Recommendation B + C + D + E1 + F + G accepted.** Scope for the Unit 15 implementation pass:
+  - **B** — `import type { LLMAdapter } from "../ai/index.js"` in `types.ts`; `HarnessLoopOptions.adapter: LLMAdapter` (drop the `unknown`).
+  - **C** — `ExecuteOutput<A = unknown>` generic; thread `A` through `HarnessExecutor<A>` / `HarnessVerifier<A>` / `HarnessLoopOptions<A>` / `HarnessGraph<A>`; two-node `HarnessVerifier` (`exec: Node<ExecuteOutput<A> | null>, item: Node<TriagedItem | null>`) with the harness wiring `withLatestFrom` internally in `loop.ts`. Typed prompt signatures (readonly tuples for pair-shaped prompts). Update `refineExecutor<T>` / `evalVerifier<T>` call sites in the same change so the generic is coherent end-to-end — no half-threaded state.
+  - **D** — rename `_retries` → `$retries` and `_reingestions` → `$reingestions` on `IntakeItem` / `TriagedItem`; update all `loop.ts` arithmetic sites (`item._retries ?? 0` etc.). `$`-prefix survives JSON round-trip less readily than `_` and makes the intent "framework-only field" visible.
+  - **E1** — tighten `defaultErrorClassifier` with regex word boundaries: `/\b(parse|json|config|validation|syntax)\b/i.test(result.detail)`. Keep the default; retry policy stays ergonomic for zero-config use. Document the caveat in JSDoc: "regex-word-boundary match — custom classifier required for domain-specific failure modes."
+  - **F** — `type IntakeSource = "eval" | "test" | "human" | "code-change" | "hypothesis" | "parity" | (string & {})`. Preserves IDE autocomplete on the known set while letting user-supplied string sources pass through. Apply ONLY to `IntakeSource` — `RootCause` / `Intervention` stay closed (they are the `StrategyKey` template literal inputs; widening breaks the finite-keyspace property the strategy model depends on). `QueueRoute` also stays closed (iterated via `QUEUE_NAMES` for gate/queue topic construction).
+  - **G** — split `types.ts` (320 LOC) into `types.ts` (domain types + plug-in contracts) + `defaults.ts` (runtime constants + helpers: `QUEUE_NAMES`, `DEFAULT_SEVERITY_WEIGHTS`, `DEFAULT_DECAY_RATE`, `DEFAULT_QUEUE_CONFIGS`, `strategyKey`, `defaultErrorClassifier`). Public barrel `index.ts` continues to re-export everything, so external consumers see no change.
+- **Trim-only fix folded into the same change:** drop `DEFAULT_QUEUE_CONFIGS.backlog.startOpen: false` — meaningless on a non-gated route.
+- **Not in scope for this pass:** `executePrompt` + `executor` runtime silent-ignore warn (orthogonal, tracked as a separate opt-in dev-mode check per optimizations.md). Artifact generic rollout lands as one coherent change across `types.ts` + `loop.ts` + `refine-executor.ts` + `eval-verifier.ts` + `strategy.ts` — scheduled alongside the Unit 21 implementation session so the generic is validated by the two main consumers in the same diff.
+
+---
+
+### Unit 16 — TRIAGE + QUEUE stages in `loop.ts`
+
+**Scope:** [src/patterns/harness/loop.ts](../../src/patterns/harness/loop.ts) lines 235–302 (intake topic, strategy-backed triage prompt, 4-queue router). Covers: `intake` TopicGraph, `strategy = strategyModel()`, `triageInput = withLatestFrom(intake.latest, strategy.node)`, `triageNode` via `promptNode`, 4 `queueTopics`, `routerInput = withLatestFrom(triageNode, triageInput)`, router effect with `{...classification, ...intakeItem}` spread, queue `.publish()`. Default triage prompt (`DEFAULT_TRIAGE_PROMPT`) at [loop.ts:44–59](../../src/patterns/harness/loop.ts:44).
+
+#### Q1 — Semantics, purpose, implementation
+
+- **Stage 1 INTAKE.** `intake = new TopicGraph<IntakeItem>("intake", { retainedLimit })`. `TopicGraph.latest` is the reactive source; `.publish()` is the imperative boundary entry point.
+- **Strategy feedback.** `strategy = strategyModel()` creates the strategy bundle (Unit 19). `strategy.node` is a `Node<StrategySnapshot>` re-derived when `strategy.record()` mutates the internal `reactiveMap`.
+- **TRIAGE stage.** `triageInput = withLatestFrom(intake.latest, strategy.node)` — intake.latest is the *primary* (fires the wave), strategy.node is *secondary* (sampled at wave time). This is the explicit break of the feedback cycle: when verify → strategy.record → strategy.node fires, triage is **not** re-triggered.
+- **Prompt function** ([loop.ts:254–263](../../src/patterns/harness/loop.ts:254)) — receives the withLatestFrom pair `[item, strategy]`. Returns `""` when `!item` — leverages `promptNode`'s SENTINEL gate (COMPOSITION-GUIDE §8) to skip the LLM call during RESOLVED / activation-null waves.
+- **`triageNode = promptNode<TriagedItem>(adapter, [triageInput], prompt, { name: "triage", format: "json", retries: 1 })`** — the LLM returns JSON matching a subset of `TriagedItem` (`rootCause`, `intervention`, `route`, `priority`, `triageReasoning`).
+- **Stage 3 QUEUE.** `queueTopics` = `Map<QueueRoute, TopicGraph<TriagedItem>>`, 4 entries keyed by `QUEUE_NAMES`.
+- **Router.** `routerInput = withLatestFrom(triageNode, triageInput)` — triage result primary, triageInput `[item, strategy]` secondary. Sampling `triageInput` (not `intake.latest`) is load-bearing: if a newer intake arrives during the LLM call, `triageInput` still holds the pair that *triggered* this triage.
+- **Router effect** ([loop.ts:284–300](../../src/patterns/harness/loop.ts:284)) — spreads `{...classification, ...intakeItem}` so intake fields override any collision with LLM-returned fields; calls `queueTopics.get(merged.route)?.publish(merged)`. Subscribe keepalive at [loop.ts:301](../../src/patterns/harness/loop.ts:301); registered as disposer at [loop.ts:505](../../src/patterns/harness/loop.ts:505).
+
+#### Q2 — Semantically correct?
+
+- ✅ **Feedback-cycle break via `withLatestFrom`** is textbook COMPOSITION-GUIDE §7. Strategy updates never re-trigger triage; only fresh intake does. Verify-record-strategy loop stays half-open as intended.
+- ✅ **`withLatestFrom(triageNode, triageInput)` pairs correctly.** The sampling of `triageInput` (not `intake.latest`) preserves the triggering item even if a newer intake arrives mid-LLM-call. Load-bearing; noted in the source comment at [loop.ts:280–282](../../src/patterns/harness/loop.ts:280).
+- ✅ **Intake-wins spread order** ({...classification, ...intakeItem}) per the 2026-04-23 fix in optimizations.md. Any stray `_reingestions` from the LLM is overwritten by the real intake value — mitigates the LLM-round-trip collision class flagged in Unit 15 Q2.
+- ✅ **`classification?.route` guard at [loop.ts:290](../../src/patterns/harness/loop.ts:290)** — a null/undefined classification (LLM error → promptNode emits null; format:"json" parse failure absorbed) skips the publish instead of publishing garbage.
+- ⚠️ **Router effect performs `topic.publish(merged)` — imperative write.** Semantically this is a sanctioned "source-boundary publish" (COMPOSITION-GUIDE §5.9 permits imperative at external boundaries). BUT the 4 queue topics are *internal* to the harness graph, not external boundaries. This is the classic pagerduty-demo pattern: the routing decision becomes invisible to `describe()` / `explain()` — the queue topics appear as islands with zero in-edges from the triage subgraph.
+- ⚠️ **`router.subscribe(() => {})` is the activation keepalive.** Required by COMPOSITION-GUIDE §1 (effect needs subscriber to fire). The disposer path is registered, but the semantic contract is: the effect runs whenever `routerInput` settles. If a consumer *also* subscribes to `routerInput` or any of its observed ancestors, the effect is no longer uniquely keepalive-driven — still fine, just a latent coupling.
+- ⚠️ **Triage's `retries: 1` on `promptNode`.** Wave A Unit 1 flagged this duplicate path: promptNode's in-built retries overlap with `withRetry` middleware. Same duplication here. Cross-ref: when Wave A Unit 1 C+D lands (remove `retries` option), this call site must switch to `withRetry(adapter, { attempts: 2 })` at adapter construction.
+- ⚠️ **Large prompts from JSON.stringify of StrategySnapshot.** As strategy grows (one entry per `rootCause × intervention` = 6×6 = 36 entries max, bounded), the prompt includes the full map on every triage. Bounded max → fine, but each triage re-inlines ~1-2KB of strategy JSON on every call. Cache-unfriendly if the adapter has replay caching, because the cache key changes on every strategy record.
+- ⚠️ **No priority re-ordering inside queues.** `queueTopics.get(merged.route).publish(merged)` appends to a FIFO topic. The `priority` field is computed by the LLM (0-100) and written into `TriagedItem` but is never used to reorder pending queue items. The `priorityScore` function (Unit 19) exists but is not wired into any queue-consumption site. This is a spec-vs-code gap that §5.12 dev-friendly-API cares about: users seeing `priority: number` in a TriagedItem assume it drives order.
+- ⚠️ **Queue-route mismatch silently drops items.** `queueTopics.get(merged.route)` returns undefined for any route not in `QUEUE_NAMES`. The LLM returning `"route": "urgent"` triggers the optional chain and the item vanishes with no log, no audit entry, no retry. Combined with Unit 15 Q2 `QueueRoute` closed-union, the risk is bounded but silent.
+
+#### Q3 — Design-invariant violations?
+
+- 🟡 **§5.9 imperative triggers — router effect `.publish()` is gray-zone.** TopicGraph.publish is the sanctioned imperative boundary, matching how Unit 20's `createIntakeBridge` / `evalIntakeBridge` publish. The gray-zone cost is purely explainability: the edge from `router` to `queue/<route>` is invisible in `describe()`. Pagerduty-class island.
+- 🟢 **§5.7 / §5.8 / §5.10 / §5.11** — no polling, no raw async, TopicGraph handles timestamps internally. Clean.
+- 🟡 **COMPOSITION-GUIDE §28 factory-time seed** — `queueTopics` is a factory-time Map, read from the router effect body. Sanctioned pattern ("closure-captured immutable map" §28). Confirmed clean.
+- 🟢 **§5.12 dev-friendly** — the user-visible surface (`harness.intake.publish(item)`) is minimal and clear.
+
+#### Q4 — Open items (roadmap / optimizations.md)
+
+- [optimizations.md "Router spread order defaults to intake-wins (done 2026-04-23, QA)"](../../docs/optimizations.md) — load-bearing for this unit; Unit 15 Q2 proposed a brand-rename that would neutralize the need.
+- [optimizations.md "Harness executor/verifier dev-mode sanity check"](../../docs/optimizations.md) — not this unit's concern (applies to EXECUTE/VERIFY), but the same dev-mode approach could assert "unknown queue route" here with ≈5 LOC.
+- roadmap §9.0 — "7-stage loop" is the spec; TRIAGE + QUEUE are shipped.
+- **Not in optimizations.md yet — candidates for this review:**
+  - Router as reactive `stratify` instead of imperative publish (explainability fix).
+  - Priority-ordered queue consumption (`priority` field is unused).
+  - Unknown-route silent-drop → throw or route to a dead-letter queue.
+  - Dev-mode route validation (known-union check).
+  - Strategy-snapshot prompt inlining → compression / last-N / summary instead of full JSON stringify.
+
+#### Q5 — Right abstraction? More generic possible?
+
+- **Right level.** The 3 stages (intake / triage / queue) have clear reactive boundaries; no factoring into sub-factories needed at this scale.
+- **More generic possible — the router.** Today the router effect is 15 LOC of `for-each-queue, publish-if-match`. Generalized: a `stratify(triageNode, (item) => item.route)` would produce one derived node per known route, each feeding a thin per-queue `effect([...], publish)`. Topology would show `triage → stratify/auto-fix → queue/auto-fix::latest` as real edges. The per-queue effect is still imperative, but the *routing decision* becomes a visible reactive node — auditor can `explain(intake, queue/auto-fix)` and see the chain.
+- **Even more generic — `TopicBridgeGraph` / `MessagingHubGraph`** from patterns/messaging. These exist for multi-keyed fan-out and would replace the whole router with a reactive hub subscription. Worth a unit-20 cross-ref; check whether the messaging hub's API matches harness's route-determination shape.
+
+#### Q6 — Right long-term solution? Caveats / maintenance burden
+
+- **The router is the single biggest maintenance liability in this unit.** 3 future "bug fixes" predictably land here:
+  - "route field renamed; silent drop" (mitigate: closed-union guard).
+  - "stray LLM field clobbered an intake field" (already hit once, now mitigated by spread order — but a future field rename could re-expose).
+  - "why isn't my high-priority item being picked up first?" (`priority` is decorative).
+  Each of these is a router refactor. A reactive `stratify` shape lets `describe()` + `explain()` surface the routing decision, which makes future debugging tractable.
+- **Strategy-snapshot prompt inlining** will grow with catalog strategy recording. Today 36 max entries; if the strategy model expands (e.g., adds per-affectsArea facets), this becomes the dominant prompt cost. Compression recipe needed eventually.
+- **Per-intake triage LLM call cost** — every intake item triggers one triage LLM call. Batching would reduce cost but breaks the per-item triage-reasoning audit trail. Accept as a cost of the 7-stage loop shape.
+
+#### Q7 — Simplify / reactive / composable + topology check + perf/memory
+
+**Proposed simpler shape (illustrative — makes router reactive-visible):**
+
+```ts
+import { stratify } from "../../extra/stratify.js";
+
+// ... existing intake / strategy / triageInput / triageNode ...
+
+// Drop the effect-based router. Instead:
+const routed = derived<TriagedItem | null>(
+  [routerInput as Node<unknown>],
+  ([pair]) => {
+    if (pair == null) return null;
+    const [classification, triagePair] = pair as [TriagedItem | null, [IntakeItem | null, StrategySnapshot] | null];
+    if (!classification?.route) return null;
+    const intakeItem = triagePair?.[0];
+    if (!intakeItem) return null;
+    return { ...classification, ...intakeItem };
+  },
+  { name: "triage::merged" },
+);
+
+// stratify produces one Node<TriagedItem | null> per known route.
+const byRoute = stratify(routed, (it) => it?.route ?? "__skip__", QUEUE_NAMES);
+
+for (const route of QUEUE_NAMES) {
+  const src = byRoute.get(route);
+  if (!src) continue;
+  const topic = queueTopics.get(route)!;
+  effect([src as Node<unknown>], ([item]) => {
+    if (item == null) return;
+    topic.publish(item as TriagedItem);
+  }, { name: `queue/${route}/sink` }).subscribe(() => {});
+}
+```
+
+**Deltas:**
+- Router splits into `routed` (derived merge, visible in describe), `byRoute` (stratify fan-out, visible), `queue/<route>/sink` (thin per-queue effect).
+- `explain(intake, queue/auto-fix::latest)` now walks `intake → triage → triage::merged → stratify::auto-fix → queue/auto-fix/sink → queue/auto-fix::latest`. Every node on the chain is named; no invisible edges.
+- Unknown route falls into `"__skip__"` bucket — no silent drop; surfaces as a known "unrouted" topology sink that can be observed for alerts.
+
+**Topology check — minimal composition (current shape):**
+
+```ts
+const mockAdapter = { invoke: async () => ({ content: JSON.stringify({ rootCause:"composition", intervention:"template", route:"auto-fix", priority:50, triageReasoning:"test" }) }) };
+const h = harnessLoop("t", { adapter: mockAdapter });
+h.intake.publish({ source:"eval", summary:"x", evidence:"y", affectsAreas:["a"] });
+```
+
+`describe({ format: "ascii" })` (current shape) will show (abridged):
+
+```
+intake::latest         -> triageInput (withLatestFrom)
+strategy (snapshot)    -> triageInput (secondary)
+triageInput            -> triage::messages -> <triage-switchMap-product> = triageNode
+triageNode             -> routerInput (withLatestFrom)
+triageInput            -> routerInput (secondary)
+routerInput            -> router (effect)
+                             (NO visible edge to queue topics)
+queue/auto-fix::latest       (island — no in-edge from any named node)
+queue/needs-decision::latest (island)
+queue/investigation::latest  (island)
+queue/backlog::latest        (island)
+```
+
+`explain(intake::latest, queue/auto-fix::latest)`: **fails** — no path. The router's `topic.publish()` is an imperative write that doesn't register as a reactive edge.
+
+**Verdict: ISLANDS — 4 queue topics disconnected from triage.** Pagerduty-class failure. Proposed `stratify`-based fix in the simpler-shape sketch above eliminates them.
+
+**Performance & memory footprint:**
+- **Current:** 4 TopicGraph mounts (per-route retained buffers, each `retainedLimit=1000` → max 4000 retained items), 1 triage `promptNode` (2 nodes: messagesNode + switchMap product), 2 `withLatestFrom` products, 1 router effect + keepalive subscription. Per intake: 1 LLM call, 1 prompt string allocation (strategy JSON size + item JSON size).
+- **Recommended (stratify shape):** +1 `derived` (routed merge, ~1 alloc per wave), +1 stratify node per route (4 extra reactive nodes), +4 thin effects. Net +8 nodes, same TopicGraph mounts. Per-wave extra cost: `stratify` is a multiplex derived — O(1) per wave. Hot-path ≈ identical.
+- **Strategy prompt cost scales with strategy size.** 36 entries × ~80 bytes JSON ≈ 3KB max per triage prompt — acceptable today; revisit if strategy model expands.
+
+#### Q8 — Alternative implementations (A/B/C…)
+
+- **(A) Status quo — imperative `topic.publish` inside router effect.** Pros: smallest code. Cons: 4 queue islands, priority unused, unknown-route silent drop.
+- **(B) `stratify` the router into reactive fan-out; keep per-queue thin imperative sink.** Pros: reactive topology closes islands; explain() walks end-to-end; unknown routes surface as an observable sink. Cons: 15 LOC more; thin imperative sinks are still imperative but the routing decision is no longer hidden.
+- **(C) Full reactive via `TopicBridgeGraph` / messaging hub.** Pros: canonical harness-of-harness pattern (messaging is the protocol primitive). Cons: requires a cross-pattern API shape audit (does messaging hub accept a string-keyed router? Is the retained-item semantic identical?). Deferred until Unit 20 (bridge.ts) confirms shape.
+- **(D) Priority-ordered queues.** Orthogonal to routing — replace TopicGraph with a priority-ordered variant (or add a `priorityOrdered: true` flag on TopicGraph). Out of scope for this unit; candidate for a messaging-layer enhancement.
+- **(E) Throw / dead-letter unknown routes.** Orthogonal patch to A or B; adds an `unroutedTopic = new TopicGraph("queue/__unrouted")` and sends anything without a matching route there. Subscribable for alerting.
+
+**Recommendation: B + E.** Together: stratify-based router with `__skip__` surfaced as a dead-letter topic. Explainability closes, unknown-route visibility, priority-ordered queues deferred to a queue-layer change.
+
+#### Q9 — Does the recommendation cover the concerns?
+
+| Concern (from Q2/Q3/Q6) | Covered by |
+|---|---|
+| 4 queue topics appear as islands in describe/explain | B — stratify makes routing a reactive edge |
+| Unknown-route silent drop | E — dead-letter `__unrouted` topic |
+| Router effect §5.9 gray-zone (imperative publish) | B — imperative publish is now a thin sink under a visible stratify edge; gray-zone narrows but remains |
+| `priority` field is decorative | (D, deferred — queue-layer change, not this unit) |
+| Strategy JSON prompt cost grows | (prompt compression; not this unit — Wave B cross-cutting or Unit 19) |
+| `retries: 1` on triage promptNode duplicates `withRetry` | Wave A Unit 1 C+D — remove promptNode retries, switch to adapter middleware here |
+| LLM-round-trip field collision (`_reingestions`) | Unit 15 D (`$`-prefix rename); this unit's spread-order fix is belt-and-suspenders |
+
+**Open question — requires user call:**
+
+1. **Stratify vs messaging-hub router.** B vs C. C is more canonical but depends on messaging-hub API fit (pending Unit 20). Pick B as the pragmatic default or wait for Unit 20 to resolve?
+2. **Dead-letter `__unrouted` topic surfaces.** Should the HarnessGraph expose `unrouted: TopicGraph<TriagedItem>` publicly for alerting wiring, or keep it as an internal mount surfaced only via `describe()`?
+3. **Priority-ordered queue — is this the unit that owns it, or a messaging-layer change?** Recommendation is messaging-layer (out of scope) but user may prefer an inline priorityHeap in harness for v1.
+
+#### Decisions locked (2026-04-23)
+
+**Q8 router shape — ~~B (stratify)~~ → C (hub+TopicBridgeGraph), upgraded at Unit 20.**
+~~Adopt the `stratify`-based reactive router now.~~ **Superseded by Unit 20 C decision:** use `MessagingHubGraph` + `topicBridge` per route. Routing is data (topic name), not code. See Unit 20 decisions for the canonical shape.
+
+Original stratify sketch (for reference; no longer the implementation target). Corrected API (actual signature: `stratify(name, source, rules, opts)`):
+
+```ts
+import { stratify } from "../../extra/stratify.js";
+
+const routerGraph = stratify<TriagedItem>(
+  "router",
+  routed as Node<TriagedItem>,
+  [
+    ...QUEUE_NAMES.map((route) => ({
+      name: route,
+      classify: (it: TriagedItem) => it?.route === route,
+    })),
+    {
+      name: "__unrouted",
+      classify: (it: TriagedItem) => !QUEUE_NAMES.includes(it?.route as QueueRoute),
+    },
+  ],
+);
+```
+
+Re-evaluate option C (messaging-hub canonical shape) at Unit 20 when `bridge.ts` is reviewed — prefer canonical shape if the API fit is clean.
+
+**Dead-letter `unrouted` visibility — expose publicly.**
+`HarnessGraph` grows a `unrouted: TopicGraph<TriagedItem>` field, backed by the `__unrouted` branch of the stratify graph. Consumers can `harness.unrouted.latest` for alerting without needing `describe()` internals.
+
+**Priority-ordered queues — defer.**
+`priority: number` on `TriagedItem` is currently decorative — the queue consumption order ignores it. Defer to a messaging-layer enhancement session. Add to `docs/optimizations.md`:
+> `priority: number` on TriagedItem is decorative — wire to queue ordering (priority-heap TopicGraph variant or `priorityOrdered: true` flag on TopicGraph).
+
+---
+
+### Unit 17 — GATE stage in `loop.ts` + `gate()` primitive
+
+**Scope:** [`loop.ts:303–321`](../../src/patterns/harness/loop.ts) (GATE stage wiring) + [`orchestration/index.ts:244–438`](../../src/patterns/orchestration/index.ts) (`gate()` primitive + `GateController<T>`).
+
+#### Decisions locked (2026-04-23)
+
+**B — Fix double-registration via `gateGraph.mount`.**
+Replace `gateGraph.add(topic.latest, { name: "${route}/source" })` with `gateGraph.mount("queue/${route}", topic)` in the GATE stage. The queue topic's latest node is then resolved by its canonical path `queue/${route}::latest` in `gateGraph`, eliminating the duplicate-path node that appeared in both the topic subgraph and gateGraph.
+
+```ts
+// Before:
+gateGraph.add(topic.latest as Node<unknown>, { name: `${route}/source` });
+const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, `${route}/source`, opts);
+
+// After:
+gateGraph.mount(`queue/${route}`, topic);
+const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, `queue/${route}::latest`, opts);
+```
+
+**C — Add `lastRejected: Node<T | null>` to `GateController`.**
+`reject()` emits the rejected item to a `state<T | null>(null)` node before discarding from the queue. Consumers can subscribe for audit wiring. Initial value null; null = no rejection yet.
+
+**D — No rename.** Keep `gatedStream` as-is. The naming proximity to `gate()` is tolerable — `gatedStream` is scoped to `patterns/ai/prompts/` and `gate()` to `patterns/orchestration/`; module path provides sufficient disambiguation.
+
+**Open items added to `docs/optimizations.md`:**
+- `gate()` maxPending defaults to Infinity — consider a finite default for production harness use.
+- `reject()` observable gap closed by C above.
+
+---
+
+### Unit 18 — EXECUTE + VERIFY + fast-retry + REFLECT in `loop.ts`
+
+**Scope:** [`loop.ts:322–525`](../../src/patterns/harness/loop.ts) — `retryTopic`, `executeInput` merge, `executor(executeInput)`, `executeContextNode`, `verifier(executeContextNode)`, `verifyContext`, `fastRetry` raw node, REFLECT (inline), `HarnessGraph` assembly.
+
+#### Decisions locked (2026-04-23)
+
+**B+C — Register anonymous nodes + add reflect derived.**
+Add to `harnessLoop` assembly section:
+
+```ts
+harness.add(executeInput as Node<unknown>,       { name: "execute::input" });
+harness.add(executeContextNode as Node<unknown>, { name: "execute::context" });
+harness.add(verifyContext as Node<unknown>,      { name: "verify::context" });
+harness.add(fastRetry as Node<unknown>,          { name: "verify::dispatch" });
+
+const reflectNode = derived(
+  [fastRetry as Node<unknown>],
+  () => null,
+  { name: "reflect" },
+);
+harness.add(reflectNode as Node<unknown>, { name: "reflect" });
+```
+
+Closes `explain(execute, verify)`, `explain(triage, execute)`, and `explain(verify, reflect)`. Surfaces the 7th stage in `harnessTrace`.
+
+**D — Refactor `fastRetry` fn into named private sub-functions.** `assembleResults`, `handleVerified`, `handleRetry`, `handleReingestion` within the same file. No behavior change. Deferred to the same implementation session as B+C.
+
+**E — Reactive retry/reingestion writes (derived + thin effect) — post-1.0.** File in `docs/optimizations.md`:
+> `fastRetry` imperative publishes (`retryTopic.publish`, `intake.publish`) are invisible in `explain()`. Correct shape: a `derived` producing `{ kind, item }` + three thin registered effects. Deferred post-1.0.
+
+**`_retries` / `_reingestions` rename** (Unit 15 D) and **`retries:1` removal** (Wave A Unit 1 C+D) pending implementation.
+
+---
+
+### Unit 18b — `fastRetry` deep-dive
+
+**Scope:** [`loop.ts:395–483`](../../src/patterns/harness/loop.ts) — the `fastRetry` raw node and its three-way branching logic.
+
+#### Decisions locked (2026-04-23)
+
+**B — Sub-function extraction.** Refactor `fastRetry` fn body into named private functions: `assembleResults`, `handleVerified`, `handleRetry`, `handleStructural`. Same reactive node, same topology. No behavior change. Preserves the fast-retry benefit (the short-circuit path is in the topology — `retryTopic.latest → merge → executeInput` — not in the fn body).
+
+**C — Fix `source` + `severity` on reingestion.**
+```ts
+// Before:
+source: "eval",
+severity: "high",
+
+// After:
+source: item.source,
+severity: item.severity ?? "high",
+```
+Lives in `handleStructural` (or `handleReingestion`) after B extraction. `"reingestion"` as a dedicated `IntakeSource` value deferred — open union from Unit 15 F means it can be added later without a type change.
+
+**D — Null-execRaw guard before assembly.**
+```ts
+if (!execRaw) {
+  handleStructural(
+    makeVerifyResult(vo, { item, outcome: "failure", detail: "executor returned null" }),
+    item,
+  );
+  return;
+}
+```
+Closes the `detail:"unknown"` audit gap when the executor returns null (parse failure / LLM timeout).
+
+**E — Fix `errorClassifier` context: pass `execRaw.outcome` instead of hardcoded `"failure"`.**
+```ts
+// Before:
+errorClassifier({ item, outcome: "failure", detail: vr.findings.join("; ") })
+
+// After:
+errorClassifier({ item, outcome: execRaw.outcome, detail: vr.findings.join("; ") })
+```
+Correct semantics for custom classifiers that branch on `result.outcome`.
+
+**Q3 question 3 — `strategy.record` not called on retry path: confirmed intentional.** Record only terminal outcomes (verified=true or structural failure); intermediate retry attempts do not penalize the intervention.
+
+---
+
+### Unit 19 — `strategy.ts`
+
+**Scope:** [`src/patterns/harness/strategy.ts`](../../src/patterns/harness/strategy.ts) (167 LOC) — `strategyModel()` + `priorityScore()`.
+
+#### Decisions locked (2026-04-24)
+
+**B — JSDoc clarifications.**
+- `priorityScore`: add note "Score reflects age as of last reactive update, not current wall time. Pass a `fromTimer`-driven node as a dep if live age decay is required."
+- `priorityScore`: add note "This utility does NOT override the `priority` field set by the TRIAGE LLM. For queue ordering, see the priority-ordered queue open item in `docs/optimizations.md`."
+
+**C — Rename `_map` → `strategyMap`.** Closure variable; the underscore implies "private field on an object" which is misleading here.
+
+**2 — Wire `priorityScore` optionally in `harnessLoop`.**
+When `opts.priority` is set (already exists as `PrioritySignals`), the harness wires one `priorityScore` node per queue and exposes them on `HarnessGraph`:
+
+```ts
+readonly priorityScores?: ReadonlyMap<QueueRoute, Node<number>>;
+```
+
+`lastInteractionNs` is an internal `state(monotonicNs())` seeded at factory time. Expose `harness.touch()` (or `harness.interaction()`) to bump it imperatively on human interaction. Alternatively, accept `opts.lastInteractionNs?: Node<number>` for caller-supplied tracking. Exact shape to be decided at implementation time — flag as open question in the implementation session.
+
+**3 — Strategy persistence deferred to storage session (roadmap §9.0+).** `strategyModel(opts?: { initial?: StrategySnapshot })` seed API is the target shape.
+
+---
+
+### Unit 20 — `bridge.ts`
+
+**Scope:** [`src/patterns/harness/bridge.ts`](../../src/patterns/harness/bridge.ts) (466 LOC) — `createIntakeBridge`, `evalIntakeBridge`, `evalSource`, `beforeAfterCompare`, `affectedTaskFilter`, `codeChangeBridge`, `notifyEffect`.
+
+#### Decisions locked (2026-04-24)
+
+**C — Hub + TopicBridgeGraph canonical shape. Supersedes Unit 16 B (stratify).**
+
+Replace the current 4 standalone `TopicGraph` queues + imperative router effect with:
+1. One `MessagingHubGraph` as the queue hub (`messagingHub("queues", { defaultTopicOptions: { retainedLimit } })`).
+2. One `TopicGraph<TriagedItem>("triage-output")` after the triage merge step.
+3. One `topicBridge` per route with a `map` filter:
+   ```ts
+   for (const route of QUEUE_NAMES) {
+     topicBridge(`bridge/${route}`, triageOutput, queueHub.topic<TriagedItem>(route), {
+       map: (item) => item.route === route ? item : undefined,
+     });
+   }
+   topicBridge("bridge/__unrouted", triageOutput, queueHub.topic<TriagedItem>("__unrouted"), {
+     map: (item) => !(QUEUE_NAMES as readonly string[]).includes(item.route) ? item : undefined,
+   });
+   ```
+4. Remove the `stratify`-based router from Unit 16 B — superseded. Routing is data (topic name), not code (stratify classify fns).
+
+`explain(triage, queues/auto-fix::latest)` walks every edge reactively. All islands closed.
+
+**`HarnessGraph.queues` → `MessagingHubGraph` directly.**
+Pre-1.0, no backward compat. Replace `queues: ReadonlyMap<QueueRoute, TopicGraph<TriagedItem>>` with `queues: MessagingHubGraph`. Callers access queue topics via `harness.queues.topic<TriagedItem>("auto-fix")`. `harness.unrouted` becomes `harness.queues.topic<TriagedItem>("__unrouted")`.
+
+**D — JobFlow claim/ack/nack for EXECUTE stage — same implementation session as C.**
+Replace `merge(queueTopics.latest)` with `JobQueueGraph`-style claim/ack/nack semantics per route. Gives priority ordering + proper retry via `nack`. Changes executor interface from `Node<TriagedItem | null>` to a claim-based contract. Exact shape to be decided at implementation time.
+
+**Prior bridge.ts fixes retained from first pass:**
+- B — `affectedTaskFilter` ghost node fix (plain-array closure constant).
+- C — `evalIntakeBridge` `affectsAreas` configurable via `EvalIntakeBridgeOptions`.
+- D — `notifyEffect` `onError` callback on `NotifyEffectOptions`.
+
+---
+
+### Unit 21 — `refine-executor.ts` + `eval-verifier.ts`
+
+**Scope:** [`refine-executor.ts`](../../src/patterns/harness/refine-executor.ts) (169 LOC) + [`eval-verifier.ts`](../../src/patterns/harness/eval-verifier.ts) (184 LOC).
+
+#### Decisions locked (2026-04-24)
+
+**B — Name filter nodes for describe() clarity.**
+Both factories use `filter(input, ...)` and `filter(raw, ...)` creating anonymous nodes. Name them `${name}/gate-in` and `${name}/gate-out`. If `filter` doesn't accept a name option, wrap in a named `derived`.
+
+**C — Type-safe `harnessEvalPair<T>` factory. Same implementation session.**
+```ts
+function harnessEvalPair<T>(config: {
+  seedFrom: (item: TriagedItem) => T;
+  evaluator: Evaluator<T>;
+  strategy: RefineStrategy<T>;
+  datasetFor: (item: TriagedItem) => readonly DatasetItem[];
+  threshold?: number;
+  refine?: Omit<RefineLoopOptions, "dataset" | "name">;
+}): { executor: HarnessExecutor; verifier: HarnessVerifier }
+```
+Shares the evaluator and enforces matching `T` between executor and verifier. Prevents wrong-typed artifact cast errors.
+
+**Hub model executor interface: confirmed unchanged.** The claim pump from Unit 20 D feeds a reactive `Node<TriagedItem | null>` — the `HarnessExecutor` type stays `(input: Node<TriagedItem | null>) => Node<ExecuteOutput | null>`. The claim/ack boundary sits between queue and executor input, not inside the executor.
+
+---
+
+### Unit 22 — `trace.ts` + `profile.ts`
+
+**Scope:** [`trace.ts`](../../src/patterns/harness/trace.ts) (199 LOC) + [`profile.ts`](../../src/patterns/harness/profile.ts) (63 LOC).
+
+#### Decisions locked (2026-04-24)
+
+**B — Mechanical path updates for hub model + REFLECT label.**
+- Add `reflect: "REFLECT"` to `buildStageLabels` after Unit 18 C (reflect node) lands.
+- Keep `strategy: "STRATEGY"` as distinct label — STRATEGY is the model, REFLECT is the recording action.
+- Update queue paths `queue/<route>::latest` → `queues/<route>::latest` after Unit 20 C (hub) lands.
+- Update `harnessProfile` to iterate `harness.queues.topicNames()` instead of `harness.queues.entries()`.
+- Validate gate path format (`gates::${route}/gate` vs `gates/${route}/gate`) against actual mount structure after Unit 17 B lands.
+
+**C — `HarnessGraph.stageNodes()` method for path decoupling.**
+Primary stage nodes only (7 stages): intake, triage, queue/\*, gate/\*, execute, verify, reflect, strategy. Does NOT include anonymous intermediaries (`execute::input`, `verify::context`, etc.). ~15 LOC on HarnessGraph.
+
+`buildStageLabels` and `harnessProfile` read from `stageNodes()` instead of hardcoding mount paths. Decouples inspection tools from mount structure — hub migration, gate remounting, or future stage additions don't require trace/profile code changes.
+
+**JSDoc note on `harnessProfile`:** add "Returns a point-in-time snapshot. `.cache` reads are not transactional — values may reflect mid-batch state if called during a reactive wave."
+
+---
+
+## Wave B cross-cutting consolidation
+
+**Scope:** After Units 15–22 completed. Two cross-cutting questions raised by the user.
+
+---
+
+### Q1 — Unified hub scope (intake + retryTopic + verifyResults)
+
+**Question:** Unit 20 moved routing queues to a `MessagingHubGraph`. Should `intake`, `retryTopic` (fast-retry re-injection), and `verifyResults` (verify output buffer) also join the same hub?
+
+**Alternatives:**
+- **(A) One hub for all reactive-wire-crossing topics.** `HarnessGraph.hub: MessagingHubGraph` covers: `intake`, `queues/<route>` (four routing queues), `retry` (fast-retry re-entry), `verify-results`. Sugar getters preserve the existing access API (`get intake() { return this.hub.topic<IntakeItem>("intake"); }`). One hub cluster in `describe()`. `explain(intake, queues/auto-fix)` walks every bridge edge reactively.
+- **(B) Hub covers queues only.** Keep `intake` as a standalone `TopicGraph`, `retryTopic` and `verifyResults` as internal named topics. Rationale: intake is a user-facing entry point; hub is for internal routing.
+
+**Decision locked (2026-04-24): Option A.** One hub, all reactive-wire-crossing topics unified. Rationale mirrors Unit 20: routing is data (topic name), not code (imperative publish dispatch). Every cross-stage write becomes a bridge edge in `describe()`/`explain()`. Sugar getters on `HarnessGraph` preserve backward-compatible access patterns. `HarnessGraph.hub: MessagingHubGraph` is the single topology surface for the entire harness.
+
+**Implementation scope:** Same session as Unit 20 C. Update `harnessLoop` to create one `messagingHub("harness", ...)` and register intake/retry/verify-results/queues as topics. Update `harnessProfile` and `harnessTrace` path references accordingly (covered by Unit 22 B `stageNodes()` decoupling).
+
+---
+
+### Q2 — `agentLoop` tool-call lifecycle and `JobQueueGraph`
+
+**Question:** Should the `agentLoop` tool-call execution lifecycle use `JobQueueGraph` (claim/ack/nack) instead of the current parallel-batch `switchMap + derived(calls.map(executeToolReactively))`?
+
+See 9-question review below.
+
+---
+
+### Unit B-CC — `agentLoop` tool-call lifecycle review
+
+**Scope:** [`src/patterns/ai/agents/agent-loop.ts`](../../src/patterns/ai/agents/agent-loop.ts) (702 LOC) — specifically the tool-call pipeline: `toolCallsNode` (lines 330–351), `gatedToolCallsNode` intercept splice (lines 356–359), `toolResultsNode` (lines 381–409), and `executeToolReactively` (lines 640–669).
+
+#### Q1 — Semantics, purpose, implementation
+
+**Tool-call pipeline (per LLM response):**
+1. **`toolCallsNode`** (line 330) — raw `node([lastResponseState, statusNode])`: emits `DATA(calls)` only when `status === "acting"` AND response has tool calls; otherwise emits `RESOLVED`. Gating on `status` (not on `lastResponseState` alone) prevents stale re-trigger when `lastResponse` updates while status has already moved on. The `RESOLVED`-vs-`DATA([])` choice is documented and load-bearing (line 323–329): `DATA([])` would cause `switchMap` to re-dispatch its inner on every idle wave.
+2. **`gatedToolCallsNode`** (line 356–359) — optional reactive splice via `interceptToolCalls`. Identity transform when not set. `agent.toolCalls` exposes the post-intercept view. Per JSDoc at lines 42–61: filter, gate, or throttle tool calls via a pure reactive composition — the intercept appears as a real edge in `describe()`.
+3. **`toolResultsNode`** (line 381) — `switchMap(gatedToolCallsNode, calls => derived(calls.map(executeToolReactively), ...))`. Every call in the batch executes **in parallel** inside the `derived`. The inner `derived([perCall[0], perCall[1], ...])` waits for ALL to settle before emitting the result array (fan-out → fan-in).
+4. **`executeToolReactively`** (line 640) — per-call `retrySource({count:1}) + rescue`. Each call is independently retried once on ERROR; on terminal ERROR, `rescue` converts it to a JSON-shaped `{error: string}` `ToolResult` so the LLM sees the failure and decides next steps. No inter-call dependency.
+5. **`effResults`** effect (line 466) — when `toolResultsNode` settles with a full batch: `batch(() => { statusNode.emit(nextStatus); chat.appendToolResult(r.id, r.content) })`. Status emits before chat mutations (ordering discipline documented at lines 463–465).
+
+**Abort lifecycle:**
+- `_currentAbortController` (line 139) — minted per `switchMap` project in `llmResponse` (line 275–276). Threaded into `adapter.invoke({ signal })` AND `fromAny(..., { signal })`. `effAbort` effect (line 482) aborts it reactively when `abortedNode` flips true. Cleared in `run()`'s `finally` (line 607).
+- Design is async-boundary pattern: the AbortController lives at the exact source boundary where the Promise is created. One controller per LLM call. The reactive `aborted` node drives it; no external caller touches the controller.
+
+#### Q2 — Semantically correct?
+
+- ✅ `toolCallsNode` `RESOLVED`-vs-`DATA([])` gate prevents spurious switchMap re-dispatch on idle waves (documented at lines 323–329).
+- ✅ `switchMap(gatedToolCallsNode)` cancels the prior inner `derived` when a new tool-call batch arrives (supersede semantics). Correct under multi-turn where one turn's tool results could still be in-flight when status re-transitions.
+- ✅ Parallel fan-out via `derived(calls.map(executeToolReactively))` is correct — tool calls within a single LLM turn are independent and safe to execute concurrently.
+- ✅ `executeToolReactively` `retrySource({count:1}) + rescue` gives 2-attempt semantics + graceful LLM-visible error, consistent with the documented reactive-retry pattern.
+- ✅ `effResults` abort guard (`if (latestAborted) return`) is correct defense-in-depth — catches the case where `aborted` flipped between the Promise resolve and the effect firing.
+- ✅ `_runVersion` stamp on `_terminalResult` prevents stale resolution when `run()` is called on a recycled agent instance.
+- ⚠️ **`Promise.resolve(adapter.invoke(...))` at line 281** — same §5.10 gray-zone flagged in Unit 11 (nine middleware files). `fromAny(adapter.invoke(...))` handles all three `NodeInput<T>` shapes (`Promise | Node | raw`) without the manual `Promise.resolve()` wrapper. The current shape loses Node-returning adapter reactivity (same stale-`.cache` risk as `promptNode` pre-fix).
+- ⚠️ **`toolCallsNode`, `toolResultsNode`, `promptInput`, `llmResponse`, `_terminalResult` not `add()`-ed to the graph.** They appear in `describe()` through dep-traversal (reactive edges are still visible), but they are NOT path-addressable for `observe(path)` calls. A user who writes `agent.observe("toolCalls")` gets a miss. Contrast: `status`, `turn`, `aborted` ARE explicitly `add()`-ed (lines 164, 171, 179).
+- ⚠️ **`_currentAbortController` is a class field, not a node** — abort controller lifecycle is invisible to `describe()`. This is expected (it's at the async boundary), but means users can't introspect whether an abort signal is currently armed via the graph inspection tools.
+
+#### Q3 — Design-invariant violations?
+
+- 🟡 **§5.10 raw-async** — `Promise.resolve(adapter.invoke(...))` at line 281. See Q2. Not a full violation (adapter.invoke MAY return a Promise legitimately) but `fromAny` is the canonical bridge.
+- 🟢 **COMPOSITION-GUIDE §28 factory-time seed** — `latestTurn` / `latestAborted` closure mirrors are textbook §28. Subscribe once at construction; read synchronously in effects. The comment at lines 183–202 explicitly documents the FIFO-drain staleness invariant.
+- 🟢 **§5.8 no polling** — no timer-based loops.
+- 🟢 **§5.9 no imperative triggers** — `run()` is a sanctioned `awaitSettled` boundary bridge (compare `firstDataFromNode`). The `status.emit("thinking")` at line 586 is the one-shot kick at the reactive source boundary — not a polling trigger.
+- 🟢 **COMPOSITION-GUIDE §7 feedback-cycle break** — `lastResponseState` mirror (line 317) breaks the drain-ordering issue where `_terminalResult`'s dep on `llmResponse` would see stale prevData during the effResponse batch. The ordering discipline (comments lines 411–431) is documented and load-bearing.
+- 🟢 **`effAbort` is a reactive effect** — abort is driven by `abortedNode`, not a timer or callback. External AbortSignal wires through `this.aborted.emit(true)` at the listener boundary (line 593) — clean.
+- 🟡 **Intermediate nodes not `add()`-ed** (Q2 above). Not a §5-series violation but against the spirit of §5.12 "developer-friendly APIs" — a user inspecting the graph can't observe intermediate stages by path.
+
+#### Q4 — Open items (roadmap / optimizations.md)
+
+- [optimizations.md "switchMap-inner teardown hardening for `refineExecutor` / `evalVerifier`"](../../docs/optimizations.md) — same inner-derived lifecycle concern applies to `toolResultsNode`'s inner `derived(perCall, …)`. If `gatedToolCallsNode` emits a new batch while the previous inner `derived` is still active (long-running tool calls), `switchMap` cancels the prior inner. Verify teardown cleans up all `executeToolReactively` nodes.
+- **Not yet in optimizations.md — candidates surfaced this review:**
+  - `Promise.resolve(adapter.invoke(...))` → `fromAny` (§5.10 gray-zone, cross-cutting with Unit 11 + Unit 1).
+  - `add()` explicit registration for intermediate pipeline nodes (`promptInput`, `llmResponse`, `toolCallsNode`, `toolResultsNode`, `_terminalResult`) — path-addressable observe.
+
+#### Q5 — Right abstraction? More generic possible?
+
+- **`executeToolReactively` is correctly scoped.** Per-call `retrySource + rescue` is the right unit — independent of other calls, consistent retry contract, error surfaces as LLM-visible tool content. No factoring opportunity.
+- **`toolCallsNode` gate logic** (status-check + calls-check) is 20 LOC in a raw `node()`. Could be rewritten as `derived([lastResponseState, statusNode], ([resp, stat]) => stat === "acting" && resp?.toolCalls?.length ? resp.toolCalls : null)` — simpler, but loses the explicit `RESOLVED`-vs-`DATA([])` documentation. Keep as-is; the rawness is deliberate and documented.
+- **`interceptToolCalls` splice** — correct abstraction. Pure reactive transform, audit-visible, single composition point. The splice is where `gate()` / `throttle()` / `policy` nodes attach. This is the right pattern for COMPOSITION-GUIDE §31 "interception is security."
+- **Parallelism granularity** — current: all calls in one turn execute in parallel. No alternative (e.g. sequential, priority-ordered) is needed for the standard single-agent model. If a use case demanded sequential execution (rate-limiting, ordered side-effects), `interceptToolCalls` with a serializing operator is the right hook — no core change needed.
+
+#### Q6 — Right long-term solution? Caveats / maintenance burden
+
+- **`Promise.resolve(adapter.invoke(...))`** — same maintenance burden as Unit 11: every future NodeInput shape change surfaces here. `fromAny` eliminates the branch entirely.
+- **No intermediate `add()` registrations** — a future user writing an `observe`-based harness dashboard (e.g. `agent.observe("toolCalls")`) will get a silent path-miss. The topology check (Q7) confirms nodes ARE visible through dep traversal (not islands), but only by traversal, not by name-path. Registering them is 5 × 1 LOC.
+- **`_currentAbortController` field** — clean today. The risk is a future contributor who sees the field and tries to move it to a `state()` node (adding reactive tracking). If they do that correctly, great. If they add it as a `state` but forget to clear it on teardown, it becomes a persistent observable. The existing pattern (plain field, cleared in `run()` finally) is the safer choice — no reactive overhead for a value that has no downstream subscribers.
+- **`latestTurn` / `latestAborted` mirrors** — the FIFO-drain ordering invariant is correct and documented. Risk: a future refactor that un-batches `turnNode.emit` inside `effResponse` would silently regress the invariant. The comment at lines 199–202 calls this out explicitly; keep the warning.
+
+#### Q7 — Simplify / reactive / composable + topology check + perf/memory
+
+**Topology check — minimal composition:**
+
+```ts
+const agent = agentLoop("test", { adapter: mockAdapter, tools: [myTool] });
+agent.status.subscribe(() => {});
+agent.toolCalls.subscribe(() => {});
+agent.toolResults.subscribe(() => {});
+await agent.run("do something");
+```
+
+`describe()` on the agent graph (representative):
+
+```
+status                (state, meta.ai)           -> promptInput, toolCalls, toolResults::batch
+turn                  (state, meta.ai)
+aborted               (state, meta.ai)           -> promptInput
+lastResponse          (state, meta.ai)           -> toolCalls
+promptInput           (derived, meta.ai)         -> llmResponse
+llmResponse           (switchMap product)        -> (effResponse sink)
+toolCalls             (derived, meta.ai)         -> toolResults
+toolResults::batch    (derived)                  [subscribed]
+terminalResult        (derived, meta.ai)
+chat/...              (subgraph cluster)
+tools/...             (subgraph cluster)
+```
+
+`explain(status → toolResults::batch)`: `status → toolCalls → toolResults::batch`. Clean chain. `explain(status → llmResponse)`: `status → promptInput → llmResponse`. Clean chain. **No islands.**
+
+The `_terminalResult` and intermediate nodes appear through traversal but are not path-addressable. **Verdict: clean topology — all nodes linked, explain walks correctly. No islands. Gap: intermediate nodes not `add()`-ed → not observe()-able by path.**
+
+**Performance & memory:**
+- Per tool-call batch: N parallel `retrySource + rescue` chains. Each chain: 1 `retrySource` (internal `state` + operator) + 1 `derived` (onSuccess) + 1 `rescue` node = ~3 nodes per call. Torn down when `switchMap` re-dispatches.
+- Batch derived: 1 `derived([perCall[0]...perCall[N]])` — N deps. Recomputes on each perCall settlement. For N=10 calls: 10 × 3 = 30 transient nodes + 1 derived fan-in. All torn down on batch completion.
+- `_terminalResult`: 2 deps (`statusNode`, `lastResponseState`). O(1). Retained for agent lifetime.
+- Memory retained per agent instance: 5 state/derived nodes (`status`, `turn`, `aborted`, `lastResponse`, `_terminalResult`) + 3 keepalives + 2 closure mirrors. Very lightweight.
+- No unbounded growth. Tool-call batch nodes are transient (switchMap inner lifecycle).
+
+#### Q8 — Alternative implementations (A/B/C)
+
+- **(A) Status quo — no code change.** Pros: working, well-documented, no churn. Cons: `Promise.resolve()` wrapper, intermediate nodes not path-addressable.
+- **(B) A + replace `Promise.resolve(adapter.invoke(...))` with `fromAny(adapter.invoke(...))`.** Pros: removes §5.10 gray-zone, handles Node-returning adapters correctly, consistent with Unit 1 C + Unit 11 A recommendations. Cons: minimal — same behavior for all shipped adapters; fixes a latent bug.
+- **(C) B + `add()` intermediate nodes with their existing names (`promptInput`, `llmResponse`, `toolCalls` [already done via `this.toolCalls`], `toolResultsNode`, `_terminalResult`).** Pros: path-addressable `observe()`, richer `describe()` clustering. Cons: trivial (5 × 1 LOC); minor: `toolCalls` is already a public property so the path is already named — check whether it's auto-registered via the property assignment.
+- **(D) Use `JobQueueGraph` for tool-call execution.** `JobQueueGraph` is a sequential claim/ack/nack single-worker pattern. Tool calls in a single LLM turn execute in **parallel** (fan-out) — `JobQueueGraph` is fundamentally mismatched: it processes one job at a time, has no batch fan-in primitive, and its nack semantics (re-queue for next worker) don't match `rescue`'s LLM-feedback semantics (convert error to tool result content). **Not applicable.** The existing `switchMap + derived(calls.map(executeToolReactively))` is the correct shape for parallel batch execution.
+
+**Recommendation: B + C.** `fromAny` bridge + explicit `add()` for intermediate nodes. No structural change to the tool-call lifecycle — the existing parallel batch pattern is correct.
+
+#### Q9 — Does the recommendation cover the concerns?
+
+| Concern (Q2/Q3/Q6) | Covered by |
+|---|---|
+| `Promise.resolve(adapter.invoke(...))` §5.10 gray-zone | B — `fromAny(adapter.invoke(...))` |
+| Node-returning adapter loses reactivity | B — `fromAny` handles all three NodeInput shapes |
+| Intermediate nodes not path-addressable via `observe()` | C — explicit `add()` registrations |
+| `_currentAbortController` not visible in describe() | Not addressed — expected (async boundary field; no reactive downstream) |
+| `latestTurn` staleness on un-batched emit | Not addressed — not a current bug; comment at lines 199–202 is the guard |
+| JobQueueGraph applicability | D — NOT applicable; existing parallel pattern is correct |
+
+**JobQueueGraph decision:** Does NOT apply to the agentLoop tool-call lifecycle. The parallel fan-out/fan-in batch model (`derived(calls.map(executeToolReactively))`) is correct, purpose-fit, and compositionally clean. `JobQueueGraph` is the right primitive for sequential single-worker queue patterns (e.g. the EXECUTE stage's claim/ack/nack per Unit 20 D) — not for intra-turn tool parallelism.
+
+#### Decisions locked (2026-04-24)
+
+- **B + C adopted.**
+  - **B:** Replace `Promise.resolve(adapter.invoke(...))` at line 281 with `fromAny(adapter.invoke(...))` directly. Same semantics for all shipped adapters; fixes latent Node-returning adapter stale-cache risk; consistent with Unit 1 C + Unit 11 A.
+  - **C:** Explicitly `add()` `promptInput`, `llmResponse`, `toolResultsNode`, and `_terminalResult` to the `AgentLoopGraph` with their existing `name` + `describeKind` + `meta` options. `toolCallsNode` is already accessible as `this.toolCalls` — verify it gets `add()`-ed via the property assignment or add explicitly.
+- **JobQueueGraph — NOT applicable.** The parallel tool-call batch pattern (`switchMap + derived(calls.map(executeToolReactively))`) is the correct shape. No change to the tool-call lifecycle.
+- **MessagingHubGraph for tool-call routing — NOT applicable at this level.** Hub excels at routing-as-data for static topics (harness queues, intake, retryTopic). For tool calls, the bottleneck is fan-in: `derived([perCall[0]...perCall[N]])` waits for exactly N dynamic results and emits the ordered batch — hub has no "collect exactly N items from dynamic topics" primitive. The `ToolRegistry` already does name-based dispatch (`tools.execute(call.name, args)` over a `ReactiveMapBundle<string, ToolDefinition>` per Unit 6), so tool-type routing is already data-driven. A hub layer would add topic-visible routing but duplicate `ToolRegistry`'s dispatch role without solving the fan-in problem.
+- **`_currentAbortController`** — keep as a class field at the async boundary. Not a node. No change.
+- **Implementation scope:** B + C are small targeted fixes (~10 LOC total). Land in the same implementation session as Unit 5 (agentLoop structural improvements) or as a standalone patch.
 
 ---
 
@@ -2640,4 +3386,9 @@ _Same structure. Fold findings that cross Wave A/B boundaries here with back-ref
 - **2026-04-23:** planning complete, session log created. Wave 0 scoped (ai/index.ts split). Waves A+B+C unit ordering locked.
 - **2026-04-23:** Wave 0 shipped (commit `d161af1 feat: split ai`). `src/patterns/ai/` carved into `prompts/`, `agents/`, `memory/`, `extractors/`, `graph-integration/`, `safety/`, `adapters/` folders plus `_internal.ts`.
 - **2026-04-23:** **Wave A review complete.** All 14 units reviewed per the 9-question format. Findings locked. Implementation scope estimated at 3–5 sessions. See "Wave A cross-cutting consolidation" section above for sequencing.
-- **Wave B (harness composition) and Wave C (adjacent surfaces) pending.** Can run in parallel with Wave A implementation.
+- **2026-04-23:** **Wave B.1 complete (Units 15–16).** INTAKE/TRIAGE/QUEUE stages reviewed. Key findings: `$`-prefix counter rename, `ExecuteOutput<A>` generic, `IntakeSource` widened to open union, `types.ts` + `defaults.ts` split, `stratify`-based reactive router (closes 4 queue-topic islands), `unrouted` exposed publicly. Decisions locked; implementation deferred to Wave A execution session.
+- **2026-04-24:** **Wave B.2 complete (Units 17–18 + 18b).** GATE/EXECUTE/VERIFY/REFLECT + `gate()` primitive reviewed. Key findings: `gateGraph.mount` replaces double-registration, `GateController.lastRejected` added, 5 anonymous nodes registered in harness (closes explain gaps), reflect stage node added, `fastRetry` deep-dive (B+C+D+E): sub-function extraction + 3 correctness fixes (source/severity on reingestion, null-execRaw guard, errorClassifier outcome). Post-1.0: reactive retry/reingestion writes.
+- **2026-04-24:** **Wave B.3 complete (Units 19–20).** Strategy model clean (JSDoc + rename). Bridge factories all hub-compatible without signature changes. **Key architectural decision:** upgrade Unit 16 B (stratify router) → Unit 20 C (hub + TopicBridgeGraph). Routing is data (topic name), not code. `HarnessGraph.queues` becomes `MessagingHubGraph` directly. JobFlow claim/ack/nack for EXECUTE in same implementation session.
+- **2026-04-24:** **Wave B.4 complete (Units 21–22).** `refineExecutor` + `evalVerifier` clean topology (no islands). Named filter nodes for describe() clarity. Type-safe `harnessEvalPair<T>` factory. `trace.ts` + `profile.ts`: add REFLECT label, `stageNodes()` method for path decoupling, JSDoc snapshot caveat on `harnessProfile`.
+- **2026-04-24:** **Wave B review complete.** All 8 units (15–22) reviewed. Decisions locked. Key architectural decisions: hub+TopicBridgeGraph canonical shape (supersedes stratify), `HarnessGraph.queues` → `MessagingHubGraph`, JobFlow claim/ack/nack for EXECUTE, `fastRetry` sub-function extraction + 3 correctness fixes, 5 anonymous nodes registered in harness, reflect stage node added. Wave C (adjacent surfaces) pending.
+- **2026-04-24:** **Wave B cross-cutting consolidation complete.** Q1: unified hub scope — one `MessagingHubGraph` for all reactive-wire-crossing topics (intake + queues + retryTopic + verifyResults). Q2: agentLoop tool-call lifecycle — `JobQueueGraph` does NOT apply (parallel batch pattern is correct); B+C adopted (`fromAny` bridge + explicit `add()` for intermediate nodes). Wave C (adjacent surfaces) pending.
