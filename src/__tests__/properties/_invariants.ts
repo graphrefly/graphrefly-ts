@@ -34,6 +34,7 @@ import {
 } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
+import { concatMap, exhaustMap, mergeMap, switchMap } from "../../extra/operators.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
 
 // ---------------------------------------------------------------------------
@@ -1071,6 +1072,324 @@ const invariant17PausableOffStructural: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Operator-layer invariants (added 2026-04-24 batch 9, G)
+//
+// These test composed-behavior correctness of higher-order operators
+// (switchMap / mergeMap / exhaustMap). They differ from the protocol-layer
+// invariants above in that they assert LIFECYCLE semantics — which inner
+// sources contribute to the downstream trace and which are suppressed —
+// rather than raw message ordering. Each invariant picks the narrowest
+// topology that exhibits the target property.
+//
+// These are fast-check-only. TLA+ does not model operator internals; the
+// wave-protocol spec stops at the `node` primitive. Operator correctness
+// lives at the runtime layer and is tested via property generation over
+// outer-source event sequences.
+// ---------------------------------------------------------------------------
+
+/**
+ * #18 — switchMap: a value emitted into a SUPERSEDED inner source never
+ * reaches the downstream trace.
+ *
+ * Topology: `outer = state`; `sm = switchMap(outer, v => inner_v)` where
+ * `inner_v` is the SAME memoised `state` per outer value so we can reach
+ * in and emit post-supersession. Drive outer with a strictly-ascending
+ * sequence (distinct values); after all outer emits, emit a sentinel
+ * value into every inner except the last (currently-active) one. No
+ * sentinel may appear in the downstream trace.
+ *
+ * Catches: "inner subscription not torn down on supersede" — the class
+ * flagged in `docs/optimizations.md` under "switchMap-inner teardown
+ * hardening for refineExecutor / evalVerifier." A regression that keeps
+ * a stale inner subscribed (e.g. forgetting to call `innerUnsub()` on
+ * new-outer arrival) would produce sentinel values downstream and trip
+ * this invariant.
+ */
+const invariant18SwitchMapStaleInnerSuppressed: Invariant = {
+	name: "switchmap-stale-inner-suppressed",
+	description:
+		"After switchMap supersedes to a new inner, emits into a prior inner source never reach the downstream trace.",
+	specRef: "src/extra/operators.ts:switchMap — supersede-on-outer-emit teardown contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 5,
+			}),
+			(outerValues) => {
+				const outer = state<number>(outerValues[0]);
+				const inners = new Map<number, Node<number>>();
+				const sm = switchMap(outer as Node<number>, (v: number) => {
+					let inner = inners.get(v);
+					if (!inner) {
+						inner = state<number>(v * 10);
+						inners.set(v, inner);
+					}
+					return inner;
+				});
+				const dataValues: number[] = [];
+				const unsub = sm.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+				// Drive outer through the remaining distinct values (already seeded
+				// at outerValues[0] via state construction — initial subscription
+				// pushes through the first inner already).
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				const lastOuter = outerValues[outerValues.length - 1];
+				const lenBefore = dataValues.length;
+				// Emit a unique sentinel into each superseded inner. If teardown
+				// worked, none reach the trace; if it didn't, at least one does.
+				const SENTINEL = 987654;
+				for (const [v, inner] of inners) {
+					if (v !== lastOuter) inner.emit(SENTINEL);
+				}
+				unsub();
+				for (let i = lenBefore; i < dataValues.length; i++) {
+					if (dataValues[i] === SENTINEL) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #19 — mergeMap: every live inner source's DATA emits reach the downstream
+ * trace. No silent drop of non-current inners.
+ *
+ * Topology: `outer = state`; `mm = mergeMap(outer, v => inner_v)` with
+ * memoised inner states per outer value. After driving outer with a
+ * distinct sequence, emit a uniquely-tagged sentinel `v * 1000 + k` into
+ * inner `v` (for a fresh k). Every emitted sentinel must appear in the
+ * downstream trace — any missing one indicates a leaked/unsubscribed
+ * inner.
+ *
+ * Catches: mergeMap inner-tracking regressions. Unlike switchMap which
+ * supersedes, mergeMap keeps ALL inners live until each completes; a
+ * regression that drops an inner subscription (e.g. clearAll fires
+ * erroneously, or innerStops loses an entry) would silently suppress
+ * valid DATA and trip this invariant.
+ */
+const invariant19MergeMapAllInnersContribute: Invariant = {
+	name: "mergemap-all-live-inners-contribute",
+	description:
+		"Every DATA emitted into a live inner source after mergeMap has subscribed to it reaches the downstream trace.",
+	specRef: "src/extra/operators.ts:mergeMap — all-inners-forward contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = state<number>(outerValues[0]);
+				const inners = new Map<number, Node<number>>();
+				const mm = mergeMap(outer as Node<number>, (v: number) => {
+					let inner = inners.get(v);
+					if (!inner) {
+						inner = state<number>(v * 10);
+						inners.set(v, inner);
+					}
+					return inner;
+				});
+				const dataValues: number[] = [];
+				const unsub = mm.subscribe((msgs) => {
+					for (const msg of msgs as readonly [symbol, unknown?][]) {
+						if (msg[0] === DATA) dataValues.push(msg[1] as number);
+					}
+				});
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				// Emit a distinct sentinel into each inner. All of them must appear
+				// downstream — mergeMap keeps inners live.
+				const expectedSentinels: number[] = [];
+				for (const [v, inner] of inners) {
+					const sentinel = v * 1000 + 7;
+					expectedSentinels.push(sentinel);
+					inner.emit(sentinel);
+				}
+				unsub();
+				for (const s of expectedSentinels) {
+					if (!dataValues.includes(s)) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #20 — exhaustMap: while an inner is active, subsequent outer emits are
+ * DROPPED. Only the first outer's inner contributes until that inner
+ * completes.
+ *
+ * Topology: `outer = state`; `em = exhaustMap(outer, v => inner_v)` with
+ * memoised inner states per outer value. Drive outer with a distinct
+ * sequence. The first value's inner remains uncompleted — so all
+ * subsequent outers must NOT have had `project` called on them (no
+ * inner created for them). Assert `inners.size === 1` (only the first
+ * outer's inner was created).
+ *
+ * Catches: exhaustMap regression where the drop-while-active gate is
+ * bypassed. A broken implementation that spawns inners for every outer
+ * emit (mergeMap-style) would create multiple entries in the inners
+ * map and trip this invariant.
+ */
+const invariant20ExhaustMapDropsWhileActive: Invariant = {
+	name: "exhaustmap-drops-while-active",
+	description:
+		"While an exhaustMap inner is active (uncompleted), subsequent outer emits are dropped — no new inner is created for them.",
+	specRef: "src/extra/operators.ts:exhaustMap — drop-while-active contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = state<number>(outerValues[0]);
+				const projectCalls: number[] = [];
+				const em = exhaustMap(outer as Node<number>, (v: number) => {
+					projectCalls.push(v);
+					// Inner never completes — it's a long-lived state source.
+					return state<number>(v * 10);
+				});
+				const unsub = em.subscribe(() => {});
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				unsub();
+				// Only the FIRST outer value's project should have fired; the
+				// remaining outers arrived while the first inner was still
+				// active and should have been dropped without a project call.
+				return projectCalls.length === 1 && projectCalls[0] === outerValues[0];
+			},
+		),
+};
+
+/**
+ * #21 — concatMap: `project` is called serially — never for outer N+1 until
+ * inner N completes. Queue depth is unbounded (unless `maxBuffer` is set);
+ * `project` calls cadence ties to inner completion ordering, not outer
+ * arrival ordering.
+ *
+ * Topology: `outer = state`; `cm = concatMap(outer, v => memoisedInner(v))`
+ * with a counter wrapping `project` and a memoised inner state per outer
+ * value so we can reach in and drive COMPLETE. Drive outer through a
+ * distinct sequence; `project` should only have fired once (for the
+ * initial subscription). Then complete each inner in outer-arrival order,
+ * asserting that each completion triggers exactly one new `project` call
+ * for the next queued outer value.
+ *
+ * Catches: queue-bypass regressions (e.g. `project` called eagerly on
+ * every outer emit), or FIFO-violation (e.g. outer N+2 subscribes before
+ * outer N+1 — breaks `tryPump`'s serial contract).
+ */
+const invariant21ConcatMapSerialSubscription: Invariant = {
+	name: "concatmap-serial-inner-subscription",
+	description:
+		"concatMap calls `project` for outer N+1 only after inner N completes; queued outer emits never trigger concurrent project calls.",
+	specRef: "src/extra/operators.ts:concatMap — serialized-subscription contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 2,
+				maxLength: 4,
+			}),
+			(outerValues) => {
+				const outer = state<number>(outerValues[0]);
+				const projectCalls: number[] = [];
+				const inners = new Map<number, Node<number>>();
+				const cm = concatMap(outer as Node<number>, (v: number) => {
+					projectCalls.push(v);
+					const inner = state<number>(v * 10);
+					inners.set(v, inner);
+					return inner;
+				});
+				const unsub = cm.subscribe(() => {});
+				// Initial subscription fires project for outerValues[0].
+				if (projectCalls.length !== 1) return false;
+				if (projectCalls[0] !== outerValues[0]) return false;
+
+				// Emit remaining outer values — all should queue without firing project.
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				if (projectCalls.length !== 1) return false;
+
+				// Complete inners in outer-arrival order; each completion must trigger
+				// exactly one new project call for the next queued outer.
+				for (let i = 0; i < outerValues.length - 1; i++) {
+					const prevInner = inners.get(outerValues[i]);
+					if (!prevInner) return false;
+					prevInner.down([[COMPLETE]]);
+					if (projectCalls.length !== i + 2) return false;
+					if (projectCalls[i + 1] !== outerValues[i + 1]) return false;
+				}
+
+				unsub();
+				return true;
+			},
+		),
+};
+
+/**
+ * #22 — mergeMap: `{ concurrent: K }` never permits more than K concurrent
+ * inner subscriptions. With K < outerValues.length, outer emits beyond K
+ * queue; `project` is not called for them until a prior inner completes.
+ *
+ * Topology: same memoised-inner-per-outer pattern as #21. Count `project`
+ * calls; drive outer through a distinct sequence. After all emits,
+ * `project` has been called exactly `min(K, outerValues.length)` times.
+ * Then complete inners in order; each completion triggers one new
+ * `project` call until all outers have been subscribed.
+ *
+ * Catches: concurrency-bound bypass (queue.shift not gated on `active <
+ * maxConcurrent`), premature queue drain, or the `spawn` / `drainBuffer`
+ * counters diverging from actual live subscriptions.
+ */
+const invariant22MergeMapConcurrencyBound: Invariant = {
+	name: "mergemap-concurrency-bound-respected",
+	description:
+		"mergeMap with `{concurrent: K}` keeps at most K project calls pending; additional outers queue until a prior inner completes.",
+	specRef: "src/extra/operators.ts:mergeMap — concurrency bound contract",
+	property: () =>
+		fc.property(
+			fc.uniqueArray(fc.integer({ min: 1, max: 99 }), {
+				minLength: 3,
+				maxLength: 5,
+			}),
+			fc.integer({ min: 1, max: 2 }),
+			(outerValues, K) => {
+				const outer = state<number>(outerValues[0]);
+				const projectCalls: number[] = [];
+				const inners = new Map<number, Node<number>>();
+				const mm = mergeMap(
+					outer as Node<number>,
+					(v: number) => {
+						projectCalls.push(v);
+						const inner = state<number>(v * 10);
+						inners.set(v, inner);
+						return inner;
+					},
+					{ concurrent: K },
+				);
+				const unsub = mm.subscribe(() => {});
+				// Emit the remaining outers. The first K project calls should have
+				// fired (initial + K-1 additional); the rest queue.
+				for (let i = 1; i < outerValues.length; i++) outer.emit(outerValues[i]);
+				const expectedInitial = Math.min(K, outerValues.length);
+				if (projectCalls.length !== expectedInitial) return false;
+				// Completed inners should pop one queued outer each.
+				for (let i = 0; i < outerValues.length - K; i++) {
+					const prevInner = inners.get(outerValues[i]);
+					if (!prevInner) return false;
+					prevInner.down([[COMPLETE]]);
+					const expected = Math.min(K + i + 1, outerValues.length);
+					if (projectCalls.length !== expected) return false;
+				}
+				unsub();
+				return true;
+			},
+		),
+};
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
@@ -1097,6 +1416,11 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant15MultiSinkConverge,
 	invariant16UpTierGuard,
 	invariant17PausableOffStructural,
+	invariant18SwitchMapStaleInnerSuppressed,
+	invariant19MergeMapAllInnersContribute,
+	invariant20ExhaustMapDropsWhileActive,
+	invariant21ConcatMapSerialSubscription,
+	invariant22MergeMapConcurrencyBound,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract
