@@ -1,3 +1,10 @@
+# [0.30.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.29.0...v0.30.0) (2026-04-24)
+
+
+### Features
+
+* add guard ([d528737](https://github.com/graphrefly/graphrefly-ts/commit/d528737affcdea361bd4aaacd705f8c9a67b49b6))
+
 # [0.29.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.28.0...v0.29.0) (2026-04-23)
 
 
