@@ -28,6 +28,8 @@ import {
 	type CircuitBreakerOptions,
 	circuitBreaker,
 } from "../../../../extra/resilience.js";
+import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
+import { withLayer } from "../_internal/wrappers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -101,7 +103,7 @@ export function cascadingLlmAdapter(
 
 	const streamRetryBeforeFirstChunk = opts.streamRetryBeforeFirstChunk ?? true;
 
-	return {
+	const cascade: LLMAdapter = {
 		provider: "cascading",
 		model: undefined,
 
@@ -119,9 +121,7 @@ export function cascadingLlmAdapter(
 					continue;
 				}
 				try {
-					const resp = (await Promise.resolve(
-						t.adapter.invoke(messages, invokeOpts),
-					)) as LLMResponse;
+					const resp = await firstValueFrom(fromAny(t.adapter.invoke(messages, invokeOpts)));
 					t.breaker?.recordSuccess();
 					return { ...resp, metadata: { ...(resp.metadata ?? {}), tier: t.name } };
 				} catch (err) {
@@ -178,4 +178,32 @@ export function cascadingLlmAdapter(
 			throw new AllTiersExhaustedError(report);
 		},
 	};
+	withLayer(cascade, `cascade[${resolved.map((t) => t.name).join(",")}]`);
+	return cascade;
+}
+
+/**
+ * Tiny type-safe constructor for an {@link AdapterTier}. Cleans up the
+ * heterogeneous array-type cast users (and `browser-presets.ts`) had to write
+ * by hand. Per Wave A Unit 13 decision.
+ *
+ * @example
+ * ```ts
+ * cascadingLlmAdapter([
+ *   tier("local", webllmAdapter(...)),
+ *   tier("cloud", anthropicAdapter(...), { breaker: { failureThreshold: 5 } }),
+ * ]);
+ * ```
+ *
+ * @category ai
+ */
+export function tier(
+	name: string,
+	adapter: LLMAdapter,
+	opts?: { breaker?: CircuitBreakerOptions | CircuitBreaker; filter?: AdapterTier["filter"] },
+): AdapterTier {
+	const out: AdapterTier = { name, adapter };
+	if (opts?.breaker) out.breaker = opts.breaker;
+	if (opts?.filter) out.filter = opts.filter;
+	return out;
 }

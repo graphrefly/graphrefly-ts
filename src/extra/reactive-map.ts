@@ -22,6 +22,10 @@ export type ReactiveMapOptions<K, V> = {
 	/**
 	 * LRU cap. When set, evicts least-recently-used keys after inserts that exceed this size.
 	 * Forwarded to the default `NativeMapBackend`. Ignored if a custom `backend` is provided.
+	 *
+	 * **Mutually exclusive with `retention`** — the LRU cap is "youngest-access wins,"
+	 * score-based retention is "highest-score wins." Configuring both would make
+	 * eviction nondeterministic; construction throws if both are set.
 	 */
 	maxSize?: number;
 	/**
@@ -40,7 +44,62 @@ export type ReactiveMapOptions<K, V> = {
 	 * monotonic version counter, or `1` for V1 + content-addressed cid.
 	 */
 	versioning?: VersioningLevel;
+	/**
+	 * Score-based retention policy. After every mutation, each live entry is
+	 * scored; entries below `archiveThreshold` and / or over `maxSize` (lowest-
+	 * scored first) are archived via `onArchive` before being removed.
+	 *
+	 * Retention replaces the ad-hoc "tierClassifier effect writing back to its
+	 * own store dep" pattern — the feedback cycle is gone because archival is
+	 * part of the atomic mutation, not a second reactive wave.
+	 *
+	 * Mutually exclusive with top-level `maxSize` (LRU). Pass one or the other.
+	 */
+	retention?: ReactiveMapRetention<K, V>;
 } & Omit<NodeOptions, "initial" | "describeKind" | "equals" | "versioning">;
+
+/**
+ * Score-based retention policy for {@link reactiveMap}. Evaluated synchronously
+ * on every successful mutation (`set` / `setMany` / `delete` / `clear` /
+ * `pruneExpired`). Entries are archived in ascending score order until the
+ * map satisfies both constraints:
+ *
+ * 1. Every remaining entry has `score >= archiveThreshold` (if set).
+ * 2. Total entry count `<= maxSize` (if set).
+ *
+ * At least one of `archiveThreshold` / `maxSize` must be set; otherwise there's
+ * no eviction trigger.
+ *
+ * **Archival order.** When multiple entries are candidates for archival in the
+ * same mutation, they are archived in ascending score order (lowest first). On
+ * score ties, iteration order (insertion order in the default backend) is the
+ * tiebreak.
+ *
+ * **No recursion.** Archival deletes happen on the backend directly — they do
+ * NOT re-enter the retention evaluator. The one-pass scan collects archival
+ * candidates against the post-mutation snapshot before removing them.
+ *
+ * @category extra
+ */
+export type ReactiveMapRetention<K, V> = {
+	/** Score entry — higher is kept. Should be a pure function of `(key, value)`. */
+	score: (key: K, value: V) => number;
+	/** Below-threshold entries are archived. Omit for pure `maxSize`-based retention. */
+	archiveThreshold?: number;
+	/**
+	 * Cap on live entry count. Over this, the lowest-scored entries are
+	 * archived until the size fits. Omit for pure threshold-based retention.
+	 */
+	maxSize?: number;
+	/**
+	 * Synchronous callback fired **before** archival deletion. Receives the
+	 * key, value, and computed score. Callers typically persist the entry to
+	 * a cold tier here (`await permanent.set(key, value)` — async is fine but
+	 * the archival deletion happens synchronously after this callback
+	 * returns).
+	 */
+	onArchive?: (key: K, value: V, score: number) => void;
+};
 
 export type ReactiveMapBundle<K, V> = {
 	/** Emits `ReadonlyMap<K, V>` on each structural change (two-phase). */
@@ -394,7 +453,17 @@ export class NativeMapBackend<K, V> implements MapBackend<K, V> {
  * @category extra
  */
 export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMapBundle<K, V> {
-	const { name, maxSize, defaultTtl, versioning, backend: userBackend } = options;
+	const { name, maxSize, defaultTtl, versioning, backend: userBackend, retention } = options;
+	if (retention && maxSize !== undefined) {
+		throw new RangeError(
+			"reactiveMap: `maxSize` (LRU) and `retention` (score-based) are mutually exclusive. Pick one eviction policy.",
+		);
+	}
+	if (retention && retention.archiveThreshold === undefined && retention.maxSize === undefined) {
+		throw new RangeError(
+			"reactiveMap: `retention` requires at least one of `archiveThreshold` or `maxSize` to trigger archival.",
+		);
+	}
 	const backend: MapBackend<K, V> =
 		userBackend ?? new NativeMapBackend<K, V>({ maxSize, defaultTtl });
 
@@ -414,18 +483,69 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	}
 
 	/**
+	 * Run score-based retention over the current live entries. Called right
+	 * before snapshot emission so subscribers see the final post-archival
+	 * state in a single wave. Archived entries fire `onArchive` synchronously
+	 * before deletion. Does not recurse — archival deletions bypass
+	 * `wrapMutation` / retention.
+	 */
+	function applyRetention(): void {
+		if (!retention) return;
+		const live = backend.toMap();
+		const threshold = retention.archiveThreshold;
+		const cap = retention.maxSize;
+		const scored: Array<{ key: K; value: V; score: number }> = [];
+		for (const [key, value] of live) {
+			scored.push({ key, value, score: retention.score(key, value) });
+		}
+		// Ascending score — lowest first, archived first.
+		scored.sort((a, b) => a.score - b.score);
+		const archiveSet = new Set<K>();
+		// 1) Threshold: archive anything below.
+		if (threshold !== undefined) {
+			for (const s of scored) {
+				if (s.score < threshold) archiveSet.add(s.key);
+				else break; // scored is ascending — first >= threshold ends the sweep.
+			}
+		}
+		// 2) maxSize: archive additional lowest-scored entries until under cap.
+		if (cap !== undefined && scored.length - archiveSet.size > cap) {
+			for (const s of scored) {
+				if (scored.length - archiveSet.size <= cap) break;
+				if (!archiveSet.has(s.key)) archiveSet.add(s.key);
+			}
+		}
+		if (archiveSet.size === 0) return;
+		for (const s of scored) {
+			if (!archiveSet.has(s.key)) continue;
+			retention.onArchive?.(s.key, s.value, s.score);
+			backend.delete(s.key);
+		}
+	}
+
+	/**
 	 * Defense-in-depth emission guard: compares `version` before/after `op` and
 	 * emits a snapshot if advanced. Uses `try/finally` so partial-mutation state
 	 * from a custom non-atomic backend is still surfaced to subscribers if the
 	 * op throws mid-way (native backends are atomic by contract and won't trip
 	 * this path).
+	 *
+	 * `kind` gates retention: `"mutation"` paths (set/setMany/delete/…) run
+	 * retention eviction; `"read"` paths (has/get) do NOT — a pure read that
+	 * happens to prune an expired TTL entry should emit a consistency
+	 * snapshot, but should NOT fire `onArchive` side-effects for unrelated
+	 * low-scored entries. Users reading a TTL map expect read-time expiry
+	 * pruning; they do NOT expect a `.get(x)` call to archive key `y`.
 	 */
-	function wrapMutation<T>(op: () => T): T {
+	function wrapMutation<T>(op: () => T, kind: "mutation" | "read" = "mutation"): T {
 		const prev = backend.version;
 		try {
 			return op();
 		} finally {
-			if (backend.version !== prev) pushSnapshot();
+			if (backend.version !== prev) {
+				if (kind === "mutation") applyRetention();
+				pushSnapshot();
+			}
 		}
 	}
 
@@ -433,11 +553,11 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 		entries: n,
 
 		has(key: K): boolean {
-			return wrapMutation(() => backend.has(key));
+			return wrapMutation(() => backend.has(key), "read");
 		},
 
 		get(key: K): V | undefined {
-			return wrapMutation(() => backend.get(key));
+			return wrapMutation(() => backend.get(key), "read");
 		},
 
 		set(key: K, value: V, opts?: { ttl?: number }): void {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
-import { contentGate, redactor, type StreamChunk } from "../../patterns/ai/index.js";
+import { contentGate, redactor } from "../../patterns/ai/index.js";
 import {
 	affectedTaskFilter,
 	beforeAfterCompare,
@@ -1535,51 +1535,35 @@ describe("notifyEffect", () => {
 // ---------------------------------------------------------------------------
 
 describe("redactor", () => {
-	function makeStream() {
-		return topic<StreamChunk>("stream");
-	}
-
-	function pushChunk(
-		t: TopicGraph<StreamChunk>,
-		token: string,
-		accumulated: string,
-		index: number,
-	) {
-		t.publish({ source: "test", token, accumulated, index });
-	}
-
 	it("replaces matched patterns with [REDACTED]", () => {
-		const stream = makeStream();
-		const sanitized = redactor(stream, [/\d{3}-\d{2}-\d{4}/g]); // SSN pattern
-		const results: StreamChunk[] = [];
+		const text = state<string>("");
+		const sanitized = redactor(text, [/\d{3}-\d{2}-\d{4}/g]); // SSN pattern
+		const results: string[] = [];
 		const unsub = sanitized.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
-				if (type === DATA && data != null) results.push(data as StreamChunk);
+				if (type === DATA && data != null) results.push(data as string);
 			}
 		});
 
-		pushChunk(stream, "My SSN is 123-45-6789.", "My SSN is 123-45-6789.", 0);
+		text.emit("My SSN is 123-45-6789.");
 
-		const last = results[results.length - 1];
-		expect(last?.accumulated).toBe("My SSN is [REDACTED].");
-		expect(last?.token).toBe("My SSN is [REDACTED].");
+		expect(results[results.length - 1]).toBe("My SSN is [REDACTED].");
 		unsub();
 	});
 
 	it("uses custom replaceFn when provided", () => {
-		const stream = makeStream();
-		const sanitized = redactor(stream, [/secret/gi], () => "***");
-		const results: StreamChunk[] = [];
+		const text = state<string>("");
+		const sanitized = redactor(text, [/secret/gi], () => "***");
+		const results: string[] = [];
 		const unsub = sanitized.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
-				if (type === DATA && data != null) results.push(data as StreamChunk);
+				if (type === DATA && data != null) results.push(data as string);
 			}
 		});
 
-		pushChunk(stream, "my secret", "my secret data", 0);
+		text.emit("my secret data");
 
-		const last = results[results.length - 1];
-		expect(last?.accumulated).toBe("my *** data");
+		expect(results[results.length - 1]).toBe("my *** data");
 		unsub();
 	});
 });
@@ -1589,17 +1573,9 @@ describe("redactor", () => {
 // ---------------------------------------------------------------------------
 
 describe("contentGate", () => {
-	function makeStream() {
-		return topic<StreamChunk>("stream");
-	}
-
-	function pushChunk(t: TopicGraph<StreamChunk>, acc: string) {
-		t.publish({ source: "test", token: acc, accumulated: acc, index: 0 });
-	}
-
 	it("returns allow when score is below threshold", () => {
-		const stream = makeStream();
-		const gate = contentGate(stream, (text) => text.length / 100, 0.5); // low threshold
+		const text = state<string>("");
+		const gate = contentGate(text, (t) => t.length / 100, 0.5); // low threshold
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
@@ -1607,15 +1583,15 @@ describe("contentGate", () => {
 			}
 		});
 
-		pushChunk(stream, "hi"); // length 2 / 100 = 0.02 — well below 0.5
+		text.emit("hi"); // length 2 / 100 = 0.02 — well below 0.5
 		expect(decisions[decisions.length - 1]).toBe("allow");
 		unsub();
 	});
 
 	it("returns review when score is in [threshold, hard)", () => {
-		const stream = makeStream();
+		const text = state<string>("");
 		// hardMultiplier default 1.5 → hard = 0.5 × 1.5 = 0.75
-		const gate = contentGate(stream, () => 0.6, 0.5);
+		const gate = contentGate(text, () => 0.6, 0.5);
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
@@ -1623,14 +1599,14 @@ describe("contentGate", () => {
 			}
 		});
 
-		pushChunk(stream, "x");
+		text.emit("x");
 		expect(decisions[decisions.length - 1]).toBe("review");
 		unsub();
 	});
 
 	it("returns block when score exceeds hard threshold", () => {
-		const stream = makeStream();
-		const gate = contentGate(stream, () => 0.9, 0.5); // 0.9 ≥ 0.75
+		const text = state<string>("");
+		const gate = contentGate(text, () => 0.9, 0.5); // 0.9 ≥ 0.75
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
@@ -1638,15 +1614,15 @@ describe("contentGate", () => {
 			}
 		});
 
-		pushChunk(stream, "x");
+		text.emit("x");
 		expect(decisions[decisions.length - 1]).toBe("block");
 		unsub();
 	});
 
 	it("accepts a Node<number> classifier", () => {
-		const stream = makeStream();
+		const text = state<string>("");
 		const score = state(0.8);
-		const gate = contentGate(stream, score, 0.5); // 0.8 ≥ 0.75 → block
+		const gate = contentGate(text, score, 0.5); // 0.8 ≥ 0.75 → block
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
@@ -1654,12 +1630,12 @@ describe("contentGate", () => {
 			}
 		});
 
-		pushChunk(stream, "x");
+		text.emit("x");
 		expect(decisions[decisions.length - 1]).toBe("block");
 
 		// Lower the score to allow
 		score.down([[DATA, 0.1]]);
-		pushChunk(stream, "y");
+		text.emit("y");
 		expect(decisions[decisions.length - 1]).toBe("allow");
 		unsub();
 	});

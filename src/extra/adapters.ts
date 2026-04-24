@@ -853,6 +853,196 @@ export type FromSSEOptions<T = string> = ExtraOpts & {
 	parse?: (raw: string) => T;
 };
 
+/** Options for {@link parseSSEStream}. */
+export type ParseSSEStreamOptions<T = string> = {
+	/** Parse the raw `data:` payload. Default: identity (string). */
+	parse?: (raw: string) => T;
+	/**
+	 * External abort signal. If aborted, the generator returns early after
+	 * cancelling the underlying reader / iterator. Does not emit an error —
+	 * the generator simply ends.
+	 */
+	signal?: AbortSignal;
+};
+
+/**
+ * Parses a Server-Sent Events byte stream into an async-iterator of structured
+ * `{event, data, id, retry}` records. Pure async generator with no reactive
+ * dependency — safe to consume anywhere an `AsyncIterable<SSEEvent>` is
+ * expected (LLM provider adapters, tests, non-reactive transports).
+ *
+ * Handles:
+ * - Arbitrary chunk boundaries (internal text buffer + `TextDecoder` streaming).
+ * - `\n` and `\r\n` line endings.
+ * - `event:` / `data:` (multi-line via repeated fields) / `id:` / `retry:`.
+ * - Comments (`:` prefix).
+ * - Cancels the underlying reader / iterator on external abort or consumer
+ *   break, so a quiet stream doesn't leak pending `read()` calls.
+ *
+ * Used internally by {@link fromSSE} (reactive `Node<SSEEvent>`) — exposed as a
+ * pure helper so LLM provider adapters (Anthropic, OpenAI, Google) can parse
+ * their SSE streams without building a reactive node per call.
+ *
+ * @param source - SSE byte source (`ReadableStream`, `Response`, or `AsyncIterable<Uint8Array>`).
+ * @param opts - `{ parse?, signal? }`.
+ * @returns `AsyncGenerator<SSEEvent<T>>` — yields one event per SSE block; returns on stream end / abort.
+ *
+ * @category extra
+ */
+export async function* parseSSEStream<T = string>(
+	source: ReadableStream<Uint8Array> | Response | AsyncIterable<Uint8Array>,
+	opts?: ParseSSEStreamOptions<T>,
+): AsyncGenerator<SSEEvent<T>, void, unknown> {
+	const parse = opts?.parse ?? ((raw: string) => raw as unknown as T);
+	const externalSignal = opts?.signal;
+
+	const decoder = new TextDecoder();
+	let buffer = "";
+	let currentEvent = "message";
+	let currentData: string[] = [];
+	let currentId: string | undefined;
+	let currentRetry: number | undefined;
+	const queue: SSEEvent<T>[] = [];
+
+	const flushEvent = () => {
+		if (currentData.length === 0 && currentEvent === "message" && currentId === undefined) {
+			currentData = [];
+			return;
+		}
+		const raw = currentData.join("\n");
+		queue.push({
+			event: currentEvent,
+			data: parse(raw),
+			id: currentId,
+			retry: currentRetry,
+		});
+		currentEvent = "message";
+		currentData = [];
+		currentId = undefined;
+		currentRetry = undefined;
+	};
+
+	const processLine = (line: string) => {
+		if (line === "") {
+			flushEvent();
+			return;
+		}
+		if (line.startsWith(":")) return; // comment
+		const colon = line.indexOf(":");
+		const field = colon < 0 ? line : line.slice(0, colon);
+		let value = colon < 0 ? "" : line.slice(colon + 1);
+		if (value.startsWith(" ")) value = value.slice(1);
+		switch (field) {
+			case "event":
+				currentEvent = value;
+				break;
+			case "data":
+				currentData.push(value);
+				break;
+			case "id":
+				if (!value.includes("\0")) currentId = value;
+				break;
+			case "retry": {
+				const n = Number(value);
+				if (Number.isFinite(n)) currentRetry = n;
+				break;
+			}
+		}
+	};
+
+	const processChunk = (chunk: Uint8Array, done: boolean) => {
+		buffer += decoder.decode(chunk, { stream: !done });
+		const parts = buffer.split(/\r?\n/);
+		buffer = parts.pop() ?? "";
+		for (const line of parts) processLine(line);
+	};
+
+	// Resolve the underlying byte source into either a `ReadableStream` or an
+	// `AsyncIterator<Uint8Array>` — identical dispatch as the legacy fromSSE.
+	const resp = source as Response;
+	const stream =
+		source instanceof ReadableStream
+			? source
+			: resp && typeof resp === "object" && resp.body instanceof ReadableStream
+				? resp.body
+				: null;
+
+	let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+	let iter: AsyncIterator<Uint8Array> | undefined;
+	// `cleanupDone` flips once we've invoked `reader.cancel()` / `iter.return()`
+	// — guards against the `onAbort` listener + the `finally` path both
+	// cancelling the same underlying resource (WHATWG streams allow double-
+	// cancel but custom `AsyncIterator.return` implementations are not
+	// required to be idempotent).
+	let cleanupDone = false;
+	const cleanupReader = (): void => {
+		if (cleanupDone) return;
+		cleanupDone = true;
+		if (reader) {
+			void reader.cancel().catch(() => undefined);
+		}
+		if (iter && typeof iter.return === "function") {
+			void Promise.resolve(iter.return()).catch(() => undefined);
+		}
+	};
+
+	// Wire the external abort signal to cancel the reader / iterator promptly
+	// instead of waiting for the next chunk.
+	const onAbort = (): void => {
+		cleanupReader();
+	};
+	if (externalSignal) {
+		if (externalSignal.aborted) return;
+		externalSignal.addEventListener("abort", onAbort, { once: true });
+	}
+
+	try {
+		if (stream) {
+			reader = stream.getReader();
+			while (!externalSignal?.aborted) {
+				const { value, done } = await reader.read();
+				if (done) break;
+				processChunk(value, false);
+				while (queue.length > 0) {
+					const ev = queue.shift() as SSEEvent<T>;
+					yield ev;
+				}
+			}
+			processChunk(new Uint8Array(), true);
+		} else {
+			const asyncIter = source as AsyncIterable<Uint8Array>;
+			iter = asyncIter[Symbol.asyncIterator]();
+			while (!externalSignal?.aborted) {
+				const step = await iter.next();
+				if (step.done) break;
+				processChunk(step.value, false);
+				while (queue.length > 0) {
+					const ev = queue.shift() as SSEEvent<T>;
+					yield ev;
+				}
+			}
+			processChunk(new Uint8Array(), true);
+		}
+		if (buffer.trim()) {
+			for (const line of buffer.split(/\r?\n/)) processLine(line);
+			flushEvent();
+		}
+		while (queue.length > 0) {
+			const ev = queue.shift() as SSEEvent<T>;
+			yield ev;
+		}
+	} finally {
+		if (externalSignal) {
+			externalSignal.removeEventListener("abort", onAbort);
+		}
+		// Idempotent cleanup — if `onAbort` already ran the cancel, this is a
+		// no-op. Covers the normal consumer-break path (generator exits → finally
+		// runs → cancel underlying reader / iterator so a quiet upstream
+		// doesn't leak its `read()` call).
+		cleanupReader();
+	}
+}
+
 /**
  * Parses a Server-Sent Events stream into structured `{event, data, id}` records.
  *
@@ -866,105 +1056,15 @@ export function fromSSE<T = string>(
 	source: ReadableStream<Uint8Array> | Response | AsyncIterable<Uint8Array>,
 	opts?: FromSSEOptions<T>,
 ): Node<SSEEvent<T>> {
-	const { parse = (raw: string) => raw as unknown as T, ...rest } = opts ?? {};
+	const { parse, ...rest } = opts ?? {};
 	return producer<SSEEvent<T>>((a) => {
 		let active = true;
-		const decoder = new TextDecoder();
-		let buffer = "";
-		let currentEvent = "message";
-		let currentData: string[] = [];
-		let currentId: string | undefined;
-		let currentRetry: number | undefined;
-
-		const flushEvent = () => {
-			if (currentData.length === 0 && currentEvent === "message" && currentId === undefined) {
-				currentData = [];
-				return;
-			}
-			const raw = currentData.join("\n");
-			a.emit({
-				event: currentEvent,
-				data: parse(raw),
-				id: currentId,
-				retry: currentRetry,
-			});
-			currentEvent = "message";
-			currentData = [];
-			currentId = undefined;
-			currentRetry = undefined;
-		};
-
-		const processLine = (line: string) => {
-			if (line === "") {
-				flushEvent();
-				return;
-			}
-			if (line.startsWith(":")) return; // comment
-			const colon = line.indexOf(":");
-			const field = colon < 0 ? line : line.slice(0, colon);
-			let value = colon < 0 ? "" : line.slice(colon + 1);
-			if (value.startsWith(" ")) value = value.slice(1);
-			switch (field) {
-				case "event":
-					currentEvent = value;
-					break;
-				case "data":
-					currentData.push(value);
-					break;
-				case "id":
-					if (!value.includes("\0")) currentId = value;
-					break;
-				case "retry": {
-					const n = Number(value);
-					if (Number.isFinite(n)) currentRetry = n;
-					break;
-				}
-			}
-		};
-
-		const processChunk = (chunk: Uint8Array, done: boolean) => {
-			if (!active) return;
-			buffer += decoder.decode(chunk, { stream: !done });
-			const parts = buffer.split(/\r?\n/);
-			buffer = parts.pop() ?? "";
-			for (const line of parts) processLine(line);
-		};
-
-		// Captured so teardown can `cancel()` the reader / iterator promptly
-		// instead of waiting for `reader.read()` to resolve on its own.
-		let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-		let iter: AsyncIterator<Uint8Array> | undefined;
-
+		const ctrl = new AbortController();
 		const run = async () => {
 			try {
-				const resp = source as Response;
-				const stream =
-					source instanceof ReadableStream
-						? source
-						: resp && typeof resp === "object" && resp.body instanceof ReadableStream
-							? resp.body
-							: null;
-				if (stream) {
-					reader = stream.getReader();
-					while (active) {
-						const { value, done } = await reader.read();
-						if (done) break;
-						processChunk(value, false);
-					}
-					processChunk(new Uint8Array(), true);
-				} else {
-					const asyncIter = source as AsyncIterable<Uint8Array>;
-					iter = asyncIter[Symbol.asyncIterator]();
-					while (active) {
-						const step = await iter.next();
-						if (step.done) break;
-						processChunk(step.value, false);
-					}
-					processChunk(new Uint8Array(), true);
-				}
-				if (buffer.trim()) {
-					for (const line of buffer.split(/\r?\n/)) processLine(line);
-					flushEvent();
+				for await (const ev of parseSSEStream<T>(source, { parse, signal: ctrl.signal })) {
+					if (!active) return;
+					a.emit(ev);
 				}
 				if (active) a.down([[COMPLETE]]);
 			} catch (err) {
@@ -974,17 +1074,7 @@ export function fromSSE<T = string>(
 		void run();
 		return () => {
 			active = false;
-			// Cancel reader / iterator so the pending `read()` / `next()`
-			// resolves immediately — otherwise teardown would wait for the
-			// next chunk (could be indefinitely on a quiet stream).
-			if (reader) {
-				void reader.cancel().catch(() => {
-					/* cancel on already-closed reader is a no-op */
-				});
-			}
-			if (iter && typeof iter.return === "function") {
-				void Promise.resolve(iter.return()).catch(() => undefined);
-			}
+			ctrl.abort();
 		};
 	}, sourceOpts(rest));
 }

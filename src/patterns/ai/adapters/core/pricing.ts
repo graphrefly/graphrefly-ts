@@ -339,3 +339,35 @@ export function composePricing(...fns: readonly PricingFn[]): PricingFn {
 		return fns.length > 0 ? fns[0](usage, ctx) : zeroPrice();
 	};
 }
+
+/**
+ * Convenience: compute a {@link PriceBreakdown} directly from a
+ * {@link import("./capabilities.js").ModelCapabilities} object + usage.
+ *
+ * When callers look up capabilities themselves (via
+ * `capabilitiesRegistry.lookup(...)` or `adapter.capabilities?.(model)`),
+ * this helper skips the pricing-registry round-trip and computes the price
+ * from `capabilities.pricing` directly.
+ *
+ * Returns `zeroPrice()` when `capabilities.pricing` is undefined — never throws.
+ *
+ * @param capabilities - Model capabilities object (`capabilities.pricing` may be absent).
+ * @param usage - Per-call usage to price.
+ * @param opts - Pass-through to {@link computePrice}.
+ *
+ * @example
+ * ```ts
+ * const cap = registry.lookup("anthropic", "claude-sonnet-4-6");
+ * const price = pricingFor(cap, resp.usage, { tier: "batch", withBreakdown: true });
+ * ```
+ *
+ * @category ai
+ */
+export function pricingFor(
+	capabilities: import("./capabilities.js").ModelCapabilities | undefined,
+	usage: TokenUsage,
+	opts?: { tier?: string; withBreakdown?: boolean },
+): PriceBreakdown {
+	if (!capabilities?.pricing) return zeroPrice();
+	return computePrice(usage, capabilities.pricing, opts);
+}

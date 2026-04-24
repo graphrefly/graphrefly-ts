@@ -12,14 +12,26 @@
  * throws `BudgetExhaustedError` without hitting the wrapped adapter. On
  * success, the call's usage is appended to the log AND debits the running
  * totals in a single synchronous update.
+ *
+ * Wave A Unit 11 Q4: rejected-Promise path now wires `.catch` (via
+ * `adaptInvokeResult.onError`) so failed invoke calls record a CallStatsEvent
+ * with `error` populated. Prior code silently dropped rejection from the
+ * `totals` / `log` surface.
  */
 
-import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
+import { monotonicNs } from "../../../../core/clock.js";
 import { DATA } from "../../../../core/messages.js";
 import type { Node } from "../../../../core/node.js";
 import { derived, state } from "../../../../core/sugar.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../../../extra/reactive-log.js";
-import { fromAny, keepalive } from "../../../../extra/sources.js";
+import { keepalive } from "../../../../extra/sources.js";
+import {
+	adapterWrapper,
+	adaptInvokeResult,
+	buildCallStats,
+	emptyUsageStub,
+	withLayer,
+} from "../_internal/wrappers.js";
 import type { CallStatsEvent } from "../core/observable.js";
 import type { PricingFn } from "../core/pricing.js";
 import type {
@@ -184,23 +196,21 @@ export function withBudgetGate(
 		meta: {
 			model: string;
 			tier?: string;
-			latencyMs: number;
+			startNs: number;
 			method: "invoke" | "stream";
 			error?: { type: string; message: string };
 		},
 	): void => {
 		const provider = inner.provider;
-		const event: CallStatsEvent = {
-			timestamp: monotonicNs(),
-			wallClock: wallClockNs(),
+		const event: CallStatsEvent = buildCallStats({
 			provider,
 			model: meta.model,
 			tier: meta.tier,
 			usage,
-			latencyMs: meta.latencyMs,
+			startNs: meta.startNs,
 			method: meta.method,
 			...(meta.error ? { error: meta.error } : {}),
-		};
+		});
 		log.append(event);
 		const prev = totals.cache ?? EMPTY_TOTALS;
 		const usd = opts.pricingFn
@@ -219,79 +229,69 @@ export function withBudgetGate(
 		totals.emit(makeEmptyTotals());
 	};
 
-	const emptyUsage = (): TokenUsage => ({ input: { regular: 0 }, output: { regular: 0 } });
-
-	const wrap: LLMAdapter = {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap: LLMAdapter = adapterWrapper(inner, {
 		invoke(messages, invokeOpts) {
 			const closedErr = buildClosedError();
 			if (closedErr) return Promise.reject(closedErr);
-			const start = monotonicNs();
-			const result = inner.invoke(messages, invokeOpts);
-
+			const startNs = monotonicNs();
+			const model = inner.model ?? invokeOpts?.model ?? "";
 			const recordResp = (resp: LLMResponse): LLMResponse => {
-				const latencyMs = Math.max(0, (monotonicNs() - start) / 1e6);
-				record(resp.usage ?? emptyUsage(), {
+				record(resp.usage ?? emptyUsageStub(), {
 					model: inner.model ?? invokeOpts?.model ?? resp.model ?? "",
 					tier: invokeOpts?.tier ?? resp.tier,
-					latencyMs,
+					startNs,
 					method: "invoke",
 				});
 				return resp;
 			};
-
-			if (result != null && typeof (result as PromiseLike<LLMResponse>).then === "function") {
-				return (result as Promise<LLMResponse>).then(recordResp);
-			}
-			if (result != null && typeof result === "object" && "content" in (result as object)) {
-				return recordResp(result as LLMResponse);
-			}
-			// Reactive path — guard against double-record on resubscribe.
-			let recordedOnce = false;
-			return derived<LLMResponse>(
-				[fromAny(result)],
-				([v]) => {
-					if (v == null) return v as null;
-					if (recordedOnce) return v as LLMResponse;
-					recordedOnce = true;
-					return recordResp(v as LLMResponse);
-				},
-				{ name: "budgetGate/invokeTap" },
-			);
+			const recordErr = (err: unknown): void => {
+				const e = err as Error | undefined;
+				record(emptyUsageStub(), {
+					model,
+					tier: invokeOpts?.tier,
+					startNs,
+					method: "invoke",
+					error: { type: e?.name ?? "Error", message: e?.message ?? String(err) },
+				});
+			};
+			return adaptInvokeResult(inner.invoke(messages, invokeOpts), {
+				onResp: recordResp,
+				onError: recordErr,
+				name: "budgetGate/invokeTap",
+			});
 		},
 
 		async *stream(messages, invokeOpts): AsyncGenerator<StreamDelta> {
 			const closedErr = buildClosedError();
 			if (closedErr) throw closedErr;
-			const start = monotonicNs();
+			const startNs = monotonicNs();
 			let finalUsage: TokenUsage | undefined;
 			try {
 				for await (const delta of inner.stream(messages, invokeOpts)) {
 					if (delta.type === "usage") finalUsage = delta.usage;
 					yield delta;
 				}
-				record(finalUsage ?? emptyUsage(), {
+				record(finalUsage ?? emptyUsageStub(), {
 					model: inner.model ?? invokeOpts?.model ?? "",
 					tier: invokeOpts?.tier,
-					latencyMs: Math.max(0, (monotonicNs() - start) / 1e6),
+					startNs,
 					method: "stream",
 				});
 			} catch (err) {
 				const error = err as Error;
-				record(finalUsage ?? emptyUsage(), {
+				record(finalUsage ?? emptyUsageStub(), {
 					model: inner.model ?? invokeOpts?.model ?? "",
 					tier: invokeOpts?.tier,
-					latencyMs: Math.max(0, (monotonicNs() - start) / 1e6),
+					startNs,
 					method: "stream",
 					error: { type: error?.name ?? "Error", message: error?.message ?? String(err) },
 				});
 				throw err;
 			}
 		},
-	};
+	});
+
+	withLayer(wrap, "withBudgetGate", inner);
 
 	return { adapter: wrap, budget: { totals, isOpen, log, reset } };
 }

@@ -31,10 +31,13 @@
  */
 
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
-import { sha256Hex } from "../../../../core/hash.js";
+import { canonicalJson as extraCanonicalJson } from "../../../../extra/content-addressed-storage.js";
 import { singleFromAny } from "../../../../extra/single-from-any.js";
+import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
 import type { StorageTier } from "../../../../extra/storage-core.js";
 import { ResettableTimer } from "../../../../extra/timer.js";
+import { contentAddressedCache } from "../_internal/content-addressed-cache.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -131,74 +134,22 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 	const captureStreamCadence = opts.captureStreamCadence ?? false;
 	const replaySpeed = opts.replaySpeed ?? 1;
 	const keyPrefix = opts.keyPrefix ?? "llm-replay";
-	const tier = opts.storage;
 	const isReadOnly = mode === "read" || mode === "read-strict";
 
-	const makeKey = async (
-		messages: readonly ChatMessage[],
-		invokeOpts: LLMInvokeOptions | undefined,
-	): Promise<string> => {
-		if (opts.keyFn) {
-			// Arity-dispatch: 1-arg form receives the ctx object; 2-arg
-			// legacy form receives (messages, opts). Functions with 1 param
-			// (`Function.length === 1`) take the ctx shape. Either form may
-			// return `string` or `Promise<string>` — we await either.
-			const kf = opts.keyFn;
-			if (kf.length <= 1) {
-				const ctxKey: ReplayCacheKeyContext = {
-					messages,
-					opts: invokeOpts,
-					context: invokeOpts?.keyContext,
-				};
-				const out = await (kf as (ctx: ReplayCacheKeyContext) => string | Promise<string>)(ctxKey);
-				return `${keyPrefix}:${out}`;
-			}
-			const out = await (
-				kf as (m: readonly ChatMessage[], o?: LLMInvokeOptions) => string | Promise<string>
-			)(messages, invokeOpts);
-			return `${keyPrefix}:${out}`;
-		}
-		// Default keying: drop `signal` (AbortSignal is not serializable) and
-		// `keyContext` (per-call context should not affect the default hash —
-		// it only matters when a user opts in via `keyFn`). Hash via universal
-		// `crypto.subtle` (no `node:crypto` import) — runs in Node + browsers.
-		const { signal: _signal, keyContext: _keyContext, ...rest } = invokeOpts ?? {};
-		const canonical = canonicalJson({ messages, opts: rest });
-		const hex = await sha256Hex(canonical);
-		return `${keyPrefix}:${hex}`;
-	};
-
-	const readEntry = async (key: string): Promise<CachedEntry | undefined> => {
-		if (mode === "write-only") return undefined;
-		const raw = await tier.load(key);
-		if (raw == null) return undefined;
-		try {
-			return (typeof raw === "string" ? JSON.parse(raw) : raw) as CachedEntry;
-		} catch {
-			return undefined;
-		}
-	};
-
-	const readCache = async (key: string): Promise<LLMResponse | undefined> => {
-		const entry = await readEntry(key);
-		return entry?.response;
-	};
-
-	const writeCache = async (
-		key: string,
-		resp: LLMResponse,
-		streamCadence?: { chunks: ReadonlyArray<{ delta: string }>; delaysMs: readonly number[] },
-	): Promise<void> => {
-		if (isReadOnly) return;
-		const entry: CachedEntry = {
-			response: resp,
-			storedAtNs: wallClockNs(),
-			...(streamCadence
-				? { streamChunks: streamCadence.chunks, streamCadenceMs: streamCadence.delaysMs }
-				: {}),
-		};
-		await tier.save(key, entry as unknown as Parameters<typeof tier.save>[1]);
-	};
+	// Content-addressed substrate — keys via canonicalJson + sha256 over
+	// (messages, opts minus signal/keyContext) or the caller's custom keyFn.
+	// Value type is `CachedEntry` so we can persist stream cadence alongside
+	// the response. Uses the shared substrate in `src/extra/content-addressed-
+	// storage.ts` via the LLM-specific wrapper in `_internal/`.
+	//
+	// Mode translation: `ReplayCacheMode` uses `"write-only"` (legacy name);
+	// the substrate uses `"write"`. All other modes map 1:1.
+	const cache = contentAddressedCache<CachedEntry>({
+		storage: opts.storage,
+		mode: mode === "write-only" ? "write" : mode,
+		keyFn: opts.keyFn,
+		keyPrefix,
+	});
 
 	const sleepMs = (ms: number): Promise<void> =>
 		ms <= 0
@@ -215,26 +166,25 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 	// that precomputed value instead of re-hashing.
 	const upstreamInFlight = singleFromAny<ResolveArgsWithKey, LLMResponse>(
 		async ({ messages, invokeOpts }) => {
-			const respInput = inner.invoke(messages, invokeOpts);
-			return await resolveResponse(respInput);
+			return await firstValueFrom(fromAny(inner.invoke(messages, invokeOpts)));
 		},
 		{ keyFn: ({ _precomputedKey }) => _precomputedKey },
 	);
 
-	return {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap = adapterWrapper(inner, {
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
-			const key = await makeKey(messages, invokeOpts);
-			const cached = await readCache(key);
-			if (cached)
+			const key = await cache.keyFor(messages, invokeOpts);
+			const entry = await cache.lookup(messages, invokeOpts);
+			if (entry?.response) {
+				const cached = entry.response;
 				return { ...cached, metadata: { ...(cached.metadata ?? {}), replayCache: "hit" } };
+			}
 
 			if (mode === "read-strict") throw new ReplayCacheMissError(key, "invoke");
 			const resp = await upstreamInFlight({ messages, invokeOpts, _precomputedKey: key });
-			await writeCache(key, resp);
+			if (!isReadOnly) {
+				await cache.store(messages, invokeOpts, { response: resp, storedAtNs: wallClockNs() });
+			}
 			return resp;
 		},
 
@@ -247,8 +197,8 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 				for await (const delta of inner.stream(messages, invokeOpts)) yield delta;
 				return;
 			}
-			const key = await makeKey(messages, invokeOpts);
-			const entry = await readEntry(key);
+			const key = await cache.keyFor(messages, invokeOpts);
+			const entry = await cache.lookup(messages, invokeOpts);
 			if (entry) {
 				const cached = entry.response;
 				// Cadence-faithful replay when both recorded chunks + delays are present.
@@ -295,78 +245,30 @@ export function withReplayCache(inner: LLMAdapter, opts: WithReplayCacheOptions)
 				if (delta.type === "finish") finishReason = delta.reason;
 				yield delta;
 			}
-			// Persist when ANY meaningful output was produced — not only on
-			// `usage` frames. Many providers stream tokens + finish but never
-			// emit a usage frame (OpenAI without `stream_options.include_usage`);
-			// gating on `usage` would silently drop every such response from
-			// the cache. Caller replay tolerates `usage: undefined` — the
-			// `yield {type: "usage", ...}` branch on replay is already gated
-			// on `cached.usage` being present.
-			if (content || usage) {
+			if ((content || usage) && !isReadOnly) {
 				const resp: LLMResponse = {
 					content,
-					// LLMResponse requires a usage shape; stub zero when the
-					// provider didn't report one. Callers that care can
-					// distinguish a real zero from "not reported" via the
-					// cached entry's raw metadata if needed.
 					usage: usage ?? { input: { regular: 0 }, output: { regular: 0 } },
 					finishReason,
 					model: inner.model ?? invokeOpts?.model ?? "",
 					provider: inner.provider,
 				};
-				await writeCache(key, resp, captureStreamCadence ? { chunks, delaysMs } : undefined);
+				const entryToStore: CachedEntry = {
+					response: resp,
+					storedAtNs: wallClockNs(),
+					...(captureStreamCadence ? { streamChunks: chunks, streamCadenceMs: delaysMs } : {}),
+				};
+				await cache.store(messages, invokeOpts, entryToStore);
 			}
 		},
-	};
+	});
+	withLayer(wrap, "withReplayCache", inner);
+	return wrap;
 }
 
 /**
- * Canonical JSON — sorts object keys for stable sha256 while detecting true
- * cycles (not sibling shared refs).
- *
- * We recurse manually with a **path stack** (`seen` contains only the current
- * ancestor chain, not every previously-visited object). On enter we push; on
- * exit we pop. Back-edges to ancestors serialize as `{"__cycle": true}`;
- * siblings that share the same reference (legitimate for JSON Schema
- * fragments reused across tool definitions) serialize normally, producing
- * identical hashes to a freshly-reconstructed equivalent.
- *
- * Exported so `fallbackAdapter` (and other cache-adjacent code) can share
- * the same key shape — fixtures produced by either tool stay interchangeable.
+ * Canonical JSON — re-exported from `src/extra/content-addressed-storage.ts`
+ * so `fallbackAdapter` and other cache-adjacent code that historically
+ * imported from here continue to work. Same behavior.
  */
-export function canonicalJson(value: unknown): string {
-	const ancestors = new Set<object>();
-
-	const canon = (v: unknown): unknown => {
-		if (v === null || typeof v !== "object") return v;
-		const obj = v as object;
-		if (ancestors.has(obj)) return { __cycle: true };
-		ancestors.add(obj);
-		try {
-			if (Array.isArray(v)) {
-				return (v as readonly unknown[]).map(canon);
-			}
-			const out: Record<string, unknown> = {};
-			for (const k of Object.keys(v as Record<string, unknown>).sort()) {
-				out[k] = canon((v as Record<string, unknown>)[k]);
-			}
-			return out;
-		} finally {
-			ancestors.delete(obj);
-		}
-	};
-
-	return JSON.stringify(canon(value));
-}
-
-async function resolveResponse(input: unknown): Promise<LLMResponse> {
-	if (input != null && typeof (input as PromiseLike<LLMResponse>).then === "function") {
-		return await (input as PromiseLike<LLMResponse>);
-	}
-	if (input && typeof input === "object" && "content" in (input as object)) {
-		return input as LLMResponse;
-	}
-	throw new Error(
-		"withReplayCache: adapter.invoke must return Promise or LLMResponse (Node input not supported in cache path)",
-	);
-}
+export const canonicalJson = extraCanonicalJson;

@@ -3,9 +3,9 @@
 // ---------------------------------------------------------------------------
 
 import type { Graph } from "../../../graph/graph.js";
+import { compileSpec, type GraphSpec, type GraphSpecCatalog } from "../../graphspec/index.js";
 import { resolveToolHandlerResult, stripFences } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../adapters/core/types.js";
-import { compileSpec, type GraphSpec, type GraphSpecCatalog } from "../../graphspec/index.js";
 
 export type GraphFromSpecOptions = {
 	model?: string;

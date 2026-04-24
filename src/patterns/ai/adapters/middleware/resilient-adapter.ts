@@ -52,6 +52,7 @@ import {
 	withBudgetGate,
 } from "./budget-gate.js";
 import { type WithRateLimiterOptions, withRateLimiter } from "./rate-limiter.js";
+import { type WithReplayCacheOptions, withReplayCache } from "./replay-cache.js";
 import { type WithRetryOptions, withRetry } from "./retry.js";
 import { withTimeout } from "./timeout.js";
 
@@ -88,6 +89,14 @@ export interface ResilientAdapterOptions {
 	 * is set. Threaded directly to the inner {@link cascadingLlmAdapter}.
 	 */
 	onExhausted?: (report: CascadeExhaustionReport) => void;
+	/**
+	 * Content-addressed replay cache wrapped OUTERMOST — a cache HIT short-
+	 * circuits the entire stack (rate-limit / budget / breaker / retry /
+	 * fallback), saving money and latency. Cache MISSes flow through the
+	 * normal stack; the successful result is stored on success. See
+	 * {@link withReplayCache}.
+	 */
+	cache?: WithReplayCacheOptions;
 }
 
 /** Output bundle of {@link resilientAdapter}. */
@@ -172,6 +181,10 @@ export function resilientAdapter(
 			],
 			cascadeOpts,
 		);
+	}
+	if (opts.cache) {
+		// Outermost — a cache HIT skips the entire stack below.
+		current = withReplayCache(current, opts.cache);
 	}
 
 	bundle.adapter = current;

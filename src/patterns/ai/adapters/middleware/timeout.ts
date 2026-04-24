@@ -8,7 +8,9 @@
  * `extra/resilience.ts` (spec §5.10 escape hatch documented on the class).
  */
 
+import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
 import { ResettableTimer } from "../../../../extra/timer.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export class LLMTimeoutError extends Error {
@@ -32,14 +34,22 @@ export function withTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
 		const ac = new AbortController();
 		let timerFired = false;
 		let onParentAbort: (() => void) | undefined;
+		const timer = new ResettableTimer();
+		// Cancel the timer synchronously when the parent aborts — otherwise a
+		// parent-abort at `t = ms - ε` followed by our timer firing at
+		// `t = ms` would set `timerFired = true`, causing
+		// `convertAbortToTimeout` to incorrectly promote the user-initiated
+		// abort to an `LLMTimeoutError`.
 		if (parent) {
 			if (parent.aborted) ac.abort(parent.reason);
 			else {
-				onParentAbort = () => ac.abort(parent.reason);
+				onParentAbort = () => {
+					timer.cancel();
+					ac.abort(parent.reason);
+				};
 				parent.addEventListener("abort", onParentAbort, { once: true });
 			}
 		}
-		const timer = new ResettableTimer();
 		timer.start(ms, () => {
 			timerFired = true;
 			ac.abort(new LLMTimeoutError(ms));
@@ -81,18 +91,11 @@ export function withTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
 		throw err;
 	};
 
-	return {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap = adapterWrapper(inner, {
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const { signal, cancel, timedOut } = linkedSignal(invokeOpts?.signal);
 			try {
-				const resp = (await Promise.resolve(
-					inner.invoke(messages, { ...invokeOpts, signal }),
-				)) as LLMResponse;
-				return resp;
+				return await firstValueFrom(fromAny(inner.invoke(messages, { ...invokeOpts, signal })));
 			} catch (err) {
 				return convertAbortToTimeout(err, timedOut());
 			} finally {
@@ -110,5 +113,7 @@ export function withTimeout(inner: LLMAdapter, ms: number): LLMAdapter {
 				cancel();
 			}
 		},
-	};
+	});
+	withLayer(wrap, "withTimeout", inner);
+	return wrap;
 }

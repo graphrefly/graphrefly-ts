@@ -5,9 +5,7 @@
 
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
-import type { TopicGraph } from "../../messaging/index.js";
 import { aiMeta } from "../_internal.js";
-import type { StreamChunk } from "../prompts/streaming.js";
 
 /** A keyword match detected in the stream. */
 export type KeywordFlag = {
@@ -51,27 +49,49 @@ const keywordFlagsEqual = (
 };
 
 /**
- * Mounts a keyword-flag extractor on a streaming topic. Scans accumulated text
- * for all configured patterns and emits an array of matches.
+ * Mounts a keyword-flag extractor on accumulated text. Scans for all
+ * configured patterns and emits an array of matches.
+ *
+ * **Wave A Unit 3 rewrite:** signature takes `accumulatedText: Node<string>`
+ * instead of the old `TopicGraph<StreamChunk>`. Patterns are compiled once
+ * at factory time (was per-chunk). `maxPatternLength` is validated at
+ * factory time — any pattern whose source exceeds the window throws
+ * immediately.
  *
  * Use cases: design invariant violations (`setTimeout`, `EventEmitter`), PII
  * detection (SSN, email, phone), toxicity keywords, off-track reasoning.
  *
- * **Streaming optimization.** Maintains a cursor across chunks in `ctx.store`
- * so each chunk scans only the delta region `accumulated.slice(scannedTo -
- * maxPatternLength)` — not the full string. Default structural equals
- * suppresses DATA emission when no new flags were found this chunk.
+ * **Streaming optimization.** Maintains a cursor across waves in `ctx.store`
+ * so each emission scans only the delta region `accumulated.slice(scannedTo -
+ * maxPatternLength)` — not the full string. Reactivation clears `ctx.store`
+ * and resumes from offset 0 (COMPOSITION-GUIDE §20 RAM semantics).
+ *
+ * Default structural equals suppresses DATA emission when no new flags were
+ * found this wave.
  */
 export function keywordFlagExtractor(
-	streamTopic: TopicGraph<StreamChunk>,
+	accumulatedText: Node<string>,
 	opts: KeywordFlagExtractorOptions,
 ): Node<readonly KeywordFlag[]> {
 	const maxPatternLength = opts.maxPatternLength ?? 128;
+	// Factory-time: validate pattern literal lengths + compile once.
+	for (const p of opts.patterns) {
+		if (p.pattern.source.length > maxPatternLength) {
+			throw new Error(
+				`keywordFlagExtractor: pattern "${p.label}" literal exceeds maxPatternLength (${p.pattern.source.length} > ${maxPatternLength}); raise the option or shorten the pattern.`,
+			);
+		}
+	}
+	const compiled = opts.patterns.map((p) => ({
+		label: p.label,
+		pattern: p.pattern,
+		compiled: new RegExp(p.pattern.source, `${p.pattern.flags.replace("g", "")}g`),
+	}));
 	return derived<readonly KeywordFlag[]>(
-		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk], ctx) => {
-			if (chunk == null) return [];
-			const accumulated = (chunk as StreamChunk).accumulated;
+		[accumulatedText],
+		([text], ctx) => {
+			if (text == null) return [];
+			const accumulated = text as string;
 
 			if (!("flags" in ctx.store)) {
 				ctx.store.flags = [] as KeywordFlag[];
@@ -85,21 +105,16 @@ export function keywordFlagExtractor(
 			const startOffset = Math.max(0, scannedTo - maxPatternLength);
 			const region = accumulated.slice(startOffset);
 			let added = false;
-			for (const { pattern, label } of opts.patterns) {
-				const re = new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`);
+			for (const { pattern, label, compiled: re } of compiled) {
+				re.lastIndex = 0;
 				for (const m of region.matchAll(re)) {
-					const pos = startOffset + m.index!;
-					// Skip matches that end inside the already-scanned prefix.
+					const pos = startOffset + (m.index ?? 0);
 					if (pos + m[0].length <= scannedTo) continue;
 					flags.push({ label, pattern, match: m[0], position: pos });
 					added = true;
 				}
 			}
 			ctx.store.scannedTo = accumulated.length;
-
-			// Always return a fresh copy so downstream never holds a live
-			// reference to ctx.store.flags. Structural equals suppresses the
-			// emission when no new flag was added this chunk.
 			return added ? [...flags] : flags.slice();
 		},
 		{

@@ -37,7 +37,6 @@ export * from "./adapters/providers/fallback.js";
 export * from "./adapters/providers/google.js";
 export * from "./adapters/providers/openai-compat.js";
 export * from "./adapters/routing/cascading.js";
-export * from "./adapters/routing/presets.js";
 
 // ---------------------------------------------------------------------------
 // Types — single source of truth lives in ./adapters/core/types.ts

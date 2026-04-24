@@ -5,9 +5,7 @@
 
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
-import type { TopicGraph } from "../../messaging/index.js";
 import { aiMeta } from "../_internal.js";
-import type { StreamChunk } from "../prompts/streaming.js";
 
 /** A tool call detected in the stream. */
 export type ExtractedToolCall = {
@@ -48,14 +46,14 @@ const toolCallsEqual = (
  * no new tool call completed this chunk.
  */
 export function toolCallExtractor(
-	streamTopic: TopicGraph<StreamChunk>,
+	accumulatedText: Node<string>,
 	opts?: { name?: string },
 ): Node<readonly ExtractedToolCall[]> {
 	return derived<readonly ExtractedToolCall[]>(
-		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk], ctx) => {
-			if (chunk == null) return [];
-			const accumulated = (chunk as StreamChunk).accumulated;
+		[accumulatedText],
+		([text], ctx) => {
+			if (text == null) return [];
+			const accumulated = text as string;
 
 			if (!("calls" in ctx.store)) {
 				ctx.store.calls = [] as ExtractedToolCall[];

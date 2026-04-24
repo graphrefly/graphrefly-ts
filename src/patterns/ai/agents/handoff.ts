@@ -66,6 +66,15 @@ export type HandoffOptions = {
  * @returns Node emitting the specialist's output when the gate is open, or
  *   `from`'s value when the gate is closed. Null when `from` is null.
  *
+ * **Performance caveat (Wave A Unit 5):** the specialist is mounted per
+ * source emission — each `v != null` DATA on `from` allocates a fresh
+ * `state<T>(v)` + invokes `toFactory`, and switchMap cancels the prior
+ * branch. For per-turn routing (≤1 emit/sec) this is negligible. For
+ * high-frequency sources (per-token routing, tight event loops), batch
+ * upstream (e.g. via `audit`, `throttle`, or `distinctUntilChanged`) before
+ * handing off — each mount/unmount cycle spins up full subgraphs
+ * (`messagesNode` + adapter bridge + output for a `promptNode` specialist).
+ *
  * @category patterns.ai
  */
 export function handoff<T>(

@@ -17,6 +17,7 @@ import {
 } from "../../../../extra/adaptive-rate-limiter.js";
 import type { NodeInput } from "../../../../extra/sources.js";
 import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -92,17 +93,12 @@ export function withRateLimiter(
 		if (sig) limiter.recordSignal(sig);
 	};
 
-	const wrap: LLMAdapter = {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap: LLMAdapter = adapterWrapper(inner, {
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			const tokenCost = estimateCost(messages, invokeOpts);
 			await limiter.acquire({ requestCost: 1, tokenCost, signal: invokeOpts?.signal });
 			try {
-				const respInput = inner.invoke(messages, invokeOpts);
-				const resp = await resolveToResponse(respInput);
+				const resp = await firstValueFrom(fromAny(inner.invoke(messages, invokeOpts)));
 				const usage = resp.usage ?? emptyUsage();
 				const actual = sumInputTokens(usage) + sumOutputTokens(usage);
 				const delta = actual - tokenCost;
@@ -132,20 +128,8 @@ export function withRateLimiter(
 				throw err;
 			}
 		},
-	};
+	});
+	withLayer(wrap, "withRateLimiter", inner);
 
 	return { adapter: wrap, limiter };
-}
-
-async function resolveToResponse(input: NodeInput<LLMResponse>): Promise<LLMResponse> {
-	// Fast path: Promise-like (most concrete adapters return Promise).
-	if (input != null && typeof (input as PromiseLike<LLMResponse>).then === "function") {
-		return await (input as PromiseLike<LLMResponse>);
-	}
-	// Plain value.
-	if (input && typeof input === "object" && "content" in (input as object)) {
-		return input as LLMResponse;
-	}
-	// Node / AsyncIterable / Iterable — bridge via fromAny + first DATA.
-	return await firstValueFrom(fromAny(input));
 }

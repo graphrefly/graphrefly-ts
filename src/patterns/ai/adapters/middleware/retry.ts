@@ -12,7 +12,9 @@
  * and abort paths.
  */
 
+import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
 import { ResettableTimer } from "../../../../extra/timer.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export interface WithRetryOptions {
@@ -103,19 +105,14 @@ export function withRetry(inner: LLMAdapter, opts: WithRetryOptions = {}): LLMAd
 		return Math.min(maxDelayMs, jittered);
 	};
 
-	return {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap = adapterWrapper(inner, {
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			if (invokeOpts?.signal?.aborted) throw makeAbortError();
 			let lastErr: unknown;
 			let prevDelay = baseDelayMs;
 			for (let attempt = 1; attempt <= attempts; attempt++) {
 				try {
-					const resp = (await Promise.resolve(inner.invoke(messages, invokeOpts))) as LLMResponse;
-					return resp;
+					return await firstValueFrom(fromAny(inner.invoke(messages, invokeOpts)));
 				} catch (err) {
 					lastErr = err;
 					if (attempt >= attempts || !shouldRetry(err, attempt)) throw err;
@@ -154,7 +151,9 @@ export function withRetry(inner: LLMAdapter, opts: WithRetryOptions = {}): LLMAd
 			}
 			throw lastErr;
 		},
-	};
+	});
+	withLayer(wrap, "withRetry", inner);
+	return wrap;
 }
 
 function defaultShouldRetry(err: unknown, _attempt: number): boolean {

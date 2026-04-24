@@ -1,29 +1,32 @@
 /**
- * Generic stream extractor — mounts an extract function on a streaming topic.
+ * Generic stream extractor — mounts an extract function on accumulated text.
+ *
+ * **Wave A Unit 3 rewrite:** signature changed from
+ * `streamExtractor(topic: TopicGraph<StreamChunk>, fn)` to
+ * `streamExtractor(accumulatedText: Node<string>, fn)`. The Unit 2 delta-
+ * topic redesign removed the per-chunk `accumulated` field; callers pass
+ * `streamingPromptNode(...).accumulatedText` (or any other `Node<string>`
+ * source of accumulated text). Source-agnostic — the extractor doesn't care
+ * whether the text came from an LLM, WebSocket, SSE tail, or file reader.
+ *
  * @module
  */
 
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
-import type { TopicGraph } from "../../messaging/index.js";
 import { aiMeta } from "../_internal.js";
-import type { StreamChunk } from "../prompts/streaming.js";
 
 /**
- * Mounts an extractor function on a streaming topic. Returns a derived node
- * that emits extracted values as chunks arrive.
+ * Mounts an extractor function on a reactive accumulated-text source. Returns
+ * a derived node that emits extracted values as the text grows.
  *
- * `extractFn` receives the accumulated text from the latest chunk and returns
- * the extracted value, or `null` if nothing detected yet. This is the building
- * block for keyword flags, tool call detection, cost metering, etc.
- *
- * @param streamTopic - The stream topic to extract from.
+ * @param accumulatedText - Reactive `Node<string>` of accumulated text.
  * @param extractFn - `(accumulated: string) => T | null`.
- * @param opts - Optional name.
+ * @param opts - Optional name + structural equals.
  * @returns Derived node emitting extracted values.
  */
 export function streamExtractor<T>(
-	streamTopic: TopicGraph<StreamChunk>,
+	accumulatedText: Node<string>,
 	extractFn: (accumulated: string) => T | null,
 	opts?: {
 		name?: string;
@@ -39,10 +42,10 @@ export function streamExtractor<T>(
 	},
 ): Node<T | null> {
 	return derived<T | null>(
-		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk]) => {
-			if (chunk == null) return null;
-			return extractFn((chunk as StreamChunk).accumulated);
+		[accumulatedText],
+		([text]) => {
+			if (text == null) return null;
+			return extractFn(text as string);
 		},
 		{
 			name: opts?.name ?? "extractor",

@@ -1,12 +1,16 @@
 /**
  * Redactor — stream extractor that replaces matched patterns in accumulated text.
+ *
+ * **Wave A Unit 3 rewrite:** signature now takes `accumulatedText: Node<string>`
+ * instead of the retired `TopicGraph<StreamChunk>`. The output is a
+ * `Node<string>` carrying the sanitized accumulated text — compose with
+ * `contentGate` or downstream UI directly.
+ *
  * @module
  */
 
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
-import type { TopicGraph } from "../../messaging/index.js";
-import type { StreamChunk } from "../prompts/streaming.js";
 
 /** Options for {@link redactor}. */
 export type RedactorOptions = {
@@ -14,24 +18,19 @@ export type RedactorOptions = {
 };
 
 /**
- * Stream extractor that replaces matched patterns in the accumulated text.
+ * Derived node that replaces matched patterns in accumulated text.
  *
- * Returns a derived node emitting a sanitized `StreamChunk` on every chunk:
- * `accumulated` and `token` have matched substrings replaced by `replaceFn`.
- * The default `replaceFn` replaces with `"[REDACTED]"`.
- *
- * Compose with `contentGate` for in-flight safety pipelines.
- *
- * @param streamTopic - Streaming topic to monitor.
- * @param patterns    - Array of RegExps to match against accumulated text.
- * @param replaceFn   - Replacement producer (default: always `"[REDACTED]"`).
+ * @param accumulatedText - Reactive accumulated-text source.
+ * @param patterns - Array of RegExps to match against the text.
+ * @param replaceFn - Replacement producer (default: always `"[REDACTED]"`).
+ * @returns `Node<string>` emitting the sanitized accumulated text.
  */
 export function redactor(
-	streamTopic: TopicGraph<StreamChunk>,
+	accumulatedText: Node<string>,
 	patterns: RegExp[],
 	replaceFn?: (match: string, pattern: RegExp) => string,
 	opts?: RedactorOptions,
-): Node<StreamChunk> {
+): Node<string> {
 	const replace = replaceFn ?? (() => "[REDACTED]");
 
 	function sanitize(text: string): string {
@@ -43,22 +42,9 @@ export function redactor(
 		return result;
 	}
 
-	return derived<StreamChunk>(
-		[streamTopic.latest as Node<StreamChunk | null>],
-		([chunk]) => {
-			if (chunk == null) {
-				return { source: "", token: "", accumulated: "", index: -1 };
-			}
-			const c = chunk as StreamChunk;
-			const sanitizedAccumulated = sanitize(c.accumulated);
-			const sanitizedToken = sanitize(c.token);
-			return {
-				source: c.source,
-				token: sanitizedToken,
-				accumulated: sanitizedAccumulated,
-				index: c.index,
-			};
-		},
-		{ name: opts?.name ?? "redactor" },
+	return derived<string>(
+		[accumulatedText],
+		([text]) => sanitize((text as string | undefined) ?? ""),
+		{ name: opts?.name ?? "redactor", initial: "" },
 	);
 }

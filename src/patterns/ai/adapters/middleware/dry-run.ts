@@ -13,6 +13,7 @@
  */
 
 import { fromAny, keepalive, type NodeInput } from "../../../../extra/sources.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type { LLMAdapter } from "../core/types.js";
 import { dryRunAdapter } from "../providers/dry-run.js";
 
@@ -55,11 +56,7 @@ export function withDryRun(inner: LLMAdapter, opts: WithDryRunOptions): WithDryR
 		return Boolean(enabledNode?.cache);
 	};
 
-	const adapter: LLMAdapter = {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const adapter: LLMAdapter = adapterWrapper(inner, {
 		invoke(messages, invokeOpts) {
 			return isEnabled() ? mock.invoke(messages, invokeOpts) : inner.invoke(messages, invokeOpts);
 		},
@@ -67,7 +64,8 @@ export function withDryRun(inner: LLMAdapter, opts: WithDryRunOptions): WithDryR
 		stream(messages, invokeOpts) {
 			return isEnabled() ? mock.stream(messages, invokeOpts) : inner.stream(messages, invokeOpts);
 		},
-	};
+	});
+	withLayer(adapter, "withDryRun", inner);
 
 	const dispose = (): void => {
 		if (unsubKeepalive) {

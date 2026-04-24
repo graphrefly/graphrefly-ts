@@ -651,6 +651,71 @@ export function tap<T>(
 }
 
 /**
+ * Invokes `fn` exactly once on the first qualifying DATA emission, then passes
+ * all values (including subsequent DATA) through unchanged.
+ *
+ * Motivation: call-boundary instrumentation (record stats, debit budget, log
+ * first-token latency) where the wrapper is re-subscribed by downstream
+ * composition (push-on-subscribe §2.2 would otherwise re-deliver the cached
+ * value and re-fire the side effect). The closure guard is scoped to the node
+ * instance, so the side effect fires exactly once per node lifetime.
+ *
+ * By default `null` / `undefined` values pass through WITHOUT counting as
+ * "first" — matches the SENTINEL convention (COMPOSITION-GUIDE §8) used by
+ * `promptNode`, `fromAny(Promise)`, and friends where a cached `null` means
+ * "not yet settled." Pass `where` to override with a custom predicate.
+ *
+ * @param source - Upstream node.
+ * @param fn - Side effect invoked once on the first qualifying value.
+ * @param opts - Optional {@link NodeOptions} plus `where` predicate. Default
+ *   `where: (v) => v != null`.
+ * @returns `Node<T>` - Passthrough node.
+ *
+ * @example
+ * ```ts
+ * import { onFirstData, fromAny } from "@graphrefly/graphrefly-ts";
+ *
+ * const tap = onFirstData(fromAny(adapter.invoke(msgs)), (resp) => recordStats(resp));
+ * ```
+ *
+ * @category extra
+ */
+export function onFirstData<T>(
+	source: Node<T>,
+	fn: (value: T) => void,
+	opts?: ExtraOpts & { where?: (value: T) => boolean },
+): Node<T> {
+	const where = opts?.where ?? ((v: T) => v != null);
+	let fired = false;
+	return node<T>(
+		[source as Node],
+		(data, a) => {
+			const batch0 = data[0];
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			for (const v of batch0) {
+				if (!fired && where(v as T)) {
+					fired = true;
+					fn(v as T);
+				}
+				a.emit(v as T);
+			}
+		},
+		operatorOpts(opts),
+	);
+}
+
+/**
+ * Alias for {@link onFirstData}. Parallels `tap` naming for discoverability —
+ * `tapFirst` is the one-shot companion of `tap`.
+ *
+ * @category extra
+ */
+export const tapFirst = onFirstData;
+
+/**
  * Suppresses adjacent duplicates using `equals` (default `Object.is`).
  *
  * @param source - Upstream node.

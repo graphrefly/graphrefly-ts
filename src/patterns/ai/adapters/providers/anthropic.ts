@@ -15,6 +15,8 @@
  */
 
 import { monotonicNs } from "../../../../core/clock.js";
+import { parseSSEStream } from "../../../../extra/adapters.js";
+import { makeHttpError } from "../../../../extra/http-error.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -315,7 +317,7 @@ function fetchBackedAnthropic(opts: AnthropicAdapterOptions): LLMAdapter {
 				body: JSON.stringify(body),
 				signal: invokeOpts?.signal,
 			});
-			if (!resp.ok) throw await makeHttpError(resp);
+			if (!resp.ok) throw await makeHttpError(resp, "Anthropic");
 			const json = (await resp.json()) as AnthropicMessageResponse;
 			const latencyMs = Math.max(0, (monotonicNs() - start) / 1e6);
 			return toLLMResponse(json, latencyMs);
@@ -329,14 +331,14 @@ function fetchBackedAnthropic(opts: AnthropicAdapterOptions): LLMAdapter {
 				body: JSON.stringify(body),
 				signal: invokeOpts?.signal,
 			});
-			if (!resp.ok) throw await makeHttpError(resp);
+			if (!resp.ok) throw await makeHttpError(resp, "Anthropic");
 			if (!resp.body) throw new Error("anthropicAdapter: streaming response has no body");
 
 			let finalUsage: AnthropicUsage | undefined;
 			let finishReason: string | undefined;
 			const toolCallsByIndex: Map<number, { id: string; name: string; argBuf: string }> = new Map();
 
-			for await (const event of parseSSE(resp.body)) {
+			for await (const event of parseSSEStream(resp.body, { signal: invokeOpts?.signal })) {
 				const data = event.data;
 				if (!data) continue;
 				let parsed: AnthropicStreamEvent;
@@ -467,90 +469,3 @@ function sdkBackedAnthropic(opts: AnthropicAdapterOptions): LLMAdapter {
 // ---------------------------------------------------------------------------
 // SSE parser
 // ---------------------------------------------------------------------------
-
-interface SSEEvent {
-	event?: string;
-	data?: string;
-	id?: string;
-}
-
-async function* parseSSE(stream: ReadableStream<Uint8Array>): AsyncGenerator<SSEEvent> {
-	const reader = stream.getReader();
-	const decoder = new TextDecoder();
-	let buf = "";
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) {
-				if (buf.length > 0) yield parseSSEBlock(buf);
-				return;
-			}
-			buf += decoder.decode(value, { stream: true });
-			let next = findSSEBoundary(buf);
-			while (next !== null) {
-				const block = buf.slice(0, next.index);
-				buf = buf.slice(next.index + next.length);
-				const ev = parseSSEBlock(block);
-				if (ev.data || ev.event) yield ev;
-				next = findSSEBoundary(buf);
-			}
-		}
-	} finally {
-		reader.releaseLock();
-	}
-}
-
-function parseSSEBlock(block: string): SSEEvent {
-	const ev: SSEEvent = {};
-	const dataLines: string[] = [];
-	// Split on LF first; strip trailing CR per W3C SSE spec (supports both LF-only and CRLF streams).
-	for (const rawLine of block.split("\n")) {
-		const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-		if (!line || line.startsWith(":")) continue;
-		const colon = line.indexOf(":");
-		const field = colon === -1 ? line : line.slice(0, colon);
-		const value = colon === -1 ? "" : line.slice(colon + 1).replace(/^ /, "");
-		if (field === "data") dataLines.push(value);
-		else if (field === "event") ev.event = value;
-		else if (field === "id") ev.id = value;
-	}
-	if (dataLines.length > 0) ev.data = dataLines.join("\n");
-	return ev;
-}
-
-/**
- * Find the next SSE event boundary in the buffer. Supports `\n\n` and
- * `\r\n\r\n` — the two forms every real provider emits. The W3C SSE spec
- * also recognizes `\r\r`, but no shipping LLM provider uses it; omitting it
- * here avoids splitting on literal `\r\r` sequences inside escaped JSON
- * payloads (theoretical risk even though conformant providers encode CR as
- * `\r` escape, not raw 0x0D).
- */
-function findSSEBoundary(buf: string): { index: number; length: number } | null {
-	const idxCrLf = buf.indexOf("\r\n\r\n");
-	const idxLf = buf.indexOf("\n\n");
-	let best: { index: number; length: number } | null = null;
-	if (idxCrLf !== -1) best = { index: idxCrLf, length: 4 };
-	if (idxLf !== -1 && (best === null || idxLf < best.index)) {
-		best = { index: idxLf, length: 2 };
-	}
-	return best;
-}
-
-async function makeHttpError(resp: Response): Promise<Error> {
-	let body: string;
-	try {
-		body = await resp.text();
-	} catch {
-		body = "";
-	}
-	const err = new Error(
-		`Anthropic API ${resp.status}: ${resp.statusText}${body ? ` — ${body}` : ""}`,
-	) as Error & {
-		status: number;
-		headers: Headers;
-	};
-	err.status = resp.status;
-	err.headers = resp.headers;
-	return err;
-}

@@ -885,16 +885,42 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
  * const val = await firstWhere(strategy.node, snap => snap.size > 0);
  * ```
  *
+ * @param source - Upstream node to observe.
+ * @param predicate - Returns `true` for the value to resolve on.
+ * @param opts - `{ skipCurrent?: boolean }`. When `skipCurrent: true`, any DATA
+ *   delivered during the synchronous `subscribe()` call (push-on-subscribe §2.2
+ *   replay of the cached value) is ignored — the promise resolves only on the
+ *   next future emission. Useful when the caller wants to await the next
+ *   settlement event after an imperative action (e.g. `run()` minting a new
+ *   runVersion, where the currently-cached value belongs to the previous run).
+ *
  * @category extra
  */
-export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean): Promise<T> {
+export function firstWhere<T>(
+	source: Node<T>,
+	predicate: (value: T) => boolean,
+	opts?: { skipCurrent?: boolean },
+): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let settled = false;
 		let shouldUnsub = false;
 		let unsub: (() => void) | undefined;
+		// Push-on-subscribe (§2.2) delivers the cached value synchronously
+		// during the subscribe() call — i.e. before `subscribe()` returns.
+		// When `skipCurrent: true`, we swallow any message batch delivered
+		// in that synchronous window so the promise only observes *future*
+		// emissions. The flag flips to `false` as soon as subscribe() returns.
+		let inInitialSyncPhase = opts?.skipCurrent === true;
 		unsub = source.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (settled) return;
+				// During the initial sync phase, swallow only cached DATA
+				// (push-on-subscribe §2.2). Terminal ERROR / COMPLETE must
+				// still reject the promise — otherwise an already-terminated
+				// source synchronously delivering `[[ERROR, ...]]` or
+				// `[[COMPLETE]]` during `subscribe()` would hang forever
+				// under `skipCurrent: true`.
+				if (inInitialSyncPhase && m[0] === DATA) continue;
 				if (m[0] === DATA) {
 					const v = m[1] as T;
 					if (predicate(v)) {
@@ -927,6 +953,7 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
 				}
 			}
 		});
+		inInitialSyncPhase = false;
 		if (shouldUnsub) {
 			unsub?.();
 			unsub = undefined;
@@ -947,6 +974,11 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
  *   value arrives within `timeoutMs`. Omit `timeoutMs` for unbounded wait.
  * - `predicate` defaults to `v => v != null`. Pass a custom predicate to
  *   gate on a stronger condition (e.g. `v => typeof v === "string"`).
+ * - Pass `skipCurrent: true` to ignore the currently-cached value delivered
+ *   synchronously via push-on-subscribe and resolve only on the *next*
+ *   matching emission. Useful after an imperative action that should produce
+ *   a fresh settlement (e.g. `run()` minting a new version — the stale
+ *   cached value from the previous run must not resolve the new caller).
  *
  * ```ts
  * const brief = await awaitSettled(briefNode, { timeoutMs: 120_000 });
@@ -955,6 +987,9 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
  *   predicate: (v): v is MyShape => typeof v === "object" && v != null && "key" in v,
  *   timeoutMs: 60_000,
  * });
+ * // or after kicking off a fresh run:
+ * kickOff();
+ * const fresh = await awaitSettled(resultNode, { skipCurrent: true });
  * ```
  *
  * Reactive inside, sync propagation — the one async boundary is the
@@ -962,7 +997,7 @@ export function firstWhere<T>(source: Node<T>, predicate: (value: T) => boolean)
  * boundaries, not in the graph).
  *
  * @param source - Upstream node to observe.
- * @param opts - `{ predicate?, timeoutMs? }`.
+ * @param opts - `{ predicate?, timeoutMs?, skipCurrent? }`.
  * @returns Promise that resolves with the first matching value, or rejects on timeout / ERROR / COMPLETE-without-DATA.
  *
  * @category extra
@@ -975,11 +1010,12 @@ let _nsPerMs: number | undefined;
 
 export async function awaitSettled<T>(
 	source: Node<T>,
-	opts?: { predicate?: (value: T) => boolean; timeoutMs?: number },
+	opts?: { predicate?: (value: T) => boolean; timeoutMs?: number; skipCurrent?: boolean },
 ): Promise<NonNullable<T>> {
 	const predicate = opts?.predicate ?? ((v: T) => v != null);
+	const skipCurrent = opts?.skipCurrent;
 	if (opts?.timeoutMs == null || opts.timeoutMs <= 0) {
-		return (await firstWhere(source, predicate)) as NonNullable<T>;
+		return (await firstWhere(source, predicate, { skipCurrent })) as NonNullable<T>;
 	}
 	// Reactive composition: `timeout()` wraps the source as a Node that
 	// emits ERROR(TimeoutError) on deadline. `firstWhere` then resolves on
@@ -994,7 +1030,103 @@ export async function awaitSettled<T>(
 		_nsPerMs = backoff.NS_PER_MS;
 	}
 	const guarded = _timeoutOp(source, opts.timeoutMs * (_nsPerMs as number));
-	return (await firstWhere(guarded, predicate)) as NonNullable<T>;
+	return (await firstWhere(guarded, predicate, { skipCurrent })) as NonNullable<T>;
+}
+
+/**
+ * Converts a reactive `Node<boolean>` into a browser-standard `AbortSignal`
+ * that fires when the node settles on `true`. Useful for threading a reactive
+ * "cancel" flag into any async boundary that accepts a signal (fetch, LLM SDK
+ * calls, child-process APIs, timers).
+ *
+ * **Contract.**
+ * - `signal.abort(reason)` fires exactly once, on the first DATA emission with
+ *   a truthy value. Subsequent emissions are ignored (AbortSignal is
+ *   single-shot).
+ * - Null / `false` / sentinel values are ignored. Push-on-subscribe will
+ *   check the currently-cached value on subscribe and abort immediately if
+ *   it's already `true`.
+ * - `reason` defaults to `"cancelled via nodeSignal"`; pass `opts.reason` to
+ *   override (`DOMException`, `Error`, or any value accepted by
+ *   `AbortController.abort`).
+ *
+ * **Lifecycle.**
+ * - Returns a `{signal, dispose}` bundle. Call `dispose()` when you're done
+ *   with the signal (e.g. in a `finally` after the async operation completes).
+ *   `dispose()` unsubscribes from the node and is a no-op once the signal has
+ *   fired.
+ * - **Memory note:** without `dispose()` the subscription keeps the reactive
+ *   node alive for the lifetime of the process. For bridge calls inside a
+ *   `switchMap` project fn, the switchMap supersede tears the inner subgraph
+ *   down, which is usually the right lifetime — but still call `dispose()`
+ *   from the caller's `finally` for clarity.
+ *
+ * @example
+ * ```ts
+ * const aborted = state(false);
+ * const { signal, dispose } = nodeSignal(aborted);
+ * try {
+ *   const resp = await adapter.invoke(msgs, { signal });
+ *   return resp;
+ * } finally {
+ *   dispose();
+ * }
+ * ```
+ *
+ * @category extra
+ */
+export function nodeSignal(
+	source: Node<boolean>,
+	opts?: { reason?: unknown },
+): { signal: AbortSignal; dispose: () => void } {
+	const ctrl = new AbortController();
+	const reason = opts?.reason ?? new Error("cancelled via nodeSignal");
+	let unsub: (() => void) | undefined;
+	let shouldUnsub = false;
+	const done = () => {
+		if (unsub) {
+			unsub();
+			unsub = undefined;
+		} else shouldUnsub = true;
+	};
+	unsub = source.subscribe((msgs) => {
+		if (ctrl.signal.aborted) return;
+		for (const m of msgs) {
+			if (m[0] === DATA && m[1] === true) {
+				ctrl.abort(reason);
+				done();
+				return;
+			}
+			if (m[0] === ERROR) {
+				// Treat an ERROR on the abort source as a cancel signal too —
+				// a broken control channel should fail closed, not leak the
+				// in-flight call. Use the error as the abort reason.
+				ctrl.abort(m[1]);
+				done();
+				return;
+			}
+			if (m[0] === COMPLETE) {
+				// Source completed without aborting — no-op. `done()` already
+				// released the subscription here, so a later `dispose()` call
+				// from the caller is a no-op (safe / idempotent).
+				done();
+				return;
+			}
+		}
+	});
+	if (shouldUnsub) {
+		unsub?.();
+		unsub = undefined;
+	}
+	return {
+		signal: ctrl.signal,
+		dispose: () => {
+			if (unsub) {
+				unsub();
+				unsub = undefined;
+			}
+		},
+	};
 }
 
 // ——————————————————————————————————————————————————————————————

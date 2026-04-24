@@ -41,7 +41,7 @@ import { derived, effect, state } from "../../core/sugar.js";
 import { switchMap } from "../../extra/operators.js";
 import type { NodeInput } from "../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
-import { type TopicGraph, messagingHub } from "../messaging/index.js";
+import { messagingHub, type TopicGraph } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Core types

@@ -12,6 +12,8 @@ import {
 	CircuitOpenError,
 	circuitBreaker,
 } from "../../../../extra/resilience.js";
+import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
+import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
 import type { LLMAdapter, LLMResponse, StreamDelta } from "../core/types.js";
 
 export interface WithBreakerOptions extends CircuitBreakerOptions {
@@ -28,15 +30,11 @@ export function withBreaker(
 ): { adapter: LLMAdapter; breaker: CircuitBreaker } {
 	const breaker = opts.breaker ?? circuitBreaker(opts);
 
-	const adapter: LLMAdapter = {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const adapter: LLMAdapter = adapterWrapper(inner, {
 		async invoke(messages, invokeOpts): Promise<LLMResponse> {
 			if (!breaker.canExecute()) throw new CircuitOpenError();
 			try {
-				const resp = (await Promise.resolve(inner.invoke(messages, invokeOpts))) as LLMResponse;
+				const resp = await firstValueFrom(fromAny(inner.invoke(messages, invokeOpts)));
 				breaker.recordSuccess();
 				return resp;
 			} catch (err) {
@@ -55,7 +53,8 @@ export function withBreaker(
 				throw err;
 			}
 		},
-	};
+	});
+	withLayer(adapter, "withBreaker", inner);
 
 	return { adapter, breaker };
 }

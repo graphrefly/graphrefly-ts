@@ -3,16 +3,21 @@
  *
  * The library emits structured facts (token counts, latency, timestamps)
  * as reactive nodes. Users compose interpretation (pricing, dashboards,
- * telemetry, budget breakers) as derived layers on top. Rationale lives in
- * `archive/docs/SESSION-rigor-infrastructure-plan.md` §"v2: reactive LLM
- * statistics + pluggable pricing".
+ * telemetry, budget breakers) as derived layers on top.
  */
 
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
 import type { Node } from "../../../../core/node.js";
 import { derived, state } from "../../../../core/sugar.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../../../extra/reactive-log.js";
-import { fromAny } from "../../../../extra/sources.js";
+import { keepalive } from "../../../../extra/sources.js";
+import {
+	adapterWrapper,
+	adaptInvokeResult,
+	buildCallStats,
+	emptyUsageStub,
+	withLayer,
+} from "../_internal/wrappers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -65,6 +70,14 @@ export interface AdapterStats {
 	readonly totalOutputTokens: Node<number>;
 	/** Reset all counters + clear the log. */
 	reset(): void;
+	/**
+	 * Release the internal keepalive subscriptions on the three counter
+	 * derives (`totalCalls` / `totalInputTokens` / `totalOutputTokens`) so the
+	 * bundle can be GC'd when the caller discards it. Idempotent. Long-lived
+	 * adapter bundles (module-level singletons) can ignore; transient bundles
+	 * (per-request / per-user) should call on teardown.
+	 */
+	dispose(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,16 +87,16 @@ export interface AdapterStats {
 /**
  * Wrap any {@link LLMAdapter} with a reactive stats bundle.
  *
- * Implementation:
- * - `stats.lastCall` is a `state<CallStatsEvent | undefined>` exposed via a
- *   null-filtering derived so consumers see a typed `Node<CallStatsEvent>`.
+ * Implementation (Unit 10 B):
+ * - `stats.lastCall` is a `state<CallStatsEvent | null>`.
  * - Counters (`totalCalls` / `totalInputTokens` / `totalOutputTokens`) are
- *   plain state nodes updated via `.emit()`.
+ *   **derived views** over `allCalls.entries` — self-maintaining, no manual
+ *   `.cache + 1 + emit` pattern, visible topology in `describe()`.
  * - `stats.allCalls` is a `reactiveLog<CallStatsEvent>` — bounded, supports
  *   `tail(n)` / `slice(start, stop)` for dashboard views.
- * - The wrapped adapter passes DATA through via a `derived` tap that writes
- *   to the stats nodes as a side-effect. No pricing — users compose pricing
- *   as a derived on top of `stats.lastCall`.
+ * - The wrapped adapter passes DATA through via `adaptInvokeResult`, which
+ *   uses `onFirstData` internally to guard against re-subscription double-fire
+ *   and wires `.catch` for Promise-path error recording (Unit 10 A).
  */
 export function observableAdapter(
 	inner: LLMAdapter,
@@ -95,126 +108,146 @@ export function observableAdapter(
 		maxSize: logMax,
 	});
 
-	// `null` is the pre-first-call value (valid DATA per spec v5); exposed
-	// directly as `lastCall`. Consumers who want a `Node<CallStatsEvent>`
-	// (non-null) can filter the stream themselves.
 	const lastCall = state<CallStatsEvent | null>(null, {
 		name: "adapterStats/lastCall",
 	});
 
-	const totalCalls = state<number>(0, { name: "adapterStats/totalCalls" });
-	const totalInputTokens = state<number>(0, { name: "adapterStats/totalInputTokens" });
-	const totalOutputTokens = state<number>(0, { name: "adapterStats/totalOutputTokens" });
+	// Counters as derived views over the log — self-maintaining (Unit 10 B).
+	// `initial` seeds them so late subscribers see 0 before any call lands.
+	const totalCalls = derived<number>(
+		[allCalls.entries],
+		([entries]) => (entries as readonly CallStatsEvent[]).length,
+		{ name: "adapterStats/totalCalls", initial: 0 },
+	);
+	const totalInputTokens = derived<number>(
+		[allCalls.entries],
+		([entries]) =>
+			(entries as readonly CallStatsEvent[]).reduce((acc, ev) => acc + sumInputTokens(ev.usage), 0),
+		{ name: "adapterStats/totalInputTokens", initial: 0 },
+	);
+	const totalOutputTokens = derived<number>(
+		[allCalls.entries],
+		([entries]) =>
+			(entries as readonly CallStatsEvent[]).reduce(
+				(acc, ev) => acc + sumOutputTokens(ev.usage),
+				0,
+			),
+		{ name: "adapterStats/totalOutputTokens", initial: 0 },
+	);
+	// Keepalive — counters track the log whether or not an external subscriber
+	// is attached, so `.cache` on the counters stays current. Captured as an
+	// array so `AdapterStats.dispose()` can release them all.
+	const unsubKeepalives: Array<() => void> = [
+		keepalive(totalCalls),
+		keepalive(totalInputTokens),
+		keepalive(totalOutputTokens),
+	];
 
 	const record = (ev: CallStatsEvent): void => {
 		allCalls.append(ev);
 		lastCall.emit(ev);
-		totalCalls.emit((totalCalls.cache ?? 0) + 1);
-		totalInputTokens.emit((totalInputTokens.cache ?? 0) + sumInputTokens(ev.usage));
-		totalOutputTokens.emit((totalOutputTokens.cache ?? 0) + sumOutputTokens(ev.usage));
 	};
 
 	const reset = (): void => {
 		allCalls.clear();
 		lastCall.emit(null);
-		totalCalls.emit(0);
-		totalInputTokens.emit(0);
-		totalOutputTokens.emit(0);
 	};
 
-	const wrap: LLMAdapter = {
-		provider: inner.provider,
-		model: inner.model,
-		capabilities: inner.capabilities?.bind(inner),
-
+	const wrap = adapterWrapper(inner, {
 		invoke(messages, invokeOpts) {
-			const start = monotonicNs();
-			const startWall = wallClockNs();
-			const result = inner.invoke(messages, invokeOpts);
-
+			const startNs = monotonicNs();
+			const startWallClockNs = wallClockNs();
+			const model = inner.model ?? invokeOpts?.model ?? "";
 			const recordResp = (resp: LLMResponse): LLMResponse => {
-				const end = monotonicNs();
-				record({
-					timestamp: end,
-					wallClock: startWall,
-					provider: inner.provider,
-					model: inner.model ?? invokeOpts?.model ?? resp.model ?? "",
-					tier: invokeOpts?.tier ?? resp.tier,
-					usage: resp.usage ?? emptyUsageStub(),
-					latencyMs: Math.max(0, (end - start) / 1e6),
-					method: "invoke",
-				});
+				record(
+					buildCallStats({
+						provider: inner.provider,
+						model: inner.model ?? invokeOpts?.model ?? resp.model ?? "",
+						tier: invokeOpts?.tier ?? resp.tier,
+						usage: resp.usage ?? emptyUsageStub(),
+						startNs,
+						startWallClockNs,
+						method: "invoke",
+					}),
+				);
 				return resp;
 			};
-
-			// Preserve shape: Promise in → Promise out (the common case).
-			if (result != null && typeof (result as PromiseLike<LLMResponse>).then === "function") {
-				return (result as Promise<LLMResponse>).then(recordResp);
-			}
-			// Plain value.
-			if (result != null && typeof result === "object" && "content" in (result as object)) {
-				return recordResp(result as LLMResponse);
-			}
-			// Reactive / iterable path — use derived passthrough so the record fires
-			// when the node emits DATA. Requires a subscriber to activate.
-			//
-			// Guard against double-recording: the derived's push-on-subscribe
-			// replays the cached DATA to any late subscriber, re-invoking the fn.
-			// We record once per call (tied to this `invoke` closure) and stamp
-			// the response.metadata so re-subscription is a no-op for stats.
-			let recordedOnce = false;
-			return derived<LLMResponse>(
-				[fromAny(result)],
-				([v]) => {
-					if (v == null) return v as null;
-					if (recordedOnce) return v as LLMResponse;
-					recordedOnce = true;
-					return recordResp(v as LLMResponse);
-				},
-				{ name: "adapterStats/invokeTap" },
-			);
+			const recordErr = (err: unknown): void => {
+				const e = err as Error | undefined;
+				record(
+					buildCallStats({
+						provider: inner.provider,
+						model,
+						tier: invokeOpts?.tier,
+						usage: emptyUsageStub(),
+						startNs,
+						startWallClockNs,
+						method: "invoke",
+						error: {
+							type: e?.name ?? "Error",
+							message: e?.message ?? String(err),
+						},
+					}),
+				);
+			};
+			return adaptInvokeResult(inner.invoke(messages, invokeOpts), {
+				onResp: recordResp,
+				onError: recordErr,
+				name: "adapterStats/invokeTap",
+			});
 		},
 
 		async *stream(messages, invokeOpts) {
-			const start = monotonicNs();
-			const startWall = wallClockNs();
+			const startNs = monotonicNs();
+			const startWallClockNs = wallClockNs();
+			const model = inner.model ?? invokeOpts?.model ?? "";
 			let finalUsage: TokenUsage | undefined;
 			try {
 				for await (const delta of inner.stream(messages, invokeOpts)) {
 					if (delta.type === "usage") finalUsage = delta.usage;
 					yield delta;
 				}
-				const end = monotonicNs();
-				record({
-					timestamp: end,
-					wallClock: startWall,
-					provider: inner.provider,
-					model: inner.model ?? invokeOpts?.model ?? "",
-					tier: invokeOpts?.tier,
-					usage: finalUsage ?? emptyUsageStub(),
-					latencyMs: Math.max(0, (end - start) / 1e6),
-					method: "stream",
-				});
+				record(
+					buildCallStats({
+						provider: inner.provider,
+						model,
+						tier: invokeOpts?.tier,
+						usage: finalUsage ?? emptyUsageStub(),
+						startNs,
+						startWallClockNs,
+						method: "stream",
+					}),
+				);
 			} catch (err) {
-				const end = monotonicNs();
-				const error = err as Error | undefined;
-				record({
-					timestamp: end,
-					wallClock: startWall,
-					provider: inner.provider,
-					model: inner.model ?? invokeOpts?.model ?? "",
-					tier: invokeOpts?.tier,
-					usage: finalUsage ?? emptyUsageStub(),
-					latencyMs: Math.max(0, (end - start) / 1e6),
-					method: "stream",
-					error: {
-						type: error?.name ?? "Error",
-						message: error?.message ?? String(err),
-					},
-				});
+				const e = err as Error | undefined;
+				record(
+					buildCallStats({
+						provider: inner.provider,
+						model,
+						tier: invokeOpts?.tier,
+						usage: finalUsage ?? emptyUsageStub(),
+						startNs,
+						startWallClockNs,
+						method: "stream",
+						error: {
+							type: e?.name ?? "Error",
+							message: e?.message ?? String(err),
+						},
+					}),
+				);
 				throw err;
 			}
 		},
+	});
+
+	withLayer(wrap, "observableAdapter", inner);
+
+	let disposed = false;
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		for (const fn of unsubKeepalives) fn();
+		unsubKeepalives.length = 0;
 	};
 
 	const stats: AdapterStats = {
@@ -224,13 +257,10 @@ export function observableAdapter(
 		totalInputTokens,
 		totalOutputTokens,
 		reset,
+		dispose,
 	};
 
 	return { adapter: wrap, stats };
-}
-
-function emptyUsageStub(): TokenUsage {
-	return { input: { regular: 0 }, output: { regular: 0 } };
 }
 
 export type { ChatMessage, LLMAdapter, LLMInvokeOptions, LLMResponse, StreamDelta, TokenUsage };
