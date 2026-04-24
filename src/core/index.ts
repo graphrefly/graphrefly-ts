@@ -13,6 +13,7 @@ export {
 	type NodeCtx,
 	type OnMessageHandler,
 	type OnSubscribeHandler,
+	type RigorRecorder,
 	registerBuiltins,
 	type SubscribeContext,
 } from "./config.js";

@@ -24,16 +24,23 @@ import * as fc from "fast-check";
 import { vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import {
+	GraphReFlyConfig,
+	type NodeCtx,
+	type RigorRecorder,
+	registerBuiltins,
+} from "../../core/config.js";
+import {
 	COMPLETE,
 	DATA,
 	DIRTY,
 	ERROR,
+	INVALIDATE,
 	PAUSE,
 	RESOLVED,
 	RESUME,
 	START,
 } from "../../core/messages.js";
-import { type Node, node } from "../../core/node.js";
+import { defaultConfig, type Node, node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
 import {
 	buffer,
@@ -3179,6 +3186,334 @@ const invariant53WindowCount: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Rigor ghost-state mirrors — fast-check counterparts to TLC invariants that
+// reference TLA+ ghost state (`cleanupWitness`, `terminatedBy`,
+// `nonVacuousInvalidateCount`, `batchActive`) with no first-class runtime
+// representation. The substrate exposes a `RigorRecorder` slot on
+// `GraphReFlyConfig`; tests attach a recorder, drive the graph, then assert
+// against the accumulated log.
+//
+// Triage notes (2026-04-24): TLC #18 `MultiSinkIterationCoherent` and TLC #27
+// `MultiSinkIterationDriftClean` are NOT mirrored here — their TLA+ ghost
+// (`pendingExtraDelivery`) has no runtime analogue. The runtime's
+// `_deliverToSinks` iterates sinks synchronously over a single shared
+// `messages` reference, so mid-iteration drift is not a representable state.
+// TLC #20 / #22 / #23 are also skipped pending runtime features (§2.5
+// `replayBuffer`, §2.3 meta TEARDOWN) that aren't implemented today.
+// ---------------------------------------------------------------------------
+
+interface CleanupWitnessEntry {
+	node: NodeCtx;
+	prevValue: unknown;
+}
+interface TerminalTransitionEntry {
+	node: NodeCtx;
+	kind: "completed" | "errored";
+	autoComplete: boolean;
+	autoError: boolean;
+	hasDeps: boolean;
+}
+interface RigorLog {
+	readonly recorder: RigorRecorder;
+	readonly witnesses: CleanupWitnessEntry[];
+	readonly terminals: TerminalTransitionEntry[];
+}
+
+/**
+ * Build a fresh isolated `GraphReFlyConfig` with the default handlers + a
+ * `RigorRecorder` attached. Returns the config plus the accumulated log. Each
+ * property run constructs its own config so runs can't leak state between
+ * them.
+ */
+function createRigorLoggedConfig(): { config: GraphReFlyConfig; log: RigorLog } {
+	const cfg = new GraphReFlyConfig({
+		onMessage: defaultConfig.onMessage,
+		onSubscribe: defaultConfig.onSubscribe,
+	});
+	registerBuiltins(cfg);
+	const witnesses: CleanupWitnessEntry[] = [];
+	const terminals: TerminalTransitionEntry[] = [];
+	const recorder: RigorRecorder = {
+		onNonVacuousInvalidate(n, prev) {
+			witnesses.push({ node: n, prevValue: prev });
+		},
+		onTerminalTransition(n, kind, autoComplete, autoError, hasDeps) {
+			terminals.push({ node: n, kind, autoComplete, autoError, hasDeps });
+		},
+	};
+	cfg.rigorRecorder = recorder;
+	return { config: cfg, log: { recorder, witnesses, terminals } };
+}
+
+/**
+ * #54 — cleanup-witness-in-value-domain (mirrors TLC #19
+ * `CleanupWitnessInValueDomain`). Every recorded cleanup witness carries a
+ * `prevValue` drawn from the value domain — specifically, not the
+ * `undefined` sentinel. The runtime's `_onDepMessage` INVALIDATE branch
+ * guards the hook with `if (this._cached === undefined) return`, so a
+ * vacuous invalidate (never-populated or already-reset cache) never fires
+ * the witness append.
+ *
+ * Topology: `state<number>(0)` fed into a `derived` that observes DATA; the
+ * derived is the node we invalidate. Seed it with a DATA so `_cached` is
+ * populated, then invalidate N times (`derived.down([[INVALIDATE]])`).
+ * Only the first invalidate finds `_cached !== undefined` — that's the
+ * non-vacuous witness. Subsequent invalidates on the already-reset cache
+ * are vacuous and must not fire.
+ *
+ * Assert: witnesses for the derived node have `prevValue !== undefined` and
+ * the witnesses captured equal the number of distinct value-to-undefined
+ * transitions driven by the test (here, 1 per DATA→invalidate cycle).
+ *
+ * Catches: regressions that drop the `_cached === undefined` vacuous-guard,
+ * or fire the hook on TEARDOWN / status reset paths.
+ */
+const invariant54CleanupWitnessInValueDomain: Invariant = {
+	name: "cleanup-witness-in-value-domain",
+	description:
+		"Every non-vacuous INVALIDATE records a cleanup witness with a prev value drawn from the value domain (never the `undefined` sentinel).",
+	specRef:
+		"wave_protocol.tla #19 CleanupWitnessInValueDomain (via src/core/node.ts:_updateState INVALIDATE branch)",
+	property: () =>
+		fc.property(fc.array(fc.integer(), { minLength: 1, maxLength: 5 }), (values) => {
+			const { config, log } = createRigorLoggedConfig();
+			const s = state<number>(values[0] ?? 0, { config, equals: () => false });
+			const d = derived<number>([s], (deps) => (deps[0] as number) * 2, { config });
+			const unsub = d.subscribe(() => {});
+			// Each cycle: emit a fresh DATA (populates d._cached via derived's
+			// auto-emit of fn return), then invalidate (fires the witness
+			// hook on the first arrival) — then a second invalidate which
+			// is vacuous (cache already reset) and MUST NOT fire the hook.
+			let expected = 0;
+			for (const v of values) {
+				s.emit(v);
+				d.down([[INVALIDATE]]);
+				expected++;
+				d.down([[INVALIDATE]]);
+			}
+			unsub();
+			// Non-vacuous guard: the total witness log length must be at least
+			// the expected count so a future Node-facade refactor that makes
+			// `w.node === d` silently return empty fails loud instead of
+			// passing vacuously. (QA batch 20 guard.)
+			if (log.witnesses.length < expected) return false;
+			const onD = log.witnesses.filter((w) => w.node === d);
+			if (onD.length !== expected) return false;
+			for (const w of onD) {
+				if (w.prevValue === undefined) return false;
+			}
+			return true;
+		}),
+};
+
+/**
+ * #55 — cleanup-witness-not-sentinel (mirrors TLC #24
+ * `CleanupWitnessNotSentinel`). Structural companion to #54: no witness
+ * entry — for ANY node, under any topology — equals the `undefined`
+ * sentinel. Whereas #54 drives a specific topology and asserts a count,
+ * #55 runs an event-driven graph and sweeps the whole witness log.
+ *
+ * Topology: `state<number>(0)` → passthrough `derived` → leaf `effect`
+ * sink. Drive the source with `eventSequenceArb` (random emit / batch /
+ * resolved / terminal); opportunistically fire `INVALIDATE` on any node in
+ * the chain. Sweep: every witness entry must have a non-undefined
+ * `prevValue`.
+ *
+ * Catches: a regression that reorders `this._cached = undefined` before the
+ * witness hook (so the hook sees the already-cleared sentinel), or that
+ * fires the witness hook on a TEARDOWN reset path where `_cached` is
+ * legitimately `undefined`.
+ */
+const invariant55CleanupWitnessNotSentinel: Invariant = {
+	name: "cleanup-witness-not-sentinel",
+	description:
+		"No cleanup witness entry equals the `undefined` sentinel — the witness hook only fires when _cached is a real value.",
+	specRef:
+		"wave_protocol.tla #24 CleanupWitnessNotSentinel (via src/core/node.ts:_onDepMessage INVALIDATE guard)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 10 }), { minLength: 1, maxLength: 4 }),
+			(emits) => {
+				const { config, log } = createRigorLoggedConfig();
+				const s = state<number>(0, { config, equals: () => false });
+				const d = derived<number>([s], (deps) => (deps[0] as number) + 1, { config });
+				const unsub = d.subscribe(() => {});
+				// Interleave emits with invalidates at both nodes. First
+				// invalidate on a populated cache = non-vacuous; second =
+				// vacuous (cache cleared). Both paths must respect the guard.
+				for (const v of emits) {
+					s.emit(v);
+					d.down([[INVALIDATE]]);
+					s.down([[INVALIDATE]]);
+					d.down([[INVALIDATE]]);
+				}
+				unsub();
+				// Non-vacuous guard: each emit cycle's first `d.down([[INVALIDATE]])`
+				// runs on a populated `d._cached` (seeded by `s.emit(v)` propagating
+				// through the derived fn), so at least `emits.length` witnesses
+				// MUST be captured. A substrate regression that stops populating
+				// `d._cached` (or a future Node-facade wrap that breaks the log)
+				// would trip this before the sentinel sweep runs vacuously.
+				if (log.witnesses.length < emits.length) return false;
+				for (const w of log.witnesses) {
+					if (w.prevValue === undefined) return false;
+				}
+				return true;
+			},
+		),
+};
+
+/**
+ * #56 — cleanup-witness-accounting (mirrors TLC #26
+ * `CleanupWitnessAccounting`). Quantitative law tying the witness log
+ * length to the count of non-vacuous INVALIDATE deliveries. The runtime
+ * guard `if (this._cached === undefined) return` enforces this
+ * structurally: the hook cannot fire without a cache advance and the
+ * cache cannot be cleared without firing. So the invariant reduces to
+ * ≥1 non-vacuous invalidate produced ≥1 witness entry and the count per
+ * node equals the number of populated→cleared transitions driven.
+ *
+ * Topology: `state<number>(0)` fed to `derived`. Controlled cycles of
+ * (emit → invalidate) on the derived node; a counter tracks the exact
+ * number of non-vacuous invalidates we drove. Assert
+ * `witnesses-for-derived.length === counter`.
+ *
+ * Catches: off-by-N regressions between the witness guard and the cache
+ * reset (e.g. a refactor that moves the cache reset above the hook so
+ * every hook sees `undefined`, or vice-versa — hook fires but cache
+ * never clears).
+ */
+const invariant56CleanupWitnessAccounting: Invariant = {
+	name: "cleanup-witness-accounting",
+	description:
+		"The witness log length for a node equals the count of non-vacuous INVALIDATE deliveries to that node (cache populated → cache cleared transitions).",
+	specRef:
+		"wave_protocol.tla #26 CleanupWitnessAccounting (via src/core/node.ts:_onDepMessage INVALIDATE guard)",
+	property: () =>
+		fc.property(fc.integer({ min: 1, max: 6 }), fc.integer({ min: 1, max: 3 }), (N, extras) => {
+			const { config, log } = createRigorLoggedConfig();
+			const s = state<number>(0, { config, equals: () => false });
+			const d = derived<number>([s], (deps) => (deps[0] as number) + 1, { config });
+			const unsub = d.subscribe(() => {});
+			let nonVacuous = 0;
+			for (let i = 0; i < N; i++) {
+				s.emit(i + 1); // populates d._cached via derived's auto-emit
+				d.down([[INVALIDATE]]); // non-vacuous — hook fires
+				nonVacuous++;
+				for (let k = 0; k < extras; k++) {
+					// vacuous: cache already cleared
+					d.down([[INVALIDATE]]);
+				}
+			}
+			unsub();
+			// Non-vacuous guard: the full witness log must have at least
+			// `nonVacuous` entries so a vacuous-pass path (e.g. a future
+			// Node-facade refactor breaking `w.node === d`) can't silently
+			// satisfy the exact-count equality below.
+			if (log.witnesses.length < nonVacuous) return false;
+			const onD = log.witnesses.filter((w) => w.node === d);
+			return onD.length === nonVacuous;
+		}),
+};
+
+/**
+ * #57 — no-dep-cascade-terminal-when-gate-false (mirrors TLC #25
+ * `NoDepCascadeTerminalWhenGateFalse`). A derived node configured with
+ * `completeWhenDepsComplete: false` must NOT transition to `"completed"`
+ * when all of its deps terminate via COMPLETE. Symmetrically,
+ * `errorWhenDepsError: false` must suppress the dep-cascade ERROR path.
+ * The runtime gate lives in `_maybeAutoTerminalAfterWave` — if the gate
+ * is flipped to always-emit, this invariant trips.
+ *
+ * Topology: two `state<number>` sources feeding a `derived` with
+ * `completeWhenDepsComplete: false`. Emit a DATA to each, then drive
+ * COMPLETE at each source. The gate-off derived must not terminate.
+ * Sweep terminals: any `kind === "completed" && hasDeps === true &&
+ * autoComplete === false` is a failure.
+ *
+ * Catches: a refactor that drops the `_autoComplete` check inside
+ * `_maybeAutoTerminalAfterWave`, or that auto-terminates a gated node via
+ * a different code path (e.g. a mis-wired `_maybeAutoTerminalAfterWave`
+ * call from a terminal-delivery site).
+ */
+const invariant57NoDepCascadeTerminalWhenGateFalse: Invariant = {
+	name: "no-dep-cascade-terminal-when-gate-false",
+	description:
+		"A derived with `completeWhenDepsComplete: false` / `errorWhenDepsError: false` never transitions to `completed` / `errored` via dep cascade — no such entry appears in the terminal log.",
+	specRef:
+		"wave_protocol.tla #25 NoDepCascadeTerminalWhenGateFalse (via src/core/node.ts:_maybeAutoTerminalAfterWave)",
+	property: () =>
+		fc.property(fc.boolean(), fc.boolean(), (useError, drainExtra) => {
+			const { config, log } = createRigorLoggedConfig();
+			const a = state<number>(0, { config, equals: () => false });
+			const b = state<number>(0, { config, equals: () => false });
+			const d = derived<number>([a, b], (deps) => (deps[0] as number) + (deps[1] as number), {
+				config,
+				completeWhenDepsComplete: false,
+				errorWhenDepsError: false,
+			});
+			const unsub = d.subscribe(() => {});
+			a.emit(1);
+			b.emit(2);
+			if (useError) {
+				a.down([[ERROR, new Error("test")]]);
+				b.down([[ERROR, new Error("test")]]);
+			} else {
+				a.down([[COMPLETE]]);
+				b.down([[COMPLETE]]);
+			}
+			if (drainExtra) {
+				// drain any post-terminal wave that a regression might enqueue
+				a.down([[COMPLETE]]);
+				b.down([[COMPLETE]]);
+			}
+			unsub();
+			// Non-vacuous guard: the test's premise is that `a` and `b`
+			// actually terminated — if neither source transitioned (e.g. a
+			// future runtime change that stops propagating direct ERROR /
+			// COMPLETE through sources), the "d didn't dep-cascade" check
+			// below trivially holds without exercising the gate. Sources
+			// have no deps, so their terminal transitions fire with
+			// `hasDeps === false`.
+			const expectedKind = useError ? "errored" : "completed";
+			const sourceTerminals = log.terminals.filter(
+				(t) => (t.node === a || t.node === b) && t.kind === expectedKind && !t.hasDeps,
+			);
+			if (sourceTerminals.length < 2) return false;
+			for (const t of log.terminals) {
+				if (t.node !== d) continue;
+				// A terminal transition on d with hasDeps=true and the matching
+				// gate flag false must never fire — that's dep-cascade behavior.
+				if (t.kind === "completed" && t.autoComplete === false && t.hasDeps) return false;
+				if (t.kind === "errored" && t.autoError === false && t.hasDeps) return false;
+			}
+			return true;
+		}),
+};
+
+// ---------------------------------------------------------------------------
+// Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
+// follow-ons"):
+//
+// - TLC #18 `MultiSinkIterationCoherent` / #27 `MultiSinkIterationDriftClean`
+//   — TLA+ ghost `pendingExtraDelivery` has no runtime analogue. The runtime's
+//   `_deliverToSinks` iterates sinks synchronously over a single shared
+//   `messages` reference; there is no mid-iteration pending queue to sweep.
+// - TLC #20 `ReplayBufferBounded` / #23 `LateSubscriberReceivesReplay` —
+//   §2.5 `replayBuffer: N` is not implemented in the TS runtime yet.
+// - TLC #22 `MetaTeardownObservedPreReset` — §2.3 meta companion TEARDOWN
+//   tier-5 modeling is not in the TS runtime.
+// - TLC #28 `TerminatedImpliesBatchIdle` — TLA+ models `batchActive` as a
+//   gate on terminal actions (`Terminate` / `Teardown` require
+//   `batchActive.status = "idle"`). The TS runtime allows terminal
+//   transitions inside an active batch because `_frameBatch` + `downWithBatch`
+//   tier-sort delivery so DATA always ships before COMPLETE in the flushed
+//   wave. The invariant is a modeling-level law that doesn't map to runtime
+//   semantics — a mirror would be a test of the tier-sort rather than the
+//   claimed property.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
@@ -3241,6 +3576,10 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant51Find,
 	invariant52ElementAt,
 	invariant53WindowCount,
+	invariant54CleanupWitnessInValueDomain,
+	invariant55CleanupWitnessNotSentinel,
+	invariant56CleanupWitnessAccounting,
+	invariant57NoDepCascadeTerminalWhenGateFalse,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

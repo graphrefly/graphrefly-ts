@@ -847,12 +847,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 
 ### Phase 8.4 — Audit & accountability
 
-> **All four items shipped under §9.2 (TS) — see roadmap lines 409–420.** Originally scoped here pre-Wave 0 reordering; listed below for audit trail completeness.
-
-- [x] `auditTrail(graph, opts?)` → Graph — shipped in `src/patterns/audit.ts`
-- [x] `explainPath(graph, from, to)` — causal chain, shipped in `src/graph/explain.ts`
-- [x] `policyEnforcer(graph, policies)` — reactive constraint enforcement, shipped in `src/patterns/audit.ts`
-- [x] `complianceSnapshot(graph)` — regulatory archival, shipped in `src/patterns/audit.ts`
+> **DONE — archived to `archive/roadmap/phase-8-reduction-layer.jsonl`** (id: `phase-8.4-audit-accountability`). All four items (`auditTrail`, `explainPath`, `policyEnforcer`, `complianceSnapshot`) shipped under §9.2.
 
 ### Phase 8.5 — Performance & scale (remaining)
 

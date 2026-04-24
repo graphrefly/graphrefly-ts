@@ -45,6 +45,14 @@ Reproduce a counter-example with `FC_SEED=<n> pnpm test -- src/__tests__/propert
 
 Each invariant should map to a `specRef` pointing into `GRAPHREFLY-SPEC.md` (e.g. `§1.3 invariant 7`) — the registry doubles as the LLM-readable substrate contract.
 
+#### Ghost-state invariants via `RigorRecorder`
+
+TLA+-ghost invariants (cleanup witness, terminal classification, batch idle-gate) have no first-class runtime surface. Fast-check mirrors for those invariants attach an opt-in `RigorRecorder` to an **isolated `GraphReFlyConfig`** so each property run captures its own ghost log without leaking state across runs.
+
+Shape: construct a fresh config via `new GraphReFlyConfig({ onMessage: defaultConfig.onMessage, onSubscribe: defaultConfig.onSubscribe })` + `registerBuiltins(cfg)`, attach `cfg.rigorRecorder = { onNonVacuousInvalidate, onTerminalTransition }`, then pass `config: cfg` to every node in the test topology. The helper `createRigorLoggedConfig()` at `_invariants.ts` encapsulates this. See invariants #54–#57 for canonical examples.
+
+Guardrail: tests that filter the log by node identity (`log.witnesses.filter(w => w.node === d)`) MUST precede the filter with a non-vacuous length check against the raw log (`log.witnesses.length >= expected`). Otherwise a future `Node<T>` refactor that wraps the return value in a Proxy / façade silently breaks the identity compare and every invariant passes vacuously.
+
 ### Subscriber-throw contract
 
 **Subscriber callbacks must not throw.** There are two distinct error paths to keep straight:

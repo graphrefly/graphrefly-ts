@@ -2239,9 +2239,67 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					this._status = "resolved";
 				} else if (t === COMPLETE) {
 					this._status = "completed";
+					// Rigor-infra ghost-state hook (TLC #25 mirror): classify
+					// the terminal transition. `hasDeps === true && _autoComplete
+					// === true` ≈ TLA+ "dep-cascade-complete"; otherwise
+					// "self-source-terminate". Zero production cost when unset.
+					{
+						const rec = this._config.rigorRecorder;
+						if (rec != null) {
+							try {
+								rec.onTerminalTransition(
+									this,
+									"completed",
+									this._autoComplete,
+									this._autoError,
+									this._deps.length > 0,
+								);
+							} catch {
+								/* best-effort */
+							}
+						}
+					}
 				} else if (t === ERROR) {
 					this._status = "errored";
+					// Rigor-infra ghost-state hook (TLC #25 mirror): same shape
+					// as the COMPLETE branch above, classifying ERROR.
+					{
+						const rec = this._config.rigorRecorder;
+						if (rec != null) {
+							try {
+								rec.onTerminalTransition(
+									this,
+									"errored",
+									this._autoComplete,
+									this._autoError,
+									this._deps.length > 0,
+								);
+							} catch {
+								/* best-effort */
+							}
+						}
+					}
 				} else if (t === INVALIDATE) {
+					// Rigor-infra ghost-state hook (TLC #19 / #24 / #26 mirrors):
+					// record the non-vacuous INVALIDATE site — the pre-reset
+					// `_cached` is the cleanup-witness value. Covers both the
+					// dep-cascade path (`_onDepMessage` INVALIDATE handler,
+					// which delegates here via `_emit(INVALIDATE_ONLY_BATCH)`)
+					// and the direct-origination path (`.down([[INVALIDATE]])`
+					// on a source or mid-chain node). Guarded on `_cached !==
+					// undefined` so vacuous invalidates (diamond fan-in second
+					// arrival, already-reset node) don't fire. Zero production
+					// cost when `rigorRecorder` is unset.
+					if (this._cached !== undefined) {
+						const rec = this._config.rigorRecorder;
+						if (rec != null) {
+							try {
+								rec.onNonVacuousInvalidate(this, this._cached);
+							} catch {
+								/* best-effort — instrumentation must not break data plane */
+							}
+						}
+					}
 					this._cached = undefined;
 					this._status = "dirty";
 					// Cleanup firing on INVALIDATE:

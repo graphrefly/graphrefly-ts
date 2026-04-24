@@ -150,6 +150,45 @@ export type GlobalInspectorEvent = {
  */
 export type GlobalInspectorHook = (event: GlobalInspectorEvent) => void;
 
+/**
+ * Ghost-state recorder used by the fast-check protocol invariant suite to
+ * mirror TLC invariants that reference TLA+ ghost variables (`cleanupWitness`,
+ * `terminatedBy`, `nonVacuousInvalidateCount`) with no first-class runtime
+ * representation. Attached to a `GraphReFlyConfig` via
+ * {@link GraphReFlyConfig.rigorRecorder}; zero production cost when unset
+ * (call sites in `NodeImpl` are guarded by a single `!= null` check).
+ *
+ * See `src/__tests__/properties/_invariants.ts` for the consumer side.
+ *
+ * Errors thrown from recorder methods are swallowed by `NodeImpl` — like
+ * {@link GlobalInspectorHook}, instrumentation must not break the data plane.
+ */
+export interface RigorRecorder {
+	/**
+	 * Fired at the non-vacuous branch of a node's INVALIDATE handler — the
+	 * `this._cached !== undefined` path where the cleanup hook runs and the
+	 * cache is reset. `prevValue` is the pre-reset `_cached` value. The
+	 * vacuous branch (diamond fan-in second arrival or never-populated
+	 * mid-chain derived) does NOT fire this hook, mirroring the TLA+
+	 * `cleanupWitness` append guard.
+	 */
+	onNonVacuousInvalidate(node: NodeCtx, prevValue: unknown): void;
+	/**
+	 * Fired when a node's status transitions to a terminal kind ("completed"
+	 * or "errored"). `autoComplete` / `autoError` are the node's configured
+	 * auto-terminal gates; `hasDeps` is `deps.length > 0`. Mirrors the TLA+
+	 * `terminatedBy` classification ghost — dep-cascade transitions can be
+	 * inferred by `hasDeps === true && autoX === true`.
+	 */
+	onTerminalTransition(
+		node: NodeCtx,
+		kind: "completed" | "errored",
+		autoComplete: boolean,
+		autoError: boolean,
+		hasDeps: boolean,
+	): void;
+}
+
 // ---------------------------------------------------------------------------
 // GraphReFlyConfig
 // ---------------------------------------------------------------------------
@@ -171,6 +210,7 @@ export class GraphReFlyConfig {
 		typeof process !== "undefined" && process.env?.NODE_ENV === "production"
 	);
 	private _globalInspector?: GlobalInspectorHook;
+	private _rigorRecorder?: RigorRecorder;
 	private _frozen = false;
 
 	/**
@@ -294,6 +334,26 @@ export class GraphReFlyConfig {
 	}
 	set globalInspector(v: GlobalInspectorHook | undefined) {
 		this._globalInspector = v;
+	}
+
+	/**
+	 * Ghost-state recorder for the fast-check protocol invariant suite. Attach
+	 * a {@link RigorRecorder} to capture TLA+-ghost events (cleanup witnesses,
+	 * terminal classification, batch-idle checks) that have no first-class
+	 * runtime surface; detach (`undefined`) for production, which is the
+	 * default. Settable at any time — like {@link globalInspector} this is
+	 * operational, not protocol-shaping, so it does NOT trigger config freeze.
+	 *
+	 * See `src/__tests__/properties/_invariants.ts` rigor mirror invariants
+	 * (#54–#58) for the consumer side. Call sites in `NodeImpl` fire at:
+	 *   - the non-vacuous branch of `_onDepMessage`'s INVALIDATE handler
+	 *   - every status transition to `"completed"` / `"errored"`.
+	 */
+	get rigorRecorder(): RigorRecorder | undefined {
+		return this._rigorRecorder;
+	}
+	set rigorRecorder(v: RigorRecorder | undefined) {
+		this._rigorRecorder = v;
 	}
 
 	// --- Registry (writes require unfrozen; reads are free lookups) ---
