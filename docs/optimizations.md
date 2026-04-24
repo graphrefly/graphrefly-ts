@@ -16,6 +16,50 @@
   - **Fast-check:** 3 new invariants in `src/__tests__/properties/_invariants.ts` — #15 `multi-sink-trace-convergence`, #16 `up-direction-tier-guard`, #17 `pausable-off-structural`. Total registry is now 17 invariants (up from 14). All 2080 tests pass.
   - **Remaining coverage gaps (deferred, tracked below under individual items):** §2.5 `replayBuffer: N` (late-subscriber replay), §2.5 `equals` variance (custom / `() => false` absorption), §2.5 `resetOnTeardown`, §2.5 `completeWhenDepsComplete: false` / `errorWhenDepsError: false`, §2.4 INVALIDATE + fn cleanup firing, §2.3 meta companion TEARDOWN fan-out ordering.
 
+- **Rigor-iterator batch 4 QA pass (landed 2026-04-23):**
+  Adversarial review surfaced 5 patchable findings + 1 deferred latent. All 5 fixes applied. Deltas:
+  - **F1 (CRITICAL fix):** silent state-space prune via deadlock between DATA and INVALIDATE in the same queue. Repro: `Emit(A, v)` enqueues `[DIRTY, DATA(v)]`; `DeliverDirty` consumes DIRTY; `Invalidate(A)` appends INVALIDATE → queue = `[DATA(v), INVALIDATE]`. `DeliverSettle` blocked by `NoInvalidateAnywhere`; `DeliverInvalidate` requires head = INVALIDATE but head is DATA — deadlock with `CHECK_DEADLOCK FALSE` hiding it. **Fix:** added `NoInvalidateAnywhere` conjunct to `Emit` / `BatchEmitMulti` / `SinkNestedEmit`. Tier-3 cannot be enqueued while tier-1 is pending. Matches spec §1.4 "tier-1 drains globally before tier-3" both producer- and consumer-side.
+  - **F2 (MAJOR fix):** `Teardown(parent)` was gated on `MetaCompanions[parent] # {}`, contradicting spec §1.4/§2.6 which treats TEARDOWN as a lifecycle primitive independent of meta. Runtime doesn't require meta either. Fix: dropped the gate. `MaxTeardowns` still bounds state space; witness mapping no-ops for parents with no meta.
+  - **BH-Gate (MAJOR fix):** `Invalidate` / `DeliverInvalidate` / `Teardown` / `DeliverTeardown` all mutate `queues` but were ungated on `AllExtraPendingEmpty`. Inconsistent with other queue-writing actions (Terminate, DeliverTerminal etc. all gated). Added the gate to all four.
+  - **F5 (MINOR fix):** `Teardown` and `DeliverTeardown` now clear `dirtyMask` at the torn-down node. Mirrors runtime's `_deactivate` on TEARDOWN. Prevents stale mask entries on terminated nodes.
+  - **Docblock update:** `AllExtraPendingEmpty` exemption list corrected — INVALIDATE/TEARDOWN actions are now gated (moved from Exempt to Gated). Tier-drain predicates (`NoDirtyAnywhere`, `NoInvalidateAnywhere`, `NoSettleAnywhere`) moved earlier in the file so emit-side actions can reference them (TLA+ requires operators defined before use).
+  - **Deferred:** diamond-topology `DeliverInvalidate` post-reset witness — in topology A → {B, C} → D, the second `DeliverInvalidate(C, D)` records the already-reset `cache[D] = DefaultInitial` to `cleanupWitness[D]`. Invariant passes because `DefaultInitial ∈ Values` (tautology) but semantic intent is violated. Current MCs are chains — latent. A diamond exercise MC + per-node "invalidated-this-wave" guard would surface and fix it.
+  - **Verification post-fix:** all 13 MCs green. Expected state-space shifts: `invalidate_MC` 1815→1671 distinct states (F1 eliminated invalid interleavings), `meta_teardown_MC` 1356→2832 (F2 lets Teardown fire at any node, not just meta-parents). Baseline MCs unchanged. 2080 TS tests pass, lint + build clean.
+
+- **Rigor-iterator batch 4 (landed 2026-04-23) — full INVALIDATE + TEARDOWN cascades + tier-1 ordering:**
+  Next-batch push after the batch 3 QA round 2. Deltas:
+  - **A. Full INVALIDATE cascade:** `DeliverInvalidate(p, c)` now forwards INVALIDATE to every child of c (previously one-step only). Full subgraph cache-bust reachable from any `InvalidateOriginators` node. Bounded by graph depth × `MaxInvalidates`.
+  - **B. Tier-1 ordering — `NoInvalidateAnywhere`:** new guard added to `DeliverSettle` + `DeliverTerminal`. INVALIDATE (tier-1 per spec §1.4) must drain globally before tier-3 (DATA/RESOLVED) or tier-4 (COMPLETE/ERROR) delivery. Vacuous when `InvalidateOriginators = {}` (baseline MCs). In `invalidate_MC`: state space dropped from 2139 → 1815 distinct states — the guard eliminates the invalid interleavings.
+  - **C. Full TEARDOWN cascade + `DeliverTeardown`:** `Teardown(parent)` now also enqueues TEARDOWN to DAG children via `queues`. New action `DeliverTeardown(p, c)` consumes TEARDOWN, records witness at c's meta companions with pre-reset cache/status, transitions c to "terminated", clears locks/buffer/upQueues, forwards TEARDOWN to c's DAG children. `MetaTeardownObservedPreReset` now exercised uniformly across the reached subgraph, not just origin-only.
+  - **D. Extended exercise MCs:** both `invalidate_MC` and `meta_teardown_MC` promoted from 2-node to 3-node / 4-node topologies to actually walk the cascade:
+    - `invalidate_MC`: A → B → C chain, `Invalidate(A)` cascades through both hops. 1815 distinct states.
+    - `meta_teardown_MC`: A → B chain with `MetaCompanions[A] = {M}` AND `MetaCompanions[B] = {N}`. Teardown(A) cascades through `DeliverTeardown(A, B)`, exercising BOTH M and N witnesses. 1356 distinct states.
+  - **Verification:** all 13 MCs green, 2080 TS tests pass, lint + build clean. Baseline MC state-space counts unchanged (new actions/guards are gated off on `InvalidateOriginators = {}` / `MetaCompanions = [n |-> {}]`). Total state space: ~420K distinct states across 13 MCs in ~40s.
+  - **Remaining follow-ons** (fewer now):
+    - `MultiSinkIterationDriftClean` (#21) — still blocked on `BatchEmitMulti` step-action refactor.
+    - Tier-5 ordering for TEARDOWN (`NoTeardownAnywhere` guards on DeliverSettle/DeliverTerminal) — deferred; runtime behavior is that TEARDOWN fires synchronously in `_emit`, so there's no "tier-5 in queue while tier-3 drains" scenario to guard. Action-level interleaving in TLC covers the legitimate cases.
+    - Operator-layer invariants (switchMap, concatMap, mergeMap, exhaustMap) — fast-check-only, separate surface area.
+    - Fast-check mirrors for #18–#22 — requires runtime ghost-state exposure hooks.
+
+- **Rigor-iterator batch 3 QA round 2 extended (landed 2026-04-23) — `replayBuffer` full threading + full `Invalidate`/`Teardown` + extended `ResubscribeYieldsCleanState` + 4 dedicated exercise MCs:**
+  Follow-on push after the QA fixes. Deltas:
+  - **Item 1 (`replayBuffer` full threading):** `Emit` was the only site appending to the ring. Extended to `BatchEmitMulti` (new `ApplyBatchToRing` recursive helper — iterates vs, appends each DATA-producing emit, skips RESOLVED), `DeliverSettle` (append on derived DATA emissions), `SinkNestedEmit` (append on nested source DATA). The ring now reflects last-N DATA at ANY node, not just source-side `Emit`.
+  - **Item 5 (full `Invalidate`):** prior MVP was witness-only. Now models the full §1.4 one-step contract: `Invalidate(n)` records pre-reset `cache[n]` to `cleanupWitness[n]`, resets cache to `DefaultInitial`, enqueues INVALIDATE to every child. New action `DeliverInvalidate(p, c)` consumes the INVALIDATE head, records pre-reset `cache[c]`, resets cache[c]. One-step cascade (doesn't forward to grandchildren) — keeps state bounded; full cascade tracked as a follow-on.
+  - **Item 6 (full `Teardown`):** prior MVP was witness-only. Now transitions parent status to "terminated" AFTER witness recording, clears `pauseLocks[parent]`/`pauseBuffer[parent]`, clears outbound `upQueues[<<parent, _>>]`. Mirrors `Terminate`'s hard-reset semantic per §2.6 "Teardown". Cache preserved (TEARDOWN is lifecycle disposal; cache bust is INVALIDATE's job).
+  - **Item 3 (extended `ResubscribeYieldsCleanState`):** invariant #13 now also checks `cleanupWitness[sid] = <<>>`, `teardownWitness[sid] = <<>>`, `replayBuffer[sid] = <<>>` post-resubscribe. Locks in the A4 fix structurally — any future refactor dropping those resets will trip TLC with a concrete counter-example.
+  - **Item 2 (4 exercise MCs):** each package axis now has a dedicated MC making its invariant load-bearing instead of vacuous:
+    - `wave_protocol_rescue_MC` (464 states) — `AutoCompleteOnDepsComplete[B] = FALSE` exercises Package 5 + D1 rescue recompute.
+    - `wave_protocol_meta_teardown_MC` (350 states) — `MetaCompanions[A] = {M}` exercises Package 7 + `MetaTeardownObservedPreReset`.
+    - `wave_protocol_replay_MC` (1912 states) — `ReplayBufferSize[A] = 2` + `BatchSeqs = {<<1, 0>>}` exercises Package 3 + ring drop-oldest + all 4 emission sites.
+    - `wave_protocol_invalidate_MC` (2139 states) — `InvalidateOriginators = {A}` exercises Package 6 + `DeliverInvalidate` one-hop cascade.
+  - **Verification:** all 13 MCs green, 2080 TS tests pass, lint + build clean. Baseline MCs' state-space counts unchanged (new actions are action-level disjuncts in `Next`, gated off in baseline MCs → no state explosion). Total state space: ~420K distinct states across 13 MCs in ~40s.
+  - **Remaining follow-ons** (none blocking; each is its own focused session):
+    - Full INVALIDATE cascade via `DeliverInvalidate` forwarding to grandchildren (requires tier ordering adjustment — INVALIDATE interleaving with DATA/RESOLVED).
+    - `DeliverTeardown(p, c)` for DAG-child TEARDOWN propagation + tier-5 prefix draining.
+    - `MultiSinkIterationDriftClean` (#21) — still blocked on `BatchEmitMulti` step-action refactor.
+    - Operator-layer invariants (switchMap, concatMap, mergeMap, exhaustMap) — fast-check-only.
+    - Fast-check mirrors for #18–#22.
+
 - **Rigor-iterator batch 3 QA pass (landed 2026-04-23):**
   Adversarial review surfaced 5 findings; 4 auto-fixed, 1 architectural addition with user approval. Deltas:
   - **A1 (CRITICAL fix):** `Emit` action had `replayBuffer' = IF ... AppendToReplayBuffer ...` AND `replayBuffer` in its UNCHANGED list — a silent contradiction when `ReplayBufferSize[src] > 0`. Vacuous in all current MCs (which have size = 0), but the entire Package 3 axis would have been unreachable if any consumer enabled it. Removed `replayBuffer,` from Emit's UNCHANGED list at [wave_protocol.tla:529-534](../../graphrefly/formal/wave_protocol.tla).
