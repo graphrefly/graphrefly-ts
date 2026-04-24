@@ -944,6 +944,30 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._emit([[DATA, value] as Message]);
 	}
 
+	/**
+	 * Upstream forward (spec §1.4). Carries tier-1/2/5 control-plane only:
+	 * DIRTY (tier 1), PAUSE/RESUME (tier 2), INVALIDATE/TEARDOWN (tier 5).
+	 * Tier-3/4 (DATA/RESOLVED/COMPLETE/ERROR) are rejected by
+	 * `_validateUpTiers` — downstream-only by protocol.
+	 *
+	 * **Upstream-origin PAUSE applies at the PARENT's lockset via the parent's
+	 * own `up()`, not at this source's `_pauseLocks` when `_deps.length === 0`.**
+	 * At a leaf source, `up()` is a no-op: a subscription that calls
+	 * `sink.up([[PAUSE, lockId]])` expecting the source itself to pause is
+	 * NOT honored today. TLA+ `DeliverUp` encodes the target contract (source
+	 * applies its own lock); the runtime falls short. No in-tree caller relies
+	 * on upstream-origin PAUSE at a leaf, so this is documented as intentional
+	 * for now (option (c) in docs/optimizations.md "Up-direction PAUSE
+	 * semantics"). A future option (a) would tighten the runtime here; any
+	 * new consumer needing leaf-source upstream PAUSE is the trigger.
+	 *
+	 * **LockId uniqueness is the caller's responsibility.** Locks are stored
+	 * in a `Set<unknown>`; `Pause(n, 10)` and an upstream `UpPause(child, 10)`
+	 * that reaches `n` insert the SAME element — one `Resume(n, 10)` clears
+	 * both origins. Distinct pauser identities must use distinct lockIds.
+	 * Surfaced by the rigor-infra TLC audit (docs/optimizations.md "LockId
+	 * collision across up() and down() origin").
+	 */
 	up(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void {
 		if (this._deps.length === 0) return;
 		const messages = normalizeMessages(messageOrMessages);
