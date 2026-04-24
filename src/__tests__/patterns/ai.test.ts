@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DATA, TEARDOWN } from "../../core/messages.js";
+import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 import {
 	AgentLoopGraph,
 	admissionFilter3D,
+	admissionScored,
 	agentLoop,
 	agentMemory,
 	type ChatMessage,
@@ -18,6 +20,7 @@ import {
 	gatedStream,
 	gaugesAsContext,
 	graphFromSpec,
+	graphFromSpecReactive,
 	handoff,
 	type KeywordFlag,
 	keywordFlagExtractor,
@@ -28,9 +31,11 @@ import {
 	llmExtractor,
 	promptNode,
 	type StampedDelta,
+	type StrategyPlan,
 	streamExtractor,
 	streamingPromptNode,
 	suggestStrategy,
+	suggestStrategyReactive,
 	systemPromptBuilder,
 	type ToolCall,
 	type ToolDefinition,
@@ -1002,7 +1007,7 @@ describe("patterns.ai.agentLoop", () => {
 		const loop = agentLoop("test-agent", { adapter });
 		expect(loop).toBeInstanceOf(AgentLoopGraph);
 		expect(loop.status.cache).toBe("idle");
-		expect(loop.turnCount.cache).toBe(0);
+		expect(loop.turn.cache).toBe(0);
 	});
 
 	it("runs a simple conversation and reaches done status", async () => {
@@ -1013,7 +1018,7 @@ describe("patterns.ai.agentLoop", () => {
 		const result = await loop.run("Hi!");
 		expect(result?.content).toBe("Hello, human!");
 		expect(loop.status.cache).toBe("done");
-		expect(loop.turnCount.cache).toBe(1);
+		expect(loop.turn.cache).toBe(1);
 	});
 
 	it("executes tool calls and loops", async () => {
@@ -1041,7 +1046,7 @@ describe("patterns.ai.agentLoop", () => {
 
 		const result = await loop.run("Double 5 for me");
 		expect(result?.content).toBe("The result is 10");
-		expect(loop.turnCount.cache).toBe(2);
+		expect(loop.turn.cache).toBe(2);
 		// Chat should have: user, assistant (tool call), tool result, assistant (final)
 		const msgs = loop.chat.allMessages();
 		expect(msgs.length).toBe(4);
@@ -1068,7 +1073,7 @@ describe("patterns.ai.agentLoop", () => {
 		});
 
 		await loop.run("loop forever");
-		expect(loop.turnCount.cache).toBe(2);
+		expect(loop.turn.cache).toBe(2);
 		expect(loop.status.cache).toBe("done");
 	});
 
@@ -1523,9 +1528,12 @@ describe("patterns.ai.admissionFilter3D", () => {
 		expect(filter("test")).toBe(false);
 	});
 
-	it("uses default scorer when no scoreFn provided", () => {
-		const filter = admissionFilter3D();
-		// Default scorer returns 0.5 for all dimensions, passes 0.3 thresholds
+	it("requires an explicit scoreFn (default 0.5 scorer was retired in Unit 8)", () => {
+		// `defaultAdmissionScorer` admitted everything in disguise — retired
+		// per Unit 8 review. Callers must supply a real scorer.
+		const filter = admissionFilter3D({
+			scoreFn: () => ({ persistence: 0.5, structure: 0.5, personalValue: 0.5 }),
+		});
 		expect(filter("anything")).toBe(true);
 	});
 
@@ -1552,6 +1560,46 @@ describe("patterns.ai.admissionFilter3D", () => {
 
 		expect(mem).toBeDefined();
 		mem.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// admissionScored (Unit 8 generic — admissionFilter3D is sugar over this)
+// ---------------------------------------------------------------------------
+
+describe("patterns.ai.admissionScored", () => {
+	it("admits when all gated dimensions meet thresholds", () => {
+		const filter = admissionScored<"a" | "b">({
+			scoreFn: () => ({ a: 0.7, b: 0.4 }),
+			thresholds: { a: 0.5, b: 0.3 },
+		});
+		expect(filter("x")).toBe(true);
+	});
+
+	it("rejects when any gated dimension is below threshold", () => {
+		const filter = admissionScored<"a" | "b">({
+			scoreFn: () => ({ a: 0.7, b: 0.1 }),
+			thresholds: { a: 0.5, b: 0.3 },
+		});
+		expect(filter("x")).toBe(false);
+	});
+
+	it("ignores dimensions without thresholds (telemetry-only)", () => {
+		const filter = admissionScored<"a" | "telemetry">({
+			scoreFn: () => ({ a: 0.6, telemetry: -100 }),
+			thresholds: { a: 0.5 },
+		});
+		// `telemetry` has no threshold → ungated, even though it's negative.
+		expect(filter("x")).toBe(true);
+	});
+
+	it("treats missing scores as below threshold", () => {
+		const filter = admissionScored<"a" | "b">({
+			scoreFn: () => ({ a: 0.9 }) as never,
+			thresholds: { a: 0.5, b: 0.3 },
+		});
+		// b is missing → fails the b ≥ 0.3 check.
+		expect(filter("x")).toBe(false);
 	});
 });
 
@@ -1864,6 +1912,36 @@ describe("graphFromSpec", () => {
 
 		await expect(graphFromSpec("missing name", adapter)).rejects.toThrow("invalid GraphSpec");
 	});
+
+	it("graphFromSpecReactive emits Graph for non-empty input, null otherwise", async () => {
+		const spec = {
+			name: "reactive",
+			nodes: { x: { type: "state", initial: 7, meta: { description: "X" } } },
+		};
+		const adapter = mockAdapter([{ content: JSON.stringify(spec), finishReason: "end_turn" }]);
+		const input = state("");
+		const node = graphFromSpecReactive(input, adapter);
+		const seen: (Graph | null)[] = [];
+		const unsub = node.subscribe((batch) => {
+			for (const m of batch) {
+				if (m[0] === DATA) seen.push(m[1] as Graph | null);
+			}
+		});
+
+		// Empty input → SENTINEL null
+		await new Promise((r) => setTimeout(r, 0));
+		expect(seen[seen.length - 1]).toBeNull();
+
+		// Push a real description → triggers LLM + compileSpec
+		input.down([[DATA, "make a reactive graph"]]);
+		await new Promise((r) => setTimeout(r, 50));
+		const last = seen[seen.length - 1];
+		expect(last).not.toBeNull();
+		expect((last as Graph).name).toBe("reactive");
+		(last as Graph).destroy();
+
+		unsub();
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -1925,6 +2003,43 @@ describe("suggestStrategy", () => {
 		await expect(suggestStrategy(g, "problem", adapter)).rejects.toThrow("missing 'summary'");
 		g.destroy();
 	});
+
+	it("suggestStrategyReactive emits a plan when problem fires", async () => {
+		const plan = {
+			summary: "tighten retries",
+			reasoning: "noise observed in flaky-tests bucket",
+			operations: [{ type: "set_value", name: "max_retries", value: 1 }],
+		};
+		const adapter = mockAdapter([{ content: JSON.stringify(plan), finishReason: "end_turn" }]);
+
+		const g = new Graph("rx");
+		g.add(state(3, { name: "max_retries", meta: { description: "max" } }), { name: "max_retries" });
+		const graphNode = state<Graph | null>(g);
+		const problem = state("");
+
+		const node = suggestStrategyReactive(graphNode, problem, adapter);
+		const seen: (StrategyPlan | null)[] = [];
+		const unsub = node.subscribe((batch) => {
+			for (const m of batch) {
+				if (m[0] === DATA) seen.push(m[1] as StrategyPlan | null);
+			}
+		});
+
+		await new Promise((r) => setTimeout(r, 0));
+		// withLatestFrom's documented initial-activation quirk: when both deps
+		// are state() nodes, the first paired emission is dropped (see comment
+		// in extra/operators.ts:866). So `seen` may be empty at this point —
+		// real DATA arrives after `problem` fires below.
+
+		problem.down([[DATA, "noisy retries"]]);
+		await new Promise((r) => setTimeout(r, 50));
+		const last = seen[seen.length - 1];
+		expect(last).not.toBeNull();
+		expect((last as StrategyPlan).summary).toBe("tighten retries");
+
+		unsub();
+		g.destroy();
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -1934,14 +2049,16 @@ describe("suggestStrategy", () => {
 describe("patterns.ai.promptNode", () => {
 	const tick = () => new Promise((r) => setTimeout(r, 0));
 
-	it("cache deduplicates identical invocations", async () => {
-		let callCount = 0;
+	it("forwards systemPrompt via invoke opts only (no double-send as message)", async () => {
+		let receivedMessages: readonly { role: string; content: string }[] = [];
+		let receivedOpts: Record<string, unknown> = {};
 		const adapter: LLMAdapter = {
 			provider: "mock",
-			invoke(_messages, _opts) {
-				callCount++;
+			invoke(messages, opts) {
+				receivedMessages = messages as readonly { role: string; content: string }[];
+				receivedOpts = opts as Record<string, unknown>;
 				return {
-					content: "result",
+					content: "ok",
 					finishReason: "end_turn",
 					usage: { input: { regular: 0 }, output: { regular: 0 } },
 				};
@@ -1955,26 +2072,127 @@ describe("patterns.ai.promptNode", () => {
 
 		const dep = state("hello");
 		const pn = promptNode<string>(adapter, [dep], (v: string) => `summarize: ${v}`, {
-			cache: true,
+			systemPrompt: "be terse",
 		});
 		const unsub = pn.subscribe(() => {});
 		await tick();
 
-		expect(pn.cache).toBe("result");
-		// Push-on-subscribe may cause initial invocation(s); record baseline
-		const baseline = callCount;
+		// systemPrompt only travels via opts — never injected into messages.
+		expect(receivedOpts.systemPrompt).toBe("be terse");
+		expect(receivedMessages.some((m) => m.role === "system")).toBe(false);
+		expect(receivedMessages.length).toBe(1);
+		expect(receivedMessages[0]?.role).toBe("user");
 
-		// Trigger re-evaluation with same dep value — should hit cache
+		unsub();
+	});
+
+	it("aborts in-flight call when abort node emits true", async () => {
+		let lastSignal: AbortSignal | undefined;
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke(_messages, opts) {
+				lastSignal = opts?.signal;
+				return new Promise<LLMResponse>((resolve, reject) => {
+					if (opts?.signal?.aborted) {
+						reject(opts.signal.reason ?? new Error("aborted"));
+						return;
+					}
+					const onAbort = (): void => {
+						reject(opts?.signal?.reason ?? new Error("aborted"));
+					};
+					opts?.signal?.addEventListener("abort", onAbort, { once: true });
+					setTimeout(() => {
+						opts?.signal?.removeEventListener("abort", onAbort);
+						resolve({
+							content: "late",
+							finishReason: "end_turn",
+							usage: { input: { regular: 0 }, output: { regular: 0 } },
+						});
+					}, 100);
+				});
+			},
+			async *stream() {
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
+			},
+		};
+
+		const dep = state("hello");
+		const abort = state(false);
+		const pn = promptNode<string>(adapter, [dep], (v: string) => `summarize: ${v}`, {
+			abort,
+		});
+		const unsub = pn.subscribe(() => {});
+		await tick();
+
+		// abort signal should be threaded through invoke opts
+		expect(lastSignal).toBeDefined();
+		expect(lastSignal?.aborted).toBe(false);
+
+		// Flip abort → signal aborts
+		abort.down([[DATA, true]]);
+		await tick();
+		expect(lastSignal?.aborted).toBe(true);
+
+		unsub();
+	});
+
+	it("emits nothing on true SENTINEL (no DATA ever); emits null when DATA(null) arrives", async () => {
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke(_messages, _opts) {
+				return {
+					content: "ok",
+					finishReason: "end_turn",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				};
+			},
+			async *stream() {
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
+			},
+		};
+
+		// True SENTINEL: dep that NEVER emits DATA — first-run gate blocks
+		// messagesNode → switchMap doesn't fire → outer cache stays undefined.
+		const sentinelDep = node<string>();
+		const sentinelPn = promptNode<string>(adapter, [sentinelDep], (v) => `summarize: ${v}`);
+		const sentinelSeen: (string | null)[] = [];
+		const sentinelUnsub = sentinelPn.subscribe((batch) => {
+			for (const m of batch) if (m[0] === DATA) sentinelSeen.push(m[1] as string | null);
+		});
+		await tick();
+		expect(sentinelSeen).toEqual([]);
+		expect(sentinelPn.cache).toBe(undefined);
+		sentinelUnsub();
+
+		// DATA-seen path: dep starts as state(null) — first DATA value IS null.
+		// Per the SENTINEL convention (`prevData === undefined` is the only
+		// SENTINEL marker), this counts as "input arrived but is nullish" →
+		// emit `null` immediately.
+		const dep = state<string | null>(null);
+		const pn = promptNode<string>(adapter, [dep], (v) => `summarize: ${v}`);
+		const seen: (string | null)[] = [];
+		const unsub = pn.subscribe((batch) => {
+			for (const m of batch) if (m[0] === DATA) seen.push(m[1] as string | null);
+		});
+		await tick();
+		expect(seen).toEqual([null]);
+		expect(pn.cache).toBe(null);
+
+		// Real input → LLM call → DATA emit.
 		dep.down([[DATA, "hello"]]);
 		await tick();
-		expect(pn.cache).toBe("result");
-		expect(callCount).toBe(baseline); // no additional call (cache hit)
+		expect(seen[seen.length - 1]).toBe("ok");
+		expect(pn.cache).toBe("ok");
 
-		// Change dep — different prompt text → different cache key
-		dep.down([[DATA, "world"]]);
+		// Mid-flow drop back to null → emit `null` again.
+		dep.down([[DATA, null]]);
 		await tick();
-		expect(pn.cache).toBe("result");
-		expect(callCount).toBe(baseline + 1);
+		expect(seen[seen.length - 1]).toBe(null);
+		expect(pn.cache).toBe(null);
 
 		unsub();
 	});

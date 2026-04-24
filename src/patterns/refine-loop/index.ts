@@ -110,6 +110,15 @@ export interface RefineStrategy<T> {
  * reactive nodes; the evaluator's returned node IS the EVALUATE topic's source
  * (no glue). Implementers can batch-eval (e.g. `funnel` with concurrency) or
  * map per-candidate — user's code.
+ *
+ * **`EvalResult.candidateIndex` semantics.** Optional per-result field.
+ * When present, multi-candidate aggregators ({@link errorCritique}'s
+ * `pickBest`) score per index, picking the candidate with the highest
+ * mean score. When absent across all results, those aggregators fall back
+ * to positional matching against `candidates[0]` — meaning a strategy that
+ * generates >1 candidate but emits unindexed scores effectively only ever
+ * critiques the first candidate. Set `candidateIndex` whenever the
+ * evaluator's score corresponds to a specific candidate in the batch.
  */
 export type Evaluator<T> = (
 	candidates: Node<readonly T[]>,

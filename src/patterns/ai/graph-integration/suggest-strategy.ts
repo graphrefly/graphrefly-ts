@@ -3,6 +3,11 @@
 // ---------------------------------------------------------------------------
 
 import type { Actor } from "../../../core/actor.js";
+import { COMPLETE, ERROR } from "../../../core/messages.js";
+import type { Node } from "../../../core/node.js";
+import { producer, state } from "../../../core/sugar.js";
+import { switchMap, withLatestFrom } from "../../../extra/operators.js";
+import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
 import { resolveToolHandlerResult } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../adapters/core/types.js";
@@ -39,6 +44,13 @@ export type SuggestStrategyOptions = {
 	temperature?: number;
 	maxTokens?: number;
 	actor?: Actor;
+	/**
+	 * Optional AbortSignal forwarded to `adapter.invoke({ signal })`. Lets
+	 * callers cancel the in-flight LLM call (e.g. when the reactive variant
+	 * supersedes mid-flight). When the signal aborts, the underlying call
+	 * propagates the abort and `suggestStrategy` rejects with the abort reason.
+	 */
+	signal?: AbortSignal;
 };
 
 const SUGGEST_STRATEGY_SYSTEM_PROMPT = `You are a reactive graph optimizer for GraphReFly.
@@ -101,6 +113,7 @@ export async function suggestStrategy(
 		model: opts?.model,
 		temperature: opts?.temperature ?? 0,
 		maxTokens: opts?.maxTokens,
+		signal: opts?.signal,
 	});
 
 	const response = (await resolveToolHandlerResult(rawResult)) as LLMResponse;
@@ -134,4 +147,66 @@ export async function suggestStrategy(
 		reasoning: plan.reasoning,
 		operations: plan.operations as readonly StrategyOperation[],
 	};
+}
+
+/**
+ * Reactive variant of {@link suggestStrategy}: re-invokes the LLM whenever
+ * the `problem` source emits, sampling the latest `graph` value (via
+ * `withLatestFrom`) to describe. The graph is the *secondary* dep — only
+ * problem changes re-trigger analysis. This breaks the feedback cycle that
+ * would otherwise arise if downstream consumers wired `apply(plan)` back
+ * into the same graph node (graph mutation must not auto-fire a re-analysis).
+ *
+ * @param graph - Reactive source of graphs to analyze.
+ * @param problem - Reactive source of natural-language problem statements.
+ * @param adapter - LLM adapter for the analysis call.
+ * @param opts - Model and actor options.
+ * @returns `Node<StrategyPlan | null>` — emits the latest plan, or `null`
+ *           while inputs are unsettled.
+ */
+export function suggestStrategyReactive(
+	graph: Node<Graph | null>,
+	problem: NodeInput<string>,
+	adapter: LLMAdapter,
+	opts?: SuggestStrategyOptions,
+): Node<StrategyPlan | null> {
+	const problemNode = fromAny(problem);
+	// problem is primary (re-triggers on change); graph is sampled — no
+	// graph-edit-feedback loop to suggestStrategy when callers apply ops.
+	const paired = withLatestFrom(problemNode as Node<unknown>, graph as Node<unknown>);
+	return switchMap<unknown, StrategyPlan | null>(paired, (pair) => {
+		if (pair == null) return state<StrategyPlan | null>(null);
+		const [pText, g] = pair as [string | null, Graph | null];
+		if (!g || !pText || typeof pText !== "string" || pText.trim().length === 0) {
+			return state<StrategyPlan | null>(null);
+		}
+		// QA-fix: skip rather than ERROR if the sampled Graph was destroyed
+		// between the `withLatestFrom` sample and this project fn. Common when
+		// a caller's reactive `graph: Node<Graph | null>` cycles graphs faster
+		// than `suggestStrategy` resolves; the supersede was the user's intent,
+		// so emitting null here matches "input not ready" semantics rather
+		// than surfacing a spurious ERROR on the StrategyPlan stream.
+		if (g.destroyed) return state<StrategyPlan | null>(null);
+		return producer<StrategyPlan | null>(
+			(actions) => {
+				const controller = new AbortController();
+				let cancelled = false;
+				suggestStrategy(g, pText, adapter, { ...opts, signal: controller.signal })
+					.then((plan) => {
+						if (cancelled) return;
+						actions.emit(plan);
+						actions.down([[COMPLETE]]);
+					})
+					.catch((err) => {
+						if (cancelled) return;
+						actions.down([[ERROR, err]]);
+					});
+				return () => {
+					cancelled = true;
+					controller.abort();
+				};
+			},
+			{ name: "suggestStrategy::call" },
+		);
+	});
 }

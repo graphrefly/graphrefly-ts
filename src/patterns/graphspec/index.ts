@@ -340,7 +340,7 @@ export function validateSpecAgainstCatalog(
 		}
 	}
 
-	return { valid: errors.length === 0, errors };
+	return { valid: errors.length === 0, errors, warnings: [] };
 }
 
 /** Simple Levenshtein-based closest match for "did you mean?" suggestions. */
@@ -383,6 +383,14 @@ function levenshtein(a: string, b: string): number {
 export type GraphSpecValidation = {
 	valid: boolean;
 	errors: string[];
+	/**
+	 * Non-fatal advisories. Currently includes feedback edges whose `from`
+	 * refers to an `effect` node (effects produce no DATA — the feedback
+	 * counter will never advance). Always present (empty array when nothing
+	 * is flagged) — symmetry with `errors` so callers can read
+	 * `result.warnings.length` without a null check.
+	 */
+	warnings: string[];
 };
 
 const VALID_NODE_TYPES = new Set([
@@ -404,9 +412,10 @@ const INNER_NODE_TYPES = new Set(["state", "producer", "derived", "effect", "ope
  */
 export function validateSpec(spec: unknown): GraphSpecValidation {
 	const errors: string[] = [];
+	const warnings: string[] = [];
 
 	if (spec == null || typeof spec !== "object") {
-		return { valid: false, errors: ["GraphSpec must be a non-null object"] };
+		return { valid: false, errors: ["GraphSpec must be a non-null object"], warnings };
 	}
 
 	const s = spec as Record<string, unknown>;
@@ -417,7 +426,7 @@ export function validateSpec(spec: unknown): GraphSpecValidation {
 
 	if (s.nodes == null || typeof s.nodes !== "object" || Array.isArray(s.nodes)) {
 		errors.push("Missing or invalid 'nodes' field (must be an object)");
-		return { valid: false, errors };
+		return { valid: false, errors, warnings };
 	}
 
 	const nodeNames = new Set(Object.keys(s.nodes as object));
@@ -562,6 +571,15 @@ export function validateSpec(spec: unknown): GraphSpecValidation {
 					errors.push(
 						`Feedback [${i}]: 'from' "${String(e.from)}" does not reference an existing node`,
 					);
+				} else if (nodeTypes.get(e.from) === "effect") {
+					// Effect nodes produce no DATA — a feedback edge from one will
+					// never trigger the counter / re-entry. Almost certainly a
+					// modelling mistake (caller probably meant the upstream
+					// derived/state node). Warn but don't reject — the spec is
+					// structurally valid; some advanced uses might still be ok.
+					warnings.push(
+						`Feedback [${i}]: 'from' "${e.from}" is an effect node — effects emit no DATA, so the feedback edge will never fire. Did you mean a derived/state node upstream?`,
+					);
 				}
 				if (typeof e.from === "string" && e.from === e.to) {
 					errors.push(`Feedback [${i}]: 'from' and 'to' must be different nodes`);
@@ -579,7 +597,11 @@ export function validateSpec(spec: unknown): GraphSpecValidation {
 		}
 	}
 
-	return { valid: errors.length === 0, errors };
+	return {
+		valid: errors.length === 0,
+		errors,
+		warnings,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -590,7 +612,29 @@ export function validateSpec(spec: unknown): GraphSpecValidation {
 export type CompileSpecOptions = {
 	/** Fn/source catalog for resolving named factories. */
 	catalog?: GraphSpecCatalog;
+	/**
+	 * How to handle nodes whose `fn` / `source` is missing from the catalog.
+	 * - `"placeholder"` (default): silently substitute identity passthroughs
+	 *   (`producer(() => {})` / `derived(deps, vals => vals[0])`). Backward-
+	 *   compatible — preserves the historical "soft compile" behavior.
+	 * - `"warn"`: substitute placeholders AND log each missing entry via
+	 *   `console.warn`, or via the `onWarn` callback if supplied.
+	 * - `"error"`: collect every missing entry across the whole spec, then
+	 *   throw an `Error` listing them all (no partial graph returned).
+	 */
+	onMissing?: "error" | "warn" | "placeholder";
+	/** Custom warning sink. Used only when `onMissing === "warn"`. Defaults to `console.warn`. */
+	onWarn?: (message: string) => void;
 };
+
+interface MissingCatalogEntry {
+	/** Node path (template-prefixed where applicable, e.g. `myMount.inner`). */
+	path: string;
+	/** The catalog kind (`"fn"` or `"source"`) that was looked up. */
+	kind: "fn" | "source";
+	/** The catalog name string supplied in the spec. */
+	name: string;
+}
 
 /**
  * Instantiate a Graph from a GraphSpec.
@@ -612,6 +656,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 	}
 
 	const catalog = opts?.catalog ?? {};
+	const onMissing = opts?.onMissing ?? "placeholder";
 	const g = new Graph(spec.name);
 	const templates = spec.templates ?? {};
 
@@ -622,6 +667,28 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			`compileSpec: catalog validation errors:\n${catalogValidation.errors.join("\n")}`,
 		);
 	}
+
+	// Track missing catalog entries across both top-level and template passes;
+	// the chosen `onMissing` policy is applied once after compile so callers see
+	// every miss in a single error / warn batch instead of one-at-a-time.
+	const missingEntries: MissingCatalogEntry[] = [];
+
+	const recordMissing = (
+		nodePath: string,
+		fnName: string | undefined,
+		sourceName: string | undefined,
+	): void => {
+		// Producer resolution tries source before fn (see lines below + template
+		// branches), so the relevant miss for a placeholder is the one that was
+		// actually attempted first. Reporting both as separate misses on a
+		// node that sets `{source, fn}` would inflate the error count and
+		// confuse the caller about which entry was actually looked up.
+		if (sourceName) {
+			missingEntries.push({ path: nodePath, kind: "source", name: sourceName });
+			return;
+		}
+		if (fnName) missingEntries.push({ path: nodePath, kind: "fn", name: fnName });
+	};
 
 	// Helper: resolve fn/source factories from catalog (handles rich + bare entries)
 	const resolveFn = (fnName: string): FnFactory | undefined => {
@@ -661,6 +728,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				created.set(name, nd);
 			} else {
 				// No catalog entry — create a bare producer placeholder
+				recordMissing(name, n.fn, n.source);
 				const nd = producer(() => {}, {
 					name,
 					meta: { ...n.meta, _specFn: n.fn, _specSource: n.source },
@@ -689,9 +757,11 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			if (fnFactory) {
 				nd = fnFactory(resolvedDeps, n.config ?? {});
 			} else if (n.type === "effect") {
+				if (n.fn) recordMissing(name, n.fn, undefined);
 				nd = effect(resolvedDeps, () => {});
 			} else {
 				// derived/operator without catalog fn — identity passthrough
+				if (n.fn) recordMissing(name, n.fn, undefined);
 				nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 			}
 			g.add(nd, { name: name });
@@ -745,6 +815,7 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				} else {
+					recordMissing(`${name}.${nName}`, nSpec.fn, nSpec.source);
 					const nd = producer(() => {}, {
 						name: nName,
 						meta: { ...nSpec.meta, _specFn: nSpec.fn, _specSource: nSpec.source },
@@ -774,8 +845,10 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				if (fnFactory) {
 					nd = fnFactory(resolvedDeps, nSpec.config ?? {});
 				} else if (nSpec.type === "effect") {
+					if (nSpec.fn) recordMissing(`${name}.${nName}`, nSpec.fn, undefined);
 					nd = effect(resolvedDeps, () => {});
 				} else {
+					if (nSpec.fn) recordMissing(`${name}.${nName}`, nSpec.fn, undefined);
 					nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 				}
 				sub.add(nd, { name: nName });
@@ -814,6 +887,28 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		feedbackPrimitive(g, fb.from, fb.to, {
 			maxIterations: fb.maxIterations,
 		});
+	}
+
+	// Apply onMissing policy. We always finish compilation first (for "warn"
+	// + "placeholder") so the caller still gets a usable graph in non-strict
+	// modes. In "error" mode we throw before returning.
+	if (missingEntries.length > 0) {
+		if (onMissing === "error") {
+			const lines = missingEntries.map((e) => `  - ${e.path}: missing ${e.kind} "${e.name}"`);
+			throw new Error(
+				`compileSpec: ${missingEntries.length} catalog entr${
+					missingEntries.length === 1 ? "y" : "ies"
+				} missing — pass them via opts.catalog or set opts.onMissing to "warn"/"placeholder":\n${lines.join("\n")}`,
+			);
+		}
+		if (onMissing === "warn") {
+			const warn = opts?.onWarn ?? ((m: string): void => console.warn(m));
+			for (const e of missingEntries) {
+				warn(
+					`compileSpec: ${e.path} references missing ${e.kind} "${e.name}" — substituted placeholder`,
+				);
+			}
+		}
 	}
 
 	return g;
@@ -986,7 +1081,16 @@ export function decompileGraph(graph: Graph): GraphSpec {
 		}
 	}
 
-	// Structural fallback: group remaining mounted subgraphs by fingerprint
+	// Structural fallback: group remaining mounted subgraphs by fingerprint.
+	//
+	// **Caveat:** the fingerprint is `{nodeName: {type, deps}}` only — it
+	// ignores `meta`, `initial`, `fn`/`source` catalog references, and node
+	// configuration. Two semantically distinct templates that happen to share
+	// node names + types + deps will collapse into a single template here.
+	// For round-trip correctness on hand-built graphs that mount such look-
+	// alike subgraphs, prefer the meta-based recovery path: stamp
+	// `_templateName` / `_templateBind` on the output node before mounting,
+	// and `decompileGraph` skips the structural fallback for that subgraph.
 	const structureMap = new Map<string, { name: string; nodes: Record<string, GraphSpecNode> }[]>();
 	for (const subName of desc.subgraphs) {
 		if (metaDetectedSubgraphs.has(subName)) continue;

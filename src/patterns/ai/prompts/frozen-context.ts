@@ -17,8 +17,12 @@ export type FrozenContextOptions = {
 	 * increments via `setState(n + 1)`.
 	 *
 	 * When omitted, the frozen value is materialized exactly once (on first
-	 * subscribe) and never refreshes — use this for session-start snapshots
-	 * that must stay stable for the lifetime of the activation.
+	 * subscribe) and never refreshes for the lifetime of the activation —
+	 * use this for session-start snapshots that must stay stable. The
+	 * single-shot latch IS reset on `INVALIDATE` (graph-wide flush via
+	 * `graph.signal([[INVALIDATE]])`), so callers who need an "evict and
+	 * re-materialize" escape hatch get one through the standard graph
+	 * lifecycle without having to wire a `refreshTrigger`.
 	 */
 	refreshTrigger?: NodeInput<unknown>;
 	name?: string;

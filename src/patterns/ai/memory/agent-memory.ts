@@ -533,10 +533,22 @@ export function agentMemory<TMem = unknown>(
 		// (Option W from the 2026-04-12 P3 audit — retrieveFn is a sync consumer API that
 		// reads store/context at call time, computes inline, and publishes results via
 		// state writes. No derived, no queryInput, no closure side-channel.)
+		//
+		// QA-fix (Bonus dedup): packed array reference-identity equals isn't useful here
+		// because `runRetrieval` allocates a new array per call. Compare element-wise
+		// reference equality so subscribers don't wake up when the SAME entries land
+		// in the SAME order (e.g. repeated identical queries from the reactive surface).
+		const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
+			if (a === b) return true;
+			if (a.length !== b.length) return false;
+			for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+			return true;
+		};
 		const retrievalOutput = state<ReadonlyArray<RetrievalEntry<TMem>>>([], {
 			name: "retrieval",
 			describeKind: "state",
 			meta: aiMeta("retrieval_pipeline"),
+			equals: packedEquals,
 		});
 		graph.add(retrievalOutput, { name: "retrieval" });
 		retrievalNode = retrievalOutput;
@@ -567,26 +579,64 @@ export function agentMemory<TMem = unknown>(
 		// B20: reactive sibling. Subscribe-driven retrieval — when `queryNode`
 		// emits a new `RetrievalQuery`, the returned node emits the packed
 		// results. Composable with graph topology (e.g. `switchMap` on a user
-		// input node, or chaining into a `promptNode`). Unlike `retrieveFn`
-		// which writes observer-facing state nodes and returns synchronously,
-		// this sibling stays purely reactive — no imperative cache reads in
-		// its fn body.
+		// input node, or chaining into a `promptNode`).
+		//
+		// **Unit 7 Q4 mirror (QA-revised):** the reactive recompute splits into
+		// (a) a pure `result` derived computing `{packed, trace}`, (b) the
+		// caller-facing `packed` projection, and (c) a co-mounted `mirror`
+		// effect that writes the observability state nodes (`retrieval` +
+		// `retrievalTrace`). Splitting the writes into a sibling effect keeps
+		// the topology visible — `describe()` shows `mirror` as a real edge
+		// from `result` instead of an invisible imperative emit hidden inside
+		// a derived fn body. Matches §32 state-mirror, not §28 (which is
+		// factory-time *reads*, not writes).
 		const retrieveReactiveFn = (
 			queryInput: NodeInput<RetrievalQuery | null>,
 		): Node<ReadonlyArray<RetrievalEntry<TMem>>> => {
 			const q = fromAny(queryInput);
-			return derived<ReadonlyArray<RetrievalEntry<TMem>>>(
+			const result = derived<{
+				packed: ReadonlyArray<RetrievalEntry<TMem>>;
+				trace: RetrievalTrace<TMem> | null;
+			}>(
 				[distillBundle.store.entries, contextNode, q],
 				([snapshot, ctx, query]) => {
-					if (query == null) return [];
+					if (query == null) return { packed: [], trace: null };
 					const storeMap = extractStoreMap<TMem>(snapshot);
-					return runRetrieval(storeMap, ctx, query as RetrievalQuery).packed;
+					const { packed, trace } = runRetrieval(storeMap, ctx, query as RetrievalQuery);
+					return { packed, trace };
 				},
+				{
+					name: "retrievalReactive::result",
+					describeKind: "derived",
+					meta: aiMeta("retrieval_reactive_result"),
+					initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
+				},
+			);
+			// Mirror effect — writes self-owned observability state. Visible
+			// in `describe()` as a `result → mirror` edge; the underlying state
+			// emits dedup via their `equals` (packedEquals + Object.is for trace).
+			const mirror = effect([result], ([r]) => {
+				const v = r as {
+					packed: ReadonlyArray<RetrievalEntry<TMem>>;
+					trace: RetrievalTrace<TMem> | null;
+				};
+				batch(() => {
+					retrievalOutput.emit(v.packed);
+					if (v.trace) traceState.emit(v.trace);
+				});
+			});
+			keepaliveSubs.push(mirror.subscribe(() => undefined));
+			// Caller-facing packed-only projection. Reference-equality dedup
+			// matches `retrievalOutput`'s state contract.
+			return derived<ReadonlyArray<RetrievalEntry<TMem>>>(
+				[result],
+				([r]) => (r as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed,
 				{
 					name: "retrievalReactive",
 					describeKind: "derived",
 					meta: aiMeta("retrieval_reactive"),
 					initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
+					equals: packedEquals,
 				},
 			);
 		};

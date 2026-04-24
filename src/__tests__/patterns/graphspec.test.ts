@@ -369,6 +369,52 @@ describe("graphspec.compileSpec", () => {
 		expect(g.node("src")).toBeDefined();
 		g.destroy();
 	});
+
+	it("onMissing: 'error' throws listing every missing catalog entry", () => {
+		const spec: GraphSpec = {
+			name: "missing",
+			nodes: {
+				a: { type: "producer", source: "missing-source" },
+				b: { type: "derived", deps: ["a"], fn: "missing-fn" },
+			},
+		};
+		expect(() => compileSpec(spec, { onMissing: "error" })).toThrow(
+			/missing source "missing-source"/,
+		);
+		expect(() => compileSpec(spec, { onMissing: "error" })).toThrow(/missing fn "missing-fn"/);
+	});
+
+	it("onMissing: 'warn' logs each miss via onWarn callback and still returns a graph", () => {
+		const spec: GraphSpec = {
+			name: "warn",
+			nodes: {
+				a: { type: "producer", source: "absent" },
+			},
+		};
+		const warnings: string[] = [];
+		const g = compileSpec(spec, {
+			onMissing: "warn",
+			onWarn: (m) => warnings.push(m),
+		});
+		expect(g.node("a")).toBeDefined();
+		expect(warnings.length).toBe(1);
+		expect(warnings[0]).toMatch(/missing source "absent"/);
+		g.destroy();
+	});
+
+	it("onMissing: 'placeholder' (default) is silent", () => {
+		const spec: GraphSpec = {
+			name: "placeholder-default",
+			nodes: {
+				a: { type: "producer", source: "absent" },
+			},
+		};
+		const warnings: string[] = [];
+		const g = compileSpec(spec, { onWarn: (m) => warnings.push(m) });
+		expect(g.node("a")).toBeDefined();
+		expect(warnings.length).toBe(0);
+		g.destroy();
+	});
 });
 
 // ---------------------------------------------------------------------------

@@ -96,6 +96,13 @@ export async function runReduction(
 			let settled = false;
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			let unsub: (() => void) | undefined;
+			// Sync-settle ordering: `outputNode.subscribe(...)` may invoke its
+			// callback synchronously (push-on-subscribe). If that callback
+			// triggers `finish()` before `subscribe()` has returned, `unsub`
+			// is still `undefined` at the point we'd want to call it. We set
+			// `shouldUnsub = true` and the post-subscribe block on line 163
+			// runs the unsubscribe instead. Without this two-phase trick, the
+			// reduce would keep the subscription alive until the next event.
 			let shouldUnsub = false;
 
 			const finish = (action: () => void): void => {

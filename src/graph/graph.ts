@@ -1107,6 +1107,8 @@ export class Graph {
 	_parent: Graph | undefined = undefined;
 	private readonly _storageDisposers = new Set<() => void>();
 	private readonly _disposers = new Set<() => void>();
+	/** @internal Set in {@link destroy} / `_destroyClearOnly`; surfaced via {@link destroyed}. */
+	private _destroyed = false;
 	/**
 	 * @internal Lazy `TopologyEvent` producer. Created on first `.topology`
 	 * access. Zero cost until something subscribes — producer fn only runs when
@@ -2909,6 +2911,18 @@ export class Graph {
 		this._mounts.clear();
 		this._nodes.clear();
 		this._parent = undefined;
+		this._destroyed = true;
+	}
+
+	/**
+	 * `true` once {@link destroy} has run on this graph. Useful for reactive
+	 * consumers that hold a Graph reference and want to fail fast / skip
+	 * work if the graph went away mid-flight (e.g. a `switchMap` over a
+	 * destroyable graph reference). Set after the destroy cascade completes;
+	 * stays `true` even if the instance is later reused via {@link add}.
+	 */
+	get destroyed(): boolean {
+		return this._destroyed;
 	}
 
 	/** Clear structure after parent already signaled TEARDOWN through this subtree. */
@@ -2920,6 +2934,7 @@ export class Graph {
 		this._mounts.clear();
 		this._nodes.clear();
 		this._parent = undefined;
+		this._destroyed = true;
 	}
 
 	/**

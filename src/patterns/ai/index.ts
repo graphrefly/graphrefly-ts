@@ -96,6 +96,7 @@ export * from "./agents/tool-selector.js";
 export * from "./memory/admission.js";
 export * from "./memory/agent-memory.js";
 export * from "./memory/llm-memory.js";
+export * from "./memory/memory-composers.js";
 export * from "./memory/retrieval.js";
 export * from "./memory/tiers.js";
 

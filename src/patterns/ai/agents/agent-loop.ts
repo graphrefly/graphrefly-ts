@@ -115,9 +115,6 @@ export class AgentLoopGraph extends Graph {
 	/** Tool-result batch (one entry per call) after reactive execution. SENTINEL. */
 	readonly toolResults: Node<readonly ToolResult[]>;
 
-	/** @deprecated Use `turn` instead. Pre-1.0 rename — this alias will be removed. */
-	readonly turnCount: Node<number>;
-
 	private readonly _terminalResult: Node<{ response: LLMResponse; runVersion: number }>;
 	private readonly _disposeRunWiring: () => void;
 	/**
@@ -169,7 +166,6 @@ export class AgentLoopGraph extends Graph {
 			meta: aiMeta("agent_turn_count"),
 		});
 		this.add(this.turn, { name: "turn" });
-		this.turnCount = this.turn;
 
 		this.aborted = state<boolean>(false, {
 			name: "aborted",
@@ -277,17 +273,21 @@ export class AgentLoopGraph extends Graph {
 				if (latestAborted) {
 					controller.abort(new Error("agentLoop: aborted"));
 				}
+				// Wave A Unit B-CC fix: drop the `Promise.resolve(adapter.invoke(...))`
+				// wrapper. `adapter.invoke` returns a `NodeInput<LLMResponse>`
+				// (Promise | Node | raw). `fromAny` already handles all three
+				// shapes; the manual `Promise.resolve` wrapper would force a
+				// Node-returning adapter into an extra microtask hop and lose
+				// reactivity (see Unit 11 + Unit 1 for the parallel cleanup).
 				return fromAny(
-					Promise.resolve(
-						adapter.invoke(input.messages, {
-							tools: input.tools.length > 0 ? input.tools : undefined,
-							systemPrompt,
-							model,
-							temperature,
-							maxTokens,
-							signal: controller.signal,
-						}),
-					) as NodeInput<LLMResponse>,
+					adapter.invoke(input.messages, {
+						tools: input.tools.length > 0 ? input.tools : undefined,
+						systemPrompt,
+						model,
+						temperature,
+						maxTokens,
+						signal: controller.signal,
+					}),
 					{ signal: controller.signal },
 				);
 			},
@@ -327,7 +327,13 @@ export class AgentLoopGraph extends Graph {
 		// re-dispatch its inner (creating a fresh state([]) source whose
 		// emissions re-trigger effects downstream). RESOLVED keeps the inner
 		// alive and lets upstream waves pass through without re-dispatch.
-		const toolCallsNode = nodeFactory<readonly ToolCall[]>(
+		// Inner raw tool-call stream — name `toolCallsRaw` so the post-intercept
+		// public surface (`this.toolCalls`) is unambiguous in `describe()`.
+		// QA-fix: previously the inner was named `"toolCalls"`, which collided
+		// with `this.toolCalls` if the user-supplied interceptor returned a
+		// wrapper that internally retained a reference to this raw node —
+		// `describe()` would render two distinct nodes both labeled `"toolCalls"`.
+		const toolCallsRaw = nodeFactory<readonly ToolCall[]>(
 			[lastResponseState, statusNode],
 			(data, actions, ctx) => {
 				const resp = readLatest<LLMResponse | null | undefined>(data, ctx.prevData, 0, null);
@@ -344,9 +350,9 @@ export class AgentLoopGraph extends Graph {
 				actions.emit(calls);
 			},
 			{
-				name: "toolCalls",
+				name: "toolCallsRaw",
 				describeKind: "derived",
-				meta: aiMeta("agent_tool_calls"),
+				meta: aiMeta("agent_tool_calls_raw"),
 			},
 		);
 		// Reactive splice (D9 / COMPOSITION-GUIDE §31). When `interceptToolCalls`
@@ -354,8 +360,8 @@ export class AgentLoopGraph extends Graph {
 		// executor sees the gated stream, and `agent.toolCalls` surfaces the
 		// post-intercept view so audit / telemetry match reality.
 		const gatedToolCallsNode = opts.interceptToolCalls
-			? opts.interceptToolCalls(toolCallsNode)
-			: toolCallsNode;
+			? opts.interceptToolCalls(toolCallsRaw)
+			: toolCallsRaw;
 		this.toolCalls = gatedToolCallsNode;
 
 		// toolResults: switchMap turns each non-empty batch into a per-call
@@ -380,14 +386,14 @@ export class AgentLoopGraph extends Graph {
 		};
 		const toolResultsNode: Node<readonly ToolResult[]> = switchMap(gatedToolCallsNode, (calls) => {
 			if (calls == null || calls.length === 0) {
-				// Invariant: `toolCallsNode` emits RESOLVED (not DATA([])) when
+				// Invariant: `toolCallsRaw` emits RESOLVED (not DATA([])) when
 				// there are no tool calls to execute — see the raw `node()`
 				// construction above. switchMap's project only runs on source
 				// DATA, so this branch is unreachable under the current gate.
 				// Asserting here catches future regressions where someone
-				// mistakenly changes `toolCallsNode` to emit `DATA([])`.
+				// mistakenly changes `toolCallsRaw` to emit `DATA([])`.
 				throw new Error(
-					"agentLoop: toolResultsNode received an empty tool-call batch as DATA — toolCallsNode gating invariant broken (should emit RESOLVED for empty). Audit toolCallsNode.",
+					"agentLoop: toolResultsNode received an empty tool-call batch as DATA — toolCallsRaw gating invariant broken (should emit RESOLVED for empty). Audit toolCallsRaw.",
 				);
 			}
 			const perCall = calls.map((call) => executeToolReactively(call, tools));
@@ -479,10 +485,23 @@ export class AgentLoopGraph extends Graph {
 		// emit ERROR (signal-bound), which tears down the subscription. The
 		// `status="done"` emit drives `_terminalResult` to resolve `run()`'s
 		// Promise (via AbortError when `resp == null`, see C3).
+		//
+		// Unit 4 Q5: status guard — if status is already "done" (the natural-
+		// completion path raced the abort), skip the redundant emit so the
+		// status-node event log isn't polluted with a trailing duplicate.
+		// Closure-mirror `latestStatus` keeps the comparison synchronous and
+		// P3-compliant. Seeded from `statusNode.cache` to match the §28
+		// factory-time-seed pattern that `latestTurn` / `latestAborted` use
+		// — the literal `"idle"` would silently drift if the constructor
+		// initial value ever changed.
+		let latestStatus: AgentLoopStatus = (statusNode.cache as AgentLoopStatus | undefined) ?? "idle";
+		const statusSub = statusNode.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) latestStatus = m[1] as AgentLoopStatus;
+		});
 		const effAbort = effect([abortedNode], ([isAborted]) => {
 			if (isAborted === true) {
 				this._currentAbortController?.abort(new Error("agentLoop: aborted"));
-				statusNode.emit("done");
+				if (latestStatus !== "done") statusNode.emit("done");
 			}
 		});
 
@@ -530,6 +549,34 @@ export class AgentLoopGraph extends Graph {
 				meta: aiMeta("agent_terminal_result"),
 			},
 		);
+		// Wave B-CC Q2/C: register intermediate pipeline nodes so consumers
+		// can `observe(path)` them by name (e.g. `agent.observe("promptInput")`).
+		// They were already visible in `describe()` via dep traversal, but not
+		// path-addressable. Tools using the `observe`-by-path API now work.
+		//
+		// QA-fix (#5 stability): registrations live AFTER ALL dependent nodes
+		// are constructed (`promptInput → llmResponse → effResponse →
+		// lastResponseState → toolCallsRaw → toolResultsNode → effResults →
+		// effAbort → _terminalResult`). Topology event-stream consumers
+		// subscribed at construction time now see registrations in an order
+		// where every edge between two registered nodes is already valid —
+		// no transient partial graph slipping through to live mermaid / d2
+		// renderers.
+		this.add(promptInput as Node<unknown>, { name: "promptInput" });
+		this.add(llmResponse as Node<unknown>, { name: "llmResponse" });
+		this.add(this.lastResponse as Node<unknown>, { name: "lastResponse" });
+		// When no interceptor is configured, `this.toolCalls === toolCallsRaw` —
+		// registering the same instance under two names trips the per-graph
+		// `_nodeToName` collision check. Register the raw under `toolCalls`
+		// directly in that case; otherwise register both (raw + post-intercept).
+		if (this.toolCalls === toolCallsRaw) {
+			this.add(this.toolCalls as Node<unknown>, { name: "toolCalls" });
+		} else {
+			this.add(toolCallsRaw as Node<unknown>, { name: "toolCallsRaw" });
+			this.add(this.toolCalls as Node<unknown>, { name: "toolCalls" });
+		}
+		this.add(toolResultsNode as Node<unknown>, { name: "toolResults" });
+		this.add(this._terminalResult as Node<unknown>, { name: "terminalResult" });
 
 		// Register subscriptions via `addDisposer` so they tear down on
 		// subgraph unmount (not just explicit `destroy()`). A caller that
@@ -537,6 +584,7 @@ export class AgentLoopGraph extends Graph {
 		// would otherwise keep `turnSub` / `abortedSub` live against dead state.
 		this.addDisposer(turnSub);
 		this.addDisposer(abortedSub);
+		this.addDisposer(statusSub);
 		this.addDisposer(kaResponse);
 		this.addDisposer(kaResults);
 		this.addDisposer(kaAbort);

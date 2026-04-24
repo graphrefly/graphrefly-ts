@@ -116,7 +116,6 @@ export function defaultLlmExecutor(
 		promptNode<ExecuteOutput>(adapter, [input as Node<unknown>], promptFn, {
 			name: "execute",
 			format: "json",
-			retries: 1,
 		});
 }
 
@@ -145,7 +144,6 @@ export function defaultLlmVerifier(
 		promptNode<VerifyOutput>(adapter, [context as Node<unknown>], promptFn, {
 			name: "verify",
 			format: "json",
-			retries: 1,
 		});
 }
 
@@ -264,7 +262,6 @@ export function harnessLoop(name: string, opts: HarnessLoopOptions): HarnessGrap
 		{
 			name: "triage",
 			format: "json",
-			retries: 1,
 		},
 	);
 

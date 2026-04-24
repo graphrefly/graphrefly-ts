@@ -284,17 +284,19 @@ describe("Phase 5 — Scenario 4: LLM agent with tool use", () => {
 		});
 		result.subscribe(() => {});
 
-		// Composition guide §8 + §2.2 first-run gate: the internal
-		// `messagesNode` uses `initial: []` so `switchMap` immediately
-		// emits `null` while deps are SENTINEL — the dep-level null-guard
-		// path is preserved without relying on undefined dep propagation.
-		expect(result.cache).toBe(null);
+		// Composition guide §8 + per the QA-revised SENTINEL contract: on
+		// **initial** no-input, promptNode emits nothing (true SENTINEL —
+		// `cache` stays `undefined`). `null` is reserved for **mid-flow**
+		// drop-out (input that was previously real then went away), so
+		// downstream consumers can distinguish "haven't started" from
+		// "input gone."
+		expect(result.cache).toBe(undefined);
 
 		// Once pendingInput delivers DATA, the LLM adapter runs (async
 		// through the internal switchMap + Promise path). The
 		// `.not.toBe(null)` check is inherently racy for sync tests — the
-		// important invariant is that the chain exits the "null while
-		// SENTINEL" branch, which we verify by checking status.
+		// important invariant is that the chain exits the SENTINEL branch,
+		// which we verify by checking status.
 		pendingInput.down([[DATA, "hello"]]);
 		expect(result.status).not.toBe("pending");
 	});
