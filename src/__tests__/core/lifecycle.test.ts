@@ -70,6 +70,60 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 
 		unsub();
 	});
+
+	it("diamond fan-in: INVALIDATE cascade fires invalidate hook ONCE at the join", () => {
+		// TLA+ batch 5 B parity: topology `A → {B, C} → D`. When A is
+		// invalidated, D receives INVALIDATE via both parents. The first
+		// arrival resets D's cache and fires the invalidate hook; the second
+		// must NOT re-fire because there's nothing left to clean up.
+		// Before the `_cached === undefined` guard in `_onDepMessage`'s
+		// INVALIDATE branch, D's object-form `invalidate` hook double-fired
+		// and the INVALIDATE was re-broadcast to D's children. The guard
+		// matches the TLA+ `CleanupWitnessNonTrivial` invariant's semantic.
+		const a = node<number>({ initial: 1 });
+		const b = derived([a], ([x]) => x as number);
+		const c = derived([a], ([x]) => (x as number) + 1);
+		let invalidates = 0;
+		const d = node<number>([b, c], (data, actions, _ctx) => {
+			// Compute + emit so `d._cached` is populated — the guard's input.
+			const bv = data[0].at(-1) ?? 0;
+			const cv = data[1].at(-1) ?? 0;
+			actions.emit((bv as number) + (cv as number));
+			return {
+				invalidate: () => {
+					invalidates += 1;
+				},
+			};
+		});
+		// Sink on D's own downstream to observe the INVALIDATE broadcast count
+		// reaching children.
+		const e = derived([d], ([x]) => x as number);
+		const eSeen: symbol[] = [];
+		const unsubE = e.subscribe((msgs) => {
+			for (const [t] of msgs as Messages) eSeen.push(t);
+		});
+		const unsubD = d.subscribe(() => undefined);
+
+		// Prime D's cache: first activation runs fn which emits → d._cached set.
+		expect(d.cache).toBe(3); // (1) + (1+1)
+		expect(invalidates).toBe(0);
+
+		// Invalidate A — cascades to both B and C, then to D via both paths.
+		a.down([[INVALIDATE]]);
+
+		// With the diamond fan-in guard: hook fires exactly once at D.
+		// Without it: fires twice (the latent bug this test is guarding).
+		expect(invalidates).toBe(1);
+
+		// E should also see exactly ONE INVALIDATE forwarded from D. Without
+		// the guard, D would re-broadcast INVALIDATE on the second arrival
+		// and E would count two.
+		const invalidatesAtE = eSeen.filter((t) => t === INVALIDATE).length;
+		expect(invalidatesAtE).toBe(1);
+
+		unsubE();
+		unsubD();
+	});
 });
 
 describe("NodeFnCleanup object form — granular hooks", () => {

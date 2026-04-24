@@ -1454,6 +1454,34 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		if (t === INVALIDATE) {
 			this._depInvalidated(dep);
+			// Diamond fan-in guard (TLA+ batch 5 B parity, 2026-04-23): when a
+			// second INVALIDATE arrives at a node whose cache was already reset
+			// by an earlier arrival this wave (e.g. topology `A → {B, C} → D`
+			// where D receives INVALIDATE from both parents), skip the self
+			// self-processing — there's no cached value to clean up and
+			// downstream children were already notified by the first arrival.
+			// Without this guard, an object-form cleanup with an `invalidate`
+			// hook (e.g. `patterns/ai/prompts/frozen-context.ts`) would fire
+			// twice, and the redundant re-broadcast would cascade through the
+			// subgraph. Matches the TLA+ `CleanupWitnessNotSentinel` invariant's
+			// guard in `DeliverInvalidate`.
+			//
+			// Caveat (batch 7 QA, Option B for BH-2/ECH-2): `_cached === undefined`
+			// overloads TWO semantics — "cache was reset this wave" (the diamond
+			// case above) AND "cache was never populated" (mid-chain derived
+			// that received DIRTY but not DATA yet, or a node with no `initial`).
+			// In the second case, a FIRST-time INVALIDATE arrival is also
+			// skipped: no cleanup hook fires (correct — nothing to clean up)
+			// and no downstream forward happens. This means an observer via
+			// `graph.observe()` on a never-populated mid-chain derived will
+			// NOT see INVALIDATE propagate through that node. Semantically
+			// this is "INVALIDATE at undefined ≈ no-op" — the observable
+			// state at downstream is unchanged regardless. Accepted as a
+			// design simplification rather than introducing a per-wave
+			// `_invalidatedThisWave` flag whose clear-point would add
+			// tracking burden; matches the TLA+ model's analogous
+			// `cache = DefaultInitial` guard.
+			if (this._cached === undefined) return;
 			this._emit(INVALIDATE_ONLY_BATCH);
 			return;
 		}
