@@ -2,31 +2,31 @@
 // graphFromSpec
 // ---------------------------------------------------------------------------
 
-import { Graph, type GraphPersistSnapshot } from "../../../graph/graph.js";
+import type { Graph } from "../../../graph/graph.js";
 import { resolveToolHandlerResult, stripFences } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../adapters/core/types.js";
-import { validateGraphDef } from "./validate-graph-def.js";
+import { compileSpec, type GraphSpec, type GraphSpecCatalog } from "../../graphspec/index.js";
 
 export type GraphFromSpecOptions = {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
-	/** Callback to construct topology before values are applied (passed to `Graph.fromSnapshot`). */
-	build?: (g: Graph) => void;
+	/** Fn/source catalog for resolving named node factories from the LLM-generated spec. */
+	catalog?: GraphSpecCatalog;
 	/** Extra instructions appended to the system prompt. */
 	systemPromptExtra?: string;
 };
 
 const GRAPH_FROM_SPEC_SYSTEM_PROMPT = `You are a graph architect for GraphReFly, a reactive graph protocol.
 
-Given a natural-language description, produce a JSON graph definition with this structure:
+Given a natural-language description, produce a JSON graph specification with this structure:
 
 {
   "name": "<graph_name>",
   "nodes": {
     "<node_name>": {
-      "type": "state" | "derived" | "producer" | "operator" | "effect",
-      "value": <initial_value_or_null>,
+      "type": "state" | "derived" | "producer" | "effect" | "operator",
+      "initial": <initial_value_for_state_nodes>,
       "deps": ["<dep_node_name>", ...],
       "meta": {
         "description": "<human-readable purpose>",
@@ -39,32 +39,31 @@ Given a natural-language description, produce a JSON graph definition with this 
         "tags": ["<tag>"]
       }
     }
-  },
-  "edges": [
-    { "from": "<source_node>", "to": "<target_node>" }
-  ]
+  }
 }
 
 Rules:
-- "state" nodes have no deps and hold user/LLM-writable values (knobs).
-- "derived" nodes have deps and compute from them.
+- "state" nodes have no deps and hold user/LLM-writable values (knobs). Use "initial" for the starting value.
+- "derived" nodes have deps and compute from them (pure, no side effects).
 - "effect" nodes have deps but produce side effects (no return value).
 - "producer" nodes have no deps but generate values asynchronously.
-- Edges wire output of one node as input to another. They must match deps.
+- "operator" nodes are parameterized transformations with deps.
+- Use "deps" inside each node to declare dependencies — no separate "edges" array.
 - meta.description is required for every node.
 - Return ONLY valid JSON, no markdown fences or commentary.`;
 
 /**
  * Ask an LLM to compose a Graph from a natural-language description.
  *
- * The LLM returns a JSON graph definition which is validated and then
- * constructed via `Graph.fromSnapshot()`.
+ * The LLM returns a JSON {@link GraphSpec} which is validated, catalog-expanded,
+ * and instantiated via {@link compileSpec} (gains catalog validation, template
+ * expansion, and feedback wiring that `Graph.fromSnapshot` bypasses).
  *
  * @param naturalLanguage - The problem/use-case description.
  * @param adapter - LLM adapter for the generation call.
- * @param opts - Model options and optional `build` callback for node factories.
+ * @param opts - Model options and optional catalog for named node factories.
  * @returns A constructed Graph.
- * @throws On invalid LLM output or validation failure.
+ * @throws On invalid LLM output, validation failure, or unresolvable deps.
  */
 export async function graphFromSpec(
 	naturalLanguage: string,
@@ -101,14 +100,5 @@ export async function graphFromSpec(
 		throw new Error(`graphFromSpec: LLM response is not valid JSON: ${content.slice(0, 200)}`);
 	}
 
-	const validation = validateGraphDef(parsed);
-	if (!validation.valid) {
-		throw new Error(`graphFromSpec: invalid graph definition:\n${validation.errors.join("\n")}`);
-	}
-
-	const def = parsed as Record<string, unknown>;
-	// Ensure version field is present for fromSnapshot envelope check
-	if (def.version === undefined) def.version = 1;
-	if (!Array.isArray(def.subgraphs)) def.subgraphs = [];
-	return Graph.fromSnapshot(def as GraphPersistSnapshot, opts?.build);
+	return compileSpec(parsed as GraphSpec, { catalog: opts?.catalog });
 }

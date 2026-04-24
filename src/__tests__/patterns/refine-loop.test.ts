@@ -291,12 +291,12 @@ describe("refineLoop — observability", () => {
 		expect(desc.nodes).toHaveProperty("best");
 		expect(desc.nodes).toHaveProperty("score");
 		expect(desc.nodes).toHaveProperty("history");
-		// Mounted topics surface under `<stage>::events` etc.
+		// Stage topics surface under stages::<stage>::events etc. (hub mount).
 		const pathList = Object.keys(desc.nodes);
-		expect(pathList.some((p) => p.startsWith("GENERATE::"))).toBe(true);
-		expect(pathList.some((p) => p.startsWith("EVALUATE::"))).toBe(true);
-		expect(pathList.some((p) => p.startsWith("ANALYZE::"))).toBe(true);
-		expect(pathList.some((p) => p.startsWith("DECIDE::"))).toBe(true);
+		expect(pathList.some((p) => p.startsWith("stages::generate::"))).toBe(true);
+		expect(pathList.some((p) => p.startsWith("stages::evaluate::"))).toBe(true);
+		expect(pathList.some((p) => p.startsWith("stages::analyze::"))).toBe(true);
+		expect(pathList.some((p) => p.startsWith("stages::decide::"))).toBe(true);
 	});
 
 	it("history accumulates one Iteration per completed iteration", async () => {

@@ -41,7 +41,7 @@ import { derived, effect, state } from "../../core/sugar.js";
 import { switchMap } from "../../extra/operators.js";
 import type { NodeInput } from "../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
-import { type TopicGraph, topic } from "../messaging/index.js";
+import { type TopicGraph, messagingHub } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Core types
@@ -362,15 +362,18 @@ export function refineLoop<T>(
 	const budgetState = state<number>(0, { name: "budget-used" });
 	g.add(budgetState, { name: "budget-used" });
 
-	// --- Stage topics (Shape B + C-aspects) ---------------------------------
-	const generateTopic = topic<GenerateEvent<T>>("GENERATE");
-	const evaluateTopic = topic<EvaluateEvent<T>>("EVALUATE");
-	const analyzeTopic = topic<AnalyzeEvent<T>>("ANALYZE");
-	const decideTopic = topic<DecideEvent>("DECIDE");
-	g.mount("GENERATE", generateTopic);
-	g.mount("EVALUATE", evaluateTopic);
-	g.mount("ANALYZE", analyzeTopic);
-	g.mount("DECIDE", decideTopic);
+	// --- Stage hub (Shape B + C-aspects) ------------------------------------
+	// One messagingHub instead of four standalone TopicGraphs. Topics are
+	// eagerly created so the public accessors (loop.generate etc.) are
+	// available immediately without waiting for the first event to fire.
+	// The hub is mounted in g so all stage topics appear under "stages::"
+	// in describe()/explain() — visible edges, not closure-held singletons.
+	const hub = messagingHub("stages");
+	g.mount("stages", hub);
+	const hubGenerateTopic = hub.topic<GenerateEvent<T>>("generate");
+	const hubEvaluateTopic = hub.topic<EvaluateEvent<T>>("evaluate");
+	const hubAnalyzeTopic = hub.topic<AnalyzeEvent<T>>("analyze");
+	const hubDecideTopic = hub.topic<DecideEvent>("decide");
 
 	// --- Factory-time seed closures (§28) -----------------------------------
 	// These mirror the reactive dep values so the generate fn can read them
@@ -464,47 +467,70 @@ export function refineLoop<T>(
 	g.add(errorWatcher, { name: "error-watcher" });
 	g.addDisposer(errorWatcher.subscribe(() => undefined));
 
-	// Publish each candidates batch to GENERATE + mirror prev. Budget accounting
-	// moved to `decideEffect` (single authority — avoids the sink-order race
-	// where decideEffect might read budgetState.cache before generateEffect
-	// wrote it). All emissions in one batch so they coalesce.
-	const generateEffect = effect(
+	// GENERATE stage: three nodes replace one monolithic effect.
+	// (1) derived computes the event payload — reactive edge visible in explain().
+	// (2) publish effect routes the derived event to the hub topic.
+	// (3) mirror effect keeps prevCandidatesState in sync for §28 closure reads.
+	// Budget accounting stays in decideEffect (single authority).
+	const generateEventNode = derived<GenerateEvent<T>>(
 		[candidatesNode, iterationTrigger],
-		([candidates, iter]) => {
-			const cs = candidates as readonly T[];
-			const i = iter as number;
-			batch(() => {
-				generateTopic.publish({
-					iteration: i,
-					candidates: cs,
-					timestamp_ns: monotonicNs(),
-				});
-				prevCandidatesState.emit(cs);
-			});
-		},
-		{ name: "generate-bridge" },
+		([candidates, iter]) => ({
+			iteration: iter as number,
+			candidates: candidates as readonly T[],
+			timestamp_ns: monotonicNs(),
+		}),
+		{ name: "generate-event" },
 	);
-	g.add(generateEffect, { name: "generate-bridge" });
-	g.addDisposer(generateEffect.subscribe(() => undefined));
+	g.add(generateEventNode, { name: "generate-event" });
+	g.addDisposer(generateEventNode.subscribe(() => undefined));
+
+	const generatePublishEffect = effect(
+		[generateEventNode],
+		([evt]) => {
+			hubGenerateTopic.publish(evt as GenerateEvent<T>);
+		},
+		{ name: "generate-publish" },
+	);
+	g.add(generatePublishEffect, { name: "generate-publish" });
+	g.addDisposer(generatePublishEffect.subscribe(() => undefined));
+
+	const generateMirrorEffect = effect(
+		[candidatesNode],
+		([cs]) => {
+			prevCandidatesState.emit(cs as readonly T[]);
+		},
+		{ name: "generate-mirror" },
+	);
+	g.add(generateMirrorEffect, { name: "generate-mirror" });
+	g.addDisposer(generateMirrorEffect.subscribe(() => undefined));
 
 	// --- EVALUATE: candidates × dataset → scores ----------------------------
 	const scoresNode = evaluator(candidatesNode, datasetNode);
 	g.add(scoresNode, { name: "scores" });
 
-	const evaluateEffect = effect(
+	// EVALUATE stage: derived event node + publish effect.
+	const evaluateEventNode = derived<EvaluateEvent<T>>(
 		[scoresNode, candidatesNode, iterationTrigger],
-		([scores, candidates, iter]) => {
-			evaluateTopic.publish({
-				iteration: iter as number,
-				candidates: candidates as readonly T[],
-				scores: scores as readonly EvalResult[],
-				timestamp_ns: monotonicNs(),
-			});
-		},
-		{ name: "evaluate-bridge" },
+		([scores, candidates, iter]) => ({
+			iteration: iter as number,
+			candidates: candidates as readonly T[],
+			scores: scores as readonly EvalResult[],
+			timestamp_ns: monotonicNs(),
+		}),
+		{ name: "evaluate-event" },
 	);
-	g.add(evaluateEffect, { name: "evaluate-bridge" });
-	g.addDisposer(evaluateEffect.subscribe(() => undefined));
+	g.add(evaluateEventNode, { name: "evaluate-event" });
+	g.addDisposer(evaluateEventNode.subscribe(() => undefined));
+
+	const evaluatePublishEffect = effect(
+		[evaluateEventNode],
+		([evt]) => {
+			hubEvaluateTopic.publish(evt as EvaluateEvent<T>);
+		},
+		{ name: "evaluate-publish" },
+	);
+	g.add(evaluatePublishEffect, { name: "evaluate-publish" });
+	g.addDisposer(evaluatePublishEffect.subscribe(() => undefined));
 
 	// --- ANALYZE: strategy.analyze(scores, candidates) → feedback -----------
 	const feedbackNode = derived<Feedback>(
@@ -516,20 +542,29 @@ export function refineLoop<T>(
 	);
 	g.add(feedbackNode, { name: "feedback" });
 
-	const analyzeEffect = effect(
+	// ANALYZE stage: derived event node + publish effect.
+	const analyzeEventNode = derived<AnalyzeEvent<T>>(
 		[feedbackNode, candidatesNode, iterationTrigger],
-		([feedback, candidates, iter]) => {
-			analyzeTopic.publish({
-				iteration: iter as number,
-				candidates: candidates as readonly T[],
-				feedback: feedback as Feedback,
-				timestamp_ns: monotonicNs(),
-			});
-		},
-		{ name: "analyze-bridge" },
+		([feedback, candidates, iter]) => ({
+			iteration: iter as number,
+			candidates: candidates as readonly T[],
+			feedback: feedback as Feedback,
+			timestamp_ns: monotonicNs(),
+		}),
+		{ name: "analyze-event" },
 	);
-	g.add(analyzeEffect, { name: "analyze-bridge" });
-	g.addDisposer(analyzeEffect.subscribe(() => undefined));
+	g.add(analyzeEventNode, { name: "analyze-event" });
+	g.addDisposer(analyzeEventNode.subscribe(() => undefined));
+
+	const analyzePublishEffect = effect(
+		[analyzeEventNode],
+		([evt]) => {
+			hubAnalyzeTopic.publish(evt as AnalyzeEvent<T>);
+		},
+		{ name: "analyze-publish" },
+	);
+	g.add(analyzePublishEffect, { name: "analyze-publish" });
+	g.addDisposer(analyzePublishEffect.subscribe(() => undefined));
 
 	// --- Convergence: four derived nodes fanning into one boolean -----------
 	const patienceNode = derived<boolean>(
@@ -714,7 +749,7 @@ export function refineLoop<T>(
 				historyState.emit(nextHistory);
 				budgetState.emit(nextBudget);
 				lastFeedbackState.emit(fb);
-				decideTopic.publish({
+				hubDecideTopic.publish({
 					iteration: i,
 					decision,
 					reason,
@@ -743,10 +778,10 @@ export function refineLoop<T>(
 		history: historyState,
 		strategy: strategyNode,
 		iteration: iterationTrigger,
-		generate: generateTopic,
-		evaluate: evaluateTopic,
-		analyze: analyzeTopic,
-		decide: decideTopic,
+		generate: hubGenerateTopic,
+		evaluate: hubEvaluateTopic,
+		analyze: hubAnalyzeTopic,
+		decide: hubDecideTopic,
 		setStrategy(next: RefineStrategy<T>): void {
 			strategyNode.emit(next);
 		},

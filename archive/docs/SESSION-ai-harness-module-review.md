@@ -177,6 +177,12 @@ Appended as we work. Entries sized roughly: `YYYY-MM-DD | unit | decision`.
 - 2026-04-23 | planning | Wave 0 split agreed. Codemod before Unit 1.
 - 2026-04-23 | planning | Explainability criterion added as mandatory per-unit check.
 - 2026-04-23 | planning | The 6 README building blocks are open for reshape during this review.
+- 2026-04-24 | Unit 23 | refineLoop: Option B — hub + derived event nodes + bridges. 4 standalone TopicGraphs → one `messagingHub("stages")`. Each stage effect splits into: (1) derived computes event (reactive edge), (2) topicBridge derived→hub topic, (3) slimmed effect retains state-mirror only. §32 batch ordering preserved in decideEffect. Breaking: `generateTopic`/`evaluateTopic`/`analyzeTopic`/`decideTopic` → `hub.topic(...)` accessors. Pre-1.0, no shim.
+- 2026-04-24 | Unit 24 | C24-8 (high): `graphFromSpec` → `compileSpec` instead of `Graph.fromSnapshot`. Gains validation + template expansion + feedback wiring.
+- 2026-04-24 | Unit 24 | C24-1 (medium): `compileSpec` `opts.onMissing: "error" | "warn" | "placeholder"` (default "placeholder"). Surfaces missing catalog entries explicitly.
+- 2026-04-24 | Unit 24 | C24-7 (medium): reactive `graphFromSpecReactive` + `suggestStrategyReactive` alongside imperative versions. Unit 14 commitment.
+- 2026-04-24 | Unit 24 | C24-2/3/4 + C23-2 (low): JSDoc + inline comments only. Land with whichever implementation session touches the file.
+- 2026-04-24 | Wave C hub audit | Hub model applies only to TopicGraph-publish-in-effects pattern. Wave A + B hub scope unchanged. No new hub candidates found in Wave A or B. All other imperative-publish patterns are §32 sanctioned, call-boundary instrumentation, or terminal side-effects.
 
 ---
 
@@ -3344,7 +3350,238 @@ The `_terminalResult` and intermediate nodes appear through traversal but are no
 
 ---
 
-## Wave C — Adjacent surfaces (pending)
+## Wave C — Adjacent surfaces
+
+### Unit 23 — `refine-loop/index.ts` (1,108 LOC)
+
+#### Q1 — Semantics, purpose, implementation
+
+Reactive optimization loop: GENERATE → EVALUATE → ANALYZE → DECIDE. Extends `Graph` so `describe()`, `explain()`, `observe()`, `snapshot()`, `attachStorage()` all inherit. Two built-in strategies: `blindVariation` (random search) and `errorCritique` (ProTeGi-style critique-driven). 4 TopicGraphs expose each stage as a subscribable log. Factory returns `RefineLoopGraph<T> extends Graph`.
+
+Files: `src/patterns/refine-loop/index.ts` (1,108 LOC), `src/__tests__/patterns/refine-loop.test.ts` (879 LOC).
+
+#### Q2 — Semantically correct?
+
+🟢 Clean. Specific observations:
+
+- **`decideEffect` de-duplication** (line 637–640): `lastDecidedIteration` closure guards against re-firing when multiple deps settle in the same wave. Sound — effect subscribed once.
+- **Convergence dual-path** (lines 601–614 vs. 632–672): derived convergence nodes for `describe()` visibility; inline cache reads in `decideEffect` for the actual gate. Avoids the feedback cycle that would arise if `decideEffect` declared `convergedNode` as a dep (it writes `historyState` which `patienceNode` / `minDeltaNode` read).
+- **`resume()` cache read** (line 760): reads `statusState.cache` outside the reactive graph — safe; `resume()` is a user entry point, not a node fn.
+- **C23-2 (low):** `errorCritique`'s `pickBest` uses optional `candidateIndex` on `EvalResult` for multi-candidate scoring; absent → scores against candidate 0. Worth a JSDoc note on `Evaluator<T>`.
+
+#### Q3 — Design-invariant violations?
+
+🟢 Clean against COMPOSITION-GUIDE + spec §5.8–5.12:
+
+- **§7 Feedback cycles:** None — closure reads (`latestStrategy`, `latestFeedback`, `latestPrevCandidates`) avoid reactive cycles.
+- **§28 Factory-time seed:** Lines 375–395 — canonical implementation.
+- **§32 Nested-drain state-mirror:** Lines 711–731 — `lastFeedbackState.emit()` before `iterationTrigger.emit()` inside `batch()`.
+- **§5.10:** `switchMap` wraps async `strategy.generate()` — sanctioned async boundary.
+- **§5.8/5.9:** No polling, no imperative triggers outside node fns.
+
+**Island finding:** Each effect publishes to its TopicGraph imperatively via closure-held `topic.publish()`. `explain(candidates, generate::latest)` cannot walk through `generateEffect` because the edge is invisible. Same pattern that drove the Wave B hub decision for harness intake/retry/verifyResults.
+
+#### Q4 — Open items
+
+- `refineExecutor` (Composition E) — roadmap §9.8, unblocked
+- Persistent re-seed / reset surface — `docs/optimizations.md` (opened 2026-04-23)
+- C23-2: JSDoc on `Evaluator<T>` re `candidateIndex` (new, low)
+
+#### Q5 — Right abstraction?
+
+🟢 Yes. Universal loop with pluggable strategy is the correct level. `RefineLoopGraph extends Graph` is the right inheritance shape.
+
+#### Q6 — Long-term maintenance burden
+
+🟡 Moderate. Three closure variables (`latestStrategy`, `latestFeedback`, `latestPrevCandidates`) + convergence dual-path require readers to understand §28 and §32. Both patterns are documented in COMPOSITION-GUIDE; consistent with `stratify`, `budgetGate`, `distill`, `verifiable`. Acceptable.
+
+#### Q7 — Topology check + perf/memory
+
+**Current shape (pre-hub):** All nodes registered via `g.add()`. No anonymous nodes. But 4 TopicGraphs are written to via imperative `topic.publish()` inside effects — invisible edges.
+
+**Post-hub shape:** Every stage edge becomes a `topicBridge` → visible in `explain()`. `describe()` shows one hub cluster instead of 4 standalone mounts.
+
+**Perf/memory:** O(1) framework overhead per iteration. History grows linearly — bounded by `maxIterations`. `switchMap` cancels in-flight async generation cleanly.
+
+#### Q8 — Alternative implementations
+
+| | A: Status quo (4 standalone TopicGraphs) | **B: Hub + derived event nodes + bridges** |
+|---|---|---|
+| `explain()` walks stage edges | ❌ — imperative publish invisible | ✅ — bridge edges reactive |
+| Consistency with harness | ❌ — harness uses hub | ✅ |
+| Complexity delta | Baseline | +1 hub, +4 derived, +4 bridges, −4 imperative publishes in effects |
+| §32 batch ordering | Preserved (effects unchanged minus publish) | Preserved (derives compute event; effect keeps state-mirror only) |
+
+#### Q9 — Recommendation and coverage
+
+**Option B.** Conversion shape:
+
+```ts
+const hub = messagingHub("stages");
+
+// Split: derived computes event (visible edge) + bridge carries to hub
+const generateEvent = derived([candidatesNode, iterationTrigger], ([cands, iter]) => ({
+  iteration: iter as number, candidates: cands as readonly T[], ...
+}), { name: "generate-event" });
+topicBridge("bridge/generate", generateEvent, hub.topic<GenerateEvent<T>>("generate"));
+
+// Effect retains ONLY the state-mirror work (prevCandidatesState)
+const generateEffect = effect([candidatesNode], ([cands]) => {
+  prevCandidatesState.emit(cands as readonly T[]);
+}, { name: "generate-mirror" });
+```
+
+Repeat for evaluate, analyze, decide. `decideEffect` keeps all state-mirror + convergence work; its event emission moves to a `decideEvent` derived node + bridge.
+
+| Finding | Covered by Option B? |
+|---|---|
+| Invisible topic publish edges (Q3) | ✅ |
+| §28 factory-time seed (Q3) | ✅ unchanged |
+| §32 state-mirror batch ordering (Q3) | ✅ effects slimmed, ordering preserved |
+| `explain()` stage walkability (Q7) | ✅ |
+| Consistency with harness hub (Q8) | ✅ |
+| C23-2 JSDoc (Q2) | S follow-up |
+
+#### Decisions locked (2026-04-24)
+
+**Option B — Hub + derived event nodes + bridges.**
+
+Replace 4 standalone TopicGraphs with one `messagingHub("stages")`. Split each stage effect into:
+1. A `derived` node that computes the stage event (reactive — visible edge in `explain()`).
+2. A `topicBridge` from the derived → hub stage topic.
+3. A slimmed effect retaining only state-mirror / convergence work (no `topic.publish()` calls).
+
+`decideEffect` keeps all batch-ordered state-mirror writes (`bestState`, `scoreState`, `historyState`, `budgetState`, `lastFeedbackState`, `iterationTrigger`) — §32 ordering invariant is preserved because the state-mirror batch ordering lives in the effect, not in the event derived.
+
+`RefineLoopGraph` accessor `generateTopic`, `evaluateTopic`, `analyzeTopic`, `decideTopic` → `hub.topic<GenerateEvent<T>>("generate")` etc. (breaking change — pre-1.0, no shim).
+
+**Hub scope:** Wave B hub decision was `harnessLoop` only. `refineLoop` gets its own `messagingHub("stages")` — separate instance, separate graph, separate `describe()` cluster.
+
+**Implementation scope:** M. Same session as Wave B hub work (harness `MessagingHubGraph`) if convenient, or separate session.
+
+---
+
+### Unit 24 — `graphspec/index.ts` + `surface/` + `graph-integration/`
+
+#### Q1 — Semantics, purpose, implementation
+
+Three related layers:
+
+1. **`graphspec/index.ts`** (1,499 LOC) — GraphSpec validation, compilation (spec → Graph), decompilation (Graph → spec), diffing, `llmCompose`, `llmRefine`. Test: `src/__tests__/patterns/graphspec.test.ts` (619 LOC).
+2. **`surface/`** (744 LOC, 5 files) — Thin projection for MCP/CLI: `createGraph`, `runReduction`, snapshot CRUD, `SurfaceError`. Test: `src/__tests__/patterns/surface.test.ts` (336 LOC).
+3. **`graph-integration/`** — `graphFromSpec` (NL → Graph via LLM), `suggestStrategy` (Graph → StrategyPlan via LLM). Imperative async wrappers; identified as pending reactive migration in Wave A Unit 14.
+
+#### Q2 — Semantically correct?
+
+**graphspec:** 🟡 Three findings:
+
+- **C24-1 (medium):** `compileSpec` silently creates no-op placeholders when catalog entries are missing (`producer(() => {})`, `derived(deps, vals => vals[0])`). Add `opts.strict` mode (or `opts.onMissing: "error" | "warn" | "placeholder"`, default `"placeholder"`) to surface missing entries as errors rather than silent identity substitutions.
+- **C24-2 (low):** `decompileGraph` structural fingerprinting fallback (lines 989–1084) merges two templates with identical node/edge structure into one. JSDoc the limitation.
+- **C24-3 (low):** `validateSpec` does not warn when feedback `from` refers to an effect-only node (no output). Add a warning (not error).
+
+**surface:** 🟢 Clean.
+
+- **C24-4 (low):** `runReduction` `shouldUnsub` deferred-unsubscribe pattern (reduce.ts lines 100–112, 163–166) is correct but subtle. Inline comment explaining sync-settle ordering invariant.
+- **C24-5:** `.cache` read before `unsub()` in reduce.ts line 131 — correct, respects RAM-cache rule, tested.
+- **C24-6:** `setTimeout` in reduce.ts line 190 — call-boundary timeout guard, §5.10 sanctioned.
+
+**graph-integration:** 🟡 Two findings:
+
+- **C24-8 (high — correctness):** `graphFromSpec` uses `Graph.fromSnapshot()` (line 113) to construct graphs from LLM output, bypassing catalog validation, template expansion, and feedback wiring. Should route through `compileSpec(parsedSpec, opts)` to get full validation for free. The `llmCompose` → `compileSpec` → `createGraph` pipeline in surface already does this correctly — `graphFromSpec` predates it.
+- **C24-7 (medium):** Wave A Unit 14 committed to reactive migration for `graphFromSpec` and `suggestStrategy` (both call `adapter.invoke()` → `resolveToolHandlerResult()` → return). Ship `graphFromSpecReactive(input: NodeInput<string>, adapter) → Node<Graph>` and `suggestStrategyReactive(graph: Node<Graph>, problem: NodeInput<string>, adapter) → Node<StrategyPlan>` alongside imperative versions for harness composition.
+
+#### Q3 — Design-invariant violations?
+
+**graphspec:** 🟢 No violations. Compilation is pure imperative transformation; all protocol invariants live inside the sugar constructors (`state()`, `derived()`, `effect()`) called during compile.
+
+**surface:** 🟢 No violations. `runReduction` subscribes before pushing (correct §2.2 ordering). Snapshot operations reuse `StorageTier` substrate (no new wire format).
+
+**graph-integration:** 🟡 C24-8 is a correctness gap (validation bypass), not a protocol invariant violation.
+
+**Hub eligibility:** None. `graphspec` and `surface` produce no reactive topology of their own. `graph-integration` is imperative async — when reactive alternatives ship (C24-7), they will be `switchMap` + `fromAny` single-output nodes, not fan-out routing. Hub model does not apply.
+
+#### Q4 — Open items
+
+- Treatment E catalog subsetting — roadmap §9.1.4
+- `refineExecutor` — roadmap §9.8, unblocked by `refineLoop` hub conversion
+- C24-1: `compileSpec` `opts.strict` (new, medium)
+- C24-7: Reactive `graphFromSpec`/`suggestStrategy` alternatives (new, medium — Unit 14 commitment)
+- C24-8: `graphFromSpec` → `compileSpec` (new, high — correctness)
+
+#### Q5 — Right abstraction?
+
+🟢 All three layers at correct abstraction levels. `graphspec` is the compile/decompile/compose pipeline. `surface` is the correct thin MCP/CLI projection. `graph-integration` is correctly positioned but `graphFromSpec` needs the C24-8 plumbing fix.
+
+#### Q6 — Long-term maintenance burden
+
+🟡 `graphspec/index.ts` at 1,499 LOC is approaching the split threshold. If Treatment E (catalog subsetting) or further compose features land, consider splitting into `compile.ts`, `decompile.ts`, `diff.ts`, `compose.ts`. Not urgent.
+
+#### Q7 — Topology check + perf/memory
+
+**graphspec `compileSpec`:** No anonymous nodes — all named per spec. Unresolved deps throw at line 703–706. O(N²) worst case for deferred resolution (acceptable for spec sizes <100 nodes). O(N) for meta-recovery decompile path.
+
+**surface `runReduction`:** Graph created, used, destroyed in `finally`. No leaks. O(1) framework overhead.
+
+**graph-integration:** Imperative — no graph topology of their own.
+
+#### Q8 — Alternative implementations
+
+| | C24-8A: Status quo (`Graph.fromSnapshot`) | **C24-8B: Route through `compileSpec`** |
+|---|---|---|
+| Catalog validation | ❌ Bypassed | ✅ Full |
+| Template expansion | ❌ Bypassed | ✅ |
+| Feedback wiring | ❌ Bypassed | ✅ |
+| Migration cost | — | S (swap one call) |
+
+| | C24-7A: Imperative only | **C24-7B: Add reactive alternatives** |
+|---|---|---|
+| Harness composition | ❌ Requires `await` at boundary | ✅ `switchMap` + `fromAny` |
+| CLI/MCP use | ✅ | ✅ (imperative versions stay) |
+| Unit 14 commitment | ❌ | ✅ |
+
+#### Q9 — Recommendation and coverage
+
+| Item | Q | Alt | Effort | Priority |
+|---|---|---|---|---|
+| C24-8: `graphFromSpec` → `compileSpec` | Q2, Q3 | B | S | **High** |
+| C24-1: `compileSpec` `opts.strict` | Q2, Q5 | — | S | Medium |
+| C24-7: Reactive `graphFromSpec`/`suggestStrategy` | Q3, Q5 | B | M | Medium |
+| C24-2: JSDoc on fingerprinting limitation | Q2 | — | S | Low |
+| C24-3: `validateSpec` effect-node feedback warning | Q2 | — | S | Low |
+| C24-4: `runReduction` sync-settle comment | Q2 | — | S | Low |
+| C23-2: JSDoc on `Evaluator<T>` `candidateIndex` | Q2 | — | S | Low |
+
+#### Decisions locked (2026-04-24)
+
+**C24-8: `graphFromSpec` → `compileSpec`.** Replace `Graph.fromSnapshot(parsed)` with `compileSpec(parsed as GraphSpec, opts)` in `graph-integration/graph-from-spec.ts`. Gains validation, template expansion, feedback wiring. S effort, high priority — correctness fix.
+
+**C24-1: `compileSpec` `opts.strict` mode.** Add `opts.onMissing?: "error" | "warn" | "placeholder"` (default `"placeholder"` for backward compat). When `"error"`: throw `SurfaceError("catalog-error", ...)` listing all missing fn/source catalog entries. When `"warn"`: collect warnings in the returned validation result. Medium priority.
+
+**C24-7: Reactive alternatives.** Ship `graphFromSpecReactive` and `suggestStrategyReactive` as `Node`-returning wrappers (unit 14 commitment). Imperative originals stay. Medium priority — schedule with Unit 14 implementation session.
+
+**C24-2/3/4 + C23-2:** JSDoc and comment additions. Low priority — land as part of the implementation session for whichever unit touches the file.
+
+**Hub model for Unit 24:** Does not apply. No fan-out routing topology. No hub conversion.
+
+---
+
+### Wave C cross-cutting: Hub eligibility audit (A+B+C)
+
+Prompted by the refineLoop finding, all Wave A and B units were re-scanned for the TopicGraph-publish-in-effect pattern.
+
+**Result: Hub model applies only to TopicGraph-publish-in-effects. Wave A and B hub scope is unchanged.**
+
+| Category | Pattern | Hub applies? | Disposition |
+|---|---|---|---|
+| TopicGraph publish in effects | Effect → closure-held topic (routing/stage log) | ✅ | Wave B: harness (decided). Wave C: refineLoop (decided, Option B). |
+| State-mirror writes (§32) | Effect → closure-held state, batch-ordered | ❌ | Wave A agentLoop: `add()` intermediate nodes for visibility; edges stay invisible (§32 sanctioned). Converting to derived→bridge would break batch ordering. |
+| Async stream writes | Producer → stream topic inside async generator | ❌ | `streamingPromptNode`: sanctioned source-layer async boundary (§5.10). Single-topic, not routing. |
+| Adapter call-boundary | Wrapper → counters/logs outside graph | ❌ | `observable.ts`, `budget-gate.ts`: outside the reactive graph entirely. |
+| External system mutations | Effect → vector DB / KG / store | ❌ | Terminal side-effects — correct effect shape. |
+| User-facing imperative API | Public method → state emit | ❌ | `ToolRegistry.register()`: intentionally imperative entry point. |
+| `ctx.store` | Per-node persistent state | ❌ | §20 sanctioned. |
+
+**No new hub candidates in Wave A or B.** All imperative-publish patterns outside `harnessLoop` and `refineLoop` are either sanctioned patterns, call-boundary instrumentation, or terminal side-effects — not topic routing.
 
 ---
 
@@ -3392,3 +3629,10 @@ The `_terminalResult` and intermediate nodes appear through traversal but are no
 - **2026-04-24:** **Wave B.4 complete (Units 21–22).** `refineExecutor` + `evalVerifier` clean topology (no islands). Named filter nodes for describe() clarity. Type-safe `harnessEvalPair<T>` factory. `trace.ts` + `profile.ts`: add REFLECT label, `stageNodes()` method for path decoupling, JSDoc snapshot caveat on `harnessProfile`.
 - **2026-04-24:** **Wave B review complete.** All 8 units (15–22) reviewed. Decisions locked. Key architectural decisions: hub+TopicBridgeGraph canonical shape (supersedes stratify), `HarnessGraph.queues` → `MessagingHubGraph`, JobFlow claim/ack/nack for EXECUTE, `fastRetry` sub-function extraction + 3 correctness fixes, 5 anonymous nodes registered in harness, reflect stage node added. Wave C (adjacent surfaces) pending.
 - **2026-04-24:** **Wave B cross-cutting consolidation complete.** Q1: unified hub scope — one `MessagingHubGraph` for all reactive-wire-crossing topics (intake + queues + retryTopic + verifyResults). Q2: agentLoop tool-call lifecycle — `JobQueueGraph` does NOT apply (parallel batch pattern is correct); B+C adopted (`fromAny` bridge + explicit `add()` for intermediate nodes). Wave C (adjacent surfaces) pending.
+- **2026-04-24:** **Wave C review complete.** Units 23 (refineLoop) + 24 (graphspec/surface/graph-integration) reviewed. Key decisions: refineLoop Option B (hub + derived event nodes + publish effects), C24-8 `graphFromSpec` → `compileSpec` (HIGH correctness), C24-1 `opts.onMissing`, C24-7 reactive variants. Decisions locked.
+- **2026-04-24:** **Partial implementation shipped** (unplanned — Unit 23 + C24-8 only). `src/patterns/refine-loop/index.ts`: 4 standalone TopicGraphs → `messagingHub("stages")`; generate/evaluate/analyze stages split into derived event node + publish effect (+ mirror effect for generate); decideEffect publish target updated to `hubDecideTopic`. `src/patterns/ai/graph-integration/graph-from-spec.ts`: `Graph.fromSnapshot` → `compileSpec`; system prompt updated to `GraphSpec` format (`initial` not `value`, `deps` in nodes, no `edges` array); `build` option removed, `catalog` option added. Tests updated; all 2081 pass. Remaining implementation items below.
+
+**Remaining implementation (dedicated session):**
+- **C24-1** (S, medium): add `opts.onMissing?: "error" | "warn" | "placeholder"` to `compileSpec` in `src/patterns/graphspec/index.ts` (default `"placeholder"`).
+- **C24-7** (M, medium): add `graphFromSpecReactive(input: NodeInput<string>, adapter) → Node<Graph>` and `suggestStrategyReactive(graph: Node<Graph>, problem: NodeInput<string>, adapter) → Node<StrategyPlan>` in `src/patterns/ai/graph-integration/`.
+- **JSDoc / comments** (S, low): C23-2 `Evaluator<T>` JSDoc re `candidateIndex`, C24-2 `decompileGraph` structural-fingerprinting caveat, C24-3 `validateSpec` effect-node feedback warning, C24-4 `runReduction` sync-settle comment.

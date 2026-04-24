@@ -1837,18 +1837,16 @@ describe("validateGraphDef", () => {
 // ---------------------------------------------------------------------------
 
 describe("graphFromSpec", () => {
-	it("constructs a graph from LLM-generated JSON", async () => {
-		const graphDef = {
+	it("constructs a graph from LLM-generated GraphSpec JSON", async () => {
+		const spec = {
 			name: "calculator",
 			nodes: {
-				a: { type: "state", value: 10, deps: [], meta: { description: "Input A" } },
-				b: { type: "state", value: 20, deps: [], meta: { description: "Input B" } },
+				a: { type: "state", initial: 10, meta: { description: "Input A" } },
+				b: { type: "state", initial: 20, meta: { description: "Input B" } },
 			},
-			edges: [],
-			subgraphs: [],
 		};
 
-		const adapter = mockAdapter([{ content: JSON.stringify(graphDef), finishReason: "end_turn" }]);
+		const adapter = mockAdapter([{ content: JSON.stringify(spec), finishReason: "end_turn" }]);
 
 		const g = await graphFromSpec("Build a calculator with two inputs", adapter);
 		expect(g.name).toBe("calculator");
@@ -1858,18 +1856,16 @@ describe("graphFromSpec", () => {
 	});
 
 	it("strips markdown fences from LLM response", async () => {
-		const graphDef = {
+		const spec = {
 			name: "simple",
 			nodes: {
-				x: { type: "state", value: 1, deps: [], meta: { description: "X" } },
+				x: { type: "state", initial: 1, meta: { description: "X" } },
 			},
-			edges: [],
-			subgraphs: [],
 		};
 
 		const adapter = mockAdapter([
 			{
-				content: `\`\`\`json\n${JSON.stringify(graphDef)}\n\`\`\``,
+				content: `\`\`\`json\n${JSON.stringify(spec)}\n\`\`\``,
 				finishReason: "end_turn",
 			},
 		]);
@@ -1888,14 +1884,12 @@ describe("graphFromSpec", () => {
 	it("throws on validation failure", async () => {
 		const adapter = mockAdapter([
 			{
-				content: JSON.stringify({ nodes: {}, edges: [] }),
+				content: JSON.stringify({ nodes: {} }),
 				finishReason: "end_turn",
 			},
 		]);
 
-		await expect(graphFromSpec("missing name", adapter)).rejects.toThrow(
-			"invalid graph definition",
-		);
+		await expect(graphFromSpec("missing name", adapter)).rejects.toThrow("invalid GraphSpec");
 	});
 });
 
