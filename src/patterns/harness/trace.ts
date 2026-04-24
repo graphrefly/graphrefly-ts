@@ -15,7 +15,6 @@
 import { monotonicNs } from "../../core/clock.js";
 import type { ObserveEvent, ObserveResult } from "../../graph/graph.js";
 import type { HarnessGraph } from "./loop.js";
-import { QUEUE_NAMES } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,20 +70,15 @@ export interface HarnessTraceOptions {
 // Stage labels
 // ---------------------------------------------------------------------------
 
-/** Observe paths → stage labels for the 7 harness stages. */
+/**
+ * Observe paths → stage labels for the 7 harness stages. Path set is
+ * sourced from {@link HarnessGraph.stageNodes} so inspection tools stay
+ * decoupled from mount-structure changes (Unit 22 C).
+ */
 function buildStageLabels(harness: HarnessGraph): Record<string, string> {
-	const labels: Record<string, string> = {
-		"intake::latest": "INTAKE",
-		triage: "TRIAGE",
-		execute: "EXECUTE",
-		"verify-results::latest": "VERIFY",
-		strategy: "STRATEGY",
-	};
-	for (const route of QUEUE_NAMES) {
-		labels[`queue/${route}::latest`] = "QUEUE";
-	}
-	for (const [gatedRoute] of harness.gates) {
-		labels[`gates::${gatedRoute}/gate`] = "GATE";
+	const labels: Record<string, string> = {};
+	for (const { label, paths } of harness.stageNodes()) {
+		for (const p of paths) labels[p] = label;
 	}
 	return labels;
 }

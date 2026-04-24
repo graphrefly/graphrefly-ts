@@ -319,11 +319,23 @@ describe("harnessLoop", () => {
 
 		expect(harness).toBeInstanceOf(HarnessGraph);
 		expect(harness.intake).toBeInstanceOf(TopicGraph);
-		expect(harness.queues.size).toBe(4);
-		expect(harness.queues.has("auto-fix")).toBe(true);
-		expect(harness.queues.has("needs-decision")).toBe(true);
-		expect(harness.queues.has("investigation")).toBe(true);
-		expect(harness.queues.has("backlog")).toBe(true);
+		// queues is the hub — 4 route topics + intake + triage-output + retry +
+		// verify-results + __unrouted = 9 topics. Enumerate them so an
+		// accidental duplicate / renamed / missing topic trips the test.
+		expect(harness.queues.size).toBe(9);
+		for (const name of [
+			"intake",
+			"triage-output",
+			"retry",
+			"verify-results",
+			"__unrouted",
+			"auto-fix",
+			"needs-decision",
+			"investigation",
+			"backlog",
+		]) {
+			expect(harness.queues.has(name)).toBe(true);
+		}
 		expect(harness.strategy).toBeDefined();
 		expect(harness.verifyResults).toBeInstanceOf(TopicGraph);
 	});
@@ -961,7 +973,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for triage → router → queue propagation (async due to promptNode Promise)
 		await new Promise((r) => setTimeout(r, 500));
 
-		const qLen = harness.queues.get("needs-decision")!.retained().length;
+		const qLen = harness.queues.topic<TriagedItem>("needs-decision").retained().length;
 		const triageCalls = mock.callsFor("triage").length;
 		const allStages = mock.calls.map((c) => c.stage);
 
@@ -1024,7 +1036,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		// Wait for the item to arrive at the needs-decision gate (reactive, no polling).
 		await new Promise<void>((resolve) => {
-			const queue = harness.queues.get("needs-decision")!;
+			const queue = harness.queues.topic<TriagedItem>("needs-decision");
 			const unsub = queue.latest.subscribe((msgs) => {
 				for (const msg of msgs) {
 					if (msg[0] === DATA && queue.retained().length >= 1) {

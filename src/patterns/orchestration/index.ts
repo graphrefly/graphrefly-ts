@@ -261,6 +261,15 @@ export interface GateController<T> {
 	count: Node<number>;
 	/** Whether the gate is currently open (auto-approving). */
 	isOpen: Node<boolean>;
+	/**
+	 * Reactive observable of the most recently rejected item, or `null` until
+	 * {@link GateController.reject reject} has been called. Subscribe to wire
+	 * an audit log, retry-policy hook, or dead-letter sink without having to
+	 * intercept `reject()` imperatively. `reject` still drops the value from
+	 * the queue; the observation is emitted before the discard so downstream
+	 * subscribers see the payload.
+	 */
+	lastRejected: Node<T | null>;
 	/** Approve and forward the next `count` pending values (default: 1). */
 	approve(count?: number): void;
 	/** Reject (discard) the next `count` pending values (default: 1). */
@@ -304,6 +313,10 @@ export function gate<T>(
 	const countNode = derived<number>([pendingNode], ([arr]) => (arr as T[]).length, {
 		name: "count",
 	});
+	// `equals: () => false` so consecutive rejects of equal values still emit
+	// individual DATA waves — audit / dead-letter consumers expect one event
+	// per reject() call, not Object.is-absorbed silence.
+	const lastRejectedNode = state<T | null>(null, { name: "lastRejected", equals: () => false });
 
 	let queue: T[] = [];
 	let torn = false;
@@ -378,6 +391,7 @@ export function gate<T>(
 		pending: pendingNode,
 		count: countNode,
 		isOpen: isOpenNode,
+		lastRejected: lastRejectedNode,
 		approve(count = 1) {
 			guardTorn("approve");
 			const items = dequeue(count);
@@ -388,7 +402,24 @@ export function gate<T>(
 		},
 		reject(count = 1) {
 			guardTorn("reject");
-			dequeue(count);
+			// Emit the rejected value(s) to `lastRejected` BEFORE the dequeue
+			// so an audit / dead-letter subscriber sees each payload exactly
+			// once. Wrapping the emit + dequeue in `batch()` keeps the
+			// pending-count update and lastRejected emission atomic — a
+			// subscriber reacting to the new `lastRejected` value sees a
+			// consistent `pending` snapshot (one fewer item) in the same wave.
+			const snapshot = [...queue] as readonly T[];
+			const take = Math.min(count, snapshot.length);
+			if (take === 0) {
+				dequeue(count);
+				return;
+			}
+			batch(() => {
+				for (let i = 0; i < take; i++) {
+					lastRejectedNode.emit(snapshot[i] as T);
+				}
+				dequeue(count);
+			});
 		},
 		modify(fn, count = 1) {
 			guardTorn("modify");
@@ -432,7 +463,11 @@ export function gate<T>(
 	internal.add(pendingNode, { name: "pending" });
 	internal.add(isOpenNode, { name: "isOpen" });
 	internal.add(countNode, { name: "count" });
+	internal.add(lastRejectedNode, { name: "lastRejected" });
 	graph.mount(`${name}_state`, internal);
+	// Keepalive so .cache is always queryable + downstream audit subscribers
+	// can attach lazily without losing the first rejection event.
+	graph.addDisposer(lastRejectedNode.subscribe(() => undefined));
 
 	return controller;
 }

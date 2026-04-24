@@ -65,10 +65,10 @@ export interface RefineExecutorConfig<T> {
 
 	/**
 	 * Optional mapper from the inner loop's terminal snapshot to an
-	 * `ExecuteOutput`. Default: converged→success, budget→partial,
+	 * `ExecuteOutput<T>`. Default: converged→success, budget→partial,
 	 * errored→failure.
 	 */
-	toOutput?: (result: RefineExecutorResult<T>) => ExecuteOutput;
+	toOutput?: (result: RefineExecutorResult<T>) => ExecuteOutput<T>;
 
 	/** Convergence / budget options forwarded to each inner `refineLoop`. */
 	refine?: Omit<RefineLoopOptions, "dataset" | "name">;
@@ -77,30 +77,31 @@ export interface RefineExecutorConfig<T> {
 	name?: string;
 }
 
-function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput {
+function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput<T> {
 	const { best, score, status } = result;
 	const scoreStr = Number.isFinite(score) ? score.toFixed(3) : String(score);
 	// Always attach `best` as `artifact` so downstream verifiers (e.g.
 	// `evalVerifier`) can re-run evaluation against the refined candidate
 	// without round-tripping through `detail`.
+	const artifact = (best ?? undefined) as T | undefined;
 	if (status === "converged") {
 		return {
 			outcome: "success",
 			detail: `refineLoop converged at score ${scoreStr}`,
-			artifact: best,
+			artifact,
 		};
 	}
 	if (status === "budget") {
 		return {
 			outcome: "partial",
 			detail: `refineLoop hit budget at score ${scoreStr}`,
-			artifact: best,
+			artifact,
 		};
 	}
 	return {
 		outcome: "failure",
 		detail: `refineLoop errored (status=${status})`,
-		artifact: best,
+		artifact,
 	};
 }
 
@@ -121,17 +122,21 @@ function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput {
  * });
  * ```
  */
-export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecutor {
+export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecutor<T> {
 	const name = config.name ?? "refine-executor";
-	const toOutput = config.toOutput ?? defaultToOutput;
+	const toOutput = config.toOutput ?? defaultToOutput<T>;
 
-	return (input: Node<TriagedItem | null>): Node<ExecuteOutput | null> => {
+	return (input: Node<TriagedItem | null>): Node<ExecuteOutput<T> | null> => {
 		// Filter null items upstream of switchMap. The harness's `executeInput`
 		// is a merge of queue-latest nodes that start nullish before any item
 		// is published — without this gate, every activation wave would
 		// allocate a fresh null-emitting state inside the switchMap callback.
-		const nonNullInput = filter(input, (v) => v != null) as Node<TriagedItem>;
-		const raw = switchMap<TriagedItem, ExecuteOutput | null>(
+		// Unit 21 B: named so `describe()` shows the filter as `${name}/gate-in`
+		// instead of an anonymous derived.
+		const nonNullInput = filter(input, (v) => v != null, {
+			name: `${name}/gate-in`,
+		}) as Node<TriagedItem>;
+		const raw = switchMap<TriagedItem, ExecuteOutput<T> | null>(
 			nonNullInput,
 			(item) => {
 				const loop = refineLoop<T>(config.seedFrom(item), config.evaluator, config.strategy, {
@@ -139,7 +144,7 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 					dataset: config.datasetFor(item),
 					name: `${name}/inner`,
 				});
-				return derived<ExecuteOutput | null>(
+				return derived<ExecuteOutput<T> | null>(
 					[loop.status as Node<unknown>, loop.best as Node<unknown>, loop.score as Node<unknown>],
 					([status, best, score]) => {
 						const s = status as RefineStatus;
@@ -164,6 +169,8 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 			},
 			{ name },
 		);
-		return filter(raw, (v) => v != null) as Node<ExecuteOutput | null>;
+		return filter(raw, (v) => v != null, {
+			name: `${name}/gate-out`,
+		}) as Node<ExecuteOutput<T> | null>;
 	};
 }

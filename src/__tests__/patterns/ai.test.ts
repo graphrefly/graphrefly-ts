@@ -850,10 +850,13 @@ describe("patterns.ai.costMeterExtractor", () => {
 // gatedStream
 // ---------------------------------------------------------------------------
 
-// FLAG: Wave B Unit 17 deferred — `gatedStream` + `gate()` primitive are
-// scheduled for consolidation in the GATE-stage harness review. The 3 tests
-// below that exercise gate timing depend on gate-wiring semantics reviewed
-// there; `it.skip` here is intentional until Unit 17 ships.
+// FLAG: Wave B Unit 17 shipped the `gate()` primitive updates (gateGraph.mount,
+// GateController.lastRejected). The 3 skipped tests below still fail — they
+// expose a `gatedStream`-internal timing issue where the stream generator does
+// not fire until the gate has a downstream subscriber draining its output, so
+// `gate.count` stays at 0 and `deltaTopic` sees no deltas. The fix is
+// gatedStream-side (not gate() primitive) — deferred to a standalone
+// `gatedStream` lifecycle pass. Tracked in `docs/optimizations.md`.
 describe("patterns.ai.gatedStream", () => {
 	/** Wait for gate.count to reach `n` by subscribing reactively. */
 	function waitForPending(handle: GatedStreamHandle<unknown>, n = 1): Promise<void> {

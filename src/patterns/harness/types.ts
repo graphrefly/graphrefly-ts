@@ -5,17 +5,29 @@
  * gate, execute, verify, reflect. These types are intentionally domain-agnostic
  * — the harness loop is not specific to eval workflows.
  *
+ * Runtime constants and helpers live in `./defaults.ts`. The harness barrel
+ * (`./index.ts`) re-exports both so external consumers see a single surface.
+ *
  * @module
  */
 
 import type { Node } from "../../core/node.js";
+// Type-only import avoids a runtime cycle with `patterns/ai`.
+import type { LLMAdapter } from "../ai/index.js";
 
 // ---------------------------------------------------------------------------
 // Intake
 // ---------------------------------------------------------------------------
 
-/** Sources that can produce intake items. */
-export type IntakeSource = "eval" | "test" | "human" | "code-change" | "hypothesis" | "parity";
+/** Known intake source tags. */
+export type KnownIntakeSource = "eval" | "test" | "human" | "code-change" | "hypothesis" | "parity";
+
+/**
+ * Sources that can produce intake items. Open union — the known tags
+ * retain IDE autocomplete while user-supplied strings (e.g. `"schema"`,
+ * `"slack"`) pass through without a type change.
+ */
+export type IntakeSource = KnownIntakeSource | (string & {});
 
 /** Severity levels for intake items. */
 export type Severity = "critical" | "high" | "medium" | "low";
@@ -38,22 +50,20 @@ export type Intervention =
 	| "schema-change"
 	| "investigate";
 
-/** Routing destinations after triage. */
+/** Routing destinations after triage. Closed union — iterated via `QUEUE_NAMES`. */
 export type QueueRoute = "auto-fix" | "needs-decision" | "investigation" | "backlog";
-
-/** Ordered queue route names for iteration. */
-export const QUEUE_NAMES: readonly QueueRoute[] = [
-	"auto-fix",
-	"needs-decision",
-	"investigation",
-	"backlog",
-];
 
 /**
  * An item entering the harness loop via the INTAKE stage.
  *
  * All intake sources produce this uniform shape — the intake topic
  * doesn't care where items came from.
+ *
+ * `$`-prefix keys (`$reingestions`, `$retries` on {@link TriagedItem}) are
+ * framework-only — an LLM round-tripping the serialized item is far less
+ * likely to echo back a `$`-prefixed key than an `_`-prefixed one, which
+ * neutralizes the field-collision class that surfaced earlier in the
+ * router's spread order.
  */
 export interface IntakeItem {
 	source: IntakeSource;
@@ -64,7 +74,7 @@ export interface IntakeItem {
 	severity?: Severity;
 	relatedTo?: string[];
 	/** Item-carried reingestion count. Incremented on each full-loop reingestion. */
-	_reingestions?: number;
+	$reingestions?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +89,7 @@ export interface TriagedItem extends IntakeItem {
 	priority: number;
 	triageReasoning?: string;
 	/** Item-carried retry count. Incremented on each fast-retry pass. */
-	_retries?: number;
+	$retries?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,16 +108,19 @@ export interface StrategyEntry {
 /** Key format: `${rootCause}→${intervention}`. */
 export type StrategyKey = `${RootCause}→${Intervention}`;
 
-export function strategyKey(rootCause: RootCause, intervention: Intervention): StrategyKey {
-	return `${rootCause}→${intervention}`;
-}
-
 // ---------------------------------------------------------------------------
 // Execution & verification
 // ---------------------------------------------------------------------------
 
-/** LLM output shape from the EXECUTE stage (partial — lacks `item`). */
-export type ExecuteOutput = {
+/**
+ * LLM output shape from the EXECUTE stage (partial — lacks `item`).
+ *
+ * Generic over the artifact type `A` so typed executors like
+ * `refineExecutor<T>` can flow `T` through to an `evalVerifier<T>` without
+ * the caller casting `artifact` at the boundary. Defaults to `unknown`
+ * for escape-hatch executors that carry opaque state.
+ */
+export type ExecuteOutput<A = unknown> = {
 	outcome: "success" | "failure" | "partial";
 	detail: string;
 	/**
@@ -117,11 +130,11 @@ export type ExecuteOutput = {
 	 * this — it's an escape hatch for reactive executors carrying structured
 	 * output (a refined prompt, a patched spec, a generated template, ...).
 	 */
-	artifact?: unknown;
+	artifact?: A;
 };
 
 /** Full execution result assembled downstream (LLM output + context). */
-export interface ExecutionResult {
+export interface ExecutionResult<A = unknown> {
 	item: TriagedItem;
 	outcome: "success" | "failure" | "partial";
 	detail: string;
@@ -130,7 +143,7 @@ export interface ExecutionResult {
 	 * one. Reactive executors like `refineExecutor` populate this; LLM-backed
 	 * default executors leave it undefined.
 	 */
-	artifact?: unknown;
+	artifact?: A;
 }
 
 /** Whether an error is self-correctable (fast-retry) or structural (full loop). */
@@ -139,29 +152,14 @@ export type ErrorClass = "self-correctable" | "structural";
 /** Classifier for fast-retry path. */
 export type ErrorClassifier = (result: ExecutionResult) => ErrorClass;
 
-/** Default error classifier: parse/config errors are self-correctable. */
-export function defaultErrorClassifier(result: ExecutionResult): ErrorClass {
-	const d = result.detail.toLowerCase();
-	if (
-		d.includes("parse") ||
-		d.includes("json") ||
-		d.includes("config") ||
-		d.includes("validation") ||
-		d.includes("syntax")
-	) {
-		return "self-correctable";
-	}
-	return "structural";
-}
-
 // ---------------------------------------------------------------------------
 // Verification output
 // ---------------------------------------------------------------------------
 
 /** Result of the VERIFY stage. */
-export interface VerifyResult {
+export interface VerifyResult<A = unknown> {
 	item: TriagedItem;
-	execution: ExecutionResult;
+	execution: ExecutionResult<A>;
 	verified: boolean;
 	findings: string[];
 	errorClass?: ErrorClass;
@@ -194,20 +192,11 @@ export interface PrioritySignals {
 	effectivenessBoost?: number;
 }
 
-/** Default severity weights. */
-export const DEFAULT_SEVERITY_WEIGHTS: Record<Severity, number> = {
-	critical: 100,
-	high: 70,
-	medium: 40,
-	low: 10,
-};
-
-/** Default decay rate: ~7-day half-life. */
-export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 24 * 3600);
-
 // ---------------------------------------------------------------------------
 // Harness loop configuration
 // ---------------------------------------------------------------------------
+
+import type { StrategySnapshot } from "./strategy.js";
 
 /** Per-queue configuration in the harness loop. */
 export interface QueueConfig {
@@ -215,21 +204,13 @@ export interface QueueConfig {
 	gated: boolean;
 	/** Maximum pending items in the gate (default Infinity). */
 	maxPending?: number;
-	/** Start the gate in open (auto-approve) mode? */
+	/** Start the gate in open (auto-approve) mode? Only meaningful when `gated: true`. */
 	startOpen?: boolean;
 }
 
-/** Default queue configurations. */
-export const DEFAULT_QUEUE_CONFIGS: Record<QueueRoute, QueueConfig> = {
-	"auto-fix": { gated: false },
-	"needs-decision": { gated: true },
-	investigation: { gated: true },
-	backlog: { gated: false, startOpen: false },
-};
-
 /**
  * Pluggable EXECUTE slot. Given the reactive `executeInput` stream of
- * triaged items, produce a stream of `ExecuteOutput` decisions.
+ * triaged items, produce a stream of `ExecuteOutput<A>` decisions.
  *
  * **Contract** (see design note in `docs/optimizations.md` / session log):
  * 1. Emit DATA exactly once per completed execution — not on input arrival.
@@ -244,61 +225,89 @@ export const DEFAULT_QUEUE_CONFIGS: Record<QueueRoute, QueueConfig> = {
  *
  * `refineExecutor` makes all four rules structurally unreachable.
  */
-export type HarnessExecutor = (input: Node<TriagedItem | null>) => Node<ExecuteOutput | null>;
+export type HarnessExecutor<A = unknown> = (
+	input: Node<TriagedItem | null>,
+) => Node<ExecuteOutput<A> | null>;
 
 /**
- * Pluggable VERIFY slot. Receives `[executeOutput, triagedItem]` pairs
- * sampled via `withLatestFrom(executeNode, executeInput)` and produces
- * `VerifyOutput` decisions.
+ * Pluggable VERIFY slot. Receives a pre-paired `[executeOutput, triagedItem]`
+ * context node — the harness creates this via `withLatestFrom(executeNode,
+ * executeInput)` once and shares it with both the verifier and the internal
+ * fast-retry dispatcher, so verifier implementations do NOT need to build
+ * their own pairing node (and doubling the `withLatestFrom` would pay the
+ * subscription cost twice).
  *
  * Same contract rules 1–3 as {@link HarnessExecutor}. Rule 4 does not
  * apply (verify output isn't a primary to a further withLatestFrom).
  *
  * `evalVerifier` handles the re-evaluation case against affected eval tasks.
  */
-export type HarnessVerifier = (
-	context: Node<[ExecuteOutput | null, TriagedItem | null]>,
+export type HarnessVerifier<A = unknown> = (
+	context: Node<readonly [ExecuteOutput<A> | null, TriagedItem | null] | null>,
 ) => Node<VerifyOutput | null>;
 
-/** Options for {@link harnessLoop}. */
-export interface HarnessLoopOptions {
-	/** LLM adapter for promptNode-based stages (triage + any default executor/verifier). */
-	adapter: unknown; // LLMAdapter — kept as unknown to avoid circular dep
+/** Triage prompt callable shape — pair of `[intake item, strategy snapshot]`. */
+export type TriagePromptFn = (pair: readonly [IntakeItem, StrategySnapshot]) => string;
+/** Execute prompt callable shape. */
+export type ExecutePromptFn = (item: TriagedItem) => string;
+/** Verify prompt callable shape — pair of `[execute output, triaged item]`. */
+export type VerifyPromptFn<A = unknown> = (
+	pair: readonly [ExecuteOutput<A> | null, TriagedItem | null],
+) => string;
 
-	/** Custom triage prompt (receives IntakeItem + strategy model as context). */
-	triagePrompt?: string | ((...args: unknown[]) => string);
+/** Options for {@link harnessLoop}. */
+export interface HarnessLoopOptions<A = unknown> {
+	/** LLM adapter for promptNode-based stages (triage + any default executor/verifier). */
+	adapter: LLMAdapter;
+
+	/** Custom triage prompt (receives IntakeItem + strategy snapshot as a tuple). */
+	triagePrompt?: string | TriagePromptFn;
 
 	/**
 	 * Execute prompt — sugar over the default LLM executor. Ignored when
 	 * `executor` is set.
 	 */
-	executePrompt?: string | ((...args: unknown[]) => string);
+	executePrompt?: string | ExecutePromptFn;
 
 	/**
 	 * Verify prompt — sugar over the default LLM verifier. Ignored when
 	 * `verifier` is set.
 	 */
-	verifyPrompt?: string | ((...args: unknown[]) => string);
+	verifyPrompt?: string | VerifyPromptFn<A>;
 
 	/**
 	 * Pluggable EXECUTE slot. When omitted, the harness uses a `promptNode`
 	 * driven by `adapter` + `executePrompt`. Replace to plug in a
 	 * `refineExecutor`, tool-using agent, or any reactive execution pipeline.
 	 */
-	executor?: HarnessExecutor;
+	executor?: HarnessExecutor<A>;
 
 	/**
 	 * Pluggable VERIFY slot. When omitted, the harness uses a `promptNode`
 	 * driven by `adapter` + `verifyPrompt`. Replace to plug in an
 	 * `evalVerifier` that re-runs affected eval tasks.
 	 */
-	verifier?: HarnessVerifier;
+	verifier?: HarnessVerifier<A>;
 
 	/** Per-queue configuration overrides. */
 	queues?: Partial<Record<QueueRoute, QueueConfig>>;
 
 	/** Priority scoring signals. */
 	priority?: PrioritySignals;
+
+	/**
+	 * Reactive last-human-interaction timestamp (monotonic ns). Drives the
+	 * priority score age-decay term for `HarnessGraph.priorityScores`.
+	 *
+	 * **Required when `opts.priority` is set.** Priority score nodes only
+	 * re-derive when `topic.latest`, `strategy.node`, or this tick settles —
+	 * an idle queue would freeze its age at construction time if we
+	 * auto-defaulted. Typical sources:
+	 *  - `fromTimer(60_000)` — steady tick, uniform decay.
+	 *  - `state(monotonicNs())` — bumped from a human-interaction handler.
+	 *  - A reactive view over a DB column / external metrics source.
+	 */
+	lastInteractionNs?: Node<number>;
 
 	/** Error classifier for fast-retry path. */
 	errorClassifier?: ErrorClassifier;
@@ -318,3 +327,17 @@ export interface HarnessLoopOptions {
 	/** Retained limit for topic logs (default 1000). */
 	retainedLimit?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Barrel re-exports from defaults.ts — preserves the pre-split import
+// surface (`import { QUEUE_NAMES, defaultErrorClassifier } from ".../types"`).
+// ---------------------------------------------------------------------------
+
+export {
+	DEFAULT_DECAY_RATE,
+	DEFAULT_QUEUE_CONFIGS,
+	DEFAULT_SEVERITY_WEIGHTS,
+	defaultErrorClassifier,
+	QUEUE_NAMES,
+	strategyKey,
+} from "./defaults.js";

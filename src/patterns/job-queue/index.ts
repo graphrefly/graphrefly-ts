@@ -125,6 +125,32 @@ export class JobQueueGraph<T> extends Graph {
 		this._jobs.delete(id);
 		return true;
 	}
+
+	/**
+	 * Remove a job by id regardless of its current state. Returns `true` if
+	 * the job existed and was removed, `false` if no job has this id.
+	 *
+	 * `ack` only works on inflight; `nack` only works on inflight.
+	 * `removeById` is the state-agnostic escape hatch — useful for
+	 * audit/observability layers that enqueue but never claim, and need to
+	 * finalize a job when an external decision (e.g. harness verify
+	 * outcome) resolves it. Distinct name from the inherited
+	 * {@link Graph.remove}, which removes a mounted child subgraph by path.
+	 *
+	 * When the job is in `queued` state, its id is also pulled from the
+	 * `pending` list — depth + pending snapshot stay consistent.
+	 */
+	removeById(id: string): boolean {
+		const job = this._jobs.get(id);
+		if (!job) return false;
+		if (job.state === "queued") {
+			const pending = this.pending.cache as readonly string[];
+			const idx = pending.indexOf(id);
+			if (idx >= 0) this._pending.pop(idx);
+		}
+		this._jobs.delete(id);
+		return true;
+	}
 }
 
 export type JobFlowOptions = {

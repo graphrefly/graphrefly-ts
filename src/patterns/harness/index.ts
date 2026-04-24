@@ -9,6 +9,7 @@
  */
 
 export * from "./bridge.js";
+export * from "./defaults.js";
 export * from "./eval-verifier.js";
 export * from "./loop.js";
 export * from "./profile.js";

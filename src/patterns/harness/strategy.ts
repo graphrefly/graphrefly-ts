@@ -53,11 +53,14 @@ export interface StrategyModelBundle {
  * The model feeds back into TRIAGE for routing hints.
  */
 export function strategyModel(): StrategyModelBundle {
-	const _map = reactiveMap<StrategyKey, StrategyEntry>({ name: "strategy-entries" });
+	// `strategyMap` is a reactive-map bundle; `_`-prefix was misleading
+	// (Unit 19 C rename) — it's a local binding, not a "private field on
+	// a class" in the JS/TS sense.
+	const strategyMap = reactiveMap<StrategyKey, StrategyEntry>({ name: "strategy-entries" });
 
 	// Derived node that projects the reactive map into a plain Map snapshot.
 	const snapshot = derived<StrategySnapshot>(
-		[_map.entries],
+		[strategyMap.entries],
 		([mapSnap]) => {
 			const raw = mapSnap as ReadonlyMap<StrategyKey, StrategyEntry>;
 			// Return a fresh frozen copy so consumers see a stable reference.
@@ -80,10 +83,10 @@ export function strategyModel(): StrategyModelBundle {
 
 	function record(rootCause: RootCause, intervention: Intervention, success: boolean): void {
 		const key = strategyKey(rootCause, intervention);
-		const existing = _map.get(key);
+		const existing = strategyMap.get(key);
 		const attempts = (existing?.attempts ?? 0) + 1;
 		const successes = (existing?.successes ?? 0) + (success ? 1 : 0);
-		_map.set(key, {
+		strategyMap.set(key, {
 			rootCause,
 			intervention,
 			attempts,
@@ -93,14 +96,14 @@ export function strategyModel(): StrategyModelBundle {
 	}
 
 	function lookup(rootCause: RootCause, intervention: Intervention): StrategyEntry | undefined {
-		return _map.get(strategyKey(rootCause, intervention));
+		return strategyMap.get(strategyKey(rootCause, intervention));
 	}
 
 	// Keep the derived alive so get() works without an external subscriber.
-	const _unsub = snapshot.subscribe(() => {});
+	const snapshotUnsub = snapshot.subscribe(() => {});
 
 	function dispose(): void {
-		_unsub();
+		snapshotUnsub();
 	}
 
 	return { node: snapshot, record, lookup, dispose };
@@ -115,6 +118,21 @@ export function strategyModel(): StrategyModelBundle {
  *
  * Combines severity weight, attention decay, strategy model effectiveness,
  * and an optional external urgency signal.
+ *
+ * **Age sampling caveat.** The `ageSeconds` term is computed as
+ * `monotonicNs() - lastInteractionNs.cache` at *each reactive update*. If
+ * nothing upstream settles, the score node does not recompute — so a
+ * long-idle queue may show a stale score. Pass a `fromTimer(...)`-driven
+ * node as a dep (or re-emit on `lastInteractionNs`) when live age decay
+ * matters.
+ *
+ * **Not the same as `TriagedItem.priority`.** The LLM-emitted
+ * `priority: 0..100` field on each triaged item is decorative today — the
+ * queue consumption order ignores it (tracked in `docs/optimizations.md`
+ * as a priority-ordered queue enhancement). This function computes an
+ * orthogonal reactive score; it does NOT override the LLM's per-item
+ * priority, nor does it drive queue ordering. Wire it to
+ * `HarnessGraph.priorityScores` to surface per-route pressure.
  *
  * @param item - Node holding the triaged item.
  * @param strategy - Strategy model node.

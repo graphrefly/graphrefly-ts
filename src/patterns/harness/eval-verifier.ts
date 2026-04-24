@@ -3,7 +3,7 @@
  * artifact instead of asking an LLM to opine on the fix.
  *
  * Pairs naturally with {@link refineExecutor}: refineExecutor emits an
- * `ExecuteOutput.artifact` holding the converged candidate; evalVerifier
+ * `ExecuteOutput<T>.artifact` holding the converged candidate; evalVerifier
  * pulls it out via `extractArtifact` and feeds a single-candidate batch
  * into the same `Evaluator<T>` shape that `refineLoop` used. Consistent
  * scoring between EXECUTE and VERIFY — no "LLM said it looks fine" gap.
@@ -19,9 +19,22 @@ import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { filter, switchMap } from "../../extra/operators.js";
 import type { NodeInput } from "../../extra/sources.js";
-import type { DatasetItem, EvalResult, Evaluator } from "../refine-loop/index.js";
+import type {
+	DatasetItem,
+	EvalResult,
+	Evaluator,
+	RefineLoopOptions,
+	RefineStrategy,
+} from "../refine-loop/index.js";
+import { refineExecutor } from "./refine-executor.js";
 
-import type { ExecuteOutput, HarnessVerifier, TriagedItem, VerifyOutput } from "./types.js";
+import type {
+	ExecuteOutput,
+	HarnessExecutor,
+	HarnessVerifier,
+	TriagedItem,
+	VerifyOutput,
+} from "./types.js";
 
 /** Summary of the re-eval wave passed to a custom `toOutput` mapper. */
 export interface EvalVerifierSummary {
@@ -52,7 +65,7 @@ export interface EvalVerifierConfig<T> {
 	 * surfaces as a runtime error inside `evaluator`, not here — supply a
 	 * narrowing `extractArtifact` if you need stricter validation.
 	 */
-	extractArtifact?: (exec: ExecuteOutput, item: TriagedItem) => T | null | undefined;
+	extractArtifact?: (exec: ExecuteOutput<T>, item: TriagedItem) => T | null | undefined;
 
 	/**
 	 * Reactive evaluator — same contract as `refineLoop`'s `Evaluator<T>`.
@@ -103,13 +116,19 @@ function defaultToOutput(summary: EvalVerifierSummary): VerifyOutput {
 		: { verified: false, findings, errorClass: "structural" };
 }
 
-function defaultExtractArtifact<T>(exec: ExecuteOutput): T | null | undefined {
-	return exec.artifact as T | null | undefined;
+function defaultExtractArtifact<T>(exec: ExecuteOutput<T>): T | null | undefined {
+	return exec.artifact ?? null;
 }
 
 /**
  * Build a {@link HarnessVerifier} that re-runs the eval suite against the
  * artifact produced by EXECUTE.
+ *
+ * Consumes the shared `[executeOutput, item]` context node that the
+ * harness pre-pairs via `withLatestFrom` — no internal re-wrap here (QA
+ * round: "defaultLlmVerifier double-wraps withLatestFrom"). The harness's
+ * single `executeContextNode` is reused by both the verifier and the
+ * fast-retry dispatcher, so exec + item are subscribed once per wave.
  *
  * @example Pair with refineExecutor for end-to-end eval consistency.
  * ```ts
@@ -121,26 +140,32 @@ function defaultExtractArtifact<T>(exec: ExecuteOutput): T | null | undefined {
  * });
  * ```
  */
-export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier {
+export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<T> {
 	const name = config.name ?? "eval-verifier";
 	const threshold = config.threshold ?? 0.5;
 	const toOutput = config.toOutput ?? defaultToOutput;
 	const extract = config.extractArtifact ?? defaultExtractArtifact<T>;
 
-	return (context: Node<[ExecuteOutput | null, TriagedItem | null]>): Node<VerifyOutput | null> => {
+	return (
+		context: Node<readonly [ExecuteOutput<T> | null, TriagedItem | null] | null>,
+	): Node<VerifyOutput | null> => {
 		// Gate non-null [exec, item] pairs upstream of switchMap so
 		// activation / RESOLVED waves never allocate fresh inner subgraphs.
-		const validPair = filter(context, (p) => p != null && p[0] != null && p[1] != null) as Node<
-			[ExecuteOutput, TriagedItem]
-		>;
-		const raw = switchMap<[ExecuteOutput, TriagedItem], VerifyOutput | null>(
+		// Unit 21 B: named filters surface as `${name}/gate-in` in describe().
+		const validPair = filter(
+			context as Node<unknown>,
+			(p) =>
+				p != null &&
+				(p as readonly [unknown, unknown])[0] != null &&
+				(p as readonly [unknown, unknown])[1] != null,
+			{ name: `${name}/gate-in` },
+		) as Node<readonly [ExecuteOutput<T>, TriagedItem]>;
+		const raw = switchMap<readonly [ExecuteOutput<T>, TriagedItem], VerifyOutput | null>(
 			validPair,
-			([exec, item]) => {
-				const artifact = extract(exec, item);
+			(pair) => {
+				const [execOut, item] = pair;
+				const artifact = extract(execOut, item);
 				if (artifact == null) {
-					// Route through `toOutput` so customized mappers see a consistent
-					// shape (with `missingArtifact: true`). Default mapper produces
-					// a structural-failure `VerifyOutput`.
 					return state<VerifyOutput | null>(
 						toOutput({
 							scores: [],
@@ -179,6 +204,75 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier 
 			},
 			{ name },
 		);
-		return filter(raw, (v) => v != null) as Node<VerifyOutput | null>;
+		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as Node<VerifyOutput | null>;
 	};
+}
+
+/**
+ * Config for {@link harnessEvalPair} — the typed bundle that produces a
+ * matched `refineExecutor<T>` + `evalVerifier<T>` pair sharing one
+ * {@link Evaluator} and one `datasetFor` resolver.
+ */
+export interface HarnessEvalPairConfig<T> {
+	/** Map a triaged item to the seed candidate. */
+	seedFrom: (item: TriagedItem) => T;
+	/** The reactive evaluator used by BOTH executor and verifier. */
+	evaluator: Evaluator<T>;
+	/** The refinement strategy (e.g. `errorCritique(teacher)`). */
+	strategy: RefineStrategy<T>;
+	/** Resolve dataset rows per triaged item. */
+	datasetFor: (item: TriagedItem) => readonly DatasetItem[];
+	/** Pass-threshold for the verifier. Default `0.5`. */
+	threshold?: number;
+	/** Convergence / budget options forwarded to each inner `refineLoop`. */
+	refine?: Omit<RefineLoopOptions, "dataset" | "name">;
+	/**
+	 * Shared node-name prefix — the executor becomes `${name}-exec` and the
+	 * verifier `${name}-verify` for distinct but related describe() paths.
+	 * Default `"harness-pair"`.
+	 */
+	name?: string;
+}
+
+/**
+ * Typed factory that returns a matched `{ executor, verifier }` pair.
+ *
+ * Prevents the "executor wrote `A`, verifier expected `B`" class of runtime
+ * cast errors — `T` is threaded through both sides, so mixing up the
+ * configuration is a compile error instead of a silent `as T` in
+ * `extractArtifact`. Shares the evaluator so EXECUTE and VERIFY score with
+ * identical semantics (the whole point of `evalVerifier`).
+ *
+ * @example
+ * ```ts
+ * const { executor, verifier } = harnessEvalPair<CatalogEntry>({
+ *   seedFrom: (item) => initialCatalogEntry(item),
+ *   evaluator: (cands, ds) => runEvalBatch(cands, ds),
+ *   strategy: errorCritique({ teacher, width: 3 }),
+ *   datasetFor: affectedTasksFor,
+ *   threshold: 0.8,
+ * });
+ * const harness = harnessLoop<CatalogEntry>("repair", { adapter, executor, verifier });
+ * ```
+ */
+export function harnessEvalPair<T>(config: HarnessEvalPairConfig<T>): {
+	executor: HarnessExecutor<T>;
+	verifier: HarnessVerifier<T>;
+} {
+	const baseName = config.name ?? "harness-pair";
+	const executor = refineExecutor<T>({
+		name: `${baseName}-exec`,
+		seedFrom: config.seedFrom,
+		evaluator: config.evaluator,
+		strategy: config.strategy,
+		datasetFor: config.datasetFor,
+		refine: config.refine,
+	});
+	const verifier = evalVerifier<T>({
+		name: `${baseName}-verify`,
+		evaluator: config.evaluator,
+		datasetFor: config.datasetFor,
+		threshold: config.threshold,
+	});
+	return { executor, verifier };
 }
