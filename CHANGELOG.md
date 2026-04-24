@@ -1,3 +1,10 @@
+# [0.32.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.31.0...v0.32.0) (2026-04-24)
+
+
+### Features
+
+* ai harness implementation 4,5,6 ([b7fa43d](https://github.com/graphrefly/graphrefly-ts/commit/b7fa43ded24d1ca099c05f07cb49948a9fa4a023))
+
 # [0.31.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.30.0...v0.31.0) (2026-04-24)
 
 
