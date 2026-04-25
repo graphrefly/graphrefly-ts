@@ -136,6 +136,7 @@ Project-local skills live under `.claude/skills/`. These skills operate on **bot
 
 - **dev-dispatch** — plan, align with spec, implement, self-test
 - **qa** — adversarial review, fixes, test + lint + build, doc touch-ups
+- **design-review** — Q5–Q9 design lens (abstraction, long-term shape, reactive composability, alternatives, coverage). Use BEFORE coding for new primitives; complementary to `/qa` (which finds bugs in landed code).
 - **parity** — cross-language parity check (TS vs PY)
 
 Invoke via the user's Claude Code slash commands or skill names when relevant.

@@ -8,6 +8,8 @@
  * @module
  */
 
+export * from "./actuator-executor.js";
+export * from "./auto-solidify.js";
 export * from "./bridge.js";
 export * from "./defaults.js";
 export * from "./eval-verifier.js";

@@ -1,6 +1,12 @@
 /**
  * GoogleAdapter — default fetch-backed, optional SDK-backed.
  *
+ * The SDK-backed path targets the `@google/genai` SDK shape:
+ * `client.models.generateContent({ model, contents, config })` — single
+ * param, with generation params and `abortSignal` under `config`. The
+ * legacy `@google/generative-ai` two-arg `(params, {signal})` shape is no
+ * longer accepted; pass a `GoogleGenAI` instance via `opts.sdk`.
+ *
  * Maps Gemini `usageMetadata`:
  * - `promptTokenCount` minus `cachedContentTokenCount` → `input.regular`
  * - `cachedContentTokenCount`                          → `input.cacheRead`
@@ -30,22 +36,51 @@ export interface GoogleAdapterOptions {
 	baseURL?: string;
 	/** Extra headers on every request. */
 	headers?: Record<string, string>;
-	/** Optional SDK instance (`@google/genai` or `@google/generative-ai` shape). */
+	/**
+	 * Optional `@google/genai` SDK instance (e.g. `new GoogleGenAI({apiKey})`).
+	 * When omitted, the adapter uses the fetch-backed path against the
+	 * Generative Language REST API.
+	 */
 	sdk?: GoogleSdkLike;
 	fetchImpl?: typeof fetch;
 }
 
+/**
+ * Duck-type matching the `@google/genai` (`GoogleGenAI`) SDK shape:
+ * single-param `generateContent({ model, contents, config })` where
+ * generation parameters and `abortSignal` live under `config`.
+ *
+ * The `@google/generative-ai` predecessor's two-arg `(params, {signal})`
+ * shape is no longer accepted.
+ */
 export interface GoogleSdkLike {
 	models: {
-		generateContent(
-			params: Record<string, unknown>,
-			opts?: { signal?: AbortSignal },
-		): Promise<GeminiResponse>;
+		generateContent(params: GoogleSdkRequestParams): Promise<GeminiResponse>;
 		generateContentStream?(
-			params: Record<string, unknown>,
-			opts?: { signal?: AbortSignal },
-		): AsyncIterable<GeminiResponse>;
+			params: GoogleSdkRequestParams,
+		): Promise<AsyncIterable<GeminiResponse>> | AsyncIterable<GeminiResponse>;
 	};
+}
+
+/** Single-param request shape consumed by `@google/genai`'s `models.generateContent`. */
+export interface GoogleSdkRequestParams {
+	model: string;
+	contents: unknown;
+	config?: GoogleSdkRequestConfig;
+}
+
+/**
+ * Generation config under the new SDK. `abortSignal` is the cancellation
+ * channel — there is no second-arg `{signal}`.
+ */
+export interface GoogleSdkRequestConfig {
+	abortSignal?: AbortSignal;
+	temperature?: number;
+	maxOutputTokens?: number;
+	systemInstruction?: unknown;
+	tools?: unknown;
+	thinkingConfig?: unknown;
+	[extra: string]: unknown;
 }
 
 interface GeminiResponse {
@@ -153,6 +188,56 @@ function toGeminiTool(t: ToolDefinition): Record<string, unknown> {
 		name: t.name,
 		description: t.description,
 		parameters: t.parameters,
+	};
+}
+
+/**
+ * Reshape the fetch-API request body into the SDK's `{ model, contents,
+ * config }` form. Generation params (`temperature`, `maxOutputTokens`,
+ * `thinkingConfig`) move from `body.generationConfig.*` to `config.*`;
+ * `systemInstruction` and `tools` move from top-level body keys into
+ * `config`; `abortSignal` is threaded into `config`. `providerExtras` keys
+ * spread into `config` so escape-hatch usage remains identical.
+ */
+function toSdkParams(
+	body: Record<string, unknown>,
+	model: string,
+	signal: AbortSignal | undefined,
+): GoogleSdkRequestParams {
+	const config: GoogleSdkRequestConfig = {};
+	const gen = body.generationConfig as Record<string, unknown> | undefined;
+	if (gen) {
+		if (typeof gen.maxOutputTokens === "number") config.maxOutputTokens = gen.maxOutputTokens;
+		if (typeof gen.temperature === "number") config.temperature = gen.temperature;
+		if (gen.thinkingConfig) config.thinkingConfig = gen.thinkingConfig;
+	}
+	if (body.systemInstruction) config.systemInstruction = body.systemInstruction;
+	if (body.tools) config.tools = body.tools;
+	for (const [k, v] of Object.entries(body)) {
+		if (
+			k === "contents" ||
+			k === "generationConfig" ||
+			k === "systemInstruction" ||
+			k === "tools" ||
+			// Skip `abortSignal` so a caller-supplied entry in `providerExtras`
+			// can't briefly land in `config.abortSignal` before being
+			// overwritten — the canonical signal channel is the second
+			// `signal` argument (set on `config.abortSignal` below).
+			k === "abortSignal" ||
+			// Skip `model` so a stray `body.model` (not produced by
+			// `toGeminiRequest` today, but defensively guarded) doesn't
+			// duplicate the top-level `model` field on the SDK request.
+			k === "model"
+		) {
+			continue;
+		}
+		config[k] = v;
+	}
+	if (signal) config.abortSignal = signal;
+	return {
+		model,
+		contents: body.contents,
+		config: Object.keys(config).length > 0 ? config : undefined,
 	};
 }
 
@@ -321,11 +406,9 @@ function sdkBackedGoogle(opts: GoogleAdapterOptions): LLMAdapter {
 			const body = toGeminiRequest(messages, invokeOpts);
 			const model = invokeOpts?.model ?? opts.model;
 			if (!model) throw new Error("googleAdapter: model required");
+			const params = toSdkParams(body, model, invokeOpts?.signal);
 			const start = monotonicNs();
-			const resp = await sdk.models.generateContent(
-				{ ...body, model },
-				{ signal: invokeOpts?.signal },
-			);
+			const resp = await sdk.models.generateContent(params);
 			const latencyMs = Math.max(0, (monotonicNs() - start) / 1e6);
 			return toLLMResponse(resp, latencyMs);
 		},
@@ -337,12 +420,14 @@ function sdkBackedGoogle(opts: GoogleAdapterOptions): LLMAdapter {
 			const body = toGeminiRequest(messages, invokeOpts);
 			const model = invokeOpts?.model ?? opts.model;
 			if (!model) throw new Error("googleAdapter: model required");
+			const params = toSdkParams(body, model, invokeOpts?.signal);
 			let finalUsage: GeminiUsage | undefined;
 			let finishReason: string | undefined;
-			for await (const chunk of sdk.models.generateContentStream(
-				{ ...body, model },
-				{ signal: invokeOpts?.signal },
-			)) {
+			// `@google/genai` returns `Promise<AsyncIterable<...>>`; older shapes
+			// returned the iterable directly. Awaiting a non-thenable resolves
+			// to itself, so this works for both.
+			const stream = await sdk.models.generateContentStream(params);
+			for await (const chunk of stream) {
 				const cand = chunk.candidates?.[0];
 				for (const p of cand?.content?.parts ?? []) {
 					if (typeof p.text === "string") {

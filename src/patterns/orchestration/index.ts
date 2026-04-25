@@ -305,6 +305,16 @@ export function gate<T>(
 	}
 	const startOpen = opts?.startOpen ?? false;
 
+	// Foreign-node convenience: if `source` is a Node that hasn't been
+	// registered in `graph`, auto-add it under `${name}/source` so callers
+	// (e.g. the harness, which mounts queue topics inside a hub
+	// MessagingHubGraph and can't re-mount them in `gateGraph`) don't
+	// have to do the registration ceremony themselves. No-op when the
+	// node is already registered — `findRegisteredNodePath` returns the
+	// existing path and `resolveDep` uses it directly.
+	if (typeof source !== "string" && !findRegisteredNodePath(graph, source)) {
+		graph.add(source, { name: `${name}/source` });
+	}
 	const src = resolveDep(graph, source);
 
 	// Internal reactive state
@@ -402,19 +412,19 @@ export function gate<T>(
 		},
 		reject(count = 1) {
 			guardTorn("reject");
-			// Emit the rejected value(s) to `lastRejected` BEFORE the dequeue
-			// so an audit / dead-letter subscriber sees each payload exactly
-			// once. Wrapping the emit + dequeue in `batch()` keeps the
-			// pending-count update and lastRejected emission atomic — a
-			// subscriber reacting to the new `lastRejected` value sees a
-			// consistent `pending` snapshot (one fewer item) in the same wave.
-			const snapshot = [...queue] as readonly T[];
-			const take = Math.min(count, snapshot.length);
-			if (take === 0) {
-				dequeue(count);
-				return;
-			}
+			// Snapshot capture lives INSIDE the batch so the "queue read for
+			// this rejection" invariant is visually colocated with the emit +
+			// dequeue it feeds. Single-threaded JS guarantees no mutation
+			// between batch entry and the splice, but the explicit ordering
+			// makes the contract obvious to future readers and resists
+			// refactors that would split the read from the write. The batch
+			// wrapper itself keeps the pending-count update and lastRejected
+			// emissions atomic — a subscriber reacting to the new
+			// `lastRejected` value sees a consistent `pending` snapshot (one
+			// fewer item) in the same wave.
 			batch(() => {
+				const snapshot = [...queue] as readonly T[];
+				const take = Math.min(count, snapshot.length);
 				for (let i = 0; i < take; i++) {
 					lastRejectedNode.emit(snapshot[i] as T);
 				}

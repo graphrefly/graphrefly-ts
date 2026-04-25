@@ -183,6 +183,27 @@ export class HarnessGraph<A = unknown> extends Graph {
 	/** Per-route gate controllers (only for gated queues). */
 	readonly gates: ReadonlyMap<QueueRoute, GateController<TriagedItem>>;
 
+	/**
+	 * Per-route queue topics — typed accessor for the four
+	 * {@link QUEUE_NAMES} entries (`auto-fix`, `needs-decision`,
+	 * `investigation`, `backlog`). Mirrors the `gates` / `jobs` map
+	 * shape so callers can iterate `[route, topic]` pairs without
+	 * hand-rolling `harness.queues.topicNames()` + meta-topic exclusion.
+	 *
+	 * Excludes the meta topics that share the hub:
+	 * `intake` (use {@link intake}), `verify-results` (use
+	 * {@link verifyResults}), `retry` (use {@link retry}), `__unrouted`
+	 * (use {@link unrouted}), and the internal `triage-output` fan-in.
+	 *
+	 * **Why this exists.** `for (const [, topic] of harness.queues)`
+	 * appears to iterate via `Graph[Symbol.iterator]`, but that yields
+	 * locally-registered nodes only — and `MessagingHubGraph` mounts
+	 * topics as child graphs rather than registering them locally, so
+	 * the loop yields nothing. This map gives a typed, working
+	 * iteration path.
+	 */
+	readonly queueTopics: ReadonlyMap<QueueRoute, TopicGraph<TriagedItem>>;
+
 	/** Strategy model bundle — record outcomes, lookup effectiveness. */
 	readonly strategy: StrategyModelBundle;
 
@@ -204,6 +225,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 	constructor(
 		name: string,
 		queues: MessagingHubGraph,
+		queueTopics: Map<QueueRoute, TopicGraph<TriagedItem>>,
 		jobs: Map<QueueRoute, JobQueueGraph<TriagedItem>>,
 		gates: Map<QueueRoute, GateController<TriagedItem>>,
 		strategy: StrategyModelBundle,
@@ -213,6 +235,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 	) {
 		super(name);
 		this.queues = queues;
+		this.queueTopics = queueTopics;
 		this.jobs = jobs;
 		this.gates = gates;
 		this.strategy = strategy;
@@ -487,21 +510,20 @@ export function harnessLoop<A = unknown>(
 
 	// --- Stage 4: GATE ---
 	//
-	// Gates live in a standalone `gateGraph` mounted on the harness. Each
-	// gated queue's `latest` node is re-registered inside `gateGraph` under
-	// a canonical name so the gate primitive resolves it by path — the hub
-	// topic itself is already mounted inside `queuesHub` so it cannot be
-	// re-mounted here. (Unit 17 B's gateGraph.mount shape is inapplicable
-	// once queues live in a hub; the ::source registration is the remaining
-	// pragmatic bridge.)
+	// Gates live in a standalone `gateGraph` mounted on the harness. The
+	// hub topic for each gated queue is mounted inside `queuesHub` and
+	// cannot be re-mounted here, so we pass the foreign node directly to
+	// `gate()`. As of the foreign-node-accept change, `gate()` auto-adds
+	// the source under `${name}/source` inside its own graph when the
+	// node isn't already registered there — the harness no longer needs
+	// the explicit `gateGraph.add(...)` registration ceremony.
 	const gateGraph = new Graph("gates");
 	const gateControllers = new Map<QueueRoute, GateController<TriagedItem>>();
 	for (const route of QUEUE_NAMES) {
 		const config = queueConfigs.get(route)!;
 		if (!config.gated) continue;
 		const topic = queueTopics.get(route)!;
-		gateGraph.add(topic.latest as Node<unknown>, { name: `${route}/source` });
-		const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, `${route}/source`, {
+		const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, topic.latest as Node<unknown>, {
 			maxPending: config.maxPending,
 			startOpen: config.startOpen,
 		});
@@ -761,6 +783,7 @@ export function harnessLoop<A = unknown>(
 	const harness = new HarnessGraph<A>(
 		name,
 		queuesHub,
+		queueTopics,
 		jobQueues,
 		gateControllers,
 		strategy,

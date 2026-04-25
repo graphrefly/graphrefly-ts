@@ -397,6 +397,47 @@ The `_wait_for_result` helper handles push-on-subscribe correctly — if the val
 
 ---
 
+## Tool handlers should thread `signal`
+
+The `ToolDefinition.handler` signature widened to accept an optional second arg — `(args, opts?: { signal?: AbortSignal }) => NodeInput<unknown>`. Existing handlers that ignore `opts` still work unchanged; handlers that own real I/O (`fetch`, child processes, DB queries, long-running generation) should opt in so `switchMap`-supersede inside the agent loop actually cancels in-flight work.
+
+### Why it matters
+
+`ToolRegistryGraph.executeReactive(name, args)` returns a producer node. Each call mounts a per-invocation `AbortController`; on producer teardown the controller's `abort()` fires, propagating into:
+
+- `fromPromise(p, { signal })` — rejects the inner promise when signal aborts.
+- `fromAsyncIter(it, { signal })` — breaks the async iteration on signal abort.
+- The handler itself when it threads `signal` into its own `fetch(url, { signal })` / DB cancel call / child-process kill.
+
+Inside `toolExecution`, `switchMap` cancels the prior inner producer whenever a new tool-call batch supersedes — without `signal` in the handler, the network request keeps running and burns budget for a result that no consumer will read.
+
+### Handler shape
+
+```ts
+const fetchTool: ToolDefinition = {
+  name: "fetch",
+  description: "...",
+  parameters: { type: "object", properties: { url: { type: "string" } } },
+  // Threading `signal` into fetch propagates supersede-cancellation
+  // all the way through the wire request.
+  handler: async ({ url }, { signal } = {}) => {
+    const resp = await fetch(url as string, { signal });
+    return await resp.text();
+  },
+};
+```
+
+### Test pattern
+
+Handlers under test should assert that an aborted signal short-circuits the work. The `tool-registry` regression test at [src/__tests__/patterns/ai/tool-registry.test.ts](../src/__tests__/patterns/ai/tool-registry.test.ts) drives the producer's unsubscribe path and asserts `signal.aborted === true` was observed inside the handler. New signal-aware handlers should mirror that pattern: subscribe to `executeReactive`, unsubscribe before the handler resolves, then assert the handler saw an abort.
+
+### When `signal` is optional vs required
+
+- **Optional:** in-process pure transforms, file reads small enough to be effectively synchronous, registry lookups. The tool returns before supersede has a chance to fire — adding `signal` plumbing is dead code.
+- **Required:** anything network-bound or process-bound. Without `signal`, an agent that retries / supersedes leaks request budget.
+
+---
+
 ## Authority hierarchy (tests)
 
 1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`**

@@ -395,6 +395,45 @@ describe("harnessLoop", () => {
 		expect(harness.totalRetries.cache).toBe(0);
 		expect(harness.totalReingestions.cache).toBe(0);
 	});
+
+	it("queueTopics map covers exactly the four QUEUE_NAMES routes", () => {
+		const adapter = mockAdapter({});
+		const harness = harnessLoop("test-harness-7", { adapter });
+		const routes = [...harness.queueTopics.keys()].sort();
+		expect(routes).toEqual(["auto-fix", "backlog", "investigation", "needs-decision"]);
+		// Each entry is the same TopicGraph instance the hub holds — no
+		// double-registration / wrapper.
+		for (const [route, topic] of harness.queueTopics) {
+			expect(topic).toBe(harness.queues.topic(route));
+		}
+	});
+
+	it("queueTopics iteration sees published triaged items", () => {
+		const adapter = mockAdapter({});
+		const harness = harnessLoop("test-harness-8", { adapter });
+		const seen: TriagedItem[] = [];
+		for (const [, topic] of harness.queueTopics) {
+			topic.latest.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) seen.push(m[1] as TriagedItem);
+				}
+			});
+		}
+		// Direct publish to a queue topic — bypassing intake/triage to
+		// keep the test focused on the iteration mechanism.
+		harness.queueTopics.get("auto-fix")?.publish({
+			source: "test",
+			summary: "queueTopics-iter",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+			rootCause: "missing-fn",
+			intervention: "catalog-fn",
+			route: "auto-fix",
+			priority: 50,
+		});
+		const matched = seen.find((s) => s.summary === "queueTopics-iter");
+		expect(matched).toBeDefined();
+	});
 });
 
 // ---------------------------------------------------------------------------
