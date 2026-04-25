@@ -24,7 +24,7 @@
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
 import { rescue, switchMap } from "../../../extra/operators.js";
-import { retrySource } from "../../../extra/resilience.js";
+import { retry } from "../../../extra/resilience.js";
 import type { ToolCall } from "../adapters/core/types.js";
 import type { ToolRegistryGraph } from "./tool-registry.js";
 
@@ -148,10 +148,9 @@ function executeOne(
 	retryCount: number,
 	onError: "rescue" | "propagate",
 ): Node<ToolResult> {
-	const attempted: Node<unknown> = retrySource(
-		() => tools.executeReactive(call.name, call.arguments),
-		{ count: retryCount },
-	);
+	const attempted: Node<unknown> = retry(() => tools.executeReactive(call.name, call.arguments), {
+		count: retryCount,
+	});
 	const onSuccess = derived<ToolResult>([attempted], ([val]) => ({
 		id: call.id,
 		content: typeof val === "string" ? val : JSON.stringify(val),

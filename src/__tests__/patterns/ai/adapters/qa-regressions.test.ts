@@ -17,7 +17,7 @@ import { dryRunAdapter } from "../../../../patterns/ai/adapters/providers/dry-ru
 // Indirect test via withReplayCache: identical-structure prompts with shared
 // sub-objects produce the same cache key as freshly-reconstructed equivalents.
 
-import { memoryStorage } from "../../../../extra/storage-core.js";
+import { memoryKv } from "../../../../extra/storage-tiers.js";
 import { withReplayCache } from "../../../../patterns/ai/adapters/middleware/replay-cache.js";
 
 function mockAdapter(responses: LLMResponse[]): LLMAdapter & { calls: number } {
@@ -49,7 +49,7 @@ describe("P1 canonicalJson: shared sibling refs are not cycles", () => {
 		const freshB = { type: "object", properties: { x: { type: "string" } } };
 
 		const inner = mockAdapter([okResp("A"), okResp("B")]);
-		const adapter = withReplayCache(inner, { storage: memoryStorage() });
+		const adapter = withReplayCache(inner, { storage: memoryKv() });
 
 		// First call: two tools sharing one reference.
 		await Promise.resolve(

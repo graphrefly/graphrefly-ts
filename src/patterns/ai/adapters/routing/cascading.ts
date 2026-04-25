@@ -1,7 +1,7 @@
 /**
  * `cascadingLlmAdapter` — N-tier fallback over any mix of LLM adapters.
  *
- * Same structural pattern as `cascadingCache` and `Graph.attachStorage`:
+ * Same structural pattern as `cascadingCache` and `Graph.attachSnapshotStorage`:
  * ordered list, first-success wins, per-tier breaker optional, filter gates
  * per request. Semantics:
  *

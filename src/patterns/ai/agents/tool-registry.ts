@@ -4,7 +4,7 @@ import { derived, producer } from "../../../core/sugar.js";
 import { reactiveMap } from "../../../extra/reactive-map.js";
 import { fromAsyncIter, fromPromise } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
-import { keepalive } from "../../_internal.js";
+import { keepalive } from "../../_internal/index.js";
 import { aiMeta, isNodeLike } from "../_internal.js";
 import type { ToolDefinition } from "../adapters/core/types.js";
 

@@ -110,7 +110,7 @@ describe("reactiveLog stress tests", () => {
 	// ── Scenario 6: tail(n) correctness over time ──────────────────────
 	it("S6: tail(n) always reflects the last n entries", () => {
 		const lg = reactiveLog<number>([1, 2, 3]);
-		const last2 = lg.tail(2);
+		const last2 = lg.view({ kind: "tail", n: 2 });
 		expect(last2.cache).toEqual([2, 3]);
 
 		lg.append(4);
@@ -130,9 +130,9 @@ describe("reactiveLog stress tests", () => {
 	// ── Scenario 7: tail(n) memoization — repeat calls return same node ─
 	it("S7: tail(n) memoized — repeat calls with same n return same node", () => {
 		const lg = reactiveLog<number>();
-		const t1 = lg.tail(5);
-		const t2 = lg.tail(5);
-		const t3 = lg.tail(10); // different n
+		const t1 = lg.view({ kind: "tail", n: 5 });
+		const t2 = lg.view({ kind: "tail", n: 5 });
+		const t3 = lg.view({ kind: "tail", n: 10 }); // different n
 
 		expect(t1).toBe(t2); // identical node
 		expect(t1).not.toBe(t3); // different n → different node
@@ -146,21 +146,21 @@ describe("reactiveLog stress tests", () => {
 	// ── Scenario 8: slice correctness ──────────────────────────────────
 	it("S8: slice(start, stop) semantics match Array.prototype.slice", () => {
 		const lg = reactiveLog<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-		const s = lg.slice(2, 5);
+		const s = lg.view({ kind: "slice", start: 2, stop: 5 });
 		expect(s.cache).toEqual([2, 3, 4]);
 
 		// Omitting stop
-		const to_end = lg.slice(7);
+		const to_end = lg.view({ kind: "slice", start: 7 });
 		expect(to_end.cache).toEqual([7, 8, 9]);
 
 		// Negative start throws
-		expect(() => lg.slice(-1, 3)).toThrow(RangeError);
+		expect(() => lg.view({ kind: "slice", start: -1, stop: 3 })).toThrow(RangeError);
 	});
 
 	// ── Scenario 9: slice across trimHead — indices shift ──────────────
 	it("S9: slice [2, 5) behaves positionally after trimHead shifts indices", () => {
 		const lg = reactiveLog<number>([10, 20, 30, 40, 50, 60, 70, 80]);
-		const window = lg.slice(2, 5);
+		const window = lg.view({ kind: "slice", start: 2, stop: 5 });
 		expect(window.cache).toEqual([30, 40, 50]);
 
 		// Trim first 3 → remaining is [40, 50, 60, 70, 80]
@@ -172,8 +172,8 @@ describe("reactiveLog stress tests", () => {
 	// ── Scenario 10: Diamond — tail + slice both derived ───────────────
 	it("S10: tail and slice diamond from entries — both settle consistently", () => {
 		const lg = reactiveLog<number>();
-		const t = lg.tail(2);
-		const s = lg.slice(0, 3);
+		const t = lg.view({ kind: "tail", n: 2 });
+		const s = lg.view({ kind: "slice", start: 0, stop: 3 });
 		const combined = combine(t, s);
 
 		const seen: [readonly number[], readonly number[]][] = [];
@@ -258,7 +258,7 @@ describe("reactiveLog stress tests", () => {
 	// ── Scenario 15: tail(0) — always empty ────────────────────────────
 	it("S15: tail(0) returns empty node; recomputes but always empty", () => {
 		const lg = reactiveLog<number>();
-		const t0 = lg.tail(0);
+		const t0 = lg.view({ kind: "tail", n: 0 });
 		expect(t0.cache).toEqual([]);
 
 		lg.append(1);
@@ -322,10 +322,10 @@ describe("reactiveLog new APIs", () => {
 	describe("slice memoization", () => {
 		it("repeat calls with same (start, stop) return same node", () => {
 			const lg = reactiveLog<number>();
-			const s1 = lg.slice(2, 5);
-			const s2 = lg.slice(2, 5);
-			const s3 = lg.slice(2); // different — no stop
-			const s4 = lg.slice(2, 5);
+			const s1 = lg.view({ kind: "slice", start: 2, stop: 5 });
+			const s2 = lg.view({ kind: "slice", start: 2, stop: 5 });
+			const s3 = lg.view({ kind: "slice", start: 2 }); // different — no stop
+			const s4 = lg.view({ kind: "slice", start: 2, stop: 5 });
 
 			expect(s1).toBe(s2);
 			expect(s1).toBe(s4);

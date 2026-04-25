@@ -32,7 +32,7 @@ import {
 	type TopologyEvent,
 	watchTopologyTree,
 } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal.js";
+import { domainMeta, keepalive } from "../_internal/index.js";
 import { TopicGraph } from "../messaging/index.js";
 
 // ---------------------------------------------------------------------------

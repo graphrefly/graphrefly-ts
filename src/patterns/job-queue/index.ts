@@ -8,13 +8,20 @@
  * Topic / subscription / hub primitives live in `patterns/messaging`.
  */
 
+import { wallClockNs } from "../../core/clock.js";
 import { derived, type Node } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { reactiveList } from "../../extra/reactive-list.js";
-import { reactiveLog } from "../../extra/reactive-log.js";
+import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
+import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal.js";
+import {
+	type BaseAuditRecord,
+	createAuditLog,
+	registerCursor,
+} from "../_internal/imperative-audit.js";
+import { domainMeta, keepalive } from "../_internal/index.js";
 
 const DEFAULT_MAX_PER_PUMP = 2_147_483_647;
 
@@ -39,6 +46,19 @@ export type JobEnvelope<T> = {
 	state: JobState;
 };
 
+/** Audit record for a job-queue mutation (Audit 2 cross-cutting). */
+export type JobEventAction = "enqueue" | "claim" | "ack" | "nack" | "remove";
+
+export interface JobEvent<T = unknown> extends BaseAuditRecord {
+	readonly action: JobEventAction;
+	readonly id: string;
+	readonly attempts?: number;
+	readonly payload?: T;
+}
+
+/** Recommended `keyOf` for keyed-storage adapters (Audit 2 #7). */
+export const jobEventKeyOf = <T>(e: JobEvent<T>): string => e.action;
+
 export type JobQueueOptions = {
 	graph?: GraphOptions;
 };
@@ -46,10 +66,14 @@ export type JobQueueOptions = {
 export class JobQueueGraph<T> extends Graph {
 	private readonly _pending;
 	private readonly _jobs;
-	private _seq = 0;
+	private readonly _seqCursor: Node<number>;
 	readonly pending: Node<readonly string[]>;
 	readonly jobs: Node<ReadonlyMap<string, JobEnvelope<T>>>;
 	readonly depth: Node<number>;
+	/** Audit log of every queue mutation (Audit 2). */
+	readonly events: ReactiveLogBundle<JobEvent<T>>;
+	/** Alias for {@link JobQueueGraph.events} — Audit 2 `.audit` duplication. */
+	readonly audit: ReactiveLogBundle<JobEvent<T>>;
 
 	constructor(name: string, opts: JobQueueOptions = {}) {
 		super(name, opts.graph);
@@ -67,10 +91,35 @@ export class JobQueueGraph<T> extends Graph {
 		});
 		this.add(this.depth, { name: "depth" });
 		this.addDisposer(keepalive(this.depth));
+
+		this.events = createAuditLog<JobEvent<T>>({
+			name: "events",
+			retainedLimit: 1024,
+			graph: this,
+		});
+		this.audit = this.events;
+		this._seqCursor = registerCursor(this, "seq", 0);
+	}
+
+	private _bumpSeq(): number {
+		const cur = (this._seqCursor.cache as number | undefined) ?? 0;
+		const next = cur + 1;
+		this._seqCursor.emit(next);
+		return next;
+	}
+
+	/**
+	 * Wire append-log storage tiers (Audit 4). Returns a disposer.
+	 *
+	 * Named `attachEventStorage` to avoid colliding with {@link Graph.attachSnapshotStorage}.
+	 */
+	attachEventStorage(tiers: readonly AppendLogStorageTier<JobEvent<T>>[]): () => void {
+		return this.events.attachStorage(tiers);
 	}
 
 	enqueue(payload: T, opts: { id?: string; metadata?: Record<string, unknown> } = {}): string {
-		const id = opts.id ?? `${this.name}-${++this._seq}`;
+		const seq = this._bumpSeq();
+		const id = opts.id ?? `${this.name}-${seq}`;
 		if (this._jobs.get(id) !== undefined) {
 			throw new Error(`jobQueue("${this.name}"): duplicate job id "${id}"`);
 		}
@@ -83,6 +132,7 @@ export class JobQueueGraph<T> extends Graph {
 		};
 		this._jobs.set(id, job);
 		this._pending.append(id);
+		this.events.append({ action: "enqueue", id, payload, t_ns: wallClockNs(), seq });
 		return id;
 	}
 
@@ -103,6 +153,13 @@ export class JobQueueGraph<T> extends Graph {
 			};
 			this._jobs.set(id, inflight);
 			out.push(inflight);
+			this.events.append({
+				action: "claim",
+				id,
+				attempts: inflight.attempts,
+				t_ns: wallClockNs(),
+				seq: this._bumpSeq(),
+			});
 		}
 		return out;
 	}
@@ -111,6 +168,13 @@ export class JobQueueGraph<T> extends Graph {
 		const job = this._jobs.get(id);
 		if (!job || job.state !== "inflight") return false;
 		this._jobs.delete(id);
+		this.events.append({
+			action: "ack",
+			id,
+			attempts: job.attempts,
+			t_ns: wallClockNs(),
+			seq: this._bumpSeq(),
+		});
 		return true;
 	}
 
@@ -120,9 +184,23 @@ export class JobQueueGraph<T> extends Graph {
 		if (opts.requeue ?? true) {
 			this._jobs.set(id, { ...job, state: "queued" });
 			this._pending.append(id);
+			this.events.append({
+				action: "nack",
+				id,
+				attempts: job.attempts,
+				t_ns: wallClockNs(),
+				seq: this._bumpSeq(),
+			});
 			return true;
 		}
 		this._jobs.delete(id);
+		this.events.append({
+			action: "nack",
+			id,
+			attempts: job.attempts,
+			t_ns: wallClockNs(),
+			seq: this._bumpSeq(),
+		});
 		return true;
 	}
 
@@ -149,6 +227,13 @@ export class JobQueueGraph<T> extends Graph {
 			if (idx >= 0) this._pending.pop(idx);
 		}
 		this._jobs.delete(id);
+		this.events.append({
+			action: "remove",
+			id,
+			attempts: job.attempts,
+			t_ns: wallClockNs(),
+			seq: this._bumpSeq(),
+		});
 		return true;
 	}
 }

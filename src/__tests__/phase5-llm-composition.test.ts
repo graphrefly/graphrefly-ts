@@ -31,7 +31,7 @@ import {
 	type ToolDefinition,
 	toolRegistry,
 } from "../patterns/ai/index.js";
-import { approval, join, pipeline, sensor, task } from "../patterns/orchestration/index.js";
+import { pipelineGraph } from "../patterns/orchestration/index.js";
 
 // ---------------------------------------------------------------------------
 // Mock adapter
@@ -61,16 +61,16 @@ function mockAdapter(responses: LLMResponse[]): LLMAdapter {
 
 describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 	it("pipeline processes a document through classify → extract → validate → output", () => {
-		const g = pipeline("doc-processor");
+		const g = pipelineGraph("doc-processor");
 
-		// Stage 1: Input sensor (human submits a document)
-		const input = sensor<{ text: string; source: string }>(g, "input");
+		// Stage 1: Input source (human submits a document)
+		const input = state<{ text: string; source: string } | undefined>(undefined);
+		g.add(input, { name: "input" });
 
 		// Stage 2: Classify document type (derived from input)
-		// KEY INSIGHT: Null guard needed (composition guide §3) because sensor
+		// KEY INSIGHT: Null guard needed (composition guide §3) because input
 		// starts with SENTINEL → task dep value is undefined on activation.
-		const _classify = task<string>(
-			g,
+		const _classify = g.task<string>(
 			"classify",
 			([doc]) => {
 				const d = doc as { text: string } | undefined;
@@ -83,8 +83,7 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 		);
 
 		// Stage 3: Extract entities based on classification
-		const _extract = task<string[]>(
-			g,
+		const _extract = g.task<string[]>(
 			"extract",
 			([doc]) => {
 				const d = doc as { text: string } | undefined;
@@ -95,15 +94,15 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 			{ deps: ["input"] },
 		);
 
-		// Stage 4: Join classification + extraction for validation
-		const _validated = join<[string, string[]]>(g, "validated", ["classify", "extract"]);
+		// Stage 4: Combine classification + extraction for validation
+		const _validated = g.combine("validated", { classify: "classify", extract: "extract" });
 
 		// Stage 5: Output effect — use core `effect` + `graph.add` (post-A/B cleanup
 		// the old patterns/orchestration.forEach graph-registering sugar is gone).
 		const results: Array<{ type: string; entities: string[] }> = [];
 		const output = effect([g.resolve("validated")], ([val]) => {
-			const [type, entities] = val as [string, string[]];
-			results.push({ type, entities });
+			const rec = val as { classify: string; extract: string[] };
+			results.push({ type: rec.classify, entities: rec.extract });
 		});
 		g.add(output, { name: "output" });
 
@@ -113,13 +112,13 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 		output.subscribe(() => {});
 
 		// Push model: setting input cascades through the entire pipeline
-		input.push({ text: "Please pay this invoice for $500.00 and $1,200", source: "email" });
+		input.emit({ text: "Please pay this invoice for $500.00 and $1,200", source: "email" });
 
 		expect(g.node("classify").cache).toBe("invoice");
 		expect(g.node("extract").cache).toEqual(["$500.00", "$1,200"]);
 
 		// KEY INSIGHT: With null guards returning initial values ("pending", []),
-		// the join node produces intermediate emissions as each dep settles.
+		// the combine node produces intermediate emissions as each dep settles.
 		// The FINAL result has the correct values. In a real system, you'd
 		// filter out the intermediate "pending" values, or use SENTINEL deps
 		// (no initial) so the pipeline only fires when ALL inputs are ready.
@@ -140,7 +139,7 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 
 describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 	it("gates deployment behind approval, with fallback on rejection", () => {
-		const g = pipeline("deploy");
+		const g = pipelineGraph("deploy");
 
 		// Build artifact
 		const artifact = state({ version: "1.2.0", sha: "abc123" });
@@ -151,7 +150,12 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 		g.add(isApproved, { name: "approved" });
 
 		// Gate: holds artifact until approved
-		const gated = approval<{ version: string; sha: string }>(g, "review", "artifact", "approved");
+		const reviewCtrl = g.approval<{ version: string; sha: string }>(
+			"review",
+			"artifact",
+			isApproved,
+		);
+		const gated = reviewCtrl.node;
 
 		// On approval: deploy
 		const deployed: string[] = [];
@@ -471,8 +475,8 @@ describe("Phase 5 — Scenario 7: LLM graph self-awareness via describe + gauges
 // ===========================================================================
 
 describe("Phase 5 — Scenario 8: Multi-source merge with error isolation", () => {
-	it("merge combines multiple sources, onFailure isolates errors", () => {
-		const g = pipeline("ingest");
+	it("merge combines multiple sources, catch isolates errors", () => {
+		const g = pipelineGraph("ingest");
 
 		// Three data sources
 		const source1 = state<number>(10);

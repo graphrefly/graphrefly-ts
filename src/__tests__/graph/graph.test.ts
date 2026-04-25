@@ -893,21 +893,19 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(g1.get(metaPath)).toBe("hi");
 	});
 
-	it("attachStorage triggers only for messageTier >= 3", async () => {
+	it("attachSnapshotStorage triggers only for messageTier >= 3", async () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const saves: unknown[] = [];
 		const tier = {
-			save(_key: string, data: unknown) {
+			name: "test",
+			save(data: unknown) {
 				saves.push(data);
-			},
-			load(_key: string) {
-				return null;
 			},
 			debounceMs: 5,
 			compactEvery: 2,
 		};
-		const h = g.attachStorage([tier]);
+		const h = g.attachSnapshotStorage([tier]);
 		// Wait for any initial push-on-subscribe checkpoint to drain
 		await new Promise((r) => setTimeout(r, 15));
 		saves.length = 0;

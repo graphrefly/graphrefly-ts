@@ -21,7 +21,7 @@ import type { Node } from "../../core/node.js";
 import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
-import { emitToMeta } from "../_internal.js";
+import { emitToMeta } from "../_internal/index.js";
 import {
 	analyzeAndMeasure,
 	type CharPosition,

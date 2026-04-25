@@ -11,13 +11,13 @@
  * @module
  */
 
-import { downWithBatch } from "../core/batch.js";
-import { DATA, DIRTY } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { defaultConfig } from "../core/node.js";
+import { downWithBatch } from "../../core/batch.js";
+import { DATA, DIRTY } from "../../core/messages.js";
+import type { Node } from "../../core/node.js";
+import { defaultConfig } from "../../core/node.js";
 
 // Re-export general-purpose utilities from extra (canonical home).
-export { keepalive, reactiveCounter } from "../extra/sources.js";
+export { keepalive, reactiveCounter } from "../../extra/sources.js";
 
 // ---------------------------------------------------------------------------
 // emitToMeta

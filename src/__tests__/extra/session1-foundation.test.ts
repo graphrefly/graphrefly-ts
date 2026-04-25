@@ -23,7 +23,7 @@ import { makeHttpError } from "../../extra/http-error.js";
 import { onFirstData, tapFirst } from "../../extra/operators.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
 import { awaitSettled, fromAny, nodeSignal } from "../../extra/sources.js";
-import { memoryStorage } from "../../extra/storage-core.js";
+import { memoryKv } from "../../extra/storage-tiers.js";
 import { collect } from "../test-helpers.js";
 
 // ─── makeHttpError ────────────────────────────────────────────────────────
@@ -380,7 +380,7 @@ describe("reactiveMap retention (Wave A Unit 7 C1)", () => {
 describe("contentAddressedStorage (Wave A Unit 11 + 12)", () => {
 	it("stores and looks up by content-hash", async () => {
 		const cache = contentAddressedStorage<{ q: string }, { ans: string }>({
-			storage: memoryStorage(),
+			storage: memoryKv(),
 			keyPrefix: "qa",
 		});
 		await cache.store({ q: "hi" }, { ans: "hello" });
@@ -392,14 +392,14 @@ describe("contentAddressedStorage (Wave A Unit 11 + 12)", () => {
 
 	it("throws ContentAddressedMissError in read-strict mode on miss", async () => {
 		const cache = contentAddressedStorage<{ q: string }, { ans: string }>({
-			storage: memoryStorage(),
+			storage: memoryKv(),
 			mode: "read-strict",
 		});
 		await expect(cache.lookup({ q: "nope" })).rejects.toBeInstanceOf(ContentAddressedMissError);
 	});
 
 	it("write mode never returns hits, even when previously stored", async () => {
-		const storage = memoryStorage();
+		const storage = memoryKv();
 		const writer = contentAddressedStorage<{ id: string }, string>({ storage, mode: "write" });
 		await writer.store({ id: "x" }, "value");
 		expect(await writer.lookup({ id: "x" })).toBeUndefined();
@@ -409,7 +409,7 @@ describe("contentAddressedStorage (Wave A Unit 11 + 12)", () => {
 	});
 
 	it("read mode never stores", async () => {
-		const storage = memoryStorage();
+		const storage = memoryKv();
 		const reader = contentAddressedStorage<{ id: string }, string>({ storage, mode: "read" });
 		await reader.store({ id: "x" }, "value");
 		expect(await reader.lookup({ id: "x" })).toBeUndefined();
@@ -417,7 +417,7 @@ describe("contentAddressedStorage (Wave A Unit 11 + 12)", () => {
 
 	it("keyContext extractor lets callers exclude fields from the hash", async () => {
 		const cache = contentAddressedStorage<{ query: string; retries: number }, string>({
-			storage: memoryStorage(),
+			storage: memoryKv(),
 			// Exclude `retries` from the hash so retries of the same query are cache-hits.
 			keyContext: ({ query }) => ({ query }),
 		});

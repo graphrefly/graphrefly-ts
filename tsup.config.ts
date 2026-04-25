@@ -112,6 +112,9 @@ const ENTRY_POINTS = [
 	"src/extra/storage-core.ts",
 	"src/extra/storage-node.ts",
 	"src/extra/storage-browser.ts",
+	"src/extra/storage-tiers.ts",
+	"src/extra/storage-tiers-node.ts",
+	"src/extra/storage-tiers-browser.ts",
 	"src/graph/index.ts",
 	"src/compat/index.ts",
 	"src/compat/jotai/index.ts",
@@ -189,7 +192,12 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 	//
 	// These correspond to tsup entries whose source file is itself Node-only.
 	// Keep in sync with `ENTRY_POINTS` (strip `src/` prefix + `.ts`).
-	const nodeOnlyEntries = new Set<string>(["extra/node", "extra/storage-node", "patterns/ai/node"]);
+	const nodeOnlyEntries = new Set<string>([
+		"extra/node",
+		"extra/storage-node",
+		"extra/storage-tiers-node",
+		"patterns/ai/node",
+	]);
 
 	// Derive the canonical set of entry paths (no ext) from `ENTRY_POINTS` so
 	// `isEntry` doesn't rely on filename heuristics. Chunks emitted by tsup

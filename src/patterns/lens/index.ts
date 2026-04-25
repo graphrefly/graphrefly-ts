@@ -39,7 +39,7 @@ import {
 	reachable,
 	watchTopologyTree,
 } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal.js";
+import { domainMeta, keepalive } from "../_internal/index.js";
 import { reactiveExplainPath } from "../audit/index.js";
 
 export { watchTopologyTree } from "../../graph/index.js";

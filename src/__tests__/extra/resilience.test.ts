@@ -20,7 +20,6 @@ import {
 	RateLimiterOverflowError,
 	rateLimiter,
 	retry,
-	retrySource,
 	TimeoutError,
 	timeout,
 	tokenBucket,
@@ -183,7 +182,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 	});
 
-	describe("retrySource", () => {
+	describe("retry (factory form, formerly retrySource)", () => {
 		it("builds a fresh source per attempt", async () => {
 			vi.useFakeTimers();
 			let builds = 0;
@@ -197,7 +196,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					}
 				});
 			};
-			const out = retrySource(factory, { count: 5, backoff: constant(0) });
+			const out = retry(factory, { count: 5, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -212,7 +211,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				producer<number>((a) => {
 					a.down([[ERROR, new Error("x")]]);
 				});
-			const out = retrySource(factory, { count: 0 });
+			const out = retry(factory, { count: 0 });
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
 			unsub();
@@ -227,7 +226,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					a.down([[ERROR, new Error(`build-${builds}`)]]);
 				});
 			};
-			const out = retrySource(factory, { count: 2, backoff: constant(0) });
+			const out = retry(factory, { count: 2, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const errors = batches.flat().filter((m) => m[0] === ERROR);
@@ -247,7 +246,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					a.emit(7);
 				});
 			};
-			const out = retrySource(factory, { count: 3, backoff: constant(0) });
+			const out = retry(factory, { count: 3, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -265,7 +264,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					a.down([[COMPLETE]]);
 				});
 			};
-			const out = retrySource(factory, { count: 5, backoff: constant(0) });
+			const out = retry(factory, { count: 5, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 			expect(builds).toBe(1);
@@ -293,7 +292,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			// With reset-on-DATA semantics, after build=1 emits 10 the attempt
 			// counter is cleared, so the subsequent errors all fit within the
 			// same retry budget. We assert the happy path reaches build 5.
-			const out = retrySource(factory, { count: 4, backoff: constant(0) });
+			const out = retry(factory, { count: 4, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(20);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -314,7 +313,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					};
 				});
 			};
-			const out = retrySource(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) });
+			const out = retry(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) });
 			const { unsub } = collect(out);
 			unsub();
 			await vi.advanceTimersByTimeAsync(10 * NS_PER_SEC);
@@ -325,7 +324,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("forwards DATA / DIRTY / RESOLVED transparently", async () => {
 			const src = state<number>(1);
-			const out = retrySource(() => src, { count: 0 });
+			const out = retry(() => src, { count: 0 });
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 2]]);
 			const data = batches.flat().filter((m) => m[0] === DATA);

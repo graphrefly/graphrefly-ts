@@ -32,10 +32,8 @@ export {
 	RateLimiterOverflowError,
 	type RateLimiterOverflowPolicy,
 	type RetryOptions,
-	type RetrySourceOptions,
 	rateLimiter,
 	retry,
-	retrySource,
 	type StatusValue,
 	TimeoutError,
 	type TokenBucket,
@@ -49,6 +47,7 @@ export {
 export * from "./single-from-any.js";
 export * from "./sources.js";
 export * from "./storage-core.js";
+export * from "./storage-tiers.js";
 export * from "./stratify.js";
 export { ResettableTimer } from "./timer.js";
 export * from "./worker/index.js";

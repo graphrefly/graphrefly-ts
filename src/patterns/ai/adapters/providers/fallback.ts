@@ -32,8 +32,8 @@
  *    canonical hash for messages-keyed entries at init time. Ideal when you
  *    want full control in code (tests, small demos).
  *
- * 2. **`fixturesStorage: StorageTier`** — the escape hatch for any backend.
- *    Pass a `memoryStorage()`, `indexedDbStorage(...)`, `sqliteStorage(...)`,
+ * 2. **`fixturesStorage: KvStorageTier`** — the escape hatch for any backend.
+ *    Pass a `memoryKv()`, `indexedDbKv(...)`, `sqliteKv(...)`,
  *    `cascadingCache(...)`, or a custom tier. You own the layout — no
  *    auto-namespacing.
  *
@@ -69,7 +69,7 @@
 
 import { wallClockNs } from "../../../../core/clock.js";
 import { sha256Hex } from "../../../../core/hash.js";
-import { memoryStorage, type StorageTier } from "../../../../extra/storage-core.js";
+import { type KvStorageTier, memoryKv } from "../../../../extra/storage-tiers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -126,19 +126,19 @@ export interface FallbackAdapterOptions {
 	 * Inline hand-authored fixtures. Supports both hash-keyed (`{key, response, stream?}`)
 	 * and messages-keyed (`{messages, invokeOpts?, response}`) shapes — the adapter
 	 * computes the canonical hash for messages-keyed entries at init time. Held in
-	 * an internal `memoryStorage`. Mutually exclusive with `fixturesDir` and
+	 * an internal `memoryKv`. Mutually exclusive with `fixturesDir` and
 	 * `fixturesStorage`.
 	 */
 	readonly fixtures?: readonly FallbackFixture[];
 	/**
-	 * Bring-your-own `StorageTier` (`memoryStorage`, `sqliteStorage`,
-	 * `indexedDbStorage`, `cascadingCache`, or a custom tier). You own the
+	 * Bring-your-own `KvStorageTier` (`memoryKv`, `sqliteKv`,
+	 * `indexedDbKv`, `cascadingCache`, or a custom tier). You own the
 	 * layout — no auto-namespacing. Mutually exclusive with `fixtures`.
 	 *
 	 * For filesystem directories, use the node subpath's `fallbackAdapter`
 	 * with its `fixturesDir` option (auto-namespaced + validated).
 	 */
-	readonly fixturesStorage?: StorageTier;
+	readonly fixturesStorage?: KvStorageTier;
 	/**
 	 * Called on fixture miss when `onMiss === "respond"`. If not provided and
 	 * `onMiss === "respond"`, a canned "service unavailable" response is
@@ -157,7 +157,7 @@ export interface FallbackAdapterOptions {
 	 */
 	readonly record?: {
 		readonly adapter: LLMAdapter;
-		readonly storage?: StorageTier;
+		readonly storage?: KvStorageTier;
 	};
 	/** Stream replay speed multiplier. See {@link withReplayCache}. Default `1`. */
 	readonly replaySpeed?: number;
@@ -252,7 +252,7 @@ function toCachedEntry(fixture: FallbackFixture): unknown {
 }
 
 /**
- * Resolve the fixture source to a `StorageTier`. Enforces mutual exclusion
+ * Resolve the fixture source to a `KvStorageTier`. Enforces mutual exclusion
  * between `fixtures` and `fixturesStorage`. When `fixtures` is provided, the
  * seeded memory tier is returned synchronously but keys are populated
  * asynchronously via the returned seeding promise (await before first use).
@@ -260,7 +260,7 @@ function toCachedEntry(fixture: FallbackFixture): unknown {
 function resolveFixtureStorage(
 	opts: FallbackAdapterOptions,
 	keyPrefix: string,
-): { tier: StorageTier | undefined; seedReady: Promise<void> } {
+): { tier: KvStorageTier | undefined; seedReady: Promise<void> } {
 	const sources: string[] = [];
 	if (opts.fixtures != null) sources.push("fixtures");
 	if (opts.fixturesStorage != null) sources.push("fixturesStorage");
@@ -272,7 +272,7 @@ function resolveFixtureStorage(
 		);
 	}
 	if (opts.fixtures) {
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		const fixtures = opts.fixtures;
 		const seedReady = (async () => {
 			for (const fixture of fixtures) {
@@ -349,7 +349,7 @@ export function fallbackAdapter(opts: FallbackAdapterOptions = {}): LLMAdapter {
 	// - `record` mode: require `record.storage`.
 	// - Replay-only: `fixtures` seeds an in-memory tier (async) OR
 	//   `fixturesStorage` passes through.
-	let storage: StorageTier;
+	let storage: KvStorageTier;
 	let seedReady: Promise<void> = Promise.resolve();
 	if (opts.record) {
 		if (!opts.record.storage) {
@@ -361,7 +361,7 @@ export function fallbackAdapter(opts: FallbackAdapterOptions = {}): LLMAdapter {
 		storage = opts.record.storage;
 	} else {
 		const resolved = resolveFixtureStorage(opts, keyPrefix);
-		storage = resolved.tier ?? memoryStorage();
+		storage = resolved.tier ?? memoryKv();
 		seedReady = resolved.seedReady;
 	}
 

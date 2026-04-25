@@ -4,32 +4,21 @@ import { node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { delay, valve } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
-import {
-	approval,
-	branch,
-	gate,
-	join,
-	loop,
-	onFailure,
-	pipeline,
-	sensor,
-	subPipeline,
-	task,
-} from "../../patterns/orchestration/index.js";
+import { pipelineGraph } from "../../patterns/orchestration/index.js";
 
 describe("patterns.orchestration", () => {
-	it("pipeline creates a Graph container", () => {
-		const g = pipeline("wf");
+	it("pipelineGraph creates a PipelineGraph container", () => {
+		const g = pipelineGraph("wf");
 		expect(g).toBeInstanceOf(Graph);
 		expect(g.name).toBe("wf");
 	});
 
 	// FLAG: v5 behavioral change — needs investigation (expected undefined to be 6)
 	it("task registers a computed step and wires dependency edges", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(1);
 		g.add(input, { name: "input" });
-		const doubled = task<number>(g, "double", ([v]) => ((v as number) * 2) as number, {
+		const doubled = g.task<number>("double", ([v]) => ((v as number) * 2) as number, {
 			deps: ["input"],
 		});
 		doubled.subscribe(() => undefined);
@@ -39,26 +28,28 @@ describe("patterns.orchestration", () => {
 	});
 
 	it("task with Node deps still records explicit graph edges", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(2);
 		g.add(input, { name: "input" });
-		task<number>(g, "doubleByRef", ([v]) => ((v as number) * 2) as number, {
+		g.task<number>("doubleByRef", ([v]) => ((v as number) * 2) as number, {
 			deps: [input],
 		});
 		expect(g.edges()).toContainEqual(["input", "doubleByRef"]);
 	});
 
-	it("branch emits tagged branch results", () => {
-		const g = pipeline("wf");
+	it("classify emits tagged results", () => {
+		const g = pipelineGraph("wf");
 		const input = state(1);
 		g.add(input, { name: "input" });
-		const out = branch<number>(g, "route", "input", (v) => v >= 2);
+		const out = g.classify<"then" | "else", number>("route", "input", (v) =>
+			v >= 2 ? "then" : "else",
+		);
 		const seen: Array<"then" | "else"> = [];
 		out.subscribe((msgs) => {
 			for (const msg of msgs) {
 				if (msg[0] === DATA) {
-					const payload = msg[1] as { branch: "then" | "else" };
-					seen.push(payload.branch);
+					const payload = msg[1] as { tag: "then" | "else" };
+					seen.push(payload.tag);
 				}
 			}
 		});
@@ -67,12 +58,12 @@ describe("patterns.orchestration", () => {
 		expect(seen).toContain("then");
 	});
 
-	it("task and branch describe as derived with canonical orchestration metadata", () => {
-		const g = pipeline("wf");
+	it("task and classify describe as derived with canonical orchestration metadata", () => {
+		const g = pipelineGraph("wf");
 		const input = state(1);
 		g.add(input, { name: "input" });
-		task<number>(g, "t", ([v]) => v as number, { deps: ["input"] });
-		branch<number>(g, "b", "input", (v) => v > 0);
+		g.task<number>("t", ([v]) => v as number, { deps: ["input"] });
+		g.classify<"pos" | "neg", number>("b", "input", (v) => (v > 0 ? "pos" : "neg"));
 		const desc = g.describe({ detail: "standard" });
 		const tKey = Object.keys(desc.nodes).find((k) => k === "t" || k.endsWith("::t"));
 		const bKey = Object.keys(desc.nodes).find((k) => k === "b" || k.endsWith("::b"));
@@ -83,12 +74,11 @@ describe("patterns.orchestration", () => {
 		expect(tNode?.type).toBe("derived");
 		expect(bNode?.type).toBe("derived");
 		expect(tNode?.meta?.orchestration_type).toBe("task");
-		expect(bNode?.meta?.orchestration_type).toBe("branch");
+		expect(bNode?.meta?.orchestration_type).toBe("classify");
 	});
 
-	// FLAG: v5 behavioral change — needs investigation (expected undefined to be 2)
 	it("valve and approval hold value when control is false", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(1);
 		const open = state(true);
 		const approved = state(true);
@@ -97,9 +87,9 @@ describe("patterns.orchestration", () => {
 		g.add(approved, { name: "approved" });
 		const gated = valve<number>(input, open);
 		g.add(gated, { name: "gated" });
-		const reviewed = approval<number>(g, "reviewed", gated, "approved");
+		const reviewCtrl = g.approval<number>("reviewed", "gated", approved);
 		gated.subscribe(() => undefined);
-		reviewed.subscribe(() => undefined);
+		reviewCtrl.node.subscribe(() => undefined);
 
 		g.set("input", 2);
 		expect(g.get("reviewed")).toBe(2);
@@ -114,7 +104,7 @@ describe("patterns.orchestration", () => {
 
 	// forEach removed — use `effect([source], ...)` + `graph.add()`.
 	it("effect-based side-effect runs per value and is graph-observable", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
 		const seen: number[] = [];
@@ -128,54 +118,28 @@ describe("patterns.orchestration", () => {
 		expect(seen).toEqual([2, 3]);
 	});
 
-	it("join emits latest tuple of dependencies", () => {
-		const g = pipeline("wf");
+	it("combine emits keyed record of latest dependency values", () => {
+		const g = pipelineGraph("wf");
 		const a = state(1);
 		const b = state("x");
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const j = join<[number, string]>(g, "j", ["a", "b"]);
+		const j = g.combine("j", { a: "a", b: "b" });
 		j.subscribe(() => undefined);
 		g.set("a", 5);
-		expect(g.get("j")).toEqual([5, "x"]);
+		expect(g.get("j")).toEqual({ a: 5, b: "x" });
 	});
 
-	it("loop applies iterate function fixed times", () => {
-		const g = pipeline("wf");
-		const input = state(2);
-		g.add(input, { name: "input" });
-		const l = loop<number>(g, "pow2x3", "input", (value) => value * 2, { iterations: 3 });
-		l.subscribe(() => undefined);
-		expect(g.get("pow2x3")).toBe(16);
-	});
-
-	it("subPipeline mounts child workflow graph", () => {
-		const root = pipeline("root");
-		const child = subPipeline(root, "child", (sub) => {
-			sub.add(state(1), { name: "n" });
-		});
-		expect(child).toBeInstanceOf(Graph);
+	it("mount mounts child workflow graph", () => {
+		const root = pipelineGraph("root");
+		const child = new Graph("child");
+		child.add(state(1), { name: "n" });
+		root.mount("child", child);
 		expect(root.get("child::n")).toBe(1);
 	});
 
-	it("sensor provides imperative push/error/complete controls", () => {
-		const g = pipeline("wf");
-		const s = sensor<number>(g, "s");
-		const values: number[] = [];
-		s.node.subscribe((msgs) => {
-			for (const msg of msgs) {
-				if (msg[0] === DATA && msg[1] !== undefined) {
-					values.push(msg[1] as number);
-				}
-			}
-		});
-		s.push(10);
-		s.push(20);
-		expect(values).toEqual([10, 20]);
-	});
-
 	it("delay shifts DATA by ms while forwarding eventual updates", async () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(1);
 		g.add(input, { name: "input" });
 		const delayed = delay<number>(input, 10);
@@ -191,12 +155,11 @@ describe("patterns.orchestration", () => {
 	});
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
-	it("onFailure recovers from errors", () => {
-		const g = pipeline("wf");
+	it("catch recovers from errors", () => {
+		const g = pipelineGraph("wf");
 		const src = state(1);
 		g.add(src, { name: "src" });
-		const failing = task<number>(
-			g,
+		const failing = g.task<number>(
 			"failing",
 			([v]) => {
 				if ((v as number) > 1) throw new Error("boom");
@@ -204,7 +167,10 @@ describe("patterns.orchestration", () => {
 			},
 			{ deps: ["src"] },
 		);
-		const recovered = onFailure<number>(g, "recovered", failing, () => 999);
+		const recovered = g.catch<number>("recovered", failing, (cause) => {
+			if (cause.kind === "error") return 999;
+			return 0;
+		});
 		recovered.subscribe(() => undefined);
 		g.set("src", 2);
 		expect(g.get("recovered")).toBe(999);
@@ -213,7 +179,7 @@ describe("patterns.orchestration", () => {
 	// forEach removed — effect([source], fn) with a throwing fn terminates the
 	// effect node via auto-error propagation; downstream subscribers stop firing.
 	it("effect-based side-effect stops running user fn after an error", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const src = node<number>();
 		g.add(src, { name: "src" });
 		const seen: number[] = [];
@@ -231,7 +197,7 @@ describe("patterns.orchestration", () => {
 	});
 
 	it("delay cancels pending timers on teardown", async () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
 		const delayed = delay<number>(input, 20);
@@ -244,12 +210,11 @@ describe("patterns.orchestration", () => {
 	});
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
-	it("onFailure stops recovery attempts after terminal error", () => {
-		const g = pipeline("wf");
+	it("catch stops recovery attempts after terminal error", () => {
+		const g = pipelineGraph("wf");
 		const src = state(0);
 		g.add(src, { name: "src" });
-		const failing = task<number>(
-			g,
+		const failing = g.task<number>(
 			"failing",
 			([v]) => {
 				if ((v as number) >= 1) throw new Error("boom");
@@ -258,31 +223,15 @@ describe("patterns.orchestration", () => {
 			{ deps: ["src"] },
 		);
 		let recoverCalls = 0;
-		const recovered = onFailure<number>(g, "recovered", failing, () => {
+		const recovered = g.catch<number>("recovered", failing, (cause) => {
 			recoverCalls += 1;
-			throw new Error("recover-failed");
+			if (cause.kind === "error") throw new Error("recover-failed");
+			return 0;
 		});
 		recovered.subscribe(() => undefined);
 		g.set("src", 1);
 		g.set("src", 2);
 		expect(recoverCalls).toBe(1);
-	});
-
-	it("loop uses permissive parse + truncate for iteration dep values", () => {
-		const g = pipeline("wf");
-		const input = state(2);
-		const iter = state<unknown>("2.9");
-		g.add(input, { name: "input" });
-		g.add(iter, { name: "iter" });
-		const l = loop<number>(g, "looped", "input", (value) => value * 2, {
-			iterations: "iter",
-		});
-		l.subscribe(() => undefined);
-		expect(g.get("looped")).toBe(8);
-		g.set("iter", "bad");
-		expect(g.get("looped")).toBe(4);
-		g.set("iter", "");
-		expect(g.get("looped")).toBe(2);
 	});
 
 	// ---------------------------------------------------------------
@@ -291,10 +240,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate queues values and approve forwards them", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input");
+		const ctrl = g.gate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -319,10 +268,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate reject discards pending values", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input");
+		const ctrl = g.gate<number>("gated", "input");
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 10);
 		g.set("input", 20);
@@ -335,10 +284,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate modify transforms and forwards", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input");
+		const ctrl = g.gate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -353,10 +302,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate open flushes pending and auto-approves future", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input");
+		const ctrl = g.gate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -376,10 +325,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate close re-enables manual gating", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input", { startOpen: true });
+		const ctrl = g.gate<number>("gated", "input", { startOpen: true });
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -396,10 +345,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate maxPending drops oldest values (FIFO)", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input", { maxPending: 2 });
+		const ctrl = g.gate<number>("gated", "input", { maxPending: 2 });
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 1);
 		g.set("input", 2);
@@ -409,10 +358,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate approve(n) forwards multiple values", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = gate<number>(g, "gated", "input");
+		const ctrl = g.gate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -429,10 +378,10 @@ describe("patterns.orchestration", () => {
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
 	it("gate registers internal state nodes in graph", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		gate<number>(g, "gated", "input");
+		g.gate<number>("gated", "input");
 		const desc = g.describe();
 		expect(desc.nodes).toHaveProperty("gated");
 		expect(desc.nodes).toHaveProperty("gated_state::pending");
@@ -441,9 +390,9 @@ describe("patterns.orchestration", () => {
 	});
 
 	it("gate maxPending < 1 throws RangeError", () => {
-		const g = pipeline("wf");
+		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		expect(() => gate<number>(g, "gated", "input", { maxPending: 0 })).toThrow(RangeError);
+		expect(() => g.gate<number>("gated", "input", { maxPending: 0 })).toThrow(RangeError);
 	});
 });

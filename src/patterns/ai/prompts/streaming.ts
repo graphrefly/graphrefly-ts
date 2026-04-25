@@ -29,9 +29,9 @@ import { derived, state } from "../../../core/sugar.js";
 import { filter, switchMap } from "../../../extra/operators.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
-import { keepalive } from "../../_internal.js";
+import { keepalive } from "../../_internal/index.js";
 import { type TopicGraph, topic } from "../../messaging/index.js";
-import { type GateController, type GateOptions, gate } from "../../orchestration/index.js";
+import { type GateController, type GateOptions, pipelineGraph } from "../../orchestration/index.js";
 import { aiMeta, stripFences } from "../_internal.js";
 import type { ChatMessage, LLMAdapter, StreamDelta } from "../adapters/core/types.js";
 
@@ -366,7 +366,10 @@ export function gatedStream<T = string>(
 	// Wire gate on the output. Type parameter is `T` (not `T | null`) — the
 	// `filter` above drops nulls before they reach the gate, so the pending
 	// queue's DATA domain is `T` only.
-	const gateCtrl = gate<T>(graph, `${name}/gate`, `${name}/raw`, opts?.gate);
+	const gateSubgraph = pipelineGraph(`${name}/gate-graph`);
+	graph.mount(`${name}/gate-graph`, gateSubgraph);
+	gateSubgraph.add(nonNullOutput, { name: `${name}/raw` });
+	const gateCtrl = gateSubgraph.gate<T>(`${name}/gate`, `${name}/raw`, opts?.gate);
 
 	// Keepalive the switchMap product, the gate's output node, AND the
 	// accumulator so the full bundle contract ("three reactive surfaces, any

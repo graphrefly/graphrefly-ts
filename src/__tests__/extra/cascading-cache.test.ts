@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TEARDOWN } from "../../core/messages.js";
 import { cascadingCache, lru } from "../../extra/cascading-cache.js";
-import type { StorageTier } from "../../extra/storage-core.js";
+import type { KvStorageTier } from "../../extra/storage-tiers.js";
 
 describe("lru eviction policy", () => {
 	it("evicts least-recently-used entries", () => {
@@ -45,15 +45,16 @@ describe("lru eviction policy", () => {
 });
 
 describe("cascadingCache", () => {
-	function memTier<V>(): StorageTier & { store: Map<string, V> } {
+	function memTier<V>(): KvStorageTier & { store: Map<string, V> } {
 		const store = new Map<string, V>();
 		return {
+			name: "test-mem",
 			store,
-			load: (key) => (store.has(key) ? (store.get(key) as V) : null),
+			load: (key) => (store.has(key) ? (store.get(key) as V) : undefined),
 			save: (key, value) => {
 				store.set(key, value as V);
 			},
-			clear: (key) => {
+			delete: (key) => {
 				store.delete(key);
 			},
 		};
@@ -179,7 +180,8 @@ describe("cascadingCache", () => {
 	});
 
 	it("skips tiers that throw on load", () => {
-		const broken: StorageTier = {
+		const broken: KvStorageTier = {
+			name: "broken",
 			load() {
 				throw new Error("boom");
 			},
@@ -200,8 +202,9 @@ describe("cascadingCache", () => {
 	});
 
 	it("async tier load resolves via Promise", async () => {
-		const cold: StorageTier = {
-			load: async (key) => (key === "k" ? 123 : null),
+		const cold: KvStorageTier = {
+			name: "cold-async",
+			load: async (key) => (key === "k" ? 123 : undefined),
 			save: () => {
 				/* no-op */
 			},
@@ -215,8 +218,9 @@ describe("cascadingCache", () => {
 
 	it("async tier promotes to sync hot tier on hit", async () => {
 		const hot = memTier<number>();
-		const cold: StorageTier = {
-			load: async (key) => (key === "k" ? 77 : null),
+		const cold: KvStorageTier = {
+			name: "cold-async-promote",
+			load: async (key) => (key === "k" ? 77 : undefined),
 			save: () => {
 				/* no-op */
 			},

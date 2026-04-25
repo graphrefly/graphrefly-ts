@@ -5,15 +5,14 @@
  * (tier 0 = hottest). Hits auto-promote to faster tiers. Supports eviction
  * policy and write-through.
  *
- * Consumes {@link StorageTier} directly (the same primitive used by
- * {@link Graph.attachStorage}) — no separate `CacheTier` interface. Async
+ * Consumes {@link KvStorageTier} — no separate `CacheTier` interface. Async
  * tiers participate via `Promise<unknown>` returns from `load`; sync tiers
  * stay zero-microtask (the cascade inspects the return type and branches).
  */
 import { DATA, TEARDOWN } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { state } from "../core/sugar.js";
-import type { StorageTier } from "./storage-core.js";
+import type { KvStorageTier } from "./storage-tiers.js";
 
 // ——————————————————————————————————————————————————————————————
 //  Eviction policy
@@ -131,7 +130,7 @@ function isPromiseLike(v: unknown): v is Promise<unknown> {
 function fireAndForget(result: void | Promise<void>): void {
 	if (isPromiseLike(result)) {
 		(result as Promise<void>).catch(() => {
-			/* ignore — users opt into onError via attachStorage, not cache */
+			/* ignore — users opt into onError via attachSnapshotStorage, not cache */
 		});
 	}
 }
@@ -157,9 +156,9 @@ function fireAndForget(result: void | Promise<void>): void {
  *
  * @example
  * ```ts
- * import { cascadingCache, memoryStorage, fileStorage } from "@graphrefly/graphrefly-ts";
+ * import { cascadingCache, memoryKv, fileKv } from "@graphrefly/graphrefly-ts";
  *
- * const cache = cascadingCache<User>([memoryStorage(), fileStorage("./cache")]);
+ * const cache = cascadingCache<User>([memoryKv(), fileKv("./cache")]);
  * const user = cache.load("user:42"); // Node<User | undefined>
  * user.subscribe(msgs => console.log(msgs));
  * ```
@@ -167,7 +166,7 @@ function fireAndForget(result: void | Promise<void>): void {
  * @category extra
  */
 export function cascadingCache<V = unknown>(
-	tiers: readonly StorageTier[],
+	tiers: readonly KvStorageTier[],
 	opts?: CascadingCacheOptions,
 ): CascadingCache<V> {
 	const entries = new Map<string, Node<V | undefined>>();
@@ -202,7 +201,7 @@ export function cascadingCache<V = unknown>(
 				const captured = tierIndex;
 				(result as Promise<unknown>).then(
 					(val) => {
-						if (val !== undefined && val !== null) {
+						if (val !== undefined) {
 							nd.down([[DATA, val]]);
 							promote(key, val as V, captured);
 						} else {
@@ -215,7 +214,7 @@ export function cascadingCache<V = unknown>(
 				);
 				return; // async branch continues the cascade
 			}
-			if (result !== undefined && result !== null) {
+			if (result !== undefined) {
 				nd.down([[DATA, result]]);
 				promote(key, result as V, tierIndex);
 				return;
@@ -243,8 +242,8 @@ export function cascadingCache<V = unknown>(
 						}
 						for (let j = 0; j < lastIndex; j++) {
 							try {
-								const clearFn = tiers[j]!.clear;
-								if (clearFn) fireAndForget(clearFn.call(tiers[j], key));
+								const deleteFn = tiers[j]!.delete;
+								if (deleteFn) fireAndForget(deleteFn.call(tiers[j], key));
 							} catch {
 								/* ignore */
 							}
@@ -316,8 +315,8 @@ export function cascadingCache<V = unknown>(
 			entries.delete(key);
 			for (const tier of tiers) {
 				try {
-					const clearFn = tier.clear;
-					if (clearFn) fireAndForget(clearFn.call(tier, key));
+					const deleteFn = tier.delete;
+					if (deleteFn) fireAndForget(deleteFn.call(tier, key));
 				} catch {
 					/* ignore */
 				}

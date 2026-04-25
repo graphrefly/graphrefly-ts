@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GuardDenied } from "../../core/guard.js";
+import { OptimisticConcurrencyError } from "../../patterns/_internal/errors.js";
 import { type CqrsEvent, CqrsGraph, cqrs, MemoryEventStore } from "../../patterns/cqrs/index.js";
 
 describe("cqrs — roadmap §4.5", () => {
@@ -146,6 +147,74 @@ describe("cqrs — roadmap §4.5", () => {
 		const entriesB = app.event("b").cache as readonly CqrsEvent[];
 		expect(entriesA[0].seq).toBe(1);
 		expect(entriesB[0].seq).toBe(2);
+		app.destroy();
+	});
+
+	// -- Dispatch failure audit (post-rollback) --------------------------------
+
+	it("dispatch() records failure audit record with errorType after throwing handler", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("bad", (_p: any, { emit }) => {
+			emit("orderPlaced", { id: "1" });
+			throw new TypeError("handler boom");
+		});
+		expect(() => app.dispatch("bad", {})).toThrow("handler boom");
+
+		const dispatches = app.dispatches.entries
+			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+		expect(dispatches).toHaveLength(1);
+		const record = dispatches[0];
+		expect(record.status).toBe("failed");
+		expect(record.error).toBeDefined();
+		expect(record.errorType).toBe("TypeError");
+		app.destroy();
+	});
+
+	it("dispatch() audit records emittedEvents list on failure as attempted list", () => {
+		const app = cqrs("test");
+		app.event("a");
+		app.event("b");
+		app.command("multi", (_p: any, { emit }) => {
+			emit("a", 1);
+			emit("b", 2);
+			throw new Error("mid-flight throw");
+		});
+		expect(() => app.dispatch("multi", {})).toThrow("mid-flight throw");
+
+		const dispatches = app.dispatches.entries
+			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+		expect(dispatches[0].status).toBe("failed");
+		expect(dispatches[0].emittedEvents).toEqual(["a", "b"]);
+		app.destroy();
+	});
+
+	it("dispatch() audit records success on successful dispatch", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", (_p: any, { emit }) => {
+			emit("orderPlaced", { id: "1" });
+		});
+		app.dispatch("place", { id: "x" });
+
+		const dispatches = app.dispatches.entries
+			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
+		expect(dispatches).toHaveLength(1);
+		expect(dispatches[0].status).toBe("success");
+		expect(dispatches[0].emittedEvents).toEqual(["orderPlaced"]);
+		expect(dispatches[0].errorType).toBeUndefined();
+		app.destroy();
+	});
+
+	it("dispatch() cmdNode.meta.error is set after rollback", () => {
+		const app = cqrs("test");
+		const err = new RangeError("bad range");
+		app.command("bad", () => {
+			throw err;
+		});
+		expect(() => app.dispatch("bad", {})).toThrow("bad range");
+		const cmdNode = app.resolve("bad");
+		expect(cmdNode.meta.error.cache).toBe(err);
 		app.destroy();
 	});
 
@@ -398,5 +467,65 @@ describe("cqrs — roadmap §4.5", () => {
 		store.persist({ type: "a", payload: 1, timestampNs: 0, seq: 1 });
 		store.clear();
 		expect(store.loadEvents("a").events).toHaveLength(0);
+	});
+
+	// -- D1 — per-aggregate streams + LRU + optimistic concurrency -----------
+
+	it("aggregateVersion increments per-(type, aggregateId) on emit", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", (_: unknown, { emit }) => {
+			emit("orderPlaced", { id: "x" });
+		});
+		app.dispatch("place", { id: "1" }, { aggregateId: "agg-1" });
+		expect(app.aggregateVersion("orderPlaced", "agg-1")).toBe(1);
+		app.dispatch("place", { id: "2" }, { aggregateId: "agg-1" });
+		expect(app.aggregateVersion("orderPlaced", "agg-1")).toBe(2);
+		expect(app.aggregateVersion("orderPlaced", "agg-2")).toBe(0);
+		const events = app.event("orderPlaced", "agg-1").cache as readonly CqrsEvent[];
+		expect(events).toHaveLength(2);
+		expect(events[0].aggregateVersion).toBe(1);
+		expect(events[1].aggregateVersion).toBe(2);
+		app.destroy();
+	});
+
+	it("dispatch throws OptimisticConcurrencyError on version mismatch", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", {
+			handler: (_: unknown, { emit }) => emit("orderPlaced", { id: "x" }),
+			emits: ["orderPlaced"],
+		});
+		app.dispatch("place", { id: "1" }, { aggregateId: "agg-1" });
+		// Aggregate is at v1; expecting v0 should throw.
+		expect(() =>
+			app.dispatch("place", { id: "2" }, { aggregateId: "agg-1", expectedAggregateVersion: 0 }),
+		).toThrow(OptimisticConcurrencyError);
+		// Expecting v1 should succeed.
+		app.dispatch("place", { id: "3" }, { aggregateId: "agg-1", expectedAggregateVersion: 1 });
+		expect(app.aggregateVersion("orderPlaced", "agg-1")).toBe(2);
+		app.destroy();
+	});
+
+	it("LRU eviction removes oldest aggregate streams when maxAggregates exceeded", () => {
+		const app = cqrs("test", { maxAggregates: 2 });
+		app.event("e");
+		app.command("emit", (_: unknown, { emit }) => emit("e", { v: 1 }));
+		app.dispatch("emit", {}, { aggregateId: "a" });
+		app.dispatch("emit", {}, { aggregateId: "b" });
+		app.dispatch("emit", {}, { aggregateId: "c" }); // evicts "a"
+		const evictions = app.aggregateEvictions.entries.cache as readonly {
+			aggregateId: string;
+			type: string;
+			lastVersion: number;
+		}[];
+		expect(evictions).toHaveLength(1);
+		expect(evictions[0].aggregateId).toBe("a");
+		expect(evictions[0].type).toBe("e");
+		expect(evictions[0].lastVersion).toBe(1);
+		// Aggregate "a" version is reset (its dedicated stream + counter were dropped).
+		expect(app.aggregateVersion("e", "a")).toBe(0);
+		expect(app.aggregateVersion("e", "b")).toBe(1);
+		app.destroy();
 	});
 });

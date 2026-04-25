@@ -4,18 +4,21 @@
  * Internal version counter drives efficient equality without leaking `Versioned`
  * into the public API (spec §5.12).
  *
- * **Wave 4 refactor (2026-04-15):** Introduces the `LogBackend<T>` pluggable-backend
- * interface. The default `NativeLogBackend` uses a ring buffer when `maxSize` is set
- * (O(1) append + trim) and a flat array otherwise. `tail(n)` and `slice(start, stop)`
- * are memoized — repeat calls with identical arguments return the same derived node,
- * bounding the keepalive-subscription footprint. The standalone `logSlice` factory
- * has been removed; use `log.slice(start, stop)` instead.
+ * **Audit 1 (2026-04-24):** Adds `view(spec)` consolidated views, `withLatest()`
+ * with `meta.lastValue` / `meta.hasLatest` companion nodes, `attach(upstream)`
+ * for drain-from-source wiring, factory-level `mergeReactiveLogs(logs)` for
+ * fan-in, `guard?` option on `entries`, and `attachStorage(tiers)` integration
+ * with the Audit 4 storage layer. {@link LogBackend} gains `snapshot()` /
+ * `restore()` for cold-tier load on startup.
  */
 import { batch } from "../core/batch.js";
-import { DATA, DIRTY } from "../core/messages.js";
-import type { Node } from "../core/node.js";
+import type { NodeGuard } from "../core/guard.js";
+import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../core/messages.js";
+import { type Node, node } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import { keepalive } from "./sources.js";
+import type { AppendLogStorageTier } from "./storage-tiers.js";
 
 export type ReactiveLogOptions<T> = {
 	name?: string;
@@ -27,6 +30,12 @@ export type ReactiveLogOptions<T> = {
 	 */
 	versioning?: VersioningLevel;
 	/**
+	 * Optional guard policy applied to the `entries` node. Use to deny
+	 * external `write` while permitting `observe` / `signal` — eliminates the
+	 * passthrough-derived pattern in CQRS event streams (Audit 1 #7).
+	 */
+	guard?: NodeGuard;
+	/**
 	 * Storage backend. Defaults to `NativeLogBackend` (ring buffer if `maxSize` is set,
 	 * flat array otherwise). Users can plug in persistent / RRB-tree backends via
 	 * the {@link LogBackend} interface.
@@ -34,71 +43,70 @@ export type ReactiveLogOptions<T> = {
 	backend?: LogBackend<T>;
 };
 
+/**
+ * Discriminated view spec for {@link ReactiveLogBundle.view}. New `kind`s
+ * (e.g. `"filter"`, `"windowByTime"`) layer in without new methods.
+ */
+export type ViewSpec<_T = unknown> =
+	| { kind: "tail"; n: number }
+	| { kind: "slice"; start: number; stop?: number }
+	| { kind: "fromCursor"; cursor: Node<number> };
+
 export type ReactiveLogBundle<T> = {
 	/** Emits `readonly T[]` on each append/clear/trim (two-phase). */
 	readonly entries: Node<readonly T[]>;
 	/** Current entry count (O(1)). */
 	readonly size: number;
-	/** Positional access (O(1)); returns `undefined` on out-of-range. Supports negative indices (Python-style). */
+	/** Positional access (O(1)); returns `undefined` on out-of-range. Supports negative indices. */
 	at: (index: number) => T | undefined;
 	append: (value: T) => void;
-	/**
-	 * Push all values, emit one snapshot. No-op if `values` is empty.
-	 * **Iterable consumption:** `values` is a `readonly T[]` — safe to pass arrays.
-	 */
+	/** Push all values, emit one snapshot. No-op if `values` is empty. */
 	appendMany: (values: readonly T[]) => void;
 	clear: () => void;
-	/** Remove the first `n` entries (clamped to `size`). Throws on non-integer or negative `n`. */
+	/** Remove the first `n` entries (clamped to `size`). */
 	trimHead: (n: number) => void;
 	/**
-	 * Last `n` entries (or fewer) as a derived reactive view. Memoized with
-	 * an LRU cache (default cap 64) — repeat calls with the same `n` return
-	 * the same node. Throws on non-integer or negative `n`.
+	 * Activate the {@link ReactiveLogBundle.lastValue} / {@link ReactiveLogBundle.hasLatest}
+	 * companion nodes (lazy — installed on first call, reused thereafter).
+	 * Returns `entries` so chaining reads naturally.
 	 *
-	 * **LRU eviction contract (D3(b)):** when a 65th distinct `n` is passed,
-	 * the least-recently-used cached view is evicted and its keepalive is
-	 * disposed. External holders of the evicted node will NOT receive further
-	 * updates — re-call `tail(n)` for a fresh node, or dispose proactively
-	 * via {@link disposeTail} / {@link disposeAllViews}. To avoid surprise:
-	 * resolve `tail(n)` at the point of use rather than caching the returned
-	 * node across many distinct `n`s.
+	 * **Companion-node access is on the bundle** (not `entries.meta`) because
+	 * `Node.meta` is frozen at construction; bundle-level lazy properties
+	 * give the same semantics with simpler ergonomics.
 	 */
-	tail: (n: number) => Node<readonly T[]>;
+	withLatest: () => Node<readonly T[]>;
 	/**
-	 * Reactive view of `entries.slice(start, stop)` — non-negative integer
-	 * `start`, non-negative integer `stop` (exclusive) or `undefined` (to end).
-	 * Memoized with an LRU cache (default cap 64) — repeat calls with the
-	 * same `(start, stop)` return the same node.
+	 * Most-recently-appended value, or `undefined` if no entries exist (spec
+	 * §5.12 SENTINEL alignment). Accessing this property activates the
+	 * companion lazily — same as calling {@link ReactiveLogBundle.withLatest}.
 	 *
-	 * Throws on non-integer `start`, negative `start`, non-integer `stop`, or
-	 * negative `stop` (P4 — the backend cannot cheaply honor JS-style
-	 * negative `stop` without scanning length; disallowed for a consistent
-	 * contract between backend, derived recomputation, and cached initial).
-	 *
-	 * **LRU eviction contract (D3(b)):** same as {@link tail} — past 64
-	 * distinct `(start, stop)` pairs, the oldest cached view is evicted and
-	 * its keepalive disposed. External holders stop receiving updates.
+	 * **Caveat when `T` itself includes `undefined`:** `lastValue.cache` is
+	 * ambiguous (could mean "no entries yet" OR "an undefined value was
+	 * appended"). Use {@link ReactiveLogBundle.hasLatest} to disambiguate.
 	 */
-	slice: (start: number, stop?: number) => Node<readonly T[]>;
+	readonly lastValue: Node<T | undefined>;
+	/** Reactive `true` once at least one entry has been appended. */
+	readonly hasLatest: Node<boolean>;
 	/**
-	 * Releases the cached `tail(n)` view if present (disposes its keepalive
-	 * subscription). Subsequent `tail(n)` calls create a fresh node. No-op if
-	 * `n` was not cached. Returns `true` if a view was disposed.
+	 * Reactive view per discriminated `ViewSpec`. Memoized per-spec — repeat
+	 * calls with identical spec return the same node.
 	 */
-	disposeTail: (n: number) => boolean;
+	view: (spec: ViewSpec<T>) => Node<readonly T[]>;
 	/**
-	 * Releases the cached `slice(start, stop?)` view if present. No-op if not cached.
+	 * Subscribe to `upstream` and append every DATA into this log. Returns a
+	 * disposer. ERROR / COMPLETE on `upstream` propagate through the disposer
+	 * (caller is responsible for terminal handling on the log).
 	 */
-	disposeSlice: (start: number, stop?: number) => boolean;
-	/** Releases all cached tail/slice views and their keepalive subscriptions. */
+	attach: (upstream: Node<T>) => () => void;
+	/**
+	 * Wire one or more append-log storage tiers. Each tier receives entries on
+	 * every append wave; tier-internal flush/rollback honors the wave-as-
+	 * transaction model (Audit 4). Returns a disposer.
+	 */
+	attachStorage: (tiers: readonly AppendLogStorageTier<T>[]) => () => void;
+	/** Releases all cached views (tail + slice + fromCursor). */
 	disposeAllViews: () => void;
-	/**
-	 * Releases all internal keepalive subscriptions so the bundle can be
-	 * GC'd — currently equivalent to {@link disposeAllViews}, but exposed as
-	 * a uniform API across all reactive data structures for lifecycle
-	 * symmetry (mirrors `reactiveMap.dispose` / `reactiveList.dispose` /
-	 * `reactiveIndex.dispose`). Idempotent. D6(a).
-	 */
+	/** Releases all internal keepalives. Idempotent. */
 	dispose: () => void;
 };
 
@@ -108,37 +116,27 @@ export type ReactiveLogBundle<T> = {
  * Storage contract for {@link reactiveLog}. Implementations own the mutable state and
  * expose a monotonic `version` counter that increments on every structural change.
  *
- * The reactive layer reads `version` to decide when to emit; it does not inspect
- * internal representation. Users can plug in persistent / ring-buffer / skip-list
- * backends without touching the reactive emission logic.
- *
- * @remarks Post-1.0 op-log changesets will extend this interface with a
- * `changesSince(version: number): Iterable<Change>` method. Current consumers
- * should treat all methods here as stable.
+ * **Audit 1:** `snapshot()` returns an immutable readonly view (codec encodes
+ * at the storage tier boundary). `restore(values)` replaces backend state on
+ * cold-tier startup load — fires one DATA emission for the restored shape.
  *
  * @category extra
  */
 export interface LogBackend<T> {
-	/** Monotonic mutation counter; increments on every append/trim/clear that changes state. */
 	readonly version: number;
-	/** Number of entries currently stored. */
 	readonly size: number;
-	/** O(1) positional access; returns `undefined` on out-of-range. */
 	at(index: number): T | undefined;
-	/** Append a value. Applies `maxSize` head-drop if configured. Advances `version`. */
 	append(value: T): void;
-	/** Append a batch; advances `version` once. No-op if `values.length === 0`. */
 	appendMany(values: readonly T[]): void;
-	/** Remove all entries. Returns count removed. Advances `version` only if non-zero. */
 	clear(): number;
-	/** Remove the first `n` entries (clamped). Returns count removed. Throws on negative `n`. */
 	trimHead(n: number): number;
-	/** Fresh snapshot array for `[start, stop)`. Throws on negative `start`. */
 	slice(start: number, stop?: number): readonly T[];
-	/** Last `n` entries as a fresh array. Throws on negative `n`. */
 	tail(n: number): readonly T[];
-	/** Full snapshot as a fresh array. */
 	toArray(): readonly T[];
+	/** Immutable snapshot for codec serialization. Equivalent to `toArray()`. */
+	snapshot(): readonly T[];
+	/** Replace backend state with `values` (used by cold-tier restore). */
+	restore(values: readonly T[]): void;
 }
 
 /**
@@ -147,9 +145,6 @@ export interface LogBackend<T> {
  * - When `maxSize` is set: uses a **ring buffer** with `_head` index and circular
  *   modular arithmetic. Append and trim become O(1); snapshot is O(size) unrolling.
  * - When `maxSize` is unset: uses a flat array with standard push/splice.
- *
- * `appendMany` pre-trims oversize input: if `values.length > maxSize`, only the
- * tail of `values` is pushed (the rest would be immediately evicted).
  *
  * @category extra
  */
@@ -166,7 +161,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		}
 		this._maxSize = maxSize;
 		if (maxSize !== undefined) {
-			// Ring buffer mode — pre-allocate fixed size
 			this._buf = new Array(maxSize);
 			if (initial && initial.length > 0) {
 				const take = Math.min(initial.length, maxSize);
@@ -177,7 +171,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 				this._size = take;
 			}
 		} else {
-			// Unbounded mode — dynamic array
 			this._buf = initial ? [...initial] : [];
 			this._size = this._buf.length;
 		}
@@ -193,7 +186,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 
 	at(index: number): T | undefined {
 		if (!Number.isInteger(index)) return undefined;
-		// P5: Python-style negative index — `-1` returns the last entry.
 		const i = index >= 0 ? index : this._size + index;
 		if (i < 0 || i >= this._size) return undefined;
 		if (this._maxSize !== undefined) {
@@ -209,9 +201,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 
 	appendMany(values: readonly T[]): void {
 		if (values.length === 0) return;
-		// Pre-trim oversize input in ring mode — skip values that would be
-		// immediately evicted. Iterate with a start index instead of
-		// allocating an intermediate slice. F2.
 		const start =
 			this._maxSize !== undefined && values.length > this._maxSize
 				? values.length - this._maxSize
@@ -228,11 +217,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		if (this._maxSize === undefined) {
 			this._buf.length = 0;
 		} else {
-			// Ring buffer: only null the currently-live window so the GC can
-			// reclaim ref-typed `T`. Iterating the full capacity would be O(cap)
-			// even when only a few slots are in use (P6). Non-live slots are
-			// already `undefined` (pre-allocation state) or whatever a prior
-			// trim/clear left — they hold no live refs.
 			for (let i = 0; i < n; i++) {
 				this._buf[(this._head + i) % this._maxSize] = undefined as unknown as T;
 			}
@@ -252,7 +236,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		if (this._maxSize === undefined) {
 			this._buf.splice(0, removed);
 		} else {
-			// Null trimmed slots so the GC can reclaim ref-typed T (P4 extension).
 			for (let i = 0; i < removed; i++) {
 				this._buf[(this._head + i) % this._maxSize] = undefined as unknown as T;
 			}
@@ -267,10 +250,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		if (!Number.isInteger(start) || start < 0) {
 			throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
 		}
-		// P4: reject negative `stop` explicitly so the bundle / backend / derived
-		// contract stays consistent. Previously stop was silently clamped to 0,
-		// producing `[]` in the backend but a different value under JS semantics
-		// in the derived recomputation — a latent bug for negative inputs.
 		if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
 			throw new RangeError(`slice: stop must be a non-negative integer or undefined (got ${stop})`);
 		}
@@ -308,7 +287,29 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 		return out;
 	}
 
-	/** Internal append without version bump — used by `appendMany`. */
+	snapshot(): readonly T[] {
+		return this.toArray();
+	}
+
+	restore(values: readonly T[]): void {
+		if (this._maxSize === undefined) {
+			this._buf.length = 0;
+			for (let i = 0; i < values.length; i++) this._buf.push(values[i] as T);
+			this._size = this._buf.length;
+		} else {
+			const cap = this._maxSize;
+			for (let i = 0; i < cap; i++) this._buf[i] = undefined as unknown as T;
+			this._head = 0;
+			const take = Math.min(values.length, cap);
+			const start = values.length - take;
+			for (let i = 0; i < take; i++) {
+				this._buf[i] = values[start + i] as T;
+			}
+			this._size = take;
+		}
+		this._version += 1;
+	}
+
 	private _rawAppend(value: T): void {
 		if (this._maxSize === undefined) {
 			this._buf.push(value);
@@ -319,7 +320,6 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 			this._buf[(this._head + this._size) % this._maxSize] = value;
 			this._size += 1;
 		} else {
-			// Overwrite slot at head, advance head.
 			this._buf[this._head] = value;
 			this._head = (this._head + 1) % this._maxSize;
 		}
@@ -328,45 +328,15 @@ export class NativeLogBackend<T> implements LogBackend<T> {
 
 // ── Reactive wrapper ──────────────────────────────────────────────────────
 
-/** Installs a keepalive subscription; returns the disposer so callers can release it. */
 function keepaliveDerived(n: Node<unknown>): () => void {
 	return n.subscribe(() => {});
 }
 
-/** Default cap on the LRU view cache for `tail(n)` / `slice(start, stop?)`. D2(c). */
+/** Default cap on the LRU view cache for `tail(n)` / `slice(start, stop?)`. */
 const DEFAULT_VIEW_CACHE_MAX = 64;
 
 /**
  * Creates an append-only reactive log with immutable array snapshots.
- *
- * @param initial - Optional seed entries (copied; pre-trimmed to `maxSize` if set).
- * @param options - `name`, `maxSize`, and optional pluggable `backend`.
- * @returns Bundle with `entries` (state node), `append`/`appendMany`/`clear`/`trimHead`,
- *   `size` / `at`, and memoized derived views `tail(n)` / `slice(start, stop?)`.
- *
- * @remarks
- * **Backend:** The default {@link NativeLogBackend} uses a ring buffer when `maxSize`
- * is set (O(1) append + trim) and a flat array otherwise. For persistent/structural-
- * sharing semantics plug in a custom {@link LogBackend}.
- *
- * **`initial` + custom `backend` (F5):** When you supply `options.backend`, the
- * `initial` argument is IGNORED — seed the backend yourself before passing it in.
- * The `initial` seed only applies to the default `NativeLogBackend`.
- *
- * **Memoized views:** {@link ReactiveLogBundle.tail} and {@link ReactiveLogBundle.slice}
- * cache derived nodes per-argument. Repeat calls with the same `n` / `(start, stop)`
- * return the same node, bounding keepalive-subscription count to one per unique argument.
- *
- * @example
- * ```ts
- * import { reactiveLog } from "@graphrefly/graphrefly-ts";
- *
- * const lg = reactiveLog<number>([1, 2], { name: "audit", maxSize: 100 });
- * lg.append(3);
- * lg.entries.subscribe((msgs) => console.log(msgs));
- * const last5 = lg.tail(5);          // derived node
- * const window = lg.slice(10, 20);   // derived node
- * ```
  *
  * @category extra
  */
@@ -374,7 +344,7 @@ export function reactiveLog<T>(
 	initial?: readonly T[],
 	options: ReactiveLogOptions<T> = {},
 ): ReactiveLogBundle<T> {
-	const { name, maxSize, versioning, backend: userBackend } = options;
+	const { name, maxSize, versioning, guard, backend: userBackend } = options;
 	const backend: LogBackend<T> = userBackend ?? new NativeLogBackend<T>(initial, maxSize);
 
 	const entries = state<readonly T[]>(backend.toArray(), {
@@ -382,26 +352,27 @@ export function reactiveLog<T>(
 		describeKind: "state",
 		equals: (a, b) => a === b,
 		...(versioning != null ? { versioning } : {}),
+		...(guard != null ? { guard } : {}),
 	});
 
 	function pushSnapshot(): void {
 		const snapshot = backend.toArray();
 		batch(() => {
-			entries.down([[DIRTY]]);
-			entries.down([[DATA, snapshot]]);
+			// `internal: true` so deny-write guards (e.g., Audit 2's
+			// DEFAULT_AUDIT_GUARD on audit logs) don't reject the log's own
+			// internal pipeline. Guards apply only to external `entries.emit`.
+			entries.down([[DIRTY]], { internal: true });
+			entries.down([[DATA, snapshot]], { internal: true });
 		});
 	}
 
-	// Memoization caches for derived views (D2(c)). Each cache is an LRU keyed by
-	// the unique view argument, bounded by `DEFAULT_VIEW_CACHE_MAX`. On cache miss
-	// past the cap, the least-recently-used entry is evicted and its keepalive
-	// disposer is called so the underlying derived node can be GC'd. Callers can
-	// also release views proactively via `disposeTail` / `disposeSlice` /
-	// `disposeAllViews`. Iteration order of `Map` is insertion order, so moving
-	// an entry to the end on hit is the LRU "touch".
 	type ViewEntry = { node: Node<readonly T[]>; dispose: () => void };
 	const tailCache = new Map<number, ViewEntry>();
 	const sliceCache = new Map<string, ViewEntry>();
+	// M6: use Map (not WeakMap) so disposeAllViews can iterate + release
+	// each cursor view's keepalive subscription. Cursor cache size grows with
+	// distinct cursor Nodes the bundle has been viewed by — bounded by user.
+	const cursorCache = new Map<Node<number>, ViewEntry>();
 
 	function sliceKey(start: number, stop?: number): string {
 		return `${start}:${stop === undefined ? "END" : stop}`;
@@ -416,13 +387,6 @@ export function reactiveLog<T>(
 		cache.delete(first.value);
 	}
 
-	/**
-	 * D4(a): try/finally defense-in-depth — if a custom backend op throws
-	 * mid-mutation, surface the partial state via pushSnapshot so subscribers
-	 * don't see a stale cache. Matches the pattern in reactive-map and
-	 * reactive-index. Native ops are atomic by contract; this only matters
-	 * for user-supplied backends.
-	 */
 	function wrapMutation<R>(op: () => R): R {
 		const prev = backend.version;
 		try {
@@ -432,7 +396,113 @@ export function reactiveLog<T>(
 		}
 	}
 
-	return {
+	function tailView(n: number): Node<readonly T[]> {
+		if (!Number.isInteger(n) || n < 0) {
+			throw new RangeError(`tail: n must be a non-negative integer (got ${n})`);
+		}
+		const hit = tailCache.get(n);
+		if (hit !== undefined) {
+			tailCache.delete(n);
+			tailCache.set(n, hit);
+			return hit.node;
+		}
+		evictOldestIfFull(tailCache);
+		const node_ = derived(
+			[entries],
+			([s]) => {
+				const list = s as readonly T[];
+				if (n === 0 || list.length === 0) return [];
+				return list.slice(Math.max(0, list.length - n));
+			},
+			{ initial: backend.tail(n), describeKind: "derived" },
+		);
+		const dispose = keepaliveDerived(node_);
+		tailCache.set(n, { node: node_, dispose });
+		return node_;
+	}
+
+	function sliceView(start: number, stop?: number): Node<readonly T[]> {
+		if (!Number.isInteger(start) || start < 0) {
+			throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
+		}
+		if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
+			throw new RangeError(`slice: stop must be a non-negative integer or undefined (got ${stop})`);
+		}
+		const key = sliceKey(start, stop);
+		const hit = sliceCache.get(key);
+		if (hit !== undefined) {
+			sliceCache.delete(key);
+			sliceCache.set(key, hit);
+			return hit.node;
+		}
+		evictOldestIfFull(sliceCache);
+		const node_ = derived(
+			[entries],
+			([s]) => {
+				const list = s as readonly T[];
+				return stop === undefined ? list.slice(start) : list.slice(start, stop);
+			},
+			{ initial: backend.slice(start, stop), describeKind: "derived" },
+		);
+		const dispose = keepaliveDerived(node_);
+		sliceCache.set(key, { node: node_, dispose });
+		return node_;
+	}
+
+	function fromCursorView(cursor: Node<number>): Node<readonly T[]> {
+		const hit = cursorCache.get(cursor);
+		if (hit !== undefined) return hit.node;
+		const node_ = derived(
+			[entries, cursor],
+			([sourceSnapshot, c]) => {
+				const arr = sourceSnapshot as readonly T[];
+				const start = Math.max(0, Math.trunc((c as number) ?? 0));
+				return arr.slice(start);
+			},
+			{ initial: [], describeKind: "derived" },
+		);
+		const dispose = keepaliveDerived(node_);
+		cursorCache.set(cursor, { node: node_, dispose });
+		return node_;
+	}
+
+	// withLatest companion activation (lazy, idempotent)
+	let lastValueCached: Node<T | undefined> | undefined;
+	let hasLatestCached: Node<boolean> | undefined;
+	function activateMeta(): void {
+		if (lastValueCached !== undefined) return;
+		// M1: emit RESOLVED instead of DATA(undefined) when log is empty —
+		// `[[DATA, undefined]]` is a §1.2 protocol violation. Empty log
+		// means "nothing to advertise as latest", which is the RESOLVED
+		// semantic: this wave settled, no value change.
+		lastValueCached = node<T | undefined>(
+			[entries],
+			(batchData, actions, ctx) => {
+				const batch0 = batchData[0];
+				const snapshot = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+				const arr = snapshot as readonly T[] | undefined;
+				if (arr == null || arr.length === 0) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				actions.emit(arr[arr.length - 1] as T);
+			},
+			{
+				name: name != null ? `${name}::lastValue` : "lastValue",
+				describeKind: "derived",
+				initial: backend.size === 0 ? undefined : (backend.at(backend.size - 1) as T),
+			},
+		);
+		hasLatestCached = derived<boolean>([entries], ([s]) => (s as readonly T[]).length > 0, {
+			name: name != null ? `${name}::hasLatest` : "hasLatest",
+			describeKind: "derived",
+			initial: backend.size > 0,
+		});
+		keepaliveDerived(lastValueCached);
+		keepaliveDerived(hasLatestCached);
+	}
+
+	const bundle: ReactiveLogBundle<T> = {
 		entries,
 
 		get size(): number {
@@ -454,95 +524,110 @@ export function reactiveLog<T>(
 
 		clear(): void {
 			wrapMutation(() => backend.clear());
-			// NOTE: cached tail/slice derived views are intentionally NOT
-			// disposed here. Disposing would kill the keepalive on any node
-			// a caller already holds externally, silently stopping their
-			// updates. The derived nodes recompute from the new empty
-			// snapshot when `entries` emits post-clear, so `.cache` on an
-			// outstanding view settles to `[]` without any manual
-			// reset. (Initial snapshots, if inspected before the next wave,
-			// may be stale — callers who care can `disposeTail` / `slice`
-			// explicitly.)
 		},
 
 		trimHead(n: number): void {
 			wrapMutation(() => backend.trimHead(n));
 		},
 
-		tail(n: number): Node<readonly T[]> {
-			if (!Number.isInteger(n) || n < 0) {
-				throw new RangeError(`tail: n must be a non-negative integer (got ${n})`);
-			}
-			const hit = tailCache.get(n);
-			if (hit !== undefined) {
-				// LRU touch: move to end of insertion order.
-				tailCache.delete(n);
-				tailCache.set(n, hit);
-				return hit.node;
-			}
-			evictOldestIfFull(tailCache);
-			const node_ = derived(
-				[entries],
-				([s]) => {
-					const list = s as readonly T[];
-					if (n === 0 || list.length === 0) return [];
-					return list.slice(Math.max(0, list.length - n));
-				},
-				{ initial: backend.tail(n), describeKind: "derived" },
-			);
-			const dispose = keepaliveDerived(node_);
-			tailCache.set(n, { node: node_, dispose });
-			return node_;
+		withLatest(): Node<readonly T[]> {
+			activateMeta();
+			return entries;
 		},
 
-		slice(start: number, stop?: number): Node<readonly T[]> {
-			if (!Number.isInteger(start) || start < 0) {
-				throw new RangeError(`slice: start must be a non-negative integer (got ${start})`);
-			}
-			// P4: reject negative stop explicitly to keep bundle / backend / derived
-			// consistent (JS `Array.prototype.slice` supports negative stop, but the
-			// backend can't cheaply honor it without scanning length, so we disallow).
-			if (stop !== undefined && (!Number.isInteger(stop) || stop < 0)) {
-				throw new RangeError(
-					`slice: stop must be a non-negative integer or undefined (got ${stop})`,
-				);
-			}
-			const key = sliceKey(start, stop);
-			const hit = sliceCache.get(key);
-			if (hit !== undefined) {
-				sliceCache.delete(key);
-				sliceCache.set(key, hit);
-				return hit.node;
-			}
-			evictOldestIfFull(sliceCache);
-			const node_ = derived(
-				[entries],
-				([s]) => {
-					const list = s as readonly T[];
-					return stop === undefined ? list.slice(start) : list.slice(start, stop);
-				},
-				{ initial: backend.slice(start, stop), describeKind: "derived" },
-			);
-			const dispose = keepaliveDerived(node_);
-			sliceCache.set(key, { node: node_, dispose });
-			return node_;
+		get lastValue(): Node<T | undefined> {
+			activateMeta();
+			return lastValueCached!;
 		},
 
-		disposeTail(n: number): boolean {
-			const hit = tailCache.get(n);
-			if (hit === undefined) return false;
-			hit.dispose();
-			tailCache.delete(n);
-			return true;
+		get hasLatest(): Node<boolean> {
+			activateMeta();
+			return hasLatestCached!;
 		},
 
-		disposeSlice(start: number, stop?: number): boolean {
-			const key = sliceKey(start, stop);
-			const hit = sliceCache.get(key);
-			if (hit === undefined) return false;
-			hit.dispose();
-			sliceCache.delete(key);
-			return true;
+		view(spec): Node<readonly T[]> {
+			switch (spec.kind) {
+				case "tail":
+					return tailView(spec.n);
+				case "slice":
+					return sliceView(spec.start, spec.stop);
+				case "fromCursor":
+					return fromCursorView(spec.cursor);
+			}
+		},
+
+		attach(upstream): () => void {
+			const sub = upstream.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) bundle.append(m[1] as T);
+				}
+			});
+			return () => sub();
+		},
+
+		attachStorage(tiers): () => void {
+			if (tiers.length === 0) return () => {};
+			// Track delivered count per tier so we only ship deltas. Initialised
+			// to current backend.size below; the post-restore IIFE updates the
+			// restored-from tier so we don't double-write its own data back.
+			const delivered = new Map<AppendLogStorageTier<T>, number>();
+			for (const t of tiers) delivered.set(t, backend.size);
+			// Pre-load: best-effort restore from first tier with loadEntries support.
+			void (async () => {
+				for (const tier of tiers) {
+					if (typeof tier.loadEntries !== "function") continue;
+					try {
+						const result = await Promise.resolve(tier.loadEntries());
+						if (result.entries.length > 0 && backend.size === 0) {
+							backend.restore(result.entries);
+							// C2: mark restored-from tier as already in sync so
+							// the post-restore pushSnapshot doesn't ship the
+							// restored block back as a "delta". Other tiers
+							// stay at 0 — they'll receive the restored block
+							// as a forward write (correct).
+							delivered.set(tier, result.entries.length);
+							pushSnapshot();
+						}
+						break;
+					} catch {
+						/* try next tier */
+					}
+				}
+			})();
+			const sub = entries.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] !== DATA) continue;
+					const arr = m[1] as readonly T[];
+					for (const tier of tiers) {
+						const last = delivered.get(tier) ?? 0;
+						if (arr.length < last) {
+							// M9: length decreased — `trimHead`/`clear` happened.
+							// Re-ship the full post-trim snapshot. Append-log
+							// tiers should be idempotent (or use `keyOf` to
+							// dedupe partition writes); we accept the re-send
+							// over silent loss of subsequent appends.
+							try {
+								const result = tier.appendEntries(arr);
+								if (result instanceof Promise) result.catch(() => {});
+							} catch {
+								/* tier write error swallowed */
+							}
+							delivered.set(tier, arr.length);
+							continue;
+						}
+						if (arr.length === last) continue;
+						const fresh = arr.slice(last);
+						delivered.set(tier, arr.length);
+						try {
+							const result = tier.appendEntries(fresh);
+							if (result instanceof Promise) result.catch(() => {});
+						} catch {
+							/* tier write error swallowed; surface via tier.flush */
+						}
+					}
+				}
+			});
+			return () => sub();
 		},
 
 		disposeAllViews(): void {
@@ -550,15 +635,105 @@ export function reactiveLog<T>(
 			tailCache.clear();
 			for (const entry of sliceCache.values()) entry.dispose();
 			sliceCache.clear();
+			for (const entry of cursorCache.values()) entry.dispose();
+			cursorCache.clear();
 		},
 
 		dispose(): void {
-			// D6(a): currently identical to disposeAllViews. Exposed as a
-			// uniform lifecycle API across all 4 reactive data structures.
 			for (const entry of tailCache.values()) entry.dispose();
 			tailCache.clear();
 			for (const entry of sliceCache.values()) entry.dispose();
 			sliceCache.clear();
+			for (const entry of cursorCache.values()) entry.dispose();
+			cursorCache.clear();
 		},
 	};
+
+	return bundle;
+}
+
+// ── mergeReactiveLogs ─────────────────────────────────────────────────────
+
+/**
+ * Bundle returned by {@link mergeReactiveLogs}. `node` is the merged output;
+ * `dispose()` releases the internal subscriptions to all input logs and the
+ * keepalive on `node`. After dispose the merge stops responding to inputs
+ * but `node`'s last cached value remains queryable.
+ *
+ * @category extra
+ */
+export interface MergedReactiveLog<T> {
+	readonly node: Node<readonly T[]>;
+	dispose(): void;
+}
+
+const mergeMemo = new WeakMap<readonly Node<readonly unknown[]>[], MergedReactiveLog<unknown>>();
+
+/**
+ * Fan-in helper that merges N reactive logs into a single time-ordered output
+ * by concatenation. Returns `{ node, dispose }`. Producer-pattern: subscribes
+ * to each input internally; COMPLETE on an input drops it from the active
+ * set; ERROR propagates per spec §2.2. Memoized by reference identity on the
+ * `logs` array — repeat calls with the same reference return the same bundle.
+ *
+ * Internal subscriptions are invisible in `describe()` (sanctioned per §24);
+ * `explain()` across the merge surfaces only the merged stream. Caller must
+ * `dispose()` when done to release subscriptions to input logs (no auto-GC
+ * because of the memoization map).
+ *
+ * @category extra
+ */
+export function mergeReactiveLogs<T>(logs: readonly Node<readonly T[]>[]): MergedReactiveLog<T> {
+	const cached = mergeMemo.get(logs as unknown as readonly Node<readonly unknown[]>[]);
+	if (cached) return cached as unknown as MergedReactiveLog<T>;
+
+	const seedSnapshots = logs.map((n) => (n.cache as readonly T[] | undefined) ?? []);
+	const initial = seedSnapshots.flat() as readonly T[];
+
+	// Use a producer-pattern derived: we subscribe to inputs internally (not
+	// declared as deps) to keep the merge invisible to describe per Audit 1 #4.
+	const out = state<readonly T[]>(initial, {
+		name: "mergeReactiveLogs",
+		describeKind: "state",
+		equals: (a, b) => a === b,
+	});
+
+	const lastBuckets: T[][] = logs.map((_, i) => [...(seedSnapshots[i] ?? [])]);
+	const subs: Array<() => void> = [];
+	for (let i = 0; i < logs.length; i++) {
+		const idx = i;
+		const sub = logs[idx]!.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) {
+					lastBuckets[idx] = [...(m[1] as readonly T[])];
+					out.emit(lastBuckets.flat());
+				} else if (m[0] === COMPLETE) {
+					lastBuckets[idx] = [];
+				} else if (m[0] === ERROR) {
+					out.down([[ERROR, m[1]]]);
+				}
+			}
+		});
+		subs.push(sub);
+	}
+	const keepDispose = keepalive(out);
+
+	let disposed = false;
+	const bundle: MergedReactiveLog<T> = {
+		node: out as Node<readonly T[]>,
+		dispose() {
+			if (disposed) return;
+			disposed = true;
+			for (const u of subs) u();
+			subs.length = 0;
+			keepDispose();
+			mergeMemo.delete(logs as unknown as readonly Node<readonly unknown[]>[]);
+		},
+	};
+
+	mergeMemo.set(
+		logs as unknown as readonly Node<readonly unknown[]>[],
+		bundle as MergedReactiveLog<unknown>,
+	);
+	return bundle;
 }

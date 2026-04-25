@@ -9,8 +9,8 @@
  * 1. {@link createGraph} — `compileSpec` wrapped with typed surface errors.
  * 2. {@link reduce} — one-shot `input → pipeline → output`.
  *
- * Snapshot persistence reuses the {@link StorageTier} substrate introduced
- * for `Graph.attachStorage`, so one-shot snapshots and auto-checkpoints
+ * Snapshot persistence reuses the {@link KvStorageTier} substrate introduced
+ * for `Graph.attachSnapshotStorage`, so one-shot snapshots and auto-checkpoints
  * share the {@link GraphCheckpointRecord} envelope. No new wire format.
  *
  * Errors throw as {@link SurfaceError} — wrappers map to their native

@@ -26,6 +26,7 @@ import {
 } from "../core/messages.js";
 import { defaultConfig, type Node, type NodeOptions, node } from "../core/node.js";
 import { producer, state } from "../core/sugar.js";
+import type { GraphCheckpointRecord } from "../graph/graph.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
 import {
 	type BundleTriad,
@@ -36,9 +37,10 @@ import {
 } from "./external-register.js";
 import { switchMap } from "./operators.js";
 import { type ReactiveSinkHandle, reactiveSink, type SinkFailure } from "./reactive-sink.js";
-import { retrySource, type WithStatusBundle, withStatus } from "./resilience.js";
+import { retry, type WithStatusBundle, withStatus } from "./resilience.js";
 import type { AsyncSourceOpts } from "./sources.js";
 import { fromTimer } from "./sources.js";
+import type { SnapshotStorageTier } from "./storage-tiers.js";
 
 export type { SinkTransportError } from "./reactive-sink.js";
 
@@ -1312,7 +1314,7 @@ export function toWebSocket<T>(
 }
 
 // ——————————————————————————————————————————————————————————————
-//  fromWebSocketReconnect — reconnecting WebSocket source via retrySource
+//  fromWebSocketReconnect — reconnecting WebSocket source via retry
 // ——————————————————————————————————————————————————————————————
 
 /** Options for {@link fromWebSocketReconnect}. */
@@ -1322,7 +1324,7 @@ export type FromWebSocketReconnectOptions<T> = ExtraOpts & {
 	/** Max reconnect attempts. Default: `Infinity` (implied when `backoff` is set). */
 	maxRetries?: number;
 	/** Backoff strategy (ns) or preset name. Default: `"exponential"`. */
-	backoff?: Parameters<typeof retrySource>[1] extends infer O
+	backoff?: Parameters<typeof retry>[1] extends infer O
 		? O extends { backoff?: infer B }
 			? B
 			: never
@@ -1334,9 +1336,9 @@ export type FromWebSocketReconnectOptions<T> = ExtraOpts & {
 /**
  * Reconnecting WebSocket source — each connection attempt calls `factory` to
  * obtain a fresh {@link WebSocketLike}; on `close` (treated as terminal
- * `COMPLETE`), {@link retrySource} rebuilds the inner source and reconnects.
+ * `COMPLETE`), {@link retry} rebuilds the inner source and reconnects.
  *
- * For transient errors, {@link retrySource} retries with the configured
+ * For transient errors, {@link retry} retries with the configured
  * backoff. On `maxRetries` exhaustion, terminal `ERROR` propagates.
  *
  * @param factory - Invoked per reconnect to create a fresh WebSocket.
@@ -1364,7 +1366,7 @@ export function fromWebSocketReconnect<T = unknown>(
 		closeOnTeardown = true,
 		...rest
 	} = opts ?? {};
-	return retrySource<T>(
+	return retry<T>(
 		() =>
 			fromWebSocket<T>(factory(), {
 				parse,
@@ -3867,21 +3869,16 @@ export type CheckpointToS3Options = {
 	onError?: (error: unknown) => void;
 };
 
-type StorageTierLike = {
-	load(key: string): unknown | Promise<unknown>;
-	save(key: string, data: unknown): void | Promise<void>;
-	clear?(key: string): void | Promise<void>;
-	debounceMs?: number;
-	compactEvery?: number;
-};
-
 type AttachStorageGraphLike = {
-	attachStorage: (tiers: readonly StorageTierLike[], opts?: unknown) => { dispose(): void };
+	attachSnapshotStorage: (
+		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
+		opts?: unknown,
+	) => { dispose(): void };
 	name: string;
 };
 
 /**
- * Wires `graph.attachStorage()` with an S3-backed tier.
+ * Wires `graph.attachSnapshotStorage()` with an S3-backed tier.
  *
  * @param graph - Graph instance to checkpoint.
  * @param client - S3-compatible client with `putObject()`.
@@ -3898,15 +3895,16 @@ export function checkpointToS3(
 	opts?: CheckpointToS3Options,
 ): { dispose(): void } {
 	const { prefix = "checkpoints/", debounceMs = 500, compactEvery = 10, onError } = opts ?? {};
-	const tier: StorageTierLike = {
+	const tier: SnapshotStorageTier<GraphCheckpointRecord> = {
+		name: `s3:${bucket}`,
 		debounceMs,
 		compactEvery,
-		save(_key, data) {
+		save(record) {
 			const ms = Math.floor(wallClockNs() / 1_000_000);
 			const s3Key = `${prefix}${graph.name}/checkpoint-${ms}.json`;
 			let body: string;
 			try {
-				body = JSON.stringify(data);
+				body = JSON.stringify(record);
 			} catch (err) {
 				onError?.(err);
 				return;
@@ -3920,13 +3918,10 @@ export function checkpointToS3(
 				})
 				.catch((err) => onError?.(err));
 		},
-		load() {
-			// S3 tier is write-only here — one object per checkpoint timestamp,
-			// no canonical "latest" key for load.
-			return null;
-		},
+		// S3 tier is write-only here — one object per checkpoint timestamp,
+		// no canonical "latest" key for load.
 	};
-	return graph.attachStorage([tier], { onError: (err: unknown) => onError?.(err) });
+	return graph.attachSnapshotStorage([tier], { onError: (err: unknown) => onError?.(err) });
 }
 
 // ——— checkpointToRedis ———
@@ -3949,7 +3944,7 @@ export type CheckpointToRedisOptions = {
 };
 
 /**
- * Wires `graph.attachStorage()` with a Redis-backed tier.
+ * Wires `graph.attachSnapshotStorage()` with a Redis-backed tier.
  *
  * @param graph - Graph instance to checkpoint.
  * @param client - Redis client with `set()`/`get()`.
@@ -3970,13 +3965,14 @@ export function checkpointToRedis(
 		onError,
 	} = opts ?? {};
 	const redisKey = `${prefix}${graph.name}`;
-	const tier: StorageTierLike = {
+	const tier: SnapshotStorageTier<GraphCheckpointRecord> = {
+		name: `redis:${redisKey}`,
 		debounceMs,
 		compactEvery,
-		save(_key, data) {
+		save(record) {
 			let body: string;
 			try {
-				body = JSON.stringify(data);
+				body = JSON.stringify(record);
 			} catch (err) {
 				onError?.(err);
 				return;
@@ -3985,15 +3981,15 @@ export function checkpointToRedis(
 		},
 		async load() {
 			const raw = await client.get(redisKey);
-			if (raw == null) return null;
+			if (raw == null) return undefined;
 			try {
-				return JSON.parse(raw) as unknown;
+				return JSON.parse(raw) as GraphCheckpointRecord;
 			} catch {
-				return null;
+				return undefined;
 			}
 		},
 	};
-	return graph.attachStorage([tier], { onError: (err: unknown) => onError?.(err) });
+	return graph.attachSnapshotStorage([tier], { onError: (err: unknown) => onError?.(err) });
 }
 
 // ——————————————————————————————————————————————————————————————

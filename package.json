@@ -127,6 +127,36 @@
 				"default": "./dist/extra/storage-browser.cjs"
 			}
 		},
+		"./extra/storage-tiers": {
+			"import": {
+				"types": "./dist/extra/storage-tiers.d.ts",
+				"default": "./dist/extra/storage-tiers.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers.d.cts",
+				"default": "./dist/extra/storage-tiers.cjs"
+			}
+		},
+		"./extra/storage-tiers-node": {
+			"import": {
+				"types": "./dist/extra/storage-tiers-node.d.ts",
+				"default": "./dist/extra/storage-tiers-node.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers-node.d.cts",
+				"default": "./dist/extra/storage-tiers-node.cjs"
+			}
+		},
+		"./extra/storage-tiers-browser": {
+			"import": {
+				"types": "./dist/extra/storage-tiers-browser.d.ts",
+				"default": "./dist/extra/storage-tiers-browser.js"
+			},
+			"require": {
+				"types": "./dist/extra/storage-tiers-browser.d.cts",
+				"default": "./dist/extra/storage-tiers-browser.cjs"
+			}
+		},
 		"./graph": {
 			"import": {
 				"types": "./dist/graph/index.d.ts",

@@ -1,5 +1,5 @@
 /**
- * `withReplayCache` — content-addressed response cache over `StorageTier`.
+ * `withReplayCache` — content-addressed response cache over `KvStorageTier`.
  *
  * - Key: sha256 of canonicalized (messages + invoke options minus `signal`).
  * - `"read-write"` (default): returns cached response if present; on miss,
@@ -11,8 +11,8 @@
  *   fallback adapters where any cache miss is a test failure or a signal to
  *   degrade.
  *
- * Reuses the library's existing `StorageTier` abstraction — the same tiers
- * that power `Graph.attachStorage` (memory / file / sqlite / indexeddb / custom).
+ * Reuses the library's existing `KvStorageTier` abstraction — any kv tier
+ * (memoryKv / fileKv / sqliteKv / indexedDbKv / custom).
  *
  * **Concurrent cache-miss dedup:** uses `singleFromAny` so two concurrent
  * calls with the same key share one upstream request. Second caller sees the
@@ -34,7 +34,7 @@ import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
 import { canonicalJson as extraCanonicalJson } from "../../../../extra/content-addressed-storage.js";
 import { singleFromAny } from "../../../../extra/single-from-any.js";
 import { firstValueFrom, fromAny } from "../../../../extra/sources.js";
-import type { StorageTier } from "../../../../extra/storage-core.js";
+import type { KvStorageTier } from "../../../../extra/storage-tiers.js";
 import { ResettableTimer } from "../../../../extra/timer.js";
 import { contentAddressedCache } from "../_internal/content-addressed-cache.js";
 import { adapterWrapper, withLayer } from "../_internal/wrappers.js";
@@ -71,7 +71,7 @@ export interface ReplayCacheKeyContext {
 }
 
 export interface WithReplayCacheOptions {
-	storage: StorageTier;
+	storage: KvStorageTier;
 	mode?: ReplayCacheMode;
 	/**
 	 * Custom key function. Receives a {@link ReplayCacheKeyContext} with the

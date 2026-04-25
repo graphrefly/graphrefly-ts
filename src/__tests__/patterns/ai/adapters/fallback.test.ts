@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { memoryStorage } from "../../../../extra/storage-core.js";
+import { memoryKv } from "../../../../extra/storage-tiers.js";
 import type {
 	ChatMessage,
 	LLMAdapter,
@@ -260,7 +260,7 @@ describe("fallbackAdapter", () => {
 		const inner = dryRunAdapter({ model: "mock", respond: () => "x" });
 		expect(() =>
 			fallbackAdapter({
-				record: { adapter: inner, dir: "/tmp/x", storage: memoryStorage() },
+				record: { adapter: inner, dir: "/tmp/x", storage: memoryKv() },
 			}),
 		).toThrow(/mutually exclusive/);
 	});

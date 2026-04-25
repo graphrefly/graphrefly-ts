@@ -19,7 +19,7 @@
  */
 
 import { sha256Hex } from "../core/hash.js";
-import type { StorageTier } from "./storage-core.js";
+import type { KvStorageTier } from "./storage-tiers.js";
 
 /**
  * Read / write / read-write / read-strict.
@@ -51,8 +51,8 @@ export class ContentAddressedMissError extends Error {
  * @category extra
  */
 export type ContentAddressedStorageOptions<Ctx> = {
-	/** Underlying storage tier (any `StorageTier` — memory, file, indexed-db). */
-	storage: StorageTier;
+	/** Underlying storage tier (any `KvStorageTier` — memoryKv, fileKv, indexedDbKv). */
+	storage: KvStorageTier;
 	/**
 	 * Derive the hashable context from `ctx`. Defaults to `ctx` itself.
 	 * Use when the caller's `ctx` carries fields that should NOT participate in
@@ -135,10 +135,10 @@ export function canonicalJson(value: unknown): string {
  *
  * @example
  * ```ts
- * import { contentAddressedStorage, memoryStorage } from "@graphrefly/graphrefly-ts";
+ * import { contentAddressedStorage, memoryKv } from "@graphrefly/graphrefly-ts";
  *
  * const cache = contentAddressedStorage<{ query: string }, { answer: string }>({
- *   storage: memoryStorage(),
+ *   storage: memoryKv(),
  *   keyPrefix: "qa",
  *   mode: "read-write",
  * });
@@ -171,7 +171,7 @@ export function contentAddressedStorage<Ctx, V>(
 			if (mode === "write") return undefined;
 			const key = await keyFor(ctx);
 			const raw = await storage.load(key);
-			if (raw == null) {
+			if (raw === undefined) {
 				if (mode === "read-strict") {
 					throw new ContentAddressedMissError(key, ctx);
 				}
@@ -188,9 +188,9 @@ export function contentAddressedStorage<Ctx, V>(
 
 		async forget(ctx: Ctx): Promise<void> {
 			if (mode === "read" || mode === "write") return;
-			if (!storage.clear) return;
+			if (!storage.delete) return;
 			const key = await keyFor(ctx);
-			await storage.clear(key);
+			await storage.delete(key);
 		},
 	};
 }

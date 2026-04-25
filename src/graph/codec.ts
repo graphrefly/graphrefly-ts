@@ -333,7 +333,7 @@ export function registerBuiltinCodecs(config: GraphReFlyConfig): void {
  * Reconstruct a snapshot from a WAL (sequence of {@link GraphCheckpointRecord}s).
  *
  * - Must start with a `"full"` record carrying a baseline snapshot — that's
- *   the anchor {@link Graph.attachStorage} always emits on the first flush
+ *   the anchor {@link Graph.attachSnapshotStorage} always emits on the first flush
  *   of any tier (and every `compactEvery`-th flush thereafter).
  * - Subsequent `"full"` entries (compaction points) **replace** the result
  *   wholesale.

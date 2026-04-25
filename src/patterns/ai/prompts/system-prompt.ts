@@ -7,7 +7,7 @@
 import type { Node } from "../../../core/node.js";
 import { derived, state } from "../../../core/sugar.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
-import { keepalive } from "../../_internal.js";
+import { keepalive } from "../../_internal/index.js";
 import { aiMeta } from "../_internal.js";
 
 /**

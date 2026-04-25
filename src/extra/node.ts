@@ -2,7 +2,7 @@
  * Node-only barrel for the extra surface.
  *
  * Consumers that need filesystem sources (`fromFileChange`, `fromGlob`) or
- * Node-only storage backends (`fileStorage`, `sqliteStorage`) import from
+ * Node-only storage backends (`fileKv`, `sqliteKv`) import from
  * `@graphrefly/graphrefly/extra/node`. The universal `@graphrefly/graphrefly/extra`
  * entry stays browser-safe.
  *
@@ -12,4 +12,13 @@
 export type { FromGitHookOptions, GitEvent, GitHookType } from "./git-hook.js";
 export { fromGitHook } from "./git-hook.js";
 export * from "./sources-fs.js";
-export { fileStorage, sqliteStorage } from "./storage-node.js";
+export {
+	fileAppendLog,
+	fileBackend,
+	fileKv,
+	fileSnapshot,
+	sqliteAppendLog,
+	sqliteBackend,
+	sqliteKv,
+	sqliteSnapshot,
+} from "./storage-tiers-node.js";

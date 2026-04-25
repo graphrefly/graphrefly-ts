@@ -22,7 +22,7 @@
  *    mirror is current when the next-iteration wave reaches the generate fn.
  *  - §19 terminal-emission: history / best emit once per iteration (settled),
  *    not on every intermediate wave.
- *  - §27 attachStorage: the whole graph is checkpointable — pause overnight,
+ *  - §27 attachSnapshotStorage: the whole graph is checkpointable — pause overnight,
  *    resume tomorrow from the exact iteration count, candidate set, strategy.
  *
  * Scope clamp (v1): core factory + `RefineStrategy<T>` + `blindVariation` and
@@ -216,7 +216,7 @@ export interface RefineLoopOptions extends ConvergenceOptions {
 
 /**
  * Return type — extends Graph so all observability tools (`describe`,
- * `explain`, `observe`, `attachStorage`, `snapshot`) Just Work.
+ * `explain`, `observe`, `attachSnapshotStorage`, `snapshot`) Just Work.
  */
 export interface RefineLoopGraph<T> extends Graph {
 	readonly best: Node<T | null>;
@@ -848,7 +848,7 @@ export interface BlindVariationOptions<T> {
 	 * `ctx.reportCost` during each iteration is added to this node in the
 	 * strategy's `finally` block — fires on success AND on teacher throw so
 	 * partial spend is never lost. User owns the node; wire to `budgetGate`,
-	 * `attachStorage`, telemetry, etc.
+	 * `attachSnapshotStorage`, telemetry, etc.
 	 */
 	tokens?: Node<number>;
 	/**
@@ -992,7 +992,7 @@ export interface ErrorCritiqueOptions<T> {
 	 * `ctx.reportCost` during each iteration is added to this node in the
 	 * strategy's `finally` block — fires on success AND on teacher throw so
 	 * partial spend is never lost. User owns the node; wire to `budgetGate`,
-	 * `attachStorage`, telemetry, etc.
+	 * `attachSnapshotStorage`, telemetry, etc.
 	 */
 	tokens?: Node<number>;
 	/**

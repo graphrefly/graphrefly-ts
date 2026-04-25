@@ -3,13 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
-import {
-	fromIDBRequest,
-	fromIDBTransaction,
-	indexedDbStorage,
-} from "../../extra/storage-browser.js";
-import { dictStorage, memoryStorage } from "../../extra/storage-core.js";
-import { fileStorage, sqliteStorage } from "../../extra/storage-node.js";
+import { fromIDBRequest, fromIDBTransaction } from "../../extra/storage-browser.js";
+import { dictKv, memoryKv } from "../../extra/storage-tiers.js";
+import { indexedDbKv } from "../../extra/storage-tiers-browser.js";
+import { fileKv, sqliteKv } from "../../extra/storage-tiers-node.js";
 import { collect } from "../test-helpers.js";
 
 function tick(ms = 0): Promise<void> {
@@ -31,7 +28,8 @@ class FakeIDBRequest<T> {
 
 function installFakeIndexedDb() {
 	const original = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
-	let stored: unknown = null;
+	// Per-key store — `indexedDbKv` uses arbitrary keys unlike old `indexedDbStorage`
+	const stored = new Map<unknown, unknown>();
 	const stores = new Set<string>();
 	const opens: Array<{ close: () => void }> = [];
 	const api = {
@@ -55,10 +53,10 @@ function installFakeIndexedDb() {
 						error: null as DOMException | null,
 						objectStore() {
 							return {
-								put(value: unknown) {
+								put(value: unknown, key: unknown) {
 									const putReq = new FakeIDBRequest<unknown>();
 									queueMicrotask(() => {
-										stored = value;
+										stored.set(key, value);
 										putReq.succeed(undefined);
 										queueMicrotask(() =>
 											tx.oncomplete?.call(tx as unknown as IDBTransaction, {} as Event),
@@ -66,26 +64,36 @@ function installFakeIndexedDb() {
 									});
 									return putReq as unknown as IDBRequest<IDBValidKey>;
 								},
-								get() {
+								get(key: unknown) {
 									const getReq = new FakeIDBRequest<unknown>();
 									queueMicrotask(() => {
-										getReq.succeed(stored);
+										getReq.succeed(stored.get(key));
 										queueMicrotask(() =>
 											tx.oncomplete?.call(tx as unknown as IDBTransaction, {} as Event),
 										);
 									});
 									return getReq as unknown as IDBRequest<unknown>;
 								},
-								delete() {
+								delete(key: unknown) {
 									const delReq = new FakeIDBRequest<unknown>();
 									queueMicrotask(() => {
-										stored = null;
+										stored.delete(key);
 										delReq.succeed(undefined);
 										queueMicrotask(() =>
 											tx.oncomplete?.call(tx as unknown as IDBTransaction, {} as Event),
 										);
 									});
 									return delReq as unknown as IDBRequest<unknown>;
+								},
+								getAllKeys() {
+									const keysReq = new FakeIDBRequest<unknown[]>();
+									queueMicrotask(() => {
+										keysReq.succeed([...stored.keys()]);
+										queueMicrotask(() =>
+											tx.oncomplete?.call(tx as unknown as IDBTransaction, {} as Event),
+										);
+									});
+									return keysReq as unknown as IDBRequest<IDBValidKey[]>;
 								},
 							} as unknown as IDBObjectStore;
 						},
@@ -114,86 +122,94 @@ function installFakeIndexedDb() {
 	};
 }
 
-describe("storage tier factories", () => {
-	it("memoryStorage round-trips", () => {
-		const tier = memoryStorage();
-		tier.save("k", { v: 42 });
-		expect(tier.load("k")).toEqual({ v: 42 });
-		tier.clear?.("k");
-		expect(tier.load("k")).toBeNull();
+describe("storage tier factories (kv)", () => {
+	it("memoryKv round-trips", async () => {
+		const tier = memoryKv();
+		await tier.save("k", { v: 42 });
+		expect(await tier.load("k")).toEqual({ v: 42 });
+		await tier.delete?.("k");
+		expect(await tier.load("k")).toBeUndefined();
 	});
 
-	it("memoryStorage isolates via JSON clone", () => {
-		const tier = memoryStorage();
+	it("memoryKv isolates via codec (JSON clone)", async () => {
+		const tier = memoryKv<{ v: number }>();
 		const obj = { v: 1 };
-		tier.save("k", obj);
+		await tier.save("k", obj);
 		obj.v = 2;
-		expect((tier.load("k") as { v: number }).v).toBe(1);
+		expect((await tier.load("k"))?.v).toBe(1);
 	});
 
-	it("dictStorage uses caller-provided store", () => {
-		const store: Record<string, unknown> = {};
-		const tier = dictStorage(store);
-		tier.save("app", { hello: "world" });
-		expect(store.app).toEqual({ hello: "world" });
-		expect(tier.load("app")).toEqual({ hello: "world" });
-		tier.clear?.("app");
-		expect(store.app).toBeUndefined();
+	it("memoryKv list returns sorted keys", async () => {
+		const tier = memoryKv();
+		await tier.save("b", 2);
+		await tier.save("a", 1);
+		const keys = await tier.list?.();
+		expect(keys).toEqual(["a", "b"]);
 	});
 
-	it("fileStorage writes atomically", () => {
-		const dir = join(tmpdir(), `grf-storage-${Date.now()}`);
+	it("dictKv uses caller-provided bytes store", async () => {
+		const store: Record<string, Uint8Array> = {};
+		const tier = dictKv<{ hello: string }>(store);
+		await tier.save("app", { hello: "world" });
+		expect(store["app"]).toBeInstanceOf(Uint8Array);
+		expect(await tier.load("app")).toEqual({ hello: "world" });
+		await tier.delete?.("app");
+		expect(store["app"]).toBeUndefined();
+	});
+
+	it("fileKv writes atomically", async () => {
+		const dir = join(tmpdir(), `grf-kv-${Date.now()}`);
 		try {
-			const tier = fileStorage(dir);
-			tier.save("app", { n: 1 });
-			expect(tier.load("app")).toEqual({ n: 1 });
-			tier.clear?.("app");
-			expect(tier.load("app")).toBeNull();
+			const tier = fileKv<{ n: number }>(dir);
+			await tier.save("app", { n: 1 });
+			expect(await tier.load("app")).toEqual({ n: 1 });
+			await tier.delete?.("app");
+			expect(await tier.load("app")).toBeUndefined();
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("fileStorage sanitizes unsafe key chars", () => {
-		const dir = join(tmpdir(), `grf-storage-${Date.now()}-sanitize`);
+	it("fileKv sanitizes unsafe key chars", async () => {
+		const dir = join(tmpdir(), `grf-kv-${Date.now()}-sanitize`);
 		try {
-			const tier = fileStorage(dir);
-			tier.save("app/with:slashes", { ok: true });
-			expect(tier.load("app/with:slashes")).toEqual({ ok: true });
+			const tier = fileKv(dir);
+			await tier.save("app/with:slashes", { ok: true });
+			expect(await tier.load("app/with:slashes")).toEqual({ ok: true });
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("fileStorage round-trips non-ASCII keys via UTF-8 percent escaping", () => {
-		const dir = join(tmpdir(), `grf-storage-${Date.now()}-utf8`);
+	it("fileKv round-trips non-ASCII keys via UTF-8 percent escaping", async () => {
+		const dir = join(tmpdir(), `grf-kv-${Date.now()}-utf8`);
 		try {
-			const tier = fileStorage(dir);
+			const tier = fileKv(dir);
 			const keys = ["caf\u00e9", "\u20ac100", "\ud83d\udc4b hello"];
-			for (const k of keys) tier.save(k, { k });
-			for (const k of keys) expect(tier.load(k)).toEqual({ k });
+			for (const k of keys) await tier.save(k, { k });
+			for (const k of keys) expect(await tier.load(k)).toEqual({ k });
 			// list() must recover every key we stored, unchanged.
-			const listed = tier.list?.();
+			const listed = await tier.list?.();
 			expect(Array.isArray(listed) || listed === undefined).toBe(true);
 			expect([...(listed as readonly string[])].sort()).toEqual([...keys].sort());
-			for (const k of keys) tier.clear?.(k);
+			for (const k of keys) await tier.delete?.(k);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("fileStorage.list returns [] when directory does not exist", () => {
-		const dir = join(tmpdir(), `grf-storage-${Date.now()}-nonexistent`);
-		const tier = fileStorage(dir);
-		expect(tier.list?.()).toEqual([]);
+	it("fileKv.list returns [] when directory does not exist", async () => {
+		const dir = join(tmpdir(), `grf-kv-${Date.now()}-nonexistent`);
+		const tier = fileKv(dir);
+		expect(await tier.list?.()).toEqual([]);
 	});
 
-	it("sqliteStorage round-trips and closes", () => {
-		const path = join(tmpdir(), `grf-storage-${Date.now()}.db`);
+	it("sqliteKv round-trips and closes", async () => {
+		const path = join(tmpdir(), `grf-kv-${Date.now()}.db`);
 		try {
-			const tier = sqliteStorage(path);
-			tier.save("g", { x: 99 });
-			expect(tier.load("g")).toEqual({ x: 99 });
+			const tier = sqliteKv<{ x: number }>(path);
+			await tier.save("g", { x: 99 });
+			expect(await tier.load("g")).toEqual({ x: 99 });
 			tier.close();
 			// double-close is idempotent
 			tier.close();
@@ -206,9 +222,10 @@ describe("storage tier factories", () => {
 		}
 	});
 
-	it("load returns null on miss", () => {
-		expect(memoryStorage().load("nope")).toBeNull();
-		expect(dictStorage({}).load("nope")).toBeNull();
+	it("load returns undefined on miss", async () => {
+		expect(await memoryKv().load("nope")).toBeUndefined();
+		const store: Record<string, Uint8Array> = {};
+		expect(await dictKv(store).load("nope")).toBeUndefined();
 	});
 });
 
@@ -238,35 +255,36 @@ describe("IndexedDB helpers", () => {
 		unsub();
 	});
 
-	it("indexedDbStorage save/load round-trip", async () => {
+	it("indexedDbKv save/load round-trip", async () => {
 		const fake = installFakeIndexedDb();
 		try {
-			const tier = indexedDbStorage({ dbName: "t", storeName: "cp" });
+			const tier = indexedDbKv({ dbName: "t", storeName: "cp" });
 			await tier.save("g", { v: 7 });
 			const loaded = await tier.load("g");
+			// indexedDbKv stores encoded bytes — decode gives back the value
 			expect(loaded).toEqual({ v: 7 });
 		} finally {
 			fake.restore();
 		}
 	});
 
-	it("indexedDbStorage clear removes record", async () => {
+	it("indexedDbKv delete removes record", async () => {
 		const fake = installFakeIndexedDb();
 		try {
-			const tier = indexedDbStorage({ dbName: "t", storeName: "cp" });
+			const tier = indexedDbKv({ dbName: "t", storeName: "cp" });
 			await tier.save("g", { v: 7 });
-			await tier.clear?.("g");
-			expect(await tier.load("g")).toBeNull();
+			await tier.delete?.("g");
+			expect(await tier.load("g")).toBeUndefined();
 		} finally {
 			fake.restore();
 		}
 	});
 
-	it("indexedDbStorage rejects when indexedDB unavailable", async () => {
+	it("indexedDbKv rejects when indexedDB unavailable", async () => {
 		const original = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
 		(globalThis as { indexedDB?: IDBFactory }).indexedDB = undefined;
 		try {
-			const tier = indexedDbStorage({ dbName: "missing", storeName: "missing" });
+			const tier = indexedDbKv({ dbName: "missing", storeName: "missing" });
 			await expect(tier.load("g")).rejects.toThrow(/not available/);
 		} finally {
 			(globalThis as { indexedDB?: IDBFactory }).indexedDB = original;

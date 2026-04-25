@@ -23,7 +23,7 @@ import { node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
-import { trackingKey, tryIncrementBounded } from "../_internal.js";
+import { trackingKey, tryIncrementBounded } from "../_internal/index.js";
 import type { LLMAdapter } from "../ai/index.js";
 import { promptNode } from "../ai/index.js";
 import { type JobQueueGraph, jobQueue } from "../job-queue/index.js";
@@ -33,7 +33,7 @@ import {
 	type TopicGraph,
 	topicBridge,
 } from "../messaging/index.js";
-import { type GateController, gate } from "../orchestration/index.js";
+import { type GateController, pipelineGraph } from "../orchestration/index.js";
 import {
 	DEFAULT_DECAY_RATE,
 	DEFAULT_EXECUTE_PROMPT,
@@ -517,13 +517,13 @@ export function harnessLoop<A = unknown>(
 	// the source under `${name}/source` inside its own graph when the
 	// node isn't already registered there — the harness no longer needs
 	// the explicit `gateGraph.add(...)` registration ceremony.
-	const gateGraph = new Graph("gates");
+	const gateGraph = pipelineGraph("gates");
 	const gateControllers = new Map<QueueRoute, GateController<TriagedItem>>();
 	for (const route of QUEUE_NAMES) {
 		const config = queueConfigs.get(route)!;
 		if (!config.gated) continue;
 		const topic = queueTopics.get(route)!;
-		const ctrl = gate<TriagedItem>(gateGraph, `${route}/gate`, topic.latest as Node<unknown>, {
+		const ctrl = gateGraph.gate<TriagedItem>(`${route}/gate`, topic.latest as Node<unknown>, {
 			maxPending: config.maxPending,
 			startOpen: config.startOpen,
 		});

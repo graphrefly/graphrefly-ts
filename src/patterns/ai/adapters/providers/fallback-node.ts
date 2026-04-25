@@ -1,7 +1,7 @@
 /**
  * Node-subpath extension of {@link fallbackAdapter} — adds filesystem
  * directory convenience options (`fixturesDir`, `record.dir`) that rely on
- * `node:fs` / `node:path` / `fileStorage`.
+ * `node:fs` / `node:path` / `fileKv`.
  *
  * This module intentionally lives outside the main `patterns/ai` entry so
  * browser bundles don't pull `node:fs` / `node:path`. Import this variant
@@ -13,8 +13,8 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { StorageTier } from "../../../../extra/storage-core.js";
-import { fileStorage } from "../../../../extra/storage-node.js";
+import type { KvStorageTier } from "../../../../extra/storage-tiers.js";
+import { fileKv } from "../../../../extra/storage-tiers-node.js";
 import type { LLMAdapter } from "../core/types.js";
 import {
 	type FallbackAdapterOptions as BaseFallbackAdapterOptions,
@@ -44,7 +44,7 @@ export interface NodeFallbackAdapterOptions extends Omit<BaseFallbackAdapterOpti
 	readonly record?: {
 		readonly adapter: LLMAdapter;
 		readonly dir?: string;
-		readonly storage?: StorageTier;
+		readonly storage?: KvStorageTier;
 	};
 }
 
@@ -94,7 +94,7 @@ function validateDirShape(dir: string): void {
 /**
  * Node-only `fallbackAdapter` — the base variant extended with `fixturesDir`
  * and `record.dir` filesystem convenience options. Resolves those to
- * `fileStorage(...)` tiers and delegates to the base `fallbackAdapter`.
+ * `fileKv(...)` tiers and delegates to the base `fallbackAdapter`.
  *
  * For browser-safe usage, import `fallbackAdapter` from
  * `@graphrefly/graphrefly/patterns/ai` instead — that variant only accepts
@@ -116,17 +116,17 @@ export function fallbackAdapter(opts: NodeFallbackAdapterOptions = {}): LLMAdapt
 		);
 	}
 
-	// Resolve `fixturesDir` → `fileStorage(join(dir, keyPrefix))`.
+	// Resolve `fixturesDir` → `fileKv(join(dir, keyPrefix))`.
 	let fixturesStorage = opts.fixturesStorage;
 	if (opts.fixturesDir != null) {
 		const namespaced = join(opts.fixturesDir, keyPrefix);
 		validateDirShape(namespaced);
-		fixturesStorage = fileStorage(namespaced);
+		fixturesStorage = fileKv(namespaced);
 	}
 
 	// Resolve record mode:
 	// - `record.storage` pass-through;
-	// - `record.dir` → `fileStorage(join(record.dir, keyPrefix))`;
+	// - `record.dir` → `fileKv(join(record.dir, keyPrefix))`;
 	// - `record.dir` defaults to `fixturesDir` for "append to same dir".
 	let record: BaseFallbackAdapterOptions["record"] | undefined;
 	if (opts.record) {
@@ -147,7 +147,7 @@ export function fallbackAdapter(opts: NodeFallbackAdapterOptions = {}): LLMAdapt
 			}
 			record = {
 				adapter: opts.record.adapter,
-				storage: fileStorage(join(recordDir, keyPrefix)),
+				storage: fileKv(join(recordDir, keyPrefix)),
 			};
 		}
 	}

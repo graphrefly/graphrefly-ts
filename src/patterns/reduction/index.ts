@@ -32,7 +32,7 @@ import { Graph, type GraphOptions } from "../../graph/graph.js";
 
 export type StepRef = string | Node<unknown>;
 
-import { domainMeta, keepalive, tryIncrementBounded } from "../_internal.js";
+import { domainMeta, keepalive, tryIncrementBounded } from "../_internal/index.js";
 
 function baseMeta(kind: string, meta?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("reduction", kind, meta);

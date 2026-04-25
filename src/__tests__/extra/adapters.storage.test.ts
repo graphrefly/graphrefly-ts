@@ -518,18 +518,18 @@ describe("checkpointToS3", () => {
 				saved.push(params);
 			},
 		};
-		type Tier = { save(key: string, data: unknown): void | Promise<void> };
+		type Tier = { save(data: unknown): void | Promise<void> };
 		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "test-graph",
-			attachStorage: (tiers: readonly Tier[], _opts?: unknown) => {
+			attachSnapshotStorage: (tiers: readonly Tier[], _opts?: unknown) => {
 				capturedTier = tiers[0];
 				return { dispose: () => {} };
 			},
 		};
 		const handle = checkpointToS3(mockGraph, s3, "my-bucket", { prefix: "cp/" });
 		expect(handle.dispose).toBeTypeOf("function");
-		capturedTier!.save("test-graph", { snapshot: true });
+		capturedTier!.save({ name: "test-graph", snapshot: true });
 		expect(saved).toHaveLength(1);
 		const params = saved[0] as { Bucket: string; Key: string };
 		expect(params.Bucket).toBe("my-bucket");
@@ -550,21 +550,21 @@ describe("checkpointToRedis", () => {
 			},
 			get: async () => null,
 		};
-		type Tier = { save(key: string, data: unknown): void | Promise<void> };
+		type Tier = { save(data: unknown): void | Promise<void> };
 		let capturedTier: Tier | undefined;
 		const mockGraph = {
 			name: "my-graph",
-			attachStorage: (tiers: readonly Tier[], _opts?: unknown) => {
+			attachSnapshotStorage: (tiers: readonly Tier[], _opts?: unknown) => {
 				capturedTier = tiers[0];
 				return { dispose: () => {} };
 			},
 		};
 		const handle = checkpointToRedis(mockGraph, redis);
 		expect(handle.dispose).toBeTypeOf("function");
-		capturedTier!.save("my-graph", { snapshot: true });
+		capturedTier!.save({ name: "my-graph", snapshot: true });
 		expect(saved).toHaveLength(1);
 		expect(saved[0].key).toBe("graphrefly:checkpoint:my-graph");
-		expect(JSON.parse(saved[0].value)).toEqual({ snapshot: true });
+		expect(JSON.parse(saved[0].value)).toEqual({ name: "my-graph", snapshot: true });
 	});
 });
 

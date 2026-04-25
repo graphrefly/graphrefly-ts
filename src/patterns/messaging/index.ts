@@ -16,7 +16,7 @@ import { batch, COMPLETE, derived, type Node, state } from "../../core/index.js"
 import { node } from "../../core/node.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal.js";
+import { domainMeta, keepalive } from "../_internal/index.js";
 
 const DEFAULT_MAX_PER_PUMP = 2_147_483_647;
 
@@ -33,8 +33,11 @@ function messagingMeta(kind: string, extra?: Record<string, unknown>): Record<st
 
 export type TopicOptions = {
 	graph?: GraphOptions;
+	/** Bounded retention; default 1024 per cross-cutting policy (Audit 2/4). */
 	retainedLimit?: number;
 };
+
+const DEFAULT_TOPIC_RETAINED_LIMIT = 1024;
 
 export class TopicGraph<T> extends Graph {
 	private readonly _log;
@@ -60,7 +63,14 @@ export class TopicGraph<T> extends Graph {
 
 	constructor(name: string, opts: TopicOptions = {}) {
 		super(name, opts.graph);
-		this._log = reactiveLog<T>([], { name: "events", maxSize: opts.retainedLimit });
+		this._log = reactiveLog<T>([], {
+			name: "events",
+			maxSize: opts.retainedLimit ?? DEFAULT_TOPIC_RETAINED_LIMIT,
+		});
+		// Activate withLatest companions (Audit 1) so `topic.lastValue` /
+		// `topic.hasLatest` shorthands resolve to the same Nodes consumers
+		// would access via `events`.
+		this._log.withLatest();
 		this.events = this._log.entries;
 		this.add(this.events, { name: "events" });
 		this.latest = derived<T | null>(
@@ -104,7 +114,31 @@ export class TopicGraph<T> extends Graph {
 	}
 
 	publish(value: T): void {
+		// SENTINEL alignment (Wave B.1 Unit 11 lock): `undefined` is the
+		// protocol-level "never sent DATA" sentinel — refusing it here
+		// preserves `lastValue: Node<T | undefined>` semantics.
+		if (value === undefined) {
+			throw new TypeError(
+				`TopicGraph "${this.name}": publish(undefined) is not allowed (spec §5.12 SENTINEL).`,
+			);
+		}
 		this._log.append(value);
+	}
+
+	/**
+	 * Wire one or more append-log storage tiers (Audit 4). Each tier receives
+	 * appended events per wave; rollback honors the wave-as-transaction model.
+	 *
+	 * Named `attachEventStorage` (not `attachStorage`) to avoid colliding with
+	 * the inherited {@link Graph.attachSnapshotStorage} which takes the
+	 * snapshot-based `StorageTier[]` shape.
+	 *
+	 * @returns Disposer.
+	 */
+	attachEventStorage(
+		tiers: readonly import("../../extra/storage-tiers.js").AppendLogStorageTier<T>[],
+	): () => void {
+		return this._log.attachStorage(tiers);
 	}
 
 	retained(): readonly T[] {

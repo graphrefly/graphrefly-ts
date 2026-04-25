@@ -21,7 +21,7 @@ import {
 	type ContentAddressedStorage,
 	contentAddressedStorage,
 } from "../../../../extra/content-addressed-storage.js";
-import type { StorageTier } from "../../../../extra/storage-core.js";
+import type { KvStorageTier } from "../../../../extra/storage-tiers.js";
 import type { ChatMessage, LLMInvokeOptions } from "../core/types.js";
 
 /**
@@ -37,7 +37,7 @@ export interface LLMCacheKeyContext {
 }
 
 export interface ContentAddressedCacheOptions<V> {
-	storage: StorageTier;
+	storage: KvStorageTier;
 	mode?: ContentAddressedMode;
 	/**
 	 * Custom key function. Receives either {@link LLMCacheKeyContext} (1-arg
@@ -150,7 +150,7 @@ export function contentAddressedCache<V>(
 				// domain-specific error type.
 				const key = await keyFor(messages, invokeOpts);
 				const raw = await storage.load(key);
-				if (raw == null) return undefined;
+				if (raw === undefined) return undefined;
 				return raw as V;
 			}
 			return substrate.lookup({ messages, opts: invokeOpts });
@@ -168,10 +168,10 @@ export function contentAddressedCache<V>(
 
 		async forget(messages, invokeOpts) {
 			if (mode === "read" || mode === "write") return;
-			if (!storage.clear) return;
+			if (!storage.delete) return;
 			if (keyFn) {
 				const key = await keyFor(messages, invokeOpts);
-				await storage.clear(key);
+				await storage.delete(key);
 				return;
 			}
 			await substrate.forget({ messages, opts: invokeOpts });

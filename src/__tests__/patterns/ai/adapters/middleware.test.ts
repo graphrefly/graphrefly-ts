@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { memoryStorage } from "../../../../extra/storage-core.js";
+import { memoryKv } from "../../../../extra/storage-tiers.js";
 import type { LLMAdapter, LLMResponse } from "../../../../patterns/ai/adapters/core/types.js";
 import { withBreaker } from "../../../../patterns/ai/adapters/middleware/breaker.js";
 import {
@@ -172,7 +172,7 @@ describe("withBreaker", () => {
 describe("withReplayCache", () => {
 	it("returns cached response on second call", async () => {
 		const inner = mockAdapter([okResp("first"), okResp("second")]);
-		const adapter = withReplayCache(inner, { storage: memoryStorage() });
+		const adapter = withReplayCache(inner, { storage: memoryKv() });
 		const r1 = await Promise.resolve(adapter.invoke([{ role: "user", content: "x" }]));
 		const r2 = await Promise.resolve(adapter.invoke([{ role: "user", content: "x" }]));
 		expect(r1.content).toBe("first");
@@ -183,7 +183,7 @@ describe("withReplayCache", () => {
 
 	it("different messages miss separately", async () => {
 		const inner = mockAdapter([okResp("a"), okResp("b")]);
-		const adapter = withReplayCache(inner, { storage: memoryStorage() });
+		const adapter = withReplayCache(inner, { storage: memoryKv() });
 		const r1 = await Promise.resolve(adapter.invoke([{ role: "user", content: "x" }]));
 		const r2 = await Promise.resolve(adapter.invoke([{ role: "user", content: "y" }]));
 		expect(r1.content).toBe("a");
@@ -194,7 +194,7 @@ describe("withReplayCache", () => {
 	it("B4: keyFn receives ctx.context from invokeOpts.keyContext", async () => {
 		const inner = mockAdapter([okResp("tenantA"), okResp("tenantB"), okResp("tenantA-2")]);
 		const adapter = withReplayCache(inner, {
-			storage: memoryStorage(),
+			storage: memoryKv(),
 			// 1-arg ctx form — shards by tenant.
 			keyFn: (ctx) => {
 				const tenant = (ctx.context as { tenant?: string })?.tenant ?? "default";
@@ -215,7 +215,7 @@ describe("withReplayCache", () => {
 		const inner = mockAdapter([okResp("one"), okResp("two")]);
 		let calls = 0;
 		const adapter = withReplayCache(inner, {
-			storage: memoryStorage(),
+			storage: memoryKv(),
 			keyFn: (messages, _opts) => {
 				calls += 1;
 				return `msg:${messages.length}`;
@@ -229,7 +229,7 @@ describe("withReplayCache", () => {
 
 	it("B4: default key function ignores keyContext", async () => {
 		const inner = mockAdapter([okResp("shared")]);
-		const adapter = withReplayCache(inner, { storage: memoryStorage() });
+		const adapter = withReplayCache(inner, { storage: memoryKv() });
 		const msg = [{ role: "user" as const, content: "ping" }];
 		const r1 = await adapter.invoke(msg, { keyContext: { any: 1 } });
 		const r2 = await adapter.invoke(msg, { keyContext: { any: 2 } });

@@ -2,7 +2,7 @@ import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
-import { keepalive } from "../../_internal.js";
+import { keepalive } from "../../_internal/index.js";
 import { aiMeta } from "../_internal.js";
 import type { ChatMessage } from "../adapters/core/types.js";
 

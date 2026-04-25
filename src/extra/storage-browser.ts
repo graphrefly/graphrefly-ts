@@ -1,13 +1,12 @@
 /**
- * Browser-only storage backend + IndexedDB reactive sources.
+ * Browser-only IndexedDB reactive sources.
  *
- * `indexedDbStorage` provides async {@link StorageTier} semantics backed by
- * IndexedDB; `fromIDBRequest` / `fromIDBTransaction` wrap raw IDB primitives
- * as reactive sources. Imports require the DOM lib — not safe to pull into
- * Node-only bundles without `lib: ["dom"]` in the consumer's tsconfig.
+ * `fromIDBRequest` / `fromIDBTransaction` wrap raw IDB primitives as reactive
+ * sources. The old `indexedDbStorage` kv adapter has been replaced by
+ * `indexedDbKv` in `./storage-tiers-browser.js` (Audit 4, 2026-04-24).
  *
- * The legacy `extra/storage.ts` barrel re-exports this module for back-compat;
- * browser-first consumers should import from here directly.
+ * Imports require the DOM lib — not safe to pull into Node-only bundles
+ * without `lib: ["dom"]` in the consumer's tsconfig.
  *
  * @module
  */
@@ -16,15 +15,8 @@
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
 import type { Node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
-import type { StorageTier } from "./storage-core.js";
 
-export type IndexedDbStorageSpec = {
-	dbName: string;
-	storeName: string;
-	/** Object-store key under which snapshots are written. @default `"graphrefly_checkpoint"`. */
-	key?: string;
-	version?: number;
-};
+// IndexedDbStorageSpec is no longer needed here — it's defined in storage-tiers-browser.ts.
 
 /**
  * Wraps an `IDBRequest` as a one-shot reactive source.
@@ -103,123 +95,5 @@ export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
 	});
 }
 
-function openIdb(dbName: string, storeName: string, version: number): Promise<IDBDatabase> {
-	return new Promise((resolve, reject) => {
-		if (typeof indexedDB === "undefined") {
-			reject(new TypeError("indexedDB is not available in this environment"));
-			return;
-		}
-		const req = indexedDB.open(dbName, version);
-		req.onupgradeneeded = () => {
-			const db = req.result;
-			if (!db.objectStoreNames.contains(storeName)) {
-				db.createObjectStore(storeName);
-			}
-		};
-		req.onsuccess = () => resolve(req.result);
-		req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
-	});
-}
-
-function idbOp<T>(
-	dbName: string,
-	storeName: string,
-	version: number,
-	mode: IDBTransactionMode,
-	op: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T> {
-	return openIdb(dbName, storeName, version).then(
-		(db) =>
-			new Promise<T>((resolve, reject) => {
-				const tx = db.transaction(storeName, mode);
-				const store = tx.objectStore(storeName);
-				const req = op(store);
-				let reqResult: T | undefined;
-				let reqDone = false;
-				let txDone = false;
-				const finish = () => {
-					if (!reqDone || !txDone) return;
-					db.close();
-					resolve(reqResult as T);
-				};
-				req.onsuccess = () => {
-					reqResult = req.result;
-					reqDone = true;
-					finish();
-				};
-				req.onerror = () => {
-					db.close();
-					reject(req.error ?? new Error("IndexedDB request failed"));
-				};
-				tx.oncomplete = () => {
-					txDone = true;
-					if (!reqDone) {
-						// Transaction completed without a request success callback —
-						// spec guarantees this shouldn't happen for successful tx,
-						// but defensively reject so the caller's promise doesn't
-						// hang silently.
-						db.close();
-						reject(new Error("IndexedDB transaction completed without request result"));
-						return;
-					}
-					finish();
-				};
-				tx.onerror = () => {
-					db.close();
-					reject(tx.error ?? new Error("IndexedDB transaction failed"));
-				};
-				tx.onabort = () => {
-					db.close();
-					reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-				};
-			}),
-	);
-}
-
-/**
- * IndexedDB-backed async storage tier (browser runtime).
- *
- * All three methods return `Promise`s — pairs naturally with a warm/cold
- * cadence where async writes are debounced per tier via
- * `Graph.attachStorage`. Writes use `readwrite` transactions; reads use
- * `readonly`. Missing records resolve to `null`.
- *
- * @param spec - Database name, store name, optional `key` (default
- *   `"graphrefly_checkpoint"`) and schema `version` (default `1`).
- * @returns Async {@link StorageTier}.
- *
- * @example
- * ```ts
- * import { indexedDbStorage, memoryStorage } from "@graphrefly/graphrefly-ts";
- *
- * graph.attachStorage([
- *   memoryStorage(),
- *   indexedDbStorage({ dbName: "myApp", storeName: "checkpoints" }),
- * ]);
- * ```
- *
- * @category extra
- */
-export function indexedDbStorage(spec: IndexedDbStorageSpec): StorageTier {
-	const { dbName, storeName } = spec;
-	const version = spec.version ?? 1;
-	const recordKey = spec.key ?? "graphrefly_checkpoint";
-	return {
-		async save(_key, record) {
-			await idbOp(dbName, storeName, version, "readwrite", (store) =>
-				store.put(record as unknown as IDBValidKey, recordKey),
-			);
-		},
-		async load(_key) {
-			const raw = await idbOp(dbName, storeName, version, "readonly", (store) =>
-				store.get(recordKey),
-			);
-			if (raw === undefined || raw === null) return null;
-			if (typeof raw !== "object" || Array.isArray(raw)) return null;
-			return raw;
-		},
-		async clear(_key) {
-			await idbOp(dbName, storeName, version, "readwrite", (store) => store.delete(recordKey));
-		},
-	};
-}
+// The old `indexedDbStorage` kv adapter has been removed.
+// Use `indexedDbKv` from `./storage-tiers-browser.js` instead (Audit 4, 2026-04-24).

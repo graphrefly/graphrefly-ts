@@ -1,0 +1,585 @@
+/**
+ * PipelineGraph subclass (Wave A.1 Unit 1 — locked 2026-04-24).
+ *
+ * Specialized {@link Graph} that hosts workflow-DAG sugar methods:
+ * `task` / `classify` / `combine` / `approval` / `gate` / `catch`. The
+ * legacy `pipeline` / `task` / `branch` / `join` / `subPipeline` /
+ * `approval` / `gate` / `loop` / `onFailure` factories from
+ * {@link ./index} continue to work for migration ease; new code should
+ * prefer methods on this class.
+ *
+ * Construction: `pipelineGraph(name, opts?)` or `new PipelineGraph(name, opts)`.
+ */
+
+import { batch } from "../../core/batch.js";
+import { wallClockNs } from "../../core/clock.js";
+import type { NodeActions } from "../../core/config.js";
+import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
+import { type Node, type NodeOptions, node } from "../../core/node.js";
+import { type DerivedFn, derived, state } from "../../core/sugar.js";
+import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
+import { Graph, type GraphOptions } from "../../graph/graph.js";
+import {
+	type BaseAuditRecord,
+	createAuditLog,
+	wrapMutation,
+} from "../_internal/imperative-audit.js";
+import { domainMeta } from "../_internal/index.js";
+
+export type StepRef = string | Node<unknown>;
+
+function meta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
+	return domainMeta("orchestration", kind, extra);
+}
+
+// ── Decision audit record (Audit 2 + Wave A.2 Unit 8) ─────────────────────
+
+export type DecisionAction =
+	| "approve"
+	| "reject"
+	| "modify"
+	| "drop"
+	| "open"
+	| "close"
+	| "teardown";
+
+export interface Decision<T = unknown> extends BaseAuditRecord {
+	readonly action: DecisionAction;
+	readonly count?: number;
+	readonly items?: readonly T[];
+	readonly unflushed?: number;
+}
+
+/** Recommended `keyOf` for keyed-storage adapters (Audit 2 #7). */
+export const decisionKeyOf = <T>(d: Decision<T>): string => d.action;
+
+// ── Gate ─────────────────────────────────────────────────────────────────
+
+export interface GateOptions<T = unknown> {
+	/** Bounded default 1000 (Audit 2 cross-cutting). `Infinity` is opt-in. */
+	maxPending?: number;
+	startOpen?: boolean;
+	/**
+	 * Reactive auto-approve: gate's `latestIsOpen` mirrors this node's truthy
+	 * value. False→true transition drains the pending queue.
+	 *
+	 * **`COMPLETE` / `ERROR` on the approver are silently ignored** — the gate
+	 * stays in its current state. For permanent-open latching, use
+	 * `onceOnly: true` (the first truthy approval latches; subsequent falsy
+	 * values are ignored). The gate has no graceful terminal-state behavior
+	 * for the approver itself.
+	 */
+	approver?: Node<unknown>;
+	/** Latch — first truthy approval opens permanently; `close()` becomes no-op. */
+	onceOnly?: boolean;
+	meta?: Record<string, unknown>;
+	handlerVersion?: { id: string; version: string | number };
+}
+
+export interface GateController<T> {
+	readonly node: Node<T>;
+	readonly pending: Node<readonly T[]>;
+	readonly count: Node<number>;
+	readonly isOpen: Node<boolean>;
+	readonly droppedCount: Node<number>;
+	readonly decisions: ReactiveLogBundle<Decision<T>>;
+	readonly audit: ReactiveLogBundle<Decision<T>>;
+	approve(count?: number): void;
+	reject(count?: number): void;
+	modify(fn: (value: T, index: number, pending: readonly T[]) => T, count?: number): void;
+	open(): void;
+	close(): void;
+}
+
+// ── catch (rename of onFailure; Wave A.2 Unit 10) ─────────────────────────
+
+export type TerminalCause = { kind: "error"; error: unknown } | { kind: "complete" };
+
+export interface CatchOptions<T> {
+	/** Default `"error"`; `"complete"` recovers COMPLETE; `"terminal"` recovers either. */
+	on?: "error" | "complete" | "terminal";
+	completeWhenDepsComplete?: boolean;
+	meta?: Record<string, unknown>;
+	handlerVersion?: { id: string; version: string | number };
+}
+
+// ── classify result envelope (Wave A.1 Unit 3) ───────────────────────────
+
+export interface ClassifyResult<TTag extends string, T> {
+	readonly tag: TTag | "error";
+	readonly value: T;
+	readonly error?: unknown;
+}
+
+// ── PipelineGraph ────────────────────────────────────────────────────────
+
+export class PipelineGraph extends Graph {
+	constructor(name: string, opts?: GraphOptions) {
+		super(name, opts);
+	}
+
+	// -- task -----------------------------------------------------------------
+
+	/**
+	 * Register a workflow task (`derived` + auto-add). String deps resolve via
+	 * `this.resolve(path)`; Node deps via {@link Graph.nameOf} O(1) lookup.
+	 */
+	task<T>(
+		name: string,
+		run: DerivedFn<T>,
+		opts: { deps?: ReadonlyArray<StepRef>; meta?: Record<string, unknown> } = {},
+	): Node<T> {
+		const deps = (opts.deps ?? []).map((d) => this._resolveStep(d));
+		const step = derived<T>(deps, run, {
+			name,
+			describeKind: "derived",
+			meta: meta("task", opts.meta),
+		} as NodeOptions<T>);
+		this.add(step, { name });
+		return step;
+	}
+
+	// -- classify (n-way; replaces binary `branch`) --------------------------
+
+	classify<TTag extends string, T>(
+		name: string,
+		source: StepRef,
+		tagger: (value: T) => TTag,
+		opts: { meta?: Record<string, unknown> } = {},
+	): Node<ClassifyResult<TTag, T>> {
+		const src = this._resolveStep(source);
+		const step = derived<ClassifyResult<TTag, T>>(
+			[src],
+			([value]) => {
+				try {
+					return { tag: tagger(value as T), value: value as T };
+				} catch (error) {
+					return { tag: "error" as const, value: value as T, error };
+				}
+			},
+			{
+				name,
+				describeKind: "derived",
+				meta: meta("classify", opts.meta),
+			} as NodeOptions<ClassifyResult<TTag, T>>,
+		);
+		this.add(step, { name });
+		return step;
+	}
+
+	// -- combine (keyed-record fan-in; replaces positional `join`) -----------
+
+	combine<R extends Record<string, StepRef>>(
+		name: string,
+		deps: R,
+		opts: { meta?: Record<string, unknown> } = {},
+	): Node<{ [K in keyof R]: unknown }> {
+		const keys = Object.keys(deps) as Array<keyof R & string>;
+		const nodes = keys.map((k) => this._resolveStep(deps[k] as StepRef));
+		const step = derived<{ [K in keyof R]: unknown }>(
+			nodes,
+			(values) => {
+				const out = {} as { [K in keyof R]: unknown };
+				for (let i = 0; i < keys.length; i++) {
+					(out as Record<string, unknown>)[keys[i] as string] = values[i];
+				}
+				return out;
+			},
+			{
+				name,
+				describeKind: "derived",
+				meta: meta("combine", opts.meta),
+			} as NodeOptions<{ [K in keyof R]: unknown }>,
+		);
+		this.add(step, { name });
+		return step;
+	}
+
+	// -- gate -----------------------------------------------------------------
+
+	gate<T>(name: string, source: StepRef, opts: GateOptions<T> = {}): GateController<T> {
+		const maxPending = opts.maxPending ?? 1000;
+		if (maxPending < 1 && maxPending !== Number.POSITIVE_INFINITY) {
+			throw new RangeError("gate: maxPending must be >= 1");
+		}
+		const startOpen = opts.startOpen ?? false;
+
+		// Auto-add foreign source if not yet registered.
+		if (typeof source !== "string" && this.nameOf(source) === undefined) {
+			this.add(source, { name: `${name}/source` });
+		}
+		const src = this._resolveStep(source);
+
+		// State subgraph
+		const internal = new Graph(`${name}_state`);
+		const pendingNode = state<readonly T[]>([], { name: "pending", equals: () => false });
+		const isOpenNode = state<boolean>(startOpen, { name: "isOpen" });
+		const countNode = derived<number>([pendingNode], ([arr]) => (arr as readonly T[]).length, {
+			name: "count",
+		});
+		const droppedCountNode = state<number>(0, { name: "droppedCount" });
+		const decisions = createAuditLog<Decision<T>>({
+			name: "decisions",
+			retainedLimit: 1024,
+			graph: internal,
+		});
+		internal.add(pendingNode, { name: "pending" });
+		internal.add(isOpenNode, { name: "isOpen" });
+		internal.add(countNode, { name: "count" });
+		internal.add(droppedCountNode, { name: "droppedCount" });
+		this.mount(`${name}_state`, internal);
+
+		let queue: T[] = [];
+		let torn = false;
+		let latched = false;
+		let latestIsOpen = startOpen;
+		const isOpenUnsub = isOpenNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) latestIsOpen = m[1] as boolean;
+			}
+		});
+		this.addDisposer(isOpenUnsub);
+
+		function syncPending(): void {
+			pendingNode.emit([...queue]);
+		}
+
+		function recordDecision(
+			action: DecisionAction,
+			items?: readonly T[],
+			unflushed?: number,
+		): void {
+			decisions.append({
+				action,
+				t_ns: wallClockNs(),
+				...(items !== undefined ? { items, count: items.length } : {}),
+				...(unflushed !== undefined ? { unflushed } : {}),
+				...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+			} as Decision<T>);
+		}
+
+		function enqueue(value: T): void {
+			queue.push(value);
+			if (queue.length > maxPending) {
+				const dropped = queue.shift() as T;
+				droppedCountNode.emit((droppedCountNode.cache as number) + 1);
+				recordDecision("drop", [dropped]);
+			}
+			syncPending();
+		}
+
+		function dequeue(n: number): T[] {
+			const items = queue.splice(0, n);
+			syncPending();
+			return items;
+		}
+
+		const output = node<T>(
+			[src],
+			(batchData, actions, ctx) => {
+				const terminal = ctx.terminalDeps[0];
+				if (terminal !== undefined) {
+					torn = true;
+					const unflushed = queue.length;
+					queue = [];
+					syncPending();
+					recordDecision("teardown", undefined, unflushed);
+					actions.down(terminal === true ? [[COMPLETE]] : [[ERROR, terminal]]);
+					return;
+				}
+				const batch0 = batchData[0];
+				if (batch0 == null || batch0.length === 0) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				for (const v of batch0 as T[]) {
+					if (latestIsOpen) {
+						actions.emit(v);
+					} else {
+						enqueue(v);
+						actions.down([[RESOLVED]]);
+					}
+				}
+			},
+			{
+				name,
+				describeKind: "derived",
+				meta: meta("gate", opts.meta),
+			},
+		);
+		this.add(output, { name });
+
+		// Reactive approver mode: mirror latestIsOpen to the approver's value.
+		// **m1:** approver `COMPLETE` / `ERROR` are silently ignored — gate stays
+		// in current state. For latching behavior, use `onceOnly: true`.
+		if (opts.approver != null) {
+			const initialApproved = Boolean(opts.approver.cache);
+			if (initialApproved) {
+				isOpenNode.emit(true);
+				latestIsOpen = true;
+				if (opts.onceOnly) latched = true;
+			}
+			const approverSub = opts.approver.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] !== DATA) continue;
+					const truthy = Boolean(m[1]);
+					if (truthy && !latestIsOpen) {
+						// false → true transition
+						if (opts.onceOnly) {
+							if (latched) continue;
+							latched = true;
+						}
+						batch(() => {
+							isOpenNode.emit(true);
+							const items = dequeue(queue.length);
+							// M11: include items count in approver-driven open decisions
+							// so audit consumers see how many items were flushed.
+							recordDecision("open", items);
+							for (const item of items) {
+								if (torn) break;
+								output.emit(item);
+							}
+						});
+					} else if (!truthy && latestIsOpen) {
+						if (opts.onceOnly && latched) continue;
+						batch(() => {
+							isOpenNode.emit(false);
+							recordDecision("close");
+						});
+					}
+				}
+			});
+			this.addDisposer(approverSub);
+		}
+
+		const guardTorn = (method: string): void => {
+			if (torn) throw new Error(`gate: ${method}() called after gate was torn down`);
+		};
+
+		const approveImpl = (count = 1): void => {
+			guardTorn("approve");
+			const items = dequeue(count);
+			for (const item of items) {
+				if (torn) break;
+				output.emit(item);
+			}
+		};
+		const rejectImpl = (count = 1): void => {
+			guardTorn("reject");
+			dequeue(count);
+		};
+		const modifyImpl = (
+			fn: (value: T, index: number, pending: readonly T[]) => T,
+			count = 1,
+		): void => {
+			guardTorn("modify");
+			const snapshot = [...queue] as readonly T[];
+			const items = dequeue(count);
+			for (let i = 0; i < items.length; i++) {
+				if (torn) break;
+				output.emit(fn(items[i], i, snapshot));
+			}
+		};
+		const openImpl = (): void => {
+			guardTorn("open");
+			isOpenNode.emit(true);
+			const items = dequeue(queue.length);
+			for (const item of items) {
+				if (torn) break;
+				output.emit(item);
+			}
+		};
+		const closeImpl = (): void => {
+			guardTorn("close");
+			if (opts.onceOnly && latched) return;
+			isOpenNode.emit(false);
+		};
+
+		const approve = wrapMutation(approveImpl, {
+			audit: decisions,
+			freeze: false,
+			onSuccess: (args, _r, m) =>
+				({
+					action: "approve",
+					count: (args[0] as number | undefined) ?? 1,
+					t_ns: m.t_ns,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+			onFailure: (_a, _e, m) =>
+				({
+					action: "drop",
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+		});
+		const reject = wrapMutation(rejectImpl, {
+			audit: decisions,
+			freeze: false,
+			onSuccess: (args, _r, m) =>
+				({
+					action: "reject",
+					count: (args[0] as number | undefined) ?? 1,
+					t_ns: m.t_ns,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+			onFailure: (_a, _e, m) =>
+				({
+					action: "drop",
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+		});
+		const modify = wrapMutation(modifyImpl, {
+			audit: decisions,
+			freeze: false,
+			onSuccess: (args, _r, m) =>
+				({
+					action: "modify",
+					count: (args[1] as number | undefined) ?? 1,
+					t_ns: m.t_ns,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+			onFailure: (_a, _e, m) =>
+				({
+					action: "drop",
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+		});
+		const open = wrapMutation(openImpl, {
+			audit: decisions,
+			freeze: false,
+			onSuccess: (_a, _r, m) =>
+				({
+					action: "open",
+					t_ns: m.t_ns,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+			onFailure: (_a, _e, m) =>
+				({
+					action: "drop",
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+		});
+		const close = wrapMutation(closeImpl, {
+			audit: decisions,
+			freeze: false,
+			onSuccess: (_a, _r, m) =>
+				({
+					action: "close",
+					t_ns: m.t_ns,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+			onFailure: (_a, _e, m) =>
+				({
+					action: "drop",
+					t_ns: m.t_ns,
+					errorType: m.errorType,
+					...(opts.handlerVersion != null ? { handlerVersion: opts.handlerVersion } : {}),
+				}) as Decision<T>,
+		});
+
+		this.addDisposer(countNode.subscribe(() => undefined));
+
+		const controller: GateController<T> = {
+			node: output,
+			pending: pendingNode,
+			count: countNode,
+			isOpen: isOpenNode,
+			droppedCount: droppedCountNode,
+			decisions,
+			audit: decisions,
+			approve,
+			reject,
+			modify,
+			open,
+			close,
+		};
+		return controller;
+	}
+
+	// -- approval (thin alias over gate({ approver, maxPending: 1 })) ---------
+
+	/**
+	 * Reactive approval step: passes items through when `approver` is truthy;
+	 * holds at most one pending item (maxPending: 1) when falsy. A thin alias
+	 * over `gate({ approver, maxPending: 1 })` — use `gate()` directly for
+	 * finer control (maxPending, onceOnly, manual approve/reject).
+	 */
+	approval<T>(
+		name: string,
+		source: StepRef,
+		approver: Node<unknown>,
+		opts: Omit<GateOptions<T>, "approver" | "maxPending"> = {},
+	): GateController<T> {
+		return this.gate<T>(name, source, { ...opts, approver, maxPending: 1 });
+	}
+
+	// -- catch (renamed onFailure; dep-channel intercept) -------------------
+
+	catch<T>(
+		name: string,
+		source: StepRef,
+		recover: (cause: TerminalCause, actions: NodeActions) => T,
+		opts: CatchOptions<T> = {},
+	): Node<T> {
+		const src = this._resolveStep(source);
+		const mode = opts.on ?? "error";
+		const step = node<T>(
+			[src],
+			(batchData, actions, ctx) => {
+				const terminal = ctx.terminalDeps[0];
+				if (terminal !== undefined) {
+					const cause: TerminalCause =
+						terminal === true ? { kind: "complete" } : { kind: "error", error: terminal };
+					if (mode === "terminal" || mode === cause.kind) {
+						actions.emit(recover(cause, actions));
+						return;
+					}
+					actions.down(cause.kind === "complete" ? [[COMPLETE]] : [[ERROR, cause.error]]);
+					return;
+				}
+				const batch0 = batchData[0];
+				if (batch0 == null || batch0.length === 0) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				for (const v of batch0 as T[]) actions.emit(v);
+			},
+			{
+				name,
+				describeKind: "derived",
+				completeWhenDepsComplete:
+					opts.completeWhenDepsComplete ??
+					(mode === "complete" || mode === "terminal" ? false : true),
+				errorWhenDepsError: !(mode === "error" || mode === "terminal"),
+				meta: meta("catch", opts.meta),
+			} as NodeOptions<T>,
+		);
+		this.add(step, { name });
+		return step;
+	}
+
+	// -- internals ----------------------------------------------------------
+
+	private _resolveStep(dep: StepRef): Node<unknown> {
+		if (typeof dep === "string") return this.resolve(dep);
+		const existing = this.nameOf(dep);
+		if (existing === undefined) {
+			throw new Error(
+				`PipelineGraph "${this.name}": Node dep is not registered. Pass a string path or call graph.add(node) first.`,
+			);
+		}
+		return dep;
+	}
+}
+
+/** Factory wrapper — `pipelineGraph(name, opts?)`. Equivalent to `new PipelineGraph(name, opts)`. */
+export function pipelineGraph(name: string, opts?: GraphOptions): PipelineGraph {
+	return new PipelineGraph(name, opts);
+}

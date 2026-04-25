@@ -32,7 +32,8 @@ import {
 import { derived, producer, state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import { keepalive } from "../extra/sources.js";
-import type { StorageHandle, StorageTier } from "../extra/storage-core.js";
+import type { StorageHandle } from "../extra/storage-core.js";
+import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
@@ -217,8 +218,8 @@ export type GraphFactoryContext = {
 export type GraphNodeFactory = (name: string, context: GraphFactoryContext) => Node;
 
 /**
- * Checkpoint record shape passed to `StorageTier.save`. Written by
- * {@link Graph.attachStorage} per-tier according to each tier's
+ * Checkpoint record shape passed to `SnapshotStorageTier.save`. Written by
+ * {@link Graph.attachSnapshotStorage} per-tier according to each tier's
  * `compactEvery` cadence.
  *
  * `mode: "full"` → full snapshot. Baseline anchor emitted on the first save
@@ -233,12 +234,13 @@ export type GraphNodeFactory = (name: string, context: GraphFactoryContext) => N
  * cross-version WAL replay).
  */
 export type GraphCheckpointRecord = {
+	name: string;
 	seq: number;
 	timestamp_ns: number;
 	format_version: number;
 } & ({ mode: "full"; snapshot: GraphPersistSnapshot } | { mode: "diff"; diff: GraphWALDiff });
 
-/** Options for {@link Graph.attachStorage}. */
+/** Options for {@link Graph.attachSnapshotStorage}. */
 export type GraphAttachStorageOptions = {
 	/**
 	 * Before the first save, attempt to restore from the first tier whose
@@ -248,7 +250,7 @@ export type GraphAttachStorageOptions = {
 	autoRestore?: boolean;
 	/**
 	 * Limit the subscription surface (scoped observe). By default
-	 * `attachStorage` observes every node in the graph tree; on large graphs
+	 * `attachSnapshotStorage` observes every node in the graph tree; on large graphs
 	 * that's thousands of subscriptions just for tier-gating. Pass a path
 	 * list (or a single glob) to observe only those nodes.
 	 */
@@ -256,7 +258,7 @@ export type GraphAttachStorageOptions = {
 	/** Pre-save path-level filter — skip records triggered by paths that fail this predicate. */
 	filter?: (name: string, described: DescribeNodeOutput) => boolean;
 	/** Surfaced on tier save errors and autoRestore failures. */
-	onError?: (error: unknown, tier: StorageTier) => void;
+	onError?: (error: unknown, tier: SnapshotStorageTier<GraphCheckpointRecord>) => void;
 };
 
 /**
@@ -297,7 +299,7 @@ export type GraphDiagramOptions = {
 /**
  * Snapshot format version (§3.8). Exported so the surface layer's
  * `saveSnapshot` writes the same `format_version` as
- * `Graph.attachStorage` — one source of truth prevents silent wire
+ * `Graph.attachSnapshotStorage` — one source of truth prevents silent wire
  * drift between auto-checkpoint and one-shot persistence paths.
  */
 export const SNAPSHOT_VERSION = 1;
@@ -334,7 +336,7 @@ function drainDisposers(set: Set<() => void>, graphName: string): void {
 
 /**
  * Cheap graph-level V0 version fingerprint: concatenate `v.id@v.version` for
- * every node that carries V0 info. Used by {@link Graph.attachStorage} to
+ * every node that carries V0 info. Used by {@link Graph.attachSnapshotStorage} to
  * short-circuit per-tier flushes when nothing versioned has changed since
  * the tier's last save. Non-versioned graphs produce an empty string so the
  * shortcut is a no-op for them (every scheduled flush writes).
@@ -1241,6 +1243,17 @@ export class Graph {
 	 * @param node - Node instance to own.
 	 * @param opts - `{ name?, annotation? }`.
 	 */
+	/**
+	 * O(1) reverse lookup — returns the name the given Node was registered
+	 * under via {@link Graph.add}, or `undefined` if it isn't registered here.
+	 *
+	 * Audit 2 (2026-04-24): replaces the orchestration's `findRegisteredNodePath`
+	 * O(nodes²) describe-scan with direct `WeakMap<Node, string>` lookup.
+	 */
+	nameOf(node: Node): string | undefined {
+		return this._nodeToName.get(node);
+	}
+
 	add<T extends Node>(node: T, opts?: { name?: string; annotation?: string }): T {
 		const fallback = (node as unknown as { name?: string }).name;
 		const resolved = opts?.name ?? fallback;
@@ -1587,7 +1600,23 @@ export class Graph {
 	 * @param child - Nested `Graph` instance.
 	 * @returns The mounted `child`, for chaining.
 	 */
-	mount<G extends Graph>(name: string, child: G): G {
+	mount<G extends Graph>(name: string, child: G): G;
+	mount(name: string): Graph;
+	mount(name: string, builder: (sub: Graph) => void): Graph;
+	mount<G extends Graph>(name: string, childOrBuilder?: G | ((sub: Graph) => void)): Graph {
+		// Builder-form overloads (Audit A.1): create a fresh plain Graph and
+		// run an optional builder on it BEFORE mount, so `describe()` shows a
+		// populated subgraph at the moment of mount.
+		if (childOrBuilder === undefined) {
+			const fresh = new Graph(name);
+			return this.mount(name, fresh);
+		}
+		if (typeof childOrBuilder === "function") {
+			const fresh = new Graph(name);
+			(childOrBuilder as (sub: Graph) => void)(fresh);
+			return this.mount(name, fresh);
+		}
+		const child = childOrBuilder as G;
 		assertRegisterableName(name, this.name, "mount");
 		if (this._nodes.has(name)) {
 			throw new Error(
@@ -2899,7 +2928,7 @@ export class Graph {
 		// Drain iteratively so disposers registered mid-drain also run; cap
 		// iterations to guard against a disposer that re-registers itself.
 		drainDisposers(this._disposers, this.name);
-		// TEARDOWN is tier 5 — below `attachStorage`'s `tier < 5` gate, so no
+		// TEARDOWN is tier 5 — below `attachSnapshotStorage`'s `tier < 5` gate, so no
 		// final checkpoint fires; storage disposers unsubscribe after TEARDOWN
 		// has propagated through the subscription pipeline.
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
@@ -3237,7 +3266,7 @@ export class Graph {
 
 	/**
 	 * Unified persistence surface (§3.8). Cascades snapshot records through
-	 * one or more {@link StorageTier}s, each with its own `debounceMs` /
+	 * one or more {@link SnapshotStorageTier}s, each with its own `debounceMs` /
 	 * `compactEvery` cadence and independent diff baseline.
 	 *
 	 * Subscription gates on {@link messageTier} ≥ 3 (DATA/RESOLVED/terminal),
@@ -3251,12 +3280,12 @@ export class Graph {
 	 * share a single snapshot computation per observe event; debounced tiers
 	 * compute their own snapshot when their timer fires.
 	 */
-	attachStorage(
-		tiers: readonly StorageTier[],
+	attachSnapshotStorage(
+		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
 		options: GraphAttachStorageOptions = {},
 	): StorageHandle {
 		type TierState = {
-			tier: StorageTier;
+			tier: SnapshotStorageTier<GraphCheckpointRecord>;
 			debounceMs: number;
 			compactEvery: number;
 			timer: ResettableTimer | undefined;
@@ -3304,6 +3333,7 @@ export class Graph {
 			const shouldCompact = isFirst || nextSeq % s.compactEvery === 0;
 			const record: GraphCheckpointRecord = shouldCompact
 				? {
+						name: this.name,
 						mode: "full",
 						snapshot,
 						seq: nextSeq,
@@ -3311,19 +3341,20 @@ export class Graph {
 						format_version: SNAPSHOT_VERSION,
 					}
 				: {
+						name: this.name,
 						mode: "diff",
 						diff: diffForWAL(s.lastSnapshot!, snapshot),
 						seq: nextSeq,
 						timestamp_ns,
 						format_version: SNAPSHOT_VERSION,
 					};
-			if (s.tier.filter && !s.tier.filter(this.name, record)) {
+			if (s.tier.filter && !s.tier.filter(record)) {
 				// Filter rejected — don't advance seq or baseline.
 				return;
 			}
 			let result: void | Promise<void>;
 			try {
-				result = s.tier.save(this.name, record);
+				result = s.tier.save(record);
 			} catch (error) {
 				// Synchronous throw — baseline untouched; surface and bail.
 				options.onError?.(error, s.tier);
@@ -3448,17 +3479,17 @@ export class Graph {
 	 * the bad tier, some pre-existing). A subsequent successful tier's
 	 * `restore()` overwrites the overlapping slices.
 	 *
-	 * Internal helper shared by {@link Graph.attachStorage}'s `autoRestore`
+	 * Internal helper shared by {@link Graph.attachSnapshotStorage}'s `autoRestore`
 	 * option and the static {@link Graph.fromStorage} factory.
 	 */
 	private async _cascadeRestore(
-		tiers: readonly StorageTier[],
-		onError?: (err: unknown, tier: StorageTier) => void,
+		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
+		onError?: (err: unknown, tier: SnapshotStorageTier<GraphCheckpointRecord>) => void,
 	): Promise<boolean> {
 		for (const tier of tiers) {
 			let raw: unknown;
 			try {
-				raw = await tier.load(this.name);
+				raw = await tier.load?.();
 			} catch (err) {
 				onError?.(err, tier);
 				continue;
@@ -3501,7 +3532,7 @@ export class Graph {
 	 */
 	static async fromStorage(
 		name: string,
-		tiers: readonly StorageTier[],
+		tiers: readonly SnapshotStorageTier<GraphCheckpointRecord>[],
 		opts?: GraphOptions & {
 			factories?: Record<string, GraphNodeFactory>;
 			/**
@@ -3509,13 +3540,13 @@ export class Graph {
 			 * {@link Graph.fromSnapshot} rejects a tier's record. The cascade
 			 * falls through to the next colder tier regardless.
 			 */
-			onError?: (err: unknown, tier: StorageTier) => void;
+			onError?: (err: unknown, tier: SnapshotStorageTier<GraphCheckpointRecord>) => void;
 		},
 	): Promise<Graph> {
 		for (const tier of tiers) {
 			let raw: unknown;
 			try {
-				raw = await tier.load(name);
+				raw = await tier.load?.();
 			} catch (err) {
 				opts?.onError?.(err, tier);
 				continue;
@@ -3753,7 +3784,7 @@ export type GraphDiffResult = {
  * slice for each added path so {@link replayWAL} can reconstruct nodes added
  * between full anchors (topology mutations inside a `compactEvery` window).
  *
- * `Graph.diff()` returns the audit shape (no payload); `attachStorage` writes
+ * `Graph.diff()` returns the audit shape (no payload); `attachSnapshotStorage` writes
  * this WAL shape. The two shapes stay structurally compatible — `GraphWALDiff`
  * is a superset.
  */

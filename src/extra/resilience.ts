@@ -53,33 +53,66 @@ export type RetryOptions = {
 	backoff?: BackoffStrategy | BackoffPreset;
 };
 
+/** Factory-mode-only options. `initial` seeds the outer node's cache before the first attempt. */
+export type RetryFactoryOptions<T> = RetryOptions & {
+	/** Initial cache value for the outer node before the factory runs the first time. */
+	initial?: T;
+};
+
 /**
- * Resubscribes to the upstream node after each terminal `ERROR`, after an optional delay.
+ * Retry operator — two modes selected by the type of `input`:
  *
- * @param source - Upstream node (should use `resubscribable: true`).
- * @param opts - `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name).
+ * **Source mode** (`input: Node<T>`): resubscribes to the same node after each terminal
+ * `ERROR`. The upstream should use `resubscribable: true` if it must emit again after `ERROR`.
+ *
+ * **Factory mode** (`input: () => Node<T>`): invokes the factory to build a fresh `Node<T>`
+ * on every connect / reconnect. Ideal for producers that capture per-attempt resources
+ * (sockets, clients, file handles) that become unusable after an error. Synchronous
+ * exceptions thrown by the factory are treated as terminal ERROR and run through the
+ * same retry pipeline as inner-node ERROR.
+ *
+ * @param input - Upstream node or factory that returns a fresh node per attempt.
+ * @param opts - `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name); `initial` seeds the outer node cache (factory mode only).
  * @returns Node that retries on error.
  *
  * @remarks
- * **Resubscribable sources:** The upstream should use `resubscribable: true` if it must emit again after `ERROR`.
  * **Protocol:** Forwards unknown message tuples unchanged; handles `DIRTY`, `DATA`, `RESOLVED`, `COMPLETE`, `ERROR`.
  *
  * @example
  * ```ts
- * import { ERROR, NS_PER_SEC, pipe, producer, retry, constant } from "@graphrefly/graphrefly-ts";
+ * // Source mode — resubscribe the same node:
+ * import { ERROR, NS_PER_SEC, producer, retry, constant } from "@graphrefly/graphrefly-ts";
  *
  * const src = producer(
- *   (a) => {
- *     a.down([[ERROR, new Error("x")]]);
- *   },
+ *   (a) => { a.down([[ERROR, new Error("x")]]); },
  *   { resubscribable: true },
  * );
  * const out = retry(src, { count: 2, backoff: constant(0.25 * NS_PER_SEC) });
+ *
+ * // Factory mode — fresh node per attempt (e.g. reconnecting WebSocket):
+ * import { NS_PER_SEC, exponential, retry, fromWebSocket } from "@graphrefly/graphrefly-ts";
+ *
+ * const connected$ = retry(
+ *   () => fromWebSocket(new WebSocket("wss://example/stream")),
+ *   { count: 10, backoff: exponential({ baseNs: 1 * NS_PER_SEC }) },
+ * );
  * ```
  *
  * @category extra
  */
-export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
+export function retry<T>(input: Node<T>, opts?: RetryOptions): Node<T>;
+export function retry<T>(input: () => Node<T>, opts?: RetryFactoryOptions<T>): Node<T>;
+export function retry<T>(
+	input: Node<T> | (() => Node<T>),
+	opts?: RetryOptions | RetryFactoryOptions<T>,
+): Node<T> {
+	if (typeof input === "function") {
+		return _retryFactory(input, opts as RetryFactoryOptions<T> | undefined);
+	}
+	return _retrySource(input, opts);
+}
+
+function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 	const count = opts?.count;
 	const backoffOpt = opts?.backoff;
 	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
@@ -181,46 +214,7 @@ export function retry<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 	);
 }
 
-/**
- * Options for {@link retrySource}. Superset of {@link RetryOptions} with an
- * optional `initial` forwarded to the outer node cache.
- *
- * @category extra
- */
-export type RetrySourceOptions<T> = RetryOptions & {
-	/** Initial cache value for the outer node (forwarded to `NodeOptions.initial`). */
-	initial?: T;
-};
-
-/**
- * Fresh-instance variant of {@link retry}: invokes the `factory` to build a
- * new `Node<T>` on every connect / reconnect. Unlike {@link retry}, which
- * re-subscribes to the same node (requiring `resubscribable: true`), this
- * creates a new source per attempt — ideal for producers that capture
- * per-attempt resources (sockets, clients, file handles) that become unusable
- * after an error.
- *
- * Synchronous exceptions thrown by `factory` are treated as terminal ERROR
- * and run through the same retry pipeline as inner-node ERROR.
- *
- * @param factory - Called to build a fresh source per attempt.
- * @param opts - `count` caps attempts; `backoff` supplies delay (ns) or preset.
- * @returns Node that retries by rebuilding the source.
- *
- * @example
- * ```ts
- * import { NS_PER_SEC, exponential, retrySource, fromWebSocket } from "@graphrefly/graphrefly-ts";
- *
- * // Each reconnect opens a fresh WebSocket:
- * const connected$ = retrySource(
- *   () => fromWebSocket(new WebSocket("wss://example/stream")),
- *   { count: 10, backoff: exponential({ baseNs: 1 * NS_PER_SEC }) },
- * );
- * ```
- *
- * @category extra
- */
-export function retrySource<T>(factory: () => Node<T>, opts?: RetrySourceOptions<T>): Node<T> {
+function _retryFactory<T>(factory: () => Node<T>, opts?: RetryFactoryOptions<T>): Node<T> {
 	const count = opts?.count;
 	const backoffOpt = opts?.backoff;
 	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
@@ -325,7 +319,7 @@ export function retrySource<T>(factory: () => Node<T>, opts?: RetrySourceOptions
 		},
 		{
 			...operatorOpts(),
-			initial: opts?.initial,
+			initial: opts?.initial as T | undefined,
 		},
 	);
 }

@@ -3,8 +3,9 @@
 // ---------------------------------------------------------------------------
 
 import type { Node } from "../../../core/node.js";
-import type { StorageHandle, StorageTier } from "../../../extra/storage-core.js";
-import type { GraphAttachStorageOptions } from "../../../graph/graph.js";
+import type { StorageHandle } from "../../../extra/storage-core.js";
+import type { SnapshotStorageTier } from "../../../extra/storage-tiers.js";
+import type { GraphAttachStorageOptions, GraphCheckpointRecord } from "../../../graph/graph.js";
 import type { LightCollectionBundle } from "../../memory/index.js";
 
 export type MemoryTier = "permanent" | "active" | "archived";
@@ -20,8 +21,8 @@ export type MemoryTiersOptions<TMem> = {
 	/** Predicate: true → entry belongs in permanent tier (default: never). */
 	permanentFilter?: (key: string, mem: TMem) => boolean;
 	/** Storage tier for the archive. Omit to disable archiving. */
-	archiveTier?: StorageTier;
-	/** Options forwarded to `graph.attachStorage` for the archive tier. */
+	archiveTier?: SnapshotStorageTier<GraphCheckpointRecord>;
+	/** Options forwarded to `graph.attachSnapshotStorage` for the archive tier. */
 	archiveStorageOptions?: GraphAttachStorageOptions;
 };
 

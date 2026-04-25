@@ -26,13 +26,13 @@ describe("extra reactiveLog / logSlice (roadmap §3.2)", () => {
 		const lg = reactiveLog<string>();
 		lg.append("a");
 		lg.append("b");
-		const tail = lg.tail(1);
+		const tail = lg.view({ kind: "tail", n: 1 });
 		expect(tail.cache).toEqual(["b"]);
 	});
 
 	it("slice matches tuple slice semantics", () => {
 		const lg = reactiveLog([0, 1, 2, 3]);
-		const sl = lg.slice(1, 3);
+		const sl = lg.view({ kind: "slice", start: 1, stop: 3 });
 		expect(sl.cache).toEqual([1, 2]);
 	});
 });

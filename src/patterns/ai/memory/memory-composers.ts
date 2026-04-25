@@ -254,7 +254,10 @@ export function memoryWithTiers<TMem>(
 
 	let archiveHandle: StorageHandle | null = null;
 	if (opts.archiveTier) {
-		archiveHandle = graph.attachStorage([opts.archiveTier], opts.archiveStorageOptions ?? {});
+		archiveHandle = graph.attachSnapshotStorage(
+			[opts.archiveTier],
+			opts.archiveStorageOptions ?? {},
+		);
 	}
 
 	// Both teardowns wrapped in a single dispose. Registered with the graph so

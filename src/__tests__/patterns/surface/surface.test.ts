@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { derived } from "../../../core/sugar.js";
-import { memoryStorage } from "../../../extra/storage-core.js";
+import { memoryKv } from "../../../extra/storage-tiers.js";
 import { Graph } from "../../../graph/graph.js";
 import type { GraphSpec, GraphSpecCatalog } from "../../../patterns/graphspec/index.js";
 import {
@@ -167,7 +167,7 @@ describe("surface.snapshot", () => {
 		const g = createGraph(stateSpec, { catalog });
 		g.set("input", 12);
 		g.set("note", "world");
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		const result = await saveSnapshot(g, "snap-1", tier);
 		expect(result.snapshotId).toBe("snap-1");
 		expect(result.timestamp_ns).toBeGreaterThan(0);
@@ -183,7 +183,7 @@ describe("surface.snapshot", () => {
 	it("passes factories through to Graph.fromSnapshot for derived restore", async () => {
 		const g = createGraph(basicSpec, { catalog });
 		g.set("input", 3);
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await saveSnapshot(g, "with-derived", tier);
 		g.destroy();
 
@@ -213,7 +213,7 @@ describe("surface.snapshot", () => {
 	});
 
 	it("throws snapshot-not-found on missing id", async () => {
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await expect(restoreSnapshot("ghost", tier)).rejects.toMatchObject({
 			code: "snapshot-not-found",
 		});
@@ -221,7 +221,7 @@ describe("surface.snapshot", () => {
 
 	it("lists saved snapshot ids", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await saveSnapshot(g, "a", tier);
 		await saveSnapshot(g, "c", tier);
 		await saveSnapshot(g, "b", tier);
@@ -232,7 +232,7 @@ describe("surface.snapshot", () => {
 
 	it("deletes a saved snapshot", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await saveSnapshot(g, "x", tier);
 		await deleteSnapshot("x", tier);
 		await expect(restoreSnapshot("x", tier)).rejects.toMatchObject({
@@ -243,7 +243,7 @@ describe("surface.snapshot", () => {
 
 	it("computes a structural diff between two snapshots", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		g.set("input", 1);
 		await saveSnapshot(g, "before", tier);
 		g.set("input", 99);
@@ -262,10 +262,10 @@ describe("surface.snapshot", () => {
 
 	it("listSnapshots filters non-surface keys on a shared tier (B6 namespacing)", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		// Surface-written snapshot — should appear in listSnapshots.
 		await saveSnapshot(g, "surface-1", tier);
-		// Simulate an attachStorage-style bare key — should NOT appear.
+		// Simulate an attachSnapshotStorage-style bare key — should NOT appear.
 		await tier.save("some-graph-name", {
 			mode: "full",
 			seq: 0,
@@ -283,7 +283,7 @@ describe("surface.snapshot", () => {
 
 	it("restoreSnapshot reads both namespaced and bare keys (back-compat)", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await saveSnapshot(g, "ns", tier);
 		// Bare-key write for legacy compat simulation.
 		await tier.save("legacy", {
@@ -313,7 +313,7 @@ describe("surface.snapshot", () => {
 
 	it("saveSnapshot / restoreSnapshot / deleteSnapshot / diffSnapshots reject ids with reserved prefix (D8)", async () => {
 		const g = createGraph(basicSpec, { catalog });
-		const tier = memoryStorage();
+		const tier = memoryKv();
 		await expect(saveSnapshot(g, "snapshot:boom", tier)).rejects.toMatchObject({
 			code: "snapshot-failed",
 			message: expect.stringContaining('must not start with "snapshot:"'),
