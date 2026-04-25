@@ -1,11 +1,14 @@
 // ---------------------------------------------------------------------------
-// agentMemory
+// agentMemory — sugar over the memoryWith* composers (Unit 7 B).
+//
+// Thin wiring: distill() builds the core store; optional capabilities delegate
+// to the composers in `memory-composers.ts`. Every composer registers its own
+// keepalives + disposers on the Graph, so `agentMemory` just passes the graph
+// through and exposes the composed bundles on the public `AgentMemoryGraph`.
 // ---------------------------------------------------------------------------
 
-import { batch } from "../../../core/batch.js";
-import { monotonicNs } from "../../../core/clock.js";
 import type { Node } from "../../../core/node.js";
-import { derived, effect, state } from "../../../core/sugar.js";
+import { derived } from "../../../core/sugar.js";
 import {
 	type DistillBundle,
 	type DistillOptions,
@@ -13,27 +16,18 @@ import {
 	type Extraction,
 } from "../../../extra/composite.js";
 import { fromAny, fromTimer, type NodeInput } from "../../../extra/sources.js";
-import type { StorageHandle } from "../../../extra/storage-core.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
-import {
-	decay,
-	type KnowledgeGraphGraph,
-	knowledgeGraph,
-	lightCollection,
-	type VectorIndexBundle,
-	type VectorSearchResult,
-	vectorIndex,
-} from "../../memory/index.js";
-import { aiMeta } from "../_internal.js";
+import type { KnowledgeGraphGraph, VectorIndexBundle } from "../../memory/index.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
 import { llmConsolidator, llmExtractor } from "./llm-memory.js";
-import type { RetrievalEntry, RetrievalQuery, RetrievalTrace } from "./retrieval.js";
 import {
-	DEFAULT_DECAY_RATE,
-	type MemoryTier,
-	type MemoryTiersBundle,
-	type MemoryTiersOptions,
-} from "./tiers.js";
+	memoryRetrieval,
+	memoryWithKG,
+	memoryWithTiers,
+	memoryWithVectors,
+} from "./memory-composers.js";
+import type { RetrievalEntry, RetrievalQuery, RetrievalTrace } from "./retrieval.js";
+import type { MemoryTiersBundle, MemoryTiersOptions } from "./tiers.js";
 
 export type AgentMemoryOptions<TMem = unknown> = {
 	graph?: GraphOptions;
@@ -158,26 +152,17 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 };
 
 /**
- * Pre-wired agentic memory graph. Composes `distill()` with optional
- * `knowledgeGraph()`, `vectorIndex()`, `lightCollection()` (permanent tier),
- * `decay()`, and `attachStorage()` (archive tier). Supports 3D admission
- * scoring, a default retrieval pipeline, periodic reflection, and
- * retrieval observability traces.
+ * Pre-wired agentic memory graph. Sugar over `distill` plus the
+ * `memoryWithVectors` / `memoryWithKG` / `memoryWithTiers` / `memoryRetrieval`
+ * composers. Power users who want a subset of capabilities can call those
+ * composers directly; this factory bundles them into one ergonomic call.
  */
-
-/** Extract the key→value map from a reactive_map snapshot. */
-function extractStoreMap<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
-	if (snapshot instanceof Map) return snapshot as ReadonlyMap<string, TMem>;
-	return new Map<string, TMem>();
-}
-
 export function agentMemory<TMem = unknown>(
 	name: string,
 	source: NodeInput<unknown>,
 	opts: AgentMemoryOptions<TMem>,
 ): AgentMemoryGraph<TMem> {
 	const graph = new Graph(name, opts.graph);
-	const keepaliveSubs: Array<() => void> = [];
 
 	// --- Extract function resolution ---
 	let rawExtractFn: (
@@ -231,7 +216,7 @@ export function agentMemory<TMem = unknown>(
 		consolidateTrigger = fromTimer(interval, { period: interval });
 	}
 
-	// --- Build distill bundle ---
+	// --- Build distill bundle (the core) ---
 	const distillOpts: DistillOptions<TMem> = {
 		score: opts.score,
 		cost: opts.cost,
@@ -246,168 +231,35 @@ export function agentMemory<TMem = unknown>(
 	graph.add(distillBundle.compact, { name: "compact" });
 	graph.add(distillBundle.size, { name: "size" });
 
-	// --- Vector index (optional) ---
+	// --- Vector index (composer) ---
 	let vectors: VectorIndexBundle<TMem> | null = null;
 	if (opts.vectorDimensions && opts.vectorDimensions > 0 && opts.embedFn) {
-		vectors = vectorIndex<TMem>({ dimension: opts.vectorDimensions });
-		graph.add(vectors.entries, { name: "vectorIndex" });
+		vectors = memoryWithVectors(graph, distillBundle, {
+			dimension: opts.vectorDimensions,
+			embedFn: opts.embedFn,
+		}).vectors;
 	}
 
-	// --- Knowledge graph (optional) ---
+	// --- Knowledge graph (composer; inner name "${name}-kg", mounted at "kg") ---
 	let kg: KnowledgeGraphGraph<unknown, string> | null = null;
 	if (opts.enableKnowledgeGraph) {
-		kg = knowledgeGraph<unknown, string>(`${name}-kg`);
-		graph.mount("kg", kg);
+		kg = memoryWithKG(graph, distillBundle, name, {
+			mountPath: "kg",
+			entityFn: opts.entityFn,
+		}).kg;
 	}
 
-	// --- 3-tier storage (optional) ---
+	// --- 3-tier storage (composer) ---
 	let memoryTiersBundle: MemoryTiersBundle<TMem> | null = null;
 	if (opts.tiers) {
-		const tiersOpts = opts.tiers;
-		const decayRate = tiersOpts.decayRate ?? DEFAULT_DECAY_RATE;
-		const maxActive = tiersOpts.maxActive ?? 1000;
-		const archiveThreshold = tiersOpts.archiveThreshold ?? 0.1;
-		const permanentFilter = tiersOpts.permanentFilter ?? (() => false);
-
-		// Permanent tier
-		const permanent = lightCollection<TMem>({ name: "permanent" });
-		graph.add(permanent.entries, { name: "permanent" });
-
-		// Track which keys are permanent
-		const permanentKeys = new Set<string>();
-
-		const tierOf = (key: string): MemoryTier => {
-			if (permanentKeys.has(key)) return "permanent";
-			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
-			if (storeMap.has(key)) return "active";
-			return "archived";
-		};
-
-		const markPermanent = (key: string, value: TMem): void => {
-			permanentKeys.add(key);
-			permanent.upsert(key, value);
-		};
-
-		// Track entry creation times for accurate decay age calculation
-		const entryCreatedAtNs = new Map<string, number>();
-
-		// Post-extraction hook: classify into tiers and archive low-scored entries
-		const storeNode = distillBundle.store.entries;
-		const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
-		const tierClassifier = effect([storeNode, contextNode], ([snapshot, ctx]) => {
-			const storeMap = extractStoreMap<TMem>(snapshot);
-			const nowNs = monotonicNs();
-			const toArchive: string[] = [];
-			const toPermanent: Array<{ key: string; value: TMem }> = [];
-
-			for (const [key, mem] of storeMap) {
-				// Track creation time for new entries
-				if (!entryCreatedAtNs.has(key)) {
-					entryCreatedAtNs.set(key, nowNs);
-				}
-
-				// Check permanent classification
-				if (permanentFilter(key, mem)) {
-					toPermanent.push({ key, value: mem });
-					continue;
-				}
-				// Compute decayed score for active tier
-				const baseScore = opts.score(mem, ctx);
-				const createdNs = entryCreatedAtNs.get(key) ?? nowNs;
-				const ageSeconds = Number(nowNs - createdNs) / 1e9;
-				const decayed = decay(baseScore, ageSeconds, decayRate);
-				if (decayed < archiveThreshold) {
-					toArchive.push(key);
-				}
-			}
-
-			// Clean up creation times for removed entries
-			for (const key of entryCreatedAtNs.keys()) {
-				if (!storeMap.has(key)) entryCreatedAtNs.delete(key);
-			}
-
-			// Move to permanent
-			for (const { key, value } of toPermanent) {
-				if (!permanentKeys.has(key)) {
-					markPermanent(key, value);
-				}
-			}
-
-			// Archive and evict from active (respect maxActive, excluding permanent keys)
-			const activeCount = storeMap.size - permanentKeys.size;
-			if (activeCount > maxActive) {
-				const scored = [...storeMap.entries()]
-					.filter(([k]) => !permanentKeys.has(k))
-					.map(([k, m]) => ({ key: k, score: opts.score(m, ctx) }))
-					.sort((a, b) => a.score - b.score);
-				const excess = activeCount - maxActive;
-				for (let i = 0; i < excess && i < scored.length; i++) {
-					const sk = scored[i]!.key;
-					if (!toArchive.includes(sk)) toArchive.push(sk);
-				}
-			}
-
-			// Evict archived keys from active store
-			if (toArchive.length > 0) {
-				batch(() => {
-					for (const key of toArchive) {
-						distillBundle.store.delete(key);
-					}
-				});
-			}
-		});
-		keepaliveSubs.push(tierClassifier.subscribe(() => undefined));
-
-		// Archive checkpoint
-		let archiveHandle: StorageHandle | null = null;
-		if (tiersOpts.archiveTier) {
-			archiveHandle = graph.attachStorage(
-				[tiersOpts.archiveTier],
-				tiersOpts.archiveStorageOptions ?? {},
-			);
-		}
-
-		memoryTiersBundle = {
-			permanent,
-			activeEntries: storeNode,
-			archiveHandle,
-			tierOf,
-			markPermanent,
-		};
+		memoryTiersBundle = memoryWithTiers(graph, distillBundle, {
+			...opts.tiers,
+			score: opts.score,
+			context: opts.context,
+		}).tiers;
 	}
 
-	// --- Post-extraction hooks: vector + KG indexing ---
-	if (vectors || kg) {
-		const embedFn = opts.embedFn;
-		const entityFn = opts.entityFn;
-		const storeNode = distillBundle.store.entries;
-
-		const indexer = effect([storeNode], ([snapshot]) => {
-			const storeMap = extractStoreMap<TMem>(snapshot);
-			for (const [key, mem] of storeMap) {
-				// Vector indexing
-				if (vectors && embedFn) {
-					const vec = embedFn(mem);
-					if (vec) vectors.upsert(key, vec, mem);
-				}
-				// Knowledge graph entity/relation extraction
-				if (kg && entityFn) {
-					const extracted = entityFn(key, mem);
-					if (extracted) {
-						for (const ent of extracted.entities ?? []) {
-							kg.upsertEntity(ent.id, ent.value);
-						}
-						for (const rel of extracted.relations ?? []) {
-							kg.link(rel.from, rel.to, rel.relation as string, rel.weight);
-						}
-					}
-				}
-			}
-		});
-		keepaliveSubs.push(indexer.subscribe(() => undefined));
-	}
-
-	// --- Retrieval pipeline (optional) ---
+	// --- Retrieval pipeline (composer) ---
 	let retrievalNode: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null = null;
 	let retrievalTraceNode: Node<RetrievalTrace<TMem> | null> | null = null;
 	let retrieveFn: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null = null;
@@ -416,238 +268,21 @@ export function agentMemory<TMem = unknown>(
 		| null = null;
 
 	if (vectors || kg) {
-		const topK = opts.retrieval?.topK ?? 20;
-		const graphDepth = opts.retrieval?.graphDepth ?? 1;
-		const budget = opts.budget ?? 2000;
-		const costFn = opts.cost;
-		const scoreFn = opts.score;
-		const contextOfFn = opts.contextOf;
-		const contextWeight = opts.contextWeight ?? 0;
-
-		const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
-
-		// B12: shared prefix depth between a query context and an entry context.
-		// Returns 0 when either side is missing or no prefix is shared.
-		const sharedPrefixDepth = (
-			q: readonly string[] | undefined,
-			e: readonly string[] | undefined,
-		): number => {
-			if (!q || !e) return 0;
-			const n = Math.min(q.length, e.length);
-			let i = 0;
-			while (i < n && q[i] === e[i]) i++;
-			return i;
-		};
-
-		// Core retrieval pipeline, reused by both the imperative `retrieve()`
-		// and the reactive `retrieveReactive()` sibling.
-		const runRetrieval = (
-			storeMap: ReadonlyMap<string, TMem>,
-			ctx: unknown,
-			query: RetrievalQuery,
-		): { packed: RetrievalEntry<TMem>[]; trace: RetrievalTrace<TMem> } => {
-			const candidateMap = new Map<
-				string,
-				{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
-			>();
-
-			let vectorCandidates: VectorSearchResult<TMem>[] = [];
-			if (vectors && query.vector) {
-				vectorCandidates = vectors.search(query.vector, topK) as VectorSearchResult<TMem>[];
-				for (const vc of vectorCandidates) {
-					const mem = storeMap.get(vc.id);
-					if (mem) candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
-				}
-			}
-
-			const graphExpanded: string[] = [];
-			if (kg) {
-				const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
-				const visited = new Set<string>();
-				let frontier = seedIds;
-				for (let depth = 0; depth < graphDepth; depth++) {
-					const nextFrontier: string[] = [];
-					for (const id of frontier) {
-						if (visited.has(id)) continue;
-						visited.add(id);
-						const related = kg.related(id);
-						for (const edge of related) {
-							const targetId = edge.to;
-							if (!visited.has(targetId)) {
-								nextFrontier.push(targetId);
-								const mem = storeMap.get(targetId);
-								if (mem) {
-									const existing = candidateMap.get(targetId);
-									if (existing) existing.sources.add("graph");
-									else candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
-									graphExpanded.push(targetId);
-								}
-							}
-						}
-					}
-					frontier = nextFrontier;
-				}
-			}
-			for (const [key, mem] of storeMap) {
-				if (!candidateMap.has(key)) {
-					candidateMap.set(key, { value: mem, sources: new Set(["store"]) });
-				}
-			}
-
-			const qDepth = query.context?.length ?? 0;
-			const ranked: RetrievalEntry<TMem>[] = [];
-			for (const [key, { value, sources }] of candidateMap) {
-				const entryContext = contextOfFn ? contextOfFn(value) : undefined;
-				let score = scoreFn(value, ctx);
-				// B12: hierarchical context boost.
-				if (contextWeight > 0 && qDepth > 0) {
-					const shared = sharedPrefixDepth(query.context, entryContext);
-					if (shared > 0) score = score * (1 + (contextWeight * shared) / qDepth);
-				}
-				const entry: RetrievalEntry<TMem> = entryContext
-					? { key, value, score, sources: [...sources], context: entryContext }
-					: { key, value, score, sources: [...sources] };
-				ranked.push(entry);
-			}
-			ranked.sort((a, b) => b.score - a.score);
-
-			const packed: RetrievalEntry<TMem>[] = [];
-			let usedBudget = 0;
-			for (const entry of ranked) {
-				const c = costFn(entry.value);
-				if (usedBudget + c > budget && packed.length > 0) break;
-				packed.push(entry);
-				usedBudget += c;
-			}
-
-			const trace: RetrievalTrace<TMem> = {
-				vectorCandidates,
-				graphExpanded,
-				ranked,
-				packed,
-			};
-			return { packed, trace };
-		};
-
-		// Observer-facing state nodes. `retrieve()` writes both in a batch on every call.
-		// (Option W from the 2026-04-12 P3 audit — retrieveFn is a sync consumer API that
-		// reads store/context at call time, computes inline, and publishes results via
-		// state writes. No derived, no queryInput, no closure side-channel.)
-		//
-		// QA-fix (Bonus dedup): packed array reference-identity equals isn't useful here
-		// because `runRetrieval` allocates a new array per call. Compare element-wise
-		// reference equality so subscribers don't wake up when the SAME entries land
-		// in the SAME order (e.g. repeated identical queries from the reactive surface).
-		const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
-			if (a === b) return true;
-			if (a.length !== b.length) return false;
-			for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-			return true;
-		};
-		const retrievalOutput = state<ReadonlyArray<RetrievalEntry<TMem>>>([], {
-			name: "retrieval",
-			describeKind: "state",
-			meta: aiMeta("retrieval_pipeline"),
-			equals: packedEquals,
+		const bundle = memoryRetrieval<TMem>(graph, distillBundle, vectors, kg, {
+			score: opts.score,
+			cost: opts.cost,
+			budget: opts.budget,
+			topK: opts.retrieval?.topK,
+			graphDepth: opts.retrieval?.graphDepth,
+			contextOf: opts.contextOf,
+			contextWeight: opts.contextWeight,
+			context: opts.context,
 		});
-		graph.add(retrievalOutput, { name: "retrieval" });
-		retrievalNode = retrievalOutput;
-
-		const traceState = state<RetrievalTrace<TMem> | null>(null, {
-			name: "retrievalTrace",
-			describeKind: "state",
-			meta: aiMeta("retrieval_trace"),
-		});
-		graph.add(traceState, { name: "retrievalTrace" });
-		retrievalTraceNode = traceState;
-
-		// Sync consumer API. Reads `store.entries.cache` and `contextNode.cache` at
-		// call time — these are external-boundary reads, allowed per the foundation
-		// redesign. **Do not call from inside a reactive fn body**: the cache reads
-		// would become transitive P3 violations. See `retrieveReactive()` for a
-		// reactive sibling that's safe to subscribe to from graph topology.
-		retrieveFn = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
-			const storeMap = extractStoreMap<TMem>(distillBundle.store.entries.cache);
-			const { packed, trace } = runRetrieval(storeMap, contextNode.cache, query);
-			batch(() => {
-				retrievalOutput.emit(packed);
-				traceState.emit(trace);
-			});
-			return packed;
-		};
-
-		// B20: reactive sibling. Subscribe-driven retrieval — when `queryNode`
-		// emits a new `RetrievalQuery`, the returned node emits the packed
-		// results. Composable with graph topology (e.g. `switchMap` on a user
-		// input node, or chaining into a `promptNode`).
-		//
-		// **Unit 7 Q4 mirror (QA-revised):** the reactive recompute splits into
-		// (a) a pure `result` derived computing `{packed, trace}`, (b) the
-		// caller-facing `packed` projection, and (c) a co-mounted `mirror`
-		// effect that writes the observability state nodes (`retrieval` +
-		// `retrievalTrace`). Splitting the writes into a sibling effect keeps
-		// the topology visible — `describe()` shows `mirror` as a real edge
-		// from `result` instead of an invisible imperative emit hidden inside
-		// a derived fn body. Matches §32 state-mirror, not §28 (which is
-		// factory-time *reads*, not writes).
-		const retrieveReactiveFn = (
-			queryInput: NodeInput<RetrievalQuery | null>,
-		): Node<ReadonlyArray<RetrievalEntry<TMem>>> => {
-			const q = fromAny(queryInput);
-			const result = derived<{
-				packed: ReadonlyArray<RetrievalEntry<TMem>>;
-				trace: RetrievalTrace<TMem> | null;
-			}>(
-				[distillBundle.store.entries, contextNode, q],
-				([snapshot, ctx, query]) => {
-					if (query == null) return { packed: [], trace: null };
-					const storeMap = extractStoreMap<TMem>(snapshot);
-					const { packed, trace } = runRetrieval(storeMap, ctx, query as RetrievalQuery);
-					return { packed, trace };
-				},
-				{
-					name: "retrievalReactive::result",
-					describeKind: "derived",
-					meta: aiMeta("retrieval_reactive_result"),
-					initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
-				},
-			);
-			// Mirror effect — writes self-owned observability state. Visible
-			// in `describe()` as a `result → mirror` edge; the underlying state
-			// emits dedup via their `equals` (packedEquals + Object.is for trace).
-			const mirror = effect([result], ([r]) => {
-				const v = r as {
-					packed: ReadonlyArray<RetrievalEntry<TMem>>;
-					trace: RetrievalTrace<TMem> | null;
-				};
-				batch(() => {
-					retrievalOutput.emit(v.packed);
-					if (v.trace) traceState.emit(v.trace);
-				});
-			});
-			keepaliveSubs.push(mirror.subscribe(() => undefined));
-			// Caller-facing packed-only projection. Reference-equality dedup
-			// matches `retrievalOutput`'s state contract.
-			return derived<ReadonlyArray<RetrievalEntry<TMem>>>(
-				[result],
-				([r]) => (r as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed,
-				{
-					name: "retrievalReactive",
-					describeKind: "derived",
-					meta: aiMeta("retrieval_reactive"),
-					initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
-					equals: packedEquals,
-				},
-			);
-		};
-		retrieveReactive = retrieveReactiveFn;
+		retrievalNode = bundle.retrieval;
+		retrievalTraceNode = bundle.retrievalTrace;
+		retrieveFn = bundle.retrieve;
+		retrieveReactive = bundle.retrieveReactive;
 	}
-
-	// --- Cleanup ---
-	graph.addDisposer(() => {
-		for (const unsub of keepaliveSubs) unsub();
-		keepaliveSubs.length = 0;
-	});
 
 	return Object.assign(graph, {
 		distillBundle,

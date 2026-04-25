@@ -23,7 +23,7 @@ carries multiple DATAs.
 function derived<T = unknown>(
 	deps: readonly Node[],
 	fn: DerivedFn<T>,
-	opts?: NodeOptions<T> & { partial?: boolean },
+	opts?: NodeOptions<T>,
 ): Node<T>
 ```
 
@@ -33,7 +33,7 @@ function derived<T = unknown>(
 |-----------|------|-------------|
 | `deps` | `readonly Node[]` |  |
 | `fn` | `DerivedFn&lt;T&gt;` |  |
-| `opts` | `NodeOptions&lt;T&gt; & { partial?: boolean }` |  |
+| `opts` | `NodeOptions&lt;T&gt;` |  |
 
 ## Basic Usage
 

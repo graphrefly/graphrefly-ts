@@ -1,20 +1,20 @@
 ---
 title: "observableAdapter()"
-description: "Wrap any LLMAdapter with a reactive stats bundle.\n\nImplementation:\n- `stats.lastCall` is a `state<CallStatsEvent | undefined>` exposed via a\n  null-filtering de"
+description: "Wrap any LLMAdapter with a reactive stats bundle.\n\nImplementation (Unit 10 B):\n- `stats.lastCall` is a `state<CallStatsEvent | null>`.\n- Counters (`totalCalls` "
 ---
 
 Wrap any LLMAdapter with a reactive stats bundle.
 
-Implementation:
-- `stats.lastCall` is a `state&lt;CallStatsEvent | undefined&gt;` exposed via a
-  null-filtering derived so consumers see a typed `Node&lt;CallStatsEvent&gt;`.
+Implementation (Unit 10 B):
+- `stats.lastCall` is a `state&lt;CallStatsEvent | null&gt;`.
 - Counters (`totalCalls` / `totalInputTokens` / `totalOutputTokens`) are
-  plain state nodes updated via `.emit()`.
+  **derived views** over `allCalls.entries` — self-maintaining, no manual
+  `.cache + 1 + emit` pattern, visible topology in `describe()`.
 - `stats.allCalls` is a `reactiveLog&lt;CallStatsEvent&gt;` — bounded, supports
   `tail(n)` / `slice(start, stop)` for dashboard views.
-- The wrapped adapter passes DATA through via a `derived` tap that writes
-  to the stats nodes as a side-effect. No pricing — users compose pricing
-  as a derived on top of `stats.lastCall`.
+- The wrapped adapter passes DATA through via `adaptInvokeResult`, which
+  uses `onFirstData` internally to guard against re-subscription double-fire
+  and wires `.catch` for Promise-path error recording (Unit 10 A).
 
 ## Signature
 

@@ -88,8 +88,18 @@ export function memoryWithVectors<TMem>(
 // ---------------------------------------------------------------------------
 
 export type MemoryWithKGOptions<TMem> = {
-	/** Extract entities + relations for a memory entry. */
-	entityFn: (
+	/**
+	 * Mount path for the KG subgraph on the parent graph. Defaults to `name`.
+	 * Pass a different value when the parent graph reserves a stable mount
+	 * path (e.g. `agentMemory` mounts at `"kg"` regardless of outer name).
+	 */
+	mountPath?: string;
+	/**
+	 * Extract entities + relations for a memory entry. Omit to mount an empty
+	 * KG without an indexer effect — caller upserts entities / relations
+	 * directly on the returned `kg` handle.
+	 */
+	entityFn?: (
 		key: string,
 		mem: TMem,
 	) =>
@@ -101,12 +111,16 @@ export type MemoryWithKGOptions<TMem> = {
 };
 
 /**
- * Attach a knowledge graph alongside a `DistillBundle`. Mount path defaults
- * to the `name` arg so multiple `memoryWithKG` calls on the same graph don't
- * collide on a hardcoded `"kg"` mount.
+ * Attach a knowledge graph alongside a `DistillBundle`. Inner graph is named
+ * `${name}-kg`; mount path defaults to `name` but can be overridden via
+ * `opts.mountPath` so a parent factory (e.g. `agentMemory`) can keep a stable
+ * mount path independent of the inner graph's identity.
  *
- * Indexer keepalive is registered with `graph.addDisposer`; explicit
- * `dispose()` is also available.
+ * If `opts.entityFn` is omitted, no indexer effect is wired — the empty KG is
+ * mounted for manual `upsertEntity` / `link` use.
+ *
+ * Indexer keepalive (when present) is registered with `graph.addDisposer`;
+ * explicit `dispose()` is also available.
  */
 export function memoryWithKG<TMem>(
 	graph: Graph,
@@ -114,12 +128,17 @@ export function memoryWithKG<TMem>(
 	name: string,
 	opts: MemoryWithKGOptions<TMem>,
 ): { kg: KnowledgeGraphGraph<unknown, string>; dispose: () => void } {
+	const mountPath = opts.mountPath ?? name;
 	const kg = knowledgeGraph<unknown, string>(`${name}-kg`);
-	graph.mount(name, kg);
+	graph.mount(mountPath, kg);
+	if (!opts.entityFn) {
+		return { kg, dispose: () => undefined };
+	}
+	const entityFn = opts.entityFn;
 	const indexer = effect([store.store.entries], ([snapshot]) => {
 		const storeMap = extractStoreMap<TMem>(snapshot);
 		for (const [key, mem] of storeMap) {
-			const extracted = opts.entityFn(key, mem);
+			const extracted = entityFn(key, mem);
 			if (!extracted) continue;
 			for (const ent of extracted.entities ?? []) {
 				kg.upsertEntity(ent.id, ent.value);

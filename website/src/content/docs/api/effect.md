@@ -11,7 +11,7 @@ Runs a side-effect when deps settle. Return value is not auto-emitted.
 function effect(
 	deps: readonly Node[],
 	fn: EffectFn,
-	opts?: NodeOptions<unknown> & { partial?: boolean },
+	opts?: NodeOptions<unknown>,
 ): Node<unknown>
 ```
 
@@ -21,7 +21,7 @@ function effect(
 |-----------|------|-------------|
 | `deps` | `readonly Node[]` |  |
 | `fn` | `EffectFn` |  |
-| `opts` | `NodeOptions&lt;unknown&gt; & { partial?: boolean }` |  |
+| `opts` | `NodeOptions&lt;unknown&gt;` |  |
 
 ## Basic Usage
 

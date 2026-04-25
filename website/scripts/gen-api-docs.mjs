@@ -248,7 +248,15 @@ const REGISTRY = {
 	cloudFirstPreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
 	localFirstPreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
 	offlinePreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
-	dryRunPreset: "src/patterns/ai/adapters/routing/presets.ts",
+
+	// AI memory — agentic-memory factory + composers (roadmap §4.4)
+	agentMemory: "src/patterns/ai/memory/agent-memory.ts",
+	memoryWithVectors: "src/patterns/ai/memory/memory-composers.ts",
+	memoryWithKG: "src/patterns/ai/memory/memory-composers.ts",
+	memoryWithTiers: "src/patterns/ai/memory/memory-composers.ts",
+	memoryRetrieval: "src/patterns/ai/memory/memory-composers.ts",
+	llmExtractor: "src/patterns/ai/memory/llm-memory.ts",
+	llmConsolidator: "src/patterns/ai/memory/llm-memory.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────
