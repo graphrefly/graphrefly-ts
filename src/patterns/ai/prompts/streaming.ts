@@ -26,7 +26,7 @@ import { batch } from "../../../core/batch.js";
 import { wallClockNs } from "../../../core/clock.js";
 import type { Node } from "../../../core/node.js";
 import { derived, state } from "../../../core/sugar.js";
-import { switchMap } from "../../../extra/operators.js";
+import { filter, switchMap } from "../../../extra/operators.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
 import { keepalive } from "../../_internal.js";
@@ -260,8 +260,15 @@ export type GatedStreamHandle<T> = {
 	deltaTopic: TopicGraph<StampedDelta>;
 	/** Reactive accumulated-text view. */
 	accumulatedText: Node<string>;
-	/** Gate controller — approve, reject (aborts in-flight stream), modify. */
-	gate: GateController<T | null>;
+	/**
+	 * Gate controller — approve, reject (aborts in-flight stream), modify.
+	 * The gate's DATA domain is `T` (not `T | null`): the pre-gate `filter`
+	 * drops nulls, so the pending queue never holds a null. The controller's
+	 * `node` output type stays `T | null` only because `gate.approve()` on an
+	 * empty queue would surface `null` — callers should treat `null` as "no
+	 * value" rather than as a modeled null signal.
+	 */
+	gate: GateController<T>;
 	/** Tear down the delta topic + gate keepalive. */
 	dispose: () => void;
 };
@@ -345,32 +352,56 @@ export function gatedStream<T = string>(
 
 	const accumulatedText = makeAccumulatedText(deltaTopic, `${sourceName}::accumulatedText`);
 
-	// Filter: only forward non-null results to the gate (spec §2.4 no-auto-emit).
-	const nonNullOutput = derived<T>(
-		[output],
-		([v]) => {
-			if (v == null) return undefined;
-			return v as T;
-		},
-		{ name: `${name}/filter` },
-	);
+	// Filter out null stream results so the gate only sees real values. Using
+	// `filter()` (not a `derived` with `return undefined`) is load-bearing:
+	// `derived`'s wrapper always calls `actions.emit(fn(data))`, so returning
+	// `undefined` would still emit `DATA(undefined)` into the gate's pending
+	// queue — approve/modify would then surface `undefined` to downstream
+	// consumers. `filter` propagates RESOLVED for falsey matches, keeping the
+	// queue clean. (This was the second half of the gatedStream activation
+	// fix — the first was keepalive-ing `gateCtrl.node`.)
+	const nonNullOutput = filter<T | null>(output, (v) => v != null) as Node<T>;
 	graph.add(nonNullOutput, { name: `${name}/raw` });
 
-	// Wire gate on the output.
-	const gateCtrl = gate<T | null>(graph, `${name}/gate`, `${name}/raw`, opts?.gate);
+	// Wire gate on the output. Type parameter is `T` (not `T | null`) — the
+	// `filter` above drops nulls before they reach the gate, so the pending
+	// queue's DATA domain is `T` only.
+	const gateCtrl = gate<T>(graph, `${name}/gate`, `${name}/raw`, opts?.gate);
 
-	// Keepalive on the switchMap product so the upstream stream flows even
-	// before the gate has a downstream subscriber — gate wiring is
-	// activation-driven, and without this the gate never observes pending
-	// values. Retained from the pre-Unit-2 implementation.
-	const unsub = keepalive(output);
+	// Keepalive the switchMap product, the gate's output node, AND the
+	// accumulator so the full bundle contract ("three reactive surfaces, any
+	// one activates the pipeline") holds:
+	//
+	// - `keepalive(output)` activates the streaming switchMap so the adapter
+	//   generator runs even before a downstream subscriber attaches.
+	// - `keepalive(gateCtrl.node)` activates the gate's fn body — which is
+	//   what writes into the internal `pending` queue. Without it, a caller
+	//   that only subscribes to `gate.count` / `gate.pending` / `deltaTopic`
+	//   (but not `gate.node`) would see `count` stuck at 0 indefinitely:
+	//   stream values reach the gate's input but the gate's fn never runs.
+	// - `keepalive(accumulatedText)` ensures `.cache` reflects the running
+	//   total for callers that read the accumulator as a snapshot instead of
+	//   subscribing to it.
+	//
+	// Dropping any of the three surfaces as a silent stall in `ai.test.ts`'s
+	// gatedStream suite.
+	//
+	// All three unsubs are also registered with the host graph so
+	// `parent.destroy()` reclaims them even if the caller forgets to call
+	// `dispose()`. `dispose()` itself runs them eagerly for prompt teardown.
+	const unsubOutput = keepalive(output);
+	const unsubGate = keepalive(gateCtrl.node);
+	const unsubAccumulated = keepalive(accumulatedText);
+	graph.addDisposer(unsubOutput);
+	graph.addDisposer(unsubGate);
+	graph.addDisposer(unsubAccumulated);
 
 	// Wrap reject to also abort the in-flight stream. Both mutations happen
 	// inside `batch()` so downstream subscribers never observe a torn state
 	// where `gate.count` has decremented but `cancelSignal` hasn't yet
 	// advanced (spec §2 two-phase DIRTY-before-DATA atomicity).
 	const originalReject = gateCtrl.reject.bind(gateCtrl);
-	const gateWithAbort: GateController<T | null> = {
+	const gateWithAbort: GateController<T> = {
 		...gateCtrl,
 		reject(count = 1) {
 			batch(() => {
@@ -386,7 +417,9 @@ export function gatedStream<T = string>(
 		accumulatedText,
 		gate: gateWithAbort,
 		dispose: () => {
-			unsub();
+			unsubOutput();
+			unsubGate();
+			unsubAccumulated();
 			deltaTopic.destroy();
 		},
 	};

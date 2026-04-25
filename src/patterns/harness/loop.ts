@@ -36,10 +36,14 @@ import {
 import { type GateController, gate } from "../orchestration/index.js";
 import {
 	DEFAULT_DECAY_RATE,
+	DEFAULT_EXECUTE_PROMPT,
 	DEFAULT_QUEUE_CONFIGS,
 	DEFAULT_SEVERITY_WEIGHTS,
+	DEFAULT_TRIAGE_PROMPT,
+	DEFAULT_VERIFY_PROMPT,
 	defaultErrorClassifier,
 	QUEUE_NAMES,
+	resolvePromptFn,
 } from "./defaults.js";
 import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "./strategy.js";
 import type {
@@ -54,62 +58,10 @@ import type {
 	QueueConfig,
 	QueueRoute,
 	TriagedItem,
-	TriagePromptFn,
 	VerifyOutput,
 	VerifyPromptFn,
 	VerifyResult,
 } from "./types.js";
-
-// ---------------------------------------------------------------------------
-// Default prompts
-// ---------------------------------------------------------------------------
-
-const DEFAULT_TRIAGE_PROMPT = `You are a triage classifier for a reactive collaboration harness.
-
-Given an intake item, classify it and output JSON:
-{
-  "rootCause": "composition" | "missing-fn" | "bad-docs" | "schema-gap" | "regression" | "unknown",
-  "intervention": "template" | "catalog-fn" | "docs" | "wrapper" | "schema-change" | "investigate",
-  "route": "auto-fix" | "needs-decision" | "investigation" | "backlog",
-  "priority": <number 0-100>,
-  "triageReasoning": "<one sentence>"
-}
-
-Strategy model (past effectiveness):
-{{strategy}}
-
-Intake item:
-{{item}}`;
-
-const DEFAULT_EXECUTE_PROMPT = `You are an implementation agent.
-
-Given a triaged issue with root cause and intervention type, produce a fix.
-
-Issue:
-{{item}}
-
-Output JSON:
-{
-  "outcome": "success" | "failure" | "partial",
-  "detail": "<description of what was done or what failed>"
-}`;
-
-const DEFAULT_VERIFY_PROMPT = `You are a QA reviewer.
-
-Given an execution result, verify whether the fix is correct.
-
-Execution:
-{{execution}}
-
-Original issue:
-{{item}}
-
-Output JSON:
-{
-  "verified": true/false,
-  "findings": ["<finding1>", ...],
-  "errorClass": "self-correctable" | "structural"  // only if verified=false
-}`;
 
 // ---------------------------------------------------------------------------
 // Hub topic names (internal constants — strings are the routing API)
@@ -143,10 +95,9 @@ export function defaultLlmExecutor<A = unknown>(
 	adapter: LLMAdapter,
 	prompt?: string | ExecutePromptFn,
 ): HarnessExecutor<A> {
-	const promptFn: ExecutePromptFn =
-		typeof prompt === "function"
-			? prompt
-			: (item) => (prompt ?? DEFAULT_EXECUTE_PROMPT).replace("{{item}}", JSON.stringify(item));
+	const promptFn = resolvePromptFn<TriagedItem>(prompt, DEFAULT_EXECUTE_PROMPT, (tpl, item) =>
+		tpl.replace("{{item}}", JSON.stringify(item)),
+	);
 	return (input: Node<TriagedItem | null>): Node<ExecuteOutput<A> | null> =>
 		promptNode<ExecuteOutput<A>>(
 			adapter,
@@ -175,15 +126,16 @@ export function defaultLlmVerifier<A = unknown>(
 	adapter: LLMAdapter,
 	prompt?: string | VerifyPromptFn<A>,
 ): HarnessVerifier<A> {
-	const promptFn: VerifyPromptFn<A> =
-		typeof prompt === "function"
-			? prompt
-			: (pair) => {
-					const [execution, item] = pair;
-					return (prompt ?? DEFAULT_VERIFY_PROMPT)
-						.replace("{{execution}}", JSON.stringify(execution))
-						.replace("{{item}}", JSON.stringify(item));
-				};
+	const promptFn = resolvePromptFn<readonly [ExecuteOutput<A> | null, TriagedItem | null]>(
+		prompt,
+		DEFAULT_VERIFY_PROMPT,
+		(tpl, pair) => {
+			const [execution, item] = pair;
+			return tpl
+				.replace("{{execution}}", JSON.stringify(execution))
+				.replace("{{item}}", JSON.stringify(item));
+		},
+	);
 	return (
 		context: Node<readonly [ExecuteOutput<A> | null, TriagedItem | null] | null>,
 	): Node<VerifyOutput | null> =>
@@ -402,16 +354,16 @@ export function harnessLoop<A = unknown>(
 		strategy.node as Node<unknown>,
 	);
 
-	const triagePromptRaw = opts.triagePrompt;
-	const triagePromptFn: TriagePromptFn =
-		typeof triagePromptRaw === "function"
-			? triagePromptRaw
-			: (pair) => {
-					const [item, strat] = pair;
-					return (triagePromptRaw ?? DEFAULT_TRIAGE_PROMPT)
-						.replace("{{strategy}}", JSON.stringify(Array.from(strat.entries())))
-						.replace("{{item}}", JSON.stringify(item));
-				};
+	const triagePromptFn = resolvePromptFn<readonly [IntakeItem, StrategySnapshot]>(
+		opts.triagePrompt,
+		DEFAULT_TRIAGE_PROMPT,
+		(tpl, pair) => {
+			const [item, strat] = pair;
+			return tpl
+				.replace("{{strategy}}", JSON.stringify(Array.from(strat.entries())))
+				.replace("{{item}}", JSON.stringify(item));
+		},
+	);
 
 	const triageNode = promptNode<TriagedItem>(
 		adapter as LLMAdapter,

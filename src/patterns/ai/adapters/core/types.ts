@@ -145,7 +145,22 @@ export type ToolDefinition = {
 	readonly name: string;
 	readonly description: string;
 	readonly parameters: Record<string, unknown>; // JSON Schema
-	readonly handler: (args: Record<string, unknown>) => NodeInput<unknown>;
+	/**
+	 * Handler invoked when the LLM requests this tool.
+	 *
+	 * The optional `opts.signal` fires when the reactive surface that owns
+	 * this invocation is torn down (e.g. the agent's `switchMap` over
+	 * `toolCalls` superseded with a fresh batch, the agent was aborted, or
+	 * the parent graph destroyed). Signal-aware handlers should thread it
+	 * into `fetch(url, {signal})`, child-process kill, DB cancel, etc., so
+	 * in-flight side effects actually stop. Handlers that ignore the
+	 * signal still work — but their work continues to completion regardless
+	 * of supersede.
+	 */
+	readonly handler: (
+		args: Record<string, unknown>,
+		opts?: { signal?: AbortSignal },
+	) => NodeInput<unknown>;
 	/**
 	 * V0 version of the backing node at tool-definition-creation time.
 	 * Snapshot — re-create the tool definition to refresh.

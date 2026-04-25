@@ -1,10 +1,11 @@
+import { ERROR, type Messages } from "../../../core/messages.js";
 import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { derived, producer } from "../../../core/sugar.js";
 import { reactiveMap } from "../../../extra/reactive-map.js";
-import { fromAny } from "../../../extra/sources.js";
+import { fromAsyncIter, fromPromise } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import { keepalive } from "../../_internal.js";
-import { aiMeta, resolveToolHandlerResult } from "../_internal.js";
+import { aiMeta, isNodeLike } from "../_internal.js";
 import type { ToolDefinition } from "../adapters/core/types.js";
 
 // ---------------------------------------------------------------------------
@@ -18,13 +19,22 @@ export type ToolRegistryOptions = {
 /**
  * `ToolRegistryGraph` — name-keyed registry of {@link ToolDefinition}s.
  *
+ * **Reactive-only execution.** The only execution path is
+ * {@link executeReactive}, which returns a `Node<unknown>` for the handler
+ * result. Composing factories (`toolExecution`, `agentLoop`) consume it
+ * directly inside `retrySource` / `switchMap` chains. There is intentionally
+ * no imperative `execute()` Promise method — the registry was originally a
+ * dual-boundary class (imperative + reactive) and the imperative path was
+ * the only thing in the codebase bridging through `Promise.resolve().then()`
+ * to feed `fromAny`. Removing it left every consumer on a single
+ * reactive-all-the-way path with real abort propagation.
+ *
+ * For non-reactive callers (debug scripts, one-shot tests), bridge with
+ * `awaitSettled(toolRegistry.executeReactive(name, args))`.
+ *
  * **Wave A Unit 6 refactor:** internal storage migrated from `state<Map>`
  * (O(N) Map-copy per mutation) to `ReactiveMapBundle<string, ToolDefinition>`
- * (O(1) mutations + version counter). Public API unchanged for existing
- * consumers. Adds a new reactive `executeReactive(name, args): Node<unknown>`
- * alongside the imperative `execute(name, args): Promise<unknown>` so
- * composing factories (`toolExecution`, `agentLoop`) can consume the tool
- * handler as a reactive source without bridging through `firstDataFromNode`.
+ * (O(1) mutations + version counter).
  */
 export class ToolRegistryGraph extends Graph {
 	readonly definitions: Node<ReadonlyMap<string, ToolDefinition>>;
@@ -63,28 +73,24 @@ export class ToolRegistryGraph extends Graph {
 	}
 
 	/**
-	 * Imperative boundary: await the handler result as a Promise. Safe for
-	 * non-reactive callers; reactive consumers prefer {@link executeReactive}.
-	 */
-	async execute(name: string, args: Record<string, unknown>): Promise<unknown> {
-		const tool = this._bundle.get(name);
-		if (!tool) throw new Error(`toolRegistry: unknown tool "${name}"`);
-		const raw = tool.handler(args);
-		return resolveToolHandlerResult(raw);
-	}
-
-	/**
 	 * Reactive execution — returns a `Node<unknown>` that emits the handler
-	 * result. Uses `fromAny` to bridge Promise / Node / AsyncIterable handler
-	 * return shapes uniformly. Composes cleanly inside `switchMap` /
-	 * `retrySource` / `rescue` chains where the legacy imperative `execute()`
-	 * would force a `firstDataFromNode` round-trip.
+	 * result. The returned node is a `producer` that:
 	 *
-	 * The returned node is a one-shot: it emits the first DATA from the
-	 * handler result (or ERROR on handler throw) and then relies on the
-	 * caller's switchMap / subscription chain for teardown. For repeated
-	 * invocations, call `executeReactive` again — each call mints a fresh
-	 * node tied to a fresh `handler(args)` invocation.
+	 * 1. Mints a per-call `AbortController` whose `signal` is threaded into
+	 *    the handler call AND into `fromAny` (so a `fromPromise` /
+	 *    `fromAsyncIter` inner abandons cleanly when the consumer
+	 *    unsubscribes).
+	 * 2. Runs `tool.handler(args, {signal})` inside a try/catch — a
+	 *    synchronous throw surfaces as `[[ERROR, err]]` downstream instead
+	 *    of escaping the producer.
+	 * 3. Forwards every message from the inner `fromAny` chain to the
+	 *    producer's outputs.
+	 * 4. On teardown (subscriber count drops to zero, e.g. `switchMap`
+	 *    supersede) calls `ac.abort()` and unsubscribes the inner.
+	 *    Signal-aware handlers (e.g. `fetch(url, {signal})`) actually stop.
+	 *
+	 * Each call mints a fresh node tied to a fresh `handler(args, ...)`
+	 * invocation — call `executeReactive` again for repeated invocations.
 	 *
 	 * @throws `Error` synchronously when `name` is not registered (no node is
 	 *   constructed — the caller gets a pre-wiring failure rather than a
@@ -93,7 +99,32 @@ export class ToolRegistryGraph extends Graph {
 	executeReactive(name: string, args: Record<string, unknown>): Node<unknown> {
 		const tool = this._bundle.get(name);
 		if (!tool) throw new Error(`toolRegistry: unknown tool "${name}"`);
-		return fromAny(tool.handler(args));
+		return producer<unknown>(
+			(actions) => {
+				const ac = new AbortController();
+				let inner: Node<unknown>;
+				try {
+					const raw = tool.handler(args, { signal: ac.signal });
+					inner = handlerResultToNode(raw, ac.signal);
+				} catch (err) {
+					// Synchronous throw from handler → ERROR. Producer cleanup
+					// still aborts the controller for symmetry (no-op if no
+					// signal listeners attached).
+					actions.down([[ERROR, err]] satisfies Messages);
+					return () => {
+						ac.abort();
+					};
+				}
+				const unsub = inner.subscribe((batch) => {
+					actions.down(batch as Messages);
+				});
+				return () => {
+					ac.abort();
+					unsub();
+				};
+			},
+			{ name: `executeReactive::${name}`, meta: aiMeta("tool_execute_reactive") },
+		);
 	}
 
 	getDefinition(name: string): ToolDefinition | undefined {
@@ -107,4 +138,34 @@ export class ToolRegistryGraph extends Graph {
 
 export function toolRegistry(name: string, opts?: ToolRegistryOptions): ToolRegistryGraph {
 	return new ToolRegistryGraph(name, opts);
+}
+
+/**
+ * Coerce a tool handler return value into a `Node<unknown>`.
+ *
+ * Differs from `fromAny` by treating **strings, arrays, plain iterables, and
+ * scalar objects as single DATA values** rather than iterating them. A tool
+ * handler that returns `"hello world"` should surface as one `DATA("hello
+ * world")`, not 11 `DATA` events of single characters; an array `[1, 2, 3]`
+ * should surface as `DATA([1, 2, 3])`, not three separate emissions.
+ *
+ * Reactive shapes (Node, Promise, AsyncIterable) are unwrapped as expected.
+ *
+ * @internal
+ */
+function handlerResultToNode(raw: unknown, signal: AbortSignal): Node<unknown> {
+	if (isNodeLike(raw)) {
+		return raw as Node<unknown>;
+	}
+	if (raw != null && typeof (raw as PromiseLike<unknown>).then === "function") {
+		return fromPromise(raw as PromiseLike<unknown>, { signal });
+	}
+	if (raw != null && typeof raw === "object" && Symbol.asyncIterator in (raw as object)) {
+		return fromAsyncIter(raw as AsyncIterable<unknown>, { signal });
+	}
+	// String, number, boolean, null, undefined, plain object, array,
+	// sync iterable — treat as a single DATA value via a resolved Promise so
+	// `fromPromise`'s scalar-DATA-emit + COMPLETE semantics match the
+	// pre-refactor `tools.execute` behavior (which always wrapped via async).
+	return fromPromise(Promise.resolve(raw), { signal });
 }

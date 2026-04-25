@@ -7,10 +7,9 @@ export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 import { batch } from "../../../core/batch.js";
 import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
 import { type Node, node as nodeFactory } from "../../../core/node.js";
-import { derived, effect, state } from "../../../core/sugar.js";
-import { rescue, switchMap } from "../../../extra/operators.js";
-import { retrySource } from "../../../extra/resilience.js";
-import { awaitSettled, fromAny, type NodeInput } from "../../../extra/sources.js";
+import { effect, state } from "../../../core/sugar.js";
+import { switchMap } from "../../../extra/operators.js";
+import { awaitSettled, fromAny } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import { keepalive } from "../../_internal.js";
 import { aiMeta } from "../_internal.js";
@@ -22,7 +21,10 @@ import type {
 	ToolDefinition,
 } from "../adapters/core/types.js";
 import { type ChatStreamGraph, chatStream } from "./chat-stream.js";
+import { type ToolResult, toolExecution } from "./tool-execution.js";
 import { type ToolRegistryGraph, toolRegistry } from "./tool-registry.js";
+
+export type { ToolResult } from "./tool-execution.js";
 
 // ---------------------------------------------------------------------------
 // agentLoop
@@ -62,12 +64,6 @@ export type AgentLoopOptions = {
 	interceptToolCalls?: (calls: Node<readonly ToolCall[]>) => Node<readonly ToolCall[]>;
 };
 
-/** A single tool execution outcome: `{id, content}` where content is a JSON string. */
-export interface ToolResult {
-	readonly id: string;
-	readonly content: string;
-}
-
 /**
  * Reactive agent loop.
  *
@@ -86,11 +82,22 @@ export interface ToolResult {
  * the loop if they want a Promise.
  *
  * Public surface:
- * - `chat` / `tools` — subgraphs (imperative `append` / `execute` at boundary)
+ * - `chat` / `tools` — subgraphs (imperative `append` at boundary, reactive `executeReactive` for tool invocation)
  * - `status` / `turn` / `aborted` — state nodes with explicit initials
  * - `lastResponse` / `toolCalls` / `toolResults` — reactive outputs (SENTINEL until first emission; callers use `awaitSettled` / `subscribe`)
  * - `run(userMessage?, signal?)` — optional user append + Promise bridge
  * - `abort()` — imperative abort shim; flips `aborted` state
+ *
+ * **Lifecycle: single-mount.** `AgentLoopGraph` instances expect to be
+ * constructed once and used until `destroy()`. The internal closure mirrors
+ * (`latestTurn` / `latestAborted` / `latestStatus` / `latestMessages` /
+ * `latestSchemas`) are wired by subscribe-and-capture at construction time;
+ * their corresponding `addDisposer`-registered subscriptions are torn down
+ * on subgraph unmount or `destroy()`. After teardown the mirrors freeze at
+ * their last value, so re-using a destroyed instance — calling `run()`
+ * again, or remounting under a new parent — would silently feed stale
+ * mirror data into `promptInput`. If you need to "reset" an agent, build a
+ * fresh `AgentLoopGraph` instance instead of recycling.
  */
 export class AgentLoopGraph extends Graph {
 	readonly chat: ChatStreamGraph;
@@ -115,15 +122,8 @@ export class AgentLoopGraph extends Graph {
 	/** Tool-result batch (one entry per call) after reactive execution. SENTINEL. */
 	readonly toolResults: Node<readonly ToolResult[]>;
 
-	private readonly _terminalResult: Node<{ response: LLMResponse; runVersion: number }>;
+	private readonly _terminalResult: Node<LLMResponse>;
 	private readonly _disposeRunWiring: () => void;
-	/**
-	 * Per-agent monotonic run counter. Incremented at the start of every
-	 * `run()` call; stamped onto `_terminalResult`'s DATA emissions so a
-	 * caller's `awaitSettled` predicate resolves only on the matching run
-	 * (prevents stale-resolution under re-entrant-ish composition).
-	 */
-	private _runVersion = 0;
 	/** Guards against overlapping `run()` calls. */
 	private _running = false;
 	/**
@@ -176,14 +176,18 @@ export class AgentLoopGraph extends Graph {
 
 		// --- Reactive pipeline ---
 		//
-		// Factory-time seed for self-owned `turn` reads (COMPOSITION-GUIDE §28):
-		// effects need `latestTurn` synchronously to enforce the maxTurns cap,
-		// but can't read `turn.cache` from inside a callback (P3 rule). Subscribe
-		// once at construction; keep a closure-held mirror updated by the handler.
-		// Factory-time seed reads for closure-held mirrors (COMPOSITION-GUIDE §28).
-		// These subscriptions keep `latestTurn` / `latestAborted` current so
-		// effects can read them synchronously without hitting the "no .cache
-		// reads inside reactive callbacks" rule (P3).
+		// Closure-held mirrors (COMPOSITION-GUIDE §28). Subscribe once at
+		// construction and keep a plain closure variable updated by the
+		// handler. Effects / raw-node fns then consult the mirror
+		// synchronously — the P3 "no `.cache` reads inside a reactive
+		// callback" rule routes around that gray zone.
+		//
+		// Symmetry matters: `latestTurn` / `latestAborted` / `latestStatus`
+		// plus `latestMessages` / `latestSchemas` all feed the same
+		// `promptInput` raw node. Mixing "some mirrors, some inline
+		// `.cache` reads" was the pre-Wave-B shape and made the reactive
+		// fn body harder to audit — every cross-graph read now goes
+		// through the same subscribe-and-mirror template.
 		//
 		// **Pattern note on `latestTurn` staleness under in-batch reads.**
 		// Effect 1 emits `turnNode.emit(next)` inside its batch; Effect 2
@@ -192,10 +196,7 @@ export class AgentLoopGraph extends Graph {
 		// before Effect 2's next wave fires, so `latestTurn` is up-to-date
 		// by the time Effect 2 reads it. This invariant is stable as long
 		// as `turnNode.emit` remains inside Effect 1's batch — a future
-		// refactor that un-batches the emit would regress silently. Reading
-		// `turnNode.cache` directly is an alternative but is a gray-zone
-		// P3 pattern (self-owned counter read inside a reactive fn) — the
-		// closure-mirror pattern is the explicitly-sanctioned shape.
+		// refactor that un-batches the emit would regress silently.
 		let latestTurn = 0;
 		const turnSub = this.turn.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) latestTurn = m[1] as number;
@@ -204,15 +205,39 @@ export class AgentLoopGraph extends Graph {
 		const abortedSub = this.aborted.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) latestAborted = m[1] as boolean;
 		});
-
-		// Mirror of chat.messages as a Node so `promptInput` can take it as a
-		// dep. `chat.latest` exposes the last message; we want the full array,
-		// so we build a derived over `chat.messageCount` that reads via closure.
-		// ChatStreamGraph.allMessages() is the external-consumer API boundary
-		// (documented P3 exception); reading it inside an effect OR inside a
-		// derived fn that's triggered by messageCount is the sanctioned pattern.
-		// The effect below writes to `chat` imperatively (sanctioned boundary),
-		// which bumps `chat.messageCount`, which re-triggers the promptInput.
+		// Seed from the subgraph's current cache (chat.messages is a
+		// ReactiveLogBundle, always starts with a cached snapshot) so the
+		// first `promptInput` wave sees the full conversation, even if the
+		// subscribe happens before any append. Same seeding discipline as
+		// `latestStatus` below.
+		//
+		// **Ordering invariant (load-bearing).** `promptInput`'s ONLY
+		// reactive dep is `statusNode`; `latestMessages` and `latestSchemas`
+		// are sampled from closures. Inside Effect 1's batch, `chat.append`
+		// fires before the status transition, so `messagesSub`'s handler
+		// drains (→ updates `latestMessages`) before any downstream wave
+		// reads the mirror. If a future refactor adds `chat.messageCount`
+		// (or any message-driven dep) as a reactive trigger on
+		// `promptInput`, the closure mirror could lag the actual array by
+		// one wave inside Effect 1's own batch — that is exactly the
+		// feedback-cycle hazard COMPOSITION-GUIDE §7 warns against, and
+		// the current "only status triggers" gating is what keeps this
+		// mirror shape safe.
+		let latestMessages: readonly ChatMessage[] =
+			(this.chat.messages.cache as readonly ChatMessage[] | undefined) ?? [];
+		const messagesSub = this.chat.messages.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) latestMessages = m[1] as readonly ChatMessage[];
+			}
+		});
+		// `tools.schemas` has `initial: []`, so the cache is always seeded.
+		let latestSchemas: readonly ToolDefinition[] =
+			(this.tools.schemas.cache as readonly ToolDefinition[] | undefined) ?? [];
+		const schemasSub = this.tools.schemas.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) latestSchemas = m[1] as readonly ToolDefinition[];
+			}
+		});
 
 		const adapter = opts.adapter;
 		const systemPrompt = opts.systemPrompt;
@@ -229,12 +254,11 @@ export class AgentLoopGraph extends Graph {
 		const turnNode = this.turn;
 		const abortedNode = this.aborted;
 
-		// promptInput: STATUS is the only reactive trigger — chat.messageCount,
-		// tools.schemas, turn, aborted are sampled imperatively via closure-
-		// held mirrors (for turn / aborted) or external-consumer API reads
-		// (for chat.allMessages / tools.schemas). This prevents the classic
-		// feedback cycle (COMPOSITION-GUIDE §7): if chat.messageCount were a
-		// reactive dep here, effect 1's `chat.append` would trigger a
+		// promptInput: STATUS is the only reactive trigger — chat.messages,
+		// tools.schemas, turn, aborted are sampled via closure-held mirrors
+		// (all populated by subscribe-and-capture above). This prevents the
+		// classic feedback cycle (COMPOSITION-GUIDE §7): if chat.messageCount
+		// were a reactive dep here, effect 1's `chat.append` would trigger a
 		// promptInput wave, which under effect-1's batch would see status
 		// STILL "thinking" (pre-drain) and fire a spurious LLM invocation.
 		// By gating only on status, chat writes don't re-trigger — only
@@ -247,16 +271,14 @@ export class AgentLoopGraph extends Graph {
 					actions.down([[RESOLVED]]);
 					return;
 				}
-				const messages = chat.allMessages();
 				// Don't invoke with an empty conversation — most adapters reject
 				// this or return degenerate responses. RESOLVED holds the loop
 				// idle until the caller appends something to chat.
-				if (messages.length === 0) {
+				if (latestMessages.length === 0) {
 					actions.down([[RESOLVED]]);
 					return;
 				}
-				const schemas = (tools.schemas.cache as readonly ToolDefinition[]) ?? [];
-				actions.emit({ messages, tools: schemas });
+				actions.emit({ messages: latestMessages, tools: latestSchemas });
 			},
 			{
 				name: "promptInput",
@@ -364,54 +386,15 @@ export class AgentLoopGraph extends Graph {
 			: toolCallsRaw;
 		this.toolCalls = gatedToolCallsNode;
 
-		// toolResults: switchMap turns each non-empty batch into a per-call
-		// reactive pipeline with retry-once + rescue. `derived(perCall, …)`
-		// first-run gate waits for every call to settle before emitting the
-		// array. Content-equality on the batch array dedupes duplicate
-		// re-emissions (e.g. when retrySource's source completes after DATA
-		// and the derived re-runs with the same values).
-		const toolResultsBatchEquals = (
-			a: readonly ToolResult[],
-			b: readonly ToolResult[],
-		): boolean => {
-			if (a === b) return true;
-			if (a.length !== b.length) return false;
-			for (let i = 0; i < a.length; i++) {
-				const ai = a[i];
-				const bi = b[i];
-				if (ai?.id !== bi?.id) return false;
-				if (ai?.content !== bi?.content) return false;
-			}
-			return true;
-		};
-		const toolResultsNode: Node<readonly ToolResult[]> = switchMap(gatedToolCallsNode, (calls) => {
-			if (calls == null || calls.length === 0) {
-				// Invariant: `toolCallsRaw` emits RESOLVED (not DATA([])) when
-				// there are no tool calls to execute — see the raw `node()`
-				// construction above. switchMap's project only runs on source
-				// DATA, so this branch is unreachable under the current gate.
-				// Asserting here catches future regressions where someone
-				// mistakenly changes `toolCallsRaw` to emit `DATA([])`.
-				throw new Error(
-					"agentLoop: toolResultsNode received an empty tool-call batch as DATA — toolCallsRaw gating invariant broken (should emit RESOLVED for empty). Audit toolCallsRaw.",
-				);
-			}
-			const perCall = calls.map((call) => executeToolReactively(call, tools));
-			return derived(
-				perCall,
-				(values) =>
-					values.map((v, i) => {
-						const tr = v as ToolResult | undefined;
-						if (tr != null && typeof tr === "object" && "id" in tr && "content" in tr) {
-							return tr;
-						}
-						return {
-							id: calls[i]!.id,
-							content: JSON.stringify(v ?? null),
-						};
-					}) as readonly ToolResult[],
-				{ name: "toolResults_batch", equals: toolResultsBatchEquals },
-			);
+		// Delegate per-call fan-out + retry + rescue to the `toolExecution`
+		// primitive. `toolCallsRaw` already gates empty batches to RESOLVED,
+		// so `toolExecution`'s "non-empty batch only" contract is satisfied
+		// upstream. `retryCount: 1` matches the pre-extraction behaviour
+		// (one retry after first failure = 2 attempts total).
+		const toolResultsNode: Node<readonly ToolResult[]> = toolExecution({
+			toolCalls: gatedToolCallsNode,
+			tools,
+			retryCount: 1,
 		});
 		this.toolResults = toolResultsNode;
 
@@ -512,26 +495,29 @@ export class AgentLoopGraph extends Graph {
 		const kaResults = keepalive(effResults);
 		const kaAbort = keepalive(effAbort);
 
-		// terminalResult: stamps each "done" emission with the CURRENT
-		// `_runVersion` so `run()`'s `awaitSettled` predicate can filter to
-		// the run that started it. C1 fix: without the version tag, a new
-		// subscriber (e.g. re-entrant `run()` call) could resolve with the
-		// previous run's cached DATA. With the tag, the caller's predicate
-		// compares `v.runVersion === myRunVersion` and ignores any stale
-		// emission. Also implements C3: when `stat === "done"` but `resp ==
-		// null` (abort-before-response), emit ERROR(AbortError) so the
-		// awaiting Promise rejects instead of hanging on a RESOLVED.
-		this._terminalResult = nodeFactory<{ response: LLMResponse; runVersion: number }>(
+		// terminalResult emits the final `LLMResponse` on each "done"
+		// transition. The old compound `{response, runVersion}` shape existed
+		// to let a re-entrant caller's `awaitSettled` predicate filter out
+		// the PREVIOUS run's cached DATA; that job now belongs to
+		// `awaitSettled({skipCurrent: true})` (extra/sources.ts) which
+		// ignores the initial push-on-subscribe DATA and resolves only on
+		// fresh post-subscribe emissions. Retiring the stamp removes a
+		// closure-held counter and a per-emission object allocation from
+		// the hot path.
+		//
+		// C3 (abort-before-response) unchanged: when `stat === "done"` but
+		// `resp == null`, emit `ERROR(AbortError)` so the awaiting Promise
+		// rejects instead of hanging on a RESOLVED.
+		this._terminalResult = nodeFactory<LLMResponse>(
 			[statusNode, lastResponseState],
 			(data, actions, ctx) => {
 				const stat = readLatest<AgentLoopStatus>(data, ctx.prevData, 0, "idle");
 				const resp = readLatest<LLMResponse | null | undefined>(data, ctx.prevData, 1, null);
 				if (stat === "done") {
 					if (resp != null) {
-						actions.emit({ response: resp, runVersion: this._runVersion });
+						actions.emit(resp);
 						return;
 					}
-					// C3: abort-before-response. Reject rather than hang.
 					const err = new Error("agentLoop: aborted") as Error & { name: string };
 					err.name = "AbortError";
 					actions.down([[ERROR, err]]);
@@ -585,6 +571,8 @@ export class AgentLoopGraph extends Graph {
 		this.addDisposer(turnSub);
 		this.addDisposer(abortedSub);
 		this.addDisposer(statusSub);
+		this.addDisposer(messagesSub);
+		this.addDisposer(schemasSub);
 		this.addDisposer(kaResponse);
 		this.addDisposer(kaResults);
 		this.addDisposer(kaAbort);
@@ -610,10 +598,11 @@ export class AgentLoopGraph extends Graph {
 	 *   Rejects with the stage error when `status === "error"`.
 	 *
 	 * **Concurrency:** `run()` refuses to overlap with a pending call on the
-	 * same agent. Attempting to call `run()` while a previous `run()` is still
-	 * in-flight throws a `RangeError` immediately. Each call increments an
-	 * internal `_runVersion` and filters `_terminalResult` emissions by that
-	 * version — belt-and-suspenders against stale resolution.
+	 * same agent. Attempting to call `run()` while a previous `run()` is
+	 * still in-flight throws a `RangeError` immediately. Stale-resolution
+	 * safety is provided by `awaitSettled({skipCurrent: true})`, which
+	 * ignores the cached initial DATA from any previous run and resolves
+	 * only on a fresh post-subscribe emission of `_terminalResult`.
 	 */
 	async run(userMessage?: string, signal?: AbortSignal): Promise<LLMResponse | null> {
 		if (this._running) {
@@ -622,33 +611,65 @@ export class AgentLoopGraph extends Graph {
 			);
 		}
 		this._running = true;
-		const myRunVersion = ++this._runVersion;
-
-		batch(() => {
-			this.turn.emit(0);
-			this.aborted.emit(false);
-			this.status.emit("idle");
-		});
-		if (userMessage != null) this.chat.append("user", userMessage);
-		// Kick — transition to thinking fires promptInput → llmResponse.
-		this.status.emit("thinking");
 
 		let offAbort: (() => void) | undefined;
-		if (signal != null) {
-			if (signal.aborted) {
-				this.aborted.emit(true);
-			} else {
-				const listener = (): void => this.aborted.emit(true);
-				signal.addEventListener("abort", listener, { once: true });
-				offAbort = (): void => signal.removeEventListener("abort", listener);
-			}
-		}
-
 		try {
-			const tagged = await awaitSettled(this._terminalResult, {
-				predicate: (v) => v != null && typeof v === "object" && v.runVersion === myRunVersion,
+			// Reset per-run state. `lastResponse` MUST be cleared here —
+			// without it, `_terminalResult` would read the prior run's
+			// cached response during a second `run()` with a pre-aborted
+			// signal: `effAbort` drives `status → "done"`, `_terminalResult`
+			// evaluates `stat="done"` + `resp=<prior respA>` and emits DATA
+			// as a fresh post-subscribe signal → `awaitSettled` resolves
+			// with the stale response instead of rejecting with AbortError.
+			// The C3 `stat=done && resp==null → ERROR` guard in
+			// `_terminalResult` is only correct once the reset clears the
+			// cache.
+			batch(() => {
+				this.turn.emit(0);
+				this.aborted.emit(false);
+				this.status.emit("idle");
+				this.lastResponse.emit(null);
 			});
-			return tagged.response;
+			if (userMessage != null) this.chat.append("user", userMessage);
+
+			// Subscribe to `_terminalResult` BEFORE transitioning to
+			// "thinking" — otherwise a synchronous adapter (mock tests,
+			// offline stubs) would drain status → done → DATA on
+			// `_terminalResult` before `awaitSettled` had a chance to
+			// subscribe, and `skipCurrent: true` would swallow the only
+			// DATA this run will produce. `awaitSettled` / `firstWhere`
+			// subscribes synchronously during the `async` function's
+			// initial execution slice, so calling it before the kick
+			// guarantees the subscription is in place when the pipeline
+			// starts draining.
+			//
+			// `skipCurrent: true` still matters: on the second `run()`
+			// call `_terminalResult` holds cached DATA from the prior run,
+			// and push-on-subscribe would resolve immediately with that
+			// stale value without the skip.
+			const resultPromise = awaitSettled(this._terminalResult, { skipCurrent: true });
+
+			if (signal != null) {
+				if (signal.aborted) {
+					this.aborted.emit(true);
+				} else {
+					const listener = (): void => this.aborted.emit(true);
+					signal.addEventListener("abort", listener, { once: true });
+					offAbort = (): void => signal.removeEventListener("abort", listener);
+				}
+			}
+
+			// Kick — transition to "thinking" fires promptInput → llmResponse.
+			// Skip the kick when the signal was already aborted: `effAbort`
+			// has driven `status → "done"` above, and a trailing
+			// `thinking` emit would produce a non-monotonic `idle → done →
+			// thinking` sequence in the status-event log for no reactive
+			// benefit (promptInput gates on `!latestAborted` anyway).
+			if (signal?.aborted !== true) {
+				this.status.emit("thinking");
+			}
+
+			return await resultPromise;
 		} finally {
 			offAbort?.();
 			this._running = false;
@@ -672,48 +693,6 @@ export class AgentLoopGraph extends Graph {
 		}
 		super.destroy();
 	}
-}
-
-/**
- * Per-tool-call reactive executor with retry-once + rescue.
- *
- * `retrySource({count: 1})` re-invokes the factory on ERROR (1 retry after
- * first failure = 2 total attempts). `rescue` catches any terminal ERROR
- * after retries are exhausted and converts it into a JSON-wrapped
- * `ToolResult` — the LLM sees the error as tool output and decides whether
- * to retry via another tool call.
- *
- * @internal
- */
-function executeToolReactively(call: ToolCall, tools: ToolRegistryGraph): Node<ToolResult> {
-	// Retry once on error. Each attempt rebuilds the fromAny source so a
-	// fresh Promise is awaited per attempt.
-	//
-	// `Promise.resolve().then(() => tools.execute(...))` ensures a synchronous
-	// throw inside the handler surfaces as a rejected Promise (not an uncaught
-	// sync throw at retrySource's factory-invocation), so retrySource's
-	// reactive ERROR path fires consistently regardless of handler shape.
-	const attempted: Node<unknown> = retrySource(
-		() =>
-			fromAny(
-				Promise.resolve().then(() =>
-					tools.execute(call.name, call.arguments),
-				) as NodeInput<unknown>,
-			),
-		{ count: 1 },
-	);
-	// Don't double-JSON-stringify string handler returns — a handler returning
-	// `"hello"` should surface as `hello` in the tool result, not `"\"hello\""`.
-	// Only wrap non-string shapes so LLMs that parse tool results can roundtrip
-	// structured data without surprise quoting.
-	const onSuccess = derived<ToolResult>([attempted], ([val]) => ({
-		id: call.id,
-		content: typeof val === "string" ? val : JSON.stringify(val),
-	}));
-	return rescue(onSuccess, (err) => ({
-		id: call.id,
-		content: JSON.stringify({ error: String(err) }),
-	}));
 }
 
 /**

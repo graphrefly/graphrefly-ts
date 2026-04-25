@@ -83,3 +83,82 @@ const SELF_CORRECTABLE_RE = /\b(parse|json|config|validation|syntax)\b/i;
 /** Default error classifier: parse/config errors are self-correctable. */
 export const defaultErrorClassifier: ErrorClassifier = (result: ExecutionResult): ErrorClass =>
 	SELF_CORRECTABLE_RE.test(result.detail) ? "self-correctable" : "structural";
+
+// ---------------------------------------------------------------------------
+// Default stage prompts
+// ---------------------------------------------------------------------------
+
+/** Default TRIAGE prompt — LLM classifies intake items into root-cause + intervention + route + priority. */
+export const DEFAULT_TRIAGE_PROMPT = `You are a triage classifier for a reactive collaboration harness.
+
+Given an intake item, classify it and output JSON:
+{
+  "rootCause": "composition" | "missing-fn" | "bad-docs" | "schema-gap" | "regression" | "unknown",
+  "intervention": "template" | "catalog-fn" | "docs" | "wrapper" | "schema-change" | "investigate",
+  "route": "auto-fix" | "needs-decision" | "investigation" | "backlog",
+  "priority": <number 0-100>,
+  "triageReasoning": "<one sentence>"
+}
+
+Strategy model (past effectiveness):
+{{strategy}}
+
+Intake item:
+{{item}}`;
+
+/** Default EXECUTE prompt — LLM produces a fix given a triaged issue. */
+export const DEFAULT_EXECUTE_PROMPT = `You are an implementation agent.
+
+Given a triaged issue with root cause and intervention type, produce a fix.
+
+Issue:
+{{item}}
+
+Output JSON:
+{
+  "outcome": "success" | "failure" | "partial",
+  "detail": "<description of what was done or what failed>"
+}`;
+
+/** Default VERIFY prompt — LLM reviews an execution result against the original issue. */
+export const DEFAULT_VERIFY_PROMPT = `You are a QA reviewer.
+
+Given an execution result, verify whether the fix is correct.
+
+Execution:
+{{execution}}
+
+Original issue:
+{{item}}
+
+Output JSON:
+{
+  "verified": true/false,
+  "findings": ["<finding1>", ...],
+  "errorClass": "self-correctable" | "structural"  // only if verified=false
+}`;
+
+// ---------------------------------------------------------------------------
+// Prompt resolver helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Collapse the `string | ((input: In) => string) | undefined` prompt-template
+ * pattern into a single `(input: In) => string`. A function `raw` is used as-is
+ * (the caller opted into full control). Otherwise `raw ?? fallbackTemplate`
+ * is fed through `substitute`, which does the placeholder replacement.
+ *
+ * Used by the three harness stages (TRIAGE / EXECUTE / VERIFY), which each
+ * accept a `string | function` config but use different placeholder schemes
+ * (`{{item}}`, `{{execution}}`, `{{strategy}}`). The helper absorbs only the
+ * branch logic; the per-stage placeholder substitution lives at the call site.
+ */
+export function resolvePromptFn<In>(
+	raw: string | ((input: In) => string) | undefined,
+	fallbackTemplate: string,
+	substitute: (template: string, input: In) => string,
+): (input: In) => string {
+	if (typeof raw === "function") return raw;
+	const template = raw ?? fallbackTemplate;
+	return (input) => substitute(template, input);
+}

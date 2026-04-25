@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
+import { awaitSettled } from "../../extra/sources.js";
 import { Graph } from "../../graph/graph.js";
 import {
 	AgentLoopGraph,
@@ -165,7 +166,7 @@ describe("patterns.ai.toolRegistry", () => {
 		expect((tr.schemas.cache as ToolDefinition[]).length).toBe(0);
 	});
 
-	it("execute runs the tool handler", async () => {
+	it("executeReactive runs the tool handler (scalar)", async () => {
 		const tr = toolRegistry("test-tools");
 		tr.register({
 			name: "greet",
@@ -173,16 +174,16 @@ describe("patterns.ai.toolRegistry", () => {
 			parameters: {},
 			handler: (args) => `Hello, ${args.name}!`,
 		});
-		const result = await tr.execute("greet", { name: "world" });
+		const result = await awaitSettled(tr.executeReactive("greet", { name: "world" }));
 		expect(result).toBe("Hello, world!");
 	});
 
-	it("execute throws for unknown tool", async () => {
+	it("executeReactive throws synchronously for unknown tool", () => {
 		const tr = toolRegistry("test-tools");
-		await expect(tr.execute("missing", {})).rejects.toThrow(/unknown tool/);
+		expect(() => tr.executeReactive("missing", {})).toThrow(/unknown tool/);
 	});
 
-	it("execute resolves Node handler results", async () => {
+	it("executeReactive forwards Node handler results", async () => {
 		const tr = toolRegistry("test-tools");
 		const n = state(42);
 		tr.register({
@@ -191,11 +192,11 @@ describe("patterns.ai.toolRegistry", () => {
 			parameters: {},
 			handler: () => n,
 		});
-		const result = await tr.execute("nodeVal", {});
+		const result = await awaitSettled(tr.executeReactive("nodeVal", {}));
 		expect(result).toBe(42);
 	});
 
-	it("execute awaits Promise then resolves", async () => {
+	it("executeReactive resolves Promise handler results", async () => {
 		const tr = toolRegistry("test-tools");
 		tr.register({
 			name: "prom",
@@ -203,7 +204,37 @@ describe("patterns.ai.toolRegistry", () => {
 			parameters: {},
 			handler: async () => 7,
 		});
-		expect(await tr.execute("prom", {})).toBe(7);
+		const result = await awaitSettled(tr.executeReactive("prom", {}));
+		expect(result).toBe(7);
+	});
+
+	it("executeReactive aborts handler on supersede via threaded signal", async () => {
+		// Regression: executeReactive must thread `signal` into the handler
+		// so unsubscribing the returned node (e.g. switchMap supersede in
+		// toolExecution) actually cancels in-flight handler work.
+		let received: AbortSignal | undefined;
+		let aborted = false;
+		const tr = toolRegistry("test-tools");
+		tr.register({
+			name: "long",
+			description: "long-running",
+			parameters: {},
+			handler: (_args, opts) => {
+				received = opts?.signal;
+				received?.addEventListener("abort", () => {
+					aborted = true;
+				});
+				return new Promise(() => {
+					/* never resolves */
+				});
+			},
+		});
+		const node = tr.executeReactive("long", {});
+		const unsub = node.subscribe(() => {});
+		expect(received).toBeInstanceOf(AbortSignal);
+		expect(received?.aborted).toBe(false);
+		unsub();
+		expect(aborted).toBe(true);
 	});
 });
 
@@ -850,13 +881,13 @@ describe("patterns.ai.costMeterExtractor", () => {
 // gatedStream
 // ---------------------------------------------------------------------------
 
-// FLAG: Wave B Unit 17 shipped the `gate()` primitive updates (gateGraph.mount,
-// GateController.lastRejected). The 3 skipped tests below still fail — they
-// expose a `gatedStream`-internal timing issue where the stream generator does
-// not fire until the gate has a downstream subscriber draining its output, so
-// `gate.count` stays at 0 and `deltaTopic` sees no deltas. The fix is
-// gatedStream-side (not gate() primitive) — deferred to a standalone
-// `gatedStream` lifecycle pass. Tracked in `docs/optimizations.md`.
+// Wave B follow-up (2026-04-24): the gatedStream activation bug was fixed by
+// keepaliving BOTH the switchMap `output` AND the gate's output node inside
+// `gatedStream`. Prior bug: the gate's fn body only ran when it had a live
+// subscriber on its output; without the extra keepalive, streamed values
+// reached the gate's input but never entered the pending queue, so
+// `gate.count` stayed at 0. The 4 previously-skipped tests below now exercise
+// the full pending → approve / reject / modify / delta-topic loop.
 describe("patterns.ai.gatedStream", () => {
 	/** Wait for gate.count to reach `n` by subscribing reactively. */
 	function waitForPending(handle: GatedStreamHandle<unknown>, n = 1): Promise<void> {
@@ -875,7 +906,7 @@ describe("patterns.ai.gatedStream", () => {
 		});
 	}
 
-	it.skip("gates output and allows approval", async () => {
+	it("gates output and allows approval", async () => {
 		const adapter = mockAdapter([], [["hello", " world"]]);
 		const graph = new Graph("test");
 		const dep = state("go");
@@ -894,7 +925,7 @@ describe("patterns.ai.gatedStream", () => {
 		handle.dispose();
 	});
 
-	it.skip("reject discards pending and aborts the stream", async () => {
+	it("reject discards pending and aborts the stream", async () => {
 		let streamStarted = false;
 		const adapter: LLMAdapter = {
 			provider: "mock",
@@ -935,7 +966,7 @@ describe("patterns.ai.gatedStream", () => {
 		handle.dispose();
 	});
 
-	it.skip("modify transforms pending value before forwarding", async () => {
+	it("modify transforms pending value before forwarding", async () => {
 		const adapter = mockAdapter([], [["original"]]);
 		const graph = new Graph("test");
 		const dep = state("go");
@@ -953,7 +984,7 @@ describe("patterns.ai.gatedStream", () => {
 		handle.dispose();
 	});
 
-	it.skip("delta topic publishes stamped deltas while gate is pending", async () => {
+	it("delta topic publishes stamped deltas while gate is pending", async () => {
 		const adapter = mockAdapter([], [["a", "b", "c"]]);
 		const graph = new Graph("test");
 		const dep = state("go");
@@ -1175,6 +1206,35 @@ describe("patterns.ai.agentLoop", () => {
 		await new Promise((resolve) => setImmediate(resolve));
 		loop.abort();
 		await expect(running).rejects.toMatchObject({ name: "AbortError" });
+	});
+
+	it("QA C3 regression: second run() with pre-aborted signal rejects AbortError (no stale response leak)", async () => {
+		// Wave A Unit 4 retired `_runVersion`; stale-resolution safety now
+		// relies on `run()` clearing `lastResponse` during its reset batch.
+		// Without the clear, a second run() with a pre-aborted signal would
+		// resolve with the FIRST run's response: the reset doesn't touch
+		// `lastResponseState`, so when `effAbort` drives `status → "done"`,
+		// `_terminalResult` sees the stale cached response and emits it as
+		// fresh DATA past the `skipCurrent: true` sync-phase swallow.
+		const firstResp: LLMResponse = {
+			content: "first-run",
+			finishReason: "end_turn",
+		};
+		const adapter = mockAdapter([firstResp]);
+		const loop = agentLoop("test-agent", { adapter });
+
+		// Run 1: success — leaves `lastResponse.cache === firstResp`.
+		const result1 = await loop.run("prompt-1");
+		expect(result1?.content).toBe("first-run");
+		expect(loop.lastResponse.cache).toMatchObject({ content: "first-run" });
+
+		// Run 2: pre-aborted signal must reject with AbortError, not
+		// resolve with Run 1's cached response.
+		const controller = new AbortController();
+		controller.abort();
+		await expect(loop.run("prompt-2", controller.signal)).rejects.toMatchObject({
+			name: "AbortError",
+		});
 	});
 
 	it("D9: interceptToolCalls splices a reactive gate between toolCalls and executor", async () => {
