@@ -1422,7 +1422,13 @@ describe("nestjs compat — GraphReflyModule.forCqrs", () => {
 						g.command("addItem", (payload, { emit }) => {
 							emit("itemAdded", payload);
 						});
-						g.projection("itemCount", ["itemAdded"], (_s, events) => events.length, 0);
+						g.projection({
+							name: "itemCount",
+							events: ["itemAdded"],
+							reducer: (_s, events) => events.length,
+							initial: 0,
+							mode: "replay",
+						});
 					},
 				}),
 			],
@@ -1444,7 +1450,13 @@ describe("nestjs compat — GraphReflyModule.forCqrs", () => {
 					name: "inv",
 					build: (g) => {
 						g.event("added");
-						g.projection("total", ["added"], (_s, evts) => evts.length, 0);
+						g.projection({
+							name: "total",
+							events: ["added"],
+							reducer: (_s, evts) => evts.length,
+							initial: 0,
+							mode: "replay",
+						});
 					},
 					nodes: ["total"],
 				}),
@@ -1699,7 +1711,13 @@ describe("nestjs compat — @QueryHandler", () => {
 					build: (g) => {
 						g.event("itemAdded");
 						g.command("add", (_p, { emit }) => emit("itemAdded", _p));
-						g.projection("itemCount", ["itemAdded"], (_s, evts) => evts.length, 0);
+						g.projection({
+							name: "itemCount",
+							events: ["itemAdded"],
+							reducer: (_s, evts) => evts.length,
+							initial: 0,
+							mode: "replay",
+						});
 					},
 				}),
 			],

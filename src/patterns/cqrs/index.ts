@@ -22,6 +22,8 @@ import {
 	CommandHandlerError,
 	DuplicateRegistrationError,
 	OptimisticConcurrencyError,
+	RebuildError,
+	UndeclaredEmitError,
 	UnknownCommandError,
 } from "../_internal/errors.js";
 import {
@@ -171,84 +173,6 @@ export interface SagaController<T = unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Event store adapter
-// ---------------------------------------------------------------------------
-
-/**
- * Opaque replay cursor returned by `loadEvents`. Pass it back to
- * `loadEvents` to resume from the last position.
- */
-export type EventStoreCursor = {
-	readonly __brand?: "EventStoreCursor";
-	[key: string]: unknown;
-};
-
-/**
- * Result of `loadEvents` — events plus an opaque cursor for resumption.
- */
-export type LoadEventsResult = {
-	events: CqrsEvent[];
-	cursor: EventStoreCursor | undefined;
-};
-
-/**
- * Pluggable persistence for CQRS events.
- *
- * **`persist`:** Must be synchronous. Called from the dispatch path inside
- * `batch()`. Adapters that need async I/O should buffer internally and
- * expose a `flush()` method for explicit drain.
- */
-export interface EventStoreAdapter {
-	persist(event: CqrsEvent): void;
-	/**
-	 * Load persisted events. When `cursor` is provided, returns only events
-	 * after that position. The returned `cursor` should be passed to the next
-	 * `loadEvents` call for incremental replay.
-	 */
-	loadEvents(
-		eventType: string,
-		cursor?: EventStoreCursor,
-	): LoadEventsResult | Promise<LoadEventsResult>;
-	/** Optional explicit flush for adapters with async I/O. */
-	flush?(): Promise<void>;
-}
-
-export class MemoryEventStore implements EventStoreAdapter {
-	private readonly _store = new Map<string, CqrsEvent[]>();
-
-	persist(event: CqrsEvent): void {
-		let list = this._store.get(event.type);
-		if (!list) {
-			list = [];
-			this._store.set(event.type, list);
-		}
-		list.push(event);
-	}
-
-	loadEvents(eventType: string, cursor?: EventStoreCursor): LoadEventsResult {
-		const list = this._store.get(eventType) ?? [];
-		const sinceTs = (cursor as { timestampNs?: number } | undefined)?.timestampNs;
-		const sinceSeq = (cursor as { seq?: number } | undefined)?.seq;
-		const events =
-			sinceTs == null
-				? [...list]
-				: list.filter(
-						(e) =>
-							e.timestampNs > sinceTs || (e.timestampNs === sinceTs && e.seq > (sinceSeq ?? -1)),
-					);
-		const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
-		return {
-			events,
-			cursor: lastEvent ? { timestampNs: lastEvent.timestampNs, seq: lastEvent.seq } : cursor,
-		};
-	}
-
-	clear(): void {
-		this._store.clear();
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Handler types
 // ---------------------------------------------------------------------------
 
@@ -269,14 +193,112 @@ export type CommandHandler<T = unknown> = (payload: T, actions: CommandActions) 
  * Projection reducer folds events into a read model.
  *
  * **Purity contract:** Reducers MUST be pure — return a new state value
- * without mutating `state` or any event. The `state` parameter is the
- * original `initial` value on every invocation (full event-sourcing replay),
- * so mutation would corrupt future recomputations.
+ * without mutating `state` or any event.
+ *
+ * - In **`"replay"`** mode the `state` parameter is always the original
+ *   `initial` value (full event-sourcing replay on every recompute).
+ * - In **`"scan"`** mode the `state` parameter is the _previous_ output
+ *   (incremental fold); `events` contains only the events appended since
+ *   the last computation.
  */
 export type ProjectionReducer<TState = unknown, TEvent = unknown> = (
 	state: TState,
 	events: readonly CqrsEvent<TEvent>[],
 ) => TState;
+
+/**
+ * Snapshot integration for {@link ProjectionOptions}.
+ *
+ * `load` is called once at projection construction and the returned value
+ * seeds the initial state. `save` (optional) is called after each reducer
+ * run, debounced by `saveDebounceMs` (default 1000 ms) and capped by
+ * `saveEvery` (default 1000 events).
+ */
+export type ProjectionSnapshotOpts<TState> = {
+	/** Load a previously-saved state. `undefined` → start from `initial`. */
+	load: () => TState | undefined | Promise<TState | undefined>;
+	/** Persist the current state. Called after reducer; may be async. */
+	save?: (state: TState) => void | Promise<void>;
+	/**
+	 * Debounce window (ms) before `save` fires after the last event. Default 1000.
+	 */
+	saveDebounceMs?: number;
+	/**
+	 * Force a save after every Nth state change regardless of debounce.
+	 * Default 1000. Both knobs compose: save fires at whichever condition is
+	 * met first.
+	 */
+	saveEvery?: number;
+};
+
+/**
+ * Options for {@link CqrsGraph.projection}.
+ *
+ * **Wave C.3 Unit 21 (locked 2026-04-24):**
+ * - `mode: "scan"` (default) — incremental fold; `"replay"` — full replay
+ *   each wave.
+ * - `snapshot` — load/save integration for cold-start + auto-checkpoint.
+ * - `freezeInputs` (default `true`) — freeze event arrays before passing
+ *   to reducer (purity enforcement).
+ * - `rebuild()` / `reset()` on the returned {@link ProjectionController}.
+ *
+ * @category patterns
+ */
+export type ProjectionOptions<TState> = {
+	name: string;
+	events: readonly string[];
+	reducer: ProjectionReducer<TState>;
+	initial: TState;
+	/**
+	 * Fold strategy. Default `"scan"` (incremental). `"replay"` = full replay.
+	 *
+	 * **Scan-mode ordering caveat:** scan-mode assumes monotonic per-stream
+	 * arrival order. When multiple event streams are merged for a projection,
+	 * events arriving with a `timestampNs` earlier than the current sort cursor
+	 * are skipped from the incremental sweep. This is an acceptable trade-off
+	 * for incremental fold; use `mode: "replay"` for strict cross-stream
+	 * ordering.
+	 */
+	mode?: "replay" | "scan";
+	/** Snapshot integration for rebuild + auto-checkpoint. */
+	snapshot?: ProjectionSnapshotOpts<TState>;
+	/**
+	 * Freeze event arrays before passing to reducer (default `true`).
+	 * Set to `false` only if your reducer intentionally mutates the input
+	 * (strongly discouraged — prefer immutable reducers).
+	 */
+	freezeInputs?: boolean;
+};
+
+/**
+ * Controller returned by {@link CqrsGraph.projection}.
+ *
+ * `node` is the reactive read model. `rebuild()` performs a paginated
+ * cold-storage replay (requires `attachEventStorage` tiers). `reset()`
+ * reloads from `snapshot.load()` and re-folds the live event log on top.
+ *
+ * @category patterns
+ */
+export interface ProjectionController<TState> {
+	readonly node: Node<TState>;
+	/**
+	 * Async paginated rebuild from attached storage tiers. Throws
+	 * {@link RebuildError} on adapter / decode / reducer failure.
+	 *
+	 * @param opts.fromTier - Storage tier to read from (default: first attached).
+	 * @param opts.pageSize - Entries per page (default 1000).
+	 */
+	rebuild(opts?: {
+		fromTier?: AppendLogStorageTier<CqrsEvent>;
+		pageSize?: number;
+	}): Promise<TState>;
+	/**
+	 * Reload from `snapshot.load()` (if configured) and re-fold the live
+	 * in-memory event log on top. Returns the rebuilt state. No-op on the
+	 * reactive node if the state is unchanged.
+	 */
+	reset(): Promise<TState>;
+}
 
 export type SagaHandler<T = unknown> = (event: CqrsEvent<T>) => void;
 
@@ -381,7 +403,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 	private readonly _projections = new Set<string>();
 	private readonly _sagas = new Set<string>();
 	private readonly _keepaliveDisposers: Array<() => void> = [];
-	private _eventStore: EventStoreAdapter | undefined;
 	private _seq = 0;
 	private readonly _retainedLimit: number;
 	private readonly _freezeCommandPayload: boolean;
@@ -471,17 +492,69 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		super.destroy();
 	}
 
-	/** Wire append-log storage tiers for ALL CQRS event streams (Audit 4). */
+	/** Tiers attached via {@link attachEventStorage}; auto-wired into future event streams. */
+	private readonly _attachedEventTiers: Array<readonly AppendLogStorageTier<CqrsEvent>[]> = [];
+	private readonly _attachedTierDisposers = new Map<string, Array<() => void>>();
+
+	/**
+	 * Wire append-log storage tiers for ALL CQRS event streams — both currently
+	 * registered AND any future streams created via `event(name)` /
+	 * `event(name, aggregateId)` / handler emit. (M4 fix.)
+	 *
+	 * Returns a disposer that releases all storage subscriptions wired by this
+	 * call (including those for streams that were created after the call).
+	 */
 	attachEventStorage(tiers: readonly AppendLogStorageTier<CqrsEvent>[]): () => void {
-		const disposers: Array<() => void> = [];
-		// Register: any existing streams + future-registered (best-effort:
-		// callers should attach after registering events).
-		for (const entry of this._eventLogs.values()) {
-			disposers.push(entry.log.attachStorage(tiers));
+		this._attachedEventTiers.push(tiers);
+		// Wire currently-existing streams.
+		for (const [name, entry] of this._eventLogs) {
+			const dispose = entry.log.attachStorage(tiers);
+			let arr = this._attachedTierDisposers.get(name);
+			if (!arr) {
+				arr = [];
+				this._attachedTierDisposers.set(name, arr);
+			}
+			arr.push(dispose);
+		}
+		// Per-aggregate streams existing now.
+		for (const [type, byAgg] of this._eventLogsByAggregate) {
+			for (const [aggId, entry] of byAgg) {
+				const key = `${type}::${aggId}`;
+				const dispose = entry.log.attachStorage(tiers);
+				let arr = this._attachedTierDisposers.get(key);
+				if (!arr) {
+					arr = [];
+					this._attachedTierDisposers.set(key, arr);
+				}
+				arr.push(dispose);
+			}
 		}
 		return () => {
-			for (const d of disposers) d();
+			// Remove from auto-wire list so newly-created streams skip.
+			const idx = this._attachedEventTiers.indexOf(tiers);
+			if (idx >= 0) this._attachedEventTiers.splice(idx, 1);
+			// We can't precisely undo the per-stream attach for THIS tier set
+			// alone (Map values commingle disposers across multiple
+			// attachEventStorage calls). Caller wanting fine-grained control
+			// should call `tier.flush()` / dispose tiers themselves. This
+			// disposer is best-effort: it stops auto-wiring future streams.
 		};
+	}
+
+	/** Wire newly-created event stream into all currently-attached tier sets. */
+	private _autoWireStreamStorage(
+		key: string,
+		log: ReturnType<typeof reactiveLog<CqrsEvent>>,
+	): void {
+		if (this._attachedEventTiers.length === 0) return;
+		let arr = this._attachedTierDisposers.get(key);
+		if (!arr) {
+			arr = [];
+			this._attachedTierDisposers.set(key, arr);
+		}
+		for (const tiers of this._attachedEventTiers) {
+			arr.push(log.attachStorage(tiers));
+		}
 	}
 
 	private _bumpDispatchSeq(): number {
@@ -532,6 +605,8 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		this.add(guarded, { name: name });
 		this._keepaliveDisposers.push(keepalive(guarded));
 		this._eventLogs.set(name, { log, node: guarded });
+		// M4: auto-wire any storage tiers attached via `attachEventStorage`.
+		this._autoWireStreamStorage(name, log);
 		return guarded;
 	}
 
@@ -594,6 +669,8 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		this._keepaliveDisposers.push(keepalive(guarded));
 		const entry = { log, node: guarded };
 		byType.set(aggregateId, entry);
+		// M4: auto-wire any tiers attached via `attachEventStorage`.
+		this._autoWireStreamStorage(`${type}::${aggregateId}`, log);
 		this._enforceAggregateLru();
 		return entry;
 	}
@@ -659,9 +736,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		entry.log.append(evt);
 		if (aggregateEntry) {
 			aggregateEntry.log.append(evt);
-		}
-		if (this._eventStore) {
-			this._eventStore.persist(evt);
 		}
 		return evt;
 	}
@@ -764,6 +838,10 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				try {
 					reg.handler(sealed, {
 						emit: (eName, data) => {
+							// Wave C.2 Unit 19: if emits was declared, reject undeclared names.
+							if (reg.emits !== undefined && !reg.emits.includes(eName)) {
+								throw new UndeclaredEmitError(commandName, eName, reg.emits);
+							}
 							emittedEvents.push(eName);
 							this._appendEvent(eName, data, {
 								// D1: thread the dispatch's aggregateId through so events
@@ -832,45 +910,245 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 	 * Register a read-only projection derived from event streams.
 	 * Guard denies `write` — value is computed from events only.
 	 *
-	 * **Purity contract:** The `reducer` must be a pure function — it receives
-	 * the original `initial` on every invocation (full event-sourcing replay).
-	 * Never mutate `initial`; always return a new value.
+	 * **Wave C.3 Unit 21 (locked 2026-04-24):**
+	 * - Object-bag signature replaces the positional `(name, events, reducer, initial)` form.
+	 * - `mode: "scan"` (default) — incremental fold; `"replay"` — full replay each wave.
+	 * - `snapshot` integration for cold-start load + auto-checkpoint save.
+	 * - `freezeInputs` (default `true`) — freeze the event array before passing to reducer.
+	 * - Returns `ProjectionController<TState>` with `.node`, `.rebuild()`, `.reset()`.
+	 *
+	 * Fan-in across `events` is implemented by depending on all event-type fan-in
+	 * nodes directly, which preserves `describe()` edges (e.g. `orderPlaced →
+	 * orderCount`). Events are sorted by `(timestampNs, seq, aggregateId)` before
+	 * passing to the reducer (Option-3 cross-aggregate ordering, C.3).
 	 */
-	projection<TState>(
-		name: string,
-		eventNames: readonly string[],
-		reducer: ProjectionReducer<TState>,
-		initial: TState,
-	): Node<TState> {
+	projection<TState>(opts: ProjectionOptions<TState>): ProjectionController<TState> {
+		const { name, events: eventNames, reducer, initial } = opts;
+		const mode = opts.mode ?? "scan";
+		const freezeInputs = opts.freezeInputs ?? true;
+		const snapshotOpts = opts.snapshot;
+
+		// Ensure each event stream exists and collect its node.
+		// Using the event-type fan-in nodes directly as deps preserves
+		// `describe()` edges (orderPlaced → orderCount) per Audit 1 §24.
 		const eventNodes = eventNames.map((eName) => {
 			if (!this._eventLogs.has(eName)) this.event(eName);
 			return this._eventLogs.get(eName)!.node;
 		});
 
+		// Sort comparator: timestampNs → seq → aggregateId lex (Option-3, C.3).
+		function sortEvents(evts: CqrsEvent[]): void {
+			evts.sort(
+				(a, b) =>
+					a.timestampNs - b.timestampNs ||
+					a.seq - b.seq ||
+					(a.aggregateId ?? "").localeCompare(b.aggregateId ?? ""),
+			);
+		}
+
+		// Collect all events from the current snapshots (for seeding + rebuild).
+		function collectAllEvents(snapshots: readonly (readonly CqrsEvent[])[]): CqrsEvent[] {
+			const evts: CqrsEvent[] = [];
+			for (const snap of snapshots) evts.push(...snap);
+			sortEvents(evts);
+			return evts;
+		}
+
+		// Seed: collect any events already present at construction time.
+		const seedSnapshots = eventNodes.map(
+			(n) => (n.cache as readonly CqrsEvent[] | undefined) ?? ([] as readonly CqrsEvent[]),
+		);
+		const sortedSeed = collectAllEvents(seedSnapshots);
+		const frozenSeed = (
+			freezeInputs ? Object.freeze(sortedSeed) : sortedSeed
+		) as readonly CqrsEvent[];
+
+		// Scan state: tracks count of events processed in last run.
+		let lastProcessedCount = 0;
+		let scanState: TState = initial;
+
+		if (mode === "scan" && sortedSeed.length > 0) {
+			scanState = reducer(initial, frozenSeed);
+			lastProcessedCount = sortedSeed.length;
+		}
+		const seedState = mode === "replay" ? reducer(initial, frozenSeed) : scanState;
+
+		// Snapshot save state — debounce + saveEvery.
+		const saveDebounceMs = snapshotOpts?.saveDebounceMs ?? 1000;
+		const saveEvery = snapshotOpts?.saveEvery ?? 1000;
+		let saveTimer: ReturnType<typeof setTimeout> | undefined;
+		let savesSinceLastFlush = 0;
+
+		function scheduleSave(currentState: TState): void {
+			if (!snapshotOpts?.save) return;
+			savesSinceLastFlush += 1;
+			if (savesSinceLastFlush >= saveEvery) {
+				savesSinceLastFlush = 0;
+				if (saveTimer !== undefined) {
+					clearTimeout(saveTimer);
+					saveTimer = undefined;
+				}
+				const result = snapshotOpts.save(currentState);
+				if (result instanceof Promise) result.catch(() => undefined);
+				return;
+			}
+			if (saveTimer !== undefined) clearTimeout(saveTimer);
+			saveTimer = setTimeout(() => {
+				saveTimer = undefined;
+				savesSinceLastFlush = 0;
+				const result = snapshotOpts!.save!(currentState);
+				if (result instanceof Promise) result.catch(() => undefined);
+			}, saveDebounceMs);
+		}
+
 		const projNode = derived<TState>(
 			eventNodes,
 			(snapshots) => {
-				const allEvents: CqrsEvent[] = [];
-				for (const snapshot of snapshots) {
-					const entries = snapshot as readonly CqrsEvent[];
-					allEvents.push(...entries);
+				const allEvents = collectAllEvents(snapshots as readonly (readonly CqrsEvent[])[]);
+
+				let newState: TState;
+				if (mode === "replay") {
+					// m1: freeze only in the replay branch where `frozen` is actually used.
+					const frozen = (
+						freezeInputs ? Object.freeze(allEvents) : allEvents
+					) as readonly CqrsEvent[];
+					newState = reducer(initial, frozen);
+				} else {
+					// scan: only fold NEW events since last run.
+					const newOnly = allEvents.slice(lastProcessedCount);
+					lastProcessedCount = allEvents.length;
+					const frozenNew = (
+						freezeInputs ? Object.freeze(newOnly) : newOnly
+					) as readonly CqrsEvent[];
+					newState = reducer(scanState, frozenNew);
+					scanState = newState;
 				}
-				allEvents.sort((a, b) => a.timestampNs - b.timestampNs || a.seq - b.seq);
-				return reducer(initial, allEvents);
+
+				scheduleSave(newState);
+				return newState;
 			},
 			{
 				name,
 				describeKind: "derived",
 				meta: cqrsMeta("projection", { projection_name: name, source_events: eventNames }),
 				guard: PROJECTION_GUARD,
-				initial,
+				initial: seedState,
 			},
 		);
 
 		this.add(projNode, { name: name });
 		this._keepaliveDisposers.push(keepalive(projNode));
+		this._keepaliveDisposers.push(() => {
+			if (saveTimer !== undefined) {
+				clearTimeout(saveTimer);
+				saveTimer = undefined;
+			}
+		});
 		this._projections.add(name);
-		return projNode;
+
+		// -- Controller methods ---------------------------------------------------
+
+		const rebuild = async (rebuildOpts?: {
+			fromTier?: AppendLogStorageTier<CqrsEvent>;
+			pageSize?: number;
+		}): Promise<TState> => {
+			try {
+				const pageSize = rebuildOpts?.pageSize ?? 1000;
+				const tier = rebuildOpts?.fromTier ?? this._attachedEventTiers[0]?.[0];
+
+				// M5: snapshot in-memory event count BEFORE any async work so we can
+				// drain events that arrive concurrently during the paginated rebuild.
+				const preBuildCount = collectAllEvents(
+					eventNodes.map((n) => (n.cache as readonly CqrsEvent[] | undefined) ?? []),
+				).length;
+
+				// Seed from snapshot.load if provided.
+				let rebuildState: TState = initial;
+				if (snapshotOpts?.load) {
+					const loaded = await snapshotOpts.load();
+					if (loaded !== undefined) rebuildState = loaded;
+				}
+
+				if (!tier || !tier.loadEntries) {
+					// No storage tier — fold in-memory events as a best-effort rebuild.
+					const inMemory = collectAllEvents(
+						eventNodes.map((n) => (n.cache as readonly CqrsEvent[] | undefined) ?? []),
+					);
+					const frozen = (
+						freezeInputs ? Object.freeze(inMemory) : inMemory
+					) as readonly CqrsEvent[];
+					rebuildState = reducer(rebuildState, frozen);
+				} else {
+					// Paginated load from tier.
+					// m3: only fold events that belong to this projection's event-type set.
+					// Tiers may hold events from other projections; filtering keeps reducer
+					// correctness when the tier is shared across projections.
+					const watchedEvents = new Set<string>(eventNames as readonly string[]);
+					let cursor: import("../../extra/storage-tiers.js").AppendCursor | undefined;
+					let done = false;
+					while (!done) {
+						const result = await tier.loadEntries({ cursor, pageSize });
+						const page = [...result.entries].filter((e) => watchedEvents.has(e.type));
+						sortEvents(page);
+						const frozenPage = (freezeInputs ? Object.freeze(page) : page) as readonly CqrsEvent[];
+						rebuildState = reducer(rebuildState, frozenPage);
+						cursor = result.cursor;
+						done = !cursor || result.entries.length === 0;
+					}
+				}
+
+				// Update the live projection node with the rebuilt state.
+				if (mode === "scan") {
+					// M5: drain events that arrived during the async rebuild so they are
+					// not lost (race between paginated load and concurrent dispatch).
+					const allInMemory = collectAllEvents(
+						eventNodes.map((n) => (n.cache as readonly CqrsEvent[] | undefined) ?? []),
+					);
+					const pendingEvents = allInMemory.slice(preBuildCount);
+					if (pendingEvents.length > 0) {
+						const frozenPending = (
+							freezeInputs ? Object.freeze(pendingEvents) : pendingEvents
+						) as readonly CqrsEvent[];
+						rebuildState = reducer(rebuildState, frozenPending);
+					}
+					scanState = rebuildState;
+					lastProcessedCount = allInMemory.length;
+				}
+				projNode.emit(rebuildState, { internal: true });
+				return rebuildState;
+			} catch (err) {
+				throw new RebuildError(name, err);
+			}
+		};
+
+		const reset = async (): Promise<TState> => {
+			try {
+				// Reload from snapshot.load (if configured).
+				let baseState: TState = initial;
+				if (snapshotOpts?.load) {
+					const loaded = await snapshotOpts.load();
+					if (loaded !== undefined) baseState = loaded;
+				}
+
+				// Re-fold all in-memory events on top of the snapshot state.
+				const inMemory = collectAllEvents(
+					eventNodes.map((n) => (n.cache as readonly CqrsEvent[] | undefined) ?? []),
+				);
+				const frozen = (freezeInputs ? Object.freeze(inMemory) : inMemory) as readonly CqrsEvent[];
+				const newState = reducer(baseState, frozen);
+
+				if (mode === "scan") {
+					scanState = newState;
+					lastProcessedCount = inMemory.length;
+				}
+				projNode.emit(newState, { internal: true });
+				return newState;
+			} catch (err) {
+				throw new RebuildError(name, err);
+			}
+		};
+
+		return { node: projNode, rebuild, reset };
 	}
 
 	// -- Sagas ----------------------------------------------------------------
@@ -1003,33 +1281,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			cursors,
 		};
 	}
-
-	// -- Event store ----------------------------------------------------------
-
-	useEventStore(adapter: EventStoreAdapter): void {
-		this._eventStore = adapter;
-	}
-
-	/**
-	 * Replay persisted events through a reducer to rebuild a read model.
-	 * Requires an event store adapter wired via `useEventStore()`.
-	 */
-	async rebuildProjection<TState>(
-		eventNames: readonly string[],
-		reducer: ProjectionReducer<TState>,
-		initial: TState,
-	): Promise<TState> {
-		if (!this._eventStore) {
-			throw new Error("No event store wired. Call useEventStore() first.");
-		}
-		const allEvents: CqrsEvent[] = [];
-		for (const eName of eventNames) {
-			const result = await this._eventStore.loadEvents(eName);
-			allEvents.push(...result.events);
-		}
-		allEvents.sort((a, b) => a.timestampNs - b.timestampNs || a.seq - b.seq);
-		return reducer(initial, allEvents);
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1046,7 +1297,12 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
  * app.command("placeOrder", (payload, { emit }) => {
  *   emit("orderPlaced", { orderId: payload.id, amount: payload.amount });
  * });
- * app.projection("orderCount", ["orderPlaced"], (_s, events) => events.length, 0);
+ * const { node: orderCount } = app.projection({
+ *   name: "orderCount",
+ *   events: ["orderPlaced"],
+ *   reducer: (_s, events) => events.length,
+ *   initial: 0,
+ * });
  * app.dispatch("placeOrder", { id: "1", amount: 100 });
  * ```
  */

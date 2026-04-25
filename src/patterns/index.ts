@@ -15,6 +15,7 @@ export * as lens from "./lens/index.js";
 export * as memory from "./memory/index.js";
 export * as messaging from "./messaging/index.js";
 export * as orchestration from "./orchestration/index.js";
+export * as process from "./process/index.js";
 export * as layout from "./reactive-layout/index.js";
 export * as reduction from "./reduction/index.js";
 export * as refine from "./refine-loop/index.js";

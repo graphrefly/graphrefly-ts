@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GuardDenied } from "../../core/guard.js";
-import { OptimisticConcurrencyError } from "../../patterns/_internal/errors.js";
-import { type CqrsEvent, CqrsGraph, cqrs, MemoryEventStore } from "../../patterns/cqrs/index.js";
+import { memoryAppendLog } from "../../extra/storage-tiers.js";
+import {
+	OptimisticConcurrencyError,
+	UndeclaredEmitError,
+} from "../../patterns/_internal/errors.js";
+import { type CqrsEvent, CqrsGraph, cqrs } from "../../patterns/cqrs/index.js";
 
 describe("cqrs — roadmap §4.5", () => {
 	// -- Factory --------------------------------------------------------------
@@ -253,7 +257,13 @@ describe("cqrs — roadmap §4.5", () => {
 	it("projection() derives read model from events", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
-		app.projection<number>("orderCount", ["orderPlaced"], (_state, events) => events.length, 0);
+		app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_state, events) => events.length,
+			initial: 0,
+			mode: "replay",
+		});
 		app.command("placeOrder", (payload: any, { emit }) => {
 			emit("orderPlaced", payload);
 		});
@@ -272,15 +282,16 @@ describe("cqrs — roadmap §4.5", () => {
 		app.event("orderCancelled");
 
 		type Summary = { placed: number; cancelled: number };
-		app.projection<Summary>(
-			"summary",
-			["orderPlaced", "orderCancelled"],
-			(_state, events) => ({
+		app.projection<Summary>({
+			name: "summary",
+			events: ["orderPlaced", "orderCancelled"],
+			reducer: (_state, events) => ({
 				placed: events.filter((e) => e.type === "orderPlaced").length,
 				cancelled: events.filter((e) => e.type === "orderCancelled").length,
 			}),
-			{ placed: 0, cancelled: 0 },
-		);
+			initial: { placed: 0, cancelled: 0 },
+			mode: "replay",
+		});
 
 		app.command("placeOrder", (_p: any, { emit }) => emit("orderPlaced", {}));
 		app.command("cancelOrder", (_p: any, { emit }) => emit("orderCancelled", {}));
@@ -298,7 +309,12 @@ describe("cqrs — roadmap §4.5", () => {
 	it("projection node guard denies write", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
-		app.projection("orderCount", ["orderPlaced"], (_s, e) => e.length, 0);
+		app.projection({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_s, e) => e.length,
+			initial: 0,
+		});
 		const projNode = app.resolve("orderCount");
 		expect(() => {
 			projNode.down([["DATA", 999]], { actor: { type: "human", id: "h1" } });
@@ -376,7 +392,12 @@ describe("cqrs — roadmap §4.5", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
 		app.command("placeOrder", () => {});
-		app.projection("orderCount", ["orderPlaced"], (_s, e) => e.length, 0);
+		app.projection({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_s, e) => e.length,
+			initial: 0,
+		});
 		app.saga("notifyShipping", ["orderPlaced"], () => {});
 
 		const desc = app.describe({ detail: "standard" });
@@ -390,7 +411,12 @@ describe("cqrs — roadmap §4.5", () => {
 	it("describe() shows edges from events to projections and sagas", () => {
 		const app = cqrs("test");
 		app.event("orderPlaced");
-		app.projection("orderCount", ["orderPlaced"], (_s, e) => e.length, 0);
+		app.projection({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_s, e) => e.length,
+			initial: 0,
+		});
 		app.saga("notifyShipping", ["orderPlaced"], () => {});
 
 		const desc = app.describe();
@@ -400,30 +426,43 @@ describe("cqrs — roadmap §4.5", () => {
 		app.destroy();
 	});
 
-	// -- Event store ----------------------------------------------------------
+	// -- UndeclaredEmitError --------------------------------------------------
 
-	it("useEventStore() persists events on dispatch", () => {
-		const store = new MemoryEventStore();
+	it("dispatch() throws UndeclaredEmitError when emitting undeclared event (inside batch → re-thrown)", () => {
 		const app = cqrs("test");
-		app.useEventStore(store);
 		app.event("orderPlaced");
-		app.command("placeOrder", (payload: any, { emit }) => {
-			emit("orderPlaced", payload);
+		app.command("place", {
+			handler: (_p: any, { emit }) => emit("orderShipped", {}),
+			emits: ["orderPlaced"],
 		});
-
-		app.dispatch("placeOrder", { id: "1" });
-		app.dispatch("placeOrder", { id: "2" });
-
-		const persisted = store.loadEvents("orderPlaced");
-		expect(persisted.events).toHaveLength(2);
-		expect(persisted.events[0].payload).toEqual({ id: "1" });
+		expect(() => app.dispatch("place", {})).toThrow(UndeclaredEmitError);
 		app.destroy();
 	});
 
-	it("rebuildProjection() replays from event store", async () => {
-		const store = new MemoryEventStore();
+	it("dispatch() allows any event name when emits is omitted (open mode)", () => {
 		const app = cqrs("test");
-		app.useEventStore(store);
+		app.command("place", (_p: any, { emit }) => emit("anything", {}));
+		expect(() => app.dispatch("place", {})).not.toThrow();
+		app.destroy();
+	});
+
+	it("dispatch() succeeds when emitting a declared event name", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", {
+			handler: (_p: any, { emit }) => emit("orderPlaced", { id: "1" }),
+			emits: ["orderPlaced"],
+		});
+		expect(() => app.dispatch("place", {})).not.toThrow();
+		app.destroy();
+	});
+
+	// -- attachEventStorage + projection.rebuild() ----------------------------
+
+	it("attachEventStorage persists events on dispatch", async () => {
+		const tier = memoryAppendLog<CqrsEvent>();
+		const app = cqrs("test");
+		app.attachEventStorage([tier]);
 		app.event("orderPlaced");
 		app.command("placeOrder", (payload: any, { emit }) => {
 			emit("orderPlaced", payload);
@@ -432,41 +471,129 @@ describe("cqrs — roadmap §4.5", () => {
 		app.dispatch("placeOrder", { id: "1" });
 		app.dispatch("placeOrder", { id: "2" });
 
-		const rebuilt = await app.rebuildProjection(["orderPlaced"], (_s, events) => events.length, 0);
+		// Drain all microtask + promise-chain flushes. appendLogStorage flushes
+		// are chained via Promise microtasks. A macrotask break ensures all
+		// pending promise chains complete before we read.
+		await new Promise((r) => setTimeout(r, 0));
+
+		// Read back via loadEntries.
+		if (tier.loadEntries) {
+			const result = await tier.loadEntries();
+			expect(result.entries).toHaveLength(2);
+			expect((result.entries[0] as CqrsEvent).payload).toEqual({ id: "1" });
+		}
+		app.destroy();
+	});
+
+	it("projection.rebuild() replays from attached storage tier", async () => {
+		const tier = memoryAppendLog<CqrsEvent>();
+		const app = cqrs("test");
+		app.attachEventStorage([tier]);
+		app.event("orderPlaced");
+		app.command("placeOrder", (payload: any, { emit }) => {
+			emit("orderPlaced", payload);
+		});
+
+		app.dispatch("placeOrder", { id: "1" });
+		app.dispatch("placeOrder", { id: "2" });
+
+		// Drain async flush microtask chains (appendLogStorage batches via Promise.resolve chains).
+		await new Promise((r) => setTimeout(r, 0));
+
+		const { rebuild } = app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			// Reducer for rebuild: receives all persisted events in each page.
+			reducer: (acc, events) => acc + events.length,
+			initial: 0,
+		});
+
+		const rebuilt = await rebuild({ fromTier: tier });
 		expect(rebuilt).toBe(2);
 		app.destroy();
 	});
 
-	it("rebuildProjection() throws without event store", async () => {
+	it("projection.reset() re-folds in-memory events on top of initial state", async () => {
 		const app = cqrs("test");
-		await expect(app.rebuildProjection(["y"], (_s, e) => e.length, 0)).rejects.toThrow(
-			/No event store/,
-		);
+		app.event("orderPlaced");
+		app.command("placeOrder", (payload: any, { emit }) => {
+			emit("orderPlaced", payload);
+		});
+		app.dispatch("placeOrder", { id: "1" });
+		app.dispatch("placeOrder", { id: "2" });
+
+		const { node: orderCountNode, reset } = app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_s, events) => events.length,
+			initial: 0,
+		});
+
+		// Initial state reflects dispatches made before projection was created.
+		const afterReset = await reset();
+		expect(afterReset).toBe(2);
+		expect(orderCountNode.cache).toBe(2);
 		app.destroy();
 	});
 
-	// -- MemoryEventStore -----------------------------------------------------
-
-	it("MemoryEventStore loadEvents with cursor filter", () => {
-		const store = new MemoryEventStore();
-		const t1 = Date.now() * 1_000_000 - 100_000_000;
-		const t2 = Date.now() * 1_000_000;
-		store.persist({ type: "a", payload: 1, timestampNs: t1, seq: 1 });
-		store.persist({ type: "a", payload: 2, timestampNs: t2, seq: 2 });
-
-		const all = store.loadEvents("a");
-		expect(all.events).toHaveLength(2);
-
-		const recent = store.loadEvents("a", { timestampNs: t1, seq: 1 });
-		expect(recent.events).toHaveLength(1);
-		expect(recent.events[0].payload).toBe(2);
+	it("projection returns ProjectionController with node", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		const ctrl = app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_s, e) => e.length,
+			initial: 0,
+		});
+		expect(ctrl.node).toBeDefined();
+		expect(typeof ctrl.rebuild).toBe("function");
+		expect(typeof ctrl.reset).toBe("function");
+		app.destroy();
 	});
 
-	it("MemoryEventStore clear() removes all events", () => {
-		const store = new MemoryEventStore();
-		store.persist({ type: "a", payload: 1, timestampNs: 0, seq: 1 });
-		store.clear();
-		expect(store.loadEvents("a").events).toHaveLength(0);
+	it("projection mode=replay: reducer always receives initial state", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", (p: any, { emit }) => emit("orderPlaced", p));
+		app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (_state, events) => events.length,
+			initial: 0,
+			mode: "replay",
+		});
+		app.dispatch("place", { id: "1" });
+		expect(app.get("orderCount")).toBe(1);
+		app.dispatch("place", { id: "2" });
+		expect(app.get("orderCount")).toBe(2);
+		app.destroy();
+	});
+
+	it("projection mode=scan (default): incremental fold", () => {
+		let reducerCallCount = 0;
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", (p: any, { emit }) => emit("orderPlaced", p));
+		app.projection<number>({
+			name: "orderCount",
+			events: ["orderPlaced"],
+			reducer: (state, events) => {
+				reducerCallCount++;
+				return state + events.length;
+			},
+			initial: 0,
+			mode: "scan",
+		});
+		// Capture the count after projection construction (includes the
+		// push-on-subscribe activation for the empty initial state).
+		const countAfterConstruction = reducerCallCount;
+		app.dispatch("place", { id: "1" });
+		expect(app.get("orderCount")).toBe(1);
+		app.dispatch("place", { id: "2" });
+		expect(app.get("orderCount")).toBe(2);
+		// Each dispatch fires the reducer exactly once (incremental, not full replay).
+		expect(reducerCallCount - countAfterConstruction).toBe(2);
+		app.destroy();
 	});
 
 	// -- D1 — per-aggregate streams + LRU + optimistic concurrency -----------

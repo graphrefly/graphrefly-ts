@@ -9,11 +9,12 @@
  */
 
 import { wallClockNs } from "../../core/clock.js";
-import { derived, type Node } from "../../core/index.js";
+import { batch, DATA, derived, ERROR, type Node } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { reactiveList } from "../../extra/reactive-list.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
+import { fromAny, type NodeInput } from "../../extra/sources.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
 import {
@@ -23,7 +24,8 @@ import {
 } from "../_internal/imperative-audit.js";
 import { domainMeta, keepalive } from "../_internal/index.js";
 
-const DEFAULT_MAX_PER_PUMP = 2_147_483_647;
+const DEFAULT_MAX_PER_PUMP = 256;
+const DEFAULT_COMPLETED_RETAINED_LIMIT = 1024;
 
 function requireNonNegativeInt(value: number, label: string): number {
 	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
@@ -236,38 +238,112 @@ export class JobQueueGraph<T> extends Graph {
 		});
 		return true;
 	}
+
+	/**
+	 * Subscribe to a Node and enqueue each DATA payload into this queue.
+	 * Returns a disposer that stops consuming when called.
+	 *
+	 * Used internally by {@link JobFlowGraph} for stage-to-stage wiring but
+	 * also useful for users wiring an external source into a job queue.
+	 *
+	 * @param source - Node whose DATA values are enqueued.
+	 * @param opts - Optional enqueue options (id generator, metadata prefix).
+	 */
+	consumeFrom(
+		source: Node<T>,
+		opts?: {
+			metadata?: Record<string, unknown>;
+		},
+	): () => void {
+		return source.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				const payload = m[1] as T;
+				this.enqueue(payload, opts ? { metadata: opts.metadata } : undefined);
+			}
+		});
+	}
 }
 
-export type JobFlowOptions = {
+// ── StageDef ─────────────────────────────────────────────────────────────
+
+/**
+ * Work function for a job flow stage. Receives the full job envelope,
+ * returns a `NodeInput<T>` — raw value (sync), Promise (async), or Node
+ * (composed pipeline). `fromAny` coerces any of these shapes.
+ *
+ * On error / rejection: the stage nacks the job (no requeue by default).
+ */
+export type WorkFn<T> = (job: JobEnvelope<T>) => NodeInput<T>;
+
+/**
+ * Stage definition for {@link JobFlowGraph}. Either a bare name string
+ * (no work hook, pure pass-through) or a full definition object.
+ */
+export type StageDef<T> =
+	| string
+	| {
+			name: string;
+			work?: WorkFn<T>;
+			handlerVersion?: { id: string; version: string | number };
+	  };
+
+export type JobFlowOptions<T = unknown> = {
 	graph?: GraphOptions;
-	stages?: readonly string[];
+	/**
+	 * Stage definitions. Each stage is either a bare name string (pure
+	 * pass-through) or a `{ name, work?, handlerVersion? }` object.
+	 *
+	 * For back-compat, `string[]` values behave as stages with no work hook.
+	 */
+	stages?: readonly StageDef<T>[];
 	maxPerPump?: number;
 };
 
 export class JobFlowGraph<T> extends Graph {
 	private readonly _stageNames: readonly string[];
+	private readonly _stageWorkFns: ReadonlyMap<string, WorkFn<T>>;
 	private readonly _queues = new Map<string, JobQueueGraph<T>>();
 	private readonly _completed;
 	readonly completed: Node<readonly JobEnvelope<T>[]>;
 	readonly completedCount: Node<number>;
 
-	constructor(name: string, opts: JobFlowOptions = {}) {
+	constructor(name: string, opts: JobFlowOptions<T> = {}) {
 		super(name, opts.graph);
-		const stages = (opts.stages ?? ["incoming", "processing", "done"]).map((v) => v.trim());
-		if (stages.length < 2) {
+
+		// Normalise stage definitions.
+		const rawStages = opts.stages ?? (["incoming", "processing", "done"] as readonly StageDef<T>[]);
+		const stageNames: string[] = [];
+		const stageWorkFns = new Map<string, WorkFn<T>>();
+
+		for (const raw of rawStages) {
+			const stageName = typeof raw === "string" ? raw.trim() : raw.name.trim();
+			if (typeof raw !== "string" && raw.work) {
+				stageWorkFns.set(stageName, raw.work);
+			}
+			stageNames.push(stageName);
+		}
+
+		if (stageNames.length < 2) {
 			throw new Error(`jobFlow("${name}"): requires at least 2 stages`);
 		}
-		const unique = new Set(stages);
-		if (unique.size !== stages.length) {
+		const unique = new Set(stageNames);
+		if (unique.size !== stageNames.length) {
 			throw new Error(`jobFlow("${name}"): stage names must be unique`);
 		}
-		this._stageNames = Object.freeze([...stages]);
+		this._stageNames = Object.freeze([...stageNames]);
+		this._stageWorkFns = stageWorkFns;
+
 		for (const stage of this._stageNames) {
 			const q = jobQueue<T>(`${name}-${stage}`);
 			this._queues.set(stage, q);
 			this.mount(stage, q);
 		}
-		this._completed = reactiveLog<JobEnvelope<T>>([], { name: "completed" });
+
+		this._completed = reactiveLog<JobEnvelope<T>>([], {
+			name: "completed",
+			maxSize: DEFAULT_COMPLETED_RETAINED_LIMIT,
+		});
 		this.completed = this._completed.entries;
 		this.add(this.completed, { name: "completed" });
 		this.completedCount = derived(
@@ -287,42 +363,163 @@ export class JobFlowGraph<T> extends Graph {
 			1,
 			requireNonNegativeInt(opts.maxPerPump ?? DEFAULT_MAX_PER_PUMP, "job flow maxPerPump"),
 		);
+
+		// Wire up per-stage pumps.
 		for (let i = 0; i < this._stageNames.length; i += 1) {
 			const stage = this._stageNames[i] as string;
 			const current = this.queue(stage);
 			const next =
 				i + 1 < this._stageNames.length ? this.queue(this._stageNames[i + 1] as string) : null;
-			const pump = node<unknown>(
-				[current.pending],
-				() => {
-					let moved = 0;
-					while (moved < maxPerPump) {
-						const claim = current.claim(1);
-						if (claim.length === 0) break;
-						const job = claim[0] as JobEnvelope<T>;
-						if (!job) break;
-						if (next) {
-							next.enqueue(job.payload, {
-								metadata: {
-									...job.metadata,
-									job_flow_from: stage,
-								},
+			const workFn = this._stageWorkFns.get(stage);
+
+			// `isTerminal` marks the last stage — completed jobs go into
+			// `_completed` log instead of a next queue.
+			const isTerminal = next === null;
+
+			if (workFn) {
+				// ── Stage with work hook ──────────────────────────────────────
+				// Pump effect: claim one job, run work(job), forward result on
+				// success; nack on failure.
+				// Per B.3 lock: effects ARE sanctioned for side-effects.
+				// `fromAny` bridges sync value / Promise / Node → Node<T>.
+				const pump = node<unknown>(
+					[current.pending],
+					() => {
+						let processed = 0;
+						while (processed < maxPerPump) {
+							const claims = current.claim(1);
+							if (claims.length === 0) break;
+							const job = claims[0] as JobEnvelope<T>;
+							if (!job) break;
+
+							// Build the updated path accumulator.
+							const prevPath = (job.metadata.job_flow_path as readonly string[] | undefined) ?? [];
+							const newPath = [...prevPath, stage];
+
+							let result: NodeInput<T>;
+							try {
+								result = workFn(job);
+							} catch {
+								// Sync throw → nack no-requeue.
+								current.nack(job.id, { requeue: false });
+								processed += 1;
+								continue;
+							}
+
+							// Coerce to Node<T> via fromAny.
+							const resultNode = fromAny<T>(result);
+
+							// M8: Subscribe once to the result node; on DATA forward; on ERROR nack.
+							// Use `let unsub` + TDZ guard (same pattern as toPromise) so sync
+							// DATA delivery inside subscribe() doesn't hit TDZ on `unsub`.
+							let settled = false;
+							let unsub: (() => void) | undefined;
+							unsub = resultNode.subscribe((msgs) => {
+								if (settled) return;
+								for (const m of msgs) {
+									if (m[0] === DATA) {
+										settled = true;
+										// Call unsub() directly if already assigned; otherwise
+										// defer to next microtask (TDZ guard for sync DATA delivery).
+										if (unsub) {
+											unsub();
+										} else {
+											Promise.resolve().then(() => unsub?.());
+										}
+										const newPayload = m[1] as T;
+										const newMetadata = {
+											...job.metadata,
+											job_flow_path: newPath,
+										};
+										if (isTerminal) {
+											const completedJob: JobEnvelope<T> = {
+												...job,
+												payload: newPayload,
+												metadata: Object.freeze(newMetadata),
+											};
+											batch(() => {
+												current.ack(job.id);
+												this._completed.append(completedJob);
+											});
+										} else {
+											batch(() => {
+												current.ack(job.id);
+												(next as JobQueueGraph<T>).enqueue(newPayload, {
+													metadata: newMetadata,
+												});
+											});
+										}
+										return;
+									} else if (m[0] === ERROR) {
+										settled = true;
+										if (unsub) {
+											unsub();
+										} else {
+											Promise.resolve().then(() => unsub?.());
+										}
+										current.nack(job.id, { requeue: false });
+										return;
+									}
+								}
 							});
-						} else {
-							this._completed.append(job);
+
+							processed += 1;
 						}
-						current.ack(job.id);
-						moved += 1;
-					}
-				},
-				{
-					name: `pump_${stage}`,
-					describeKind: "effect",
-					meta: jobQueueMeta("job_flow_pump"),
-				},
-			);
-			this.add(pump, { name: `pump_${stage}` });
-			this.addDisposer(keepalive(pump));
+					},
+					{
+						name: `pump_${stage}`,
+						describeKind: "effect",
+						meta: jobQueueMeta("job_flow_pump", { stage, has_work: true }),
+					},
+				);
+				this.add(pump, { name: `pump_${stage}` });
+				this.addDisposer(keepalive(pump));
+			} else {
+				// ── Stage without work hook (pass-through ferry) ──────────────
+				// Claim, accumulate path, forward to next stage or completed.
+				const pump = node<unknown>(
+					[current.pending],
+					() => {
+						let moved = 0;
+						while (moved < maxPerPump) {
+							const claim = current.claim(1);
+							if (claim.length === 0) break;
+							const job = claim[0] as JobEnvelope<T>;
+							if (!job) break;
+
+							const prevPath = (job.metadata.job_flow_path as readonly string[] | undefined) ?? [];
+							const newPath = [...prevPath, stage];
+							const newMetadata = { ...job.metadata, job_flow_path: newPath };
+
+							if (isTerminal) {
+								const completedJob: JobEnvelope<T> = {
+									...job,
+									metadata: Object.freeze(newMetadata),
+								};
+								batch(() => {
+									current.ack(job.id);
+									this._completed.append(completedJob);
+								});
+							} else {
+								batch(() => {
+									current.ack(job.id);
+									(next as JobQueueGraph<T>).enqueue(job.payload, {
+										metadata: newMetadata,
+									});
+								});
+							}
+							moved += 1;
+						}
+					},
+					{
+						name: `pump_${stage}`,
+						describeKind: "effect",
+						meta: jobQueueMeta("job_flow_pump", { stage, has_work: false }),
+					},
+				);
+				this.add(pump, { name: `pump_${stage}` });
+				this.addDisposer(keepalive(pump));
+			}
 		}
 	}
 
@@ -355,6 +552,6 @@ export function jobQueue<T>(name: string, opts?: JobQueueOptions): JobQueueGraph
 /**
  * Creates an autonomous multi-stage queue chain graph.
  */
-export function jobFlow<T>(name: string, opts?: JobFlowOptions): JobFlowGraph<T> {
+export function jobFlow<T>(name: string, opts?: JobFlowOptions<T>): JobFlowGraph<T> {
 	return new JobFlowGraph<T>(name, opts);
 }

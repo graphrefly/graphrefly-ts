@@ -19,13 +19,9 @@ import {
 	Scope,
 } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
+import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
 import { Graph, type GraphPersistSnapshot } from "../../graph/graph.js";
-import {
-	type CqrsGraph,
-	type CqrsOptions,
-	cqrs,
-	type EventStoreAdapter,
-} from "../../patterns/cqrs/index.js";
+import { type CqrsGraph, type CqrsOptions, cqrs } from "../../patterns/cqrs/index.js";
 import { GraphReflyEventExplorer } from "./explorer.js";
 import {
 	GRAPHREFLY_REQUEST_GRAPH,
@@ -58,8 +54,8 @@ export interface GraphReflyCqrsOptions {
 	cqrs?: CqrsOptions;
 	/** Build callback — registers commands, events, projections, sagas on the CqrsGraph. */
 	build?: (graph: CqrsGraph) => void;
-	/** Event store adapter for persistence (wired via `useEventStore()`). */
-	eventStore?: EventStoreAdapter;
+	/** Append-log storage tiers for event persistence (wired via `attachEventStorage()`). */
+	eventStorage?: readonly AppendLogStorageTier<import("../../patterns/cqrs/index.js").CqrsEvent>[];
 	/**
 	 * Node paths (local to this feature) to expose as injectable providers.
 	 * Tokens are auto-qualified as `featureName::path`.
@@ -256,7 +252,7 @@ export class GraphReflyModule {
 	 *   name: "orders",
 	 *   build: (g) => {
 	 *     g.event("orderPlaced");
-	 *     g.projection("orderCount", ["orderPlaced"], (_s, evts) => evts.length, 0);
+	 *     g.projection({ name: "orderCount", events: ["orderPlaced"], reducer: (_s, evts) => evts.length, initial: 0 });
 	 *   },
 	 * })
 	 * ```
@@ -267,9 +263,7 @@ export class GraphReflyModule {
 				provide: getGraphToken(opts.name),
 				useFactory: (rootGraph: Graph) => {
 					const g = cqrs(opts.name, opts.cqrs);
-					// `useEventStore` is CqrsGraph API, not a React hook (Biome false positive).
-					// biome-ignore lint/correctness/useHookAtTopLevel: not React; Nest provider factory
-					if (opts.eventStore) g.useEventStore(opts.eventStore);
+					if (opts.eventStorage) g.attachEventStorage(opts.eventStorage);
 					if (opts.build) opts.build(g);
 					rootGraph.mount(opts.name, g);
 					return g;

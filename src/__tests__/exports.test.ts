@@ -66,6 +66,11 @@ describe("graphrefly", () => {
 		expect(typeof patterns.jobQueue.jobFlow).toBe("function");
 	});
 
+	it("exports process patterns namespace", () => {
+		expect(typeof patterns.process).toBe("object");
+		expect(typeof patterns.process.processManager).toBe("function");
+	});
+
 	it("exports core sugar helpers", () => {
 		expect(typeof core.state).toBe("function");
 		expect(typeof core.producer).toBe("function");

@@ -142,6 +142,7 @@ const ENTRY_POINTS = [
 	"src/patterns/memory/index.ts",
 	"src/patterns/messaging/index.ts",
 	"src/patterns/orchestration/index.ts",
+	"src/patterns/process/index.ts",
 	"src/patterns/reactive-layout/index.ts",
 	"src/patterns/reduction/index.ts",
 	"src/patterns/refine-loop/index.ts",

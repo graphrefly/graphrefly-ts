@@ -417,6 +417,16 @@
 				"default": "./dist/patterns/orchestration/index.cjs"
 			}
 		},
+		"./patterns/process": {
+			"import": {
+				"types": "./dist/patterns/process/index.d.ts",
+				"default": "./dist/patterns/process/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/process/index.d.cts",
+				"default": "./dist/patterns/process/index.cjs"
+			}
+		},
 		"./patterns/reactive-layout": {
 			"import": {
 				"types": "./dist/patterns/reactive-layout/index.d.ts",

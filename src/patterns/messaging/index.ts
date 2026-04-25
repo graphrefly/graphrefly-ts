@@ -12,13 +12,13 @@
  * infrastructure with topics.
  */
 
-import { batch, COMPLETE, derived, type Node, state } from "../../core/index.js";
+import { batch, COMPLETE, DATA, derived, type Node, state } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
 import { domainMeta, keepalive } from "../_internal/index.js";
 
-const DEFAULT_MAX_PER_PUMP = 2_147_483_647;
+const DEFAULT_MAX_PER_PUMP = 256;
 
 function requireNonNegativeInt(value: number, label: string): number {
 	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
@@ -144,15 +144,42 @@ export class TopicGraph<T> extends Graph {
 	retained(): readonly T[] {
 		return this.events.cache as readonly T[];
 	}
+
+	/** Internal log bundle — used by TopicBridgeGraph for `attach`. */
+	get _logBundle() {
+		return this._log;
+	}
 }
 
 export type SubscriptionOptions = {
 	graph?: GraphOptions;
+	/**
+	 * Starting cursor position.
+	 * @deprecated Use `from` instead.
+	 */
 	cursor?: number;
+	/**
+	 * Starting position for the subscription.
+	 * - `"retained"` (default) — cursor starts at 0; consumer sees all retained history.
+	 * - `"now"` — cursor starts at current topic length; consumer ignores history.
+	 * - `number` — explicit cursor position.
+	 */
+	from?: "now" | "retained" | number;
+	/**
+	 * When this signal node emits DATA, the subscription auto-advances cursor
+	 * to current `available.length`. Useful for "ack everything when X happens"
+	 * patterns. The reactive edge `advanceOn → cursor` is visible in `explain()`.
+	 */
+	advanceOn?: Node<unknown>;
+};
+
+/** Result of {@link SubscriptionGraph.pullAndAck}. */
+export type PullAndAckResult<T> = {
+	items: readonly T[];
+	cursor: number;
 };
 
 export class SubscriptionGraph<T> extends Graph {
-	readonly source: Node<readonly T[]>;
 	readonly cursor: Node<number>;
 	readonly available: Node<readonly T[]>;
 	/**
@@ -165,46 +192,77 @@ export class SubscriptionGraph<T> extends Graph {
 	 */
 	readonly topic: TopicGraph<T>;
 
+	private _disposed = false;
+
 	constructor(name: string, topicGraph: TopicGraph<T>, opts: SubscriptionOptions = {}) {
 		super(name, opts.graph);
-		const initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
 		this.topic = topicGraph;
-		const topicEvents = topicGraph.events;
-		this.source = derived([topicEvents], ([snapshot]) => snapshot as readonly T[], {
-			name: "source",
-			describeKind: "derived",
-			meta: messagingMeta("subscription_source"),
-			initial: topicEvents.cache as readonly T[],
-		});
-		this.add(this.source, { name: "source" });
+
+		// Resolve initial cursor from `from` option, falling back to legacy `cursor` option.
+		let initialCursor: number;
+		if (opts.from !== undefined) {
+			if (opts.from === "retained") {
+				initialCursor = 0;
+			} else if (opts.from === "now") {
+				// §28 sanctioned factory-time boundary read.
+				initialCursor = (topicGraph.events.cache as readonly T[]).length;
+			} else {
+				initialCursor = requireNonNegativeInt(opts.from, "subscription from");
+			}
+		} else {
+			initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
+		}
+
 		this.cursor = state(initialCursor, {
 			name: "cursor",
 			describeKind: "state",
 			meta: messagingMeta("subscription_cursor"),
 		});
 		this.add(this.cursor, { name: "cursor" });
-		this.available = derived(
-			[this.source, this.cursor],
-			([sourceSnapshot, cursor]) => {
-				const entries = sourceSnapshot as readonly T[];
-				const start = Math.max(0, Math.trunc((cursor as number) ?? 0));
-				return entries.slice(start);
-			},
-			{
-				name: "available",
-				describeKind: "derived",
-				meta: messagingMeta("subscription_available"),
-				initial: [],
-			},
-		);
+
+		// B.1 Unit 12 lock: `available` depends directly on topic.events + cursor
+		// via `view({ kind: "fromCursor" })`. No `source` passthrough node —
+		// describe shows `topic::events → available` (cross-graph edge) and
+		// `cursor → available` (local edge). One fewer node per subscription.
+		this.available = topicGraph._logBundle.view({ kind: "fromCursor", cursor: this.cursor });
 		this.add(this.available, { name: "available" });
-		// No `connect("topic::events", "source")` — topic is not mounted here.
-		// The node-level dep `derived([topicEvents], …)` above is the live wire.
-		this.addDisposer(keepalive(this.source));
 		this.addDisposer(keepalive(this.available));
+
+		// Optional reactive auto-advance: when `advanceOn` emits a NEW DATA
+		// (after construction), cursor advances by `available.length` atomically.
+		// Edge visible in describe: advancePump depends on advanceOn.
+		// `_advanceInitialized` guards against the initial push-on-subscribe fire
+		// that would advance cursor before the user has a chance to read.
+		if (opts.advanceOn !== undefined) {
+			const advanceOn = opts.advanceOn;
+			let advanceInitialized = false;
+			const advancePump = node<unknown>(
+				[advanceOn],
+				() => {
+					// Skip the initial push-on-subscribe wave.
+					if (!advanceInitialized) {
+						advanceInitialized = true;
+						return;
+					}
+					if (this._disposed) return;
+					const avail = this.available.cache as readonly T[];
+					if (avail.length === 0) return;
+					const next = (this.cursor.cache as number) + avail.length;
+					this.cursor.emit(next);
+				},
+				{
+					name: "advancePump",
+					describeKind: "effect",
+					meta: messagingMeta("subscription_advance_pump"),
+				},
+			);
+			this.add(advancePump, { name: "advancePump" });
+			this.addDisposer(keepalive(advancePump));
+		}
 	}
 
 	ack(count?: number): number {
+		if (this._disposed) return this.cursor.cache as number;
 		const available = this.available.cache as readonly T[];
 		const requested =
 			count === undefined
@@ -220,15 +278,50 @@ export class SubscriptionGraph<T> extends Graph {
 		return next;
 	}
 
-	pull(limit?: number, opts: { ack?: boolean } = {}): readonly T[] {
+	pull(limit?: number): readonly T[] {
+		if (this._disposed) return [];
 		const available = this.available.cache as readonly T[];
 		const max =
 			limit === undefined
 				? available.length
 				: requireNonNegativeInt(limit, "subscription pull limit");
-		const out = available.slice(0, max);
-		if (opts.ack && out.length > 0) this.ack(out.length);
-		return out;
+		return available.slice(0, max);
+	}
+
+	/**
+	 * Atomic pull-and-acknowledge. Returns `{ items, cursor }` where `cursor`
+	 * is the new cursor position after advancing. Under single-threaded JS the
+	 * snapshot and advance are atomic; PY callers use a per-subscription Lock.
+	 *
+	 * Replaces `pull(limit, { ack: true })`.
+	 */
+	pullAndAck(limit?: number): PullAndAckResult<T> {
+		if (this._disposed) return { items: [], cursor: this.cursor.cache as number };
+		const available = this.available.cache as readonly T[];
+		const max =
+			limit === undefined
+				? available.length
+				: requireNonNegativeInt(limit, "subscription pullAndAck limit");
+		const items = available.slice(0, max);
+		if (items.length === 0) return { items, cursor: this.cursor.cache as number };
+		const next = (this.cursor.cache as number) + items.length;
+		this.cursor.emit(next);
+		return { items, cursor: next };
+	}
+
+	/**
+	 * Release internal subscriptions and mark the subscription torn-down.
+	 * Subsequent `pull`, `pullAndAck`, `ack` return empty / current cursor.
+	 * Emits COMPLETE on `cursor` so derived consumers (e.g. `available`) see
+	 * the termination signal. Also drains `addDisposer` callbacks (including
+	 * the `keepalive(advancePump)` subscription) so no keepalive leak occurs.
+	 */
+	dispose(): void {
+		if (this._disposed) return;
+		this._disposed = true;
+		this.cursor.down([[COMPLETE]]);
+		// m4: drain addDisposer callbacks to release the keepalive subscription.
+		this.destroy();
 	}
 }
 
@@ -236,13 +329,26 @@ export type TopicBridgeOptions<TIn, TOut> = {
 	graph?: GraphOptions;
 	cursor?: number;
 	maxPerPump?: number;
+	/**
+	 * Optional transform/filter applied to each item before republishing.
+	 *
+	 * **At-most-once with silent drop:** when `map` returns `undefined`, the
+	 * input is consumed from the source cursor but NOT republished. Filtered
+	 * items are not retained for retry. If you need filter-with-retry
+	 * semantics, do the filtering in a downstream subscription on the bridged
+	 * output rather than in the `map` function.
+	 */
 	map?: (value: TIn) => TOut | undefined;
 };
 
 export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 	private readonly _sourceSub;
-	private readonly _target;
 	readonly bridgedCount: Node<number>;
+	/**
+	 * Emits each mapped batch as DATA — gives downstream observers a reactive
+	 * stream of bridged values. Also the link target for `target._log.attach`.
+	 */
+	readonly output: Node<readonly TOut[]>;
 
 	constructor(
 		name: string,
@@ -254,45 +360,148 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		this._sourceSub = subscription<TIn>(`${name}-subscription`, sourceTopic, {
 			cursor: opts.cursor,
 		});
-		this._target = targetTopic;
 		this.mount("subscription", this._sourceSub);
-		this.bridgedCount = state(0, {
-			name: "bridgedCount",
-			describeKind: "state",
-			meta: messagingMeta("topic_bridge_count"),
-		});
-		this.add(this.bridgedCount, { name: "bridgedCount" });
 
 		const maxPerPump = Math.max(
 			1,
 			requireNonNegativeInt(opts.maxPerPump ?? DEFAULT_MAX_PER_PUMP, "topic bridge maxPerPump"),
 		);
 		const mapValue = opts.map ?? ((value: TIn) => value as unknown as TOut);
-		const pump = node<unknown>(
+
+		// Reactive output node: derives a mapped batch from `available`.
+		// §24 compliant — output is a real derived edge, visible in describe.
+		// Replaces imperative publish loop. Items where mapValue returns undefined
+		// are filtered out (opt-out / filter).
+		this.output = derived<readonly TOut[]>(
 			[this._sourceSub.available],
-			() => {
-				const available = this._sourceSub.pull(maxPerPump, { ack: true });
-				if (available.length === 0) return;
-				let bridged = 0;
-				for (const value of available) {
-					const mapped = mapValue(value as TIn);
-					if (mapped === undefined) continue;
-					this._target.publish(mapped);
-					bridged += 1;
+			([avail]) => {
+				const arr = avail as readonly TIn[];
+				const outBatch: TOut[] = [];
+				const take = Math.min(arr.length, maxPerPump);
+				for (let i = 0; i < take; i++) {
+					const mapped = mapValue(arr[i] as TIn);
+					if (mapped !== undefined) outBatch.push(mapped);
 				}
-				if (bridged > 0) {
-					const current = this.bridgedCount.cache as number;
-					this.bridgedCount.emit(current + bridged);
+				return outBatch;
+			},
+			{
+				name: "output",
+				describeKind: "derived",
+				meta: messagingMeta("topic_bridge_output", { targetRef: targetTopic.name }),
+				initial: [],
+			},
+		);
+		this.add(this.output, { name: "output" });
+		this.addDisposer(keepalive(this.output));
+
+		// bridgedCount: state node accumulating total bridged items.
+		// Updated by ackPump after each batch — edge visible via ackPump dep on output.
+		this.bridgedCount = state<number>(0, {
+			name: "bridgedCount",
+			describeKind: "state",
+			meta: messagingMeta("topic_bridge_count"),
+		});
+		this.add(this.bridgedCount, { name: "bridgedCount" });
+		this.addDisposer(keepalive(this.bridgedCount));
+
+		// ackPump: effect that advances the subscription cursor and updates
+		// bridgedCount after each batch. Runs after `output` settles.
+		// Captures refs to `this.output`, `this._sourceSub`, `this.bridgedCount`
+		// to avoid `this` inside the fn body.
+		const outputRef = this.output;
+		const subRef = this._sourceSub;
+		const countRef = this.bridgedCount;
+		const ackPump = node<unknown>(
+			[outputRef],
+			() => {
+				const outBatch = outputRef.cache as readonly TOut[];
+				if (outBatch.length === 0) return;
+				const availLen = (subRef.available.cache as readonly TIn[]).length;
+				const toAck = Math.min(availLen, maxPerPump);
+				if (toAck > 0) {
+					subRef.ack(toAck);
+					const prev = (countRef.cache as number) ?? 0;
+					countRef.emit(prev + outBatch.length);
 				}
 			},
 			{
-				name: "pump",
+				name: "ackPump",
 				describeKind: "effect",
-				meta: messagingMeta("topic_bridge_pump"),
+				meta: messagingMeta("topic_bridge_ack_pump"),
 			},
 		);
-		this.add(pump, { name: "pump" });
-		this.addDisposer(keepalive(pump));
+		this.add(ackPump, { name: "ackPump" });
+		this.addDisposer(keepalive(ackPump));
+
+		// Wire output into target topic's log reactively.
+		// _attachArrayToLog subscribes to output and publishes each item to targetTopic.
+		// Teardown: disposer runs before mount teardown.
+		const detach = _attachArrayToLog(this.output, targetTopic);
+		this.addDisposer(detach);
+	}
+}
+
+/**
+ * Attaches each element of an array-valued Node to a TopicGraph's log.
+ * Every DATA emission on `source` appends all items in the array to `targetTopic`.
+ * Returns a disposer.
+ */
+function _attachArrayToLog<T>(source: Node<readonly T[]>, targetTopic: TopicGraph<T>): () => void {
+	return source.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] !== DATA) continue;
+			const arr = m[1] as readonly T[];
+			if (arr.length === 0) continue;
+			batch(() => {
+				for (const v of arr) targetTopic.publish(v);
+			});
+		}
+	});
+}
+
+// ── TopicRegistry ─────────────────────────────────────────────────────────
+
+/**
+ * Private pure data structure managing a named set of {@link TopicGraph}
+ * instances. Extracted from {@link MessagingHubGraph} for separation of
+ * concerns (B.2 Unit 14 lock: D — split into TopicRegistry + facade).
+ *
+ * Reusable if other domain consumers (e.g. cqrs.eventLogs) want a shared
+ * topic registry later.
+ *
+ * @internal
+ */
+export class TopicRegistry {
+	private readonly _map = new Map<string, TopicGraph<unknown>>();
+	/** Reactive monotonic version counter. Advances on topic create/remove. */
+	readonly version: Node<number>;
+
+	constructor(versionNode: Node<number>) {
+		this.version = versionNode;
+	}
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	has(name: string): boolean {
+		return this._map.has(name);
+	}
+
+	get<T>(name: string): TopicGraph<T> | undefined {
+		return this._map.get(name) as TopicGraph<T> | undefined;
+	}
+
+	set<T>(name: string, t: TopicGraph<T>): void {
+		this._map.set(name, t as TopicGraph<unknown>);
+	}
+
+	delete(name: string): boolean {
+		return this._map.delete(name);
+	}
+
+	keys(): IterableIterator<string> {
+		return this._map.keys();
 	}
 }
 
@@ -313,6 +522,9 @@ export type MessagingHubOptions = {
  * instances with retention + cursor semantics. Topics are created on first
  * access; `removeTopic(name)` unmounts and tears down via {@link Graph.remove}.
  *
+ * Internally delegates to {@link TopicRegistry} for topic map management
+ * (B.2 Unit 14 lock: D facade split).
+ *
  * **Relationship to `pubsub()` in `src/extra/pubsub.ts`:** `pubsub` is a
  * lightweight last-value state hub (no retention, no cursors). `MessagingHubGraph`
  * is the full messaging hub — retained message logs, cursor-based subscriptions,
@@ -321,35 +533,40 @@ export type MessagingHubOptions = {
  * @category patterns
  */
 export class MessagingHubGraph extends Graph {
-	private readonly _topics = new Map<string, TopicGraph<unknown>>();
-	private _version = 0;
+	private readonly _registry: TopicRegistry;
+	/** Reactive monotonic version counter — advances on topic create/remove. */
+	readonly version: Node<number>;
 	private readonly _defaultTopicOptions: TopicOptions;
 
 	constructor(name: string, opts: MessagingHubOptions = {}) {
 		super(name, opts.graph);
+		// B.2 Unit 14 lock: promote _version → version: Node<number>.
+		const versionNode = state(0, {
+			name: "version",
+			describeKind: "state",
+			meta: messagingMeta("hub_version"),
+		});
+		this.add(versionNode, { name: "version" });
+		this.version = versionNode;
+		this._registry = new TopicRegistry(versionNode);
 		// P8: shallow-copy caller-provided defaults so post-construction
 		// mutations by the caller don't leak into every future `topic()` call.
 		this._defaultTopicOptions = { ...(opts.defaultTopicOptions ?? {}) };
 	}
 
-	/** Monotonic counter advancing on topic create/remove. */
-	get version(): number {
-		return this._version;
-	}
-
 	/** Number of topics currently in the hub. */
 	get size(): number {
-		return this._topics.size;
+		return this._registry.size;
 	}
 
 	/** Checks topic existence without creating. */
 	has(name: string): boolean {
-		return this._topics.has(name);
+		return this._registry.has(name);
 	}
 
 	/** Iterator over topic names. */
 	topicNames(): IterableIterator<string> {
-		return this._topics.keys();
+		return this._registry.keys();
 	}
 
 	/**
@@ -358,13 +575,14 @@ export class MessagingHubGraph extends Graph {
 	 * repeat calls are ignored — the topic is already configured).
 	 */
 	topic<T = unknown>(name: string, opts?: TopicOptions): TopicGraph<T> {
-		let t = this._topics.get(name) as TopicGraph<T> | undefined;
+		let t = this._registry.get<T>(name);
 		if (t === undefined) {
 			const effective: TopicOptions = { ...this._defaultTopicOptions, ...(opts ?? {}) };
 			t = new TopicGraph<T>(name, effective);
-			this._topics.set(name, t as TopicGraph<unknown>);
+			this._registry.set(name, t);
 			this.mount(name, t);
-			this._version += 1;
+			const cur = (this.version.cache as number) ?? 0;
+			this.version.emit(cur + 1);
 		}
 		return t;
 	}
@@ -425,18 +643,19 @@ export class MessagingHubGraph extends Graph {
 	 * existed. Subscribers receive `TEARDOWN` via {@link Graph.remove}.
 	 */
 	removeTopic(name: string): boolean {
-		if (!this._topics.has(name)) return false;
-		// P1 / P3: Graph.remove first — if it throws, `_topics` must NOT still
+		if (!this._registry.has(name)) return false;
+		// P1 / P3: Graph.remove first — if it throws, `_registry` must NOT still
 		// hold the broken half-disposed topic (otherwise the next
 		// `hub.topic(name)` returns the corrupted reference). Wrap in
-		// try/finally so `_topics` / `_version` converge to a consistent state
+		// try/finally so registry / version converge to a consistent state
 		// regardless of whether `remove` throws. Mount-orphan safety is
 		// preserved by removing before deleting.
 		try {
 			this.remove(name); // unmounts, drops edges, tears down
 		} finally {
-			this._topics.delete(name);
-			this._version += 1;
+			this._registry.delete(name);
+			const cur = (this.version.cache as number) ?? 0;
+			this.version.emit(cur + 1);
 		}
 		return true;
 	}
@@ -480,6 +699,11 @@ export function subscription<T>(
 
 /**
  * Creates an autonomous cursor-based topic relay graph.
+ *
+ * When `opts.map` is provided, items where `map` returns `undefined` are
+ * consumed from the source cursor but NOT republished (at-most-once with
+ * silent drop). For filter-with-retry semantics, apply the filter in a
+ * downstream subscription on the bridge's `output` node instead.
  */
 export function topicBridge<TIn, TOut = TIn>(
 	name: string,

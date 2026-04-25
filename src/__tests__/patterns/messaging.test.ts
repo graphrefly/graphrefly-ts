@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { state } from "../../core/index.js";
 import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
 import { messagingHub, subscription, topic, topicBridge } from "../../patterns/messaging/index.js";
 
@@ -19,13 +20,17 @@ describe("patterns.messaging", () => {
 		expect(sub.pull()).toEqual([10, 20]);
 		sub.ack(1);
 		expect(sub.pull()).toEqual([20]);
-		expect(sub.pull(undefined, { ack: true })).toEqual([20]);
+		// B.1 Unit 12 lock: pullAndAck replaces pull({ ack: true }). Returns { items, cursor }.
+		const result = sub.pullAndAck();
+		expect(result.items).toEqual([20]);
 		expect(sub.pull()).toEqual([]);
 		// D1(e): topic is NOT mounted under the subscription — the "topic::events"
 		// edge no longer exists; verify via the externalized `sub.topic` reference
 		// instead (data dependency lives at the node layer via derived-deps).
 		expect(sub.topic).toBe(t);
-		expect(sub.edges()).toContainEqual(["source", "available"]);
+		// B.1 Unit 12 lock: `source` passthrough removed — available depends directly
+		// on topic.events + cursor (cross-graph edge). No "source" node in sub graph.
+		expect(sub.edges()).not.toContainEqual(["source", "available"]);
 	});
 
 	it("jobQueue supports enqueue, claim, ack, and nack requeue", () => {
@@ -117,6 +122,88 @@ describe("patterns.messaging", () => {
 		source.publish(2);
 		source.publish(3);
 		expect(target.retained()).toEqual([10, 30]);
+	});
+
+	it("subscription from:'now' skips retained history", () => {
+		const t = topic<number>("events");
+		t.publish(1);
+		t.publish(2);
+		// from: "now" — cursor starts at current topic length
+		const sub = subscription("sub-now", t, { from: "now" });
+		expect(sub.pull()).toEqual([]);
+		t.publish(3);
+		expect(sub.pull()).toEqual([3]);
+	});
+
+	it("subscription from: number sets explicit cursor", () => {
+		const t = topic<number>("events");
+		t.publish(10);
+		t.publish(20);
+		t.publish(30);
+		const sub = subscription("sub-from1", t, { from: 1 });
+		expect(sub.pull()).toEqual([20, 30]);
+	});
+
+	it("subscription dispose() stops pullAndAck from returning items", () => {
+		const t = topic<number>("events");
+		t.publish(42);
+		const sub = subscription("sub-dispose", t);
+		expect(sub.pull()).toEqual([42]);
+		sub.dispose();
+		expect(sub.pullAndAck().items).toEqual([]);
+		expect(sub.pull()).toEqual([]);
+	});
+
+	it("subscription advanceOn auto-advances cursor on signal", () => {
+		const t = topic<number>("events");
+		t.publish(1);
+		t.publish(2);
+		t.publish(3);
+		// advanceOn: use a state node that starts with NO initial value trigger.
+		// We publish AFTER construction so the pump has no initial dep.
+		const sig = topic<boolean>("advance-signal");
+		const sub = subscription("sub-advance", t, { advanceOn: sig.events });
+		// All 3 items visible before signal fires (cursor is 0).
+		expect(sub.pull()).toHaveLength(3);
+		sig.publish(true); // trigger advance — cursor advances to 3
+		expect(sub.pull()).toEqual([]);
+	});
+
+	it("topicBridge output node is derived from available (reactive edge)", () => {
+		const source = topic<number>("src");
+		const target = topic<number>("dst");
+		const bridge = topicBridge("bridge", source, target, {
+			map: (v) => v * 2,
+		});
+		// Verify edge: output depends on subscription::available.
+		// Use recursive:true so cross-graph deps are qualified with subgraph prefix.
+		expect(bridge.edges({ recursive: true })).toContainEqual(["subscription::available", "output"]);
+		// Verify target gets bridged items.
+		source.publish(5);
+		expect(target.retained()).toEqual([10]);
+	});
+
+	it("jobFlow tracks job_flow_path across stages", () => {
+		const flow = jobFlow<number>("flow", { stages: ["a", "b", "c"] });
+		flow.enqueue(99);
+		const completed = flow.retainedCompleted();
+		expect(completed).toHaveLength(1);
+		const path = completed[0]?.metadata.job_flow_path as string[];
+		expect(path).toEqual(["a", "b", "c"]);
+	});
+
+	it("JobQueueGraph.consumeFrom wires an external source into the queue", () => {
+		const q = jobQueue<number>("q");
+		// Use state(7) which pushes DATA(7) on subscribe (that's expected behaviour).
+		// Count from initial subscribe + 1 more emit = depth of 2, then dispose.
+		const src = state<number>(7);
+		const disposer = q.consumeFrom(src);
+		// After subscribe: depth = 1 (push-on-subscribe with initial 7).
+		src.emit(8);
+		expect(q.get("depth")).toBe(2);
+		disposer();
+		src.emit(9); // after dispose — should not enqueue
+		expect(q.get("depth")).toBe(2);
 	});
 
 	it("jobFlow auto-advances jobs across stages into completed log", () => {
@@ -234,25 +321,26 @@ describe("patterns.messagingHub", () => {
 
 	it("version counter advances on create / remove only", () => {
 		const hub = messagingHub("hub");
-		expect(hub.version).toBe(0);
+		// B.2 Unit 14 lock: version is now a reactive Node<number>.
+		expect(hub.get("version")).toBe(0);
 
 		hub.topic("a");
-		expect(hub.version).toBe(1);
+		expect(hub.get("version")).toBe(1);
 
 		hub.topic("a"); // already exists — no advance
-		expect(hub.version).toBe(1);
+		expect(hub.get("version")).toBe(1);
 
 		hub.publish("a", 1); // publish doesn't advance
-		expect(hub.version).toBe(1);
+		expect(hub.get("version")).toBe(1);
 
 		hub.topic("b");
-		expect(hub.version).toBe(2);
+		expect(hub.get("version")).toBe(2);
 
 		hub.removeTopic("a");
-		expect(hub.version).toBe(3);
+		expect(hub.get("version")).toBe(3);
 
 		hub.removeTopic("missing"); // no-op
-		expect(hub.version).toBe(3);
+		expect(hub.get("version")).toBe(3);
 	});
 
 	it("topicNames iterates over registered topics", () => {

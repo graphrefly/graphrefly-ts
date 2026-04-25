@@ -821,6 +821,18 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 - **`_async_pump` return annotation is `AsyncIterable` not `AsyncGenerator` (PY, 2026-04-09):**
   In `streaming_prompt_node`, the inner `_async_pump` function uses `yield` (making it an `AsyncGenerator`) but is annotated `-> AsyncIterable[Any]`. No runtime impact (`AsyncGenerator` is a subtype of `AsyncIterable`), but the annotation is technically incorrect. Fix: change to `-> AsyncGenerator[Any, None]`.
 
+- **`appendLogStorage.loadEntries` pagination cursor (2026-04-25):**
+  `appendLogStorage.loadEntries` currently always returns `cursor: undefined`, so `projection.rebuild({ pageSize })` exits after one iteration (loads everything in the first page). Implementing a cursor (offset-based or content-hash-based) would let large event stores rebuild incrementally without pulling the whole log into memory at once. Deferred until a real consumer hits memory pressure on rebuild. The single-page behaviour is correct; this is a performance improvement only.
+
+- **`projection` scan-mode out-of-order cross-stream events (2026-04-25):**
+  When multiple event streams are merged for a projection in scan mode, events arriving with a `timestampNs` earlier than the current sort cursor are silently skipped from the incremental sweep. This is an acceptable trade-off for incremental fold — strict cross-stream ordering requires a watermark or full-replay approach. Users needing strict ordering should use `mode: "replay"` or implement watermark logic in their reducer. The caveat is now documented inline on `ProjectionOptions.mode` in [src/patterns/cqrs/index.ts](../src/patterns/cqrs/index.ts).
+
+- **`processManager` state-snapshot persistence (2026-04-25):**
+  The `stateStorage` field was removed from `ProcessManagerOpts.persistence` (it was declared but never implemented). Implementation requires: snapshot tier wiring, debounce on every state transition, and restore-on-construction wiring (replay `instanceStates` from snapshot on factory call). Deferred until a concrete consumer needs cross-restart instance state recovery. `eventStorage` (already shipped) covers audit-log persistence; state map persistence adds resume-after-restart semantics.
+
+- **Website API docs registry — Phase 4+ patterns missing (2026-04-25):**
+  [website/scripts/gen-api-docs.mjs](../website/scripts/gen-api-docs.mjs) `REGISTRY` covers core, extra (operators, sources, resilience, storage), AI patterns, and graph internals — but does NOT include `cqrs`, `messaging`, `orchestration` (gate / classify / combine / catch / pipelineGraph), `job-queue`, or `process` (processManager). All these symbols have inline JSDoc as the source of truth, but `pnpm --filter @graphrefly/docs-site docs:gen` will not produce API pages for them until they're added to the registry. Estimated 30+ entries across the 5 pattern domains. Defer until the docs site is the canonical reference for users of these patterns; for now, JSDoc-in-IDE + the session doc + this `optimizations.md` are the working references.
+
 ### Reactive data structures (Wave 4 audit, 2026-04-15)
 
 **Audit context:** Wave 4 of the `src/extra/` hardening pass covers `reactive-map`, `reactive-list`, `reactive-index`, `reactive-log`, `pubsub`. Stress tests shipped in `src/__tests__/extra/reactive-map-stress.test.ts` and `reactive-list-stress.test.ts`. The items below are queued as one refactor batch so fix + optimization work across all five data structures ships together.
