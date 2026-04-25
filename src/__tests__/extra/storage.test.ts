@@ -4,7 +4,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import { fromIDBRequest, fromIDBTransaction } from "../../extra/storage-browser.js";
-import { dictKv, memoryKv } from "../../extra/storage-tiers.js";
+import {
+	appendLogStorage,
+	dictKv,
+	memoryAppendLog,
+	memoryBackend,
+	memoryKv,
+	memorySnapshot,
+	snapshotStorage,
+} from "../../extra/storage-tiers.js";
 import { indexedDbKv } from "../../extra/storage-tiers-browser.js";
 import { fileKv, sqliteKv } from "../../extra/storage-tiers-node.js";
 import { collect } from "../test-helpers.js";
@@ -289,5 +297,191 @@ describe("IndexedDB helpers", () => {
 		} finally {
 			(globalThis as { indexedDB?: IDBFactory }).indexedDB = original;
 		}
+	});
+});
+
+// ── Audit 4 — transaction semantics ───────────────────────────────────
+
+describe("storage tier transaction semantics (Audit 4)", () => {
+	it("snapshotStorage with debounceMs > 0 buffers across waves until flush()", async () => {
+		const backend = memoryBackend();
+		const tier = snapshotStorage<{ name: string; value: number }>(backend, {
+			name: "snap",
+			debounceMs: 10_000,
+		});
+
+		// Three saves in sequence — none should hit the backend yet.
+		tier.save({ name: "snap", value: 1 });
+		tier.save({ name: "snap", value: 2 });
+		tier.save({ name: "snap", value: 3 });
+
+		expect(backend.read("snap")).toBeUndefined();
+
+		// Explicit flush commits the latest pending snapshot only — snapshot
+		// tiers track a single pending record by design.
+		await tier.flush?.();
+		const bytes = backend.read("snap") as Uint8Array;
+		const decoded = JSON.parse(new TextDecoder().decode(bytes));
+		expect(decoded).toEqual({ name: "snap", value: 3 });
+	});
+
+	it("snapshotStorage rollback() discards pending without writing", async () => {
+		const backend = memoryBackend();
+		const tier = snapshotStorage<{ name: string; v: number }>(backend, {
+			name: "snap",
+			debounceMs: 10_000,
+		});
+
+		tier.save({ name: "snap", v: 42 });
+		await tier.rollback?.();
+		// flush() after rollback is a no-op — pending was cleared.
+		await tier.flush?.();
+		expect(backend.read("snap")).toBeUndefined();
+	});
+
+	it("snapshotStorage with debounceMs=0 (sync-through) writes on every save", () => {
+		const backend = memoryBackend();
+		const tier = snapshotStorage<{ name: string; v: number }>(backend, { name: "snap" });
+
+		tier.save({ name: "snap", v: 1 });
+		expect(backend.read("snap")).toBeDefined();
+		const decoded1 = JSON.parse(new TextDecoder().decode(backend.read("snap") as Uint8Array));
+		expect(decoded1.v).toBe(1);
+
+		tier.save({ name: "snap", v: 2 });
+		const decoded2 = JSON.parse(new TextDecoder().decode(backend.read("snap") as Uint8Array));
+		expect(decoded2.v).toBe(2);
+	});
+
+	it("appendLogStorage with debounceMs > 0 buffers entries until flush()", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ id: number }>(backend, {
+			name: "log",
+			debounceMs: 10_000,
+		});
+
+		tier.appendEntries([{ id: 1 }, { id: 2 }]);
+		tier.appendEntries([{ id: 3 }]);
+		expect(backend.read("log")).toBeUndefined();
+
+		await tier.flush?.();
+		const bytes = backend.read("log") as Uint8Array;
+		const decoded = JSON.parse(new TextDecoder().decode(bytes));
+		expect(decoded).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+	});
+
+	it("appendLogStorage rollback() discards buffered entries", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ id: number }>(backend, {
+			name: "log",
+			debounceMs: 10_000,
+		});
+
+		tier.appendEntries([{ id: 1 }, { id: 2 }]);
+		await tier.rollback?.();
+		await tier.flush?.();
+		expect(backend.read("log")).toBeUndefined();
+	});
+
+	it("appendLogStorage keyOf partitions entries across backend keys", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ topic: string; id: number }>(backend, {
+			keyOf: (e) => e.topic,
+		});
+
+		// Each `appendEntries` triggers an auto-flush (no debounceMs) that
+		// returns a Promise on the per-tier serialized write chain. Awaiting
+		// each in turn drains the chain — `tier.flush()` alone is not enough
+		// because it short-circuits when `pending` is already empty.
+		await Promise.resolve(tier.appendEntries([{ topic: "orders", id: 1 }]));
+		await Promise.resolve(tier.appendEntries([{ topic: "shipments", id: 10 }]));
+		await Promise.resolve(tier.appendEntries([{ topic: "orders", id: 2 }]));
+
+		const orders = JSON.parse(new TextDecoder().decode(backend.read("orders") as Uint8Array));
+		const shipments = JSON.parse(new TextDecoder().decode(backend.read("shipments") as Uint8Array));
+		expect(orders).toEqual([
+			{ topic: "orders", id: 1 },
+			{ topic: "orders", id: 2 },
+		]);
+		expect(shipments).toEqual([{ topic: "shipments", id: 10 }]);
+	});
+
+	it("multi-tier read: first-tier-wins via tier.load() — caller iterates in order", async () => {
+		const hot = memorySnapshot<{ name: string; value: number }>({ name: "snap" });
+		const cold = memorySnapshot<{ name: string; value: number }>({ name: "snap" });
+
+		// Only the cold tier has the record.
+		await cold.save({ name: "snap", value: 99 });
+
+		const tiers = [hot, cold];
+		// First-hit-wins read pattern (mirrors framework wiring per Audit 4).
+		let found: { name: string; value: number } | undefined;
+		for (const t of tiers) {
+			const v = await t.load?.();
+			if (v !== undefined) {
+				found = v;
+				break;
+			}
+		}
+		expect(found?.value).toBe(99);
+	});
+
+	it("userspace iteration over tiers: per-tier failures are isolated; healthy tiers still persist", async () => {
+		// This test exercises the **userspace** pattern documented in Audit 4
+		// for callers that fan a single write across multiple tiers — NOT the
+		// framework's wiring layer (which iterates tiers internally per
+		// primitive). It pins the documented "best-effort cross-tier
+		// atomicity" caveat: one tier failing does NOT prevent others from
+		// persisting, and the failure surfaces as an exception the caller can
+		// route to `options.onError` or equivalent.
+		const goodTier = memoryAppendLog<{ id: number }>({ name: "good" });
+		const failTier = {
+			name: "bad",
+			appendEntries: () => {
+				throw new Error("disk full");
+			},
+			flush: async () => {},
+			rollback: async () => {},
+		};
+
+		const tiers = [goodTier, failTier];
+		const errors: unknown[] = [];
+		for (const t of tiers) {
+			try {
+				const r = t.appendEntries([{ id: 1 }]);
+				if (r instanceof Promise) await r;
+			} catch (e) {
+				errors.push(e);
+			}
+		}
+
+		expect(errors.length).toBe(1);
+		await goodTier.flush?.();
+		const result = await goodTier.loadEntries?.();
+		expect(result?.entries).toEqual([{ id: 1 }]);
+	});
+
+	it("appendLogStorage compactEvery auto-flushes every N writes regardless of debounce", async () => {
+		const backend = memoryBackend();
+		const tier = appendLogStorage<{ id: number }>(backend, {
+			name: "log",
+			debounceMs: 10_000,
+			compactEvery: 2,
+		});
+
+		// Entry 1 — under compactEvery threshold; debounce is 10s so the
+		// backend stays untouched.
+		tier.appendEntries([{ id: 1 }]);
+		expect(backend.read("log")).toBeUndefined();
+
+		// Entry 2 — compactEvery hit → tier auto-flushes. Awaiting the
+		// `appendEntries` return drains the per-tier flush chain. **No
+		// explicit `tier.flush?.()`** — that would mask the auto-flush
+		// behavior under test.
+		await Promise.resolve(tier.appendEntries([{ id: 2 }]));
+
+		const bytes = backend.read("log") as Uint8Array;
+		expect(bytes).toBeDefined();
+		expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual([{ id: 1 }, { id: 2 }]);
 	});
 });

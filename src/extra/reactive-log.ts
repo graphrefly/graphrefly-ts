@@ -80,9 +80,17 @@ export type ReactiveLogBundle<T> = {
 	 * §5.12 SENTINEL alignment). Accessing this property activates the
 	 * companion lazily — same as calling {@link ReactiveLogBundle.withLatest}.
 	 *
-	 * **Caveat when `T` itself includes `undefined`:** `lastValue.cache` is
-	 * ambiguous (could mean "no entries yet" OR "an undefined value was
-	 * appended"). Use {@link ReactiveLogBundle.hasLatest} to disambiguate.
+	 * **Empty-log path emits `RESOLVED`, not `DATA(undefined)`.** When the log
+	 * holds no entries, `lastValue` settles via `[[RESOLVED]]` so the §1.2
+	 * "DATA(undefined) is not a valid emission" invariant stands.
+	 *
+	 * **Caveat when `T` itself includes `undefined`:** if a literal `undefined`
+	 * value is appended, `lastValue` emits `[[DATA, undefined]]` for that
+	 * append wave — the per-value semantics are intentionally preserved so
+	 * subscribers can observe the transition. Use
+	 * {@link ReactiveLogBundle.hasLatest} to disambiguate "no entries yet"
+	 * from "an undefined value was appended"; `lastValue.cache` alone cannot
+	 * tell them apart.
 	 */
 	readonly lastValue: Node<T | undefined>;
 	/** Reactive `true` once at least one entry has been appended. */
@@ -699,7 +707,10 @@ export function mergeReactiveLogs<T>(logs: readonly Node<readonly T[]>[]): Merge
 	});
 
 	const lastBuckets: T[][] = logs.map((_, i) => [...(seedSnapshots[i] ?? [])]);
-	const subs: Array<() => void> = [];
+	// Per-input subscription handles. `subs[idx] = undefined` after COMPLETE so
+	// dispose() iterates only live subscriptions and a stray DATA from an
+	// already-completed input is impossible (the sub is gone).
+	const subs: Array<(() => void) | undefined> = [];
 	for (let i = 0; i < logs.length; i++) {
 		const idx = i;
 		const sub = logs[idx]!.subscribe((msgs) => {
@@ -708,7 +719,15 @@ export function mergeReactiveLogs<T>(logs: readonly Node<readonly T[]>[]): Merge
 					lastBuckets[idx] = [...(m[1] as readonly T[])];
 					out.emit(lastBuckets.flat());
 				} else if (m[0] === COMPLETE) {
+					// Drop the input from the active set: clear its bucket AND
+					// release the subscription so any post-COMPLETE DATA from
+					// the (misbehaving) input cannot reach the merged stream.
 					lastBuckets[idx] = [];
+					const u = subs[idx];
+					if (u !== undefined) {
+						subs[idx] = undefined;
+						u();
+					}
 				} else if (m[0] === ERROR) {
 					out.down([[ERROR, m[1]]]);
 				}
@@ -724,7 +743,7 @@ export function mergeReactiveLogs<T>(logs: readonly Node<readonly T[]>[]): Merge
 		dispose() {
 			if (disposed) return;
 			disposed = true;
-			for (const u of subs) u();
+			for (const u of subs) u?.();
 			subs.length = 0;
 			keepDispose();
 			mergeMemo.delete(logs as unknown as readonly Node<readonly unknown[]>[]);

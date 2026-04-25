@@ -810,6 +810,19 @@ Non-blocking items tracked for later. **Keep this section identical in both repo
 - **`processManager` state-snapshot persistence (2026-04-25):**
   The `stateStorage` field was removed from `ProcessManagerOpts.persistence` (it was declared but never implemented). Implementation requires: snapshot tier wiring, debounce on every state transition, and restore-on-construction wiring (replay `instanceStates` from snapshot on factory call). Deferred until a concrete consumer needs cross-restart instance state recovery. `eventStorage` (already shipped) covers audit-log persistence; state map persistence adds resume-after-restart semantics.
 
+- **`processManager` lone `queueMicrotask` in timer cleanup (2026-04-25):**
+  [src/patterns/process/index.ts:563](../src/patterns/process/index.ts) calls
+  `queueMicrotask(() => timerUnsub?.())` as a TDZ guard around `fromTimer`'s
+  subscription cleanup. The comment marks the path as defensive — `fromTimer`
+  is async (setTimeout-backed) so the inner subscribe callback cannot fire
+  before the outer `subscribe()` returns, making the TDZ branch unreachable
+  in practice. Per spec §5.10 this is a soft violation of the "no bare
+  `queueMicrotask` / `setTimeout` / `process.nextTick` in the reactive
+  layer" rule — even unreachable. Two paths: (a) restructure subscribe to
+  capture cleanup synchronously and delete the dead branch, or (b) replace
+  with a state-mirror node that owns its disposal. Trivial cleanup; out of
+  Phase 8 scope, queued for a follow-up pass.
+
 - **Website API docs registry — Phase 4+ patterns missing (2026-04-25):**
   [website/scripts/gen-api-docs.mjs](../website/scripts/gen-api-docs.mjs) `REGISTRY` covers core, extra (operators, sources, resilience, storage), AI patterns, and graph internals — but does NOT include `cqrs`, `messaging`, `orchestration` (gate / classify / combine / catch / pipelineGraph), `job-queue`, or `process` (processManager). All these symbols have inline JSDoc as the source of truth, but `pnpm --filter @graphrefly/docs-site docs:gen` will not produce API pages for them until they're added to the registry. Estimated 30+ entries across the 5 pattern domains. Defer until the docs site is the canonical reference for users of these patterns; for now, JSDoc-in-IDE + the session doc + this `optimizations.md` are the working references.
 

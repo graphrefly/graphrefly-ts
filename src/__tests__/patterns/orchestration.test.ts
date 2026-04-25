@@ -395,4 +395,63 @@ describe("patterns.orchestration", () => {
 		g.add(input, { name: "input" });
 		expect(() => g.gate<number>("gated", "input", { maxPending: 0 })).toThrow(RangeError);
 	});
+
+	// ── Rollback-on-throw (Audit 2 / C.2 F) ──────────────────────────────
+
+	it("gate.modify throw rolls back in-band emissions; failure record persists", () => {
+		const g = pipelineGraph("wf");
+		const input = state<number>(0);
+		g.add(input, { name: "input" });
+		const ctrl = g.gate<number>("gated", "input");
+		const collected: number[] = [];
+		ctrl.node.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) collected.push(m[1] as number);
+		});
+
+		// Queue two items.
+		input.emit(1);
+		input.emit(2);
+
+		// modify throws on the first item — wrapMutation catches the throw
+		// inside batch (rolls back any in-band downstream emissions for that
+		// wave), then commits a failure audit record OUTSIDE the rolled-back
+		// transaction so the audit trail still captures the failed attempt.
+		expect(() =>
+			ctrl.modify(() => {
+				throw new TypeError("nope");
+			}, 1),
+		).toThrow(TypeError);
+
+		// No item was emitted to the output for the failed modify wave.
+		expect(collected).toEqual([]);
+
+		// Audit log captured a "drop" record with errorType.
+		const dec = ctrl.decisions.entries.cache as readonly { action: string; errorType?: string }[];
+		expect(dec.length).toBeGreaterThanOrEqual(1);
+		const last = dec[dec.length - 1]!;
+		expect(last.action).toBe("drop");
+		expect(last.errorType).toBe("TypeError");
+
+		// A subsequent successful approve still works — gate is not torn down.
+		ctrl.approve(1);
+		expect(collected.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("gate.modify success path commits a normal `modify` audit record", () => {
+		const g = pipelineGraph("wf");
+		const input = state<number>(0);
+		g.add(input, { name: "input" });
+		const ctrl = g.gate<number>("gated", "input");
+		input.emit(10);
+
+		ctrl.modify((v) => v * 2, 1);
+
+		const dec = ctrl.decisions.entries.cache as readonly {
+			action: string;
+			errorType?: string;
+		}[];
+		const last = dec[dec.length - 1]!;
+		expect(last.action).toBe("modify");
+		expect(last.errorType).toBeUndefined();
+	});
 });

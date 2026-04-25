@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GuardDenied } from "../../core/guard.js";
+import { mergeReactiveLogs } from "../../extra/reactive-log.js";
 import { memoryAppendLog } from "../../extra/storage-tiers.js";
 import {
 	OptimisticConcurrencyError,
@@ -653,6 +654,139 @@ describe("cqrs — roadmap §4.5", () => {
 		// Aggregate "a" version is reset (its dedicated stream + counter were dropped).
 		expect(app.aggregateVersion("e", "a")).toBe(0);
 		expect(app.aggregateVersion("e", "b")).toBe(1);
+		app.destroy();
+	});
+
+	// ── C.1 E — per-aggregate streams (fan-in) ────────────────────────
+
+	it("event(type) and event(type, aggregateId) point at distinct streams; per-aggregate isolates", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+
+		app.dispatch("place", { id: 1 }, { aggregateId: "a" });
+		app.dispatch("place", { id: 2 }, { aggregateId: "b" });
+		app.dispatch("place", { id: 3 }, { aggregateId: "a" });
+
+		// Type-level (fan-in) stream — all events for the type, in dispatch order.
+		const all = app.event("orderPlaced").cache as readonly CqrsEvent[];
+		expect(all.map((e) => e.aggregateId)).toEqual(["a", "b", "a"]);
+
+		// Per-aggregate streams isolate.
+		const aOnly = app.event("orderPlaced", "a").cache as readonly CqrsEvent[];
+		const bOnly = app.event("orderPlaced", "b").cache as readonly CqrsEvent[];
+		expect(aOnly).toHaveLength(2);
+		expect(bOnly).toHaveLength(1);
+		expect(aOnly.every((e) => e.aggregateId === "a")).toBe(true);
+		expect(bOnly[0]!.aggregateId).toBe("b");
+
+		// aggregateVersion is per-(type, aggregateId).
+		expect(app.aggregateVersion("orderPlaced", "a")).toBe(2);
+		expect(app.aggregateVersion("orderPlaced", "b")).toBe(1);
+
+		app.destroy();
+	});
+
+	it("mergeReactiveLogs over per-aggregate streams produces a stable fan-in stream", () => {
+		const app = cqrs("test");
+		app.event("orderPlaced");
+		app.command("place", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+
+		// Touch both aggregate streams so they exist.
+		app.dispatch("place", { id: 1 }, { aggregateId: "a" });
+		app.dispatch("place", { id: 2 }, { aggregateId: "b" });
+
+		const aLog = app.event("orderPlaced", "a");
+		const bLog = app.event("orderPlaced", "b");
+		const merged = mergeReactiveLogs([aLog, bLog]);
+		expect((merged.node.cache as readonly CqrsEvent[]).length).toBe(2);
+
+		// New emission to "a" propagates through the merged stream.
+		app.dispatch("place", { id: 3 }, { aggregateId: "a" });
+		const after = merged.node.cache as readonly CqrsEvent[];
+		expect(after.length).toBe(3);
+		// Per-aggregate ordering preserved within each input log; merge is
+		// concatenation order across input identities.
+		expect(after.map((e) => e.aggregateId)).toEqual(["a", "a", "b"]);
+
+		merged.dispose();
+		app.destroy();
+	});
+
+	// ── Audit 2 — saga errorPolicy + invocations audit ────────────────
+
+	it("saga errorPolicy='advance' (default) skips past failure; invocations log captures both records", () => {
+		const app = cqrs<{ orderPlaced: { id: number } }>("test");
+		app.command("placeOrder", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+		const seen: number[] = [];
+		const ctrl = app.saga<{ id: number }>("notifyShipping", ["orderPlaced"], (evt) => {
+			if ((evt.payload as { id: number }).id === 2) throw new Error("boom");
+			seen.push((evt.payload as { id: number }).id);
+		});
+
+		app.dispatch("placeOrder", { id: 1 });
+		app.dispatch("placeOrder", { id: 2 });
+		app.dispatch("placeOrder", { id: 3 });
+
+		// "advance" policy: failure is recorded but cursor moves past it, so
+		// id=3 is still processed.
+		expect(seen).toEqual([1, 3]);
+
+		const inv = ctrl.invocations.entries.cache as readonly {
+			status: string;
+			errorType?: string;
+		}[];
+		expect(inv.length).toBe(3);
+		expect(inv[0]!.status).toBe("success");
+		expect(inv[1]!.status).toBe("failed");
+		expect(inv[1]!.errorType).toBe("Error");
+		expect(inv[2]!.status).toBe("success");
+
+		app.destroy();
+	});
+
+	it("saga errorPolicy='hold' stops cursor at failure; later events are NOT processed until handler stops throwing", () => {
+		const app = cqrs<{ orderPlaced: { id: number } }>("test");
+		app.command("placeOrder", {
+			handler: (p, a) => a.emit("orderPlaced", p),
+			emits: ["orderPlaced"],
+		});
+		let throwOnId: number | null = 2;
+		const seen: number[] = [];
+		app.saga<{ id: number }>(
+			"notifyShipping",
+			["orderPlaced"],
+			(evt) => {
+				const id = (evt.payload as { id: number }).id;
+				if (id === throwOnId) throw new Error("hold");
+				seen.push(id);
+			},
+			{ errorPolicy: "hold" },
+		);
+
+		app.dispatch("placeOrder", { id: 1 });
+		app.dispatch("placeOrder", { id: 2 });
+		app.dispatch("placeOrder", { id: 3 });
+
+		// "hold" policy: cursor stops at the failing event; id=3 is NOT seen
+		// because the saga didn't advance past id=2.
+		expect(seen).toEqual([1]);
+
+		// Disable the throw and emit a fresh event — the saga retries from the
+		// held cursor and processes id=2 + id=3 + id=4 in order.
+		throwOnId = null;
+		app.dispatch("placeOrder", { id: 4 });
+		expect(seen).toEqual([1, 2, 3, 4]);
+
 		app.destroy();
 	});
 });

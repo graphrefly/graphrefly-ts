@@ -7,9 +7,12 @@
  *
  * ## Architecture
  *
- * - Per-instance state lives in a `Map<correlationId, TState>` closure (in-memory),
- *   optionally event-sourced via synthetic `_process_<name>_state` events that
- *   use `correlationId` as `aggregateId`.
+ * - Per-instance state lives in a `Map<correlationId, TState>` closure (in-memory).
+ *   The `_process_<name>_started` synthetic event is dispatched per `start()`
+ *   for an event-sourced audit trail using `correlationId` as `aggregateId`.
+ *   Future state-snapshot persistence (`_process_<name>_state`) is reserved
+ *   under the same `_process_<name>_*` namespace but not yet implemented;
+ *   see `docs/optimizations.md` "Deferred follow-ups".
  * - Watched-event subscriptions are imperative (coordinator role) — each
  *   watched CQRS event type is subscribed to via `entries.subscribe(...)`.
  *   These are NOT reactive node edges; the process manager is intentionally
@@ -362,8 +365,10 @@ async function runWithRetry<TState>(
  * ```
  *
  * @param cqrsGraph - The CQRS graph whose event streams the manager watches.
- * @param name - Stable identifier for this process type; used for synthetic
- *   event-type names (`_process_<name>_started`, `_process_<name>_state`).
+ * @param name - Stable identifier for this process type; used for the
+ *   synthetic event-type prefix `_process_<name>_*`. Currently emits
+ *   `_process_<name>_started` per `start()`; the prefix is reserved for
+ *   future `_state` / `_timer` channels.
  * @param opts - Configuration: initial state, watched events, steps, retry,
  *   compensation, and optional persistence.
  * @returns {@link ProcessManagerResult} with `instances` audit log and

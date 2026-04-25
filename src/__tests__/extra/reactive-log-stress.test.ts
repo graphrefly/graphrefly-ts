@@ -6,9 +6,15 @@
  * size/at getters, pluggable backend, version counter advance.
  */
 import { describe, expect, it } from "vitest";
-import { DATA, DIRTY } from "../../core/messages.js";
+import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
+import { state } from "../../core/sugar.js";
 import { combine } from "../../extra/operators.js";
-import { type LogBackend, NativeLogBackend, reactiveLog } from "../../extra/reactive-log.js";
+import {
+	type LogBackend,
+	mergeReactiveLogs,
+	NativeLogBackend,
+	reactiveLog,
+} from "../../extra/reactive-log.js";
 import { collect } from "../test-helpers.js";
 
 describe("reactiveLog stress tests", () => {
@@ -467,5 +473,277 @@ describe("reactiveLog with user-provided backend", () => {
 		expect(backend.appendManyCount).toBe(1);
 		expect(lg.size).toBe(5);
 		expect(lg.entries.cache).toEqual([1, 2, 3, 4, 5]);
+	});
+});
+
+// ── Audit 1 — lifecycle composition ────────────────────────────────────
+
+describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
+	it("withLatest() lazy-activates lastValue and hasLatest companions", () => {
+		const lg = reactiveLog<number>();
+		// Empty log → SENTINEL alignment: lastValue caches `undefined`,
+		// hasLatest caches `false`.
+		const lv = lg.lastValue;
+		const has = lg.hasLatest;
+		expect(lv.cache).toBeUndefined();
+		expect(has.cache).toBe(false);
+
+		// Returning entries from withLatest() is the documented chaining shape.
+		const entries = lg.withLatest();
+		expect(entries).toBe(lg.entries);
+
+		lg.append(7);
+		expect(lv.cache).toBe(7);
+		expect(has.cache).toBe(true);
+
+		lg.append(11);
+		expect(lv.cache).toBe(11);
+	});
+
+	it("lastValue never emits DATA(undefined) — clear() routes through RESOLVED", () => {
+		const lg = reactiveLog<number>();
+		// Seed values BEFORE subscribing so the initial subscribe captures the
+		// last-value DATA, then clear() is the specific transition under test.
+		lg.append(1);
+		lg.append(2);
+
+		const { messages, unsub } = collect(lg.lastValue, { flat: true });
+		// Initial subscribe captures DATA(2) (the cached lastValue).
+		const beforeClearLen = messages.length;
+		expect(messages.some((m) => m[0] === DATA && m[1] === 2)).toBe(true);
+
+		lg.clear();
+		// The clear() wave specifically must route through RESOLVED — no
+		// DATA(undefined) anywhere in the post-clear segment.
+		const afterClear = messages.slice(beforeClearLen);
+		expect(afterClear.some((m) => m[0] === RESOLVED)).toBe(true);
+		expect(afterClear.some((m) => m[0] === DATA && m[1] === undefined)).toBe(false);
+
+		// Re-append produces DATA(3) cleanly after the empty interval.
+		lg.append(3);
+		expect(messages.some((m) => m[0] === DATA && m[1] === 3)).toBe(true);
+		// Whole-stream invariant — no DATA(undefined) ever (spec §1.2).
+		expect(messages.some((m) => m[0] === DATA && m[1] === undefined)).toBe(false);
+		unsub();
+	});
+
+	it("hasLatest disambiguates `T | undefined` payloads from empty-log SENTINEL", () => {
+		const lg = reactiveLog<number | undefined>();
+		expect(lg.hasLatest.cache).toBe(false);
+
+		// Appending an actual `undefined` value flips hasLatest even though
+		// lastValue.cache stays `undefined` — same caveat as TopicGraph.
+		lg.append(undefined);
+		expect(lg.lastValue.cache).toBeUndefined();
+		expect(lg.hasLatest.cache).toBe(true);
+	});
+
+	it("attach(upstream) drains DATA into the log and disposer detaches", () => {
+		const lg = reactiveLog<number>();
+		const src = state<number>(0);
+		const detach = lg.attach(src);
+
+		// On subscribe, push-on-subscribe replays `state(0)`'s cached `0` —
+		// the attach handler treats that DATA the same as any post-subscribe
+		// emission, so the initial cached value lands in the log.
+		expect(lg.entries.cache).toEqual([0]);
+		src.emit(1);
+		src.emit(2);
+		expect(lg.entries.cache).toEqual([0, 1, 2]);
+
+		detach();
+		src.emit(3);
+		// After detach: subsequent emissions are NOT forwarded.
+		expect(lg.entries.cache).toEqual([0, 1, 2]);
+	});
+
+	it("disposeAllViews releases tail/slice/fromCursor view caches", () => {
+		const lg = reactiveLog<number>([1, 2, 3, 4, 5]);
+		const cursor = state<number>(0);
+
+		const t = lg.view({ kind: "tail", n: 2 });
+		const s = lg.view({ kind: "slice", start: 1 });
+		const c = lg.view({ kind: "fromCursor", cursor });
+
+		// Pre-dispose: same calls return the memoized nodes.
+		expect(lg.view({ kind: "tail", n: 2 })).toBe(t);
+		expect(lg.view({ kind: "slice", start: 1 })).toBe(s);
+		expect(lg.view({ kind: "fromCursor", cursor })).toBe(c);
+
+		lg.disposeAllViews();
+
+		// Post-dispose: view caches are cleared, so identical specs return
+		// fresh nodes (not the previously memoized ones).
+		expect(lg.view({ kind: "tail", n: 2 })).not.toBe(t);
+		expect(lg.view({ kind: "slice", start: 1 })).not.toBe(s);
+		expect(lg.view({ kind: "fromCursor", cursor })).not.toBe(c);
+	});
+
+	it("view + attach + withLatest co-activate without dropping initial state", () => {
+		const lg = reactiveLog<number>([10, 20, 30]);
+		const tail = lg.view({ kind: "tail", n: 2 });
+		const lastValue = lg.lastValue;
+		const upstream = state<number>(40);
+		const detach = lg.attach(upstream);
+
+		expect(lg.entries.cache).toEqual([10, 20, 30, 40]);
+		expect(tail.cache).toEqual([30, 40]);
+		expect(lastValue.cache).toBe(40);
+
+		upstream.emit(50);
+		expect(tail.cache).toEqual([40, 50]);
+		expect(lastValue.cache).toBe(50);
+
+		detach();
+	});
+});
+
+// ── LogBackend snapshot/restore ────────────────────────────────────────
+
+describe("LogBackend.snapshot / restore (Audit 1)", () => {
+	it("NativeLogBackend.snapshot() round-trips through restore()", () => {
+		const a = new NativeLogBackend<number>([1, 2, 3]);
+		const snap = a.snapshot();
+
+		const b = new NativeLogBackend<number>();
+		expect(b.size).toBe(0);
+		b.restore(snap);
+		expect(b.toArray()).toEqual([1, 2, 3]);
+		expect(b.size).toBe(3);
+	});
+
+	it("snapshot() returns the same shape as toArray()", () => {
+		const a = new NativeLogBackend<number>([1, 2, 3]);
+		expect(a.snapshot()).toEqual(a.toArray());
+	});
+
+	it("restore() resets backend state; subsequent append flushes the merged shape via entries", () => {
+		// Direct backend access via the user-provided backend escape hatch.
+		const backend = new NativeLogBackend<number>();
+		const lg = reactiveLog<number>(undefined, { backend });
+
+		// Subscribe to the SAME log we'll restore into; capture only emissions
+		// that flow after restore + append.
+		const { messages, unsub } = collect(lg.entries, { flat: true });
+		const beforeRestoreLen = messages.length;
+
+		backend.restore([1, 2, 3]);
+		// `restore` mutates the backend directly; the entries node only flushes
+		// on the next mutation that runs through `wrapMutation`. Append one
+		// element to trigger the snapshot push.
+		lg.append(4);
+
+		expect(lg.entries.cache).toEqual([1, 2, 3, 4]);
+		const afterRestore = messages.slice(beforeRestoreLen);
+		// The post-restore append produced a DATA wave carrying the merged
+		// snapshot through `entries`.
+		const lastData = afterRestore.filter((m) => m[0] === DATA).at(-1);
+		expect(lastData?.[1]).toEqual([1, 2, 3, 4]);
+
+		unsub();
+	});
+});
+
+// ── mergeReactiveLogs lifecycle ────────────────────────────────────────
+
+describe("mergeReactiveLogs (Audit 1)", () => {
+	it("flatlines initial snapshots from each input log", () => {
+		const a = reactiveLog<string>(["a1", "a2"]);
+		const b = reactiveLog<string>(["b1"]);
+		const merged = mergeReactiveLogs([a.entries, b.entries]);
+		expect(merged.node.cache).toEqual(["a1", "a2", "b1"]);
+		merged.dispose();
+	});
+
+	it("memoized by reference identity on the logs array", () => {
+		const a = reactiveLog<number>([1]);
+		const b = reactiveLog<number>([2]);
+		const arr = [a.entries, b.entries] as const;
+		const m1 = mergeReactiveLogs(arr);
+		const m2 = mergeReactiveLogs(arr);
+		expect(m1).toBe(m2);
+		m1.dispose();
+	});
+
+	it("appends from any input log fan into the merged stream", () => {
+		const a = reactiveLog<number>();
+		const b = reactiveLog<number>();
+		const merged = mergeReactiveLogs([a.entries, b.entries]);
+		expect(merged.node.cache).toEqual([]);
+
+		a.append(1);
+		expect(merged.node.cache).toEqual([1]);
+		b.append(2);
+		expect(merged.node.cache).toEqual([1, 2]);
+		a.append(3);
+		expect(merged.node.cache).toEqual([1, 3, 2]);
+
+		merged.dispose();
+	});
+
+	it("dispose() releases subscriptions; further input changes are ignored", () => {
+		const a = reactiveLog<number>();
+		const b = reactiveLog<number>();
+		const merged = mergeReactiveLogs([a.entries, b.entries]);
+
+		a.append(1);
+		expect(merged.node.cache).toEqual([1]);
+
+		merged.dispose();
+
+		// After dispose, further input changes don't flow into the merge.
+		a.append(2);
+		b.append(3);
+		expect(merged.node.cache).toEqual([1]);
+	});
+
+	it("ERROR on an input log propagates through the merge", () => {
+		const a = reactiveLog<number>();
+		const b = reactiveLog<number>();
+		const merged = mergeReactiveLogs([a.entries, b.entries]);
+		const flat = collect(merged.node, { flat: true });
+
+		// Drive a known DATA through `a` first so we can verify normal flow
+		// happens BEFORE the ERROR — otherwise the test passes vacuously when
+		// the merge wiring never connected.
+		a.append(1);
+		expect(flat.messages.some((m) => m[0] === DATA && Array.isArray(m[1]))).toBe(true);
+		const preErrorCount = flat.messages.length;
+
+		// `Node.down` is public API (core/node.ts §3.5). Driving ERROR through
+		// the underlying entries node simulates an upstream failure;
+		// reactiveLog's append-side surface has no ERROR channel by design.
+		a.entries.down([[ERROR, new Error("boom")]]);
+
+		const afterError = flat.messages.slice(preErrorCount);
+		expect(afterError.some((m) => m[0] === ERROR)).toBe(true);
+		flat.unsub();
+		merged.dispose();
+	});
+
+	it("COMPLETE on one input drops it from active set; subsequent DATA from completed input is ignored", () => {
+		const a = reactiveLog<number>([1, 2]);
+		const b = reactiveLog<number>([10]);
+		const merged = mergeReactiveLogs([a.entries, b.entries]);
+
+		expect(merged.node.cache).toEqual([1, 2, 10]);
+
+		// Mark `a` complete via the entries node's protocol channel
+		// (`Node.down` is public). Per the impl, this releases `a`'s
+		// subscription so even a stray DATA from `a` wouldn't reach the merge.
+		a.entries.down([[COMPLETE]]);
+
+		// Append to `a` post-COMPLETE — this is misbehaving (well-behaved
+		// nodes don't emit after COMPLETE), but the merge is robust: the
+		// subscription is gone so the value never reaches `merged.node`.
+		a.append(99);
+		expect(merged.node.cache).toEqual([1, 2, 10]);
+
+		// Append to `b` still flows through the merge with exact placement —
+		// `a`'s last bucket is cleared to [], so output = [] ++ [10, 11].
+		b.append(11);
+		expect(merged.node.cache).toEqual([10, 11]);
+
+		merged.dispose();
 	});
 });

@@ -44,6 +44,15 @@ describe("graphrefly", () => {
 		expect(typeof patterns.orchestration.decisionKeyOf).toBe("function");
 	});
 
+	it("exports cqrs patterns namespace with keyOf helpers", () => {
+		expect(typeof patterns.cqrs).toBe("object");
+		expect(typeof patterns.cqrs.cqrs).toBe("function");
+		expect(typeof patterns.cqrs.CqrsGraph).toBe("function");
+		expect(typeof patterns.cqrs.cqrsEventKeyOf).toBe("function");
+		expect(typeof patterns.cqrs.dispatchKeyOf).toBe("function");
+		expect(typeof patterns.cqrs.sagaInvocationKeyOf).toBe("function");
+	});
+
 	it("exports memory patterns namespace", () => {
 		expect(typeof patterns.memory).toBe("object");
 		expect(typeof patterns.memory.collection).toBe("function");
@@ -64,11 +73,13 @@ describe("graphrefly", () => {
 		expect(typeof patterns.jobQueue).toBe("object");
 		expect(typeof patterns.jobQueue.jobQueue).toBe("function");
 		expect(typeof patterns.jobQueue.jobFlow).toBe("function");
+		expect(typeof patterns.jobQueue.jobEventKeyOf).toBe("function");
 	});
 
 	it("exports process patterns namespace", () => {
 		expect(typeof patterns.process).toBe("object");
 		expect(typeof patterns.process.processManager).toBe("function");
+		expect(typeof patterns.process.processInstanceKeyOf).toBe("function");
 	});
 
 	it("exports core sugar helpers", () => {
@@ -77,6 +88,23 @@ describe("graphrefly", () => {
 		expect(typeof core.derived).toBe("function");
 		expect(typeof core.effect).toBe("function");
 		expect(typeof core.pipe).toBe("function");
+	});
+
+	it("exports reactive-log helpers from extra (Audit 1)", () => {
+		expect(typeof extra.reactiveLog).toBe("function");
+		expect(typeof extra.mergeReactiveLogs).toBe("function");
+		expect(typeof extra.NativeLogBackend).toBe("function");
+	});
+
+	it("exports storage three-layer surface from extra (Audit 4)", () => {
+		expect(typeof extra.memoryBackend).toBe("function");
+		expect(typeof extra.snapshotStorage).toBe("function");
+		expect(typeof extra.appendLogStorage).toBe("function");
+		expect(typeof extra.kvStorage).toBe("function");
+		expect(typeof extra.memorySnapshot).toBe("function");
+		expect(typeof extra.memoryAppendLog).toBe("function");
+		expect(typeof extra.memoryKv).toBe("function");
+		expect(typeof extra.jsonCodec).toBe("object");
 	});
 
 	it("RxJS alias identity", () => {

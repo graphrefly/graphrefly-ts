@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA } from "../../core/messages.js";
+import { memoryAppendLog } from "../../extra/storage-tiers.js";
+import type { CqrsEvent } from "../../patterns/cqrs/index.js";
 import { cqrs } from "../../patterns/cqrs/index.js";
 import {
 	type ProcessInstance,
@@ -898,7 +900,44 @@ describe("processManager", () => {
 		});
 	});
 
-	// ── 11. handlerVersion stamping ───────────────────────────────────────────
+	// ── 11. persistence — eventStorage wiring (Audit 3 + Audit 4) ──────────
+
+	describe("persistence", () => {
+		it("eventStorage tiers persist `_process_<name>_started` events for each start()", async () => {
+			const app = cqrs("workflow");
+			const tier = memoryAppendLog<CqrsEvent>({ name: "process-events" });
+
+			const pm = processManager(app, "persisted", {
+				initial: { step: 0 },
+				watching: [],
+				steps: {},
+				persistence: { eventStorage: [tier] },
+			});
+
+			pm.start("corr-1");
+			pm.start("corr-2");
+			await flushPromises();
+			await tier.flush?.();
+
+			const result = await tier.loadEntries?.();
+			const startedType = "_process_persisted_started";
+			const started = (result?.entries ?? []).filter((e) => e.type === startedType);
+
+			// Pins the auto-wired `cqrs.attachEventStorage(eventStorage)`
+			// plumbing — every `start()` produces at least one persisted
+			// started-event. The impl wires storage to BOTH the fan-in event
+			// stream and the per-aggregate streams (per Audit 4), so the same
+			// event may be persisted under multiple backend keys; what we
+			// assert is the correlationId set is round-tripped end-to-end.
+			expect(started.length).toBeGreaterThanOrEqual(2);
+			const correlationIds = new Set(started.map((e) => e.aggregateId));
+			expect(correlationIds).toEqual(new Set(["corr-1", "corr-2"]));
+
+			app.destroy();
+		});
+	});
+
+	// ── 12. handlerVersion stamping ───────────────────────────────────────────
 
 	describe("handlerVersion", () => {
 		it("handlerVersion is stamped onto audit records", async () => {
