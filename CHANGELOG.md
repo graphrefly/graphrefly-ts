@@ -1,3 +1,11 @@
+# [0.34.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.33.0...v0.34.0) (2026-04-25)
+
+
+### Features
+
+* fix agentMemory ([35157f5](https://github.com/graphrefly/graphrefly-ts/commit/35157f513f20174de189e6b3f13737ea1d57c8d7))
+* more harness items ([edd8ca7](https://github.com/graphrefly/graphrefly-ts/commit/edd8ca7de7b7a4c15e6cbf1535fd974ca3363bdb))
+
 # [0.33.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.32.0...v0.33.0) (2026-04-25)
 
 
