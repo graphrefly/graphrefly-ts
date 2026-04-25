@@ -1,3 +1,10 @@
+# [0.36.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.35.0...v0.36.0) (2026-04-25)
+
+
+### Features
+
+* phase 8 ([c7c9f71](https://github.com/graphrefly/graphrefly-ts/commit/c7c9f711bf27bad13c8fad0d64316ce1b1065401))
+
 # [0.35.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.34.0...v0.35.0) (2026-04-25)
 
 
