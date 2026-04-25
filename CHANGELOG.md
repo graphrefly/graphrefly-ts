@@ -1,3 +1,12 @@
+# [0.33.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.32.0...v0.33.0) (2026-04-25)
+
+
+### Features
+
+* fix from invariants check ([17b76bb](https://github.com/graphrefly/graphrefly-ts/commit/17b76bbfe2ac461b0dd34064da3004324afbabf2))
+* wave B implementation ([654622b](https://github.com/graphrefly/graphrefly-ts/commit/654622b79448fac57e41c650d8fa4507b78d2c1e))
+* wave B implementation 2 ([5dffd5b](https://github.com/graphrefly/graphrefly-ts/commit/5dffd5b91f4e673440e0d2a1353aca60a5aae0d3))
+
 # [0.32.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.31.0...v0.32.0) (2026-04-24)
 
 
