@@ -1,3 +1,12 @@
+# [0.35.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.34.0...v0.35.0) (2026-04-25)
+
+
+### Features
+
+* optimization pass ([1c532bf](https://github.com/graphrefly/graphrefly-ts/commit/1c532bf88a26998a2354ee45822158a6434fe7d0))
+* orchestration phase 0-6 ([b5843b7](https://github.com/graphrefly/graphrefly-ts/commit/b5843b7808fc2d6254dc01c578fbc9b0929261cd))
+* orchestration phase 7 ([0a1968f](https://github.com/graphrefly/graphrefly-ts/commit/0a1968f81bac7464c64a6cc06cf6a55db4cf7368))
+
 # [0.34.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.33.0...v0.34.0) (2026-04-25)
 
 
