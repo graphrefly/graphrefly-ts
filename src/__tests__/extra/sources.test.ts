@@ -11,6 +11,7 @@ import { valve } from "../../extra/operators.js";
 import {
 	awaitSettled,
 	cached,
+	defer,
 	empty,
 	firstValueFrom,
 	firstWhere,
@@ -812,6 +813,91 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		const { batches, unsub } = collect(g);
 		expect(batches.flat().some((m) => m[0] === RESOLVED)).toBe(true);
 		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 42)).toBe(false);
+		unsub();
+	});
+
+	// ——————————————————————————————————————————————————————————————
+	//  defer
+	// ——————————————————————————————————————————————————————————————
+
+	it("defer runs thunk on activation and forwards iterable values", () => {
+		let calls = 0;
+		const g = defer<number>(() => {
+			calls++;
+			return [1, 2, 3];
+		});
+		expect(calls).toBe(0); // lazy: not called until subscribe
+		const { batches, unsub } = collect(g);
+		const data = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(data).toEqual([1, 2, 3]);
+		expect(calls).toBe(1);
+		expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+		unsub();
+	});
+
+	it("defer thunk re-runs on each new activation (per-subscribe)", () => {
+		let calls = 0;
+		const g = defer<number>(() => {
+			calls++;
+			return [calls];
+		});
+		const a = collect(g);
+		a.unsub();
+		const b = collect(g);
+		const aData = a.batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		const bData = b.batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(aData).toEqual([1]);
+		expect(bData).toEqual([2]);
+		b.unsub();
+	});
+
+	it("defer surfaces thunk throws as ERROR", () => {
+		const g = defer<number>(() => {
+			throw new Error("boom");
+		});
+		const { batches, unsub } = collect(g);
+		const errs = batches.flat().filter((m) => m[0] === ERROR);
+		expect(errs.length).toBe(1);
+		expect((errs[0]![1] as Error).message).toBe("boom");
+		unsub();
+	});
+
+	it("defer wraps undefined thunk-throw to satisfy spec §1.3 non-undefined ERROR payload", () => {
+		const g = defer<number>(() => {
+			throw undefined;
+		});
+		const { batches, unsub } = collect(g);
+		const errs = batches.flat().filter((m) => m[0] === ERROR);
+		expect(errs.length).toBe(1);
+		expect(errs[0]![1]).toBeInstanceOf(Error);
+		expect((errs[0]![1] as Error).message).toMatch(/threw undefined/);
+		unsub();
+	});
+
+	it("defer bridges a Promise input via fromAny", async () => {
+		const g = defer<number>(() => Promise.resolve(99));
+		const v = await firstValueFrom(g);
+		expect(v).toBe(99);
+	});
+
+	it("defer accepts a Node input and forwards DATA", () => {
+		const upstream = state(7);
+		const g = defer<number>(() => upstream);
+		const { batches, unsub } = collect(g);
+		const data = batches
+			.flat()
+			.filter((m) => m[0] === DATA)
+			.map((m) => m[1]);
+		expect(data).toContain(7);
 		unsub();
 	});
 });

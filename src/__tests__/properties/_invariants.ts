@@ -768,6 +768,93 @@ const invariant12NestedDrain: Invariant = {
 };
 
 /**
+ * #12b — Nested-drain peer-read consistency under COMPOUND topology
+ * (switchMap upstream).
+ *
+ * Mirrors invariant #12 but with the agentLoop §32 shape: the upstream
+ * dep is a `switchMap` output (not a plain `state`). switchMap re-subscribes
+ * its inner per outer DATA; the inner pushes its cached value via
+ * `forwardInner` → `a.emit(...)` on the switchMap output. This is the
+ * "compound topology" shape the optimizations.md note flagged as the case
+ * the simple-topology #12 invariant doesn't model.
+ *
+ * **Verifies the same _dirtyDepCount gating works under switchMap.** When
+ * the switchMap output emits via `a.emit`, `_emit` synthesizes a DIRTY
+ * before the DATA. Both sinks (sibling effect + terminal derived) get
+ * marked DIRTY in Phase 1. In Phase 2, sibling fires first; its nested
+ * batch emits to `status` which then drains and tries to fire terminal's
+ * fn — but terminal's switchMap-output dep is still DIRTY (Phase 2 for
+ * loop hasn't reached it), so `_dirtyDepCount > 0` blocks the fn run.
+ * Terminal fires only after Phase 2 visits its switchMap-output dep.
+ *
+ * Topology: `trigger = state(0)`, `inner_n = state(...)` per trigger value,
+ * `compound = switchMap(trigger, n => inner_n)`, `status = state("thinking")`,
+ * `sibling = effect([compound], …)` that nests `batch(() => status.emit("done"))`,
+ * `terminal = derived([compound, status], …)`.
+ */
+const invariant12bNestedDrainCompound: Invariant = {
+	name: "nested-drain-peer-consistency-compound",
+	description:
+		"Compound-topology mirror of #12. derived([switchMap(...), status]) must never observe [oldCompound, newStatus] when a sibling sink of switchMap output enters batch(() => status.emit(newStatus)) inside its callback. Verifies _dirtyDepCount gating holds when the upstream is a switchMap output rather than a plain state.",
+	specRef: "GRAPHREFLY-SPEC §1.3 invariant 2 + COMPOSITION-GUIDE §32",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 100, max: 199 }), // newInner — value the new switchMap inner emits
+			(newInner) => {
+				const trigger = state(0);
+				const inner0 = state(0);
+				const inner1 = state(newInner);
+				// switchMap with equals: () => false — matches agentLoop's shape.
+				const compound = switchMap<number, number>(trigger, (n) => (n === 0 ? inner0 : inner1));
+				const status = state<"thinking" | "done">("thinking");
+
+				// Sibling sink of compound: when a non-zero value arrives,
+				// transition status to "done" inside a nested batch.
+				const sibling = effect([compound], ([v]) => {
+					if ((v as number) !== 0) {
+						batch(() => status.emit("done"));
+					}
+				});
+
+				const terminal = derived(
+					[compound, status],
+					([cv, st]) => [cv as number, st as string] as const,
+				);
+
+				const seen: (readonly [number, string])[] = [];
+				const uSibling = sibling.subscribe(() => {});
+				const uTerminal = terminal.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] === DATA) seen.push(m[1] as readonly [number, string]);
+					}
+				});
+
+				// Drive: trigger=1 → switchMap dispatches new inner → compound
+				// emits newInner. Sibling fires first (subscribe order); nested
+				// batch transitions status to "done"; terminal must NOT observe
+				// [0, "done"] (stale compound + new status).
+				trigger.emit(1);
+
+				const finalCache = terminal.cache as readonly [number, string] | undefined;
+				uTerminal();
+				uSibling();
+
+				// The bug shape: terminal observes [oldCompound, "done"] —
+				// compound dep prevData stale during nested-drain status update.
+				// Acceptable: any tuple where compound=newInner OR status=="thinking"
+				// (status update gated by _dirtyDepCount until compound dep settles).
+				for (const [cv, st] of seen) {
+					if (st === "done" && cv !== newInner) return false;
+				}
+				// Final cache must reflect both latest values.
+				if (finalCache === undefined) return false;
+				if (finalCache[0] !== newInner || finalCache[1] !== "done") return false;
+				return true;
+			},
+		),
+};
+
+/**
  * #13 — bufferAll replay ordering. In `pausable: "resumeAll"` mode, outgoing
  * tier-3 settlements emitted during a pause window are captured into the
  * node's bufferAll buffer; on final-lock RESUME the buffer drains to
@@ -3535,6 +3622,7 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant10MultiDepInitial,
 	invariant11PauseMultiPauser,
 	invariant12NestedDrain,
+	invariant12bNestedDrainCompound,
 	invariant13BufferAllReplay,
 	invariant14ResubscribePause,
 	invariant15MultiSinkConverge,

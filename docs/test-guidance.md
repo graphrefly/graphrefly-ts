@@ -395,6 +395,10 @@ _wait_for_result(handle.gate.count, predicate=lambda v: v >= 1)
 
 The `_wait_for_result` helper handles push-on-subscribe correctly — if the value is already cached when `subscribe()` fires, it returns immediately without blocking.
 
+### Symmetry — tool handlers also opt into the async / signal-aware shape
+
+The same async-end-to-end principle applies to `ToolDefinition.handler`. Real handlers that own I/O (`fetch`, child processes, DB queries) should opt into the `(args, opts?: { signal?: AbortSignal })` shape so `switchMap`-supersede inside the agent loop actually cancels in-flight work — sync handlers in tests mask the cancellation chain the same way sync `adapter.stream` mocks mask the streaming chain. See [§ Tool handlers should thread `signal`](#tool-handlers-should-thread-signal) below.
+
 ---
 
 ## Tool handlers should thread `signal`

@@ -283,7 +283,13 @@ export class AgentLoopGraph extends Graph {
 			{
 				name: "promptInput",
 				describeKind: "derived",
-				meta: aiMeta("agent_prompt_input"),
+				meta: aiMeta("agent_prompt_input", {
+					// COMPOSITION-GUIDE §28 closure-mirror reads. These are NOT
+					// reactive deps (statusNode is the only one); listed here so
+					// inspection tooling can surface "what other state samples
+					// fold into this node's fn body" without grepping source.
+					closureReads: ["aborted", "turn", "chat.messages", "tools.schemas"],
+				}),
 			},
 		);
 
@@ -316,26 +322,36 @@ export class AgentLoopGraph extends Graph {
 			{ equals: () => false },
 		);
 
-		// State mirror for `lastResponse` (COMPOSITION-GUIDE §7 fix).
-		// Consumer-facing surface AND terminalResult's dep.
+		// State mirror for `lastResponse` — exists for **cross-run reset
+		// semantics**, NOT the §32 mid-wave hazard.
 		//
-		// Why: `llmResponse` is a switchMap output. When its inner emits DATA,
-		// the wave propagates to sinks IN ORDER. `effResponse` (subscribed
-		// first via keepalive) runs `batch(() => statusNode.emit("done"))`
-		// inside its fn. That batch DRAINS SYNCHRONOUSLY (nested, depth goes
-		// 0→1→0). During drain, status=done wave fires `_terminalResult`'s
-		// dep on status. But `_terminalResult`'s dep on `llmResponse` hasn't
-		// fired yet (sink 4 still pending on the outer wave). So
-		// `prevData[llmResponse]` holds the PREVIOUS response (e.g.
-		// `toolCallResp`), not the one just emitted (`finalResp`).
-		// terminalResult emits the stale response, awaitSettled resolves
-		// wrong. Feedback-cycle-adjacent (COMPOSITION-GUIDE §7) — a sink
-		// drain inside an outer sink callback sees stale peer state.
+		// Why: `llmResponse` is a switchMap output; its cache persists across
+		// `run()` calls (switchMap's output node has no built-in reset path —
+		// the cache stays at the last DATA the inner emitted). A second
+		// `run()` with a pre-aborted signal would otherwise have
+		// `_terminalResult` evaluate `stat=done` (driven by `effAbort`) +
+		// `resp=<prior run's response>` (cached on `llmResponse`) and resolve
+		// the Promise with stale data instead of rejecting with AbortError.
+		// The mirror is reset to `null` in `run()`'s reset batch, so the abort
+		// path correctly emits `[[ERROR, AbortError]]` from terminalResult's
+		// `stat="done" && resp==null → ERROR` guard.
 		//
-		// Fix: `effResponse` writes the mirror BEFORE emitting status.
-		// Emission order in the batch ensures the mirror drain runs first,
-		// so `_terminalResult`'s dep on the mirror is current by the time
-		// the status=done wave propagates.
+		// What this does NOT solve: the §32 mid-wave "stale peer-read"
+		// hazard. Investigation (2026-04-25) confirmed `_dirtyDepCount`
+		// gating in `_maybeRunFnOnSettlement` already prevents that — when
+		// `effResponse`'s nested batch fires `status="done"` mid-iteration,
+		// terminal's status dep settles but its `llmResponse` (or mirror)
+		// dep is still DIRTY from Phase 1, so the fn does not run until
+		// Phase 2 visits both deps. Verified by fast-check invariant `#12b
+		// nested-drain-peer-consistency-compound` and by the multi-turn
+		// `executes tool calls and loops` test passing under either dep
+		// shape (`[statusNode, llmResponse]` or `[statusNode, lastResponseState]`).
+		//
+		// Verified by: QA C3 regression tests (`run() with pre-aborted
+		// signal rejects AbortError` and `second run() with pre-aborted
+		// signal rejects AbortError (no stale response leak)`) — both
+		// fail when `_terminalResult` is rewired to depend on `llmResponse`
+		// directly. See COMPOSITION-GUIDE §32 (cross-wave reset reframe).
 		const lastResponseState = state<LLMResponse | null>(null, {
 			name: "lastResponse",
 			describeKind: "state",
