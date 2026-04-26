@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ACTOR } from "../../core/actor.js";
 import { batch } from "../../core/batch.js";
 import { GuardDenied, policy } from "../../core/guard.js";
-import { DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
+import { COMPLETE, DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
 import {
@@ -1001,6 +1001,164 @@ describe("Graph guard (Phase 1.5)", () => {
 		expect(() => g.observe("secret", { actor: llm })).toThrow(GuardDenied);
 		const sub = g.observe("secret", { actor: human }).subscribe(() => {});
 		sub();
+	});
+
+	// Unit 6 / B.1: GraphDescribeOptions.actor accepts Actor | Node<Actor>.
+	it("describe({ actor: Node<Actor> }) static — unwraps current cache", () => {
+		const g = new Graph("g");
+		const secret = state(0, {
+			name: "secret",
+			guard: policy((allow, deny) => {
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add(secret, { name: "secret" });
+
+		const actorNode = state(human, { name: "actor" });
+		actorNode.subscribe(() => undefined);
+
+		expect(g.describe({ actor: actorNode }).nodes.secret).toBeDefined();
+		actorNode.emit(llm);
+		expect(g.describe({ actor: actorNode }).nodes.secret).toBeUndefined();
+	});
+
+	it("describe({ reactive: true, actor: Node<Actor> }) re-derives when actor changes", () => {
+		const g = new Graph("g");
+		const secret = state(0, {
+			name: "secret",
+			guard: policy((allow, deny) => {
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add(secret, { name: "secret" });
+
+		const actorNode = state(human, { name: "actor" });
+		actorNode.subscribe(() => undefined);
+
+		const handle = g.describe({ reactive: true, actor: actorNode });
+		const unsub = handle.node.subscribe(() => undefined);
+
+		// human can observe — secret visible.
+		expect((handle.node.cache as { nodes: Record<string, unknown> }).nodes.secret).toBeDefined();
+
+		// Switch actor; describe re-derives and the secret disappears.
+		actorNode.emit(llm);
+		expect((handle.node.cache as { nodes: Record<string, unknown> }).nodes.secret).toBeUndefined();
+
+		// Back to human — visible again.
+		actorNode.emit(human);
+		expect((handle.node.cache as { nodes: Record<string, unknown> }).nodes.secret).toBeDefined();
+
+		unsub();
+		handle.dispose();
+	});
+
+	it("describe({ reactive: true, actor: Node<Actor> }) reflects mixed actor + topology change in final state", () => {
+		const g = new Graph("g");
+		const secret = state(0, {
+			name: "secret",
+			guard: policy((allow, deny) => {
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add(secret, { name: "secret" });
+
+		const actorNode = state(human, { name: "actor" });
+		actorNode.subscribe(() => undefined);
+
+		const handle = g.describe({ reactive: true, actor: actorNode });
+		const unsub = handle.node.subscribe(() => undefined);
+
+		// Final state must reflect BOTH the actor switch and the new topology.
+		batch(() => {
+			actorNode.emit(llm);
+			g.add(state(1, { name: "b" }), { name: "b" });
+		});
+
+		const cache = handle.node.cache as { nodes: Record<string, unknown> };
+		expect(Object.keys(cache.nodes)).toContain("b");
+		expect(cache.nodes.secret).toBeUndefined(); // llm cannot observe secret
+
+		unsub();
+		handle.dispose();
+	});
+
+	it("describe({ reactive: true, actor: Node<Actor> }) cleans up actor subscription on dispose", () => {
+		const g = new Graph("g");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		const actorNode = state(human, { name: "actor" });
+		actorNode.subscribe(() => undefined);
+
+		// Spy on the actor's subscribe so we can prove the unsubscribe really
+		// ran (the original test only asserted "no throw on post-dispose emit"
+		// — that would pass even if `actorUnsub?.()` were dropped in dispose).
+		const realSubscribe = actorNode.subscribe.bind(actorNode);
+		let unsubCalls = 0;
+		(actorNode as unknown as { subscribe: typeof actorNode.subscribe }).subscribe = ((
+			cb: Parameters<typeof actorNode.subscribe>[0],
+		) => {
+			const off = realSubscribe(cb);
+			return () => {
+				unsubCalls += 1;
+				off();
+			};
+		}) as typeof actorNode.subscribe;
+
+		const handle = g.describe({ reactive: true, actor: actorNode });
+		const unsub = handle.node.subscribe(() => undefined);
+
+		unsub();
+		handle.dispose();
+
+		// `actorUnsub?.()` must have run — proven by the spy on `subscribe`.
+		// The post-dispose emit must not re-enter the disposed handle.
+		expect(unsubCalls).toBeGreaterThanOrEqual(1);
+		expect(() => actorNode.emit(llm)).not.toThrow();
+	});
+
+	it("describe({ reactive: true, actor: Node<Actor> }) releases subscription on actor COMPLETE", () => {
+		const g = new Graph("g");
+		const secret = state(0, {
+			name: "secret",
+			guard: policy((allow, deny) => {
+				allow("observe");
+				deny("observe", { where: (a) => a.type === "llm" });
+			}),
+		});
+		g.add(secret, { name: "secret" });
+
+		const actorNode = state(human, { name: "actor" });
+		actorNode.subscribe(() => undefined);
+
+		const realSubscribe = actorNode.subscribe.bind(actorNode);
+		let unsubCalls = 0;
+		(actorNode as unknown as { subscribe: typeof actorNode.subscribe }).subscribe = ((
+			cb: Parameters<typeof actorNode.subscribe>[0],
+		) => {
+			const off = realSubscribe(cb);
+			return () => {
+				unsubCalls += 1;
+				off();
+			};
+		}) as typeof actorNode.subscribe;
+
+		const handle = g.describe({ reactive: true, actor: actorNode });
+		const unsub = handle.node.subscribe(() => undefined);
+
+		// human can observe; secret visible.
+		expect((handle.node.cache as { nodes: Record<string, unknown> }).nodes.secret).toBeDefined();
+
+		// Actor terminates. Implementation must release the subscription and
+		// re-derive against the last-known cache (which is still `human`).
+		actorNode.down([[COMPLETE]]);
+		expect(unsubCalls).toBeGreaterThanOrEqual(1);
+		expect((handle.node.cache as { nodes: Record<string, unknown> }).nodes.secret).toBeDefined();
+
+		unsub();
+		handle.dispose();
 	});
 
 	it("observe() filters paths for actor", () => {

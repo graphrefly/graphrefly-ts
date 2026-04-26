@@ -105,7 +105,32 @@ export type GraphActorOptions = {
 
 /** Options for {@link Graph.describe} (Phase 3.3b progressive disclosure). */
 export type GraphDescribeOptions = {
-	actor?: Actor;
+	/**
+	 * Scope `describe()` to what `actor` is allowed to observe. Accepts a
+	 * static {@link Actor} (resolved at call time) or a `Node<Actor>` — when a
+	 * Node is passed and `reactive: true` is set, the reactive describe handle
+	 * subscribes to the actor node and re-derives whenever the actor changes,
+	 * so harnesses that bind a reactive actor (e.g. per-turn `currentActor`
+	 * state) get a single live describe Node instead of re-calling
+	 * `describe({ actor })` per turn.
+	 *
+	 * **Cache-undefined semantics:** when a `Node<Actor>` is supplied whose
+	 * `cache` is `undefined` (e.g. a `producer` that has not yet emitted),
+	 * describe is treated identically to `actor: undefined` — i.e. **no
+	 * scoping** (full visibility). This matches every other Node-cache read in
+	 * the codebase, but means a not-yet-active actor node degrades to "describe
+	 * everything." Activate the actor node (subscribe + emit, or seed via
+	 * `state(initial)`) before calling `describe` if you rely on guard
+	 * scoping. In `reactive: true` mode the describe re-derives once the
+	 * actor node populates.
+	 *
+	 * **Terminal-type handling:** if the supplied `Node<Actor>` emits
+	 * `COMPLETE`, `ERROR`, or `TEARDOWN`, the reactive describe releases the
+	 * actor subscription and re-derives one last time against the final
+	 * `actor.cache` value. Subsequent describe outputs reflect that frozen
+	 * cache until `handle.dispose()` runs.
+	 */
+	actor?: Actor | Node<Actor>;
 	/**
 	 * Node filter. Filters operate on whatever fields the chosen `detail` level
 	 * provides. For `metaHas` and `status` filters, use `detail: "standard"` or
@@ -332,6 +357,37 @@ function drainDisposers(set: Set<() => void>, graphName: string): void {
 			console.error(`[Graph "${graphName}".destroy] disposer threw:`, err);
 		}
 	}
+}
+
+/**
+ * Duck-type a `Node<unknown>` from the `Actor | Node<Actor>` union so
+ * {@link Graph.describe} can accept either form. Mirrors the local helpers in
+ * `src/extra/resilience.ts:886` and `src/extra/sources.ts:509`, but also tests
+ * for `down` so a user-defined `Actor` that happens to carry `cache` and a
+ * function called `subscribe` cannot pass the test ({@link Actor} is
+ * `{ type, id } & Record<string, unknown>` — open shape, so `subscribe` and
+ * `cache` alone are not load-bearing).
+ */
+function isActorNode(x: Actor | Node<Actor> | undefined): x is Node<Actor> {
+	return (
+		x != null &&
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node<Actor>).subscribe === "function" &&
+		typeof (x as Node<Actor>).down === "function"
+	);
+}
+
+/**
+ * Resolve an `actor?: Actor | Node<Actor>` describe option to a plain
+ * `Actor | undefined`. When a Node is supplied its current `cache` is read;
+ * static actors pass through. The `_describeReactive` path subscribes to the
+ * node separately so describe re-derives on actor change.
+ */
+function resolveActorOption(actor: Actor | Node<Actor> | undefined): Actor | undefined {
+	if (actor == null) return undefined;
+	if (isActorNode(actor)) return actor.cache as Actor | undefined;
+	return actor;
 }
 
 /**
@@ -1898,7 +1954,7 @@ export class Graph {
 		options?: GraphDescribeOptions,
 	): GraphDescribeOutput | string | ReactiveDescribeHandle<unknown> {
 		if (options?.reactive === true) return this._describeReactive(options);
-		const actor = options?.actor;
+		const actor = resolveActorOption(options?.actor);
 		const filter = options?.filter;
 		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
 		const isSpec = options?.format === "spec";
@@ -2259,6 +2315,38 @@ export class Graph {
 		};
 		subscribeToTopology(this);
 
+		// Reactive-actor binding (B.1 / Unit 6). When `options.actor` is a
+		// `Node<Actor>`, subscribe to it and route DATA emits through the same
+		// `bump()` coalescer as topology / observe events — so a coordinated
+		// actor change + structural change still produces exactly one
+		// recompute. The inner static `describe(innerOpts)` resolves the
+		// actor's current cache on each recompute (via `resolveActorOption`),
+		// so no per-recompute opts mutation is needed.
+		//
+		// On terminal types (`COMPLETE`/`ERROR`/`TEARDOWN`), release the
+		// actor subscription and trigger one final `bump()` so describe
+		// snapshots the last-known actor cache. Subsequent describe outputs
+		// reflect that frozen cache until `handle.dispose()` runs.
+		let actorUnsub: (() => void) | undefined;
+		const actorOpt = options.actor;
+		if (isActorNode(actorOpt)) {
+			actorUnsub = actorOpt.subscribe((msgs) => {
+				let sawData = false;
+				let terminated = false;
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DATA) sawData = true;
+					else if (t === COMPLETE || t === ERROR || t === TEARDOWN) terminated = true;
+				}
+				if (sawData) bump();
+				if (terminated) {
+					actorUnsub?.();
+					actorUnsub = undefined;
+					bump();
+				}
+			});
+		}
+
 		let node: Node<GraphDescribeOutput | string>;
 		try {
 			node = derived<GraphDescribeOutput | string>(
@@ -2276,6 +2364,7 @@ export class Graph {
 			);
 		} catch (err) {
 			off();
+			actorUnsub?.();
 			for (const u of topoUnsubs) u();
 			handle.dispose();
 			throw err;
@@ -2287,6 +2376,7 @@ export class Graph {
 			dispose() {
 				disposed = true;
 				off();
+				actorUnsub?.();
 				for (const u of topoUnsubs) u();
 				topoUnsubs.length = 0;
 				handle.dispose();

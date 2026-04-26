@@ -536,6 +536,12 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	 * snapshot, but should NOT fire `onArchive` side-effects for unrelated
 	 * low-scored entries. Users reading a TTL map expect read-time expiry
 	 * pruning; they do NOT expect a `.get(x)` call to archive key `y`.
+	 *
+	 * **Distinguish from `wrapMutation` in `src/patterns/_internal/imperative-audit.ts`:**
+	 * that helper is the public Phase-4 audit framework
+	 * (`wrapMutation` / `lightMutation`) — orchestration-tier batch + freeze
+	 * + audit-record stamping. This `wrapMutation` is a file-private snapshot-
+	 * delivery guard for the reactiveMap version counter. Different concern.
 	 */
 	function wrapMutation<T>(op: () => T, kind: "mutation" | "read" = "mutation"): T {
 		const prev = backend.version;
