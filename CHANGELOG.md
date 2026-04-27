@@ -1,3 +1,10 @@
+# [0.37.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.36.0...v0.37.0) (2026-04-27)
+
+
+### Features
+
+* phase 0 + unit 6 widen ([7ddc325](https://github.com/graphrefly/graphrefly-ts/commit/7ddc3253bb3982e3767f236b1e6f4de07e59765e))
+
 # [0.36.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.35.0...v0.36.0) (2026-04-25)
 
 
