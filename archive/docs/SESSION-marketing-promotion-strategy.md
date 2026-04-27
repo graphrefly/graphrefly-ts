@@ -220,7 +220,7 @@ New README structure:
 
 #### HN (Hacker News)
 
-**Search keywords:** "agent state management", "LLM context window", "agent memory", "CLI agent limitations", "vibe coding", "AI orchestration", "reactive AI", "agent workspace"
+**Search keywords:** "agent state management", "LLM context window", "agent memory", "CLI agent limitations", "vibe coding", "AI orchestration", "reactive AI", "agent workspace", "agent identity cross-cloud", "agent governance vendor lock-in", "Google Agent Platform limitations", "graph vs ReAct agents", "LangGraph overengineered", "AI managing AI", "agent maintenance bot"
 
 **Where to reply:** Show HN threads for agent frameworks, "Ask HN" about agent architecture, comments on LangGraph/CrewAI/AutoGen posts, discussions about AI reliability/trust.
 
@@ -416,24 +416,26 @@ MCP Server should be built **alongside Demo 0**, not after it. Reasons:
 - Update GitHub topics on all 3 repos
 - Update `llms.txt` with harness vocabulary
 
-#### Wave 2: "The Harness Layer" (Weeks 4-9) — CLAIMS THE CATEGORY
+#### Wave 2: "The Harness Layer" (Weeks 4-9) — CLAIMS THE CATEGORY *(caveat: see §21 reframe)*
 
-**What to announce:** "GraphReFly: the reactive harness layer for agent workflows."
+> **April 26 caveat (per §21 Google Cloud Next analysis):** "Harness" is no longer a claimable category — Google, Anthropic ($0.08/session-hour), OpenAI (open-source Agents SDK), and Microsoft all shipped harness products within 16 days (March-April 2026). "Harness" is now a descriptive word (like "cloud"), not a category to own. Wave 2 headline should shift from "reactive harness layer" to **causal explainability + protocol-level coordination** — capabilities no incumbent has shipped. Keep "harness" for SEO keywords but not as headline identity.
 
-**Why now:** Wave 1 established eval credibility. Now plant the flag.
+**What to announce:** ~~"GraphReFly: the reactive harness layer for agent workflows."~~ → **"GraphReFly: causal tracing and reactive coordination for agent workflows — the layer Google Agent Platform doesn't touch."**
+
+**Why now:** Wave 1 established eval credibility. Now plant the flag — but on ground nobody else occupies (explainPath, protocol-level ABAC, topology-as-knowledge), not on "harness" which is now contested by every major vendor.
 
 **Content deliverables:**
-- `@graphrefly/mcp-server` published on npm + submitted to MCP registry, Cline Marketplace, PulseMCP
+- `@graphrefly/mcp-server` published on npm + submitted to MCP registry, Cline Marketplace, PulseMCP. **Note (§21):** MCP server is now a **distribution channel**, not a differentiator — value is what's exposed through it (`explainPath`, `observe`), not the MCP wrapper itself.
 - Harness scorecard page at `graphrefly.dev/scorecard` (weekly-updated KPIs)
-- "GraphReFly vs LangGraph" comparison page
+- "GraphReFly vs LangGraph" comparison page. **NEW (§21):** Add "vs Google Agent Platform" column — emphasize cloud-agnostic, topology-as-knowledge, causal trace, cross-cloud agent identity.
 - Blog: "Why agent harnesses need reactive graphs, not static DAGs"
 - "Try it with Claude Code in 2 minutes" MCP quickstart
 
 **Marketing actions at Wave 2 launch:**
-- **README rewrite** — change headline to harness engineering vocabulary: "GraphReFly makes agent workflows reactive, resumable, and causally explainable"
-- **Landing page redesign** — lead with harness engineering positioning, scorecard prominently linked
-- **npm description update**: "Reactive harness layer for agent workflows. Causal tracing, policy enforcement, persistent checkpoints. Zero dependencies."
-- **Website keywords/SEO** — target "harness engineering", "agent harness framework", "reactive agent orchestration"
+- **README rewrite** — ~~change headline to harness engineering vocabulary~~ → lead with causal explainability: "GraphReFly makes agent workflows reactive, resumable, and causally explainable — ask *why* any decision was made"
+- **Landing page redesign** — lead with explainability + protocol-level coordination, scorecard prominently linked
+- **npm description update**: ~~"Reactive harness layer for agent workflows."~~ → "Reactive coordination protocol for agent workflows. Causal tracing, policy enforcement, persistent checkpoints. Zero dependencies."
+- **Website keywords/SEO** — target "harness engineering", "agent harness framework", "reactive agent orchestration", **NEW:** "causal agent tracing", "agent explainability", "cross-cloud agent governance"
 - Intensify reply marketing on harness engineering content (HN, Reddit, X, 小红书)
 - Submit GraphReFly to `harness-engineering.ai` knowledge graph (883 entities — get in it)
 
@@ -915,6 +917,70 @@ Three independent projects (Evolver, Hermes, and GraphReFly) landed on nearly id
 
 ---
 
+## 21. Google Cloud Next '26, ClawSweeper, Graph vs ReAct (added April 26, 2026)
+
+**Trigger:** Three independent signals analyzed together. Full analysis in `SESSION-google-cloud-next-clawsweeper-analysis.md`.
+
+### A. Google Cloud Next '26 — Impact on Positioning
+
+**What happened:** Google shipped Gemini Enterprise Agent Platform (successor to Vertex AI), Agent Identity (crypto ID + IAM per agent), native MCP across all GCP services, TPU 8t/8i, Apple cloud partnership, and Claude 4.7 on their platform. Thomas Kurian: "Experimentation phase is over." Google never said "harness" once — replaced it with their own 5-pillar naming.
+
+**Meanwhile:** Anthropic shipped Managed Agents at $0.08/session-hour (April 8). OpenAI shipped open-source Agents SDK update (April 15). TheNewStack headline: "Anthropic, OpenAI, Google, and Microsoft agree that the harness is the product. They disagree on the price."
+
+**What this means for us:**
+
+1. **"Harness" is now a commodity category, not a claim.** Wave 2 headline updated (see §15 caveat). Lead with what incumbents don't have: causal explainability, protocol-level coordination, cloud-agnostic agent identity.
+
+2. **Cross-cloud agent identity is a vacuum.** Google's Agent Identity = Google IAM only. AWS Agentcore = AWS only. Via A2A, Agent A (Google) calling Agent B (AWS) → nobody answers "who is this agent?" GraphReFly's protocol-level ABAC is inherently cloud-agnostic. Potential narrative entry point for regulated/multi-cloud enterprises.
+
+3. **MCP server = distribution channel, not differentiator.** Google making all GCP services MCP endpoints commoditizes the connector. Our MCP value is what we expose through it (`explainPath`, `observe`), not the wrapper.
+
+4. **Commoditization risk analysis validated.** SESSION-strategy-roadmap-demo-reprioritization assessed reactive state coherence, explainPath, and reduction layer as Low risk. Google confirmed: they built everything in the High-risk layer, touched nothing in the Low-risk layer.
+
+5. **Production-readiness bar raised.** "Experimentation phase is over" = market tolerance for 87% composition success rate is lower. Reinforces strategic pivot to composition success rate as single metric.
+
+### B. ClawSweeper — "AI Managing AI" Case Study
+
+**What it is:** OpenClaw's AI maintenance bot (Peter Steinberger). 50 parallel Codex instances (gpt-5.5), 4000 issues closed in one day. Two-phase architecture: Review (suggest only, generates Markdown reports) → Apply (closes only with high confidence + evidence). README as dynamic dashboard. Tiered review cadence (5min → hourly → daily → weekly).
+
+**Why it matters for positioning:**
+
+1. **ClawSweeper independently built GraphReFly's TRIAGE→GATE→EXECUTE pattern** using file system + Markdown + cron. `items/<number>.md` = state node per issue. `proposed_close` = gate entry. Apply phase = execute with policy constraints. It's an ad-hoc reactive graph implemented with files.
+
+2. **"AI controlling AI" validates TopicGraph + handoff.** Planner distributes to 50 workers. Centralized quality control over distributed execution.
+
+3. **Rate limiting is the real bottleneck** — validates `budgetGate` as protocol-level infrastructure.
+
+4. **Before/after demo potential:** ClawSweeper's file-system approach → GraphReFly's reactive graph (push-based, causal trace, policy enforcement, checkpoint/resume). Not yet on roadmap — needs design refinement.
+
+**New reply marketing templates:**
+
+**"How do I manage thousands of GitHub issues at scale?"**
+> ClawSweeper showed the pattern: planner → parallel workers → centralized review → gated execution. They built it with Markdown files and cron jobs. We built the reactive infrastructure underneath: state pushes downstream (no file polling), `explainPath` for "why was this issue closed?", `policyEnforcer` for "maintainer items never auto-closed", and `autoCheckpoint` for resume after rate limits.
+
+**"Graph-based workflows are overengineered, just use ReAct"**
+> For a single agent doing a single task, you're right — ReAct is simpler. But the moment you need 50 parallel agents with centralized quality control, tiered scheduling, checkpoint/resume, and policy constraints (like ClawSweeper does), you've outgrown ReAct. The choice isn't graph *vs* ReAct — it's: at what complexity does hand-built coordination become an ad-hoc graph? We shipped the real one so you don't have to.
+
+### C. Graph vs ReAct — Framing for Marketing
+
+**Developer sentiment:** "LangChain is a mess, LangGraph is uglier. People prefer ReAct now."
+
+**What's actually true:**
+- LangGraph's DX is widely criticized (heavy abstractions, dependency overhead, boilerplate) — TRUE
+- Graph architectures are worse than ReAct — FALSE (95% vs 85% accuracy in benchmarks, parallel execution support, dynamic replanning)
+- Models getting stronger → simple ReAct handles more → graph feels like overkill for simple tasks — TRUE
+
+**What's conflated:** LangGraph's DX failure ≠ graph-architecture failure.
+
+**GraphReFly's position:**
+- Not "all agents should use graphs" — rather "when you outgrow ReAct (governance, parallelism, causal trace, persistence), you need a graph"
+- GraphReFly addresses the DX complaint directly: sugar constructors + GraphSpec (NL → graph) + `describe()` = graph that feels like SQL, not a state machine framework
+- ReAct can be a node inside a graph: `promptNode` IS a ReAct loop, running inside a graph with backpressure + causal trace + checkpoint
+
+**Marketing framing:** "You're right that ReAct is simpler for single tasks. When you find yourself hand-building checkpoint, rate limiting, policy rules, and Markdown report files around your ReAct loop — you've just built an ad-hoc graph. We shipped the real one."
+
+---
+
 ## Files Changed
 
 - `package.json` — description, keywords
@@ -928,3 +994,4 @@ Three independent projects (Evolver, Hermes, and GraphReFly) landed on nearly id
 - `archive/docs/SESSION-marketing-promotion-strategy.md` — this file
 - `README.md` — full overhaul with comparison table, quick start, acknowledgments
 - `archive/docs/DESIGN-ARCHIVE-INDEX.md` — updated with this session
+- `archive/docs/SESSION-google-cloud-next-clawsweeper-analysis.md` — companion analysis (April 26, 2026)
