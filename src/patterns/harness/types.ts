@@ -121,6 +121,20 @@ export type StrategyKey = `${RootCause}→${Intervention}`;
  * for escape-hatch executors that carry opaque state.
  */
 export type ExecuteOutput<A = unknown> = {
+	/**
+	 * Execution outcome classification:
+	 *
+	 * - `"success"`: execution completed cleanly and the artifact (if any) is
+	 *   ready for verification. The verifier should proceed with a full
+	 *   evaluation pass.
+	 * - `"failure"`: execution did not produce a usable artifact — the actuator
+	 *   threw, a prompt parse failed, or `shouldApply` skipped the item. The
+	 *   verifier should treat this as a non-result and route accordingly.
+	 * - `"partial"`: execution produced a candidate that converged but did not
+	 *   fully meet verification criteria. Used by `refineExecutor` when the
+	 *   iteration cap is reached without full convergence; the artifact holds
+	 *   the best candidate achieved.
+	 */
 	outcome: "success" | "failure" | "partial";
 	detail: string;
 	/**
@@ -136,6 +150,16 @@ export type ExecuteOutput<A = unknown> = {
 /** Full execution result assembled downstream (LLM output + context). */
 export interface ExecutionResult<A = unknown> {
 	item: TriagedItem;
+	/**
+	 * Execution outcome classification. Same semantics as
+	 * {@link ExecuteOutput.outcome}:
+	 *
+	 * - `"success"`: execution completed cleanly; artifact is ready for
+	 *   verification.
+	 * - `"failure"`: no usable artifact was produced.
+	 * - `"partial"`: best candidate produced but convergence criteria not met
+	 *   (iteration cap reached in `refineExecutor`).
+	 */
 	outcome: "success" | "failure" | "partial";
 	detail: string;
 	/**

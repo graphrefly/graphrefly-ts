@@ -344,7 +344,34 @@ function keepaliveDerived(n: Node<unknown>): () => void {
 const DEFAULT_VIEW_CACHE_MAX = 64;
 
 /**
- * Creates an append-only reactive log with immutable array snapshots.
+ * Creates an append-only reactive log that emits immutable `readonly T[]` snapshots.
+ *
+ * Each structural mutation (`append`, `appendMany`, `clear`, `trimHead`) triggers
+ * a two-phase `[DIRTY, DATA]` emission on the `entries` node so downstream
+ * derived nodes update reactively. Views (`tail`, `slice`, `fromCursor`) are
+ * memoized derived nodes — subscribe once and they stay live.
+ *
+ * @param initial - Optional initial entries loaded into the log at construction.
+ * @param options - Optional name, max size (ring buffer), versioning level, guard policy, and custom backend.
+ * @returns `ReactiveLogBundle<T>` with `entries`, `append`, `appendMany`, `clear`, `trimHead`, `view`, `attach`, `attachStorage`, and disposal methods.
+ *
+ * @example
+ * ```ts
+ * import { reactiveLog } from "@graphrefly/graphrefly/extra";
+ *
+ * const log = reactiveLog<string>([], { name: "messages" });
+ * log.entries.subscribe((msgs) => {
+ *   for (const m of msgs) {
+ *     if (m[0] === 1) console.log("entries:", m[1]);
+ *   }
+ * });
+ * log.append("hello");
+ * log.append("world");
+ * ```
+ *
+ * @remarks
+ * **Ring buffer:** Pass `maxSize` to cap the log length; older entries are evicted on overflow.
+ * **Storage:** Call `attachStorage(tiers)` to wire one or more `AppendLogStorageTier` instances for persistence.
  *
  * @category extra
  */

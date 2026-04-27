@@ -34,8 +34,22 @@ import {
 // ── File backend ─────────────────────────────────────────────────────────
 
 /**
- * Filesystem backend. Each key becomes a file under `dir`; values are written
- * via temp + rename for atomic replace.
+ * Creates a filesystem backend that maps each key to a file under `dir`.
+ *
+ * Writes are atomic via temp + rename. Keys are percent-encoded to safe
+ * filenames; `list(prefix)` enumerates `.bin` files in the directory.
+ *
+ * @param dir - Directory path where key files are stored (created on first write).
+ * @returns `StorageBackend` backed by the filesystem under `dir`.
+ *
+ * @example
+ * ```ts
+ * import { fileBackend, snapshotStorage } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const backend = fileBackend("./checkpoints");
+ * const tier = snapshotStorage(backend, { name: "my-graph" });
+ * await tier.save({ name: "my-graph", state: { count: 1 } });
+ * ```
  *
  * @category extra
  */
@@ -140,8 +154,24 @@ export function fileBackend(dir: string): StorageBackend {
 // ── SQLite backend ───────────────────────────────────────────────────────
 
 /**
- * SQLite backend (Node 22.5+ `node:sqlite`). Stores byte values under string
- * keys in a single table; caller owns the connection lifetime via `close()`.
+ * Creates a SQLite backend using Node 22.5+ `node:sqlite`.
+ *
+ * Stores byte values under string keys in a single `graphrefly_storage` table.
+ * The caller owns the connection lifetime — call `.close()` for explicit teardown.
+ * Requires Node 22.5 or later for `node:sqlite`.
+ *
+ * @param path - Filesystem path to the SQLite database file (created if absent).
+ * @returns `StorageBackend` with an extra `close()` method for explicit teardown.
+ *
+ * @example
+ * ```ts
+ * import { sqliteBackend, snapshotStorage } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const backend = sqliteBackend("./state.db");
+ * const tier = snapshotStorage(backend, { name: "my-graph" });
+ * await tier.save({ name: "my-graph", state: { count: 1 } });
+ * backend.close();
+ * ```
  *
  * @category extra
  */
@@ -191,7 +221,22 @@ export function sqliteBackend(path: string): StorageBackend & { close(): void } 
 // ── Convenience factories ───────────────────────────────────────────────
 
 /**
- * Filesystem snapshot tier — `snapshotStorage(fileBackend(dir), opts)`.
+ * Creates a filesystem snapshot tier backed by a `fileBackend` under `dir`.
+ *
+ * Convenience wrapper for `snapshotStorage(fileBackend(dir), opts)`.
+ * Writes are atomic (temp + rename). Requires Node.js with filesystem access.
+ *
+ * @param dir - Directory path where snapshot files are stored.
+ * @param opts - Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery).
+ * @returns `SnapshotStorageTier<T>` backed by the filesystem.
+ *
+ * @example
+ * ```ts
+ * import { fileSnapshot } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const tier = fileSnapshot<{ count: number }>("./checkpoints", { name: "counter" });
+ * await tier.save({ count: 1 });
+ * ```
  *
  * @category extra
  */
@@ -203,7 +248,22 @@ export function fileSnapshot<T>(
 }
 
 /**
- * Filesystem append-log tier — `appendLogStorage(fileBackend(dir), opts)`.
+ * Creates a filesystem append-log tier backed by a `fileBackend` under `dir`.
+ *
+ * Convenience wrapper for `appendLogStorage(fileBackend(dir), opts)`.
+ * Writes are atomic (temp + rename). Requires Node.js with filesystem access.
+ *
+ * @param dir - Directory path where append-log files are stored.
+ * @param opts - Optional append-log storage options (name, codec, keyOf, debounce, compactEvery).
+ * @returns `AppendLogStorageTier<T>` backed by the filesystem.
+ *
+ * @example
+ * ```ts
+ * import { fileAppendLog } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const tier = fileAppendLog<{ type: string; id: number }>("./events");
+ * await tier.appendEntries([{ type: "created", id: 1 }]);
+ * ```
  *
  * @category extra
  */
@@ -215,8 +275,24 @@ export function fileAppendLog<T>(
 }
 
 /**
- * SQLite snapshot tier — caller owns the connection. Use the underlying
- * backend's `close()` for explicit teardown.
+ * Creates a SQLite snapshot tier; caller owns the connection lifetime.
+ *
+ * Convenience wrapper for `snapshotStorage(sqliteBackend(path), opts)`.
+ * The returned tier exposes an extra `close()` method — call it for explicit
+ * teardown of the underlying SQLite connection.
+ *
+ * @param path - Filesystem path to the SQLite database file.
+ * @param opts - Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery).
+ * @returns `SnapshotStorageTier<T>` with a `close()` method for connection teardown.
+ *
+ * @example
+ * ```ts
+ * import { sqliteSnapshot } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const tier = sqliteSnapshot<{ count: number }>("./state.db", { name: "counter" });
+ * await tier.save({ count: 42 });
+ * tier.close();
+ * ```
  *
  * @category extra
  */
@@ -230,8 +306,24 @@ export function sqliteSnapshot<T>(
 }
 
 /**
- * SQLite append-log tier — caller owns the connection. Use the underlying
- * backend's `close()` for explicit teardown.
+ * Creates a SQLite append-log tier; caller owns the connection lifetime.
+ *
+ * Convenience wrapper for `appendLogStorage(sqliteBackend(path), opts)`.
+ * The returned tier exposes an extra `close()` method — call it for explicit
+ * teardown of the underlying SQLite connection.
+ *
+ * @param path - Filesystem path to the SQLite database file.
+ * @param opts - Optional append-log storage options (name, codec, keyOf, debounce, compactEvery).
+ * @returns `AppendLogStorageTier<T>` with a `close()` method for connection teardown.
+ *
+ * @example
+ * ```ts
+ * import { sqliteAppendLog } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const tier = sqliteAppendLog<{ type: string }>("./events.db", { name: "events" });
+ * await tier.appendEntries([{ type: "created" }]);
+ * tier.close();
+ * ```
  *
  * @category extra
  */
@@ -245,7 +337,23 @@ export function sqliteAppendLog<T>(
 }
 
 /**
- * Filesystem kv tier — `kvStorage(fileBackend(dir), opts)`.
+ * Creates a filesystem key-value tier backed by a `fileBackend` under `dir`.
+ *
+ * Convenience wrapper for `kvStorage(fileBackend(dir), opts)`.
+ * Each key is stored as a separate file; writes are atomic (temp + rename).
+ *
+ * @param dir - Directory path where key files are stored.
+ * @param opts - Optional kv storage options (name, codec, filter, debounce, compactEvery).
+ * @returns `KvStorageTier<T>` backed by the filesystem.
+ *
+ * @example
+ * ```ts
+ * import { fileKv } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const kv = fileKv<{ score: number }>("./scores");
+ * await kv.save("player1", { score: 100 });
+ * const val = await kv.load("player1");
+ * ```
  *
  * @category extra
  */
@@ -257,8 +365,24 @@ export function fileKv<T>(
 }
 
 /**
- * SQLite kv tier — caller owns the connection. Use the underlying
- * backend's `close()` for explicit teardown.
+ * Creates a SQLite key-value tier; caller owns the connection lifetime.
+ *
+ * Convenience wrapper for `kvStorage(sqliteBackend(path), opts)`.
+ * The returned tier exposes an extra `close()` method — call it for explicit
+ * teardown of the underlying SQLite connection.
+ *
+ * @param path - Filesystem path to the SQLite database file.
+ * @param opts - Optional kv storage options (name, codec, filter, debounce, compactEvery).
+ * @returns `KvStorageTier<T>` with a `close()` method for connection teardown.
+ *
+ * @example
+ * ```ts
+ * import { sqliteKv } from "@graphrefly/graphrefly/extra/node";
+ *
+ * const kv = sqliteKv<{ score: number }>("./scores.db");
+ * await kv.save("player1", { score: 100 });
+ * kv.close();
+ * ```
  *
  * @category extra
  */

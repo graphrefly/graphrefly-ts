@@ -9,12 +9,13 @@
  *   - end-to-end pairing with `evalVerifier` through `harnessLoop`
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { producer, state } from "../../core/sugar.js";
 import {
 	actuatorExecutor,
+	dispatchActuator,
 	type ExecuteOutput,
 	evalVerifier,
 	harnessLoop,
@@ -217,6 +218,138 @@ describe("actuatorExecutor — contract guarantees", () => {
 });
 
 // ---------------------------------------------------------------------------
+// dispatchActuator
+// ---------------------------------------------------------------------------
+
+const CATALOG_ITEM: TriagedItem = { ...SAMPLE_ITEM, intervention: "catalog-fn" };
+const TEMPLATE_ITEM: TriagedItem = { ...SAMPLE_ITEM, intervention: "template" };
+const UNKNOWN_ITEM: TriagedItem = {
+	...SAMPLE_ITEM,
+	intervention: "investigate" as TriagedItem["intervention"],
+};
+
+describe("dispatchActuator — routes match", () => {
+	it("routes 'catalog-fn' to the correct apply callback", async () => {
+		const catalogCalls: string[] = [];
+		const exec = dispatchActuator<string>({
+			routes: {
+				"catalog-fn": (item) => {
+					catalogCalls.push(item.intervention);
+					return Promise.resolve("catalog-result");
+				},
+				template: () => Promise.resolve("template-result"),
+			},
+		});
+		const value = await awaitFirstData(exec(makeTriagedInput(CATALOG_ITEM)));
+		expect(value.outcome).toBe("success");
+		expect(value.artifact).toBe("catalog-result");
+		expect(catalogCalls).toEqual(["catalog-fn"]);
+	});
+
+	it("routes 'template' to its apply callback independently", async () => {
+		const exec = dispatchActuator<string>({
+			routes: {
+				"catalog-fn": () => Promise.resolve("catalog-result"),
+				template: () => Promise.resolve("template-result"),
+			},
+		});
+		const value = await awaitFirstData(exec(makeTriagedInput(TEMPLATE_ITEM)));
+		expect(value.outcome).toBe("success");
+		expect(value.artifact).toBe("template-result");
+	});
+});
+
+describe("dispatchActuator — default fallback", () => {
+	it("invokes default apply for unrouted interventions", async () => {
+		const defaultCalls: string[] = [];
+		const exec = dispatchActuator<string>({
+			routes: {
+				"catalog-fn": () => Promise.resolve("catalog-result"),
+			},
+			default: (item) => {
+				defaultCalls.push(item.intervention);
+				return Promise.resolve("default-result");
+			},
+		});
+		const value = await awaitFirstData(exec(makeTriagedInput(UNKNOWN_ITEM)));
+		expect(value.outcome).toBe("success");
+		expect(value.artifact).toBe("default-result");
+		expect(defaultCalls).toEqual(["investigate"]);
+	});
+});
+
+describe("dispatchActuator — no route no default", () => {
+	it("emits failure with 'no route for intervention' detail", async () => {
+		const exec = dispatchActuator<string>({
+			routes: {
+				"catalog-fn": () => Promise.resolve("catalog-result"),
+			},
+		});
+		const value = await awaitFirstData(exec(makeTriagedInput(UNKNOWN_ITEM)));
+		expect(value.outcome).toBe("failure");
+		expect(value.detail).toContain("no route for intervention 'investigate'");
+	});
+});
+
+async function waitForCondition(check: () => boolean, timeoutMs = 1000): Promise<void> {
+	const start = Date.now();
+	while (!check()) {
+		if (Date.now() - start > timeoutMs) throw new Error("waitForCondition timeout");
+		await new Promise((r) => setTimeout(r, 5));
+	}
+}
+
+describe("dispatchActuator — multiple interventions in sequence", () => {
+	it("routes two items with different interventions to their respective callbacks", async () => {
+		const seen: string[] = [];
+		const exec = dispatchActuator<string>({
+			routes: {
+				"catalog-fn": (item) => {
+					seen.push(`catalog:${item.intervention}`);
+					return Promise.resolve("c");
+				},
+				template: (item) => {
+					seen.push(`template:${item.intervention}`);
+					return Promise.resolve("t");
+				},
+			},
+		});
+
+		const input = state<TriagedItem | null>(null);
+		const out = exec(input);
+
+		// Collect two results in order.
+		const results: ExecuteOutput<string>[] = [];
+		const donePromise = new Promise<void>((resolve) => {
+			let unsub: () => void = () => {};
+			unsub = out.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) {
+						results.push(m[1] as ExecuteOutput<string>);
+						if (results.length === 2) {
+							unsub();
+							resolve();
+						}
+					}
+				}
+			});
+		});
+
+		input.emit(CATALOG_ITEM);
+		// Wait reactively for catalog-fn to complete before emitting next item.
+		await waitForCondition(() => results.length === 1);
+		input.emit(TEMPLATE_ITEM);
+
+		await donePromise;
+
+		expect(results[0]!.artifact).toBe("c");
+		expect(results[1]!.artifact).toBe("t");
+		expect(seen).toContain("catalog:catalog-fn");
+		expect(seen).toContain("template:template");
+	});
+});
+
+// ---------------------------------------------------------------------------
 // End-to-end: actuatorExecutor + evalVerifier through harnessLoop
 // ---------------------------------------------------------------------------
 
@@ -324,5 +457,41 @@ describe("actuatorExecutor + evalVerifier (end-to-end)", () => {
 		expect(verify.findings[0]).toContain("3/3");
 
 		harness.destroy();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// P10b — dispatchActuator prototype-key intervention (regression for P2)
+// ---------------------------------------------------------------------------
+
+describe("dispatchActuator — prototype-key intervention (P2 regression)", () => {
+	it("treats prototype-key interventions as no-route (skip-failure)", async () => {
+		const apply = vi.fn(() => Promise.resolve("c"));
+		const exec = dispatchActuator<string>({
+			routes: { "catalog-fn": apply },
+		});
+		// Simulate a malformed/hallucinated triage output whose intervention
+		// matches a prototype key — `Object.hasOwn` must reject it.
+		const item: TriagedItem = {
+			...CATALOG_ITEM,
+			intervention: "toString" as TriagedItem["intervention"],
+		};
+		const value = await awaitFirstData(exec(makeTriagedInput(item)));
+		expect(value.outcome).toBe("failure");
+		expect(value.detail).toContain("no route for intervention 'toString'");
+		expect(apply).not.toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// P10c — dispatchActuator with empty routes object
+// ---------------------------------------------------------------------------
+
+describe("dispatchActuator — empty routes no default", () => {
+	it("emits skip-failure for any item when routes is empty and no default", async () => {
+		const exec = dispatchActuator<string>({ routes: {} });
+		const value = await awaitFirstData(exec(makeTriagedInput(CATALOG_ITEM)));
+		expect(value.outcome).toBe("failure");
+		expect(value.detail).toContain("no route for intervention");
 	});
 });

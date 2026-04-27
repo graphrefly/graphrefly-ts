@@ -84,7 +84,26 @@ export const jsonCodec: Codec<unknown> = {
 	},
 };
 
-/** Build a `Codec<T>` over the default JSON encoding. Pure typing helper. */
+/**
+ * Returns the default `jsonCodec` cast to `Codec<T>`.
+ *
+ * Pure typing helper — no runtime overhead. Use when a generic API requires a
+ * `Codec<T>` and the value is known to be JSON-serializable.
+ *
+ * @returns `Codec<T>` backed by the shared `jsonCodec` (UTF-8 JSON, stable key order).
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, snapshotStorage, jsonCodecFor } from "@graphrefly/graphrefly/extra";
+ *
+ * type MyState = { count: number; label: string };
+ * const tier = snapshotStorage<MyState>(memoryBackend(), {
+ *   codec: jsonCodecFor<MyState>(),
+ * });
+ * ```
+ *
+ * @category extra
+ */
 export function jsonCodecFor<T>(): Codec<T> {
 	return jsonCodec as unknown as Codec<T>;
 }
@@ -166,8 +185,21 @@ export type AppendLoadResult<T> = {
 // ── Layer 1 reference: in-memory backend ─────────────────────────────────
 
 /**
- * In-process bytes backend backed by `Map<string, Uint8Array>`. Useful for
- * tests, hot tiers, and as a default for the convenience factories below.
+ * Creates an in-process bytes backend backed by `Map<string, Uint8Array>`.
+ *
+ * Useful for tests, hot tiers, and as the default backend for the convenience
+ * factories in this module. All operations are synchronous.
+ *
+ * @returns `StorageBackend` instance backed by an in-memory `Map`.
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, snapshotStorage } from "@graphrefly/graphrefly/extra";
+ *
+ * const backend = memoryBackend();
+ * const tier = snapshotStorage(backend, { name: "my-graph" });
+ * await tier.save({ name: "my-graph", data: { count: 1 } });
+ * ```
  *
  * @category extra
  */
@@ -204,12 +236,27 @@ export type SnapshotStorageOptions<T> = {
 };
 
 /**
- * Wrap a {@link StorageBackend} as a typed snapshot tier.
+ * Wraps a `StorageBackend` as a typed snapshot tier.
  *
  * Buffer model: `save(snapshot)` accumulates one pending snapshot in memory.
  * `flush()` encodes via codec and writes to the backend under
  * `keyOf(snapshot)` (default `name ?? "snapshot"`). `rollback()` discards
  * the pending write.
+ *
+ * @param backend - Bytes-level backend to persist snapshots into.
+ * @param opts - Optional name, codec, debounce window, compaction interval, pre-save filter, and key extractor.
+ * @returns `SnapshotStorageTier<T>` that buffers one pending snapshot and flushes on wave-close.
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, snapshotStorage } from "@graphrefly/graphrefly/extra";
+ *
+ * const backend = memoryBackend();
+ * const tier = snapshotStorage<{ count: number }>(backend, { name: "counter" });
+ * await tier.save({ count: 42 });
+ * // Load back:
+ * const loaded = await tier.load?.();
+ * ```
  *
  * @category extra
  */
@@ -297,7 +344,7 @@ export type AppendLogStorageOptions<T> = {
 };
 
 /**
- * Wrap a {@link StorageBackend} as a typed append-log tier.
+ * Wraps a `StorageBackend` as a typed append-log tier.
  *
  * Buffer model: `appendEntries(entries)` accumulates per-key buckets in
  * memory. `flush()` encodes each bucket as a JSON array via codec and writes
@@ -306,6 +353,20 @@ export type AppendLogStorageOptions<T> = {
  * Storage shape: each backend key holds a JSON array of all entries for that
  * partition, growing on every flush. Adapters that need true append semantics
  * (versus rewrite) should layer their own tier impl over the same backend.
+ *
+ * @param backend - Bytes-level backend to persist log entries into.
+ * @param opts - Optional name, codec, per-entry key extractor, debounce window, and compaction interval.
+ * @returns `AppendLogStorageTier<T>` that buffers pending entries and flushes per-key buckets on wave-close.
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, appendLogStorage } from "@graphrefly/graphrefly/extra";
+ *
+ * const backend = memoryBackend();
+ * const tier = appendLogStorage<{ type: string; payload: unknown }>(backend, { name: "events" });
+ * await tier.appendEntries([{ type: "created", payload: { id: 1 } }]);
+ * const result = await tier.loadEntries?.();
+ * ```
  *
  * @category extra
  */
@@ -466,11 +527,25 @@ export type KvStorageOptions<T> = {
 };
 
 /**
- * Wrap a {@link StorageBackend} as a typed kv tier.
+ * Wraps a `StorageBackend` as a typed key-value tier.
  *
  * Buffer model: `save(k, v)` encodes via codec and writes to the backend
  * unless debounced. Pending writes are committed on `flush()` and discarded
  * on `rollback()` — the wave-as-transaction model.
+ *
+ * @param backend - Bytes-level backend to persist records into.
+ * @param opts - Optional name, codec, debounce window, compaction interval, and pre-save filter.
+ * @returns `KvStorageTier<T>` that supports `save`, `load`, `delete`, and `list` operations.
+ *
+ * @example
+ * ```ts
+ * import { memoryBackend, kvStorage } from "@graphrefly/graphrefly/extra";
+ *
+ * const backend = memoryBackend();
+ * const kv = kvStorage<{ score: number }>(backend, { name: "scores" });
+ * await kv.save("player1", { score: 100 });
+ * const val = await kv.load("player1");
+ * ```
  *
  * @category extra
  */
@@ -554,7 +629,21 @@ export function kvStorage<T>(
 // ── Convenience factories — memory ────────────────────────────────────────
 
 /**
- * In-memory snapshot tier — `snapshotStorage(memoryBackend(), opts)`.
+ * Creates an in-memory snapshot tier backed by a fresh `memoryBackend`.
+ *
+ * Convenience wrapper for `snapshotStorage(memoryBackend(), opts)`. All writes
+ * are synchronous and in-process — useful for tests and hot-path caching.
+ *
+ * @param opts - Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery).
+ * @returns `SnapshotStorageTier<T>` backed by an in-memory store.
+ *
+ * @example
+ * ```ts
+ * import { memorySnapshot } from "@graphrefly/graphrefly/extra";
+ *
+ * const tier = memorySnapshot<{ count: number }>({ name: "counter" });
+ * await tier.save({ count: 1 });
+ * ```
  *
  * @category extra
  */
@@ -565,7 +654,21 @@ export function memorySnapshot<T>(
 }
 
 /**
- * In-memory append-log tier — `appendLogStorage(memoryBackend(), opts)`.
+ * Creates an in-memory append-log tier backed by a fresh `memoryBackend`.
+ *
+ * Convenience wrapper for `appendLogStorage(memoryBackend(), opts)`. All writes
+ * are synchronous and in-process — useful for tests and hot-path event buffering.
+ *
+ * @param opts - Optional append-log storage options (name, codec, keyOf, debounce, compactEvery).
+ * @returns `AppendLogStorageTier<T>` backed by an in-memory store.
+ *
+ * @example
+ * ```ts
+ * import { memoryAppendLog } from "@graphrefly/graphrefly/extra";
+ *
+ * const tier = memoryAppendLog<{ type: string }>({ name: "events" });
+ * await tier.appendEntries([{ type: "init" }]);
+ * ```
  *
  * @category extra
  */
@@ -576,7 +679,22 @@ export function memoryAppendLog<T>(
 }
 
 /**
- * In-memory kv tier — `kvStorage(memoryBackend(), opts)`.
+ * Creates an in-memory key-value tier backed by a fresh `memoryBackend`.
+ *
+ * Convenience wrapper for `kvStorage(memoryBackend(), opts)`. All writes are
+ * synchronous and in-process — useful for tests and ephemeral record caches.
+ *
+ * @param opts - Optional kv storage options (name, codec, filter, debounce, compactEvery).
+ * @returns `KvStorageTier<T>` backed by an in-memory store.
+ *
+ * @example
+ * ```ts
+ * import { memoryKv } from "@graphrefly/graphrefly/extra";
+ *
+ * const kv = memoryKv<{ value: number }>();
+ * await kv.save("key1", { value: 42 });
+ * const loaded = await kv.load("key1");
+ * ```
  *
  * @category extra
  */
@@ -587,19 +705,24 @@ export function memoryKv<T>(
 }
 
 /**
- * Dict-backed kv tier — wraps a caller-owned plain object as a
- * {@link StorageBackend} and returns a kv tier over it. Useful for
- * embedding in a parent state shape or for tests that need access to the
- * raw bytes.
+ * Creates a kv tier backed by a caller-owned plain object (`Record<string, Uint8Array>`).
  *
- * The dict stores raw encoded bytes as `Uint8Array`. Use `opts.name` to
- * control the tier's diagnostic name (defaults to `"dict-kv"`).
+ * Useful for embedding storage inside a parent state shape or for tests that
+ * need direct access to the raw bytes. The dict stores raw encoded bytes as
+ * `Uint8Array`. Use `opts.name` to control the tier's diagnostic name
+ * (defaults to `"dict-kv"`).
+ *
+ * @param storage - Caller-owned `Record<string, Uint8Array>` to use as the backing store.
+ * @param opts - Optional kv storage options (name, codec, filter, debounce, compactEvery).
+ * @returns `KvStorageTier<T>` backed by the provided dict object.
  *
  * @example
  * ```ts
+ * import { dictKv } from "@graphrefly/graphrefly/extra";
+ *
  * const store: Record<string, Uint8Array> = {};
- * const tier = dictKv<MyRecord>(store);
- * await tier.save("key1", myRecord);
+ * const tier = dictKv<{ score: number }>(store);
+ * await tier.save("player1", { score: 100 });
  * ```
  *
  * @category extra
@@ -628,16 +751,21 @@ export function dictKv<T>(
 }
 
 /**
- * Dict-backed snapshot tier — wraps a caller-owned plain object as a
- * {@link StorageBackend} and returns a snapshot tier over it. Useful for
- * embedding checkpoints inside a parent state shape or for tests that need
- * access to the raw bytes.
+ * Creates a snapshot tier backed by a caller-owned plain object (`Record<string, Uint8Array>`).
  *
- * The dict stores raw JSON bytes as `Uint8Array`. Use `opts.name` to control
- * the storage key (defaults to `"snapshot"`).
+ * Useful for embedding checkpoints inside a parent state shape or for tests
+ * that need direct access to the raw bytes. The dict stores raw JSON bytes as
+ * `Uint8Array`. Use `opts.name` to control the storage key (defaults to
+ * `"snapshot"`).
+ *
+ * @param storage - Caller-owned `Record<string, Uint8Array>` to use as the backing store.
+ * @param opts - Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery).
+ * @returns `SnapshotStorageTier<T>` backed by the provided dict object.
  *
  * @example
  * ```ts
+ * import { dictSnapshot } from "@graphrefly/graphrefly/extra";
+ *
  * const store: Record<string, Uint8Array> = {};
  * graph.attachSnapshotStorage([dictSnapshot(store, { name: graph.name })]);
  * ```

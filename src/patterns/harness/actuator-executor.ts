@@ -253,3 +253,76 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 		}) as Node<ExecuteOutput<R> | null>;
 	};
 }
+
+// ---------------------------------------------------------------------------
+// dispatchActuator
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply callback shape consumed by {@link dispatchActuator}. Same shape as
+ * {@link ActuatorExecutorConfig.apply}.
+ */
+export type ActuatorApplyFn<R> = (
+	item: TriagedItem,
+	opts: { signal: AbortSignal },
+) => ActuatorResult<R>;
+
+/** Configuration for {@link dispatchActuator}. */
+export interface DispatchActuatorConfig<R> {
+	/**
+	 * Per-intervention apply callbacks. Keyed by `TriagedItem.intervention`.
+	 * Items whose intervention is not in `routes` fall through to `default`
+	 * (when set) or emit a skip-failure `ExecuteOutput`.
+	 */
+	routes: Readonly<Partial<Record<TriagedItem["intervention"], ActuatorApplyFn<R>>>>;
+	/** Fallback apply callback for items whose intervention is not in `routes`. */
+	default?: ActuatorApplyFn<R>;
+	/** Node name prefix for `describe()` introspection. Default `"dispatch-actuator"`. */
+	name?: string;
+}
+
+/**
+ * Multi-intervention actuator — dispatches each `TriagedItem` to one of
+ * several `apply` callbacks based on `item.intervention`.
+ *
+ * Internally builds a single `actuatorExecutor` whose `apply` resolves the
+ * intervention → callback at call-time. Items with no matching route and no
+ * `default` emit a skip-failure with detail
+ * `"no route for intervention 'X'"`.
+ *
+ * @example Multi-intervention dogfood loop.
+ * ```ts
+ * const harness = harnessLoop("repair", {
+ *   adapter,
+ *   executor: dispatchActuator<CatalogPatch>({
+ *     routes: {
+ *       "catalog-fn": catalogFnActuator,
+ *       "template": templateActuator,
+ *       "docs": docEditActuator,
+ *     },
+ *     default: investigateActuator,
+ *   }),
+ *   verifier: evalVerifier<CatalogPatch>({ ... }),
+ * });
+ * ```
+ */
+export function dispatchActuator<R>(config: DispatchActuatorConfig<R>): HarnessExecutor<R> {
+	const name = config.name ?? "dispatch-actuator";
+	const defaultFn = config.default ?? null; // snapshot at construction
+	const hasDefault = defaultFn != null;
+	return actuatorExecutor<R>({
+		apply: (item, opts) => {
+			const fn = Object.hasOwn(config.routes, item.intervention)
+				? config.routes[item.intervention]!
+				: defaultFn;
+			if (!fn) {
+				// Should be unreachable when shouldApply is correct — defensive throw.
+				throw new Error(`dispatchActuator: no route for intervention '${item.intervention}'`);
+			}
+			return fn(item, opts);
+		},
+		shouldApply: (item) => Object.hasOwn(config.routes, item.intervention) || hasDefault,
+		skipDetail: (item) => `no route for intervention '${item.intervention}'`,
+		name,
+	});
+}

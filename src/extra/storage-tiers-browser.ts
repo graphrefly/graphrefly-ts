@@ -47,8 +47,23 @@ function openDb(spec: IndexedDbBackendSpec): Promise<IDBDatabase> {
 }
 
 /**
- * IndexedDB backend. Async by nature — `read` / `write` / `delete` / `list`
- * all return `Promise`.
+ * Creates an IndexedDB backend for browser-based persistent storage.
+ *
+ * All operations (`read`, `write`, `delete`, `list`) are async and return
+ * `Promise`. The backing object store is created automatically on first open
+ * if it does not already exist.
+ *
+ * @param spec - Database name, object store name, and optional schema version.
+ * @returns `StorageBackend` backed by an IndexedDB object store.
+ *
+ * @example
+ * ```ts
+ * import { indexedDbBackend, snapshotStorage } from "@graphrefly/graphrefly/extra/browser";
+ *
+ * const backend = indexedDbBackend({ dbName: "my-app", storeName: "snapshots" });
+ * const tier = snapshotStorage(backend, { name: "graph1" });
+ * await tier.save({ name: "graph1", state: {} });
+ * ```
  *
  * @category extra
  */
@@ -112,7 +127,26 @@ export function indexedDbBackend(spec: IndexedDbBackendSpec): StorageBackend {
 }
 
 /**
- * IndexedDB snapshot tier — `snapshotStorage(indexedDbBackend(spec), opts)`.
+ * Creates an IndexedDB snapshot tier backed by an `indexedDbBackend`.
+ *
+ * Convenience wrapper for `snapshotStorage(indexedDbBackend(spec), opts)`.
+ * All reads and writes are async via IndexedDB. Requires a browser or
+ * browser-compatible environment.
+ *
+ * @param spec - Database name, object store name, and optional schema version.
+ * @param opts - Optional snapshot storage options (name, codec, filter, keyOf, debounce, compactEvery).
+ * @returns `SnapshotStorageTier<T>` backed by IndexedDB.
+ *
+ * @example
+ * ```ts
+ * import { indexedDbSnapshot } from "@graphrefly/graphrefly/extra/browser";
+ *
+ * const tier = indexedDbSnapshot<{ count: number }>(
+ *   { dbName: "my-app", storeName: "snapshots" },
+ *   { name: "counter" },
+ * );
+ * await tier.save({ count: 1 });
+ * ```
  *
  * @category extra
  */
@@ -124,7 +158,25 @@ export function indexedDbSnapshot<T>(
 }
 
 /**
- * IndexedDB append-log tier — `appendLogStorage(indexedDbBackend(spec), opts)`.
+ * Creates an IndexedDB append-log tier backed by an `indexedDbBackend`.
+ *
+ * Convenience wrapper for `appendLogStorage(indexedDbBackend(spec), opts)`.
+ * All reads and writes are async via IndexedDB. Requires a browser or
+ * browser-compatible environment.
+ *
+ * @param spec - Database name, object store name, and optional schema version.
+ * @param opts - Optional append-log storage options (name, codec, keyOf, debounce, compactEvery).
+ * @returns `AppendLogStorageTier<T>` backed by IndexedDB.
+ *
+ * @example
+ * ```ts
+ * import { indexedDbAppendLog } from "@graphrefly/graphrefly/extra/browser";
+ *
+ * const tier = indexedDbAppendLog<{ type: string }>(
+ *   { dbName: "my-app", storeName: "events" },
+ * );
+ * await tier.appendEntries([{ type: "init" }]);
+ * ```
  *
  * @category extra
  */
@@ -136,7 +188,26 @@ export function indexedDbAppendLog<T>(
 }
 
 /**
- * IndexedDB kv tier — `kvStorage(indexedDbBackend(spec), opts)`.
+ * Creates an IndexedDB key-value tier backed by an `indexedDbBackend`.
+ *
+ * Convenience wrapper for `kvStorage(indexedDbBackend(spec), opts)`.
+ * All reads and writes are async via IndexedDB. Requires a browser or
+ * browser-compatible environment.
+ *
+ * @param spec - Database name, object store name, and optional schema version.
+ * @param opts - Optional kv storage options (name, codec, filter, debounce, compactEvery).
+ * @returns `KvStorageTier<T>` backed by IndexedDB.
+ *
+ * @example
+ * ```ts
+ * import { indexedDbKv } from "@graphrefly/graphrefly/extra/browser";
+ *
+ * const kv = indexedDbKv<{ score: number }>(
+ *   { dbName: "my-app", storeName: "scores" },
+ * );
+ * await kv.save("player1", { score: 100 });
+ * const val = await kv.load("player1");
+ * ```
  *
  * @category extra
  */

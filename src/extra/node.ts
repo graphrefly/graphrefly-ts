@@ -13,6 +13,12 @@ export type { FromGitHookOptions, GitEvent, GitHookType } from "./git-hook.js";
 export { fromGitHook } from "./git-hook.js";
 export * from "./sources-fs.js";
 export {
+	type FromSpawnOptions,
+	fromSpawn,
+	runProcess,
+	type SpawnEvent,
+} from "./sources-process.js";
+export {
 	fileAppendLog,
 	fileBackend,
 	fileKv,

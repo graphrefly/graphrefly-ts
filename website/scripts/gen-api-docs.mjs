@@ -113,12 +113,35 @@ const REGISTRY = {
 	rateLimiter: "src/extra/resilience.ts",
 	withBreaker: "src/extra/resilience.ts",
 	withStatus: "src/extra/resilience.ts",
-	// Storage — split across core (browser-safe) / node / browser backends 2026-04-22.
-	memoryStorage: "src/extra/storage-core.ts",
-	dictStorage: "src/extra/storage-core.ts",
-	fileStorage: "src/extra/storage-node.ts",
-	sqliteStorage: "src/extra/storage-node.ts",
-	indexedDbStorage: "src/extra/storage-browser.ts",
+	// Storage tiers — three-layer backend + tier model (Audit 4, 2026-04-24).
+	// Layer 1 — backends (bytes-level keyed I/O).
+	memoryBackend: "src/extra/storage-tiers.ts",
+	fileBackend: "src/extra/storage-tiers-node.ts",
+	sqliteBackend: "src/extra/storage-tiers-node.ts",
+	indexedDbBackend: "src/extra/storage-tiers-browser.ts",
+	// Layer 2 — tier factories (snapshot / append-log / kv over a backend).
+	snapshotStorage: "src/extra/storage-tiers.ts",
+	appendLogStorage: "src/extra/storage-tiers.ts",
+	kvStorage: "src/extra/storage-tiers.ts",
+	// Convenience tier factories.
+	memorySnapshot: "src/extra/storage-tiers.ts",
+	memoryAppendLog: "src/extra/storage-tiers.ts",
+	memoryKv: "src/extra/storage-tiers.ts",
+	dictKv: "src/extra/storage-tiers.ts",
+	dictSnapshot: "src/extra/storage-tiers.ts",
+	fileSnapshot: "src/extra/storage-tiers-node.ts",
+	fileAppendLog: "src/extra/storage-tiers-node.ts",
+	fileKv: "src/extra/storage-tiers-node.ts",
+	sqliteSnapshot: "src/extra/storage-tiers-node.ts",
+	sqliteAppendLog: "src/extra/storage-tiers-node.ts",
+	sqliteKv: "src/extra/storage-tiers-node.ts",
+	indexedDbSnapshot: "src/extra/storage-tiers-browser.ts",
+	indexedDbAppendLog: "src/extra/storage-tiers-browser.ts",
+	indexedDbKv: "src/extra/storage-tiers-browser.ts",
+	// Codec helpers.
+	// jsonCodec is an `export const` object literal — not supported by the function/class parser.
+	jsonCodecFor: "src/extra/storage-tiers.ts",
+	// IDB reactive sources (DOM globals).
 	fromIDBRequest: "src/extra/storage-browser.ts",
 	fromIDBTransaction: "src/extra/storage-browser.ts",
 
@@ -177,7 +200,7 @@ const REGISTRY = {
 	createTransport: "src/extra/worker/transport.ts",
 
 	// Patterns — reduction (roadmap §8.1)
-	stratify: "src/patterns/reduction/index.ts",
+	stratify: "src/extra/stratify.ts",
 	funnel: "src/patterns/reduction/index.ts",
 	feedback: "src/patterns/reduction/index.ts",
 	budgetGate: "src/patterns/reduction/index.ts",
