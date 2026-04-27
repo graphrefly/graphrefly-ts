@@ -2938,3 +2938,466 @@ The audit phase is complete. Implementation sequencing (revised after post-sync 
 | **V2 expansions** | `graphLens.health` V2; aggregate metrics. | § D.3 |
 
 **The session log above is now the complete implementation spec for Phase 0 + Wave A + Wave B (including the post-sync revisions in this appendix).** Subsequent sessions execute the listed work; each unit's locked decisions plus the post-sync revisions in §§ A–D constitute the binding direction.
+
+---
+
+## F. Audit round 2 (2026-04-25 → 2026-04-27)
+
+Follow-up audit pass that picks up Wave B remainder (Units 7, 8) plus the four `D.2` cross-pattern prerequisites filed at § D.2. Same 9-question format; HALT-and-lock per unit. **D.2.5 (`extra/reactive-map.ts`) deferred** for coordination with the in-flight Wave A reshape — to be audited against the post-Wave-A shape.
+
+**Chronology of follow-up audit rounds (this section + §§ G, H):** Phase 0 + Unit 6 widening shipped (§ F.0, 2026-04-25) → **Wave AM audit, Units 1–5 (§ G, 2026-04-26)** — `patterns/ai/memory/` per § D.1 of the original review → **Wave C lock (§ H, 2026-04-26)** — mutation-framework migration per § C of the original review → round-2 audit § F.1–F.7 (Wave B remainder + D.2 prereqs, 2026-04-26 → 2026-04-27) → architecture re-lock § F.8 (2026-04-27).
+
+**Order executed (this § F):** Unit 7 → Unit 8 → D.2.1 → D.2.2 → D.2.4 → D.2.3a → D.2.3b (interrupted at Q1, resumed 2026-04-27) → reconsideration of "reactive options everywhere" lock.
+
+### F.0 — Phase 0 + Unit 6 widening shipped (2026-04-25)
+
+Per § B.1 (Option B) and § B.3 (Option A). Both landed clean; full pnpm test/lint/build green.
+
+**Phase 0 — mutation-framework refactor** ([src/patterns/_internal/imperative-audit.ts](../src/patterns/_internal/imperative-audit.ts), [src/extra/reactive-map.ts:540](../src/extra/reactive-map.ts#L540) JSDoc only):
+- Extracted `appendAudit<TArgs, TResult, R, M>` (exported helper).
+- Promoted `bumpCursor(seq)` to exported.
+- Added `lightMutation(action, opts)` — substrate-tier (`freeze: true` default; no `batch()` frame; seq advance persists on throw).
+- Refactored `wrapMutation` to use the shared helpers (no behavior change).
+- New tests: 14 in [imperative-audit.test.ts](../src/__tests__/patterns/_internal/imperative-audit.test.ts) (lightMutation happy/throw/freeze-default/freeze-false/seq-cursor/handlerVersion/undefined-skip; wrapMutation regression; bumpCursor unit tests including no-subscribers and `NaN` guard).
+- QA carries: **A3** (JSDoc `Node<Actor>` cache:undefined = no scoping); **B1** (terminal-type unsub on `COMPLETE | ERROR | TEARDOWN` + final `bump()`); **C** (strengthened `isActorNode` duck-type via `typeof x.down === "function"`); **D** (`bumpCursor` `Number.isFinite` guard); **E** (lightMutation cursor-log alignment caveat in JSDoc); **F** (dispose-cleanup test counts `unsubCalls`); **G** (dropped brittle `Object.isFrozen(input)` test); **H** (added `bumpCursor` no-subscribers test).
+
+**Unit 6 widening — `GraphDescribeOptions.actor`** ([src/graph/graph.ts](../src/graph/graph.ts)):
+- Type widened to `Actor | Node<Actor>`.
+- File-local `isActorNode` + `resolveActorOption` helpers (mirrors `extra/resilience.ts:886` precedent — file-local, not promoted to a shared `NodeOrValue` utility).
+- Static `describe()` resolves at entry; `_describeReactive` subscribes to the actor node and routes `DATA` emits through the existing `bump()` coalescer; disposer cleans up actor sub.
+- Tightened "coalesces correctly" claim from § B.1: cross-source events do NOT batch (subscribe callbacks fire during drain when `batchDepth === 0`, so `registerBatchFlushHook` runs immediately rather than batching across event sources). Final state correctness still holds; tests assert observable property rather than recompute count.
+- 4 new tests in [graph.test.ts:1006](../src/__tests__/graph/graph.test.ts#L1006).
+
+### F.1 — Unit 7 lock (`resilientPipeline`, 2026-04-26)
+
+**Locked recommendation E** (corrected to **§ F.10** under Architecture-2 demotion below). Original lock per § B.5 was H = full reactive rebuild + reactive options + per-layer companions; § F.10 demotes "reactive options" to compositor-only.
+
+**Stays locked (Architecture-2 compatible):**
+- Mount-on-graph option (`graph?: Graph` opt) — mounts `status`, `error`, `breakerState` companions automatically.
+- Per-layer `name?` opts (debug breadcrumb; describe shows the layer-purpose name instead of generic primitive name).
+- Per-layer companion exposure (already shipped: `status`, `error`, `breakerState`).
+- `timeoutMs` overflow guard at `9_000_000` ms (~2.5h) — already shipped; documented inline.
+
+**Sign-off contingent on:** D.2.3 + D.2.4.
+
+### F.2 — Unit 8 lock (`graphLens` / `LensGraph`, 2026-04-26)
+
+**Locked: J + K from § B.5 verbatim + new "health-tick observe-callback gate":**
+- J — full reactive rebuild + reactify `flow` from observe-callback closure to a registered reactive node where it doesn't add a per-DATA frame (carry forward the § B.2 note: `flow.set` from observe-callback stays unwrapped).
+- K — `whyCacheSize` default **`16`** (NOT 32; per § B.5 lock).
+- **NEW (this round)**: in the health-tick observe gate, skip `t === "data"` from triggering `healthVersion` bumps — closes the perf cliff for high-traffic graphs.
+
+**Sign-off contingent on:** D.2.2.
+
+**Filed in optimizations.md (per § B.5 instruction, retroactively):**
+- `graphLens` 50k-node scaling: replace full-describe-per-tick with incremental delta updates.
+- `graphLens.health` V2: add `"completed"` and `"disconnected"` flag classes; aggregate metrics (`totalDataCount`, `totalErrorCount`).
+
+### F.3 — D.2.1 lock (`policyEnforcer`, 2026-04-26)
+
+**File:** [src/patterns/audit/index.ts:227-504](../src/patterns/audit/index.ts#L227) (~250 LOC slice of 725).
+
+**Locked: I′ — original recommendation I MINUS D (reactive `violationsLimit`):**
+- **B**: drop `all()` imperative read (per no-imperative-reads policy at top of doc).
+- **C**: reactive `paths: readonly string[] | Node<readonly string[] | undefined>` — STAYS reactive under Architecture-2 (see § F.10 carve-out: `policyEnforcer` consumer is `guardedExecution`, an inline pattern, NOT a rebuilding compositor).
+- **F**: remove the B9 `lastMutation` fallback (B9 added stamped-actor on observe events 2026-04-22; the fallback is now dead code).
+- **G**: replace per-event linear path filter with a `Set<string>` lookup in audit mode (current code does `paths.includes(...)` per event; perf pinch at scale).
+- **H**: JSDoc the coupling to `NodeImpl._pushGuard` (internal API; document why `safeNode` skip semantics cannot be inferred from the public Node surface).
+- **NEW E** (formerly the hub-adoption question): no hub — confirmed in Wave C hub audit that `_publishViolation` calls (subscribe-callback in audit mode + guard-fn in enforce mode) are sanctioned categories. No action needed.
+
+**Dropped (was D in original recommendation):** reactive `violationsLimit` — depends on TopicGraph supporting reactive `retainedLimit`, which the messaging audit confirmed is STATIC. Filed as deferred follow-up: "TopicGraph reactive `retainedLimit` support — needed for reactive `violationsLimit` (re-audit messaging in a future round)."
+
+**`violations.publish(...)` → `lightMutation` adoption** is locked under Wave C, not here.
+
+**Carries:** PY parity → umbrella ticket; Wave C messaging coordination with locked TopicGraph audit changes.
+
+### F.4 — D.2.2 lock (`reactiveExplainPath`, 2026-04-26)
+
+**File:** [src/patterns/audit/index.ts](../src/patterns/audit/index.ts) (~50 LOC slice).
+
+**Locked: B + C + F — co-land with Unit 8 implementation; file path-scoped observe follow-up.**
+
+(Detailed Q-list per the round-2 audit; locks expressed as a short matrix to avoid duplicating the full audit text in this archive.)
+
+- **B**: reactive `from`/`to`/`maxDepth`/`findCycle` opts — same harness-tunability gap as Unit 7/8/D.2.1; reactive options live where the pattern shape demands (inline pattern → reactive on the primitive; compositor → reactive only on the compositor).
+- **C**: closure-mutables (`v`, `pendingBump`, `disposed`) sanctioned per §28 — JSDoc the wiring-time-seed pattern.
+- **F**: file path-scoped observe follow-up (whole-graph observe scope is a perf gap at scale; not a spec violation; defer).
+
+**Carries:** PY parity → umbrella; B21 wrapper consolidation pending pre-1.0 removal (cross-ref [optimizations.md:541](../docs/optimizations.md#L541)).
+
+### F.5 — D.2.4 lock (`budgetGate`, 2026-04-26 → revised § F.10)
+
+**File:** [src/patterns/reduction/index.ts:240-423](../src/patterns/reduction/index.ts#L240) (~180 LOC).
+
+**Original lock:** B + C + D + E + F + G + reference-equality diff. **Revised under § F.10: drop C (reactive `constraints`); keep B+D+E+F+G + ref-equality.**
+
+- **B**: RingBuffer / head-index queue replacement for `buffer.slice(1)` per pop (currently O(N²) on large buffers; line 299).
+- **C**: ~~reactive `constraints: NodeOrValue<readonly BudgetConstraint[]>`~~ — **DROPPED per § F.10**. Consumer `resilientPipeline` rebuilds chain on opt change; `budgetGate` stays static-constraints.
+- **D**: terminal force-flush + PAUSE-release ordering audit (current behavior at line 372-386 is correct; lock the ordering as documented invariant + testify).
+- **E**: explicit JSDoc on the `node([], fn)` producer-pattern + manual subscribe consequence: source AND constraints invisible to `describe()` from the budgetGate node (effect-mirror limitation; same shape as `policyEnforcer`, `lens.health`, `_explainReactive`).
+- **F**: empty-deps `RangeError` documented + tested.
+- **G**: reference-equality diff for buffer dedup (where applicable).
+- **Reference-equality diff** — applies cross-cuttingly to constraint-array and option-array shapes; locked as the canonical "subscribe management" pattern.
+
+**Carries:** end-of-batch `_handleBudgetMessage` boolean return / forward-unknown audit across other producer-pattern factories (filed under "Implementation anti-patterns" in optimizations.md); PY parity → umbrella.
+
+### F.6 — D.2.3a initial lock (Supervisors cluster: retry + breaker + timeout + fallback, 2026-04-26 → revised § F.10)
+
+**Files:** [src/extra/resilience.ts:49-325 (retry), :327-563 (breaker), :879-1071 (timeout, fallback, TimeoutError)](../src/extra/resilience.ts).
+
+**Original lock:** G + (b) require explicit `count` when `backoff` set + per-field reactive opts on retry/breaker/timeout/fallback. **Revised under § F.10: drop per-field reactive opts; keep G + (b).**
+
+**Surviving items (Architecture-2 compatible):**
+- **(b) Unbounded-retry footgun fix**: when `backoff` is provided but `count` is omitted, require explicit `count` (or explicit `count: Infinity` for opt-in). Previously defaulted to `0x7fffffff` ≈ 2.1B retries — flaky-provider + exp-backoff = effectively infinite retry budget.
+- **G**: retry source-mode / factory-mode body deduplication (the two overload branches share ~110 LOC; extract shared closure-state machinery).
+- **JSDoc** on retry/breaker/timeout/fallback: clock injection contract on `circuitBreaker(now)`, `Math.max(1, delayNs / NS_PER_MS)` minimum-1ms scheduling guard, `coerceDelayNs` defensive non-finite handling, breaker state-telemetry shape, `fallback` `fromAny` type-discrimination contract.
+- **Breaker state telemetry** — already shipped via `withBreaker` companion; lock the JSDoc.
+
+**Dropped (was in original lock):** per-field `T | Node<T>` reactive opts on retry / breaker / timeout / fallback — see § F.10.
+
+**Carries:** PY parity follow-up; carries to D.2.3b for shared cross-primitive patterns.
+
+### F.7 — D.2.3b lock (Throttles + status cluster: tokenBucket + rateLimiter + withStatus, 2026-04-27)
+
+**Files:** [src/extra/resilience.ts:565-634 (tokenBucket), :636-774 (rateLimiter), :776-868 (withStatus)](../src/extra/resilience.ts).
+
+**Prior context** (validates Architecture-2 carve-out):
+- `rateLimiter` rewritten 2026-04-15 from sliding-window to `tokenBucket` (resolved-decisions.jsonl id `ratelimiter-sliding-window-to-tokenbucket`). Current shape locked.
+- `withStatus` P3 fix 2026-04-15 — closure `currentStatus` instead of `.cache` read (id `p3-audit-4-withstatus-cache-read`).
+- **`adaptiveRateLimiter`** (resolved 2026-04-21, id `adaptive-rate-limiter-primitive`) is the primitive-level reactive-opts variant — accepts `rpm` / `tpm` `NodeInput<number>` knobs + `TokenBucket.putBack` recovery. Validates the § F.10 carve-out: `rateLimiter` stays static; callers needing hot-path reactivity use `adaptiveRateLimiter`.
+
+**Locked: (c) — full hygiene + bounded-pending + `droppedCount` companion. (e) explicitly deferred to post-1.0.**
+
+**(c) Items:**
+
+1. **Bounded-`maxBuffer`** on `rateLimiter`: require explicit `maxBuffer` OR `maxBuffer: Infinity` for opt-in unbounded. Default to a sane cap (e.g. `2 * maxEvents`). Same shape as retry's `count`-required-when-`backoff`-set fix (D.2.3a (b)). Closes the "high-rate source + low limit + omitted maxBuffer = unbounded queue growth" footgun.
+2. **RingBuffer / head-index queue** for `rateLimiter.pending`: replace `pending.shift()` (O(N) per pop) with O(1) pops; cross-share the RingBuffer primitive with D.2.4 B's `budgetGate.buffer.slice(1)` fix.
+3. **`droppedCount` reactive companion** on `rateLimiter`: `Node<number>` increments on each drop (under any overflow policy: `drop-newest` / `drop-oldest`); resets on terminal. `rateLimiter` return type widens from `Node<T>` to `{ node: Node<T>, droppedCount: Node<number> }` (companion-bundle shape; pre-1.0 free to break).
+4. **`tokenBucket(capacity, refill, opts?)` clock injection**: optional `now?: () => number` for testability; parity with `circuitBreaker(now)`. Removes test reliance on `vi.useFakeTimers`.
+5. **JSDoc**:
+   - `tokenBucket.tokens` is float (fractional refill credit accumulates).
+   - `rateLimiter` producer-pattern: source visible, `droppedCount` companion invisible to describe-traversal from `node` (effect-mirror limitation; documented).
+   - `rateLimiter.droppedCount` lifecycle (counts drops; resets on terminal).
+   - `withStatus.batch()` recovery semantics — already documented; lock the comment.
+6. **Drop reactive opts on `rateLimiter`** per § F.10 — `resilientPipeline` rebuilds; `adaptiveRateLimiter` is the reactive-opts variant.
+
+**(e) `withStatus` decomposition — DEFERRED post-1.0.** Initial Q9 alternatives surfaced (e) as a candidate (decompose into `statusOf` + `errorOf` + thin bundle). On reflection: complicates the surface for no current use case. Re-evaluate post-1.0 when concrete demand for independent-companion reuse or describe-traversal visibility on `withStatus` companions emerges. Filed in `docs/optimizations.md` under "Deferred follow-ups" so the rationale + tradeoff analysis is preserved.
+
+**Coverage table:**
+
+| Q | Concern | Coverage |
+|---|---|---|
+| Q2 | Unbounded `pending` queue | (1) explicit `maxBuffer` |
+| Q2 | `pending.shift()` O(N) | (2) RingBuffer |
+| Q2 | No throttle-pressure signal | (3) `droppedCount` companion |
+| Q5 | `tokenBucket` testability | (4) clock injection |
+| Q6 | Float `tokens` undocumented | (5) JSDoc |
+| Q3 gray #2 | `withStatus` empty-deps + invisible companions | DEFERRED post-1.0 (see optimizations.md) |
+| Architecture | Reactive opts on primitive | (6) DROPPED — § F.10 |
+
+**Carries:**
+- PY parity → umbrella: mirror items 1–5 in `~/src/graphrefly-py/src/graphrefly/extra/resilience.py`.
+- Cross-pattern: `rateLimiter`'s new `droppedCount` companion is sanctioned subscribe-callback mutation per Wave C hub audit — no `lightMutation` adoption needed.
+
+### F.8 — Architecture re-lock (2026-04-26): "reactive options everywhere" → compositor-only
+
+**Trigger.** During D.2.3b Q1, the user pushed back on "NodeOrValue everywhere" — the implicit assumption behind Unit 7 E + D.2.3a (per-field reactive) + D.2.4 C (reactive constraints). The user's reasoning:
+
+> *"I accepted the unit 6 widening (`actor: Actor | Node<Actor>`) but I think architecture 2 is enough because, like you said, we haven't got a use case for LLM to actually tune the graph on the fly yet. That step requires we do a lot of evals on LLM's ability to understand how the spec and the composition guide work. I don't think LLM is capable of doing that on the fly. At least, at this stage, it requires a version upgrade on the code to tune the graph for now."*
+
+**Reasoning chain reviewed.**
+1. The "reactive options everywhere" lock came from the original § B.5 Unit 7 H, dated 2026-04-25.
+2. Two architectures answer "who reacts when an option-Node emits":
+   - **Architecture 1**: push reactivity into each primitive — every primitive (retry, rateLimiter, etc.) accepts `T | Node<T>` for its options and owns its option subscription. ~250 LOC of new code across 7 primitives + per-primitive state-migration logic (e.g. bucket-state on `rateLimiter` capacity change).
+   - **Architecture 2**: keep primitives static; the compositor (`resilientPipeline`) accepts option-Nodes per-layer and rebuilds the chain on emit (switchMap-style). Primitives unchanged. ~30 LOC of rebuild logic in the compositor.
+3. Architecture 1's runtime win (incremental update vs full rebuild) only pays off for HOT opt changes. **No current consumer asks for HOT option tuning.** The harness use cases are: UI knob, periodic harness tuning — option Nodes change rarely, not per-DATA. Per-rebuild cost is small (~7 nodes; constant time relative to source throughput).
+4. The original lock was inherited from a SESSION-doc decision, not from a use case that demanded it.
+
+**Locked: Architecture 2.** Primitives stay static; reactivity lives at the compositor layer.
+
+**Why this matches the user's framing.**
+- Tuning the resilience pipeline on-the-fly is an *LLM-as-graph-tuner* capability. That capability requires evals on LLM understanding of GRAPHREFLY-SPEC + COMPOSITION-GUIDE before we trust it.
+- At this stage, the version-upgrade-to-tune model is the right operating mode. We don't pay the ~250 LOC primitive-churn tax for a use case we can't yet exercise safely.
+- The compositor-level rebuild keeps the user-visible reactivity (callers still pass `T | Node<T>`) — the cost shifts to the framework's compositor, not to every primitive.
+
+### F.9 — Carve-outs from Architecture 2
+
+Two patterns explicitly **stay reactive at the primitive layer** because their consumers are NOT rebuilding compositors:
+
+| Primitive | Reactive opt | Reason |
+|---|---|---|
+| `policyEnforcer` (D.2.1 C) | `paths: readonly string[] \| Node<readonly string[] \| undefined>` | Consumer is `guardedExecution`, an inline pattern; "harness updates allowed paths mid-run" is a real flow that doesn't go through a rebuilding compositor. |
+| `Graph.describe({ actor })` (Unit 6) | `actor: Actor \| Node<Actor>` | `Graph.describe` is itself the compositor for the snapshot; the actor-Node subscription routes through the existing `bump()` coalescer. Already shipped. |
+
+Carve-outs are decided by the *consumer's pattern shape* (compositor vs inline), not by the primitive's intrinsic reactivity. This is the heuristic going forward.
+
+### F.10 — Round-2 unit-revision summary (Architecture-2 final lock)
+
+| Audit | § F section | Original lock | Final lock (Architecture 2) |
+|---|---|---|---|
+| **Unit 6 widening** | F.0 | `actor: Actor \| Node<Actor>` (§ B.1 Option B) | **Stays accepted** — § F.9 carve-out (`Graph.describe` IS the compositor). |
+| **Unit 7** | F.1 | H = full reactive rebuild + reactive options + per-layer companions (§ B.5) | **Compositor-level reactive only**: `resilientPipeline` accepts `T \| Node<T>` per-layer and rebuilds chain on emit (switchMap-pattern). Per-layer companions + mount-on-graph + naming stay. |
+| **Unit 8** | F.2 | J + K (§ B.5) + new health-tick gate | **Stays** (no Architecture-1 dependency). |
+| **D.2.1** | F.3 | I′ — drop reactive `violationsLimit`; keep B+C+F+G+H | **Stays — reactive `paths` survives** under § F.9 carve-out (consumer is inline `guardedExecution`, not a rebuilding compositor). |
+| **D.2.2** | F.4 | B + C + F | **Stays** (no Architecture-1 dependency). |
+| **D.2.3a** | F.6 | G + (b) require explicit count + per-field reactive opts | **Drop reactive opts**; keep G + (b) + JSDoc. |
+| **D.2.3b** | F.7 | (interrupted at Q1; re-locked 2026-04-27) | **(c)**: bounded-`maxBuffer`, RingBuffer, `droppedCount` companion, `tokenBucket` clock injection, JSDoc, **drop reactive opts**. **(e) `withStatus` decomposition deferred post-1.0** (see optimizations.md). |
+| **D.2.4** | F.5 | B + C + D + E + F + G + ref-equality diff | **Drop C** (reactive `constraints`); keep B + D + E + F + G + ref-equality diff. |
+
+### F.11 — Round-2 carry-forward to optimizations.md
+
+To file (alongside the AM follow-ups, batched at end of audit batch):
+
+- **TopicGraph reactive `retainedLimit`** — needed for reactive `violationsLimit` on `policyEnforcer` and similar consumers. Re-audit messaging in a future round (D.2.1 carry).
+- **`graphLens` 50k-node scaling** — incremental delta updates instead of full describe-per-tick (Unit 8 carry, § B.5 instruction).
+- **`graphLens.health` V2** — `"completed"` / `"disconnected"` flag classes; aggregate metrics (Unit 8 carry, § B.5 instruction).
+- **End-of-batch `_handleBudgetMessage` boolean return / forward-unknown audit** across other producer-pattern factories (D.2.4 carry; file under "Implementation anti-patterns").
+- **Compositor-level reactive options pattern** — `resilientPipeline` switchMap-pattern rebuild on per-layer option-Node emit. New entry capturing the Architecture-2 design: when, why, the diff-vs-rebuild tradeoff, the §28 wiring-time-seed pattern in the compositor.
+- **PY parity umbrella** — Round-2 additions: Unit 7/8 ports, D.2.1/D.2.2/D.2.3/D.2.4 ports.
+
+### F.12 — Items still left for audit
+
+| Item | Status | Note |
+|---|---|---|
+| **D.2.5** — `extra/reactive-map.ts` | DEFERRED | Coordination flag — Wave A is reshaping `reactiveMap` as part of memory-primitive adoption. Audit AFTER Wave A ships against the post-Wave-A shape. |
+| Implementation phases | QUEUED | Wave B (Units 7, 8) + D.2.1, D.2.2, D.2.3, D.2.4 implementation can proceed now that the audit-side decisions are locked. Wave A is in-flight by another agent. |
+
+**Round-2 audit status:** **7 of 7 audits locked** (Unit 7, Unit 8, D.2.1, D.2.2, D.2.4, D.2.3a, D.2.3b); 1 deferred (D.2.5). Architecture-2 re-lock applies retroactively to Unit 7 + D.2.3a + D.2.3b + D.2.4; § F.9 carve-outs preserve reactivity for D.2.1 `paths` and Unit 6 `actor`.
+
+**The session log above is now the complete implementation spec for Phase 0 + Wave A + Wave B (including the post-sync revisions in this appendix and the round-2 audit decisions in § F).** Subsequent sessions execute the listed work; each unit's locked decisions plus the post-sync revisions in §§ A–D plus the round-2 locks in § F plus the Wave AM and Wave C locks in §§ G, H constitute the binding direction.
+
+---
+
+## G. Wave AM — agentic memory audit (2026-04-26)
+
+Audit pass on `patterns/ai/memory/` per § D.1 of the original review. Same 9-question format; HALT-and-lock per unit; one file per unit. No backward compat budget (pre-1.0). All PY parity items rolled into a single umbrella ticket at end of wave.
+
+**Files in scope:**
+- [src/patterns/ai/memory/tiers.ts](../src/patterns/ai/memory/tiers.ts) — Unit 1
+- [src/patterns/ai/memory/admission.ts](../src/patterns/ai/memory/admission.ts) — Unit 2
+- [src/patterns/ai/memory/retrieval.ts](../src/patterns/ai/memory/retrieval.ts) — Unit 3
+- [src/patterns/ai/memory/llm-memory.ts](../src/patterns/ai/memory/llm-memory.ts) — Unit 4
+- [src/patterns/ai/memory/memory-composers.ts](../src/patterns/ai/memory/memory-composers.ts) — Unit 5
+
+### G.1 — Wave AM Unit 1 (`tiers.ts`, decay constant, 2026-04-26)
+
+**Locked: E — full pass.**
+
+- ✅ **Decay constant moves to `src/patterns/_internal/decay.ts`** — new internal file (NOT a public surface). `tiers.ts` and `harness/defaults.ts` re-export.
+- ✅ **Drop `tierOf` entirely** — `tierOfNode(keyInput): Node<MemoryTier>` becomes the only read. No imperative escape hatch (per top-level no-imperative-reads policy at line 97).
+- ✅ **Narrow `activeEntries: Node<unknown>` → `Node<ReadonlyMap<string, TMem>>`** — the upstream `store.store.entries` is already typed as `Node<ReadonlyMap<string, TMem>>` (`ReactiveMapBundle.entries`). Today's `Node<unknown>` is a gratuitous type erasure; just stop erasing. No new type promotion needed.
+- ✅ **Keep `markPermanent` as command-side write** (sanctioned per API-style policy); `lightMutation` adoption deferred to Unit 5 (`memory-composers.ts`) where the body lives.
+- 🟡 **Open follow-up:** [`extractStoreMap<TMem>`](../src/patterns/ai/memory/memory-composers.ts#L42) becomes redundant once the upstream type narrows — delete it as part of Unit 5.
+
+**Carries:** PY parity → umbrella.
+
+### G.2 — Wave AM Unit 2 (`admission.ts` — `admissionFilter`, 2026-04-26)
+
+**Locked: C + D + E + F — clean full pass.**
+
+**Final shape:**
+
+```ts
+// Generic predicate (renamed from admissionScored — "Scored" was misleading;
+// it returns a predicate, not scores).
+admissionFilter<Dims, TRaw>(opts): (raw: TRaw) => boolean
+
+// Reactive sibling — direct graph composition without the agentMemory-style
+// `derived(...)` wrapper. Sets the precedent for Unit 6 to accept a reactive
+// filter without us having to come back here.
+admissionFilterNode<Dims, TRaw>(rawInput, optsInput): Node<boolean>
+
+// 3D sugar — name unchanged.
+admissionFilter3D(opts): (raw) => boolean
+```
+
+- ✅ **C** — fix `scoreFn` double-call in `admissionFilter3D`; extract private `gateThresholds(scores, thresholds)` helper; both `admissionFilter` and `admissionFilter3D` use it.
+- ✅ **D** — `requireStructured: boolean` → `structureThreshold?: number`. Uses `>=` like persistence/personalValue. Old `requireStructured: true` migrates to `structureThreshold: Number.MIN_VALUE` for the literal `> 0` semantic; callers should set a meaningful threshold.
+- ✅ **E** — rename `admissionScored` → `admissionFilter` (the "Scored" suffix mis-described the returned shape); add `admissionFilterNode` reactive sibling.
+- ✅ **F** — type-cleanup on the dim-keyed options object.
+
+**Carries:** PY parity → umbrella.
+
+### G.3 — Wave AM Unit 3 (`retrieval.ts` — defaults + rename, 2026-04-26)
+
+**Locked: G — defaults centralization + `context` → `path` rename for hierarchical-breadcrumb fields only.**
+
+- ✅ **G** — surface `DEFAULT_RETRIEVAL_TOPK / GRAPH_DEPTH / BUDGET / CONTEXT_WEIGHT` as named constants (currently inline literals scattered across the file).
+- ✅ **Q2 rename mapping** (hierarchical-breadcrumb field rename only):
+  - `RetrievalQuery.context` → `.path`
+  - `RetrievalEntry.context` → `.path`
+  - `RetrievalPipelineOptions.contextOf` → `.pathOf`
+  - `RetrievalPipelineOptions.contextWeight` → `.pathWeight`
+  - `MemoryWithTiersOptions.context` (the agent-wide score-fn live state) **stays** — that's the disambiguation.
+- ✅ **Q3** — empty-query enforcement deferred to a runtime guard in Unit 5 (cleanest; type-level discrimination would force awkward "build an X-style query" choices on callers).
+
+**Carries:**
+- 🟡 To Unit 5: rename ripple in `memory-composers.ts` (`pathOf`, `pathWeight`, `query.path`, `entry.path`); add at-least-one-channel runtime guard for `RetrievalQuery`.
+- 🟡 To Unit 6 (post-Wave-AM follow-up): rename ripple in `agent-memory.ts` (retrieval field references).
+- PY parity → umbrella.
+
+### G.4 — Wave AM Unit 4 (`llm-memory.ts` — `llmJsonCall` → public `promptCall`, 2026-04-26)
+
+**Locked: D′ — promote `llmJsonCall` → public `promptCall` in new file `src/patterns/ai/prompts/prompt-call.ts`. Folds in C (type cleanup + tests + recency-bias doc) for the memory-domain wrappers.**
+
+**Final shape:**
+- **NEW** [`src/patterns/ai/prompts/prompt-call.ts`](../src/patterns/ai/prompts/prompt-call.ts):
+  - `PromptCallOptions = PromptNodeOptions ∪ { name? }`.
+  - `promptCall<TIn, TOut = string>(adapter, contentBuilder, opts): (input: TIn) => Node<TOut>` — body is the current `llmJsonCall` minus the memory-specific bits, with cleaned-up type casts.
+  - JSDoc cross-references `promptNode` (deps shape) and the `extractFn` / `consolidateFn` / distill-callback usage pattern.
+- **REFACTOR** `src/patterns/ai/memory/llm-memory.ts`:
+  - Drop the file-private `llmJsonCall`; import `promptCall`.
+  - `llmExtractor` and `llmConsolidator` become thin specializations: build closure args (`{raw, existingKeys}` / `{memories}`) and delegate.
+  - Keep memory-domain JSDoc (`Extraction<TMem>` shape, distill integration).
+  - Drop `as NodeInput<TOut>` cast (no longer needed once the body lives in `prompt-call.ts` with cleaner types).
+
+- ✅ **Q2** — fix `as never` locally for now (cast to `[Node<TIn>]`); revisit `promptNode` deps signature only if multiple call sites force the same workaround.
+- 🟡 **Q3** — flag the `mapFromSnapshot` ([composite.ts:141](../src/patterns/ai/memory/composite.ts#L141)) ↔ `extractStoreMap` ([memory-composers.ts:42](../src/patterns/ai/memory/memory-composers.ts#L42)) parallel pair as a separate Wave-A follow-up to file in `optimizations.md` once the wave finishes. (`extractStoreMap` is also slated for deletion via Unit 1 / Unit 5 type-narrowing chain.)
+
+**Future overgeneralization deferred:** `extra/callFactory<TArgs, TResult>` generalizing the per-call-fresh-Node pattern is conceivable but premature at two callers (`promptCall` + future). Defer.
+
+**Carries:** PY parity → umbrella.
+
+### G.5 — Wave AM Unit 5 (`memory-composers.ts` — composite memory factories, 2026-04-26)
+
+**Locked: E with refined D — clean full pass across `memoryWithVectors` / `memoryWithKG` / `memoryWithTiers` / `memoryRetrieval`.**
+
+- ✅ **A. `memoryWithVectors`** — diff-based indexer (insert / update / remove tracking); inline now, file `diffMap` extraction as a Wave-A-extras follow-up.
+- ✅ **B. `memoryWithKG`** — same diff-based pattern; verify `kg.removeEntity` exists in Wave A's KG rebuild surface — file as blocker if not.
+- ✅ **C. `memoryWithTiers`**:
+  - Closure-state promotion: `permanentKeys: Set<string>` → `state<ReadonlySet<string>>`; `entryCreatedAtNs: Map<string, number>` → `reactiveMap`.
+  - `tierClassifier` effect → pure `derived<{toArchive, toPermanent}>` + `retention.onArchive` wire (retires §7 feedback cycle per [optimizations.md:892](../docs/optimizations.md#L892)).
+  - `tierOf` → `tierOfNode` (per Unit 1 lock).
+  - `markPermanent` adopts `lightMutation` with public `events` audit log (per § B.2).
+  - Score-fn double-call fix.
+- ✅ **D. `memoryRetrieval`**:
+  - Drop imperative `retrieve` (per top-level no-imperative-reads policy).
+  - Explicit-deps fully-reactive `runRetrieval` (snapshots in, no `.cache` reads in body).
+  - Two memoized sibling `derived`s.
+  - Candidate-map fix (only fall back to full-store when no vectors AND no KG AND no entityIds — current code falls back too eagerly).
+  - Empty-query runtime guard (per Unit 3 carry).
+  - Unit 3 renames applied (`pathOf` / `pathWeight` / `query.path` / `entry.path`).
+  - Unit 3 default constants applied.
+- ✅ **E** — delete `extractStoreMap` (per Unit 1 follow-up); tighten `store.store.entries` typing inline.
+
+- ✅ **Q2 archive semantic — (b) real archival** — add `archiveStore?: LightCollectionBundle<TMem>` opt; classifier writes archived entries there before deleting from active. Keeps the `archiveTier` snapshot-storage opt for persistence. Names stay descriptive.
+- ✅ **Q3 diffing** — inline diff in indexers (Wave-A-extras follow-up files `diffMap` extraction once a 3rd caller emerges).
+
+**Resulting topology** (per Q9 walkthrough, locked): `memoryRetrieval` ends at 2 nodes (down from 3). No state-node mirror, no effect, no race between imperative and reactive write paths. `runRetrieval` runs **once** per input change (memoized). `describe()` shows both.
+
+**Carries:** PY parity → umbrella; `diffMap` extraction once 3rd-caller emerges.
+
+### G.6 — Wave AM follow-ups + cross-references
+
+**Filed in optimizations.md (post-Wave-AM batch):**
+- `mapFromSnapshot` ↔ `extractStoreMap` parallel-pair audit follow-up (Unit 4 Q3).
+- `diffMap` extraction once a 3rd caller emerges (Unit 5 Q3).
+- PY parity umbrella ticket — single ticket capturing PY mirror for Wave AM Units 1–5 (locked at user request: "roll all PY parity into one umbrella ticket at the end of the wave").
+
+**Out of scope but discussed**: `agent-memory.ts` (Unit 6 of Wave AM) NOT audited in this round — flagged as natural follow-up after the Unit 3 rename ripple lands. Filed as a post-Wave-AM follow-up.
+
+---
+
+## H. Wave C lock — mutation-framework migration (2026-04-26)
+
+Wave C per § C of the original review. Migrates 10 cross-pattern sites to the Phase-0 mutation framework (`lightMutation` for atomic single-step mutations; `wrapMutation` for multi-step with rollback). **Decisions only — implementation deferred to a separate session per user request ("Don't do the actual code, just locking down decisions").**
+
+**Phases (sequencing per user lock "am followups then wave c"):**
+1. **C.1 — job-queue** — smallest blast radius; validates Phase 0 framework end-to-end.
+2. **C.2 — cqrs** — highest-VALUE migration (closes documented rollback gap on `dispatch` + `saga`).
+3. **C.3 — process** — same `wrapMutation` pattern as C.2.
+4. **C.4 — messaging** — heaviest (NEW public audit surfaces × 3).
+
+### H.1 — Cross-cutting decisions (apply to all 4 phases)
+
+- ✅ **Q1 — Class-field assignment in constructor.** `readonly enqueue: (...) => T` declared as field; bound via `lightMutation` / `wrapMutation` in the constructor after dependent state is initialized. No method-delegate indirection. Subclass-override loss is acceptable (none of the four pattern domains have subclassing today).
+- ✅ **Q2 — `onFailure` selectivity.** Always-on for **queue / state mutations** (where the failure represents an internal-state issue worth auditing). Off for **caller-input validation throws** (e.g. duplicate-id, malformed args — those are the caller's bug, not a system event).
+- ✅ **Q3 — Same-file ride-along.** Migrate any sibling site in a touched file that uses the hand-rolled `events.append + wallClockNs + seq` pattern, even if not in SESSION § C's explicit 10. Better consistency than strict-list adherence.
+
+### H.2 — C.1: job-queue (4 sites; SESSION § C listed 3 + 1 ride-along)
+
+| Site | Wrapper | freeze | onFailure? | Notes |
+|---|---|---|---|---|
+| `enqueue(payload, opts?)` (line 122) | `lightMutation` | `false` (large payloads) | OFF (duplicate-id is input validation) | seq advances inside wrapper; remove private `_bumpSeq` helper |
+| `ack(id)` (line 169) | `lightMutation` | `true` | OFF (returns `false` for invalid state — no throw to audit) | |
+| `nack(id, opts?)` (line 183) | `lightMutation` | `true` | OFF (same as ack) | Two paths (requeue + drop) — single wrapper, builder discriminates via captured opts |
+| `claim(limit?)` | NOT WRAPPABLE 1:1 | n/a | n/a | **Lock: keep `claim` hand-rolled** with JSDoc note. Per-job loop semantically wants N records; forcing N wrapper calls would N-fold framework overhead. |
+| `removeById` (~line 232; ride-along) | `lightMutation` | `true` | OFF (returns false for unknown id) | Same shape as ack |
+
+**Net for C.1:** enqueue + ack + nack + removeById migrated; `claim` documented as intentional hand-roll; `_bumpSeq` private helper deleted.
+
+### H.3 — C.2: cqrs (2 sites — closes rollback-safety gap)
+
+| Site | Wrapper | freeze | onFailure? | Notes |
+|---|---|---|---|---|
+| `CqrsGraph.dispatch(command)` | **`wrapMutation`** | `true` (default) | **ON** (closes the rollback-safety gap — current `dispatch` can leave inconsistent state mid-throw) | Multi-step: handler runs → event-store appends → state updates. Batch frame ensures rollback if any step throws; failure record commits OUTSIDE the rolled-back frame. **Highest-value Wave C migration.** |
+| `CqrsGraph.saga(...)` (per-event handler) | **`wrapMutation`** | `true` | **ON** (handler-supplied code can throw) | Same multi-step rollback story per-event-type. |
+
+**Net for C.2:** `dispatches` audit log already exists; refactor wires the existing log. Adopting `wrapMutation` is FUNCTIONAL (not just stylistic) — closes the documented rollback gap.
+
+### H.4 — C.3: process (2 sites)
+
+| Site | Wrapper | freeze | onFailure? | Notes |
+|---|---|---|---|---|
+| `processManager.start(correlationId, ...)` | **`wrapMutation`** | `true` | **ON** | Multi-step: instance creation + initial state + audit append. `instances` audit log already exists. |
+| `processManager.cancel(correlationId, reason?)` | **`wrapMutation`** | `true` | **ON** | Multi-step: state transition to "cancelled" + compensation logic + audit. |
+| `appendRecord` / `appendRecordWithReason` (private helpers) | NOT WRAPPED | n/a | n/a | These ARE the audit-emit mechanism; wrapping would be circular. Stay private; the `wrapMutation` on `start` / `cancel` calls them as internal helpers. |
+
+**Net for C.3:** refactor adopts `wrapMutation` at the public-method boundary; private `appendRecord*` helpers become an implementation detail of the wrapped methods.
+
+### H.5 — C.4: messaging (4 sites + NEW public audit surface)
+
+**Lock:** messaging gets a NEW public audit log per pattern type. Not "no audit log" anymore — Audit-2-convention `events: ReactiveLogBundle<...>` surfaces are added.
+
+| Site | Wrapper | freeze | onFailure? | Notes |
+|---|---|---|---|---|
+| `Topic.publish(value)` (line 116) | `lightMutation` | `false` (large message values) | OFF (only throw is §5.12 SENTINEL guard — user error) | New `Topic.events: ReactiveLogBundle<TopicAuditRecord>` surface |
+| `Subscription.ack(count?)` (line 264) | `lightMutation` | `true` | OFF | New `Subscription.events: ReactiveLogBundle<SubscriptionAuditRecord>` |
+| `Subscription.take(...)` (line 308) | `lightMutation` | `true` | OFF | Same audit log as ack — siblings |
+| `Hub.delete(name)` (line 499) | `lightMutation` | `true` | OFF (returns false for unknown name) | New `Hub.events: ReactiveLogBundle<HubAuditRecord>` |
+| `Hub.publish(name, value)` (line 600; ride-along) | `lightMutation` | `false` | OFF | Delegates to `Topic.publish` internally; **double-audit not desired**. Lock: `hub.publish` does NOT add its own record — the topic's record is sufficient. `Hub.events` only records hub-level events (delete, register). |
+| `Hub.publishMany(entries)` (line 613; ride-along) | NOT WRAPPED | n/a | n/a | Loops over `Hub.publish` — wrapping the loop would N-record. Same logic as job-queue's `claim`. JSDoc note. |
+
+**New public types:**
+
+```ts
+type TopicAuditRecord = BaseAuditRecord & {
+  action: "publish";
+  // payload omitted to avoid retaining large values; consumers tail Topic.node for values.
+};
+
+type SubscriptionAuditRecord = BaseAuditRecord & {
+  action: "ack" | "take" | "complete";
+  count?: number;        // for ack/take
+  remaining?: number;    // pending after the op
+};
+
+type HubAuditRecord = BaseAuditRecord & {
+  action: "register" | "delete";
+  name: string;
+};
+```
+
+**Audit-surface decisions:**
+- ✅ Retained limit: default **1024** (cross-cutting bounded-default).
+- ✅ Deny-write guard: yes, `DEFAULT_AUDIT_GUARD` from imperative-audit.
+- ✅ Surfaced as `events: ReactiveLogBundle<...>` on each of `TopicGraph`, `SubscriptionGraph`, `HubGraph`; aliased as `audit` per Audit-2 convention.
+- ✅ `describe()` visibility: each `events.entries` registered on the parent graph via `createAuditLog({ graph: this })`.
+
+### H.6 — Implementation order + tests
+
+**Per-phase commits**: one per phase (4 total) so each pattern domain is reviewable in isolation. QA pass = 5th commit. **Total estimate: ~1.5 days focused.** C.4 is half the work because of the new surfaces.
+
+**Test / regression coverage to add:**
+- **C.1**: `_bumpSeq` removal — assert `events.entries[i].seq === i + 1` for a sequence of enqueue/ack/nack with no gaps.
+- **C.2**: `dispatch` rollback-safety regression — handler throws partway through state update; assert event-store NOT appended; assert failure record IS appended (currently the system fails inconsistently here).
+- **C.2**: `saga` per-event handler rollback — same story for saga-driven event handlers.
+- **C.3**: `start` / `cancel` adoption is mostly behaviorally identical; existing tests should pass unchanged. Add: `start` with throwing initial-state computation rolls back the instance creation.
+- **C.4**: `TopicGraph.events` records every publish; `Subscription.events` records ack/take/complete; `Hub.events` records register/delete. Assert `describe()` shows the audit nodes.
+- **C.4**: `hub.publish(name, val)` produces ONE record (the topic's), NOT two.
+
+### H.7 — Wave C carry-forward
+
+Once Wave C ships, the migration table at § C of this SESSION doc becomes a "completed migration" reference, not a backlog item. No new follow-ups expected unless the QA pass surfaces something. Archive the resolved items to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log".
+
+**Wave C status:** decisions locked 2026-04-26; **implementation pending** in a separate session.
