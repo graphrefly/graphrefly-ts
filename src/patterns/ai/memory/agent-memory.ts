@@ -17,7 +17,7 @@ import {
 } from "../../../extra/composite.js";
 import { fromAny, fromTimer, type NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
-import type { KnowledgeGraphGraph, VectorIndexBundle } from "../../memory/index.js";
+import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
 import { llmConsolidator, llmExtractor } from "./llm-memory.js";
 import {
@@ -112,9 +112,9 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	readonly compact: Node<Array<{ key: string; value: TMem; score: number }>>;
 	readonly size: Node<number>;
 	/** Vector index bundle (null if not enabled). */
-	readonly vectors: VectorIndexBundle<TMem> | null;
+	readonly vectors: VectorIndexGraph<TMem> | null;
 	/** Knowledge graph (null if not enabled). */
-	readonly kg: KnowledgeGraphGraph<unknown, string> | null;
+	readonly kg: KnowledgeGraph<unknown, string> | null;
 	/** Memory tiers bundle (null if not configured). */
 	readonly memoryTiers: MemoryTiersBundle<TMem> | null;
 	/** Retrieval result node (null if no retrieval pipeline configured). */
@@ -232,7 +232,7 @@ export function agentMemory<TMem = unknown>(
 	graph.add(distillBundle.size, { name: "size" });
 
 	// --- Vector index (composer) ---
-	let vectors: VectorIndexBundle<TMem> | null = null;
+	let vectors: VectorIndexGraph<TMem> | null = null;
 	if (opts.vectorDimensions && opts.vectorDimensions > 0 && opts.embedFn) {
 		vectors = memoryWithVectors(graph, distillBundle, {
 			dimension: opts.vectorDimensions,
@@ -241,7 +241,7 @@ export function agentMemory<TMem = unknown>(
 	}
 
 	// --- Knowledge graph (composer; inner name "${name}-kg", mounted at "kg") ---
-	let kg: KnowledgeGraphGraph<unknown, string> | null = null;
+	let kg: KnowledgeGraph<unknown, string> | null = null;
 	if (opts.enableKnowledgeGraph) {
 		kg = memoryWithKG(graph, distillBundle, name, {
 			mountPath: "kg",

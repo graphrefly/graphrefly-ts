@@ -21,11 +21,14 @@ import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
 import type { Graph } from "../../../graph/graph.js";
 import {
+	cosineSimilarity,
 	decay,
-	type KnowledgeGraphGraph,
+	type KnowledgeEdge,
+	type KnowledgeGraph,
 	knowledgeGraph,
 	lightCollection,
-	type VectorIndexBundle,
+	type VectorIndexGraph,
+	type VectorRecord,
 	type VectorSearchResult,
 	vectorIndex,
 } from "../../memory/index.js";
@@ -57,7 +60,7 @@ export type MemoryWithVectorsOptions<TMem> = {
 
 /**
  * Attach a vector index to a `DistillBundle`. Indexes every entry in the
- * store as it changes. Returns the `VectorIndexBundle` so retrieval can read
+ * store as it changes. Returns the `VectorIndexGraph` so retrieval can read
  * its `entries` and call `search()`.
  *
  * The indexer's keepalive is registered with `graph.addDisposer` so it tears
@@ -68,7 +71,7 @@ export function memoryWithVectors<TMem>(
 	graph: Graph,
 	store: DistillBundle<TMem>,
 	opts: MemoryWithVectorsOptions<TMem>,
-): { vectors: VectorIndexBundle<TMem>; dispose: () => void } {
+): { vectors: VectorIndexGraph<TMem>; dispose: () => void } {
 	const vectors = vectorIndex<TMem>({ dimension: opts.dimension });
 	graph.add(vectors.entries, { name: "vectorIndex" });
 	const indexer = effect([store.store.entries], ([snapshot]) => {
@@ -127,7 +130,7 @@ export function memoryWithKG<TMem>(
 	store: DistillBundle<TMem>,
 	name: string,
 	opts: MemoryWithKGOptions<TMem>,
-): { kg: KnowledgeGraphGraph<unknown, string>; dispose: () => void } {
+): { kg: KnowledgeGraph<unknown, string>; dispose: () => void } {
 	const mountPath = opts.mountPath ?? name;
 	const kg = knowledgeGraph<unknown, string>(`${name}-kg`);
 	graph.mount(mountPath, kg);
@@ -339,8 +342,8 @@ function sharedPrefixDepth(
 export function memoryRetrieval<TMem>(
 	graph: Graph,
 	store: DistillBundle<TMem>,
-	vectors: VectorIndexBundle<TMem> | null,
-	kg: KnowledgeGraphGraph<unknown, string> | null,
+	vectors: VectorIndexGraph<TMem> | null,
+	kg: KnowledgeGraph<unknown, string> | null,
 	opts: MemoryRetrievalOptions<TMem>,
 ): MemoryRetrievalBundle<TMem> {
 	const topK = opts.topK ?? 20;
@@ -361,15 +364,45 @@ export function memoryRetrieval<TMem>(
 
 		let vectorCandidates: VectorSearchResult<TMem>[] = [];
 		if (vectors && query.vector) {
-			vectorCandidates = vectors.search(query.vector, topK) as VectorSearchResult<TMem>[];
-			for (const vc of vectorCandidates) {
-				const mem = storeMap.get(vc.id);
-				if (mem) candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
+			// Wave A migrated `vectorIndex` to a reactive-only read API
+			// (`searchNode`); inline the equivalent flat-cosine snapshot scan
+			// here since `runRetrieval` is sync and `searchNode` is async-shaped.
+			// `patterns/ai/memory/` is queued for its own audit per the Wave A
+			// session doc § D.1.
+			const q = query.vector;
+			const snapshot = vectors.entries.cache as ReadonlyMap<string, VectorRecord<TMem>> | undefined;
+			if (snapshot && snapshot.size > 0 && topK > 0) {
+				const scored = [...snapshot.values()]
+					.map(
+						(row): VectorSearchResult<TMem> => ({
+							id: row.id,
+							score: cosineSimilarity(q, row.vector),
+							...(row.meta !== undefined ? { meta: row.meta } : {}),
+						}),
+					)
+					.sort((a, b) => b.score - a.score)
+					.slice(0, topK);
+				vectorCandidates = scored;
+				for (const vc of vectorCandidates) {
+					const mem = storeMap.get(vc.id);
+					if (mem) candidateMap.set(vc.id, { value: mem, sources: new Set(["vector"]) });
+				}
 			}
 		}
 
 		const graphExpanded: string[] = [];
 		if (kg) {
+			// Wave A migrated `knowledgeGraph` to a reactive-only `relatedNode`
+			// API; inline the equivalent adjacency-snapshot scan here for the
+			// sync expansion. `adjacencyOut` / `adjacencyIn` are kept warm by
+			// the kg's own internal keepalive disposers, so `.cache` is always
+			// populated post-construction.
+			const adjOut = kg.adjacencyOut.cache as
+				| ReadonlyMap<string, readonly KnowledgeEdge<string>[]>
+				| undefined;
+			const adjIn = kg.adjacencyIn.cache as
+				| ReadonlyMap<string, readonly KnowledgeEdge<string>[]>
+				| undefined;
 			const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
 			const visited = new Set<string>();
 			let frontier = seedIds;
@@ -378,8 +411,26 @@ export function memoryRetrieval<TMem>(
 				for (const id of frontier) {
 					if (visited.has(id)) continue;
 					visited.add(id);
-					for (const edge of kg.related(id)) {
+					const outEdges = adjOut?.get(id) ?? [];
+					const inEdges = adjIn?.get(id) ?? [];
+					for (const edge of outEdges) {
 						const targetId = edge.to;
+						if (!visited.has(targetId)) {
+							nextFrontier.push(targetId);
+							const mem = storeMap.get(targetId);
+							if (mem) {
+								const existing = candidateMap.get(targetId);
+								if (existing) existing.sources.add("graph");
+								else candidateMap.set(targetId, { value: mem, sources: new Set(["graph"]) });
+								graphExpanded.push(targetId);
+							}
+						}
+					}
+					// Inbound edges: traverse to the `from` side. Match the
+					// previous `kg.related(id)` semantics, which returned both
+					// `from === id` and `to === id` matches.
+					for (const edge of inEdges) {
+						const targetId = edge.from;
 						if (!visited.has(targetId)) {
 							nextFrontier.push(targetId);
 							const mem = storeMap.get(targetId);
