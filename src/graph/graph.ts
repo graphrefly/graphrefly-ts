@@ -1892,6 +1892,17 @@ export class Graph {
 		if (options?.reactive === true) return this._describeReactive(options);
 		const actor = resolveActorOption(options?.actor);
 		const filter = options?.filter;
+		// `detail` and `fields` are mutually exclusive. Mixing them was
+		// permissive at one point but produced ambiguous spec-mode semantics
+		// (e.g. `{detail: "spec", fields: [...]}` had `isSpec: true` but
+		// non-spec field projection — see review session findings A6).
+		if (options?.detail != null && options?.fields != null) {
+			throw new TypeError(
+				"Graph.describe(): pass either `detail` or `fields`, not both. " +
+					"`detail: 'spec'` is the canonical spec projection; " +
+					"use `fields` only when you need a custom subset.",
+			);
+		}
 		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
 		// `detail: "spec"` is the canonical spec-projection mode (Tier 1.5.3
 		// Phase 1 — replaces the old `format: "spec"` alias). Strips
@@ -2476,39 +2487,44 @@ export class Graph {
 			bump();
 		});
 
-		// Tier 3.5 (F.9 reactive primitive carve-out): subscribe to each
-		// reactive arg so an emission bumps the version counter through the
-		// same coalescer. Static args pass through with no subscription.
-		// Mirrors the `Node<Actor>` subscription wired in `_describeReactive`.
-		const argUnsubs: Array<() => void> = [];
-		const subscribeReactiveArg = <T>(arg: T | Node<T> | undefined): (() => void) | undefined => {
-			if (arg == null || !isExplainArgNode<T>(arg)) return undefined;
-			return arg.subscribe((msgs) => {
-				let sawData = false;
-				let terminated = false;
-				for (const m of msgs) {
-					const t = m[0];
-					if (t === DATA) sawData = true;
-					else if (t === COMPLETE || t === ERROR || t === TEARDOWN) terminated = true;
-				}
-				if (sawData) bump();
-				if (terminated) {
-					// Drop the subscription — `arg.cache` is frozen at the last
-					// settled value, so subsequent recomputes still see it. One
-					// final bump so the derived snapshots the last-known value.
-					// Index-based release matches the `argUnsubs` push order.
-					bump();
-				}
-			});
+		// Tier 3.5 (F.9 reactive primitive carve-out): collect reactive args so
+		// the derived can gate its first emit until they all settle, AND so an
+		// emission bumps the version counter through the same coalescer. Static
+		// args pass through with no subscription. Mirrors the `Node<Actor>`
+		// subscription wired in `_describeReactive`.
+		//
+		// Subscriptions are wired AFTER `derived(...) + keepalive(node)` below
+		// (memory feedback_subscribe_before_kick) — wiring before would mean a
+		// push-on-subscribe DATA bumps version while no one is subscribed to it
+		// yet, and although state's cache holds the value, the explicit ordering
+		// matches the established actor precedent (`_describeReactive`).
+		const reactiveArgs: Array<Node<unknown>> = [];
+		if (from != null && isExplainArgNode<string>(from)) reactiveArgs.push(from as Node<unknown>);
+		if (to != null && isExplainArgNode<string>(to)) reactiveArgs.push(to as Node<unknown>);
+		if (opts?.maxDepth != null && isExplainArgNode<number>(opts.maxDepth))
+			reactiveArgs.push(opts.maxDepth as Node<unknown>);
+		if (opts?.findCycle != null && isExplainArgNode<boolean>(opts.findCycle))
+			reactiveArgs.push(opts.findCycle as Node<unknown>);
+
+		// Gate first emit until every reactive arg has settled. Without this,
+		// an unsettled `Node<string>` for `from` would resolve to `""` (via
+		// `resolveExplainPath` cache fallback) and `_explainStatic` would emit
+		// a noise `{found:false, reason:"no source"}` chain BEFORE the first
+		// real arg DATA. The regression matches the deleted `reactiveExplainPath`
+		// behavior more closely (it never observed an unsettled arg).
+		const allReactiveArgsSettled = (): boolean => {
+			for (const arg of reactiveArgs) {
+				if (arg.cache === undefined) return false;
+			}
+			return true;
 		};
-		const fromUnsub = subscribeReactiveArg<string>(from);
-		if (fromUnsub) argUnsubs.push(fromUnsub);
-		const toUnsub = subscribeReactiveArg<string>(to);
-		if (toUnsub) argUnsubs.push(toUnsub);
-		const maxDepthUnsub = subscribeReactiveArg<number>(opts?.maxDepth);
-		if (maxDepthUnsub) argUnsubs.push(maxDepthUnsub);
-		const findCycleUnsub = subscribeReactiveArg<boolean>(opts?.findCycle);
-		if (findCycleUnsub) argUnsubs.push(findCycleUnsub);
+		// Sentinel chain returned while waiting for reactive args — equals()
+		// dedupes repeated settled states once arg DATA arrives.
+		const PENDING_CHAIN: CausalChain = {
+			found: false,
+			steps: [],
+			reason: "awaiting reactive args",
+		};
 
 		// Try to construct the reactive derived; if it throws (invalid options
 		// etc.), release the observe handle + onEvent listener so we don't
@@ -2521,6 +2537,7 @@ export class Graph {
 			node = derived<CausalChain>(
 				[version],
 				() => {
+					if (!allReactiveArgsSettled()) return PENDING_CHAIN;
 					const currentFrom = resolveExplainPath(from);
 					const currentTo = resolveExplainPath(to);
 					const currentOpts = {
@@ -2559,18 +2576,49 @@ export class Graph {
 			);
 		} catch (err) {
 			off();
-			for (const u of argUnsubs) u();
 			handle.dispose();
 			throw err;
 		}
 		const stopKeepalive = keepalive(node);
+
+		// Now wire reactive-arg subscriptions (after derived + keepalive). Each
+		// subscription holder is captured so the terminal handler can self-clear
+		// (matches `_describeReactive`'s actor-handler precedent: drop the unsub
+		// once the arg is terminal because `arg.cache` is frozen at the last
+		// settled value and subsequent recomputes still see it).
+		const argUnsubs: Array<(() => void) | undefined> = [];
+		const subscribeReactiveArg = (arg: Node<unknown>): (() => void) => {
+			let unsub: (() => void) | undefined;
+			unsub = arg.subscribe((msgs) => {
+				let sawData = false;
+				let terminated = false;
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DATA) sawData = true;
+					else if (t === COMPLETE || t === ERROR || t === TEARDOWN) terminated = true;
+				}
+				// Single bump per wave — covers DATA, terminal, or both.
+				if (sawData || terminated) bump();
+				if (terminated && unsub) {
+					unsub();
+					unsub = undefined;
+				}
+			});
+			return () => {
+				if (unsub) {
+					unsub();
+					unsub = undefined;
+				}
+			};
+		};
+		for (const arg of reactiveArgs) argUnsubs.push(subscribeReactiveArg(arg));
 
 		return {
 			node,
 			dispose() {
 				disposed = true;
 				off();
-				for (const u of argUnsubs) u();
+				for (const u of argUnsubs) u?.();
 				argUnsubs.length = 0;
 				handle.dispose();
 				stopKeepalive();

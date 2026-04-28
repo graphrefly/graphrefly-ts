@@ -1546,14 +1546,16 @@ describe("describe() field selection (3.3b)", () => {
 		g.destroy();
 	});
 
-	it("fields takes precedence over detail", () => {
+	it("rejects mixing detail and fields (qa A6 — pass either, not both)", () => {
 		const g = new Graph("precedence");
 		g.add(state(1, { name: "x" }), { name: "x" });
 
-		// detail: "full" would include everything, but fields overrides
-		const d = g.describe({ detail: "full", fields: ["type"] });
-		expect(d.nodes.x!.status).toBeUndefined();
-		expect(d.nodes.x!.value).toBeUndefined();
+		// Mixing detail+fields was permissive but produced ambiguous spec-mode
+		// semantics (e.g. `{detail: "spec", fields: [...]}` had specMode=true
+		// with non-spec field projection). Pre-1.0: reject the mix outright.
+		expect(() => g.describe({ detail: "full", fields: ["type"] })).toThrow(
+			/pass either `detail` or `fields`/,
+		);
 		g.destroy();
 	});
 });
