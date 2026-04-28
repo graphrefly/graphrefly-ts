@@ -2519,11 +2519,21 @@ export class Graph {
 			return true;
 		};
 		// Sentinel chain returned while waiting for reactive args — equals()
-		// dedupes repeated settled states once arg DATA arrives.
-		const PENDING_CHAIN: CausalChain = {
-			found: false,
-			steps: [],
-			reason: "awaiting reactive args",
+		// dedupes repeated settled states once arg DATA arrives. The
+		// `"pending"` reason was added to CausalChain's reason union for
+		// this case (qa D5).
+		const buildPendingChain = (): CausalChain => {
+			const f = resolveExplainPath(from);
+			const t = resolveExplainPath(to);
+			return {
+				from: f,
+				to: t,
+				found: false,
+				reason: "pending",
+				steps: [],
+				text: "(awaiting reactive args)",
+				toJSON: () => ({ from: f, to: t, found: false, reason: "pending", steps: [] }),
+			};
 		};
 
 		// Try to construct the reactive derived; if it throws (invalid options
@@ -2537,7 +2547,7 @@ export class Graph {
 			node = derived<CausalChain>(
 				[version],
 				() => {
-					if (!allReactiveArgsSettled()) return PENDING_CHAIN;
+					if (!allReactiveArgsSettled()) return buildPendingChain();
 					const currentFrom = resolveExplainPath(from);
 					const currentTo = resolveExplainPath(to);
 					const currentOpts = {

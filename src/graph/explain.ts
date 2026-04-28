@@ -50,8 +50,10 @@ export interface CausalChain {
 	to: string;
 	/** True when a path was found. */
 	found: boolean;
-	/** Why the chain may be empty/incomplete. `"ok"` when `found` is true. */
-	reason: "ok" | "no-such-from" | "no-such-to" | "no-path" | "max-depth-exceeded";
+	/** Why the chain may be empty/incomplete. `"ok"` when `found` is true.
+	 * `"pending"` is the reactive-explain sentinel emitted while reactive args
+	 * are waiting for their first DATA (qa D5). */
+	reason: "ok" | "no-such-from" | "no-such-to" | "no-path" | "max-depth-exceeded" | "pending";
 	/** Ordered steps — first element is `from`, last is `to`. Empty when `!found`. */
 	steps: readonly CausalStep[];
 	/** Pretty multi-line rendering. Always present, even on failure (one-line message). */
