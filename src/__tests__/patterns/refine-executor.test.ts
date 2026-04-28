@@ -23,7 +23,7 @@ import type {
 	EvalResult,
 	Evaluator,
 	RefineStrategy,
-} from "../../patterns/refine-loop/index.js";
+} from "../../patterns/harness/presets/refine-loop.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 const REQUIRED = ["reactive", "composable", "inspectable"] as const;

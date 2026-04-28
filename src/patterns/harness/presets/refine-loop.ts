@@ -33,15 +33,15 @@
  * @module
  */
 
-import { batch } from "../../core/batch.js";
-import { monotonicNs } from "../../core/clock.js";
-import { DATA, ERROR } from "../../core/messages.js";
-import { type Node, node } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
-import { switchMap } from "../../extra/operators.js";
-import type { NodeInput } from "../../extra/sources.js";
-import { Graph, type GraphOptions } from "../../graph/graph.js";
-import { messagingHub, type TopicGraph } from "../messaging/index.js";
+import { batch } from "../../../core/batch.js";
+import { monotonicNs } from "../../../core/clock.js";
+import { DATA, ERROR } from "../../../core/messages.js";
+import { type Node, node } from "../../../core/node.js";
+import { derived, effect, state } from "../../../core/sugar.js";
+import { switchMap } from "../../../extra/operators.js";
+import type { NodeInput } from "../../../extra/sources.js";
+import { Graph, type GraphOptions } from "../../../graph/graph.js";
+import { messagingHub, type TopicGraph } from "../../messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Core types

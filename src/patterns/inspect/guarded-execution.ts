@@ -40,8 +40,8 @@ import {
 	type GraphDescribeOutput,
 	type GraphOptions,
 } from "../../graph/index.js";
-import { type PolicyGateGraph, type PolicyViolation, policyGate } from "../audit/index.js";
 import { TopicGraph } from "../messaging/index.js";
+import { type PolicyGateGraph, type PolicyViolation, policyGate } from "./audit.js";
 
 function isNode<T>(x: unknown): x is Node<T> {
 	return (

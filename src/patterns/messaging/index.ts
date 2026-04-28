@@ -15,6 +15,7 @@
 import { batch, COMPLETE, DATA, derived, type Node, state } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
+import { lightMutation } from "../../extra/mutation/index.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
 import { keepalive } from "../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
@@ -42,6 +43,7 @@ const DEFAULT_TOPIC_RETAINED_LIMIT = 1024;
 
 export class TopicGraph<T> extends Graph {
 	private readonly _log;
+	private readonly _publishImpl: (value: T) => void;
 	readonly events: Node<readonly T[]>;
 	/**
 	 * Most recently published value, or `null` when the topic has no entries
@@ -112,6 +114,19 @@ export class TopicGraph<T> extends Graph {
 		// TopicGraph itself doesn't call log.tail/slice, but plugins may have
 		// attached views via `_log` — defensive.
 		this.addDisposer(() => this._log.disposeAllViews());
+
+		// Tier 8 / COMPOSITION-GUIDE §35: route publish through `lightMutation`
+		// for centralized freeze + re-throw semantics. No audit log surface
+		// (per Tier 8 γ-0): the topic's `events` log already records every
+		// successful publish, so a separate audit Node would be redundant.
+		// `freeze: false` because topic payloads can be large and per-publish
+		// cost matters on hot paths.
+		this._publishImpl = lightMutation<[T], void, never>(
+			(value): void => {
+				this._log.append(value);
+			},
+			{ freeze: false },
+		);
 	}
 
 	publish(value: T): void {
@@ -123,7 +138,7 @@ export class TopicGraph<T> extends Graph {
 				`TopicGraph "${this.name}": publish(undefined) is not allowed (spec §5.12 SENTINEL).`,
 			);
 		}
-		this._log.append(value);
+		this._publishImpl(value);
 	}
 
 	/**
@@ -194,6 +209,8 @@ export class SubscriptionGraph<T> extends Graph {
 	readonly topic: TopicGraph<T>;
 
 	private _disposed = false;
+	private readonly _ackImpl: (count: number | undefined) => number;
+	private readonly _pullAndAckImpl: (limit: number | undefined) => PullAndAckResult<T>;
 
 	constructor(name: string, topicGraph: TopicGraph<T>, opts: SubscriptionOptions = {}) {
 		super(name, opts.graph);
@@ -260,23 +277,53 @@ export class SubscriptionGraph<T> extends Graph {
 			this.add(advancePump, { name: "advancePump" });
 			this.addDisposer(keepalive(advancePump));
 		}
+
+		// Tier 8 / COMPOSITION-GUIDE §35: route ack + pullAndAck through
+		// `lightMutation` for centralized freeze + re-throw semantics. No audit
+		// log surface (per Tier 8 γ-0): the cursor's own emission stream already
+		// records every advance, so a separate audit Node would be redundant.
+		// `freeze: false` because count/limit are simple numbers; freezing is
+		// pointless overhead. Disposed-checks stay outside the wrapper so a
+		// no-op call doesn't unnecessarily run the wrapper.
+		this._ackImpl = lightMutation<[number | undefined], number, never>(
+			(count): number => {
+				const available = this.available.cache as readonly T[];
+				const requested =
+					count === undefined
+						? available.length
+						: requireNonNegativeInt(count, "subscription ack count");
+				const step = Math.min(requested, available.length);
+				if (step <= 0) return this.cursor.cache as number;
+				const next = (this.cursor.cache as number) + step;
+				// F8: use emit() so the pipeline auto-prefixes DIRTY, runs equals
+				// substitution, and produces a proper two-phase wave (the raw
+				// `down([[DATA, next]])` path bypassed those contracts).
+				this.cursor.emit(next);
+				return next;
+			},
+			{ freeze: false },
+		);
+
+		this._pullAndAckImpl = lightMutation<[number | undefined], PullAndAckResult<T>, never>(
+			(limit): PullAndAckResult<T> => {
+				const available = this.available.cache as readonly T[];
+				const max =
+					limit === undefined
+						? available.length
+						: requireNonNegativeInt(limit, "subscription pullAndAck limit");
+				const items = available.slice(0, max);
+				if (items.length === 0) return { items, cursor: this.cursor.cache as number };
+				const next = (this.cursor.cache as number) + items.length;
+				this.cursor.emit(next);
+				return { items, cursor: next };
+			},
+			{ freeze: false },
+		);
 	}
 
 	ack(count?: number): number {
 		if (this._disposed) return this.cursor.cache as number;
-		const available = this.available.cache as readonly T[];
-		const requested =
-			count === undefined
-				? available.length
-				: requireNonNegativeInt(count, "subscription ack count");
-		const step = Math.min(requested, available.length);
-		if (step <= 0) return this.cursor.cache as number;
-		const next = (this.cursor.cache as number) + step;
-		// F8: use emit() so the pipeline auto-prefixes DIRTY, runs equals
-		// substitution, and produces a proper two-phase wave (the raw
-		// `down([[DATA, next]])` path bypassed those contracts).
-		this.cursor.emit(next);
-		return next;
+		return this._ackImpl(count);
 	}
 
 	pull(limit?: number): readonly T[] {
@@ -298,16 +345,7 @@ export class SubscriptionGraph<T> extends Graph {
 	 */
 	pullAndAck(limit?: number): PullAndAckResult<T> {
 		if (this._disposed) return { items: [], cursor: this.cursor.cache as number };
-		const available = this.available.cache as readonly T[];
-		const max =
-			limit === undefined
-				? available.length
-				: requireNonNegativeInt(limit, "subscription pullAndAck limit");
-		const items = available.slice(0, max);
-		if (items.length === 0) return { items, cursor: this.cursor.cache as number };
-		const next = (this.cursor.cache as number) + items.length;
-		this.cursor.emit(next);
-		return { items, cursor: next };
+		return this._pullAndAckImpl(limit);
 	}
 
 	/**
@@ -538,6 +576,7 @@ export class MessagingHubGraph extends Graph {
 	/** Reactive monotonic version counter — advances on topic create/remove. */
 	readonly version: Node<number>;
 	private readonly _defaultTopicOptions: TopicOptions;
+	private readonly _removeTopicImpl: (name: string) => void;
 
 	constructor(name: string, opts: MessagingHubOptions = {}) {
 		super(name, opts.graph);
@@ -553,6 +592,31 @@ export class MessagingHubGraph extends Graph {
 		// P8: shallow-copy caller-provided defaults so post-construction
 		// mutations by the caller don't leak into every future `topic()` call.
 		this._defaultTopicOptions = { ...(opts.defaultTopicOptions ?? {}) };
+
+		// Tier 8 / COMPOSITION-GUIDE §35: route the registry-delete branch of
+		// `removeTopic` through `lightMutation` for centralized re-throw
+		// semantics. No audit log surface (per Tier 8 γ-0).
+		// `freeze: false` because the only arg is a string name (freeze pointless).
+		// **Closure-state caveat (γ-4):** the inner `try/finally` mutates
+		// `_registry` (a `Map`) and emits the version bump. lightMutation has no
+		// `batch()` frame, so reactive emissions are NOT rolled back on throw —
+		// and even if it did, `Map.delete` on closure state is invisible to the
+		// batch and can't be unwound. The pre-existing try/finally on
+		// `Graph.remove` is what guarantees registry/version converge to a
+		// consistent state when `remove()` throws; `lightMutation` adds nothing
+		// to that contract beyond the re-throw.
+		this._removeTopicImpl = lightMutation<[string], void, never>(
+			(topicName): void => {
+				try {
+					this.remove(topicName); // unmounts, drops edges, tears down
+				} finally {
+					this._registry.delete(topicName);
+					const cur = (this.version.cache as number) ?? 0;
+					this.version.emit(cur + 1);
+				}
+			},
+			{ freeze: false },
+		);
 	}
 
 	/** Number of topics currently in the hub. */
@@ -642,22 +706,21 @@ export class MessagingHubGraph extends Graph {
 	/**
 	 * Unmounts and tears down the topic's graph. Returns `true` if the topic
 	 * existed. Subscribers receive `TEARDOWN` via {@link Graph.remove}.
+	 *
+	 * **Closure-state caveat:** the registry mutation (`_registry.delete`) and
+	 * version bump happen in a `try/finally`, so registry/version converge to
+	 * a consistent state even when {@link Graph.remove} throws. `lightMutation`
+	 * does not roll back this mutation on throw — `Map.delete` on closure
+	 * state is invisible to any batch frame. The pre-existing try/finally is
+	 * load-bearing for that invariant.
 	 */
 	removeTopic(name: string): boolean {
 		if (!this._registry.has(name)) return false;
 		// P1 / P3: Graph.remove first — if it throws, `_registry` must NOT still
 		// hold the broken half-disposed topic (otherwise the next
-		// `hub.topic(name)` returns the corrupted reference). Wrap in
-		// try/finally so registry / version converge to a consistent state
-		// regardless of whether `remove` throws. Mount-orphan safety is
-		// preserved by removing before deleting.
-		try {
-			this.remove(name); // unmounts, drops edges, tears down
-		} finally {
-			this._registry.delete(name);
-			const cur = (this.version.cache as number) ?? 0;
-			this.version.emit(cur + 1);
-		}
+		// `hub.topic(name)` returns the corrupted reference). The `try/finally`
+		// inside `_removeTopicImpl`'s action body preserves that invariant.
+		this._removeTopicImpl(name);
 		return true;
 	}
 }

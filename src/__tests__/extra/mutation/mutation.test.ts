@@ -182,6 +182,40 @@ describe("imperative-audit / lightMutation", () => {
 		expect(audit.entries.cache as readonly TestRecord[]).toHaveLength(0);
 		dispose();
 	});
+
+	// Tier 8 γ-0: audit-optional opt-in.
+	it("audit omitted: still freezes / re-throws / advances seq, but skips audit emission", () => {
+		const cursor = state<number>(0, { name: "seq" });
+		const sub = cursor.subscribe(() => undefined);
+		const seenFrozen: boolean[] = [];
+
+		const op = lightMutation(
+			(arg: { v: number }) => {
+				seenFrozen.push(Object.isFrozen(arg));
+				return arg.v;
+			},
+			{ seq: cursor }, // no audit, no onSuccess/onFailure
+		);
+
+		// Freeze contract preserved.
+		op({ v: 1 });
+		expect(seenFrozen[0]).toBe(true);
+		// seq advanced even without audit.
+		expect(cursor.cache).toBe(1);
+
+		// Throw still re-throws — and no audit is emitted (there is no audit log).
+		const throwingOp = lightMutation(
+			() => {
+				throw new Error("boom");
+			},
+			{ seq: cursor },
+		);
+		expect(() => throwingOp()).toThrow(/boom/);
+		// seq advanced once more for the failed call (lightMutation is no-batch).
+		expect(cursor.cache).toBe(2);
+
+		sub();
+	});
 });
 
 describe("imperative-audit / wrapMutation regression", () => {
@@ -274,6 +308,38 @@ describe("imperative-audit / wrapMutation regression", () => {
 		expect(() => op()).toThrow(/e/);
 		expect(audit.entries.cache as readonly TestRecord[]).toHaveLength(1);
 		dispose();
+	});
+
+	// Tier 8 γ-0: audit-optional opt-in.
+	it("audit omitted: re-throws and freezes args, but skips audit emission", () => {
+		// wrapMutation without audit still opens a batch frame, freezes args,
+		// advances seq, and re-throws. There is no audit log surface; no
+		// records are appended.
+		const cursor = state<number>(0, { name: "c" });
+		const sub = cursor.subscribe(() => undefined);
+		const seenFrozen: boolean[] = [];
+
+		const op = wrapMutation(
+			(arg: { v: number }) => {
+				seenFrozen.push(Object.isFrozen(arg));
+				return arg.v;
+			},
+			{ seq: cursor }, // no audit
+		);
+
+		op({ v: 1 });
+		expect(seenFrozen[0]).toBe(true);
+
+		// Throw still propagates without an audit log.
+		const throwingOp = wrapMutation(
+			() => {
+				throw new Error("nope");
+			},
+			{ seq: cursor }, // no audit
+		);
+		expect(() => throwingOp()).toThrow(/nope/);
+
+		sub();
 	});
 });
 

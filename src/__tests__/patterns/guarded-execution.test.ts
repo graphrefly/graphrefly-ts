@@ -9,7 +9,7 @@ import {
 	type GuardedExecutionLint,
 	type GuardedScope,
 	guardedExecution,
-} from "../../patterns/guarded-execution/index.js";
+} from "../../patterns/inspect/guarded-execution.js";
 
 const alice: Actor = { type: "human", id: "alice" };
 const bob: Actor = { type: "human", id: "bob" };

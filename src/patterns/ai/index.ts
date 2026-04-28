@@ -82,10 +82,9 @@ export * from "./safety/content-gate.js";
 export * from "./safety/redactor.js";
 
 // ---------------------------------------------------------------------------
-// Agents (chat, tools, multi-agent routing, main loop)
+// Agents (chat, tools, multi-agent routing — building blocks)
 // ---------------------------------------------------------------------------
 
-export * from "./agents/agent-loop.js";
 export * from "./agents/chat-stream.js";
 export * from "./agents/handoff.js";
 export * from "./agents/tool-execution.js";
@@ -93,14 +92,23 @@ export * from "./agents/tool-registry.js";
 export * from "./agents/tool-selector.js";
 
 // ---------------------------------------------------------------------------
-// Agentic memory (distill + vector + KG + tiers + retrieval)
+// Agentic memory building blocks (admission, composers, retrieval, tiers)
 // ---------------------------------------------------------------------------
 
 export * from "./memory/admission.js";
-export * from "./memory/agent-memory.js";
 export * from "./memory/memory-composers.js";
 export * from "./memory/retrieval.js";
 export * from "./memory/tiers.js";
+
+// ---------------------------------------------------------------------------
+// Presets (Tier 9.1 γ-form γ-β) — opinionated multi-block compositions.
+// `agentLoop` composes promptNode + toolRegistry + toolExecution + chat +
+// status + multi-turn; `agentMemory` composes collection + vectorIndex +
+// knowledgeGraph + retrieval + LLM extraction + tiers + decay.
+// ---------------------------------------------------------------------------
+
+export * from "./presets/agent-loop.js";
+export * from "./presets/agent-memory.js";
 
 // ---------------------------------------------------------------------------
 // Graph ↔ LLM integration (knobs, gauges, spec round-trip)

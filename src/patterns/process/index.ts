@@ -28,7 +28,12 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
-import { type BaseAuditRecord, createAuditLog } from "../../extra/mutation/index.js";
+import {
+	type BaseAuditRecord,
+	createAuditLog,
+	lightMutation,
+	registerCursor,
+} from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../../extra/sources.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
@@ -402,50 +407,68 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// Track startedAt per instance.
 	const startedAt = new Map<string, number>();
 
-	// ── Audit log ─────────────────────────────────────────────────────────
-	// Mounted on the cqrsGraph so it appears in graph.describe().
+	// ── Audit log + seq cursor ────────────────────────────────────────────
+	// D3 (qa lock): processManager mounts both an audit log
+	// (`${name}_process_instances`) and a seq cursor (`${name}_process_seq`)
+	// directly under `cqrsGraph._nodes`. A second `processManager(cqrsGraph,
+	// name, ...)` with the same `name` triggers `Graph.add` to throw a
+	// generic "node already exists" error. Surface a `processManager`-specific
+	// message so the caller sees actionable context. The collision is
+	// pre-existing for the audit log; the seq cursor (γ-7-B) compounded it.
+	const auditNodeName = `${name}_process_instances`;
+	const seqNodeName = `${name}_process_seq`;
+	if (
+		cqrsGraph.tryResolve(auditNodeName) !== undefined ||
+		cqrsGraph.tryResolve(seqNodeName) !== undefined
+	) {
+		throw new Error(
+			`processManager: name "${name}" is already in use on this CQRS graph (collides on "${auditNodeName}" / "${seqNodeName}"). Pick a different name or destroy the previous CQRS graph before re-creating the manager.`,
+		);
+	}
+
 	const instances = createAuditLog<ProcessInstance<TState>>({
-		name: `${name}_process_instances`,
+		name: auditNodeName,
 		retainedLimit,
 		graph: cqrsGraph,
 	});
 
-	// Sequence counter for audit records (coordinator-side; not a registered
-	// cursor node because the process manager is not mounted as a graph node).
-	let seq = 0;
+	// Tier 8 γ-7-B: seq cursor promoted from `let seq = 0` closure to a
+	// `state(0)` node mounted on `cqrsGraph` (visible in `describe()`). The
+	// audit-record stamping routes through `lightMutation` for centralized
+	// freeze + seq advance + `handlerVersion` stamping.
+	const seqCursor = registerCursor(cqrsGraph, seqNodeName, 0);
 
-	function nextSeq(): number {
-		return ++seq;
-	}
-
-	function appendRecord(
-		correlationId: string,
-		state: TState,
-		status: ProcessInstance<TState>["status"],
-	): void {
-		appendRecordWithReason(correlationId, state, status, undefined);
-	}
-
-	function appendRecordWithReason(
-		correlationId: string,
-		state: TState,
-		status: ProcessInstance<TState>["status"],
-		reason: string | undefined,
-	): void {
-		const now = wallClockNs();
-		const record: ProcessInstance<TState> = {
-			correlationId,
-			state,
-			status,
-			startedAt: startedAt.get(correlationId) ?? now,
-			updatedAt: now,
-			t_ns: now,
-			seq: nextSeq(),
+	// D4 (qa lock): `freeze: true` so step-handler-supplied state values
+	// captured into audit records cannot be mutated post-record. Process
+	// states are typically small workflow records (an order ID + a few
+	// flags), so the `deepFreeze` tax is negligible — the safety vs. mutation
+	// trade-off favors freeze. (The 768-dim-vector concern that motivates
+	// `freeze: false` in memory primitives doesn't apply here.)
+	const appendRecord = lightMutation<
+		[string, TState, ProcessInstance<TState>["status"], string | undefined],
+		void,
+		ProcessInstance<TState>
+	>(
+		// No closure-state mutation in the action — the audit-record append IS
+		// the effect, performed by the framework via `onSuccess`.
+		() => undefined,
+		{
+			audit: instances,
+			seq: seqCursor,
+			freeze: true,
 			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
-			...(reason !== undefined ? { reason } : {}),
-		};
-		instances.append(record);
-	}
+			onSuccess: ([correlationId, state, status, reason], _r, { t_ns, seq }) => ({
+				correlationId,
+				state,
+				status,
+				startedAt: startedAt.get(correlationId) ?? t_ns,
+				updatedAt: t_ns,
+				t_ns,
+				seq: seq ?? 0,
+				...(reason !== undefined ? { reason } : {}),
+			}),
+		},
+	);
 
 	// ── Synthetic event helpers ───────────────────────────────────────────
 	const startedEventType = `_process_${name}_started`;
@@ -478,14 +501,14 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		if (opts.compensate) {
 			try {
 				await toPromise(opts.compensate(state, error) as NodeInput<void>);
-				appendRecordWithReason(correlationId, state, "compensated", reason);
+				appendRecord(correlationId, state, "compensated", reason);
 			} catch (_compErr) {
 				// Compensation itself failed — still mark as errored so instance
 				// doesn't stay in limbo. Swallow error to prevent cascading.
-				appendRecord(correlationId, state, "errored");
+				appendRecord(correlationId, state, "errored", undefined);
 			}
 		} else {
-			appendRecord(correlationId, state, "errored");
+			appendRecord(correlationId, state, "errored", undefined);
 		}
 	}
 
@@ -543,14 +566,14 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				}
 			}
 
-			appendRecord(correlationId, result.state, "running");
+			appendRecord(correlationId, result.state, "running", undefined);
 
 			// Check isTerminal predicate.
 			if (opts.isTerminal?.(result.state)) {
 				activeInstances.delete(correlationId);
 				instanceStates.delete(correlationId);
 				startedAt.delete(correlationId); // M3 — cleanup startedAt on isTerminal terminate
-				appendRecord(correlationId, result.state, "terminated");
+				appendRecord(correlationId, result.state, "terminated", undefined);
 				return;
 			}
 
@@ -627,7 +650,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			activeInstances.delete(correlationId);
 			instanceStates.delete(correlationId);
 			startedAt.delete(correlationId); // M3 — cleanup startedAt on terminate
-			appendRecord(correlationId, result.state, "terminated");
+			appendRecord(correlationId, result.state, "terminated", undefined);
 		}
 	}
 
@@ -758,7 +781,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			// non-fatal if stream is terminated
 		}
 
-		appendRecord(correlationId, opts.initial, "running");
+		appendRecord(correlationId, opts.initial, "running", undefined);
 	}
 
 	/**

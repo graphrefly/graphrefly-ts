@@ -31,7 +31,7 @@ import {
 	type RefineStatus,
 	type RefineStrategy,
 	refineLoop,
-} from "../refine-loop/index.js";
+} from "./presets/refine-loop.js";
 
 import type { ExecuteOutput, HarnessExecutor, HarnessJobPayload, TriagedItem } from "./types.js";
 

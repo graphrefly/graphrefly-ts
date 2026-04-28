@@ -68,6 +68,11 @@ export {
 } from "./profile.js";
 export { watchTopologyTree } from "./topology-tree.js";
 export {
+	type IslandReport,
+	type ValidateNoIslandsResult,
+	validateNoIslands,
+} from "./validate-no-islands.js";
+export {
 	type ObservabilityCheck,
 	type ObservabilityDescribeFormat,
 	type ValidateObservabilityOptions,

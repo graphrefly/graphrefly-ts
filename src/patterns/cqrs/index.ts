@@ -11,15 +11,16 @@
  * - `CqrsGraph.saga(name, events, handler)` — event-driven side effects
  */
 
-import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { policy } from "../../core/guard.js";
 import { DATA, derived, type Node, node, placeholderArgs, state } from "../../core/index.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
+	lightMutation,
 	registerCursor,
 	registerCursorMap,
+	wrapMutation,
 } from "../../extra/mutation/index.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
@@ -560,13 +561,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		}
 	}
 
-	private _bumpDispatchSeq(): number {
-		const cur = (this._dispatchSeqCursor.cache as number | undefined) ?? 0;
-		const next = cur + 1;
-		this._dispatchSeqCursor.emit(next);
-		return next;
-	}
-
 	// -- Events ---------------------------------------------------------------
 
 	/**
@@ -791,6 +785,12 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 	 *
 	 * If the handler throws, `meta.error` on the command node is set to the
 	 * error and the exception is re-thrown.
+	 *
+	 * **Tier 8 / COMPOSITION-GUIDE §35:** dispatch routes through the shared
+	 * {@link wrapMutation} framework so freeze / rollback-on-throw / seq-cursor
+	 * advance / audit-record stamping flow through one centralized helper.
+	 * Failure records emit OUTSIDE the rolled-back batch (M5 / C4 invariants
+	 * preserved by the framework).
 	 */
 	dispatch<T = unknown>(commandName: string, payload: T, opts?: DispatchOptions): void {
 		const reg = this._commandRegs.get(commandName);
@@ -826,84 +826,83 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		}
 
 		const cmdNode = this.resolve(commandName);
-		const sealed = this._freezeCommandPayload ? deepFreeze(payload) : payload;
 		const emittedEvents: string[] = [];
-		const t_ns = wallClockNs();
-		// M5: bump seq INSIDE the batch so a framework-level rollback discards
-		// the cursor advance (cursor stays in sync with audit log).
-		let seq = 0;
-		let captured: unknown;
-		let captureSet = false;
+		// `actionThrew` distinguishes user-handler failures (where we want to
+		// stamp `cmdNode.meta.error`) from framework-internal failures (which
+		// shouldn't leak as a "command failed" signal).
+		let actionThrew = false;
+
+		const action = (sealed: T): void => {
+			cmdNode.emit(sealed, { internal: true });
+			try {
+				reg.handler(sealed, {
+					emit: (eName, data) => {
+						// Wave C.2 Unit 19: if emits was declared, reject undeclared names.
+						if (reg.emits !== undefined && !reg.emits.includes(eName)) {
+							throw new UndeclaredEmitError(commandName, eName, reg.emits);
+						}
+						emittedEvents.push(eName);
+						this._appendEvent(eName, data, {
+							// D1: thread the dispatch's aggregateId through so events
+							// participate in per-aggregate versioning. Handlers can
+							// override per-emit by passing their own through a richer
+							// emit signature (future extension).
+							...(opts?.aggregateId !== undefined ? { aggregateId: opts.aggregateId } : {}),
+							...(opts?.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
+							...(opts?.causationId !== undefined ? { causationId: opts.causationId } : {}),
+							...(opts?.metadata !== undefined
+								? { metadata: Object.freeze({ ...opts.metadata }) }
+								: {}),
+							...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
+						});
+					},
+				});
+				cmdNode.meta.error.emit(null, { internal: true });
+			} catch (err) {
+				actionThrew = true;
+				throw err;
+			}
+		};
+
 		try {
-			batch(() => {
-				seq = this._bumpDispatchSeq();
-				cmdNode.emit(sealed, { internal: true });
-				try {
-					reg.handler(sealed, {
-						emit: (eName, data) => {
-							// Wave C.2 Unit 19: if emits was declared, reject undeclared names.
-							if (reg.emits !== undefined && !reg.emits.includes(eName)) {
-								throw new UndeclaredEmitError(commandName, eName, reg.emits);
-							}
-							emittedEvents.push(eName);
-							this._appendEvent(eName, data, {
-								// D1: thread the dispatch's aggregateId through so events
-								// participate in per-aggregate versioning. Handlers can
-								// override per-emit by passing their own through a richer
-								// emit signature (future extension).
-								...(opts?.aggregateId !== undefined ? { aggregateId: opts.aggregateId } : {}),
-								...(opts?.correlationId !== undefined ? { correlationId: opts.correlationId } : {}),
-								...(opts?.causationId !== undefined ? { causationId: opts.causationId } : {}),
-								...(opts?.metadata !== undefined
-									? { metadata: Object.freeze({ ...opts.metadata }) }
-									: {}),
-								...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
-							});
-						},
-					});
-					cmdNode.meta.error.emit(null, { internal: true });
-					this.dispatches.append({
-						commandName,
-						payload: sealed,
-						outcome: "success",
-						emittedEvents: [...emittedEvents],
-						t_ns,
-						seq,
-						...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
-					});
-				} catch (err) {
-					captured = err;
-					captureSet = true;
-					throw err;
-				}
-			});
-		} catch (outerErr) {
-			// C4: when `captureSet === false` the batch threw before the inner
-			// try set `captured` (e.g. framework-level error from cmdNode.emit).
-			// Re-throw the actual `outerErr` so the original error isn't masked
-			// as `undefined`.
-			if (captureSet) {
-				// Emit error + failure record OUTSIDE the batch — in a fresh wave
-				// after rollback so they persist.
-				cmdNode.meta.error.emit(captured, { internal: true });
-				const errorType = captured instanceof Error ? captured.name : typeof captured;
-				const wrapped =
-					captured instanceof CommandHandlerError
-						? captured
-						: new CommandHandlerError(commandName, captured);
-				this.dispatches.append({
+			wrapMutation<[T], void, DispatchRecord>(action, {
+				audit: this.dispatches,
+				seq: this._dispatchSeqCursor,
+				freeze: this._freezeCommandPayload,
+				onSuccess: ([sealed], _result, { t_ns, seq }) => ({
 					commandName,
 					payload: sealed,
-					outcome: "failure",
-					error: wrapped,
-					errorType,
+					outcome: "success",
 					emittedEvents: [...emittedEvents],
 					t_ns,
-					seq,
+					seq: seq ?? 0,
 					...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
-				});
+				}),
+				onFailure: ([sealed], err, { t_ns, seq, errorType }) => {
+					const wrapped =
+						err instanceof CommandHandlerError ? err : new CommandHandlerError(commandName, err);
+					return {
+						commandName,
+						payload: sealed,
+						outcome: "failure",
+						error: wrapped,
+						errorType,
+						emittedEvents: [...emittedEvents],
+						t_ns,
+						seq: seq ?? 0,
+						...(reg.handlerVersion !== undefined ? { handlerVersion: reg.handlerVersion } : {}),
+					};
+				},
+			})(payload);
+		} catch (outerErr) {
+			// C4 preservation: only stamp `cmdNode.meta.error` when the user
+			// handler threw (not when framework infra threw before the action
+			// ran). The framework already routed onFailure for the action-throw
+			// case via `wrapMutation` outside the rolled-back batch.
+			if (actionThrew) {
+				cmdNode.meta.error.emit(outerErr, { internal: true });
 			}
-			throw captureSet ? captured : outerErr;
+			throw outerErr;
 		}
 	}
 
@@ -1204,6 +1203,42 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			this._keepaliveDisposers.push(sub);
 		}
 
+		// Tier 8 / COMPOSITION-GUIDE §35: per-event handler invocation routes
+		// through `lightMutation` so handler-version stamping + audit-record
+		// shape stay centralized. Failure path re-throws — the saga's outer
+		// try/catch honors `errorPolicy` ("advance" vs "hold"). Action takes
+		// `(ev, eName)` so the wrapper can be hoisted once for all event types.
+		const auditedHandler = lightMutation<[CqrsEvent<T>, string], void, SagaInvocation<T>>(
+			(ev, _eName) => {
+				handler(ev);
+			},
+			{
+				audit: invocations,
+				freeze: false,
+				...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
+				// D5 (qa lock): always include the `aggregateId` key (even when
+				// undefined) for parity with the pre-Tier-8 saga record shape.
+				// Consumers using `Object.hasOwn(record, "aggregateId")` or JSON
+				// serialization shape would observe a pre-1.0 break otherwise.
+				onSuccess: ([ev, eName], _r, { t_ns }) => ({
+					eventType: eName,
+					outcome: "success",
+					aggregateId: ev.aggregateId,
+					event: ev,
+					t_ns,
+				}),
+				onFailure: ([ev, eName], err, { t_ns, errorType }) => ({
+					eventType: eName,
+					outcome: "failure",
+					error: err,
+					errorType,
+					aggregateId: ev.aggregateId,
+					event: ev,
+					t_ns,
+				}),
+			},
+		);
+
 		const sagaRef: { n?: Node<unknown> } = {};
 		const sagaNode = node(
 			eventNodes,
@@ -1227,33 +1262,11 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 								continue;
 							}
 							try {
-								handler(ev);
+								auditedHandler(ev, eName);
 								errNode.emit(null, { internal: true });
-								invocations.append({
-									eventType: eName,
-									outcome: "success",
-									aggregateId: ev.aggregateId,
-									event: ev,
-									t_ns: wallClockNs(),
-									...(opts.handlerVersion !== undefined
-										? { handlerVersion: opts.handlerVersion }
-										: {}),
-								});
 								advancedTo += 1;
 							} catch (err) {
 								errNode.emit(err, { internal: true });
-								invocations.append({
-									eventType: eName,
-									outcome: "failure",
-									error: err,
-									errorType: err instanceof Error ? err.name : typeof err,
-									aggregateId: ev.aggregateId,
-									event: ev,
-									t_ns: wallClockNs(),
-									...(opts.handlerVersion !== undefined
-										? { handlerVersion: opts.handlerVersion }
-										: {}),
-								});
 								if (errorPolicy === "hold") break;
 								// "advance" — skip past failure, keep going.
 								advancedTo += 1;

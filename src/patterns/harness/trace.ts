@@ -14,7 +14,7 @@
 
 import { monotonicNs } from "../../core/clock.js";
 import type { ObserveEvent, ObserveResult } from "../../graph/graph.js";
-import type { HarnessGraph } from "./loop.js";
+import type { HarnessGraph } from "./presets/harness-loop.js";
 
 // ---------------------------------------------------------------------------
 // Types

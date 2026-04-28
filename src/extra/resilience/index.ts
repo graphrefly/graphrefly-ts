@@ -11,6 +11,15 @@ export {
 	budgetGate,
 } from "./budget-gate.js";
 
+// resilientPipeline preset — moved from patterns/resilient-pipeline/ per
+// Tier 9.1 γ-form γ-R-2 (semantically belongs with the resilience family,
+// not under ai/).
+export {
+	ResilientPipelineGraph,
+	type ResilientPipelineOptions,
+	resilientPipeline,
+} from "./resilient-pipeline.js";
+
 import { batch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import {

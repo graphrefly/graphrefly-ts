@@ -27,31 +27,31 @@
  * @module
  */
 
-import { monotonicNs } from "../../core/clock.js";
-import { derived, type Node } from "../../core/index.js";
-import { placeholderArgs } from "../../core/meta.js";
-import { effect, state } from "../../core/sugar.js";
-import { tryIncrementBounded } from "../../extra/mutation/index.js";
-import { merge, withLatestFrom } from "../../extra/operators.js";
-import { Graph } from "../../graph/graph.js";
-import { trackingKey } from "../_internal/index.js";
-import { _oneShotLlmCall, stripFences } from "../ai/_internal.js";
-import type { ChatMessage, LLMAdapter } from "../ai/index.js";
-import { promptNode } from "../ai/index.js";
+import { monotonicNs } from "../../../core/clock.js";
+import { derived, type Node } from "../../../core/index.js";
+import { placeholderArgs } from "../../../core/meta.js";
+import { effect, state } from "../../../core/sugar.js";
+import { tryIncrementBounded } from "../../../extra/mutation/index.js";
+import { merge, withLatestFrom } from "../../../extra/operators.js";
+import { Graph } from "../../../graph/graph.js";
+import { trackingKey } from "../../_internal/index.js";
+import { _oneShotLlmCall, stripFences } from "../../ai/_internal.js";
+import type { ChatMessage, LLMAdapter } from "../../ai/index.js";
+import { promptNode } from "../../ai/index.js";
 import {
 	type JobEnvelope,
 	type JobFlowGraph,
 	type JobQueueGraph,
 	jobFlow,
 	jobQueue,
-} from "../job-queue/index.js";
+} from "../../job-queue/index.js";
 import {
 	type MessagingHubGraph,
 	messagingHub,
 	type TopicGraph,
 	topicBridge,
-} from "../messaging/index.js";
-import { type GateController, pipelineGraph } from "../orchestration/index.js";
+} from "../../messaging/index.js";
+import { type GateController, pipelineGraph } from "../../orchestration/index.js";
 import {
 	DEFAULT_DECAY_RATE,
 	DEFAULT_EXECUTE_PROMPT,
@@ -62,8 +62,8 @@ import {
 	defaultErrorClassifier,
 	QUEUE_NAMES,
 	resolvePromptFn,
-} from "./defaults.js";
-import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "./strategy.js";
+} from "../defaults.js";
+import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "../strategy.js";
 import type {
 	ErrorClassifier,
 	ExecuteOutput,
@@ -80,7 +80,7 @@ import type {
 	VerifyOutput,
 	VerifyPromptFn,
 	VerifyResult,
-} from "./types.js";
+} from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hub topic names (internal constants — strings are the routing API)

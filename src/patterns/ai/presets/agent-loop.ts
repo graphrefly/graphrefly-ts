@@ -20,11 +20,11 @@ import type {
 	ToolCall,
 	ToolDefinition,
 } from "../adapters/core/types.js";
-import { type ChatStreamGraph, chatStream } from "./chat-stream.js";
-import { type ToolResult, toolExecution } from "./tool-execution.js";
-import { type ToolRegistryGraph, toolRegistry } from "./tool-registry.js";
+import { type ChatStreamGraph, chatStream } from "../agents/chat-stream.js";
+import { type ToolResult, toolExecution } from "../agents/tool-execution.js";
+import { type ToolRegistryGraph, toolRegistry } from "../agents/tool-registry.js";
 
-export type { ToolResult } from "./tool-execution.js";
+export type { ToolResult } from "../agents/tool-execution.js";
 
 // ---------------------------------------------------------------------------
 // agentLoop

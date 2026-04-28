@@ -42,11 +42,12 @@
  *
  * @module
  */
-import { factoryTag, placeholderArgs } from "../../core/meta.js";
+import { placeholderArgs } from "../../core/meta.js";
 import type { Node } from "../../core/node.js";
-import { NS_PER_MS, NS_PER_SEC } from "../../extra/backoff.js";
-import { domainMeta } from "../../extra/meta.js";
-import { switchMap } from "../../extra/operators.js";
+import { Graph, type GraphOptions } from "../../graph/index.js";
+import { NS_PER_MS } from "../backoff.js";
+import { domainMeta } from "../meta.js";
+import { switchMap } from "../operators.js";
 import {
 	type BudgetConstraint,
 	budgetGate,
@@ -64,8 +65,7 @@ import {
 	timeout,
 	withBreaker,
 	withStatus,
-} from "../../extra/resilience.js";
-import { Graph, type GraphOptions } from "../../graph/index.js";
+} from "./index.js";
 
 // ---------------------------------------------------------------------------
 // Reactive-option helpers
@@ -448,17 +448,8 @@ export function resilientPipeline<T>(
 // best-effort factoryTag too via the wrapper class's meta — already covered
 // by `domainMeta("resilient", kind)` on the mounted nodes.
 
-// Re-export the underlying primitives' option types and the factoryTag/placeholder
-// helpers so downstream callers compose options at the call site.
-export { factoryTag, placeholderArgs };
-export { NS_PER_MS, NS_PER_SEC };
-export type {
-	BudgetConstraint,
-	CircuitBreakerOptions,
-	CircuitState,
-	FallbackInput,
-	RateLimiterOptions,
-	RateLimiterState,
-	RetryOptions,
-	StatusValue,
-};
+// Tier 9.1 γ-form: this module now lives inside `extra/resilience/`, so the
+// underlying primitive option types are already exported from the same barrel
+// (`./index.js`). The previous re-exports of `factoryTag` / `placeholderArgs` /
+// `NS_PER_MS` / `NS_PER_SEC` / option types were a workaround for the prior
+// `patterns/resilient-pipeline/` folder location and are now redundant.

@@ -13,7 +13,7 @@ import { portableCatalog, portableFns } from "../../../evals/lib/portable-catalo
 import { DATA, ERROR } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import type { CatalogFnEntry } from "../../patterns/graphspec/index.js";
-import type { DatasetItem, EvalResult } from "../../patterns/refine-loop/index.js";
+import type { DatasetItem, EvalResult } from "../../patterns/harness/presets/refine-loop.js";
 
 const sentinelEntry: CatalogFnEntry = {
 	factory: () =>

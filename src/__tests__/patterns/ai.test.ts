@@ -2315,4 +2315,61 @@ describe("patterns.ai.promptNode", () => {
 		expect(receivedOpts.systemPrompt).toBe("be helpful");
 		unsub();
 	});
+
+	// DF12 (Tier 7): reactive `tools` is a declared dep on `messagesNode`,
+	// so tools changes re-invoke the LLM and the tools edge appears in
+	// `describe()` / `explain()`.
+	it("reactive tools: tools Node feeds the adapter and re-invokes on tools change", async () => {
+		const calls: Array<{ tools?: readonly ToolDefinition[] }> = [];
+		const adapter: LLMAdapter = {
+			provider: "mock",
+			invoke(_messages, opts) {
+				calls.push({ tools: opts?.tools });
+				return {
+					content: "ok",
+					finishReason: "end_turn",
+					usage: { input: { regular: 0 }, output: { regular: 0 } },
+				};
+			},
+			async *stream() {
+				yield { type: "token" as const, delta: "" };
+				yield { type: "usage" as const, usage: { input: { regular: 0 }, output: { regular: 0 } } };
+				yield { type: "finish" as const, reason: "stop" };
+			},
+		};
+
+		const toolA: ToolDefinition = {
+			name: "a",
+			description: "",
+			parameters: {},
+			handler: () => null,
+		};
+		const toolB: ToolDefinition = {
+			name: "b",
+			description: "",
+			parameters: {},
+			handler: () => null,
+		};
+
+		const dep = state("hello");
+		const toolsNode = state<readonly ToolDefinition[]>([toolA]);
+		const pn = promptNode<string>(adapter, [dep], "echo", {
+			format: "raw",
+			tools: toolsNode,
+		});
+		const unsub = pn.subscribe(() => {});
+		await tick();
+
+		// First call: toolsNode primed [toolA] before subscribe → first wave
+		// fires with tools=[toolA].
+		expect(calls.length).toBeGreaterThanOrEqual(1);
+		expect(calls.at(-1)?.tools).toEqual([toolA]);
+
+		// Update tools — adapter is re-invoked because tools is a declared dep.
+		toolsNode.emit([toolA, toolB]);
+		await tick();
+		expect(calls.at(-1)?.tools).toEqual([toolA, toolB]);
+
+		unsub();
+	});
 });

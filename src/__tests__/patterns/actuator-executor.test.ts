@@ -22,8 +22,12 @@ import {
 	type TriagedItem,
 	type VerifyResult,
 } from "../../patterns/harness/index.js";
+import type {
+	DatasetItem,
+	EvalResult,
+	Evaluator,
+} from "../../patterns/harness/presets/refine-loop.js";
 import type { JobEnvelope } from "../../patterns/job-queue/index.js";
-import type { DatasetItem, EvalResult, Evaluator } from "../../patterns/refine-loop/index.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 const SAMPLE_ITEM: TriagedItem = {

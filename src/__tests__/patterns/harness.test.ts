@@ -8,12 +8,12 @@ import {
 	beforeAfterCompare,
 	type CodeChange,
 	codeChangeBridge,
-	type EvalResult,
+	type EvalRunResult,
 	evalIntakeBridge,
 	evalSource,
 	notifyEffect,
 } from "../../patterns/harness/bridge.js";
-import { HarnessGraph, harnessLoop } from "../../patterns/harness/loop.js";
+import { HarnessGraph, harnessLoop } from "../../patterns/harness/presets/harness-loop.js";
 import {
 	priorityScore,
 	type StrategySnapshot,
@@ -181,7 +181,7 @@ describe("priorityScore", () => {
 describe("evalIntakeBridge", () => {
 	it("publishes per-criterion findings for failing judge scores", () => {
 		// Start with null — bridge fires on value change, not initial
-		const evalResults = state<EvalResult | null>(null);
+		const evalResults = state<EvalRunResult | null>(null);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -226,7 +226,7 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("handles task-level invalidity without judge scores", () => {
-		const evalResults = state<EvalResult | null>(null);
+		const evalResults = state<EvalRunResult | null>(null);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-2");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -255,7 +255,7 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("skips fully passing tasks", () => {
-		const evalResults = state<EvalResult | null>(null);
+		const evalResults = state<EvalRunResult | null>(null);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-3");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -668,7 +668,7 @@ describe("harnessLoop e2e", () => {
 		const harness = harnessLoop("e2e-bridge", { adapter });
 
 		// Wire the bridge
-		const evalSource = state<EvalResult | null>(null);
+		const evalSource = state<EvalRunResult | null>(null);
 		const bridgeNode = evalIntakeBridge(evalSource as any, harness.intake);
 		bridgeNode.subscribe(() => undefined);
 
@@ -1351,16 +1351,16 @@ describe("evalSource", () => {
 		// evalSource fires runner for every trigger DATA — including the initial one.
 		const trigger = state("run-a");
 		const runner = (id: string) =>
-			Promise.resolve({ run_id: id, model: "test", tasks: [] as EvalResult["tasks"] });
+			Promise.resolve({ run_id: id, model: "test", tasks: [] as EvalRunResult["tasks"] });
 
-		const results: EvalResult[] = [];
+		const results: EvalRunResult[] = [];
 		// Bind the trigger value into the runner so we can identify which run emitted.
 		const resultNode = evalSource(trigger as ReturnType<typeof state<unknown>>, () =>
 			runner(trigger.cache as string),
 		);
 		const unsub = resultNode.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
-				if (type === DATA && data != null) results.push(data as EvalResult);
+				if (type === DATA && data != null) results.push(data as EvalRunResult);
 			}
 		});
 
@@ -1376,7 +1376,7 @@ describe("evalSource", () => {
 		const runner = () => {
 			const id = trigger.cache;
 			// Slow promise so earlier runs haven't resolved yet when a new trigger fires.
-			return new Promise<EvalResult>((resolve) =>
+			return new Promise<EvalRunResult>((resolve) =>
 				setTimeout(() => resolve({ run_id: id ?? "null", model: "test", tasks: [] }), 40),
 			);
 		};
@@ -1385,7 +1385,7 @@ describe("evalSource", () => {
 		const resultNode = evalSource(trigger as ReturnType<typeof state<unknown>>, runner);
 		const unsub = resultNode.subscribe((msgs) => {
 			for (const [type, data] of msgs) {
-				if (type === DATA && data != null) results.push((data as EvalResult).run_id);
+				if (type === DATA && data != null) results.push((data as EvalRunResult).run_id);
 			}
 		});
 
@@ -1409,7 +1409,7 @@ describe("beforeAfterCompare", () => {
 	const makeResult = (
 		runId: string,
 		tasks: Array<{ id: string; valid: boolean; passes?: number; total?: number }>,
-	): EvalResult => ({
+	): EvalRunResult => ({
 		run_id: runId,
 		model: "test",
 		tasks: tasks.map((t) => ({

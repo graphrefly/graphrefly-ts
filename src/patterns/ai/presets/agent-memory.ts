@@ -22,15 +22,15 @@ import { fromAny, fromTimer, type NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
-import { llmConsolidator, llmExtractor } from "../prompts/prompt-call.js";
 import {
 	memoryRetrieval,
 	memoryWithKG,
 	memoryWithTiers,
 	memoryWithVectors,
-} from "./memory-composers.js";
-import type { RetrievalEntry, RetrievalQuery, RetrievalTrace } from "./retrieval.js";
-import type { MemoryTiersBundle, MemoryTiersOptions } from "./tiers.js";
+} from "../memory/memory-composers.js";
+import type { RetrievalEntry, RetrievalQuery, RetrievalTrace } from "../memory/retrieval.js";
+import type { MemoryTiersBundle, MemoryTiersOptions } from "../memory/tiers.js";
+import { llmConsolidator, llmExtractor } from "../prompts/prompt-call.js";
 
 export type AgentMemoryOptions<TMem = unknown> = {
 	graph?: GraphOptions;

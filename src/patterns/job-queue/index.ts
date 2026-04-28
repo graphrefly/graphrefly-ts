@@ -14,7 +14,9 @@ import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import {
 	type BaseAuditRecord,
+	bumpCursor,
 	createAuditLog,
+	lightMutation,
 	registerCursor,
 } from "../../extra/mutation/index.js";
 import { reactiveList } from "../../extra/reactive-list.js";
@@ -77,6 +79,19 @@ export class JobQueueGraph<T> extends Graph {
 	/** Alias for {@link JobQueueGraph.events} — Audit 2 `.audit` duplication. */
 	readonly audit: ReactiveLogBundle<JobEvent<T>>;
 
+	// Tier 8 / COMPOSITION-GUIDE §35: lightMutation wrappers for the four
+	// single-record mutation methods. Assigned in the constructor (NOT via
+	// class-field initializers) because field initializers run before the
+	// constructor body — `this.events` and `this._seqCursor` aren't ready yet.
+	// `claim` stays inline because it emits one record per claimed job.
+	private readonly _enqueueImpl: (
+		payload: T,
+		opts: { id?: string; metadata?: Record<string, unknown> },
+	) => string;
+	private readonly _ackImpl: (id: string, job: JobEnvelope<T>) => void;
+	private readonly _nackImpl: (id: string, job: JobEnvelope<T>, requeue: boolean) => void;
+	private readonly _removeByIdImpl: (id: string, job: JobEnvelope<T>) => void;
+
 	constructor(name: string, opts: JobQueueOptions = {}) {
 		super(name, opts.graph);
 		this._pending = reactiveList<string>([], { name: "pending" });
@@ -101,13 +116,111 @@ export class JobQueueGraph<T> extends Graph {
 		});
 		this.audit = this.events;
 		this._seqCursor = registerCursor(this, "seq", 0);
-	}
 
-	private _bumpSeq(): number {
-		const cur = (this._seqCursor.cache as number | undefined) ?? 0;
-		const next = cur + 1;
-		this._seqCursor.emit(next);
-		return next;
+		// `freeze: false` everywhere because the payload may be large and
+		// per-mutation cost matters on hot paths. lightMutation bumps `seq` via
+		// the registered cursor BEFORE the action runs, so action bodies that
+		// need the just-bumped value (e.g. enqueue's auto-id) read
+		// `this._seqCursor.cache`.
+		this._enqueueImpl = lightMutation<
+			[T, { id?: string; metadata?: Record<string, unknown> }],
+			string,
+			JobEvent<T>
+		>(
+			(payload, enqueueOpts): string => {
+				const seq = this._seqCursor.cache as number;
+				const id = enqueueOpts.id ?? `${this.name}-${seq}`;
+				if (this._jobs.get(id) !== undefined) {
+					throw new Error(`jobQueue("${this.name}"): duplicate job id "${id}"`);
+				}
+				const job: JobEnvelope<T> = {
+					id,
+					payload,
+					attempts: 0,
+					metadata: Object.freeze({ ...(enqueueOpts.metadata ?? {}) }),
+					state: "queued",
+				};
+				this._jobs.set(id, job);
+				this._pending.append(id);
+				return id;
+			},
+			{
+				audit: this.events,
+				seq: this._seqCursor,
+				freeze: false,
+				onSuccess: ([payload], id, { t_ns, seq }) => ({
+					action: "enqueue",
+					id,
+					payload,
+					t_ns,
+					seq: seq ?? 0,
+				}),
+			},
+		);
+
+		this._ackImpl = lightMutation<[string, JobEnvelope<T>], void, JobEvent<T>>(
+			(id, _job): void => {
+				this._jobs.delete(id);
+			},
+			{
+				audit: this.events,
+				seq: this._seqCursor,
+				freeze: false,
+				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+					action: "ack",
+					id,
+					attempts: job.attempts,
+					t_ns,
+					seq: seq ?? 0,
+				}),
+			},
+		);
+
+		this._nackImpl = lightMutation<[string, JobEnvelope<T>, boolean], void, JobEvent<T>>(
+			(id, job, requeue): void => {
+				if (requeue) {
+					this._jobs.set(id, { ...job, state: "queued" });
+					this._pending.append(id);
+				} else {
+					this._jobs.delete(id);
+				}
+			},
+			{
+				audit: this.events,
+				seq: this._seqCursor,
+				freeze: false,
+				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+					action: "nack",
+					id,
+					attempts: job.attempts,
+					t_ns,
+					seq: seq ?? 0,
+				}),
+			},
+		);
+
+		this._removeByIdImpl = lightMutation<[string, JobEnvelope<T>], void, JobEvent<T>>(
+			(id, job): void => {
+				if (job.state === "queued") {
+					const pending = this.pending.cache as readonly string[];
+					const idx = pending.indexOf(id);
+					if (idx >= 0) this._pending.pop(idx);
+				}
+				this._jobs.delete(id);
+			},
+			{
+				audit: this.events,
+				seq: this._seqCursor,
+				freeze: false,
+				onSuccess: ([id, job], _r, { t_ns, seq }) => ({
+					action: "remove",
+					id,
+					attempts: job.attempts,
+					t_ns,
+					seq: seq ?? 0,
+				}),
+			},
+		);
 	}
 
 	/**
@@ -120,22 +233,7 @@ export class JobQueueGraph<T> extends Graph {
 	}
 
 	enqueue(payload: T, opts: { id?: string; metadata?: Record<string, unknown> } = {}): string {
-		const seq = this._bumpSeq();
-		const id = opts.id ?? `${this.name}-${seq}`;
-		if (this._jobs.get(id) !== undefined) {
-			throw new Error(`jobQueue("${this.name}"): duplicate job id "${id}"`);
-		}
-		const job: JobEnvelope<T> = {
-			id,
-			payload,
-			attempts: 0,
-			metadata: Object.freeze({ ...(opts.metadata ?? {}) }),
-			state: "queued",
-		};
-		this._jobs.set(id, job);
-		this._pending.append(id);
-		this.events.append({ action: "enqueue", id, payload, t_ns: wallClockNs(), seq });
-		return id;
+		return this._enqueueImpl(payload, opts);
 	}
 
 	claim(limit = 1): readonly JobEnvelope<T>[] {
@@ -155,12 +253,15 @@ export class JobQueueGraph<T> extends Graph {
 			};
 			this._jobs.set(id, inflight);
 			out.push(inflight);
+			// claim emits one audit record per claimed job; lightMutation wraps a
+			// single call → single record, so claim stays inline and bumps the
+			// cursor directly via the shared `bumpCursor` helper.
 			this.events.append({
 				action: "claim",
 				id,
 				attempts: inflight.attempts,
 				t_ns: wallClockNs(),
-				seq: this._bumpSeq(),
+				seq: bumpCursor(this._seqCursor),
 			});
 		}
 		return out;
@@ -169,40 +270,14 @@ export class JobQueueGraph<T> extends Graph {
 	ack(id: string): boolean {
 		const job = this._jobs.get(id);
 		if (!job || job.state !== "inflight") return false;
-		this._jobs.delete(id);
-		this.events.append({
-			action: "ack",
-			id,
-			attempts: job.attempts,
-			t_ns: wallClockNs(),
-			seq: this._bumpSeq(),
-		});
+		this._ackImpl(id, job);
 		return true;
 	}
 
 	nack(id: string, opts: { requeue?: boolean } = {}): boolean {
 		const job = this._jobs.get(id);
 		if (!job || job.state !== "inflight") return false;
-		if (opts.requeue ?? true) {
-			this._jobs.set(id, { ...job, state: "queued" });
-			this._pending.append(id);
-			this.events.append({
-				action: "nack",
-				id,
-				attempts: job.attempts,
-				t_ns: wallClockNs(),
-				seq: this._bumpSeq(),
-			});
-			return true;
-		}
-		this._jobs.delete(id);
-		this.events.append({
-			action: "nack",
-			id,
-			attempts: job.attempts,
-			t_ns: wallClockNs(),
-			seq: this._bumpSeq(),
-		});
+		this._nackImpl(id, job, opts.requeue ?? true);
 		return true;
 	}
 
@@ -223,19 +298,7 @@ export class JobQueueGraph<T> extends Graph {
 	removeById(id: string): boolean {
 		const job = this._jobs.get(id);
 		if (!job) return false;
-		if (job.state === "queued") {
-			const pending = this.pending.cache as readonly string[];
-			const idx = pending.indexOf(id);
-			if (idx >= 0) this._pending.pop(idx);
-		}
-		this._jobs.delete(id);
-		this.events.append({
-			action: "remove",
-			id,
-			attempts: job.attempts,
-			t_ns: wallClockNs(),
-			seq: this._bumpSeq(),
-		});
+		this._removeByIdImpl(id, job);
 		return true;
 	}
 

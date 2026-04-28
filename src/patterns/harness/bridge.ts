@@ -72,7 +72,7 @@ export function createIntakeBridge<T>(
  * TS eval runner uses `EvalRun` from `evals/lib/types.ts` which is a superset
  * of this shape. The bridge only reads what it needs.
  */
-export interface EvalResult {
+export interface EvalRunResult {
 	run_id: string;
 	model: string;
 	tasks: EvalTaskResult[];
@@ -108,13 +108,13 @@ export interface EvalIntakeBridgeOptions {
  * Each failing judge criterion produces a separate IntakeItem — not one
  * item per task. This gives the triage stage granular findings to classify.
  *
- * @param evalSource - Node emitting EvalResult (or EvalResult[]).
+ * @param evalSource - Node emitting EvalRunResult (or EvalRunResult[]).
  * @param intakeTopic - TopicGraph to publish IntakeItem entries to.
  * @param opts - Optional configuration.
  * @returns The effect node (for lifecycle management).
  */
 export function evalIntakeBridge(
-	evalSource: Node<EvalResult | EvalResult[]>,
+	evalSource: Node<EvalRunResult | EvalRunResult[]>,
 	intakeTopic: TopicGraph<IntakeItem>,
 	opts?: EvalIntakeBridgeOptions,
 ): Node<unknown> {
@@ -124,7 +124,9 @@ export function evalIntakeBridge(
 		[evalSource],
 		([results]) => {
 			if (results == null) return;
-			const runs = Array.isArray(results) ? (results as EvalResult[]) : [results as EvalResult];
+			const runs = Array.isArray(results)
+				? (results as EvalRunResult[])
+				: [results as EvalRunResult];
 
 			for (const run of runs) {
 				for (const task of run.tasks) {
@@ -184,9 +186,9 @@ export function evalIntakeBridge(
  * ```
  *
  * @param trigger - Any node; each new DATA emission fires the runner.
- * @param runner  - Returns an EvalResult (or promise of one).
+ * @param runner  - Returns an EvalRunResult (or promise of one).
  */
-export function evalSource<T extends EvalResult>(
+export function evalSource<T extends EvalRunResult>(
 	trigger: Node<unknown>,
 	runner: () => T | Promise<T>,
 ): Node<T> {
@@ -220,20 +222,20 @@ export interface EvalDelta {
  * Derived node that computes before/after eval deltas.
  *
  * Pure computation: no LLM, no async. Compares per-task validity and
- * pass counts between two `EvalResult` snapshots.
+ * pass counts between two `EvalRunResult` snapshots.
  *
  * @param before - Node holding the baseline eval result.
  * @param after  - Node holding the new eval result.
  */
 export function beforeAfterCompare(
-	before: Node<EvalResult>,
-	after: Node<EvalResult>,
+	before: Node<EvalRunResult>,
+	after: Node<EvalRunResult>,
 ): Node<EvalDelta> {
 	return derived<EvalDelta>(
 		[before as Node<unknown>, after as Node<unknown>],
 		([b, a]) => {
-			const bRes = b as EvalResult;
-			const aRes = a as EvalResult;
+			const bRes = b as EvalRunResult;
+			const aRes = a as EvalRunResult;
 
 			const beforeMap = new Map<string, EvalTaskResult>(bRes.tasks.map((t) => [t.task_id, t]));
 			const afterMap = new Map<string, EvalTaskResult>(aRes.tasks.map((t) => [t.task_id, t]));

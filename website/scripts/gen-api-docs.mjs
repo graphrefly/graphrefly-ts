@@ -220,18 +220,19 @@ const REGISTRY = {
 	explainPath: "src/graph/explain.ts",
 	mermaidLiveUrl: "src/graph/graph.ts",
 	validateGraphObservability: "src/graph/validate-observability.ts",
+	validateNoIslands: "src/graph/validate-no-islands.ts",
 	watchTopologyTree: "src/graph/topology-tree.ts",
 
-	// Audit & accountability (roadmap §9.2)
-	auditTrail: "src/patterns/audit/index.ts",
-	policyEnforcer: "src/patterns/audit/index.ts",
-	complianceSnapshot: "src/patterns/audit/index.ts",
-	reactiveExplainPath: "src/patterns/audit/index.ts",
+	// Inspect domain (Tier 9.1 γ-form γ-ii merge of audit + lens + guarded-execution)
+	auditTrail: "src/patterns/inspect/audit.ts",
+	policyGate: "src/patterns/inspect/audit.ts",
+	complianceSnapshot: "src/patterns/inspect/audit.ts",
+	graphLens: "src/patterns/inspect/lens.ts",
+	guardedExecution: "src/patterns/inspect/guarded-execution.ts",
+	inspect: "src/patterns/inspect/presets/inspect.ts",
 
-	// Mid-level harness blocks (roadmap §9.0b)
-	graphLens: "src/patterns/lens/index.ts",
-	resilientPipeline: "src/patterns/resilient-pipeline/index.ts",
-	guardedExecution: "src/patterns/guarded-execution/index.ts",
+	// Resilience preset (Tier 9.1 γ-R-2)
+	resilientPipeline: "src/extra/resilience/resilient-pipeline.ts",
 
 	// Extra — singleflight + adaptive rate limiter (roadmap §9.3d)
 	singleFromAny: "src/extra/single-from-any.ts",
@@ -273,7 +274,9 @@ const REGISTRY = {
 	offlinePreset: "src/patterns/ai/adapters/routing/browser-presets.ts",
 
 	// AI memory — agentic-memory factory + composers (roadmap §4.4)
-	agentMemory: "src/patterns/ai/memory/agent-memory.ts",
+	// Tier 9.1 γ-β: `agentMemory` and `agentLoop` physically moved to `ai/presets/`.
+	agentMemory: "src/patterns/ai/presets/agent-memory.ts",
+	agentLoop: "src/patterns/ai/presets/agent-loop.ts",
 	memoryWithVectors: "src/patterns/ai/memory/memory-composers.ts",
 	memoryWithKG: "src/patterns/ai/memory/memory-composers.ts",
 	memoryWithTiers: "src/patterns/ai/memory/memory-composers.ts",

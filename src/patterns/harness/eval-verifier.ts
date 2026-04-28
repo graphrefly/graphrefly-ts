@@ -26,7 +26,7 @@ import type {
 	Evaluator,
 	RefineLoopOptions,
 	RefineStrategy,
-} from "../refine-loop/index.js";
+} from "./presets/refine-loop.js";
 import { refineExecutor } from "./refine-executor.js";
 
 import type {

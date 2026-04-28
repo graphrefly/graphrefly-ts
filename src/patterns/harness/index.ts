@@ -16,7 +16,10 @@ export * from "./defaults.js";
 // only consumer was `strategy.ts`, so building-block status was unwarranted.
 export * from "./effectiveness-tracker.js";
 export * from "./eval-verifier.js";
-export * from "./loop.js";
+// Tier 9.1 γ-form γ-β: presets live under `presets/`. `harnessLoop` and
+// `refineLoop` are presets composing the building blocks above.
+export * from "./presets/harness-loop.js";
+export * from "./presets/refine-loop.js";
 export * from "./profile.js";
 export * from "./refine-executor.js";
 export * from "./strategy.js";

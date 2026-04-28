@@ -142,6 +142,19 @@ function keepalive(node: Node): void {
 	node.subscribe(() => undefined);
 }
 
+/**
+ * Defensive snapshot → ReadonlyMap coercion (D2 /qa lock, Tier 9.1).
+ *
+ * `ReactiveMapBundle.entries` always emits a real `Map` on the live emit
+ * path. The non-Map case happens on snapshot **restore**: the default
+ * `JsonGraphCodec` serializes a `Map` to `null`/`{}`/`[]` depending on the
+ * codec configuration, and `Graph.restore` writes that decoded value back
+ * to the cache. A naive `(snapshot as ReadonlyMap) ?? new Map()` would
+ * pass a plain object through and then `.entries()` / `.size` access would
+ * silently yield wrong results (or throw). The runtime `instanceof Map`
+ * check below restores the safety net the previous `mapFromSnapshot` helper
+ * provided before its initial deletion in Tier 10.1.
+ */
 function mapFromSnapshot<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
 	if (snapshot instanceof Map) return snapshot as ReadonlyMap<string, TMem>;
 	return new Map<string, TMem>();
@@ -190,11 +203,15 @@ export function distill<TRaw, TMem>(
 
 	// Closure-mirror for `consolidate` (still callback-style — Tier 1.5.4 only
 	// migrated `extractFn`). Seeded at wiring time (§3.6 boundary read), kept
-	// current via subscribe.
+	// current via subscribe. The `mapFromSnapshot` helper guards against the
+	// snapshot-restore path where a serialized Map round-trips as a plain
+	// object — see the helper's docstring for the rationale.
 	let latestStore: ReadonlyMap<string, TMem> = mapFromSnapshot<TMem>(store.entries.cache);
 	store.entries.subscribe((msgs) => {
 		for (const m of msgs) {
-			if (m[0] === DATA) latestStore = mapFromSnapshot<TMem>(m[1]);
+			if (m[0] === DATA) {
+				latestStore = mapFromSnapshot<TMem>(m[1]);
+			}
 		}
 	});
 
@@ -268,7 +285,8 @@ export function distill<TRaw, TMem>(
 	const compact = derived(
 		[store.entries, contextNode],
 		([snapshot, context]) => {
-			const entries = [...mapFromSnapshot<TMem>(snapshot).entries()].map(([key, value]) => ({
+			const map = mapFromSnapshot<TMem>(snapshot);
+			const entries = [...map.entries()].map(([key, value]) => ({
 				key,
 				value,
 				score: opts.score(value, context),

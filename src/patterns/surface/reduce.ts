@@ -96,13 +96,16 @@ export async function runReduction(
 			let settled = false;
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			let unsub: (() => void) | undefined;
-			// Sync-settle ordering: `outputNode.subscribe(...)` may invoke its
-			// callback synchronously (push-on-subscribe). If that callback
-			// triggers `finish()` before `subscribe()` has returned, `unsub`
-			// is still `undefined` at the point we'd want to call it. We set
-			// `shouldUnsub = true` and the post-subscribe block on line 163
-			// runs the unsubscribe instead. Without this two-phase trick, the
-			// reduce would keep the subscription alive until the next event.
+			// Sync-settle deferred-unsubscribe invariant (C24-4):
+			// `outputNode.subscribe(cb)` may invoke `cb` synchronously during
+			// the call (push-on-subscribe per spec §2.2). If `cb` reaches
+			// `finish()` BEFORE `subscribe()` returns, `unsub` is still
+			// `undefined` and we'd leak the subscription if we tried `unsub?.()`
+			// immediately. The contract: `finish()` toggles `shouldUnsub = true`;
+			// the post-subscribe block (after `unsub` is assigned) checks that
+			// flag and tears down. Two-phase ensures exactly one unsubscribe
+			// regardless of whether settlement happened during or after the
+			// subscribe call.
 			let shouldUnsub = false;
 
 			const finish = (action: () => void): void => {

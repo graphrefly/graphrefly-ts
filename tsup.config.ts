@@ -131,23 +131,24 @@ const ENTRY_POINTS = [
 	"src/patterns/ai/index.ts",
 	"src/patterns/ai/node.ts",
 	"src/patterns/ai/browser.ts",
-	"src/patterns/audit/index.ts",
 	"src/patterns/cqrs/index.ts",
 	"src/patterns/demo-shell/index.ts",
 	"src/patterns/domain-templates/index.ts",
 	"src/patterns/graphspec/index.ts",
-	"src/patterns/guarded-execution/index.ts",
 	"src/patterns/harness/index.ts",
+	// Tier 9.1 γ-form γ-ii: `audit` + `lens` + `guarded-execution` merged
+	// into a single `inspect/` folder.
+	"src/patterns/inspect/index.ts",
 	"src/patterns/job-queue/index.ts",
-	"src/patterns/lens/index.ts",
 	"src/patterns/memory/index.ts",
 	"src/patterns/messaging/index.ts",
 	"src/patterns/orchestration/index.ts",
 	"src/patterns/process/index.ts",
 	"src/patterns/reactive-layout/index.ts",
 	"src/patterns/reduction/index.ts",
-	"src/patterns/refine-loop/index.ts",
-	"src/patterns/resilient-pipeline/index.ts",
+	// Tier 9.1 γ-form: `resilientPipeline` is now in `extra/resilience/` (γ-R-2)
+	// and ships through the existing `extra/` entry. `refineLoop` is now a
+	// harness preset (γ-β) and ships through `patterns/harness/`.
 	"src/patterns/surface/index.ts",
 ];
 

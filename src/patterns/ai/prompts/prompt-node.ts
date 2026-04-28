@@ -51,6 +51,7 @@ import type {
 	LLMAdapter,
 	LLMInvokeOptions,
 	LLMResponse,
+	ToolDefinition,
 } from "../adapters/core/types.js";
 
 export type PromptNodeOptions = {
@@ -68,11 +69,26 @@ export type PromptNodeOptions = {
 	 */
 	format?: "text" | "json" | "raw";
 	/**
-	 * Optional tool definitions forwarded to the adapter. Pair with
+	 * Reactive tool definitions forwarded to the adapter. Pair with
 	 * `format: "raw"` (or read `toolCalls` from a downstream parser) when
 	 * tool-calling is in scope.
+	 *
+	 * **Reactive declared edge** (DF12, Tier 7): `tools` is a `Node` so the
+	 * tools list participates in `describe()` topology and `explain()` causal
+	 * chains. The tools Node is added to `messagesNode`'s declared deps —
+	 * tools changes re-invoke the LLM (treated as a new call envelope).
+	 * Wrap with `distinctUntilChanged` upstream if your tool selector emits
+	 * noisy duplicates that would otherwise spam the adapter. See
+	 * COMPOSITION-GUIDE §31 (Dynamic tool selection) for the canonical
+	 * `toolSelector` pattern that produces this Node.
+	 *
+	 * **Activation note:** since `tools` is a real declared dep, `messagesNode`
+	 * waits for the tools Node to DATA at least once before firing
+	 * (push-on-subscribe SENTINEL gate). Pass a `state<ToolDefinition[]>([])`
+	 * if you want immediate activation with no tools, or the latest published
+	 * `toolSelector.tools` Node.
 	 */
-	tools?: readonly import("../adapters/core/types.js").ToolDefinition[];
+	tools?: Node<readonly ToolDefinition[]>;
 	/**
 	 * Optional system prompt. Forwarded via `opts.systemPrompt` to the adapter
 	 * only — never pushed as a `{role:"system"}` message (avoiding the
@@ -111,10 +127,13 @@ function previewContent(text: string, max = 200): string {
  *
  * **Topology** (visible in `describe()`):
  * ```
- * <deps...>          → <name>::messages   (derived, meta.ai = prompt_node)
- * <name>::messages   → <name>::output     (switchMap product, meta.ai = prompt_node::output)
- *   per-wave inner:  <name>::call         (producer, meta.ai = prompt_node::call)
+ * <deps...>, [tools?]  → <name>::messages   (derived, meta.ai = prompt_node)
+ * <name>::messages     → <name>::output     (switchMap product, meta.ai = prompt_node::output)
+ *   per-wave inner:    <name>::call         (producer, meta.ai = prompt_node::call)
  * ```
+ * When `opts.tools` is supplied, the tools `Node` is appended to
+ * `messagesNode`'s declared deps so it appears as a real edge in `describe()`
+ * / `explain()` (DF12, Tier 7).
  *
  * **No-input semantics** (matches the codebase-wide SENTINEL convention):
  * - **Initial no-input** (no real input has ever arrived) — emits nothing.
@@ -190,17 +209,40 @@ export function promptNode<T = string>(
 	// No `initial: []` and no closure flag — `prevData === undefined` is
 	// already the sentinel marker, and the gate already enforces "don't fire
 	// fn until every dep has DATA'd at least once."
-	const messagesNode = derived<readonly ChatMessage[]>(
-		deps as Node<unknown>[],
+	//
+	// DF12: when `opts.tools` is a Node, it's appended to `messagesNode`'s
+	// declared deps. The fn slices values into user-deps + tools, and emits
+	// an envelope `{ messages, tools }` so switchMap's per-wave inner can
+	// read the latest tools via the reactive edge instead of a closure.
+	type Envelope = {
+		messages: readonly ChatMessage[];
+		tools: readonly ToolDefinition[] | undefined;
+	};
+	const userDepsLength = deps.length;
+	const allDeps: readonly Node<unknown>[] =
+		opts?.tools !== undefined ? [...deps, opts.tools as Node<unknown>] : deps;
+	const messagesNode = derived<Envelope>(
+		allDeps as Node<unknown>[],
 		(values) => {
-			// Dep-level null guard (composition guide §8): if any dep is
-			// nullish, return empty messages → switchMap emits null
-			// (mid-flow drop-out).
-			if (values.some((v) => v == null)) return [];
-			const text = typeof prompt === "string" ? prompt : prompt(...values);
-			if (!text) return [];
+			const userValues = values.slice(0, userDepsLength);
+			const toolsValue =
+				opts?.tools !== undefined
+					? (values[userDepsLength] as readonly ToolDefinition[] | undefined)
+					: undefined;
+			// Dep-level null guard (composition guide §8): if any USER dep is
+			// nullish, emit empty messages → switchMap emits null (mid-flow
+			// drop-out). The tools dep can legitimately be empty `[]`; only
+			// user deps gate the call.
+			if (userValues.some((v) => v == null)) {
+				return { messages: [], tools: toolsValue };
+			}
+			const text = typeof prompt === "string" ? prompt : prompt(...userValues);
+			if (!text) return { messages: [], tools: toolsValue };
 			// systemPrompt forwarded through invoke opts only (no double-send).
-			return [{ role: "user" as const, content: text }];
+			return {
+				messages: [{ role: "user" as const, content: text }],
+				tools: toolsValue,
+			};
 		},
 		{
 			name: `${baseName}::messages`,
@@ -208,9 +250,10 @@ export function promptNode<T = string>(
 		},
 	);
 
-	const result = switchMap<readonly ChatMessage[], T | null>(
+	const result = switchMap<Envelope, T | null>(
 		messagesNode,
-		(msgs) => {
+		(envelope) => {
+			const { messages: msgs, tools } = envelope;
 			if (!msgs || msgs.length === 0) {
 				return state<T | null>(null) as NodeInput<T | null>;
 			}
@@ -230,7 +273,7 @@ export function promptNode<T = string>(
 						temperature: opts?.temperature,
 						maxTokens: opts?.maxTokens,
 						systemPrompt: opts?.systemPrompt,
-						...(opts?.tools !== undefined ? { tools: opts.tools } : {}),
+						...(tools !== undefined ? { tools } : {}),
 					};
 					if (opts?.abort) {
 						const sig = nodeSignal(opts.abort);

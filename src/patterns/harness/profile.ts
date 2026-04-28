@@ -13,7 +13,7 @@ import {
 	graphProfile,
 } from "../../graph/profile.js";
 import { QUEUE_NAMES } from "./defaults.js";
-import type { HarnessGraph } from "./loop.js";
+import type { HarnessGraph } from "./presets/harness-loop.js";
 import type { QueueRoute, TriagedItem } from "./types.js";
 
 // ---------------------------------------------------------------------------

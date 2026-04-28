@@ -8,7 +8,7 @@ import {
 	ResilientPipelineGraph,
 	type ResilientPipelineOptions,
 	resilientPipeline,
-} from "../../patterns/resilient-pipeline/index.js";
+} from "../../extra/resilience/index.js";
 
 function collect<T>(n: { subscribe: (fn: (msgs: unknown[][]) => void) => () => void }): {
 	events: T[];

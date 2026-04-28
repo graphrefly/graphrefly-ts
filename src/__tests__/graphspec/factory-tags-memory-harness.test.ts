@@ -9,9 +9,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { agentLoop } from "../../patterns/ai/agents/agent-loop.js";
-import { agentMemory } from "../../patterns/ai/memory/agent-memory.js";
-import { harnessLoop } from "../../patterns/harness/loop.js";
+import { agentLoop } from "../../patterns/ai/presets/agent-loop.js";
+import { agentMemory } from "../../patterns/ai/presets/agent-memory.js";
+import { harnessLoop } from "../../patterns/harness/presets/harness-loop.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 describe("Tier 1.5.3 Phase 2.5 — factory tags (memory + harness + agent)", () => {

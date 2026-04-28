@@ -307,16 +307,6 @@
 				"default": "./dist/patterns/ai/browser.cjs"
 			}
 		},
-		"./patterns/audit": {
-			"import": {
-				"types": "./dist/patterns/audit/index.d.ts",
-				"default": "./dist/patterns/audit/index.js"
-			},
-			"require": {
-				"types": "./dist/patterns/audit/index.d.cts",
-				"default": "./dist/patterns/audit/index.cjs"
-			}
-		},
 		"./patterns/cqrs": {
 			"import": {
 				"types": "./dist/patterns/cqrs/index.d.ts",
@@ -357,16 +347,6 @@
 				"default": "./dist/patterns/graphspec/index.cjs"
 			}
 		},
-		"./patterns/guarded-execution": {
-			"import": {
-				"types": "./dist/patterns/guarded-execution/index.d.ts",
-				"default": "./dist/patterns/guarded-execution/index.js"
-			},
-			"require": {
-				"types": "./dist/patterns/guarded-execution/index.d.cts",
-				"default": "./dist/patterns/guarded-execution/index.cjs"
-			}
-		},
 		"./patterns/harness": {
 			"import": {
 				"types": "./dist/patterns/harness/index.d.ts",
@@ -377,6 +357,16 @@
 				"default": "./dist/patterns/harness/index.cjs"
 			}
 		},
+		"./patterns/inspect": {
+			"import": {
+				"types": "./dist/patterns/inspect/index.d.ts",
+				"default": "./dist/patterns/inspect/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/inspect/index.d.cts",
+				"default": "./dist/patterns/inspect/index.cjs"
+			}
+		},
 		"./patterns/job-queue": {
 			"import": {
 				"types": "./dist/patterns/job-queue/index.d.ts",
@@ -385,16 +375,6 @@
 			"require": {
 				"types": "./dist/patterns/job-queue/index.d.cts",
 				"default": "./dist/patterns/job-queue/index.cjs"
-			}
-		},
-		"./patterns/lens": {
-			"import": {
-				"types": "./dist/patterns/lens/index.d.ts",
-				"default": "./dist/patterns/lens/index.js"
-			},
-			"require": {
-				"types": "./dist/patterns/lens/index.d.cts",
-				"default": "./dist/patterns/lens/index.cjs"
 			}
 		},
 		"./patterns/memory": {
@@ -455,26 +435,6 @@
 			"require": {
 				"types": "./dist/patterns/reduction/index.d.cts",
 				"default": "./dist/patterns/reduction/index.cjs"
-			}
-		},
-		"./patterns/refine-loop": {
-			"import": {
-				"types": "./dist/patterns/refine-loop/index.d.ts",
-				"default": "./dist/patterns/refine-loop/index.js"
-			},
-			"require": {
-				"types": "./dist/patterns/refine-loop/index.d.cts",
-				"default": "./dist/patterns/refine-loop/index.cjs"
-			}
-		},
-		"./patterns/resilient-pipeline": {
-			"import": {
-				"types": "./dist/patterns/resilient-pipeline/index.d.ts",
-				"default": "./dist/patterns/resilient-pipeline/index.js"
-			},
-			"require": {
-				"types": "./dist/patterns/resilient-pipeline/index.d.cts",
-				"default": "./dist/patterns/resilient-pipeline/index.cjs"
 			}
 		},
 		"./patterns/surface": {

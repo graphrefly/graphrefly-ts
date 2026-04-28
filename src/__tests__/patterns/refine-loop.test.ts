@@ -10,7 +10,7 @@ import {
 	type Feedback,
 	type RefineStrategy,
 	refineLoop,
-} from "../../patterns/refine-loop/index.js";
+} from "../../patterns/harness/presets/refine-loop.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

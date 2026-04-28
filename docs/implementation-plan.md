@@ -1,10 +1,39 @@
 # Unified Implementation Plan — pre-1.0
 
-**Date:** 2026-04-27 · **Last updated:** 2026-04-27 (post Sessions A + B)
+**Date:** 2026-04-27 · **Last updated:** 2026-04-28 (post Tier 9.1 /qa retrospective)
 **Sources:** `archive/docs/SESSION-ai-harness-module-review.md`, `archive/docs/SESSION-public-face-blocks-review.md`, `archive/docs/SESSION-patterns-extras-consolidation-plan.md`, `docs/optimizations.md`, this-chat Session A + Session B 9-question design rounds
 **Excludes:** eval creation/refactoring, Python parity, explicit post-1.0 items
 
 Items below are sorted **most foundational + most impactful at the top → least foundational + least impactful at the bottom.** "Foundational" = many later items rebase on its outcome.
+
+---
+
+## Deviations from plan (recorded 2026-04-28)
+
+The Tier 8 and Tier 9.1 batches departed from the original plan text in several places. Each is recorded below for posterity. The categories follow the format the /qa retrospective uses (A = approved during planning, B = implementation slip caught by /qa, C = forced collision-resolution).
+
+### A — Approved during planning via 9-question lock
+- **A1 — γ-0 framework change (`MutationOpts.audit?` optional).** Plan §Tier 8 originally required new audit log surfaces on Cluster II messaging sites. γ-0 collapsed that requirement. Final: messaging sites route through `lightMutation` with `audit` omitted. ✅ Legitimate (cognitive-load reduction, two-layer separation preserved).
+- **A2 — `cqrs.saga` uses `lightMutation`, not `wrapMutation`.** Plan §Tier 8 row 6 said `wrapMutation`. Final: `lightMutation`. Rationale: per-event batch frames would change saga's wave timing; `errorPolicy: "advance"` is the canonical rollback model already.
+- **A3 — `process/start` + `process/cancel` deferred entirely.** Plan §Tier 8 rows 7–8 said `wrapMutation`. Final: γ-7-B (lightMutation-wrap `appendRecord` only; full `wrapMutation` migration deferred to optimizations.md). Rationale: wrapMutation would silently change failure semantics (synthetic-event-emit error → "failed start"); pre-1.0 break warrants a deliberate consumer-driven decision.
+- **A4 — `resilientPipeline` lives in `extra/resilience/`, not `ai/presets/`.** Consolidation plan classified it as ai preset; final γ-R-2 places it semantically with the resilience family. Reach via `@graphrefly/graphrefly/extra`. Rationale: not AI-specific; foreshadows Tier 9.2 `classifyError` neighbor.
+- **A5 — `inspect()` Q5-6 medium scope.** Consolidation plan said `inspect()` composes `explainPath + auditTrail + health + flow + why + policyGate`. Final ships medium: `lens + auditTrail + explainTarget + complianceSnapshot()`, no `policyGate`. Rationale: `policyGate` is control-plane (denies/audits writes), conceptually distinct from observation; bundling would conflate inspection with enforcement.
+
+(A had 6 entries in an earlier draft of this section — the `EvalResult` → `EvalRunResult` rename was mistakenly listed as A6. It was discovered mid-implementation via a DTS build error, NOT during planning, so it belongs solely in C. Removed from A; recorded only as C1 below.)
+
+### B — Implementation slips caught and corrected by /qa (2026-04-28 Tier 9.1 pass)
+- **B1 — Lens nodes initially `add()`ed directly to InspectGraph** (TEARDOWN broadcast through `_nodes` invalidated externally-held lens subscriptions); JSDoc claimed otherwise. **Corrected** via D1: lens lives in a child `LensSubgraph` mounted at `lens::*`. TEARDOWN cascades via `_destroyClearOnly` (no broadcast).
+- **B2 — `mapFromSnapshot` defensive helper deleted in Tier 10.1.** Live emit path is always a `Map`, but `JsonGraphCodec` round-trips `Map` as plain `{}` on snapshot-restore. Without the helper, downstream `.entries()` / `.size` accesses silently fail. **Corrected** via D2: helper restored at `extra/composite.ts` and parallel `instanceof Map` check added at `ai/adapters/core/capabilities.ts`. Cleanup-tier safety checklist added to [docs/docs-guidance.md](docs/docs-guidance.md) so future Tier 10.x cleanups verify both live-emit AND snapshot-restore paths.
+- **B3 — `process/start` initial γ-7-B used `freeze: false`.** Copied from memory-primitive precedent (where 768-dim vector freeze is a real tax). Process state objects are tiny — `freeze: false` opened a post-record state-mutation hazard. **Corrected** via D4: `freeze: true`. Migration shape-preservation rule added to docs-guidance.
+- **B4 — Saga `aggregateId` conditional spread.** Initial migration "tightened" `{ aggregateId: ev.aggregateId }` (always-present, possibly undefined) to `...(ev.aggregateId !== undefined ? ... : {})` (key absent when undefined). Silently changes `Object.hasOwn` semantics + JSON serialization shape. **Corrected** via D5: restored always-include-key.
+- **B5 — `processManager` lacked pre-flight name-collision detection** (γ-7-B added a `registerCursor` mount on top of the existing audit-log mount; second-construction throws cryptic `Graph.add` "node already exists"). **Corrected** via D3: pre-flight `cqrsGraph.tryResolve` check throws a process-manager-specific error message.
+
+### C — Forced collision resolution
+- **C1 — `bridge.ts` `EvalResult` → `EvalRunResult` rename.** Tier 9.1 reorg merged audit/lens/guarded-execution into `inspect/`; refine-loop moved into `harness/presets/`. After both moves, `harness/index.ts` re-exported both `bridge.ts.EvalResult` (eval-runner shape: `{run_id, model, tasks}`) AND refine-loop's `EvalResult` (per-task scoring shape: `{taskId, score, candidateIndex}`) under the same name, causing a DTS-time collision. Bridge's variant had narrower blast radius (5 file-local references vs 30+ for refine-loop's), so it was renamed. The two types are domain-distinct and shouldn't have shared the name pre-merge either; the reorg just surfaced the latent collision.
+
+### Systemic improvements landed alongside the /qa fixes
+- [docs/docs-guidance.md](docs/docs-guidance.md) gained two new sections: "Cleanup-tier safety checklist" (verify both live-emit and snapshot-restore paths before deleting defensive runtime guards) and "Migration shape preservation" (record/object-shape changes during behavior-preserving migrations require explicit user lock).
+- Memory `feedback_no_autonomous_decisions.md` updated with shape-preservation guidance and concrete examples (saga aggregateId, process freeze).
 
 ---
 
@@ -295,24 +324,24 @@ All five units landed via 3 parallel agents (A: 3.1+3.2 bundled, B: 3.3, C: 3.4+
 
 ---
 
-## Tier 4 — Wave A + Wave AM memory primitive rebuilds
+## Tier 4 — Wave A + Wave AM memory primitive rebuilds ✅ landed (Wave A in Tier 2A; Wave AM closed 2026-04-27; markup reconciled 2026-04-28 in Tier 9.1 batch)
 
 High-impact: memory is one of the public-face blocks. All LOCKED in public-face audit §F.
 
-### 4.1 Wave A Unit 1 — `decay` utility
-Cross-language parity decision (export vs inline). Pure 12-LOC function; lands as `extra/utils/decay.ts` per Tier 2.2.
+### 4.1 Wave A Unit 1 — `decay` utility ✅ landed
+Pure 12-LOC function lives at [extra/utils/decay.ts](src/extra/utils/decay.ts) (Tier 2.2 promotion). Re-exported through `extra/index.ts`.
 
-### 4.2 Wave A Unit 2 — `collection` (folds in old `lightCollection`)
-`collection({ ranked: false })` is the "light" mode per consolidation Rule 4. Adopt `lightMutation` + audit log surface.
+### 4.2 Wave A Unit 2 — `collection` (folds in old `lightCollection`) ✅ landed
+`collection({ ranked: false })` is the "light" mode per consolidation Rule 4. `LightCollection*` types deleted in Wave 2A 2.3; `CollectionGraph` gained `hasNode(id)` for parity. `lightMutation` + `events` audit log adopted at [memory/index.ts](src/patterns/memory/index.ts).
 
-### 4.3 Wave A Units 3–5 — `vectorIndex`, `knowledgeGraph`, full `collection`
-Each adopts `lightMutation` + audit log. Distinct index types stay separate per consolidation Rule 4.
+### 4.3 Wave A Units 3–5 — `vectorIndex`, `knowledgeGraph`, full `collection` ✅ landed
+All three primitives in [memory/index.ts](src/patterns/memory/index.ts) adopt `lightMutation` + per-primitive `events` audit logs. Distinct index types stay separate per consolidation Rule 4. `searchNode` / `relatedNode` reactive read APIs exposed; no imperative reads on Phase-4 primitives.
 
 ### 4.4 Wave AM Unit 1 — `tiers.ts` ✅ landed (2026-04-27)
 `DEFAULT_DECAY_RATE` (`Math.LN2 / (7 × 86_400)` — 7-day half-life) extracted from [patterns/ai/memory/tiers.ts](src/patterns/ai/memory/tiers.ts) to [extra/utils/decay.ts](src/extra/utils/decay.ts) so any consumer (memory primitives, harness strategy decay, future routing-weight decay) can share the canonical default without reaching across domains. `tiers.ts` re-exports the const for backward-compat with existing `patterns/ai/memory/` consumers. Promoted alongside the existing `decay()` helper (already in `extra/utils/decay.ts` per Tier 2.2). `extractStoreMap` carry: handled separately in Tier 4.7.
 
-### 4.5 Wave AM Unit 3 — `retrieval.ts` rename ripple
-`pathOf` / `pathWeight` / `query.path` / `entry.path` rename. Unit 6 (`agent-memory.ts`) ripple deferred to natural follow-up.
+### 4.5 Wave AM Unit 3 — `retrieval.ts` rename ripple ✅ landed
+`pathOf` / `pathWeight` / `query.path` / `entry.path` renamed to `contextOf` / `contextWeight` / `query.context` / `entry.context` at [ai/memory/retrieval.ts:39](src/patterns/ai/memory/retrieval.ts:39). Unit 6 (`agent-memory.ts`) ripple folded into the same migration.
 
 ### 4.6 Wave AM Unit 4 — `llm-memory.ts` → `prompt-call.ts` ✅ landed (2026-04-27)
 Public `promptCall<TIn, TOut>(systemPrompt, buildUserContent, opts, defaultName)` shipped at [src/patterns/ai/prompts/prompt-call.ts](src/patterns/ai/prompts/prompt-call.ts), promoted from the previously-private `llmJsonCall` in `patterns/ai/memory/llm-memory.ts`. `PromptCallOptions` exported (was `LLMExtractorOptions`'s shared core). `llmExtractor` / `llmConsolidator` now thin wrappers over `promptCall` (logic unchanged). Internal consumer ([agent-memory.ts](src/patterns/ai/memory/agent-memory.ts)) migrated to import from `../prompts/prompt-call.js`. Top-level `patterns/ai/index.ts` now re-exports from `./prompts/prompt-call.js` directly. New `promptCall.md` API doc generated. **`patterns/ai/memory/llm-memory.ts` was retained as a re-export shim during the initial Tier 4.6 land but moved to `TRASH/` immediately after** (per `feedback_no_backward_compat` — pre-1.0 we don't keep legacy shims; all in-tree consumers were already migrated). See [TRASH-FILES.md](TRASH-FILES.md) for the canonical record. The "migrate to reactive `extractFn` per Tier 1.5.4" lock was already satisfied at Tier 1.5.4 land — `llmExtractor`/`llmConsolidator` produce callbacks consumed by distill, and Tier 1.5.4 wrapped that callback in a closure-mirror + switchMap adapter.
@@ -423,41 +452,54 @@ The 4 previously-skipped tests un-skipped at [ai.test.ts:894–1034](src/__tests
 
 ---
 
-## Tier 7 — AI module ergonomics
+## Tier 7 — AI module ergonomics ✅ landed (reconciled 2026-04-28; units shipped earlier across Waves A/2A/AM, plan markup caught up here)
 
-### 7.1 Unit 14 — `firstDataFromNode` migration + Unit 6 `executeReactive`
-Ship `executeReactive(name, args) → Node<unknown>` on `ToolRegistry` alongside imperative `execute()`. Migrate `toolExecution` to consume it. `resolveToolHandlerResult` retains `firstDataFromNode` as sanctioned boundary bridge.
+### 7.1 Unit 14 — `firstDataFromNode` migration + Unit 6 `executeReactive` ✅ landed (Wave A Unit 4 trio, 2026-04-24)
+`executeReactive(name, args) → Node<unknown>` shipped at [tool-registry.ts:98](src/patterns/ai/agents/tool-registry.ts:98); `toolExecution` consumes it at [tool-execution.ts:151](src/patterns/ai/agents/tool-execution.ts:151); imperative `execute()` was removed in the QA pass (2026-04-24). `firstDataFromNode` retained as sanctioned boundary bridge in [_internal.ts:53](src/patterns/ai/_internal.ts:53).
 
-### 7.2 C24-7 — Reactive spec/strategy variants
-`graphFromSpecReactive(input, adapter) → Node<Graph>` and `suggestStrategyReactive(graph, problem, adapter) → Node<StrategyPlan>`.
-**Depends on:** Tier 7.1 (shared boundary shape), Tier 1.5.3 (unified GraphSpec shape).
+### 7.2 C24-7 — Reactive spec/strategy variants ✅ landed
+`graphFromSpecReactive(input, adapter) → Node<Graph>` shipped at [graph-from-spec.ts:144](src/patterns/ai/graph-integration/graph-from-spec.ts:144); `suggestStrategyReactive(graph, problem, adapter) → Node<StrategyPlan>` at [suggest-strategy.ts:167](src/patterns/ai/graph-integration/suggest-strategy.ts:167).
 
-### 7.3 Unit 12 — Google SDK swap
-`@google/generative-ai` → `@google/genai` in `src/patterns/ai/adapters/providers/google.ts`. Shape-difference audit before swap.
+### 7.3 Unit 12 — Google SDK swap ✅ landed (DONE 2026-04-24, AI/harness review tail)
+`@google/generative-ai` → `@google/genai` in [src/patterns/ai/adapters/providers/google.ts](src/patterns/ai/adapters/providers/google.ts) — `GoogleSdkLike` tightened to single-param `generateContent({ model, contents, config })` shape, `abortSignal` under `config`. `package.json` already on `@google/genai ^1.48.0`.
 
-### 7.4 C24-1 — `compileSpec` `opts.onMissing` mode
-Add `opts.onMissing?: "error" | "warn" | "placeholder"` (default `"placeholder"`) for explicit missing-catalog-entry surface. Composes with Tier 1.5.3 unified shape.
+### 7.4 C24-1 — `compileSpec` `opts.onMissing` mode ✅ landed
+`onMissing?: "error" | "warn" | "placeholder"` (default `"placeholder"`) shipped at [graphspec/index.ts:709](src/patterns/graphspec/index.ts:709) with `MissingCatalogEntry` aggregation across compile passes.
+
+### 7.5 DF12 — `promptNode.tools` reactive widening ✅ landed (2026-04-28, Tier 7+8 batch)
+`tools?: Node<readonly ToolDefinition[]>` — pure reactive declared edge (no static-array path; internal-only API, no callers needed preservation). Tools Node is appended to `messagesNode`'s declared deps in [prompt-node.ts](src/patterns/ai/prompts/prompt-node.ts), so tools changes re-invoke the LLM and the tools edge appears in `describe()` / `explain()`. `messagesNode` emits an envelope `{ messages, tools }` consumed by the per-wave switchMap inner. Activation note in JSDoc: caller passes `state<ToolDefinition[]>([])` for immediate activation with no tools. Regression test in `ai.test.ts` `patterns.ai.promptNode > "reactive tools: tools Node feeds the adapter and re-invokes on tools change"`.
 
 ---
 
-## Tier 8 — Wave C cross-pattern mutation framework migration
+## Tier 8 — Wave C cross-pattern mutation framework migration ✅ landed (2026-04-28, with two deferrals)
 
-10–12 sites consuming the now-promoted `extra/mutation/` framework. **Highest-value site flagged: cqrs/dispatch (multi-step + rollback via `wrapMutation`).**
+**γ-0 (framework change):** `MutationOpts.audit?` made optional. `lightMutation` / `wrapMutation` now provide freeze + rollback + seq-advance + re-throw semantics independent of audit-record emission. Cluster II sites adopt the framework without introducing new audit log Node surfaces. `MutationOpts<TArgs, R>` widened to `MutationOpts<TArgs, TResult, R>` so `onSuccess` builders see the typed result rather than `unknown`. See [extra/mutation/index.ts:149](src/extra/mutation/index.ts:149).
 
-| # | Site | Tool | Notes |
+| # | Site | Tool | Status |
 |---|---|---|---|
-| 1 | `messaging/Topic.publish` | `lightMutation` | + NEW audit log surface |
-| 2 | `messaging/Subscription.ack` | `lightMutation` | + NEW audit log surface |
-| 3 | `messaging/Subscription.take` | `lightMutation` | shared audit log |
-| 4 | `messaging/Hub.delete` | `lightMutation` | + NEW audit log surface |
-| 5 | `cqrs/dispatch` | `wrapMutation` | **HIGHEST VALUE** |
-| 6 | `cqrs/saga` | `wrapMutation` | per-event handler |
-| 7 | `process/start` | `wrapMutation` | lifecycle |
-| 8 | `process/cancel` | `wrapMutation` | |
-| 9 | `job-queue/enqueue` | `lightMutation` | |
-| 10 | `job-queue/ack` | `lightMutation` | |
-| 11 | `job-queue/nack` | `lightMutation` | |
-| 12 | `job-queue/removeById` | `lightMutation` | ride-along |
+| 1 | `messaging/Topic.publish` | `lightMutation` | ✅ landed (no audit; route through framework for centralized re-throw — `events` log already records publishes) |
+| 2 | `messaging/Subscription.ack` | `lightMutation` | ✅ landed (no audit; cursor's emission stream already records advances) |
+| 3 | `messaging/Subscription.pullAndAck` | `lightMutation` | ✅ landed (corrected from plan's `Subscription.take`; `pull` skipped — read-only) |
+| 4 | `messaging/Hub.delete` (i.e. `removeTopic`) | `lightMutation` | ✅ landed (no audit; γ-4 closure-state JSDoc caveat added) |
+| 5 | `cqrs/dispatch` | `wrapMutation` | ✅ landed (highest-value: replaces ~110 LOC inline impl with framework call; M5 / C4 invariants preserved; `cmdNode.meta.error` only stamped when user handler throws via `actionThrew` flag) |
+| 6 | `cqrs/saga` | `lightMutation` | ✅ landed (per-event handler invocation hoisted as `auditedHandler` wrapper; outer try/catch retained for `errorPolicy` advance/hold semantics; downgraded from `wrapMutation` because per-event batch frames would change saga's wave timing) |
+| 7 | `process/start` | `wrapMutation` | **DEFERRED** — wrapping would change failure semantics: today swallows synthetic-event-emit errors and still records "running"; `wrapMutation` rollback would convert that into "failed dispatch". Surface for design call before migrating. |
+| 8 | `process/cancel` | `wrapMutation` | **DEFERRED** — fire-and-forget async compensate; `wrapMutation` is sync-only. Wrapping the synchronous prelude alone adds noise without value. Same design call as #7. |
+| 9 | `job-queue/enqueue` | `lightMutation` | ✅ landed (private `_enqueueImpl` instance field; lightMutation bumps seq before action runs, action body reads `_seqCursor.cache` for auto-id generation) |
+| 10 | `job-queue/ack` | `lightMutation` | ✅ landed (private `_ackImpl`) |
+| 11 | `job-queue/nack` | `lightMutation` | ✅ landed (private `_nackImpl`) |
+| 12 | `job-queue/removeById` | `lightMutation` | ✅ landed (private `_removeByIdImpl`) |
+
+**`job-queue/claim` retained inline** — multi-record loop emits one record per claimed job; `lightMutation`'s single-call → single-record contract doesn't fit. `claim` now uses the framework's `bumpCursor(this._seqCursor)` helper directly per iteration.
+
+**Plan deviations from γ-1..6 confirmation:**
+- γ-1 collapsed by γ-0: no `attachAudit()` lazy-attach method shipped; messaging sites simply route through framework with `audit` omitted. Future audit consumers can later add a `MessagingHubMutation` / `TopicMutation` / `SubscriptionAckMutation` record schema and pass `audit` through if a real consumer surfaces.
+- γ-2 cqrs cursor: `_dispatchSeqCursor` was already promoted via `registerCursor` pre-Tier-8 (Wave 2C). γ-2 closure-counter promotion confirmed already in place across cqrs/job-queue.
+- γ-5 / γ-6 deferred to Tier 10 follow-up (audit-record schemas + `keyOf` exports for messaging primitives — only meaningful when a real audit consumer surfaces).
+
+**Tests added:** 3 regression tests (`extra/mutation/mutation.test.ts` × 2 — `lightMutation` and `wrapMutation` audit-omitted opt-in; `patterns/ai.test.ts` × 1 — DF12 reactive tools re-invoke).
+
+**Verification:** 2491 tests passing (+3 new), build green (ESM + CJS + DTS), lint clean at 9-warning baseline.
 
 **Depends on:** Tier 2.2 (mutation framework promoted), Tier 4 + 5 (proof-of-concept established).
 
@@ -465,24 +507,42 @@ Add `opts.onMissing?: "error" | "warn" | "placeholder"` (default `"placeholder"`
 
 ## Tier 9 — Consolidation finishing (Phases 4–5)
 
-### 9.1 Phase 4 — presets split
-For each pattern domain create `presets.ts` alongside `index.ts`. Move opinionated compositions per consolidation plan §"Building blocks vs presets inventory":
-- `ai`: `agentMemory()`, `agentLoop()`, `resilientPipeline()`
-- `harness`: `harnessLoop()`, `refineLoop()`
-- `inspect`: `inspect()`, `guardedExecution()`, `graphLens()` (per Tier 5.3)
+### 9.1 Phase 4 — presets split ✅ landed (2026-04-28, γ-form γ-β / γ-ii / γ-II / γ-R-2)
 
-### 9.2 Phase 5 — `classifyError` (only when caller surfaces)
+Folder reorg locks: γ-β (sub-folder per preset), γ-ii (`inspect/` sub-files mirror old folders), γ-II (`inspect()` is a `Graph` subclass), γ-R-2 (`resilientPipeline` lives in `extra/resilience/`, not `ai/`), Q5-5 (i) (`agentMemory` / `agentLoop` physically moved), Q5-6 medium (`inspect()` composes lens + auditTrail + explainTarget facade + `complianceSnapshot()` method; `policyGate` stays separate).
+
+**Physical moves landed:**
+- `patterns/resilient-pipeline/` → [extra/resilience/resilient-pipeline.ts](src/extra/resilience/resilient-pipeline.ts) (γ-R-2). Re-exported through `extra/resilience/index.ts`. Old folder moved to `TRASH/`.
+- `patterns/refine-loop/` → [patterns/harness/presets/refine-loop.ts](src/patterns/harness/presets/refine-loop.ts) (γ-β). Re-exported through `patterns/harness/index.ts`. Old folder moved to `TRASH/`.
+- `patterns/harness/loop.ts` → [patterns/harness/presets/harness-loop.ts](src/patterns/harness/presets/harness-loop.ts) (γ-β).
+- `patterns/ai/memory/agent-memory.ts` → [patterns/ai/presets/agent-memory.ts](src/patterns/ai/presets/agent-memory.ts) (Q5-5 (i)).
+- `patterns/ai/agents/agent-loop.ts` → [patterns/ai/presets/agent-loop.ts](src/patterns/ai/presets/agent-loop.ts) (Q5-5 (i)).
+- `patterns/audit/index.ts` + `patterns/lens/index.ts` + `patterns/guarded-execution/index.ts` merged into [patterns/inspect/](src/patterns/inspect/) as sub-files (γ-ii). Old folders moved to `TRASH/`.
+
+**New `inspect()` preset** (Q5-6 medium scope) at [patterns/inspect/presets/inspect.ts](src/patterns/inspect/presets/inspect.ts) — `class InspectGraph extends Graph` mounts `graphLens(target)` + `auditTrail(target)` and exposes `explainTarget(...)` (delegates to `target.explain`) + `complianceSnapshot()` method. Mounts `lensTopology` / `health` / `flow` (lens nodes) and `audit::*` (auditTrail subgraph) under stable describable paths. `policyGate` intentionally NOT bundled — control-plane primitive, conceptually distinct from inspection.
+
+**Pre-1.0 break inventory** (no shims):
+- `patterns/index.ts`: dropped `accountability` / `lens` / `guarded` / `resilientPipeline` / `refine` namespaces. New `inspect` namespace replaces audit + lens + guarded-execution. `resilientPipeline` ships through `@graphrefly/graphrefly/extra`. `refineLoop` / `harnessLoop` ship through `harness.refineLoop` / `harness.harnessLoop`.
+- `package.json` exports: dropped `./patterns/audit`, `./patterns/lens`, `./patterns/guarded-execution`, `./patterns/refine-loop`, `./patterns/resilient-pipeline`. Added `./patterns/inspect`.
+- `tsup.config.ts` ENTRY_POINTS updated.
+- Symbol rename: `bridge.ts` `EvalResult` → `EvalRunResult` (collision with `refine-loop.ts` `EvalResult`; bridge's shape was `{run_id, model, tasks}` — distinct from refineLoop's `{taskId, score, candidateIndex}` per-task scoring shape; bridge had narrower blast radius).
+
+**Tests added:** `src/__tests__/patterns/inspect-preset.test.ts` — 6 cases covering subclass shape, mounted lens node names, target-ref + lens + audit access, `explainTarget(static)`, `complianceSnapshot()`, audit subgraph mount.
+
+**Test import migrations:** ~10+ test files updated (audit / lens / guarded-execution → inspect/*; refine-loop → harness/presets/refine-loop; resilient-pipeline → extra/resilience; agent-memory + agent-loop → ai/presets/*; harness loop.ts → harness/presets/harness-loop).
+
+### 9.2 Phase 5 — `classifyError` (only when caller surfaces) — DEFERRED
 `classifyError(source, classifierFn) → { routes: Record<string, Node<T>> }` in `extra/resilience/`. Defer until a real consumer needs it.
 
-### 9.3 Topology check as shipped utility
-`validateNoIslands(graph)` companion to `validateGraphObservability` for user validation.
+### 9.3 Topology check as shipped utility ✅ landed (2026-04-28)
+[`validateNoIslands(graph)`](src/graph/validate-no-islands.ts) companion to `validateGraphObservability`. Returns `{ orphans: readonly string[]; ok: boolean; summary() }`. Reports nodes with zero in-edges AND zero out-edges (true islands); sources (≥1 out, 0 in) and sinks (≥1 in, 0 out) are not flagged. Re-exported from `src/graph/index.ts`. 5 regression tests in [src/__tests__/graph/validate-no-islands.test.ts](src/__tests__/graph/validate-no-islands.test.ts).
 
 ---
 
 ## Tier 10 — Polish, follow-ups, low-priority
 
-### 10.1 `mapFromSnapshot` / `extractStoreMap` cleanup
-Two identical helpers at `memory-composers.ts:42` and `composite.ts:141`. Delete after Tier 1.5.4 (distill reactive extractFn lands).
+### 10.1 `mapFromSnapshot` / `extractStoreMap` cleanup ✅ landed (2026-04-28)
+The sibling helper `extractStoreMap` was deleted in Wave AM Unit 5 (Tier 4.7). The `mapFromSnapshot` helper at `composite.ts` was deleted in this batch (Tier 9.1) — replaced with the inline `((snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>())` pattern at the 5 former call sites (mirrors Wave AM Unit 5's idiom).
 
 ### 10.2 `diffMap<K, V>` operator extraction
 Wait for third consumer; YAGNI today.
@@ -490,10 +550,10 @@ Wait for third consumer; YAGNI today.
 ### 10.3 Harness executor/verifier dev-mode sanity check
 Assert ≤1 DATA per input wave in dev mode.
 
-### 10.4 JSDoc additions
-- C23-2: `Evaluator<T>` JSDoc on `candidateIndex` semantics.
-- C24-3: `validateSpec` effect-node feedback warning.
-- C24-4: `runReduction` sync-settle deferred-unsubscribe ordering invariant.
+### 10.4 JSDoc additions ✅ landed (2026-04-28, Tier 9.1 batch ride-along)
+- C23-2: `Evaluator<T>` JSDoc on `candidateIndex` semantics — already present at [patterns/harness/presets/refine-loop.ts:114–122](src/patterns/harness/presets/refine-loop.ts:114).
+- C24-3: `validateSpec` effect-node feedback warning — added at [patterns/graphspec/index.ts](src/patterns/graphspec/index.ts) (advisory text on the `validateSpec` JSDoc explaining `warnings` covers feedback-from-effect-node).
+- C24-4: `runReduction` sync-settle deferred-unsubscribe ordering invariant — formalized at [patterns/surface/reduce.ts](src/patterns/surface/reduce.ts) `Sync-settle deferred-unsubscribe invariant (C24-4)` block.
 - (C24-2 ✅ obsolete — `decompileGraph` removed entirely in Tier 1.5.3 Phase 3; `decompileSpec` is `g.describe({ detail: "spec" })` plus a feedback-edge sugar scan, no fingerprinting.)
 
 ### 10.5 Operator-layer `filter` mixed-batch RESOLVED forwarding
@@ -508,14 +568,22 @@ Filter drops RESOLVED for failed batch entries → tier-3 counter drift. Low pri
 - Fan-out scaling — sink notification overhead (profiling harness at `src/__bench__/fanout-profile.ts`); ongoing measurement.
 
 ### 10.8 Design follow-ups (deferred — file in optimizations.md when re-opened)
-- `graphLens` 50k-node scaling (incremental delta stats vs full describe-per-tick).
+- `graphLens` 50k-node scaling (incremental delta stats vs full describe-per-tick). `graphLens(target)` still ships as a standalone factory; the `inspect()` preset embeds an instance as `inspect.lens.*` (Tier 9.1) — the scaling concern applies in both consumption modes.
 - `graphLens.health` V2 (`completed` / `disconnected` flag classes; aggregate metrics).
 - `lens.flow` delta companion.
-- TopicGraph reactive `retainedLimit` (unblocks reactive `violationsLimit` on `policyGate`).
-- `reactiveExplainPath` file-path-scoped observe (composes with Tier 1.5.2 `tiers` filter — natural follow-on for `pathScope` opt).
+- TopicGraph reactive `retainedLimit` (unblocks reactive `violationsLimit` on `policyGate` — `policyGate` now lives at [patterns/inspect/audit.ts](src/patterns/inspect/audit.ts) post Tier 9.1 γ-ii merge).
+- `Graph.explain({reactive: true})` file-path-scoped observe (composes with Tier 1.5.2 `tiers` filter — natural follow-on for `pathScope` opt). The legacy `reactiveExplainPath` was deleted in Tier 3.5; the equivalent capability lives on `Graph.explain(...)` with `reactive: true` per Tier 1.5 / 3.5.
 - End-of-batch `_handleBudgetMessage` boolean-return / forward-unknown audit across producer-pattern factories.
-- `withStatus` decomposition (alternative (e)).
-- `refineLoop` persistent re-seed / reset surface (awaits real-world demand).
+- `withStatus` decomposition (alternative (e)). Lives at [extra/resilience/index.ts](src/extra/resilience/index.ts) post Tier 2.1 reorg.
+- `refineLoop` persistent re-seed / reset surface (awaits real-world demand). Lives at [patterns/harness/presets/refine-loop.ts](src/patterns/harness/presets/refine-loop.ts) post Tier 9.1 γ-β.
+
+### 10.9 InspectGraph + processManager carry-throughs from Tier 9.1 /qa (added 2026-04-28)
+Defer-until-consumer items surfaced by /qa B-group fixes; tracked here so they don't get lost when revisiting Tier 9 / Tier 10:
+- **Framework gap:** `Graph._destroyClearOnly` doesn't drain child mounts' `_disposers`. Affects every mounted child graph (auditTrail, LensSubgraph, etc.). Fix: drain `child._disposers` inside `_destroyClearOnly` before clearing structure. Defer until a real disposer leak is observed in production.
+- **`processManager.dispose()` doesn't unmount mounted nodes** (`${name}_process_seq`, `${name}_process_instances`). Fixture-style create+dispose loops accumulate nodes on the cqrsGraph indefinitely. Long-term fix: either `Graph.removeNode(name)` (broad feature) OR mount under a child `mount("__processManagers__/${name}", subgraph)` for clean teardown.
+- **`auditTrail.includeTypes` introspectability** — currently private. Expose as readonly field or via meta so consumers can validate `complianceSnapshot.fingerprint` against the exact recorded set.
+- **`validateNoIslands` reactive companion** — for continuous-validation use cases on large graphs (10k+ nodes), each call rebuilds the full `describe({detail:"minimal"})` snapshot. Future: `validateNoIslandsReactive(graph): Node<ValidateNoIslandsResult>` subscribed to topology changes.
+- **`bumpCursor` silent reset diagnostic** — surface a one-shot `console.warn` (or meta-counter) when a cursor restores from a non-numeric snapshot, so seq-monotonicity violations don't cascade silently.
 
 ---
 
@@ -556,4 +624,25 @@ Tier 10 — anytime; low priority
     - **G1C-prime** — `readOnce(opt.cache)` imperative-read removed from `resilient-pipeline`. Node-form pipeline options (rateLimit / budget / breaker / timeoutMs / retry) now use **switchMap-pattern rebuild**: subscribe to option Node, rebuild the layer on each emission. Per-layer companions exposed only for the static-options path. State-loss caveat documented; primitive-side widening remains the long-term fix.
     - **G2B (doc-only)** — F3/F6/F8 inline comments tightened; EC7 `rateLimitState` JSDoc clarified ("resets on producer-fn re-run"); EC5/EC6/EC7/F9 deferred items filed in [docs/optimizations.md](docs/optimizations.md) under "QA follow-ups from Tier 5.2 + Wave-AM /qa pass".
 11. ✅ Tier 6 harness composition landed (2026-04-28, Wave 2C). Tier 6.5 C2 lock (`executeFlow` JobFlow chain replacing `merge → executor → verifier → fastRetry`) implemented; Tier 6.3 named-node registrations + explain regression test in place; Tier 6.1 / 6.2 / 6.4 / 6.6 / 6.7 reconciled as already-landed across earlier feature waves. Breaking executor/verifier interface change pre-1.0: `(input: Node<T>) => Node<U>` → `(job: JobEnvelope<HarnessJobPayload<A>>) => NodeInput<HarnessJobPayload<A>>`. `defaultLlmExecutor` / `defaultLlmVerifier` migrated to direct `adapter.invoke()` (no internal `promptNode`). All 2470 tests passing; build green; lint at 9-warning baseline.
-12. **← NEXT.** Tier 7 (AI ergonomics) and Tier 8 (Wave C cross-pattern mutation framework migration) can run in parallel.
+12. ✅ Tier 7 (AI ergonomics) markup reconciliation + DF12 (`promptNode.tools` reactive widening) and Tier 8 (Wave C cross-pattern mutation framework migration) landed (2026-04-28, single batch). Framework change γ-0 (`MutationOpts.audit?` optional) collapsed γ-1's audit-Node design tension; messaging sites adopt the framework without new audit surfaces. Two `process/*` migrations deferred (#7, #8) due to failure-semantics conflict — surface to a design call before migrating. 2491 tests passing; build green; lint at 9-warning baseline.
+13. ✅ Tier 9.1 γ-form full (presets split + audit/lens/guarded-execution → inspect merge + new `inspect()` factory) + Tier 9.3 (`validateNoIslands`) + Tier 10.1 (`mapFromSnapshot` deletion-then-restore) + Tier 10.4 (JSDoc additions) + Tier 4 markup reconciliation + γ-7-B (process appendRecord lightMutation-wrap) landed (2026-04-28, single batch). Pre-1.0 break: dropped `./patterns/{audit,lens,guarded-execution,refine-loop,resilient-pipeline}` subpaths; added `./patterns/inspect`; renamed bridge.ts `EvalResult` → `EvalRunResult` (collision with refine-loop's `EvalResult`). 2502 tests passing (+6 inspect-preset, +5 validateNoIslands); build green; lint at 9-warning baseline.
+14. ✅ /qa pass on Tier 9.1 batch (2026-04-28) — all approved patches applied in-batch:
+    - **D1** — lens lives in a child `LensSubgraph` mounted at `lens::*`. `inspect.destroy()`'s TEARDOWN signal cascade reaches the lens via `_destroyClearOnly` (no broadcast) instead of via `_signalDeliver` over `inspect._nodes`. External `view.lens.topology.subscribe(...)` references are no longer invalidated by the parent's TEARDOWN broadcast.
+    - **D2** — `mapFromSnapshot` helper restored at [extra/composite.ts](src/extra/composite.ts) and a parallel defensive `instanceof Map` check added at [ai/adapters/core/capabilities.ts](src/patterns/ai/adapters/core/capabilities.ts). Tier 10.1's deletion was over-eager; the helper is the safety net for snapshot-restore paths where `JsonGraphCodec` round-trips a `Map` as a plain `{}`.
+    - **D3** — `processManager` detects existing `${name}_process_instances` / `${name}_process_seq` mounts via `cqrsGraph.tryResolve(...)` and throws a specific error message before attempting `Graph.add`.
+    - **D4** — `appendRecord` `freeze: true` (process states are typically small workflow records; prevents post-record state mutation from corrupting audit history).
+    - **D5** — saga audit-record `aggregateId` always includes the key (parity with pre-Tier-8 shape; preserves `Object.hasOwn` semantics).
+    - **D6** — accepted dispatch error-emit ↔ audit-append order flip (no code change; both events still fire same-wave).
+    - **D7** — `validateNoIslands` JSDoc strengthened to call out the false-positive case (state nodes consumed only by external subscribers).
+    - **A1** — `inspect()` self-tags via `tagFactory("inspect", placeholderArgs(opts))`.
+    - **A2/A3** — `validateNoIslands` returns `IslandReport[]` with `{path, kind}` (kind helps triage state-orphans vs derived-orphans).
+    - **A4** — added 4 new inspect-preset tests (reactive `explainTarget`, `inspect.topology` ≠ `inspect.lens.topology`, lens-mount path qualification, lens observes target not inspect) + 1 subgraph test for `validateNoIslands`.
+    - **A5** — `appendRecord` / `appendRecordWithReason` collapsed into one helper.
+    - **A6** — `InspectGraph.complianceSnapshot.policies` typed directly as `PolicyGateGraph`.
+    - **A7** — fingerprint truncation caveat echoed in `inspect.complianceSnapshot()` JSDoc.
+    - **A8** — `auditTrail` seq overflow comment fixed ("stagnates" not "wraps").
+    - **A9** — `validateNoIslands` sort test now uses ASCII-distinct insertion order.
+    - **A10** — `InspectGraph` JSDoc tightened to clarify path-namespace boundary (inspect.node("counter") does NOT resolve into target).
+    - Remaining deferred items filed in [docs/optimizations.md](docs/optimizations.md) "QA follow-ups from Tier 9.1 /qa pass".
+    - 2508 tests passing (+9 over Tier 9.1 land); lint clean (9-warning baseline); build green.
+15. **← NEXT.** Tier 9.2 `classifyError` deferred (no caller). Remaining: Tier 8 γ-7-A (`process/start` + `cancel` full `wrapMutation` migration design call still outstanding), Tier 10.2/10.3/10.5/10.6/10.7/10.8 (perf + design follow-ups, all defer-until-consumer). No pressing structural work remains; next batches are likely thin polish or new feature work.

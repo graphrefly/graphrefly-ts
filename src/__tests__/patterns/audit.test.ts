@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type PolicyRuleData, policy } from "../../core/guard.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import { auditTrail, complianceSnapshot, policyGate } from "../../patterns/audit/index.js";
+import { auditTrail, complianceSnapshot, policyGate } from "../../patterns/inspect/audit.js";
 
 describe("auditTrail (roadmap §9.2)", () => {
 	it("records DATA mutations with seq, timestamps, value", () => {
@@ -585,7 +585,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 	});
 
 	it("Tier 3.5: deletion regression — `reactiveExplainPath` is no longer importable from patterns/audit", async () => {
-		const auditModule: Record<string, unknown> = await import("../../patterns/audit/index.js");
+		const auditModule: Record<string, unknown> = await import("../../patterns/inspect/audit.js");
 		expect(auditModule.reactiveExplainPath).toBeUndefined();
 	});
 });

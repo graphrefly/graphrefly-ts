@@ -171,7 +171,17 @@ export function createCapabilitiesRegistry(
 
 	const entriesNode = derived<readonly ModelCapabilities[]>(
 		[bundle.entries],
-		([snapshot]) => Array.from((snapshot as ReadonlyMap<string, ModelCapabilities>).values()),
+		([snapshot]) => {
+			// Defensive coercion: `ReactiveMapBundle.entries` always emits a
+			// real `Map` on the live emit path, but a snapshot-restore round
+			// trip can deliver a plain `{}` (the default codec serializes
+			// `Map` to a non-Map shape). Without the `instanceof` guard,
+			// `.values()` would be `undefined`. Same defense pattern as
+			// `mapFromSnapshot` in `extra/composite.ts`.
+			return snapshot instanceof Map
+				? Array.from((snapshot as ReadonlyMap<string, ModelCapabilities>).values())
+				: [];
+		},
 		{ name: "capabilitiesRegistry/entries", initial: [] },
 	);
 

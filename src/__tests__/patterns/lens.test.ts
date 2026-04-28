@@ -3,7 +3,7 @@ import { DATA } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import { type FlowEntry, graphLens, type HealthReport } from "../../patterns/lens/index.js";
+import { type FlowEntry, graphLens, type HealthReport } from "../../patterns/inspect/lens.js";
 
 function getHealthCache(node: { cache: unknown }): HealthReport {
 	return node.cache as HealthReport;

@@ -130,8 +130,11 @@ export class AuditTrailGraph extends Graph {
 			opts.includeTypes != null ? new Set(opts.includeTypes) : DEFAULT_INCLUDE_TYPES;
 		const filter = opts.filter;
 
-		// Monotonic per-trail. Wraps around at Number.MAX_SAFE_INTEGER (~9e15);
-		// at 100k events/sec that's ~3000 years — not a practical concern.
+		// Monotonic per-trail. **Stagnates** (does not wrap) past
+		// `Number.MAX_SAFE_INTEGER` — IEEE-754 imprecision means `seq + 1 === seq`
+		// once `seq` exceeds 2^53; subsequent records would carry the same
+		// stagnant value and break uniqueness. At 100k events/sec that's
+		// ~3000 years — not a practical concern.
 		let seq = 0;
 		const handle = target.observe({ timeline: true, structured: true });
 		const offEvent = handle.onEvent((event) => {

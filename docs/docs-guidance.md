@@ -278,6 +278,34 @@ cat archive/optimizations/resolved-decisions.jsonl | python3 -m json.tool --json
 
 ---
 
+## Cleanup-tier safety checklist (Tier 10.x style entries)
+
+Tier 10.x items that delete "redundant" / "paranoid" runtime guards or helpers must verify both code paths the guard could fire on, **not just the live one**. Two real misses motivated this rule (`extractStoreMap` Wave AM Unit 5; `mapFromSnapshot` Tier 10.1 — restored under Tier 9.1 /qa D2 after the snapshot-restore path lost defense-in-depth).
+
+Before deleting a runtime check / type-narrowing helper, confirm:
+
+1. **Live emit path** — does the upstream actually emit the typed shape? (Usually yes — the comment justifying deletion focuses on this.)
+2. **Snapshot-restore path** — does `Graph.restore` / `JsonGraphCodec` round-trip the type cleanly? `Map` / `Set` / `Date` / typed-array values come back as plain `{}` / `[]` / `string` from the default codec; without the helper, downstream `.entries()` / `.size` / `.has()` calls silently return wrong values or throw.
+3. **Plugin-supplied caches** — does anything in `extra/storage-tiers.ts` or a user codec deliver values via the same Node? Same concern as restore.
+4. **Test coverage** — is there a regression test that exercises restore / hot-swap-cache for the affected Node? If not, add one BEFORE deletion.
+
+If steps 2–3 pass via "ReactiveMap-style emit always emits a real Map," that's only the live path — restore is separate. Either restore the helper, or convert plain `{}` → `Map` in a `restore`-side hook on the typed Node.
+
+---
+
+## Migration shape preservation
+
+When migrating a primitive (Tier 7/8/9.x patterns), behavior-preserving refactors must preserve **observable record/object shapes**. Stylistic improvements that change `Object.hasOwn(record, key)` results, JSON serialization, key presence/absence on hot fields, or key ordering count as autonomous decisions and require explicit user lock — they are NOT "while I'm in there" cleanups.
+
+Examples that bit us during Tier 8 / Tier 9.1 (caught in /qa, not at land):
+
+- Saga `aggregateId` from `{ aggregateId: ev.aggregateId }` (always present, possibly `undefined`) to `...(ev.aggregateId !== undefined ? ... : {})` (key absent when undefined). Cleaner spread idiom; silently breaks `Object.hasOwn` consumers and JSON serialization shape.
+- `lightMutation` `freeze: false` opt-out copied from a memory-primitive precedent (where deep-freezing 768-dim vectors WAS a real tax). The framework default is `freeze: true`; the memory primitives explicitly override to `false` for the vector-payload case. Process state objects are tiny — copying the override pattern was the wrong default for the new caller and opened a post-record state-mutation hazard.
+
+**Default to preservation.** If a shape change feels obviously cleaner, surface it as an explicit Q-question with the trade-off, not as a silent ride-along. Pre-1.0 doesn't mean "any change is fine" — it means "we can break breakingly when warranted."
+
+---
+
 ## When to update which file
 
 | Change | TS | PY |
