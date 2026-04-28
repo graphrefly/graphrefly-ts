@@ -263,14 +263,28 @@ export interface PolicyGateOptions {
 	 * `target` OR any transitively-mounted subgraph after construction are
 	 * guarded automatically (enforce mode only).
 	 *
+	 * Accepts a static `readonly string[]` or a reactive
+	 * `Node<readonly string[]>` (Tier 3.4 — F.9 reactive primitive carve-out).
+	 * When a `Node` is passed, the enforcer rebinds the guarded path set on
+	 * every emission: paths added to the new set get wrapped, paths removed
+	 * from the new set get released, and the audit-mode allow-list filter
+	 * uses the latest cached value. Static-array callers retain the current
+	 * "caller owns the path set" semantics.
+	 *
 	 * **Cost:** unrestricted mode runs `describe({detail:"minimal"})` once
 	 * at construction (O(N) over the graph tree) plus one topology
 	 * subscription per graph instance in the mount tree. Restricted mode
-	 * skips both and disables dynamic coverage — callers providing
-	 * `paths` must re-create on subgraph changes.
+	 * (static or reactive) skips both and disables `watchTopologyTree`
+	 * dynamic coverage — for reactive callers, the path-set Node is the
+	 * single source of truth for which paths are guarded.
 	 */
-	paths?: readonly string[];
-	/** Ring-buffer cap for the violations topic. Default: 1000. */
+	paths?: readonly string[] | Node<readonly string[]>;
+	/**
+	 * Ring-buffer cap for the violations topic. Default: 1000. Static
+	 * number only — reactive form is deferred pending TopicGraph reactive
+	 * `retainedLimit` support (see Tier 10.8 design follow-up in
+	 * `docs/optimizations.md`).
+	 */
 	violationsLimit?: number;
 }
 
@@ -336,8 +350,52 @@ export class PolicyGateGraph extends Graph {
 		});
 		this.addDisposer(offPolicies);
 
-		// Determine which target paths to watch.
-		const paths = opts.paths != null ? [...opts.paths] : collectPaths(target);
+		// Resolve `paths` option to its three modes:
+		//   (a) undefined → dynamic coverage via watchTopologyTree
+		//   (b) static readonly string[] → caller owns the set
+		//   (c) Node<readonly string[]> → reactive set; rebind on each emission
+		// `latestPaths` is the closure-mirror of the current path set (or
+		// undefined for dynamic coverage). It is read by:
+		//   - the audit-mode observe callback (allow-list filter)
+		//   - the reactive-paths rebind subscription (diff against next set)
+		// Mirrors the `latestRules` pattern used for `policiesNode` above
+		// (COMPOSITION-GUIDE §28 factory-time seed).
+		const pathsOpt = opts.paths;
+		const pathsNode: Node<readonly string[]> | undefined = isNode(pathsOpt)
+			? (pathsOpt as Node<readonly string[]>)
+			: undefined;
+		// `pathsExplicit` mirrors the legacy "caller provided a path set" branch
+		// — true for both static-array and Node-of-array forms; false only when
+		// `opts.paths` is omitted (dynamic-coverage mode).
+		const pathsExplicit = pathsOpt != null;
+		const initialPaths: readonly string[] | undefined =
+			pathsNode != null
+				? ((pathsNode.cache as readonly string[] | undefined) ?? [])
+				: pathsExplicit
+					? [...(pathsOpt as readonly string[])]
+					: undefined;
+		// `latestPaths` is undefined ONLY in dynamic-coverage mode.
+		let latestPaths: readonly string[] | undefined = initialPaths;
+		// Initial sweep set for the enforce-mode wrap loop.
+		const paths = latestPaths ?? collectPaths(target);
+
+		// Audit-mode reactive-paths subscription. Enforce mode handles its own
+		// subscription (it also needs to diff old↔new to wrap/release guards);
+		// audit mode just needs `latestPaths` to track the latest cache so the
+		// allow-list filter stays current. Wired here, before the mode branch,
+		// so it runs in audit mode only — enforce mode wires its own
+		// rebinding subscription with diffing logic (DRY would require an
+		// always-on tracker that enforce mode then ignores; the small
+		// duplication keeps the enforce-mode branch self-contained).
+		if (this._mode !== "enforce" && pathsNode != null) {
+			const offAuditPaths = pathsNode.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] !== DATA) continue;
+					latestPaths = (m[1] as readonly string[] | undefined) ?? [];
+				}
+			});
+			this.addDisposer(offAuditPaths);
+		}
 
 		if (this._mode === "enforce") {
 			// Track which paths are currently guarded so dynamic adds don't
@@ -359,12 +417,44 @@ export class PolicyGateGraph extends Graph {
 			// Initial sweep: guard every path present at construction.
 			for (const path of paths) wrapAndPush(path);
 
+			// Reactive paths rebind: when `paths` is a Node, every DATA emission
+			// replaces `latestPaths` and diffs against the previous set —
+			// added paths get wrapped, removed paths release their guard. No
+			// imperative orchestration; the diff falls out of the closure-mirror
+			// + subscribe pattern (mirrors `policiesNode` above).
+			if (pathsNode != null) {
+				const offReactivePaths = pathsNode.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] !== DATA) continue;
+						const next = (m[1] as readonly string[] | undefined) ?? [];
+						const nextSet = new Set(next);
+						const prevSet = new Set(latestPaths ?? []);
+						// Release paths that fell out of the new set.
+						for (const p of prevSet) {
+							if (nextSet.has(p)) continue;
+							const r = restorers.get(p);
+							if (r != null) {
+								r();
+								restorers.delete(p);
+							}
+						}
+						// Wrap newly-added paths.
+						for (const p of nextSet) {
+							if (prevSet.has(p)) continue;
+							wrapAndPush(p);
+						}
+						latestPaths = next;
+					}
+				});
+				this.addDisposer(offReactivePaths);
+			}
+
 			// Dynamic coverage: when `paths` was NOT explicitly provided, follow
 			// the full topology tree (target + every transitively-mounted
 			// subgraph, including subgraphs mounted after construction) so late
 			// adds at any depth get guarded. `prefix` carries the qualified
 			// path-prefix from `target` to the emitter graph.
-			if (opts.paths == null) {
+			if (!pathsExplicit) {
 				const offTopology = watchTopologyTree(target, (event, emitter, prefix) => {
 					if (event.kind === "added") {
 						if (event.nodeKind === "node") {
@@ -445,7 +535,11 @@ export class PolicyGateGraph extends Graph {
 				if (event.type !== "data" && event.type !== "error") return;
 				const path = event.path ?? "";
 				if (!path) return;
-				if (opts.paths != null && !opts.paths.includes(path)) return;
+				// `latestPaths` is the closure-mirror of the (possibly reactive)
+				// path allow-list. Undefined = no restriction (dynamic-coverage
+				// mode); reactive callers see the filter rebind on each emission
+				// without re-creating the enforcer (Tier 3.4).
+				if (latestPaths != null && !latestPaths.includes(path)) return;
 				// Prefer the event-stamped actor (always populated for DATA/ERROR
 				// post-B9). Fall back to lastMutation for back-compat with any
 				// consumer stubbing observe events without the field.

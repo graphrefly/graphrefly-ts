@@ -343,6 +343,89 @@ describe("policyGate (roadmap §9.2)", () => {
 		leaf.add(state(0, { name: "x" }), { name: "x" });
 		expect(() => root.set("mid::leaf::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
 	});
+
+	// ------------------------------------------------------------------
+	// Tier 3.4 — reactive `paths` (F.9 reactive primitive carve-out)
+	// ------------------------------------------------------------------
+
+	it("Tier 3.4 enforce mode: reactive `paths` — Node<readonly string[]> initial sweep guards starting set", () => {
+		const g = new Graph("g");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
+		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+			mode: "enforce",
+			paths: pathsNode,
+		});
+
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+		// b is NOT in the initial set — write succeeds.
+		g.set("b", 1, { actor: { type: "human", id: "x" } });
+		expect(g.get("b")).toBe(1);
+	});
+
+	it("Tier 3.4 enforce mode: reactive `paths` rebinds — paths added to set get wrapped, paths removed get released", () => {
+		const g = new Graph("g");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
+		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+			mode: "enforce",
+			paths: pathsNode,
+		});
+
+		// Initially: a guarded, b not.
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+		g.set("b", 1, { actor: { type: "human", id: "x" } });
+
+		// Reactive flip: now b is guarded, a is not.
+		pathsNode.emit(["b"]);
+		expect(() => g.set("b", 2, { actor: { type: "human", id: "x" } })).toThrow();
+		// a no longer guarded — write succeeds.
+		g.set("a", 99, { actor: { type: "human", id: "x" } });
+		expect(g.get("a")).toBe(99);
+	});
+
+	it("Tier 3.4 enforce mode: reactive `paths` — adding to set wraps newly-included path without re-wrapping existing", () => {
+		const g = new Graph("g");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
+		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+			mode: "enforce",
+			paths: pathsNode,
+		});
+
+		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
+		g.set("b", 1, { actor: { type: "human", id: "x" } }); // b not yet guarded
+
+		// Add b to the path set; a stays guarded.
+		pathsNode.emit(["a", "b"]);
+		expect(() => g.set("a", 2, { actor: { type: "human", id: "x" } })).toThrow();
+		expect(() => g.set("b", 2, { actor: { type: "human", id: "x" } })).toThrow();
+	});
+
+	it("Tier 3.4 audit mode: reactive `paths` filter rebinds on emission", () => {
+		const g = new Graph("g");
+		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(state(0, { name: "b", guard: () => true }), { name: "b" });
+		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		const enforcer = policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+			mode: "audit",
+			paths: pathsNode,
+		});
+
+		// Initially only "a" recorded.
+		g.set("a", 1, { actor: { type: "human", id: "x" } });
+		g.set("b", 1, { actor: { type: "human", id: "x" } });
+		expect(enforcer.all().map((v) => v.path)).toEqual(["a"]);
+
+		// Switch filter: now only "b" recorded.
+		pathsNode.emit(["b"]);
+		g.set("a", 2, { actor: { type: "human", id: "x" } });
+		g.set("b", 2, { actor: { type: "human", id: "x" } });
+		expect(enforcer.all().map((v) => v.path)).toEqual(["a", "b"]);
+	});
 });
 
 describe("reactiveExplainPath (roadmap §9.2)", () => {

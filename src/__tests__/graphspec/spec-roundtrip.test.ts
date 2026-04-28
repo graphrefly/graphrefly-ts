@@ -523,6 +523,31 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 		expect(spec.factoryArgs).toEqual({ route: "auto-fix" });
 	});
 
+	it("Tier 3.4: placeholderArgs substitutes a Node<readonly string[]> field as `<Node>` (regression for reactive `paths` factory-tag round-trip)", async () => {
+		const { placeholderArgs } = await import("../../core/meta.js");
+		// Mirrors the Tier 3.4 `policyEnforcer({ paths: stateNode })` shape:
+		// `paths` may be a static array OR a Node-of-array. Both must survive
+		// `placeholderArgs` cleanly — the Node form collapses to `"<Node>"`,
+		// the array form recurses element-wise.
+		const pathsNode = state<readonly string[]>(["a", "b"]);
+		const args = placeholderArgs({
+			paths: pathsNode,
+			mode: "enforce",
+			violationsLimit: 100,
+		});
+		expect(args.paths).toBe("<Node>");
+		expect(args.mode).toBe("enforce");
+		expect(args.violationsLimit).toBe(100);
+
+		// Static-array form recurses element-wise (string primitives pass through).
+		const argsStatic = placeholderArgs({
+			paths: ["a", "b"],
+			mode: "audit",
+		});
+		expect(argsStatic.paths).toEqual(["a", "b"]);
+		expect(argsStatic.mode).toBe("audit");
+	});
+
 	it("placeholderArgs substitutes non-JSON fields with descriptive strings (DG2=ii)", async () => {
 		const { placeholderArgs } = await import("../../core/meta.js");
 		const adapter = { invoke: () => ({ content: "x" }) }; // not a Node, but has a function
