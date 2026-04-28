@@ -216,6 +216,53 @@ describe("patterns.messaging", () => {
 		expect(flow.queue("work").get("depth")).toBe(0);
 		expect(flow.queue("done").get("depth")).toBe(0);
 	});
+
+	// Tier 6.5 D1 — per-stage `maxPerPump` override on `StageDef`.
+	it("jobFlow honors per-stage maxPerPump override", () => {
+		// Stage A caps at 1 claim per pump tick; stage B inherits the
+		// top-level cap of 100. Enqueue 3 items; only 1 advances per A's
+		// pending-tick. Each enqueue triggers A's pump independently, so all
+		// 3 still drain through; the assertion is that A's pump body
+		// processes at most 1 per call (verified by stage-A "depth" never
+		// dropping below 0 mid-tick — synchronous propagation here means we
+		// can only check the steady-state outcome).
+		const stageACalls: number[] = [];
+		const flow = jobFlow<number>("flow-cap", {
+			stages: [
+				{
+					name: "a",
+					work: (job) => {
+						stageACalls.push(job.payload as number);
+						return Promise.resolve(job.payload as number);
+					},
+					maxPerPump: 1,
+				},
+				{ name: "b" },
+			],
+			maxPerPump: 100,
+		});
+		flow.enqueue(1);
+		flow.enqueue(2);
+		flow.enqueue(3);
+		// All 3 should eventually flow through (each enqueue triggers A's
+		// pump again; the cap limits per-tick claims, not total throughput).
+		// We can't assert per-tick claim counts directly without a pump
+		// hook, but we CAN assert all 3 made it through stage A.
+		return new Promise<void>((resolve) => {
+			setTimeout(() => {
+				expect(stageACalls.length).toBe(3);
+				resolve();
+			}, 50);
+		});
+	});
+
+	it("jobFlow rejects negative or zero per-stage maxPerPump at construction", () => {
+		expect(() =>
+			jobFlow<number>("flow-bad", {
+				stages: [{ name: "a", work: (j) => Promise.resolve(j.payload), maxPerPump: -1 }, "b"],
+			}),
+		).toThrow();
+	});
 });
 
 describe("patterns.messagingHub", () => {

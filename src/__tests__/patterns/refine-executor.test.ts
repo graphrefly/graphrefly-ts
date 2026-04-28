@@ -13,6 +13,7 @@ import type { Node } from "../../core/node.js";
 import { derived } from "../../core/sugar.js";
 import {
 	evalVerifier,
+	type HarnessJobPayload,
 	harnessLoop,
 	refineExecutor,
 	type VerifyResult,
@@ -187,18 +188,20 @@ describe("refineExecutor + evalVerifier (end-to-end)", () => {
 
 	it("verifier marks failure when EXECUTE emits no artifact", async () => {
 		const adapter = cannedTriageAdapter();
-		const harness = harnessLoop("test-refine-no-artifact", {
+		const harness = harnessLoop<string>("test-refine-no-artifact", {
 			adapter,
-			// Custom executor that emits ExecuteOutput WITHOUT artifact to
-			// exercise the evalVerifier fallback. Reactive derived — no imperative
-			// .subscribe leak, tears down cleanly with the harness.
-			executor: (input) =>
-				derived<{
-					outcome: "success" | "failure" | "partial";
-					detail: string;
-				} | null>([input as Node<unknown>], ([value]) =>
-					value == null ? null : { outcome: "success", detail: "no-artifact" },
-				),
+			// Custom work-fn executor that emits a payload WITHOUT artifact to
+			// exercise the evalVerifier fallback. Synchronous payload return —
+			// `fromAny` wraps it for the JobFlow pump.
+			executor: (job) =>
+				({
+					...job.payload,
+					execution: {
+						item: job.payload.item,
+						outcome: "success",
+						detail: "no-artifact",
+					},
+				}) satisfies HarnessJobPayload<string>,
 			verifier: evalVerifier<string>({
 				datasetFor: () => DATASET,
 				evaluator: keywordEvaluator,

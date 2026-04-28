@@ -286,17 +286,32 @@ export type StageDef<T> =
 			name: string;
 			work?: WorkFn<T>;
 			handlerVersion?: { id: string; version: string | number };
+			/**
+			 * Per-stage cap on `claim → work → ack` cycles per pump tick.
+			 * Overrides {@link JobFlowOptions.maxPerPump} for this stage. Useful
+			 * when stages have asymmetric cost (e.g. an LLM-execute stage capped
+			 * at 4 concurrent calls while a cheap verify stage runs unbounded).
+			 *
+			 * Falls back to the top-level `JobFlowOptions.maxPerPump`, which in
+			 * turn falls back to `DEFAULT_MAX_PER_PUMP` (256).
+			 */
+			maxPerPump?: number;
 	  };
 
 export type JobFlowOptions<T = unknown> = {
 	graph?: GraphOptions;
 	/**
 	 * Stage definitions. Each stage is either a bare name string (pure
-	 * pass-through) or a `{ name, work?, handlerVersion? }` object.
+	 * pass-through) or a `{ name, work?, handlerVersion?, maxPerPump? }` object.
 	 *
 	 * For back-compat, `string[]` values behave as stages with no work hook.
 	 */
 	stages?: readonly StageDef<T>[];
+	/**
+	 * Default cap on claims per pump tick across all stages. Per-stage
+	 * overrides can be set on each {@link StageDef.maxPerPump}; if neither is
+	 * set, falls back to `DEFAULT_MAX_PER_PUMP` (256).
+	 */
 	maxPerPump?: number;
 };
 
@@ -315,11 +330,21 @@ export class JobFlowGraph<T> extends Graph {
 		const rawStages = opts.stages ?? (["incoming", "processing", "done"] as readonly StageDef<T>[]);
 		const stageNames: string[] = [];
 		const stageWorkFns = new Map<string, WorkFn<T>>();
+		const stageMaxPerPump = new Map<string, number>();
 
 		for (const raw of rawStages) {
 			const stageName = typeof raw === "string" ? raw.trim() : raw.name.trim();
 			if (typeof raw !== "string" && raw.work) {
 				stageWorkFns.set(stageName, raw.work);
+			}
+			if (typeof raw !== "string" && raw.maxPerPump != null) {
+				stageMaxPerPump.set(
+					stageName,
+					Math.max(
+						1,
+						requireNonNegativeInt(raw.maxPerPump, `job flow stage "${stageName}" maxPerPump`),
+					),
+				);
 			}
 			stageNames.push(stageName);
 		}
@@ -359,7 +384,7 @@ export class JobFlowGraph<T> extends Graph {
 		this.add(this.completedCount, { name: "completedCount" });
 		this.addDisposer(keepalive(this.completedCount));
 
-		const maxPerPump = Math.max(
+		const defaultMaxPerPump = Math.max(
 			1,
 			requireNonNegativeInt(opts.maxPerPump ?? DEFAULT_MAX_PER_PUMP, "job flow maxPerPump"),
 		);
@@ -371,6 +396,9 @@ export class JobFlowGraph<T> extends Graph {
 			const next =
 				i + 1 < this._stageNames.length ? this.queue(this._stageNames[i + 1] as string) : null;
 			const workFn = this._stageWorkFns.get(stage);
+			// Per-stage `maxPerPump` override falls back to the top-level cap.
+			// Captured per stage so each pump's loop sees its own resolved limit.
+			const stagePerPump = stageMaxPerPump.get(stage) ?? defaultMaxPerPump;
 
 			// `isTerminal` marks the last stage — completed jobs go into
 			// `_completed` log instead of a next queue.
@@ -386,7 +414,7 @@ export class JobFlowGraph<T> extends Graph {
 					[current.pending],
 					() => {
 						let processed = 0;
-						while (processed < maxPerPump) {
+						while (processed < stagePerPump) {
 							const claims = current.claim(1);
 							if (claims.length === 0) break;
 							const job = claims[0] as JobEnvelope<T>;
@@ -481,7 +509,7 @@ export class JobFlowGraph<T> extends Graph {
 					[current.pending],
 					() => {
 						let moved = 0;
-						while (moved < maxPerPump) {
+						while (moved < stagePerPump) {
 							const claim = current.claim(1);
 							if (claim.length === 0) break;
 							const job = claim[0] as JobEnvelope<T>;

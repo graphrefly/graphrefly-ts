@@ -1,11 +1,10 @@
 /**
- * Unit tests for `actuatorExecutor` — the side-effecting EXECUTE slot
- * primitive. Covers:
- *   - happy path (Promise apply → success ExecuteOutput with artifact)
- *   - skip path (shouldApply=false → failure ExecuteOutput)
+ * Unit tests for `actuatorExecutor` — the side-effecting EXECUTE work fn
+ * primitive (Tier 6.5 C2 shape). Covers:
+ *   - happy path (Promise apply → success payload with artifact)
+ *   - skip path (shouldApply=false → failure payload)
  *   - synchronous throw + Promise reject mapping via onError
- *   - one-DATA-per-item rule (later inner DATAs ignored)
- *   - cancellation: switchMap supersede aborts the in-flight signal
+ *   - one-DATA-per-claim rule (later inner DATAs ignored by the producer)
  *   - end-to-end pairing with `evalVerifier` through `harnessLoop`
  */
 
@@ -13,21 +12,19 @@ import { describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { producer, state } from "../../core/sugar.js";
+import { fromAny } from "../../extra/sources.js";
 import {
 	actuatorExecutor,
 	dispatchActuator,
-	type ExecuteOutput,
 	evalVerifier,
+	type HarnessJobPayload,
 	harnessLoop,
 	type TriagedItem,
 	type VerifyResult,
 } from "../../patterns/harness/index.js";
+import type { JobEnvelope } from "../../patterns/job-queue/index.js";
 import type { DatasetItem, EvalResult, Evaluator } from "../../patterns/refine-loop/index.js";
 import { mockLLM } from "../helpers/mock-llm.js";
-
-function makeTriagedInput(item: TriagedItem | null): Node<TriagedItem | null> {
-	return state<TriagedItem | null>(item);
-}
 
 const SAMPLE_ITEM: TriagedItem = {
 	source: "eval",
@@ -39,6 +36,18 @@ const SAMPLE_ITEM: TriagedItem = {
 	route: "auto-fix",
 	priority: 80,
 };
+
+let _jobCounter = 0;
+function makeJob<R>(item: TriagedItem): JobEnvelope<HarnessJobPayload<R>> {
+	_jobCounter += 1;
+	return {
+		id: `test-job-${_jobCounter}`,
+		payload: { item },
+		attempts: 0,
+		metadata: Object.freeze({}),
+		state: "inflight",
+	};
+}
 
 function awaitFirstData<T>(node: Node<T | null>, timeoutMs = 1500): Promise<T> {
 	return new Promise((resolve, reject) => {
@@ -61,7 +70,7 @@ function awaitFirstData<T>(node: Node<T | null>, timeoutMs = 1500): Promise<T> {
 }
 
 describe("actuatorExecutor — happy path", () => {
-	it("emits success ExecuteOutput with artifact when apply resolves", async () => {
+	it("emits success payload with artifact when apply resolves", async () => {
 		const applied: TriagedItem[] = [];
 		const exec = actuatorExecutor<{ wrote: string }>({
 			async apply(item) {
@@ -69,15 +78,16 @@ describe("actuatorExecutor — happy path", () => {
 				return { wrote: item.intervention };
 			},
 		});
-		const out = exec(makeTriagedInput(SAMPLE_ITEM));
-		const value = await awaitFirstData(out);
+		const out = fromAny(exec(makeJob<{ wrote: string }>(SAMPLE_ITEM)));
+		const payload = await awaitFirstData(out);
 		expect(applied).toHaveLength(1);
-		expect(value.outcome).toBe("success");
-		expect(value.artifact).toEqual({ wrote: "catalog-fn" });
-		expect(value.detail).toContain("catalog-fn");
+		expect(payload.execution?.outcome).toBe("success");
+		expect(payload.execution?.artifact).toEqual({ wrote: "catalog-fn" });
+		expect(payload.execution?.detail).toContain("catalog-fn");
+		expect(payload.item).toEqual(SAMPLE_ITEM);
 	});
 
-	it("custom toOutput shapes the ExecuteOutput", async () => {
+	it("custom toOutput shapes the execution payload", async () => {
 		const exec = actuatorExecutor<number>({
 			async apply() {
 				return 42;
@@ -88,35 +98,35 @@ describe("actuatorExecutor — happy path", () => {
 				artifact: record,
 			}),
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(SAMPLE_ITEM)));
-		expect(value.outcome).toBe("partial");
-		expect(value.detail).toBe("wrote=42");
-		expect(value.artifact).toBe(42);
+		const payload = await awaitFirstData(fromAny(exec(makeJob<number>(SAMPLE_ITEM))));
+		expect(payload.execution?.outcome).toBe("partial");
+		expect(payload.execution?.detail).toBe("wrote=42");
+		expect(payload.execution?.artifact).toBe(42);
 	});
 });
 
 describe("actuatorExecutor — failure modes", () => {
-	it("synchronous throw maps to failure ExecuteOutput via onError", async () => {
+	it("synchronous throw maps to failure payload via onError", async () => {
 		const exec = actuatorExecutor<unknown>({
 			apply() {
 				throw new Error("sync boom");
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(SAMPLE_ITEM)));
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toContain("sync boom");
-		expect(value.artifact).toBeUndefined();
+		const payload = await awaitFirstData(fromAny(exec(makeJob<unknown>(SAMPLE_ITEM))));
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toContain("sync boom");
+		expect(payload.execution?.artifact).toBeUndefined();
 	});
 
-	it("Promise reject maps to failure ExecuteOutput via onError", async () => {
+	it("Promise reject maps to failure payload via onError", async () => {
 		const exec = actuatorExecutor<unknown>({
 			async apply() {
 				throw new Error("async boom");
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(SAMPLE_ITEM)));
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toContain("async boom");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<unknown>(SAMPLE_ITEM))));
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toContain("async boom");
 	});
 
 	it("custom onError shapes the failure output", async () => {
@@ -129,8 +139,8 @@ describe("actuatorExecutor — failure modes", () => {
 				detail: `tagged: ${(err as Error).message}`,
 			}),
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(SAMPLE_ITEM)));
-		expect(value.detail).toBe("tagged: classify me");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<unknown>(SAMPLE_ITEM))));
+		expect(payload.execution?.detail).toBe("tagged: classify me");
 	});
 
 	it("shouldApply=false skips apply and emits failure with skipDetail", async () => {
@@ -143,17 +153,17 @@ describe("actuatorExecutor — failure modes", () => {
 			shouldApply: () => false,
 			skipDetail: (item) => `skipped ${item.intervention}`,
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(SAMPLE_ITEM)));
+		const payload = await awaitFirstData(fromAny(exec(makeJob<unknown>(SAMPLE_ITEM))));
 		expect(applyCalls).toBe(0);
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toBe("skipped catalog-fn");
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toBe("skipped catalog-fn");
 	});
 });
 
 describe("actuatorExecutor — contract guarantees", () => {
 	it("ignores later inner DATAs after the first one is captured (rule 1)", async () => {
 		// An apply that returns a Node emitting MULTIPLE DATAs must collapse
-		// into exactly one ExecuteOutput.
+		// into exactly one execution payload.
 		const exec = actuatorExecutor<string>({
 			apply() {
 				return producer<string>((actions) => {
@@ -162,58 +172,18 @@ describe("actuatorExecutor — contract guarantees", () => {
 				});
 			},
 		});
-		const seen: ExecuteOutput<string>[] = [];
-		const out = exec(makeTriagedInput(SAMPLE_ITEM));
+		const seen: HarnessJobPayload<string>[] = [];
+		const out = fromAny(exec(makeJob<string>(SAMPLE_ITEM)));
 		out.subscribe((msgs) => {
 			for (const m of msgs) {
-				if (m[0] === DATA && m[1] != null) seen.push(m[1] as ExecuteOutput<string>);
+				if (m[0] === DATA && m[1] != null) seen.push(m[1] as HarnessJobPayload<string>);
 			}
 		});
 		// Allow microtasks for fromAny + producer settle.
 		await Promise.resolve();
 		await Promise.resolve();
 		expect(seen).toHaveLength(1);
-		expect(seen[0].artifact).toBe("first");
-	});
-
-	it("supersede triggers AbortController and applies new item", async () => {
-		const seenSignals: AbortSignal[] = [];
-		const seenItems: string[] = [];
-		const exec = actuatorExecutor<string>({
-			apply(item, { signal }) {
-				seenSignals.push(signal);
-				seenItems.push(item.intervention);
-				// Long-tail Promise that resolves only after signal aborts.
-				return new Promise<string>((resolve, reject) => {
-					if (signal.aborted) {
-						reject(new DOMException("aborted", "AbortError"));
-						return;
-					}
-					signal.addEventListener("abort", () => {
-						reject(new DOMException("aborted", "AbortError"));
-					});
-					// Won't resolve naturally inside test window; supersede forces resolution.
-					setTimeout(() => resolve(item.intervention), 5_000);
-				});
-			},
-		});
-		const input = state<TriagedItem | null>(null);
-		const out = exec(input);
-		// Subscribe early so switchMap activates.
-		out.subscribe(() => {});
-		input.emit(SAMPLE_ITEM);
-		await Promise.resolve();
-		expect(seenSignals).toHaveLength(1);
-		expect(seenSignals[0].aborted).toBe(false);
-
-		// Supersede with a new item — switchMap unmounts the prior producer,
-		// which fires ac.abort() on the prior signal.
-		const NEXT_ITEM: TriagedItem = { ...SAMPLE_ITEM, intervention: "template" };
-		input.emit(NEXT_ITEM);
-		await Promise.resolve();
-		await Promise.resolve();
-		expect(seenSignals[0].aborted).toBe(true);
-		expect(seenItems).toEqual(["catalog-fn", "template"]);
+		expect(seen[0]?.execution?.artifact).toBe("first");
 	});
 });
 
@@ -240,9 +210,9 @@ describe("dispatchActuator — routes match", () => {
 				template: () => Promise.resolve("template-result"),
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(CATALOG_ITEM)));
-		expect(value.outcome).toBe("success");
-		expect(value.artifact).toBe("catalog-result");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(CATALOG_ITEM))));
+		expect(payload.execution?.outcome).toBe("success");
+		expect(payload.execution?.artifact).toBe("catalog-result");
 		expect(catalogCalls).toEqual(["catalog-fn"]);
 	});
 
@@ -253,9 +223,9 @@ describe("dispatchActuator — routes match", () => {
 				template: () => Promise.resolve("template-result"),
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(TEMPLATE_ITEM)));
-		expect(value.outcome).toBe("success");
-		expect(value.artifact).toBe("template-result");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(TEMPLATE_ITEM))));
+		expect(payload.execution?.outcome).toBe("success");
+		expect(payload.execution?.artifact).toBe("template-result");
 	});
 });
 
@@ -271,9 +241,9 @@ describe("dispatchActuator — default fallback", () => {
 				return Promise.resolve("default-result");
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(UNKNOWN_ITEM)));
-		expect(value.outcome).toBe("success");
-		expect(value.artifact).toBe("default-result");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(UNKNOWN_ITEM))));
+		expect(payload.execution?.outcome).toBe("success");
+		expect(payload.execution?.artifact).toBe("default-result");
 		expect(defaultCalls).toEqual(["investigate"]);
 	});
 });
@@ -285,67 +255,9 @@ describe("dispatchActuator — no route no default", () => {
 				"catalog-fn": () => Promise.resolve("catalog-result"),
 			},
 		});
-		const value = await awaitFirstData(exec(makeTriagedInput(UNKNOWN_ITEM)));
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toContain("no route for intervention 'investigate'");
-	});
-});
-
-async function waitForCondition(check: () => boolean, timeoutMs = 1000): Promise<void> {
-	const start = Date.now();
-	while (!check()) {
-		if (Date.now() - start > timeoutMs) throw new Error("waitForCondition timeout");
-		await new Promise((r) => setTimeout(r, 5));
-	}
-}
-
-describe("dispatchActuator — multiple interventions in sequence", () => {
-	it("routes two items with different interventions to their respective callbacks", async () => {
-		const seen: string[] = [];
-		const exec = dispatchActuator<string>({
-			routes: {
-				"catalog-fn": (item) => {
-					seen.push(`catalog:${item.intervention}`);
-					return Promise.resolve("c");
-				},
-				template: (item) => {
-					seen.push(`template:${item.intervention}`);
-					return Promise.resolve("t");
-				},
-			},
-		});
-
-		const input = state<TriagedItem | null>(null);
-		const out = exec(input);
-
-		// Collect two results in order.
-		const results: ExecuteOutput<string>[] = [];
-		const donePromise = new Promise<void>((resolve) => {
-			let unsub: () => void = () => {};
-			unsub = out.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA && m[1] != null) {
-						results.push(m[1] as ExecuteOutput<string>);
-						if (results.length === 2) {
-							unsub();
-							resolve();
-						}
-					}
-				}
-			});
-		});
-
-		input.emit(CATALOG_ITEM);
-		// Wait reactively for catalog-fn to complete before emitting next item.
-		await waitForCondition(() => results.length === 1);
-		input.emit(TEMPLATE_ITEM);
-
-		await donePromise;
-
-		expect(results[0]!.artifact).toBe("c");
-		expect(results[1]!.artifact).toBe("t");
-		expect(seen).toContain("catalog:catalog-fn");
-		expect(seen).toContain("template:template");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(UNKNOWN_ITEM))));
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toContain("no route for intervention 'investigate'");
 	});
 });
 
@@ -461,7 +373,7 @@ describe("actuatorExecutor + evalVerifier (end-to-end)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// P10b — dispatchActuator prototype-key intervention (regression for P2)
+// dispatchActuator regressions
 // ---------------------------------------------------------------------------
 
 describe("dispatchActuator — prototype-key intervention (P2 regression)", () => {
@@ -476,22 +388,18 @@ describe("dispatchActuator — prototype-key intervention (P2 regression)", () =
 			...CATALOG_ITEM,
 			intervention: "toString" as TriagedItem["intervention"],
 		};
-		const value = await awaitFirstData(exec(makeTriagedInput(item)));
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toContain("no route for intervention 'toString'");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(item))));
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toContain("no route for intervention 'toString'");
 		expect(apply).not.toHaveBeenCalled();
 	});
 });
 
-// ---------------------------------------------------------------------------
-// P10c — dispatchActuator with empty routes object
-// ---------------------------------------------------------------------------
-
 describe("dispatchActuator — empty routes no default", () => {
 	it("emits skip-failure for any item when routes is empty and no default", async () => {
 		const exec = dispatchActuator<string>({ routes: {} });
-		const value = await awaitFirstData(exec(makeTriagedInput(CATALOG_ITEM)));
-		expect(value.outcome).toBe("failure");
-		expect(value.detail).toContain("no route for intervention");
+		const payload = await awaitFirstData(fromAny(exec(makeJob<string>(CATALOG_ITEM))));
+		expect(payload.execution?.outcome).toBe("failure");
+		expect(payload.execution?.detail).toContain("no route for intervention");
 	});
 });

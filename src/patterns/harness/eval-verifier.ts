@@ -8,17 +8,18 @@
  * into the same `Evaluator<T>` shape that `refineLoop` used. Consistent
  * scoring between EXECUTE and VERIFY — no "LLM said it looks fine" gap.
  *
- * Per-item lifecycle mirrors `refineExecutor`: each new execute-context
- * pair mounts a fresh eval subgraph inside `switchMap`, so a superseding
- * item cancels the prior run.
+ * **C2 lifecycle (Tier 6.5).** The work fn is invoked once per claimed
+ * verify-stage job. A fresh single-candidate eval subgraph is mounted
+ * inside the work fn and tears down when the JobFlow pump ack/unsubs.
  *
  * @module
  */
 
+import { batch } from "../../core/batch.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
-import { filter, switchMap } from "../../extra/operators.js";
-import type { NodeInput } from "../../extra/sources.js";
+import { filter } from "../../extra/operators.js";
+import type { JobEnvelope } from "../job-queue/index.js";
 import type {
 	DatasetItem,
 	EvalResult,
@@ -31,6 +32,7 @@ import { refineExecutor } from "./refine-executor.js";
 import type {
 	ExecuteOutput,
 	HarnessExecutor,
+	HarnessJobPayload,
 	HarnessVerifier,
 	TriagedItem,
 	VerifyOutput,
@@ -47,8 +49,6 @@ export interface EvalVerifierSummary {
 	 * True when the EXECUTE stage did not produce an artifact (i.e.
 	 * `extractArtifact` returned `null` / `undefined`). Downstream mappers
 	 * can distinguish this from "evaluator ran but everything scored zero".
-	 * When `true`, `scores` / `total` / `passCount` are all zero and
-	 * `meanScore` is `-Infinity`.
 	 */
 	readonly missingArtifact?: boolean;
 }
@@ -59,25 +59,16 @@ export interface EvalVerifierConfig<T> {
 	 * Pull the artifact that should be re-evaluated out of the execute-stage
 	 * output. Default: `(exec) => exec.artifact as T` — works out-of-the-box
 	 * with `refineExecutor` (which populates `artifact` by default).
-	 *
-	 * **Type trust:** the default cast assumes the caller's executor wrote
-	 * a `T`-shaped value to `ExecuteOutput.artifact`. A wrong-typed artifact
-	 * surfaces as a runtime error inside `evaluator`, not here — supply a
-	 * narrowing `extractArtifact` if you need stricter validation.
 	 */
 	extractArtifact?: (exec: ExecuteOutput<T>, item: TriagedItem) => T | null | undefined;
 
 	/**
 	 * Reactive evaluator — same contract as `refineLoop`'s `Evaluator<T>`.
-	 * Typically this is the SAME evaluator configured inside `refineExecutor`
-	 * so EXECUTE and VERIFY scoring stay consistent.
 	 */
 	evaluator: Evaluator<T>;
 
 	/**
-	 * Resolve which dataset rows to score this verification against. Use
-	 * `affectedTaskFilter` or hand-roll per-item subset logic. Default:
-	 * empty array (verifier emits a findings entry explaining this).
+	 * Resolve which dataset rows to score this verification against.
 	 */
 	datasetFor: (item: TriagedItem) => readonly DatasetItem[];
 
@@ -87,7 +78,7 @@ export interface EvalVerifierConfig<T> {
 	/** Optional output mapper — override the default findings / errorClass shape. */
 	toOutput?: (summary: EvalVerifierSummary) => VerifyOutput;
 
-	/** Node name prefix for introspection. Default `"eval-verifier"`. */
+	/** Node name prefix for introspection. */
 	name?: string;
 }
 
@@ -124,11 +115,9 @@ function defaultExtractArtifact<T>(exec: ExecuteOutput<T>): T | null | undefined
  * Build a {@link HarnessVerifier} that re-runs the eval suite against the
  * artifact produced by EXECUTE.
  *
- * Consumes the shared `[executeOutput, item]` context node that the
- * harness pre-pairs via `withLatestFrom` — no internal re-wrap here (QA
- * round: "defaultLlmVerifier double-wraps withLatestFrom"). The harness's
- * single `executeContextNode` is reused by both the verifier and the
- * fast-retry dispatcher, so exec + item are subscribed once per wave.
+ * Reads `job.payload.execution` (filled by the upstream execute work fn)
+ * and runs the evaluator against `extractArtifact(execution, item)`.
+ * Returns the same payload with `verify` filled in.
  *
  * @example Pair with refineExecutor for end-to-end eval consistency.
  * ```ts
@@ -146,65 +135,102 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 	const toOutput = config.toOutput ?? defaultToOutput;
 	const extract = config.extractArtifact ?? defaultExtractArtifact<T>;
 
-	return (
-		context: Node<readonly [ExecuteOutput<T> | null, TriagedItem | null] | null>,
-	): Node<VerifyOutput | null> => {
-		// Gate non-null [exec, item] pairs upstream of switchMap so
-		// activation / RESOLVED waves never allocate fresh inner subgraphs.
-		// Unit 21 B: named filters surface as `${name}/gate-in` in describe().
-		const validPair = filter(
-			context as Node<unknown>,
-			(p) =>
-				p != null &&
-				(p as readonly [unknown, unknown])[0] != null &&
-				(p as readonly [unknown, unknown])[1] != null,
-			{ name: `${name}/gate-in` },
-		) as Node<readonly [ExecuteOutput<T>, TriagedItem]>;
-		const raw = switchMap<readonly [ExecuteOutput<T>, TriagedItem], VerifyOutput | null>(
-			validPair,
-			(pair) => {
-				const [execOut, item] = pair;
-				const artifact = extract(execOut, item);
-				if (artifact == null) {
-					return state<VerifyOutput | null>(
-						toOutput({
-							scores: [],
-							meanScore: Number.NEGATIVE_INFINITY,
-							passCount: 0,
-							total: 0,
-							threshold,
-							missingArtifact: true,
-						}),
-					) as NodeInput<VerifyOutput | null>;
-				}
-				const candidates = state<readonly T[]>([artifact as T], {
-					name: `${name}/candidates`,
-				});
-				const dataset = state<readonly DatasetItem[]>(config.datasetFor(item), {
-					name: `${name}/dataset`,
-				});
-				const scoresNode = config.evaluator(candidates, dataset);
-				return derived<VerifyOutput | null>(
-					[scoresNode as Node<unknown>],
-					([scores]) => {
-						const arr = scores as readonly EvalResult[] | null | undefined;
-						if (arr == null) return null;
-						const mean = meanScore(arr);
-						const passCount = arr.filter((s) => s.score >= threshold).length;
-						return toOutput({
-							scores: arr,
-							meanScore: mean,
-							passCount,
-							total: arr.length,
-							threshold,
-						});
-					},
-					{ name: `${name}/output` },
-				);
+	return (job: JobEnvelope<HarnessJobPayload<T>>) => {
+		const { item, execution } = job.payload;
+		// Defensive: verify stage should always run AFTER execute stage with
+		// `execution` populated. If it isn't, surface that as a structural
+		// failure so the dispatch effect can route the item.
+		if (execution == null) {
+			return {
+				...job.payload,
+				verify: {
+					verified: false,
+					findings: ["evalVerifier: prior execute stage produced no execution"],
+					errorClass: "structural" as const,
+				},
+			} satisfies HarnessJobPayload<T>;
+		}
+		const artifact = extract(execution, item);
+		if (artifact == null) {
+			return {
+				...job.payload,
+				verify: toOutput({
+					scores: [],
+					meanScore: Number.NEGATIVE_INFINITY,
+					passCount: 0,
+					total: 0,
+					threshold,
+					missingArtifact: true,
+				}),
+			} satisfies HarnessJobPayload<T>;
+		}
+
+		// Per-claim eval subgraph. State seeds with the single candidate +
+		// resolved dataset; the evaluator returns a Node<readonly EvalResult[]>.
+		// The terminal payload emits when the evaluator settles; intermediate
+		// nulls are filtered.
+		//
+		// **Batch-coalescing for synchronous-emit-during-subscribe evaluators
+		// (COMPOSITION-GUIDE §9a).** This `batch()` wrap is load-bearing for a
+		// SPECIFIC evaluator pattern: evaluators that, during the
+		// `evaluator(candidates, dataset)` constructor call, synchronously
+		// `subscribe()` to BOTH inputs and emit on each subscribe-callback
+		// firing. Each subscribe pushes the cached value to its callback, the
+		// callback runs `out.emit(...)`, and that emit becomes its own wave
+		// when not inside a batch — leaving multiple DATA messages visible to
+		// the downstream `derived` once it activates. The JobFlow pump's
+		// "first DATA wins" capture would then fire on the FIRST intermediate
+		// emit (e.g. empty scores from a pre-dataset recompute) instead of
+		// the final settled value.
+		//
+		// Wrapping the constructor call in `batch()` coalesces those internal
+		// emits into one multi-message delivery (§9a); sugar `derived`
+		// auto-unwraps to the LAST value per its snapshot/combine semantics
+		// (sugar.ts), so the downstream sees only the final settled scores.
+		//
+		// **Async evaluators are NOT covered by this fix.** Evaluators that
+		// subscribe via microtask / Promise.then() / setTimeout don't see the
+		// §9a hazard at all — their emits land in separate waves regardless
+		// of whether the constructor call is batched. The fix is strictly
+		// for the synchronous-emit-during-subscribe pattern (today's tests:
+		// `presenceEvaluator` in actuator-executor.test.ts; `keywordEvaluator`
+		// in refine-executor.test.ts uses `derived` and is naturally
+		// single-emit). See `harness-default-bridges.test.ts` regression test
+		// "evalVerifier coalesces synchronous-emit-during-subscribe
+		// evaluators" for the locked contract.
+		const candidates = state<readonly T[]>([artifact as T], {
+			name: `${name}/candidates`,
+		});
+		const dataset = state<readonly DatasetItem[]>(config.datasetFor(item), {
+			name: `${name}/dataset`,
+		});
+		let scoresNode!: ReturnType<Evaluator<T>>;
+		batch(() => {
+			scoresNode = config.evaluator(candidates, dataset);
+		});
+		const raw = derived<HarnessJobPayload<T> | null>(
+			[scoresNode as Node<unknown>],
+			([scores]) => {
+				const arr = scores as readonly EvalResult[] | null | undefined;
+				if (arr == null) return null;
+				const mean = meanScore(arr);
+				const passCount = arr.filter((s) => s.score >= threshold).length;
+				return {
+					...job.payload,
+					verify: toOutput({
+						scores: arr,
+						meanScore: mean,
+						passCount,
+						total: arr.length,
+						threshold,
+					}),
+				};
 			},
-			{ name },
+			{ name: `${name}/output` },
 		);
-		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as Node<VerifyOutput | null>;
+		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as ReturnType<
+			HarnessVerifier<T>
+		>;
 	};
 }
 
@@ -242,18 +268,6 @@ export interface HarnessEvalPairConfig<T> {
  * configuration is a compile error instead of a silent `as T` in
  * `extractArtifact`. Shares the evaluator so EXECUTE and VERIFY score with
  * identical semantics (the whole point of `evalVerifier`).
- *
- * @example
- * ```ts
- * const { executor, verifier } = harnessEvalPair<CatalogEntry>({
- *   seedFrom: (item) => initialCatalogEntry(item),
- *   evaluator: (cands, ds) => runEvalBatch(cands, ds),
- *   strategy: errorCritique({ teacher, width: 3 }),
- *   datasetFor: affectedTasksFor,
- *   threshold: 0.8,
- * });
- * const harness = harnessLoop<CatalogEntry>("repair", { adapter, executor, verifier });
- * ```
  */
 export function harnessEvalPair<T>(config: HarnessEvalPairConfig<T>): {
 	executor: HarnessExecutor<T>;

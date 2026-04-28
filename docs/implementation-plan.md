@@ -368,46 +368,58 @@ Rewrite of [resilient-pipeline/index.ts](src/patterns/resilient-pipeline/index.t
 
 ---
 
-## Tier 6 — Harness composition
+## Tier 6 — Harness composition ✅ landed (2026-04-28, Wave 2C)
 
-### 6.1 Unit 16 — Stratify → Hub + TopicBridgeGraph (Session B.1 + B.2 lock)
-`HarnessGraph.queues` becomes `MessagingHubGraph` directly; routing is data (topic name), not code. Closes queue-topic islands.
-- **Builds on B.1:** foreign-node-accept canonical for gate ↔ hub composition; mount-when-you-own / consume-via-foreign-node-accept rule documented in COMPOSITION-GUIDE.
-- **Builds on B.2:** harness qualifies under hub criterion (≥2 TopicGraphs sharing lifecycle + cross-topic routing).
+All seven sub-units landed across earlier feature waves and the Tier 6.5 C2 batch. Status reconciliation captured below; code citations point to the current `loop.ts`.
 
-### 6.2 Unit 17 — GATE stage reshape + `gate()` primitive shape (Session B.1 lock)
-Solidifies composable gate semantics; unblocks Unit 2 gatedStream's three skipped tests.
-- **Builds on B.1:** gate consumes `topic.latest` via foreign-node-accept; no `gateGraph.mount` of foreign topics.
+### 6.1 Unit 16 — Stratify → Hub + TopicBridgeGraph (Session B.1 + B.2 lock) ✅ landed
+`HarnessGraph.queues` IS `MessagingHubGraph` directly ([loop.ts:251](src/patterns/harness/loop.ts:251)). Routing is data (topic name) — `triageOutput` published by router effect, `topicBridge`s fan out by `map: (item) => item.route === route ? item : undefined` per-route + `__unrouted` dead-letter ([loop.ts:466–479](src/patterns/harness/loop.ts:466)). Foreign-node-accept canonical: gate consumes `topic.latest` directly, no `gateGraph.mount` of foreign topics ([loop.ts:539–553](src/patterns/harness/loop.ts:539)).
 
-### 6.3 Unit 20 — Named nodes (Session B.3 lock)
-Add to [loop.ts:805-813](src/patterns/harness/loop.ts:805) registration block:
-```ts
-harness.add(triageInput, { name: "triage-input" });
-harness.add(routerInput, { name: "router-input" });   // pending Unit 16 confirmation
-```
-If Unit 16 folds routing into a hub-internal effect, `routerInput` disappears and the effect node gets `{ name: "router" }` instead.
-- **Add regression test:** `graph.explain(intake.latest, reflectNode)` returns chain with no `<anonymous>` entries.
-- **Verify** `${route}/gate` names already registered via gate factory.
+### 6.2 Unit 17 — GATE stage reshape + `gate()` primitive shape (Session B.1 lock) ✅ landed
+Per-route `gateGraph.approvalGate(route, topic.latest, opts)` between hub topic and the merge-into-executeFlow bridge ([loop.ts:539–553](src/patterns/harness/loop.ts:539)). Foreign-node-accept eliminated the `gateGraph.add(...)` ceremony.
 
-### 6.4 Unit 18b — `fastRetry` extraction + 3 correctness fixes
-(a) source/severity on reingestion, (b) null-execRaw guard before assembly, (c) `errorClassifier` outcome handling.
-**Depends on:** Tier 6.1, 6.2.
+### 6.3 Unit 20 — Named nodes (Session B.3 lock) ✅ landed (2026-04-28)
+Tier 6.5 C2 reshape registered all pre-1.0 anonymous intermediates with descriptive names: `triage-input`, `triage`, `router-input`, `execute-input`, `execute-enqueue`, `verify-dispatch`, `reflect`, `strategy` ([loop.ts:792–800](src/patterns/harness/loop.ts:792)). The `executeFlow` JobFlow exposes per-stage queues + pumps via standard mount paths (`executeFlow::execute::*`, `executeFlow::verify::*`).
+- **✅ Regression test landed:** [harness.test.ts](src/__tests__/patterns/harness.test.ts) "explain(intake.latest, reflect) returns a chain with no `<anonymous>` steps" — walks the causal chain end-to-end and asserts no step path contains `<anonymous>`.
 
-### 6.5 JobFlow claim/ack/nack for EXECUTE
-Wire JobFlow operations for EXECUTE stage coordination. Full job lifecycle traceability.
-**Depends on:** Tier 6.1.
+### 6.4 Unit 18b — `fastRetry` extraction + 3 correctness fixes ✅ landed
+The pre-Tier-6.5 fastRetry effect carried all three Unit 18b fixes (Unit 18b C: source/severity preserved on reingestion; D: null-execRaw guard; E: errorClassifier consumes the executor's real outcome). The Tier 6.5 C2 reshape replaced the fastRetry effect with a **post-completed dispatch effect** at [loop.ts:684–747](src/patterns/harness/loop.ts:684). All three correctness invariants survive: source/severity preserved at the structural-failure reingest path, null-payload guards (`if (execution == null || verify == null) ackJob(item); continue;`), and the error classifier consumes `execution.outcome` for the self-correctable / structural decision. Helper extraction (`assembleResult` / `handleVerified` / `handleRetry` / `handleStructural`) carried forward into the dispatch-effect body.
 
-### 6.6 Unit 1 — `promptNode` JSDoc + test gate (Session C lock, reduced scope)
-Implementation already at the locked design (path (b) producer-based, `::call` inner naming, `state(null)` empty-msgs branch, `abort?: Node<boolean>` via `nodeSignal`, `aiMeta("prompt_node::output")`, no `retries`/`cache`, system-prompt single-path via `opts.systemPrompt`). Remaining work:
-- Add JSDoc cross-link to COMPOSITION-GUIDE §32 (cross-wave cache stickiness is a consumer concern; consumers add state-mirror).
-- Add JSDoc middleware recipe: stack `withRetry` / `withReplayCache` on the adapter for retries/caching.
+### 6.5 JobFlow claim/ack/nack for EXECUTE ✅ landed (2026-04-28, C2 lock — Tier 6.5)
+**EXECUTE → VERIFY now runs through an internal `executeFlow` JobFlow** with two stages (`execute`, `verify`) ([loop.ts:582–602](src/patterns/harness/loop.ts:582)). The Q1–Q6 design lock (2026-04-28) shaped the implementation:
+- **Q1 — C2 partial JobFlow:** pre-flow (intake / triage / queues / gates / retry topic) unchanged; only EXECUTE → VERIFY moved into JobFlow.
+- **Q2 — Verify outcome encoding (b1):** verify work fn always emits a `HarnessJobPayload<A>` with `verify: VerifyOutput` populated; JobFlow's binary pump auto-advances to `flow.completed`; the post-completed dispatch effect routes the 3-way verdict.
+- **Q3 — Reingest:** stays imperative `intake.publish(...)` from inside the dispatch effect (§32 / §35 sanctioned terminal side-effect with audit trail).
+- **Q4 — Gates:** stay pre-JobFlow (per-route `gateGraph.approvalGate(...)`).
+- **Q5 — Parallelism:** `executeMaxPerPump` / `verifyMaxPerPump` opt-in caps in `HarnessLoopOptions`; default `Number.MAX_SAFE_INTEGER` (matches today's unbounded `merge()` parallelism). **D1 follow-up landed (2026-04-28):** `JobFlow.StageDef.maxPerPump` per-stage override added; harness now passes `executeMaxPerPump` and `verifyMaxPerPump` as independent per-stage caps (no more `Math.min` collapse). `optimizations.md` "Per-stage `maxPerPump` on JobFlow" entry resolved.
+- **Q6 — Executor / verifier interface:** breaking change pre-1.0. Old `(input: Node<TriagedItem | null>) => Node<ExecuteOutput<A> | null>` shape replaced with work-fn shape `(job: JobEnvelope<HarnessJobPayload<A>>) => NodeInput<HarnessJobPayload<A>>` ([types.ts:HarnessExecutor / HarnessVerifier](src/patterns/harness/types.ts)). `defaultLlmExecutor` / `defaultLlmVerifier` migrated to direct `adapter.invoke()` calls via the shared `_oneShotLlmCall` helper ([patterns/ai/_internal.ts](src/patterns/ai/_internal.ts), D2 extraction) — the helper owns subscription / abort / first-DATA capture / COMPLETE-without-DATA arm; call sites own JSON parse + payload mapping. `refineExecutor` / `actuatorExecutor` / `evalVerifier` migrated to per-claim work-fn shape (no internal switchMap — pump owns per-claim lifecycle).
+  - **Bridge-layer error classification (Q2 extension via qa F3, 2026-04-28):** parse / adapter throw / ERROR / COMPLETE-without-DATA paths classify as `errorClass: "self-correctable"` so the dispatch effect routes via the retry budget; only the defensive "no prior execution" guard stays `structural`. Symmetric on executor side via the `defaultErrorClassifier` regex matching `parse|json|config|validation|syntax` keywords in the failure detail.
+  - **Q6 scope clarification (D2):** "no `promptNode` internally" applies to EXECUTE/VERIFY default work fns. TRIAGE retains `promptNode` because it legitimately needs cross-wave switchMap supersede (one node watches all intake items); per-claim work-fn shape doesn't fit. Documented in `archive/optimizations/resolved-decisions.jsonl`.
+
+**Per-route `jobQueue` audit mirrors retained** as a parallel ledger ([loop.ts:497–530](src/patterns/harness/loop.ts:497)). Two complementary observability axes:
+- **Per-route depth/pending** (this ledger) — "how backed up is auto-fix?"
+- **Per-stage depth/pending** (executeFlow's stage queues) — "how many items are mid-execute?"
+
+**`harnessTrace` / `harnessProfile` updated** via `HarnessGraph.stageNodes()` ([loop.ts:339–360](src/patterns/harness/loop.ts:339)): EXECUTE label points at `executeFlow::execute::events`, VERIFY at `executeFlow::verify::events`. Inspection-tools decoupling held — no edits to `trace.ts` or `profile.ts` were needed.
+
+**D3 — Stage trace path semantics changed pre-1.0.** Pre-Tier-6.5 the EXECUTE / VERIFY observable paths emitted `ExecuteOutput<A>` / `VerifyOutput` payloads (the `executeNode` / `verifyNode` Nodes). Post-Tier-6.5 they emit `JobEvent` audit-stream records (`{action: "enqueue"|"claim"|"ack"|"nack"|"remove", id, attempts, t_ns, seq, payload?}`). Anyone calling `harness.observe("execute")` directly (rather than via the labeled stage paths) gets path-not-found; anyone observing the labeled stages gets a different message shape. For verdict payloads, observe `harness.executeFlow.completed` (`Node<readonly JobEnvelope<HarnessJobPayload<A>>[]>`) instead. Pre-1.0 break documented; no migration shim shipped.
+
+**FIFO-mismatch hazard resolved by design.** The pre-Tier-6.5 inline comment defending `removeById` against decoupled `claim`/`ack` across reactive waves is now obsolete: JobFlow's pump owns the entire `claim → work → ack` lifecycle in one closure ([job-queue/index.ts](src/patterns/job-queue/index.ts) pump body), so the cross-wave decoupling that motivated the hazard never arises. The audit-side jq ledger keeps `enqueue + removeById` semantics by design (purely an audit log of route entries; ack-by-id via `trackingKey` lookup).
+
+**Tests:** all 2470 tests passing (1 new explain regression for Tier 6.3, full executor-variant test migration to work-fn shape covering happy path / failure modes / one-DATA-per-claim contract / dispatchActuator route resolution / actuator+evalVerifier end-to-end / refine+evalVerifier convergence). Build green; lint at the 9-warning baseline.
+
+**Out-of-scope deviations from the C2 lock:**
+- `promptNode` no longer used internally by the harness (the work-fn shape doesn't benefit from cross-wave switchMap). `promptNode` stays the canonical primitive for **persistent reactive LLM transforms** (agentLoop, user code, the harness's TRIAGE stage which still uses it).
+- `executeContextNode` pairing eliminated — payloads carry `item` through stages, removing the cross-wave `withLatestFrom` pairing that was load-bearing pre-C2.
+
+### 6.6 Unit 1 — `promptNode` JSDoc + test gate (Session C lock, reduced scope) ✅ landed
+- **✅ JSDoc cross-link to COMPOSITION-GUIDE §32 landed:** [prompt-node.ts:31–38](src/patterns/ai/prompts/prompt-node.ts:31) — cross-wave cache stickiness pattern.
+- **✅ Middleware recipe landed:** [prompt-node.ts:16–29](src/patterns/ai/prompts/prompt-node.ts:16) and [:129–131](src/patterns/ai/prompts/prompt-node.ts:129) — `withRetry` / `withReplayCache` adapter stack.
 - **✅ Isolated unit test (Session C L8) landed (2026-04-27):** [phase5-llm-composition.test.ts](src/__tests__/phase5-llm-composition.test.ts) — "N upstream dep waves → exactly N DATAs on `prompt_node::output`, zero transient nulls, zero coalesce loss" covering 3 waves with synchronous `mockAdapter`. Locks the contract independent of harness entanglement.
-- **✅ Open Q (Session C L9) resolved (2026-04-27):** `prompt_node::call` is **transient by design** — it activates inside switchMap during a wave and tears down on supersede / COMPLETE. With a synchronous adapter the producer activates and completes within the same wave, so steady-state `describe()` only shows `::messages` + `::output`. Mid-wave `describe()` (real async adapter, observed during in-flight call) WOULD see `::call` via `meta.ai = "prompt_node::call"` — but that's an in-flight observation, not a steady-state expectation. Regression test landed in [phase5-llm-composition.test.ts](src/__tests__/phase5-llm-composition.test.ts).
-**Ratified by:** Tier 1.2 (Session C, locked 2026-04-27).
+- **✅ Open Q (Session C L9) resolved (2026-04-27):** `prompt_node::call` is **transient by design** — it activates inside switchMap during a wave and tears down on supersede / COMPLETE. With a synchronous adapter the producer activates and completes within the same wave, so steady-state `describe()` only shows `::messages` + `::output`. Mid-wave `describe()` (real async adapter, observed during in-flight call) WOULD see `::call` via `meta.ai = "prompt_node::call"`. Regression test landed in `phase5-llm-composition.test.ts`.
 
-### 6.7 Unit 2 — `gatedStream` timing (3 skipped tests)
-Un-skip and fix.
-**Depends on:** Tier 6.2.
+### 6.7 Unit 2 — `gatedStream` timing (3 skipped tests) ✅ landed
+The 4 previously-skipped tests un-skipped at [ai.test.ts:894–1034](src/__tests__/patterns/ai.test.ts:894). Inline comment confirms the keepalive fix on the gate's output node, which closed the activation gap that left streamed values reaching the gate's input but never entering the pending queue.
 
 ---
 
@@ -543,5 +555,5 @@ Tier 10 — anytime; low priority
     - **G2A** — `graphLens.flow` uses monotonic `flushedAt_ns` cursor instead of changeset ref-comparison.
     - **G1C-prime** — `readOnce(opt.cache)` imperative-read removed from `resilient-pipeline`. Node-form pipeline options (rateLimit / budget / breaker / timeoutMs / retry) now use **switchMap-pattern rebuild**: subscribe to option Node, rebuild the layer on each emission. Per-layer companions exposed only for the static-options path. State-loss caveat documented; primitive-side widening remains the long-term fix.
     - **G2B (doc-only)** — F3/F6/F8 inline comments tightened; EC7 `rateLimitState` JSDoc clarified ("resets on producer-fn re-run"); EC5/EC6/EC7/F9 deferred items filed in [docs/optimizations.md](docs/optimizations.md) under "QA follow-ups from Tier 5.2 + Wave-AM /qa pass".
-11. **← NEXT.** Tier 6 harness composition (Unit 16 hub topology, Unit 17 GATE reshape, Unit 20 named nodes, Unit 18b fastRetry, JobFlow ack/nack, Unit 1 promptNode JSDoc gate, Unit 2 gatedStream timing). Post-Tier-1.5 + Tier-5 Wave-B locks are now all in place.
-11. Tier 7 (AI ergonomics) and Tier 8 (Wave C cross-pattern mutation framework migration) can run in parallel after Tier 6.
+11. ✅ Tier 6 harness composition landed (2026-04-28, Wave 2C). Tier 6.5 C2 lock (`executeFlow` JobFlow chain replacing `merge → executor → verifier → fastRetry`) implemented; Tier 6.3 named-node registrations + explain regression test in place; Tier 6.1 / 6.2 / 6.4 / 6.6 / 6.7 reconciled as already-landed across earlier feature waves. Breaking executor/verifier interface change pre-1.0: `(input: Node<T>) => Node<U>` → `(job: JobEnvelope<HarnessJobPayload<A>>) => NodeInput<HarnessJobPayload<A>>`. `defaultLlmExecutor` / `defaultLlmVerifier` migrated to direct `adapter.invoke()` (no internal `promptNode`). All 2470 tests passing; build green; lint at 9-warning baseline.
+12. **← NEXT.** Tier 7 (AI ergonomics) and Tier 8 (Wave C cross-pattern mutation framework migration) can run in parallel.

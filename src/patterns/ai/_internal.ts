@@ -7,11 +7,18 @@
  * @module
  */
 
-import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
+import { producer } from "../../core/sugar.js";
 import { domainMeta } from "../../extra/meta.js";
 import { fromAny, type NodeInput } from "../../extra/sources.js";
 import { ResettableTimer } from "../../extra/timer.js";
+import type {
+	ChatMessage,
+	LLMAdapter,
+	LLMInvokeOptions,
+	LLMResponse,
+} from "./adapters/core/types.js";
 
 export function aiMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("ai", kind, extra);
@@ -103,4 +110,128 @@ export async function resolveToolHandlerResult(value: unknown): Promise<unknown>
 export function stripFences(text: string): string {
 	const match = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```[\s\S]*$/);
 	return match ? match[1]! : text;
+}
+
+/**
+ * Bridge-layer failure kind reported to {@link OneShotLlmCallConfig.onFailure}.
+ *
+ * - `"throw"` — synchronous throw from `adapter.invoke()`.
+ * - `"error"` — `[ERROR, value]` message on the bridged Node.
+ * - `"complete"` — the bridged Node closed without emitting DATA.
+ * - `"onSuccess-threw"` — `onSuccess(resp)` itself threw (uncaught parse /
+ *   builder error). Caller's `onFailure` decides the failure-payload shape.
+ */
+export type OneShotLlmFailureKind = "throw" | "error" | "complete" | "onSuccess-threw";
+
+/** Configuration for {@link _oneShotLlmCall}. */
+export interface OneShotLlmCallConfig<T> {
+	/**
+	 * Build the success payload from the adapter's first DATA message.
+	 * MAY throw — the helper catches and routes through `onFailure(kind:
+	 * "onSuccess-threw", err)` so callers don't need their own try/catch.
+	 */
+	onSuccess: (resp: LLMResponse) => T;
+	/**
+	 * Build a failure payload when the bridge layer reports any of the
+	 * {@link OneShotLlmFailureKind} categories. Caller chooses the detail
+	 * string format and any error-class metadata.
+	 */
+	onFailure: (kind: OneShotLlmFailureKind, err: unknown) => T;
+	/**
+	 * Forwarded to `adapter.invoke(messages, opts)` — `signal` is set
+	 * by the helper from the producer's AbortController and CANNOT be
+	 * overridden here (cancellation is a hard contract of this helper).
+	 */
+	invokeOpts?: Omit<LLMInvokeOptions, "signal">;
+}
+
+/**
+ * Internal — one-shot bridge from `adapter.invoke()` (a `NodeInput<LLMResponse>`)
+ * into a producer that emits exactly one DATA + COMPLETE.
+ *
+ * **Why this exists.** The harness's `defaultLlmExecutor` and
+ * `defaultLlmVerifier` (Tier 6.5 C2) both call `adapter.invoke()` once
+ * per claimed JobFlow job and need to:
+ *  1. Subscribe to the bridged Node, capture the first DATA, parse, emit
+ *     a domain payload.
+ *  2. Map adapter throws / ERROR / COMPLETE-without-DATA to a domain
+ *     failure payload (rather than nack the JobFlow claim).
+ *  3. Thread `signal: ac.signal` into BOTH `adapter.invoke()` (via
+ *     `LLMInvokeOptions.signal`) and `fromAny()` (covers Node-shaped
+ *     invokeResults) so teardown actually aborts in-flight HTTP work.
+ *  4. Tear down the inner subscription cleanly when DATA captures or
+ *     when the producer is unsubscribed.
+ *
+ * Pre-extraction this body was duplicated ~80 LOC across the two default
+ * bridges; symmetric fixes had to land twice (qa F1 / F2 / F5). This
+ * helper centralizes the producer body so future bridge-layer fixes apply
+ * once.
+ *
+ * **Not part of the public API.** Callers in `patterns/ai/_internal.ts`'s
+ * import surface (the harness defaults today) use this; user code should
+ * use `promptNode` for cross-wave reactive transforms or call
+ * `adapter.invoke()` directly.
+ */
+export function _oneShotLlmCall<T>(
+	adapter: LLMAdapter,
+	messages: readonly ChatMessage[],
+	config: OneShotLlmCallConfig<T>,
+): NodeInput<T> {
+	return producer<T>((actions) => {
+		const ac = new AbortController();
+		let captured = false;
+		let unsub: (() => void) | null = null;
+		const emitOnce = (value: T): void => {
+			if (captured) return;
+			captured = true;
+			actions.down([[DATA, value], [COMPLETE]] satisfies Messages);
+			unsub?.();
+			unsub = null;
+		};
+		let invokeResult: NodeInput<LLMResponse>;
+		try {
+			invokeResult = adapter.invoke(messages, { ...config.invokeOpts, signal: ac.signal });
+		} catch (err) {
+			emitOnce(config.onFailure("throw", err));
+			return () => ac.abort();
+		}
+		const callNode = fromAny<LLMResponse>(invokeResult, { signal: ac.signal });
+		unsub = callNode.subscribe((batch) => {
+			for (const m of batch) {
+				if (captured) return;
+				if (m[0] === DATA) {
+					try {
+						emitOnce(config.onSuccess(m[1] as LLMResponse));
+					} catch (err) {
+						emitOnce(config.onFailure("onSuccess-threw", err));
+					}
+					return;
+				}
+				if (m[0] === ERROR) {
+					emitOnce(config.onFailure("error", m[1]));
+					return;
+				}
+				if (m[0] === COMPLETE) {
+					// COMPLETE without prior DATA — without this arm the JobFlow
+					// pump's claim would stall (qa F1 regression). Helper handles
+					// for ALL callers; defaults can't regress.
+					emitOnce(config.onFailure("complete", undefined));
+					return;
+				}
+			}
+		});
+		// Sync DATA delivery (cached state / `fromAny` over a sync value):
+		// the callback ran reentrantly before `unsub` was assigned, so the
+		// `unsub?.()` call inside `emitOnce` was a no-op. Drop the upstream
+		// subscription now that we have the handle.
+		if (captured && unsub) {
+			unsub();
+			unsub = null;
+		}
+		return () => {
+			ac.abort();
+			unsub?.();
+			unsub = null;
+		};
+	});
 }

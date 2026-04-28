@@ -12,8 +12,10 @@
  */
 
 import type { Node } from "../../core/node.js";
+import type { NodeInput } from "../../extra/sources.js";
 // Type-only import avoids a runtime cycle with `patterns/ai`.
 import type { LLMAdapter } from "../ai/index.js";
+import type { JobEnvelope } from "../job-queue/index.js";
 
 // ---------------------------------------------------------------------------
 // Intake
@@ -233,42 +235,78 @@ export interface QueueConfig {
 }
 
 /**
- * Pluggable EXECUTE slot. Given the reactive `executeInput` stream of
- * triaged items, produce a stream of `ExecuteOutput<A>` decisions.
+ * Accumulating per-job payload threaded through the harness's
+ * `executeFlow` ({@link harnessLoop} Tier 6.5 C2 lock). Each stage's work fn
+ * receives the prior payload and returns a new one with its own field
+ * filled in:
  *
- * **Contract** (see design note in `docs/optimizations.md` / session log):
- * 1. Emit DATA exactly once per completed execution — not on input arrival.
- * 2. Cancel in-flight work when a new item supersedes the current one
- *    (`switchMap` is the idiomatic pattern).
- * 3. Do not bypass `input.cache` — the harness pairs output with item via
- *    `withLatestFrom(output, input)`. A side-state mirror of the item can
- *    desync under nested-drain ordering.
- * 4. The returned node IS the primary of a subsequent `withLatestFrom`;
- *    firing on input arrival (rather than result completion) causes verify
- *    to pair with a stale/null ExecuteOutput.
+ * - The `enqueueEffect` seeds with `{ item }` only.
+ * - The execute work fn fills `execution`.
+ * - The verify work fn fills `verify`.
  *
- * `refineExecutor` makes all four rules structurally unreachable.
+ * The post-completed dispatch effect reads `verify.verified` /
+ * `verify.errorClass` to route the item to `verifyResults` /
+ * `retryTopic.publish(...)` / `intake.publish(...)` (3-way verdict).
+ *
+ * Carrying `item` through stage payloads (rather than re-pairing via a
+ * separate `withLatestFrom` node) is the C2 deviation from today's
+ * `executeContextNode` design: each `JobEnvelope` is self-contained, so the
+ * verify pump can run multiple in-flight jobs in parallel without an
+ * external pairing node.
  */
-export type HarnessExecutor<A = unknown> = (
-	input: Node<TriagedItem | null>,
-) => Node<ExecuteOutput<A> | null>;
+export interface HarnessJobPayload<A = unknown> {
+	/** The triaged item flowing through execute → verify → dispatch. */
+	item: TriagedItem;
+	/** Filled by the execute work fn. Verify reads this; dispatch routes. */
+	execution?: ExecutionResult<A>;
+	/** Filled by the verify work fn. Dispatch reads `verified` / `errorClass`. */
+	verify?: VerifyOutput;
+}
 
 /**
- * Pluggable VERIFY slot. Receives a pre-paired `[executeOutput, triagedItem]`
- * context node — the harness creates this via `withLatestFrom(executeNode,
- * executeInput)` once and shares it with both the verifier and the internal
- * fast-retry dispatcher, so verifier implementations do NOT need to build
- * their own pairing node (and doubling the `withLatestFrom` would pay the
- * subscription cost twice).
+ * Pluggable EXECUTE work fn — receives a {@link JobEnvelope} carrying a
+ * {@link HarnessJobPayload} (with `item` set, `execution` / `verify`
+ * unset), returns a {@link NodeInput} that emits the same payload with
+ * `execution` filled.
  *
- * Same contract rules 1–3 as {@link HarnessExecutor}. Rule 4 does not
- * apply (verify output isn't a primary to a further withLatestFrom).
+ * **C2 contract (Tier 6.5 lock, 2026-04-28):**
+ * 1. Emit DATA exactly once per claimed job. The JobFlow pump subscribes
+ *    once, takes the first DATA, then unsubscribes. Subsequent emissions
+ *    are ignored.
+ * 2. Errors must be caught and surfaced as a `failure` outcome inside the
+ *    payload — never throw / return ERROR. A pump nack would drop the
+ *    item from JobFlow before the dispatch effect could route it.
+ * 3. The work fn runs once per claim — no internal `switchMap` needed.
+ *    Per-item subgraphs (e.g. a fresh `refineLoop` per claim) are
+ *    instantiated inside the work fn body.
  *
- * `evalVerifier` handles the re-evaluation case against affected eval tasks.
+ * `defaultLlmExecutor` (in `defaults.ts`) is a thin `adapter.invoke()`
+ * wrapper. `refineExecutor` builds a per-claim `refineLoop`.
+ * `actuatorExecutor` runs a side-effecting `apply(item, signal)`.
+ */
+export type HarnessExecutor<A = unknown> = (
+	job: JobEnvelope<HarnessJobPayload<A>>,
+) => NodeInput<HarnessJobPayload<A>>;
+
+/**
+ * Pluggable VERIFY work fn — receives a {@link JobEnvelope} whose payload
+ * has `item` + `execution` populated, returns a {@link NodeInput} that
+ * emits the same payload with `verify` filled.
+ *
+ * Same C2 contract rules 1–3 as {@link HarnessExecutor}. The dispatch
+ * effect downstream reads `verify.verified` (success → ack +
+ * verifyResults publish), `verify.errorClass === "self-correctable"`
+ * (retry → republish to retry topic with `$retries` bumped), or anything
+ * else (structural → reingest to intake if budget remains).
+ *
+ * Verify-LLM-call failures (parse error, adapter throw, timeout) MUST be
+ * caught and surfaced as a structural-failure `verify` payload (`{
+ * verified: false, findings: [...], errorClass: "structural" }`) so the
+ * dispatch effect can route the item rather than silently drop it.
  */
 export type HarnessVerifier<A = unknown> = (
-	context: Node<readonly [ExecuteOutput<A> | null, TriagedItem | null] | null>,
-) => Node<VerifyOutput | null>;
+	job: JobEnvelope<HarnessJobPayload<A>>,
+) => NodeInput<HarnessJobPayload<A>>;
 
 /** Triage prompt callable shape — pair of `[intake item, strategy snapshot]`. */
 export type TriagePromptFn = (pair: readonly [IntakeItem, StrategySnapshot]) => string;
@@ -350,6 +388,27 @@ export interface HarnessLoopOptions<A = unknown> {
 
 	/** Retained limit for topic logs (default 1000). */
 	retainedLimit?: number;
+
+	/**
+	 * Per-pump-tick claim cap on the internal `executeFlow` JobFlow's `execute`
+	 * stage (Tier 6.5 C2). Default `Number.MAX_SAFE_INTEGER` — every pending
+	 * claim is processed in one tick (matches today's unbounded `merge()`
+	 * parallelism). Lower this to bound LLM cost spikes on bursty intake.
+	 *
+	 * **Caveat.** This caps **claims per pump tick**, not total concurrent
+	 * inflight. Bounded-inflight is a separate primitive concern — see
+	 * `docs/optimizations.md` "Tier 6.5 follow-up — bounded concurrent inflight
+	 * on JobFlow stages".
+	 */
+	executeMaxPerPump?: number;
+
+	/**
+	 * Per-pump-tick claim cap on the internal `executeFlow` JobFlow's
+	 * `verify` stage. Default `Number.MAX_SAFE_INTEGER`. Same caveat as
+	 * {@link HarnessLoopOptions.executeMaxPerPump}. Honored independently
+	 * of the execute cap via `StageDef.maxPerPump` (Tier 6.5 D1).
+	 */
+	verifyMaxPerPump?: number;
 }
 
 // ---------------------------------------------------------------------------

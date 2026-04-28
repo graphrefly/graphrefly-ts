@@ -1,33 +1,29 @@
 /**
- * refineExecutor — bridge a `refineLoop` into the harness EXECUTE slot.
+ * refineExecutor — bridge a `refineLoop` into the harness EXECUTE work fn.
  *
- * Per-item lifecycle (Option A from the design note): on each new triaged
- * item, a fresh `refineLoop` is mounted via `switchMap`; when the loop
- * reaches a terminal status (`converged` / `budget` / `errored`), the
- * executor emits a single `ExecuteOutput`. The switchMap cancels any
- * in-flight loop when a newer item supersedes it.
+ * Each claimed job mounts a fresh `refineLoop`; when the loop reaches a
+ * terminal status (`converged` / `budget` / `errored`), the work fn emits a
+ * single {@link HarnessJobPayload} with `execution` filled in. The JobFlow
+ * pump subscribes once, takes the first DATA, then unsubscribes — so the
+ * inner loop tears down cleanly when the harness acks the job.
  *
- * This shape makes all four {@link HarnessExecutor} contract rules
- * structurally unreachable:
- *  1. Terminal-status filter guarantees exactly one `ExecuteOutput` per
- *     completed refinement run.
- *  2. `switchMap` cancels the prior inner loop when the next item arrives.
- *  3. The item is captured in the switchMap closure, not mirrored to a
- *     side-state.
- *  4. The wrapped `derived([status, best, score], ...)` only returns
- *     non-null on terminal transitions — it never emits on input arrival.
+ * **C2 lifecycle (Tier 6.5).** The work fn is invoked once per claim, so
+ * no internal `switchMap` is needed (the prior pre-C2 shape used switchMap
+ * to handle a stream of items). The pump owns the per-claim lifecycle:
+ * activation when the work fn returns, teardown when the result Node is
+ * unsubscribed.
  *
- * **Cross-item learning:** Option A creates a fresh refineLoop per item,
- * so `errorCritique`-style failure sampling does NOT accumulate across
- * items sharing a `rootCause`. A persistent-loop + re-seed surface is
- * tracked in `docs/optimizations.md` as the long-term follow-up.
+ * **Cross-item learning:** a fresh refineLoop per item means
+ * `errorCritique`-style failure sampling does NOT accumulate across items
+ * sharing a `rootCause`. A persistent-loop + re-seed surface is filed in
+ * `docs/optimizations.md` as a long-term follow-up.
  *
  * @module
  */
 
-import type { Node } from "../../core/node.js";
 import { derived } from "../../core/sugar.js";
-import { filter, switchMap } from "../../extra/operators.js";
+import { filter } from "../../extra/operators.js";
+import type { JobEnvelope } from "../job-queue/index.js";
 import {
 	type DatasetItem,
 	type Evaluator,
@@ -37,7 +33,7 @@ import {
 	refineLoop,
 } from "../refine-loop/index.js";
 
-import type { ExecuteOutput, HarnessExecutor, TriagedItem } from "./types.js";
+import type { ExecuteOutput, HarnessExecutor, HarnessJobPayload, TriagedItem } from "./types.js";
 
 /** Terminal-run snapshot passed to a custom `toOutput` mapper. */
 export interface RefineExecutorResult<T> {
@@ -80,9 +76,6 @@ export interface RefineExecutorConfig<T> {
 function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput<T> {
 	const { best, score, status } = result;
 	const scoreStr = Number.isFinite(score) ? score.toFixed(3) : String(score);
-	// Always attach `best` as `artifact` so downstream verifiers (e.g.
-	// `evalVerifier`) can re-run evaluation against the refined candidate
-	// without round-tripping through `detail`.
 	const artifact = (best ?? undefined) as T | undefined;
 	if (status === "converged") {
 		return {
@@ -106,7 +99,8 @@ function defaultToOutput<T>(result: RefineExecutorResult<T>): ExecuteOutput<T> {
 }
 
 /**
- * Build a {@link HarnessExecutor} backed by a `refineLoop` per triaged item.
+ * Build a {@link HarnessExecutor} backed by a `refineLoop` per claimed
+ * job.
  *
  * @example Eval-driven repair loop in the harness EXECUTE slot.
  * ```ts
@@ -126,51 +120,37 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 	const name = config.name ?? "refine-executor";
 	const toOutput = config.toOutput ?? defaultToOutput<T>;
 
-	return (input: Node<TriagedItem | null>): Node<ExecuteOutput<T> | null> => {
-		// Filter null items upstream of switchMap. The harness's `executeInput`
-		// is a merge of queue-latest nodes that start nullish before any item
-		// is published — without this gate, every activation wave would
-		// allocate a fresh null-emitting state inside the switchMap callback.
-		// Unit 21 B: named so `describe()` shows the filter as `${name}/gate-in`
-		// instead of an anonymous derived.
-		const nonNullInput = filter(input, (v) => v != null, {
-			name: `${name}/gate-in`,
-		}) as Node<TriagedItem>;
-		const raw = switchMap<TriagedItem, ExecuteOutput<T> | null>(
-			nonNullInput,
-			(item) => {
-				const loop = refineLoop<T>(config.seedFrom(item), config.evaluator, config.strategy, {
-					...config.refine,
-					dataset: config.datasetFor(item),
-					name: `${name}/inner`,
+	return (job: JobEnvelope<HarnessJobPayload<T>>) => {
+		const item = job.payload.item;
+		const loop = refineLoop<T>(config.seedFrom(item), config.evaluator, config.strategy, {
+			...config.refine,
+			dataset: config.datasetFor(item),
+			name: `${name}/inner`,
+		});
+		// Terminal-allowlist guard — emit non-null only on `converged` / `budget` /
+		// `errored`; intermediate `running` waves emit `null` (deduped via the
+		// derived's default Object.is). The trailing `filter(v != null)` strips
+		// the null DATA so the JobFlow pump's first-DATA capture sees the
+		// terminal payload, not the intermediate null.
+		const raw = derived<HarnessJobPayload<T> | null>(
+			[loop.status, loop.best, loop.score],
+			([status, best, score]) => {
+				const s = status as RefineStatus;
+				if (s !== "converged" && s !== "budget" && s !== "errored") return null;
+				const exec = toOutput({
+					best: best as T | null,
+					score: score as number,
+					status: s,
 				});
-				return derived<ExecuteOutput<T> | null>(
-					[loop.status as Node<unknown>, loop.best as Node<unknown>, loop.score as Node<unknown>],
-					([status, best, score]) => {
-						const s = status as RefineStatus;
-						// Explicit terminal allowlist — if RefineStatus ever gains a new
-						// non-terminal variant, this default-rejects rather than silently
-						// emitting a phantom ExecuteOutput. Intermediate iterations
-						// (status="running") repeatedly return null here; the derived's
-						// default Object.is equals absorbs null === null into RESOLVED
-						// so only the first non-terminal wave emits DATA, and downstream
-						// `filter(raw, v != null)` drops that one null before it can
-						// reach `verifyNode`. Terminal status is batched with best/score
-						// in `decideEffect`, so all three are fresh when this fn runs.
-						if (s !== "converged" && s !== "budget" && s !== "errored") return null;
-						return toOutput({
-							best: best as T | null,
-							score: score as number,
-							status: s,
-						});
-					},
-					{ name: `${name}/output` },
-				);
+				return {
+					...job.payload,
+					execution: { item, ...exec },
+				};
 			},
-			{ name },
+			{ name: `${name}/output` },
 		);
-		return filter(raw, (v) => v != null, {
-			name: `${name}/gate-out`,
-		}) as Node<ExecuteOutput<T> | null>;
+		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as ReturnType<
+			HarnessExecutor<T>
+		>;
 	};
 }

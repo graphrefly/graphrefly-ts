@@ -434,6 +434,32 @@ describe("harnessLoop", () => {
 		const matched = seen.find((s) => s.summary === "queueTopics-iter");
 		expect(matched).toBeDefined();
 	});
+
+	// Tier 6.3 — named-node regression. Walks the causal chain from intake to
+	// reflect and asserts no step has an `<anonymous>` path. With triage-input,
+	// router-input, execute-input, execute-enqueue, verify-dispatch, and the
+	// stage-queue/pump nodes inside `executeFlow` all named, the chain should
+	// resolve cleanly end-to-end.
+	it("explain(intake.latest, reflect) returns a chain with no <anonymous> steps", () => {
+		const adapter = mockAdapter({
+			triage: {
+				rootCause: "unknown",
+				intervention: "investigate",
+				route: "backlog",
+				priority: 10,
+			},
+		});
+		const harness = harnessLoop("test-explain-named", { adapter });
+		const chain = harness.explain("queues::intake::latest", "reflect");
+		// We don't assert `found: true` because some intermediate paths (e.g.
+		// gate output for ungated routes) may not be present at construction
+		// time. What we DO assert: every step's path is a named, non-empty,
+		// non-`<anonymous>` qualified path.
+		for (const step of chain.steps) {
+			expect(step.path, `chain step ${step.hop}`).not.toContain("<anonymous>");
+			expect(step.path, `chain step ${step.hop}`).not.toBe("");
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
