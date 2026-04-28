@@ -16,6 +16,7 @@
  * @module
  */
 import type { Actor } from "../../core/actor.js";
+import { batch } from "../../core/batch.js";
 import { monotonicNs, wallClockNs } from "../../core/clock.js";
 import type { GuardAction, NodeGuard, PolicyRuleData } from "../../core/guard.js";
 import { policyFromRules } from "../../core/guard.js";
@@ -428,21 +429,29 @@ export class PolicyGateGraph extends Graph {
 						const next = (m[1] as readonly string[] | undefined) ?? [];
 						const nextSet = new Set(next);
 						const prevSet = new Set(latestPaths ?? []);
-						// Release paths that fell out of the new set.
-						for (const p of prevSet) {
-							if (nextSet.has(p)) continue;
-							const r = restorers.get(p);
-							if (r != null) {
-								r();
-								restorers.delete(p);
+						// Wrap rebind in `batch()` (qa D7) — guards are imperative
+						// graph mutations; if `paths` and `policies` co-emit in an
+						// outer batch (atomic config swap), each handler's mutations
+						// would otherwise unwind in arbitrary order, letting an
+						// in-flight write hit a half-rebound guard set. Batching
+						// coalesces release + wrap into a single deferred drain.
+						batch(() => {
+							// Release paths that fell out of the new set.
+							for (const p of prevSet) {
+								if (nextSet.has(p)) continue;
+								const r = restorers.get(p);
+								if (r != null) {
+									r();
+									restorers.delete(p);
+								}
 							}
-						}
-						// Wrap newly-added paths.
-						for (const p of nextSet) {
-							if (prevSet.has(p)) continue;
-							wrapAndPush(p);
-						}
-						latestPaths = next;
+							// Wrap newly-added paths.
+							for (const p of nextSet) {
+								if (prevSet.has(p)) continue;
+								wrapAndPush(p);
+							}
+							latestPaths = next;
+						});
 					}
 				});
 				this.addDisposer(offReactivePaths);
