@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
-import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
+import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import { budgetGate } from "../../extra/resilience/budget-gate.js";
 import { type StratifyRule, stratify } from "../../extra/stratify.js";
@@ -411,45 +411,159 @@ describe("reduction.budgetGate", () => {
 		expect(seen).toEqual([0, 1, 2]); // flushed (includes initial push-on-subscribe value)
 	});
 
-	it("rejects zero constraints", () => {
-		expect(() => budgetGate(state(0), [])).toThrow("at least one constraint");
+	it("rejects zero constraints with RangeError (regression — Tier 3.3.4)", () => {
+		// Documented contract: empty constraints throws `RangeError`. The error
+		// class shape matters for caller `instanceof` checks in compositors.
+		let caught: unknown;
+		try {
+			budgetGate(state(0), []);
+		} catch (e) {
+			caught = e;
+		}
+		expect(caught).toBeInstanceOf(RangeError);
+		expect((caught as Error).message).toMatch(/at least one constraint/);
 	});
 
-	it("propagates COMPLETE and flushes buffer", () => {
+	it("propagates COMPLETE and force-flushes buffered DATA before terminal (invariant 1)", () => {
+		// Note: source `state<number>(0)` push-on-subscribe delivers the initial
+		// 0 to the gate while the gate is closed — so the initial value is part
+		// of the FIFO buffer and force-flushes BEFORE COMPLETE alongside the
+		// later DATA. This is correct behavior (the initial value is real DATA).
 		const source = state<number>(0);
-		const budget = state<number>(0);
+		const budget = state<number>(0); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
-		const seen: number[] = [];
-		let completed = false;
+		const events: Array<["DATA", number] | ["COMPLETE"]> = [];
 		gated.subscribe((msgs: Messages) => {
 			for (const msg of msgs) {
-				if (msg[0] === DATA) seen.push(msg[1] as number);
-				if (msg[0] === COMPLETE) completed = true;
+				if (msg[0] === DATA) events.push(["DATA", msg[1] as number]);
+				if (msg[0] === COMPLETE) events.push(["COMPLETE"]);
 			}
 		});
 
+		// Three more DATA arrive while gate is closed → all buffered behind initial 0.
 		source.down([[DATA, 10]]);
+		source.down([[DATA, 20]]);
+		source.down([[DATA, 30]]);
+		expect(events).toEqual([]);
+
 		source.down([[COMPLETE]]);
-		// Buffer flushed on COMPLETE even though budget is 0
-		// (flushBuffer checks budget, but we still get COMPLETE)
-		expect(completed).toBe(true);
+
+		// Invariant 1: every buffered item emits BEFORE COMPLETE, in FIFO order,
+		// regardless of the still-closed budget.
+		expect(events).toEqual([["DATA", 0], ["DATA", 10], ["DATA", 20], ["DATA", 30], ["COMPLETE"]]);
 	});
 
-	it("propagates ERROR", () => {
+	it("propagates ERROR and force-flushes buffered DATA before terminal (invariant 1)", () => {
 		const source = state<number>(0);
-		const budget = state<number>(100);
+		const budget = state<number>(0); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
-		let errored = false;
+		const events: Array<["DATA", number] | ["ERROR"]> = [];
 		gated.subscribe((msgs: Messages) => {
 			for (const msg of msgs) {
-				if (msg[0] === ERROR) errored = true;
+				if (msg[0] === DATA) events.push(["DATA", msg[1] as number]);
+				if (msg[0] === ERROR) events.push(["ERROR"]);
 			}
 		});
+
+		source.down([[DATA, 1]]);
+		source.down([[DATA, 2]]);
+		expect(events).toEqual([]); // initial 0 + 1 + 2 still buffered
 
 		source.down([[ERROR, new Error("boom")]]);
-		expect(errored).toBe(true);
+
+		// Initial push-on-subscribe 0 + 1 + 2, then ERROR.
+		expect(events).toEqual([["DATA", 0], ["DATA", 1], ["DATA", 2], ["ERROR"]]);
+	});
+
+	it("drains buffer FIFO when constraint releases — PAUSE→RESUME ordering (invariant 2)", () => {
+		const source = state<number>(0);
+		const budget = state<number>(0); // closed initially
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+
+		const order: number[] = [];
+		gated.subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) order.push(msg[1] as number);
+			}
+		});
+
+		// Push 5 items while closed — all queued (behind push-on-subscribe initial 0).
+		source.down([[DATA, 10]]);
+		source.down([[DATA, 20]]);
+		source.down([[DATA, 30]]);
+		source.down([[DATA, 40]]);
+		source.down([[DATA, 50]]);
+		expect(order).toEqual([]);
+
+		// Constraint releases — queue must drain in arrival order BEFORE any new
+		// upstream DATA could interleave (invariant 2).
+		budget.down([[DATA, 100]]);
+		expect(order).toEqual([0, 10, 20, 30, 40, 50]);
+
+		// Subsequent DATA passes through immediately (queue empty, gate open).
+		source.down([[DATA, 60]]);
+		expect(order).toEqual([0, 10, 20, 30, 40, 50, 60]);
+	});
+
+	it("queue scales to many items with O(1) shift (Tier 3.3.1 perf parity smoke)", () => {
+		// Regression for the prior `buffer.slice(1)` O(N²) drain. With the
+		// HeadIndexQueue substitution this completes in ~milliseconds even for
+		// thousands of items; with `slice(1)` it would have been quadratic.
+		// We assert correctness (FIFO over many items) — the perf gain is
+		// implicit in not timing out.
+		const N = 5_000;
+		const source = state<number>(0);
+		const budget = state<number>(0); // closed
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+
+		const order: number[] = [];
+		gated.subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) order.push(msg[1] as number);
+			}
+		});
+
+		batch(() => {
+			for (let i = 1; i <= N; i++) {
+				source.emit(i);
+			}
+		});
+		expect(order).toEqual([]);
+
+		// One drain — push-on-subscribe initial 0 plus N items emit FIFO.
+		budget.down([[DATA, 100]]);
+		expect(order.length).toBe(N + 1);
+		expect(order[0]).toBe(0); // initial push-on-subscribe
+		expect(order[1]).toBe(1);
+		expect(order[N]).toBe(N);
+		// Spot-check FIFO at the midpoint.
+		expect(order[N / 2]).toBe(N / 2);
+	});
+
+	it("RESOLVED is deferred until buffer drains (invariant 3)", () => {
+		const source = state<number>(0);
+		const budget = state<number>(0); // closed
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+
+		const events: Array<["DATA", number] | ["RESOLVED"]> = [];
+		gated.subscribe((msgs: Messages) => {
+			for (const msg of msgs) {
+				if (msg[0] === DATA) events.push(["DATA", msg[1] as number]);
+				if (msg[0] === RESOLVED) events.push(["RESOLVED"]);
+			}
+		});
+
+		source.down([[DATA, 7]]);
+		// Send a RESOLVED while buffer is non-empty — should be deferred.
+		source.down([[RESOLVED]]);
+		expect(events).toEqual([]);
+
+		// Open the gate — drain emits buffered DATA (initial 0 + 7), then the
+		// deferred RESOLVED.
+		budget.down([[DATA, 100]]);
+		expect(events).toEqual([["DATA", 0], ["DATA", 7], ["RESOLVED"]]);
 	});
 });
 
