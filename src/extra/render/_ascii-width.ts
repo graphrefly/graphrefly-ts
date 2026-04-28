@@ -1,7 +1,7 @@
 /**
  * Monospace-terminal cell-width utilities shared by the CLI measurement
  * adapter ([src/patterns/reactive-layout/measurement-adapters.ts](../patterns/reactive-layout/measurement-adapters.ts))
- * and the ASCII describe renderer ([describe-ascii.ts](./describe-ascii.ts)).
+ * and the ASCII describe renderer ([to-ascii.ts](./to-ascii.ts)).
  *
  * Approximates UAX #11 East_Asian_Width (W/F → 2) plus known combining-mark
  * ranges (→ 0). Not a full EAW table — covers CJK, Hangul, fullwidth forms,

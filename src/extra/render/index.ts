@@ -21,6 +21,7 @@
  */
 
 export type { DiagramDirection } from "./_internal.js";
+export type { LayoutDirection } from "./_layout-sugiyama.js";
 export { type ToAsciiOptions, toAscii } from "./to-ascii.js";
 export { type ToD2Options, toD2 } from "./to-d2.js";
 export { type ToJsonOptions, toJson } from "./to-json.js";

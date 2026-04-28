@@ -110,6 +110,14 @@ export function effectivenessTracker(
 		node: snapshot,
 		record,
 		lookup,
-		dispose: () => _unsub(),
+		// qa A7: dispose tears down BOTH the snapshot keepalive AND the
+		// underlying reactiveMap. Without `_map.dispose()`, repeated
+		// create/dispose cycles leaked the reactive map across the lifetime
+		// of the host process. Idempotent (reactiveMap.dispose is itself
+		// idempotent per its JSDoc D6(a) note).
+		dispose: () => {
+			_unsub();
+			_map.dispose();
+		},
 	};
 }

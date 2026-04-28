@@ -22,8 +22,8 @@
  * swaps axes at draw time — the layout is direction-agnostic by
  * construction.
  *
- * Used only by [describe-ascii.ts](./describe-ascii.ts); not part of the
- * public `graph/index.ts` surface (underscore-prefixed).
+ * Used only by [to-ascii.ts](./to-ascii.ts); not part of the public
+ * `extra/render/index.ts` surface (underscore-prefixed).
  */
 
 export type LayoutDirection = "LR" | "TD";
