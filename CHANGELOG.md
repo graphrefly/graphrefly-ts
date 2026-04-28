@@ -1,3 +1,10 @@
+# [0.40.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.39.0...v0.40.0) (2026-04-28)
+
+
+### Features
+
+* implementation plan wave 2 ([0d1ee2c](https://github.com/graphrefly/graphrefly-ts/commit/0d1ee2c1ad19ce21b600bebc05fe4fd209033552))
+
 # [0.39.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.38.0...v0.39.0) (2026-04-28)
 
 
