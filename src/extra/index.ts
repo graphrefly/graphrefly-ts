@@ -7,6 +7,12 @@ export * from "./backoff.js";
 export * from "./backpressure.js";
 export * from "./cascading-cache.js";
 export * from "./composite.js";
+export type {
+	DescribeChangeset,
+	DescribeEvent,
+	Meta as DescribeNodeMeta,
+} from "./composition/topology-diff.js";
+export { topologyDiff } from "./composition/topology-diff.js";
 export * from "./content-addressed-storage.js";
 export * from "./cron.js";
 export * from "./external-register.js";

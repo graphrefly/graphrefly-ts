@@ -304,6 +304,82 @@ describe("Phase 5 — Scenario 4: LLM agent with tool use", () => {
 		pendingInput.down([[DATA, "hello"]]);
 		expect(result.status).not.toBe("pending");
 	});
+
+	it("prompt_node::call is transient — describe() does not surface it (Session C L9)", () => {
+		// Session C L9 acceptance: when no LLM call is in flight, describe()
+		// only shows ::messages + ::output. The per-wave producer (`::call`)
+		// activates inside switchMap during a wave and tears down on supersede
+		// or COMPLETE — it is intentionally transient.
+		//
+		// With a sync mockAdapter the producer activates and completes within
+		// the same synchronous wave, so any post-wave describe() never sees it.
+		// With a real (async) adapter, describe() called mid-wave WOULD see
+		// it via meta.ai = "prompt_node::call" — but that's an in-flight
+		// observation, not a steady-state expectation.
+		const adapter = mockAdapter([{ content: "ok" }]);
+		const input = node<string>();
+		const result = promptNode<string>(adapter, [input], (q) => `q: ${q}`);
+
+		const g = new Graph("g");
+		g.add(result, { name: "answer" });
+		// Force activation so the topology graph walks reach into promptNode internals.
+		const off = result.subscribe(() => {});
+		input.down([[DATA, "first"]]);
+
+		const snap = g.describe();
+		const paths = Object.keys(snap.nodes);
+
+		// `::messages` and `::output` are the steady-state shape.
+		expect(paths.some((p) => p.endsWith("prompt_node::messages"))).toBe(true);
+		expect(paths.some((p) => p === "answer" || p.endsWith("prompt_node::output"))).toBe(true);
+
+		// `::call` is per-wave; with a synchronous adapter it has already
+		// torn down by the time we describe.
+		expect(paths.some((p) => p.endsWith("prompt_node::call"))).toBe(false);
+
+		off();
+	});
+
+	it("promptNode emits exactly one DATA per upstream wave (Session C L8)", () => {
+		// Session C L8 acceptance gate: N upstream dep waves → exactly N DATAs
+		// on prompt_node::output, zero transient nulls, zero coalesce loss.
+		// Locks the path-(b) producer contract independent of harness entanglement
+		// (cf. archive/docs/SESSION-ai-harness-module-review.md line 3654).
+		const adapter = mockAdapter([
+			{ content: "response 1" },
+			{ content: "response 2" },
+			{ content: "response 3" },
+		]);
+		const input = node<string>(); // SENTINEL — no initial-no-input null leak
+		const result = promptNode<string>(adapter, [input], (q) => `q: ${q}`);
+
+		const dataValues: unknown[] = [];
+		result.subscribe((b) => {
+			for (const msg of b) {
+				if (msg[0] === DATA) dataValues.push(msg[1]);
+			}
+		});
+
+		// Wave 0 — SENTINEL: messagesNode's first-run gate blocks; switchMap
+		// never fires; outer cache stays undefined; subscriber sees nothing.
+		expect(dataValues).toEqual([]);
+
+		// Wave 1 → exactly 1 DATA.
+		input.down([[DATA, "first"]]);
+		expect(dataValues).toEqual(["response 1"]);
+
+		// Wave 2 → exactly 2 DATAs total (no transient null between waves).
+		input.down([[DATA, "second"]]);
+		expect(dataValues).toEqual(["response 1", "response 2"]);
+
+		// Wave 3 → exactly 3 DATAs total.
+		input.down([[DATA, "third"]]);
+		expect(dataValues).toEqual(["response 1", "response 2", "response 3"]);
+
+		// No transient nulls anywhere in the stream — the producer-shape inner
+		// emits parsed values via actions.emit only (never null pre-resolution).
+		expect(dataValues.filter((v) => v == null)).toEqual([]);
+	});
 });
 
 // ===========================================================================

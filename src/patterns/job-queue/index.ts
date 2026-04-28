@@ -9,7 +9,7 @@
  */
 
 import { wallClockNs } from "../../core/clock.js";
-import { batch, DATA, derived, ERROR, type Node } from "../../core/index.js";
+import { batch, DATA, derived, ERROR, type Node, placeholderArgs } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { reactiveList } from "../../extra/reactive-list.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
@@ -553,5 +553,12 @@ export function jobQueue<T>(name: string, opts?: JobQueueOptions): JobQueueGraph
  * Creates an autonomous multi-stage queue chain graph.
  */
 export function jobFlow<T>(name: string, opts?: JobFlowOptions<T>): JobFlowGraph<T> {
-	return new JobFlowGraph<T>(name, opts);
+	const g = new JobFlowGraph<T>(name, opts);
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` surfaces provenance. Route through
+	// `placeholderArgs` since `stages[].work` is a function and
+	// `opts.graph` may carry non-JSON fields.
+	const { factory: _f, factoryArgs: _fa, ...tagArgs } = (opts ?? {}) as Record<string, unknown>;
+	g.tagFactory("jobFlow", placeholderArgs(tagArgs));
+	return g;
 }

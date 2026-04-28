@@ -6,6 +6,7 @@ export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 
 import { batch } from "../../../core/batch.js";
 import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
+import { placeholderArgs } from "../../../core/meta.js";
 import { type Node, node as nodeFactory } from "../../../core/node.js";
 import { effect, state } from "../../../core/sugar.js";
 import { switchMap } from "../../../extra/operators.js";
@@ -740,5 +741,12 @@ interface InvokeInput {
 }
 
 export function agentLoop(name: string, opts: AgentLoopOptions): AgentLoopGraph {
-	return new AgentLoopGraph(name, opts);
+	const g = new AgentLoopGraph(name, opts);
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` exposes provenance. Opts include non-JSON
+	// fields (`adapter`, `tools`, `stopWhen`, `onToolCall`,
+	// `interceptToolCalls`, etc.) so route through `placeholderArgs`
+	// (DG2=ii).
+	g.tagFactory("agentLoop", placeholderArgs(opts as unknown as Record<string, unknown>));
+	return g;
 }

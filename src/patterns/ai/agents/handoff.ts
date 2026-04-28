@@ -1,3 +1,4 @@
+import { factoryTag } from "../../../core/meta.js";
 import type { Node } from "../../../core/node.js";
 import { derived, state } from "../../../core/sugar.js";
 import { switchMap } from "../../../extra/operators.js";
@@ -94,11 +95,15 @@ export function handoff<T>(
 
 	// When no condition is supplied, always route through the specialist.
 	if (cond == null) {
-		return switchMap<T | null, T | null>(src, (v) => {
-			if (v == null) return nullState as NodeInput<T | null>;
-			const input = state<T>(v);
-			return toFactory(input) as NodeInput<T | null>;
-		});
+		return switchMap<T | null, T | null>(
+			src,
+			(v) => {
+				if (v == null) return nullState as NodeInput<T | null>;
+				const input = state<T>(v);
+				return toFactory(input) as NodeInput<T | null>;
+			},
+			{ meta: factoryTag("handoff") },
+		);
 	}
 
 	// With a condition: pair src + cond into a router object, then switchMap
@@ -110,10 +115,14 @@ export function handoff<T>(
 		([v, open]) => ({ v: v as T | null, open: open === true }),
 		{ name: opts?.name ? `${opts.name}::router` : "handoff::router", describeKind: "derived" },
 	);
-	return switchMap<{ v: T | null; open: boolean }, T | null>(router, ({ v, open }) => {
-		if (v == null) return nullState as NodeInput<T | null>;
-		if (!open) return state<T | null>(v) as NodeInput<T | null>;
-		const input = state<T>(v);
-		return toFactory(input) as NodeInput<T | null>;
-	});
+	return switchMap<{ v: T | null; open: boolean }, T | null>(
+		router,
+		({ v, open }) => {
+			if (v == null) return nullState as NodeInput<T | null>;
+			if (!open) return state<T | null>(v) as NodeInput<T | null>;
+			const input = state<T>(v);
+			return toFactory(input) as NodeInput<T | null>;
+		},
+		{ meta: factoryTag("handoff") },
+	);
 }

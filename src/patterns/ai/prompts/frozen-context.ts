@@ -4,6 +4,7 @@
  * @module
  */
 
+import { factoryTag } from "../../../core/meta.js";
 import { type Node, node as nodeFactory } from "../../../core/node.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import { aiMeta } from "../_internal.js";
@@ -62,6 +63,11 @@ export function frozenContext<T>(
 	const src = fromAny(source);
 	const trigger = opts?.refreshTrigger != null ? fromAny(opts.refreshTrigger) : null;
 
+	// JSON-serializable subset of opts: omit `refreshTrigger` (a NodeInput).
+	const frozenArgs: Record<string, unknown> | undefined =
+		opts?.name !== undefined ? { name: opts.name } : undefined;
+	const frozenTag = factoryTag("frozenContext", frozenArgs);
+
 	// Single-shot path: deps = [src] only. Emit the first src value and then
 	// hold regardless of source drift.
 	if (trigger == null) {
@@ -91,7 +97,7 @@ export function frozenContext<T>(
 				name: opts?.name ?? "frozenContext",
 				describeKind: "derived",
 				initial: null,
-				meta: aiMeta("frozen_context"),
+				meta: aiMeta("frozen_context", { ...frozenTag }),
 			},
 		);
 	}
@@ -120,7 +126,7 @@ export function frozenContext<T>(
 			name: opts?.name ?? "frozenContext",
 			describeKind: "derived",
 			initial: null,
-			meta: aiMeta("frozen_context"),
+			meta: aiMeta("frozen_context", { ...frozenTag }),
 		},
 	);
 }

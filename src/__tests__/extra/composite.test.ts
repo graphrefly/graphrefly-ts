@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { derived, state } from "../../core/sugar.js";
 import { distill, verifiable } from "../../extra/composite.js";
 
 function tick(ms = 0): Promise<void> {
@@ -73,9 +73,10 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 		const source = state("alpha");
 		const bundle = distill(
 			source,
-			(raw) => ({
-				upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
-			}),
+			(rawNode) =>
+				derived([rawNode], ([raw]) => ({
+					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+				})),
 			{
 				score: (mem) => mem.points,
 				cost: () => 1,
@@ -92,12 +93,17 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	it("reactively evicts via dynamicNode-tracked condition", () => {
 		const source = state("x");
 		const evictToggle = state(false);
-		const bundle = distill(source, (raw) => ({ upsert: [{ key: raw, value: { text: raw } }] }), {
-			score: () => 1,
-			cost: () => 1,
-			budget: 10,
-			evict: () => evictToggle,
-		});
+		const bundle = distill(
+			source,
+			(rawNode) =>
+				derived([rawNode], ([raw]) => ({ upsert: [{ key: raw, value: { text: raw } }] })),
+			{
+				score: () => 1,
+				cost: () => 1,
+				budget: 10,
+				evict: () => evictToggle,
+			},
+		);
 
 		source.down([[DATA, "keep-me"]]);
 		expect(bundle.store.has("keep-me")).toBe(true);
@@ -110,7 +116,10 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 		const consolidateTrigger = state(false);
 		const bundle = distill(
 			source,
-			(raw) => ({ upsert: [{ key: raw, value: { text: raw, points: raw.length } }] }),
+			(rawNode) =>
+				derived([rawNode], ([raw]) => ({
+					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+				})),
 			{
 				score: (mem) => mem.points,
 				cost: () => 1,
@@ -139,7 +148,10 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 		const source = state("seed");
 		const bundle = distill(
 			source,
-			(raw) => ({ upsert: [{ key: raw, value: { text: raw, points: raw.length } }] }),
+			(rawNode) =>
+				derived([rawNode], ([raw]) => ({
+					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+				})),
 			{
 				score: (mem, context) => mem.points + (context as number),
 				cost: () => 1,
@@ -159,12 +171,17 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 
 	it("throws for invalid evict return type", () => {
 		const source = state("x");
-		const bundle = distill(source, (raw) => ({ upsert: [{ key: raw, value: { text: raw } }] }), {
-			score: () => 1,
-			cost: () => 1,
-			budget: 10,
-			evict: () => "bad" as unknown as boolean,
-		});
+		const bundle = distill(
+			source,
+			(rawNode) =>
+				derived([rawNode], ([raw]) => ({ upsert: [{ key: raw, value: { text: raw } }] })),
+			{
+				score: () => 1,
+				cost: () => 1,
+				budget: 10,
+				evict: () => "bad" as unknown as boolean,
+			},
+		);
 		expect(() => source.down([[DATA, "y"]])).not.toThrow();
 		expect(bundle.store.has("x")).toBe(true);
 	});
@@ -173,14 +190,16 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 		const source = state("seed");
 		const bundle = distill(
 			source,
-			(raw) =>
-				raw === "seed"
-					? { upsert: [{ key: raw, value: { text: raw } }] }
-					: ({
-							remove: ["seed"],
-						} as unknown as {
-							upsert: Array<{ key: string; value: { text: string } }>;
-						}),
+			(rawNode) =>
+				derived([rawNode], ([raw]) =>
+					raw === "seed"
+						? { upsert: [{ key: raw, value: { text: raw } }] }
+						: ({
+								remove: ["seed"],
+							} as unknown as {
+								upsert: Array<{ key: string; value: { text: string } }>;
+							}),
+				),
 			{
 				score: () => 1,
 				cost: () => 1,

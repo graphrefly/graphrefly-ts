@@ -7,6 +7,8 @@
 // through and exposes the composed bundles on the public `AgentMemoryGraph`.
 // ---------------------------------------------------------------------------
 
+import { DATA } from "../../../core/messages.js";
+import { placeholderArgs } from "../../../core/meta.js";
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
 import {
@@ -15,6 +17,7 @@ import {
 	distill,
 	type Extraction,
 } from "../../../extra/composite.js";
+import { switchMap } from "../../../extra/operators.js";
 import { fromAny, fromTimer, type NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
@@ -163,6 +166,11 @@ export function agentMemory<TMem = unknown>(
 	opts: AgentMemoryOptions<TMem>,
 ): AgentMemoryGraph<TMem> {
 	const graph = new Graph(name, opts.graph);
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` exposes provenance. Opts contain non-JSON
+	// fields (`adapter`, `extractFn`, `embedFn`, `score`, `cost`, `evict`,
+	// callbacks, etc.) so route through `placeholderArgs` (DG2=ii).
+	graph.tagFactory("agentMemory", placeholderArgs(opts as unknown as Record<string, unknown>));
 
 	// --- Extract function resolution ---
 	let rawExtractFn: (
@@ -176,12 +184,27 @@ export function agentMemory<TMem = unknown>(
 	} else {
 		throw new Error("agentMemory: provide either extractFn or adapter + extractPrompt");
 	}
+	// Tier 1.5.4 — distill's `extractFn` is now reactive (called once with
+	// nodes). Adapt the AgentMemoryOptions callback shape via switchMap +
+	// closure-mirror for `existing` (COMPOSITION-GUIDE §40 recipe).
+	// QA F9: register the closure-mirror's unsub with the host graph so
+	// `graph.destroy()` reclaims it — was previously leaked.
 	const extractFn = (
-		raw: unknown,
-		existing: ReadonlyMap<string, TMem>,
+		rawNode: Node<unknown>,
+		existingNode: Node<ReadonlyMap<string, TMem>>,
 	): NodeInput<Extraction<TMem>> => {
-		if (raw == null) return { upsert: [] };
-		return rawExtractFn(raw, existing);
+		let latestExisting: ReadonlyMap<string, TMem> =
+			(existingNode.cache as ReadonlyMap<string, TMem> | undefined) ?? new Map();
+		const unsubExisting = existingNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) latestExisting = m[1] as ReadonlyMap<string, TMem>;
+			}
+		});
+		graph.addDisposer(unsubExisting);
+		return switchMap(rawNode, (raw) => {
+			if (raw == null) return { upsert: [] };
+			return rawExtractFn(raw, latestExisting);
+		});
 	};
 
 	// --- Admission filter ---

@@ -26,8 +26,19 @@ export type DescribeNodeOutput = {
 	annotation?: string;
 };
 
-/** Detail level for progressive disclosure (Phase 3.3b). */
-export type DescribeDetail = "minimal" | "standard" | "full";
+/**
+ * Detail level for progressive disclosure (Phase 3.3b).
+ *
+ * - `"minimal"` — `type`, `deps` only.
+ * - `"standard"` — minimal + `status`, `value`, `meta`, `v`.
+ * - `"full"` — every field.
+ * - `"spec"` — Tier 1.5.3 / Session A.1 lock. Projects spec-relevant fields
+ *   (`type`, `deps`, `meta` — including `meta.factory` / `meta.factoryArgs`)
+ *   and strips runtime fields (`status`, `value`, `lastMutation`, `guard`,
+ *   `sentinel`). The output is structurally identical to the `GraphSpec`
+ *   shape so `decompileSpec(g) === describe(g, { detail: "spec" })`.
+ */
+export type DescribeDetail = "minimal" | "standard" | "full" | "spec";
 
 /** Valid field names for `describe({ fields: [...] })`. */
 export type DescribeField =
@@ -52,6 +63,10 @@ export function resolveDescribeFields(
 			return new Set(["type", "status", "value", "deps", "meta", "v"]);
 		case "full":
 			return null;
+		case "spec":
+			// Spec projection: structural fields + meta (carries factory/factoryArgs);
+			// strips runtime status/value/lastMutation/guard. Tier 1.5.3 lock.
+			return new Set(["type", "deps", "meta"]);
 		default:
 			return new Set(["type", "deps"]);
 	}
@@ -63,6 +78,119 @@ function inferDescribeType(n: NodeImpl): NodeDescribeKind {
 	if (!hasDeps) return n._fn != null ? "producer" : "state";
 	// With deps: derived (passthrough falls under derived, no fn → derived shape).
 	return "derived";
+}
+
+/**
+ * Walk an arbitrary value, replacing non-JSON-serializable fields with
+ * descriptive string placeholders (Tier 1.5.3 Phase 2.5 — DG2=ii). Useful for
+ * `Graph.prototype.tagFactory(name, args)` when the factory's options include
+ * `LLMAdapter` instances, callbacks, or `Node`s that don't survive
+ * serialization. Output preserves structure for documentation / audit value;
+ * recipients of the spec see "<Node>" / "<function>" / etc. in place of the
+ * unserializable bits.
+ *
+ * Heuristics:
+ * - `null` / `undefined` / boolean / number / string — kept as-is.
+ * - `function` — `"<function>"`.
+ * - Object with `subscribe` method — `"<Node>"` (matches Node-shape duck check).
+ * - Array — recursed.
+ * - Plain object — recursed.
+ * - Anything else — `"<unserializable>"`.
+ */
+export function placeholderArgs(opts: Record<string, unknown>): Record<string, unknown> {
+	const seen = new WeakSet<object>();
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of safeEntries(opts)) {
+		out[k] = _placeholderValue(v, seen);
+	}
+	return out;
+}
+
+function _placeholderValue(v: unknown, seen: WeakSet<object>): unknown {
+	if (v === null || v === undefined) return v;
+	const t = typeof v;
+	if (t === "boolean" || t === "number" || t === "string") return v;
+	if (t === "function") return "<function>";
+	if (Array.isArray(v)) {
+		// QA F6: cycle guard.
+		if (seen.has(v)) return "<cycle>";
+		seen.add(v);
+		return v.map((x) => _placeholderValue(x, seen));
+	}
+	if (t === "object") {
+		const obj = v as Record<string, unknown>;
+		// QA F6: cycle guard for plain objects.
+		if (seen.has(obj)) return "<cycle>";
+		seen.add(obj);
+		// Node-shape duck check: subscribe() + cache. Wrapped in try/catch in
+		// case `subscribe` is a getter with side effects (QA F7).
+		try {
+			if (typeof obj.subscribe === "function" && "cache" in obj) return "<Node>";
+		} catch {
+			return "<unserializable>";
+		}
+		const out: Record<string, unknown> = {};
+		for (const [k2, v2] of safeEntries(obj)) out[k2] = _placeholderValue(v2, seen);
+		return out;
+	}
+	return "<unserializable>";
+}
+
+/**
+ * QA F7: `Object.entries` triggers all enumerable own getters. A user-supplied
+ * options bag may include proxies or lazy adapters whose property access has
+ * side effects (connections, counters, throws). Skip properties that throw on
+ * read so `placeholderArgs` can't crash `tagFactory` time.
+ */
+function safeEntries(obj: Record<string, unknown>): Array<[string, unknown]> {
+	const out: Array<[string, unknown]> = [];
+	let keys: string[];
+	try {
+		keys = Object.keys(obj);
+	} catch {
+		return out;
+	}
+	for (const k of keys) {
+		try {
+			out.push([k, (obj as Record<string, unknown>)[k]]);
+		} catch {
+			out.push([k, "<unserializable>"]);
+		}
+	}
+	return out;
+}
+
+/**
+ * Build a `meta` fragment that stamps a factory identifier and its construction
+ * arguments onto a node, so `describe({ detail: "spec" })` exposes enough
+ * information for `compileSpec` to recreate the node from the snapshot.
+ *
+ * Use inside node-producing factories at construction time:
+ *
+ * ```ts
+ * import { factoryTag } from "@graphrefly/graphrefly";
+ *
+ * export function rateLimiter<T>(source: NodeInput<T>, opts: RateLimiterOptions): Node<T> {
+ *   return derived([fromAny(source)], fn, {
+ *     name: "rate-limiter",
+ *     meta: { ...factoryTag("rateLimiter", opts), domain: "resilience" },
+ *   });
+ * }
+ * ```
+ *
+ * `factoryArgs` should be JSON-serializable so the spec round-trips through
+ * `decompileSpec → compileSpec`. Function-typed args break determinism — use
+ * the {@link COMPOSITION-GUIDE} §39 `meta.fnId` pattern for those.
+ *
+ * Tier 1.5.3 (Session A.1 lock).
+ */
+export function factoryTag(
+	factory: string,
+	factoryArgs?: unknown,
+): { factory: string; factoryArgs?: unknown } {
+	const out: { factory: string; factoryArgs?: unknown } = { factory };
+	if (factoryArgs !== undefined) out.factoryArgs = factoryArgs;
+	return out;
 }
 
 /**

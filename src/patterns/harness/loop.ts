@@ -19,6 +19,7 @@
 
 import { monotonicNs } from "../../core/clock.js";
 import { derived, type Node } from "../../core/index.js";
+import { placeholderArgs } from "../../core/meta.js";
 import { node } from "../../core/node.js";
 import { effect, state } from "../../core/sugar.js";
 import { merge, withLatestFrom } from "../../extra/operators.js";
@@ -828,6 +829,13 @@ export function harnessLoop<A = unknown>(
 	for (const [route, jq] of jobQueues) {
 		harness.mount(`jobs/${route}`, jq);
 	}
+
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` exposes provenance. Opts include non-JSON
+	// fields (`adapter`, `executor`, `verifier`, `errorClassifier`,
+	// `lastInteractionNs` Node, prompt callbacks, etc.) so route through
+	// `placeholderArgs` (DG2=ii).
+	harness.tagFactory("harnessLoop", placeholderArgs(opts as unknown as Record<string, unknown>));
 
 	return harness;
 }

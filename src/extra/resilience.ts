@@ -13,6 +13,7 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../core/messages.js";
+import { factoryTag } from "../core/meta.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { producer } from "../core/sugar.js";
 import {
@@ -110,6 +111,13 @@ export function retry<T>(
 		return _retryFactory(input, opts as RetryFactoryOptions<T> | undefined);
 	}
 	return _retrySource(input, opts);
+}
+
+function retryFactoryArgs(opts?: RetryOptions): Record<string, unknown> | undefined {
+	const args: Record<string, unknown> = {};
+	if (opts?.count !== undefined) args.count = opts.count;
+	if (typeof opts?.backoff === "string") args.backoff = opts.backoff;
+	return Object.keys(args).length > 0 ? args : undefined;
 }
 
 function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
@@ -210,6 +218,7 @@ function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
+			meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
 		},
 	);
 }
@@ -320,6 +329,7 @@ function _retryFactory<T>(factory: () => Node<T>, opts?: RetryFactoryOptions<T>)
 		{
 			...operatorOpts(),
 			initial: opts?.initial as T | undefined,
+			meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
 		},
 	);
 }
@@ -552,7 +562,10 @@ export function withBreaker<T>(
 			},
 			{
 				...operatorOpts(),
-				meta: { breakerState: breaker.state },
+				meta: {
+					breakerState: breaker.state,
+					...factoryTag("withBreaker", { onOpen }),
+				},
 				completeWhenDepsComplete: false,
 				initial: source.cache,
 			},
@@ -769,6 +782,7 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<
 		{
 			...operatorOpts(),
 			initial: source.cache,
+			meta: { ...factoryTag("rateLimiter", opts) },
 		},
 	);
 }
@@ -853,7 +867,11 @@ export function withStatus<T>(
 		},
 		{
 			...operatorOpts(),
-			meta: { status: initialStatus, error: null },
+			meta: {
+				status: initialStatus,
+				error: null,
+				...factoryTag("withStatus", { initialStatus }),
+			},
 			completeWhenDepsComplete: false,
 			resubscribable: true,
 			initial: src.cache,
@@ -984,6 +1002,7 @@ export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
+			meta: { ...factoryTag("fallback") },
 		},
 	);
 }
@@ -1066,6 +1085,7 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
+			meta: { ...factoryTag("timeout", { timeoutNs }) },
 		},
 	);
 }

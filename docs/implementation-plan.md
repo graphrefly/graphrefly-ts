@@ -14,7 +14,7 @@ Items below are sorted **most foundational + most impactful at the top → least
 |---|---|---|---|
 | A | Three-layer view + changeset stream + extractFn contract | A.1 (describe topology) · A.2 (observe data) · A.3 (functions) · A.4 (tiers filter + LensGraph fate) · A.5 (distill extractFn) | ✅ locked |
 | B | GATE / hub topology | B.1 (foreign-node-accept canonical) · B.2 (hub criterion) · B.3 (named-node placement) | ✅ locked |
-| C | promptNode switchMap sentinel handling | TBD — small scope (lock path (b) `producer` over `fromAny→derived`) | ⏳ pending |
+| C | promptNode switchMap sentinel handling | C.1 (path (b) lock) · C.2 (`::call` naming) · C.3 (`state(null)` empty branch) · C.4 (init/mid-flow distinction) · C.5 (forward-unknown) · C.6 (consumer-side state-mirror) · C.7 (ERROR on JSON-parse fail) · C.8 (isolated unit-test gate) · C.9 (Tier 6.6 reduced scope) | ✅ locked |
 
 Full session logs in chat history. Locks summarized inline at each tier they unblock.
 
@@ -22,17 +22,27 @@ Full session logs in chat history. Locks summarized inline at each tier they unb
 
 ## Tier 1 — Remaining foundational design
 
-### 1.1 §1.4 spec amendment (INVALIDATE-at-diamond coalescing)
+### 1.1 §1.4 spec amendment (INVALIDATE-at-diamond coalescing) ✅ landed (verified 2026-04-27)
 - **Source:** optimizations.md (2026-04-23)
-- **What:** Update `~/src/graphrefly/GRAPHREFLY-SPEC.md` §1.4 to formalize the runtime's coalescing guarantee.
-- **Why:** Spec is the behavior authority. Pure doc edit.
-- **Blocked by:** doc edit only.
+- **Status:** Already in spec at [GRAPHREFLY-SPEC.md §1.4 lines 185–207](~/src/graphrefly/GRAPHREFLY-SPEC.md). Two paragraphs cover the rule:
+  - "INVALIDATE delivery is idempotent within a wave" — fan-in coalescing.
+  - "Never-populated case" — first-time INVALIDATE at unsettled mid-chain derived is a no-op.
+- **Action:** mark optimizations.md entry resolved.
 
-### 1.2 Session C — `promptNode` switchMap sentinel handling
-- **Source:** AI/harness audit Unit 1 (BLOCKED)
-- **What:** Lock path for `promptNode` rewrite. Two viable paths from audit: (a) `filter(v != null) / distinctUntilChanged` guard inside switchMap inner, (b) `producer` instead of `fromAny → derived` so response node emits once per wave. Audit recommends (b) — matches HarnessExecutor's "one emission per wave" contract.
-- **Why:** Unblocks Tier 6.6 promptNode rewrite (currently reverted; harness retry/queue-depth tests regress).
-- **Blocked by:** small design session — likely 15-min "confirm path (b) and validate against `harness.test.ts`". Should run AFTER Session B's harness reshape lands so the executor boundary is final.
+### 1.2 Session C — `promptNode` switchMap sentinel handling ✅ locked 2026-04-27
+- **Source:** AI/harness audit Unit 1 ([SESSION-ai-harness-module-review.md:223](archive/docs/SESSION-ai-harness-module-review.md:223)) + reverted-rewrite root cause ([line 3654](archive/docs/SESSION-ai-harness-module-review.md:3654)).
+- **Lock summary:** Path (b) producer-based confirmed. Topology: `prompt_node::messages` (derived) → `prompt_node::output` (switchMap product, `meta.ai = "prompt_node::output"`). Per-wave inner: `prompt_node::call` (producer wrapping `fromAny(adapter.invoke(msgs)).subscribe(...)`, `meta.ai = "prompt_node::call"`). Empty-msgs branch dispatches `state<T|null>(null)`. Abort via `nodeSignal(opts.abort)` + `AbortController`.
+- **Decisions locked (L1–L9):**
+  - **L1** — Path (b) producer-based is the official design. Path (a) `derived + filter/distinctUntilChanged` rejected: derived's first-run gate leaks transient nulls; filter doesn't address the secondary 20-retry race observed in the reverted attempt.
+  - **L2** — Inner-node naming `::call` (not `::response`). `meta.ai.kind = "prompt_node::call"` already shipped; "call" describes the action, `::output` already covers the produced node.
+  - **L3** — Empty-msgs branch keeps `state<T|null>(null)`. Push-on-subscribe semantics emit the mid-flow drop-out signal exactly once.
+  - **L4** — Initial-no-input (SENTINEL, no emission) vs mid-flow no-input (emits `null`) distinction is load-bearing for `withLatestFrom`-paired triggers; keep.
+  - **L5** — Forward-unknown for non-DATA/ERROR/COMPLETE messages via `actions.down([msg as never])` per spec §1.3.6.
+  - **L6** — Cross-wave cache stickiness (§32) is a consumer concern. `promptNode` stays primitive; JSDoc cross-link to §32 required in Tier 6.6.
+  - **L7** — JSON-parse failure emits `[ERROR, wrapped]` + terminates inner. "Retry on invalid JSON" is downstream (verifier stage or `withRetry` policy on adapter).
+  - **L8** — Acceptance gate: `harness.test.ts` retry/reingestion/queue-depth stay green AND add isolated unit test ("N upstream dep waves → exactly N DATAs on `prompt_node::output`, zero transient nulls, zero coalesce loss") to `phase5-llm-composition.test.ts` or new `prompt-node.test.ts`.
+  - **L9** — Tier 6.6 reduced scope: JSDoc additions (§32 cross-link + middleware recipe), L8 unit test, resolution of the open `prompt_node::call`-in-`describe()` visibility question. No topology change.
+- **Unblocks:** Tier 6.6.
 
 ---
 
@@ -41,8 +51,8 @@ Full session logs in chat history. Locks summarized inline at each tier they unb
 These extend the public surface of `Graph`. Land before Tier 5 (Wave B blocks consume them) and ideally before Tier 2 reorg lands so the consolidation diffs cover the new entry points.
 
 ### 1.5.1 `describe` topology layer (Session A.1 lock)
-- **Add reactive diff variant:** `describe({ reactive: "diff" }): ReactiveDescribeHandle<DescribeChangeset>`. Snapshot variant (`reactive: true`) unchanged.
-- **Drop `format` option from `describe`:** describe outputs spec only. Renderers move to `extra/render/` (see 2.1).
+- **✅ Reactive diff variant landed (2026-04-27):** `describe({ reactive: "diff" }): ReactiveDescribeHandle<DescribeChangeset>` — wired in [graph.ts](src/graph/graph.ts), backed by `_describeReactiveDiff` which wraps the existing snapshot stream and emits diffs via `topologyDiff` from [extra/composition/topology-diff.ts](src/extra/composition/topology-diff.ts). Initial cache is a synthetic full-add diff. Empty changesets suppressed. Snapshot variant (`reactive: true`) unchanged.
+- **⏳ `format` option removal — deferred to Tier 2.1:** drop pairs naturally with the renderer extraction so consumers and tests migrate atomically. Tracked there.
 - **Diff envelope:**
   ```ts
   type DescribeChangeset = { events: ReadonlyArray<DescribeEvent>; flushedAt_ns: number };
@@ -59,30 +69,158 @@ These extend the public surface of `Graph`. Land before Tier 5 (Wave B blocks co
 - **Internal helper:** `topologyDiff(prev: GraphDescribeOutput, next: GraphDescribeOutput): DescribeChangeset` — pure function, used by `describe({ reactive: "diff" })` internally; re-exported from `extra/composition/topology-diff.ts` for static-snapshot diffing.
 
 ### 1.5.2 `observe` data layer (Session A.2 + A.4 lock)
-- **Add reactive variant:** `observe({ reactive: true }): Node<ObserveChangeset>` and the all-paths overload. Coalesced via `registerBatchFlushHook` (same mechanism as `describe({ reactive: true })`).
-- **Envelope:**
+- **✅ Reactive variant landed (2026-04-27):** `observe({ reactive: true }): Node<ObserveChangeset>` — both single-path and all-paths overloads. Wired via `_observeReactive` in [graph.ts](src/graph/graph.ts) using a producer-bound structured observer + `registerBatchFlushHook` coalescer. Cleanup is producer-lifecycle bound (last unsubscribe tears down the inner observer).
+- **Envelope landed:**
   ```ts
   type ObserveChangeset = { events: ReadonlyArray<ObserveEvent>; flushedAt_ns: number };
   ```
-  Each event already carries `event.path`. One DATA wave per batch flush.
-- **Add `tiers` option:** `ObserveOptions.tiers?: readonly ObserveTier[]` (default = all). Applies to both callback and reactive variants.
+  Each event carries `event.path`.
+- **✅ `tiers` option (reactive variant) landed:** `ObserveOptions.tiers?: readonly ObserveTier[]` filters before accumulation. `ObserveTier = ObserveEvent["type"]` exported. Default = all.
+- **✅ `tiers` for the structured-callback variant landed (2026-04-27):** filter applied at the central `recordEvent` funnel in `_createObserveResult` — out-of-scope events are dropped before they hit the events buffer, the listener fan-out (onEvent), the async iterable, and the format logger. One insertion point covers all surfaces.
 - **Callback API unchanged.**
 
-### 1.5.3 `GraphSpec ≡ GraphDescribeOutput` unification (Session A.1 lock)
-- Spec and describe collapse into a single canonical JSON shape. `GraphSpec` becomes a structural alias of `GraphDescribeOutput`; `decompileSpec(g) === describe(g, { detail: "spec" })`.
-- **Factory self-tagging:** factories register `factory + factoryArgs` via meta at construction time (or via a dedicated registration helper). Catalog automation (memory `project_catalog_automation.md`) shapes most of this.
-- **`compileSpec` reads** from `meta.factory` + `meta.factoryArgs`, looks up the catalog, recreates.
-- **New detail level** `detail: "spec"` projects spec-relevant fields (factory, factoryArgs, name, deps, meta) and strips runtime fields (status, value, lastMutation, guard).
-- **Audit C24-2 obsolete** — decompile is no longer approximate.
+### 1.5.3 `GraphSpec ≡ GraphDescribeOutput` unification (Session A.1 lock) — Phase 1 ✅ landed (2026-04-27)
 
-### 1.5.4 distill `extractFn` reactive form (Session A.5 lock)
-- **New signature:** `extractFn: (raw: Node<TRaw>, existing: Node<ReadonlyMap<string, TMem>>) => NodeInput<Extraction<TMem>>`. One-shot wire at distill time; no internal switchMap.
-- **No callback overload** — single shape (pre-1.0, no backwards-compat).
-- **Migrate consumers:** [agent-memory.ts:228](src/patterns/ai/memory/agent-memory.ts:228) (Wave AM AM.3), upcoming `llmExtractor` / `llmConsolidator` (Wave AM AM.0).
-- **COMPOSITION-GUIDE recipe:** "For cancel-on-new-input semantics, wrap with `switchMap` inside `extractFn`."
+**Three-phase plan** (D1–D5 picks: phase 1 2 3 / d2 a / d3 b / d4 go / d5 renames).
 
-### 1.5.5 Functions-layer convention (Session A.3 lock)
-- Doc-only. COMPOSITION-GUIDE adds: "Functions are non-serializable. Callers wanting fn identity put it in node `meta` (e.g., `meta.fnId('extractor::v1')`). `describe()` surfaces it via `meta`."
+#### Phase 1 ✅ — substrate (landed 2026-04-27)
+- **`detail: "spec"` projection** — added in [core/meta.ts](src/core/meta.ts) `resolveDescribeFields`; projects `type` / `deps` / `meta` (which carries `factory` / `factoryArgs`) and strips `status` / `value` / `lastMutation` / `guard`.
+- **`factoryTag(name, args?)` helper** — exported from [core/meta.ts](src/core/meta.ts) and re-exported from [core/index.ts](src/core/index.ts). Returns `{ factory, factoryArgs? }` — factories spread it into their `meta` option at construction time.
+- **`compileSpec` dual-read** — [graphspec/index.ts](src/patterns/graphspec/index.ts) `normalizeSpec` runs at the top of `compileSpec`. Nodes with `meta.factory` get normalized into the legacy `fn` / `source` / `config` field-form so the rest of the compile pipeline works unchanged. Legacy fields take precedence when both forms set (explicit specs win).
+- **`decompileSpec` rename (D5)** — [graphspec/index.ts](src/patterns/graphspec/index.ts) exports `decompileSpec` as a thin alias for `decompileGraph`. Phase 3 will retire the old name.
+- **Tests** — new [spec-roundtrip.test.ts](src/__tests__/graphspec/spec-roundtrip.test.ts) covers projection, helper, dual-read, legacy precedence, and a full decompile→compile round-trip on a factoryTag-stamped graph. 10/10 green.
+- **D2 (a)** locked: catalog stays `{ fns, sources }` — `meta.factory` populates whichever side fits the node type (producer → source; else fn).
+- **State node `initial` gap noted** — `detail: "spec"` strips `value`, but state nodes need `initial` for re-creation. Phase 1 path: `decompileSpec` (delegating to `decompileGraph`) preserves `initial` from `value`. Phase 3 will resolve more cleanly via state factories tagging themselves with `factoryTag("state", { initial })`, OR retaining `value` in the spec projection for state-typed nodes.
+
+#### Phase 2 — factory self-tagging migration (in progress)
+
+Tag load-bearing factories so their constructed nodes carry `meta.factory` + `meta.factoryArgs`. Mechanical: each factory that produces a user-facing named node spreads `factoryTag(name, opts)` into its `meta` option.
+
+**Tagged so far (✅ landed 2026-04-27):**
+- [resilience.ts](src/extra/resilience.ts): `rateLimiter`, `timeout`, `retry` (sanitized factoryArgs — preset name only, function form omitted via `retryFactoryArgs` helper).
+- [operators.ts](src/extra/operators.ts): `scan` (tagged with `{ initial }`), `distinctUntilChanged`, `merge` (both empty-source and N-source branches), `switchMap`, `debounce` (`{ ms }`), `throttle` (`{ ms, leading, trailing }`), `bufferTime` (`{ ms }`). Function-typed args (project, equality, predicate) intentionally omitted.
+- [frozen-context.ts](src/patterns/ai/prompts/frozen-context.ts): `frozenContext` (both single-shot and refresh-trigger branches; `factoryArgs: { name }` only when caller supplies one — non-serializable `refreshTrigger` omitted, merged into existing `aiMeta(...)`).
+- All verified via 12 new `it()` blocks in [spec-roundtrip.test.ts](src/__tests__/graphspec/spec-roundtrip.test.ts) Phase 2 suite (22 total). 2390 tests passing.
+
+**Phase 2 single-node operator mop-up ✅ landed (2026-04-27, parallel batch):**
+- [operators.ts](src/extra/operators.ts): `map`, `filter`, `reduce` (with `{ initial: seed }`), `take` (both `count <= 0` and normal branches, with `{ count }`), `tap` (both function and observer forms), `withLatestFrom`. Function-typed args (project, predicate, reducer, observer) intentionally omitted from factoryArgs.
+- 6 new regression tests appended to [spec-roundtrip.test.ts](src/__tests__/graphspec/spec-roundtrip.test.ts) "Phase 2 operator mop-up" suite.
+- Skipped: `takeWhile`, `takeUntil`, `buffer` (function/Node args, lower priority — defer).
+
+*Bundle factories — primary-node-tag pattern decision needed (DG3):*
+- `verifiable` ([composite.ts:56](src/extra/composite.ts:56)) — tag the `verified` companion or wrap the source coercion node
+- `withStatus` ([resilience.ts:807](src/extra/resilience.ts:807)) — tag `out` (the wrapping node)
+- `withBreaker` ([resilience.ts:511](src/extra/resilience.ts:511)) — same pattern
+
+*Skip (non-node return / non-serializable args):*
+- `circuitBreaker` (line 393) — returns object, not node
+- `fallback` (line 941) — `fb` can be Node/Promise/AsyncIterable (non-JSON)
+- `tokenBucket` (line 598) — returns TokenBucket object
+
+**Phase 2.5 — Graph-factory tagging (DG1=B, DG2=ii, DG3=no, DG4=now) — substrate ✅ landed (2026-04-27)**
+
+Substrate:
+- [GraphOptions](src/graph/graph.ts) — added `factory?: string` + `factoryArgs?: unknown` (constructor stores them).
+- [GraphDescribeOutput](src/graph/graph.ts) — added top-level `factory?` + `factoryArgs?` so `describe()` surfaces provenance.
+- [Graph.prototype.tagFactory](src/graph/graph.ts) — fluent mutator for post-construction tagging from inside Graph-returning factories.
+- [placeholderArgs](src/core/meta.ts) helper — recursive walker substitutes `"<function>"` / `"<Node>"` / `"<unserializable>"` for non-JSON fields per DG2=ii. Re-exported from [core/index.ts](src/core/index.ts).
+- [GraphSpec.factory](src/patterns/graphspec/index.ts) + [GraphSpecCatalog.graphFactories](src/patterns/graphspec/index.ts) — new `GraphFactory = (factoryArgs: unknown) => Graph` type. `compileSpec` early-dispatches when `spec.factory` matches a `catalog.graphFactories` entry; otherwise falls through to per-node compile (graceful fallback).
+
+Flagship migration:
+- [pipelineGraph](src/patterns/orchestration/pipeline-graph.ts) tagged via `g.tagFactory("pipelineGraph", tagArgs)` (constructor opts spread, with `factory`/`factoryArgs` keys excluded from the recursive nesting).
+
+Tests (7 new in spec-roundtrip.test.ts):
+- `tagFactory()` surfaces in `describe()` (default detail) and `describe({ detail: "spec" })`.
+- `GraphOptions.factory` constructor seeding.
+- `placeholderArgs` recursive walker (function → `"<function>"`, Node → `"<Node>"`, primitives kept).
+- `compileSpec` delegates to `catalog.graphFactories[name]` when matched.
+- `compileSpec` falls back to per-node compile when no match.
+- `pipelineGraph` self-tags correctly.
+
+**Phase 2.5 mop-up ✅ landed (2026-04-27, parallel batch + agents):**
+- [agent-memory.ts:173](src/patterns/ai/memory/agent-memory.ts:173) `agentMemory` — tags inner Graph; `placeholderArgs` over opts (adapter / extractFn / score / cost / embedFn / entityFn / callbacks).
+- [harness/loop.ts:838](src/patterns/harness/loop.ts:838) `harnessLoop` — tags `HarnessGraph`; `placeholderArgs`.
+- [agents/agent-loop.ts:750](src/patterns/ai/agents/agent-loop.ts:750) `agentLoop` — tags `AgentLoopGraph`; `placeholderArgs`.
+- [cqrs/index.ts](src/patterns/cqrs/index.ts) `cqrs` — tags `CqrsGraph`; `placeholderArgs` (note: public factory is `cqrs`, not `cqrsGraph`).
+- [job-queue/index.ts:562](src/patterns/job-queue/index.ts:562) `jobFlow` — tags `JobFlowGraph`; `placeholderArgs` over `{ stages: [{ work: "<function>", ... }], ... }`.
+- [orchestration/pipeline-graph.ts:583](src/patterns/orchestration/pipeline-graph.ts:583) `pipelineGraph` (flagship) — already landed substrate-side.
+- 7 new regression tests across `factory-tags-memory-harness.test.ts` (3) + `factory-tags-orchestration.test.ts` (3) + the existing flagship test in `spec-roundtrip.test.ts`.
+
+**QA pass landed (2026-04-27, post-Phase-2.5 mop-up):** 14 of 25 reviewer findings patched in-batch (F1 decompile preserves top-level factory; F2 `_observeReactive` drains push-on-subscribe events; F3 tier filter applies to counters; F4 `compileSpec` validates before early-dispatch; F5 strip runtime sibling keys at decompile; F6 `placeholderArgs` cycle guard via WeakSet; F7 `placeholderArgs` getter-side-effect safety via try/catch; F8 `tagFactory` always-resets factoryArgs; F9 agent-memory closure-mirror unsub registered via `graph.addDisposer`; F10 `_describeReactiveDiff` settles `diffNode` with TEARDOWN on dispose; F11 `topologyDiff` actually shallow-copies node entries; F12 `_observeReactive` redundant tier filter dropped; F13 `pipelineGraph` routes opts through `placeholderArgs`; F14 `normalizeSpecNode` strips `meta.factory` when legacy fields took precedence). 11 deferred items tracked in `docs/optimizations.md`. 2417 tests passing.
+
+**Skipped at Graph-level + bundle-tagging design session (DT1–DT5 — locked 2026-04-27):**
+
+*Bundle factories — DT1=B (tag primary node), DT2=table-picks (landed alongside this batch):*
+- `verifiable` → tag `bundle.verified` (the verification-result node, not the source coercion).
+- `withStatus` → tag the wrapping output node.
+- `withBreaker` → tag the wrapping output node.
+- `distill` → tag `bundle.compact` (the user-facing budgeted memory view).
+- `gatedStream` → tag `bundle.output` (the gate-released stream).
+- `streamingPromptNode` → tag `bundle.output` (the accumulated text).
+- `handoff`, `toolSelector` → tag the returned Node.
+
+*Plain-object factories — DT3=A (skip + JSDoc note as "library helper, not in graph topology"):*
+- `processManager` ([process/index.ts](src/patterns/process/index.ts)) — returns `ProcessManagerResult<TState>` (object with `instances`/`start`/`cancel`/`getState`); not in graph topology.
+- `circuitBreaker`, `tokenBucket` ([extra/resilience.ts](src/extra/resilience.ts)) — return non-Node objects; their consumers (e.g., adapter stacks) carry provenance via their own factoryTag.
+
+*Other:*
+- `fallback` — DT4 = tag with name only (no factoryArgs since `fb` arg is non-JSON).
+- `harnessGraph` — no separate factory; class is constructed only via `harnessLoop` (already tagged).
+- `policyEnforcer` — DT5 (revised) = **defer tagging to Tier 2.3**, where the rename to `policyGate` lands. Tagging with the soon-to-be-deprecated name would create rename churn (every `meta.factory === "policyEnforcer"` matcher breaks at rename).
+- `reactiveExplainPath` — `@deprecated`, will be removed pre-1.0; do not tag.
+
+#### Phase 3 ⏭️ — drop dual-read + collapse the type alias
+- Make `GraphSpec` a structural alias of `GraphDescribeOutput` (deletes `GraphSpecNode`'s `fn` / `source` / `config` / `initial` field-form). **Note (Phase 2.5 carry):** the alias must include top-level `factory?: string` + `factoryArgs?: unknown` since Phase 2.5 added these to `GraphDescribeOutput`. `compileSpec`'s graphFactories early-dispatch (currently checks `(spec as { factory?: string }).factory`) becomes a typed read.
+- Drop the `normalizeSpec` step from `compileSpec` — the catalog lookup reads `meta.factory` directly.
+- Make `decompileSpec(g) === g.describe({ detail: "spec" })` (thin one-liner; remove the special-case feedback / template extraction since those should live in meta by Phase 2's end). Spec-projection must include top-level `factory` / `factoryArgs` for Graph-level tags to round-trip.
+- Drop `decompileGraph` export.
+- Migrate all in-tree consumers using legacy field-form: ~20 test files, evals fixtures, LLM prompt example output (`generateCatalogPrompt`), memory references, public docs/examples.
+- Resolve the state-`initial` question (factoryTag-`state` vs spec-projection-keeps-value).
+- **Estimated:** session-or-two of mechanical migration; touches public-facing surface (LLM prompt format) so QA pass needed.
+
+**Why phased:** Phase 1's substrate is reversible and low-risk; Phases 2 and 3 are mechanical migrations that benefit from focused QA passes (per the user's "no autonomous decisions on multi-file rewrites" preference).
+
+**Audit C24-2 obsolete** when Phase 3 lands — decompile is no longer approximate.
+
+### 1.5.4 distill `extractFn` reactive form (Session A.5 lock) ✅ landed (2026-04-27)
+- **New signature landed:** `extractFn: (raw: Node<TRaw>, existing: Node<ReadonlyMap<string, TMem>>) => NodeInput<Extraction<TMem>>` in [composite.ts:166](src/extra/composite.ts:166). Distill calls extractFn ONCE at wiring time and consumes the returned reactive stream. Internal `switchMap` removed; user controls cancellation / queueing semantics.
+- **Single shape**, no callback overload (pre-1.0, breaking).
+- **Consumer migrated:** [agent-memory.ts](src/patterns/ai/memory/agent-memory.ts) — `rawExtractFn` (still callback-style at the public API surface) wrapped in a closure-mirror + `switchMap` adapter that conforms to the new distill shape. Existing callback API on `AgentMemoryOptions.extractFn` preserved for downstream consumers; only the internal hand-off changed.
+- **Test sites migrated:** [composite.test.ts](src/__tests__/extra/composite.test.ts) — 6 distill call sites updated to `(rawNode) => derived([rawNode], ([raw]) => ({ ... }))` for sync transforms. 10/10 tests green.
+- **COMPOSITION-GUIDE §40 added:** [~/src/graphrefly/COMPOSITION-GUIDE.md](~/src/graphrefly/COMPOSITION-GUIDE.md) — cancel-on-new-input recipe, operator comparison table (switchMap / concat / mergeMap / derived), closure-mirror rationale (avoids `withLatestFrom` push-on-subscribe hazard per §32), sync-transform shortcut.
+- **Note:** `consolidate` callback still callback-style; lock did not migrate it. Closure-mirror for `latestStore` retained inside distill solely for consolidate.
+- **`llmExtractor` / `llmConsolidator`** (Wave AM AM.0) are unchanged — they return `(raw, existing) => NodeInput` callbacks that consumers wrap. Their internal shape doesn't need migration.
+
+### 1.5.5 Functions-layer convention (Session A.3 lock) ✅ landed (2026-04-27)
+- COMPOSITION-GUIDE §39 "Function identity via meta — fn-id convention" added in [~/src/graphrefly/COMPOSITION-GUIDE.md](~/src/graphrefly/COMPOSITION-GUIDE.md). Documents caller-stamped `meta.fnId("extractor::v1")` convention, naming format, why factory-implicit IDs aren't viable (closure state breaks naive hashing), and pairing with §37 handler-version audit (per-record vs per-node identity).
+
+---
+
+## Tier 1.6 — Naming + outcome conventions (locked 2026-04-27)
+
+Doc + light-migration locks for path-separator naming and data-level outcome/status enums. Naming is observation-of-existing-practice (no code migration); enum migrations ride along with Tier 2.3.
+
+### 1.6.1 Path-separator convention
+- **`::`** — compound-factory internals: one factory ships multiple sub-nodes that operate as a unit; `meta.ai.kind` matchers and `describe()` pretty-rendering use the prefix. Examples: [prompt-node.ts:142](src/patterns/ai/prompts/prompt-node.ts:142) `prompt_node::messages` / `::call` / `::output`; [reduction/index.ts:118](src/patterns/reduction/index.ts:118) `${stage}::input` / `::output`; [suggest-strategy.ts:209](src/patterns/ai/graph-integration/suggest-strategy.ts:209) `suggestStrategy::call`.
+- **`/`** — namespace / domain grouping for independent nodes. Examples: [demo-shell/index.ts:120](src/patterns/demo-shell/index.ts:120) `pane/main-ratio`, `viewport/width`, `graph/mermaid`, `hover/target`.
+- **Doc target:** new §38 "Naming conventions" in `~/src/graphrefly/COMPOSITION-GUIDE.md`. No code migration — current usage already conforms.
+
+### 1.6.2 Outcome enum (action result, data-level — distinct from protocol COMPLETE/ERROR)
+- **Canonical:** `outcome: "success" | "failure" | "partial"`.
+- **Already canonical:** `harness/types.ts`, `harness/actuator-executor.ts`, `harness/refine-executor.ts`, `harness/loop.ts`.
+- **Migrate:**
+  - [cqrs/index.ts:130, 148](src/patterns/cqrs/index.ts:130) — `status: "success" | "failed"` → `outcome: "success" | "failure"` (rename field; `"partial"` n/a)
+  - [process/index.ts:63](src/patterns/process/index.ts:63) — step `kind: "ok" | "fail"` → `outcome: "success" | "failure"`
+- **Lands with:** Tier 2.3 pre-1.0 renames.
+
+### 1.6.3 Status enum (lifecycle — long-running things)
+- **Canonical:** `status: "running" | "completed" | "errored" | "cancelled"`. Past-participle `errored` pairs with `completed`.
+- **Migrate:**
+  - [pipeline-graph.ts:96](src/patterns/orchestration/pipeline-graph.ts:96) terminal cause: `kind: "complete" | "error"` → `kind: "completed" | "errored"; error?: unknown`
+  - [resilient-pipeline/index.ts:80](src/patterns/resilient-pipeline/index.ts:80) — `"active"` → `"running"`; `"pending"` retained (distinct from running).
+  - [process/index.ts:110](src/patterns/process/index.ts:110) — `"failed"` → `"errored"`; `"terminated"` and `"compensated"` retained as documented domain-specific extensions.
+  - [core/config.ts:185](src/core/config.ts:185) and [_invariants.ts:3298](src/__tests__/properties/_invariants.ts:3298) — already aligned ✓.
+- **Lands with:** Tier 2.3 pre-1.0 renames.
 
 ---
 
@@ -90,9 +228,9 @@ These extend the public surface of `Graph`. Land before Tier 5 (Wave B blocks co
 
 ### 2.1 Consolidation Phase 1 — `extra/` folder split + renderer extraction
 - **From consolidation plan §"Phase 1":** Mechanical codemod splitting `operators.ts`, `sources.ts`, `adapters.ts`, `resilience.ts` into folder structures (`operators/`, `sources/`, `io/`, `resilience/`, `data-structures/`, `storage/`, `composition/`).
-- **From Session A.1:** Extract describe formatters into `extra/render/` as pure functions over `GraphDescribeOutput`:
+- **From Session A.1 (carries Tier 1.5.1 deferred item):** Extract describe formatters into `extra/render/` as pure functions over `GraphDescribeOutput`:
   - `toMermaid`, `toMermaidUrl`, `toAscii`, `toD2`, `toPretty`.
-  - Drop `format` option from `describe` API; consumers compose `describe → derived(toMermaid)` for live formatted output.
+  - Drop `format` option from `describe` API in the same change; consumers compose `describe → derived(toMermaid)` for live formatted output. Migrate ~10 in-tree consumers ([loop.ts](src/patterns/harness/loop.ts), [demo-shell/index.ts](src/patterns/demo-shell/index.ts), [llm-memory.ts](src/patterns/ai/memory/llm-memory.ts), [streaming.ts](src/patterns/ai/prompts/streaming.ts), [describe-ascii.ts](src/graph/describe-ascii.ts), tests in [graph.test.ts](src/__tests__/graph/graph.test.ts), [codec.test.ts](src/__tests__/graph/codec.test.ts), [describe-ascii.test.ts](src/__tests__/graph/describe-ascii.test.ts), [ai.test.ts](src/__tests__/patterns/ai.test.ts), [adapters.storage.test.ts](src/__tests__/extra/adapters.storage.test.ts)).
 - No renames, no behavior change. `assertBrowserSafeBundles` guardrail still applies.
 
 ### 2.2 Consolidation Phase 2 — promotions to `extra/`
@@ -106,6 +244,8 @@ These extend the public surface of `Graph`. Land before Tier 5 (Wave B blocks co
 - `gate` → `approvalGate` (orchestration), `policyEnforcer` → `policyGate`.
 - Delete `lightCollection` (fold into `collection({ ranked: false })`), delete `fromLLM` (fold into `promptNode` with options).
 - Demote `effectivenessTracker` to harness preset.
+- Apply Tier 1.6.2 outcome-enum + Tier 1.6.3 status-enum migrations across `cqrs`, `process`, `orchestration/pipeline-graph`, `resilient-pipeline`.
+- **Phase 2.5 ride-along:** tag the renamed `policyGate` with `g.tagFactory("policyGate", placeholderArgs(opts))` as part of this rename (DT5 deferral). One-line tag + regression test in `factory-tags-orchestration.test.ts` or a new `factory-tags-audit.test.ts`.
 - **Blocked by:** Phase 1+2.
 
 ---
@@ -235,9 +375,13 @@ If Unit 16 folds routing into a hub-internal effect, `routerInput` disappears an
 Wire JobFlow operations for EXECUTE stage coordination. Full job lifecycle traceability.
 **Depends on:** Tier 6.1.
 
-### 6.6 Unit 1 — `promptNode` rewrite
-C+D scope: remove `retries`/`cache` options, use `fromAny` bridge, surface `prompt_node::response` as named intermediate, add `meta.aiMeta("prompt_node::output")`, fix system-prompt double-send, add `abort?: Node<boolean>`.
-**Depends on:** Tier 1.2 (Session C — confirm path (b) producer-based).
+### 6.6 Unit 1 — `promptNode` JSDoc + test gate (Session C lock, reduced scope)
+Implementation already at the locked design (path (b) producer-based, `::call` inner naming, `state(null)` empty-msgs branch, `abort?: Node<boolean>` via `nodeSignal`, `aiMeta("prompt_node::output")`, no `retries`/`cache`, system-prompt single-path via `opts.systemPrompt`). Remaining work:
+- Add JSDoc cross-link to COMPOSITION-GUIDE §32 (cross-wave cache stickiness is a consumer concern; consumers add state-mirror).
+- Add JSDoc middleware recipe: stack `withRetry` / `withReplayCache` on the adapter for retries/caching.
+- **✅ Isolated unit test (Session C L8) landed (2026-04-27):** [phase5-llm-composition.test.ts](src/__tests__/phase5-llm-composition.test.ts) — "N upstream dep waves → exactly N DATAs on `prompt_node::output`, zero transient nulls, zero coalesce loss" covering 3 waves with synchronous `mockAdapter`. Locks the contract independent of harness entanglement.
+- **✅ Open Q (Session C L9) resolved (2026-04-27):** `prompt_node::call` is **transient by design** — it activates inside switchMap during a wave and tears down on supersede / COMPLETE. With a synchronous adapter the producer activates and completes within the same wave, so steady-state `describe()` only shows `::messages` + `::output`. Mid-wave `describe()` (real async adapter, observed during in-flight call) WOULD see `::call` via `meta.ai = "prompt_node::call"` — but that's an in-flight observation, not a steady-state expectation. Regression test landed in [phase5-llm-composition.test.ts](src/__tests__/phase5-llm-composition.test.ts).
+**Ratified by:** Tier 1.2 (Session C, locked 2026-04-27).
 
 ### 6.7 Unit 2 — `gatedStream` timing (3 skipped tests)
 Un-skip and fix.
@@ -362,7 +506,7 @@ Tier 10 — anytime; low priority
 **Critical path:** Tier 1.5 (graph-module API additions) → Tier 2 (mechanical reorg) → Tier 3 (parallel audits) → Tier 4+5 (parallel) → Tier 6 → Tier 8 → Tier 9.
 
 **Recommended kickoff order:**
-1. Land Tier 1.1 spec amendment (doc-only).
+1. Land Tier 1.1 spec amendment + Tier 1.6.1 COMPOSITION-GUIDE §38 (doc-only edits in `~/src/graphrefly`).
 2. Run Session C (Tier 1.2) — short, can happen alongside other work.
 3. Implement Tier 1.5.1 + 1.5.2 (describe-diff, observe-reactive, tiers filter) — they unblock Tier 5.3 graphLens preset.
 4. Implement Tier 1.5.3 (GraphSpec ≡ GraphDescribeOutput) — touches factories; do early so later code writes to the unified shape.

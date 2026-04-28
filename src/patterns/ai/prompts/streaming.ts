@@ -24,6 +24,7 @@
 
 import { batch } from "../../../core/batch.js";
 import { wallClockNs } from "../../../core/clock.js";
+import { factoryTag } from "../../../core/meta.js";
 import type { Node } from "../../../core/node.js";
 import { derived, state } from "../../../core/sugar.js";
 import { filter, switchMap } from "../../../extra/operators.js";
@@ -194,33 +195,37 @@ export function streamingPromptNode<T = string>(
 		},
 	);
 
-	const output = switchMap(messagesNode, (msgs) => {
-		const chatMsgs = msgs as readonly ChatMessage[];
-		if (!chatMsgs || chatMsgs.length === 0) {
-			return state<T | null>(null) as NodeInput<T | null>;
-		}
-		const ac = new AbortController();
-		async function* pumpAndCollect(): AsyncGenerator<T | null> {
-			try {
-				const accumulated = await streamingInvoke(
-					adapter,
-					chatMsgs,
-					{
-						model: opts?.model,
-						temperature: opts?.temperature,
-						maxTokens: opts?.maxTokens,
-						systemPrompt: opts?.systemPrompt,
-						signal: ac.signal,
-					},
-					deltaTopic,
-				);
-				yield parseAccumulated<T>(accumulated, format);
-			} finally {
-				ac.abort();
+	const output = switchMap(
+		messagesNode,
+		(msgs) => {
+			const chatMsgs = msgs as readonly ChatMessage[];
+			if (!chatMsgs || chatMsgs.length === 0) {
+				return state<T | null>(null) as NodeInput<T | null>;
 			}
-		}
-		return fromAny(pumpAndCollect());
-	});
+			const ac = new AbortController();
+			async function* pumpAndCollect(): AsyncGenerator<T | null> {
+				try {
+					const accumulated = await streamingInvoke(
+						adapter,
+						chatMsgs,
+						{
+							model: opts?.model,
+							temperature: opts?.temperature,
+							maxTokens: opts?.maxTokens,
+							systemPrompt: opts?.systemPrompt,
+							signal: ac.signal,
+						},
+						deltaTopic,
+					);
+					yield parseAccumulated<T>(accumulated, format);
+				} finally {
+					ac.abort();
+				}
+			}
+			return fromAny(pumpAndCollect());
+		},
+		{ meta: factoryTag("streamingPromptNode") },
+	);
 
 	const accumulatedText = makeAccumulatedText(deltaTopic, `${sourceName}::accumulatedText`);
 
@@ -322,33 +327,37 @@ export function gatedStream<T = string>(
 		},
 	);
 
-	const output = switchMap(messagesNode, (msgs) => {
-		const chatMsgs = msgs as readonly ChatMessage[];
-		if (!chatMsgs || chatMsgs.length === 0) {
-			return state<T | null>(null) as NodeInput<T | null>;
-		}
-		const ac = new AbortController();
-		async function* pumpAndCollect(): AsyncGenerator<T | null> {
-			try {
-				const accumulated = await streamingInvoke(
-					adapter,
-					chatMsgs,
-					{
-						model: opts?.model,
-						temperature: opts?.temperature,
-						maxTokens: opts?.maxTokens,
-						systemPrompt: opts?.systemPrompt,
-						signal: ac.signal,
-					},
-					deltaTopic,
-				);
-				yield parseAccumulated<T>(accumulated, format);
-			} finally {
-				ac.abort();
+	const output = switchMap(
+		messagesNode,
+		(msgs) => {
+			const chatMsgs = msgs as readonly ChatMessage[];
+			if (!chatMsgs || chatMsgs.length === 0) {
+				return state<T | null>(null) as NodeInput<T | null>;
 			}
-		}
-		return fromAny(pumpAndCollect());
-	});
+			const ac = new AbortController();
+			async function* pumpAndCollect(): AsyncGenerator<T | null> {
+				try {
+					const accumulated = await streamingInvoke(
+						adapter,
+						chatMsgs,
+						{
+							model: opts?.model,
+							temperature: opts?.temperature,
+							maxTokens: opts?.maxTokens,
+							systemPrompt: opts?.systemPrompt,
+							signal: ac.signal,
+						},
+						deltaTopic,
+					);
+					yield parseAccumulated<T>(accumulated, format);
+				} finally {
+					ac.abort();
+				}
+			}
+			return fromAny(pumpAndCollect());
+		},
+		{ meta: factoryTag("gatedStream") },
+	);
 
 	const accumulatedText = makeAccumulatedText(deltaTopic, `${sourceName}::accumulatedText`);
 

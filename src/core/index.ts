@@ -49,6 +49,8 @@ export {
 	type DescribeDetail,
 	type DescribeField,
 	type DescribeNodeOutput,
+	factoryTag,
+	placeholderArgs,
 	resolveDescribeFields,
 } from "./meta.js";
 export {

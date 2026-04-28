@@ -7,6 +7,7 @@
 
 import { batch } from "../core/batch.js";
 import { DATA } from "../core/messages.js";
+import { factoryTag } from "../core/meta.js";
 import type { Node, NodeOptions } from "../core/node.js";
 import { derived, state } from "../core/sugar.js";
 import { merge, switchMap } from "./operators.js";
@@ -61,7 +62,10 @@ export function verifiable<T, TVerify = VerifyValue>(
 	const sourceNode = fromAny(source);
 	const hasSourceVersioning = sourceNode.v != null;
 	const verified = state<TVerify | null>(opts?.initialVerified ?? null, {
-		...(hasSourceVersioning ? { meta: { sourceVersion: null } } : {}),
+		meta: {
+			...factoryTag("verifiable"),
+			...(hasSourceVersioning ? { sourceVersion: null } : {}),
+		},
 	});
 	const hasTrigger = opts?.trigger !== undefined && opts.trigger !== null;
 
@@ -162,10 +166,20 @@ function applyExtraction<TMem>(
 
 /**
  * Budget-constrained reactive memory composition.
+ *
+ * **Tier 1.5.4 (Session A.5 lock, 2026-04-27):** `extractFn` receives the
+ * source and existing-store as `Node`s. Distill calls `extractFn` ONCE at
+ * wiring time and consumes the returned stream of extractions. The user
+ * controls reactive composition — wrap with `switchMap` for cancel-on-new-input,
+ * `mergeMap` for parallel, `derived` for sync transforms. See COMPOSITION-GUIDE
+ * §40 for the recipe.
  */
 export function distill<TRaw, TMem>(
 	source: NodeInput<TRaw>,
-	extractFn: (raw: TRaw, existing: ReadonlyMap<string, TMem>) => NodeInput<Extraction<TMem>>,
+	extractFn: (
+		raw: Node<TRaw>,
+		existing: Node<ReadonlyMap<string, TMem>>,
+	) => NodeInput<Extraction<TMem>>,
 	opts: DistillOptions<TMem>,
 ): DistillBundle<TMem> {
 	const sourceNode = fromAny(source);
@@ -174,12 +188,9 @@ export function distill<TRaw, TMem>(
 	const hasContext = opts.context !== undefined && opts.context !== null;
 	const contextNode = hasContext ? fromAny(opts.context) : state<unknown>(null);
 
-	// Closes P3 audit #7. `latestStore` is seeded at wiring time (§3.6
-	// boundary read) and kept current via a subscribe handler. `extractFn`
-	// and `consolidate` read the closure, never `store.entries.cache` from
-	// inside a reactive callback. `withLatestFrom` would swallow the initial
-	// source emission because primary's push-on-subscribe fires before
-	// secondary subscribes — same reason stratify/budgetGate use this pattern.
+	// Closure-mirror for `consolidate` (still callback-style — Tier 1.5.4 only
+	// migrated `extractFn`). Seeded at wiring time (§3.6 boundary read), kept
+	// current via subscribe.
 	let latestStore: ReadonlyMap<string, TMem> = mapFromSnapshot<TMem>(store.entries.cache);
 	store.entries.subscribe((msgs) => {
 		for (const m of msgs) {
@@ -187,7 +198,12 @@ export function distill<TRaw, TMem>(
 		}
 	});
 
-	const extractionStream = switchMap(sourceNode, (raw) => extractFn(raw as TRaw, latestStore));
+	// Tier 1.5.4: one-shot wire. User's `extractFn` returns the reactive
+	// extraction stream — distill just `forEach`s and applies. No internal
+	// switchMap; user picks the cancellation / queueing semantics.
+	const extractionStream = fromAny(
+		extractFn(sourceNode, store.entries as Node<ReadonlyMap<string, TMem>>),
+	);
 	forEach(extractionStream, (extraction) => {
 		applyExtraction(store, extraction);
 	});
@@ -249,25 +265,29 @@ export function distill<TRaw, TMem>(
 		});
 	}
 
-	const compact = derived([store.entries, contextNode], ([snapshot, context]) => {
-		const entries = [...mapFromSnapshot<TMem>(snapshot).entries()].map(([key, value]) => ({
-			key,
-			value,
-			score: opts.score(value, context),
-			cost: opts.cost(value),
-		}));
-		entries.sort((a, b) => b.score - a.score);
+	const compact = derived(
+		[store.entries, contextNode],
+		([snapshot, context]) => {
+			const entries = [...mapFromSnapshot<TMem>(snapshot).entries()].map(([key, value]) => ({
+				key,
+				value,
+				score: opts.score(value, context),
+				cost: opts.cost(value),
+			}));
+			entries.sort((a, b) => b.score - a.score);
 
-		const packed: Array<{ key: string; value: TMem; score: number }> = [];
-		let remaining = budget;
-		for (const item of entries) {
-			if (item.cost <= remaining) {
-				packed.push({ key: item.key, value: item.value, score: item.score });
-				remaining -= item.cost;
+			const packed: Array<{ key: string; value: TMem; score: number }> = [];
+			let remaining = budget;
+			for (const item of entries) {
+				if (item.cost <= remaining) {
+					packed.push({ key: item.key, value: item.value, score: item.score });
+					remaining -= item.cost;
+				}
 			}
-		}
-		return packed;
-	});
+			return packed;
+		},
+		{ meta: { ...factoryTag("distill", { budget }) } },
+	);
 
 	const size = derived([store.entries], ([snapshot]) => mapFromSnapshot<TMem>(snapshot).size);
 	keepalive(compact);

@@ -14,7 +14,7 @@
 import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { policy } from "../../core/guard.js";
-import { DATA, derived, type Node, node, state } from "../../core/index.js";
+import { DATA, derived, type Node, node, placeholderArgs, state } from "../../core/index.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
@@ -1310,5 +1310,11 @@ export function cqrs<EM extends CqrsEventMap = Record<string, unknown>>(
 	name: string,
 	opts?: CqrsOptions,
 ): CqrsGraph<EM> {
-	return new CqrsGraph<EM>(name, opts);
+	const g = new CqrsGraph<EM>(name, opts);
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` surfaces provenance. Route through
+	// `placeholderArgs` since `CqrsOptions.graph` may carry non-JSON fields.
+	const { factory: _f, factoryArgs: _fa, ...tagArgs } = (opts ?? {}) as Record<string, unknown>;
+	g.tagFactory("cqrs", placeholderArgs(tagArgs));
+	return g;
 }

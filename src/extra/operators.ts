@@ -20,6 +20,7 @@ import {
 	RESOLVED,
 	START,
 } from "../core/messages.js";
+import { factoryTag } from "../core/meta.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
 import { derived, producer } from "../core/sugar.js";
 import { NS_PER_MS } from "./backoff.js";
@@ -73,7 +74,10 @@ export function map<T, R>(source: Node<T>, project: (value: T) => R, opts?: Extr
 				a.emit(project(v as T));
 			}
 		},
-		operatorOpts<R>(opts),
+		{
+			...operatorOpts<R>(opts),
+			meta: { ...factoryTag("map"), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -116,7 +120,10 @@ export function filter<T>(
 			}
 			if (!emitted) a.down([[RESOLVED]]);
 		},
-		operatorOpts(opts),
+		{
+			...operatorOpts(opts),
+			meta: { ...factoryTag("filter"), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -161,7 +168,12 @@ export function scan<T, R>(
 				a.emit(ctx.store.acc as R);
 			}
 		},
-		{ ...operatorOpts(opts), initial: seed, resetOnTeardown: true },
+		{
+			...operatorOpts(opts),
+			initial: seed,
+			resetOnTeardown: true,
+			meta: { ...factoryTag("scan", { initial: seed }), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -218,6 +230,7 @@ export function reduce<T, R>(
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			meta: { ...factoryTag("reduce", { initial: seed }), ...(opts?.meta ?? {}) },
 		},
 	);
 }
@@ -251,6 +264,7 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 			{
 				...operatorOpts(opts),
 				completeWhenDepsComplete: false,
+				meta: { ...factoryTag("take", { count }), ...(opts?.meta ?? {}) },
 			},
 		);
 	}
@@ -287,6 +301,7 @@ export function take<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			meta: { ...factoryTag("take", { count }), ...(opts?.meta ?? {}) },
 		},
 	);
 }
@@ -615,7 +630,10 @@ export function tap<T>(
 					a.emit(v as T);
 				}
 			},
-			operatorOpts(opts),
+			{
+				...operatorOpts(opts),
+				meta: { ...factoryTag("tap"), ...(opts?.meta ?? {}) },
+			},
 		);
 	}
 	const obs = fnOrObserver;
@@ -646,6 +664,7 @@ export function tap<T>(
 		{
 			...operatorOpts(opts),
 			completeWhenDepsComplete: false,
+			meta: { ...factoryTag("tap"), ...(opts?.meta ?? {}) },
 		},
 	);
 }
@@ -758,7 +777,10 @@ export function distinctUntilChanged<T>(
 			}
 			if (!emitted) a.down([[RESOLVED]]);
 		},
-		operatorOpts(opts),
+		{
+			...operatorOpts(opts),
+			meta: { ...factoryTag("distinctUntilChanged"), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -905,7 +927,10 @@ export function withLatestFrom<A, B>(
 		// ctx.prevData fallback or RESOLVED when secondary never delivered)
 		// and on secondary-alone waves (emits RESOLVED). Needs the §2.7 gate
 		// disabled so these partial-dep waves can reach fn.
-		partialOperatorOpts(opts),
+		{
+			...partialOperatorOpts(opts),
+			meta: { ...factoryTag("withLatestFrom"), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -929,39 +954,45 @@ export function withLatestFrom<A, B>(
  */
 export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
-		return producer<T>((a) => {
-			a.down([[COMPLETE]]);
-		}, operatorOpts());
+		return producer<T>(
+			(a) => {
+				a.down([[COMPLETE]]);
+			},
+			{ ...operatorOpts(), meta: { ...factoryTag("merge") } },
+		);
 	}
 	// producer pattern: node() cannot be used here because the sentinel gate
 	// would block the fn until ALL sources have sent their first DATA, which
 	// defeats the purpose of merge (forward whichever source fires first).
-	return producer<T>((a) => {
-		const n = sources.length;
-		let completed = 0;
-		const unsubs: (() => void)[] = [];
-		for (const src of sources) {
-			const u = src.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) {
-						a.emit(m[1] as T);
-					} else if (m[0] === COMPLETE) {
-						completed += 1;
-						if (completed >= n) {
-							a.down([[COMPLETE]]);
+	return producer<T>(
+		(a) => {
+			const n = sources.length;
+			let completed = 0;
+			const unsubs: (() => void)[] = [];
+			for (const src of sources) {
+				const u = src.subscribe((msgs) => {
+					for (const m of msgs) {
+						if (m[0] === DATA) {
+							a.emit(m[1] as T);
+						} else if (m[0] === COMPLETE) {
+							completed += 1;
+							if (completed >= n) {
+								a.down([[COMPLETE]]);
+							}
+						} else if (m[0] === ERROR) {
+							a.down([m]);
 						}
-					} else if (m[0] === ERROR) {
-						a.down([m]);
+						// DIRTY, RESOLVED, START silently absorbed
 					}
-					// DIRTY, RESOLVED, START silently absorbed
-				}
-			});
-			unsubs.push(u);
-		}
-		return () => {
-			for (const u of unsubs) u();
-		};
-	}, operatorOpts());
+				});
+				unsubs.push(u);
+			}
+			return () => {
+				for (const u of unsubs) u();
+			};
+		},
+		{ ...operatorOpts(), meta: { ...factoryTag("merge") } },
+	);
 }
 
 /**
@@ -1277,7 +1308,11 @@ export function switchMap<T, R>(
 				},
 			};
 		},
-		{ ...operatorOpts(opts), completeWhenDepsComplete: false },
+		{
+			...operatorOpts(opts),
+			completeWhenDepsComplete: false,
+			meta: { ...factoryTag("switchMap"), ...(opts?.meta ?? {}) },
+		},
 	);
 }
 
@@ -1648,44 +1683,50 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
  * @category extra
  */
 export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		let pending: T | undefined;
+	return producer<T>(
+		(a) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			let pending: T | undefined;
 
-		function clearTimer(): void {
-			if (timer !== undefined) {
-				clearTimeout(timer);
-				timer = undefined;
-			}
-		}
-
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					clearTimer();
-					pending = m[1] as T;
-					timer = setTimeout(() => {
-						timer = undefined;
-						a.emit(pending as T);
-					}, ms);
-				} else if (m[0] === COMPLETE) {
-					if (timer !== undefined) {
-						clearTimer();
-						a.emit(pending as T);
-					}
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					clearTimer();
-					a.down([m]);
+			function clearTimer(): void {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+					timer = undefined;
 				}
 			}
-		});
 
-		return () => {
-			srcUnsub();
-			clearTimer();
-		};
-	}, operatorOpts(opts));
+			const srcUnsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						clearTimer();
+						pending = m[1] as T;
+						timer = setTimeout(() => {
+							timer = undefined;
+							a.emit(pending as T);
+						}, ms);
+					} else if (m[0] === COMPLETE) {
+						if (timer !== undefined) {
+							clearTimer();
+							a.emit(pending as T);
+						}
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						clearTimer();
+						a.down([m]);
+					}
+				}
+			});
+
+			return () => {
+				srcUnsub();
+				clearTimer();
+			};
+		},
+		{
+			...operatorOpts(opts),
+			meta: { ...factoryTag("debounce", { ms }), ...(opts?.meta ?? {}) },
+		},
+	);
 }
 
 export type ThrottleOptions = { leading?: boolean; trailing?: boolean };
@@ -1716,68 +1757,77 @@ export function throttle<T>(
 	const trailing = trailingOpt === true;
 	const windowNs = ms * NS_PER_MS;
 
-	return producer<T>((a) => {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		let lastEmitNs = -Infinity;
-		let pending: T | undefined;
-		let hasPending = false;
+	return producer<T>(
+		(a) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			let lastEmitNs = -Infinity;
+			let pending: T | undefined;
+			let hasPending = false;
 
-		function clearTimer(): void {
-			if (timer !== undefined) {
-				clearTimeout(timer);
-				timer = undefined;
+			function clearTimer(): void {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+					timer = undefined;
+				}
 			}
-		}
 
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					const v = m[1] as T;
-					const nowNs = monotonicNs();
-					if (leading && nowNs - lastEmitNs >= windowNs) {
-						lastEmitNs = nowNs;
-						a.emit(v);
-						clearTimer();
-						if (trailing) {
-							timer = setTimeout(() => {
-								timer = undefined;
-								if (hasPending) {
-									lastEmitNs = monotonicNs();
-									a.emit(pending as T);
-									hasPending = false;
-								}
-							}, ms);
-						}
-					} else if (trailing) {
-						pending = v;
-						hasPending = true;
-						if (timer === undefined) {
-							const elapsedMs = (nowNs - lastEmitNs) / NS_PER_MS;
-							timer = setTimeout(
-								() => {
+			const srcUnsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						const v = m[1] as T;
+						const nowNs = monotonicNs();
+						if (leading && nowNs - lastEmitNs >= windowNs) {
+							lastEmitNs = nowNs;
+							a.emit(v);
+							clearTimer();
+							if (trailing) {
+								timer = setTimeout(() => {
 									timer = undefined;
 									if (hasPending) {
 										lastEmitNs = monotonicNs();
 										a.emit(pending as T);
 										hasPending = false;
 									}
-								},
-								Math.max(0, ms - elapsedMs),
-							);
+								}, ms);
+							}
+						} else if (trailing) {
+							pending = v;
+							hasPending = true;
+							if (timer === undefined) {
+								const elapsedMs = (nowNs - lastEmitNs) / NS_PER_MS;
+								timer = setTimeout(
+									() => {
+										timer = undefined;
+										if (hasPending) {
+											lastEmitNs = monotonicNs();
+											a.emit(pending as T);
+											hasPending = false;
+										}
+									},
+									Math.max(0, ms - elapsedMs),
+								);
+							}
 						}
+					} else if (m[0] === COMPLETE || m[0] === ERROR) {
+						clearTimer();
+						a.down([m]);
 					}
-				} else if (m[0] === COMPLETE || m[0] === ERROR) {
-					clearTimer();
-					a.down([m]);
 				}
-			}
-		});
+			});
 
-		return () => {
-			srcUnsub();
-			clearTimer();
-		};
-	}, operatorOpts(throttleNodeOpts));
+			return () => {
+				srcUnsub();
+				clearTimer();
+			};
+		},
+		{
+			...operatorOpts(throttleNodeOpts),
+			meta: {
+				...factoryTag("throttle", { ms, leading, trailing }),
+				...(throttleNodeOpts.meta ?? {}),
+			},
+		},
+	);
 }
 
 /**
@@ -2145,41 +2195,47 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  * @category extra
  */
 export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T[]> {
-	return producer<T[]>((a) => {
-		const buf: T[] = [];
+	return producer<T[]>(
+		(a) => {
+			const buf: T[] = [];
 
-		const iv = setInterval(() => {
-			if (buf.length > 0) {
-				a.emit([...buf]);
-				buf.length = 0;
-			}
-		}, ms);
-
-		const srcUnsub = source.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) {
-					buf.push(m[1] as T);
-				} else if (m[0] === COMPLETE) {
-					clearInterval(iv);
-					if (buf.length > 0) a.emit([...buf]);
+			const iv = setInterval(() => {
+				if (buf.length > 0) {
+					a.emit([...buf]);
 					buf.length = 0;
-					a.down([[COMPLETE]]);
-				} else if (m[0] === ERROR) {
-					clearInterval(iv);
-					a.down([m]);
 				}
-				// DIRTY from source is NOT forwarded — bufferTime
-				// transforms the timeline. a.emit(buf) handles full
-				// DIRTY+DATA framing when the interval fires.
-			}
-		});
+			}, ms);
 
-		return () => {
-			srcUnsub();
-			clearInterval(iv);
-			buf.length = 0;
-		};
-	}, operatorOpts(opts));
+			const srcUnsub = source.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						buf.push(m[1] as T);
+					} else if (m[0] === COMPLETE) {
+						clearInterval(iv);
+						if (buf.length > 0) a.emit([...buf]);
+						buf.length = 0;
+						a.down([[COMPLETE]]);
+					} else if (m[0] === ERROR) {
+						clearInterval(iv);
+						a.down([m]);
+					}
+					// DIRTY from source is NOT forwarded — bufferTime
+					// transforms the timeline. a.emit(buf) handles full
+					// DIRTY+DATA framing when the interval fires.
+				}
+			});
+
+			return () => {
+				srcUnsub();
+				clearInterval(iv);
+				buf.length = 0;
+			};
+		},
+		{
+			...operatorOpts(opts),
+			meta: { ...factoryTag("bufferTime", { ms }), ...(opts?.meta ?? {}) },
+		},
+	);
 }
 
 /**

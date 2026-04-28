@@ -1,3 +1,4 @@
+import { factoryTag } from "../../../core/meta.js";
 import type { Node } from "../../../core/node.js";
 import { derived } from "../../../core/sugar.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
@@ -74,7 +75,7 @@ export function toolSelector(
 		{
 			name: opts?.name ?? "tool-selector",
 			describeKind: "derived",
-			meta: aiMeta("tool_selector"),
+			meta: { ...aiMeta("tool_selector"), ...factoryTag("toolSelector") },
 			equals: (a, b) => {
 				const la = a as readonly ToolDefinition[];
 				const lb = b as readonly ToolDefinition[];

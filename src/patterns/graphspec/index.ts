@@ -76,6 +76,15 @@ export type GraphSpec = {
 	templates?: Record<string, GraphSpecTemplate>;
 	/** Feedback edges (bounded cycles). */
 	feedback?: GraphSpecFeedbackEdge[];
+	/**
+	 * Top-level factory identifier (Tier 1.5.3 Phase 2.5 — DG1=B). When set
+	 * and `compileSpec` is given a `catalog.graphFactories[factory]` entry,
+	 * the spec's reconstruction is delegated to that factory wholesale (the
+	 * `nodes` / `edges` / `templates` fields below are not used).
+	 */
+	factory?: string;
+	/** JSON-serializable construction args, paired with `factory`. */
+	factoryArgs?: unknown;
 };
 
 // ---------------------------------------------------------------------------
@@ -150,15 +159,32 @@ export type CatalogSourceEntry = {
 };
 
 /**
+ * Top-level Graph factory — used when a spec was produced from a graph that
+ * called `Graph.prototype.tagFactory(name, args)`. The catalog supplies a
+ * function that takes the recorded `factoryArgs` (JSON-serializable subset)
+ * and returns a fully-wired Graph. Runtime context (LLMAdapter instances,
+ * callbacks, embedders) is captured by the closure — the args themselves are
+ * a documentation fragment, not a complete construction recipe.
+ *
+ * Tier 1.5.3 Phase 2.5 (DG1=B, 2026-04-27).
+ */
+export type GraphFactory = (factoryArgs: unknown) => Graph;
+
+/**
  * Fn/source lookup table passed to compileSpec and llmCompose.
  *
  * Accepts both bare factories (backward-compatible) and rich {@link CatalogFnEntry}
  * / {@link CatalogSourceEntry} objects. When rich entries are provided, the library
  * auto-generates LLM prompts and validates LLM output against the catalog.
+ *
+ * `graphFactories` (Tier 1.5.3 Phase 2.5) handles top-level Graph-returning
+ * factories — when `spec.factory` matches a key, `compileSpec` delegates the
+ * entire reconstruction to that factory.
  */
 export type GraphSpecCatalog = {
 	fns?: Record<string, FnFactory | CatalogFnEntry>;
 	sources?: Record<string, SourceFactory | CatalogSourceEntry>;
+	graphFactories?: Record<string, GraphFactory>;
 };
 
 // ---------------------------------------------------------------------------
@@ -185,6 +211,93 @@ export function extractFnFactory(entry: FnFactory | CatalogFnEntry): FnFactory {
 /** Extract the runtime factory from a catalog source entry (rich or bare). */
 export function extractSourceFactory(entry: SourceFactory | CatalogSourceEntry): SourceFactory {
 	return isRichSourceEntry(entry) ? entry.factory : entry;
+}
+
+// ---------------------------------------------------------------------------
+// Tier 1.5.3 (Session A.1 lock) — meta-form ↔ old-form normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a node with new-form `meta.factory` + `meta.factoryArgs` (Tier 1.5.3
+ * Session A.1 lock) to the legacy `fn` / `source` / `config` field-form so the
+ * existing compile pipeline works unchanged. Phase 1 dual-read shim — Phase 3
+ * drops the legacy fields and removes this step.
+ *
+ * For producer-type nodes, the factory string populates `source` (matching the
+ * existing source-first lookup precedence in `compileSpec`); for all other
+ * types, it populates `fn`. If both old-form fields and new-form meta are
+ * present, the legacy fields take precedence so explicit specs still win.
+ */
+function normalizeSpecNode(node: GraphSpecNode): GraphSpecNode {
+	const meta = node.meta as Record<string, unknown> | undefined;
+	if (!meta || typeof meta.factory !== "string") return node;
+	const factoryName = meta.factory;
+	const factoryArgs = (meta.factoryArgs ?? {}) as Record<string, unknown>;
+	const out: GraphSpecNode = { ...node };
+	let metaFactoryUsed = false;
+	if (node.type === "producer") {
+		if (out.source == null && out.fn == null) {
+			out.source = factoryName;
+			metaFactoryUsed = true;
+		}
+	} else {
+		if (out.fn == null) {
+			out.fn = factoryName;
+			metaFactoryUsed = true;
+		}
+	}
+	if (out.config == null) {
+		out.config = factoryArgs;
+	}
+	// QA F14: when legacy fields took precedence (meta.factory ignored),
+	// strip `meta.factory` + `meta.factoryArgs` so multi-round-trip
+	// compile→decompile→compile doesn't drift the spec into a state where
+	// `fn` says one thing and `meta.factory` says another. When meta.factory
+	// WAS used, leave it in place — describe→compile→describe round-trips
+	// then preserve it consistently.
+	if (!metaFactoryUsed && (out.meta ?? meta) === meta) {
+		const newMeta = { ...meta };
+		delete newMeta.factory;
+		delete newMeta.factoryArgs;
+		if (Object.keys(newMeta).length > 0) out.meta = newMeta;
+		else out.meta = undefined;
+	}
+	return out;
+}
+
+/** Normalize every node in a GraphSpec (and inside any templates). */
+function normalizeSpec(spec: GraphSpec): GraphSpec {
+	const nodes: Record<string, GraphSpecNode | GraphSpecTemplateRef> = {};
+	let anyChange = false;
+	for (const [k, v] of Object.entries(spec.nodes)) {
+		if (v.type === "template") {
+			nodes[k] = v;
+			continue;
+		}
+		const normalized = normalizeSpecNode(v as GraphSpecNode);
+		nodes[k] = normalized;
+		if (normalized !== v) anyChange = true;
+	}
+	const templatesIn = spec.templates;
+	let templates: Record<string, GraphSpecTemplate> | undefined;
+	if (templatesIn) {
+		templates = {};
+		for (const [k, t] of Object.entries(templatesIn)) {
+			const tNodes: Record<string, GraphSpecNode> = {};
+			let tChange = false;
+			for (const [tk, tn] of Object.entries(t.nodes)) {
+				const tNorm = normalizeSpecNode(tn);
+				tNodes[tk] = tNorm;
+				if (tNorm !== tn) tChange = true;
+			}
+			templates[k] = tChange ? { ...t, nodes: tNodes } : t;
+			if (tChange) anyChange = true;
+		}
+	}
+	if (!anyChange) return spec;
+	const out: GraphSpec = { ...spec, nodes };
+	if (templates) out.templates = templates;
+	return out;
 }
 
 /**
@@ -650,10 +763,33 @@ interface MissingCatalogEntry {
  * @category patterns
  */
 export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
+	// QA F4: validate FIRST, even when the early-dispatch path will delegate to
+	// a Graph-level factory. The early-dispatch is a *constructor* short-circuit,
+	// not a *validation* short-circuit — we still want malformed specs to throw
+	// so a catalog-tagged spec with bogus nodes/templates surfaces the error.
 	const validation = validateSpec(spec);
 	if (!validation.valid) {
 		throw new Error(`compileSpec: invalid GraphSpec:\n${validation.errors.join("\n")}`);
 	}
+
+	// Tier 1.5.3 Phase 2.5 (DG1=B): if the spec carries a top-level `factory`
+	// tag and the catalog has a matching `graphFactories` entry, delegate the
+	// full reconstruction. This lets Graph-returning factories
+	// (`agentMemory`, `harnessLoop`, etc.) own their own rebuild path with
+	// access to user-supplied runtime ctx (LLMAdapter, callbacks).
+	const specFactory = (spec as { factory?: string }).factory;
+	const specFactoryArgs = (spec as { factoryArgs?: unknown }).factoryArgs;
+	if (typeof specFactory === "string") {
+		const graphFactory = opts?.catalog?.graphFactories?.[specFactory];
+		if (graphFactory) return graphFactory(specFactoryArgs);
+		// No catalog entry for the named factory — fall through to per-node
+		// compile so the legacy / per-node-tagged paths still work.
+	}
+
+	// Tier 1.5.3 dual-read: normalize new-form `meta.factory` + `meta.factoryArgs`
+	// into the legacy fn/source/config fields so the rest of compileSpec works
+	// unchanged. Phase 3 drops legacy fields and removes this step.
+	spec = normalizeSpec(spec);
 
 	const catalog = opts?.catalog ?? {};
 	const onMissing = opts?.onMissing ?? "placeholder";
@@ -944,6 +1080,16 @@ const INTERNAL_META_KEYS = new Set([
  *
  * @category patterns
  */
+/**
+ * Tier 1.5.3 / D5 rename — `decompileSpec` is the canonical name post-Session A.1
+ * lock. Once Phase 3 lands `GraphSpec ≡ GraphDescribeOutput`, the body becomes
+ * `g.describe({ detail: "spec" })`. For now it delegates to the existing
+ * implementation so behavior is unchanged.
+ */
+export function decompileSpec(graph: Graph): GraphSpec {
+	return decompileGraph(graph);
+}
+
 export function decompileGraph(graph: Graph): GraphSpec {
 	const desc = graph.describe({ detail: "standard" });
 	const nodes: Record<string, GraphSpecNode> = {};
@@ -998,6 +1144,18 @@ export function decompileGraph(graph: Graph): GraphSpec {
 			const meta: Record<string, unknown> = {};
 			for (const [k, v] of Object.entries(nodeDesc.meta as Record<string, unknown>)) {
 				if (!INTERNAL_META_KEYS.has(k)) meta[k] = v;
+			}
+			// QA F5: strip runtime-state sibling keys for known factory tags so
+			// the spec doesn't carry transient state (`breakerState`, `status`,
+			// `error`, etc.) into a compile→decompile round-trip — these are
+			// reconstructed by the factory at compile time, not from the spec.
+			if (meta.factory === "withStatus") {
+				delete meta.status;
+				delete meta.error;
+			} else if (meta.factory === "withBreaker") {
+				delete meta.breakerState;
+			} else if (meta.factory === "verifiable") {
+				delete meta.sourceVersion;
 			}
 			if (Object.keys(meta).length > 0) {
 				specNode.meta = meta;
@@ -1195,6 +1353,10 @@ export function decompileGraph(graph: Graph): GraphSpec {
 	const result: GraphSpec = { name: desc.name, nodes: allNodes };
 	if (Object.keys(templates).length > 0) result.templates = templates;
 	if (feedbackEdges.length > 0) result.feedback = feedbackEdges;
+	// Tier 1.5.3 Phase 2.5 — preserve top-level Graph factory provenance through
+	// decompile so `decompileSpec → compileSpec` round-trips via `catalog.graphFactories`.
+	if (desc.factory !== undefined) result.factory = desc.factory;
+	if (desc.factoryArgs !== undefined) result.factoryArgs = desc.factoryArgs;
 
 	return result;
 }

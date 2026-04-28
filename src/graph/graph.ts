@@ -31,6 +31,7 @@ import {
 } from "../core/node.js";
 import { derived, producer, state as stateNode } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
+import { type DescribeChangeset, topologyDiff } from "../extra/composition/topology-diff.js";
 import { keepalive } from "../extra/sources.js";
 import type { StorageHandle } from "../extra/storage-core.js";
 import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
@@ -73,6 +74,25 @@ export interface GraphOptions {
 	 * time — not mutable afterward (ring buffers can't resize cleanly).
 	 */
 	traceCapacity?: number;
+	/**
+	 * Tier 1.5.3 Phase 2.5 (Session A.1 lock + Phase 2.5 design DG1=B, 2026-04-27).
+	 * Top-level factory identifier for Graph-returning factories (`agentMemory`,
+	 * `harnessLoop`, `pipelineGraph`, etc.). When set, `describe()` surfaces
+	 * `factory` + `factoryArgs` at the top of `GraphDescribeOutput` so consumers
+	 * can identify provenance, and `compileSpec` can delegate reconstruction to
+	 * `catalog.graphFactories[factory]` with `factoryArgs`. Prefer the
+	 * post-construction `Graph.prototype.tagFactory(name, args?)` mutator inside
+	 * the factory body over passing here directly.
+	 */
+	factory?: string;
+	/**
+	 * JSON-serializable subset of the construction args. For non-JSON fields
+	 * (LLMAdapter, callbacks, embedders), prefer the {@link placeholderArgs}
+	 * helper which substitutes descriptive `"<Node>"` / `"<function>"` strings
+	 * (DG2 = ii). Catalog `graphFactories` recipients receive this back during
+	 * `compileSpec` to recreate the graph with the user-supplied runtime ctx.
+	 */
+	factoryArgs?: unknown;
 	[key: string]: unknown;
 }
 
@@ -190,14 +210,18 @@ export type GraphDescribeOptions = {
 	 */
 	asciiCharset?: "unicode" | "ascii";
 	/**
-	 * Reactive describe (D2): when `true`, return `{ node, dispose }` where `node`
-	 * emits a fresh `GraphDescribeOutput` (or format string, if `format` is set)
-	 * every time the graph state settles. Same coalescing as
-	 * {@link Graph.explain} with `{ reactive: true }` — one recompute per
-	 * outermost drain via the batch-flush hook, so large batched mutations
-	 * don't amplify describe work per event.
+	 * Reactive describe (D2):
+	 * - `true` — return `{ node, dispose }` where `node` emits a fresh
+	 *   `GraphDescribeOutput` (or format string, if `format` is set) every time
+	 *   the graph state settles. Same coalescing as {@link Graph.explain} with
+	 *   `{ reactive: true }`.
+	 * - `"diff"` — return `{ node, dispose }` where `node` emits a
+	 *   {@link DescribeChangeset} per topology change. Empty changesets are
+	 *   suppressed; the initial cache is a synthetic full-add diff so a fresh
+	 *   subscriber sees the current topology as adds via push-on-subscribe.
+	 *   (Tier 1.5.1 — Session A.1 lock).
 	 */
-	reactive?: boolean;
+	reactive?: boolean | "diff";
 	/** Reactive-only: name for the backing derived node (default `"describe"`). */
 	reactiveName?: string;
 };
@@ -214,6 +238,16 @@ export type GraphDescribeOutput = {
 	nodes: Record<string, DescribeNodeOutput>;
 	edges: ReadonlyArray<{ from: string; to: string }>;
 	subgraphs: string[];
+	/**
+	 * Top-level factory identifier (Tier 1.5.3 Phase 2.5 — DG1=B). Present when
+	 * the graph was constructed by a Graph-returning factory that called
+	 * `Graph.prototype.tagFactory(name, args?)` (or set `GraphOptions.factory`).
+	 * Used by `compileSpec` for catalog-based reconstruction via
+	 * `catalog.graphFactories[factory]`.
+	 */
+	factory?: string;
+	/** JSON-serializable construction args paired with `factory`. */
+	factoryArgs?: unknown;
 	/**
 	 * Re-read the live graph with higher detail (Phase 3.3b).
 	 * Returns a new `GraphDescribeOutput`; the original remains a snapshot.
@@ -862,6 +896,28 @@ export type GraphObserveAll = {
  */
 export type ObserveDetail = "minimal" | "standard" | "full";
 
+/**
+ * Tier name for {@link ObserveEvent} filtering. Aligns with spec §1.2 message
+ * tier semantics — each `ObserveTier` corresponds to one or more protocol
+ * message types. Used by {@link ObserveOptions.tiers} to scope observation to
+ * a subset of event categories (e.g. `tiers: ["error", "complete", "teardown"]`
+ * for failure-only health monitoring).
+ */
+export type ObserveTier = ObserveEvent["type"];
+
+/**
+ * Coalesced batch of {@link ObserveEvent}s emitted as one DATA wave per
+ * outermost batch flush by `Graph.observe({ reactive: true })`.
+ *
+ * Disjoint from `DescribeChangeset` (the topology-layer envelope). Each event
+ * carries its own `path` so consumers route per-path without unwrapping the
+ * envelope first. `flushedAt_ns` is monotonic via `core/clock.ts`.
+ */
+export type ObserveChangeset = {
+	events: ReadonlyArray<ObserveEvent>;
+	flushedAt_ns: number;
+};
+
 /** Options for structured observation modes on {@link Graph.observe}. */
 export type ObserveOptions = {
 	actor?: Actor;
@@ -879,6 +935,27 @@ export type ObserveOptions = {
 	 * `"minimal"` filters to DATA-only events.
 	 */
 	detail?: ObserveDetail;
+	/**
+	 * Filter observed events to these tiers only. When omitted, all event types
+	 * are delivered. Applies to both the structured callback and the reactive
+	 * variants (`observe({ reactive: true })`).
+	 *
+	 * Example: `tiers: ["error", "complete", "teardown"]` for failure-only
+	 * health monitoring; `tiers: ["data"]` for value-flow tracking.
+	 */
+	tiers?: readonly ObserveTier[];
+	/**
+	 * Return a `Node<ObserveChangeset>` that emits one DATA wave per outermost
+	 * batch flush, with all observed events for that flush coalesced into a
+	 * single changeset. Auto-enables structured mode (the reactive variant
+	 * delivers {@link ObserveEvent}s, not raw messages).
+	 *
+	 * Coalescing matches `describe({ reactive: true })`'s `registerBatchFlushHook`
+	 * mechanism — N events in one batch → one changeset DATA wave at flush.
+	 */
+	reactive?: boolean;
+	/** Optional name for the reactive changeset node when `reactive: true`. */
+	reactiveName?: string;
 
 	// ——— Format / logging (merged from spy) ———
 
@@ -1187,6 +1264,10 @@ export class Graph {
 	 *   equal the reserved meta segment `__meta__`).
 	 * @param opts - See {@link GraphOptions}. Stored frozen on the instance.
 	 */
+	/** Tier 1.5.3 Phase 2.5 — top-level factory tag for Graph-returning factories. */
+	private _factory?: string;
+	private _factoryArgs?: unknown;
+
 	constructor(name: string, opts?: GraphOptions) {
 		if (name === "") {
 			throw new Error("Graph name must be non-empty");
@@ -1206,6 +1287,32 @@ export class Graph {
 			// so opts.versioning is honored as a startup default via this helper.
 			this.setVersioning(opts.versioning);
 		}
+		if (typeof opts?.factory === "string") {
+			this._factory = opts.factory;
+			if (opts.factoryArgs !== undefined) this._factoryArgs = opts.factoryArgs;
+		}
+	}
+
+	/**
+	 * Tag this graph with its constructing factory's identifier and args.
+	 * Used by Graph-returning factories (`agentMemory`, `harnessLoop`,
+	 * `pipelineGraph`, etc.) so `describe()` exposes provenance and
+	 * `compileSpec` can delegate reconstruction to
+	 * `catalog.graphFactories[factory]`. Tier 1.5.3 Phase 2.5 (DG1=B).
+	 *
+	 * `factoryArgs` should be JSON-serializable. For non-JSON fields
+	 * (LLMAdapter, callbacks, etc.), use {@link placeholderArgs} to
+	 * substitute descriptive strings (DG2=ii).
+	 *
+	 * Returns `this` for fluent chaining inside factory bodies.
+	 */
+	tagFactory(factory: string, factoryArgs?: unknown): this {
+		this._factory = factory;
+		// QA F8: always assign — second call without args clears stale args
+		// (otherwise `tagFactory("a", {x:1})` then `tagFactory("b")` keeps {x:1}
+		// paired with "b", which is mismatched provenance).
+		this._factoryArgs = factoryArgs;
+		return this;
 	}
 
 	/**
@@ -1942,6 +2049,9 @@ export class Graph {
 		},
 	): ReactiveDescribeHandle<string>;
 	describe(
+		options: GraphDescribeOptions & { reactive: "diff" },
+	): ReactiveDescribeHandle<DescribeChangeset>;
+	describe(
 		options: GraphDescribeOptions & { reactive: true },
 	): ReactiveDescribeHandle<GraphDescribeOutput>;
 	describe(
@@ -1953,6 +2063,7 @@ export class Graph {
 	describe(
 		options?: GraphDescribeOptions,
 	): GraphDescribeOutput | string | ReactiveDescribeHandle<unknown> {
+		if (options?.reactive === "diff") return this._describeReactiveDiff(options);
 		if (options?.reactive === true) return this._describeReactive(options);
 		const actor = resolveActorOption(options?.actor);
 		const filter = options?.filter;
@@ -2114,6 +2225,8 @@ export class Graph {
 			nodes,
 			edges,
 			subgraphs,
+			...(this._factory !== undefined ? { factory: this._factory } : {}),
+			...(this._factoryArgs !== undefined ? { factoryArgs: this._factoryArgs } : {}),
 			expand(detailOrFields: DescribeDetail | DescribeField[]): GraphDescribeOutput {
 				const merged: GraphDescribeOptions = { ...baseOpts, format: undefined };
 				if (Array.isArray(detailOrFields)) {
@@ -2385,6 +2498,86 @@ export class Graph {
 		};
 	}
 
+	/**
+	 * Reactive topology-diff variant of `describe()`. Wraps `_describeReactive`'s
+	 * snapshot stream and emits a `DescribeChangeset` per change, suppressing
+	 * empty changesets. The initial cache is a synthetic full-add diff so a
+	 * fresh subscriber sees the current topology as a single `node-added` /
+	 * `edge-added` / `subgraph-mounted` payload via push-on-subscribe.
+	 */
+	private _describeReactiveDiff(
+		options: GraphDescribeOptions,
+	): ReactiveDescribeHandle<DescribeChangeset> {
+		// Diff variant ignores `format` — describe-as-string is meaningless for
+		// structural deltas.
+		const innerOpts: GraphDescribeOptions = {
+			...options,
+			format: undefined,
+			reactive: false,
+		};
+		const name = options.reactiveName ?? "describe-diff";
+
+		// Synthetic empty snapshot — used as the "from" for the initial diff so
+		// fresh subscribers see the current topology as adds via push-on-subscribe.
+		const empty: GraphDescribeOutput = {
+			name: this.name,
+			nodes: {},
+			edges: [],
+			subgraphs: [],
+		};
+		let prev = this.describe(innerOpts) as GraphDescribeOutput;
+		const initialDiff = topologyDiff(empty, prev);
+
+		const diffNode = stateNode<DescribeChangeset>(initialDiff, {
+			name,
+			meta: { domain: "audit", kind: "describe-diff" } as const,
+			// Reference equals — every changeset is a fresh object; downstream
+			// consumers wanting structural dedup wrap with their own equals.
+			equals: (a, b) => a === b,
+		});
+
+		// Reuse `_describeReactive` for the bump-on-topology-change machinery
+		// (topology subscription, observe-driven recompute, actor binding,
+		// batch-flush coalescing). Strip `reactiveName` so the snapshot node
+		// gets a default name; we own `name` for the diff node.
+		const snapshotHandle = this._describeReactive({
+			...options,
+			format: undefined,
+			reactiveName: undefined,
+		});
+
+		let disposed = false;
+		const unsub = snapshotHandle.node.subscribe((msgs) => {
+			if (disposed) return;
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				const next = m[1] as GraphDescribeOutput;
+				const changeset = topologyDiff(prev, next);
+				prev = next;
+				// Suppress empty changesets — consumers should not see no-op DATA.
+				if (changeset.events.length === 0) continue;
+				diffNode.emit(changeset);
+			}
+		});
+
+		const stopKeepalive = keepalive(diffNode);
+
+		return {
+			node: diffNode,
+			dispose() {
+				disposed = true;
+				unsub();
+				snapshotHandle.dispose();
+				// QA F10: settle `diffNode` with TEARDOWN so downstream
+				// subscribers receive a terminal — was previously stuck waiting
+				// indefinitely after dispose() since cleanup only released
+				// internal subs.
+				diffNode.down([[TEARDOWN, "describe-diff disposed"]]);
+				stopKeepalive();
+			},
+		};
+	}
+
 	private _explainReactive(
 		from: string,
 		to: string,
@@ -2513,6 +2706,8 @@ export class Graph {
 	 * `ObserveResult` is also an `AsyncIterable<ObserveEvent>` — use
 	 * `for await (const ev of result)` for pull-based consumption.
 	 */
+	observe(path: string, options: ObserveOptions & { reactive: true }): Node<ObserveChangeset>;
+	observe(options: ObserveOptions & { reactive: true }): Node<ObserveChangeset>;
 	observe(path: string, options?: ObserveOptions & StructuredTriggers): ObserveResult;
 	observe(path: string, options?: ObserveOptions): GraphObserveOne;
 	observe(options: ObserveOptions & StructuredTriggers): ObserveResult;
@@ -2520,10 +2715,16 @@ export class Graph {
 	observe(
 		pathOrOpts?: string | ObserveOptions,
 		options?: ObserveOptions,
-	): GraphObserveOne | GraphObserveAll | ObserveResult {
+	): GraphObserveOne | GraphObserveAll | ObserveResult | Node<ObserveChangeset> {
 		const isPath = typeof pathOrOpts === "string";
 		const rawOpts = isPath ? options : (pathOrOpts as ObserveOptions | undefined);
 		const resolved = resolveObserveDetail(rawOpts);
+		// Reactive variant — coalesces all observed events for a batch into one
+		// `ObserveChangeset` DATA per batch flush. Auto-uses the structured
+		// observer for {@link ObserveEvent} access; tier filter (if set) applies.
+		if (resolved.reactive === true) {
+			return this._observeReactive(isPath ? (pathOrOpts as string) : undefined, resolved);
+		}
 		const wantsStructured =
 			resolved.structured === true ||
 			resolved.timeline === true ||
@@ -2585,6 +2786,96 @@ export class Graph {
 		};
 	}
 
+	/**
+	 * Reactive observe variant — wraps the structured observer and emits one
+	 * `ObserveChangeset` DATA per outermost batch flush, with all observed
+	 * events for that flush coalesced into a single envelope. Tier filter
+	 * (`options.tiers`) drops out-of-scope events before accumulation.
+	 *
+	 * Cleanup is producer-bound: the structured observer is torn down when the
+	 * last consumer of the returned node unsubscribes.
+	 */
+	private _observeReactive(
+		path: string | undefined,
+		options: ObserveOptions,
+	): Node<ObserveChangeset> {
+		const tiers = options.tiers;
+		const tierSet = tiers != null ? new Set(tiers) : null;
+		const name = options.reactiveName ?? "observe";
+
+		return producer<ObserveChangeset>(
+			(actions) => {
+				const events: ObserveEvent[] = [];
+				let pendingFlush = false;
+				let disposed = false;
+
+				const flush = (): void => {
+					if (events.length === 0 || disposed) return;
+					const changeset: ObserveChangeset = {
+						events: events.slice(),
+						flushedAt_ns: monotonicNs(),
+					};
+					events.length = 0;
+					actions.emit(changeset);
+				};
+
+				// Strip `reactive` so we get a structured ObserveResult, not
+				// recursion into ourselves. Force `timeline: true` so events
+				// carry timestamps for downstream tooling, and `structured: true`
+				// so we get an `ObserveResult` with `onEvent`.
+				// QA F12: tier filter is applied at the inner `recordEvent`
+				// funnel — keep `tiers` in `obsOpts` and DROP the redundant
+				// outer-listener filter (was double-filtering).
+				const obsOpts: ObserveOptions = {
+					...options,
+					reactive: false,
+					structured: true,
+					timeline: true,
+				};
+				// `obsOpts.structured: true` forces the structured-observer path,
+				// which returns `ObserveResult`. The signature dispatch can't
+				// narrow on runtime values, so cast through `unknown`.
+				const handle =
+					path != null
+						? (this.observe(path, obsOpts) as unknown as ObserveResult)
+						: (this.observe(obsOpts) as unknown as ObserveResult);
+
+				const onEventListener = (event: ObserveEvent): void => {
+					if (disposed) return;
+					events.push(event);
+					if (pendingFlush) return;
+					pendingFlush = true;
+					registerBatchFlushHook(() => {
+						pendingFlush = false;
+						flush();
+					});
+				};
+
+				// QA F2: replay any events the inner structured observer already
+				// captured before our listener attached (push-on-subscribe DATA
+				// from cached state nodes lands in `handle.events` synchronously
+				// during the `this.observe` call above). Drain through the same
+				// listener so the first changeset includes them.
+				for (const ev of handle.events) onEventListener(ev);
+				const off = handle.onEvent(onEventListener);
+				// Tier filter is unused at this layer (handled by inner
+				// `recordEvent`), but retain the closure-scoped `tierSet` so
+				// future per-listener filtering is one move away.
+				void tierSet;
+
+				return () => {
+					disposed = true;
+					off();
+					handle.dispose();
+				};
+			},
+			{
+				name,
+				meta: { domain: "audit", kind: "observe-reactive" } as const,
+			},
+		);
+	}
+
 	/** Dispatch helper — builds a unified observer + its expand closure. */
 	private _buildStructuredObserver<T>(
 		targets: ReadonlyArray<[string, Node]>,
@@ -2640,6 +2931,12 @@ export class Graph {
 		// Listener set — format logger, async iterable, and user `onEvent` hooks.
 		const listeners = new Set<(event: ObserveEvent) => void>();
 
+		// Tier filter (Tier 1.5.2 — Session A.4 lock). When set, events whose
+		// `type` is not in the set are dropped before they hit the events buffer
+		// or any listener — applies uniformly to the structured callback,
+		// `events` array, async iterable, and format logger.
+		const tierSet = options.tiers != null ? new Set(options.tiers) : null;
+
 		const values: Record<string, T> = {};
 		const nodeErrored = new Set<string>();
 		let dirtyCount = 0;
@@ -2658,10 +2955,17 @@ export class Graph {
 		const lastRunDepBatches = new Map<Node, ReadonlyArray<ReadonlyArray<unknown> | undefined>>();
 
 		const recordEvent = (event: ObserveEvent): void => {
+			if (tierSet != null && !tierSet.has(event.type)) return;
 			if (ring) ring.push(event);
 			else events.push(event);
 			for (const listener of listeners) listener(event);
 		};
+
+		// QA F3: tier filter applies to counters too — `dirtyCount`, `resolvedCount`,
+		// `anyErrored`, etc. would otherwise reflect full-stream traffic regardless
+		// of `tiers: [...]`. With this helper, counters and event buffer stay
+		// coherent.
+		const inTier = (name: ObserveEvent["type"]): boolean => tierSet == null || tierSet.has(name);
 
 		const baseMeta = (): Partial<ObserveEventBase> =>
 			timeline ? { timestamp_ns: monotonicNs(), in_batch: isBatching(), batch_id: batchSeq } : {};
@@ -2727,6 +3031,9 @@ export class Graph {
 						const t = m[0];
 						const base = baseMeta();
 						if (t === DATA) {
+							// `values` is updated regardless of tier filter — it
+							// reflects the latest cache snapshot, which is a
+							// data-flow observation independent of event scoping.
 							values[path] = m[1] as T;
 							// B9: thread attribution onto the event so audit
 							// consumers can evaluate policy against every
@@ -2744,22 +3051,32 @@ export class Graph {
 								...buildCausal(target),
 							} as ObserveEvent);
 						} else if (minimal) {
-							if (t === DIRTY) dirtyCount++;
-							else if (t === RESOLVED) resolvedCount++;
-							else if (t === INVALIDATE) invalidateCount++;
-							else if (t === PAUSE) pauseCount++;
-							else if (t === RESUME) resumeCount++;
-							else if (t === TEARDOWN) teardownCount++;
-							else if (t === COMPLETE && !nodeErrored.has(path)) anyCompletedCleanly = true;
-							else if (t === ERROR) {
-								anyErrored = true;
-								nodeErrored.add(path);
+							// QA F3: tier-filter counters too.
+							if (t === DIRTY) {
+								if (inTier("dirty")) dirtyCount++;
+							} else if (t === RESOLVED) {
+								if (inTier("resolved")) resolvedCount++;
+							} else if (t === INVALIDATE) {
+								if (inTier("invalidate")) invalidateCount++;
+							} else if (t === PAUSE) {
+								if (inTier("pause")) pauseCount++;
+							} else if (t === RESUME) {
+								if (inTier("resume")) resumeCount++;
+							} else if (t === TEARDOWN) {
+								if (inTier("teardown")) teardownCount++;
+							} else if (t === COMPLETE && !nodeErrored.has(path)) {
+								if (inTier("complete")) anyCompletedCleanly = true;
+							} else if (t === ERROR) {
+								if (inTier("error")) {
+									anyErrored = true;
+									nodeErrored.add(path);
+								}
 							}
 						} else if (t === DIRTY) {
-							dirtyCount++;
+							if (inTier("dirty")) dirtyCount++;
 							recordEvent({ type: "dirty", path, ...base } as ObserveEvent);
 						} else if (t === RESOLVED) {
-							resolvedCount++;
+							if (inTier("resolved")) resolvedCount++;
 							recordEvent({
 								type: "resolved",
 								path,
@@ -2767,20 +3084,22 @@ export class Graph {
 								...buildCausal(target),
 							} as ObserveEvent);
 						} else if (t === INVALIDATE) {
-							invalidateCount++;
+							if (inTier("invalidate")) invalidateCount++;
 							recordEvent({ type: "invalidate", path, ...base } as ObserveEvent);
 						} else if (t === PAUSE) {
-							pauseCount++;
+							if (inTier("pause")) pauseCount++;
 							recordEvent({ type: "pause", path, lockId: m[1], ...base } as ObserveEvent);
 						} else if (t === RESUME) {
-							resumeCount++;
+							if (inTier("resume")) resumeCount++;
 							recordEvent({ type: "resume", path, lockId: m[1], ...base } as ObserveEvent);
 						} else if (t === COMPLETE) {
-							if (!nodeErrored.has(path)) anyCompletedCleanly = true;
+							if (inTier("complete") && !nodeErrored.has(path)) anyCompletedCleanly = true;
 							recordEvent({ type: "complete", path, ...base } as ObserveEvent);
 						} else if (t === ERROR) {
-							anyErrored = true;
-							nodeErrored.add(path);
+							if (inTier("error")) {
+								anyErrored = true;
+								nodeErrored.add(path);
+							}
 							const attr =
 								target instanceof NodeImpl
 									? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
@@ -2793,7 +3112,7 @@ export class Graph {
 								...base,
 							} as ObserveEvent);
 						} else if (t === TEARDOWN) {
-							teardownCount++;
+							if (inTier("teardown")) teardownCount++;
 							recordEvent({ type: "teardown", path, ...base } as ObserveEvent);
 						}
 					}

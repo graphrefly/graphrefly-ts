@@ -15,6 +15,7 @@ import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import type { NodeActions } from "../../core/config.js";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
+import { placeholderArgs } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { type DerivedFn, derived, state } from "../../core/sugar.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
@@ -581,5 +582,14 @@ export class PipelineGraph extends Graph {
 
 /** Factory wrapper — `pipelineGraph(name, opts?)`. Equivalent to `new PipelineGraph(name, opts)`. */
 export function pipelineGraph(name: string, opts?: GraphOptions): PipelineGraph {
-	return new PipelineGraph(name, opts);
+	const g = new PipelineGraph(name, opts);
+	// Tier 1.5.3 Phase 2.5 (DG1=B): tag the Graph with its constructing
+	// factory so `describe()` exposes provenance. `factoryArgs` is the
+	// constructor opts (sans the `factory`/`factoryArgs` keys themselves to
+	// avoid recursive nesting). QA F13: route through `placeholderArgs` for
+	// consistency with sibling factories — `GraphOptions[key: string]: unknown`
+	// is open-ended, so user-extension keys may carry non-JSON content.
+	const { factory: _f, factoryArgs: _fa, ...tagArgs } = (opts ?? {}) as Record<string, unknown>;
+	g.tagFactory("pipelineGraph", placeholderArgs(tagArgs));
+	return g;
 }

@@ -11,11 +11,31 @@
  * own first-run / push-on-subscribe semantics that can leak a transient null
  * before the real response arrives — observed and reverted in an earlier
  * attempt; see SESSION-ai-harness-module-review.md line 3654 for context.
+ * Locked as path (b) producer-based by Session C (2026-04-27).
  *
- * For retry / replay-cache semantics, wrap the adapter with `withRetry` /
- * `withReplayCache` middleware (see `patterns/ai/adapters/middleware/`). The
- * removed `retries` / `cache` options on `promptNode` duplicated middleware
- * that already exists at the adapter layer.
+ * **Retry / replay-cache.** Stack middleware on the adapter:
+ *
+ * ```ts
+ * import { withRetry, withReplayCache } from "@graphrefly/graphrefly/patterns/ai";
+ *
+ * const adapter = withRetry(
+ *   withReplayCache(baseAdapter, { keyFn: (ctx) => ctx.messages[0].content }),
+ *   { count: 3, backoff: 200 },
+ * );
+ * const result = promptNode(adapter, [input], (q) => q);
+ * ```
+ *
+ * `promptNode` no longer ships `retries` / `cache` options — they duplicated
+ * middleware already at the adapter layer.
+ *
+ * **Cross-wave cache (COMPOSITION-GUIDE §32).** The switchMap output cache
+ * survives across new outer DATAs — `promptNode`'s cached value persists
+ * until the next wave fully resolves. Consumers that need to distinguish
+ * "fresh value for THIS session" from "stale cache from a prior session"
+ * (e.g. `agentLoop` resetting on new `run()`) must add a `state()` mirror
+ * at their session boundary and depend on the mirror, not the `promptNode`
+ * output directly. `promptNode` itself stays primitive — it does not
+ * embed a state-mirror.
  *
  * @module
  */
