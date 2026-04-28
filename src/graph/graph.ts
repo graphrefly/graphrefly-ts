@@ -1864,7 +1864,8 @@ export class Graph {
 		// `detail: "spec"` is the canonical spec-projection mode (Tier 1.5.3
 		// Phase 1 — replaces the old `format: "spec"` alias). Strips
 		// annotations from the output so the result round-trips through
-		// GraphSpec via `decompileSpec` (annotations don't survive).
+		// GraphSpec via `decompileSpec`. Phase 3 also gates `value` to
+		// state nodes only — passed to `describeNode` as the third arg.
 		const isSpec = options?.detail === "spec";
 		const effectiveFields = includeFields;
 
@@ -1928,7 +1929,7 @@ export class Graph {
 		const nodes: Record<string, DescribeNodeOutput> = {};
 		for (const [p, n] of allTargets) {
 			if (actor != null && !n.allowsObserve(actor)) continue;
-			const raw = describeNode(n, effectiveFields);
+			const raw = describeNode(n, effectiveFields, isSpec);
 			const deps =
 				n instanceof NodeImpl
 					? n._deps.map((d) => nodeToPath.get(d.node) ?? d.node.name ?? "")

@@ -15,6 +15,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { portableCatalog } from "../../../evals/lib/portable-catalog.js";
+import { factoryTag } from "../../core/meta.js";
 import {
 	type GraphSpec,
 	generateCatalogPrompt,
@@ -79,8 +80,8 @@ describe("Treatment B auto-gen prompt — round-trip with a minimal spec", () =>
 		const spec: GraphSpec = {
 			name: "minimal-from-prompt-description",
 			nodes: {
-				src: { type: "state", initial: 0 },
-				out: { type: "derived", deps: ["src"], fn: "filterBy" },
+				src: { type: "state", deps: [], value: 0 },
+				out: { type: "derived", deps: ["src"], meta: { ...factoryTag("filterBy") } },
 			},
 		};
 		const result = validateSpec(spec);

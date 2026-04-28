@@ -1,14 +1,17 @@
 /**
- * Tier 1.5.3 (Session A.1 lock) — Phase 1 substrate.
+ * Tier 1.5.3 (Session A.1 lock) — Phase 3 unified-shape suite.
  *
  * Verifies:
  * - `describe({ detail: "spec" })` projects only structural fields and strips
  *   runtime state.
  * - `factoryTag(name, args)` stamps `meta.factory` + `meta.factoryArgs` on
  *   the resulting node.
- * - `compileSpec` reads `meta.factory` + `meta.factoryArgs` (dual-read with
- *   the legacy `fn` / `source` / `config` field-form).
- * - `decompileSpec` is exported and round-trips alongside `decompileGraph`.
+ * - `compileSpec` reads `meta.factory` + `meta.factoryArgs` directly (Phase 3
+ *   collapses the dual-read; the legacy `fn` / `source` / `config` /
+ *   `initial` field-form is gone).
+ * - `decompileSpec` is the canonical name (`decompileGraph` removed).
+ * - State nodes self-tag via `factoryTag("state", { initial })` so initial
+ *   values round-trip through `meta.factoryArgs.initial` (path (a)).
  */
 
 import { describe, expect, it } from "vitest";
@@ -48,11 +51,14 @@ describe("describe({ detail: 'spec' })", () => {
 		// Domain meta also preserved.
 		expect(spec.nodes.b!.meta?.domain).toBe("math");
 
-		// Runtime fields stripped.
-		expect(spec.nodes.a!.value).toBeUndefined();
+		// Runtime fields stripped (status/guard/lastMutation always; `value`
+		// retained for state nodes only — path (b) lock).
 		expect(spec.nodes.a!.status).toBeUndefined();
 		expect(spec.nodes.a!.lastMutation).toBeUndefined();
 		expect(spec.nodes.a!.guard).toBeUndefined();
+		// State node: `value` retained as the seed initial.
+		expect(spec.nodes.a!.value).toBe(42);
+		// Derived node: `value` stripped (runtime artifact).
 		expect(spec.nodes.b!.value).toBeUndefined();
 
 		off();
@@ -84,16 +90,15 @@ describe("factoryTag", () => {
 	});
 });
 
-describe("compileSpec dual-read (Tier 1.5.3 Phase 1)", () => {
+describe("compileSpec reads meta.factory directly (Tier 1.5.3 Phase 3)", () => {
 	it("reads meta.factory + meta.factoryArgs for derived nodes", () => {
 		const spec: GraphSpec = {
 			name: "g",
 			nodes: {
-				input: { type: "state", initial: 5 },
+				input: { type: "state", value: 5, deps: [] },
 				doubled: {
 					type: "derived",
 					deps: ["input"],
-					// New form: factory ref lives in meta, no fn / config fields.
 					meta: { ...factoryTag("multiply", { by: 2 }) },
 				},
 			},
@@ -123,6 +128,7 @@ describe("compileSpec dual-read (Tier 1.5.3 Phase 1)", () => {
 			nodes: {
 				heartbeat: {
 					type: "producer",
+					deps: [],
 					meta: { ...factoryTag("seedSource", { value: 99 }) },
 				},
 			},
@@ -147,73 +153,35 @@ describe("compileSpec dual-read (Tier 1.5.3 Phase 1)", () => {
 		off();
 	});
 
-	it("legacy fn/config field-form still compiles unchanged", () => {
+	it("state node initial via top-level value field (path (b) canonical)", () => {
+		// Path (b) lock: spec projection retains `value` for state nodes so the
+		// seed initial round-trips via `value`, not via meta companion nodes.
 		const spec: GraphSpec = {
 			name: "g",
 			nodes: {
-				input: { type: "state", initial: 3 },
-				tripled: {
-					type: "derived",
-					deps: ["input"],
-					fn: "multiply",
-					config: { by: 3 },
-				},
+				counter: { type: "state", deps: [], value: 7 },
 			},
 		};
-
-		const g = compileSpec(spec, {
-			catalog: {
-				fns: {
-					multiply: (deps, config) =>
-						derived(
-							[deps[0] as Parameters<typeof derived>[0][number]],
-							([v]) => (v as number) * (config.by as number),
-						),
-				},
-			},
-		});
-
-		const tripled = g.resolve("tripled");
-		const off = tripled.subscribe(() => {});
-		expect(tripled.cache).toBe(9);
-		off();
+		const g = compileSpec(spec);
+		expect(g.resolve("counter").cache).toBe(7);
 	});
 
-	it("legacy fields take precedence when both forms set", () => {
-		// Explicit `fn` overrides `meta.factory` so authored specs always win.
+	it("state node initial via meta.factoryArgs.initial also works (legacy / explicit form)", () => {
+		// A user-tagged state factory may stamp `meta.factoryArgs.initial`; the
+		// `compileSpec` `readStateInitial` helper prefers it before falling back
+		// to `value`. Both forms are accepted.
 		const spec: GraphSpec = {
 			name: "g",
 			nodes: {
-				input: { type: "state", initial: 4 },
-				out: {
-					type: "derived",
-					deps: ["input"],
-					fn: "negate",
-					config: {},
-					meta: { ...factoryTag("multiply", { by: 99 }) },
+				counter: {
+					type: "state",
+					deps: [],
+					meta: { ...factoryTag("counter", { initial: 42 }) },
 				},
 			},
 		};
-
-		const g = compileSpec(spec, {
-			catalog: {
-				fns: {
-					negate: (deps) =>
-						derived([deps[0] as Parameters<typeof derived>[0][number]], ([v]) => -(v as number)),
-					multiply: (deps, config) =>
-						derived(
-							[deps[0] as Parameters<typeof derived>[0][number]],
-							([v]) => (v as number) * (config.by as number),
-						),
-				},
-			},
-		});
-
-		const out = g.resolve("out");
-		const off = out.subscribe(() => {});
-		// negate fired (legacy), not multiply (meta).
-		expect(out.cache).toBe(-4);
-		off();
+		const g = compileSpec(spec);
+		expect(g.resolve("counter").cache).toBe(42);
 	});
 });
 
@@ -450,20 +418,34 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	});
 });
 
-describe("decompileSpec rename (D5)", () => {
-	it("is exported alongside decompileGraph and produces equivalent output", async () => {
-		const { decompileGraph } = await import("../../patterns/graphspec/index.js");
+describe("decompileSpec is the canonical name (Phase 3)", () => {
+	it("decompileGraph is no longer exported", async () => {
+		const mod = await import("../../patterns/graphspec/index.js");
+		expect((mod as Record<string, unknown>).decompileGraph).toBeUndefined();
+	});
 
+	it("decompileSpec(g) ≈ g.describe({ detail: 'spec' }) (modulo feedback sugar + meta-companion stripping)", () => {
 		const g = new Graph("g");
 		g.add(state(7, { name: "a" }), { name: "a" });
 
 		const viaSpec = decompileSpec(g);
-		const viaGraph = decompileGraph(g);
+		const viaDescribe = g.describe({ detail: "spec" });
 
-		// Phase 1: thin alias — same body, same output.
-		expect(viaSpec).toEqual(viaGraph);
+		expect(viaSpec.name).toBe(viaDescribe.name);
 		expect(viaSpec.name).toBe("g");
 		expect(viaSpec.nodes.a).toBeDefined();
+		// Path (b): state node retains `value` in spec projection so `initial`
+		// round-trips without polluting the graph with meta companion nodes.
+		expect(viaSpec.nodes.a!.value).toBe(7);
+		expect(viaSpec.nodes.a!.type).toBe("state");
+	});
+
+	it("state initial round-trips through decompileSpec → compileSpec", () => {
+		const g1 = new Graph("g");
+		g1.add(state(99, { name: "counter" }), { name: "counter" });
+		const spec = decompileSpec(g1);
+		const g2 = compileSpec(spec);
+		expect(g2.resolve("counter").cache).toBe(99);
 	});
 });
 
@@ -594,7 +576,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	it("falls back to per-node compile when spec.factory has no graphFactories entry", () => {
 		const spec: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state", initial: 7 } },
+			nodes: { x: { type: "state", deps: [], value: 7 } },
 			factory: "unknownFactory",
 		};
 		// No graphFactories entry — should fall through and compile nodes normally.

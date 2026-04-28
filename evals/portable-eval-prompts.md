@@ -29,11 +29,13 @@ Each node has:
   "template" (instantiate a reusable template)
 - "deps": Array of node names this node depends on
   (required for derived and effect)
-- "fn": String reference to a function name from the catalog below
-  (required for derived and effect — must be a catalog function, NOT a source)
-- "source": String reference to a data source name (required for producer)
-- "config": Optional freeform object for configuration
-- "initial": Optional initial value (for state nodes)
+- "meta": Object describing how the node is built. Two key sub-fields:
+    "factory":     String reference to a catalog name (function for derived/
+                   effect, source for producer). Optional but required if
+                   the node should be instantiated from the catalog.
+    "factoryArgs": Optional freeform object passed to the catalog factory.
+  Plus any descriptive sub-fields (e.g., "description").
+- "value": Optional initial seed value (for state nodes).
 
 Template nodes (type "template") have:
 - "template": Name of a template defined in the top-level "templates" object
@@ -44,8 +46,8 @@ Templates (top-level "templates" object) define reusable subgraph patterns:
     "myPattern": {
       "params": ["$input"],
       "nodes": {
-        "step1": { "type": "derived", "deps": ["$input"], "fn": "someFn" },
-        "step2": { "type": "derived", "deps": ["step1"], "fn": "otherFn" }
+        "step1": { "type": "derived", "deps": ["$input"], "meta": { "factory": "someFn" } },
+        "step2": { "type": "derived", "deps": ["step1"], "meta": { "factory": "otherFn" } }
       },
       "output": "step2"
     }
@@ -549,17 +551,17 @@ chain) should differentiate.
 ```json
 {
   "nodes": {
-    "inbox": { "type": "producer", "source": "email", "config": { "folder": "INBOX" } },
-    "classify": { "type": "derived", "deps": ["inbox"], "fn": "llmClassify", "config": { "categories": ["urgent", "newsletter", "other"] } },
-    "urgent": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "urgent" } },
-    "newsletters": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "newsletter" } },
-    "other": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "category", "op": "eq", "value": "other" } },
-    "pushUrgent": { "type": "effect", "deps": ["urgent"], "fn": "notifyPush", "config": { "title": "Urgent email" } },
-    "batchNewsletters": { "type": "derived", "deps": ["newsletters"], "fn": "batchEvents", "config": { "size": 50, "intervalMs": 604800000 } },
-    "digestEmail": { "type": "effect", "deps": ["batchNewsletters"], "fn": "sendEmail", "config": { "to": "me@example.com", "subject": "Weekly Newsletter Digest" } },
-    "countBySender": { "type": "derived", "deps": ["other"], "fn": "groupBy", "config": { "field": "sender" } },
-    "senderCounts": { "type": "derived", "deps": ["countBySender"], "fn": "aggregate", "config": { "op": "count", "field": "sender" } },
-    "storeOther": { "type": "effect", "deps": ["senderCounts"], "fn": "writeToDB", "config": { "table": "email_sender_counts" } }
+    "inbox": { "type": "producer", "deps": [], "meta": { "factory": "email", "factoryArgs": { "folder": "INBOX" } } },
+    "classify": { "type": "derived", "deps": ["inbox"], "meta": { "factory": "llmClassify", "factoryArgs": { "categories": ["urgent", "newsletter", "other"] } } },
+    "urgent": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "category", "op": "eq", "value": "urgent" } } },
+    "newsletters": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "category", "op": "eq", "value": "newsletter" } } },
+    "other": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "category", "op": "eq", "value": "other" } } },
+    "pushUrgent": { "type": "effect", "deps": ["urgent"], "meta": { "factory": "notifyPush", "factoryArgs": { "title": "Urgent email" } } },
+    "batchNewsletters": { "type": "derived", "deps": ["newsletters"], "meta": { "factory": "batchEvents", "factoryArgs": { "size": 50, "intervalMs": 604800000 } } },
+    "digestEmail": { "type": "effect", "deps": ["batchNewsletters"], "meta": { "factory": "sendEmail", "factoryArgs": { "to": "me@example.com", "subject": "Weekly Newsletter Digest" } } },
+    "countBySender": { "type": "derived", "deps": ["other"], "meta": { "factory": "groupBy", "factoryArgs": { "field": "sender" } } },
+    "senderCounts": { "type": "derived", "deps": ["countBySender"], "meta": { "factory": "aggregate", "factoryArgs": { "op": "count", "field": "sender" } } },
+    "storeOther": { "type": "effect", "deps": ["senderCounts"], "meta": { "factory": "writeToDB", "factoryArgs": { "table": "email_sender_counts" } } }
   }
 }
 ```
@@ -568,13 +570,13 @@ chain) should differentiate.
 ```json
 {
   "nodes": {
-    "tick": { "type": "producer", "source": "timer", "config": { "intervalMs": 60000 } },
-    "apiCall": { "type": "derived", "deps": ["tick"], "fn": "retry", "config": { "maxAttempts": 3, "backoff": "exponential", "fn": "fetchPrice" } },
-    "priceCache": { "type": "state", "initial": null },
-    "cachedFallback": { "type": "derived", "deps": ["apiCall", "priceCache"], "fn": "fallback", "config": { "fallbackSource": "priceCache" } },
-    "updateCache": { "type": "effect", "deps": ["cachedFallback"], "fn": "cache", "config": { "ttlMs": 300000 } },
-    "logAttempt": { "type": "effect", "deps": ["apiCall"], "fn": "writeToDB", "config": { "table": "pricing_log" } },
-    "dashboard": { "type": "effect", "deps": ["cachedFallback"], "fn": "updateDashboard", "config": { "dashboardId": "pricing" } }
+    "tick": { "type": "producer", "deps": [], "meta": { "factory": "timer", "factoryArgs": { "intervalMs": 60000 } } },
+    "apiCall": { "type": "derived", "deps": ["tick"], "meta": { "factory": "retry", "factoryArgs": { "maxAttempts": 3, "backoff": "exponential", "fn": "fetchPrice" } } },
+    "priceCache": { "type": "state", "deps": [], "value": null },
+    "cachedFallback": { "type": "derived", "deps": ["apiCall", "priceCache"], "meta": { "factory": "fallback", "factoryArgs": { "fallbackSource": "priceCache" } } },
+    "updateCache": { "type": "effect", "deps": ["cachedFallback"], "meta": { "factory": "cache", "factoryArgs": { "ttlMs": 300000 } } },
+    "logAttempt": { "type": "effect", "deps": ["apiCall"], "meta": { "factory": "writeToDB", "factoryArgs": { "table": "pricing_log" } } },
+    "dashboard": { "type": "effect", "deps": ["cachedFallback"], "meta": { "factory": "updateDashboard", "factoryArgs": { "dashboardId": "pricing" } } }
   }
 }
 ```
@@ -583,20 +585,20 @@ chain) should differentiate.
 ```json
 {
   "nodes": {
-    "alerts": { "type": "producer", "source": "otel", "config": { "signalType": "logs", "endpoint": "http://otel:4318" } },
-    "classify": { "type": "derived", "deps": ["alerts"], "fn": "stratify", "config": { "rules": [{ "match": { "field": "severity", "op": "eq", "value": "critical" }, "branch": "P1" }, { "match": { "field": "severity", "op": "eq", "value": "warning" }, "branch": "P2" }], "default": "P3" } },
-    "p1Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P1" } },
-    "p2Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P2" } },
-    "p3Alerts": { "type": "derived", "deps": ["classify"], "fn": "filterBy", "config": { "field": "branch", "op": "eq", "value": "P3" } },
-    "dedupP1": { "type": "derived", "deps": ["p1Alerts"], "fn": "dedup", "config": { "key": "alertName", "ttlMs": 300000 } },
-    "dedupP2": { "type": "derived", "deps": ["p2Alerts"], "fn": "dedup", "config": { "key": "alertName", "ttlMs": 300000 } },
-    "scoreP1": { "type": "derived", "deps": ["dedupP1"], "fn": "scorer", "config": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } },
-    "scoreP2": { "type": "derived", "deps": ["dedupP2"], "fn": "scorer", "config": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } },
-    "gateP1": { "type": "derived", "deps": ["scoreP1"], "fn": "budgetGate", "config": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } },
-    "gateP2": { "type": "derived", "deps": ["scoreP2"], "fn": "budgetGate", "config": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } },
-    "pageP1": { "type": "effect", "deps": ["gateP1"], "fn": "sendPagerDuty", "config": { "severity": "critical" } },
-    "slackP2": { "type": "effect", "deps": ["gateP2"], "fn": "sendSlack", "config": { "channel": "#alerts-warning" } },
-    "logP3": { "type": "effect", "deps": ["p3Alerts"], "fn": "toClickHouse", "config": { "table": "info_alerts" } }
+    "alerts": { "type": "producer", "deps": [], "meta": { "factory": "otel", "factoryArgs": { "signalType": "logs", "endpoint": "http://otel:4318" } } },
+    "classify": { "type": "derived", "deps": ["alerts"], "meta": { "factory": "stratify", "factoryArgs": { "rules": [{ "match": { "field": "severity", "op": "eq", "value": "critical" }, "branch": "P1" }, { "match": { "field": "severity", "op": "eq", "value": "warning" }, "branch": "P2" }], "default": "P3" } } },
+    "p1Alerts": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "branch", "op": "eq", "value": "P1" } } },
+    "p2Alerts": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "branch", "op": "eq", "value": "P2" } } },
+    "p3Alerts": { "type": "derived", "deps": ["classify"], "meta": { "factory": "filterBy", "factoryArgs": { "field": "branch", "op": "eq", "value": "P3" } } },
+    "dedupP1": { "type": "derived", "deps": ["p1Alerts"], "meta": { "factory": "dedup", "factoryArgs": { "key": "alertName", "ttlMs": 300000 } } },
+    "dedupP2": { "type": "derived", "deps": ["p2Alerts"], "meta": { "factory": "dedup", "factoryArgs": { "key": "alertName", "ttlMs": 300000 } } },
+    "scoreP1": { "type": "derived", "deps": ["dedupP1"], "meta": { "factory": "scorer", "factoryArgs": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } } },
+    "scoreP2": { "type": "derived", "deps": ["dedupP2"], "meta": { "factory": "scorer", "factoryArgs": { "weights": { "service_tier": 3, "duration": 2, "affected_users": 1 } } } },
+    "gateP1": { "type": "derived", "deps": ["scoreP1"], "meta": { "factory": "budgetGate", "factoryArgs": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } } },
+    "gateP2": { "type": "derived", "deps": ["scoreP2"], "meta": { "factory": "budgetGate", "factoryArgs": { "budget": 20, "costField": "score", "resetIntervalMs": 3600000 } } },
+    "pageP1": { "type": "effect", "deps": ["gateP1"], "meta": { "factory": "sendPagerDuty", "factoryArgs": { "severity": "critical" } } },
+    "slackP2": { "type": "effect", "deps": ["gateP2"], "meta": { "factory": "sendSlack", "factoryArgs": { "channel": "#alerts-warning" } } },
+    "logP3": { "type": "effect", "deps": ["p3Alerts"], "meta": { "factory": "toClickHouse", "factoryArgs": { "table": "info_alerts" } } }
   }
 }
 ```

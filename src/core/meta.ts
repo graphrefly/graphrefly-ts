@@ -32,11 +32,15 @@ export type DescribeNodeOutput = {
  * - `"minimal"` — `type`, `deps` only.
  * - `"standard"` — minimal + `status`, `value`, `meta`, `v`.
  * - `"full"` — every field.
- * - `"spec"` — Tier 1.5.3 / Session A.1 lock. Projects spec-relevant fields
- *   (`type`, `deps`, `meta` — including `meta.factory` / `meta.factoryArgs`)
- *   and strips runtime fields (`status`, `value`, `lastMutation`, `guard`,
- *   `sentinel`). The output is structurally identical to the `GraphSpec`
- *   shape so `decompileSpec(g) === describe(g, { detail: "spec" })`.
+ * - `"spec"` — Tier 1.5.3 (Session A.1 lock + Phase 3 path (b)). Projects
+ *   spec-relevant fields (`type`, `deps`, `meta` — including
+ *   `meta.factory` / `meta.factoryArgs`) and strips runtime fields
+ *   (`status`, `lastMutation`, `guard`, `sentinel`, `v`). **Retains
+ *   `value` for state nodes only** so the seed initial value round-trips
+ *   through `decompileSpec` → `compileSpec` without forcing every state
+ *   constructor to spawn `meta.factory`/`factoryArgs` companion nodes.
+ *   The output is structurally identical to the `GraphSpec` shape so
+ *   `decompileSpec(g) === describe(g, { detail: "spec" })`.
  */
 export type DescribeDetail = "minimal" | "standard" | "full" | "spec";
 
@@ -64,9 +68,11 @@ export function resolveDescribeFields(
 		case "full":
 			return null;
 		case "spec":
-			// Spec projection: structural fields + meta (carries factory/factoryArgs);
-			// strips runtime status/value/lastMutation/guard. Tier 1.5.3 lock.
-			return new Set(["type", "deps", "meta"]);
+			// Spec projection: structural fields + meta (carries factory/factoryArgs)
+			// + value (retained for state nodes only — gated in {@link describeNode}
+			// via the `specMode` parameter). Strips runtime status/lastMutation/
+			// guard/v. Tier 1.5.3 Phase 3 lock (path (b)).
+			return new Set(["type", "deps", "meta", "value"]);
 		default:
 			return new Set(["type", "deps"]);
 	}
@@ -217,8 +223,17 @@ export function metaSnapshot(node: Node): Record<string, unknown> {
 /**
  * Builds a single-node slice of `Graph.describe()` JSON (structure + `meta`
  * snapshot). Parity with `graphrefly-py` `describe_node`.
+ *
+ * `specMode` (Tier 1.5.3 Phase 3 / path (b)): when true, the `value` field is
+ * only included for state nodes — derived/effect/producer values are runtime
+ * artifacts and would bloat spec round-trips. Pass `true` from
+ * `Graph.describe({ detail: "spec" })`.
  */
-export function describeNode(node: Node, includeFields?: Set<string> | null): DescribeNodeOutput {
+export function describeNode(
+	node: Node,
+	includeFields?: Set<string> | null,
+	specMode?: boolean,
+): DescribeNodeOutput {
 	const all = includeFields == null;
 	const metaKeys: string[] | null =
 		!all && includeFields != null
@@ -263,11 +278,18 @@ export function describeNode(node: Node, includeFields?: Set<string> | null): De
 	}
 
 	if (all || includeFields!.has("value")) {
-		if (node.status === "sentinel") out.sentinel = true;
-		try {
-			out.value = node.cache;
-		} catch {
-			/* omit value */
+		// Spec mode: only state nodes retain `value` — derived/effect/producer
+		// values are runtime artifacts irrelevant to re-instantiation. State
+		// nodes need `value` because that's where `compileSpec` reads the seed
+		// initial back from.
+		const allowValue = !specMode || type === "state";
+		if (allowValue) {
+			if (node.status === "sentinel") out.sentinel = true;
+			try {
+				out.value = node.cache;
+			} catch {
+				/* omit value */
+			}
 		}
 	}
 

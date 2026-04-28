@@ -21,7 +21,7 @@
 
 // Re-export the graphspec types the surface operates on, so MCP/CLI
 // wrappers get `GraphSpec`/`GraphSpecCatalog` from one import. The
-// runtime functions (`compileSpec`, `validateSpec`, `decompileGraph`,
+// runtime functions (`compileSpec`, `validateSpec`, `decompileSpec`,
 // etc.) stay inside `patterns.graphspec` — surface callers use
 // {@link createGraph}, not those directly.
 export type {

@@ -20,7 +20,7 @@
   - F21: `tap` observer-arg branch potentially drops user `opts.meta` if `ExtraOpts` lacks `meta` field — verify, low impact.
   - F22: `switchMap`/bundle factoryTag override pattern fragile against future switchMap meta additions — only matters if switchMap adds non-factory meta keys later.
   - F23: `metaEqual` doesn't handle Map/Set/Date — describe never produces these per spec §3.6; doc the assumption.
-  - F24: Unused `_f`/`_fa` destructure repeated 3× — cosmetic, could extract `stripFactoryKeys` helper.
+  - F24: ~~Unused `_f`/`_fa` destructure repeated 3× — cosmetic, could extract `stripFactoryKeys` helper.~~ ✅ resolved by Tier 1.5.3 Phase 3 (2026-04-27): `normalizeSpec` deleted entirely; `compileSpec` now uses the centralized `stripFactoryMeta` helper.
   - F25: `composite.ts` `consolidate` closure-mirror pattern parallels F9 (which was patched in agent-memory). If composite's consolidate ever gets a Graph context for `addDisposer`, mirror the F9 fix.
 
 

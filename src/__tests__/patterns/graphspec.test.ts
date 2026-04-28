@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DATA, type Messages } from "../../core/messages.js";
+import { factoryTag } from "../../core/meta.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/graph.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
 import {
 	compileSpec,
-	decompileGraph,
+	decompileSpec,
 	type GraphSpec,
 	type GraphSpecCatalog,
 	llmCompose,
@@ -56,7 +57,7 @@ describe("graphspec.validateSpec", () => {
 		const spec: GraphSpec = {
 			name: "test",
 			nodes: {
-				a: { type: "state", initial: 1 },
+				a: { type: "state", deps: [], value: 1 },
 			},
 		};
 		const result = validateSpec(spec);
@@ -101,13 +102,17 @@ describe("graphspec.validateSpec", () => {
 				resilient: {
 					params: ["$source"],
 					nodes: {
-						inner: { type: "derived", deps: ["$source"], fn: "identity" },
+						inner: {
+							type: "derived",
+							deps: ["$source"],
+							meta: { ...factoryTag("identity") },
+						},
 					},
 					output: "inner",
 				},
 			},
 			nodes: {
-				src: { type: "state", initial: 0 },
+				src: { type: "state", deps: [], value: 0 },
 				wrapped: { type: "template", template: "resilient", bind: { $source: "src" } },
 			},
 		};
@@ -129,8 +134,12 @@ describe("graphspec.validateSpec", () => {
 		const spec = {
 			name: "t",
 			nodes: {
-				interval: { type: "state", initial: 10000 },
-				compute: { type: "derived", deps: ["interval"], fn: "double" },
+				interval: { type: "state", deps: [], value: 10000 },
+				compute: {
+					type: "derived",
+					deps: ["interval"],
+					meta: { ...factoryTag("double") },
+				},
 			},
 			feedback: [{ from: "compute", to: "interval", maxIterations: 5 }],
 		};
@@ -140,7 +149,7 @@ describe("graphspec.validateSpec", () => {
 	it("rejects feedback edge referencing non-existent node", () => {
 		const result = validateSpec({
 			name: "t",
-			nodes: { a: { type: "state" } },
+			nodes: { a: { type: "state", deps: [] } },
 			feedback: [{ from: "a", to: "missing" }],
 		});
 		expect(result.valid).toBe(false);
@@ -151,7 +160,7 @@ describe("graphspec.validateSpec", () => {
 		const result = validateSpec({
 			name: "t",
 			templates: {
-				bad: { params: [], nodes: { x: { type: "state" } }, output: "nonexistent" },
+				bad: { params: [], nodes: { x: { type: "state", deps: [] } }, output: "nonexistent" },
 			},
 			nodes: {},
 		});
@@ -171,7 +180,7 @@ describe("graphspec.validateSpec", () => {
 	it("warns when derived/effect has no deps", () => {
 		const result = validateSpec({
 			name: "t",
-			nodes: { a: { type: "derived", fn: "identity" } },
+			nodes: { a: { type: "derived", meta: { ...factoryTag("identity") } } },
 		});
 		expect(result.valid).toBe(false);
 		expect(result.errors[0]).toContain("should have");
@@ -181,8 +190,8 @@ describe("graphspec.validateSpec", () => {
 		const result = validateSpec({
 			name: "t",
 			nodes: {
-				a: { type: "state", initial: 0 },
-				b: { type: "derived", deps: ["a"], fn: "double" },
+				a: { type: "state", deps: [], value: 0 },
+				b: { type: "derived", deps: ["a"], meta: { ...factoryTag("double") } },
 			},
 			feedback: [{ from: "a", to: "b" }],
 		});
@@ -194,10 +203,10 @@ describe("graphspec.validateSpec", () => {
 		const result = validateSpec({
 			name: "t",
 			templates: {
-				tmpl: { params: ["$a", "$b"], nodes: { x: { type: "state" } }, output: "x" },
+				tmpl: { params: ["$a", "$b"], nodes: { x: { type: "state", deps: [] } }, output: "x" },
 			},
 			nodes: {
-				src: { type: "state" },
+				src: { type: "state", deps: [] },
 				inst: { type: "template", template: "tmpl", bind: { $a: "src" } },
 			},
 		});
@@ -215,8 +224,8 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "calc",
 			nodes: {
-				a: { type: "state", initial: 5 },
-				b: { type: "derived", deps: ["a"], fn: "double" },
+				a: { type: "state", deps: [], value: 5 },
+				b: { type: "derived", deps: ["a"], meta: { ...factoryTag("double") } },
 			},
 		};
 
@@ -242,7 +251,11 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "api",
 			nodes: {
-				src: { type: "producer", source: "rest-api", config: { url: "https://example.com" } },
+				src: {
+					type: "producer",
+					deps: [],
+					meta: { ...factoryTag("rest-api", { url: "https://example.com" }) },
+				},
 			},
 		};
 
@@ -255,9 +268,9 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "multi",
 			nodes: {
-				x: { type: "state", initial: 3 },
-				y: { type: "state", initial: 7 },
-				total: { type: "derived", deps: ["x", "y"], fn: "sum" },
+				x: { type: "state", deps: [], value: 3 },
+				y: { type: "state", deps: [], value: 7 },
+				total: { type: "derived", deps: ["x", "y"], meta: { ...factoryTag("sum") } },
 			},
 		};
 
@@ -277,8 +290,8 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "fx",
 			nodes: {
-				src: { type: "state", initial: 0 },
-				log: { type: "effect", deps: ["src"], fn: "logEffect" },
+				src: { type: "state", deps: [], value: 0 },
+				log: { type: "effect", deps: ["src"], meta: { ...factoryTag("logEffect") } },
 			},
 		};
 
@@ -295,8 +308,8 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "bad",
 			nodes: {
-				a: { type: "derived", deps: ["b"], fn: "identity" },
-				b: { type: "derived", deps: ["a"], fn: "identity" },
+				a: { type: "derived", deps: ["b"], meta: { ...factoryTag("identity") } },
+				b: { type: "derived", deps: ["a"], meta: { ...factoryTag("identity") } },
 			},
 		};
 		// Mutual dependency without a state root — unresolvable
@@ -313,16 +326,19 @@ describe("graphspec.compileSpec", () => {
 						timed: {
 							type: "derived",
 							deps: ["$source"],
-							fn: "timeout",
-							config: { timeoutMs: 2000 },
+							meta: { ...factoryTag("timeout", { timeoutMs: 2000 }) },
 						},
-						retried: { type: "derived", deps: ["timed"], fn: "retry", config: { maxAttempts: 2 } },
+						retried: {
+							type: "derived",
+							deps: ["timed"],
+							meta: { ...factoryTag("retry", { maxAttempts: 2 }) },
+						},
 					},
 					output: "retried",
 				},
 			},
 			nodes: {
-				api1Source: { type: "state", initial: null },
+				api1Source: { type: "state", deps: [], value: null },
 				api1: {
 					type: "template",
 					template: "resilientSource",
@@ -343,8 +359,8 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "fb-test",
 			nodes: {
-				interval: { type: "state", initial: 10000 },
-				compute: { type: "derived", deps: ["interval"], fn: "double" },
+				interval: { type: "state", deps: [], value: 10000 },
+				compute: { type: "derived", deps: ["interval"], meta: { ...factoryTag("double") } },
 			},
 			feedback: [{ from: "compute", to: "interval", maxIterations: 3 }],
 		};
@@ -361,7 +377,7 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "placeholder",
 			nodes: {
-				src: { type: "producer", source: "unknown-source" },
+				src: { type: "producer", deps: [], meta: { ...factoryTag("unknown-source") } },
 			},
 		};
 
@@ -374,8 +390,8 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "missing",
 			nodes: {
-				a: { type: "producer", source: "missing-source" },
-				b: { type: "derived", deps: ["a"], fn: "missing-fn" },
+				a: { type: "producer", deps: [], meta: { ...factoryTag("missing-source") } },
+				b: { type: "derived", deps: ["a"], meta: { ...factoryTag("missing-fn") } },
 			},
 		};
 		expect(() => compileSpec(spec, { onMissing: "error" })).toThrow(
@@ -388,7 +404,7 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "warn",
 			nodes: {
-				a: { type: "producer", source: "absent" },
+				a: { type: "producer", deps: [], meta: { ...factoryTag("absent") } },
 			},
 		};
 		const warnings: string[] = [];
@@ -406,7 +422,7 @@ describe("graphspec.compileSpec", () => {
 		const spec: GraphSpec = {
 			name: "placeholder-default",
 			nodes: {
-				a: { type: "producer", source: "absent" },
+				a: { type: "producer", deps: [], meta: { ...factoryTag("absent") } },
 			},
 		};
 		const warnings: string[] = [];
@@ -418,20 +434,21 @@ describe("graphspec.compileSpec", () => {
 });
 
 // ---------------------------------------------------------------------------
-// decompileGraph
+// decompileSpec
 // ---------------------------------------------------------------------------
 
-describe("graphspec.decompileGraph", () => {
+describe("graphspec.decompileSpec", () => {
 	it("decompiles a simple graph", () => {
 		const g = new Graph("simple");
 		const a = state(42, { name: "a", meta: { description: "input" } });
 		g.add(a, { name: "a" });
 
-		const spec = decompileGraph(g);
+		const spec = decompileSpec(g);
 		expect(spec.name).toBe("simple");
 		expect(spec.nodes.a).toBeDefined();
 		expect(spec.nodes.a!.type).toBe("state");
-		expect((spec.nodes.a as any).initial).toBe(42);
+		// State nodes preserve `value` in spec projection (path (b)).
+		expect((spec.nodes.a as { value: unknown }).value).toBe(42);
 		g.destroy();
 	});
 
@@ -443,10 +460,10 @@ describe("graphspec.decompileGraph", () => {
 		g.add(b, { name: "b" });
 		b.subscribe(() => {});
 
-		const spec = decompileGraph(g);
+		const spec = decompileSpec(g);
 		expect(spec.nodes.a!.type).toBe("state");
 		expect(spec.nodes.b!.type).toBe("derived");
-		expect((spec.nodes.b as any).deps).toEqual(["a"]);
+		expect((spec.nodes.b as { deps?: string[] }).deps).toEqual(["a"]);
 		g.destroy();
 	});
 
@@ -454,8 +471,8 @@ describe("graphspec.decompileGraph", () => {
 		const spec: GraphSpec = {
 			name: "fb-decompile",
 			nodes: {
-				interval: { type: "state", initial: 10000 },
-				compute: { type: "derived", deps: ["interval"], fn: "double" },
+				interval: { type: "state", deps: [], value: 10000 },
+				compute: { type: "derived", deps: ["interval"], meta: { ...factoryTag("double") } },
 			},
 			feedback: [{ from: "compute", to: "interval", maxIterations: 5 }],
 		};
@@ -464,7 +481,7 @@ describe("graphspec.decompileGraph", () => {
 		// Activate the derived node
 		g.observe("compute").subscribe(() => {});
 
-		const decompiled = decompileGraph(g);
+		const decompiled = decompileSpec(g);
 		expect(decompiled.feedback).toBeDefined();
 		expect(decompiled.feedback!.length).toBe(1);
 		expect(decompiled.feedback![0]!.from).toBe("compute");
@@ -478,7 +495,7 @@ describe("graphspec.decompileGraph", () => {
 		const a = state(1, { name: "a", meta: { label: "test" } });
 		g.add(a, { name: "a" });
 
-		const spec = decompileGraph(g);
+		const spec = decompileSpec(g);
 		const paths = Object.keys(spec.nodes);
 		expect(paths.every((p) => !p.includes("__meta__"))).toBe(true);
 		g.destroy();
@@ -493,7 +510,7 @@ describe("graphspec.specDiff", () => {
 	it("reports no changes for identical specs", () => {
 		const spec: GraphSpec = {
 			name: "same",
-			nodes: { a: { type: "state", initial: 1 } },
+			nodes: { a: { type: "state", deps: [], value: 1 } },
 		};
 		const result = specDiff(spec, spec);
 		expect(result.entries).toEqual([]);
@@ -501,10 +518,10 @@ describe("graphspec.specDiff", () => {
 	});
 
 	it("reports added nodes", () => {
-		const a: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const a: GraphSpec = { name: "g", nodes: { x: { type: "state", deps: [] } } };
 		const b: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			nodes: { x: { type: "state", deps: [] }, y: { type: "derived", deps: ["x"] } },
 		};
 		const result = specDiff(a, b);
 		expect(result.entries.some((e) => e.type === "added" && e.path === "nodes.y")).toBe(true);
@@ -513,21 +530,33 @@ describe("graphspec.specDiff", () => {
 	it("reports removed nodes", () => {
 		const a: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			nodes: { x: { type: "state", deps: [] }, y: { type: "derived", deps: ["x"] } },
 		};
-		const b: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const b: GraphSpec = { name: "g", nodes: { x: { type: "state", deps: [] } } };
 		const result = specDiff(a, b);
 		expect(result.entries.some((e) => e.type === "removed" && e.path === "nodes.y")).toBe(true);
 	});
 
-	it("reports changed node config", () => {
+	it("reports changed node config (meta.factory + meta.factoryArgs)", () => {
 		const a: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "derived", fn: "a", config: { k: 1 } } },
+			nodes: {
+				x: {
+					type: "derived",
+					deps: [],
+					meta: { ...factoryTag("a", { k: 1 }) },
+				},
+			},
 		};
 		const b: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "derived", fn: "b", config: { k: 2 } } },
+			nodes: {
+				x: {
+					type: "derived",
+					deps: [],
+					meta: { ...factoryTag("b", { k: 2 }) },
+				},
+			},
 		};
 		const result = specDiff(a, b);
 		expect(result.entries.some((e) => e.type === "changed" && e.path === "nodes.x")).toBe(true);
@@ -546,7 +575,7 @@ describe("graphspec.specDiff", () => {
 			name: "g",
 			nodes: {},
 			templates: {
-				tmpl: { params: ["$x"], nodes: { inner: { type: "state" } }, output: "inner" },
+				tmpl: { params: ["$x"], nodes: { inner: { type: "state", deps: [] } }, output: "inner" },
 			},
 		};
 		const b: GraphSpec = { name: "g", nodes: {} };
@@ -559,12 +588,12 @@ describe("graphspec.specDiff", () => {
 	it("reports feedback edge changes", () => {
 		const a: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			nodes: { x: { type: "state", deps: [] }, y: { type: "derived", deps: ["x"] } },
 			feedback: [{ from: "y", to: "x", maxIterations: 5 }],
 		};
 		const b: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state" }, y: { type: "derived", deps: ["x"] } },
+			nodes: { x: { type: "state", deps: [] }, y: { type: "derived", deps: ["x"] } },
 			feedback: [{ from: "y", to: "x", maxIterations: 10 }],
 		};
 		const result = specDiff(a, b);
@@ -574,10 +603,10 @@ describe("graphspec.specDiff", () => {
 	});
 
 	it("generates human-readable summary", () => {
-		const a: GraphSpec = { name: "g", nodes: { x: { type: "state" } } };
+		const a: GraphSpec = { name: "g", nodes: { x: { type: "state", deps: [] } } };
 		const b: GraphSpec = {
 			name: "g",
-			nodes: { x: { type: "state" }, y: { type: "state" } },
+			nodes: { x: { type: "state", deps: [] }, y: { type: "state", deps: [] } },
 		};
 		const result = specDiff(a, b);
 		expect(result.summary).toContain("1 added");
@@ -593,12 +622,15 @@ describe("graphspec.llmCompose", () => {
 		const spec: GraphSpec = {
 			name: "email_triage",
 			nodes: {
-				inbox: { type: "producer", source: "email", meta: { description: "Email inbox source" } },
+				inbox: {
+					type: "producer",
+					deps: [],
+					meta: { ...factoryTag("email"), description: "Email inbox source" },
+				},
 				classify: {
 					type: "derived",
 					deps: ["inbox"],
-					fn: "llmClassify",
-					meta: { description: "Classify emails" },
+					meta: { ...factoryTag("llmClassify"), description: "Classify emails" },
 				},
 			},
 		};
@@ -614,7 +646,7 @@ describe("graphspec.llmCompose", () => {
 	it("strips markdown fences from LLM output", async () => {
 		const spec: GraphSpec = {
 			name: "test",
-			nodes: { a: { type: "state", initial: 1, meta: { description: "a" } } },
+			nodes: { a: { type: "state", deps: [], value: 1, meta: { description: "a" } } },
 		};
 
 		const adapter = mockAdapter([
@@ -646,13 +678,17 @@ describe("graphspec.llmRefine", () => {
 	it("modifies existing spec based on feedback", async () => {
 		const original: GraphSpec = {
 			name: "v1",
-			nodes: { a: { type: "state", initial: 1, meta: { description: "src" } } },
+			nodes: { a: { type: "state", deps: [], value: 1, meta: { description: "src" } } },
 		};
 		const refined: GraphSpec = {
 			name: "v2",
 			nodes: {
-				a: { type: "state", initial: 1, meta: { description: "src" } },
-				b: { type: "derived", deps: ["a"], fn: "double", meta: { description: "doubled" } },
+				a: { type: "state", deps: [], value: 1, meta: { description: "src" } },
+				b: {
+					type: "derived",
+					deps: ["a"],
+					meta: { ...factoryTag("double"), description: "doubled" },
+				},
 			},
 		};
 

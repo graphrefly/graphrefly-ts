@@ -1925,8 +1925,8 @@ describe("graphFromSpec", () => {
 		const spec = {
 			name: "calculator",
 			nodes: {
-				a: { type: "state", initial: 10, meta: { description: "Input A" } },
-				b: { type: "state", initial: 20, meta: { description: "Input B" } },
+				a: { type: "state", deps: [], value: 10, meta: { description: "Input A" } },
+				b: { type: "state", deps: [], value: 20, meta: { description: "Input B" } },
 			},
 		};
 
@@ -1943,7 +1943,7 @@ describe("graphFromSpec", () => {
 		const spec = {
 			name: "simple",
 			nodes: {
-				x: { type: "state", initial: 1, meta: { description: "X" } },
+				x: { type: "state", deps: [], value: 1, meta: { description: "X" } },
 			},
 		};
 
@@ -1979,7 +1979,7 @@ describe("graphFromSpec", () => {
 	it("graphFromSpecReactive emits Graph for non-empty input, null otherwise", async () => {
 		const spec = {
 			name: "reactive",
-			nodes: { x: { type: "state", initial: 7, meta: { description: "X" } } },
+			nodes: { x: { type: "state", deps: [], value: 7, meta: { description: "X" } } },
 		};
 		const adapter = mockAdapter([{ content: JSON.stringify(spec), finishReason: "end_turn" }]);
 		const input = state("");

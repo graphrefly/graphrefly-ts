@@ -10,10 +10,14 @@
  * These are GraphSpec template definitions — they go into `spec.templates`
  * for the LLM to reference via `{ type: "template", template: "...", bind }`.
  *
+ * Tier 1.5.3 Phase 3: nodes use the unified shape — `meta.factory` /
+ * `meta.factoryArgs` instead of legacy `fn` / `source` / `config`.
+ *
  * See `evals/results/session-2026-04-06-catalog-automation.md` §1 for the
  * full motivation and `docs/roadmap.md` §9.1.2 (Treatment D prerequisites).
  */
 
+import { factoryTag } from "../../src/core/meta.js";
 import type {
 	GraphSpecFeedbackEdge,
 	GraphSpecTemplate,
@@ -25,45 +29,38 @@ export const resilientFetchTemplate: GraphSpecTemplate = {
 		rateLimited: {
 			type: "derived",
 			deps: ["$source"],
-			fn: "rateLimiter",
-			config: { maxEvents: 5, windowMs: 1000 },
+			meta: { ...factoryTag("rateLimiter", { maxEvents: 5, windowMs: 1000 }) },
 		},
 		breaker: {
 			type: "derived",
 			deps: ["rateLimited"],
-			fn: "circuitBreaker",
-			config: { failureThreshold: 3, cooldownMs: 30000 },
+			meta: { ...factoryTag("circuitBreaker", { failureThreshold: 3, cooldownMs: 30000 }) },
 		},
 		retried: {
 			type: "derived",
 			deps: ["breaker"],
-			fn: "retry",
-			config: { maxAttempts: 3, backoff: "exponential" },
+			meta: { ...factoryTag("retry", { maxAttempts: 3, backoff: "exponential" }) },
 		},
 		timed: {
 			type: "derived",
 			deps: ["retried"],
-			fn: "timeout",
-			config: { timeoutMs: 2000 },
+			meta: { ...factoryTag("timeout", { timeoutMs: 2000 }) },
 		},
-		cache: { type: "state", initial: null },
+		cache: { type: "state", deps: [], value: null },
 		withFallback: {
 			type: "derived",
 			deps: ["timed"],
-			fn: "fallback",
-			config: { fallbackSource: "cache" },
+			meta: { ...factoryTag("fallback", { fallbackSource: "cache" }) },
 		},
 		cacheUpdate: {
 			type: "derived",
 			deps: ["withFallback"],
-			fn: "scan",
-			config: { fn: "latest", initial: null },
+			meta: { ...factoryTag("scan", { fn: "latest", initial: null }) },
 		},
 		status: {
 			type: "derived",
 			deps: ["withFallback"],
-			fn: "withStatus",
-			config: { initialStatus: "pending" },
+			meta: { ...factoryTag("withStatus", { initialStatus: "pending" }) },
 		},
 	},
 	output: "status",
@@ -79,23 +76,21 @@ export const resilientFetchFeedback = (instanceName: string): GraphSpecFeedbackE
 export const adaptivePollerTemplate: GraphSpecTemplate = {
 	params: ["$rateComputer"],
 	nodes: {
-		interval: { type: "state", initial: 10000 },
+		interval: { type: "state", deps: [], value: 10000 },
 		timer: {
 			type: "producer",
-			source: "timer",
-			config: { intervalMs: 10000 },
+			deps: [],
+			meta: { ...factoryTag("timer", { intervalMs: 10000 }) },
 		},
 		fetch: {
 			type: "derived",
 			deps: ["timer"],
-			fn: "conditionalMap",
-			config: { rules: [], default: null },
+			meta: { ...factoryTag("conditionalMap", { rules: [], default: null }) },
 		},
 		rateComputed: {
 			type: "derived",
 			deps: ["$rateComputer"],
-			fn: "mapFields",
-			config: {},
+			meta: { ...factoryTag("mapFields", {}) },
 		},
 	},
 	output: "fetch",

@@ -9,6 +9,7 @@ import {
 	portableTemplates,
 	resilientFetchTemplate,
 } from "../../../evals/lib/portable-templates.js";
+import { factoryTag } from "../../core/meta.js";
 import {
 	type GraphSpec,
 	generateCatalogPrompt,
@@ -98,20 +99,20 @@ describe("portableCatalog — validateSpecAgainstCatalog", () => {
 			nodes: {
 				rss: {
 					type: "producer",
-					source: "rss",
-					config: { url: "https://example.com/feed" },
+					deps: [],
+					meta: { ...factoryTag("rss", { url: "https://example.com/feed" }) },
 				},
 				filter: {
 					type: "derived",
 					deps: ["rss"],
-					fn: "filterBy",
-					config: { field: "title", op: "contains", value: "AI" },
+					meta: {
+						...factoryTag("filterBy", { field: "title", op: "contains", value: "AI" }),
+					},
 				},
 				notify: {
 					type: "effect",
 					deps: ["filter"],
-					fn: "sendSlack",
-					config: { channel: "#ai-news" },
+					meta: { ...factoryTag("sendSlack", { channel: "#ai-news" }) },
 				},
 			},
 		};
@@ -124,8 +125,8 @@ describe("portableCatalog — validateSpecAgainstCatalog", () => {
 		const spec: GraphSpec = {
 			name: "typo",
 			nodes: {
-				a: { type: "state", initial: 1 },
-				b: { type: "derived", deps: ["a"], fn: "filterBys" }, // typo
+				a: { type: "state", deps: [], value: 1 },
+				b: { type: "derived", deps: ["a"], meta: { ...factoryTag("filterBys") } }, // typo
 			},
 		};
 		const result = validateSpecAgainstCatalog(spec, portableCatalog);
@@ -138,12 +139,11 @@ describe("portableCatalog — validateSpecAgainstCatalog", () => {
 		const spec: GraphSpec = {
 			name: "agg",
 			nodes: {
-				items: { type: "state", initial: [] },
+				items: { type: "state", deps: [], value: [] },
 				avg: {
 					type: "derived",
 					deps: ["items"],
-					fn: "aggregate",
-					config: { op: "stddev", field: "x" },
+					meta: { ...factoryTag("aggregate", { op: "stddev", field: "x" }) },
 				},
 			},
 		};
@@ -156,12 +156,11 @@ describe("portableCatalog — validateSpecAgainstCatalog", () => {
 		const spec: GraphSpec = {
 			name: "agg-median",
 			nodes: {
-				items: { type: "state", initial: [] },
+				items: { type: "state", deps: [], value: [] },
 				med: {
 					type: "derived",
 					deps: ["items"],
-					fn: "aggregate",
-					config: { op: "median", field: "price" },
+					meta: { ...factoryTag("aggregate", { op: "median", field: "price" }) },
 				},
 			},
 		};
@@ -189,7 +188,10 @@ describe("portableTemplates", () => {
 		expect(t.nodes.timed?.deps).toEqual(["retried"]);
 		expect(t.nodes.withFallback?.deps).toEqual(["timed"]);
 		// fallback uses the cache state (closes T8a cache-bug gap)
-		expect(t.nodes.withFallback?.config?.fallbackSource).toBe("cache");
+		const fallbackArgs = t.nodes.withFallback?.meta?.factoryArgs as
+			| { fallbackSource?: string }
+			| undefined;
+		expect(fallbackArgs?.fallbackSource).toBe("cache");
 		expect(t.nodes.cache?.type).toBe("state");
 	});
 
@@ -198,23 +200,24 @@ describe("portableTemplates", () => {
 		expect(t.params).toEqual(["$rateComputer"]);
 		expect(t.nodes.interval?.type).toBe("state");
 		expect(t.nodes.timer?.type).toBe("producer");
-		expect(t.nodes.fetch?.fn).toBe("conditionalMap");
+		expect(t.nodes.fetch?.meta?.factory).toBe("conditionalMap");
 		expect(t.nodes.rateComputed?.deps).toEqual(["$rateComputer"]);
 	});
 
-	it("template inner-node fn names all resolve in the catalog", () => {
+	it("template inner-node factory names all resolve in the catalog", () => {
 		for (const [tName, template] of Object.entries(portableTemplates)) {
 			for (const [nName, node] of Object.entries(template.nodes)) {
-				if (node.fn) {
+				const factoryName = node.meta?.factory as string | undefined;
+				if (!factoryName) continue;
+				if (node.type === "producer") {
 					expect(
-						portableFns[node.fn],
-						`${tName}.${nName} fn=${node.fn} must be in catalog`,
+						portableSources[factoryName],
+						`${tName}.${nName} source=${factoryName} must be in catalog`,
 					).toBeDefined();
-				}
-				if (node.source) {
+				} else if (node.type !== "state") {
 					expect(
-						portableSources[node.source],
-						`${tName}.${nName} source=${node.source} must be in catalog`,
+						portableFns[factoryName],
+						`${tName}.${nName} fn=${factoryName} must be in catalog`,
 					).toBeDefined();
 				}
 			}

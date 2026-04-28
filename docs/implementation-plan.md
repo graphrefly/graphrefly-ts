@@ -169,18 +169,16 @@ Tests (7 new in spec-roundtrip.test.ts):
 - `policyEnforcer` — DT5 (revised) = **defer tagging to Tier 2.3**, where the rename to `policyGate` lands. Tagging with the soon-to-be-deprecated name would create rename churn (every `meta.factory === "policyEnforcer"` matcher breaks at rename).
 - `reactiveExplainPath` — `@deprecated`, will be removed pre-1.0; do not tag.
 
-#### Phase 3 ⏭️ — drop dual-read + collapse the type alias
-- Make `GraphSpec` a structural alias of `GraphDescribeOutput` (deletes `GraphSpecNode`'s `fn` / `source` / `config` / `initial` field-form). **Note (Phase 2.5 carry):** the alias must include top-level `factory?: string` + `factoryArgs?: unknown` since Phase 2.5 added these to `GraphDescribeOutput`. `compileSpec`'s graphFactories early-dispatch (currently checks `(spec as { factory?: string }).factory`) becomes a typed read.
-- Drop the `normalizeSpec` step from `compileSpec` — the catalog lookup reads `meta.factory` directly.
-- Make `decompileSpec(g) === g.describe({ detail: "spec" })` (thin one-liner; remove the special-case feedback / template extraction since those should live in meta by Phase 2's end). Spec-projection must include top-level `factory` / `factoryArgs` for Graph-level tags to round-trip.
-- Drop `decompileGraph` export.
-- Migrate all in-tree consumers using legacy field-form: ~20 test files, evals fixtures, LLM prompt example output (`generateCatalogPrompt`), memory references, public docs/examples.
-- Resolve the state-`initial` question (factoryTag-`state` vs spec-projection-keeps-value).
-- **Estimated:** session-or-two of mechanical migration; touches public-facing surface (LLM prompt format) so QA pass needed.
-
-**Why phased:** Phase 1's substrate is reversible and low-risk; Phases 2 and 3 are mechanical migrations that benefit from focused QA passes (per the user's "no autonomous decisions on multi-file rewrites" preference).
-
-**Audit C24-2 obsolete** when Phase 3 lands — decompile is no longer approximate.
+#### Phase 3 ✅ landed (2026-04-27)
+- **Type collapse:** `GraphSpec = Omit<GraphDescribeOutput, "nodes" | "expand"> & { nodes: Record<string, DescribeNodeOutput | GraphSpecTemplateRef>; templates?; feedback? }`. `GraphSpecNode = DescribeNodeOutput`. The legacy field-form (`fn` / `source` / `config` / `initial`) is gone from the type — every node carries factory provenance in `meta.factory` / `meta.factoryArgs`. Top-level `factory?` / `factoryArgs?` ride through from `GraphDescribeOutput` for Graph-level tags.
+- **`normalizeSpec` deleted.** `compileSpec` reads `meta.factory` / `meta.factoryArgs` directly via two helpers (`readFactory`, `readFactoryArgs`). The graphFactories early-dispatch is now a typed read on `spec.factory`. Catalog-aware validation (`validateSpecAgainstCatalog`) and `specDiff` were updated to read the meta-form instead of legacy fields.
+- **`decompileSpec`** is a thin projection over `graph.describe({ detail: "spec" })`. Strips meta-companion paths, bridge / feedback-effect internals, and known runtime-state sibling keys (`status`, `breakerState`, `sourceVersion`). Adds a small feedback-edge recovery scan over `meta.feedbackFrom` / `meta.feedbackTo` (≈10 lines, the only post-process sugar). **Removed:** template fingerprinting / `_templateName` recovery — mounted subgraphs now appear as nested `subname::*` paths in the spec; round-tripping templates via `decompileSpec` is no longer in scope (file follow-up if a consumer needs it).
+- **`decompileGraph` removed** as a public export. `decompileSpec` is the only name.
+- **State `initial` resolution — path (b) lock:** `describe({ detail: "spec" })` retains `value` for state nodes only (gated by a new `specMode` parameter on `describeNode`). Derived/effect/producer values are still stripped. `compileSpec` reads state initial from `meta.factoryArgs.initial` first (for users who explicitly tag) then falls back to `node.value`. Path (a) was attempted (state self-tag via `factoryTag("state", { initial })`) but reverted because it spawned `<name>::__meta__::factory` + `<name>::__meta__::factoryArgs` companion nodes on every state, which broke `graphLens`-style nodeCount tests across the suite.
+- **Consumer migrations:** [src/__tests__/patterns/graphspec.test.ts](src/__tests__/patterns/graphspec.test.ts) (full rewrite), [src/__tests__/patterns/surface/surface.test.ts](src/__tests__/patterns/surface/surface.test.ts), [src/__tests__/patterns/ai.test.ts](src/__tests__/patterns/ai.test.ts), [src/__tests__/evals/portable-catalog.test.ts](src/__tests__/evals/portable-catalog.test.ts), [src/__tests__/evals/prompt-template-validity.test.ts](src/__tests__/evals/prompt-template-validity.test.ts), [src/__tests__/graphspec/spec-roundtrip.test.ts](src/__tests__/graphspec/spec-roundtrip.test.ts) (Phase 3 suite expanded), [evals/lib/portable-templates.ts](evals/lib/portable-templates.ts), [evals/portable-eval-prompts.md](evals/portable-eval-prompts.md) (LLM-facing schema description + 3 example specs), [src/patterns/surface/index.ts](src/patterns/surface/index.ts) (decompileGraph reference removed).
+- **LLM prompt:** `LLM_COMPOSE_SYSTEM_PROMPT` in [src/patterns/graphspec/index.ts](src/patterns/graphspec/index.ts) now teaches the unified shape (`meta.factory` / `meta.factoryArgs` instead of `fn` / `source` / `config`). State seed via `value` field (or `meta.factoryArgs.initial`).
+- **Tests/lint/build:** 2419 tests passing, lint clean (no new warnings on touched files), build green.
+- **Audit C24-2 (Tier 10.4) obsolete** — decompile is no longer approximate.
 
 ### 1.5.4 distill `extractFn` reactive form (Session A.5 lock) ✅ landed (2026-04-27)
 - **New signature landed:** `extractFn: (raw: Node<TRaw>, existing: Node<ReadonlyMap<string, TMem>>) => NodeInput<Extraction<TMem>>` in [composite.ts:166](src/extra/composite.ts:166). Distill calls extractFn ONCE at wiring time and consumes the returned reactive stream. Internal `switchMap` removed; user controls cancellation / queueing semantics.
@@ -460,7 +458,7 @@ Assert ≤1 DATA per input wave in dev mode.
 - C23-2: `Evaluator<T>` JSDoc on `candidateIndex` semantics.
 - C24-3: `validateSpec` effect-node feedback warning.
 - C24-4: `runReduction` sync-settle deferred-unsubscribe ordering invariant.
-- (C24-2 obsolete — `decompileGraph` fingerprinting caveat resolved by Tier 1.5.3 spec unification.)
+- (C24-2 ✅ obsolete — `decompileGraph` removed entirely in Tier 1.5.3 Phase 3; `decompileSpec` is `g.describe({ detail: "spec" })` plus a feedback-edge sugar scan, no fingerprinting.)
 
 ### 10.5 Operator-layer `filter` mixed-batch RESOLVED forwarding
 Filter drops RESOLVED for failed batch entries → tier-3 counter drift. Low priority; no current consumer affected.

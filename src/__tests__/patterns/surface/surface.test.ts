@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { factoryTag } from "../../../core/meta.js";
 import { derived } from "../../../core/sugar.js";
 import { memoryKv } from "../../../extra/storage-tiers.js";
 import { Graph } from "../../../graph/graph.js";
@@ -26,9 +27,9 @@ const catalog: GraphSpecCatalog = {
 const basicSpec: GraphSpec = {
 	name: "basic-reduce",
 	nodes: {
-		input: { type: "state", initial: 0 },
-		doubled: { type: "derived", deps: ["input"], fn: "double" },
-		output: { type: "derived", deps: ["doubled"], fn: "addOne" },
+		input: { type: "state", deps: [], value: 0 },
+		doubled: { type: "derived", deps: ["input"], meta: { ...factoryTag("double") } },
+		output: { type: "derived", deps: ["doubled"], meta: { ...factoryTag("addOne") } },
 	},
 };
 
@@ -57,8 +58,8 @@ describe("surface.createGraph", () => {
 		const spec: GraphSpec = {
 			name: "missing-fn",
 			nodes: {
-				input: { type: "state", initial: 0 },
-				output: { type: "derived", deps: ["input"], fn: "doesNotExist" },
+				input: { type: "state", deps: [], value: 0 },
+				output: { type: "derived", deps: ["input"], meta: { ...factoryTag("doesNotExist") } },
 			},
 		};
 		try {
@@ -93,8 +94,8 @@ describe("surface.runReduction", () => {
 		const spec: GraphSpec = {
 			name: "custom-paths",
 			nodes: {
-				src: { type: "state", initial: 0 },
-				result: { type: "derived", deps: ["src"], fn: "double" },
+				src: { type: "state", deps: [], value: 0 },
+				result: { type: "derived", deps: ["src"], meta: { ...factoryTag("double") } },
 			},
 		};
 		const result = await runReduction(spec, 7, { catalog, inputPath: "src", outputPath: "result" });
@@ -129,9 +130,9 @@ describe("surface.runReduction", () => {
 		const spec: GraphSpec = {
 			name: "resolved-test",
 			nodes: {
-				input: { type: "state", initial: 0 },
-				doubled: { type: "derived", deps: ["input"], fn: "double" },
-				output: { type: "derived", deps: ["doubled"], fn: "constOne" },
+				input: { type: "state", deps: [], value: 0 },
+				doubled: { type: "derived", deps: ["input"], meta: { ...factoryTag("double") } },
+				output: { type: "derived", deps: ["doubled"], meta: { ...factoryTag("constOne") } },
 			},
 		};
 		const result = await runReduction(spec, 7, { catalog: alwaysOne, timeoutMs: 200 });
@@ -144,9 +145,9 @@ describe("surface.runReduction", () => {
 		const spec: GraphSpec = {
 			name: "no-chain",
 			nodes: {
-				input: { type: "state", initial: 0 },
-				unrelated: { type: "state", initial: "stuck" },
-				output: { type: "derived", deps: ["unrelated"], fn: "identity" },
+				input: { type: "state", deps: [], value: 0 },
+				unrelated: { type: "state", deps: [], value: "stuck" },
+				output: { type: "derived", deps: ["unrelated"], meta: { ...factoryTag("identity") } },
 			},
 		};
 		await expect(runReduction(spec, 1, { catalog, timeoutMs: 50 })).rejects.toMatchObject({
@@ -160,8 +161,8 @@ describe("surface.snapshot", () => {
 		const stateSpec: GraphSpec = {
 			name: "state-only",
 			nodes: {
-				input: { type: "state", initial: 0 },
-				note: { type: "state", initial: "hello" },
+				input: { type: "state", deps: [], value: 0 },
+				note: { type: "state", deps: [], value: "hello" },
 			},
 		};
 		const g = createGraph(stateSpec, { catalog });

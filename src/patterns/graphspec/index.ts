@@ -2,40 +2,42 @@
  * LLM graph composition (roadmap §8.3).
  *
  * Declarative GraphSpec schema + compiler/decompiler for graph topology.
- * The LLM designs graphs as JSON; compileSpec instantiates them; decompileGraph
- * extracts them back. Templates support reusable subgraph patterns. Feedback
- * edges express bounded cycles via §8.1 feedback().
+ * The LLM designs graphs as JSON; `compileSpec` instantiates them;
+ * `decompileSpec` extracts them back. Templates support reusable subgraph
+ * patterns. Feedback edges express bounded cycles via §8.1 feedback().
+ *
+ * **Tier 1.5.3 Phase 3 (2026-04-27):** `GraphSpec` is a structural alias of
+ * {@link GraphDescribeOutput} with two LLM-author-friendly extras
+ * (`templates?` / `feedback?`). Per-node factory references are encoded in
+ * `meta.factory` + `meta.factoryArgs` (no more `fn` / `source` / `config` /
+ * `initial` fields). State node initial values live in
+ * `meta.factoryArgs.initial` (state self-tags with
+ * `factoryTag("state", { initial })`).
  *
  * @module
  */
 
+import type { DescribeNodeOutput } from "../../core/meta.js";
 import type { Node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
-import { GRAPH_META_SEGMENT, Graph } from "../../graph/graph.js";
+import { GRAPH_META_SEGMENT, Graph, type GraphDescribeOutput } from "../../graph/graph.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../ai/index.js";
 import { feedback as feedbackPrimitive } from "../reduction/index.js";
 
 // ---------------------------------------------------------------------------
-// GraphSpec types
+// GraphSpec types — structural alias of GraphDescribeOutput
 // ---------------------------------------------------------------------------
 
-/** A single node declaration in a GraphSpec. */
-export type GraphSpecNode = {
-	/** Node kind: state, producer, derived, effect, operator. */
-	type: "state" | "producer" | "derived" | "effect" | "operator";
-	/** Dependency node names (for derived/effect/operator). */
-	deps?: string[];
-	/** Named function from the catalog (for derived/effect/operator/producer). */
-	fn?: string;
-	/** Named source from the catalog (for producer). */
-	source?: string;
-	/** Freeform config passed to the catalog fn/source factory. */
-	config?: Record<string, unknown>;
-	/** Initial value (for state nodes). */
-	initial?: unknown;
-	/** Human/LLM-readable metadata. */
-	meta?: Record<string, unknown>;
-};
+/**
+ * A single node declaration in a GraphSpec — structural alias of
+ * {@link DescribeNodeOutput}.
+ *
+ * Per-node factory provenance lives in `meta.factory` + `meta.factoryArgs`
+ * (use {@link factoryTag} to stamp them at construction time). State node
+ * initial values come through `meta.factoryArgs.initial` for tagged states,
+ * with fallback to `value` (since spec projection retains state values).
+ */
+export type GraphSpecNode = DescribeNodeOutput;
 
 /** Template instantiation node — expanded at compile time. */
 export type GraphSpecTemplateRef = {
@@ -66,26 +68,53 @@ export type GraphSpecFeedbackEdge = {
 	maxIterations?: number;
 };
 
-/** Declarative graph topology for LLM composition (§8.3). */
-export type GraphSpec = {
-	/** Graph name. */
-	name: string;
-	/** Node declarations (keyed by node name). */
+/**
+ * Declarative graph topology for LLM composition (§8.3).
+ *
+ * Tier 1.5.3 Phase 3 (2026-04-27): structural alias of
+ * {@link GraphDescribeOutput} extended with optional `templates` /
+ * `feedback` fields for LLM-author convenience. Top-level `factory` /
+ * `factoryArgs` (Phase 2.5 carry) ride along on every describe output.
+ *
+ * Round-trip property: `decompileSpec(g) === g.describe({ detail: "spec" })`
+ * (modulo the small feedback-edge extraction sugar).
+ */
+export type GraphSpec = Omit<GraphDescribeOutput, "nodes" | "expand"> & {
+	/** Node declarations (keyed by node name). Either a structural describe entry or a template ref. */
 	nodes: Record<string, GraphSpecNode | GraphSpecTemplateRef>;
-	/** Reusable subgraph templates. */
+	/** Reusable subgraph templates (LLM-author extra; not present in `describe()` output). */
 	templates?: Record<string, GraphSpecTemplate>;
-	/** Feedback edges (bounded cycles). */
+	/** Feedback edges (bounded cycles, LLM-author extra). */
 	feedback?: GraphSpecFeedbackEdge[];
-	/**
-	 * Top-level factory identifier (Tier 1.5.3 Phase 2.5 — DG1=B). When set
-	 * and `compileSpec` is given a `catalog.graphFactories[factory]` entry,
-	 * the spec's reconstruction is delegated to that factory wholesale (the
-	 * `nodes` / `edges` / `templates` fields below are not used).
-	 */
-	factory?: string;
-	/** JSON-serializable construction args, paired with `factory`. */
-	factoryArgs?: unknown;
 };
+
+/**
+ * Extract `meta.factory` from a node, if any. Pure read — no normalization.
+ */
+function readFactory(node: GraphSpecNode): string | undefined {
+	const f = (node.meta as Record<string, unknown> | undefined)?.factory;
+	return typeof f === "string" ? f : undefined;
+}
+
+/**
+ * Extract `meta.factoryArgs` from a node as a plain Record. Pure read.
+ */
+function readFactoryArgs(node: GraphSpecNode): Record<string, unknown> {
+	const a = (node.meta as Record<string, unknown> | undefined)?.factoryArgs;
+	return a != null && typeof a === "object" ? (a as Record<string, unknown>) : {};
+}
+
+/**
+ * Resolve the initial value for a state node. Prefers
+ * `meta.factoryArgs.initial` (the path the `state()` factory itself stamps)
+ * and falls back to `value` (in case the spec carries the resolved value
+ * without a factory tag, e.g. from a hand-written spec).
+ */
+function readStateInitial(node: GraphSpecNode): unknown {
+	const args = readFactoryArgs(node);
+	if ("initial" in args) return args.initial;
+	return node.value;
+}
 
 // ---------------------------------------------------------------------------
 // Catalog types
@@ -213,93 +242,6 @@ export function extractSourceFactory(entry: SourceFactory | CatalogSourceEntry):
 	return isRichSourceEntry(entry) ? entry.factory : entry;
 }
 
-// ---------------------------------------------------------------------------
-// Tier 1.5.3 (Session A.1 lock) — meta-form ↔ old-form normalization
-// ---------------------------------------------------------------------------
-
-/**
- * Convert a node with new-form `meta.factory` + `meta.factoryArgs` (Tier 1.5.3
- * Session A.1 lock) to the legacy `fn` / `source` / `config` field-form so the
- * existing compile pipeline works unchanged. Phase 1 dual-read shim — Phase 3
- * drops the legacy fields and removes this step.
- *
- * For producer-type nodes, the factory string populates `source` (matching the
- * existing source-first lookup precedence in `compileSpec`); for all other
- * types, it populates `fn`. If both old-form fields and new-form meta are
- * present, the legacy fields take precedence so explicit specs still win.
- */
-function normalizeSpecNode(node: GraphSpecNode): GraphSpecNode {
-	const meta = node.meta as Record<string, unknown> | undefined;
-	if (!meta || typeof meta.factory !== "string") return node;
-	const factoryName = meta.factory;
-	const factoryArgs = (meta.factoryArgs ?? {}) as Record<string, unknown>;
-	const out: GraphSpecNode = { ...node };
-	let metaFactoryUsed = false;
-	if (node.type === "producer") {
-		if (out.source == null && out.fn == null) {
-			out.source = factoryName;
-			metaFactoryUsed = true;
-		}
-	} else {
-		if (out.fn == null) {
-			out.fn = factoryName;
-			metaFactoryUsed = true;
-		}
-	}
-	if (out.config == null) {
-		out.config = factoryArgs;
-	}
-	// QA F14: when legacy fields took precedence (meta.factory ignored),
-	// strip `meta.factory` + `meta.factoryArgs` so multi-round-trip
-	// compile→decompile→compile doesn't drift the spec into a state where
-	// `fn` says one thing and `meta.factory` says another. When meta.factory
-	// WAS used, leave it in place — describe→compile→describe round-trips
-	// then preserve it consistently.
-	if (!metaFactoryUsed && (out.meta ?? meta) === meta) {
-		const newMeta = { ...meta };
-		delete newMeta.factory;
-		delete newMeta.factoryArgs;
-		if (Object.keys(newMeta).length > 0) out.meta = newMeta;
-		else out.meta = undefined;
-	}
-	return out;
-}
-
-/** Normalize every node in a GraphSpec (and inside any templates). */
-function normalizeSpec(spec: GraphSpec): GraphSpec {
-	const nodes: Record<string, GraphSpecNode | GraphSpecTemplateRef> = {};
-	let anyChange = false;
-	for (const [k, v] of Object.entries(spec.nodes)) {
-		if (v.type === "template") {
-			nodes[k] = v;
-			continue;
-		}
-		const normalized = normalizeSpecNode(v as GraphSpecNode);
-		nodes[k] = normalized;
-		if (normalized !== v) anyChange = true;
-	}
-	const templatesIn = spec.templates;
-	let templates: Record<string, GraphSpecTemplate> | undefined;
-	if (templatesIn) {
-		templates = {};
-		for (const [k, t] of Object.entries(templatesIn)) {
-			const tNodes: Record<string, GraphSpecNode> = {};
-			let tChange = false;
-			for (const [tk, tn] of Object.entries(t.nodes)) {
-				const tNorm = normalizeSpecNode(tn);
-				tNodes[tk] = tNorm;
-				if (tNorm !== tn) tChange = true;
-			}
-			templates[k] = tChange ? { ...t, nodes: tNodes } : t;
-			if (tChange) anyChange = true;
-		}
-	}
-	if (!anyChange) return spec;
-	const out: GraphSpec = { ...spec, nodes };
-	if (templates) out.templates = templates;
-	return out;
-}
-
 /**
  * Auto-generate catalog prompt text from rich catalog entries.
  *
@@ -382,50 +324,75 @@ export function validateSpecAgainstCatalog(
 	for (const [nodeName, nodeRaw] of Object.entries(spec.nodes)) {
 		if (nodeRaw.type === "template") continue;
 		const node = nodeRaw as GraphSpecNode;
+		const factoryName = readFactory(node);
+		if (factoryName == null) continue;
 
-		// Check fn name exists in catalog
-		if (node.fn && fnNames.size > 0 && !fnNames.has(node.fn)) {
-			// Check if they used a source name as fn
-			if (sourceNames.has(node.fn)) {
+		const isProducer = node.type === "producer";
+		// State nodes self-tag with `factory: "state"` — never expected to live
+		// in the catalog. Skip.
+		if (node.type === "state" && factoryName === "state") continue;
+
+		// Producers may resolve via either sources (preferred) or fns; non-
+		// producers only resolve via fns. Mismatched-side suggestions (e.g.
+		// using a source name on a derived node) match the legacy diagnostic.
+		if (isProducer) {
+			const inSources = sourceNames.has(factoryName);
+			const inFns = fnNames.has(factoryName);
+			if (!inSources && !inFns && (sourceNames.size > 0 || fnNames.size > 0)) {
+				const suggestion =
+					findClosest(factoryName, sourceNames) ?? findClosest(factoryName, fnNames);
 				errors.push(
-					`Node "${nodeName}": fn "${node.fn}" is a source, not a function. ` +
-						`Use it as a producer source instead, or use a function from: ${[...fnNames].join(", ")}`,
-				);
-			} else {
-				const suggestion = findClosest(node.fn, fnNames);
-				errors.push(
-					`Node "${nodeName}": fn "${node.fn}" not found in catalog` +
+					`Node "${nodeName}": source "${factoryName}" not found in catalog` +
 						(suggestion ? `. Did you mean "${suggestion}"?` : ""),
 				);
 			}
-		}
-
-		// Check source name exists in catalog
-		if (node.source && sourceNames.size > 0 && !sourceNames.has(node.source)) {
-			if (fnNames.has(node.source)) {
-				errors.push(
-					`Node "${nodeName}": source "${node.source}" is a function, not a source. ` +
-						`Use it as fn instead, or use a source from: ${[...sourceNames].join(", ")}`,
-				);
-			} else {
-				const suggestion = findClosest(node.source, sourceNames);
-				errors.push(
-					`Node "${nodeName}": source "${node.source}" not found in catalog` +
-						(suggestion ? `. Did you mean "${suggestion}"?` : ""),
-				);
+		} else {
+			if (fnNames.size > 0 && !fnNames.has(factoryName)) {
+				if (sourceNames.has(factoryName)) {
+					errors.push(
+						`Node "${nodeName}": fn "${factoryName}" is a source, not a function. ` +
+							`Use it as a producer source instead, or use a function from: ${[...fnNames].join(", ")}`,
+					);
+				} else {
+					const suggestion = findClosest(factoryName, fnNames);
+					errors.push(
+						`Node "${nodeName}": fn "${factoryName}" not found in catalog` +
+							(suggestion ? `. Did you mean "${suggestion}"?` : ""),
+					);
+				}
 			}
 		}
 
-		// Validate config against schema (if rich entry)
-		if (node.fn && node.config && catalog.fns?.[node.fn]) {
-			const entry = catalog.fns[node.fn];
+		// Validate config (`meta.factoryArgs`) against schema (if rich entry).
+		const factoryArgs = readFactoryArgs(node);
+		if (!isProducer && catalog.fns?.[factoryName]) {
+			const entry = catalog.fns[factoryName];
 			if (isRichFnEntry(entry) && entry.configSchema) {
 				for (const [field, schema] of Object.entries(entry.configSchema)) {
-					if (schema.required !== false && !(field in node.config)) {
+					if (schema.required !== false && !(field in factoryArgs)) {
 						errors.push(`Node "${nodeName}": config missing required field "${field}"`);
 					}
-					if (field in node.config && schema.enum) {
-						const val = node.config[field];
+					if (field in factoryArgs && schema.enum) {
+						const val = factoryArgs[field];
+						if (!schema.enum.includes(val as string | number | boolean)) {
+							errors.push(
+								`Node "${nodeName}": config.${field} = ${JSON.stringify(val)}, ` +
+									`expected one of: ${schema.enum.join(", ")}`,
+							);
+						}
+					}
+				}
+			}
+		}
+		if (isProducer && catalog.sources?.[factoryName]) {
+			const entry = catalog.sources[factoryName];
+			if (isRichSourceEntry(entry) && entry.configSchema) {
+				for (const [field, schema] of Object.entries(entry.configSchema)) {
+					if (schema.required !== false && !(field in factoryArgs)) {
+						errors.push(`Node "${nodeName}": config missing required field "${field}"`);
+					}
+					if (field in factoryArgs && schema.enum) {
+						const val = factoryArgs[field];
 						if (!schema.enum.includes(val as string | number | boolean)) {
 							errors.push(
 								`Node "${nodeName}": config.${field} = ${JSON.stringify(val)}, ` +
@@ -442,10 +409,14 @@ export function validateSpecAgainstCatalog(
 	if (spec.templates) {
 		for (const [tName, template] of Object.entries(spec.templates)) {
 			for (const [nodeName, node] of Object.entries(template.nodes)) {
-				if (node.fn && fnNames.size > 0 && !fnNames.has(node.fn)) {
-					const suggestion = findClosest(node.fn, fnNames);
+				const factoryName = readFactory(node);
+				if (factoryName == null) continue;
+				if (node.type === "state" && factoryName === "state") continue;
+				if (node.type === "producer") continue; // template producer/source skipped (parity with legacy)
+				if (fnNames.size > 0 && !fnNames.has(factoryName)) {
+					const suggestion = findClosest(factoryName, fnNames);
 					errors.push(
-						`Template "${tName}" node "${nodeName}": fn "${node.fn}" not found in catalog` +
+						`Template "${tName}" node "${nodeName}": fn "${factoryName}" not found in catalog` +
 							(suggestion ? `. Did you mean "${suggestion}"?` : ""),
 					);
 				}
@@ -777,19 +748,14 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 	// full reconstruction. This lets Graph-returning factories
 	// (`agentMemory`, `harnessLoop`, etc.) own their own rebuild path with
 	// access to user-supplied runtime ctx (LLMAdapter, callbacks).
-	const specFactory = (spec as { factory?: string }).factory;
-	const specFactoryArgs = (spec as { factoryArgs?: unknown }).factoryArgs;
+	const specFactory = spec.factory;
+	const specFactoryArgs = spec.factoryArgs;
 	if (typeof specFactory === "string") {
 		const graphFactory = opts?.catalog?.graphFactories?.[specFactory];
 		if (graphFactory) return graphFactory(specFactoryArgs);
 		// No catalog entry for the named factory — fall through to per-node
-		// compile so the legacy / per-node-tagged paths still work.
+		// compile so the per-node-tagged paths still work.
 	}
-
-	// Tier 1.5.3 dual-read: normalize new-form `meta.factory` + `meta.factoryArgs`
-	// into the legacy fn/source/config fields so the rest of compileSpec works
-	// unchanged. Phase 3 drops legacy fields and removes this step.
-	spec = normalizeSpec(spec);
 
 	const catalog = opts?.catalog ?? {};
 	const onMissing = opts?.onMissing ?? "placeholder";
@@ -809,21 +775,8 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 	// every miss in a single error / warn batch instead of one-at-a-time.
 	const missingEntries: MissingCatalogEntry[] = [];
 
-	const recordMissing = (
-		nodePath: string,
-		fnName: string | undefined,
-		sourceName: string | undefined,
-	): void => {
-		// Producer resolution tries source before fn (see lines below + template
-		// branches), so the relevant miss for a placeholder is the one that was
-		// actually attempted first. Reporting both as separate misses on a
-		// node that sets `{source, fn}` would inflate the error count and
-		// confuse the caller about which entry was actually looked up.
-		if (sourceName) {
-			missingEntries.push({ path: nodePath, kind: "source", name: sourceName });
-			return;
-		}
-		if (fnName) missingEntries.push({ path: nodePath, kind: "fn", name: fnName });
+	const recordMissing = (nodePath: string, kind: "fn" | "source", name: string): void => {
+		missingEntries.push({ path: nodePath, kind, name });
 	};
 
 	// Helper: resolve fn/source factories from catalog (handles rich + bare entries)
@@ -836,6 +789,26 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		return entry ? extractSourceFactory(entry) : undefined;
 	};
 
+	/**
+	 * Strip the `factory` / `factoryArgs` keys from a spec node's `meta`
+	 * before forwarding to the construction factory. The factory itself
+	 * re-stamps its own `factoryTag(...)` (so the rebuilt node carries the
+	 * canonical factoryArgs); leaving the spec's pre-stamped meta in place
+	 * would shadow that with stale args (esp. after `placeholderArgs`
+	 * scrubbed non-JSON fields).
+	 */
+	const stripFactoryMeta = (
+		meta: Record<string, unknown> | undefined,
+	): Record<string, unknown> | undefined => {
+		if (!meta) return undefined;
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(meta)) {
+			if (k === "factory" || k === "factoryArgs") continue;
+			out[k] = v;
+		}
+		return Object.keys(out).length > 0 ? out : undefined;
+	};
+
 	// Phase 1: Create non-template nodes (state/producer first, then derived/effect/operator)
 	const created = new Map<string, Node<unknown>>();
 	const deferred: [string, GraphSpecNode][] = [];
@@ -844,30 +817,35 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		if (raw.type === "template") continue; // handled in Phase 2
 
 		const n = raw as GraphSpecNode;
+		const factoryName = readFactory(n);
+		const factoryArgs = readFactoryArgs(n);
+
 		if (n.type === "state") {
-			const nd = state(n.initial, {
+			const initial = readStateInitial(n);
+			const nd = state(initial, {
 				name,
-				meta: n.meta ? { ...n.meta } : undefined,
+				meta: stripFactoryMeta(n.meta),
 			});
 			g.add(nd, { name: name });
 			created.set(name, nd);
 		} else if (n.type === "producer") {
-			const sourceFactory = n.source ? resolveSource(n.source) : undefined;
-			const fnFactory = n.fn ? resolveFn(n.fn) : undefined;
+			// Producer: try sources first (matching the legacy precedence) then fns.
+			const sourceFactory = factoryName ? resolveSource(factoryName) : undefined;
+			const fnFactory = factoryName ? resolveFn(factoryName) : undefined;
 			if (sourceFactory) {
-				const nd = sourceFactory(n.config ?? {});
+				const nd = sourceFactory(factoryArgs);
 				g.add(nd, { name: name });
 				created.set(name, nd);
 			} else if (fnFactory) {
-				const nd = fnFactory([], n.config ?? {});
+				const nd = fnFactory([], factoryArgs);
 				g.add(nd, { name: name });
 				created.set(name, nd);
 			} else {
-				// No catalog entry — create a bare producer placeholder
-				recordMissing(name, n.fn, n.source);
+				// No catalog entry — create a bare producer placeholder.
+				if (factoryName) recordMissing(name, "source", factoryName);
 				const nd = producer(() => {}, {
 					name,
-					meta: { ...n.meta, _specFn: n.fn, _specSource: n.source },
+					meta: { ...stripFactoryMeta(n.meta), _specSource: factoryName },
 				});
 				g.add(nd, { name: name });
 				created.set(name, nd);
@@ -887,17 +865,19 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			if (!deps.every((dep) => created.has(dep))) continue;
 
 			const resolvedDeps = deps.map((dep) => created.get(dep)!);
-			const fnFactory = n.fn ? resolveFn(n.fn) : undefined;
+			const factoryName = readFactory(n);
+			const factoryArgs = readFactoryArgs(n);
+			const fnFactory = factoryName ? resolveFn(factoryName) : undefined;
 
 			let nd: Node<unknown>;
 			if (fnFactory) {
-				nd = fnFactory(resolvedDeps, n.config ?? {});
+				nd = fnFactory(resolvedDeps, factoryArgs);
 			} else if (n.type === "effect") {
-				if (n.fn) recordMissing(name, n.fn, undefined);
+				if (factoryName) recordMissing(name, "fn", factoryName);
 				nd = effect(resolvedDeps, () => {});
 			} else {
-				// derived/operator without catalog fn — identity passthrough
-				if (n.fn) recordMissing(name, n.fn, undefined);
+				// derived without catalog fn — identity passthrough
+				if (factoryName) recordMissing(name, "fn", factoryName);
 				nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 			}
 			g.add(nd, { name: name });
@@ -929,32 +909,34 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				}
 				return dep;
 			});
-			const specWithResolvedDeps = { ...nSpec, deps: resolvedDeps };
+			const specWithResolvedDeps: GraphSpecNode = { ...nSpec, deps: resolvedDeps };
+			const factoryName = readFactory(nSpec);
+			const factoryArgs = readFactoryArgs(nSpec);
 
 			if (nSpec.type === "state") {
-				const nd = state(nSpec.initial, {
+				const initial = readStateInitial(nSpec);
+				const nd = state(initial, {
 					name: nName,
-					meta: nSpec.meta ? { ...nSpec.meta } : undefined,
+					meta: stripFactoryMeta(nSpec.meta),
 				});
 				sub.add(nd, { name: nName });
 				subCreated.set(nName, nd);
 			} else if (nSpec.type === "producer") {
-				// Handle producer nodes inside templates
-				const sourceFactory = nSpec.source ? resolveSource(nSpec.source) : undefined;
-				const fnFactory = nSpec.fn ? resolveFn(nSpec.fn) : undefined;
+				const sourceFactory = factoryName ? resolveSource(factoryName) : undefined;
+				const fnFactory = factoryName ? resolveFn(factoryName) : undefined;
 				if (sourceFactory) {
-					const nd = sourceFactory(nSpec.config ?? {});
+					const nd = sourceFactory(factoryArgs);
 					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				} else if (fnFactory) {
-					const nd = fnFactory([], nSpec.config ?? {});
+					const nd = fnFactory([], factoryArgs);
 					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
 				} else {
-					recordMissing(`${name}.${nName}`, nSpec.fn, nSpec.source);
+					if (factoryName) recordMissing(`${name}.${nName}`, "source", factoryName);
 					const nd = producer(() => {}, {
 						name: nName,
-						meta: { ...nSpec.meta, _specFn: nSpec.fn, _specSource: nSpec.source },
+						meta: { ...stripFactoryMeta(nSpec.meta), _specSource: factoryName },
 					});
 					sub.add(nd, { name: nName });
 					subCreated.set(nName, nd);
@@ -975,16 +957,18 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				if (!allReady) continue;
 
 				const resolvedDeps = deps.map((dep) => subCreated.get(dep) ?? created.get(dep)!);
-				const fnFactory = nSpec.fn ? resolveFn(nSpec.fn) : undefined;
+				const factoryName = readFactory(nSpec);
+				const factoryArgs = readFactoryArgs(nSpec);
+				const fnFactory = factoryName ? resolveFn(factoryName) : undefined;
 
 				let nd: Node<unknown>;
 				if (fnFactory) {
-					nd = fnFactory(resolvedDeps, nSpec.config ?? {});
+					nd = fnFactory(resolvedDeps, factoryArgs);
 				} else if (nSpec.type === "effect") {
-					if (nSpec.fn) recordMissing(`${name}.${nName}`, nSpec.fn, undefined);
+					if (factoryName) recordMissing(`${name}.${nName}`, "fn", factoryName);
 					nd = effect(resolvedDeps, () => {});
 				} else {
-					if (nSpec.fn) recordMissing(`${name}.${nName}`, nSpec.fn, undefined);
+					if (factoryName) recordMissing(`${name}.${nName}`, "fn", factoryName);
 					nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
 				}
 				sub.add(nd, { name: nName });
@@ -1005,8 +989,8 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 		const outputPath = `${name}::${tmpl.output}`;
 		created.set(name, g.resolve(outputPath));
 
-		// Store template origin meta on the mounted subgraph's first node
-		// so decompileGraph can recover it without structural fingerprinting.
+		// Store template origin meta on the mounted subgraph's output node
+		// so decompile-style introspection can recover the template name.
 		try {
 			const outputNode = g.resolve(outputPath);
 			outputNode.meta._templateName?.emit(ref.template);
@@ -1068,44 +1052,43 @@ const INTERNAL_META_KEYS = new Set([
 ]);
 
 /**
- * Extract a GraphSpec from a running graph.
+ * Extract a {@link GraphSpec} from a running graph.
  *
- * Uses `describe({ detail: "standard" })` as a starting point, then enriches:
- * - Feedback edges recovered from counter node meta (`feedbackFrom`/`feedbackTo`)
- * - Template refs recovered from output node meta (`_templateName`/`_templateBind`)
- * - Structural fingerprinting as fallback for 2+ identical mounted subgraphs
+ * Tier 1.5.3 Phase 3 (2026-04-27): thin projection over
+ * `graph.describe({ detail: "spec" })`. The describe-output already carries
+ * structural fields (`type`, `deps`, optional `value`) plus per-node
+ * `meta.factory` / `meta.factoryArgs` for tagged factories and top-level
+ * `factory` / `factoryArgs` for graph-level tags. The only sugar this helper
+ * adds is a feedback-edge recovery scan over `meta.feedbackFrom` /
+ * `meta.feedbackTo` companion fields stamped by the §8.1 `feedback()`
+ * primitive.
+ *
+ * **Removed in Phase 3:** template fingerprinting / `_templateName` /
+ * `_templateBind` recovery. Mounted subgraphs surface as nested `subname::*`
+ * paths in `desc.nodes`; if you need the template-instantiation form, build
+ * the spec by hand or read the meta companions directly.
  *
  * @param graph - Running graph to decompile.
  * @returns A GraphSpec representation.
  *
  * @category patterns
  */
-/**
- * Tier 1.5.3 / D5 rename — `decompileSpec` is the canonical name post-Session A.1
- * lock. Once Phase 3 lands `GraphSpec ≡ GraphDescribeOutput`, the body becomes
- * `g.describe({ detail: "spec" })`. For now it delegates to the existing
- * implementation so behavior is unchanged.
- */
 export function decompileSpec(graph: Graph): GraphSpec {
-	return decompileGraph(graph);
-}
-
-export function decompileGraph(graph: Graph): GraphSpec {
-	const desc = graph.describe({ detail: "standard" });
-	const nodes: Record<string, GraphSpecNode> = {};
-	const feedbackEdges: GraphSpecFeedbackEdge[] = [];
+	const desc = graph.describe({ detail: "spec" }) as GraphDescribeOutput;
 	const metaSegment = `::${GRAPH_META_SEGMENT}::`;
-
-	// Detect feedback counter nodes and extract feedback edges from meta
 	const feedbackCounterPattern = /^__feedback_(?!effect_)(.+)$/;
-	const feedbackConditions = new Set<string>();
+	const feedbackEdges: GraphSpecFeedbackEdge[] = [];
 
-	for (const path of Object.keys(desc.nodes)) {
+	// Build the spec-shaped node map by walking describe's output. Strip
+	// meta-companion paths and bridge / feedback-effect internals; preserve
+	// everything else verbatim.
+	const nodes: Record<string, GraphSpecNode | GraphSpecTemplateRef> = {};
+	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
 		if (path.includes(metaSegment)) continue;
+
 		const match = feedbackCounterPattern.exec(path);
 		if (match) {
-			feedbackConditions.add(match[1]!);
-			const meta = desc.nodes[path]?.meta as Record<string, unknown> | undefined;
+			const meta = nodeDesc.meta as Record<string, unknown> | undefined;
 			if (meta?.feedbackFrom && meta?.feedbackTo) {
 				feedbackEdges.push({
 					from: meta.feedbackFrom as string,
@@ -1113,251 +1096,46 @@ export function decompileGraph(graph: Graph): GraphSpec {
 					...(meta.maxIterations ? { maxIterations: meta.maxIterations as number } : {}),
 				});
 			}
+			continue;
 		}
-	}
-
-	// Build nodes map, skipping meta, feedback internals, and bridge nodes
-	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
-		if (path.includes(metaSegment)) continue;
-		if (feedbackCounterPattern.test(path)) continue;
-		// Skip internal infrastructure nodes (bridge, feedback effect) via meta tag
+		// Skip internal infrastructure nodes (feedback-effect, bridge).
 		if (nodeDesc.meta?._internal) continue;
-		// Legacy fallback: skip by naming convention
 		if (path.startsWith("__feedback_effect_")) continue;
 		if (path.startsWith("__bridge_")) continue;
-		// Skip subgraph-internal nodes (they belong to templates)
-		if (path.includes("::")) continue;
 
-		const specNode: GraphSpecNode = {
-			type: nodeDesc.type as GraphSpecNode["type"],
-		};
-
-		if (nodeDesc.deps.length > 0) {
-			specNode.deps = nodeDesc.deps.filter((d) => !d.includes("::"));
+		// QA F5 carry: strip runtime-state sibling keys for known stateful factory
+		// tags so the spec doesn't carry transient runtime state into round-trips.
+		const meta = nodeDesc.meta as Record<string, unknown> | undefined;
+		let cleanedMeta: Record<string, unknown> | undefined = meta;
+		if (meta && Object.keys(meta).length > 0) {
+			const out: Record<string, unknown> = {};
+			for (const [k, v] of Object.entries(meta)) {
+				if (INTERNAL_META_KEYS.has(k)) continue;
+				out[k] = v;
+			}
+			if (out.factory === "withStatus") {
+				delete out.status;
+				delete out.error;
+			} else if (out.factory === "withBreaker") {
+				delete out.breakerState;
+			} else if (out.factory === "verifiable") {
+				delete out.sourceVersion;
+			}
+			cleanedMeta = Object.keys(out).length > 0 ? out : undefined;
 		}
 
-		if (nodeDesc.type === "state" && nodeDesc.value !== undefined) {
-			specNode.initial = nodeDesc.value;
-		}
-
-		if (nodeDesc.meta && Object.keys(nodeDesc.meta).length > 0) {
-			const meta: Record<string, unknown> = {};
-			for (const [k, v] of Object.entries(nodeDesc.meta as Record<string, unknown>)) {
-				if (!INTERNAL_META_KEYS.has(k)) meta[k] = v;
-			}
-			// QA F5: strip runtime-state sibling keys for known factory tags so
-			// the spec doesn't carry transient state (`breakerState`, `status`,
-			// `error`, etc.) into a compile→decompile round-trip — these are
-			// reconstructed by the factory at compile time, not from the spec.
-			if (meta.factory === "withStatus") {
-				delete meta.status;
-				delete meta.error;
-			} else if (meta.factory === "withBreaker") {
-				delete meta.breakerState;
-			} else if (meta.factory === "verifiable") {
-				delete meta.sourceVersion;
-			}
-			if (Object.keys(meta).length > 0) {
-				specNode.meta = meta;
-			}
-		}
-
-		nodes[path] = specNode;
+		const cleaned: GraphSpecNode = { ...nodeDesc };
+		if (cleanedMeta === undefined) delete cleaned.meta;
+		else cleaned.meta = cleanedMeta;
+		nodes[path] = cleaned;
 	}
 
-	// Detect templates: first from compile-time meta (option B), then structural fallback
-	const templates: Record<string, GraphSpecTemplate> = {};
-	const templateRefs: Record<string, GraphSpecTemplateRef> = {};
-	const metaDetectedSubgraphs = new Set<string>();
-
-	// Option B: recover template origin from meta stored by compileSpec
-	for (const subName of desc.subgraphs) {
-		const prefix = `${subName}::`;
-		for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
-			if (!path.startsWith(prefix)) continue;
-			if (path.includes(metaSegment)) continue;
-			const meta = nodeDesc.meta as Record<string, unknown> | undefined;
-			if (meta?._templateName && meta?._templateBind) {
-				const templateName = meta._templateName as string;
-				const bind = meta._templateBind as Record<string, string>;
-
-				// Reconstruct template definition from the subgraph's nodes
-				if (!templates[templateName]) {
-					const tmplNodes: Record<string, GraphSpecNode> = {};
-					const tmplInnerNames = new Set<string>();
-					const tmplPrefix = `${subName}::`;
-					for (const [p, nd] of Object.entries(desc.nodes)) {
-						if (!p.startsWith(tmplPrefix) || p.includes(metaSegment)) continue;
-						const localName = p.slice(tmplPrefix.length);
-						if (localName.includes("::")) continue;
-						tmplInnerNames.add(localName);
-						tmplNodes[localName] = {
-							type: nd.type as GraphSpecNode["type"],
-							...(nd.deps.length > 0
-								? {
-										deps: nd.deps.map((d) =>
-											d.startsWith(tmplPrefix) ? d.slice(tmplPrefix.length) : d,
-										),
-									}
-								: {}),
-						};
-					}
-					// Detect params (external deps) and output
-					const tmplParams: string[] = [];
-					const tmplParamMap = new Map<string, string>();
-					for (const n of Object.values(tmplNodes)) {
-						for (const dep of n.deps ?? []) {
-							if (!tmplInnerNames.has(dep) && !tmplParamMap.has(dep)) {
-								const param = `$${dep}`;
-								tmplParams.push(param);
-								tmplParamMap.set(dep, param);
-							}
-						}
-					}
-					// Substitute external deps with $params
-					for (const n of Object.values(tmplNodes)) {
-						if (n.deps) n.deps = n.deps.map((d) => tmplParamMap.get(d) ?? d);
-					}
-					// Find output
-					const depended = new Set<string>();
-					for (const n of Object.values(tmplNodes)) {
-						for (const dep of n.deps ?? []) {
-							if (tmplInnerNames.has(dep)) depended.add(dep);
-						}
-					}
-					const outputCandidates = [...tmplInnerNames].filter((n) => !depended.has(n));
-					const tmplOutput = outputCandidates[0] ?? [...tmplInnerNames].pop()!;
-
-					templates[templateName] = { params: tmplParams, nodes: tmplNodes, output: tmplOutput };
-				}
-
-				delete nodes[subName];
-				templateRefs[subName] = { type: "template", template: templateName, bind };
-				metaDetectedSubgraphs.add(subName);
-				break;
-			}
-		}
-	}
-
-	// Structural fallback: group remaining mounted subgraphs by fingerprint.
-	//
-	// **Caveat:** the fingerprint is `{nodeName: {type, deps}}` only — it
-	// ignores `meta`, `initial`, `fn`/`source` catalog references, and node
-	// configuration. Two semantically distinct templates that happen to share
-	// node names + types + deps will collapse into a single template here.
-	// For round-trip correctness on hand-built graphs that mount such look-
-	// alike subgraphs, prefer the meta-based recovery path: stamp
-	// `_templateName` / `_templateBind` on the output node before mounting,
-	// and `decompileGraph` skips the structural fallback for that subgraph.
-	const structureMap = new Map<string, { name: string; nodes: Record<string, GraphSpecNode> }[]>();
-	for (const subName of desc.subgraphs) {
-		if (metaDetectedSubgraphs.has(subName)) continue;
-		const subNodes: Record<string, GraphSpecNode> = {};
-		const prefix = `${subName}::`;
-		for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
-			if (path.includes(metaSegment)) continue;
-			if (!path.startsWith(prefix)) continue;
-			const localName = path.slice(prefix.length);
-			if (localName.includes("::")) continue;
-			subNodes[localName] = {
-				type: nodeDesc.type as GraphSpecNode["type"],
-				...(nodeDesc.deps.length > 0
-					? {
-							deps: nodeDesc.deps.map((d) => (d.startsWith(prefix) ? d.slice(prefix.length) : d)),
-						}
-					: {}),
-			};
-		}
-		const fingerprint = JSON.stringify(
-			Object.fromEntries(
-				Object.entries(subNodes)
-					.sort(([a], [b]) => a.localeCompare(b))
-					.map(([k, v]) => [k, { type: v.type, deps: v.deps ?? [] }]),
-			),
-		);
-		if (!structureMap.has(fingerprint)) {
-			structureMap.set(fingerprint, []);
-		}
-		structureMap.get(fingerprint)!.push({ name: subName, nodes: subNodes });
-	}
-
-	// Subgraphs with identical structure (2+ instances) → templates
-	for (const [, group] of structureMap) {
-		if (group.length < 2) continue;
-		const templateName = `${group[0]!.name}_template`;
-		const refNodes = group[0]!.nodes;
-		const innerNames = new Set(Object.keys(refNodes));
-
-		// Detect external deps as params (from first member)
-		const params: string[] = [];
-		const baseParamMap = new Map<string, string>();
-		for (const n of Object.values(refNodes)) {
-			for (const dep of n.deps ?? []) {
-				if (!innerNames.has(dep) && !baseParamMap.has(dep)) {
-					const param = `$${dep}`;
-					params.push(param);
-					baseParamMap.set(dep, param);
-				}
-			}
-		}
-
-		// Find output node
-		const depended = new Set<string>();
-		for (const n of Object.values(refNodes)) {
-			for (const dep of n.deps ?? []) {
-				if (innerNames.has(dep)) depended.add(dep);
-			}
-		}
-		const outputCandidates = [...innerNames].filter((n) => !depended.has(n));
-		const output = outputCandidates[0] ?? [...innerNames].pop()!;
-
-		// Build template nodes with param-substituted deps
-		const tmplNodes: Record<string, GraphSpecNode> = {};
-		for (const [nName, nSpec] of Object.entries(refNodes)) {
-			tmplNodes[nName] = {
-				...nSpec,
-				deps: nSpec.deps?.map((d) => baseParamMap.get(d) ?? d),
-			};
-		}
-
-		templates[templateName] = { params, nodes: tmplNodes, output };
-
-		// Build per-member bind maps (each member may bind to different external nodes)
-		for (const member of group) {
-			delete nodes[member.name];
-			// Build this member's own bind map by scanning its external deps
-			const memberBind: Record<string, string> = {};
-			const memberInnerNames = new Set(Object.keys(member.nodes));
-			for (const n of Object.values(member.nodes)) {
-				for (const dep of n.deps ?? []) {
-					if (!memberInnerNames.has(dep)) {
-						// Find which param this external dep maps to
-						const param = baseParamMap.get(dep) ?? `$${dep}`;
-						memberBind[param] = dep;
-					}
-				}
-			}
-			templateRefs[member.name] = {
-				type: "template",
-				template: templateName,
-				bind: memberBind,
-			};
-		}
-	}
-
-	const allNodes: Record<string, GraphSpecNode | GraphSpecTemplateRef> = {
-		...nodes,
-		...templateRefs,
-	};
-
-	const result: GraphSpec = { name: desc.name, nodes: allNodes };
-	if (Object.keys(templates).length > 0) result.templates = templates;
+	const result: GraphSpec = { ...desc, nodes };
+	// `expand` (a closure injected onto live describe outputs) is not part of
+	// the GraphSpec wire shape — it leaks function refs into JSON-stringified
+	// specs. Drop it.
+	delete (result as { expand?: unknown }).expand;
 	if (feedbackEdges.length > 0) result.feedback = feedbackEdges;
-	// Tier 1.5.3 Phase 2.5 — preserve top-level Graph factory provenance through
-	// decompile so `decompileSpec → compileSpec` round-trips via `catalog.graphFactories`.
-	if (desc.factory !== undefined) result.factory = desc.factory;
-	if (desc.factoryArgs !== undefined) result.factoryArgs = desc.factoryArgs;
-
 	return result;
 }
 
@@ -1431,12 +1209,14 @@ export function specDiff(specA: GraphSpec, specB: GraphSpec): SpecDiffResult {
 			if (JSON.stringify((a as GraphSpecNode).deps) !== JSON.stringify((b as GraphSpecNode).deps)) {
 				details.push("deps changed");
 			}
-			if ((a as GraphSpecNode).fn !== (b as GraphSpecNode).fn) {
-				details.push(`fn: ${(a as GraphSpecNode).fn} → ${(b as GraphSpecNode).fn}`);
+			const aFactory = a.type === "template" ? undefined : readFactory(a as GraphSpecNode);
+			const bFactory = b.type === "template" ? undefined : readFactory(b as GraphSpecNode);
+			if (aFactory !== bFactory) {
+				details.push(`fn: ${aFactory} → ${bFactory}`);
 			}
-			if (
-				JSON.stringify((a as GraphSpecNode).config) !== JSON.stringify((b as GraphSpecNode).config)
-			) {
+			const aArgs = a.type === "template" ? undefined : readFactoryArgs(a as GraphSpecNode);
+			const bArgs = b.type === "template" ? undefined : readFactoryArgs(b as GraphSpecNode);
+			if (JSON.stringify(aArgs) !== JSON.stringify(bArgs)) {
 				details.push("config changed");
 			}
 			entries.push({
@@ -1560,13 +1340,14 @@ Given a natural-language description, produce a JSON GraphSpec with this structu
   "name": "<graph_name>",
   "nodes": {
     "<node_name>": {
-      "type": "state" | "derived" | "producer" | "effect" | "operator",
+      "type": "state" | "derived" | "producer" | "effect",
       "deps": ["<dep_node_name>", ...],
-      "fn": "<catalog_function_name>",
-      "source": "<catalog_source_name>",
-      "config": { ... },
-      "initial": <value>,
-      "meta": { "description": "<purpose>" }
+      "value": <initial_value>,
+      "meta": {
+        "factory": "<catalog_factory_name>",
+        "factoryArgs": { ... },
+        "description": "<purpose>"
+      }
     },
     "<template_instance>": {
       "type": "template",
@@ -1587,10 +1368,13 @@ Given a natural-language description, produce a JSON GraphSpec with this structu
 }
 
 Rules:
-- "state" nodes hold user/LLM-writable values (knobs). Use "initial" for default values.
-- "derived" nodes compute from deps using a named "fn".
-- "effect" nodes produce side effects from deps.
-- "producer" nodes generate values from a named "source".
+- "state" nodes hold user/LLM-writable values (knobs). Stamp the initial value
+  in "meta.factoryArgs.initial" (or as the top-level "value" field — both work).
+- "derived" nodes compute from deps using a catalog function named in
+  "meta.factory"; pass any config via "meta.factoryArgs".
+- "effect" nodes produce side effects from deps; same meta.factory shape as derived.
+- "producer" nodes generate values from a catalog source named in "meta.factory";
+  pass any config via "meta.factoryArgs".
 - Use "templates" when the same subgraph pattern repeats (e.g., per-source resilience).
 - Use "feedback" for bounded cycles where a derived value writes back to a state node.
 - meta.description is required for every node.
