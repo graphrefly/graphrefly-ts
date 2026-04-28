@@ -63,7 +63,7 @@ describe("processManager", () => {
 				steps: {
 					orderPlaced(state, event) {
 						return {
-							kind: "continue",
+							outcome: "success",
 							state: { ...state, orderId: event.payload.orderId, step: "processing" },
 						};
 					},
@@ -87,7 +87,7 @@ describe("processManager", () => {
 				steps: {
 					orderPlaced(state, event) {
 						return {
-							kind: "continue",
+							outcome: "success",
 							state: { ...state, orderId: event.payload.orderId, step: "processing" },
 						};
 					},
@@ -162,7 +162,7 @@ describe("processManager", () => {
 				steps: {
 					done(_state, event) {
 						return {
-							kind: "terminate",
+							outcome: "terminate",
 							state: { result: event.payload.result },
 							reason: "all done",
 						};
@@ -203,10 +203,10 @@ describe("processManager", () => {
 					ev(state) {
 						stepCallCount++;
 						if (stepCallCount === 1) {
-							return { kind: "terminate", state };
+							return { outcome: "terminate", state };
 						}
 						// Should never be called a second time.
-						return { kind: "continue", state: { ...state, n: state.n + 1 } };
+						return { outcome: "success", state: { ...state, n: state.n + 1 } };
 					},
 				},
 			});
@@ -236,7 +236,7 @@ describe("processManager", () => {
 				watching: ["ticked"],
 				steps: {
 					ticked(state) {
-						return { kind: "continue", state: { count: state.count + 1 } };
+						return { outcome: "success", state: { count: state.count + 1 } };
 					},
 				},
 				isTerminal: (state) => state.count >= 2,
@@ -263,7 +263,7 @@ describe("processManager", () => {
 	// ── 3. Fail + compensate ──────────────────────────────────────────────────
 
 	describe("fail + compensate", () => {
-		it("step returning kind:fail triggers compensate; status becomes compensated", async () => {
+		it("step returning outcome:failure triggers compensate; status becomes compensated", async () => {
 			let compensateCalled = false;
 			const app = cqrs<{ ev: unknown }>("workflow");
 			app.command("fireEv", (_payload: unknown, { emit }) => {
@@ -275,7 +275,7 @@ describe("processManager", () => {
 				watching: ["ev"],
 				steps: {
 					ev() {
-						return { kind: "failure", error: new Error("step failed") };
+						return { outcome: "failure", error: new Error("step failed") };
 					},
 				},
 				compensate(state, _error) {
@@ -337,7 +337,7 @@ describe("processManager", () => {
 				watching: ["ev"],
 				steps: {
 					ev() {
-						return { kind: "failure", error: new Error("boom") };
+						return { outcome: "failure", error: new Error("boom") };
 					},
 				},
 				// no compensate
@@ -371,7 +371,7 @@ describe("processManager", () => {
 					ev(state) {
 						attempts++;
 						if (attempts < 3) throw new Error(`fail attempt ${attempts}`);
-						return { kind: "continue", state: { ...state, done: true } };
+						return { outcome: "success", state: { ...state, done: true } };
 					},
 				},
 				retryMax: 3,
@@ -510,7 +510,7 @@ describe("processManager", () => {
 				watching: ["ev"],
 				steps: {
 					ev(state, event) {
-						return { kind: "continue", state: { ...state, value: event.payload.value } };
+						return { outcome: "success", state: { ...state, value: event.payload.value } };
 					},
 				},
 			});
@@ -543,7 +543,7 @@ describe("processManager", () => {
 				steps: {
 					ev(state) {
 						stepCallCount++;
-						return { kind: "continue", state };
+						return { outcome: "success", state };
 					},
 				},
 			});
@@ -570,7 +570,7 @@ describe("processManager", () => {
 				steps: {
 					ev(state) {
 						stepCallCount++;
-						return { kind: "continue", state };
+						return { outcome: "success", state };
 					},
 				},
 			});
@@ -603,14 +603,14 @@ describe("processManager", () => {
 					start(state) {
 						stepLog.push("start");
 						return {
-							kind: "continue",
+							outcome: "success",
 							state: { ...state, phase: "waiting" },
 							schedule: { afterMs: 100, eventType: "timeout" },
 						};
 					},
 					timeout(state) {
 						stepLog.push("timeout");
-						return { kind: "terminate", state: { ...state, phase: "timed-out" } };
+						return { outcome: "terminate", state: { ...state, phase: "timed-out" } };
 					},
 				},
 			});
@@ -649,14 +649,14 @@ describe("processManager", () => {
 					start(state) {
 						stepLog.push("start");
 						return {
-							kind: "continue",
+							outcome: "success",
 							state: { ...state, phase: "waiting" },
 							schedule: { afterMs: 500, eventType: "timeout" },
 						};
 					},
 					timeout(state) {
 						stepLog.push("timeout");
-						return { kind: "terminate", state };
+						return { outcome: "terminate", state };
 					},
 				},
 			});
@@ -702,7 +702,7 @@ describe("processManager", () => {
 					async ev(state, event) {
 						// Simulate async work.
 						await Promise.resolve();
-						return { kind: "continue", state: { ...state, doubled: event.payload.value * 2 } };
+						return { outcome: "success", state: { ...state, doubled: event.payload.value * 2 } };
 					},
 				},
 			});
@@ -733,7 +733,7 @@ describe("processManager", () => {
 				steps: {
 					trigger(state) {
 						return {
-							kind: "continue",
+							outcome: "success",
 							state,
 							emit: [{ type: "sideEffect", payload: { from: "step" } }],
 						};
@@ -780,7 +780,7 @@ describe("processManager", () => {
 						return new Promise<never>(() => {
 							resolveStep();
 							// Never resolves — simulates a long-running step.
-						}) as Promise<{ kind: "continue"; state: {} }>;
+						}) as Promise<{ outcome: "success"; state: {} }>;
 					},
 				},
 				compensate(_state, _error) {
@@ -843,7 +843,7 @@ describe("processManager", () => {
 						return Promise.resolve().then(() => {
 							const next = { count: state.count + 1 };
 							stateLog.push(next.count);
-							return { kind: "continue" as const, state: next };
+							return { outcome: "success" as const, state: next };
 						});
 					},
 				},
@@ -876,7 +876,7 @@ describe("processManager", () => {
 				steps: {
 					ev(state) {
 						stepCallCount++;
-						return { kind: "continue", state: { n: state.n + 1 } };
+						return { outcome: "success", state: { n: state.n + 1 } };
 					},
 				},
 			});
