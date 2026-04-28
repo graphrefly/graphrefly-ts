@@ -6,8 +6,7 @@
 
 import type { Node } from "../../../core/node.js";
 import { derived, state } from "../../../core/sugar.js";
-import { fromAny, type NodeInput } from "../../../extra/sources.js";
-import { keepalive } from "../../_internal/index.js";
+import { fromAny, keepalive, type NodeInput } from "../../../extra/sources.js";
 import { aiMeta } from "../_internal.js";
 
 /**

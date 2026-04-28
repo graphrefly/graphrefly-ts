@@ -28,10 +28,10 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
+import { type BaseAuditRecord, createAuditLog } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../../extra/sources.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
-import { type BaseAuditRecord, createAuditLog } from "../_internal/imperative-audit.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
 
 // ---------------------------------------------------------------------------

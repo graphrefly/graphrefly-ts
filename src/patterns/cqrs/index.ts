@@ -15,6 +15,12 @@ import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { policy } from "../../core/guard.js";
 import { DATA, derived, type Node, node, placeholderArgs, state } from "../../core/index.js";
+import {
+	type BaseAuditRecord,
+	createAuditLog,
+	registerCursor,
+	registerCursorMap,
+} from "../../extra/mutation/index.js";
 import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
 import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
@@ -26,12 +32,6 @@ import {
 	UndeclaredEmitError,
 	UnknownCommandError,
 } from "../_internal/errors.js";
-import {
-	type BaseAuditRecord,
-	createAuditLog,
-	registerCursor,
-	registerCursorMap,
-} from "../_internal/imperative-audit.js";
 
 // ---------------------------------------------------------------------------
 // Guards
@@ -62,7 +62,8 @@ const EVENT_GUARD = policy((allow, deny) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-import { domainMeta, keepalive } from "../_internal/index.js";
+import { domainMeta } from "../../extra/meta.js";
+import { keepalive } from "../../extra/sources.js";
 
 function cqrsMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("cqrs", kind, extra);

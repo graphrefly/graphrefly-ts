@@ -30,7 +30,9 @@
 import { monotonicNs } from "../../core/clock.js";
 import type { Node } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
+import { domainMeta } from "../../extra/meta.js";
 import { type ReactiveMapBundle, reactiveMap } from "../../extra/reactive-map.js";
+import { keepalive } from "../../extra/sources.js";
 import {
 	type CausalChain,
 	Graph,
@@ -39,7 +41,6 @@ import {
 	reachable,
 	watchTopologyTree,
 } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal/index.js";
 import { reactiveExplainPath } from "../audit/index.js";
 
 export { watchTopologyTree } from "../../graph/index.js";

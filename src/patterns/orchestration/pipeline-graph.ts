@@ -18,14 +18,10 @@ import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { placeholderArgs } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { type DerivedFn, derived, state } from "../../core/sugar.js";
+import { domainMeta } from "../../extra/meta.js";
+import { type BaseAuditRecord, createAuditLog, wrapMutation } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
-import {
-	type BaseAuditRecord,
-	createAuditLog,
-	wrapMutation,
-} from "../_internal/imperative-audit.js";
-import { domainMeta } from "../_internal/index.js";
 
 export type StepRef = string | Node<unknown>;
 

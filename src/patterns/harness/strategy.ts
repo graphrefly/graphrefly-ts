@@ -10,7 +10,7 @@ import { monotonicNs } from "../../core/clock.js";
 import type { Node } from "../../core/node.js";
 import { derived } from "../../core/sugar.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
-import { decay } from "../memory/index.js";
+import { decay } from "../../extra/utils/decay.js";
 
 import {
 	DEFAULT_DECAY_RATE,

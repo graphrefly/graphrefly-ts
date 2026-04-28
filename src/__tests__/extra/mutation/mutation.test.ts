@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { state } from "../../../core/sugar.js";
-import { Graph } from "../../../graph/graph.js";
 import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
 	lightMutation,
 	wrapMutation,
-} from "../../../patterns/_internal/imperative-audit.js";
+} from "../../../extra/mutation/index.js";
+import { Graph } from "../../../graph/graph.js";
 
 interface TestRecord extends BaseAuditRecord {
 	readonly action: "set" | "fail";

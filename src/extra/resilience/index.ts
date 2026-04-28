@@ -1,7 +1,16 @@
 /**
  * Resilience utilities — roadmap §3.1 + §3.1c (retry, breaker, rate limit, status,
- * fallback, cache, timeout).
+ * fallback, cache, timeout, budgetGate).
  */
+
+// budgetGate lives in its own file per Tier 2.2 (promoted from
+// patterns/reduction/) — re-export here so it ships through the barrel.
+export {
+	type BudgetConstraint,
+	type BudgetGateOptions,
+	budgetGate,
+} from "./budget-gate.js";
+
 import { batch } from "../../core/batch.js";
 import { monotonicNs } from "../../core/clock.js";
 import {

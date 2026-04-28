@@ -19,10 +19,10 @@ import { derived, effect, state } from "../../../core/sugar.js";
 import type { DistillBundle } from "../../../extra/composite.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
+import { decay } from "../../../extra/utils/decay.js";
 import type { Graph } from "../../../graph/graph.js";
 import {
 	cosineSimilarity,
-	decay,
 	type KnowledgeEdge,
 	type KnowledgeGraph,
 	knowledgeGraph,

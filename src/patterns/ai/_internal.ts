@@ -9,9 +9,9 @@
 
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
+import { domainMeta } from "../../extra/meta.js";
 import { fromAny, type NodeInput } from "../../extra/sources.js";
 import { ResettableTimer } from "../../extra/timer.js";
-import { domainMeta } from "../_internal/index.js";
 
 export function aiMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("ai", kind, extra);

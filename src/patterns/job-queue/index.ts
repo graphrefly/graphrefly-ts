@@ -11,18 +11,18 @@
 import { wallClockNs } from "../../core/clock.js";
 import { batch, DATA, derived, ERROR, type Node, placeholderArgs } from "../../core/index.js";
 import { node } from "../../core/node.js";
-import { reactiveList } from "../../extra/reactive-list.js";
-import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
-import { reactiveMap } from "../../extra/reactive-map.js";
-import { fromAny, type NodeInput } from "../../extra/sources.js";
-import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
-import { Graph, type GraphOptions } from "../../graph/index.js";
+import { domainMeta } from "../../extra/meta.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
 	registerCursor,
-} from "../_internal/imperative-audit.js";
-import { domainMeta, keepalive } from "../_internal/index.js";
+} from "../../extra/mutation/index.js";
+import { reactiveList } from "../../extra/reactive-list.js";
+import { type ReactiveLogBundle, reactiveLog } from "../../extra/reactive-log.js";
+import { reactiveMap } from "../../extra/reactive-map.js";
+import { fromAny, keepalive, type NodeInput } from "../../extra/sources.js";
+import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
+import { Graph, type GraphOptions } from "../../graph/index.js";
 
 const DEFAULT_MAX_PER_PUMP = 256;
 const DEFAULT_COMPLETED_RETAINED_LIMIT = 1024;

@@ -10,9 +10,8 @@ import { placeholderArgs } from "../../../core/meta.js";
 import { type Node, node as nodeFactory } from "../../../core/node.js";
 import { effect, state } from "../../../core/sugar.js";
 import { switchMap } from "../../../extra/operators.js";
-import { awaitSettled, fromAny } from "../../../extra/sources.js";
+import { awaitSettled, fromAny, keepalive } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
-import { keepalive } from "../../_internal/index.js";
 import { aiMeta } from "../_internal.js";
 import type {
 	ChatMessage,

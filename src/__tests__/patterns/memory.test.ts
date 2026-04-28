@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { state } from "../../core/sugar.js";
 import { keepalive } from "../../extra/sources.js";
+import { decay } from "../../extra/utils/decay.js";
 import {
 	type CollectionEntry,
 	collection,
-	decay,
 	type HnswAdapter,
 	type KnowledgeEdge,
 	knowledgeGraph,

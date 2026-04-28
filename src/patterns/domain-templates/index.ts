@@ -25,7 +25,8 @@ import { feedback, scorer } from "../reduction/index.js";
 // Shared
 // ---------------------------------------------------------------------------
 
-import { domainMeta, keepalive } from "../_internal/index.js";
+import { domainMeta } from "../../extra/meta.js";
+import { keepalive } from "../../extra/sources.js";
 
 function baseMeta(kind: string, extra?: Record<string, unknown>): Record<string, unknown> {
 	return domainMeta("domain_template", kind, extra);

@@ -1,18 +1,16 @@
 /**
- * Imperative-controller-with-audit helper layer (Audit 2 — locked 2026-04-24).
+ * Audited-mutation framework (Audit 2 — locked 2026-04-24; promoted to
+ * `extra/mutation/` per consolidation plan §1, Tier 2.2).
  *
- * Five Phase-4 primitives share the same shape: imperative mutation methods +
+ * Phase-4 primitives share the same shape: imperative mutation methods +
  * closure state + reactive audit log + freeze-at-entry + rollback-on-throw.
  * This module factors out the common machinery so each primitive becomes
  * declarative wiring over typed audit records:
- *  - `gate`, `pipeline.gate`            (Wave A.2 Unit 8)
- *  - `JobQueueGraph`                    (Wave B.3 Unit 15)
- *  - `CqrsGraph.dispatch`               (Wave C.2 Unit 20)
- *  - `CqrsGraph.saga`                   (Wave C.3 Unit 22)
- *  - `processManager` (Wave 7)          [out of scope this commit]
- *
- * @internal — exposed for primitive impls only; not re-exported through any
- * patterns/<x>/index.ts barrel.
+ *  - `approvalGate`, `pipeline.approvalGate`  (Wave A.2 Unit 8)
+ *  - `JobQueueGraph`                          (Wave B.3 Unit 15)
+ *  - `CqrsGraph.dispatch`                     (Wave C.2 Unit 20)
+ *  - `CqrsGraph.saga`                         (Wave C.3 Unit 22)
+ *  - `processManager`                         (Wave 7)
  */
 
 import { batch } from "../../core/batch.js";
@@ -21,12 +19,36 @@ import { type NodeGuard, policy } from "../../core/guard.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { state } from "../../core/sugar.js";
-import {
-	type ReactiveLogBundle,
-	type ReactiveLogOptions,
-	reactiveLog,
-} from "../../extra/reactive-log.js";
 import { Graph } from "../../graph/graph.js";
+import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "../reactive-log.js";
+
+// ── tryIncrementBounded ──────────────────────────────────────────────────
+
+/**
+ * Bounded increment for a self-owned counter state node.
+ *
+ * Reads `counter.cache`, bumps by 1 if under `cap`, writes back. Returns
+ * `false` when the cap is reached. Documented P3 exception: the counter is
+ * not a declared dep of the caller — it's a private budget read+written from
+ * a single call site. This helper keeps the `.cache` access in one named
+ * place.
+ *
+ * **Safety today:**
+ *   1. Single-threaded JS runner never invokes the caller concurrently.
+ *   2. `counter.down` writes the cache synchronously before returning, so
+ *      synchronous re-entry through a downstream publish reads the
+ *      freshly-incremented value — no double-count.
+ *
+ * **Future risk:** under a free-threaded runner (PY no-GIL or hypothetical
+ * concurrent TS runner), two concurrent firings could still race. Revisit
+ * when that surfaces.
+ */
+export function tryIncrementBounded(counter: Node<number>, cap: number): boolean {
+	const cur = (counter.cache as number | undefined) ?? 0;
+	if (cur >= cap) return false;
+	counter.down([[DIRTY], [DATA, cur + 1]]);
+	return true;
+}
 
 // ── Audit record schema ──────────────────────────────────────────────────
 

@@ -26,6 +26,8 @@
 import type { Node } from "../../core/node.js";
 import { NS_PER_MS, NS_PER_SEC } from "../../extra/backoff.js";
 import {
+	type BudgetConstraint,
+	budgetGate,
 	type CircuitBreakerOptions,
 	type CircuitState,
 	circuitBreaker,
@@ -40,7 +42,6 @@ import {
 	withBreaker,
 	withStatus,
 } from "../../extra/resilience.js";
-import { type BudgetConstraint, budgetGate } from "../reduction/index.js";
 
 /** Options for {@link resilientPipeline}. Every field is optional — omit to skip that layer. */
 export interface ResilientPipelineOptions<T> {

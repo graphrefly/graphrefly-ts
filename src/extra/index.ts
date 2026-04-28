@@ -17,6 +17,8 @@ export * from "./content-addressed-storage.js";
 export * from "./cron.js";
 export * from "./external-register.js";
 export * from "./http-error.js";
+export * from "./meta.js";
+export * from "./mutation/index.js";
 export * from "./observable.js";
 export * from "./operators.js";
 export * from "./pubsub.js";
@@ -27,6 +29,9 @@ export * from "./reactive-map.js";
 export * from "./reactive-sink.js";
 // Re-export resilience explicitly to avoid `timeout` / `pipe` conflicts with operators.js
 export {
+	type BudgetConstraint,
+	type BudgetGateOptions,
+	budgetGate,
 	type CircuitBreaker,
 	type CircuitBreakerOptions,
 	CircuitOpenError,
@@ -56,4 +61,5 @@ export * from "./storage-core.js";
 export * from "./storage-tiers.js";
 export * from "./stratify.js";
 export { ResettableTimer } from "./timer.js";
+export { decay } from "./utils/decay.js";
 export * from "./worker/index.js";

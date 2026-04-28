@@ -14,9 +14,10 @@
 
 import { batch, COMPLETE, DATA, derived, type Node, state } from "../../core/index.js";
 import { node } from "../../core/node.js";
+import { domainMeta } from "../../extra/meta.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
+import { keepalive } from "../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
-import { domainMeta, keepalive } from "../_internal/index.js";
 
 const DEFAULT_MAX_PER_PUMP = 256;
 

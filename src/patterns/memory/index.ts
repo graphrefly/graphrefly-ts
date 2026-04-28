@@ -2,8 +2,8 @@
  * Memory patterns (roadmap §4.3) — public-face Phase-4 primitives audited under
  * `archive/docs/SESSION-public-face-blocks-review.md` (Wave A, locked 2026-04-25).
  *
- * Five primitives:
- * - {@link decay} — pure exponential-decay utility.
+ * Four primitives (the pure `decay` helper was promoted to `extra/utils/decay.ts`
+ * per Tier 2.2 and is no longer re-exported here):
  * - {@link lightCollection} — Map + LRU eviction + audit log; non-Graph bundle.
  * - {@link collection} / {@link CollectionGraph} — scored memory store with live
  *   decay-ranking via reactive timer dep.
@@ -27,18 +27,19 @@
 import { monotonicNs, wallClockNs } from "../../core/clock.js";
 import { type Node, NodeImpl } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
-import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
-import { reactiveMap } from "../../extra/reactive-map.js";
-import { fromTimer } from "../../extra/sources.js";
-import { Graph } from "../../graph/graph.js";
+import { domainMeta } from "../../extra/meta.js";
 import {
 	type BaseAuditRecord,
 	bumpCursor,
 	createAuditLog,
 	lightMutation,
 	registerCursor,
-} from "../_internal/imperative-audit.js";
-import { domainMeta, keepalive } from "../_internal/index.js";
+} from "../../extra/mutation/index.js";
+import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
+import { reactiveMap } from "../../extra/reactive-map.js";
+import { fromTimer, keepalive } from "../../extra/sources.js";
+import { decay } from "../../extra/utils/decay.js";
+import { Graph } from "../../graph/graph.js";
 
 // ── Shared helpers ───────────────────────────────────────────────────────
 
@@ -66,34 +67,9 @@ function ageSeconds(now: number, lastNs: number): number {
 	return (now - lastNs) / NS_PER_SEC;
 }
 
-/**
- * Exponential decay with floor: `score = max(minScore, baseScore * exp(-ratePerSecond * ageSeconds))`.
- *
- * Tolerant fallbacks (deliberate for use inside reactive derived fns):
- * - non-finite `baseScore` → `minScore`
- * - non-positive `ageSeconds` (incl. clock skew) → `max(minScore, baseScore)` (no decay)
- * - non-positive `ratePerSecond` → `max(minScore, baseScore)` (no decay; rate=0 disables)
- *
- * Underflow boundary: `Math.exp(-745) === 0`. For very long ages × rates the
- * result clamps to `minScore`; if you need slow decay over years, choose a
- * smaller `ratePerSecond` rather than relying on graceful underflow.
- *
- * Half-life conversion: `ratePerSecond = Math.LN2 / halfLifeSeconds`.
- *
- * @category memory
- */
-export function decay(
-	baseScore: number,
-	ageSeconds: number,
-	ratePerSecond: number,
-	minScore = 0,
-): number {
-	if (!Number.isFinite(baseScore)) return minScore;
-	if (!Number.isFinite(ageSeconds) || ageSeconds <= 0) return Math.max(minScore, baseScore);
-	if (!Number.isFinite(ratePerSecond) || ratePerSecond <= 0) return Math.max(minScore, baseScore);
-	const decayed = baseScore * Math.exp(-ratePerSecond * ageSeconds);
-	return Math.max(minScore, decayed);
-}
+// `decay` was promoted to `extra/utils/decay.ts` per Tier 2.2 — it is no longer
+// re-exported from this module. Import from `@graphrefly/graphrefly/extra` (or
+// `../../extra/utils/decay.js` internally) instead.
 
 /**
  * Cosine similarity over `(a, b)`. When lengths differ, the shorter is
