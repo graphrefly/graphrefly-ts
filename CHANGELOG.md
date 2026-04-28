@@ -1,3 +1,10 @@
+# [0.42.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.41.0...v0.42.0) (2026-04-28)
+
+
+### Features
+
+* implementation plan tier 9 ([1776efd](https://github.com/graphrefly/graphrefly-ts/commit/1776efd0cdd4a145776ca33335bdac88c5e5f392))
+
 # [0.41.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.40.0...v0.41.0) (2026-04-28)
 
 
