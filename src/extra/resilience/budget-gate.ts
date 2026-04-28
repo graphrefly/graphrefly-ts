@@ -112,9 +112,26 @@ class HeadIndexQueue<T> {
  *    sees `[buffered DATA…, RESOLVED]` in causal order rather than
  *    `[RESOLVED, buffered DATA…]`.
  *
+ *    **Stall risk (qa D4):** if the constraint never relaxes AND no terminal
+ *    arrives from `source`, the deferred RESOLVED is held forever. Downstream
+ *    consumers that depend on `RESOLVED` for an `awaitSettled`-style
+ *    coordination wait stall in this case. PAUSE is sent upstream so source
+ *    backpressure stops further DATA, but the gate itself has no escape
+ *    hatch — by design (the producer-pattern is fire-and-forget; recovery
+ *    happens at the compositor level via timeout, retry, or cancellation).
+ *
  * 4. **Constraint DIRTY suppression.** Constraint-node DIRTY does NOT
  *    propagate downstream — only `source`-DIRTY does. The gate's downstream
  *    semantics track `source`'s wave, not constraint waves.
+ *
+ * 5. **Lazy PAUSE (qa D3).** PAUSE is sent upstream ONLY when a `source` DATA
+ *    arrives that fails the constraint check (the first blocked item). A
+ *    constraint flipping closed BEFORE any source DATA arrives does NOT emit
+ *    a preemptive PAUSE — upstream may push DATA freely until the first
+ *    item is buffered. This matches the producer-pattern lazy-activation
+ *    philosophy (don't impose backpressure for hypothetical future blocks).
+ *    For eager-PAUSE semantics, wrap the gate in a compositor that watches
+ *    constraints + source independently.
  *
  * ## Queue
  *
@@ -288,14 +305,26 @@ export function budgetGate<T>(
 			latestValues[depIndex - 1] = msg[1];
 		}
 		if (t === DATA || t === RESOLVED) {
-			if (checkBudget() && buffer.size > 0) {
+			// qa A2: hoist `checkBudget()` to a local — both branches consult it
+			// and `c.check(value)` may be expensive or non-pure (closes over time,
+			// counters, etc.); calling it twice was a 2× cost amplifier and an
+			// inconsistency risk if the predicate flips between calls.
+			//
+			// qa A3: each constraint's `c.check(latestValues[i])` runs against
+			// the constraint's last cached value. If a constraint's cache is
+			// `undefined` (constraint Node hasn't emitted DATA yet OR was
+			// activated before any push-on-subscribe), the predicate sees
+			// `undefined`. Treat undefined as "constraint not ready ⇒ closed"
+			// (conservative — don't release the gate on incomplete state).
+			const ok = checkBudget();
+			if (ok && buffer.size > 0) {
 				// Invariant 2: drain FIFO downstream BEFORE releasing PAUSE upstream.
 				flushBuffer(actions);
 				if (buffer.size === 0 && paused) {
 					paused = false;
 					actions.up([[RESUME, lockId]]);
 				}
-			} else if (!checkBudget() && !paused && buffer.size > 0) {
+			} else if (!ok && !paused && buffer.size > 0) {
 				// Defensive — buffer.size > 0 implies paused=true under normal flow
 				// (a buffered source DATA always sets paused). Kept for clarity if
 				// invariants ever shift.
