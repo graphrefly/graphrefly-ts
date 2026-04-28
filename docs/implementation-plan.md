@@ -511,6 +511,7 @@ Tier 10 — anytime; low priority
 3. ✅ Implement Tier 1.5.1 + 1.5.2 (describe-diff, observe-reactive, tiers filter) — they unblock Tier 5.3 graphLens preset.
 4. ✅ Implement Tier 1.5.3 (GraphSpec ≡ GraphDescribeOutput) — Phases 1, 2, 2.5, 3 all landed.
 5. ✅ Land Tier 2.1 reorg (mechanical split + renderer extraction). **Carry:** per-category sub-file split inside `operators/` / `sources/` / `io/` / `resilience/` — physical mega-file move done; canonical body still lives in each `<folder>/index.ts`. Schedule the per-protocol split in a follow-up batch.
-6. **← NEXT.** Branch off Tier 3 audits in parallel with Tier 2.2 + 2.3.
-7. Pick up Tier 4 + 5 once 2.2 is in.
-8. Tier 6 harness composition once Sessions A+B locks have implementation room (post Tier 1.5 + Tier 5).
+6. ✅ Land Tier 2.2 + Tier 2.3 (Wave 2A — promotions + renames + outcome/status enum migrations).
+7. **← NEXT.** Branch off Tier 3 audits in parallel (5 units: 3.1 supervisors, 3.2 throttles, 3.3 budgetGate, 3.4 policyGate, 3.5 reactiveExplainPath).
+8. Pick up Tier 4 + 5 once Tier 3 is in.
+9. Tier 6 harness composition once Sessions A+B locks have implementation room (post Tier 1.5 + Tier 5).
