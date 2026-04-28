@@ -10,7 +10,7 @@ const bob: Actor = { type: "human", id: "bob" };
 const llm: Actor = { type: "llm", id: "agent-1" };
 
 describe("guardedExecution", () => {
-	it("wraps target with policyEnforcer and blocks disallowed writes (enforce mode default)", () => {
+	it("wraps target with policyGate and blocks disallowed writes (enforce mode default)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		guardedExecution(g, {

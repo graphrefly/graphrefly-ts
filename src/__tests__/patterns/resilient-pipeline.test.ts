@@ -32,7 +32,7 @@ describe("resilientPipeline", () => {
 		src.emit(1);
 		src.emit(2);
 		expect(events).toEqual([0, 1, 2]);
-		expect(bundle.status.cache).toBe("active");
+		expect(bundle.status.cache).toBe("running");
 		expect(bundle.error.cache).toBe(null);
 		expect(bundle.breakerState).toBeUndefined();
 		stop();
@@ -91,8 +91,8 @@ describe("resilientPipeline", () => {
 		const src = state(0);
 		const bundle = resilientPipeline(src, { initialStatus: "pending" });
 		bundle.node.subscribe(() => {});
-		// initial push-on-subscribe delivers 0 as DATA → status = "active"
-		expect(bundle.status.cache).toBe("active");
+		// initial push-on-subscribe delivers 0 as DATA → status = "running"
+		expect(bundle.status.cache).toBe("running");
 		expect(bundle.error.cache).toBe(null);
 	});
 

@@ -377,7 +377,7 @@ export function gatedStream<T = string>(
 	const gateSubgraph = pipelineGraph(`${name}/gate-graph`);
 	graph.mount(`${name}/gate-graph`, gateSubgraph);
 	gateSubgraph.add(nonNullOutput, { name: `${name}/raw` });
-	const gateCtrl = gateSubgraph.gate<T>(`${name}/gate`, `${name}/raw`, opts?.gate);
+	const gateCtrl = gateSubgraph.approvalGate<T>(`${name}/gate`, `${name}/raw`, opts?.gate);
 
 	// Keepalive the switchMap product, the gate's output node, AND the
 	// accumulator so the full bundle contract ("three reactive surfaces, any

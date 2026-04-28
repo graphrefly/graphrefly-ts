@@ -12,6 +12,9 @@ export * from "./actuator-executor.js";
 export * from "./auto-solidify.js";
 export * from "./bridge.js";
 export * from "./defaults.js";
+// `effectivenessTracker` was demoted to a harness preset per Tier 2.3 — its
+// only consumer was `strategy.ts`, so building-block status was unwarranted.
+export * from "./effectiveness-tracker.js";
 export * from "./eval-verifier.js";
 export * from "./loop.js";
 export * from "./profile.js";

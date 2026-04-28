@@ -556,7 +556,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const { batches, unsub } = collect(out);
 			expect(status.cache).toBe("pending");
 			s.down([[DATA, 1]]);
-			expect(status.cache).toBe("active");
+			expect(status.cache).toBe("running");
 			s.down([[COMPLETE]]);
 			expect(status.cache).toBe("completed");
 			expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
@@ -571,7 +571,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(status.cache).toBe("errored");
 			expect(error.cache).toBeInstanceOf(Error);
 			s.down([[DATA, 1]]);
-			expect(status.cache).toBe("active");
+			expect(status.cache).toBe("running");
 			expect(error.cache).toBeNull();
 			unsub();
 		});

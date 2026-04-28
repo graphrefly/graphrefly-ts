@@ -58,8 +58,21 @@ export type PromptNodeOptions = {
 	model?: string;
 	temperature?: number;
 	maxTokens?: number;
-	/** Output format — `"json"` attempts JSON.parse on the response. Default: `"text"`. */
-	format?: "text" | "json";
+	/**
+	 * Output format:
+	 * - `"text"` (default) — emit the response content as a string.
+	 * - `"json"` — `JSON.parse` the content (markdown fences stripped).
+	 * - `"raw"` — emit the full {@link LLMResponse} object (subsumes the
+	 *   pre-Tier-2.3 `fromLLM` shape; use this when you need `usage` /
+	 *   `toolCalls` / `finishReason` alongside `content`).
+	 */
+	format?: "text" | "json" | "raw";
+	/**
+	 * Optional tool definitions forwarded to the adapter. Pair with
+	 * `format: "raw"` (or read `toolCalls` from a downstream parser) when
+	 * tool-calling is in scope.
+	 */
+	tools?: readonly import("../adapters/core/types.js").ToolDefinition[];
 	/**
 	 * Optional system prompt. Forwarded via `opts.systemPrompt` to the adapter
 	 * only — never pushed as a `{role:"system"}` message (avoiding the
@@ -186,6 +199,7 @@ export function promptNode<T = string>(
 						temperature: opts?.temperature,
 						maxTokens: opts?.maxTokens,
 						systemPrompt: opts?.systemPrompt,
+						...(opts?.tools !== undefined ? { tools: opts.tools } : {}),
 					};
 					if (opts?.abort) {
 						const sig = nodeSignal(opts.abort);
@@ -212,23 +226,30 @@ export function promptNode<T = string>(
 							if (done) return;
 							if (msg[0] === DATA) {
 								const resp = msg[1] as LLMResponse;
-								try {
-									const content = extractContent(resp);
-									const parsed: T =
-										format === "json"
-											? (JSON.parse(stripFences(content)) as T)
-											: (content as unknown as T);
-									actions.emit(parsed);
-								} catch (err) {
-									const raw = extractContent(resp);
-									const wrapped = new Error(
-										`promptNode: failed to parse LLM response as JSON: ${
-											(err as Error).message
-										}\n  Raw content (first 200 chars): ${previewContent(raw)}`,
-									);
-									done = true;
-									actions.down([[ERROR, wrapped]]);
-									return;
+								// `format: "raw"` bypasses parsing — emit the full
+								// LLMResponse object (subsumes the pre-Tier-2.3 `fromLLM`
+								// output shape).
+								if (format === "raw") {
+									actions.emit(resp as unknown as T);
+								} else {
+									try {
+										const content = extractContent(resp);
+										const parsed: T =
+											format === "json"
+												? (JSON.parse(stripFences(content)) as T)
+												: (content as unknown as T);
+										actions.emit(parsed);
+									} catch (err) {
+										const raw = extractContent(resp);
+										const wrapped = new Error(
+											`promptNode: failed to parse LLM response as JSON: ${
+												(err as Error).message
+											}\n  Raw content (first 200 chars): ${previewContent(raw)}`,
+										);
+										done = true;
+										actions.down([[ERROR, wrapped]]);
+										return;
+									}
 								}
 							} else if (msg[0] === ERROR) {
 								done = true;

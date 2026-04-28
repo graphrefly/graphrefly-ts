@@ -9,7 +9,7 @@
  * Lives in `graph/` rather than `patterns/` because it depends only on
  * the `Graph` primitive and the `TopologyEvent` type — no domain-layer
  * factories. Consumers that need full-tree dynamic coverage (e.g.
- * `policyEnforcer`, `graphLens`) import from here to avoid circular
+ * `policyGate`, `graphLens`) import from here to avoid circular
  * references between audit/lens modules.
  *
  * @module

@@ -6,7 +6,7 @@ import type { Node } from "../../../core/node.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
 import type { SnapshotStorageTier } from "../../../extra/storage-tiers.js";
 import type { GraphAttachStorageOptions, GraphCheckpointRecord } from "../../../graph/graph.js";
-import type { LightCollectionBundle } from "../../memory/index.js";
+import type { CollectionGraph } from "../../memory/index.js";
 
 export type MemoryTier = "permanent" | "active" | "archived";
 
@@ -30,8 +30,12 @@ export type MemoryTiersOptions<TMem> = {
 export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 86_400); // 7-day half-life
 
 export type MemoryTiersBundle<TMem> = {
-	/** Permanent tier: never evicted. */
-	readonly permanent: LightCollectionBundle<TMem>;
+	/**
+	 * Permanent tier: never evicted. Backed by a `collection({ranked:false})`
+	 * Graph (Tier 2.3 — was previously a `LightCollectionBundle`; the no-Graph
+	 * bundle shape was folded into the unified `CollectionGraph`).
+	 */
+	readonly permanent: CollectionGraph<TMem>;
 	/** Active entries node (reactive, holds ReadonlyMap). */
 	readonly activeEntries: Node<unknown>;
 	/** Archive storage handle (null if no tier configured). */

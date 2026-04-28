@@ -13,7 +13,6 @@ import { COMPLETE, DATA, ERROR, type Message } from "../../core/messages.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { derived, effect, state } from "../../core/sugar.js";
 import { merge } from "../../extra/operators.js";
-import { reactiveMap } from "../../extra/reactive-map.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
 
 // ---------------------------------------------------------------------------
@@ -319,104 +318,6 @@ export function scorer(
 	);
 }
 
-// ---------------------------------------------------------------------------
-// effectivenessTracker
-// ---------------------------------------------------------------------------
-
-/** A single effectiveness record for an action×context pair. */
-export type EffectivenessEntry = {
-	readonly key: string;
-	readonly attempts: number;
-	readonly successes: number;
-	readonly successRate: number;
-};
-
-/** Snapshot shape for the effectiveness tracker node. */
-export type EffectivenessSnapshot = ReadonlyMap<string, EffectivenessEntry>;
-
-/** Bundle returned by {@link effectivenessTracker}. */
-export interface EffectivenessTrackerBundle {
-	/** Reactive node — current effectiveness map snapshot. */
-	readonly node: Node<EffectivenessSnapshot>;
-
-	/** Record a completed action (success or failure). */
-	record(key: string, success: boolean): void;
-
-	/** Look up effectiveness for a specific key. */
-	lookup(key: string): EffectivenessEntry | undefined;
-
-	/** Tear down internal keepalive subscriptions. */
-	dispose(): void;
-}
-
-/** Options for {@link effectivenessTracker}. */
-export type EffectivenessTrackerOptions = {
-	/** Name for the reactive map (default "effectiveness-entries"). */
-	name?: string;
-};
-
-/**
- * Generic action×context → success rate tracker.
- *
- * Generalized from the harness `strategyModel` pattern. Tracks attempts and
- * successes per string key, exposes a reactive snapshot node, and provides
- * `record()` / `lookup()` methods.
- *
- * Use cases: A/B testing, routing optimization, cache policy tuning, retry
- * strategy selection — any domain that tracks effectiveness per action.
- *
- * @param opts - Optional configuration.
- * @returns Bundle with reactive node, record(), lookup(), dispose().
- */
-export function effectivenessTracker(
-	opts?: EffectivenessTrackerOptions,
-): EffectivenessTrackerBundle {
-	const _map = reactiveMap<string, EffectivenessEntry>({
-		name: opts?.name ?? "effectiveness-entries",
-	});
-
-	const snapshot = derived<EffectivenessSnapshot>(
-		[_map.entries],
-		([mapSnap]) => {
-			return new Map(mapSnap as ReadonlyMap<string, EffectivenessEntry>);
-		},
-		{
-			name: `${opts?.name ?? "effectiveness"}-snapshot`,
-			equals: (a, b) => {
-				const am = a as EffectivenessSnapshot;
-				const bm = b as EffectivenessSnapshot;
-				if (am.size !== bm.size) return false;
-				for (const [k, v] of am) {
-					const bv = bm.get(k);
-					if (!bv || v.attempts !== bv.attempts || v.successes !== bv.successes) return false;
-				}
-				return true;
-			},
-		},
-	);
-
-	function record(key: string, success: boolean): void {
-		const existing = _map.get(key);
-		const attempts = (existing?.attempts ?? 0) + 1;
-		const successes = (existing?.successes ?? 0) + (success ? 1 : 0);
-		_map.set(key, {
-			key,
-			attempts,
-			successes,
-			successRate: successes / attempts,
-		});
-	}
-
-	function lookup(key: string): EffectivenessEntry | undefined {
-		return _map.get(key);
-	}
-
-	const _unsub = keepalive(snapshot);
-
-	return {
-		node: snapshot,
-		record,
-		lookup,
-		dispose: () => _unsub(),
-	};
-}
+// `effectivenessTracker` was demoted to a harness preset per Tier 2.3 (the
+// only consumer was the harness strategy model). Import from
+// `@graphrefly/graphrefly/patterns/harness` instead.

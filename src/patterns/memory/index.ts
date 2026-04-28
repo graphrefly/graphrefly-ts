@@ -2,11 +2,13 @@
  * Memory patterns (roadmap §4.3) — public-face Phase-4 primitives audited under
  * `archive/docs/SESSION-public-face-blocks-review.md` (Wave A, locked 2026-04-25).
  *
- * Four primitives (the pure `decay` helper was promoted to `extra/utils/decay.ts`
- * per Tier 2.2 and is no longer re-exported here):
- * - {@link lightCollection} — Map + LRU eviction + audit log; non-Graph bundle.
- * - {@link collection} / {@link CollectionGraph} — scored memory store with live
- *   decay-ranking via reactive timer dep.
+ * Three primitives (the pure `decay` helper was promoted to `extra/utils/decay.ts`
+ * per Tier 2.2 and is no longer re-exported here; `lightCollection` was folded
+ * into `collection({ranked:false})` per Tier 2.3 and is no longer a separate
+ * factory):
+ * - {@link collection} / {@link CollectionGraph} — keyed memory store with
+ *   optional decay-aware ranking. Pass `{ ranked: false }` for the previous
+ *   `lightCollection` shape (Map + LRU + audit, no scoring).
  * - {@link vectorIndex} / {@link VectorIndexGraph} — reactive vector store with
  *   optional HNSW backend, retention, and reactive {@link VectorIndexGraph.searchNode}.
  * - {@link knowledgeGraph} / {@link KnowledgeGraph} — entities + typed edges with
@@ -132,176 +134,21 @@ function searchResultsEqual<TMeta>(
 /** Public alias for the `Node | value` shape accepted by reactive read factories. */
 export type NodeOrValue<T> = T | Node<T>;
 
-// ── Unit 2: lightCollection ──────────────────────────────────────────────
+// ── Unit 2 (Tier 2.3 fold): collection (formerly lightCollection + collection)
+//
+// Pre-Tier-2.3 the module shipped `lightCollection` (no Graph, no ranking,
+// just LRU + audit) alongside `collection` (Graph-mounted with timer-driven
+// decay-aware ranking). Per the consolidation plan §1 Rule 4, the two are
+// folded into a single `collection({ranked: true|false})` factory: when
+// `ranked: false`, no `ranked` derived / refresh tick / scoring is wired.
+// `LightCollectionEntry` is gone — `CollectionEntry<T>` is the unified entry
+// shape (`baseScore` reads `0` in unranked mode).
 
-export type LightCollectionEntry<T> = {
+export type CollectionEntry<T> = {
 	readonly id: string;
 	readonly value: T;
 	readonly createdAtNs: number;
 	readonly lastAccessNs: number;
-};
-
-export type LightCollectionOptions = {
-	name?: string;
-	maxSize?: number;
-};
-
-export interface LightCollectionAuditRecord extends BaseAuditRecord {
-	readonly action: "upsert" | "remove" | "clear";
-	readonly id?: string;
-}
-
-export type LightCollectionBundle<T> = {
-	readonly entries: Node<ReadonlyMap<string, LightCollectionEntry<T>>>;
-	readonly events: ReactiveLogBundle<LightCollectionAuditRecord>;
-	upsert: (id: string, value: T) => void;
-	remove: (id: string) => void;
-	clear: () => void;
-	itemNode: (id: NodeOrValue<string>) => Node<LightCollectionEntry<T> | undefined>;
-	hasNode: (id: NodeOrValue<string>) => Node<boolean>;
-};
-
-/**
- * Reactive Map of {@link LightCollectionEntry} with native LRU eviction by
- * `maxSize`. Backed by `reactiveMap` so iteration order, snapshot delivery,
- * and copy-on-write semantics match the rest of the data-structure tier.
- *
- * **No-Graph composition.** `bundle.entries` is a detached `state()` — mount
- * manually with `parent.add(bundle.entries)` for `describe()` / `lens.flow`
- * coverage.
- *
- * **`createdAtNs` preservation.** Re-upserting an existing id keeps the
- * original `createdAtNs`; only `lastAccessNs` advances. Eviction is purely
- * LRU-by-`lastAccessNs` (newest wins) via `reactiveMap`'s native `maxSize`.
- *
- * **No imperative reads.** Per the no-imperative-reads policy: subscribe to
- * `entries` for the live snapshot, or use `itemNode(id)` / `hasNode(id)` for
- * single-key reactive reads. For one-shot snapshots use `firstValueFrom` or
- * `node.cache` after `awaitSettled`.
- *
- * **Audit log freeze contract.** Mutations are wrapped via `lightMutation`,
- * which deep-freezes args at entry by default (per the Audit 2 framework).
- * That means the `value` you pass to `upsert(id, value)` is frozen by the
- * time it lands in `LightCollectionEntry.value`. If you store mutable
- * payloads and need them mutable post-upsert, opt out via `lightMutation`'s
- * `freeze: false` (currently internal — not exposed on the bundle; if you
- * hit this, file in `docs/optimizations.md`).
- *
- * **Audit no-op records.** Mutations record an audit entry even when the
- * impl was a no-op (`remove(id)` for a missing id, `clear()` on empty store).
- * The framework records attempts, not state changes — this is intentional
- * (see `_internal/imperative-audit.ts` rationale). Audit consumers that
- * reconstruct state by replaying records can ignore no-op redundant entries
- * without losing correctness.
- *
- * @category memory
- */
-export function lightCollection<T>(opts: LightCollectionOptions = {}): LightCollectionBundle<T> {
-	const maxSize = opts.maxSize;
-	if (maxSize !== undefined && maxSize < 1) {
-		throw new RangeError("lightCollection: maxSize must be >= 1");
-	}
-
-	const inner = reactiveMap<string, LightCollectionEntry<T>>({
-		name: opts.name,
-		...(maxSize !== undefined ? { maxSize } : {}),
-	});
-	const entries = inner.entries;
-
-	// Audit log (unmounted — bundle is detached). Activate `withLatest` lazily
-	// so callers can read `events.lastValue` without explicit setup.
-	const events = createAuditLog<LightCollectionAuditRecord>({
-		name: opts.name ? `${opts.name}_events` : "events",
-		retainedLimit: 1024,
-	});
-
-	const upsertImpl = (id: string, value: T): void => {
-		const now = monotonicNs();
-		// Read prior `createdAtNs` from the snapshot Node — pure read, no LRU
-		// touch and no version-counter advance. (`inner.get(id)` would also
-		// preserve `version` but DOES touch the LRU position via the
-		// internal `_touchLru` step, so it would re-order the entry to the
-		// MRU end before we re-set it. Reading the snapshot avoids that
-		// redundant reorder.)
-		const prev = entries.cache?.get(id);
-		inner.set(id, {
-			id,
-			value,
-			createdAtNs: prev?.createdAtNs ?? now,
-			lastAccessNs: now,
-		});
-	};
-	const removeImpl = (id: string): void => {
-		if (!inner.has(id)) return;
-		inner.delete(id);
-	};
-	const clearImpl = (): void => {
-		if (inner.size === 0) return;
-		inner.clear();
-	};
-
-	const upsert = lightMutation(upsertImpl, {
-		audit: events,
-		onSuccess: ([id], _r, m) => ({ action: "upsert" as const, id, t_ns: m.t_ns }),
-		onFailure: (_args, _err, m) => ({
-			action: "upsert" as const,
-			t_ns: m.t_ns,
-			handlerVersion: { id: "lightCollection.upsert", version: 1 },
-		}),
-	});
-	const remove = lightMutation(removeImpl, {
-		audit: events,
-		onSuccess: ([id], _r, m) => ({ action: "remove" as const, id, t_ns: m.t_ns }),
-	});
-	const clear = lightMutation(clearImpl, {
-		audit: events,
-		onSuccess: (_args, _r, m) => ({ action: "clear" as const, t_ns: m.t_ns }),
-	});
-
-	function itemNode(id: NodeOrValue<string>): Node<LightCollectionEntry<T> | undefined> {
-		const idN = toNode(id, "id");
-		return derived(
-			[entries, idN],
-			([snap, key]) => {
-				const map = snap as ReadonlyMap<string, LightCollectionEntry<T>> | undefined;
-				return map?.get(key as string);
-			},
-			{
-				describeKind: "derived",
-				meta: memoryMeta("light_collection_item"),
-			},
-		);
-	}
-
-	function hasNode(id: NodeOrValue<string>): Node<boolean> {
-		const idN = toNode(id, "id");
-		return derived(
-			[entries, idN],
-			([snap, key]) => {
-				const map = snap as ReadonlyMap<string, LightCollectionEntry<T>> | undefined;
-				return map?.has(key as string) ?? false;
-			},
-			{
-				describeKind: "derived",
-				meta: memoryMeta("light_collection_has"),
-			},
-		);
-	}
-
-	return {
-		entries,
-		events,
-		upsert,
-		remove,
-		clear,
-		itemNode,
-		hasNode,
-	};
-}
-
-// ── Unit 3: collection ───────────────────────────────────────────────────
-
-export type CollectionEntry<T> = LightCollectionEntry<T> & {
 	readonly baseScore: number;
 };
 
@@ -314,10 +161,21 @@ export type CollectionScoreFn<T> = (value: T) => number;
 export type CollectionOptions<T> = {
 	maxSize?: number;
 	/**
+	 * Whether to expose a live decay-aware `ranked` node + `rescore` mutator.
+	 * Default `true`. Pass `false` to fold in the previous `lightCollection`
+	 * shape — entries are still keyed/audited/LRU-evicted, but the timer-driven
+	 * `ranked` + scoring machinery is skipped. `ranked` then resolves to a
+	 * static empty array Node and `rescore()` is a no-op (so callers writing
+	 * type-generic code don't need to special-case the unranked path).
+	 */
+	ranked?: boolean;
+	/**
 	 * Produces a base score at insert/update time. Static fn or a reactive
 	 * `Node<(value: T) => number>` — when supplied as a Node, `ranked` re-derives
 	 * whenever the score fn changes, but `baseScore` on each entry is only
 	 * recomputed via {@link CollectionGraph.rescore}. Default `() => 1`.
+	 *
+	 * Ignored when `ranked: false` (entries record `baseScore: 0`).
 	 */
 	score?: CollectionScoreFn<T> | Node<CollectionScoreFn<T>>;
 	/**
@@ -325,6 +183,8 @@ export type CollectionOptions<T> = {
 	 * positive, `ranked` becomes fully reactive on time via a `fromTimer` source
 	 * (cadence auto-derived from `decayRate` unless overridden via
 	 * `refreshIntervalMs`). Half-life: `ratePerSecond = Math.LN2 / halfLifeSeconds`.
+	 *
+	 * Ignored when `ranked: false`.
 	 */
 	decayRate?: number;
 	/** Minimum score floor after decay. Default `0`. */
@@ -345,6 +205,11 @@ export interface CollectionAuditRecord extends BaseAuditRecord {
 export type CollectionGraph<T> = Graph & {
 	readonly events: ReactiveLogBundle<CollectionAuditRecord>;
 	readonly items: Node<ReadonlyMap<string, CollectionEntry<T>>>;
+	/**
+	 * Live decay-aware ranking, sorted by score descending. When the
+	 * collection was constructed with `ranked: false`, this is a static
+	 * empty-array Node (kept for type uniformity).
+	 */
 	readonly ranked: Node<readonly RankedCollectionEntry<T>[]>;
 	readonly size: Node<number>;
 	upsert: (id: string, value: T, opts?: { score?: number }) => void;
@@ -354,9 +219,14 @@ export type CollectionGraph<T> = Graph & {
 	 * Recompute every entry's `baseScore` via the latest score fn. O(N). Useful
 	 * when a reactive `score` Node has emitted a new fn and the caller wants
 	 * existing entries re-scored without an explicit re-upsert.
+	 *
+	 * No-op (still records an audit entry) when constructed with
+	 * `ranked: false`.
 	 */
 	rescore: () => void;
 	itemNode: (id: NodeOrValue<string>) => Node<CollectionEntry<T> | undefined>;
+	/** Reactive `true` once the entry exists; tracks upsert / remove. */
+	hasNode: (id: NodeOrValue<string>) => Node<boolean>;
 };
 
 function rankedEqual<T>(
@@ -437,17 +307,25 @@ function rankedEqual<T>(
  */
 export function collection<T>(name: string, opts: CollectionOptions<T> = {}): CollectionGraph<T> {
 	const maxSize = opts.maxSize;
-	const decayRate = opts.decayRate ?? 0;
+	const ranked = opts.ranked ?? true;
+	// `decayRate` / `score` / `refreshIntervalMs` are no-ops when ranked is off
+	// (they only feed the `ranked` derived). The audit + LRU paths still run.
+	const decayRate = ranked ? (opts.decayRate ?? 0) : 0;
 	const minScore = opts.minScore ?? 0;
 	if (maxSize !== undefined && maxSize < 1) {
 		throw new RangeError("collection: maxSize must be >= 1");
 	}
 
-	// Resolve score fn — supports static fn or reactive Node<fn>.
-	const scoreFnDefault: CollectionScoreFn<T> = () => 1;
+	// Resolve score fn — supports static fn or reactive Node<fn>. When
+	// `ranked: false` the score is constant `0` and `readScoreFn` is unused
+	// (the upsert path takes the `_opts.score ?? readScoreFn()(value)` branch
+	// only when ranking is requested).
+	const scoreFnDefault: CollectionScoreFn<T> = () => (ranked ? 1 : 0);
 	const scoreInput = opts.score ?? scoreFnDefault;
 	const scoreNode: Node<CollectionScoreFn<T>> | undefined =
-		scoreInput instanceof NodeImpl ? (scoreInput as Node<CollectionScoreFn<T>>) : undefined;
+		ranked && scoreInput instanceof NodeImpl
+			? (scoreInput as Node<CollectionScoreFn<T>>)
+			: undefined;
 	const readScoreFn = (): CollectionScoreFn<T> => {
 		if (scoreNode) return scoreNode.cache ?? scoreFnDefault;
 		return scoreInput as CollectionScoreFn<T>;
@@ -455,12 +333,13 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 
 	const graph = new Graph(name);
 
-	// Score-based retention scorer for `reactiveMap`. `monotonicNs()` reads the
-	// central clock at eviction time — see "Eviction at write-time" in the
-	// factory JSDoc for why this deliberately violates the "pure of (key, value)"
-	// docstring on `ReactiveMapRetention.score`.
+	// Score-based retention scorer for `reactiveMap`. When unranked the base
+	// score is `0`, so retention falls back to LRU-by-`lastAccessNs` (the
+	// older the access, the lower the decayed score → first to evict).
 	const retentionScore = (_k: string, v: CollectionEntry<T>): number =>
-		decay(v.baseScore, ageSeconds(monotonicNs(), v.lastAccessNs), decayRate, minScore);
+		ranked
+			? decay(v.baseScore, ageSeconds(monotonicNs(), v.lastAccessNs), decayRate, minScore)
+			: v.lastAccessNs;
 
 	const items = reactiveMap<string, CollectionEntry<T>>({
 		name: "items",
@@ -469,24 +348,26 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 
 	graph.add(items.entries, { name: "items" });
 
-	// Refresh tick — only mounted when decay is configured. Tick payload is
-	// `monotonicNs()`, so `ranked`'s fn is pure-of-deps and dry-run-reproducible.
+	// Refresh tick — only mounted when ranking + decay are configured. Tick
+	// payload is `monotonicNs()`, so `rankedNode`'s fn is pure-of-deps and
+	// dry-run-reproducible.
 	let refreshTick: Node<number> | undefined;
-	if (decayRate > 0) {
+	if (ranked && decayRate > 0) {
 		const intervalMs = opts.refreshIntervalMs ?? Math.max(1, (1000 * Math.LN2) / (10 * decayRate));
 		const tickCounter = fromTimer(intervalMs, { period: intervalMs });
 		// Map each tick to the wall-clock `monotonicNs` — the tick payload IS
 		// the time stamp downstream consumers use. Reading the central clock
 		// inside this fn is sanctioned: this derived's purpose is to publish
 		// "now" reactively (cf. spec §5.11 — central timer), and downstream
-		// `ranked` reads it from its dep array, never from the clock directly.
+		// `rankedNode` reads it from its dep array, never from the clock
+		// directly.
 		//
 		// `initial: monotonicNs()` seeds the cache with construction-time
-		// `now` so push-on-subscribe delivers DATA to `ranked` before the
-		// first tick fires — without this, `ranked` would stall in pending
+		// `now` so push-on-subscribe delivers DATA to `rankedNode` before the
+		// first tick fires — without this, `rankedNode` would stall in pending
 		// status until ~`refreshIntervalMs` after first activation, and a
-		// caller reading `ranked.cache` immediately after `upsert` would see
-		// `undefined`.
+		// caller reading `rankedNode.cache` immediately after `upsert` would
+		// see `undefined`.
 		refreshTick = derived([tickCounter], () => monotonicNs(), {
 			name: "refresh_tick_ns",
 			describeKind: "derived",
@@ -496,40 +377,52 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		graph.add(refreshTick, { name: "refresh_tick_ns" });
 	}
 
-	// `ranked` derived — pure of (items, refreshTick?, scoreNode?).
-	const rankedDeps: Node<unknown>[] = [items.entries];
-	if (refreshTick) rankedDeps.push(refreshTick);
-	if (scoreNode) rankedDeps.push(scoreNode);
-	const ranked = derived(
-		rankedDeps,
-		(values) => {
-			const snapshot = values[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
-			let now: number;
-			if (refreshTick) {
-				const tickValue = values[1] as number | undefined;
-				now = typeof tickValue === "number" ? tickValue : monotonicNs();
-			} else {
-				now = monotonicNs();
-			}
-			if (!snapshot || snapshot.size === 0) return [] as readonly RankedCollectionEntry<T>[];
-			const out: RankedCollectionEntry<T>[] = [];
-			for (const entry of snapshot.values()) {
-				out.push({
-					...entry,
-					score: decay(entry.baseScore, ageSeconds(now, entry.lastAccessNs), decayRate, minScore),
-				});
-			}
-			out.sort((a, b) => b.score - a.score || b.lastAccessNs - a.lastAccessNs);
-			return out as readonly RankedCollectionEntry<T>[];
-		},
-		{
+	// `rankedNode` derived — pure of (items, refreshTick?, scoreNode?). When
+	// `ranked: false`, `rankedNode` is a static empty-array node so the
+	// public type stays uniform without re-running the sort.
+	let rankedNode: Node<readonly RankedCollectionEntry<T>[]>;
+	if (ranked) {
+		const rankedDeps: Node<unknown>[] = [items.entries];
+		if (refreshTick) rankedDeps.push(refreshTick);
+		if (scoreNode) rankedDeps.push(scoreNode);
+		rankedNode = derived(
+			rankedDeps,
+			(values) => {
+				const snapshot = values[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
+				let now: number;
+				if (refreshTick) {
+					const tickValue = values[1] as number | undefined;
+					now = typeof tickValue === "number" ? tickValue : monotonicNs();
+				} else {
+					now = monotonicNs();
+				}
+				if (!snapshot || snapshot.size === 0) return [] as readonly RankedCollectionEntry<T>[];
+				const out: RankedCollectionEntry<T>[] = [];
+				for (const entry of snapshot.values()) {
+					out.push({
+						...entry,
+						score: decay(entry.baseScore, ageSeconds(now, entry.lastAccessNs), decayRate, minScore),
+					});
+				}
+				out.sort((a, b) => b.score - a.score || b.lastAccessNs - a.lastAccessNs);
+				return out as readonly RankedCollectionEntry<T>[];
+			},
+			{
+				name: "ranked",
+				describeKind: "derived",
+				equals: rankedEqual,
+				meta: memoryMeta("ranked"),
+			},
+		) as Node<readonly RankedCollectionEntry<T>[]>;
+		graph.add(rankedNode, { name: "ranked" });
+	} else {
+		rankedNode = state<readonly RankedCollectionEntry<T>[]>([], {
 			name: "ranked",
-			describeKind: "derived",
-			equals: rankedEqual,
-			meta: memoryMeta("ranked"),
-		},
-	) as Node<readonly RankedCollectionEntry<T>[]>;
-	graph.add(ranked, { name: "ranked" });
+			describeKind: "state",
+			meta: memoryMeta("ranked_disabled"),
+		}) as Node<readonly RankedCollectionEntry<T>[]>;
+		graph.add(rankedNode, { name: "ranked" });
+	}
 
 	const size = derived(
 		[items.entries],
@@ -575,6 +468,11 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		items.clear();
 	};
 	const rescoreImpl = (): void => {
+		// `ranked: false` short-circuit — there's no live `ranked` node to
+		// re-derive and `baseScore` is held at its insertion-time value, so
+		// rescore is a no-op. The audit record is still emitted so consumers
+		// see the attempt.
+		if (!ranked) return;
 		const fn = readScoreFn();
 		const snapshot = items.entries.cache as ReadonlyMap<string, CollectionEntry<T>> | undefined;
 		if (!snapshot || snapshot.size === 0) return;
@@ -621,16 +519,32 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		);
 	}
 
+	function hasNode(id: NodeOrValue<string>): Node<boolean> {
+		const idN = toNode(id, "id");
+		return derived(
+			[items.entries, idN],
+			([snap, key]) => {
+				const map = snap as ReadonlyMap<string, CollectionEntry<T>> | undefined;
+				return map?.has(key as string) ?? false;
+			},
+			{
+				describeKind: "derived",
+				meta: memoryMeta("collection_has"),
+			},
+		);
+	}
+
 	const out = Object.assign(graph, {
 		events,
 		items: items.entries,
-		ranked,
+		ranked: rankedNode,
 		size,
 		upsert,
 		remove,
 		clear,
 		rescore,
 		itemNode,
+		hasNode,
 	}) as CollectionGraph<T>;
 	return out;
 }

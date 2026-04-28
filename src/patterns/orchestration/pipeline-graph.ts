@@ -2,11 +2,15 @@
  * PipelineGraph subclass (Wave A.1 Unit 1 — locked 2026-04-24).
  *
  * Specialized {@link Graph} that hosts workflow-DAG sugar methods:
- * `task` / `classify` / `combine` / `approval` / `gate` / `catch`. The
- * legacy `pipeline` / `task` / `branch` / `join` / `subPipeline` /
- * `approval` / `gate` / `loop` / `onFailure` factories from
- * {@link ./index} continue to work for migration ease; new code should
- * prefer methods on this class.
+ * `task` / `classify` / `combine` / `approval` / `approvalGate` / `catch`.
+ * The legacy `pipeline` / `task` / `branch` / `join` / `subPipeline` /
+ * `approval` / `loop` / `onFailure` factories from {@link ./index} continue
+ * to work for migration ease; new code should prefer methods on this class.
+ *
+ * **Tier 2.3 rename:** the prior `gate(...)` method is now `approvalGate(...)`,
+ * disambiguating it from the other gate-family primitives (`budgetGate` for
+ * numeric constraints, `valve` for boolean switching, `policyGate` for ABAC
+ * rules). The "gating dimension" here is **human judgment**.
  *
  * Construction: `pipelineGraph(name, opts?)` or `new PipelineGraph(name, opts)`.
  */
@@ -90,11 +94,24 @@ export interface GateController<T> {
 
 // ── catch (rename of onFailure; Wave A.2 Unit 10) ─────────────────────────
 
-export type TerminalCause = { kind: "error"; error: unknown } | { kind: "complete" };
+/**
+ * Terminal-cause discriminator for the {@link PipelineGraph.catch} recovery
+ * handler. Tier 1.6.3 status-enum migration: was `{ kind: "complete" | "error" }`
+ * pre-1.0; aligned with the canonical lifecycle enum
+ * (`status: "running" | "completed" | "errored" | "cancelled"`). The variant
+ * structure is preserved — `errored` still carries `error: unknown` and
+ * `completed` carries no payload.
+ */
+export type TerminalCause = { kind: "errored"; error: unknown } | { kind: "completed" };
 
 export interface CatchOptions<T> {
-	/** Default `"error"`; `"complete"` recovers COMPLETE; `"terminal"` recovers either. */
-	on?: "error" | "complete" | "terminal";
+	/**
+	 * Which terminal cause to recover. Default `"errored"` (Tier 1.6.3 rename
+	 * of `"error"`). `"completed"` recovers COMPLETE; `"terminal"` recovers
+	 * either. Aligns with the canonical lifecycle enum that
+	 * {@link TerminalCause.kind} now uses.
+	 */
+	on?: "errored" | "completed" | "terminal";
 	completeWhenDepsComplete?: boolean;
 	meta?: Record<string, unknown>;
 	handlerVersion?: { id: string; version: string | number };
@@ -192,12 +209,12 @@ export class PipelineGraph extends Graph {
 		return step;
 	}
 
-	// -- gate -----------------------------------------------------------------
+	// -- approvalGate ---------------------------------------------------------
 
-	gate<T>(name: string, source: StepRef, opts: GateOptions<T> = {}): GateController<T> {
+	approvalGate<T>(name: string, source: StepRef, opts: GateOptions<T> = {}): GateController<T> {
 		const maxPending = opts.maxPending ?? 1000;
 		if (maxPending < 1 && maxPending !== Number.POSITIVE_INFINITY) {
-			throw new RangeError("gate: maxPending must be >= 1");
+			throw new RangeError("approvalGate: maxPending must be >= 1");
 		}
 		const startOpen = opts.startOpen ?? false;
 
@@ -301,7 +318,7 @@ export class PipelineGraph extends Graph {
 			{
 				name,
 				describeKind: "derived",
-				meta: meta("gate", opts.meta),
+				meta: meta("approval_gate", opts.meta),
 			},
 		);
 		this.add(output, { name });
@@ -350,7 +367,7 @@ export class PipelineGraph extends Graph {
 		}
 
 		const guardTorn = (method: string): void => {
-			if (torn) throw new Error(`gate: ${method}() called after gate was torn down`);
+			if (torn) throw new Error(`approvalGate: ${method}() called after the gate was torn down`);
 		};
 
 		const approveImpl = (count = 1): void => {
@@ -500,13 +517,13 @@ export class PipelineGraph extends Graph {
 		return controller;
 	}
 
-	// -- approval (thin alias over gate({ approver, maxPending: 1 })) ---------
+	// -- approval (thin alias over approvalGate({ approver, maxPending: 1 })) -
 
 	/**
 	 * Reactive approval step: passes items through when `approver` is truthy;
 	 * holds at most one pending item (maxPending: 1) when falsy. A thin alias
-	 * over `gate({ approver, maxPending: 1 })` — use `gate()` directly for
-	 * finer control (maxPending, onceOnly, manual approve/reject).
+	 * over `approvalGate({ approver, maxPending: 1 })` — use `approvalGate()`
+	 * directly for finer control (maxPending, onceOnly, manual approve/reject).
 	 */
 	approval<T>(
 		name: string,
@@ -514,7 +531,7 @@ export class PipelineGraph extends Graph {
 		approver: Node<unknown>,
 		opts: Omit<GateOptions<T>, "approver" | "maxPending"> = {},
 	): GateController<T> {
-		return this.gate<T>(name, source, { ...opts, approver, maxPending: 1 });
+		return this.approvalGate<T>(name, source, { ...opts, approver, maxPending: 1 });
 	}
 
 	// -- catch (renamed onFailure; dep-channel intercept) -------------------
@@ -526,19 +543,19 @@ export class PipelineGraph extends Graph {
 		opts: CatchOptions<T> = {},
 	): Node<T> {
 		const src = this._resolveStep(source);
-		const mode = opts.on ?? "error";
+		const mode = opts.on ?? "errored";
 		const step = node<T>(
 			[src],
 			(batchData, actions, ctx) => {
 				const terminal = ctx.terminalDeps[0];
 				if (terminal !== undefined) {
 					const cause: TerminalCause =
-						terminal === true ? { kind: "complete" } : { kind: "error", error: terminal };
+						terminal === true ? { kind: "completed" } : { kind: "errored", error: terminal };
 					if (mode === "terminal" || mode === cause.kind) {
 						actions.emit(recover(cause, actions));
 						return;
 					}
-					actions.down(cause.kind === "complete" ? [[COMPLETE]] : [[ERROR, cause.error]]);
+					actions.down(cause.kind === "completed" ? [[COMPLETE]] : [[ERROR, cause.error]]);
 					return;
 				}
 				const batch0 = batchData[0];
@@ -553,8 +570,8 @@ export class PipelineGraph extends Graph {
 				describeKind: "derived",
 				completeWhenDepsComplete:
 					opts.completeWhenDepsComplete ??
-					(mode === "complete" || mode === "terminal" ? false : true),
-				errorWhenDepsError: !(mode === "error" || mode === "terminal"),
+					(mode === "completed" || mode === "terminal" ? false : true),
+				errorWhenDepsError: !(mode === "errored" || mode === "terminal"),
 				meta: meta("catch", opts.meta),
 			} as NodeOptions<T>,
 		);

@@ -30,11 +30,11 @@ describe("fromHTTP", () => {
 		expect(bundle.node.cache).toEqual(mockData);
 		// Default does NOT emit COMPLETE — node stays live so late subscribers
 		// get the cached DATA via push-on-subscribe.
-		expect(bundle.status.cache).toBe("active");
+		expect(bundle.status.cache).toBe("running");
 		expect(bundle.fetchCount.cache).toBe(1);
 		expect(bundle.lastUpdated.cache).toBeGreaterThan(0);
 		// `fetched` flips true on first successful fetch — the "fetch done"
-		// signal users reach for when `status` stays "active" under the
+		// signal users reach for when `status` stays "running" under the
 		// cached default.
 		expect(bundle.fetched.cache).toBe(true);
 		expect(global.fetch).toHaveBeenCalledWith("https://example.com", expect.any(Object));

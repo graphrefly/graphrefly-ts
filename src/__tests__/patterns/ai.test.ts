@@ -15,7 +15,6 @@ import {
 	chatStream,
 	costMeterExtractor,
 	type ExtractedToolCall,
-	fromLLM,
 	frozenContext,
 	type GatedStreamHandle,
 	gatedStream,
@@ -347,16 +346,20 @@ describe("patterns.ai.systemPromptBuilder", () => {
 });
 
 // ---------------------------------------------------------------------------
-// fromLLM
+// promptNode({ format: "raw" }) — Tier 2.3 fold of the deleted `fromLLM`
 // ---------------------------------------------------------------------------
 
-describe("patterns.ai.fromLLM", () => {
-	it("invokes adapter with messages", () => {
+describe("patterns.ai.promptNode (raw format — fromLLM fold)", () => {
+	it("emits the full LLMResponse object when format is 'raw'", () => {
 		const resp: LLMResponse = { content: "Hello!" };
 		const adapter = mockAdapter([resp]);
 		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
-		const result = fromLLM(adapter, msgs);
-		// switchMap nodes need a subscriber to activate
+		const result = promptNode<LLMResponse>(
+			adapter,
+			[msgs],
+			(m) => (m as ChatMessage[])[0]!.content,
+			{ format: "raw" },
+		);
 		const unsub = result.subscribe(() => {});
 		expect(result.cache).toEqual(resp);
 		unsub();

@@ -78,7 +78,7 @@ export interface ResilientPipelineOptions<T> {
 export interface ResilientPipelineBundle<T> {
 	/** The final resilient node. Subscribe to this for DATA emissions. */
 	node: Node<T>;
-	/** Live status: `"pending" | "active" | "completed" | "errored"`. */
+	/** Live status: `"pending" | "running" | "completed" | "errored"`. */
 	status: Node<StatusValue>;
 	/** Last error payload, or `null` when not errored. */
 	error: Node<unknown | null>;

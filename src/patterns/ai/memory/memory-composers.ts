@@ -22,11 +22,11 @@ import type { StorageHandle } from "../../../extra/storage-core.js";
 import { decay } from "../../../extra/utils/decay.js";
 import type { Graph } from "../../../graph/graph.js";
 import {
+	collection,
 	cosineSimilarity,
 	type KnowledgeEdge,
 	type KnowledgeGraph,
 	knowledgeGraph,
-	lightCollection,
 	type VectorIndexGraph,
 	type VectorRecord,
 	type VectorSearchResult,
@@ -188,8 +188,13 @@ export function memoryWithTiers<TMem>(
 	const archiveThreshold = opts.archiveThreshold ?? 0.1;
 	const permanentFilter = opts.permanentFilter ?? (() => false);
 
-	const permanent = lightCollection<TMem>({ name: "permanent" });
-	graph.add(permanent.entries, { name: "permanent" });
+	// Tier 2.3 fold: `lightCollection` was merged into
+	// `collection({ranked: false})`. The unified factory returns a Graph (not
+	// a detached bundle), so the prior `graph.add(permanent.entries, ...)`
+	// line is replaced with `graph.mount("permanent", permanent)` to surface
+	// the inner state in `describe()`.
+	const permanent = collection<TMem>("permanent", { ranked: false });
+	graph.mount("permanent", permanent);
 
 	const permanentKeys = new Set<string>();
 	const tierOf = (key: string): MemoryTier => {

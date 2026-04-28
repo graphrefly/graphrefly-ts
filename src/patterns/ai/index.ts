@@ -57,7 +57,8 @@ export type {
 // Prompt primitives
 // ---------------------------------------------------------------------------
 
-export * from "./prompts/from-llm.js";
+// `fromLLM` was folded into `promptNode({ format: "raw", tools })` per
+// Tier 2.3 — see `prompts/prompt-node.ts`.
 export * from "./prompts/frozen-context.js";
 export * from "./prompts/prompt-node.js";
 export * from "./prompts/streaming.js";

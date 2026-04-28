@@ -128,13 +128,14 @@ export const cqrsEventKeyOf = (e: CqrsEvent): string =>
 export interface DispatchRecord<T = unknown> extends BaseAuditRecord {
 	readonly commandName: string;
 	readonly payload: T;
-	readonly status: "success" | "failed";
+	/** Action result. Tier 1.6.2 canonical enum (renamed from `status`). */
+	readonly outcome: "success" | "failure";
 	readonly error?: unknown;
 	readonly errorType?: string;
 	/**
 	 * Event names emitted by the handler.
-	 * - `status: "success"`: events that persisted in the event log.
-	 * - `status: "failed"`: events the handler ATTEMPTED to emit before throwing;
+	 * - `outcome: "success"`: events that persisted in the event log.
+	 * - `outcome: "failure"`: events the handler ATTEMPTED to emit before throwing;
 	 *   they were rolled back and did NOT persist. Documents the failed attempt's
 	 *   intentions for debugging handler logic. The actual event log shows only
 	 *   what's durable.
@@ -146,7 +147,8 @@ export const dispatchKeyOf = <T>(r: DispatchRecord<T>): string => r.commandName;
 
 export interface SagaInvocation<T = unknown> extends BaseAuditRecord {
 	readonly eventType: string;
-	readonly status: "success" | "failed";
+	/** Action result. Tier 1.6.2 canonical enum (renamed from `status`). */
+	readonly outcome: "success" | "failure";
 	readonly error?: unknown;
 	readonly errorType?: string;
 	readonly aggregateId?: string;
@@ -863,7 +865,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 					this.dispatches.append({
 						commandName,
 						payload: sealed,
-						status: "success",
+						outcome: "success",
 						emittedEvents: [...emittedEvents],
 						t_ns,
 						seq,
@@ -892,7 +894,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				this.dispatches.append({
 					commandName,
 					payload: sealed,
-					status: "failed",
+					outcome: "failure",
 					error: wrapped,
 					errorType,
 					emittedEvents: [...emittedEvents],
@@ -1229,7 +1231,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 								errNode.emit(null, { internal: true });
 								invocations.append({
 									eventType: eName,
-									status: "success",
+									outcome: "success",
 									aggregateId: ev.aggregateId,
 									event: ev,
 									t_ns: wallClockNs(),
@@ -1242,7 +1244,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 								errNode.emit(err, { internal: true });
 								invocations.append({
 									eventType: eName,
-									status: "failed",
+									outcome: "failure",
 									error: err,
 									errorType: err instanceof Error ? err.name : typeof err,
 									aggregateId: ev.aggregateId,

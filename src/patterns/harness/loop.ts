@@ -525,10 +525,14 @@ export function harnessLoop<A = unknown>(
 		const config = queueConfigs.get(route)!;
 		if (!config.gated) continue;
 		const topic = queueTopics.get(route)!;
-		const ctrl = gateGraph.gate<TriagedItem>(`${route}/gate`, topic.latest as Node<unknown>, {
-			maxPending: config.maxPending,
-			startOpen: config.startOpen,
-		});
+		const ctrl = gateGraph.approvalGate<TriagedItem>(
+			`${route}/gate`,
+			topic.latest as Node<unknown>,
+			{
+				maxPending: config.maxPending,
+				startOpen: config.startOpen,
+			},
+		);
 		gateControllers.set(route, ctrl);
 	}
 

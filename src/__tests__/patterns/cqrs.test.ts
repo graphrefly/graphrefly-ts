@@ -170,7 +170,7 @@ describe("cqrs — roadmap §4.5", () => {
 			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
 		expect(dispatches).toHaveLength(1);
 		const record = dispatches[0];
-		expect(record.status).toBe("failed");
+		expect(record.outcome).toBe("failure");
 		expect(record.error).toBeDefined();
 		expect(record.errorType).toBe("TypeError");
 		app.destroy();
@@ -189,7 +189,7 @@ describe("cqrs — roadmap §4.5", () => {
 
 		const dispatches = app.dispatches.entries
 			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
-		expect(dispatches[0].status).toBe("failed");
+		expect(dispatches[0].outcome).toBe("failure");
 		expect(dispatches[0].emittedEvents).toEqual(["a", "b"]);
 		app.destroy();
 	});
@@ -205,7 +205,7 @@ describe("cqrs — roadmap §4.5", () => {
 		const dispatches = app.dispatches.entries
 			.cache as readonly import("../../patterns/cqrs/index.js").DispatchRecord[];
 		expect(dispatches).toHaveLength(1);
-		expect(dispatches[0].status).toBe("success");
+		expect(dispatches[0].outcome).toBe("success");
 		expect(dispatches[0].emittedEvents).toEqual(["orderPlaced"]);
 		expect(dispatches[0].errorType).toBeUndefined();
 		app.destroy();
@@ -742,14 +742,14 @@ describe("cqrs — roadmap §4.5", () => {
 		expect(seen).toEqual([1, 3]);
 
 		const inv = ctrl.invocations.entries.cache as readonly {
-			status: string;
+			outcome: string;
 			errorType?: string;
 		}[];
 		expect(inv.length).toBe(3);
-		expect(inv[0]!.status).toBe("success");
-		expect(inv[1]!.status).toBe("failed");
+		expect(inv[0]!.outcome).toBe("success");
+		expect(inv[1]!.outcome).toBe("failure");
 		expect(inv[1]!.errorType).toBe("Error");
-		expect(inv[2]!.status).toBe("success");
+		expect(inv[2]!.outcome).toBe("success");
 
 		app.destroy();
 	});

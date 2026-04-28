@@ -44,8 +44,9 @@ import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
  * - `"continue"` — update state, optionally emit side-effect events and
  *   schedule a future synthetic event.
  * - `"terminate"` — workflow complete; instance moves to `"terminated"`.
- * - `"fail"` — triggers compensation; instance moves to `"compensated"` /
- *   `"failed"`.
+ * - `"failure"` — triggers compensation; instance moves to `"compensated"` /
+ *   `"errored"`. Tier 2.3 / 1.6.2 rename: was `"fail"` pre-1.0; aligned
+ *   with the canonical `outcome: "success" | "failure"` enum.
  */
 export type ProcessStepResult<TState> =
 	| {
@@ -60,7 +61,7 @@ export type ProcessStepResult<TState> =
 			emit?: readonly { type: string; payload: unknown }[];
 			reason?: string;
 	  }
-	| { kind: "fail"; error: unknown };
+	| { kind: "failure"; error: unknown };
 
 /**
  * Schedule a synthetic timer event after `afterMs` milliseconds.
@@ -82,12 +83,12 @@ export type ProcessStep<TState, EM extends CqrsEventMap, K extends keyof EM & st
 ) => NodeInput<ProcessStepResult<TState>>;
 
 /**
- * Compensation handler. Runs when a step returns `kind: "fail"`, throws, or
+ * Compensation handler. Runs when a step returns `kind: "failure"`, throws, or
  * when `cancel(correlationId)` is called on a running instance.
  *
  * Should undo any side effects performed by prior steps (refund, cancel
  * reservation, etc.). Errors thrown inside compensate are swallowed and
- * recorded in the audit log with `status: "failed"` to prevent cascading
+ * recorded in the audit log with `status: "errored"` to prevent cascading
  * failure loops.
  */
 export type ProcessCompensate<TState> = (state: TState, error: unknown) => NodeInput<void>;
@@ -95,7 +96,7 @@ export type ProcessCompensate<TState> = (state: TState, error: unknown) => NodeI
 /**
  * Audit record for a single process instance state transition.
  *
- * Every status change (start → running → terminated / failed / compensated)
+ * Every status change (start → running → terminated / errored / compensated)
  * appends one record. `correlationId` is the stable process key.
  *
  * Extends {@link BaseAuditRecord} so records carry `t_ns` / `seq` /
@@ -107,7 +108,7 @@ export interface ProcessInstance<TState> extends BaseAuditRecord {
 	/** Most-recent instance state at this transition. */
 	readonly state: TState;
 	/** Current lifecycle status after this transition. */
-	readonly status: "running" | "terminated" | "failed" | "compensated";
+	readonly status: "running" | "terminated" | "errored" | "compensated";
 	/** Wall-clock nanoseconds when `start()` was called. */
 	readonly startedAt: number;
 	/** Wall-clock nanoseconds of this transition. */
@@ -138,9 +139,9 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 	 */
 	readonly steps: { [K in keyof EM & string]?: ProcessStep<TState, EM, K> };
 	/**
-	 * Optional compensation handler. Runs on step `kind: "fail"` / step throw
+	 * Optional compensation handler. Runs on step `kind: "failure"` / step throw
 	 * and on explicit `cancel()`. If omitted, instances fail silently with
-	 * status `"failed"` instead of `"compensated"`.
+	 * status `"errored"` instead of `"compensated"`.
 	 */
 	readonly compensate?: ProcessCompensate<TState>;
 	/**
@@ -324,7 +325,7 @@ async function runWithRetry<TState>(
 			// If we've exhausted retries, fall through to return a fail result.
 		}
 	}
-	return { kind: "fail", error: lastError };
+	return { kind: "failure", error: lastError };
 }
 
 // ---------------------------------------------------------------------------
@@ -473,12 +474,12 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				await toPromise(opts.compensate(state, error) as NodeInput<void>);
 				appendRecordWithReason(correlationId, state, "compensated", reason);
 			} catch (_compErr) {
-				// Compensation itself failed — still mark as failed so instance
+				// Compensation itself failed — still mark as errored so instance
 				// doesn't stay in limbo. Swallow error to prevent cascading.
-				appendRecord(correlationId, state, "failed");
+				appendRecord(correlationId, state, "errored");
 			}
 		} else {
-			appendRecord(correlationId, state, "failed");
+			appendRecord(correlationId, state, "errored");
 		}
 	}
 
@@ -489,7 +490,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	): Promise<void> {
 		if (!activeInstances.has(correlationId)) return; // cancelled during async step
 
-		if (result.kind === "fail") {
+		if (result.kind === "failure") {
 			// Capture state before eager delete (C1 — step-fail eager-delete).
 			const state = instanceStates.get(correlationId) ?? opts.initial;
 			// runCompensate handles the eager delete; the early-exit guard above

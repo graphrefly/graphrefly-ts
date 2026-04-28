@@ -9,8 +9,6 @@ import {
 	type HnswAdapter,
 	type KnowledgeEdge,
 	knowledgeGraph,
-	type LightCollectionEntry,
-	lightCollection,
 	type RankedCollectionEntry,
 	type VectorIndexAuditRecord,
 	type VectorSearchResult,
@@ -36,34 +34,34 @@ describe("patterns.memory.decay", () => {
 	});
 });
 
-describe("patterns.memory.lightCollection", () => {
+describe("patterns.memory.collection({ ranked: false }) — Tier 2.3 lightCollection fold", () => {
 	it("evicts least recently used entry under default LRU", () => {
-		const c = lightCollection<number>({ maxSize: 2 });
+		const c = collection<number>("c", { maxSize: 2, ranked: false });
 		c.upsert("a", 1);
 		c.upsert("b", 2);
 		// `b` is the most recent; upserting `c` evicts `a` (oldest by lastAccessNs).
 		c.upsert("c", 3);
-		const snap = c.entries.cache as ReadonlyMap<string, LightCollectionEntry<number>>;
+		const snap = c.items.cache as ReadonlyMap<string, CollectionEntry<number>>;
 		expect(snap.has("a")).toBe(false);
 		expect(snap.has("b")).toBe(true);
 		expect(snap.has("c")).toBe(true);
 	});
 
 	it("re-upsert preserves createdAtNs but bumps lastAccessNs", () => {
-		const c = lightCollection<number>({ maxSize: 4 });
+		const c = collection<number>("c", { maxSize: 4, ranked: false });
 		c.upsert("a", 1);
-		const first = (c.entries.cache as ReadonlyMap<string, LightCollectionEntry<number>>).get("a")!;
+		const first = (c.items.cache as ReadonlyMap<string, CollectionEntry<number>>).get("a")!;
 		c.upsert("a", 99);
-		const second = (c.entries.cache as ReadonlyMap<string, LightCollectionEntry<number>>).get("a")!;
+		const second = (c.items.cache as ReadonlyMap<string, CollectionEntry<number>>).get("a")!;
 		expect(second.value).toBe(99);
 		expect(second.createdAtNs).toBe(first.createdAtNs);
 		expect(second.lastAccessNs).toBeGreaterThanOrEqual(first.lastAccessNs);
 	});
 
 	it("remove and clear short-circuit on no-op", () => {
-		const c = lightCollection<number>();
+		const c = collection<number>("c", { ranked: false });
 		const seen: number[] = [];
-		c.entries.subscribe((msgs) => {
+		c.items.subscribe((msgs) => {
 			for (const m of msgs)
 				if (m[0] === DATA) seen.push((m[1] as ReadonlyMap<string, unknown>).size);
 		});
@@ -79,13 +77,13 @@ describe("patterns.memory.lightCollection", () => {
 	});
 
 	it("itemNode reactively reflects upsert / remove", () => {
-		const c = lightCollection<number>();
+		const c = collection<number>("c", { ranked: false });
 		const idNode = state("a");
 		const itemN = c.itemNode(idNode);
-		const seen: Array<LightCollectionEntry<number> | undefined> = [];
+		const seen: Array<CollectionEntry<number> | undefined> = [];
 		itemN.subscribe((msgs) => {
 			for (const m of msgs)
-				if (m[0] === DATA) seen.push(m[1] as LightCollectionEntry<number> | undefined);
+				if (m[0] === DATA) seen.push(m[1] as CollectionEntry<number> | undefined);
 		});
 		c.upsert("a", 1);
 		c.upsert("b", 2);
@@ -98,7 +96,7 @@ describe("patterns.memory.lightCollection", () => {
 	});
 
 	it("hasNode reactively reflects upsert / remove", () => {
-		const c = lightCollection<number>();
+		const c = collection<number>("c", { ranked: false });
 		const idNode = state("a");
 		const hasN = c.hasNode(idNode);
 		const seen: boolean[] = [];
@@ -112,7 +110,7 @@ describe("patterns.memory.lightCollection", () => {
 	});
 
 	it("events log records upsert / remove / clear", () => {
-		const c = lightCollection<number>({ name: "demo" });
+		const c = collection<number>("demo", { ranked: false });
 		c.events.entries.subscribe(() => undefined);
 		c.upsert("a", 1);
 		c.remove("a");

@@ -275,7 +275,7 @@ describe("processManager", () => {
 				watching: ["ev"],
 				steps: {
 					ev() {
-						return { kind: "fail", error: new Error("step failed") };
+						return { kind: "failure", error: new Error("step failed") };
 					},
 				},
 				compensate(state, _error) {
@@ -337,7 +337,7 @@ describe("processManager", () => {
 				watching: ["ev"],
 				steps: {
 					ev() {
-						return { kind: "fail", error: new Error("boom") };
+						return { kind: "failure", error: new Error("boom") };
 					},
 				},
 				// no compensate
@@ -348,7 +348,7 @@ describe("processManager", () => {
 			await flushPromises();
 
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<unknown>[];
-			const failed = entries.find((e) => e.status === "failed");
+			const failed = entries.find((e) => e.status === "errored");
 			expect(failed?.correlationId).toBe("corr-nocomp");
 			app.destroy();
 		});

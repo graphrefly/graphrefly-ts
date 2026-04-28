@@ -622,7 +622,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	readonly _guard: NodeGuard | undefined;
 	/**
 	 * @internal Additional guards stacked at runtime via {@link NodeImpl._pushGuard}
-	 * (e.g. by `policyEnforcer({ mode: "enforce" })`, roadmap §9.2). Effective
+	 * (e.g. by `policyGate({ mode: "enforce" })`, roadmap §9.2). Effective
 	 * write/signal/observe checks AND the original `_guard` with every entry here.
 	 */
 	_extraGuards: Set<NodeGuard> | undefined;
@@ -870,7 +870,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * rejecting throws {@link GuardDenied}. Returns a disposer that removes
 	 * the pushed guard. Multiple guards may be stacked simultaneously.
 	 *
-	 * Used by `policyEnforcer({ mode: "enforce" })` (roadmap §9.2) to overlay
+	 * Used by `policyGate({ mode: "enforce" })` (roadmap §9.2) to overlay
 	 * runtime constraint enforcement onto an existing graph without rebuilding
 	 * its nodes. Pre-1.0 internal API; not part of the public surface.
 	 *

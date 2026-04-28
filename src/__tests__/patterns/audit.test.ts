@@ -5,7 +5,7 @@ import { Graph } from "../../graph/index.js";
 import {
 	auditTrail,
 	complianceSnapshot,
-	policyEnforcer,
+	policyGate,
 	reactiveExplainPath,
 } from "../../patterns/audit/index.js";
 
@@ -125,7 +125,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 	});
 });
 
-describe("policyEnforcer (roadmap §9.2)", () => {
+describe("policyGate (roadmap §9.2)", () => {
 	const denyLlmWrites: readonly PolicyRuleData[] = [
 		{ effect: "allow", action: "write", actorType: "human" },
 		{ effect: "deny", action: "write", actorType: "llm" },
@@ -134,7 +134,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("audit mode: records would-be denials without blocking writes", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
-		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "audit" });
+		const enforcer = policyGate(g, denyLlmWrites, { mode: "audit" });
 
 		// LLM write should succeed (audit mode doesn't block) but be recorded.
 		g.set("a", 7, { actor: { type: "llm", id: "agent-1" } });
@@ -151,7 +151,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("audit mode: human writes pass without recording violations", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
-		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "audit" });
+		const enforcer = policyGate(g, denyLlmWrites, { mode: "audit" });
 
 		g.set("a", 5, { actor: { type: "human", id: "alice" } });
 		expect(enforcer.all()).toHaveLength(0);
@@ -165,7 +165,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		];
 		const g = new Graph("g");
 		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
-		const enforcer = policyEnforcer(g, denyNonHuman, { mode: "audit" });
+		const enforcer = policyGate(g, denyNonHuman, { mode: "audit" });
 
 		// Write with no actor — previously silently skipped, now must be
 		// recorded under the DEFAULT_ACTOR (type "system").
@@ -180,7 +180,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("enforce mode: blocks disallowed writes by throwing GuardDenied", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "enforce" });
+		const enforcer = policyGate(g, denyLlmWrites, { mode: "enforce" });
 
 		// Human ok
 		g.set("a", 1, { actor: { type: "human", id: "alice" } });
@@ -199,7 +199,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("enforce mode: dispose restores original guards", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		const enforcer = policyEnforcer(g, denyLlmWrites, { mode: "enforce" });
+		const enforcer = policyGate(g, denyLlmWrites, { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "llm", id: "bot" } })).toThrow();
 		enforcer.destroy();
@@ -212,7 +212,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const policies = state<readonly PolicyRuleData[]>(denyLlmWrites, { name: "policies" });
-		policyEnforcer(g, policies, { mode: "enforce" });
+		policyGate(g, policies, { mode: "enforce" });
 
 		// Initially LLMs blocked.
 		expect(() => g.set("a", 1, { actor: { type: "llm", id: "bot" } })).toThrow();
@@ -234,7 +234,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		});
 		const g = new Graph("g");
 		g.add(state(0, { name: "a", guard: onlyHumans }), { name: "a" });
-		policyEnforcer(g, [{ effect: "allow", action: "write", actorId: "alice" }], {
+		policyGate(g, [{ effect: "allow", action: "write", actorId: "alice" }], {
 			mode: "enforce",
 		});
 
@@ -250,7 +250,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		g.add(state(0, { name: "b" }), { name: "b" });
-		const enforcer = policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		const enforcer = policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
 		});
@@ -266,7 +266,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		// paths omitted → dynamic coverage mode
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		// Pre-existing node blocked.
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
@@ -279,7 +279,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("enforce mode: static paths option does NOT dynamically cover late adds (documented caveat)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
 		});
@@ -297,7 +297,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const child = new Graph("child");
 		child.add(state(0, { name: "x" }), { name: "x" });
 		// paths omitted → dynamic coverage mode
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		// No coverage yet — child not mounted
 		child.set("x", 1, { actor: { type: "human", id: "a" } });
@@ -311,7 +311,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 	it("enforce mode: dynamic coverage — removed node releases guard bookkeeping (re-add under same name re-wraps)", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
@@ -325,7 +325,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
 		g.mount("kids", child); // mount BEFORE enforcer
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		// Add to the already-mounted child — watchTopologyTree should cover this.
 		child.add(state(0, { name: "x" }), { name: "x" });
@@ -338,7 +338,7 @@ describe("policyEnforcer (roadmap §9.2)", () => {
 		const leaf = new Graph("leaf");
 		mid.mount("leaf", leaf);
 		root.mount("mid", mid);
-		policyEnforcer(root, [{ effect: "deny", action: "write" }], { mode: "enforce" });
+		policyGate(root, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		leaf.add(state(0, { name: "x" }), { name: "x" });
 		expect(() => root.set("mid::leaf::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
@@ -437,7 +437,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a", guard: () => true }), { name: "a" });
 		const audit = auditTrail(g);
-		const enforcer = policyEnforcer(g, [{ effect: "allow", action: "write" }], { mode: "audit" });
+		const enforcer = policyGate(g, [{ effect: "allow", action: "write" }], { mode: "audit" });
 
 		g.set("a", 42, { actor: { type: "human", id: "alice" } });
 

@@ -3,9 +3,9 @@
  *
  * {@link guardedExecution} wraps any {@link Graph} with:
  *
- * - {@link policyEnforcer} — reactive ABAC, policies stored as a `Node` so
- *   LLMs / humans can update them at runtime. Now with full transitive
- *   dynamic coverage via `watchTopologyTree`.
+ * - {@link policyGate} — reactive ABAC (Tier 2.3 rename of `policyEnforcer`),
+ *   policies stored as a `Node` so LLMs / humans can update them at runtime.
+ *   Now with full transitive dynamic coverage via `watchTopologyTree`.
  * - Scoped {@link GuardedExecutionGraph.scopedDescribe} — delegates to
  *   `target.describe({actor})` so callers see only what the actor is
  *   allowed to see.
@@ -30,7 +30,7 @@ import {
 	type GraphDescribeOutput,
 	type GraphOptions,
 } from "../../graph/index.js";
-import { type PolicyEnforcerGraph, type PolicyViolation, policyEnforcer } from "../audit/index.js";
+import { type PolicyGateGraph, type PolicyViolation, policyGate } from "../audit/index.js";
 import type { TopicGraph } from "../messaging/index.js";
 
 /** Options for {@link guardedExecution}. */
@@ -60,7 +60,7 @@ export interface GuardedExecutionOptions {
 	 * blocking writes.
 	 */
 	mode?: "audit" | "enforce";
-	/** Ring-buffer cap for the `violations` topic. Default 1000 (inherited from policyEnforcer). */
+	/** Ring-buffer cap for the `violations` topic. Default 1000 (inherited from policyGate). */
 	violationsLimit?: number;
 	/** Wrapper graph name. Default `${target.name}_guarded`. */
 	name?: string;
@@ -70,12 +70,12 @@ export interface GuardedExecutionOptions {
 
 /**
  * Wrapper over a target {@link Graph} providing reactive ABAC + scoped
- * describe. Mounts a {@link PolicyEnforcerGraph} under `enforcer`.
+ * describe. Mounts a {@link PolicyGateGraph} under `enforcer`.
  *
  * @category patterns
  */
 export class GuardedExecutionGraph extends Graph {
-	readonly enforcer: PolicyEnforcerGraph;
+	readonly enforcer: PolicyGateGraph;
 	readonly violations: TopicGraph<PolicyViolation>;
 	private readonly _target: Graph;
 	private readonly _defaultActor: Actor | undefined;
@@ -95,7 +95,7 @@ export class GuardedExecutionGraph extends Graph {
 		};
 		if (opts.violationsLimit != null) enforcerOpts.violationsLimit = opts.violationsLimit;
 
-		this.enforcer = policyEnforcer(target, opts.policies, enforcerOpts);
+		this.enforcer = policyGate(target, opts.policies, enforcerOpts);
 		this.violations = this.enforcer.violations;
 
 		// Mount the enforcer as a child so `wrapper.describe()` surfaces its
@@ -139,7 +139,7 @@ export class GuardedExecutionGraph extends Graph {
 }
 
 /**
- * Wrap a {@link Graph} with {@link policyEnforcer} plus a scoped describe
+ * Wrap a {@link Graph} with {@link policyGate} plus a scoped describe
  * lens. Returns a {@link GuardedExecutionGraph} that can be mounted, diffed,
  * or composed with {@link graphLens}.
  *

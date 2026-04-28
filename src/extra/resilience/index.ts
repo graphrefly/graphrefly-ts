@@ -796,7 +796,7 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<
 	);
 }
 
-export type StatusValue = "pending" | "active" | "completed" | "errored";
+export type StatusValue = "pending" | "running" | "completed" | "errored";
 
 export type WithStatusBundle<T> = {
 	node: Node<T>;
@@ -822,7 +822,7 @@ export type WithStatusBundle<T> = {
  * const { node, status, error } = withStatus(src);
  *
  * status.subscribe((msgs) => console.log("status:", msgs));
- * src.down([[DATA, 42]]); // status → "active"
+ * src.down([[DATA, 42]]); // status → "running"
  * ```
  *
  * @category extra
@@ -848,12 +848,12 @@ export function withStatus<T>(
 						if (currentStatus === "errored") {
 							batch(() => {
 								out.meta.error.down([[DATA, null]]);
-								out.meta.status.down([[DATA, "active"]]);
+								out.meta.status.down([[DATA, "running"]]);
 							});
 						} else {
-							out.meta.status.down([[DATA, "active"]]);
+							out.meta.status.down([[DATA, "running"]]);
 						}
-						currentStatus = "active";
+						currentStatus = "running";
 						a.emit(m[1] as T);
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {

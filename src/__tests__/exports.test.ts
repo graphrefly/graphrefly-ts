@@ -56,11 +56,12 @@ describe("graphrefly", () => {
 	it("exports memory patterns namespace", () => {
 		expect(typeof patterns.memory).toBe("object");
 		expect(typeof patterns.memory.collection).toBe("function");
-		expect(typeof patterns.memory.lightCollection).toBe("function");
 		expect(typeof patterns.memory.vectorIndex).toBe("function");
 		expect(typeof patterns.memory.knowledgeGraph).toBe("function");
 		// `decay` was promoted to `extra/utils/decay.ts` per Tier 2.2 — it now
 		// lives on the extra barrel, not the memory namespace.
+		// `lightCollection` was folded into `collection({ranked:false})` per
+		// Tier 2.3 and is no longer exported.
 	});
 
 	it("exports messaging patterns namespace", () => {

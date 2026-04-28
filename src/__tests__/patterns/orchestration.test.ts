@@ -168,7 +168,7 @@ describe("patterns.orchestration", () => {
 			{ deps: ["src"] },
 		);
 		const recovered = g.catch<number>("recovered", failing, (cause) => {
-			if (cause.kind === "error") return 999;
+			if (cause.kind === "errored") return 999;
 			return 0;
 		});
 		recovered.subscribe(() => undefined);
@@ -225,7 +225,7 @@ describe("patterns.orchestration", () => {
 		let recoverCalls = 0;
 		const recovered = g.catch<number>("recovered", failing, (cause) => {
 			recoverCalls += 1;
-			if (cause.kind === "error") throw new Error("recover-failed");
+			if (cause.kind === "errored") throw new Error("recover-failed");
 			return 0;
 		});
 		recovered.subscribe(() => undefined);
@@ -243,7 +243,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -271,7 +271,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 10);
 		g.set("input", 20);
@@ -287,7 +287,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -305,7 +305,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -328,7 +328,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input", { startOpen: true });
+		const ctrl = g.approvalGate<number>("gated", "input", { startOpen: true });
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -348,7 +348,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input", { maxPending: 2 });
+		const ctrl = g.approvalGate<number>("gated", "input", { maxPending: 2 });
 		ctrl.node.subscribe(() => undefined);
 		g.set("input", 1);
 		g.set("input", 2);
@@ -361,7 +361,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = node<number>();
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
 		ctrl.node.subscribe((msgs) => {
@@ -381,7 +381,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		g.gate<number>("gated", "input");
+		g.approvalGate<number>("gated", "input");
 		const desc = g.describe();
 		expect(desc.nodes).toHaveProperty("gated");
 		expect(desc.nodes).toHaveProperty("gated_state::pending");
@@ -393,7 +393,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = state(0);
 		g.add(input, { name: "input" });
-		expect(() => g.gate<number>("gated", "input", { maxPending: 0 })).toThrow(RangeError);
+		expect(() => g.approvalGate<number>("gated", "input", { maxPending: 0 })).toThrow(RangeError);
 	});
 
 	// ── Rollback-on-throw (Audit 2 / C.2 F) ──────────────────────────────
@@ -402,7 +402,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = state<number>(0);
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 		const collected: number[] = [];
 		ctrl.node.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) collected.push(m[1] as number);
@@ -441,7 +441,7 @@ describe("patterns.orchestration", () => {
 		const g = pipelineGraph("wf");
 		const input = state<number>(0);
 		g.add(input, { name: "input" });
-		const ctrl = g.gate<number>("gated", "input");
+		const ctrl = g.approvalGate<number>("gated", "input");
 		input.emit(10);
 
 		ctrl.modify((v) => v * 2, 1);

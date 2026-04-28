@@ -6,9 +6,10 @@
  *
  * - {@link auditTrail} — reactive mutation log with by-node/by-actor/by-time
  *   queries.
- * - {@link policyEnforcer} — reactive ABAC enforcement; in `"audit"` mode
- *   records would-be denials, in `"enforce"` mode pushes guards onto target
- *   nodes so subsequent writes throw {@link GuardDenied}.
+ * - {@link policyGate} — reactive ABAC gate (Tier 2.3 rename of
+ *   `policyEnforcer`); in `"audit"` mode records would-be denials, in
+ *   `"enforce"` mode pushes guards onto target nodes so subsequent writes
+ *   throw {@link GuardDenied}.
  * - {@link complianceSnapshot} — point-in-time export of graph state +
  *   audit trail + policies for regulatory archival.
  *
@@ -19,6 +20,7 @@ import { monotonicNs, wallClockNs } from "../../core/clock.js";
 import type { GuardAction, NodeGuard, PolicyRuleData } from "../../core/guard.js";
 import { policyFromRules } from "../../core/guard.js";
 import { DATA } from "../../core/messages.js";
+import { placeholderArgs } from "../../core/meta.js";
 import type { Node } from "../../core/node.js";
 import { NodeImpl } from "../../core/node.js";
 import { derived, state } from "../../core/sugar.js";
@@ -221,10 +223,12 @@ export function auditTrail(target: Graph, opts: AuditTrailOptions = {}): AuditTr
 }
 
 // ---------------------------------------------------------------------------
-// policyEnforcer
+// policyGate (renamed from `policyEnforcer` per Tier 2.3 — joins the
+// gate-family disambiguation: `valve` (boolean) / `budgetGate` (numeric) /
+// `approvalGate` (human judgment) / `policyGate` (ABAC rules))
 // ---------------------------------------------------------------------------
 
-/** A single policy denial recorded by {@link PolicyEnforcerGraph}. */
+/** A single policy denial recorded by {@link PolicyGateGraph}. */
 export interface PolicyViolation {
 	timestamp_ns: number;
 	wall_clock_ns: number;
@@ -236,8 +240,8 @@ export interface PolicyViolation {
 	result: "observed" | "blocked";
 }
 
-/** Options for {@link policyEnforcer}. */
-export interface PolicyEnforcerOptions {
+/** Options for {@link policyGate}. */
+export interface PolicyGateOptions {
 	name?: string;
 	graph?: GraphOptions;
 	/**
@@ -276,7 +280,7 @@ export interface PolicyEnforcerOptions {
  * to update them at runtime; the enforcer rebinds its internal
  * {@link NodeGuard} on every push.
  */
-export class PolicyEnforcerGraph extends Graph {
+export class PolicyGateGraph extends Graph {
 	readonly policies: Node<readonly PolicyRuleData[]>;
 	readonly violations: TopicGraph<PolicyViolation>;
 	readonly violationCount: Node<number>;
@@ -287,7 +291,7 @@ export class PolicyEnforcerGraph extends Graph {
 	constructor(
 		target: Graph,
 		policies: readonly PolicyRuleData[] | Node<readonly PolicyRuleData[]>,
-		opts: PolicyEnforcerOptions,
+		opts: PolicyGateOptions,
 	) {
 		super(opts.name ?? `${target.name}_policy`, opts.graph);
 		this._target = target;
@@ -495,13 +499,22 @@ export class PolicyEnforcerGraph extends Graph {
  * static rule list or a {@link Node} of rules (LLM-updatable). Records
  * `PolicyViolation` entries to `violations` topic; in `"enforce"` mode also
  * pushes guards onto target nodes so disallowed writes throw.
+ *
+ * Self-tags via `g.tagFactory("policyGate", placeholderArgs(opts))` so
+ * `graph.describe()` surfaces `factory: "policyGate"` provenance (Phase 2.5
+ * DT5 ride-along, locked with the Tier 2.3 rename).
  */
-export function policyEnforcer(
+export function policyGate(
 	target: Graph,
 	policies: readonly PolicyRuleData[] | Node<readonly PolicyRuleData[]>,
-	opts: PolicyEnforcerOptions = {},
-): PolicyEnforcerGraph {
-	return new PolicyEnforcerGraph(target, policies, opts);
+	opts: PolicyGateOptions = {},
+): PolicyGateGraph {
+	const g = new PolicyGateGraph(target, policies, opts);
+	// `placeholderArgs` walks `opts` for non-JSON fields (e.g. `policies` may
+	// be a Node when the caller wants live-updatable rules; `opts.graph` is
+	// `GraphOptions`). DT5 deferred tag; Tier 2.3 ride-along.
+	g.tagFactory("policyGate", placeholderArgs(opts as unknown as Record<string, unknown>));
+	return g;
 }
 
 // ---------------------------------------------------------------------------
@@ -541,7 +554,7 @@ export function reactiveExplainPath(
 /** Options for {@link complianceSnapshot}. */
 export interface ComplianceSnapshotOptions {
 	audit?: AuditTrailGraph;
-	policies?: PolicyEnforcerGraph;
+	policies?: PolicyGateGraph;
 	/** Actor recorded as the snapshot taker. */
 	actor?: Actor;
 }
