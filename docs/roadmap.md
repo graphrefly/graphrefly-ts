@@ -340,7 +340,7 @@ The missing layer that makes "harness" real, not just "substrate."
 - [x] `auditTrail(graph, opts?)` → Graph — wraps any graph with `reactiveLog` recording every mutation, actor, timestamp, causal chain. Queryable by time range, actor, node. (TS shipped — `src/patterns/audit.ts`, namespace `patterns.accountability`)
 - [x] `policyEnforcer(graph, policies)` — reactive constraint enforcement. Policies are nodes (LLM-updatable). Violations emit to alert subgraph. Modes: `"audit"` (forensic) and `"enforce"` (live guard stacking via `NodeImpl._pushGuard`). (TS shipped)
 - [x] `complianceSnapshot(graph)` — point-in-time export of full graph state + audit trail for regulatory archival. Includes deterministic FNV-1a fingerprint over canonical JSON. (TS shipped)
-- [x] `reactiveExplainPath(graph, from, to)` — `Node<CausalChain>` that recomputes on graph mutations; foundation for `graphLens.why(node)` (§9.0b). (TS shipped)
+- [x] `graph.explain(from, to, { reactive: true })` — `Node<CausalChain>` that recomputes on graph mutations; foundation for `graphLens.why(node)` (§9.0b). Tier 3.5 (2026-04-27) deleted the standalone `reactiveExplainPath` wrapper in favor of the consolidated `Graph.explain` overload (mental-model parity with `describe` / `observe`); the overload also accepts reactive `from` / `to` / `maxDepth` / `findCycle` per F.9 carve-out. (TS shipped)
 - [ ] PY parity — tracked under "PY 9.2" below.
 
 #### 9.3 — MCP Server (`@graphrefly/mcp-server`)

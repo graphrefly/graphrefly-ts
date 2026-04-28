@@ -16,7 +16,7 @@
  *   O(1) `get`/`has`/`size` queries; `.entries` node emits lazily only when
  *   subscribed. Built on the shipped `reactiveMap` primitive.
  * - {@link LensGraph.why} — returns a live `Node<CausalChain>` from `from`
- *   to `to`, reusing {@link reactiveExplainPath}.
+ *   to `to`, reusing `graph.explain({ reactive: true })`.
  *
  * Everything is pure-reactive — no polling, no opinionated thresholds.
  * Callers who want periodic staleness checks or bottleneck classification
@@ -41,7 +41,6 @@ import {
 	reachable,
 	watchTopologyTree,
 } from "../../graph/index.js";
-import { reactiveExplainPath } from "../audit/index.js";
 
 export { watchTopologyTree } from "../../graph/index.js";
 
@@ -424,16 +423,19 @@ export class LensGraph extends Graph {
 	 * so heavy calling (e.g. per render frame) accumulates no-op disposers
 	 * until lens teardown. Cache the returned handle for long-lived queries.
 	 *
+	 * Tier 3.5: rebuilt on top of `graph.explain(from, to, { reactive: true })`
+	 * after the deprecated `reactiveExplainPath` wrapper was deleted.
+	 *
 	 * @param from - Qualified path of the upstream endpoint.
 	 * @param to - Qualified path of the downstream endpoint.
-	 * @param opts - See {@link reactiveExplainPath}.
+	 * @param opts - See {@link Graph.explain} (`{ reactive: true }` overload).
 	 */
 	why(
 		from: string,
 		to: string,
 		opts?: { maxDepth?: number; name?: string; findCycle?: boolean },
 	): { node: Node<CausalChain>; dispose: () => void } {
-		const handle = reactiveExplainPath(this._target, from, to, opts);
+		const handle = this._target.explain(from, to, { reactive: true, ...opts });
 		this.addDisposer(handle.dispose);
 		return handle;
 	}

@@ -12,7 +12,7 @@
 //
 // Adapter status is exposed as a `state<AdapterInfo>` Node so:
 //   1. UI banners subscribe via `useNodeValue(handle.infoNode, ...)`
-//   2. `describe(graph)` and `reactiveExplainPath` see adapter status if
+//   2. `describe(graph)` and `graph.explain({ reactive: true })` see adapter status if
 //      callers attach the node to a graph
 //   3. Chrome Nano download progress propagates automatically (every push
 //      from chrome-nano-adapter's `onInfo` callback writes the state node)

@@ -17,12 +17,11 @@
  *   kg/{entities,edges,adjacency}   (UI / consumers subscribe here)
  *        │
  *        ▼
- *   reactiveExplainPath(kg, "fromArray", "adjacency")  (live causal chain)
+ *   kg.explain("docs", "adjacency", { reactive: true })  (live causal chain)
  */
 
 import { DATA, effect } from "@graphrefly/graphrefly/core";
 import { fromIter } from "@graphrefly/graphrefly/extra/sources";
-import { reactiveExplainPath } from "@graphrefly/graphrefly/patterns/audit";
 import { knowledgeGraph } from "@graphrefly/graphrefly/patterns/memory";
 
 type Entity = { id: string; label: string; kind: string };
@@ -90,7 +89,7 @@ const apply = effect(
 kg.add(apply, { name: "apply-extraction" });
 
 // Live causal chain. Re-derives whenever any node along the path fires.
-const explain = reactiveExplainPath(kg, "docs", "adjacency");
+const explain = kg.explain("docs", "adjacency", { reactive: true });
 explain.node.subscribe((msgs) => {
 	for (const [type, value] of msgs) {
 		if (type !== DATA) continue;

@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type PolicyRuleData, policy } from "../../core/guard.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import {
-	auditTrail,
-	complianceSnapshot,
-	policyGate,
-	reactiveExplainPath,
-} from "../../patterns/audit/index.js";
+import { auditTrail, complianceSnapshot, policyGate } from "../../patterns/audit/index.js";
 
 describe("auditTrail (roadmap §9.2)", () => {
 	it("records DATA mutations with seq, timestamps, value", () => {
@@ -353,7 +348,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		g.add(state(0, { name: "a" }), { name: "a" });
 		g.add(state(0, { name: "b" }), { name: "b" });
 		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
 		});
@@ -369,7 +364,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		g.add(state(0, { name: "a" }), { name: "a" });
 		g.add(state(0, { name: "b" }), { name: "b" });
 		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
 		});
@@ -391,7 +386,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		g.add(state(0, { name: "a" }), { name: "a" });
 		g.add(state(0, { name: "b" }), { name: "b" });
 		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
-		policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
 		});
@@ -410,7 +405,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
 		g.add(state(0, { name: "b", guard: () => true }), { name: "b" });
 		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
-		const enforcer = policyEnforcer(g, [{ effect: "deny", action: "write" }], {
+		const enforcer = policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "audit",
 			paths: pathsNode,
 		});
@@ -428,7 +423,7 @@ describe("policyGate (roadmap §9.2)", () => {
 	});
 });
 
-describe("reactiveExplainPath (roadmap §9.2)", () => {
+describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 	it("B21: graph.explain({ reactive: true }) returns the same reactive chain", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
@@ -488,7 +483,7 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
-		const live = reactiveExplainPath(g, "a", "b");
+		const live = g.explain("a", "b", { reactive: true });
 		const seen: number[] = [];
 		const unsub = live.node.subscribe((msgs) => {
 			for (const m of msgs) {
@@ -512,6 +507,86 @@ describe("reactiveExplainPath (roadmap §9.2)", () => {
 		unsub();
 		live.dispose();
 		void seen;
+	});
+
+	// ------------------------------------------------------------------
+	// Tier 3.5 — reactive `from`/`to`/`maxDepth`/`findCycle` opts
+	// ------------------------------------------------------------------
+
+	it("Tier 3.5: reactive `from` and `to` recompute the chain when the path nodes emit", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const c = derived([b], ([v]) => (v as number) + 100, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+
+		const fromNode = state<string>("a", { name: "from" });
+		const toNode = state<string>("b", { name: "to" });
+		const live = g.explain(fromNode, toNode, { reactive: true });
+		const unsub = live.node.subscribe(() => {});
+
+		// Initial: a → b
+		expect(live.node.cache?.found).toBe(true);
+		expect(live.node.cache?.steps.map((s) => s.path)).toEqual(["a", "b"]);
+
+		// Switch `to` to "c" — expect a → b → c
+		toNode.emit("c");
+		expect(live.node.cache?.steps.map((s) => s.path)).toEqual(["a", "b", "c"]);
+
+		// Switch `from` to "b" — expect b → c
+		fromNode.emit("b");
+		expect(live.node.cache?.steps.map((s) => s.path)).toEqual(["b", "c"]);
+
+		unsub();
+		live.dispose();
+	});
+
+	it("Tier 3.5: reactive `maxDepth` recomputes the chain when the limit changes", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const c = derived([b], ([v]) => (v as number) + 100, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+
+		const maxDepth = state<number>(1, { name: "max" });
+		const live = g.explain("a", "c", { reactive: true, maxDepth });
+		const unsub = live.node.subscribe(() => {});
+
+		// At depth 1, a→c is unreachable in 1 hop.
+		expect(live.node.cache?.found).toBe(false);
+
+		// Loosen depth to 5 — chain should resolve.
+		maxDepth.emit(5);
+		expect(live.node.cache?.found).toBe(true);
+		expect(live.node.cache?.steps.map((s) => s.path)).toEqual(["a", "b", "c"]);
+
+		unsub();
+		live.dispose();
+	});
+
+	it("Tier 3.5: static call (no `reactive: true`) accepts reactive args by snapshotting their cache", () => {
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+
+		const fromNode = state<string>("a", { name: "from" });
+		// Static call returns a CausalChain snapshot, not a reactive handle.
+		const chain = g.explain(fromNode, "b");
+		expect("steps" in chain && Array.isArray(chain.steps)).toBe(true);
+		expect((chain as { found: boolean }).found).toBe(true);
+	});
+
+	it("Tier 3.5: deletion regression — `reactiveExplainPath` is no longer importable from patterns/audit", async () => {
+		const auditModule: Record<string, unknown> = await import("../../patterns/audit/index.js");
+		expect(auditModule.reactiveExplainPath).toBeUndefined();
 	});
 });
 

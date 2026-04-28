@@ -28,7 +28,7 @@ Text measurement and line-breaking as a reactive graph — five chapters walk th
 
 ## Knowledge graph extraction
 
-Live KG extraction from a long paper using Chrome's built-in Gemini Nano — runs on-device, zero API key, zero cost. Four chapters take you from `knowledgeGraph()` as a fancy Map to a reactive `paper → promptNode → kg → adjacency` pipeline with `reactiveExplainPath` causal tracing and `policyEnforcer` guardrails. The KG renders as a force-directed SVG distinct from the topology mermaid in the side pane.
+Live KG extraction from a long paper using Chrome's built-in Gemini Nano — runs on-device, zero API key, zero cost. Four chapters take you from `knowledgeGraph()` as a fancy Map to a reactive `paper → promptNode → kg → adjacency` pipeline with `graph.explain({ reactive: true })` causal tracing and `policyEnforcer` guardrails. The KG renders as a force-directed SVG distinct from the topology mermaid in the side pane.
 
 [Run the knowledge-graph demo →](/demos/knowledge-graph/)
 

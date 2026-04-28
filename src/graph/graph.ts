@@ -377,6 +377,38 @@ function resolveActorOption(actor: Actor | Node<Actor> | undefined): Actor | und
 }
 
 /**
+ * Tier 3.5 (F.9 reactive primitive carve-out): generic Node-shape duck check
+ * for `Graph.explain` reactive args (`from`/`to: string | Node<string>`,
+ * `maxDepth: number | Node<number>`, `findCycle: boolean | Node<boolean>`).
+ * Mirrors `isActorNode` — tests for `subscribe` AND `cache` AND `down` so a
+ * primitive value cannot accidentally pass as a Node.
+ */
+function isExplainArgNode<T>(x: T | Node<T> | undefined): x is Node<T> {
+	return (
+		x != null &&
+		typeof x === "object" &&
+		"cache" in x &&
+		typeof (x as Node<T>).subscribe === "function" &&
+		typeof (x as Node<T>).down === "function"
+	);
+}
+
+function resolveExplainPath(p: string | Node<string>): string {
+	if (isExplainArgNode<string>(p)) return (p.cache as string | undefined) ?? "";
+	return p;
+}
+
+function resolveExplainNumber(n: number | Node<number>): number {
+	if (isExplainArgNode<number>(n)) return (n.cache as number | undefined) ?? 0;
+	return n;
+}
+
+function resolveExplainBoolean(b: boolean | Node<boolean>): boolean {
+	if (isExplainArgNode<boolean>(b)) return (b.cache as boolean | undefined) ?? false;
+	return b;
+}
+
+/**
  * Cheap graph-level V0 version fingerprint: concatenate `v.id@v.version` for
  * every node that carries V0 info. Used by {@link Graph.attachSnapshotStorage} to
  * short-circuit per-tier flushes when nothing versioned has changed since
@@ -2098,38 +2130,74 @@ export class Graph {
 	 *
 	 * Same question, two answers:
 	 * - **Static (default)** — `explain(from, to, opts?)` returns a single
-	 *   {@link CausalChain} snapshot of the graph at call time.
+	 *   {@link CausalChain} snapshot of the graph at call time. Reactive
+	 *   args (any `Node<...>`) are resolved to their current cache once.
 	 * - **Reactive** — `explain(from, to, { reactive: true, ... })` returns
 	 *   `{ node: Node<CausalChain>; dispose: () => void }`. The node
 	 *   recomputes whenever a `data` / `error` / `complete` / `teardown`
-	 *   event fires anywhere on the graph's structured observe stream, so
-	 *   the chain stays live. Replaces the former `reactiveExplainPath`.
+	 *   event fires anywhere on the graph's structured observe stream OR
+	 *   any reactive arg (`Node<string>` for `from`/`to`,
+	 *   `Node<number>` for `maxDepth`, `Node<boolean>` for `findCycle`)
+	 *   emits. Replaces the former `reactiveExplainPath`.
 	 *
-	 * @param from - Upstream node (the cause).
-	 * @param to - Downstream node (the effect).
-	 * @param opts - Optional `maxDepth` and `findCycle`. When `findCycle:true`
+	 * Tier 3.5 reactive-opt carve-out (F.9): `from`, `to`, `maxDepth`, and
+	 * `findCycle` accept `Node<...>` in addition to their plain types. When
+	 * mixed (some reactive, some static), the reactive variant subscribes only
+	 * to the Node-typed args; static args pass through unchanged. The static
+	 * call snapshots all reactive args at call time — for live re-walking, use
+	 * `{ reactive: true }`.
+	 *
+	 * **File path-scoped observe is deferred** — the reactive variant
+	 * subscribes to whole-graph observe today (a perf gap, not a spec
+	 * violation). Tracked in `docs/optimizations.md` Tier 10.8 deferred
+	 * follow-up: "reactiveExplainPath file-path-scoped observe".
+	 *
+	 * @param from - Upstream node path (the cause). `string | Node<string>`.
+	 * @param to - Downstream node path (the effect). `string | Node<string>`.
+	 * @param opts - Optional `maxDepth` (`number | Node<number>`) and
+	 *   `findCycle` (`boolean | Node<boolean>`). When `findCycle:true`
 	 *   and `from === to`, returns the shortest cycle through other nodes
 	 *   (useful for diagnosing feedback loops, COMPOSITION-GUIDE §7).
 	 *   When `reactive: true`, also accepts `name?`.
 	 */
-	explain(from: string, to: string, opts?: { maxDepth?: number; findCycle?: boolean }): CausalChain;
 	explain(
-		from: string,
-		to: string,
-		opts: { reactive: true; maxDepth?: number; findCycle?: boolean; name?: string },
+		from: string | Node<string>,
+		to: string | Node<string>,
+		opts?: {
+			maxDepth?: number | Node<number>;
+			findCycle?: boolean | Node<boolean>;
+		},
+	): CausalChain;
+	explain(
+		from: string | Node<string>,
+		to: string | Node<string>,
+		opts: {
+			reactive: true;
+			maxDepth?: number | Node<number>;
+			findCycle?: boolean | Node<boolean>;
+			name?: string;
+		},
 	): { node: Node<CausalChain>; dispose: () => void };
 	explain(
-		from: string,
-		to: string,
+		from: string | Node<string>,
+		to: string | Node<string>,
 		opts?: {
 			reactive?: boolean;
-			maxDepth?: number;
-			findCycle?: boolean;
+			maxDepth?: number | Node<number>;
+			findCycle?: boolean | Node<boolean>;
 			name?: string;
 		},
 	): CausalChain | { node: Node<CausalChain>; dispose: () => void } {
 		if (opts?.reactive === true) return this._explainReactive(from, to, opts);
-		return this._explainStatic(from, to, opts);
+		// Static call: snapshot every reactive arg's current cache and dispatch
+		// to `_explainStatic` with plain primitives. Mixing reactive args with
+		// the static call is supported but reads each arg exactly once.
+		return this._explainStatic(resolveExplainPath(from), resolveExplainPath(to), {
+			...(opts?.maxDepth !== undefined ? { maxDepth: resolveExplainNumber(opts.maxDepth) } : {}),
+			...(opts?.findCycle !== undefined
+				? { findCycle: resolveExplainBoolean(opts.findCycle) }
+				: {}),
+		});
 	}
 
 	private _explainStatic(
@@ -2368,9 +2436,13 @@ export class Graph {
 	}
 
 	private _explainReactive(
-		from: string,
-		to: string,
-		opts?: { maxDepth?: number; findCycle?: boolean; name?: string },
+		from: string | Node<string>,
+		to: string | Node<string>,
+		opts?: {
+			maxDepth?: number | Node<number>;
+			findCycle?: boolean | Node<boolean>;
+			name?: string;
+		},
 	): { node: Node<CausalChain>; dispose: () => void } {
 		// Closure-held version counter (COMPOSITION-GUIDE §28 / spec §3.6
 		// sanctioned pattern). Every settled observe event bumps `v`, which
@@ -2388,9 +2460,7 @@ export class Graph {
 		const handle = this.observe({ timeline: true, structured: true });
 		let pendingBump = false;
 		let disposed = false;
-		const off = handle.onEvent((event) => {
-			const t = event.type;
-			if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
+		const bump = (): void => {
 			if (pendingBump || disposed) return;
 			pendingBump = true;
 			registerBatchFlushHook(() => {
@@ -2399,35 +2469,97 @@ export class Graph {
 				v += 1;
 				version.emit(v);
 			});
+		};
+		const off = handle.onEvent((event) => {
+			const t = event.type;
+			if (t !== "data" && t !== "error" && t !== "complete" && t !== "teardown") return;
+			bump();
 		});
 
-		const explainOpts = {
-			...(opts?.maxDepth != null ? { maxDepth: opts.maxDepth } : {}),
-			...(opts?.findCycle === true ? { findCycle: true as const } : {}),
+		// Tier 3.5 (F.9 reactive primitive carve-out): subscribe to each
+		// reactive arg so an emission bumps the version counter through the
+		// same coalescer. Static args pass through with no subscription.
+		// Mirrors the `Node<Actor>` subscription wired in `_describeReactive`.
+		const argUnsubs: Array<() => void> = [];
+		const subscribeReactiveArg = <T>(arg: T | Node<T> | undefined): (() => void) | undefined => {
+			if (arg == null || !isExplainArgNode<T>(arg)) return undefined;
+			return arg.subscribe((msgs) => {
+				let sawData = false;
+				let terminated = false;
+				for (const m of msgs) {
+					const t = m[0];
+					if (t === DATA) sawData = true;
+					else if (t === COMPLETE || t === ERROR || t === TEARDOWN) terminated = true;
+				}
+				if (sawData) bump();
+				if (terminated) {
+					// Drop the subscription — `arg.cache` is frozen at the last
+					// settled value, so subsequent recomputes still see it. One
+					// final bump so the derived snapshots the last-known value.
+					// Index-based release matches the `argUnsubs` push order.
+					bump();
+				}
+			});
 		};
+		const fromUnsub = subscribeReactiveArg<string>(from);
+		if (fromUnsub) argUnsubs.push(fromUnsub);
+		const toUnsub = subscribeReactiveArg<string>(to);
+		if (toUnsub) argUnsubs.push(toUnsub);
+		const maxDepthUnsub = subscribeReactiveArg<number>(opts?.maxDepth);
+		if (maxDepthUnsub) argUnsubs.push(maxDepthUnsub);
+		const findCycleUnsub = subscribeReactiveArg<boolean>(opts?.findCycle);
+		if (findCycleUnsub) argUnsubs.push(findCycleUnsub);
+
 		// Try to construct the reactive derived; if it throws (invalid options
 		// etc.), release the observe handle + onEvent listener so we don't
 		// leak resources. Nominal path: push the try-catch out-of-band.
+		//
+		// Resolve reactive args INSIDE the fn so each recompute reads the
+		// latest cache. Static args close over directly.
 		let node: Node<CausalChain>;
 		try {
-			node = derived<CausalChain>([version], () => this._explainStatic(from, to, explainOpts), {
-				name: opts?.name ?? "explain",
-				describeKind: "derived",
-				// `audit` domain tag preserves parity with the legacy
-				// `reactiveExplainPath` in `patterns/audit.ts`, so audit
-				// dashboards / policy enforcers that filter on
-				// `meta.domain === "audit"` and `meta.kind === "explain_path"`
-				// still pick up reactive-explain nodes after the B21
-				// consolidation.
-				meta: { domain: "audit", kind: "explain_path", from, to } as const,
-				equals: (a, b) =>
-					a.found === b.found &&
-					a.reason === b.reason &&
-					a.steps.length === b.steps.length &&
-					causalStepsEqual(a.steps, b.steps),
-			});
+			node = derived<CausalChain>(
+				[version],
+				() => {
+					const currentFrom = resolveExplainPath(from);
+					const currentTo = resolveExplainPath(to);
+					const currentOpts = {
+						...(opts?.maxDepth !== undefined
+							? { maxDepth: resolveExplainNumber(opts.maxDepth) }
+							: {}),
+						...(opts?.findCycle !== undefined
+							? { findCycle: resolveExplainBoolean(opts.findCycle) }
+							: {}),
+					};
+					return this._explainStatic(currentFrom, currentTo, currentOpts);
+				},
+				{
+					name: opts?.name ?? "explain",
+					describeKind: "derived",
+					// `audit` domain tag preserves parity with the legacy
+					// `reactiveExplainPath` in `patterns/audit.ts`, so audit
+					// dashboards / policy enforcers that filter on
+					// `meta.domain === "audit"` and `meta.kind === "explain_path"`
+					// still pick up reactive-explain nodes after the B21
+					// consolidation. `from`/`to` in the meta surface the
+					// initial cache for reactive args (best-effort provenance);
+					// the derived recomputes against the latest cache at emit time.
+					meta: {
+						domain: "audit",
+						kind: "explain_path",
+						from: resolveExplainPath(from),
+						to: resolveExplainPath(to),
+					} as const,
+					equals: (a, b) =>
+						a.found === b.found &&
+						a.reason === b.reason &&
+						a.steps.length === b.steps.length &&
+						causalStepsEqual(a.steps, b.steps),
+				},
+			);
 		} catch (err) {
 			off();
+			for (const u of argUnsubs) u();
 			handle.dispose();
 			throw err;
 		}
@@ -2438,6 +2570,8 @@ export class Graph {
 			dispose() {
 				disposed = true;
 				off();
+				for (const u of argUnsubs) u();
+				argUnsubs.length = 0;
 				handle.dispose();
 				stopKeepalive();
 			},
