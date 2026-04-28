@@ -250,41 +250,47 @@ Test sites updated: `cqrs.test.ts` (3 assertions on `outcome`), `process.test.ts
 
 ---
 
-## Tier 3 — Audit prerequisites for Wave B (D.2 cluster)
+## Tier 3 — Audit prerequisites for Wave B (D.2 cluster) ✅ landed (2026-04-27, Wave 2B parallel-agent batch)
 
-All five LOCKED in public-face audit §F. Independently scoped; can run in parallel.
+All five units landed via 3 parallel agents (A: 3.1+3.2 bundled, B: 3.3, C: 3.4+3.5 bundled). Each agent's worktree branched from main (pre-Tier-2.1) so changes were ported onto current branch state with file-path migration (`extra/resilience.ts` → `extra/resilience/index.ts`, `patterns/reduction/index.ts::budgetGate` → `extra/resilience/budget-gate.ts`) and symbol-name reconciliation (`policyEnforcer` → `policyGate`, `StatusValue: "active"` → `"running"`).
 
-### 3.1 D.2.3a — supervisors cluster (`retry`, `circuitBreaker`, `timeout`, `fallback`)
-- Unbounded-retry footgun fix: require explicit `count` when `backoff` set.
-- Source/factory-mode dedup: extract shared ~110 LOC closure-state machinery.
-- JSDoc on clock injection contract, `Math.max(1, delayNs)` minimum, state telemetry.
+### 3.1 D.2.3a — supervisors cluster (`retry`, `circuitBreaker`, `timeout`, `fallback`) ✅ landed
+- ✅ `retry({ backoff })` without explicit `count` throws `RangeError`.
+- ✅ Source/factory-mode dedup via shared `_runRetryStateMachine` helper (~94 LOC saved; close to ~110 audit estimate).
+- ✅ Centralized `resolveRetryConfig` for footgun-guard parity across both modes.
+- ✅ JSDoc on clock injection contract.
 - **Unblocks:** Unit 7 `resilientPipeline` rebuild.
 
-### 3.2 D.2.3b — throttles & status cluster (`rateLimiter`, `tokenBucket`, `withStatus`)
-- Bounded `maxBuffer` on `rateLimiter` (require explicit value or opt-in `Infinity`).
-- RingBuffer for pending queue (cross-shared with D.2.4 budgetGate fix).
-- `droppedCount` reactive companion on `rateLimiter`.
-- `tokenBucket(capacity, refill)` clock injection for testability.
-- JSDoc on `tokenBucket.tokens` float behavior, producer-pattern visibility, lifecycle.
+### 3.2 D.2.3b — throttles & status cluster (`rateLimiter`, `tokenBucket`, `withStatus`) ✅ landed
+- ✅ `rateLimiter` without explicit `maxBuffer` throws `RangeError`; `Infinity` opts in to unbounded.
+- ✅ `RingBuffer` from `extra/utils/ring-buffer.js` backs the pending queue.
+- ✅ `rateLimiter` return widened from `Node<T>` to `{ node: Node<T>, droppedCount: Node<number> }` companion bundle.
+- ✅ `tokenBucket(capacity, refill, opts?)` accepts `clock?` for deterministic testability.
+- ✅ JSDoc on `tokenBucket.tokens` float behavior, `withStatus` producer-pattern visibility, lifecycle (`"pending" | "running" | "completed" | "errored"` post-Wave-2A `StatusValue`).
+- **Consumer update:** `resilient-pipeline` defaults `maxBuffer: Infinity` to preserve historical behavior.
 - **Unblocks:** Unit 7 `resilientPipeline` rebuild.
 
-### 3.3 D.2.4 — `budgetGate`
-- RingBuffer / head-index queue replacing `buffer.slice(1)` O(N²).
-- Terminal force-flush + PAUSE-release ordering audit (already correct → document as invariant).
-- JSDoc on `node([], fn)` producer-pattern (source invisible to describe-traversal).
-- Empty-deps `RangeError` documented + tested.
-- Reference-equality diff for buffer dedup + constraint-array/option-array shapes.
-- **Note:** reactive `constraints` is dropped (Architecture-2: compositor-only).
+### 3.3 D.2.4 — `budgetGate` ✅ landed
+- ✅ Private `HeadIndexQueue<T>` (O(1) push, O(1) shift, opportunistic compaction) replaces `buffer.slice(1)` O(N²) drain. **Note:** chose `HeadIndexQueue` over `RingBuffer` because RingBuffer's drop-oldest eviction would silently lose buffered DATA between PAUSE and RESUME — that breaks budgetGate's backpressure contract. Documented in JSDoc.
+- ✅ Terminal force-flush + PAUSE-release ordering: confirmed correct, documented as 4 explicit invariants in JSDoc with cross-links to COMPOSITION-GUIDE §19, §9/§9a, §24.
+- ✅ JSDoc on `node([], fn)` producer-pattern (source invisible to describe-traversal).
+- ✅ `@throws RangeError` on empty constraints; regression test asserts `instanceof RangeError`.
+- ✅ Reference-equality semantics on `constraints` array documented (captured at construction; Architecture-2: compositor-only).
+- 5 new tests in `reduction.test.ts` (terminal flush before COMPLETE/ERROR; PAUSE→RESUME FIFO ordering; 5000-item scaling regression; deferred RESOLVED).
 - **Unblocks:** Unit 7 `resilientPipeline` rebuild.
 
-### 3.4 D.2.1 — `policyEnforcer` (renamed `policyGate` per 2.3)
-- Reactive `paths: readonly string[] | Node<readonly string[]>` (per F.9 carve-out).
-- Drop reactive `violationsLimit` (deferred — needs TopicGraph reactive `retainedLimit`).
+### 3.4 D.2.1 — `policyGate` (renamed per Wave 2A 2.3) ✅ landed
+- ✅ Reactive `paths: readonly string[] | Node<readonly string[]>` via closure-mirror + Set-diff rebind (mirrors the existing `policies: ... | Node<...>` pattern in same constructor).
+- ✅ Reactive `violationsLimit` explicitly NOT added — deferral noted in JSDoc pointing to Tier 10.8 (TopicGraph reactive `retainedLimit`).
+- ✅ 4 new reactive-paths test cases + 1 `placeholderArgs(Node<readonly string[]>) → "<Node>"` regression in `spec-roundtrip.test.ts`.
 - **Unblocks:** Unit 6 `guardedExecution` rebuild.
 
-### 3.5 D.2.2 — `reactiveExplainPath`
-- Reactive `from` / `to` / `maxDepth` / `findCycle` opts (inline-pattern → reactive on primitive per F.9).
-- File path-scoped observe deferred (whole-graph observe is a perf gap, not a spec violation).
+### 3.5 D.2.2 — `Graph.explain` reactive opts + delete deprecated `reactiveExplainPath` ✅ landed
+- ✅ `Graph.explain(from, to, opts)` widened: `from: string | Node<string>`, `to: string | Node<string>`, `opts.maxDepth?: number | Node<number>`, `opts.findCycle?: boolean | Node<boolean>`. Resolution helpers `isExplainArgNode` + `resolveExplainPath/Number/Boolean` mirror `isActorNode`. `_explainReactive` subscribes to reactive args via the existing `bump()` coalescer.
+- ✅ Deprecated `reactiveExplainPath` deleted from `patterns/audit`. 6 call-site migrations: `patterns/lens.why`, audit test, `examples/knowledge-graph`, `demos/.../inspect.ts`, README, website demo pages, roadmap entry. Generated API doc removed (moved to `TRASH/`).
+- ✅ Deletion regression test in `audit.test.ts` asserts `auditModule.reactiveExplainPath === undefined`.
+- ✅ Patterns/lens `LensGraph.why` migrated to `target.explain(from, to, { reactive: true, ...opts })`.
+- File path-scoped observe deferred (Tier 10.8 design follow-up — whole-graph observe is a perf gap, not a spec violation).
 - **Unblocks:** Unit 8 `graphLens` rebuild.
 
 ---
@@ -512,6 +518,6 @@ Tier 10 — anytime; low priority
 4. ✅ Implement Tier 1.5.3 (GraphSpec ≡ GraphDescribeOutput) — Phases 1, 2, 2.5, 3 all landed.
 5. ✅ Land Tier 2.1 reorg (mechanical split + renderer extraction). **Carry:** per-category sub-file split inside `operators/` / `sources/` / `io/` / `resilience/` — physical mega-file move done; canonical body still lives in each `<folder>/index.ts`. Schedule the per-protocol split in a follow-up batch.
 6. ✅ Land Tier 2.2 + Tier 2.3 (Wave 2A — promotions + renames + outcome/status enum migrations).
-7. **← NEXT.** Branch off Tier 3 audits in parallel (5 units: 3.1 supervisors, 3.2 throttles, 3.3 budgetGate, 3.4 policyGate, 3.5 reactiveExplainPath).
-8. Pick up Tier 4 + 5 once Tier 3 is in.
+7. ✅ Land Tier 3 audits (Wave 2B — 5 units via 3 parallel agents; required port pass since worktrees branched from main).
+8. **← NEXT.** Pick up Tier 4 (Wave A + Wave AM memory primitive rebuilds) and Tier 5 (Wave B public-face block rebuilds) — can run in parallel since they touch different files.
 9. Tier 6 harness composition once Sessions A+B locks have implementation room (post Tier 1.5 + Tier 5).
