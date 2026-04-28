@@ -1,3 +1,10 @@
+# [0.41.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.40.0...v0.41.0) (2026-04-28)
+
+
+### Features
+
+* implementation tier 6 ([fb2c381](https://github.com/graphrefly/graphrefly-ts/commit/fb2c3814dc579d0c3c6894347f9b79ed9d629d7c))
+
 # [0.40.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.39.0...v0.40.0) (2026-04-28)
 
 
