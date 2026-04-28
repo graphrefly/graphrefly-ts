@@ -138,6 +138,24 @@ function previewContent(text: string, max = 200): string {
  * @param opts - Optional configuration.
  * @returns `Node` emitting LLM responses (string or parsed JSON).
  */
+// Overload 1: `format: "raw"` constrains the emit type to `LLMResponse | null`
+// (the full adapter response, with `usage` / `toolCalls` / `finishReason`).
+// Subsumes the pre-Tier-2.3 `fromLLM` shape.
+export function promptNode(
+	adapter: LLMAdapter,
+	deps: readonly Node<unknown>[],
+	prompt: string | ((...depValues: unknown[]) => string),
+	opts: PromptNodeOptions & { format: "raw" },
+): Node<LLMResponse | null>;
+// Overload 2: `format: "text" | "json"` (default text) — emit-type is the
+// caller's `T` (defaults to `string`). For `"json"` callers typically pass
+// the parsed shape (e.g. `promptNode<MyShape>(...)`).
+export function promptNode<T = string>(
+	adapter: LLMAdapter,
+	deps: readonly Node<unknown>[],
+	prompt: string | ((...depValues: unknown[]) => string),
+	opts?: Omit<PromptNodeOptions, "format"> & { format?: "text" | "json" },
+): Node<T | null>;
 export function promptNode<T = string>(
 	adapter: LLMAdapter,
 	deps: readonly Node<unknown>[],
@@ -146,6 +164,19 @@ export function promptNode<T = string>(
 ): Node<T | null> {
 	const format = opts?.format ?? "text";
 	const baseName = opts?.name ?? "prompt_node";
+
+	// qa A8: tools without `format: "raw"` is a footgun — adapter receives
+	// the tool definitions and may produce `toolCalls`, but the emit path
+	// only extracts `content`. Warn at construction; downstream parsers
+	// reading `toolCalls` from a custom `format: "raw"` consumer pattern
+	// can ignore by setting `format: "raw"` (intent now matches behavior).
+	if (opts?.tools !== undefined && format !== "raw") {
+		console.warn(
+			"promptNode: `tools` is set but `format !== 'raw'`. " +
+				"Tool calls in the response will be silently dropped — set " +
+				"`format: 'raw'` to receive the full LLMResponse with `toolCalls`.",
+		);
+	}
 
 	// SENTINEL semantics rely on the universal first-run gate + standard
 	// prevData semantics (undefined = SENTINEL, any other value = DATA seen):
