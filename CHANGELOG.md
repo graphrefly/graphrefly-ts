@@ -1,3 +1,26 @@
+# [0.39.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.38.0...v0.39.0) (2026-04-28)
+
+
+### Bug Fixes
+
+* **audit:** wrap policyGate reactive paths rebind in batch() (qa D7) ([b62ad22](https://github.com/graphrefly/graphrefly-ts/commit/b62ad222ff84a027d97f9a7511758472fee2798c))
+* **budget-gate:** hoist checkBudget + document deferred RESOLVED stall + lazy PAUSE (qa D3+D4+A2+A3) ([655aaa9](https://github.com/graphrefly/graphrefly-ts/commit/655aaa9d221d3e497bf2f3dc50df63d3e148350f))
+* **graph:** Graph.explain reactive correctness + describe detail/fields exclusivity (qa D5+D6+A4+A5+A6) ([708144e](https://github.com/graphrefly/graphrefly-ts/commit/708144e7c5338be70633b93a546e3e81a1e9e2ab))
+* **graphspec:** decompileSpec skips compound-factory :: internals (qa D1) ([22d9741](https://github.com/graphrefly/graphrefly-ts/commit/22d9741527701e0e54cd013c067edf6f7724cc81))
+* **graph:** wire CausalChain.reason "pending" union member for D5 sentinel ([ded8a06](https://github.com/graphrefly/graphrefly-ts/commit/ded8a060d3f523f79260646a796229b92879ff71))
+* misc qa cleanup (A7+A9+A10) ([0dc7b57](https://github.com/graphrefly/graphrefly-ts/commit/0dc7b57320e1048043fee4be5e697efac9f5cbfe))
+* **resilience:** preserve droppedCount on terminal + fallback cleanup + tokenBucket clock test (qa A1+A14+A12) ([cb71531](https://github.com/graphrefly/graphrefly-ts/commit/cb71531843f49d0a0e53c8c0cede64ac9bae86cc))
+
+
+### Features
+
+* **audit:** reactive paths on policyEnforcer (Tier 3.4) ([b677da4](https://github.com/graphrefly/graphrefly-ts/commit/b677da4f194c87155a21e06f3dc2f1f535486cdb))
+* **graph:** reactive opts on explain, delete reactiveExplainPath (Tier 3.5) ([0048ae4](https://github.com/graphrefly/graphrefly-ts/commit/0048ae4efee2a0f8e97857c2aea5b4bccc12652e))
+* **graphspec:** Tier 1.5.3 Phase 3 — collapse GraphSpec ≡ GraphDescribeOutput ([3dac6bb](https://github.com/graphrefly/graphrefly-ts/commit/3dac6bb5ec30c659684b43fefc7df74f66a5b7b4))
+* **promptNode:** typed overload for format raw + tools-without-raw warn (qa D8+A8) ([cf7600c](https://github.com/graphrefly/graphrefly-ts/commit/cf7600c1ff1c042ae4f88bf6d17762e674705fd7))
+* **resilience:** D.2.3 cluster — bound retry, dedup supervisor state machinery, bounded rateLimiter buffer + droppedCount + tokenBucket clock injection (Tier 3.1 + 3.2) ([8685cac](https://github.com/graphrefly/graphrefly-ts/commit/8685cac7d31db37003aa7418f97cae0fd4b12a93))
+* **resilience:** RingBuffer queue + force-flush invariant doc on budgetGate (Tier 3.3) ([d291e24](https://github.com/graphrefly/graphrefly-ts/commit/d291e2418b88fe54da968ba046f095991e3cdf7f))
+
 # [0.38.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.37.0...v0.38.0) (2026-04-28)
 
 
