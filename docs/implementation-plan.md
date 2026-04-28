@@ -52,7 +52,7 @@ These extend the public surface of `Graph`. Land before Tier 5 (Wave B blocks co
 
 ### 1.5.1 `describe` topology layer (Session A.1 lock)
 - **✅ Reactive diff variant landed (2026-04-27):** `describe({ reactive: "diff" }): ReactiveDescribeHandle<DescribeChangeset>` — wired in [graph.ts](src/graph/graph.ts), backed by `_describeReactiveDiff` which wraps the existing snapshot stream and emits diffs via `topologyDiff` from [extra/composition/topology-diff.ts](src/extra/composition/topology-diff.ts). Initial cache is a synthetic full-add diff. Empty changesets suppressed. Snapshot variant (`reactive: true`) unchanged.
-- **⏳ `format` option removal — deferred to Tier 2.1:** drop pairs naturally with the renderer extraction so consumers and tests migrate atomically. Tracked there.
+- **✅ `format` option removal landed (2026-04-27, Tier 2.1 A2):** `describe({ format })` dropped; consumers compose `derived([describe({ reactive: true })], ([g]) => toMermaid(g))` using the new pure renderers in `extra/render/`.
 - **Diff envelope:**
   ```ts
   type DescribeChangeset = { events: ReadonlyArray<DescribeEvent>; flushedAt_ns: number };
@@ -224,12 +224,13 @@ Doc + light-migration locks for path-separator naming and data-level outcome/sta
 
 ## Tier 2 — Structural reorganization
 
-### 2.1 Consolidation Phase 1 — `extra/` folder split + renderer extraction
-- **From consolidation plan §"Phase 1":** Mechanical codemod splitting `operators.ts`, `sources.ts`, `adapters.ts`, `resilience.ts` into folder structures (`operators/`, `sources/`, `io/`, `resilience/`, `data-structures/`, `storage/`, `composition/`).
-- **From Session A.1 (carries Tier 1.5.1 deferred item):** Extract describe formatters into `extra/render/` as pure functions over `GraphDescribeOutput`:
-  - `toMermaid`, `toMermaidUrl`, `toAscii`, `toD2`, `toPretty`.
-  - Drop `format` option from `describe` API in the same change; consumers compose `describe → derived(toMermaid)` for live formatted output. Migrate ~10 in-tree consumers ([loop.ts](src/patterns/harness/loop.ts), [demo-shell/index.ts](src/patterns/demo-shell/index.ts), [llm-memory.ts](src/patterns/ai/memory/llm-memory.ts), [streaming.ts](src/patterns/ai/prompts/streaming.ts), [describe-ascii.ts](src/graph/describe-ascii.ts), tests in [graph.test.ts](src/__tests__/graph/graph.test.ts), [codec.test.ts](src/__tests__/graph/codec.test.ts), [describe-ascii.test.ts](src/__tests__/graph/describe-ascii.test.ts), [ai.test.ts](src/__tests__/patterns/ai.test.ts), [adapters.storage.test.ts](src/__tests__/extra/adapters.storage.test.ts)).
-- No renames, no behavior change. `assertBrowserSafeBundles` guardrail still applies.
+### 2.1 Consolidation Phase 1 — `extra/` folder split + renderer extraction ✅ landed (2026-04-27, parallel agent batch)
+
+**A1 — extra/ folder split** (commit `fd2734a`, 52 files): four mega-files (`operators.ts` 2,664 LOC, `sources.ts` 1,327 LOC, `adapters.ts` 4,594 LOC, `resilience.ts` 1,091 LOC) physically moved into category folders (`operators/`, `sources/`, `io/`, `resilience/`, `data-structures/`, `storage/`, `composition/`). Top-level paths kept as thin re-export shims so consumer imports keep working. **Note (deviation from plan):** physical mega-file relocation only — the further per-category sub-file split inside each folder (e.g. `operators/{transform,take,combine,...}.ts`) is **deferred to a follow-up batch**. Sub-files exist as discoverable barrels but the canonical body still lives in `<folder>/index.ts`. This preserves zero-risk semantics for all internal cross-references and lets the per-protocol split (esp. `io/` which contains ~25 protocol adapters: Kafka/Redis/NATS/RabbitMQ/Pulsar/MCP/OTel/Syslog/StatsD/Prometheus/ClickHouse/S3/Postgres/MongoDB/Loki/Tempo/SQLite/Prisma/Drizzle/Kysely/CSV/NDJSON/file-sinks) happen as a separate, easier-to-review batch.
+
+**A2 — Renderer extraction + `format` drop** (commit `f3b9b63`, 20 files): pure renderers `toMermaid` / `toMermaidUrl` / `toAscii` / `toD2` / `toPretty` / `toJson` extracted to new `src/extra/render/*` (dedicated subpath `@graphrefly/graphrefly/extra/render` — large strings shouldn't pull the full extra surface). `Graph.describe({ format })` overloads + dispatch removed; consumers compose `describe → derived(toMermaid)` for live formatted output. `_layout-sugiyama.ts` / `_ascii-grid.ts` / `_ascii-width.ts` moved alongside `to-ascii.ts`. 5 in-tree consumers migrated.
+
+`assertBrowserSafeBundles` green. 2419 tests passing.
 
 ### 2.2 Consolidation Phase 2 — promotions to `extra/`
 - Promote `lightMutation`, `wrapMutation`, `BaseAuditRecord`, `createAuditLog`, `tryIncrementBounded` → `extra/mutation/`.
@@ -504,11 +505,11 @@ Tier 10 — anytime; low priority
 **Critical path:** Tier 1.5 (graph-module API additions) → Tier 2 (mechanical reorg) → Tier 3 (parallel audits) → Tier 4+5 (parallel) → Tier 6 → Tier 8 → Tier 9.
 
 **Recommended kickoff order:**
-1. Land Tier 1.1 spec amendment + Tier 1.6.1 COMPOSITION-GUIDE §38 (doc-only edits in `~/src/graphrefly`).
-2. Run Session C (Tier 1.2) — short, can happen alongside other work.
-3. Implement Tier 1.5.1 + 1.5.2 (describe-diff, observe-reactive, tiers filter) — they unblock Tier 5.3 graphLens preset.
-4. Implement Tier 1.5.3 (GraphSpec ≡ GraphDescribeOutput) — touches factories; do early so later code writes to the unified shape.
-5. Land Tier 2.1 reorg (mechanical split + renderer extraction).
-6. Branch off Tier 3 audits in parallel with Tier 2.2 + 2.3.
+1. ✅ Land Tier 1.1 spec amendment + Tier 1.6.1 COMPOSITION-GUIDE §38 (doc-only edits in `~/src/graphrefly`).
+2. ✅ Run Session C (Tier 1.2) — short, can happen alongside other work.
+3. ✅ Implement Tier 1.5.1 + 1.5.2 (describe-diff, observe-reactive, tiers filter) — they unblock Tier 5.3 graphLens preset.
+4. ✅ Implement Tier 1.5.3 (GraphSpec ≡ GraphDescribeOutput) — Phases 1, 2, 2.5, 3 all landed.
+5. ✅ Land Tier 2.1 reorg (mechanical split + renderer extraction). **Carry:** per-category sub-file split inside `operators/` / `sources/` / `io/` / `resilience/` — physical mega-file move done; canonical body still lives in each `<folder>/index.ts`. Schedule the per-protocol split in a follow-up batch.
+6. **← NEXT.** Branch off Tier 3 audits in parallel with Tier 2.2 + 2.3.
 7. Pick up Tier 4 + 5 once 2.2 is in.
 8. Tier 6 harness composition once Sessions A+B locks have implementation room (post Tier 1.5 + Tier 5).
