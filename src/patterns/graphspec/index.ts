@@ -1079,12 +1079,34 @@ export function decompileSpec(graph: Graph): GraphSpec {
 	const feedbackCounterPattern = /^__feedback_(?!effect_)(.+)$/;
 	const feedbackEdges: GraphSpecFeedbackEdge[] = [];
 
+	// qa D1 — Pre-pass: collect paths whose own node carries `meta.factory`.
+	// These are "factory parents" (e.g. `prompt_node` for the `promptNode`
+	// compound factory). Their `::`-prefixed sibling paths (`prompt_node::messages`,
+	// `prompt_node::output`, etc.) are factory-internal and SHOULD NOT round-trip
+	// as separate spec nodes — `compileSpec` will recreate them when the factory
+	// runs against the parent's `meta.factory` / `meta.factoryArgs` tag. Without
+	// this filter, every compound-factory internal would be emitted as a top-level
+	// spec node, then `compileSpec` would try to re-add them via `g.add(nd, {name})`
+	// alongside the factory's own outputs — duplicate-name failures or split topology.
+	const compoundFactoryPrefixes = new Set<string>();
+	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
+		const meta = nodeDesc.meta as Record<string, unknown> | undefined;
+		if (meta?.factory != null && !path.includes("::")) {
+			compoundFactoryPrefixes.add(path);
+		}
+	}
+
 	// Build the spec-shaped node map by walking describe's output. Strip
-	// meta-companion paths and bridge / feedback-effect internals; preserve
-	// everything else verbatim.
+	// meta-companion paths, bridge / feedback-effect internals, AND compound-
+	// factory `::` internals (per pre-pass above); preserve everything else verbatim.
 	const nodes: Record<string, GraphSpecNode | GraphSpecTemplateRef> = {};
 	for (const [path, nodeDesc] of Object.entries(desc.nodes)) {
 		if (path.includes(metaSegment)) continue;
+
+		// qa D1 — skip compound-factory `::` internals (e.g. `prompt_node::messages`)
+		// when their parent is a tagged factory. The factory recreates them.
+		const sepIdx = path.indexOf("::");
+		if (sepIdx > 0 && compoundFactoryPrefixes.has(path.slice(0, sepIdx))) continue;
 
 		const match = feedbackCounterPattern.exec(path);
 		if (match) {
