@@ -191,7 +191,11 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { NS_PER_SEC } = await import("../../extra/backoff.js");
 
 		const src = state(0);
-		const limited = rateLimiter(src, { maxEvents: 5, windowNs: NS_PER_SEC });
+		const { node: limited } = rateLimiter(src, {
+			maxEvents: 5,
+			windowNs: NS_PER_SEC,
+			maxBuffer: Infinity,
+		});
 		const off = limited.subscribe(() => {});
 
 		const g = new Graph("g");

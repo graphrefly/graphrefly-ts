@@ -45,8 +45,14 @@ import {
 
 /** Options for {@link resilientPipeline}. Every field is optional — omit to skip that layer. */
 export interface ResilientPipelineOptions<T> {
-	/** Admission control — at most `maxEvents` DATA per `windowNs`. See {@link rateLimiter}. */
-	rateLimit?: RateLimiterOptions;
+	/**
+	 * Admission control — at most `maxEvents` DATA per `windowNs`. See {@link rateLimiter}.
+	 *
+	 * `maxBuffer` is optional at the pipeline layer (defaults to `Infinity`, preserving
+	 * the historical unbounded behavior). Pass an explicit positive integer to opt in to
+	 * a bounded queue. Tier 5.2 will surface backpressure-policy options to callers.
+	 */
+	rateLimit?: Omit<RateLimiterOptions, "maxBuffer"> & { maxBuffer?: number };
 	/** Cost/constraint gate. See {@link budgetGate}. */
 	budget?: ReadonlyArray<BudgetConstraint>;
 	/** Circuit breaker — fail-fast when the downstream resource is unhealthy. See {@link circuitBreaker}. */
@@ -116,7 +122,15 @@ export function resilientPipeline<T>(
 
 	// 1. Admission control — cheapest to drop / queue before any other work.
 	if (opts.rateLimit != null) {
-		current = rateLimiter(current, opts.rateLimit);
+		// `maxBuffer` is required at the primitive level. `resilientPipeline` does not yet
+		// expose backpressure-policy choices to its caller (Tier 5.2 will revisit), so
+		// preserve the prior unbounded behavior by defaulting to `Infinity` when the
+		// caller didn't pass one.
+		const rateOpts: RateLimiterOptions = {
+			...opts.rateLimit,
+			maxBuffer: opts.rateLimit.maxBuffer ?? Infinity,
+		};
+		current = rateLimiter(current, rateOpts).node;
 	}
 
 	// 2. Budget — block when constraints are exhausted. Also cheap (no I/O).

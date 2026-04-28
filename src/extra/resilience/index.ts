@@ -34,6 +34,7 @@ import {
 } from "../backoff.js";
 import { fromAny } from "../sources.js";
 import { ResettableTimer } from "../timer.js";
+import { RingBuffer } from "../utils/ring-buffer.js";
 
 type ExtraOpts = Omit<NodeOptions, "describeKind">;
 
@@ -57,7 +58,13 @@ function coerceDelayNs(raw: number): number {
 }
 
 export type RetryOptions = {
-	/** Max retry attempts after each terminal `ERROR` (not counting the first failure). */
+	/**
+	 * Max retry attempts after each terminal `ERROR` (not counting the first failure).
+	 *
+	 * **Required when `backoff` is set.** Pass `Infinity` to opt in to unbounded retries
+	 * — the explicit value rules out the silent-infinite-budget footgun (a flaky provider
+	 * + exponential backoff + omitted `count` would previously default to ~2.1B retries).
+	 */
 	count?: number;
 	/** Delay between attempts; strategies use **nanoseconds**. */
 	backoff?: BackoffStrategy | BackoffPreset;
@@ -68,6 +75,150 @@ export type RetryFactoryOptions<T> = RetryOptions & {
 	/** Initial cache value for the outer node before the factory runs the first time. */
 	initial?: T;
 };
+
+/**
+ * Resolved retry config shared by source-mode and factory-mode wrappers.
+ * Centralises the unbounded-retry footgun guard and strategy resolution.
+ */
+type ResolvedRetryConfig = {
+	maxRetries: number;
+	strategy: BackoffStrategy | null;
+};
+
+function resolveRetryConfig(opts?: RetryOptions): ResolvedRetryConfig {
+	const count = opts?.count;
+	const backoffOpt = opts?.backoff;
+
+	// Unbounded-retry footgun fix: if `backoff` is set without explicit `count`,
+	// throw at construction time. Caller must opt in to `Infinity` for unbounded.
+	if (backoffOpt !== undefined && count === undefined) {
+		throw new RangeError(
+			"retry({ backoff }) requires explicit count to prevent unbounded retries; pass { count: <n>, backoff: ... }",
+		);
+	}
+
+	const maxRetries = count !== undefined ? count : 0;
+	if (maxRetries < 0) throw new RangeError("retry count must be >= 0");
+
+	const strategy: BackoffStrategy | null =
+		backoffOpt === undefined
+			? null
+			: typeof backoffOpt === "string"
+				? resolveBackoffPreset(backoffOpt)
+				: backoffOpt;
+
+	return { maxRetries, strategy };
+}
+
+function retryFactoryArgs(opts?: RetryOptions): Record<string, unknown> | undefined {
+	const args: Record<string, unknown> = {};
+	if (opts?.count !== undefined) args.count = opts.count;
+	if (typeof opts?.backoff === "string") args.backoff = opts.backoff;
+	return Object.keys(args).length > 0 ? args : undefined;
+}
+
+/**
+ * Shared retry state machine. Both `_retrySource` and `_retryFactory` thin-wrap this:
+ * the only per-mode logic is supplied via `acquireSource` (returns a fresh `Node<T>`
+ * per attempt — for source-mode it just returns the captured `Node`; for factory-mode
+ * it calls the user factory and forwards synchronous throws into the same retry path).
+ */
+function _runRetryStateMachine<T>(
+	cfg: ResolvedRetryConfig,
+	acquireSource: () => Node<T>,
+	a: { emit: (v: T) => void; down: (msgs: Message[]) => void },
+): () => void {
+	let attempt = 0;
+	let stopped = false;
+	let prevDelay: number | null = null;
+	let unsub: (() => void) | undefined;
+	const timer = new ResettableTimer();
+
+	function disconnectUpstream(): void {
+		unsub?.();
+		unsub = undefined;
+	}
+
+	function scheduleRetryOrFinish(err: unknown): void {
+		if (stopped) return;
+		if (attempt >= cfg.maxRetries) {
+			disconnectUpstream();
+			a.down([[ERROR, err]]);
+			return;
+		}
+		const raw = cfg.strategy === null ? 0 : cfg.strategy(attempt, err, prevDelay);
+		// null from strategy = "stop retrying" (e.g. withMaxAttempts cap reached)
+		if (raw === null || raw === undefined) {
+			disconnectUpstream();
+			a.down([[ERROR, err]]);
+			return;
+		}
+		// A misbehaving strategy (returns NaN / non-finite / negative) MUST NOT
+		// escape into the upstream drain. Treat it like `strategy === null`
+		// (stop retrying) and emit the original error — the strategy bug is a
+		// separate concern the user can inspect via the emitted error's stack.
+		let delayNs: number;
+		try {
+			delayNs = coerceDelayNs(raw);
+		} catch {
+			disconnectUpstream();
+			a.down([[ERROR, err]]);
+			return;
+		}
+		prevDelay = delayNs;
+		attempt += 1;
+		disconnectUpstream();
+		// `Math.max(1, …)` floor: every backoff schedule floors at 1ms even when
+		// the strategy returns 0ns. Avoids 0-delay re-entrancy on the active
+		// stack frame (which would risk stack overflow on a tight ERROR loop).
+		const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
+		// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
+		// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
+		timer.start(delayMs, () => {
+			if (stopped) return;
+			connect();
+		});
+	}
+
+	function connect(): void {
+		timer.cancel();
+		disconnectUpstream();
+		let src: Node<T>;
+		try {
+			src = acquireSource();
+		} catch (err) {
+			scheduleRetryOrFinish(err);
+			return;
+		}
+		unsub = src.subscribe((msgs) => {
+			if (stopped) return;
+			for (const m of msgs) {
+				const t = m[0];
+				if (t === DIRTY) a.down([[DIRTY]]);
+				else if (t === DATA) {
+					attempt = 0;
+					prevDelay = null;
+					a.emit(m[1] as T);
+				} else if (t === RESOLVED) a.down([[RESOLVED]]);
+				else if (t === COMPLETE) {
+					disconnectUpstream();
+					a.down([[COMPLETE]]);
+				} else if (t === ERROR) {
+					scheduleRetryOrFinish(msgVal(m));
+					return;
+				} else a.down([m]);
+			}
+		});
+	}
+
+	connect();
+
+	return () => {
+		stopped = true;
+		timer.cancel();
+		disconnectUpstream();
+	};
+}
 
 /**
  * Retry operator — two modes selected by the type of `input`:
@@ -82,11 +233,15 @@ export type RetryFactoryOptions<T> = RetryOptions & {
  * same retry pipeline as inner-node ERROR.
  *
  * @param input - Upstream node or factory that returns a fresh node per attempt.
- * @param opts - `count` caps attempts; `backoff` supplies delay in **nanoseconds** (or a preset name); `initial` seeds the outer node cache (factory mode only).
+ * @param opts - `count` caps attempts (**required when `backoff` is set**; pass `Infinity` to opt in to unbounded); `backoff` supplies delay in **nanoseconds** (or a preset name); `initial` seeds the outer node cache (factory mode only).
  * @returns Node that retries on error.
+ *
+ * @throws {RangeError} when `backoff` is provided without an explicit `count` (unbounded-retry footgun guard) or when `count < 0`.
  *
  * @remarks
  * **Protocol:** Forwards unknown message tuples unchanged; handles `DIRTY`, `DATA`, `RESOLVED`, `COMPLETE`, `ERROR`.
+ *
+ * **Backoff floor:** every scheduled delay is floored at 1ms via `Math.max(1, delayNs / NS_PER_MS)` even when the strategy returns 0ns. This avoids 0-delay re-entrancy on the active stack frame on a tight ERROR loop. Strategies that return `null`/`undefined` stop retrying immediately and forward the original error.
  *
  * @example
  * ```ts
@@ -122,225 +277,22 @@ export function retry<T>(
 	return _retrySource(input, opts);
 }
 
-function retryFactoryArgs(opts?: RetryOptions): Record<string, unknown> | undefined {
-	const args: Record<string, unknown> = {};
-	if (opts?.count !== undefined) args.count = opts.count;
-	if (typeof opts?.backoff === "string") args.backoff = opts.backoff;
-	return Object.keys(args).length > 0 ? args : undefined;
-}
-
 function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
-	const count = opts?.count;
-	const backoffOpt = opts?.backoff;
-	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
-	if (maxRetries < 0) throw new RangeError("retry count must be >= 0");
-
-	const strategy: BackoffStrategy | null =
-		backoffOpt === undefined
-			? null
-			: typeof backoffOpt === "string"
-				? resolveBackoffPreset(backoffOpt)
-				: backoffOpt;
-
-	return producer<T>(
-		(a) => {
-			let attempt = 0;
-			let stopped = false;
-			let prevDelay: number | null = null;
-			let unsub: (() => void) | undefined;
-			const timer = new ResettableTimer();
-
-			function disconnectUpstream(): void {
-				unsub?.();
-				unsub = undefined;
-			}
-
-			function scheduleRetryOrFinish(err: unknown): void {
-				if (stopped) return;
-				if (attempt >= maxRetries) {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
-				// null from strategy = "stop retrying" (e.g. withMaxAttempts cap reached)
-				if (raw === null || raw === undefined) {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				// A misbehaving strategy (returns NaN / non-finite) MUST NOT
-				// escape into the upstream drain — treat it as "stop retrying"
-				// and emit the original error.
-				let delayNs: number;
-				try {
-					delayNs = coerceDelayNs(raw);
-				} catch {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				prevDelay = delayNs;
-				attempt += 1;
-				disconnectUpstream();
-				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
-				// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
-				// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
-				timer.start(delayMs, () => {
-					if (stopped) return;
-					connect();
-				});
-			}
-
-			function connect(): void {
-				timer.cancel();
-				disconnectUpstream();
-				unsub = source.subscribe((msgs) => {
-					if (stopped) return;
-					for (const m of msgs) {
-						const t = m[0];
-						if (t === DIRTY) a.down([[DIRTY]]);
-						else if (t === DATA) {
-							attempt = 0;
-							prevDelay = null;
-							a.emit(m[1] as T);
-						} else if (t === RESOLVED) a.down([[RESOLVED]]);
-						else if (t === COMPLETE) {
-							disconnectUpstream();
-							a.down([[COMPLETE]]);
-						} else if (t === ERROR) {
-							scheduleRetryOrFinish(msgVal(m));
-							return;
-						} else a.down([m]);
-					}
-				});
-			}
-
-			connect();
-
-			return () => {
-				stopped = true;
-				timer.cancel();
-				disconnectUpstream();
-			};
-		},
-		{
-			...operatorOpts(),
-			initial: source.cache,
-			meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
-		},
-	);
+	const cfg = resolveRetryConfig(opts);
+	return producer<T>((a) => _runRetryStateMachine(cfg, () => source, a), {
+		...operatorOpts(),
+		initial: source.cache,
+		meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
+	});
 }
 
 function _retryFactory<T>(factory: () => Node<T>, opts?: RetryFactoryOptions<T>): Node<T> {
-	const count = opts?.count;
-	const backoffOpt = opts?.backoff;
-	const maxRetries = count !== undefined ? count : backoffOpt === undefined ? 0 : 0x7fffffff;
-	if (maxRetries < 0) throw new RangeError("retry count must be >= 0");
-
-	const strategy: BackoffStrategy | null =
-		backoffOpt === undefined
-			? null
-			: typeof backoffOpt === "string"
-				? resolveBackoffPreset(backoffOpt)
-				: backoffOpt;
-
-	return producer<T>(
-		(a) => {
-			let attempt = 0;
-			let stopped = false;
-			let prevDelay: number | null = null;
-			let unsub: (() => void) | undefined;
-			const timer = new ResettableTimer();
-
-			function disconnectUpstream(): void {
-				unsub?.();
-				unsub = undefined;
-			}
-
-			function scheduleRetryOrFinish(err: unknown): void {
-				if (stopped) return;
-				if (attempt >= maxRetries) {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				const raw = strategy === null ? 0 : strategy(attempt, err, prevDelay);
-				if (raw === null || raw === undefined) {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				// A misbehaving strategy (returns NaN / non-finite / negative)
-				// MUST NOT escape into the upstream drain. Treat it like
-				// `strategy === null` (stop retrying) and emit the original
-				// error — the strategy bug is a separate concern the user
-				// can inspect via the emitted error's stack.
-				let delayNs: number;
-				try {
-					delayNs = coerceDelayNs(raw);
-				} catch {
-					disconnectUpstream();
-					a.down([[ERROR, err]]);
-					return;
-				}
-				prevDelay = delayNs;
-				attempt += 1;
-				disconnectUpstream();
-				const delayMs = delayNs > 0 ? delayNs / NS_PER_MS : 1;
-				// §5.10: setTimeout (not fromTimer) — retry delay needs clearTimeout/setTimeout;
-				// fromTimer creates a new Node per reset, adding lifecycle overhead per retry.
-				timer.start(delayMs, () => {
-					if (stopped) return;
-					connect();
-				});
-			}
-
-			function connect(): void {
-				timer.cancel();
-				disconnectUpstream();
-				let src: Node<T>;
-				try {
-					src = factory();
-				} catch (err) {
-					scheduleRetryOrFinish(err);
-					return;
-				}
-				unsub = src.subscribe((msgs) => {
-					if (stopped) return;
-					for (const m of msgs) {
-						const t = m[0];
-						if (t === DIRTY) a.down([[DIRTY]]);
-						else if (t === DATA) {
-							attempt = 0;
-							prevDelay = null;
-							a.emit(m[1] as T);
-						} else if (t === RESOLVED) a.down([[RESOLVED]]);
-						else if (t === COMPLETE) {
-							disconnectUpstream();
-							a.down([[COMPLETE]]);
-						} else if (t === ERROR) {
-							scheduleRetryOrFinish(msgVal(m));
-							return;
-						} else a.down([m]);
-					}
-				});
-			}
-
-			connect();
-
-			return () => {
-				stopped = true;
-				timer.cancel();
-				disconnectUpstream();
-			};
-		},
-		{
-			...operatorOpts(),
-			initial: opts?.initial as T | undefined,
-			meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
-		},
-	);
+	const cfg = resolveRetryConfig(opts);
+	return producer<T>((a) => _runRetryStateMachine(cfg, factory, a), {
+		...operatorOpts(),
+		initial: opts?.initial as T | undefined,
+		meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
+	});
 }
 
 export type CircuitState = "closed" | "open" | "half-open";
@@ -366,7 +318,12 @@ export interface CircuitBreakerOptions {
 	cooldown?: BackoffStrategy;
 	/** Max trial requests allowed in half-open state. Default: 1. */
 	halfOpenMax?: number;
-	/** Clock function returning nanoseconds (for testability). Default: `monotonicNs`. */
+	/**
+	 * Clock function returning **nanoseconds** with `monotonicNs()` semantics
+	 * (monotonically non-decreasing; suitable for elapsed-time arithmetic — never
+	 * use `Date.now()` because wall-clock skew can flip elapsed math negative).
+	 * Default: `monotonicNs` from `core/clock`. Override for deterministic tests.
+	 */
 	now?: () => number;
 }
 
@@ -377,7 +334,13 @@ export interface CircuitBreaker {
 	recordSuccess(): void;
 	/** Record a failed execution. May transition to open. */
 	recordFailure(error?: unknown): void;
-	/** Current circuit state (read-only, does not trigger transitions). */
+	/**
+	 * Current circuit state (read-only, does not trigger transitions).
+	 *
+	 * **Telemetry:** wrap with {@link withBreaker} to surface this as a reactive
+	 * `Node<CircuitState>` companion (`bundle.breakerState`) — every state
+	 * transition (`closed`/`open`/`half-open`) emits to subscribers.
+	 */
 	readonly state: CircuitState;
 	/** Number of consecutive failures in the current closed period. */
 	readonly failureCount: number;
@@ -516,6 +479,8 @@ export type WithBreakerBundle<T> = {
  * @remarks
  * **Success path:** `COMPLETE` calls {@link CircuitBreaker.recordSuccess}. **Failure path:** upstream `ERROR` calls {@link CircuitBreaker.recordFailure} and is forwarded.
  *
+ * **State telemetry:** `breakerState: Node<CircuitState>` is a reactive companion that mirrors `breaker.state` — every transition (`closed`/`open`/`half-open`) emits a `DATA`. Also accessible via `node.meta.breakerState` for `describe()` traversal.
+ *
  * @example
  * ```ts
  * import { state, withBreaker, circuitBreaker } from "@graphrefly/graphrefly-ts";
@@ -585,7 +550,14 @@ export function withBreaker<T>(
 }
 
 export interface TokenBucket {
-	/** Number of tokens currently available (after refill). */
+	/**
+	 * Number of tokens currently available (after refill).
+	 *
+	 * **Float-valued.** When `refillPerSecond` is fractional (or `capacity` × elapsed-fraction
+	 * yields a non-integer), the bucket accumulates fractional refill credit between
+	 * `tryConsume`s. Consumers should not assume integer tokens — e.g. with
+	 * `tokenBucket(10, 2.5)` after 100ms of elapsed time `available()` may report `0.25`.
+	 */
 	available(): number;
 	/** Try to consume `cost` tokens. Returns `true` if successful. */
 	tryConsume(cost?: number): boolean;
@@ -599,12 +571,33 @@ export interface TokenBucket {
 	putBack(cost?: number): void;
 }
 
+/** Optional configuration for {@link tokenBucket}. */
+export interface TokenBucketOptions {
+	/**
+	 * Clock function returning **nanoseconds** with `monotonicNs()` semantics
+	 * (monotonically non-decreasing). Default: `monotonicNs` from `core/clock`.
+	 * Override for deterministic tests — eliminates the need for `vi.useFakeTimers`
+	 * to drive token-refill scheduling.
+	 */
+	clock?: () => number;
+}
+
 /**
  * Token-bucket meter (capacity + refill rate per second). Use with {@link rateLimiter} or custom gates.
  *
  * @param capacity - Maximum tokens (must be positive).
- * @param refillPerSecond - Tokens added per elapsed second (non-negative).
+ * @param refillPerSecond - Tokens added per elapsed second (non-negative; may be fractional).
+ * @param opts - Optional `clock` override for deterministic testing.
  * @returns {@link TokenBucket} instance.
+ *
+ * @remarks
+ * **Float behavior:** the internal token counter is float-valued — fractional refill
+ * accumulates between `tryConsume` calls. See {@link TokenBucket.available} for caveats.
+ *
+ * **Clock injection:** pass `opts.clock` to drive refill scheduling deterministically
+ * in tests. The contract matches {@link circuitBreaker}'s `now` option: must return
+ * `monotonicNs()`-style nanoseconds, never `Date.now()` (wall-clock skew breaks
+ * elapsed math).
  *
  * @example
  * ```ts
@@ -612,17 +605,30 @@ export interface TokenBucket {
  *
  * const bucket = tokenBucket(10, 2); // capacity 10, refill 2 tokens/sec
  * bucket.tryConsume(3); // true — 7 tokens remaining
- * bucket.available();   // ~7 (plus any elapsed refill)
+ * bucket.available();   // ~7 (plus any elapsed refill — float-valued)
+ *
+ * // Deterministic test:
+ * let t = 0;
+ * const tb = tokenBucket(5, 1, { clock: () => t });
+ * tb.tryConsume(5);    // exhausts
+ * t = 1_000_000_000;   // advance 1s → +1 refill
+ * tb.tryConsume(1);    // true
  * ```
  *
  * @category extra
  */
-export function tokenBucket(capacity: number, refillPerSecond: number): TokenBucket {
+export function tokenBucket(
+	capacity: number,
+	refillPerSecond: number,
+	opts?: TokenBucketOptions,
+): TokenBucket {
 	if (capacity <= 0) throw new RangeError("capacity must be > 0");
 	if (refillPerSecond < 0) throw new RangeError("refillPerSecond must be >= 0");
 
+	const clock = opts?.clock ?? monotonicNs;
+
 	let tokens = capacity;
-	let updatedAt = monotonicNs();
+	let updatedAt = clock();
 
 	function refill(now: number): void {
 		if (refillPerSecond > 0) {
@@ -634,12 +640,12 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 
 	return {
 		available(): number {
-			refill(monotonicNs());
+			refill(clock());
 			return tokens;
 		},
 		tryConsume(cost = 1): boolean {
 			if (cost <= 0) return true;
-			const now = monotonicNs();
+			const now = clock();
 			refill(now);
 			if (tokens >= cost) {
 				tokens -= cost;
@@ -649,7 +655,7 @@ export function tokenBucket(capacity: number, refillPerSecond: number): TokenBuc
 		},
 		putBack(cost = 1): void {
 			if (cost <= 0) return;
-			refill(monotonicNs());
+			refill(clock());
 			tokens = Math.min(capacity, tokens + cost);
 		},
 	};
@@ -662,8 +668,16 @@ export type RateLimiterOptions = {
 	maxEvents: number;
 	/** Window length in nanoseconds (must be > 0). */
 	windowNs: number;
-	/** Cap on items queued while waiting for token refill (must be >= 1). Unbounded if omitted. */
-	maxBuffer?: number;
+	/**
+	 * Cap on items queued while waiting for token refill.
+	 *
+	 * **Required.** Pass a finite positive integer (>= 1) for a bounded queue, OR
+	 * the literal `Infinity` to opt in to an unbounded queue (caller acknowledges
+	 * the unbounded-memory-growth risk on a high-rate source). Omitting this
+	 * throws at construction time — the silent-unbounded-buffer footgun is the
+	 * most common rateLimiter mis-configuration.
+	 */
+	maxBuffer: number;
 	/** Overflow policy when `maxBuffer` is exceeded. Default: `"drop-newest"`. */
 	onOverflow?: RateLimiterOverflowPolicy;
 };
@@ -680,19 +694,43 @@ export class RateLimiterOverflowError extends Error {
 	}
 }
 
+/** Bundle returned by {@link rateLimiter}. */
+export type RateLimiterBundle<T> = {
+	/** The throttled stream — at most `maxEvents` `DATA` per `windowNs`. */
+	node: Node<T>;
+	/**
+	 * Reactive companion: count of `DATA` items dropped since subscription start.
+	 *
+	 * - Increments on every drop under any overflow policy (`drop-newest`,
+	 *   `drop-oldest`). The `error` policy terminates the stream after a single
+	 *   overflow, so `droppedCount` increments at most once in that path.
+	 * - Resets to `0` on terminal (`COMPLETE` / `ERROR` / `TEARDOWN`) — i.e. the
+	 *   counter scopes to the active subscription cycle.
+	 * - Producer-pattern note: this companion is invisible to `describe()`
+	 *   traversal from `node` (effect-mirror limitation; same shape as
+	 *   `withBreaker.breakerState` and `withStatus.status`). Surface it via
+	 *   `node.meta.droppedCount` if you need it in topology snapshots.
+	 */
+	droppedCount: Node<number>;
+};
+
 /**
  * Token-bucket rate limiter: at most `maxEvents` `DATA` values per `windowNs`.
  *
  * Uses {@link tokenBucket} internally (capacity = `maxEvents`, refill = `maxEvents / windowSeconds`).
- * Excess items are queued FIFO until a token is available. The queue may be bounded via
- * `maxBuffer` with a configurable overflow policy.
+ * Excess items are queued FIFO (in a fixed-capacity {@link RingBuffer} for O(1) push/shift)
+ * until a token is available. The queue is bounded by the **required** `maxBuffer` option
+ * with a configurable overflow policy.
  *
  * @param source - Upstream node.
- * @param opts - Rate + optional bounded-buffer configuration.
- * @returns Node that emits DATA at most `maxEvents` per `windowNs`.
+ * @param opts - Rate + bounded-buffer configuration. `maxBuffer` is required (use `Infinity` to opt in to unbounded).
+ * @returns `{ node, droppedCount }` bundle. Subscribe to `node` for the throttled stream and to `droppedCount` for backpressure pressure.
+ *
+ * @throws {RangeError} when `maxEvents` / `windowNs` is non-positive, when `maxBuffer` is omitted, or when `maxBuffer` is a finite value < 1.
  *
  * @remarks
- * **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue, and propagate.
+ * **Terminal:** `COMPLETE` / `ERROR` cancel the refill timer, drop the pending queue,
+ * reset `droppedCount` to `0`, and propagate.
  *
  * @example
  * ```ts
@@ -700,31 +738,63 @@ export class RateLimiterOverflowError extends Error {
  *
  * const src = state(0);
  * // Allow at most 5 DATA values per second; queue up to 100 excess items, drop newest beyond.
- * const limited = rateLimiter(src, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 100 });
+ * const { node: limited, droppedCount } = rateLimiter(src, {
+ *   maxEvents: 5,
+ *   windowNs: NS_PER_SEC,
+ *   maxBuffer: 100,
+ * });
+ * droppedCount.subscribe(([m]) => console.log("dropped so far:", m[1]));
  * ```
  *
  * @category extra
  */
-export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<T> {
+export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateLimiterBundle<T> {
 	const { maxEvents, windowNs } = opts;
 	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
 	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
 	const maxBuffer = opts.maxBuffer;
-	if (maxBuffer !== undefined && maxBuffer < 1) throw new RangeError("maxBuffer must be >= 1");
+	if (maxBuffer === undefined) {
+		throw new RangeError(
+			"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
+		);
+	}
+	// Allow `Infinity` for opt-in unbounded; otherwise require a positive integer.
+	const isUnbounded = maxBuffer === Infinity;
+	if (!isUnbounded && (!Number.isInteger(maxBuffer) || maxBuffer < 1)) {
+		throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
+	}
 	const onOverflow: RateLimiterOverflowPolicy = opts.onOverflow ?? "drop-newest";
 	const refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
 
-	return producer<T>(
+	const out = producer<T>(
 		(a) => {
 			const bucket = tokenBucket(maxEvents, refillPerSec);
-			const pending: T[] = [];
+			// RingBuffer for O(1) push + shift. Unbounded mode falls back to a plain
+			// array (RingBuffer requires a positive integer capacity); the caller
+			// explicitly opted in via `maxBuffer: Infinity` and accepts the cost.
+			const pending: { push: (v: T) => void; shift: () => T | undefined; size: number } =
+				isUnbounded ? makeArrayQueue<T>() : ringBufferQueue<T>(maxBuffer);
 			const timer = new ResettableTimer();
 			let terminated = false;
+			let dropped = 0;
 
 			const tokenTimeNs = NS_PER_SEC / refillPerSec;
 
+			// Mirror the dropped counter to the meta companion. The `emit` call is
+			// the same subscribe-callback effect-mirror pattern used by
+			// `withBreaker.breakerState` / `withStatus.status` (sanctioned per
+			// audit § F.7).
+			const droppedNode = out.meta.droppedCount;
+			function syncDropped(): void {
+				droppedNode.emit(dropped);
+			}
+
+			// Reset for this subscription cycle (state may have ended at >0 in a
+			// prior subscription).
+			if ((droppedNode.cache as number | undefined) !== 0) syncDropped();
+
 			function tryEmit(): void {
-				while (pending.length > 0) {
+				while (pending.size > 0) {
 					if (bucket.tryConsume(1)) {
 						a.emit(pending.shift() as T);
 					} else {
@@ -738,22 +808,36 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<
 				}
 			}
 
+			function recordDrop(): void {
+				dropped += 1;
+				syncDropped();
+			}
+
+			function resetForTerminal(): void {
+				terminated = true;
+				timer.cancel();
+				// RingBuffer.clear-equivalent: drain remaining slots so refs GC.
+				while (pending.size > 0) pending.shift();
+				dropped = 0;
+				syncDropped();
+			}
+
 			const unsub = source.subscribe((msgs) => {
 				for (const m of msgs) {
 					if (terminated) return;
 					const t = m[0];
 					if (t === DIRTY) a.down([[DIRTY]]);
 					else if (t === DATA) {
-						if (maxBuffer !== undefined && pending.length >= maxBuffer) {
+						if (!isUnbounded && pending.size >= maxBuffer) {
 							if (onOverflow === "drop-newest") {
-								// silently drop the incoming item
+								recordDrop();
 							} else if (onOverflow === "drop-oldest") {
 								pending.shift();
 								pending.push(m[1] as T);
+								recordDrop();
 							} else {
-								terminated = true;
-								timer.cancel();
-								pending.length = 0;
+								recordDrop();
+								resetForTerminal();
 								a.down([[ERROR, new RateLimiterOverflowError(maxBuffer)]]);
 								return;
 							}
@@ -763,19 +847,13 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<
 						tryEmit();
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
-						terminated = true;
-						timer.cancel();
-						pending.length = 0;
+						resetForTerminal();
 						a.down([[COMPLETE]]);
 					} else if (t === ERROR) {
-						terminated = true;
-						timer.cancel();
-						pending.length = 0;
+						resetForTerminal();
 						a.down([m]);
 					} else if (t === TEARDOWN) {
-						terminated = true;
-						timer.cancel();
-						pending.length = 0;
+						resetForTerminal();
 						a.down([m]);
 						return;
 					} else a.down([m]);
@@ -791,9 +869,51 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): Node<
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...factoryTag("rateLimiter", opts) },
+			meta: { droppedCount: 0, ...factoryTag("rateLimiter", opts) },
 		},
 	);
+
+	return { node: out, droppedCount: out.meta.droppedCount as Node<number> };
+}
+
+/**
+ * RingBuffer-backed queue adapter — exposes the small `{ push, shift, size }`
+ * shape rateLimiter needs without leaking the rest of `RingBuffer`'s API.
+ */
+function ringBufferQueue<T>(capacity: number): {
+	push: (v: T) => void;
+	shift: () => T | undefined;
+	size: number;
+} {
+	const buf = new RingBuffer<T>(capacity);
+	return {
+		push: (v: T) => buf.push(v),
+		shift: () => buf.shift(),
+		get size(): number {
+			return buf.size;
+		},
+	} as { push: (v: T) => void; shift: () => T | undefined; size: number };
+}
+
+/**
+ * Plain-array fallback queue for `maxBuffer: Infinity`. Accepts the O(N) shift
+ * cost — the caller opted in to unbounded growth.
+ */
+function makeArrayQueue<T>(): {
+	push: (v: T) => void;
+	shift: () => T | undefined;
+	size: number;
+} {
+	const arr: T[] = [];
+	return {
+		push: (v: T) => {
+			arr.push(v);
+		},
+		shift: () => arr.shift(),
+		get size(): number {
+			return arr.length;
+		},
+	} as { push: (v: T) => void; shift: () => T | undefined; size: number };
 }
 
 export type StatusValue = "pending" | "running" | "completed" | "errored";
@@ -809,10 +929,25 @@ export type WithStatusBundle<T> = {
  *
  * @param src - Upstream node to mirror.
  * @param options - `initialStatus` defaults to `"pending"`.
- * @returns `{ node, status, error }` where `error` holds the last `ERROR` payload.
+ * @returns `{ node, status, error }` where `out` is the mirrored stream, `status` is a
+ *   reactive `Node<StatusValue>` (`"pending" | "running" | "completed" | "errored"`),
+ *   and `error` holds the last `ERROR` payload (cleared to `null` on the next `DATA`
+ *   after `errored`).
  *
  * @remarks
- * **Recovery:** After `errored`, the next `DATA` clears `error` and sets `active` inside {@link batch} (matches graphrefly-py).
+ * **Lifecycle:** `pending` (no DATA yet) → `running` (on first DATA) → `completed`
+ * (on COMPLETE) or `errored` (on ERROR). After `errored`, the next `DATA` clears
+ * `error` and re-enters `running` inside a {@link batch} so subscribers see one
+ * consistent transition (matches graphrefly-py).
+ *
+ * **Producer-pattern visibility:** `out` is built via `node([], fn, …)`, so `src`
+ * appears as the source dependency in `describe()` traversal but the `status` /
+ * `error` companions are mirrored via subscribe-callback effects — they appear
+ * under `out.meta.status` / `out.meta.error` (and as `<name>::__meta__::status`
+ * paths in `describe()`) rather than as separate top-level edges. Subscribers
+ * to `out` see the throttled DATA stream; `status` / `error` companions may not
+ * appear as edges in `describe()` if no consumer subscribes to them (per
+ * COMPOSITION-GUIDE §1, push-on-subscribe semantics).
  *
  * @example
  * ```ts
@@ -1023,8 +1158,13 @@ export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
  * the timer. Terminal messages (`COMPLETE`/`ERROR`) cancel the timer.
  *
  * @param source - Upstream node.
- * @param timeoutNs - Deadline in nanoseconds.
+ * @param timeoutNs - Deadline in **nanoseconds** (must be > 0). Internally converted to milliseconds for `setTimeout` scheduling.
  * @returns Node that errors on timeout.
+ *
+ * @throws {RangeError} when `timeoutNs <= 0`.
+ *
+ * @remarks
+ * **Scheduling:** internally uses {@link ResettableTimer} (raw `setTimeout`) per spec §5.10's resilience-operator carve-out. The deadline is `timeoutNs / NS_PER_MS` ms; sub-millisecond `timeoutNs` values get the same minimum-1ms host-scheduler granularity that `setTimeout` provides.
  *
  * @example
  * ```ts

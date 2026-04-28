@@ -169,9 +169,10 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ resubscribable: true },
 			);
-			// withMaxAttempts(constant(0), 2) → attempts 0,1 get 0 delay; attempt 2 → null → stop
+			// withMaxAttempts(constant(0), 2) → attempts 0,1 get 0 delay; attempt 2 → null → stop.
+			// `count: Infinity` because the strategy's null-return is what bounds the retries here.
 			const capped = withMaxAttempts(constant(0), 2);
-			const out = retry(src, { backoff: capped });
+			const out = retry(src, { count: Infinity, backoff: capped });
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(50);
 			const errors = batches.flat().filter((m) => m[0] === ERROR);
@@ -467,7 +468,11 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
 			vi.useFakeTimers();
 			const s = state(0);
-			const out = rateLimiter(s, { maxEvents: 1, windowNs: 1 * NS_PER_SEC });
+			const { node: out } = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 1 * NS_PER_SEC,
+				maxBuffer: Infinity,
+			});
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 1]]);
 			s.down([[DATA, 2]]);
@@ -493,7 +498,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("rateLimiter maxBuffer + drop-newest drops incoming overflow", () => {
 			const s = state(0);
-			const out = rateLimiter(s, {
+			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
 				maxBuffer: 1,
@@ -516,7 +521,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("rateLimiter maxBuffer + drop-oldest evicts the oldest pending item", () => {
 			const s = state(0);
-			const out = rateLimiter(s, {
+			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
 				maxBuffer: 1,
@@ -533,7 +538,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("rateLimiter maxBuffer + error emits RateLimiterOverflowError", () => {
 			const s = state(0);
-			const out = rateLimiter(s, {
+			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
 				maxBuffer: 1,
@@ -816,6 +821,213 @@ describe("extra resilience (roadmap §3.1)", () => {
 				),
 			).toBe(true);
 			unsub();
+		});
+	});
+
+	// ——————————————————————————————————————————————————————————————
+	//  Tier 3.1 — Supervisors footgun + dedup
+	// ——————————————————————————————————————————————————————————————
+
+	describe("Tier 3.1 footgun: retry({ backoff }) without count", () => {
+		it("source mode throws RangeError when backoff is set without count", () => {
+			const src = state(0);
+			expect(() => retry(src, { backoff: constant(0) })).toThrow(
+				/retry\(\{ backoff \}\) requires explicit count/,
+			);
+		});
+
+		it("factory mode throws RangeError when backoff is set without count", () => {
+			const factory = () => state(0);
+			expect(() => retry(factory, { backoff: constant(0) })).toThrow(
+				/retry\(\{ backoff \}\) requires explicit count/,
+			);
+		});
+
+		it("count: Infinity opts in to unbounded retries (no throw)", () => {
+			const src = state(0);
+			expect(() => retry(src, { count: Infinity, backoff: constant(0) })).not.toThrow();
+		});
+
+		it("backoff omitted does not require count (back-compat for default-zero retries)", () => {
+			const src = state(0);
+			expect(() => retry(src)).not.toThrow();
+			expect(() => retry(src, {})).not.toThrow();
+			expect(() => retry(src, { count: 5 })).not.toThrow();
+		});
+	});
+
+	describe("Tier 3.1 dedup: source/factory parity", () => {
+		it("identical retry behavior across source-mode and factory-mode on a sequence", async () => {
+			vi.useFakeTimers();
+			// Build a sequence that errors twice then emits 99.
+			let sourceRuns = 0;
+			const sharedSrc = producer<number>(
+				(a) => {
+					sourceRuns += 1;
+					if (sourceRuns < 3) a.down([[ERROR, new Error(`fail-${sourceRuns}`)]]);
+					else a.emit(99);
+				},
+				{ resubscribable: true },
+			);
+			const sourceOut = retry(sharedSrc, { count: 5, backoff: constant(0) });
+			const sourceCollect = collect(sourceOut);
+			await vi.advanceTimersByTimeAsync(50);
+
+			let factoryBuilds = 0;
+			const factoryOut = retry(
+				() => {
+					factoryBuilds += 1;
+					return producer<number>((a) => {
+						if (factoryBuilds < 3) a.down([[ERROR, new Error(`fail-${factoryBuilds}`)]]);
+						else a.emit(99);
+					});
+				},
+				{ count: 5, backoff: constant(0) },
+			);
+			const factoryCollect = collect(factoryOut);
+			await vi.advanceTimersByTimeAsync(50);
+
+			const sourceData = sourceCollect.batches.flat().filter((m) => m[0] === DATA);
+			const factoryData = factoryCollect.batches.flat().filter((m) => m[0] === DATA);
+			expect(sourceData.map((m) => m[1])).toEqual([99]);
+			expect(factoryData.map((m) => m[1])).toEqual([99]);
+			expect(sourceRuns).toBe(3);
+			expect(factoryBuilds).toBe(3);
+			sourceCollect.unsub();
+			factoryCollect.unsub();
+		});
+	});
+
+	// ——————————————————————————————————————————————————————————————
+	//  Tier 3.2 — Throttles & status footgun + companion + clock
+	// ——————————————————————————————————————————————————————————————
+
+	describe("Tier 3.2 footgun: rateLimiter without maxBuffer", () => {
+		it("throws RangeError when maxBuffer is omitted", () => {
+			const s = state(0);
+			expect(() => rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC } as never)).toThrow(
+				/rateLimiter requires explicit maxBuffer/,
+			);
+		});
+
+		it("accepts Infinity for opt-in unbounded buffer", () => {
+			const s = state(0);
+			expect(() =>
+				rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: Infinity }),
+			).not.toThrow();
+		});
+
+		it("accepts a positive integer maxBuffer", () => {
+			const s = state(0);
+			expect(() =>
+				rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 100 }),
+			).not.toThrow();
+		});
+
+		it("rejects fractional maxBuffer values", () => {
+			const s = state(0);
+			expect(() => rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 1.5 })).toThrow(
+				/maxBuffer must be a positive integer/,
+			);
+		});
+	});
+
+	describe("Tier 3.2 droppedCount reactive companion", () => {
+		it("increments on drop-newest overflow", () => {
+			const s = state(0);
+			const { node: out, droppedCount } = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "drop-newest",
+			});
+			const { unsub } = collect(out);
+			// push-on-subscribe consumes the only token; pending=[]. DATA 1 → queued (pending=1).
+			s.down([[DATA, 1]]);
+			expect(droppedCount.cache).toBe(0);
+			s.down([[DATA, 2]]); // overflow → drop
+			expect(droppedCount.cache).toBe(1);
+			s.down([[DATA, 3]]); // overflow → drop
+			expect(droppedCount.cache).toBe(2);
+			unsub();
+		});
+
+		it("increments on drop-oldest overflow", () => {
+			const s = state(0);
+			const { node: out, droppedCount } = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "drop-oldest",
+			});
+			const { unsub } = collect(out);
+			s.down([[DATA, 1]]); // queued
+			expect(droppedCount.cache).toBe(0);
+			s.down([[DATA, 2]]); // evicts 1, queues 2
+			expect(droppedCount.cache).toBe(1);
+			s.down([[DATA, 3]]); // evicts 2, queues 3
+			expect(droppedCount.cache).toBe(2);
+			unsub();
+		});
+
+		it("resets to 0 on terminal", () => {
+			const s = state(0, { resubscribable: true });
+			const { node: out, droppedCount } = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+				onOverflow: "drop-newest",
+			});
+			const { unsub } = collect(out);
+			s.down([[DATA, 1]]);
+			s.down([[DATA, 2]]); // dropped
+			s.down([[DATA, 3]]); // dropped
+			expect(droppedCount.cache).toBe(2);
+			s.down([[COMPLETE]]);
+			expect(droppedCount.cache).toBe(0);
+			unsub();
+		});
+
+		it("droppedCount appears as a reactive companion via node.meta", () => {
+			const s = state(0);
+			const bundle = rateLimiter(s, {
+				maxEvents: 1,
+				windowNs: 10 * NS_PER_SEC,
+				maxBuffer: 1,
+			});
+			expect(bundle.node.meta.droppedCount).toBe(bundle.droppedCount);
+			expect(bundle.droppedCount.cache).toBe(0);
+		});
+	});
+
+	describe("Tier 3.2 tokenBucket clock injection", () => {
+		it("uses injected clock for refill scheduling (no fake timers needed)", () => {
+			let now = 0;
+			const tb = tokenBucket(2, 1, { clock: () => now });
+			expect(tb.tryConsume(2)).toBe(true);
+			expect(tb.tryConsume(1)).toBe(false);
+
+			now = NS_PER_SEC; // advance 1s → +1 token
+			expect(tb.available()).toBe(1);
+			expect(tb.tryConsume(1)).toBe(true);
+			expect(tb.tryConsume(1)).toBe(false);
+
+			now = 3 * NS_PER_SEC; // advance 2s more → +2 tokens, capped at 2
+			expect(tb.available()).toBe(2);
+		});
+
+		it("default clock is monotonicNs (no opts param)", () => {
+			const tb = tokenBucket(5, 1);
+			expect(tb.available()).toBeGreaterThanOrEqual(0);
+		});
+
+		it("putBack honors injected clock for refill timing", () => {
+			const now = 0;
+			const tb = tokenBucket(3, 0, { clock: () => now });
+			expect(tb.tryConsume(3)).toBe(true);
+			expect(tb.available()).toBe(0);
+			tb.putBack(2);
+			expect(tb.available()).toBe(2);
 		});
 	});
 });
