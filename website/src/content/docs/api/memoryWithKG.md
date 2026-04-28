@@ -22,7 +22,7 @@ function memoryWithKG<TMem>(
 	store: DistillBundle<TMem>,
 	name: string,
 	opts: MemoryWithKGOptions<TMem>,
-): { kg: KnowledgeGraphGraph<unknown, string>; dispose: () => void }
+): { kg: KnowledgeGraph<unknown, string>; dispose: () => void }
 ```
 
 ## Parameters

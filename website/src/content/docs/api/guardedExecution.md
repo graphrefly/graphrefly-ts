@@ -1,9 +1,9 @@
 ---
 title: "guardedExecution()"
-description: "Wrap a Graph with policyEnforcer plus a scoped describe\nlens. Returns a GuardedExecutionGraph that can be mounted, diffed,\nor composed with graphLens."
+description: "Wrap a Graph with policyGate plus a scoped describe\nlens. Returns a GuardedExecutionGraph that can be mounted, diffed,\nor composed with graphLens."
 ---
 
-Wrap a Graph with policyEnforcer plus a scoped describe
+Wrap a Graph with policyGate plus a scoped describe
 lens. Returns a GuardedExecutionGraph that can be mounted, diffed,
 or composed with graphLens.
 

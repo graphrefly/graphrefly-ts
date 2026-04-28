@@ -16,8 +16,8 @@ see ALL queries regardless of which API issued them.
 function memoryRetrieval<TMem>(
 	graph: Graph,
 	store: DistillBundle<TMem>,
-	vectors: VectorIndexBundle<TMem> | null,
-	kg: KnowledgeGraphGraph<unknown, string> | null,
+	vectors: VectorIndexGraph<TMem> | null,
+	kg: KnowledgeGraph<unknown, string> | null,
 	opts: MemoryRetrievalOptions<TMem>,
 ): MemoryRetrievalBundle<TMem>
 ```
@@ -28,6 +28,6 @@ function memoryRetrieval<TMem>(
 |-----------|------|-------------|
 | `graph` | `Graph` |  |
 | `store` | `DistillBundle&lt;TMem&gt;` |  |
-| `vectors` | `VectorIndexBundle&lt;TMem&gt; | null` |  |
-| `kg` | `KnowledgeGraphGraph&lt;unknown, string&gt; | null` |  |
+| `vectors` | `VectorIndexGraph&lt;TMem&gt; | null` |  |
+| `kg` | `KnowledgeGraph&lt;unknown, string&gt; | null` |  |
 | `opts` | `MemoryRetrievalOptions&lt;TMem&gt;` |  |

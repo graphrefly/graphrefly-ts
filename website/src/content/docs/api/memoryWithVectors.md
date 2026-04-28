@@ -1,10 +1,10 @@
 ---
 title: "memoryWithVectors()"
-description: "Attach a vector index to a `DistillBundle`. Indexes every entry in the\nstore as it changes. Returns the `VectorIndexBundle` so retrieval can read\nits `entries` "
+description: "Attach a vector index to a `DistillBundle`. Indexes every entry in the\nstore as it changes. Returns the `VectorIndexGraph` so retrieval can read\nits `entries` a"
 ---
 
 Attach a vector index to a `DistillBundle`. Indexes every entry in the
-store as it changes. Returns the `VectorIndexBundle` so retrieval can read
+store as it changes. Returns the `VectorIndexGraph` so retrieval can read
 its `entries` and call `search()`.
 
 The indexer's keepalive is registered with `graph.addDisposer` so it tears
@@ -18,7 +18,7 @@ function memoryWithVectors<TMem>(
 	graph: Graph,
 	store: DistillBundle<TMem>,
 	opts: MemoryWithVectorsOptions<TMem>,
-): { vectors: VectorIndexBundle<TMem>; dispose: () => void }
+): { vectors: VectorIndexGraph<TMem>; dispose: () => void }
 ```
 
 ## Parameters
