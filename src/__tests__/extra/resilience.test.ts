@@ -463,6 +463,25 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(tb.tryConsume(1)).toBe(false);
 		});
 
+		it("tokenBucket clock injection drives refill deterministically (qa A12)", () => {
+			let t = 0;
+			const tb = tokenBucket(5, 1, { clock: () => t });
+			// Exhaust the bucket
+			expect(tb.tryConsume(5)).toBe(true);
+			expect(tb.tryConsume(1)).toBe(false);
+			// Advance virtual clock 1s — refill rate is 1 token/sec, so 1 token added
+			t = 1_000_000_000;
+			expect(tb.tryConsume(1)).toBe(true);
+			expect(tb.tryConsume(1)).toBe(false);
+			// Advance another 2s → 2 more tokens
+			t = 3_000_000_000;
+			expect(tb.tryConsume(2)).toBe(true);
+			expect(tb.tryConsume(1)).toBe(false);
+			// Available is float-valued (qa A12 / JSDoc claim)
+			t = 3_500_000_000;
+			expect(tb.available()).toBeCloseTo(0.5, 5);
+		});
+
 		it("rateLimiter queues beyond rate (fake timers + performance)", async () => {
 			const now = { v: 1_000_000 };
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
@@ -970,7 +989,12 @@ describe("extra resilience (roadmap §3.1)", () => {
 			unsub();
 		});
 
-		it("resets to 0 on terminal", () => {
+		it("preserves final droppedCount on terminal (qa A1 — no rewind)", () => {
+			// qa A1: the prior contract reset droppedCount to 0 on terminal,
+			// emitting `[DATA, N], [DATA, 0]` then no terminal — consumers
+			// thought drops were undone. New contract: final count is the
+			// last observable state. Next subscription cycle re-zeros for
+			// the new cycle (see `cache !== 0` reset path at activation).
 			const s = state(0, { resubscribable: true });
 			const { node: out, droppedCount } = rateLimiter(s, {
 				maxEvents: 1,
@@ -984,7 +1008,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			s.down([[DATA, 3]]); // dropped
 			expect(droppedCount.cache).toBe(2);
 			s.down([[COMPLETE]]);
-			expect(droppedCount.cache).toBe(0);
+			expect(droppedCount.cache).toBe(2); // final count preserved
 			unsub();
 		});
 

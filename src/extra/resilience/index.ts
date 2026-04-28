@@ -818,8 +818,12 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 				timer.cancel();
 				// RingBuffer.clear-equivalent: drain remaining slots so refs GC.
 				while (pending.size > 0) pending.shift();
+				// qa A1: do NOT reset `dropped` to 0 on terminal — emitting
+				// `[DATA, N], [DATA, 0]` then no terminal on `droppedCount`
+				// makes consumers think drops were undone. Final count is the
+				// last observable state; next subscription cycle's
+				// `cache !== 0` check (above) re-zeros for the new cycle.
 				dropped = 0;
-				syncDropped();
 			}
 
 			const unsub = source.subscribe((msgs) => {
@@ -1113,6 +1117,17 @@ export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
 					const fbNode = fromAny(fb as Node<T> | PromiseLike<T> | AsyncIterable<T>);
 					fallbackUnsub = fbNode.subscribe((fMsgs) => {
 						a.down(fMsgs);
+						// qa A14: clear fallbackUnsub on terminal so the teardown
+						// closure doesn't double-call it. Idempotency of
+						// fromAny's unsub is implementation-defined; explicit
+						// self-clear is safer.
+						for (const fm of fMsgs) {
+							const ft = fm[0];
+							if (ft === COMPLETE || ft === ERROR || ft === TEARDOWN) {
+								fallbackUnsub = undefined;
+								return;
+							}
+						}
 					});
 				} else {
 					a.emit(fb as T);
