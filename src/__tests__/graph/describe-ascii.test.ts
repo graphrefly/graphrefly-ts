@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { derived, state } from "../../core/sugar.js";
-import { renderDescribeAsAscii } from "../../graph/describe-ascii.js";
+import { toAscii } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 
 /**
@@ -19,11 +19,11 @@ function allBoxesPresent(output: string, paths: readonly string[]): boolean {
 	return paths.every((p) => output.includes(p));
 }
 
-describe("describe({ format: 'ascii' })", () => {
+describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => {
 	it("renders a single node as one box containing its label", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a" }), { name: "a" });
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(out).toContain("a");
 		// Default Unicode charset uses box-drawing corners.
 		expect(out).toMatch(/[┌┐└┘]/u);
@@ -37,7 +37,7 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
-		const out = g.describe({ format: "ascii", direction: "LR" });
+		const out = toAscii(g.describe(), { direction: "LR" });
 		expect(allBoxesPresent(out, ["a", "b", "c"])).toBe(true);
 		// LR arrow tip points right.
 		expect(out).toContain("▶");
@@ -59,7 +59,7 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
-		const out = g.describe({ format: "ascii", direction: "TD" });
+		const out = toAscii(g.describe(), { direction: "TD" });
 		expect(allBoxesPresent(out, ["a", "b", "c"])).toBe(true);
 		// TD arrow tip points down.
 		expect(out).toContain("▼");
@@ -84,7 +84,7 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.add(d, { name: "d" });
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(allBoxesPresent(out, ["a", "b", "c", "d"])).toBe(true);
 		expect(out).toContain("▶");
 		// Every row should stay sane width; no Infinity / NaN leakage.
@@ -108,7 +108,7 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.add(d, { name: "d" });
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(allBoxesPresent(out, ["a", "b", "c", "d"])).toBe(true);
 		// One arrow tip per distinct target-node entry point. b, c, d each
 		// receive at least one arrow; edges converging on the same cell
@@ -129,7 +129,7 @@ describe("describe({ format: 'ascii' })", () => {
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const out = g.describe({ format: "ascii", asciiCharset: "ascii" });
+		const out = toAscii(g.describe(), { asciiCharset: "ascii" });
 		// No Unicode box-drawing characters.
 		expect(out).not.toMatch(/[─│┌┐└┘┬┴├┤┼▶▼]/u);
 		// Must have the ASCII equivalents.
@@ -141,7 +141,7 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(state(1, { name: "this_is_a_rather_long_path_name" }), {
 			name: "this_is_a_rather_long_path_name",
 		});
-		const out = g.describe({ format: "ascii", maxLabelWidth: 10 });
+		const out = toAscii(g.describe(), { maxLabelWidth: 10 });
 		expect(out).toContain("…");
 		expect(out).not.toContain("this_is_a_rather_long_path_name");
 	});
@@ -149,7 +149,7 @@ describe("describe({ format: 'ascii' })", () => {
 	it("CJK labels keep box structure aligned (2 cells per wide char)", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "日本語" }), { name: "日本語" });
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(out).toContain("日本語");
 		// The box borders should be long enough that the top row has at
 		// least 6 horizontal glyphs (3 CJK = 6 cells + 2 borders + 2 padding).
@@ -166,14 +166,14 @@ describe("describe({ format: 'ascii' })", () => {
 		const a = state(1, { name: "a" });
 		sub.add(a, { name: "a" });
 		g.mount("sub", sub);
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(out).toContain("sub::a");
 	});
 
 	it("invalid direction throws a clear error", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		expect(() => g.describe({ format: "ascii", direction: "BT" as unknown as "LR" })).toThrow(
+		expect(() => toAscii(g.describe(), { direction: "BT" as unknown as "LR" })).toThrow(
 			/ascii describe supports direction "LR" or "TD"/,
 		);
 	});
@@ -182,8 +182,7 @@ describe("describe({ format: 'ascii' })", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a" }), { name: "a" });
 		let captured = "";
-		const out = g.describe({
-			format: "ascii",
+		const out = toAscii(g.describe(), {
 			logger: (text) => {
 				captured = text;
 			},
@@ -192,18 +191,19 @@ describe("describe({ format: 'ascii' })", () => {
 		expect(captured).toContain("a");
 	});
 
-	it("reactive + format: 'ascii' returns a string node that updates on graph change", () => {
+	it("derived(describe({reactive:true}), toAscii) yields a live string Node", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a" }), { name: "a" });
-		const handle = g.describe({ reactive: true, format: "ascii" });
-		const unsub = handle.node.subscribe(() => {});
+		const handle = g.describe({ reactive: true });
+		const ascii = derived([handle.node], ([snap]) => toAscii(snap), { name: "live-ascii" });
+		const unsub = ascii.subscribe(() => {});
 		try {
-			const first = handle.node.cache;
+			const first = ascii.cache;
 			expect(typeof first).toBe("string");
 			expect(first).toContain("a");
-			// Add a second node — describe recomputes.
+			// Add a second node — describe recomputes → ascii recomputes.
 			g.add(state(2, { name: "b" }), { name: "b" });
-			const second = handle.node.cache;
+			const second = ascii.cache;
 			expect(typeof second).toBe("string");
 			expect(second).toContain("b");
 		} finally {
@@ -238,7 +238,7 @@ describe("describe({ format: 'ascii' })", () => {
 			prev = next;
 		}
 		const start = Date.now();
-		const out = g.describe({ format: "ascii", maxLabelWidth: 10 });
+		const out = toAscii(g.describe(), { maxLabelWidth: 10 });
 		const elapsed = Date.now() - start;
 		expect(out.length).toBeGreaterThan(100);
 		// Every registered name should appear in the output. Truncation
@@ -254,15 +254,15 @@ describe("describe({ format: 'ascii' })", () => {
 
 	it("empty graph renders as a valid (possibly empty) string without throwing", () => {
 		const g = new Graph("empty");
-		const out = g.describe({ format: "ascii" });
+		const out = toAscii(g.describe());
 		expect(typeof out).toBe("string");
 	});
 
 	it("malformed snapshot with same-layer or back edges renders best-effort, no crash", () => {
-		// Real GraphReFly graphs are DAGs, so we feed describe-ascii a
-		// synthetic GraphDescribeOutput containing a back-edge to exercise
-		// the defensive drop in `insertVirtualNodes`. We build the smallest
-		// possible describe shape by hand.
+		// Real GraphReFly graphs are DAGs, so we feed toAscii a synthetic
+		// GraphDescribeOutput containing a back-edge to exercise the defensive
+		// drop in `insertVirtualNodes`. We build the smallest possible describe
+		// shape by hand.
 		const fake = {
 			name: "cyclic",
 			nodes: {
@@ -277,7 +277,7 @@ describe("describe({ format: 'ascii' })", () => {
 			],
 			subgraphs: [],
 		};
-		const out = renderDescribeAsAscii(fake as never, { format: "ascii" });
+		const out = toAscii(fake as never);
 		expect(out).toContain("a");
 		expect(out).toContain("b");
 		// No NaN leaked into the output.
@@ -296,8 +296,8 @@ describe("describe({ format: 'ascii' })", () => {
 		g.add(b, { name: "beta" });
 		g.add(c, { name: "gamma" });
 		g.add(d, { name: "delta" });
-		const lr = g.describe({ format: "ascii", direction: "LR" });
-		const td = g.describe({ format: "ascii", direction: "TD" });
+		const lr = toAscii(g.describe(), { direction: "LR" });
+		const td = toAscii(g.describe(), { direction: "TD" });
 		for (const n of ["alpha", "beta", "gamma", "delta"]) {
 			expect(lr).toContain(n);
 			expect(td).toContain(n);

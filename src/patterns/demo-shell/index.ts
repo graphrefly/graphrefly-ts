@@ -11,6 +11,7 @@
 import { batch } from "../../core/batch.js";
 import { describeNode, resolveDescribeFields } from "../../core/meta.js";
 import { derived, effect, state } from "../../core/sugar.js";
+import { toMermaid } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
 import { analyzeAndMeasure, computeLineBreaks } from "../reactive-layout/reactive-layout.js";
@@ -197,7 +198,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		([ref, _tick]) => {
 			const demo = ref as Graph | null;
 			if (!demo) return "";
-			return demo.describe({ format: "mermaid" });
+			return toMermaid(demo.describe());
 		},
 		{ name: "graph/mermaid" },
 	);
@@ -330,7 +331,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		[metaDebug, demoGraphTick],
 		([debug, _tick]) => {
 			if (!(debug as boolean)) return "";
-			return g.describe({ format: "mermaid" });
+			return toMermaid(g.describe());
 		},
 		{ name: "meta/shell-mermaid" },
 	);

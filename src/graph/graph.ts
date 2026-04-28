@@ -38,7 +38,6 @@ import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
-import { renderDescribeAsAscii } from "./describe-ascii.js";
 import { type CausalChain, type CausalStep, explainPath } from "./explain.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
 
@@ -171,50 +170,10 @@ export type GraphDescribeOptions = {
 	 */
 	fields?: DescribeField[];
 	/**
-	 * Output format.
-	 * - `undefined` / omitted — return the full {@link GraphDescribeOutput} object.
-	 * - `"spec"` — GraphSpec input format (object; no status/value, deps as edges).
-	 * - `"json"` — stable JSON **text** with sorted keys.
-	 * - `"pretty"` — human-readable plaintext (optionally colorized; see
-	 *   `colorize` / `indent` / `logger` / `includeEdges` / `includeSubgraphs`).
-	 * - `"mermaid"` — Mermaid flowchart text.
-	 * - `"mermaid-url"` — `https://mermaid.live/edit#base64:…` deep link (one
-	 *   clickable URL, opens the `"mermaid"` source in the mermaid.live editor).
-	 *   No network calls — the payload is encoded into the URL fragment.
-	 * - `"d2"` — D2 diagram text.
-	 * - `"ascii"` — stdout-native DAG flowchart rendered with Unicode
-	 *   box-drawing glyphs (or `asciiCharset: "ascii"` for pure ASCII).
-	 *   Graph-size independent: proper Sugiyama layout handles wide + deep
-	 *   DAGs. Supports `direction: "LR" | "TD"`.
-	 */
-	format?: "spec" | "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
-	/** Pretty/diagram render: direction for diagram formats (default `LR`). */
-	direction?: GraphDiagramDirection;
-	/** Pretty/JSON render: indent (default 2 for JSON, ignored for pretty). */
-	indent?: number;
-	/** Pretty/ASCII render: optional logger hook; fires with the rendered text before return. */
-	logger?: (text: string) => void;
-	/** Pretty render: include an Edges section (default `true`). */
-	includeEdges?: boolean;
-	/** Pretty render: include a Subgraphs section (default `true`). */
-	includeSubgraphs?: boolean;
-	/**
-	 * ASCII render: per-box label cell cap; longer labels are truncated with `…`.
-	 * Default `24`. Applies only to `format: "ascii"`.
-	 */
-	maxLabelWidth?: number;
-	/**
-	 * ASCII render: Unicode box-drawing glyphs (`"unicode"`, default) or a
-	 * plain ASCII fallback (`"ascii"`, uses `-|+<>v`). Applies only to
-	 * `format: "ascii"`.
-	 */
-	asciiCharset?: "unicode" | "ascii";
-	/**
 	 * Reactive describe (D2):
 	 * - `true` — return `{ node, dispose }` where `node` emits a fresh
-	 *   `GraphDescribeOutput` (or format string, if `format` is set) every time
-	 *   the graph state settles. Same coalescing as {@link Graph.explain} with
-	 *   `{ reactive: true }`.
+	 *   `GraphDescribeOutput` every time the graph state settles. Same
+	 *   coalescing as {@link Graph.explain} with `{ reactive: true }`.
 	 * - `"diff"` — return `{ node, dispose }` where `node` emits a
 	 *   {@link DescribeChangeset} per topology change. Empty changesets are
 	 *   suppressed; the initial cache is a synthetic full-add diff so a fresh
@@ -340,20 +299,13 @@ export type TopologyEvent =
 			audit: GraphRemoveAudit;
 	  };
 
-/** Direction options for diagram export helpers. */
+/**
+ * Direction options for diagram exports. Mirrors `DiagramDirection` from
+ * `@graphrefly/graphrefly/extra/render` (the renderers consume their own
+ * structurally-identical type) — re-exported here so callers building
+ * options for `Graph` ergonomics don't need a separate import.
+ */
 export type GraphDiagramDirection = "TD" | "LR" | "BT" | "RL";
-
-/** Options for {@link Graph.toMermaid} / {@link Graph.toD2}. */
-export type GraphDiagramOptions = {
-	/**
-	 * Diagram flow direction.
-	 * - `TD`: top-down
-	 * - `LR`: left-right (default)
-	 * - `BT`: bottom-top
-	 * - `RL`: right-left
-	 */
-	direction?: GraphDiagramDirection;
-};
 
 /**
  * Snapshot format version (§3.8). Exported so the surface layer's
@@ -558,184 +510,14 @@ function deepEqual(a: unknown, b: unknown): boolean {
 	return walk(a, b);
 }
 
-/** Recursively sort object keys for deterministic JSON (git-diffable). */
-function sortJsonValue(value: unknown): unknown {
-	if (value === null || typeof value !== "object") {
-		return value;
-	}
-	if (Array.isArray(value)) {
-		return value.map(sortJsonValue);
-	}
-	const obj = value as Record<string, unknown>;
-	const keys = Object.keys(obj).sort();
-	const out: Record<string, unknown> = {};
-	for (const k of keys) {
-		out[k] = sortJsonValue(obj[k]);
-	}
-	return out;
-}
-
-function escapeMermaidLabel(value: string): string {
-	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-}
-
-function escapeD2Label(value: string): string {
-	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-}
-
-function d2DirectionFromGraphDirection(direction: GraphDiagramDirection): string {
-	if (direction === "TD") return "down";
-	if (direction === "BT") return "up";
-	if (direction === "RL") return "left";
-	return "right";
-}
-
-/** Collect deduplicated (from, to) arrows from deps + edges. */
-function collectDiagramArrows(described: GraphDescribeOutput): [string, string][] {
-	const seen = new Set<string>();
-	const arrows: [string, string][] = [];
-	function add(from: string, to: string): void {
-		const key = `${from}\0${to}`;
-		if (seen.has(key)) return;
-		seen.add(key);
-		arrows.push([from, to]);
-	}
-	for (const [path, info] of Object.entries(described.nodes)) {
-		const deps: string[] | undefined = (info as Record<string, unknown>).deps as
-			| string[]
-			| undefined;
-		if (deps) {
-			for (const dep of deps) add(dep, path);
-		}
-	}
-	for (const edge of described.edges) add(edge.from, edge.to);
-	return arrows;
-}
-
-function normalizeDiagramDirection(direction: unknown): GraphDiagramDirection {
-	if (direction === undefined) return "LR";
-	if (direction === "TD" || direction === "LR" || direction === "BT" || direction === "RL") {
-		return direction;
-	}
-	throw new Error(
-		`invalid diagram direction ${String(direction)}; expected one of: TD, LR, BT, RL`,
-	);
-}
-
 // ---------------------------------------------------------------------------
-//  describe({format}) renderers — consolidated from the ex-dumpGraph /
-//  ex-toMermaid / ex-toD2 methods (Unit 12 + Unit 20).
+//  describe()-format renderers — moved to `src/extra/render/` per Tier 2.1 A2.
+//
+//  The ex-`describe({ format: ... })` dispatch is gone. Use the pure
+//  renderers (`toMermaid`, `toD2`, `toAscii`, `toPretty`, `toJson`,
+//  `toMermaidUrl`) from `@graphrefly/graphrefly/extra/render` directly on a
+//  describe snapshot, or wrap with `derived` for live formatted output.
 // ---------------------------------------------------------------------------
-
-function renderDescribeAsJson(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
-	const includeEdges = options.includeEdges ?? true;
-	const includeSubgraphs = options.includeSubgraphs ?? true;
-	const { expand: _expand, ...rest } = d;
-	const payload: GraphDescribeOutput = {
-		...rest,
-		edges: includeEdges ? d.edges : [],
-		subgraphs: includeSubgraphs ? d.subgraphs : [],
-	};
-	const text = JSON.stringify(sortJsonValue(payload), null, options.indent ?? 2);
-	options.logger?.(text);
-	return text;
-}
-
-function renderDescribeAsPretty(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
-	const includeEdges = options.includeEdges ?? true;
-	const includeSubgraphs = options.includeSubgraphs ?? true;
-	const lines: string[] = [];
-	lines.push(`Graph ${d.name}`);
-	lines.push("Nodes:");
-	for (const path of Object.keys(d.nodes).sort()) {
-		const n = d.nodes[path]!;
-		lines.push(`- ${path} (${n.type}/${n.status}): ${describeData(n.value)}`);
-	}
-	if (includeEdges) {
-		lines.push("Edges:");
-		for (const edge of d.edges) {
-			lines.push(`- ${edge.from} -> ${edge.to}`);
-		}
-	}
-	if (includeSubgraphs) {
-		lines.push("Subgraphs:");
-		for (const sg of d.subgraphs) {
-			lines.push(`- ${sg}`);
-		}
-	}
-	const text = lines.join("\n");
-	options.logger?.(text);
-	return text;
-}
-
-function renderDescribeAsMermaid(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
-	const direction = normalizeDiagramDirection(options.direction);
-	const paths = Object.keys(d.nodes).sort();
-	const ids = new Map<string, string>();
-	for (let i = 0; i < paths.length; i += 1) ids.set(paths[i]!, `n${i}`);
-	const lines: string[] = [`flowchart ${direction}`];
-	for (const path of paths) {
-		const id = ids.get(path)!;
-		lines.push(`  ${id}["${escapeMermaidLabel(path)}"]`);
-	}
-	for (const [from, to] of collectDiagramArrows(d)) {
-		const fromId = ids.get(from);
-		const toId = ids.get(to);
-		if (!fromId || !toId) continue;
-		lines.push(`  ${fromId} --> ${toId}`);
-	}
-	return lines.join("\n");
-}
-
-function renderDescribeAsMermaidUrl(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
-	const mermaidSrc = renderDescribeAsMermaid(d, options);
-	return mermaidLiveUrl(mermaidSrc);
-}
-
-/**
- * Encode a mermaid source string to a `https://mermaid.live/edit#base64:…`
- * deep link. Round-trip with the mermaid.live editor's `/edit#base64:`
- * share format — payload is `base64url(JSON({code, mermaid: {theme}, ...}))`.
- *
- * Exported so callers that already have rendered mermaid text (e.g. from
- * `describe({ format: "mermaid" })`) can upgrade to a live-editor URL
- * without re-rendering. Pairs with `describe({ format: "mermaid-url" })`.
- */
-export function mermaidLiveUrl(
-	mermaidSrc: string,
-	opts?: { theme?: "default" | "dark" | "forest" | "neutral" | "base"; autoSync?: boolean },
-): string {
-	const theme = opts?.theme ?? "default";
-	const autoSync = opts?.autoSync ?? true;
-	const payload = { code: mermaidSrc, mermaid: { theme }, autoSync };
-	const json = JSON.stringify(payload);
-	// Browsers + Node both expose globalThis.btoa; encode UTF-8 bytes first so
-	// non-ASCII node names don't explode btoa. Then url-safe base64 (`+/=`→`-_` strip).
-	const bytes = new TextEncoder().encode(json);
-	let binary = "";
-	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-	const b64 = globalThis.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-	return `https://mermaid.live/edit#base64:${b64}`;
-}
-
-function renderDescribeAsD2(d: GraphDescribeOutput, options: GraphDescribeOptions): string {
-	const direction = normalizeDiagramDirection(options.direction);
-	const paths = Object.keys(d.nodes).sort();
-	const ids = new Map<string, string>();
-	for (let i = 0; i < paths.length; i += 1) ids.set(paths[i]!, `n${i}`);
-	const lines: string[] = [`direction: ${d2DirectionFromGraphDirection(direction)}`];
-	for (const path of paths) {
-		const id = ids.get(path)!;
-		lines.push(`${id}: "${escapeD2Label(path)}"`);
-	}
-	for (const [from, to] of collectDiagramArrows(d)) {
-		const fromId = ids.get(from);
-		const toId = ids.get(to);
-		if (!fromId || !toId) continue;
-		lines.push(`${fromId} -> ${toId}`);
-	}
-	return lines.join("\n");
-}
 
 function escapeRegexLiteral(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2025,52 +1807,66 @@ export class Graph {
 	/**
 	 * Static structure snapshot: qualified node keys, edges, mount names (GRAPHREFLY-SPEC §3.6, Appendix B).
 	 *
-	 * `format` controls the return type:
-	 * - omitted or `"spec"` → {@link GraphDescribeOutput} object.
-	 * - `"json"` / `"pretty"` / `"mermaid"` / `"d2"` → rendered string.
+	 * Returns the {@link GraphDescribeOutput} object directly (or a
+	 * `ReactiveDescribeHandle` when `{ reactive: true | "diff" }` is set).
 	 *
-	 * @param options - Optional `actor` for guard-scoped visibility, `filter` for
-	 *   selective output, or `format` to render.
+	 * For formatted output (Mermaid / D2 / ASCII / pretty / JSON text), pass
+	 * the snapshot to one of the pure renderers in
+	 * `@graphrefly/graphrefly/extra/render`:
+	 *
+	 * ```ts
+	 * import { toMermaid, toAscii } from "@graphrefly/graphrefly/extra/render";
+	 *
+	 * const mermaid = toMermaid(graph.describe());
+	 * const ascii = toAscii(graph.describe(), { direction: "TD" });
+	 * ```
+	 *
+	 * For live formatted output, compose with `derived`:
+	 *
+	 * ```ts
+	 * import { derived } from "@graphrefly/graphrefly";
+	 * import { toMermaid } from "@graphrefly/graphrefly/extra/render";
+	 *
+	 * const live = derived(
+	 *   [graph.describe({ reactive: true }).node],
+	 *   ([g]) => toMermaid(g),
+	 * );
+	 * ```
+	 *
+	 * For the spec projection (type + deps + meta, strip runtime status/value),
+	 * pass `detail: "spec"`.
+	 *
+	 * @param options - Optional `actor` for guard-scoped visibility, `filter`
+	 *   for selective output, `detail` / `fields` for projection, `reactive`
+	 *   for the live handle.
 	 *
 	 * @example
 	 * ```ts
 	 * graph.describe()                                         // full snapshot object
 	 * graph.describe({ filter: { status: "errored" } })        // filtered object
-	 * graph.describe({ format: "pretty" })                     // human-readable text
-	 * graph.describe({ format: "mermaid" })                    // Mermaid flowchart
-	 * graph.describe({ format: "d2", direction: "TD" })        // D2 top-down
-	 * graph.describe({ format: "ascii" })                      // stdout DAG flowchart
+	 * graph.describe({ detail: "spec" })                       // GraphSpec projection
+	 * graph.describe({ reactive: true })                       // live snapshot Node
 	 * ```
 	 */
-	describe(
-		options: GraphDescribeOptions & {
-			reactive: true;
-			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
-		},
-	): ReactiveDescribeHandle<string>;
 	describe(
 		options: GraphDescribeOptions & { reactive: "diff" },
 	): ReactiveDescribeHandle<DescribeChangeset>;
 	describe(
 		options: GraphDescribeOptions & { reactive: true },
 	): ReactiveDescribeHandle<GraphDescribeOutput>;
-	describe(
-		options: GraphDescribeOptions & {
-			format: "json" | "pretty" | "mermaid" | "mermaid-url" | "d2" | "ascii";
-		},
-	): string;
 	describe(options?: GraphDescribeOptions): GraphDescribeOutput;
-	describe(
-		options?: GraphDescribeOptions,
-	): GraphDescribeOutput | string | ReactiveDescribeHandle<unknown> {
+	describe(options?: GraphDescribeOptions): GraphDescribeOutput | ReactiveDescribeHandle<unknown> {
 		if (options?.reactive === "diff") return this._describeReactiveDiff(options);
 		if (options?.reactive === true) return this._describeReactive(options);
 		const actor = resolveActorOption(options?.actor);
 		const filter = options?.filter;
 		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
-		const isSpec = options?.format === "spec";
-		// For spec format, force minimal fields (type + deps only, no status/value)
-		const effectiveFields = isSpec ? resolveDescribeFields("minimal") : includeFields;
+		// `detail: "spec"` is the canonical spec-projection mode (Tier 1.5.3
+		// Phase 1 — replaces the old `format: "spec"` alias). Strips
+		// annotations from the output so the result round-trips through
+		// GraphSpec via `decompileSpec` (annotations don't survive).
+		const isSpec = options?.detail === "spec";
+		const effectiveFields = includeFields;
 
 		const targets: [string, Node][] = [];
 		this._collectObserveTargets("", targets);
@@ -2228,7 +2024,7 @@ export class Graph {
 			...(this._factory !== undefined ? { factory: this._factory } : {}),
 			...(this._factoryArgs !== undefined ? { factoryArgs: this._factoryArgs } : {}),
 			expand(detailOrFields: DescribeDetail | DescribeField[]): GraphDescribeOutput {
-				const merged: GraphDescribeOptions = { ...baseOpts, format: undefined };
+				const merged: GraphDescribeOptions = { ...baseOpts };
 				if (Array.isArray(detailOrFields)) {
 					merged.fields = detailOrFields;
 					merged.detail = undefined;
@@ -2240,15 +2036,11 @@ export class Graph {
 			},
 		};
 
-		// Text-format dispatch. `"spec"` and undefined return the struct as-is.
-		const opts = options ?? {};
-		const fmt = opts.format;
-		if (fmt === "json") return renderDescribeAsJson(struct, opts);
-		if (fmt === "pretty") return renderDescribeAsPretty(struct, opts);
-		if (fmt === "mermaid") return renderDescribeAsMermaid(struct, opts);
-		if (fmt === "mermaid-url") return renderDescribeAsMermaidUrl(struct, opts);
-		if (fmt === "d2") return renderDescribeAsD2(struct, opts);
-		if (fmt === "ascii") return renderDescribeAsAscii(struct, opts);
+		// Tier 2.1 A2: `format` option dropped — use the pure renderers in
+		// `@graphrefly/graphrefly/extra/render` (`toMermaid`, `toAscii`,
+		// `toD2`, `toPretty`, `toJson`, `toMermaidUrl`) on the returned
+		// snapshot, or compose `derived([describe({reactive:true}).node], toMermaid)`
+		// for live formatted output.
 		return struct;
 	}
 
@@ -2362,9 +2154,9 @@ export class Graph {
 
 	private _describeReactive(
 		options: GraphDescribeOptions,
-	): ReactiveDescribeHandle<GraphDescribeOutput | string> {
-		// Strip the `reactive` flag so the inner recompute returns a concrete
-		// result type (structured or string), not another reactive handle.
+	): ReactiveDescribeHandle<GraphDescribeOutput> {
+		// Strip the `reactive` flag so the inner recompute returns the
+		// snapshot object, not another reactive handle.
 		const innerOpts: GraphDescribeOptions = { ...options, reactive: false };
 		const name = options.reactiveName ?? "describe";
 		let v = 0;
@@ -2460,11 +2252,11 @@ export class Graph {
 			});
 		}
 
-		let node: Node<GraphDescribeOutput | string>;
+		let node: Node<GraphDescribeOutput>;
 		try {
-			node = derived<GraphDescribeOutput | string>(
+			node = derived<GraphDescribeOutput>(
 				[version],
-				() => this.describe(innerOpts) as GraphDescribeOutput | string,
+				() => this.describe(innerOpts) as GraphDescribeOutput,
 				{
 					name,
 					describeKind: "derived",
@@ -2508,11 +2300,8 @@ export class Graph {
 	private _describeReactiveDiff(
 		options: GraphDescribeOptions,
 	): ReactiveDescribeHandle<DescribeChangeset> {
-		// Diff variant ignores `format` — describe-as-string is meaningless for
-		// structural deltas.
 		const innerOpts: GraphDescribeOptions = {
 			...options,
-			format: undefined,
 			reactive: false,
 		};
 		const name = options.reactiveName ?? "describe-diff";
@@ -2542,7 +2331,6 @@ export class Graph {
 		// gets a default name; we own `name` for the diff node.
 		const snapshotHandle = this._describeReactive({
 			...options,
-			format: undefined,
 			reactiveName: undefined,
 		});
 
@@ -3303,8 +3091,10 @@ export class Graph {
 		});
 	}
 
-	// `dumpGraph` is folded into `describe({format: "pretty" | "json"})` (Unit 12).
-	// `toMermaid` / `toD2` are folded into `describe({format: "mermaid" | "d2"})` (Unit 20).
+	// Tier 2.1 A2: ex-`describe({ format })` renderers (`toMermaid`, `toD2`,
+	// `toAscii`, `toPretty`, `toJson`, `toMermaidUrl`) live in
+	// `@graphrefly/graphrefly/extra/render` — pure functions over a
+	// `GraphDescribeOutput` snapshot (no Graph instance dependency).
 
 	// ——————————————————————————————————————————————————————————————
 	//  Lifecycle & persistence (§3.7–§3.8)

@@ -5,7 +5,7 @@
  * Sync constructors, sync `measureSegment()` — no async, no polling.
  */
 
-import { countCells } from "../../graph/_ascii-width.js";
+import { countCells } from "../../extra/render/_ascii-width.js";
 import type { MeasurementAdapter } from "./reactive-layout.js";
 
 // ---------------------------------------------------------------------------

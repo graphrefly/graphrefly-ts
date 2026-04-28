@@ -1,7 +1,6 @@
 /**
- * Stdout-native ASCII DAG flowchart renderer for
- * `graph.describe({ format: "ascii" })` (`docs/optimizations.md` →
- * "Stdout-native DAG flowchart renderer").
+ * `toAscii(g, opts?)` — stdout-native DAG flowchart renderer for a
+ * {@link GraphDescribeOutput}.
  *
  * Zero external dependencies, graph-size independent via proper Sugiyama
  * (layer assignment → virtual-node splitting → barycenter crossing
@@ -10,40 +9,47 @@
  * [_layout-sugiyama.ts](./_layout-sugiyama.ts) for the layout pipeline and
  * [_ascii-grid.ts](./_ascii-grid.ts) for the character blitter.
  *
- * Used by `graph.describe()` dispatch in [graph.ts](./graph.ts).
+ * Pure function over the describe snapshot; no Graph instance dependency.
+ *
+ * @category extra
  */
 
+import type { GraphDescribeOutput } from "../../graph/graph.js";
 import { renderGrid } from "./_ascii-grid.js";
 import { countCells, truncateToCells } from "./_ascii-width.js";
 import type { LayoutDirection } from "./_layout-sugiyama.js";
 import { sugiyamaLayout } from "./_layout-sugiyama.js";
-import type { GraphDescribeOptions, GraphDescribeOutput } from "./graph.js";
-
-export type AsciiDescribeOptions = {
-	readonly direction: LayoutDirection;
-	readonly maxLabelWidth: number;
-	readonly charset: "unicode" | "ascii";
-};
 
 const DEFAULT_LABEL_WIDTH = 24;
 const LAYER_GAP = 4;
 const NODE_GAP = 1;
 const BOX_HEIGHT = 3;
 
-export function renderDescribeAsAscii(
-	described: GraphDescribeOutput,
-	options: GraphDescribeOptions,
-): string {
-	const direction = normalizeAsciiDirection(options.direction);
-	const maxLabel = Math.max(3, options.maxLabelWidth ?? DEFAULT_LABEL_WIDTH);
-	const charset = options.asciiCharset ?? "unicode";
+export type ToAsciiOptions = {
+	/**
+	 * ASCII layout direction. ASCII grid semantics are meaningful only for
+	 * `"LR"` (default) and `"TD"`.
+	 */
+	direction?: LayoutDirection;
+	/** Per-box label cell cap; longer labels are truncated with `…`. Default `24`. */
+	maxLabelWidth?: number;
+	/** Glyph set: `"unicode"` (default, box-drawing) or `"ascii"` (`-|+<>v`). */
+	asciiCharset?: "unicode" | "ascii";
+	/** Optional logger hook; fires with the rendered text before return. */
+	logger?: (text: string) => void;
+};
+
+export function toAscii(g: GraphDescribeOutput, opts?: ToAsciiOptions): string {
+	const direction = normalizeAsciiDirection(opts?.direction);
+	const maxLabel = Math.max(3, opts?.maxLabelWidth ?? DEFAULT_LABEL_WIDTH);
+	const charset = opts?.asciiCharset ?? "unicode";
 
 	// Deterministic paths ordering — match the rest of describe rendering.
-	const paths = Object.keys(described.nodes).sort();
+	const paths = Object.keys(g.nodes).sort();
 	// Drop edges whose endpoints aren't in the current visible path set
 	// (respects actor filtering that the caller already applied).
 	const nodeSet = new Set(paths);
-	const edges = described.edges.filter((e) => nodeSet.has(e.from) && nodeSet.has(e.to));
+	const edges = g.edges.filter((e) => nodeSet.has(e.from) && nodeSet.has(e.to));
 
 	// Precompute truncated labels + cell widths so the layout knows box
 	// dimensions without re-measuring.
@@ -71,8 +77,7 @@ export function renderDescribeAsAscii(
 		labelOf: (id) => labels.get(id) ?? id,
 	});
 
-	const logger = options.logger;
-	if (logger) logger(text);
+	opts?.logger?.(text);
 	return text;
 }
 

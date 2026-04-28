@@ -157,6 +157,16 @@
 				"default": "./dist/extra/storage-tiers-browser.cjs"
 			}
 		},
+		"./extra/render": {
+			"import": {
+				"types": "./dist/extra/render/index.d.ts",
+				"default": "./dist/extra/render/index.js"
+			},
+			"require": {
+				"types": "./dist/extra/render/index.d.cts",
+				"default": "./dist/extra/render/index.cjs"
+			}
+		},
 		"./graph": {
 			"import": {
 				"types": "./dist/graph/index.d.ts",

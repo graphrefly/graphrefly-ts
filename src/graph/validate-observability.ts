@@ -20,8 +20,9 @@
  * @module
  */
 
+import { toAscii, toD2, toJson, toMermaid, toMermaidUrl, toPretty } from "../extra/render/index.js";
 import type { CausalChain } from "./explain.js";
-import type { Graph } from "./graph.js";
+import type { Graph, GraphDescribeOutput } from "./graph.js";
 
 /** Describe render formats exercised by {@link validateGraphObservability}. */
 export type ObservabilityDescribeFormat =
@@ -31,6 +32,15 @@ export type ObservabilityDescribeFormat =
 	| "mermaid-url"
 	| "d2"
 	| "ascii";
+
+const FORMAT_RENDERERS: Record<ObservabilityDescribeFormat, (g: GraphDescribeOutput) => string> = {
+	json: (g) => toJson(g),
+	pretty: (g) => toPretty(g),
+	mermaid: (g) => toMermaid(g),
+	"mermaid-url": (g) => toMermaidUrl(g),
+	d2: (g) => toD2(g),
+	ascii: (g) => toAscii(g),
+};
 
 /** One observability check performed by {@link validateGraphObservability}. */
 export type ObservabilityCheck =
@@ -168,34 +178,39 @@ export function validateGraphObservability(
 		}
 	}
 
-	// 1b. describe({ format }) — exercise each requested render path once.
-	//     A regression in any of these renderers (e.g. mermaid producing empty
-	//     output after a refactor) surfaces here instead of on the paid run.
-	for (const format of opts.formats ?? []) {
-		try {
-			const rendered = graph.describe({ format });
-			if (typeof rendered !== "string" || rendered.length === 0) {
+	// 1b. Renderers — exercise each requested render path once. Composes the
+	//     pure renderers from `extra/render` directly (Tier 2.1 A2 dropped
+	//     `describe({ format })`; renderers now consume the describe snapshot).
+	//     A regression in any renderer (e.g. mermaid producing empty output
+	//     after a refactor) surfaces here instead of on the paid run.
+	if ((opts.formats?.length ?? 0) > 0) {
+		const snapshot = graph.describe();
+		for (const format of opts.formats!) {
+			try {
+				const rendered = FORMAT_RENDERERS[format](snapshot);
+				if (typeof rendered !== "string" || rendered.length === 0) {
+					checks.push({
+						kind: "describe-format",
+						ok: false,
+						format,
+						reason: `${format} renderer returned empty or non-string output`,
+					});
+				} else {
+					checks.push({
+						kind: "describe-format",
+						ok: true,
+						format,
+						length: rendered.length,
+					});
+				}
+			} catch (err) {
 				checks.push({
 					kind: "describe-format",
 					ok: false,
 					format,
-					reason: `describe({ format: "${format}" }) returned empty or non-string output`,
-				});
-			} else {
-				checks.push({
-					kind: "describe-format",
-					ok: true,
-					format,
-					length: rendered.length,
+					reason: err instanceof Error ? err.message : String(err),
 				});
 			}
-		} catch (err) {
-			checks.push({
-				kind: "describe-format",
-				ok: false,
-				format,
-				reason: err instanceof Error ? err.message : String(err),
-			});
 		}
 	}
 

@@ -5,6 +5,7 @@ import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { derived, effect, producer, state } from "../../core/sugar.js";
+import { toD2, toJson, toMermaid, toMermaidUrl, toPretty } from "../../extra/render/index.js";
 import {
 	GRAPH_META_SEGMENT,
 	Graph,
@@ -609,7 +610,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		child.add(a, { name: "a" });
 		child.add(b, { name: "b" });
 		g.mount("sub", child);
-		const text = g.describe({ format: "mermaid", direction: "TD" });
+		const text = toMermaid(g.describe(), { direction: "TD" });
 		expect(text).toContain("flowchart TD");
 		expect(text).toContain('["sub::a"]');
 		expect(text).toContain('["sub::b"]');
@@ -622,7 +623,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const text = g.describe({ format: "d2", direction: "RL" });
+		const text = toD2(g.describe(), { direction: "RL" });
 		expect(text).toContain("direction: left");
 		expect(text).toContain('"a"');
 		expect(text).toContain('"b"');
@@ -632,15 +633,15 @@ describe("Graph introspection (Phase 1.3)", () => {
 	it("toMermaid rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		expect(() =>
-			g.describe({ format: "mermaid", direction: "SIDEWAYS" as unknown as "TD" }),
-		).toThrow(/invalid diagram direction/);
+		expect(() => toMermaid(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
+			/invalid diagram direction/,
+		);
 	});
 
 	it("toD2 rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
-		expect(() => g.describe({ format: "d2", direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
+		expect(() => toD2(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
 			/invalid diagram direction/,
 		);
 	});
@@ -668,24 +669,25 @@ describe("Graph introspection (Phase 1.3)", () => {
 		live.dispose();
 	});
 
-	it("D2: describe({ reactive: true, format: 'mermaid' }) returns Node<string>", () => {
+	it("D2: derived(describe({ reactive: true }) → toMermaid) yields a live Mermaid Node<string>", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a" }), { name: "a" });
-		const live = g.describe({ reactive: true, format: "mermaid" });
-		const unsub = live.node.subscribe(() => {});
-		expect(typeof live.node.cache).toBe("string");
-		expect(live.node.cache).toContain("flowchart");
+		const live = g.describe({ reactive: true });
+		const mermaid = derived([live.node], ([snap]) => toMermaid(snap), { name: "live-mermaid" });
+		const unsub = mermaid.subscribe(() => {});
+		expect(typeof mermaid.cache).toBe("string");
+		expect(mermaid.cache).toContain("flowchart");
 		unsub();
 		live.dispose();
 	});
 
-	it("describe({ format: 'mermaid-url' }) emits mermaid.live deep link round-trippable to mermaid source", () => {
+	it("toMermaidUrl emits mermaid.live deep link round-trippable to mermaid source", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const url = g.describe({ format: "mermaid-url" });
+		const url = toMermaidUrl(g.describe());
 		expect(url).toMatch(/^https:\/\/mermaid\.live\/edit#base64:/);
 		const b64 = url.slice("https://mermaid.live/edit#base64:".length);
 		// url-safe base64 → standard base64 + padding
@@ -704,9 +706,9 @@ describe("Graph introspection (Phase 1.3)", () => {
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// No connect() — deps only
-		const mermaid = g.describe({ format: "mermaid" });
+		const mermaid = toMermaid(g.describe());
 		expect(mermaid).toContain("-->");
-		const d2 = g.describe({ format: "d2" });
+		const d2 = toD2(g.describe());
 		expect(d2).toContain("->");
 	});
 
@@ -766,18 +768,18 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(parsed.some((evt) => evt.type === "data" && evt.path === "b")).toBe(true);
 	});
 
-	it("dumpGraph returns pretty text and JSON variants", () => {
+	it("toPretty / toJson render the snapshot", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const pretty = g.describe({ format: "pretty" });
+		const pretty = toPretty(g.describe({ detail: "standard" }));
 		expect(pretty).toContain("Graph g");
 		expect(pretty).toContain("Nodes:");
 		expect(pretty).toContain("Edges:");
-		const jsonText = g.describe({ format: "json", indent: 2 });
-		expect(jsonText).toBe(g.describe({ format: "json", indent: 2 }));
+		const jsonText = toJson(g.describe({ detail: "standard" }), { indent: 2 });
+		expect(jsonText).toBe(toJson(g.describe({ detail: "standard" }), { indent: 2 }));
 		const parsed = JSON.parse(jsonText) as {
 			name: string;
 			nodes: Record<string, unknown>;
@@ -1556,16 +1558,18 @@ describe("describe() field selection (3.3b)", () => {
 	});
 });
 
-describe("describe() format: spec (3.3b)", () => {
+describe("describe() detail: minimal", () => {
 	it("returns minimal type + deps output usable by compileSpec", () => {
+		// Tier 2.1 A2: ex-`format: "spec"` was an alias for the minimal
+		// projection (type + deps only). The richer `detail: "spec"` projection
+		// (type + deps + meta) lives in `core/meta.ts` `resolveDescribeFields`.
 		const g = new Graph("spec-format");
 		const a = state(1, { name: "a", meta: { description: "src" } });
 		const b = derived([a], (v) => v + 1, { name: "b" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
-		const d = g.describe({ format: "spec" });
-		// Spec format forces minimal — no status, no value, no meta
+		const d = g.describe({ detail: "minimal" });
 		expect(d.nodes.a!.type).toBe("state");
 		expect(d.nodes.a!.status).toBeUndefined();
 		expect(d.nodes.a!.value).toBeUndefined();
