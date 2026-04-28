@@ -1,3 +1,12 @@
+# [0.38.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.37.0...v0.38.0) (2026-04-28)
+
+
+### Features
+
+* implementation plan wave 1 ([6e85b87](https://github.com/graphrefly/graphrefly-ts/commit/6e85b87ad559927cefc455943a012b573abe2230))
+* some changes ([7648764](https://github.com/graphrefly/graphrefly-ts/commit/7648764bfb9e66625b766238ebe965442dee825d))
+* wave A part 1 ([c5745e3](https://github.com/graphrefly/graphrefly-ts/commit/c5745e3f6b90d4f8e0fea5ff336b92b65a7ecf42))
+
 # [0.37.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.36.0...v0.37.0) (2026-04-27)
 
 
