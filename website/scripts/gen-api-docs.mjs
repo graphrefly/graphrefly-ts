@@ -278,8 +278,9 @@ const REGISTRY = {
 	memoryWithKG: "src/patterns/ai/memory/memory-composers.ts",
 	memoryWithTiers: "src/patterns/ai/memory/memory-composers.ts",
 	memoryRetrieval: "src/patterns/ai/memory/memory-composers.ts",
-	llmExtractor: "src/patterns/ai/memory/llm-memory.ts",
-	llmConsolidator: "src/patterns/ai/memory/llm-memory.ts",
+	llmExtractor: "src/patterns/ai/prompts/prompt-call.ts",
+	llmConsolidator: "src/patterns/ai/prompts/prompt-call.ts",
+	promptCall: "src/patterns/ai/prompts/prompt-call.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

@@ -60,6 +60,7 @@ export type {
 // `fromLLM` was folded into `promptNode({ format: "raw", tools })` per
 // Tier 2.3 — see `prompts/prompt-node.ts`.
 export * from "./prompts/frozen-context.js";
+export * from "./prompts/prompt-call.js";
 export * from "./prompts/prompt-node.js";
 export * from "./prompts/streaming.js";
 export * from "./prompts/system-prompt.js";
@@ -97,7 +98,6 @@ export * from "./agents/tool-selector.js";
 
 export * from "./memory/admission.js";
 export * from "./memory/agent-memory.js";
-export * from "./memory/llm-memory.js";
 export * from "./memory/memory-composers.js";
 export * from "./memory/retrieval.js";
 export * from "./memory/tiers.js";

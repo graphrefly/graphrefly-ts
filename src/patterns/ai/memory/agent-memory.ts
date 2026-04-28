@@ -22,7 +22,7 @@ import { fromAny, fromTimer, type NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
-import { llmConsolidator, llmExtractor } from "./llm-memory.js";
+import { llmConsolidator, llmExtractor } from "../prompts/prompt-call.js";
 import {
 	memoryRetrieval,
 	memoryWithKG,

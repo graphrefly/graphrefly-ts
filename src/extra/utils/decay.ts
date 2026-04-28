@@ -10,6 +10,17 @@
  */
 
 /**
+ * Default exponential-decay rate corresponding to a 7-day half-life.
+ *
+ * `Math.LN2 / (7 × 86_400)` ≈ `1.146e-6`. Imported by memory tiers + any
+ * consumer that wants the same default cadence as `agentMemory`'s active
+ * tier. Tier 4.4 (Wave AM Unit 1) — promoted from
+ * `patterns/ai/memory/tiers.ts` so non-memory consumers can share the
+ * canonical default without reaching across domains.
+ */
+export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 86_400);
+
+/**
  * Exponential decay with floor: `score = max(minScore, baseScore * exp(-ratePerSecond * ageSeconds))`.
  *
  * Tolerant fallbacks (deliberate for use inside reactive derived fns):

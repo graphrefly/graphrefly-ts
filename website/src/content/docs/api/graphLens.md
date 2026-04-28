@@ -1,19 +1,14 @@
 ---
 title: "graphLens()"
-description: "Create a reactive observability lens over a Graph. Returns a\nLensGraph with three reactive surfaces (`stats`, `health`, `flow`)\nplus the `why(from, to)` method."
+description: "Reactive observability preset over a target Graph."
 ---
 
-Create a reactive observability lens over a Graph. Returns a
-LensGraph with three reactive surfaces (`stats`, `health`, `flow`)
-plus the `why(from, to)` method.
-
-The returned graph is detached. Mount it via `target.mount("lens", lens)`
-if you want it to appear in the target's `describe()`, or keep it standalone.
+Reactive observability preset over a target Graph.
 
 ## Signature
 
 ```ts
-function graphLens(target: Graph, opts?: GraphLensOptions): LensGraph
+function graphLens(target: Graph): GraphLensView
 ```
 
 ## Parameters
@@ -21,17 +16,27 @@ function graphLens(target: Graph, opts?: GraphLensOptions): LensGraph
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `target` | `Graph` | The graph to observe. |
-| `opts` | `GraphLensOptions` | See GraphLensOptions. |
 
 ## Basic Usage
 
 ```ts
 const g = new Graph("app");
-g.add(state(0, { name: "counter" }));
+g.add(state(0, { name: "counter" }), { name: "counter" });
+
 const lens = graphLens(g);
-lens.stats.subscribe((msgs) => console.log(msgs[0]?.[1])); // TopologyStats
-// Flow queries — O(1) without subscribing to snapshots:
-lens.flow.get("counter");        // FlowEntry | undefined
-lens.flow.size;                  // number
-lens.flow.entries.subscribe(...); // reactive snapshot, lazy-materialized
+lens.topology.subscribe((msgs) => console.log("topology:", msgs));
+lens.health.subscribe((msgs) => console.log("health:", msgs));
+lens.flow.subscribe((msgs) => {
+    for (const [type, payload] of msgs) {
+      if (type === DATA) console.log("flow map size:", (payload as ReadonlyMap<string, FlowEntry>).size);
+    }
+});
+
+// Causal chains: use the underlying primitive directly — `graphLens` no
+// longer wraps it, since `graph.explain({ reactive: true })` already
+// provides everything the old `lens.why()` did.
+const why = g.explain("counter", "consumer", { reactive: true });
+
+// Tear down when done.
+lens.dispose();
 ```

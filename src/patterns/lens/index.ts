@@ -1,45 +1,51 @@
 /**
- * Reactive graph observability (roadmap §9.0b — mid-level harness blocks).
+ * Reactive graph observability preset (Tier 5.3 reshape — Session A.4 lock).
  *
- * {@link graphLens} rides on any {@link Graph}, exposing four reactive
- * observability surfaces:
+ * `graphLens(target)` is a thin compositor (~30 LOC of glue) over two
+ * already-shipped reactive primitives:
  *
- * - {@link LensGraph.stats} — `Node<TopologyStats>` recomputed on
- *   structural change (transitive across mounted subgraphs). Named `stats`
- *   rather than `topology` to avoid collision with the inherited
- *   {@link Graph.topology} event stream on `LensGraph`.
- * - {@link LensGraph.health} — `Node<HealthReport>` flipping `ok=false`
- *   when any node enters `"errored"` status, with `upstreamCause` walked
- *   backward through deps.
- * - {@link LensGraph.flow} — `ReactiveMapBundle<string, FlowEntry>` (not a
- *   plain snapshot node) tracking per-path DATA counts + `lastUpdate_ns`.
- *   O(1) `get`/`has`/`size` queries; `.entries` node emits lazily only when
- *   subscribed. Built on the shipped `reactiveMap` primitive.
- * - {@link LensGraph.why} — returns a live `Node<CausalChain>` from `from`
- *   to `to`, reusing `graph.explain({ reactive: true })`.
+ * - `target.describe({ reactive: true })` — live topology snapshot.
+ * - `target.observe({ reactive: true, tiers: ["data"] })` — coalesced data
+ *   changesets per outermost batch flush.
  *
- * Everything is pure-reactive — no polling, no opinionated thresholds.
- * Callers who want periodic staleness checks or bottleneck classification
- * compose them explicitly with `fromTimer` + a derived node.
+ * It returns three Nodes plus a dispose function:
  *
- * The transitive topology-subscription helper lives in {@link watchTopologyTree}
- * (re-exported here for convenience; canonical source is `graph/topology-tree.ts`).
+ * - `topology: Node<GraphDescribeOutput>` — the live describe snapshot,
+ *   re-emitting on every settle of the target tree (structural change,
+ *   error/complete/teardown transition).
+ * - `health: Node<HealthReport>` — `{ok, problems[]}` aggregated from the
+ *   live describe; `ok=false` when any node enters `"errored"` status,
+ *   with `upstreamCause` walked backward through deps.
+ * - `flow: Node<ReadonlyMap<string, FlowEntry>>` — per-path DATA counters
+ *   accumulating as `target.observe({reactive: true, tiers: ["data"]})`
+ *   delivers changesets. The map is reconciled against `topology` on each
+ *   topology change so removed nodes drop their entries.
+ *
+ * Pre-Tier-5.3 shipped a `LensGraph` class with `stats` / `health` / `flow`
+ * (as a `ReactiveMapBundle`) / `why(from, to)` / `flowEntryNode(...)`. The
+ * surface collapsed because every concern was already a one-liner over
+ * `describe({reactive:true})` + `observe({reactive:true, tiers})` once those
+ * landed in Tier 1.5.1 / 1.5.2 — the class added no protocol-level concept,
+ * just glue. Callers who need topology stats compose a derived over
+ * `topology` directly; callers who need a causal chain call
+ * `target.explain(from, to, { reactive: true })`.
+ *
+ * The transitive topology-subscription helper {@link watchTopologyTree} is
+ * re-exported here for downstream factories that need full-tree dynamic
+ * coverage without taking a dep on `graph/`.
  *
  * @module
  */
-import { monotonicNs } from "../../core/clock.js";
 import type { Node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { derived } from "../../core/sugar.js";
 import { domainMeta } from "../../extra/meta.js";
-import { type ReactiveMapBundle, reactiveMap } from "../../extra/reactive-map.js";
 import { keepalive } from "../../extra/sources.js";
 import {
-	type CausalChain,
-	Graph,
+	type Graph,
 	type GraphDescribeOutput,
-	type GraphOptions,
+	type ObserveChangeset,
+	type ObserveEvent,
 	reachable,
-	watchTopologyTree,
 } from "../../graph/index.js";
 
 export { watchTopologyTree } from "../../graph/index.js";
@@ -47,24 +53,6 @@ export { watchTopologyTree } from "../../graph/index.js";
 // ---------------------------------------------------------------------------
 // Payload types
 // ---------------------------------------------------------------------------
-
-/** Aggregate topology stats emitted by {@link LensGraph.stats}. */
-export interface TopologyStats {
-	/** Total primary nodes across this graph and all transitively mounted subgraphs. */
-	nodeCount: number;
-	/** Total directed edges (derived from deps; no duplicates). */
-	edgeCount: number;
-	/** Count of mounted subgraphs (transitive). */
-	subgraphCount: number;
-	/** Qualified paths with no upstream deps (source nodes). Sorted. */
-	sources: readonly string[];
-	/** Qualified paths with no downstream consumers in-graph (sink nodes). Sorted. */
-	sinks: readonly string[];
-	/** Longest path from any source to any sink (in edges). `0` for empty graphs. */
-	depth: number;
-	/** `true` if the dep DAG contains a cycle (feedback edge). */
-	hasCycles: boolean;
-}
 
 /** A single health problem entry. */
 export interface HealthProblem {
@@ -81,126 +69,37 @@ export interface HealthReport {
 	problems: readonly HealthProblem[];
 }
 
-/** One per-path flow entry stored in {@link LensGraph.flow}. */
+/** Per-path flow entry stored in the {@link GraphLensView.flow} map. */
 export interface FlowEntry {
 	path: string;
 	/** Cumulative DATA emissions observed since the lens activated. */
 	count: number;
-	/** `monotonicNs()` at the most recent DATA emission, or `null` if none yet. */
+	/** Monotonic ns at the most recent DATA emission for this path, or `null` if none yet. */
 	lastUpdate_ns: number | null;
 }
 
-// ---------------------------------------------------------------------------
-// Options
-// ---------------------------------------------------------------------------
-
-/** Options for {@link graphLens}. */
-export interface GraphLensOptions {
-	name?: string;
-	graph?: GraphOptions;
+/** Output of {@link graphLens}. */
+export interface GraphLensView {
+	/** Live describe snapshot. Re-emits on structural change AND status transitions. */
+	topology: Node<GraphDescribeOutput>;
+	/** Live `{ok, problems[]}`. Aggregated from `topology`; equality-deduped. */
+	health: Node<HealthReport>;
+	/** Per-path DATA counter map. Re-emits per outermost batch flush. */
+	flow: Node<ReadonlyMap<string, FlowEntry>>;
 	/**
-	 * Limit which node paths `flow` tracks. When omitted, every path in
-	 * `target.describe()` is observed. Recommended for graphs with hundreds
-	 * of nodes since each tracked path adds one observe-event dispatch per
-	 * DATA emission.
+	 * Tear down the underlying `describe({reactive:true})` subscription.
+	 * The `flow` node activates lazily; subscribing-then-unsubscribing reclaims
+	 * its observe stream automatically. Call `dispose()` once when finished.
 	 */
-	pathFilter?: (path: string) => boolean;
-	/**
-	 * LRU cap on the {@link LensGraph.flow} map. When set, the flow tracker
-	 * evicts least-recently-used paths (by insertion / set order) once the
-	 * entry count exceeds this bound. Omit for unbounded (not recommended
-	 * for long-running graphs with churning paths). Passed through to the
-	 * underlying {@link reactiveMap}'s `maxSize`.
-	 */
-	maxFlowPaths?: number;
+	dispose(): void;
 }
 
 // ---------------------------------------------------------------------------
-// Stat computation
+// Pure helpers (exported for testing / composition)
 // ---------------------------------------------------------------------------
 
-function lensMeta(kind: string): Record<string, unknown> {
-	return domainMeta("lens", kind);
-}
-
-function computeTopologyStats(described: GraphDescribeOutput): TopologyStats {
-	const paths = Object.keys(described.nodes);
-	const depsByPath = new Map<string, readonly string[]>();
-	const dependents = new Map<string, Set<string>>();
-	for (const path of paths) {
-		const deps = described.nodes[path]?.deps ?? [];
-		depsByPath.set(path, deps);
-		for (const dep of deps) {
-			if (!dependents.has(dep)) dependents.set(dep, new Set());
-			dependents.get(dep)!.add(path);
-		}
-	}
-	const sources: string[] = [];
-	const sinks: string[] = [];
-	for (const path of paths) {
-		if ((depsByPath.get(path) ?? []).length === 0) sources.push(path);
-		if (!dependents.has(path)) sinks.push(path);
-	}
-	sources.sort();
-	sinks.sort();
-
-	const edgeCount = described.edges.length;
-
-	// Cycle detection + longest path (DFS with recursion stack). Longest path
-	// is measured in edges; undefined deps are ignored. Running on the DAG
-	// subset: if a cycle is detected we still return `depth` for the acyclic
-	// portion (0 if the whole graph cycles).
-	const WHITE = 0;
-	const GRAY = 1;
-	const BLACK = 2;
-	const color = new Map<string, number>();
-	for (const p of paths) color.set(p, WHITE);
-	let hasCycles = false;
-	const longestFrom = new Map<string, number>();
-
-	const dfs = (path: string): number => {
-		const c = color.get(path) ?? WHITE;
-		if (c === GRAY) {
-			hasCycles = true;
-			return 0;
-		}
-		if (c === BLACK) return longestFrom.get(path) ?? 0;
-		color.set(path, GRAY);
-		let best = 0;
-		const kids = dependents.get(path);
-		if (kids != null) {
-			for (const k of kids) {
-				const childLongest = dfs(k);
-				if (childLongest + 1 > best) best = childLongest + 1;
-			}
-		}
-		color.set(path, BLACK);
-		longestFrom.set(path, best);
-		return best;
-	};
-
-	let depth = 0;
-	for (const src of sources) {
-		const d = dfs(src);
-		if (d > depth) depth = d;
-	}
-	// Visit remaining nodes so cycle-only subgraphs still flip hasCycles.
-	for (const p of paths) {
-		if (color.get(p) === WHITE) dfs(p);
-	}
-
-	return {
-		nodeCount: paths.length,
-		edgeCount,
-		subgraphCount: described.subgraphs.length,
-		sources,
-		sinks,
-		depth,
-		hasCycles,
-	};
-}
-
-function computeHealthReport(described: GraphDescribeOutput): HealthReport {
+/** Build a `HealthReport` from a fresh `GraphDescribeOutput`. */
+export function computeHealthReport(described: GraphDescribeOutput): HealthReport {
 	const problems: HealthProblem[] = [];
 	for (const [path, desc] of Object.entries(described.nodes)) {
 		if (desc.status !== "errored") continue;
@@ -222,19 +121,8 @@ function computeHealthReport(described: GraphDescribeOutput): HealthReport {
 	return { ok: problems.length === 0, problems };
 }
 
-function topologyStatsEqual(a: TopologyStats, b: TopologyStats): boolean {
-	return (
-		a.nodeCount === b.nodeCount &&
-		a.edgeCount === b.edgeCount &&
-		a.subgraphCount === b.subgraphCount &&
-		a.depth === b.depth &&
-		a.hasCycles === b.hasCycles &&
-		stringArrayEqual(a.sources, b.sources) &&
-		stringArrayEqual(a.sinks, b.sinks)
-	);
-}
-
-function healthReportEqual(a: HealthReport, b: HealthReport): boolean {
+/** Structural equality for {@link HealthReport} — used as the `health` derived's `equals`. */
+export function healthReportEqual(a: HealthReport, b: HealthReport): boolean {
 	if (a.ok !== b.ok) return false;
 	if (a.problems.length !== b.problems.length) return false;
 	for (let i = 0; i < a.problems.length; i++) {
@@ -247,234 +135,141 @@ function healthReportEqual(a: HealthReport, b: HealthReport): boolean {
 	return true;
 }
 
-function stringArrayEqual(a: readonly string[], b: readonly string[]): boolean {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) {
-		if (a[i] !== b[i]) return false;
-	}
-	return true;
-}
-
 // ---------------------------------------------------------------------------
-// LensGraph
+// graphLens preset
 // ---------------------------------------------------------------------------
 
 /**
- * Reactive observability surface for a target {@link Graph}.
- * See {@link graphLens}.
- *
- * @category observability
- */
-export class LensGraph extends Graph {
-	/**
-	 * Aggregate structural stats — `nodeCount`, `edgeCount`, `sources`,
-	 * `sinks`, `depth`, `hasCycles`, `subgraphCount`. Recomputes on every
-	 * structural change via {@link watchTopologyTree} (transitive).
-	 *
-	 * Named `stats` (not `topology`) because `Graph.topology` already names
-	 * the raw `TopologyEvent` stream on every graph including `LensGraph`;
-	 * giving the lens its own `topology` accessor with an incompatible
-	 * `Node<TopologyStats>` type would break Liskov substitutability.
-	 */
-	readonly stats: Node<TopologyStats>;
-	readonly health: Node<HealthReport>;
-	/**
-	 * Per-path flow tracker — a live {@link ReactiveMapBundle} keyed by
-	 * qualified path. Use `.get(path)` / `.has(path)` / `.size` for O(1)
-	 * sync queries; subscribe to `.entries` for a reactive snapshot of the
-	 * whole map. Lazy — the snapshot is materialized only while `.entries`
-	 * has subscribers.
-	 *
-	 * Shape intentionally differs from `stats` / `health` (which are plain
-	 * `Node<Report>`) because `flow` is a keyed collection, not a single
-	 * aggregate value. The map shape exposes cheaper queries than any
-	 * snapshot-based design.
-	 */
-	readonly flow: ReactiveMapBundle<string, FlowEntry>;
-	private readonly _target: Graph;
-
-	constructor(target: Graph, opts: GraphLensOptions = {}) {
-		super(opts.name ?? `${target.name}_lens`, opts.graph);
-		this._target = target;
-
-		// ——————————————————————————————————————————————————————————————
-		// Shared tick counters (closure-held — COMPOSITION-GUIDE §28 pattern).
-		// `.cache` reads on state() can be undefined before the derived
-		// subscribes; using closure counters keeps the derived fn pure.
-		// ——————————————————————————————————————————————————————————————
-		let statsVersion = 0;
-		let healthVersion = 0;
-		const statsTick = state(0, { name: "stats_tick" });
-		const healthTick = state(0, { name: "health_tick" });
-		this.add(statsTick, { name: "stats_tick" });
-		this.add(healthTick, { name: "health_tick" });
-
-		// ——————————————————————————————————————————————————————————————
-		// flow — reactiveMap<qualifiedPath, FlowEntry>
-		// ——————————————————————————————————————————————————————————————
-		const mapOpts: { name: string; maxSize?: number } = { name: "flow" };
-		if (opts.maxFlowPaths != null) mapOpts.maxSize = opts.maxFlowPaths;
-		this.flow = reactiveMap<string, FlowEntry>(mapOpts);
-		this.add(this.flow.entries, { name: "flow" });
-
-		const pathFilter = opts.pathFilter;
-
-		// ——————————————————————————————————————————————————————————————
-		// Single consolidated topology watcher (stats + health + flow cleanup)
-		// ——————————————————————————————————————————————————————————————
-		const offTopology = watchTopologyTree(target, (event, _emitter, prefix) => {
-			// Any structural change bumps stats & health.
-			statsVersion += 1;
-			statsTick.emit(statsVersion);
-			healthVersion += 1;
-			healthTick.emit(healthVersion);
-
-			// Flow cleanup for removed paths — use the prefix to compute the
-			// qualified key that matches `flow`'s entries.
-			if (event.kind === "removed") {
-				if (event.nodeKind === "node") {
-					const qp = `${prefix}${event.name}`;
-					this.flow.delete(qp);
-				} else {
-					// Mount removal: audit.nodes are paths RELATIVE to the unmounted
-					// subgraph. Qualify with the mount's prefix to match flow keys.
-					const mountPrefix = `${prefix}${event.name}::`;
-					const keysToDelete: string[] = [];
-					for (const relativePath of event.audit.nodes) {
-						const qualified =
-							relativePath === "" ? `${prefix}${event.name}` : `${mountPrefix}${relativePath}`;
-						keysToDelete.push(qualified);
-					}
-					// deleteMany collapses N deletions into one snapshot emit.
-					if (keysToDelete.length > 0) this.flow.deleteMany(keysToDelete);
-				}
-			}
-		});
-		this.addDisposer(offTopology);
-
-		// ——————————————————————————————————————————————————————————————
-		// Single consolidated observe subscription (health + flow DATA counter)
-		// ——————————————————————————————————————————————————————————————
-		const observeHandle = target.observe({ timeline: true, structured: true });
-		const offObserve = observeHandle.onEvent((event) => {
-			const t = event.type;
-			// Health: recompute on status transitions and ERROR resolution.
-			if (t === "error" || t === "complete" || t === "data" || t === "teardown") {
-				healthVersion += 1;
-				healthTick.emit(healthVersion);
-			}
-			// Flow: per-path DATA counter. Writes into reactiveMap; the map's
-			// version counter + lazy `.entries` emission takes care of downstream
-			// propagation (O(P) snapshot only when `.entries` is subscribed).
-			if (t === "data") {
-				const path = event.path ?? "";
-				if (!path) return;
-				if (pathFilter != null && !pathFilter(path)) return;
-				const existing = this.flow.get(path);
-				const count = existing != null ? existing.count + 1 : 1;
-				this.flow.set(path, { path, count, lastUpdate_ns: monotonicNs() });
-			}
-		});
-		this.addDisposer(() => {
-			offObserve();
-			observeHandle.dispose();
-		});
-
-		// ——————————————————————————————————————————————————————————————
-		// stats — derived from the tick
-		// ——————————————————————————————————————————————————————————————
-		this.stats = derived<TopologyStats>(
-			[statsTick],
-			() => computeTopologyStats(target.describe({ detail: "minimal" })),
-			{
-				name: "stats",
-				describeKind: "derived",
-				equals: topologyStatsEqual,
-				meta: lensMeta("stats"),
-			},
-		);
-		this.add(this.stats, { name: "stats" });
-		this.addDisposer(keepalive(this.stats));
-
-		// ——————————————————————————————————————————————————————————————
-		// health — derived from the tick
-		// ——————————————————————————————————————————————————————————————
-		this.health = derived<HealthReport>(
-			[healthTick],
-			() => computeHealthReport(target.describe({ detail: "standard" })),
-			{
-				name: "health",
-				describeKind: "derived",
-				equals: healthReportEqual,
-				meta: lensMeta("health"),
-			},
-		);
-		this.add(this.health, { name: "health" });
-		this.addDisposer(keepalive(this.health));
-	}
-
-	/**
-	 * Live causal chain from `from` to `to`. Recomputes whenever the target
-	 * mutates. Disposed automatically when the lens is destroyed.
-	 *
-	 * **Lifetime note:** every call to `why()` registers a lens-owned disposer
-	 * that runs on `lens.destroy()`. The returned `dispose` function releases
-	 * the internal subscription but does NOT remove the lens-owned disposer —
-	 * so heavy calling (e.g. per render frame) accumulates no-op disposers
-	 * until lens teardown. Cache the returned handle for long-lived queries.
-	 *
-	 * Tier 3.5: rebuilt on top of `graph.explain(from, to, { reactive: true })`
-	 * after the deprecated `reactiveExplainPath` wrapper was deleted.
-	 *
-	 * @param from - Qualified path of the upstream endpoint.
-	 * @param to - Qualified path of the downstream endpoint.
-	 * @param opts - See {@link Graph.explain} (`{ reactive: true }` overload).
-	 */
-	why(
-		from: string,
-		to: string,
-		opts?: { maxDepth?: number; name?: string; findCycle?: boolean },
-	): { node: Node<CausalChain>; dispose: () => void } {
-		const handle = this._target.explain(from, to, { reactive: true, ...opts });
-		this.addDisposer(handle.dispose);
-		return handle;
-	}
-
-	/** Reference to the lensed graph. */
-	get target(): Graph {
-		return this._target;
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Factory
-// ---------------------------------------------------------------------------
-
-/**
- * Create a reactive observability lens over a {@link Graph}. Returns a
- * {@link LensGraph} with three reactive surfaces (`stats`, `health`, `flow`)
- * plus the `why(from, to)` method.
- *
- * The returned graph is detached. Mount it via `target.mount("lens", lens)`
- * if you want it to appear in the target's `describe()`, or keep it standalone.
+ * Reactive observability preset over a target {@link Graph}.
  *
  * @param target - The graph to observe.
- * @param opts - See {@link GraphLensOptions}.
  *
  * @example
  * ```ts
  * const g = new Graph("app");
- * g.add(state(0, { name: "counter" }));
+ * g.add(state(0, { name: "counter" }), { name: "counter" });
+ *
  * const lens = graphLens(g);
- * lens.stats.subscribe((msgs) => console.log(msgs[0]?.[1])); // TopologyStats
- * // Flow queries — O(1) without subscribing to snapshots:
- * lens.flow.get("counter");        // FlowEntry | undefined
- * lens.flow.size;                  // number
- * lens.flow.entries.subscribe(...); // reactive snapshot, lazy-materialized
+ * lens.topology.subscribe((msgs) => console.log("topology:", msgs));
+ * lens.health.subscribe((msgs) => console.log("health:", msgs));
+ * lens.flow.subscribe((msgs) => {
+ *   for (const [type, payload] of msgs) {
+ *     if (type === DATA) console.log("flow map size:", (payload as ReadonlyMap<string, FlowEntry>).size);
+ *   }
+ * });
+ *
+ * // Causal chains: use the underlying primitive directly — `graphLens` no
+ * // longer wraps it, since `graph.explain({ reactive: true })` already
+ * // provides everything the old `lens.why()` did.
+ * const why = g.explain("counter", "consumer", { reactive: true });
+ *
+ * // Tear down when done.
+ * lens.dispose();
  * ```
  *
  * @category observability
  */
-export function graphLens(target: Graph, opts?: GraphLensOptions): LensGraph {
-	return new LensGraph(target, opts);
+export function graphLens(target: Graph): GraphLensView {
+	const topologyHandle = target.describe({
+		reactive: true,
+		detail: "standard",
+		reactiveName: "graphLens.topology",
+	});
+	const topology = topologyHandle.node;
+
+	const health = derived<HealthReport>(
+		[topology],
+		([described]) => computeHealthReport(described as GraphDescribeOutput),
+		{
+			name: "graphLens.health",
+			describeKind: "derived",
+			equals: healthReportEqual,
+			meta: domainMeta("lens", "health"),
+		},
+	);
+	// `topology` is already kept alive by `_describeReactive`'s internal
+	// keepalive; `health` needs its own so the derived stays warm even if
+	// the consumer subscribes lazily.
+	const stopHealthKeep = keepalive(health);
+
+	// `flow` accumulates per-path counters across emissions. Closure-mirror
+	// (COMPOSITION-GUIDE §28) holds the canonical map; the derived returns a
+	// fresh ReadonlyMap projection per emit so consumers never observe an
+	// in-place mutation. Topology drives reconciliation: paths that disappear
+	// from the describe drop their counter entry.
+	//
+	// `lastAppliedFlush_ns` guards against double-applying the same changeset
+	// when topology re-emits without a new dataFlow event (e.g. a node remove
+	// re-fires `topology` while `dataFlow.cache` still holds the previous
+	// changeset by reference). Using the monotonic `flushedAt_ns` cursor (qa
+	// G2A — EC4 fix) is more robust than ref-comparison: an empty changeset
+	// re-emitted with a fresh object identity but the same `flushedAt_ns`
+	// won't trigger a stale-events replay, and a genuinely-new changeset
+	// always advances the cursor.
+	const flowMap = new Map<string, FlowEntry>();
+	let lastAppliedFlush_ns = -1;
+	const dataFlow = target.observe({ reactive: true, tiers: ["data"] });
+	const flow = derived<ReadonlyMap<string, FlowEntry>>(
+		[dataFlow, topology],
+		([changeset, described]) => {
+			const c = changeset as ObserveChangeset | undefined;
+			const desc = described as GraphDescribeOutput | undefined;
+
+			// Apply NEW changeset events first so a freshly-emitted node-remove
+			// observed below cleanly drops the entry. (If we reconciled first
+			// then applied, an event referencing a path the topology had already
+			// dropped would re-create the entry only to be wiped on the next
+			// topology re-emit — order events-then-topology to avoid that.)
+			//
+			// Skip when `events.length === 0`: an empty changeset has no work
+			// to do. The cursor advances anyway so a future identical-content
+			// changeset (different ref, same flushedAt_ns) is also skipped.
+			if (c != null && c.flushedAt_ns > lastAppliedFlush_ns) {
+				lastAppliedFlush_ns = c.flushedAt_ns;
+				for (const event of c.events as readonly ObserveEvent[]) {
+					if (event.type !== "data") continue;
+					const path = event.path;
+					if (path == null || path === "") continue;
+					const prior = flowMap.get(path);
+					flowMap.set(path, {
+						path,
+						count: (prior?.count ?? 0) + 1,
+						lastUpdate_ns: c.flushedAt_ns,
+					});
+				}
+			}
+
+			// Reconcile against current topology — drop entries whose paths
+			// no longer exist in the describe.
+			if (desc != null && flowMap.size > 0) {
+				const valid = new Set(Object.keys(desc.nodes));
+				for (const k of [...flowMap.keys()]) {
+					if (!valid.has(k)) flowMap.delete(k);
+				}
+			}
+
+			// Snapshot — consumers receive a frozen view.
+			return new Map(flowMap) as ReadonlyMap<string, FlowEntry>;
+		},
+		{
+			name: "graphLens.flow",
+			describeKind: "derived",
+			meta: domainMeta("lens", "flow"),
+		},
+	);
+	const stopFlowKeep = keepalive(flow);
+
+	let disposed = false;
+	return {
+		topology,
+		health,
+		flow,
+		dispose() {
+			if (disposed) return;
+			disposed = true;
+			stopFlowKeep();
+			stopHealthKeep();
+			topologyHandle.dispose();
+		},
+	};
 }

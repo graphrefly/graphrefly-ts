@@ -68,6 +68,13 @@ export type RetryOptions = {
 	count?: number;
 	/** Delay between attempts; strategies use **nanoseconds**. */
 	backoff?: BackoffStrategy | BackoffPreset;
+	/**
+	 * Caller-supplied metadata merged into the produced node's `meta` (Tier 5.2
+	 * D8 widening). Use {@link domainMeta} to tag the layer for `describe()`
+	 * grouping. The primitive's `factoryTag("retry", …)` always wins against
+	 * caller keys.
+	 */
+	meta?: Record<string, unknown>;
 };
 
 /** Factory-mode-only options. `initial` seeds the outer node's cache before the first attempt. */
@@ -282,7 +289,7 @@ function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
 	return producer<T>((a) => _runRetryStateMachine(cfg, () => source, a), {
 		...operatorOpts(),
 		initial: source.cache,
-		meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
+		meta: { ...(opts?.meta ?? {}), ...factoryTag("retry", retryFactoryArgs(opts)) },
 	});
 }
 
@@ -291,7 +298,7 @@ function _retryFactory<T>(factory: () => Node<T>, opts?: RetryFactoryOptions<T>)
 	return producer<T>((a) => _runRetryStateMachine(cfg, factory, a), {
 		...operatorOpts(),
 		initial: opts?.initial as T | undefined,
-		meta: { ...factoryTag("retry", retryFactoryArgs(opts)) },
+		meta: { ...(opts?.meta ?? {}), ...factoryTag("retry", retryFactoryArgs(opts)) },
 	});
 }
 
@@ -494,9 +501,10 @@ export type WithBreakerBundle<T> = {
  */
 export function withBreaker<T>(
 	breaker: CircuitBreaker,
-	options?: { onOpen?: "skip" | "error" },
+	options?: { onOpen?: "skip" | "error"; meta?: Record<string, unknown> },
 ): (source: Node<T>) => WithBreakerBundle<T> {
 	const onOpen = options?.onOpen ?? "skip";
+	const callerMeta = options?.meta;
 
 	return (source: Node<T>): WithBreakerBundle<T> => {
 		const wrapped = node<T>(
@@ -537,6 +545,7 @@ export function withBreaker<T>(
 			{
 				...operatorOpts(),
 				meta: {
+					...(callerMeta ?? {}),
 					breakerState: breaker.state,
 					...factoryTag("withBreaker", { onOpen }),
 				},
@@ -680,6 +689,15 @@ export type RateLimiterOptions = {
 	maxBuffer: number;
 	/** Overflow policy when `maxBuffer` is exceeded. Default: `"drop-newest"`. */
 	onOverflow?: RateLimiterOverflowPolicy;
+	/**
+	 * Caller-supplied metadata merged into the produced node's `meta` (Tier 5.2
+	 * D8 widening). Use {@link domainMeta} to tag the layer for `describe()` /
+	 * mermaid grouping (e.g. `domainMeta("resilient", "rate-limit")`). The
+	 * primitive's own `factoryTag("rateLimiter", opts)` and the `droppedCount`
+	 * / `rateLimitState` companion seeds always win against caller-supplied
+	 * keys so the audit trail can't be silently overwritten.
+	 */
+	meta?: Record<string, unknown>;
 };
 
 /**
@@ -694,24 +712,73 @@ export class RateLimiterOverflowError extends Error {
 	}
 }
 
+/**
+ * Combined runtime state surfaced by {@link rateLimiter} alongside `droppedCount`.
+ * Tier 5.2 D7 widening — exposes pending-buffer occupancy and a `paused`
+ * flag so consumers can render backpressure (UI), feed `lens.health`, or
+ * gate downstream effects.
+ */
+export type RateLimiterState = {
+	/** Cumulative `DATA` items dropped due to overflow since this subscription cycle started. */
+	droppedCount: number;
+	/** Items currently buffered awaiting a token refill. `0` when the limiter is passing through. */
+	pendingCount: number;
+	/** `true` when at least one item is queued (the limiter is actively throttling). */
+	paused: boolean;
+};
+
+function rateLimiterStateEqual(a: RateLimiterState, b: RateLimiterState): boolean {
+	return (
+		a.droppedCount === b.droppedCount && a.pendingCount === b.pendingCount && a.paused === b.paused
+	);
+}
+
+const RATE_LIMITER_INITIAL_STATE: RateLimiterState = Object.freeze({
+	droppedCount: 0,
+	pendingCount: 0,
+	paused: false,
+});
+
 /** Bundle returned by {@link rateLimiter}. */
 export type RateLimiterBundle<T> = {
 	/** The throttled stream — at most `maxEvents` `DATA` per `windowNs`. */
 	node: Node<T>;
 	/**
-	 * Reactive companion: count of `DATA` items dropped since subscription start.
+	 * Reactive companion: count of `DATA` items dropped since the producer
+	 * activated.
 	 *
 	 * - Increments on every drop under any overflow policy (`drop-newest`,
 	 *   `drop-oldest`). The `error` policy terminates the stream after a single
 	 *   overflow, so `droppedCount` increments at most once in that path.
-	 * - Resets to `0` on terminal (`COMPLETE` / `ERROR` / `TEARDOWN`) — i.e. the
-	 *   counter scopes to the active subscription cycle.
+	 * - **Lifecycle scoping (qa A1 + EC7):** the counter retains its final
+	 *   value through terminal (`COMPLETE` / `ERROR` / `TEARDOWN`) so consumers
+	 *   see the final drop count, not zero. The closure-held counter resets to
+	 *   `0` only when the producer fn re-runs — which only happens on a new
+	 *   subscription cycle, and only if the producer was constructed with
+	 *   `resubscribable: true`. The default `rateLimiter` producer is NOT
+	 *   resubscribable, so a single producer-fn run is the typical lifetime.
 	 * - Producer-pattern note: this companion is invisible to `describe()`
 	 *   traversal from `node` (effect-mirror limitation; same shape as
 	 *   `withBreaker.breakerState` and `withStatus.status`). Surface it via
 	 *   `node.meta.droppedCount` if you need it in topology snapshots.
 	 */
 	droppedCount: Node<number>;
+	/**
+	 * Reactive companion: combined `{droppedCount, pendingCount, paused}` view.
+	 *
+	 * - `pendingCount` reflects the live buffer occupancy and updates on every
+	 *   push / shift / overflow drop; `paused` is shorthand for
+	 *   `pendingCount > 0`.
+	 * - Equality-deduped — re-emits only when one of the three fields actually
+	 *   changes (so a busy steady-state where every DATA passes immediately
+	 *   produces one `paused: false` emission, not one per DATA).
+	 * - **Lifecycle scoping (qa EC7):** same contract as `droppedCount` —
+	 *   retains its final value through terminal; resets to the initial
+	 *   `{droppedCount: 0, pendingCount: 0, paused: false}` only on a new
+	 *   producer-fn run (resubscribable upstream required).
+	 * - Same producer-pattern caveat as `droppedCount` re: `describe()` visibility.
+	 */
+	rateLimitState: Node<RateLimiterState>;
 };
 
 /**
@@ -780,23 +847,43 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 
 			const tokenTimeNs = NS_PER_SEC / refillPerSec;
 
-			// Mirror the dropped counter to the meta companion. The `emit` call is
-			// the same subscribe-callback effect-mirror pattern used by
-			// `withBreaker.breakerState` / `withStatus.status` (sanctioned per
-			// audit § F.7).
+			// Mirror the dropped counter + combined state to the meta companions.
+			// The `emit` call is the same subscribe-callback effect-mirror
+			// pattern used by `withBreaker.breakerState` / `withStatus.status`
+			// (sanctioned per audit § F.7).
 			const droppedNode = out.meta.droppedCount;
-			function syncDropped(): void {
+			const stateNode = out.meta.rateLimitState;
+			let lastState: RateLimiterState = RATE_LIMITER_INITIAL_STATE;
+			function syncState(): void {
 				droppedNode.emit(dropped);
+				const next: RateLimiterState = {
+					droppedCount: dropped,
+					pendingCount: pending.size,
+					paused: pending.size > 0,
+				};
+				// Equality-dedup at the emit boundary so steady-state pass-through
+				// (every DATA passes immediately — pendingCount stays 0, paused
+				// stays false) doesn't generate one state DATA per source DATA.
+				if (!rateLimiterStateEqual(lastState, next)) {
+					lastState = next;
+					stateNode.emit(next);
+				}
 			}
 
-			// Reset for this subscription cycle (state may have ended at >0 in a
-			// prior subscription).
-			if ((droppedNode.cache as number | undefined) !== 0) syncDropped();
+			// Reset for this subscription cycle — `dropped` is the closure
+			// variable (already 0 at construction); `pending.size` is also 0
+			// (fresh queue per producer activation). The companion Node caches
+			// may still hold a prior cycle's terminal values, so re-emit the
+			// initial state explicitly.
+			lastState = RATE_LIMITER_INITIAL_STATE;
+			droppedNode.emit(0);
+			stateNode.emit(RATE_LIMITER_INITIAL_STATE);
 
 			function tryEmit(): void {
 				while (pending.size > 0) {
 					if (bucket.tryConsume(1)) {
 						a.emit(pending.shift() as T);
+						syncState();
 					} else {
 						// Wait one full token-refill interval. Avoids calling bucket.available()
 						// which would advance the internal refill clock and steal fractional credit.
@@ -810,7 +897,7 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 
 			function recordDrop(): void {
 				dropped += 1;
-				syncDropped();
+				syncState();
 			}
 
 			function resetForTerminal(): void {
@@ -818,11 +905,11 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 				timer.cancel();
 				// RingBuffer.clear-equivalent: drain remaining slots so refs GC.
 				while (pending.size > 0) pending.shift();
-				// qa A1: do NOT reset `dropped` to 0 on terminal — emitting
-				// `[DATA, N], [DATA, 0]` then no terminal on `droppedCount`
-				// makes consumers think drops were undone. Final count is the
-				// last observable state; next subscription cycle's
-				// `cache !== 0` check (above) re-zeros for the new cycle.
+				// qa A1: companions retain their last-emitted DATA value
+				// through terminal (consumer sees the final drop count, not 0).
+				// The closure-held `dropped` resets to 0 so a re-subscribe
+				// cycle starts fresh; the activation block above re-emits
+				// `RATE_LIMITER_INITIAL_STATE` at that point.
 				dropped = 0;
 			}
 
@@ -847,6 +934,7 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 							}
 						} else {
 							pending.push(m[1] as T);
+							syncState();
 						}
 						tryEmit();
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
@@ -873,11 +961,22 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { droppedCount: 0, ...factoryTag("rateLimiter", opts) },
+			meta: {
+				// Caller-supplied meta first; companion seeds + factoryTag
+				// override below so they always win.
+				...(opts.meta ?? {}),
+				droppedCount: 0,
+				rateLimitState: RATE_LIMITER_INITIAL_STATE,
+				...factoryTag("rateLimiter", opts),
+			},
 		},
 	);
 
-	return { node: out, droppedCount: out.meta.droppedCount as Node<number> };
+	return {
+		node: out,
+		droppedCount: out.meta.droppedCount as Node<number>,
+		rateLimitState: out.meta.rateLimitState as Node<RateLimiterState>,
+	};
 }
 
 /**
@@ -968,9 +1067,10 @@ export type WithStatusBundle<T> = {
  */
 export function withStatus<T>(
 	src: Node<T>,
-	options?: { initialStatus?: StatusValue },
+	options?: { initialStatus?: StatusValue; meta?: Record<string, unknown> },
 ): WithStatusBundle<T> {
 	const initialStatus = options?.initialStatus ?? "pending";
+	const callerMeta = options?.meta;
 
 	const out = node<T>(
 		[],
@@ -1016,6 +1116,7 @@ export function withStatus<T>(
 		{
 			...operatorOpts(),
 			meta: {
+				...(callerMeta ?? {}),
 				status: initialStatus,
 				error: null,
 				...factoryTag("withStatus", { initialStatus }),
@@ -1104,7 +1205,12 @@ export type FallbackInput<T> = T | Node<T> | PromiseLike<T> | AsyncIterable<T>;
  *
  * @category extra
  */
-export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
+export function fallback<T>(
+	source: Node<T>,
+	fb: FallbackInput<T>,
+	options?: { meta?: Record<string, unknown> },
+): Node<T> {
+	const callerMeta = options?.meta;
 	return producer<T>(
 		(a) => {
 			let fallbackUnsub: (() => void) | undefined;
@@ -1161,7 +1267,7 @@ export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...factoryTag("fallback") },
+			meta: { ...(callerMeta ?? {}), ...factoryTag("fallback") },
 		},
 	);
 }
@@ -1191,8 +1297,13 @@ export function fallback<T>(source: Node<T>, fb: FallbackInput<T>): Node<T> {
  *
  * @category extra
  */
-export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
+export function timeout<T>(
+	source: Node<T>,
+	timeoutNs: number,
+	options?: { meta?: Record<string, unknown> },
+): Node<T> {
 	if (timeoutNs <= 0) throw new RangeError("timeoutNs must be > 0");
+	const callerMeta = options?.meta;
 
 	return producer<T>(
 		(a) => {
@@ -1249,7 +1360,7 @@ export function timeout<T>(source: Node<T>, timeoutNs: number): Node<T> {
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...factoryTag("timeout", { timeoutNs }) },
+			meta: { ...(callerMeta ?? {}), ...factoryTag("timeout", { timeoutNs }) },
 		},
 	);
 }

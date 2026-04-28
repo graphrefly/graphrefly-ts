@@ -41,11 +41,21 @@ import {
 	type MemoryTiersOptions,
 } from "./tiers.js";
 
-/** @internal — extract a reactive_map snapshot back to a typed Map. */
-function extractStoreMap<TMem>(snapshot: unknown): ReadonlyMap<string, TMem> {
-	if (snapshot instanceof Map) return snapshot as ReadonlyMap<string, TMem>;
-	return new Map<string, TMem>();
-}
+// Tier 4.7 (Wave AM Unit 5 carry): pre-rebuild this module funnelled every
+// `store.store.entries` snapshot through a private `extractStoreMap` helper
+// that ran a runtime `instanceof Map` check before casting to
+// `ReadonlyMap<string, TMem>`. Post-Tier-1.5.4 the upstream `ReactiveMapBundle`
+// always emits a Map (the defensive instanceof-check was paranoid), so the
+// helper was deleted in favor of a typed `as` cast at each callsite. Empty
+// map is the canonical "no entries yet" value — `state(undefined)` would
+// stall a derived/effect's first-run gate (sentinel semantics).
+//
+// qa F3 (deferred): the typed cast lies if upstream contract ever breaks
+// (e.g. `entries` emits a non-Map non-undefined value). Failure mode is a
+// TypeError at iteration instead of a silent empty-map fallback —
+// deliberate trade-off, surfacing real upstream-contract violations beats
+// hiding them. Upstream-narrowing follow-up filed in `docs/optimizations.md`
+// under "Tier 4.7 follow-up — narrow `ReactiveMapBundle.entries` callback typing".
 
 // ---------------------------------------------------------------------------
 // memoryWithVectors
@@ -75,7 +85,7 @@ export function memoryWithVectors<TMem>(
 	const vectors = vectorIndex<TMem>({ dimension: opts.dimension });
 	graph.add(vectors.entries, { name: "vectorIndex" });
 	const indexer = effect([store.store.entries], ([snapshot]) => {
-		const storeMap = extractStoreMap<TMem>(snapshot);
+		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
 		for (const [key, mem] of storeMap) {
 			const vec = opts.embedFn(mem);
 			if (vec) vectors.upsert(key, vec, mem);
@@ -139,7 +149,7 @@ export function memoryWithKG<TMem>(
 	}
 	const entityFn = opts.entityFn;
 	const indexer = effect([store.store.entries], ([snapshot]) => {
-		const storeMap = extractStoreMap<TMem>(snapshot);
+		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
 		for (const [key, mem] of storeMap) {
 			const extracted = entityFn(key, mem);
 			if (!extracted) continue;
@@ -199,7 +209,9 @@ export function memoryWithTiers<TMem>(
 	const permanentKeys = new Set<string>();
 	const tierOf = (key: string): MemoryTier => {
 		if (permanentKeys.has(key)) return "permanent";
-		const m = extractStoreMap<TMem>(store.store.entries.cache);
+		const m =
+			(store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
+			new Map<string, TMem>();
 		if (m.has(key)) return "active";
 		return "archived";
 	};
@@ -213,7 +225,7 @@ export function memoryWithTiers<TMem>(
 	const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
 
 	const tierClassifier = effect([storeNode, contextNode], ([snapshot, ctx]) => {
-		const storeMap = extractStoreMap<TMem>(snapshot);
+		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
 		const nowNs = monotonicNs();
 		const toArchive: string[] = [];
 		const toPermanent: Array<{ key: string; value: TMem }> = [];
@@ -510,7 +522,9 @@ export function memoryRetrieval<TMem>(
 	graph.add(traceState, { name: "retrievalTrace" });
 
 	const retrieve = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
-		const storeMap = extractStoreMap<TMem>(store.store.entries.cache);
+		const storeMap =
+			(store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
+			new Map<string, TMem>();
 		const { packed, trace } = runRetrieval(storeMap, contextNode.cache, query);
 		batch(() => {
 			retrievalOutput.emit(packed);
@@ -535,7 +549,8 @@ export function memoryRetrieval<TMem>(
 			[store.store.entries, contextNode, q],
 			([snapshot, ctx, query]) => {
 				if (query == null) return { packed: [], trace: null };
-				const storeMap = extractStoreMap<TMem>(snapshot);
+				const storeMap =
+					(snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
 				const { packed, trace } = runRetrieval(storeMap, ctx, query as RetrievalQuery);
 				return { packed, trace };
 			},

@@ -5,6 +5,7 @@
 import type { Node } from "../../../core/node.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
 import type { SnapshotStorageTier } from "../../../extra/storage-tiers.js";
+import { DEFAULT_DECAY_RATE } from "../../../extra/utils/decay.js";
 import type { GraphAttachStorageOptions, GraphCheckpointRecord } from "../../../graph/graph.js";
 import type { CollectionGraph } from "../../memory/index.js";
 
@@ -26,8 +27,10 @@ export type MemoryTiersOptions<TMem> = {
 	archiveStorageOptions?: GraphAttachStorageOptions;
 };
 
-/** @internal */
-export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 86_400); // 7-day half-life
+// `DEFAULT_DECAY_RATE` is canonical at `extra/utils/decay.ts` (Tier 4.4
+// Wave AM Unit 1). Re-exported here for backward-compat with existing
+// `patterns/ai/memory/` consumers.
+export { DEFAULT_DECAY_RATE };
 
 export type MemoryTiersBundle<TMem> = {
 	/**

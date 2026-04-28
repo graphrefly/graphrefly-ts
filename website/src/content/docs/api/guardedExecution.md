@@ -1,9 +1,9 @@
 ---
 title: "guardedExecution()"
-description: "Wrap a Graph with policyGate plus a scoped describe\nlens. Returns a GuardedExecutionGraph that can be mounted, diffed,\nor composed with graphLens."
+description: "Wrap a Graph with policyGate plus a reactive scoped describe\nlens. Returns a GuardedExecutionGraph that can be mounted, diffed,\nor composed with graphLens."
 ---
 
-Wrap a Graph with policyGate plus a scoped describe
+Wrap a Graph with policyGate plus a reactive scoped describe
 lens. Returns a GuardedExecutionGraph that can be mounted, diffed,
 or composed with graphLens.
 
@@ -27,7 +27,7 @@ function guardedExecution(
 
 ```ts
 const guarded = guardedExecution(app, {
-    actor: { type: "human", id: "alice" },
+    actor: state<Actor>({ type: "human", id: "alice" }), // reactive — re-derive on swap
     policies: [
       { effect: "allow", action: "read", actorType: "human" },
       { effect: "deny", action: "write", pathPattern: "system::*" },
@@ -35,6 +35,12 @@ const guarded = guardedExecution(app, {
   mode: "enforce",
 });
 
-const view = guarded.scopedDescribe({ detail: "standard" });
+// Canonical: subscribe to the mounted reactive describe (no per-call leak).
+guarded.scopedDescribe.subscribe((msgs) => { /* live describe per actor / topology change *\/ });
+// Per-call escape hatch (different actor / detail) — caller manages dispose.
+const detailed = guarded.scopedDescribeNode(undefined, { detail: "standard" });
+try { detailed.node.subscribe(/* … *\/); } finally { detailed.dispose(); }
 guarded.violations.events.subscribe(msgs => console.log("violations:", msgs));
+guarded.lints.events.subscribe(msgs => console.warn("lints:", msgs));
+guarded.scope.subscribe(msgs => console.log("scope:", msgs));
 ```

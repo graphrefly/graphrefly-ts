@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
+import { describeNode } from "../../core/meta.js";
 import { derived, state } from "../../core/sugar.js";
 import { Graph } from "../../graph/index.js";
-import { graphLens, type HealthReport, type TopologyStats } from "../../patterns/lens/index.js";
+import { type FlowEntry, graphLens, type HealthReport } from "../../patterns/lens/index.js";
 
-function getStatsCache(node: { cache: unknown }): TopologyStats {
-	return node.cache as TopologyStats;
-}
 function getHealthCache(node: { cache: unknown }): HealthReport {
 	return node.cache as HealthReport;
 }
+function getFlowCache(node: { cache: unknown }): ReadonlyMap<string, FlowEntry> {
+	return (node.cache ?? new Map<string, FlowEntry>()) as ReadonlyMap<string, FlowEntry>;
+}
 
-describe("graphLens — topology stats", () => {
-	it("reflects the initial graph shape", () => {
+describe("graphLens — topology", () => {
+	it("topology is a live describe of the target", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
@@ -20,36 +21,40 @@ describe("graphLens — topology stats", () => {
 		g.add(b, { name: "b" });
 
 		const lens = graphLens(g);
-		// Activate
-		lens.stats.subscribe(() => {});
-
-		const stats = getStatsCache(lens.stats);
-		expect(stats.nodeCount).toBe(2);
-		expect(stats.edgeCount).toBe(1);
-		expect(stats.sources).toEqual(["a"]);
-		expect(stats.sinks).toEqual(["b"]);
-		expect(stats.depth).toBe(1);
-		expect(stats.hasCycles).toBe(false);
+		try {
+			lens.topology.subscribe(() => {});
+			const desc = lens.topology.cache as { nodes: Record<string, unknown> };
+			expect(Object.keys(desc.nodes).sort()).toEqual(["a", "b"]);
+		} finally {
+			lens.dispose();
+		}
 	});
 
-	it("recomputes when a node is added to the target", () => {
+	it("topology re-emits when a node is added to the target", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
 
-		const seen: TopologyStats[] = [];
-		lens.stats.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) seen.push(m[1] as TopologyStats);
-			}
-		});
+		try {
+			const seen: number[] = [];
+			lens.topology.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) {
+						const desc = m[1] as { nodes: Record<string, unknown> };
+						seen.push(Object.keys(desc.nodes).length);
+					}
+				}
+			});
+			expect(seen.at(-1)).toBe(1);
 
-		expect(seen.at(-1)?.nodeCount).toBe(1);
-		g.add(state(1, { name: "b" }), { name: "b" });
-		expect(seen.at(-1)?.nodeCount).toBe(2);
+			g.add(state(1, { name: "b" }), { name: "b" });
+			expect(seen.at(-1)).toBe(2);
+		} finally {
+			lens.dispose();
+		}
 	});
 
-	it("includes transitively-mounted subgraph nodes in the counts", () => {
+	it("topology covers transitively-mounted subgraphs", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const child = new Graph("child");
@@ -57,43 +62,13 @@ describe("graphLens — topology stats", () => {
 		g.mount("kids", child);
 
 		const lens = graphLens(g);
-		lens.stats.subscribe(() => {});
-
-		const stats = getStatsCache(lens.stats);
-		// a + kids::x
-		expect(stats.nodeCount).toBe(2);
-		expect(stats.subgraphCount).toBe(1);
-		expect(stats.sources.sort()).toEqual(["a", "kids::x"].sort());
-	});
-
-	it("recomputes when nodes are added to a mounted subgraph after lens creation", () => {
-		const g = new Graph("g");
-		const child = new Graph("child");
-		g.mount("kids", child);
-
-		const lens = graphLens(g);
-		lens.stats.subscribe(() => {});
-
-		expect(getStatsCache(lens.stats).nodeCount).toBe(0);
-
-		// Add into the already-mounted child — transitive subscription should catch this.
-		child.add(state(0, { name: "x" }), { name: "x" });
-		expect(getStatsCache(lens.stats).nodeCount).toBe(1);
-	});
-
-	it("recomputes when a new subgraph is mounted after lens creation", () => {
-		const g = new Graph("g");
-		const lens = graphLens(g);
-		lens.stats.subscribe(() => {});
-
-		const child = new Graph("late");
-		child.add(state(0), { name: "x" });
-		g.mount("late", child);
-		expect(getStatsCache(lens.stats).nodeCount).toBe(1);
-
-		// Add a second node to the newly-mounted child — auto-wired subscription.
-		child.add(state(0), { name: "y" });
-		expect(getStatsCache(lens.stats).nodeCount).toBe(2);
+		try {
+			lens.topology.subscribe(() => {});
+			const desc = lens.topology.cache as { nodes: Record<string, unknown> };
+			expect(Object.keys(desc.nodes).sort()).toEqual(["a", "kids::x"]);
+		} finally {
+			lens.dispose();
+		}
 	});
 });
 
@@ -102,9 +77,13 @@ describe("graphLens — health", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
-		lens.health.subscribe(() => {});
-		expect(getHealthCache(lens.health).ok).toBe(true);
-		expect(getHealthCache(lens.health).problems).toHaveLength(0);
+		try {
+			lens.health.subscribe(() => {});
+			expect(getHealthCache(lens.health).ok).toBe(true);
+			expect(getHealthCache(lens.health).problems).toHaveLength(0);
+		} finally {
+			lens.dispose();
+		}
 	});
 
 	it("flips to ok=false with a problem entry when a node errors", () => {
@@ -122,15 +101,19 @@ describe("graphLens — health", () => {
 		g.add(b, { name: "b" });
 
 		const lens = graphLens(g);
-		lens.health.subscribe(() => {});
-		expect(getHealthCache(lens.health).ok).toBe(true);
+		try {
+			lens.health.subscribe(() => {});
+			expect(getHealthCache(lens.health).ok).toBe(true);
 
-		a.emit(-1); // triggers b's fn to throw → b errors
-		const report = getHealthCache(lens.health);
-		expect(report.ok).toBe(false);
-		expect(report.problems).toHaveLength(1);
-		expect(report.problems[0]?.path).toBe("b");
-		expect(report.problems[0]?.status).toBe("errored");
+			a.emit(-1); // triggers b's fn to throw → b errors
+			const report = getHealthCache(lens.health);
+			expect(report.ok).toBe(false);
+			expect(report.problems).toHaveLength(1);
+			expect(report.problems[0]?.path).toBe("b");
+			expect(report.problems[0]?.status).toBe("errored");
+		} finally {
+			lens.dispose();
+		}
 	});
 
 	it("sets upstreamCause when the error originates upstream", () => {
@@ -144,106 +127,47 @@ describe("graphLens — health", () => {
 			},
 			{ name: "b" },
 		);
-		// c depends on b — if b errors, c also errors via ERROR propagation
 		const c = derived([b], ([v]) => (v as number) * 2, { name: "c" });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 
 		const lens = graphLens(g);
-		lens.health.subscribe(() => {});
-
-		a.emit(-1);
-		const report = getHealthCache(lens.health);
-		expect(report.ok).toBe(false);
-		const cProblem = report.problems.find((p) => p.path === "c");
-		expect(cProblem?.upstreamCause).toBe("b");
+		try {
+			lens.health.subscribe(() => {});
+			a.emit(-1);
+			const report = getHealthCache(lens.health);
+			expect(report.ok).toBe(false);
+			const cProblem = report.problems.find((p) => p.path === "c");
+			expect(cProblem?.upstreamCause).toBe("b");
+		} finally {
+			lens.dispose();
+		}
 	});
 });
 
-describe("graphLens — flow (reactiveMap)", () => {
-	it("counts DATA emissions per path via sync .get()", () => {
+describe("graphLens — flow", () => {
+	it("counts DATA emissions per qualified path", () => {
 		const g = new Graph("g");
 		const a = state(0, { name: "a" });
 		g.add(a, { name: "a" });
 
 		const lens = graphLens(g);
-		// Subscribe to entries so `observe()` + flow map stay active
-		lens.flow.entries.subscribe(() => {});
+		try {
+			lens.flow.subscribe(() => {});
+			a.emit(1);
+			a.emit(2);
+			a.emit(3);
 
-		a.emit(1);
-		a.emit(2);
-		a.emit(3);
-
-		const entry = lens.flow.get("a");
-		// The initial subscription state push counts as a data event too; we just
-		// assert that the counter is monotonic and ≥ 3.
-		expect(entry?.count).toBeGreaterThanOrEqual(3);
-		expect(entry?.lastUpdate_ns).not.toBeNull();
-	});
-
-	it("exposes O(1) size + has queries", () => {
-		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-
-		const lens = graphLens(g);
-		lens.flow.entries.subscribe(() => {});
-
-		g.set("a", 1);
-		g.set("b", 1);
-
-		expect(lens.flow.size).toBe(2);
-		expect(lens.flow.has("a")).toBe(true);
-		expect(lens.flow.has("nonexistent")).toBe(false);
-	});
-
-	it("pathFilter scopes which paths are tracked", () => {
-		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-
-		const lens = graphLens(g, { pathFilter: (p) => p === "a" });
-		lens.flow.entries.subscribe(() => {});
-
-		g.set("a", 1);
-		g.set("b", 1);
-
-		expect(lens.flow.has("a")).toBe(true);
-		expect(lens.flow.has("b")).toBe(false);
-	});
-
-	it("drops per-path entries when a node is removed", () => {
-		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-
-		const lens = graphLens(g);
-		lens.flow.entries.subscribe(() => {});
-		g.set("a", 1);
-		g.set("b", 1);
-
-		expect(lens.flow.has("b")).toBe(true);
-
-		g.remove("b");
-		expect(lens.flow.has("b")).toBe(false);
-	});
-
-	it("maxFlowPaths caps the map via LRU eviction", () => {
-		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-		g.add(state(0, { name: "c" }), { name: "c" });
-
-		const lens = graphLens(g, { maxFlowPaths: 2 });
-		lens.flow.entries.subscribe(() => {});
-
-		g.set("a", 1);
-		g.set("b", 1);
-		g.set("c", 1); // evicts "a" (LRU — `a` hasn't been touched since its set)
-
-		expect(lens.flow.size).toBeLessThanOrEqual(2);
-		expect(lens.flow.has("c")).toBe(true);
+			const map = getFlowCache(lens.flow);
+			const entry = map.get("a");
+			// Initial subscription state push counts as a data event too — assert
+			// the counter is monotonic and ≥ 3.
+			expect(entry?.count).toBeGreaterThanOrEqual(3);
+			expect(entry?.lastUpdate_ns).not.toBeNull();
+		} finally {
+			lens.dispose();
+		}
 	});
 
 	it("uses qualified path keys for transitively-mounted nodes", () => {
@@ -253,72 +177,93 @@ describe("graphLens — flow (reactiveMap)", () => {
 		child.add(state(0, { name: "x" }), { name: "x" });
 
 		const lens = graphLens(g);
-		lens.flow.entries.subscribe(() => {});
-		child.set("x", 1);
-
-		// Key should be "kids::x", not "x"
-		expect(lens.flow.has("kids::x")).toBe(true);
-		expect(lens.flow.has("x")).toBe(false);
+		try {
+			lens.flow.subscribe(() => {});
+			child.set("x", 1);
+			const map = getFlowCache(lens.flow);
+			expect(map.has("kids::x")).toBe(true);
+			expect(map.has("x")).toBe(false);
+		} finally {
+			lens.dispose();
+		}
 	});
 
-	it("mount-removal wipes all entries belonging to the unmounted subtree", () => {
+	it("reconciles entries when a node is removed from the target", () => {
 		const g = new Graph("g");
-		const child = new Graph("child");
-		g.mount("kids", child);
-		child.add(state(0, { name: "x" }), { name: "x" });
-		child.add(state(0, { name: "y" }), { name: "y" });
+		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(state(0, { name: "b" }), { name: "b" });
 
 		const lens = graphLens(g);
-		lens.flow.entries.subscribe(() => {});
-		child.set("x", 1);
-		child.set("y", 1);
-		expect(lens.flow.has("kids::x")).toBe(true);
-		expect(lens.flow.has("kids::y")).toBe(true);
+		try {
+			lens.flow.subscribe(() => {});
+			g.set("a", 1);
+			g.set("b", 1);
+			expect(getFlowCache(lens.flow).has("b")).toBe(true);
 
-		g.remove("kids");
-		expect(lens.flow.has("kids::x")).toBe(false);
-		expect(lens.flow.has("kids::y")).toBe(false);
+			g.remove("b");
+			expect(getFlowCache(lens.flow).has("b")).toBe(false);
+		} finally {
+			lens.dispose();
+		}
+	});
+
+	it("emits a fresh map snapshot on each settle (no in-place mutation)", () => {
+		const g = new Graph("g");
+		const a = state(0, { name: "a" });
+		g.add(a, { name: "a" });
+
+		const lens = graphLens(g);
+		try {
+			const snapshots: ReadonlyMap<string, FlowEntry>[] = [];
+			lens.flow.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) snapshots.push(m[1] as ReadonlyMap<string, FlowEntry>);
+				}
+			});
+			a.emit(1);
+			a.emit(2);
+
+			// Each emission should produce a distinct map reference.
+			expect(snapshots.length).toBeGreaterThan(1);
+			const distinct = new Set(snapshots).size;
+			expect(distinct).toBe(snapshots.length);
+		} finally {
+			lens.dispose();
+		}
 	});
 });
 
-describe("graphLens — why", () => {
-	it("returns a live CausalChain node that recomputes on mutation", () => {
+describe("graphLens — domain meta tagging", () => {
+	it("tags the health and flow deriveds with lens_type metadata", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		g.add(a, { name: "a" });
-		g.add(b, { name: "b" });
-		g.observe("b").subscribe(() => {});
-
+		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
-		const { node, dispose } = lens.why("a", "b");
-		node.subscribe(() => {});
-
-		const chain1 = node.cache as { found: boolean; steps: { value: unknown }[] };
-		expect(chain1.found).toBe(true);
-		expect(chain1.steps[0]?.value).toBe(1);
-		expect(chain1.steps[1]?.value).toBe(2);
-
-		a.emit(5);
-		const chain2 = node.cache as { found: boolean; steps: { value: unknown }[] };
-		expect(chain2.steps[0]?.value).toBe(5);
-		expect(chain2.steps[1]?.value).toBe(10);
-
-		dispose();
+		try {
+			const healthMeta = describeNode(lens.health).meta;
+			expect(healthMeta?.lens).toBe(true);
+			expect(healthMeta?.lens_type).toBe("health");
+			const flowMeta = describeNode(lens.flow).meta;
+			expect(flowMeta?.lens).toBe(true);
+			expect(flowMeta?.lens_type).toBe("flow");
+		} finally {
+			lens.dispose();
+		}
 	});
 });
 
 describe("graphLens — lifecycle", () => {
-	it("destroy disposes every internal subscription", () => {
+	it("dispose tears down the topology subscription cleanly", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });
 		const lens = graphLens(g);
-		lens.stats.subscribe(() => {});
+		lens.topology.subscribe(() => {});
 		lens.health.subscribe(() => {});
-		lens.flow.entries.subscribe(() => {});
-		// Just call destroy — if a handler leaked it would throw or corrupt later asserts.
-		lens.destroy();
-		// Mutate after destroy; lens should not react (no assertion beyond "no crash").
+		lens.flow.subscribe(() => {});
+		// Just call dispose — if a handler leaked it would throw or corrupt later asserts.
+		lens.dispose();
+		// Idempotent — second dispose is a no-op.
+		expect(() => lens.dispose()).not.toThrow();
+		// Mutate after dispose; lens should not react (no assertion beyond "no crash").
 		g.add(state(1), { name: "b" });
 		g.set("a", 99);
 	});
