@@ -23,7 +23,7 @@ describe("patterns.orchestration", () => {
 		});
 		doubled.subscribe(() => undefined);
 		g.set("input", 3);
-		expect(g.get("double")).toBe(6);
+		expect(g.node("double").cache).toBe(6);
 		expect(g.edges()).toContainEqual(["input", "double"]);
 	});
 
@@ -92,14 +92,14 @@ describe("patterns.orchestration", () => {
 		reviewCtrl.output.subscribe(() => undefined);
 
 		g.set("input", 2);
-		expect(g.get("reviewed")).toBe(2);
+		expect(g.node("reviewed").cache).toBe(2);
 		g.set("open", false);
 		g.set("input", 3);
-		expect(g.get("reviewed")).toBe(2);
+		expect(g.node("reviewed").cache).toBe(2);
 		g.set("open", true);
 		g.set("approved", false);
 		g.set("input", 4);
-		expect(g.get("reviewed")).toBe(3);
+		expect(g.node("reviewed").cache).toBe(3);
 	});
 
 	// forEach removed — use `effect([source], ...)` + `graph.add()`.
@@ -127,7 +127,7 @@ describe("patterns.orchestration", () => {
 		const j = g.combine("j", { a: "a", b: "b" });
 		j.subscribe(() => undefined);
 		g.set("a", 5);
-		expect(g.get("j")).toEqual({ a: 5, b: "x" });
+		expect(g.node("j").cache).toEqual({ a: 5, b: "x" });
 	});
 
 	it("mount mounts child workflow graph", () => {
@@ -135,7 +135,7 @@ describe("patterns.orchestration", () => {
 		const child = new Graph("child");
 		child.add(state(1), { name: "n" });
 		root.mount("child", child);
-		expect(root.get("child::n")).toBe(1);
+		expect(root.node("child::n").cache).toBe(1);
 	});
 
 	it("delay shifts DATA by ms while forwarding eventual updates", async () => {
@@ -147,11 +147,11 @@ describe("patterns.orchestration", () => {
 		delayed.subscribe(() => undefined);
 		// extra/delay uses a per-DATA timer; initial 1 fires after the delay.
 		await new Promise((resolve) => setTimeout(resolve, 25));
-		expect(g.get("delayed")).toBe(1);
+		expect(g.node("delayed").cache).toBe(1);
 		g.set("input", 2);
-		expect(g.get("delayed")).toBe(1);
+		expect(g.node("delayed").cache).toBe(1);
 		await new Promise((resolve) => setTimeout(resolve, 25));
-		expect(g.get("delayed")).toBe(2);
+		expect(g.node("delayed").cache).toBe(2);
 	});
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)
@@ -173,7 +173,7 @@ describe("patterns.orchestration", () => {
 		});
 		recovered.subscribe(() => undefined);
 		g.set("src", 2);
-		expect(g.get("recovered")).toBe(999);
+		expect(g.node("recovered").cache).toBe(999);
 	});
 
 	// forEach removed — effect([source], fn) with a throwing fn terminates the
@@ -206,7 +206,7 @@ describe("patterns.orchestration", () => {
 		g.set("input", 2);
 		delayed.down([[TEARDOWN]]);
 		await new Promise((resolve) => setTimeout(resolve, 35));
-		expect(g.get("delayed")).toBeUndefined();
+		expect(g.node("delayed").cache).toBeUndefined();
 	});
 
 	// FLAG: v5 behavioral change — needs investigation (Graph.connect() deps enforcement)

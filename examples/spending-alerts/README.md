@@ -2,7 +2,7 @@
 
 Node-runnable pipeline backing homepage pain point 02 (_"Action Without Explanation"_) and the [spending-alerts walkthrough](../../website/src/content/docs/demos/spending-alerts.md).
 
-A 5-hop reactive graph flags an anomalous transaction; `graph.explain("txFeed", "alertMessage")` prints the causal chain from raw input to final conclusion.
+A 5-hop reactive graph flags an anomalous transaction; `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` prints the causal chain from raw input to final conclusion.
 
 ## Run
 

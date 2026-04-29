@@ -3,7 +3,7 @@
  *
  * Five hops on the causal spine from a raw transaction to a human-readable
  * alert, plus two side inputs (per-vendor stats, user profile). Every node
- * is added to a named `Graph` so `graph.explain("txFeed", "alertMessage")`
+ * is added to a named `Graph` so `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })`
  * walks backward through `deps` and renders every step's value + `trace()`
  * annotation.
  *
@@ -121,7 +121,7 @@ const defaultJustifier: Justifier = (reason, txn) => {
 /**
  * Build the spending-alerts graph. Returns a live `Graph` plus a `feed()`
  * function to push transactions through. The graph exposes named nodes so
- * `graph.explain("txFeed", "alertMessage")` produces a walkable causal
+ * `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` produces a walkable causal
  * chain enriched with each node's value and annotation.
  */
 export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingAlertsGraph {
@@ -264,7 +264,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	trace("reasonFactors", "Decomposes the flag into contributing signals — trustable breakdown.");
 
 	// 7. Alert message — human-readable final output. Only depends on
-	// `reasonFactors` so `graph.explain('txFeed', 'alertMessage')` walks
+	// `reasonFactors` so `graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } })` walks
 	// through every intermediate on the reasoning spine. Pluggable via
 	// `justifier` (deterministic template here; swap for a `promptNode` in
 	// the browser demo — the graph topology is identical either way).

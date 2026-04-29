@@ -329,7 +329,7 @@ describe("reduction.feedback", () => {
 		expect(seen).toContain(1);
 		expect(seen.length).toBeGreaterThanOrEqual(1);
 		// The counter should have advanced
-		const counter = g.get("__feedback_condition") as number;
+		const counter = g.node("__feedback_condition").cache as number;
 		expect(counter).toBeGreaterThan(0);
 	});
 
@@ -357,7 +357,7 @@ describe("reduction.feedback", () => {
 
 		input.down([[DATA, 0]]);
 
-		const counter = g.get("__feedback_condition") as number;
+		const counter = g.node("__feedback_condition").cache as number;
 		expect(counter).toBeLessThanOrEqual(3);
 	});
 });

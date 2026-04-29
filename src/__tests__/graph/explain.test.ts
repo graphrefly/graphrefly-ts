@@ -12,7 +12,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		// Activate so derived computes.
 		g.observe("b").subscribe(() => {});
 
-		const chain = g.explain("a", "b");
+		const chain = g.describe({ explain: { from: "a", to: "b" } });
 		expect(chain.found).toBe(true);
 		expect(chain.reason).toBe("ok");
 		expect(chain.steps.map((s) => s.path)).toEqual(["a", "b"]);
@@ -34,7 +34,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		g.add(d, { name: "d" });
 		g.observe("d").subscribe(() => {});
 
-		const chain = g.explain("a", "d");
+		const chain = g.describe({ explain: { from: "a", to: "d" } });
 		expect(chain.found).toBe(true);
 		// BFS finds shortest: a → b → d OR a → c → d (both 3 steps).
 		expect(chain.steps).toHaveLength(3);
@@ -50,7 +50,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		g.add(a, { name: "a" });
 		g.add(z, { name: "z" });
 
-		const chain = g.explain("a", "z");
+		const chain = g.describe({ explain: { from: "a", to: "z" } });
 		expect(chain.found).toBe(false);
 		expect(chain.reason).toBe("no-path");
 		expect(chain.steps).toEqual([]);
@@ -61,14 +61,14 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state(1, { name: "a" }), { name: "a" });
 
-		expect(g.explain("missing", "a").reason).toBe("no-such-from");
-		expect(g.explain("a", "missing").reason).toBe("no-such-to");
+		expect(g.describe({ explain: { from: "missing", to: "a" } }).reason).toBe("no-such-from");
+		expect(g.describe({ explain: { from: "a", to: "missing" } }).reason).toBe("no-such-to");
 	});
 
 	it("from === to returns single-step chain", () => {
 		const g = new Graph("g");
 		g.add(state(42, { name: "a" }), { name: "a" });
-		const chain = g.explain("a", "a");
+		const chain = g.describe({ explain: { from: "a", to: "a" } });
 		expect(chain.found).toBe(true);
 		expect(chain.steps).toHaveLength(1);
 		expect(chain.steps[0]?.path).toBe("a");
@@ -87,11 +87,11 @@ describe("explainPath (roadmap §9.2)", () => {
 		g.add(d, { name: "d" });
 		g.observe("d").subscribe(() => {});
 
-		const ok = g.explain("a", "d");
+		const ok = g.describe({ explain: { from: "a", to: "d" } });
 		expect(ok.found).toBe(true);
 		expect(ok.steps).toHaveLength(4);
 
-		const trunc = g.explain("a", "d", { maxDepth: 2 });
+		const trunc = g.describe({ explain: { from: "a", to: "d", maxDepth: 2 } });
 		expect(trunc.found).toBe(false);
 		expect(trunc.reason).toBe("max-depth-exceeded");
 	});
@@ -105,7 +105,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		g.observe("b").subscribe(() => {});
 
 		g.trace("b", "doubled because pricing rule R7");
-		const chain = g.explain("a", "b");
+		const chain = g.describe({ explain: { from: "a", to: "b" } });
 		expect(chain.steps[1]?.annotation).toBe("doubled because pricing rule R7");
 		expect(chain.text).toMatch(/annotation: doubled because/);
 	});
@@ -137,7 +137,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		});
 		g.add(a, { name: "a" });
 		g.set("a", 5, { actor: { type: "llm", id: "agent-7" } });
-		const chain = g.explain("a", "a");
+		const chain = g.describe({ explain: { from: "a", to: "a" } });
 		expect(chain.steps[0]?.lastMutation?.actor.type).toBe("llm");
 		expect(chain.steps[0]?.lastMutation?.actor.id).toBe("agent-7");
 	});
@@ -147,7 +147,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		const g = new Graph("g");
 		g.add(state<number>(0, { name: "a" }), { name: "a" }); // no guard
 		g.set("a", 9, { actor: { type: "human", id: "alice" } });
-		const chain = g.explain("a", "a");
+		const chain = g.describe({ explain: { from: "a", to: "a" } });
 		expect(chain.steps[0]?.lastMutation?.actor.id).toBe("alice");
 	});
 
@@ -252,7 +252,7 @@ describe("explainPath (roadmap §9.2)", () => {
 		expect(edgeSet.has("src→prompt::messages")).toBe(true);
 		expect(edgeSet.has("prompt::messages→out")).toBe(true);
 
-		const chain = g.explain("src", "out");
+		const chain = g.describe({ explain: { from: "src", to: "out" } });
 		expect(chain.found).toBe(true);
 		expect(chain.reason).toBe("ok");
 		expect(chain.steps.map((s) => s.path)).toEqual(["src", "prompt::messages", "out"]);
@@ -285,8 +285,8 @@ describe("explainPath (roadmap §9.2)", () => {
 		expect(keys).toContain("internal");
 		expect(keys).toContain("internal#2");
 		// Both terminals walk back to their own state via the suffixed pair.
-		const chainA = g.explain("a", "outA");
-		const chainB = g.explain("b", "outB");
+		const chainA = g.describe({ explain: { from: "a", to: "outA" } });
+		const chainB = g.describe({ explain: { from: "b", to: "outB" } });
 		expect(chainA.found).toBe(true);
 		expect(chainB.found).toBe(true);
 		expect(chainA.steps.map((s) => s.path)).toEqual([

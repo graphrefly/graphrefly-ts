@@ -12,7 +12,7 @@ GraphReFly ships for LLM workflows:
 | **Live budget subscriber** | `budget.totals` streams to stdout after each LLM call. |
 | **`promptNode`** (reactive LLM transform) | The three LLM hops (classify, extract, brief) — topology + retries handled by the factory. |
 | **Stage-by-stage stdout trace** | Each of the 7 named nodes logs when it fires. |
-| **`graph.explain(from, to)`** | Prints the causal chain from `emails` → `brief` at the end, with the WHY annotation for each hop. |
+| **`graph.describe({ explain: { from, to } })`** | Prints the causal chain from `emails` → `brief` at the end, with the WHY annotation for each hop. |
 
 ## Topology
 

@@ -259,7 +259,14 @@ export type GraphDescribeOptions = {
 	 *   (Tier 1.5.1 — Session A.1 lock).
 	 */
 	reactive?: boolean | "diff";
-	/** Reactive-only: name for the backing derived node (default `"describe"`). */
+	/**
+	 * Reactive-only: name for the backing derived node (default `"describe"`).
+	 *
+	 * In `{ explain: {...}, reactive: true }` mode the equivalent slot is
+	 * `name` (default `"explain"`); `reactiveName` is honored as a fallback
+	 * for callers migrating from `describe({reactive})` muscle memory. If
+	 * both `name` and `reactiveName` are set in explain-mode, `name` wins.
+	 */
 	reactiveName?: string;
 };
 
@@ -267,6 +274,50 @@ export type GraphDescribeOptions = {
 export interface ReactiveDescribeHandle<T> {
 	readonly node: Node<T>;
 	dispose(): void;
+}
+
+/**
+ * Explain-mode argument for {@link Graph.describe}. Passing
+ * `{ explain: {...} }` reshapes the call into a causal-chain query (returns
+ * {@link CausalChain} or `{ node: Node<CausalChain>; dispose }` when paired
+ * with `reactive: true`).
+ *
+ * Tier 3.5 reactive-arg carve-out (F.9): `from`, `to`, `maxDepth`, and
+ * `findCycle` accept `Node<...>` in addition to their plain types. When mixed,
+ * static args pass through unchanged; reactive args drive recompute via the
+ * same coalescer as the rest of `describe({ reactive: true })`.
+ */
+export interface GraphDescribeExplainInput {
+	/** Upstream node path (the cause). `string | Node<string>`. */
+	from: string | Node<string>;
+	/** Downstream node path (the effect). `string | Node<string>`. */
+	to: string | Node<string>;
+	/** Maximum hop depth for the dep-walk (`number | Node<number>`). */
+	maxDepth?: number | Node<number>;
+	/**
+	 * When `true` and `from === to`, returns the shortest cycle through other
+	 * nodes (useful for diagnosing feedback loops, COMPOSITION-GUIDE §7).
+	 */
+	findCycle?: boolean | Node<boolean>;
+}
+
+/**
+ * Reachable-mode argument for {@link Graph.describe}. Passing
+ * `{ reachable: {...} }` reshapes the call into a reachability query — returns
+ * `string[]` (paths sorted lexicographically) or {@link ReachableResult} when
+ * `withDetail: true`.
+ */
+export interface GraphDescribeReachableInput {
+	/** Start path (qualified node path). */
+	from: string;
+	/** Traversal direction. Ignored when `both: true`. */
+	direction: ReachableDirection;
+	/** Maximum hop depth from `from` (0 returns `[]`). */
+	maxDepth?: number;
+	/** Traverse both directions in one pass (union of upstream + downstream). */
+	both?: boolean;
+	/** Return the {@link ReachableResult} shape (paths + depths + truncation). */
+	withDetail?: boolean;
 }
 
 /** JSON snapshot from {@link Graph.describe} (GRAPHREFLY-SPEC §3.6, Appendix B). */
@@ -1432,38 +1483,6 @@ export class Graph {
 	}
 
 	/**
-	 * Bulk remove — invokes {@link Graph.remove} for every local name matching
-	 * `filter`. Audit records merge into a single result. Mounted subgraphs
-	 * are included via `filter` receiving the mount name; internal subtree
-	 * entries are not walked directly (use describe + scan for tree-level
-	 * queries).
-	 *
-	 * @param filter - Predicate or glob. Glob strings support `*` within a
-	 *   segment and `**` across segments (same grammar as `restore({only})`).
-	 * @returns Combined audit of all nodes + mounts removed.
-	 */
-	removeAll(filter: ((name: string) => boolean) | string): GraphRemoveAudit {
-		const match =
-			typeof filter === "function"
-				? filter
-				: (() => {
-						const re = globToRegex(filter);
-						return (n: string) => re.test(n);
-					})();
-		const audit: GraphRemoveAudit = { kind: "mount", nodes: [], mounts: [] };
-		// Snapshot names first — remove mutates the maps.
-		const localNames = [...this._nodes.keys(), ...this._mounts.keys()].filter((n) => match(n));
-		for (const name of localNames) {
-			const sub = this.remove(name);
-			audit.nodes.push(...sub.nodes);
-			audit.mounts.push(...sub.mounts);
-		}
-		audit.nodes.sort();
-		audit.mounts.sort();
-		return audit;
-	}
-
-	/**
 	 * Iterable over locally-registered `[localName, Node]` pairs (sorted).
 	 * Does not recurse into mounts.
 	 */
@@ -1504,16 +1523,6 @@ export class Graph {
 	}
 
 	/**
-	 * Reads `graph.node(name).get()` — accepts `::` qualified paths (§3.2).
-	 *
-	 * @param name - Local name or qualified path.
-	 * @returns Cached value or `undefined`.
-	 */
-	get(name: string): unknown {
-		return this.node(name).cache;
-	}
-
-	/**
 	 * Shorthand for `graph.node(name).down([[DATA, value]], { actor })` — accepts `::` qualified paths (§3.2).
 	 *
 	 * @param name - Local name or qualified path.
@@ -1526,27 +1535,6 @@ export class Graph {
 			actor: options?.actor,
 			internal,
 			delivery: "write",
-		});
-	}
-
-	/**
-	 * Atomic multi-node DATA write. Wraps every {@link Graph.set} call in a
-	 * single `batch(...)` so downstream dependents see one coalesced wave
-	 * instead of N cascading ones.
-	 *
-	 * @param entries - `{name → value}` map or `[name, value]` pairs.
-	 * @param options - Passed to each underlying `set` call (same `actor` + `internal` semantics).
-	 */
-	setAll(
-		entries: Record<string, unknown> | Iterable<readonly [string, unknown]>,
-		options?: GraphActorOptions,
-	): void {
-		const iter: Iterable<readonly [string, unknown]> =
-			Symbol.iterator in entries
-				? (entries as Iterable<readonly [string, unknown]>)
-				: Object.entries(entries as Record<string, unknown>);
-		batch(() => {
-			for (const [name, value] of iter) this.set(name, value, options);
 		});
 	}
 
@@ -2187,29 +2175,156 @@ export class Graph {
 		options: GraphDescribeOptions & { reactive: true },
 	): ReactiveDescribeHandle<GraphDescribeOutput>;
 	describe(options?: GraphDescribeOptions): GraphDescribeOutput;
-	describe(options?: GraphDescribeOptions): GraphDescribeOutput | ReactiveDescribeHandle<unknown> {
-		if (options?.reactive === "diff") return this._describeReactiveDiff(options);
-		if (options?.reactive === true) return this._describeReactive(options);
-		const actor = resolveActorOption(options?.actor);
-		const filter = options?.filter;
+	/**
+	 * Explain mode — causal-chain walkback from `from` to `to`. Wraps
+	 * {@link explainPath}; previously a top-level `Graph.explain` method,
+	 * folded into describe so all topology queries route through one entry
+	 * point. Accepts the same Tier 3.5 reactive-arg carve-out (F.9) as the
+	 * pre-fold method: `from`/`to`/`maxDepth`/`findCycle` may be Node-typed.
+	 *
+	 * Mutually exclusive with `detail`/`fields`/`filter`/`actor` and with
+	 * `reachable` — the runtime throws `TypeError` on any conflict.
+	 */
+	describe(options: { explain: GraphDescribeExplainInput; reactive?: false }): CausalChain;
+	describe(options: {
+		explain: GraphDescribeExplainInput;
+		reactive: true;
+		reactiveName?: string;
+		name?: string;
+	}): { node: Node<CausalChain>; dispose: () => void };
+	/**
+	 * Reachable mode — sorted path list (or rich {@link ReachableResult}
+	 * when `withDetail: true`) for the dep-walk rooted at `from`. Wraps the
+	 * standalone {@link reachable} fn over `this.describe()`. Static-only
+	 * (no reactive form); for live reachability compose
+	 * `derived([describe({reactive: true}).node], (g) => reachable(g, ...))`.
+	 *
+	 * Mutually exclusive with `detail`/`fields`/`filter`/`actor` and with
+	 * `explain` — the runtime throws `TypeError` on any conflict.
+	 */
+	describe(options: {
+		reachable: GraphDescribeReachableInput & { withDetail: true };
+	}): ReachableResult;
+	describe(options: { reachable: GraphDescribeReachableInput & { withDetail?: false } }): string[];
+	describe(
+		options?:
+			| GraphDescribeOptions
+			| {
+					explain: GraphDescribeExplainInput;
+					reactive?: boolean;
+					reactiveName?: string;
+					name?: string;
+			  }
+			| { reachable: GraphDescribeReachableInput },
+	):
+		| GraphDescribeOutput
+		| ReactiveDescribeHandle<unknown>
+		| CausalChain
+		| { node: Node<CausalChain>; dispose: () => void }
+		| string[]
+		| ReachableResult {
+		// Explain / reachable mode dispatch (folded from former top-level
+		// Graph.explain / Graph.reachable methods). Mutually exclusive with
+		// the topology options below — A6 detail/fields exclusivity precedent.
+		if (options != null && typeof options === "object") {
+			const hasExplain = "explain" in options && (options as { explain?: unknown }).explain != null;
+			const hasReachable =
+				"reachable" in options && (options as { reachable?: unknown }).reachable != null;
+			if (hasExplain || hasReachable) {
+				if (hasExplain && hasReachable) {
+					throw new TypeError(
+						"Graph.describe(): pass either `explain` or `reachable`, not both. " +
+							"They are mutually exclusive query modes.",
+					);
+				}
+				const opts = options as Record<string, unknown>;
+				for (const conflicting of ["detail", "fields", "filter", "actor"]) {
+					if (opts[conflicting] !== undefined) {
+						throw new TypeError(
+							`Graph.describe(): \`${hasExplain ? "explain" : "reachable"}\` mode does ` +
+								`not accept \`${conflicting}\` — those options shape the topology ` +
+								"snapshot, not the query result. Pass them on a separate `describe()` call.",
+						);
+					}
+				}
+				if (hasExplain) {
+					const ex = (options as { explain: GraphDescribeExplainInput }).explain;
+					const reactive = (options as { reactive?: boolean }).reactive === true;
+					if ((options as { reactive?: boolean | "diff" }).reactive === "diff") {
+						throw new TypeError(
+							'Graph.describe(): `explain` mode does not support `reactive: "diff"`. ' +
+								"Use `reactive: true` for a live causal chain or omit `reactive` for a snapshot.",
+						);
+					}
+					if (reactive) {
+						const explainOpts: {
+							maxDepth?: number | Node<number>;
+							findCycle?: boolean | Node<boolean>;
+							name?: string;
+						} = {};
+						if (ex.maxDepth !== undefined) explainOpts.maxDepth = ex.maxDepth;
+						if (ex.findCycle !== undefined) explainOpts.findCycle = ex.findCycle;
+						const nameOpt =
+							(options as { name?: string; reactiveName?: string }).name ??
+							(options as { reactiveName?: string }).reactiveName;
+						if (nameOpt !== undefined) explainOpts.name = nameOpt;
+						return this._explainReactive(ex.from, ex.to, explainOpts);
+					}
+					return this._explainStatic(resolveExplainPath(ex.from), resolveExplainPath(ex.to), {
+						...(ex.maxDepth !== undefined ? { maxDepth: resolveExplainNumber(ex.maxDepth) } : {}),
+						...(ex.findCycle !== undefined
+							? { findCycle: resolveExplainBoolean(ex.findCycle) }
+							: {}),
+					});
+				}
+				// Reachable mode. Static-only — `reactive: true` and
+				// `reactive: "diff"` are rejected; explicit `reactive: false`
+				// and `reactive: undefined` are accepted as no-ops so callers
+				// using spread-style defaults (`{ ...defaults, reachable: ... }`
+				// where defaults may carry `reactive: false`) don't trip a
+				// TypeError on the implicit-default value (qa BH1/EC8 — match
+				// the explain-mode asymmetry where `reactive: false` is also
+				// a no-op).
+				const reachableReactive = (options as { reactive?: unknown }).reactive;
+				if (reachableReactive === true || reachableReactive === "diff") {
+					throw new TypeError(
+						"Graph.describe(): `reachable` mode is static-only. For live reachability, " +
+							"compose `derived([describe({ reactive: true }).node], (g) => reachable(g, ...))`.",
+					);
+				}
+				const r = (options as { reachable: GraphDescribeReachableInput }).reachable;
+				if (r.withDetail === true) {
+					return reachable(this.describe(), r.from, r.direction, {
+						...r,
+						withDetail: true,
+					});
+				}
+				return reachable(this.describe(), r.from, r.direction, r);
+			}
+		}
+		const topologyOptions = options as GraphDescribeOptions | undefined;
+		if (topologyOptions?.reactive === "diff") return this._describeReactiveDiff(topologyOptions);
+		if (topologyOptions?.reactive === true) return this._describeReactive(topologyOptions);
+		const actor = resolveActorOption(topologyOptions?.actor);
+		const filter = topologyOptions?.filter;
 		// `detail` and `fields` are mutually exclusive. Mixing them was
 		// permissive at one point but produced ambiguous spec-mode semantics
 		// (e.g. `{detail: "spec", fields: [...]}` had `isSpec: true` but
 		// non-spec field projection — see review session findings A6).
-		if (options?.detail != null && options?.fields != null) {
+		if (topologyOptions?.detail != null && topologyOptions?.fields != null) {
 			throw new TypeError(
 				"Graph.describe(): pass either `detail` or `fields`, not both. " +
 					"`detail: 'spec'` is the canonical spec projection; " +
 					"use `fields` only when you need a custom subset.",
 			);
 		}
-		const includeFields = resolveDescribeFields(options?.detail, options?.fields);
+		const includeFields = resolveDescribeFields(topologyOptions?.detail, topologyOptions?.fields);
 		// `detail: "spec"` is the canonical spec-projection mode (Tier 1.5.3
 		// Phase 1 — replaces the old `format: "spec"` alias). Strips
 		// annotations from the output so the result round-trips through
 		// GraphSpec via `decompileSpec`. Phase 3 also gates `value` to
 		// state nodes only — passed to `describeNode` as the third arg.
-		const isSpec = options?.detail === "spec";
+		const isSpec = topologyOptions?.detail === "spec";
 		const effectiveFields = includeFields;
 
 		const targets: [string, Node][] = [];
@@ -2358,7 +2473,7 @@ export class Graph {
 
 		// Capture graph ref and base options for expand()
 		const graph = this;
-		const baseOpts = options;
+		const baseOpts = topologyOptions;
 
 		const struct: GraphDescribeOutput = {
 			name: this.name,
@@ -2407,115 +2522,6 @@ export class Graph {
 	 */
 	resourceProfile(opts?: GraphProfileOptions): GraphProfileResult {
 		return graphProfile(this, opts);
-	}
-
-	/**
-	 * Reachability query rooted at `from`. Instance convenience — wraps
-	 * `reachable(this.describe(), from, direction, opts)`. See
-	 * {@link reachable} for semantics.
-	 */
-	reachable(
-		from: string,
-		direction: ReachableDirection,
-		opts: ReachableOptions & { withDetail: true },
-	): ReachableResult;
-	reachable(from: string, direction: ReachableDirection, opts?: ReachableOptions): string[];
-	reachable(
-		from: string,
-		direction: ReachableDirection,
-		opts: ReachableOptions = {},
-	): string[] | ReachableResult {
-		if (opts.withDetail === true) {
-			return reachable(this.describe(), from, direction, {
-				...opts,
-				withDetail: true,
-			});
-		}
-		return reachable(this.describe(), from, direction, opts);
-	}
-
-	/**
-	 * Causal walkback: shortest dep-chain from `from` to `to`, enriched with
-	 * each node's value, status, last-mutation actor, and reasoning annotation
-	 * from {@link Graph.trace}. Wraps {@link explainPath} (roadmap §9.2).
-	 *
-	 * Same question, two answers:
-	 * - **Static (default)** — `explain(from, to, opts?)` returns a single
-	 *   {@link CausalChain} snapshot of the graph at call time. Reactive
-	 *   args (any `Node<...>`) are resolved to their current cache once.
-	 * - **Reactive** — `explain(from, to, { reactive: true, ... })` returns
-	 *   `{ node: Node<CausalChain>; dispose: () => void }`. The node
-	 *   recomputes whenever a `data` / `error` / `complete` / `teardown`
-	 *   event fires anywhere on the graph's structured observe stream OR
-	 *   any reactive arg (`Node<string>` for `from`/`to`,
-	 *   `Node<number>` for `maxDepth`, `Node<boolean>` for `findCycle`)
-	 *   emits. Replaces the former `reactiveExplainPath`.
-	 *
-	 * Tier 3.5 reactive-opt carve-out (F.9): `from`, `to`, `maxDepth`, and
-	 * `findCycle` accept `Node<...>` in addition to their plain types. When
-	 * mixed (some reactive, some static), the reactive variant subscribes only
-	 * to the Node-typed args; static args pass through unchanged. The static
-	 * call snapshots all reactive args at call time — for live re-walking, use
-	 * `{ reactive: true }`.
-	 *
-	 * **File path-scoped observe is deferred** — the reactive variant
-	 * subscribes to whole-graph observe today (a perf gap, not a spec
-	 * violation). Tracked in `docs/optimizations.md` Tier 10.8 deferred
-	 * follow-up: "reactiveExplainPath file-path-scoped observe".
-	 *
-	 * @param from - Upstream node path (the cause). `string | Node<string>`.
-	 * @param to - Downstream node path (the effect). `string | Node<string>`.
-	 * @param opts - Optional `maxDepth` (`number | Node<number>`) and
-	 *   `findCycle` (`boolean | Node<boolean>`). When `findCycle:true`
-	 *   and `from === to`, returns the shortest cycle through other nodes
-	 *   (useful for diagnosing feedback loops, COMPOSITION-GUIDE §7).
-	 *   When `reactive: true`, also accepts `name?`.
-	 */
-	explain(
-		from: string | Node<string>,
-		to: string | Node<string>,
-		opts?: {
-			/**
-			 * DF13 (2026-04-29) — narrow the static overload to forbid
-			 * `reactive: true`. A caller passing `{ reactive: true, ... }`
-			 * is steered into the reactive overload instead of falling
-			 * through to the implementation signature's union return.
-			 */
-			reactive?: false;
-			maxDepth?: number | Node<number>;
-			findCycle?: boolean | Node<boolean>;
-		},
-	): CausalChain;
-	explain(
-		from: string | Node<string>,
-		to: string | Node<string>,
-		opts: {
-			reactive: true;
-			maxDepth?: number | Node<number>;
-			findCycle?: boolean | Node<boolean>;
-			name?: string;
-		},
-	): { node: Node<CausalChain>; dispose: () => void };
-	explain(
-		from: string | Node<string>,
-		to: string | Node<string>,
-		opts?: {
-			reactive?: boolean;
-			maxDepth?: number | Node<number>;
-			findCycle?: boolean | Node<boolean>;
-			name?: string;
-		},
-	): CausalChain | { node: Node<CausalChain>; dispose: () => void } {
-		if (opts?.reactive === true) return this._explainReactive(from, to, opts);
-		// Static call: snapshot every reactive arg's current cache and dispatch
-		// to `_explainStatic` with plain primitives. Mixing reactive args with
-		// the static call is supported but reads each arg exactly once.
-		return this._explainStatic(resolveExplainPath(from), resolveExplainPath(to), {
-			...(opts?.maxDepth !== undefined ? { maxDepth: resolveExplainNumber(opts.maxDepth) } : {}),
-			...(opts?.findCycle !== undefined
-				? { findCycle: resolveExplainBoolean(opts.findCycle) }
-				: {}),
-		});
 	}
 
 	private _explainStatic(

@@ -32,8 +32,9 @@
  * every other node is pure reactive math.
  *
  * Annotations live next to `graph.add` via the `annotation` option — they
- * surface in `graph.explain(from, to)` output and in `describe`, so the
- * final causal-chain printout documents the pipeline's own reasoning.
+ * surface in `graph.describe({ explain: { from: "emails", to: "brief" } })`
+ * output and in `describe()`, so the final causal-chain printout documents
+ * the pipeline's own reasoning.
  */
 
 import { derived, Graph, type LLMAdapter, type Node, state } from "@graphrefly/graphrefly";

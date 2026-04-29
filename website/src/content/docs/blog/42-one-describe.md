@@ -78,7 +78,7 @@ In development, this gets full detail. In production, it gets structure. The cal
 
 Beyond `describe`, v0.4 ships three operational tools that answer the questions agent teams most frequently need during incidents:
 
-**`graph.reachable(from, direction, opts?)`** — walk upstream or downstream from a path (`direction: "upstream" | "downstream"`), with optional depth limits and detail. Answers "what can affect this node?" and "what does this node's change affect?"
+**`graph.describe({ reachable: { from, direction, ... } })`** — walk upstream or downstream from a path (`direction: "upstream" | "downstream"`), with optional depth limits and detail. Answers "what can affect this node?" and "what does this node's change affect?" Folded into `describe()` as a mode-option in Bundle 3 (alongside `{ explain: {...} }`); the standalone `reachable(graph.describe(), from, direction)` helper export is unchanged for callers who already have a snapshot in hand.
 
 **`graph.trace(path, reason)`** / **`graph.trace()`** — not a value-history API. **Write:** attach a reasoning annotation to a node (for example why an agent set a value). **Read:** return the chronological ring buffer of those annotations (`TraceEntry[]`). For **per-emission causality** (which dep triggered a recompute), use **`graph.observe(targetPath, { causal: true, … })`** when `inspectorEnabled` allows it; V1 history and versioning fields show up in **`describe()`** output.
 

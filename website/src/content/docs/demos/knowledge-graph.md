@@ -29,7 +29,7 @@ paper-text → paragraphs → current-paragraph → promptNode (Gemini Nano)
 
 The textbox at the top accepts any URL. The page fetches it via [`r.jina.ai`](https://jina.ai/reader) (anonymous, 20 RPM) — paywalled or aggressively-throttled sources may fail; the bundled sample (Mohit Sewak's "What is AI Harness Engineering?") always works.
 
-**3. Inspect & trace.** Same pipeline; adds `kg.explain("paper-text", "adjacency", { reactive: true })` — a `Node<CausalChain>` that re-derives whenever any node along the path fires. Subscribe; render the chain. This is the answer to "why did this entity end up here?" — the homepage pain point 02 closure.
+**3. Inspect & trace.** Same pipeline; adds `kg.describe({ explain: { from: "paper-text", to: "adjacency" }, reactive: true })` — a `Node<CausalChain>` that re-derives whenever any node along the path fires. Subscribe; render the chain. This is the answer to "why did this entity end up here?" — the homepage pain point 02 closure.
 
 **4. Guardrails.** Same pipeline; wraps the KG in `policyEnforcer([…], { mode: "enforce" })`. The legitimate extraction effect (`system` actor) writes freely. Click **Try malicious write** to attempt a write as `untrusted-llm`: the guard throws `GuardDenied` and a violation is recorded — the closure for homepage pain point 03.
 

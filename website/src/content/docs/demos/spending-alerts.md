@@ -3,7 +3,7 @@ title: "Spending alerts — structural causal tracing"
 description: "A 5-hop reactive pipeline that flags anomalous transactions. Ask 'why was this flagged?' and get a walkable causal chain — structure is the trace."
 ---
 
-Homepage pain point 02 says: _your agent flagged something. Why? Logs are a wall of text; state is a snapshot, not a story._ This demo is the short answer. A small reactive graph flags an unusual transaction; one call — `graph.explain("txFeed", "alertMessage")` — returns a step-by-step causal chain from raw input to final conclusion. No log parsing, no ad-hoc tracing code. **The graph topology is the trace.**
+Homepage pain point 02 says: _your agent flagged something. Why? Logs are a wall of text; state is a snapshot, not a story._ This demo is the short answer. A small reactive graph flags an unusual transaction; one call — `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` — returns a step-by-step causal chain from raw input to final conclusion. No log parsing, no ad-hoc tracing code. **The graph topology is the trace.**
 
 [Node-runnable source →](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts) · `pnpm --filter @graphrefly-examples/spending-alerts start`
 
@@ -39,7 +39,7 @@ Reasoning:
   • Category is outside the user's typical spend profile.
 ```
 
-Then: `graph.explain("txFeed", "alertMessage")` returns:
+Then: `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` returns:
 
 ```
 Causal path: txFeed → alertMessage (5 step(s))
@@ -84,10 +84,10 @@ const anomalyScore = derived(
 graph.trace("anomalyScore", "z-score vs vendor history + daily-spend ratio + category familiarity.");
 ```
 
-**3. Call `graph.explain(from, to)` at any point — you get a typed `CausalChain`.** The returned object has `steps[]`, `text` (the pretty-printed chain above), and `toJSON()` for passing into audits or LLM prompts.
+**3. Call `graph.describe({ explain: { from, to } })` at any point — you get a typed `CausalChain`.** The returned object has `steps[]`, `text` (the pretty-printed chain above), and `toJSON()` for passing into audits or LLM prompts.
 
 ```ts
-const chain = graph.explain("txFeed", "alertMessage");
+const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
 console.log(chain.text);
 // Or: send chain.toJSON() to Claude / GPT and ask "was this decision reasonable?"
 ```
@@ -114,7 +114,7 @@ From inside a Claude Code / Codex CLI / any MCP client — the `@graphrefly/mcp-
 
 ## Extending to an agent (and why it still works)
 
-The demo's `alertMessage` uses a deterministic template. Swap it for a `promptNode` wrapping Chrome Nano (or any [adapter](https://github.com/graphrefly/graphrefly-ts/tree/main/src/patterns/ai/adapters) — Anthropic, OpenAI-compat, Google) and `graph.explain` works identically:
+The demo's `alertMessage` uses a deterministic template. Swap it for a `promptNode` wrapping Chrome Nano (or any [adapter](https://github.com/graphrefly/graphrefly-ts/tree/main/src/patterns/ai/adapters) — Anthropic, OpenAI-compat, Google) and `graph.describe({ explain })` works identically:
 
 ```ts
 const alertMessage = patterns.ai.promptNode({
@@ -128,7 +128,7 @@ const alertMessage = patterns.ai.promptNode({
 
 The LLM step now lives inside the graph. Its output shows up in the causal chain like any other node — same `chain.text`, same reasoning, now with the agent's language attached. **The agent's decision is traceable the same way the deterministic pipeline's was.** That's the general shape; the demo proves it out in the simplest possible setting.
 
-> **Teardown note when going async.** The Node example calls `graph.destroy()` synchronously after the feed loop because every node is synchronous, so subscribers (including the `graph.explain` call) all fire inside `feed()`. If you swap `alertMessage` for a `promptNode`, the subscribe callback becomes async — drain it with `firstValueFrom(alertMessage)` or an explicit settle before `destroy()`, otherwise `graph.explain` may run against a torn-down graph.
+> **Teardown note when going async.** The Node example calls `graph.destroy()` synchronously after the feed loop because every node is synchronous, so subscribers (including the `graph.describe({ explain })` call) all fire inside `feed()`. If you swap `alertMessage` for a `promptNode`, the subscribe callback becomes async — drain it with `firstValueFrom(alertMessage)` or an explicit settle before `destroy()`, otherwise `graph.describe({ explain })` may run against a torn-down graph.
 
 ## Source
 

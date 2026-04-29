@@ -176,8 +176,8 @@ describe("surface.snapshot", () => {
 
 		const restored = await restoreSnapshot("snap-1", tier);
 		expect(restored.name).toBe("state-only");
-		expect(restored.get("input")).toBe(12);
-		expect(restored.get("note")).toBe("world");
+		expect(restored.node("input").cache).toBe(12);
+		expect(restored.node("note").cache).toBe("world");
 		restored.destroy();
 	});
 
@@ -205,11 +205,11 @@ describe("surface.snapshot", () => {
 		});
 		// Factories were invoked for non-state paths only; state auto-hydrates.
 		expect(seen.sort()).toEqual(["doubled", "output"]);
-		expect(restored.get("input")).toBe(3);
+		expect(restored.node("input").cache).toBe(3);
 		// Derived nodes activate lazily — subscribing primes their cache.
 		restored.resolve("output").subscribe(() => {});
-		expect(restored.get("doubled")).toBe(6);
-		expect(restored.get("output")).toBe(7);
+		expect(restored.node("doubled").cache).toBe(6);
+		expect(restored.node("output").cache).toBe(7);
 		restored.destroy();
 	});
 

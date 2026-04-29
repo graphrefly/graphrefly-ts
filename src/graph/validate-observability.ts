@@ -83,9 +83,9 @@ export interface ValidateObservabilityOptions {
 	 */
 	readonly paths?: readonly string[];
 	/**
-	 * `(from, to)` pairs to exercise via `graph.explain(from, to)`. Each pair
-	 * records `found` and `steps`; a pair where `found === false` does NOT
-	 * fail the overall result — pass `requireFound: true` to tighten that.
+	 * `(from, to)` pairs to exercise via `graph.describe({ explain: {from, to} })`.
+	 * Each pair records `found` and `steps`; a pair where `found === false` does
+	 * NOT fail the overall result — pass `requireFound: true` to tighten that.
 	 */
 	readonly pairs?: ReadonlyArray<readonly [from: string, to: string]>;
 	/**
@@ -234,11 +234,11 @@ export function validateGraphObservability(
 		}
 	}
 
-	// 3. explain(from, to) — returns CausalChain. When `requireFound: true`
+	// 3. describe({explain: {...}}) — returns CausalChain. When `requireFound: true`
 	//    (default), a `found: false` result counts as a failure.
 	for (const [from, to] of opts.pairs ?? []) {
 		try {
-			const chain: CausalChain = graph.explain(from, to);
+			const chain: CausalChain = graph.describe({ explain: { from, to } });
 			if (requireFound && chain.found === false) {
 				checks.push({
 					kind: "explain",

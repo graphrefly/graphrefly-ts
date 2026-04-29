@@ -232,7 +232,7 @@ describe("graphspec.compileSpec", () => {
 		const g = compileSpec(spec, { catalog: testCatalog });
 		expect(g).toBeInstanceOf(Graph);
 		expect(g.name).toBe("calc");
-		expect(g.get("a")).toBe(5);
+		expect(g.node("a").cache).toBe(5);
 
 		// Subscribe to activate derived
 		const seen: number[] = [];

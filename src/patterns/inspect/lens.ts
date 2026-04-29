@@ -28,7 +28,7 @@
  * landed in Tier 1.5.1 / 1.5.2 — the class added no protocol-level concept,
  * just glue. Callers who need topology stats compose a derived over
  * `topology` directly; callers who need a causal chain call
- * `target.explain(from, to, { reactive: true })`.
+ * `target.describe({ explain: { from, to }, reactive: true })`.
  *
  * The transitive topology-subscription helper {@link watchTopologyTree} is
  * re-exported here for downstream factories that need full-tree dynamic
@@ -159,9 +159,12 @@ export function healthReportEqual(a: HealthReport, b: HealthReport): boolean {
  * });
  *
  * // Causal chains: use the underlying primitive directly — `graphLens` no
- * // longer wraps it, since `graph.explain({ reactive: true })` already
- * // provides everything the old `lens.why()` did.
- * const why = g.explain("counter", "consumer", { reactive: true });
+ * // longer wraps it, since `graph.describe({ explain: {...}, reactive: true })`
+ * // already provides everything the old `lens.why()` did.
+ * const why = g.describe({
+ *   explain: { from: "counter", to: "consumer" },
+ *   reactive: true,
+ * });
  *
  * // Tear down when done.
  * lens.dispose();

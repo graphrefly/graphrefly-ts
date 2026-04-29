@@ -239,7 +239,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 		}).compile();
 
 		const graph = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
-		expect(graph.get("counter")).toBe(42);
+		expect(graph.node("counter").cache).toBe(42);
 
 		await module.close();
 	});
@@ -260,7 +260,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 		}).compile();
 
 		const graph = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
-		expect(graph.get("counter")).toBe(99);
+		expect(graph.node("counter").cache).toBe(99);
 
 		await module.close();
 	});
@@ -324,7 +324,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 		}).compile();
 
 		const root = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
-		expect(root.get("payments::amount")).toBe(100);
+		expect(root.node("payments::amount").cache).toBe(100);
 
 		const feature = module.get<Graph>(getGraphToken("payments"));
 		expect(feature).toBeInstanceOf(Graph);
@@ -356,7 +356,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 
 		const root = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
 		await module.init();
-		expect(root.get("temp::x")).toBe(1);
+		expect(root.node("temp::x").cache).toBe(1);
 
 		await module.close();
 		expect(teardownSpy).toHaveBeenCalled();
@@ -396,8 +396,8 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 		}).compile();
 
 		const root = module.get<Graph>(GRAPHREFLY_ROOT_GRAPH);
-		expect(root.get("auth::user")).toBe("alice");
-		expect(root.get("billing::plan")).toBe("pro");
+		expect(root.node("auth::user").cache).toBe("alice");
+		expect(root.node("billing::plan").cache).toBe("pro");
 
 		await module.close();
 	});
@@ -1438,7 +1438,7 @@ describe("nestjs compat — GraphReflyModule.forCqrs", () => {
 		cqrsGraph.dispatch("addItem", { name: "widget" });
 		cqrsGraph.dispatch("addItem", { name: "gadget" });
 
-		expect(cqrsGraph.get("itemCount")).toBe(2);
+		expect(cqrsGraph.node("itemCount").cache).toBe(2);
 		await module.close();
 	});
 

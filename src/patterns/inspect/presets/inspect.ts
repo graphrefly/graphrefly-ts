@@ -6,8 +6,9 @@
  *     `health` / `flow` Nodes via `inspect.lens.*`.
  *   - `audit` (mounted `AuditTrailGraph`) — every mutation on the wrapped
  *     target captured as an audit entry.
- *   - `explainTarget(from, to, opts?)` — facade over `target.explain(...)`;
- *     supports both static and reactive forms.
+ *   - `explainTarget(from, to, opts?)` — facade over
+ *     `target.describe({ explain: {...} })`; supports both static and
+ *     reactive forms.
  *   - `complianceSnapshot()` — one-shot tamper-evident snapshot pairing the
  *     target's persisted state with the audit log.
  *
@@ -151,15 +152,15 @@ export class InspectGraph extends Graph {
 	}
 
 	/**
-	 * Causal-chain facade over `target.explain(...)`. Supports both static
-	 * (one-shot {@link CausalChain}) and reactive (`{ reactive: true }`)
-	 * forms — overload signatures mirror {@link Graph.explain}.
+	 * Causal-chain facade over `target.describe({ explain: {...} })`. Supports
+	 * both static (one-shot {@link CausalChain}) and reactive
+	 * (`{ reactive: true }`) forms.
 	 *
-	 * Named `explainTarget` (not `explain`) to avoid shadowing the
-	 * inherited {@link Graph.explain} method, which walks `InspectGraph`'s
-	 * OWN topology (lens + audit subgraphs) rather than the wrapped
-	 * target's. Use `inspect.explainTarget(...)` for chains across the
-	 * wrapped graph; `inspect.explain(...)` for chains across the lens /
+	 * Named `explainTarget` (not folded into a `describe` mode on this class)
+	 * because `inspect.describe(...)` walks `InspectGraph`'s OWN topology
+	 * (lens + audit subgraphs) rather than the wrapped target's. Use
+	 * `inspect.explainTarget(...)` for chains across the wrapped graph;
+	 * `inspect.describe({ explain: {...} })` for chains across the lens /
 	 * audit composition.
 	 */
 	explainTarget(
@@ -191,14 +192,24 @@ export class InspectGraph extends Graph {
 		},
 	): CausalChain | { node: Node<CausalChain>; dispose: () => void } {
 		// Cast through the discriminated overload — TypeScript can't pick a
-		// signature on `target.explain` because `opts` has the union shape.
+		// signature on `target.describe({explain})` because `opts` has the
+		// union shape (reactive: boolean | undefined).
+		const explainArg: {
+			from: string | Node<string>;
+			to: string | Node<string>;
+			maxDepth?: number | Node<number>;
+			findCycle?: boolean | Node<boolean>;
+		} = { from, to };
+		if (opts?.maxDepth !== undefined) explainArg.maxDepth = opts.maxDepth;
+		if (opts?.findCycle !== undefined) explainArg.findCycle = opts.findCycle;
+		const describeOpts: Record<string, unknown> = { explain: explainArg };
+		if (opts?.reactive === true) describeOpts.reactive = true;
+		if (opts?.name !== undefined) describeOpts.name = opts.name;
 		return (
-			this.target.explain as unknown as (
-				f: string | Node<string>,
-				t: string | Node<string>,
-				o?: typeof opts,
+			this.target.describe as unknown as (
+				o: typeof describeOpts,
 			) => CausalChain | { node: Node<CausalChain>; dispose: () => void }
-		)(from, to, opts);
+		)(describeOpts);
 	}
 
 	/**

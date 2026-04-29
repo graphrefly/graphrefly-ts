@@ -8,7 +8,7 @@ describe("patterns.messaging", () => {
 		const t = topic<number>("events");
 		t.publish(1);
 		t.publish(2);
-		expect(t.get("latest")).toBe(2);
+		expect(t.node("latest").cache).toBe(2);
 		expect(t.retained()).toEqual([1, 2]);
 	});
 
@@ -37,7 +37,7 @@ describe("patterns.messaging", () => {
 		const q = jobQueue<number>("emails");
 		const id1 = q.enqueue(1);
 		const id2 = q.enqueue(2);
-		expect(q.get("depth")).toBe(2);
+		expect(q.node("depth").cache).toBe(2);
 		const claimed = q.claim(2);
 		expect(claimed.map((j) => j.id)).toEqual([id1, id2]);
 		expect(claimed.every((j) => j.state === "inflight")).toBe(true);
@@ -68,7 +68,7 @@ describe("patterns.messaging", () => {
 		const q = jobQueue<number>("emails");
 		q.enqueue(1);
 		expect(q.claim(0)).toEqual([]);
-		expect(q.get("depth")).toBe(1);
+		expect(q.node("depth").cache).toBe(1);
 	});
 
 	it("rejects invalid non-negative integer parameters", () => {
@@ -106,7 +106,7 @@ describe("patterns.messaging", () => {
 		source.publish(3);
 		source.publish(4);
 		expect(target.retained()).toEqual([3, 4]);
-		expect(bridge.get("bridgedCount")).toBe(2);
+		expect(bridge.node("bridgedCount").cache).toBe(2);
 	});
 
 	it("topicBridge supports map/drop behavior", () => {
@@ -200,10 +200,10 @@ describe("patterns.messaging", () => {
 		const disposer = q.consumeFrom(src);
 		// After subscribe: depth = 1 (push-on-subscribe with initial 7).
 		src.emit(8);
-		expect(q.get("depth")).toBe(2);
+		expect(q.node("depth").cache).toBe(2);
 		disposer();
 		src.emit(9); // after dispose — should not enqueue
-		expect(q.get("depth")).toBe(2);
+		expect(q.node("depth").cache).toBe(2);
 	});
 
 	it("jobFlow auto-advances jobs across stages into completed log", () => {
@@ -211,10 +211,10 @@ describe("patterns.messaging", () => {
 		flow.enqueue(10);
 		flow.enqueue(20);
 		expect(flow.retainedCompleted().map((j) => j.payload)).toEqual([10, 20]);
-		expect(flow.get("completedCount")).toBe(2);
-		expect(flow.queue("incoming").get("depth")).toBe(0);
-		expect(flow.queue("work").get("depth")).toBe(0);
-		expect(flow.queue("done").get("depth")).toBe(0);
+		expect(flow.node("completedCount").cache).toBe(2);
+		expect(flow.queue("incoming").node("depth").cache).toBe(0);
+		expect(flow.queue("work").node("depth").cache).toBe(0);
+		expect(flow.queue("done").node("depth").cache).toBe(0);
 	});
 
 	// Tier 6.5 D1 — per-stage `maxPerPump` override on `StageDef`.
@@ -448,25 +448,25 @@ describe("patterns.messagingHub", () => {
 	it("version counter advances on create / remove only", () => {
 		const hub = messagingHub("hub");
 		// B.2 Unit 14 lock: version is now a reactive Node<number>.
-		expect(hub.get("version")).toBe(0);
+		expect(hub.node("version").cache).toBe(0);
 
 		hub.topic("a");
-		expect(hub.get("version")).toBe(1);
+		expect(hub.node("version").cache).toBe(1);
 
 		hub.topic("a"); // already exists — no advance
-		expect(hub.get("version")).toBe(1);
+		expect(hub.node("version").cache).toBe(1);
 
 		hub.publish("a", 1); // publish doesn't advance
-		expect(hub.get("version")).toBe(1);
+		expect(hub.node("version").cache).toBe(1);
 
 		hub.topic("b");
-		expect(hub.get("version")).toBe(2);
+		expect(hub.node("version").cache).toBe(2);
 
 		hub.removeTopic("a");
-		expect(hub.get("version")).toBe(3);
+		expect(hub.node("version").cache).toBe(3);
 
 		hub.removeTopic("missing"); // no-op
-		expect(hub.get("version")).toBe(3);
+		expect(hub.node("version").cache).toBe(3);
 	});
 
 	it("topicNames iterates over registered topics", () => {

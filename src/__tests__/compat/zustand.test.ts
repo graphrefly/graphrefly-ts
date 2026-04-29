@@ -60,7 +60,7 @@ describe("zustand compat", () => {
 		// Graph name is "zustand" internally by default
 		expect(store.name).toBe("zustand");
 		// Local node name is "state"
-		expect(store.get("state")).toEqual({ value: "init" });
+		expect(store.node("state").cache).toEqual({ value: "init" });
 
 		store.set("state", { value: "changed" });
 		expect(store.getState()).toEqual({ value: "changed" });

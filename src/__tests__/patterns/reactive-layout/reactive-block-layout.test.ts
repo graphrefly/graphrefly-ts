@@ -535,8 +535,8 @@ describe("reactiveBlockLayout", () => {
 			blocks: [],
 			maxWidth: -100,
 		});
-		expect(bundle.graph.get("max-width")).toBe(0);
+		expect(bundle.graph.node("max-width").cache).toBe(0);
 		bundle.setMaxWidth(-5);
-		expect(bundle.graph.get("max-width")).toBe(0);
+		expect(bundle.graph.node("max-width").cache).toBe(0);
 	});
 });

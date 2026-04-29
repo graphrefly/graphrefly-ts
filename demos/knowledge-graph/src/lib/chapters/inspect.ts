@@ -5,7 +5,7 @@
 //
 // 1. `describe()` — the topology mermaid that's already rendering in the
 //    side pane. We just point at it and explain what users are looking at.
-// 2. `graph.explain({ reactive: true })` — a live causal chain from
+// 2. `graph.describe({ explain: {...}, reactive: true })` — a live causal chain from
 //    `paper-text` to `adjacency`. Bumps whenever any node in between fires.
 //    This is the answer to "why did this entity end up here?" — homepage
 //    pain point 02.
@@ -23,14 +23,14 @@ export const INSPECT_SOURCE = `// Same pipeline as chapter 2 — paper → parag
 //     The right-side mermaid is just describe({ format: "mermaid" }).
 const snapshot = kg.describe({ detail: "standard" });
 
-// Q2: "what shaped the current paragraph?" — graph.explain({ reactive: true })
+// Q2: "what shaped the current paragraph?" — graph.describe({ explain: {...}, reactive: true })
 //     returns a Node<CausalChain> that re-derives whenever any node along
 //     the path fires. Subscribe to it, render the chain.
 //
 //     Trace stops at named nodes wired by user code. promptNode + the
 //     apply-extraction effect involve internal/imperative bridges, so the
 //     KG writes downstream are not statically traceable from here.
-const explain = kg.explain("paper-text", "current-paragraph", { reactive: true });
+const explain = kg.describe({ explain: { from: "paper-text", to: "current-paragraph" }, reactive: true });
 
 explain.node.subscribe(() => {
   const chain = explain.node.cache;
@@ -48,10 +48,10 @@ export type InspectChapter = Omit<ReactiveChapter, "id"> & {
 export function buildInspectChapter(adapter: LLMAdapter, initialPaperText: string): InspectChapter {
 	const base = buildReactiveChapter(adapter, initialPaperText);
 
-	const explainHandle = base.kg.explain("paper-text", "current-paragraph", {
+	const explainHandle = base.kg.describe({
+		explain: { from: "paper-text", to: "current-paragraph", maxDepth: 12 },
 		reactive: true,
 		name: "explain-paper-to-current",
-		maxDepth: 12,
 	});
 	base.kg.add(explainHandle.node, { name: "explain-paper-to-current" });
 

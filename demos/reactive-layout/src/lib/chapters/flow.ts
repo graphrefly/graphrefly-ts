@@ -27,7 +27,7 @@ const flow = reactiveFlowLayout({
 // from the graph, computes bounce, and writes back via flow.setObstacles.
 // \`segments\` stays cached (text unchanged); only \`flow-lines\` re-runs.
 fromRaf().subscribe(([[, t]]) => {
-  flow.setObstacles(driftObstacles(flow.graph.get("obstacles"), t));
+  flow.setObstacles(driftObstacles(flow.graph.node("obstacles").cache, t));
 });
 
 // The cursor carries across slots AND columns — no duplicated text

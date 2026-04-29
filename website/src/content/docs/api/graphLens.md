@@ -33,9 +33,12 @@ lens.flow.subscribe((msgs) => {
 });
 
 // Causal chains: use the underlying primitive directly — `graphLens` no
-// longer wraps it, since `graph.explain({ reactive: true })` already
-// provides everything the old `lens.why()` did.
-const why = g.explain("counter", "consumer", { reactive: true });
+// longer wraps it, since `graph.describe({ explain: {...}, reactive: true })`
+// already provides everything the old `lens.why()` did.
+const why = g.describe({
+    explain: { from: "counter", to: "consumer" },
+    reactive: true,
+  });
 
 // Tear down when done.
 lens.dispose();

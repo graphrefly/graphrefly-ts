@@ -29,7 +29,7 @@ describe("guardedExecution — write enforcement", () => {
 
 		// Human allowed
 		g.set("a", 1, { actor: alice });
-		expect(g.get("a")).toBe(1);
+		expect(g.node("a").cache).toBe(1);
 		// LLM denied
 		expect(() => g.set("a", 99, { actor: llm })).toThrow();
 	});
@@ -45,7 +45,7 @@ describe("guardedExecution — write enforcement", () => {
 
 		g.set("a", 42, { actor: llm });
 		// Write succeeded (audit mode)
-		expect(g.get("a")).toBe(42);
+		expect(g.node("a").cache).toBe(42);
 		// Violation recorded
 		const violations = guarded.enforcer.all();
 		expect(violations).toHaveLength(1);

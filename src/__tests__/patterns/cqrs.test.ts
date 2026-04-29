@@ -108,7 +108,7 @@ describe("cqrs — roadmap §4.5", () => {
 		const app = cqrs("test");
 		app.command("placeOrder", () => {});
 		app.dispatch("placeOrder", { id: "42" });
-		expect(app.get("placeOrder")).toEqual({ id: "42" });
+		expect(app.node("placeOrder").cache).toEqual({ id: "42" });
 		app.destroy();
 	});
 
@@ -269,11 +269,11 @@ describe("cqrs — roadmap §4.5", () => {
 			emit("orderPlaced", payload);
 		});
 
-		expect(app.get("orderCount")).toBe(0);
+		expect(app.node("orderCount").cache).toBe(0);
 		app.dispatch("placeOrder", { id: "1" });
-		expect(app.get("orderCount")).toBe(1);
+		expect(app.node("orderCount").cache).toBe(1);
 		app.dispatch("placeOrder", { id: "2" });
-		expect(app.get("orderCount")).toBe(2);
+		expect(app.node("orderCount").cache).toBe(2);
 		app.destroy();
 	});
 
@@ -301,7 +301,7 @@ describe("cqrs — roadmap §4.5", () => {
 		app.dispatch("placeOrder", {});
 		app.dispatch("cancelOrder", {});
 
-		const summary = app.get("summary") as Summary;
+		const summary = app.node("summary").cache as Summary;
 		expect(summary.placed).toBe(2);
 		expect(summary.cancelled).toBe(1);
 		app.destroy();
@@ -564,9 +564,9 @@ describe("cqrs — roadmap §4.5", () => {
 			mode: "replay",
 		});
 		app.dispatch("place", { id: "1" });
-		expect(app.get("orderCount")).toBe(1);
+		expect(app.node("orderCount").cache).toBe(1);
 		app.dispatch("place", { id: "2" });
-		expect(app.get("orderCount")).toBe(2);
+		expect(app.node("orderCount").cache).toBe(2);
 		app.destroy();
 	});
 
@@ -589,9 +589,9 @@ describe("cqrs — roadmap §4.5", () => {
 		// push-on-subscribe activation for the empty initial state).
 		const countAfterConstruction = reducerCallCount;
 		app.dispatch("place", { id: "1" });
-		expect(app.get("orderCount")).toBe(1);
+		expect(app.node("orderCount").cache).toBe(1);
 		app.dispatch("place", { id: "2" });
-		expect(app.get("orderCount")).toBe(2);
+		expect(app.node("orderCount").cache).toBe(2);
 		// Each dispatch fires the reducer exactly once (incremental, not full replay).
 		expect(reducerCallCount - countAfterConstruction).toBe(2);
 		app.destroy();

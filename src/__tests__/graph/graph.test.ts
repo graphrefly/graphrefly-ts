@@ -26,9 +26,9 @@ describe("Graph (Phase 1.1)", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		g.add(a, { name: "a" });
-		expect(g.get("a")).toBe(1);
+		expect(g.node("a").cache).toBe(1);
 		g.set("a", 2);
-		expect(g.get("a")).toBe(2);
+		expect(g.node("a").cache).toBe(2);
 		expect(g.node("a")).toBe(a);
 		g.remove("a");
 		expect(() => g.node("a")).toThrow(/unknown node/);
@@ -84,7 +84,7 @@ describe("Graph (Phase 1.1)", () => {
 			/* ensure b is connected upstream */
 		});
 		g.set("a", 3);
-		expect(g.get("b")).toBe(6);
+		expect(g.node("b").cache).toBe(6);
 	});
 
 	it("empty local name throws on add", () => {
@@ -107,9 +107,9 @@ describe("Graph (Phase 1.1)", () => {
 		const n = state(0);
 		g.add(n, { name: "my:node" });
 		expect(g.node("my:node")).toBe(n);
-		expect(g.get("my:node")).toBe(0);
+		expect(g.node("my:node").cache).toBe(0);
 		g.set("my:node", 5);
-		expect(g.get("my:node")).toBe(5);
+		expect(g.node("my:node").cache).toBe(5);
 	});
 
 	it("Graph name with single colon is allowed", () => {
@@ -242,9 +242,9 @@ describe("Graph composition (Phase 1.2)", () => {
 		child.add(n, { name: "val" });
 		root.mount("sub", child);
 		expect(root.node("sub::val")).toBe(n);
-		expect(root.get("sub::val")).toBe(10);
+		expect(root.node("sub::val").cache).toBe(10);
 		root.set("sub::val", 42);
-		expect(root.get("sub::val")).toBe(42);
+		expect(root.node("sub::val").cache).toBe(42);
 	});
 
 	it("child graph's edges() reflects constructor deps regardless of parent mount", () => {
@@ -872,10 +872,10 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		b.subscribe(() => {});
 		const snap = g.snapshot();
 		g.set("a", 0);
-		expect(g.get("b")).toBe(0);
+		expect(g.node("b").cache).toBe(0);
 		g.restore(snap);
-		expect(g.get("a")).toBe(10);
-		expect(g.get("b")).toBe(20);
+		expect(g.node("a").cache).toBe(10);
+		expect(g.node("b").cache).toBe(20);
 	});
 
 	it("restore throws when snapshot name mismatches graph", () => {
@@ -900,7 +900,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		const g1 = Graph.fromSnapshot(snap, (g) => {
 			g.add(state(0, { name: "a" }), { name: "a" });
 		});
-		expect(g1.get("a")).toBe(7);
+		expect(g1.node("a").cache).toBe(7);
 	});
 
 	it("restore sets meta companion paths from snapshot", () => {
@@ -914,7 +914,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		const g1 = new Graph("g");
 		g1.add(n1, { name: "n" });
 		g1.restore(snap);
-		expect(g1.get(metaPath)).toBe("hi");
+		expect(g1.node(metaPath).cache).toBe("hi");
 	});
 
 	it("attachSnapshotStorage triggers only for messageTier >= 3", async () => {
@@ -950,8 +950,8 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		g.set("a", 10);
 		g.set("b", 20);
 		g.restore(snap, { only: "a" });
-		expect(g.get("a")).toBe(1);
-		expect(g.get("b")).toBe(20);
+		expect(g.node("a").cache).toBe(1);
+		expect(g.node("b").cache).toBe(20);
 	});
 
 	it("fromSnapshot reconstructs dynamic nodes via factories option", () => {
@@ -970,7 +970,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		const s = g1.node("sum");
 		s.subscribe(() => {});
 		g1.set("a", 5);
-		expect(g1.get("sum")).toBe(6);
+		expect(g1.node("sum").cache).toBe(6);
 	});
 });
 
@@ -991,7 +991,7 @@ describe("Graph guard (Phase 1.5)", () => {
 		g.add(n, { name: "n" });
 		const metaPath = `n::${GRAPH_META_SEGMENT}::note`;
 		g.set(metaPath, "b", { actor: human });
-		expect(g.get(metaPath)).toBe("b");
+		expect(g.node(metaPath).cache).toBe("b");
 		expect(() => g.set(metaPath, "c", { actor: llm })).toThrow(GuardDenied);
 	});
 
@@ -1003,7 +1003,7 @@ describe("Graph guard (Phase 1.5)", () => {
 		g.add(n, { name: "x" });
 		expect(() => g.signal([[PAUSE, "p"]])).toThrow(GuardDenied);
 		g.set("x", 1, { actor: human });
-		expect(g.get("x")).toBe(1);
+		expect(g.node("x").cache).toBe(1);
 	});
 
 	it("describe and observe respect observe action", () => {
@@ -1278,7 +1278,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		g.set("n", 1);
 		off();
 		expect(seq).toContain(DATA);
-		expect(g.get("n")).toBe(1);
+		expect(g.node("n").cache).toBe(1);
 	});
 
 	it("observe(path) on derived sees DIRTY before DATA when upstream graph.set recomputes", () => {
@@ -1296,7 +1296,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		const iData = seq.indexOf(DATA);
 		expect(iDirty).toBeGreaterThanOrEqual(0);
 		expect(iData).toBeGreaterThan(iDirty);
-		expect(g.get("b")).toBe(6);
+		expect(g.node("b").cache).toBe(6);
 		off();
 	});
 
@@ -1315,7 +1315,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 			g.mount("sub", ch);
 		});
 		expect(root1.name).toBe("app");
-		expect(root1.get("sub::x")).toBe(3);
+		expect(root1.node("sub::x").cache).toBe(3);
 	});
 
 	it("graph.signal reaches every mounted subgraph (sibling mounts)", () => {
@@ -1457,7 +1457,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		const wired = JSON.parse(JSON.stringify(snap)) as GraphPersistSnapshot;
 		const restored = Graph.fromSnapshot(wired);
 		expect(restored.name).toBe("app");
-		expect(restored.get("sub::x")).toBe(42);
+		expect(restored.node("sub::x").cache).toBe(42);
 	});
 });
 
@@ -2239,5 +2239,269 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 		g.add(state(1, { name: "a" }), { name: "a" });
 		g.derived("d", ["a"], ([v]) => v as number, { signal: ac.signal });
 		expect(g.tryResolve("d")).toBeUndefined();
+	});
+});
+
+// ——————————————————————————————————————————————————————————————
+//  Bundle 3: graph.describe({ explain }) / graph.describe({ reachable })
+//  fold dispatch contract. See archive/docs/SESSION-graph-narrow-waist.md
+//  Phase 5 + qa BH16 finding.
+// ——————————————————————————————————————————————————————————————
+
+describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
+	it("returns a CausalChain matching the deleted Graph.explain shape", () => {
+		const g = new Graph("explain-fold");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+		const chain = g.describe({ explain: { from: "a", to: "b" } });
+		expect(chain.found).toBe(true);
+		expect(chain.steps.map((s) => s.path)).toEqual(["a", "b"]);
+	});
+
+	it("returns reactive { node, dispose } when reactive: true is set", () => {
+		const g = new Graph("explain-fold-reactive");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const handle = g.describe({ explain: { from: "a", to: "b" }, reactive: true });
+		expect(typeof handle.dispose).toBe("function");
+		expect(handle.node.subscribe).toBeDefined();
+		// Cache settles after a subscribe → push-on-subscribe + first
+		// recompute through the version-bump coalescer.
+		handle.node.subscribe(() => {});
+		expect(handle.node.cache?.found).toBe(true);
+		handle.dispose();
+	});
+
+	it("threads maxDepth + findCycle into the underlying explainPath call", () => {
+		const g = new Graph("explain-fold-opts");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		const c = derived([b], ([v]) => v, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+		// maxDepth 1 truncates a → b → c (2 hops) to "not found" / truncated.
+		const chain = g.describe({ explain: { from: "a", to: "c", maxDepth: 1 } });
+		expect(chain.found).toBe(false);
+	});
+
+	it("name option flows through to the reactive derived's meta.name", () => {
+		const g = new Graph("explain-fold-name");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const handle = g.describe({
+			explain: { from: "a", to: "b" },
+			reactive: true,
+			name: "my-explain",
+		});
+		expect((handle.node as { name?: string }).name).toBe("my-explain");
+		handle.dispose();
+	});
+
+	it("reactiveName falls back to the explain-mode `name` slot when name is absent", () => {
+		const g = new Graph("explain-fold-fallback");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const handle = g.describe({
+			explain: { from: "a", to: "b" },
+			reactive: true,
+			reactiveName: "fallback-name",
+		});
+		expect((handle.node as { name?: string }).name).toBe("fallback-name");
+		handle.dispose();
+	});
+
+	it("name wins over reactiveName when both are set", () => {
+		const g = new Graph("explain-fold-name-wins");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const handle = g.describe({
+			explain: { from: "a", to: "b" },
+			reactive: true,
+			name: "winner",
+			reactiveName: "loser",
+		});
+		expect((handle.node as { name?: string }).name).toBe("winner");
+		handle.dispose();
+	});
+});
+
+describe("Graph.describe({ reachable }) — fold dispatch (Bundle 3)", () => {
+	it("returns string[] matching the deleted Graph.reachable default form", () => {
+		const g = new Graph("reach-fold");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		const c = derived([b], ([v]) => v, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+		const downstream = g.describe({
+			reachable: { from: "a", direction: "downstream" },
+		});
+		expect(downstream).toEqual(["b", "c"]);
+	});
+
+	it("returns ReachableResult shape when withDetail: true", () => {
+		const g = new Graph("reach-fold-detail");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+		const result = g.describe({
+			reachable: { from: "a", direction: "downstream", withDetail: true },
+		});
+		expect(Array.isArray(result.paths)).toBe(true);
+		expect(result.paths).toEqual(["b"]);
+		expect(result.depths instanceof Map).toBe(true);
+		expect(result.depths.get("b")).toBe(1);
+		expect(result.truncated).toBe(false);
+	});
+
+	it("threads maxDepth + both into the underlying reachable() call", () => {
+		const g = new Graph("reach-fold-depth");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		const c = derived([b], ([v]) => v, { name: "c" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.add(c, { name: "c" });
+		g.observe("c").subscribe(() => {});
+		const truncated = g.describe({
+			reachable: { from: "a", direction: "downstream", maxDepth: 1 },
+		});
+		expect(truncated).toEqual(["b"]);
+	});
+
+	it("matches the standalone reachable() helper for parity", () => {
+		const g = new Graph("reach-fold-parity");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+		const viaDescribe = g.describe({
+			reachable: { from: "a", direction: "downstream" },
+		});
+		const viaStandalone = reachable(g.describe(), "a", "downstream");
+		expect(viaDescribe).toEqual(viaStandalone);
+	});
+});
+
+describe("Graph.describe() — mode-conflict TypeError dispatch (Bundle 3)", () => {
+	it("throws when both `explain` and `reachable` are set", () => {
+		const g = new Graph("conflict-modes");
+		expect(() =>
+			g.describe({
+				explain: { from: "a", to: "b" },
+				reachable: { from: "a", direction: "downstream" },
+			} as any),
+		).toThrow(/mutually exclusive/);
+	});
+
+	it("throws when `explain` is paired with `detail`", () => {
+		const g = new Graph("conflict-detail");
+		expect(() =>
+			g.describe({
+				explain: { from: "a", to: "b" },
+				detail: "full",
+			} as any),
+		).toThrow(/`explain` mode does not accept `detail`/);
+	});
+
+	it("throws when `explain` is paired with `fields`", () => {
+		const g = new Graph("conflict-fields");
+		expect(() =>
+			g.describe({
+				explain: { from: "a", to: "b" },
+				fields: ["type"],
+			} as any),
+		).toThrow(/`explain` mode does not accept `fields`/);
+	});
+
+	it("throws when `reachable` is paired with `actor`", () => {
+		const g = new Graph("conflict-actor");
+		expect(() =>
+			g.describe({
+				reachable: { from: "a", direction: "downstream" },
+				actor: DEFAULT_ACTOR,
+			} as any),
+		).toThrow(/`reachable` mode does not accept `actor`/);
+	});
+
+	it("throws when `reachable` is paired with `reactive: true`", () => {
+		const g = new Graph("conflict-reactive");
+		expect(() =>
+			g.describe({
+				reachable: { from: "a", direction: "downstream" },
+				reactive: true,
+			} as any),
+		).toThrow(/static-only/);
+	});
+
+	it('throws when `reachable` is paired with `reactive: "diff"`', () => {
+		const g = new Graph("conflict-diff");
+		expect(() =>
+			g.describe({
+				reachable: { from: "a", direction: "downstream" },
+				reactive: "diff",
+			} as any),
+		).toThrow(/static-only/);
+	});
+
+	it("accepts `reachable` + `reactive: false` as a no-op (qa BH1/EC8 — symmetric with explain mode)", () => {
+		const g = new Graph("reach-reactive-false-allowed");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+		// `reactive: false` is the implicit default — explicit form must
+		// pass through without error so spread-style callers don't trip.
+		expect(() =>
+			g.describe({
+				reachable: { from: "a", direction: "downstream" },
+				reactive: false,
+			} as any),
+		).not.toThrow();
+	});
+
+	it('throws when `explain` is paired with `reactive: "diff"`', () => {
+		const g = new Graph("conflict-explain-diff");
+		expect(() =>
+			g.describe({
+				explain: { from: "a", to: "b" },
+				reactive: "diff",
+			} as any),
+		).toThrow(/does not support `reactive: "diff"`/);
+	});
+
+	it("accepts `explain` + `reactive: false` as a no-op", () => {
+		const g = new Graph("explain-reactive-false");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => v, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		g.observe("b").subscribe(() => {});
+		// Defensive style — explicit `reactive: false` should produce a
+		// static CausalChain (same as omitting `reactive`).
+		const chain = g.describe({
+			explain: { from: "a", to: "b" },
+			reactive: false,
+		});
+		expect(chain.found).toBe(true);
 	});
 });

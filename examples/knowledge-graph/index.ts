@@ -17,7 +17,7 @@
  *   kg/{entities,edges,adjacency}   (UI / consumers subscribe here)
  *        │
  *        ▼
- *   kg.explain("docs", "adjacency", { reactive: true })  (live causal chain)
+ *   kg.describe({ explain: { from: "docs", to: "adjacency" }, reactive: true })  (live causal chain)
  */
 
 import { DATA, effect } from "@graphrefly/graphrefly/core";
@@ -89,7 +89,7 @@ const apply = effect(
 kg.add(apply, { name: "apply-extraction" });
 
 // Live causal chain. Re-derives whenever any node along the path fires.
-const explain = kg.explain("docs", "adjacency", { reactive: true });
+const explain = kg.describe({ explain: { from: "docs", to: "adjacency" }, reactive: true });
 explain.node.subscribe((msgs) => {
 	for (const [type, value] of msgs) {
 		if (type !== DATA) continue;

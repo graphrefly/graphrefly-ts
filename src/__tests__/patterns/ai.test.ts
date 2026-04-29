@@ -91,8 +91,8 @@ describe("patterns.ai.chatStream", () => {
 	it("creates a graph with messages, latest, and messageCount nodes", () => {
 		const cs = chatStream("test-chat");
 		expect(cs).toBeInstanceOf(ChatStreamGraph);
-		expect(cs.get("messageCount")).toBe(0);
-		expect(cs.get("latest")).toBe(null);
+		expect(cs.node("messageCount").cache).toBe(0);
+		expect(cs.node("latest").cache).toBe(null);
 	});
 
 	it("appends messages and updates derived nodes", () => {
@@ -100,8 +100,8 @@ describe("patterns.ai.chatStream", () => {
 		cs.append("user", "hello");
 		cs.append("assistant", "hi there");
 
-		expect(cs.get("messageCount")).toBe(2);
-		const latest = cs.get("latest") as ChatMessage;
+		expect(cs.node("messageCount").cache).toBe(2);
+		const latest = cs.node("latest").cache as ChatMessage;
 		expect(latest.role).toBe("assistant");
 		expect(latest.content).toBe("hi there");
 	});
@@ -120,7 +120,7 @@ describe("patterns.ai.chatStream", () => {
 		const cs = chatStream("test-chat");
 		cs.append("user", "test");
 		cs.clear();
-		expect(cs.get("messageCount")).toBe(0);
+		expect(cs.node("messageCount").cache).toBe(0);
 		expect(cs.allMessages().length).toBe(0);
 	});
 
@@ -1975,8 +1975,8 @@ describe("graphFromSpec", () => {
 
 		const g = await graphFromSpec("Build a calculator with two inputs", adapter);
 		expect(g.name).toBe("calculator");
-		expect(g.get("a")).toBe(10);
-		expect(g.get("b")).toBe(20);
+		expect(g.node("a").cache).toBe(10);
+		expect(g.node("b").cache).toBe(20);
 		g.destroy();
 	});
 

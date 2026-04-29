@@ -128,9 +128,9 @@ describe("patterns.memory.collection", () => {
 	it("ranked is lazy: undefined until subscribed", () => {
 		const g = collection<number>("mem", { score: (v) => v });
 		g.upsert("x", 1);
-		expect(g.get("ranked")).toBeUndefined();
+		expect(g.node("ranked").cache).toBeUndefined();
 		g.addDisposer(keepalive(g.ranked));
-		expect(Array.isArray(g.get("ranked"))).toBe(true);
+		expect(Array.isArray(g.node("ranked").cache)).toBe(true);
 	});
 
 	it("size keepalive stays warm without external subscriber", () => {
@@ -138,7 +138,7 @@ describe("patterns.memory.collection", () => {
 		g.upsert("x", 1);
 		g.upsert("y", 5);
 		g.upsert("z", 3);
-		expect(g.get("size")).toBe(2);
+		expect(g.node("size").cache).toBe(2);
 	});
 
 	it("ranks by descending score with maxSize eviction", () => {
@@ -358,14 +358,14 @@ describe("patterns.memory.knowledgeGraph", () => {
 		kg.upsertEntity("a", { name: "A" });
 		kg.upsertEntity("b", { name: "B" });
 		kg.link("a", "b", "knows", 1);
-		expect(kg.get("edgeCount")).toBe(1);
+		expect(kg.node("edgeCount").cache).toBe(1);
 		kg.link("a", "b", "knows", 5); // replace weight
-		expect(kg.get("edgeCount")).toBe(1);
+		expect(kg.node("edgeCount").cache).toBe(1);
 		const edges = kg.edges.cache as ReadonlyMap<string, KnowledgeEdge>;
 		const onlyEdge = [...edges.values()][0]!;
 		expect(onlyEdge.weight).toBe(5);
 		kg.unlink("a", "b", "knows");
-		expect(kg.get("edgeCount")).toBe(0);
+		expect(kg.node("edgeCount").cache).toBe(0);
 	});
 
 	it("relatedNode returns inbound and outbound edges (symmetric)", () => {
@@ -409,10 +409,10 @@ describe("patterns.memory.knowledgeGraph", () => {
 		kg.upsertEntity("c", { name: "C" });
 		kg.link("a", "b", "knows");
 		kg.link("c", "a", "knows");
-		expect(kg.get("edgeCount")).toBe(2);
+		expect(kg.node("edgeCount").cache).toBe(2);
 		kg.removeEntity("a");
-		expect(kg.get("edgeCount")).toBe(0);
-		expect(kg.get("entityCount")).toBe(2);
+		expect(kg.node("edgeCount").cache).toBe(0);
+		expect(kg.node("entityCount").cache).toBe(2);
 	});
 
 	it("orphanGC: 'remove' deletes entities after their last edge unlinks", () => {
@@ -421,15 +421,15 @@ describe("patterns.memory.knowledgeGraph", () => {
 		kg.upsertEntity("b", { name: "B" });
 		kg.link("a", "b", "knows");
 		kg.unlink("a", "b", "knows");
-		expect(kg.get("entityCount")).toBe(0);
+		expect(kg.node("entityCount").cache).toBe(0);
 	});
 
 	it("entityCount and edgeCount keep keepalive without external subscriber", () => {
 		const kg = knowledgeGraph<{ name: string }>("kg");
 		kg.upsertEntity("a", { name: "A" });
 		kg.link("a", "a", "self");
-		expect(kg.get("entityCount")).toBe(1);
-		expect(kg.get("edgeCount")).toBe(1);
+		expect(kg.node("entityCount").cache).toBe(1);
+		expect(kg.node("edgeCount").cache).toBe(1);
 	});
 
 	it("events log records every mutation", () => {

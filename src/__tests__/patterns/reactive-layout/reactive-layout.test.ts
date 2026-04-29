@@ -423,9 +423,9 @@ describe("reactiveLayout", () => {
 			text: "hi",
 			maxWidth: -50,
 		});
-		expect(layout.graph.get("max-width")).toBe(0);
+		expect(layout.graph.node("max-width").cache).toBe(0);
 		layout.setMaxWidth(-20);
-		expect(layout.graph.get("max-width")).toBe(0);
+		expect(layout.graph.node("max-width").cache).toBe(0);
 	});
 
 	it("segments node has meta for observability", () => {

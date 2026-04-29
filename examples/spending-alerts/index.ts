@@ -38,10 +38,10 @@ alertMessage.subscribe((msgs) => {
 		// answer to homepage pain-point 02 — "why was this flagged?"
 		if (!firstFlagExplained && text.includes("flagged")) {
 			firstFlagExplained = true;
-			const chain = graph.explain("txFeed", "alertMessage");
+			const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
 			const heavy = "═".repeat(60);
 			console.log(`\n${heavy}`);
-			console.log("Causal chain — graph.explain('txFeed', 'alertMessage'):");
+			console.log("Causal chain — graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } }):");
 			console.log(heavy);
 			console.log(chain.text);
 		}

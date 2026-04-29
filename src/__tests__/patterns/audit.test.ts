@@ -173,7 +173,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 		// LLM write should succeed (audit mode doesn't block) but be recorded.
 		g.set("a", 7, { actor: { type: "llm", id: "agent-1" } });
-		expect(g.get("a")).toBe(7);
+		expect(g.node("a").cache).toBe(7);
 
 		const violations = enforcer.all();
 		expect(violations).toHaveLength(1);
@@ -219,11 +219,11 @@ describe("policyGate (roadmap §9.2)", () => {
 
 		// Human ok
 		g.set("a", 1, { actor: { type: "human", id: "alice" } });
-		expect(g.get("a")).toBe(1);
+		expect(g.node("a").cache).toBe(1);
 
 		// LLM blocked
 		expect(() => g.set("a", 2, { actor: { type: "llm", id: "bot" } })).toThrow();
-		expect(g.get("a")).toBe(1); // unchanged
+		expect(g.node("a").cache).toBe(1); // unchanged
 
 		const violations = enforcer.all();
 		expect(violations).toHaveLength(1);
@@ -240,7 +240,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		enforcer.destroy();
 		// After dispose, LLM writes work again (no original guard, no enforcer).
 		g.set("a", 99, { actor: { type: "llm", id: "bot" } });
-		expect(g.get("a")).toBe(99);
+		expect(g.node("a").cache).toBe(99);
 	});
 
 	it("reactive policies: updating policies node changes enforcement", () => {
@@ -255,7 +255,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		// Update policies to allow LLMs.
 		policies.emit([{ effect: "allow", action: "write" }]);
 		g.set("a", 42, { actor: { type: "llm", id: "bot" } });
-		expect(g.get("a")).toBe(42);
+		expect(g.node("a").cache).toBe(42);
 
 		// Tighten back: deny everyone.
 		policies.emit([{ effect: "deny", action: "write" }]);
@@ -293,7 +293,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 		// b is unguarded.
 		g.set("b", 1, { actor: { type: "human", id: "x" } });
-		expect(g.get("b")).toBe(1);
+		expect(g.node("b").cache).toBe(1);
 		expect(enforcer.all()).toHaveLength(1);
 	});
 
@@ -324,7 +324,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		// Late-added node — NOT covered because paths was explicit.
 		g.add(state(0, { name: "b" }), { name: "b" });
 		g.set("b", 1, { actor: { type: "human", id: "x" } });
-		expect(g.get("b")).toBe(1);
+		expect(g.node("b").cache).toBe(1);
 	});
 
 	it("enforce mode: dynamic coverage — mount added after construction gets its contents guarded", () => {
@@ -336,7 +336,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 		// No coverage yet — child not mounted
 		child.set("x", 1, { actor: { type: "human", id: "a" } });
-		expect(child.get("x")).toBe(1);
+		expect(child.node("x").cache).toBe(1);
 
 		// Mount after enforcer built — contents get guarded
 		g.mount("kids", child);
@@ -396,7 +396,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 		// b is NOT in the initial set — write succeeds.
 		g.set("b", 1, { actor: { type: "human", id: "x" } });
-		expect(g.get("b")).toBe(1);
+		expect(g.node("b").cache).toBe(1);
 	});
 
 	it("Tier 3.4 enforce mode: reactive `paths` rebinds — paths added to set get wrapped, paths removed get released", () => {
@@ -418,7 +418,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		expect(() => g.set("b", 2, { actor: { type: "human", id: "x" } })).toThrow();
 		// a no longer guarded — write succeeds.
 		g.set("a", 99, { actor: { type: "human", id: "x" } });
-		expect(g.get("a")).toBe(99);
+		expect(g.node("a").cache).toBe(99);
 	});
 
 	it("Tier 3.4 enforce mode: reactive `paths` — adding to set wraps newly-included path without re-wrapping existing", () => {
@@ -463,8 +463,8 @@ describe("policyGate (roadmap §9.2)", () => {
 	});
 });
 
-describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
-	it("B21: graph.explain({ reactive: true }) returns the same reactive chain", () => {
+describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
+	it("B21: graph.describe({ explain, reactive: true }) returns the same reactive chain", () => {
 		const g = new Graph("g");
 		const a = state(1, { name: "a" });
 		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
@@ -472,7 +472,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
-		const direct = g.explain("a", "b", { reactive: true });
+		const direct = g.describe({ explain: { from: "a", to: "b" }, reactive: true });
 		const unsub = direct.node.subscribe(() => {});
 		expect(direct.node.cache?.found).toBe(true);
 		expect(direct.node.cache?.steps[0]?.value).toBe(1);
@@ -494,7 +494,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 		g.add(c, { name: "c" });
 		g.observe("c").subscribe(() => {});
 
-		const live = g.explain("a", "c", { reactive: true });
+		const live = g.describe({ explain: { from: "a", to: "c" }, reactive: true });
 		let fnRuns = 0;
 		const unsub = live.node.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === Symbol.for("graphrefly.DATA")) fnRuns++;
@@ -523,7 +523,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
 
-		const live = g.explain("a", "b", { reactive: true });
+		const live = g.describe({ explain: { from: "a", to: "b" }, reactive: true });
 		const seen: number[] = [];
 		const unsub = live.node.subscribe((msgs) => {
 			for (const m of msgs) {
@@ -565,7 +565,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 
 		const fromNode = state<string>("a", { name: "from" });
 		const toNode = state<string>("b", { name: "to" });
-		const live = g.explain(fromNode, toNode, { reactive: true });
+		const live = g.describe({ explain: { from: fromNode, to: toNode }, reactive: true });
 		const unsub = live.node.subscribe(() => {});
 
 		// Initial: a → b
@@ -595,7 +595,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 		g.observe("c").subscribe(() => {});
 
 		const maxDepth = state<number>(1, { name: "max" });
-		const live = g.explain("a", "c", { reactive: true, maxDepth });
+		const live = g.describe({ explain: { from: "a", to: "c", maxDepth }, reactive: true });
 		const unsub = live.node.subscribe(() => {});
 
 		// At depth 1, a→c is unreachable in 1 hop.
@@ -619,7 +619,7 @@ describe("graph.explain({ reactive: true }) (roadmap §9.2)", () => {
 
 		const fromNode = state<string>("a", { name: "from" });
 		// Static call returns a CausalChain snapshot, not a reactive handle.
-		const chain = g.explain(fromNode, "b");
+		const chain = g.describe({ explain: { from: fromNode, to: "b" } });
 		expect("steps" in chain && Array.isArray(chain.steps)).toBe(true);
 		expect((chain as { found: boolean }).found).toBe(true);
 	});

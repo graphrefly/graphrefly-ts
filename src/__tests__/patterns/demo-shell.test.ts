@@ -65,8 +65,8 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/main-width");
 		subscribePath(shell, "pane/side-width");
 
-		expect(shell.graph.get("pane/main-width")).toBe(600);
-		expect(shell.graph.get("pane/side-width")).toBe(400);
+		expect(shell.graph.node("pane/main-width").cache).toBe(600);
+		expect(shell.graph.node("pane/side-width").cache).toBe(400);
 	});
 
 	it("setMainRatio clamps to [0,1] and updates widths", () => {
@@ -75,14 +75,14 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/side-width");
 
 		shell.setMainRatio(0.8);
-		expect(shell.graph.get("pane/main-width")).toBe(800);
-		expect(shell.graph.get("pane/side-width")).toBe(200);
+		expect(shell.graph.node("pane/main-width").cache).toBe(800);
+		expect(shell.graph.node("pane/side-width").cache).toBe(200);
 
 		shell.setMainRatio(1.5); // clamped to 1
-		expect(shell.graph.get("pane/main-width")).toBe(1000);
+		expect(shell.graph.node("pane/main-width").cache).toBe(1000);
 
 		shell.setMainRatio(-0.1); // clamped to 0
-		expect(shell.graph.get("pane/main-width")).toBe(0);
+		expect(shell.graph.node("pane/main-width").cache).toBe(0);
 	});
 
 	it("fullscreen=main gives main 100%, side 0%", () => {
@@ -91,8 +91,8 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/side-width");
 
 		shell.setFullscreen("main");
-		expect(shell.graph.get("pane/main-width")).toBe(1000);
-		expect(shell.graph.get("pane/side-width")).toBe(0);
+		expect(shell.graph.node("pane/main-width").cache).toBe(1000);
+		expect(shell.graph.node("pane/side-width").cache).toBe(0);
 	});
 
 	it("fullscreen=graph gives side 100%, main 0%", () => {
@@ -103,10 +103,10 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/code-height-ratio");
 
 		shell.setFullscreen("graph");
-		expect(shell.graph.get("pane/main-width")).toBe(0);
-		expect(shell.graph.get("pane/side-width")).toBe(1000);
-		expect(shell.graph.get("pane/graph-height-ratio")).toBe(1);
-		expect(shell.graph.get("pane/code-height-ratio")).toBe(0);
+		expect(shell.graph.node("pane/main-width").cache).toBe(0);
+		expect(shell.graph.node("pane/side-width").cache).toBe(1000);
+		expect(shell.graph.node("pane/graph-height-ratio").cache).toBe(1);
+		expect(shell.graph.node("pane/code-height-ratio").cache).toBe(0);
 	});
 
 	it("fullscreen=code gives code 100%", () => {
@@ -115,8 +115,8 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/code-height-ratio");
 
 		shell.setFullscreen("code");
-		expect(shell.graph.get("pane/graph-height-ratio")).toBe(0);
-		expect(shell.graph.get("pane/code-height-ratio")).toBe(1);
+		expect(shell.graph.node("pane/graph-height-ratio").cache).toBe(0);
+		expect(shell.graph.node("pane/code-height-ratio").cache).toBe(1);
 	});
 
 	it("side-split controls graph/code ratio", () => {
@@ -124,17 +124,17 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "pane/graph-height-ratio");
 		subscribePath(shell, "pane/code-height-ratio");
 
-		expect(shell.graph.get("pane/graph-height-ratio")).toBe(0.7);
-		expect(shell.graph.get("pane/code-height-ratio")).toBeCloseTo(0.3);
+		expect(shell.graph.node("pane/graph-height-ratio").cache).toBe(0.7);
+		expect(shell.graph.node("pane/code-height-ratio").cache).toBeCloseTo(0.3);
 	});
 
 	it("setViewportWidth updates pane widths reactively", () => {
 		const shell = demoShell({ mainRatio: 0.5, viewportWidth: 800 });
 		subscribePath(shell, "pane/main-width");
 
-		expect(shell.graph.get("pane/main-width")).toBe(400);
+		expect(shell.graph.node("pane/main-width").cache).toBe(400);
 		shell.setViewportWidth(1200);
-		expect(shell.graph.get("pane/main-width")).toBe(600);
+		expect(shell.graph.node("pane/main-width").cache).toBe(600);
 	});
 
 	// ── External graph observation ───────────────────────
@@ -143,7 +143,7 @@ describe("patterns.demoShell", () => {
 		const shell = demoShell();
 		subscribePath(shell, "graph/mermaid");
 
-		expect(shell.graph.get("graph/mermaid")).toBe("");
+		expect(shell.graph.node("graph/mermaid").cache).toBe("");
 	});
 
 	it("graph/mermaid derives from demo graph", () => {
@@ -157,7 +157,7 @@ describe("patterns.demoShell", () => {
 		demo.add(b, { name: "b" });
 
 		shell.setDemoGraph(demo);
-		const mermaid = shell.graph.get("graph/mermaid") as string;
+		const mermaid = shell.graph.node("graph/mermaid").cache as string;
 		expect(mermaid).toContain("flowchart");
 		expect(mermaid).toContain("a");
 		expect(mermaid).toContain("b");
@@ -171,12 +171,12 @@ describe("patterns.demoShell", () => {
 		const demo = new Graph("test-demo");
 		demo.add(state(1, { name: "x" }), { name: "x" });
 		shell.setDemoGraph(demo);
-		const before = shell.graph.get("graph/mermaid") as string;
+		const before = shell.graph.node("graph/mermaid").cache as string;
 		expect(before).toContain("x");
 
 		demo.add(state(2, { name: "y" }), { name: "y" });
 		shell.bumpGraphTick();
-		const after = shell.graph.get("graph/mermaid") as string;
+		const after = shell.graph.node("graph/mermaid").cache as string;
 		expect(after).toContain("y");
 	});
 
@@ -184,7 +184,7 @@ describe("patterns.demoShell", () => {
 		const shell = demoShell();
 		subscribePath(shell, "graph/describe");
 
-		expect(shell.graph.get("graph/describe")).toBeNull();
+		expect(shell.graph.node("graph/describe").cache).toBeNull();
 	});
 
 	it("graph/describe returns snapshot of demo graph", () => {
@@ -195,7 +195,7 @@ describe("patterns.demoShell", () => {
 		demo.add(state(42, { name: "node1" }), { name: "node1" });
 		shell.setDemoGraph(demo);
 
-		const desc = shell.graph.get("graph/describe") as Record<string, unknown>;
+		const desc = shell.graph.node("graph/describe").cache as Record<string, unknown>;
 		expect(desc).not.toBeNull();
 		expect((desc as { name: string }).name).toBe("test-demo");
 	});
@@ -212,9 +212,9 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "highlight/graph");
 
 		shell.setHoverTarget({ pane: "graph", id: "myNode" });
-		expect(shell.graph.get("highlight/code-scroll")).toBe(42);
-		expect(shell.graph.get("highlight/visual")).toBe(".my-node");
-		expect(shell.graph.get("highlight/graph")).toBe("myNode");
+		expect(shell.graph.node("highlight/code-scroll").cache).toBe(42);
+		expect(shell.graph.node("highlight/visual").cache).toBe(".my-node");
+		expect(shell.graph.node("highlight/graph").cache).toBe("myNode");
 	});
 
 	it("null hover target clears all highlights", () => {
@@ -225,12 +225,12 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "highlight/graph");
 
 		shell.setHoverTarget({ pane: "visual", id: "myNode" });
-		expect(shell.graph.get("highlight/code-scroll")).toBe(10);
+		expect(shell.graph.node("highlight/code-scroll").cache).toBe(10);
 
 		shell.setHoverTarget(null);
-		expect(shell.graph.get("highlight/code-scroll")).toBeNull();
-		expect(shell.graph.get("highlight/visual")).toBeNull();
-		expect(shell.graph.get("highlight/graph")).toBeNull();
+		expect(shell.graph.node("highlight/code-scroll").cache).toBeNull();
+		expect(shell.graph.node("highlight/visual").cache).toBeNull();
+		expect(shell.graph.node("highlight/graph").cache).toBeNull();
 	});
 
 	it("hover on unknown id returns null for code/visual", () => {
@@ -240,10 +240,10 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "highlight/graph");
 
 		shell.setHoverTarget({ pane: "graph", id: "unknown" });
-		expect(shell.graph.get("highlight/code-scroll")).toBeNull();
-		expect(shell.graph.get("highlight/visual")).toBeNull();
+		expect(shell.graph.node("highlight/code-scroll").cache).toBeNull();
+		expect(shell.graph.node("highlight/visual").cache).toBeNull();
 		// graph highlight always returns the id
-		expect(shell.graph.get("highlight/graph")).toBe("unknown");
+		expect(shell.graph.node("highlight/graph").cache).toBe("unknown");
 	});
 
 	// ── Inspect panel ────────────────────────────────────
@@ -252,7 +252,7 @@ describe("patterns.demoShell", () => {
 		const shell = demoShell();
 		subscribePath(shell, "inspect/node-detail");
 
-		expect(shell.graph.get("inspect/node-detail")).toBeNull();
+		expect(shell.graph.node("inspect/node-detail").cache).toBeNull();
 	});
 
 	it("inspect/node-detail returns node description when selected", () => {
@@ -264,7 +264,7 @@ describe("patterns.demoShell", () => {
 		shell.setDemoGraph(demo);
 		shell.selectNode("counter");
 
-		const detail = shell.graph.get("inspect/node-detail") as Record<string, unknown>;
+		const detail = shell.graph.node("inspect/node-detail").cache as Record<string, unknown>;
 		expect(detail).not.toBeNull();
 		expect(detail.path).toBe("counter");
 		expect(detail.value).toBe(7);
@@ -278,14 +278,14 @@ describe("patterns.demoShell", () => {
 		shell.setDemoGraph(demo);
 		shell.selectNode("nonexistent");
 
-		expect(shell.graph.get("inspect/node-detail")).toBeNull();
+		expect(shell.graph.node("inspect/node-detail").cache).toBeNull();
 	});
 
 	it("inspect/trace-log returns empty array when no demo graph", () => {
 		const shell = demoShell();
 		subscribePath(shell, "inspect/trace-log");
 
-		expect(shell.graph.get("inspect/trace-log")).toEqual([]);
+		expect(shell.graph.node("inspect/trace-log").cache).toEqual([]);
 	});
 
 	// ── Meta debug toggle ────────────────────────────────
@@ -294,7 +294,7 @@ describe("patterns.demoShell", () => {
 		const shell = demoShell();
 		subscribePath(shell, "meta/shell-mermaid");
 
-		expect(shell.graph.get("meta/shell-mermaid")).toBe("");
+		expect(shell.graph.node("meta/shell-mermaid").cache).toBe("");
 	});
 
 	it("meta/shell-mermaid renders the shell's own graph when debug is on", () => {
@@ -302,7 +302,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "meta/shell-mermaid");
 
 		shell.setMetaDebug(true);
-		const mermaid = shell.graph.get("meta/shell-mermaid") as string;
+		const mermaid = shell.graph.node("meta/shell-mermaid").cache as string;
 		expect(mermaid).toContain("flowchart");
 		// Should contain shell's own nodes
 		expect(mermaid).toContain("pane/main-ratio");
@@ -348,7 +348,7 @@ describe("patterns.demoShell", () => {
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
 
-		const labels = shell.graph.get("layout/graph-labels") as Map<string, GraphLabelSize>;
+		const labels = shell.graph.node("layout/graph-labels").cache as Map<string, GraphLabelSize>;
 		expect(labels).toBeInstanceOf(Map);
 		expect(labels.size).toBe(2);
 		expect(labels.has("counter")).toBe(true);
@@ -364,7 +364,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/describe");
 		subscribePath(shell, "layout/graph-labels");
 
-		const labels = shell.graph.get("layout/graph-labels") as Map<string, GraphLabelSize>;
+		const labels = shell.graph.node("layout/graph-labels").cache as Map<string, GraphLabelSize>;
 		expect(labels).toBeInstanceOf(Map);
 		expect(labels.size).toBe(0);
 	});
@@ -375,7 +375,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "layout/code-lines");
 
 		shell.setCodeText("hello world");
-		const result = shell.graph.get("layout/code-lines") as LineBreaksResult;
+		const result = shell.graph.node("layout/code-lines").cache as LineBreaksResult;
 		expect(result.lineCount).toBeGreaterThanOrEqual(1);
 		expect(result.lines.length).toBeGreaterThanOrEqual(1);
 	});
@@ -385,7 +385,7 @@ describe("patterns.demoShell", () => {
 		const shell = demoShell({ adapter });
 		subscribePath(shell, "layout/code-lines");
 
-		const result = shell.graph.get("layout/code-lines") as LineBreaksResult;
+		const result = shell.graph.node("layout/code-lines").cache as LineBreaksResult;
 		expect(result.lineCount).toBe(0);
 		expect(result.lines).toEqual([]);
 	});
@@ -398,7 +398,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "layout/side-width-hint");
 
 		// No demo graph → default minimum
-		expect(shell.graph.get("layout/side-width-hint")).toBe(200);
+		expect(shell.graph.node("layout/side-width-hint").cache).toBe(200);
 
 		const demo = new Graph("test-demo");
 		demo.add(state(1, { name: "short" }), { name: "short" });
@@ -406,7 +406,7 @@ describe("patterns.demoShell", () => {
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
 
-		const hint = shell.graph.get("layout/side-width-hint") as number;
+		const hint = shell.graph.node("layout/side-width-hint").cache as number;
 		expect(hint).toBeGreaterThanOrEqual(200);
 	});
 
@@ -495,7 +495,7 @@ describe("patterns.demoShell", () => {
 		});
 
 		// After batch: final value must be correct
-		expect(shell.graph.get("pane/main-width")).toBe(Math.round(1920 * 0.7));
+		expect(shell.graph.node("pane/main-width").cache).toBe(Math.round(1920 * 0.7));
 		expect(computeCount).toBeGreaterThanOrEqual(1);
 	});
 

@@ -524,7 +524,7 @@ describe("harnessLoop", () => {
 			},
 		});
 		const harness = harnessLoop("test-explain-named", { adapter });
-		const chain = harness.explain("queues::intake::latest", "reflect");
+		const chain = harness.describe({ explain: { from: "queues::intake::latest", to: "reflect" } });
 		// We don't assert `found: true` because some intermediate paths (e.g.
 		// gate output for ungated routes) may not be present at construction
 		// time. What we DO assert: every step's path is a named, non-empty,

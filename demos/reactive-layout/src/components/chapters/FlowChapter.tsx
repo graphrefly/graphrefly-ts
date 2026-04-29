@@ -188,7 +188,7 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 	const [paused, setPaused] = useState(false);
 	const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 	const [frameSize, setFrameSize] = useState<{ width: number; height: number }>(() => {
-		const c = chapter.bundle.graph.get("container") as FlowContainer;
+		const c = chapter.bundle.graph.node("container").cache as FlowContainer;
 		return { width: c.width, height: c.height };
 	});
 	const dragRef = useRef<DragState | null>(null);
@@ -244,8 +244,8 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 			lastT = t;
 			// Read current state each tick — avoids stale-closure bugs when
 			// the container is resized mid-animation.
-			const prev = chapter.bundle.graph.get("obstacles") as Obstacle[];
-			const container = chapter.bundle.graph.get("container") as FlowContainer;
+			const prev = chapter.bundle.graph.node("obstacles").cache as Obstacle[];
+			const container = chapter.bundle.graph.node("container").cache as FlowContainer;
 			const draggedIdx = dragRef.current?.obstacleIndex ?? -1;
 			const next = driftObstacles(prev, drifts, dt, container, draggedIdx);
 			chapter.bundle.setObstacles(next);
@@ -281,7 +281,7 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 		if (!s) return;
 		const dx = e.clientX - s.startClientX;
 		const dy = e.clientY - s.startClientY;
-		const current = chapter.bundle.graph.get("obstacles") as Obstacle[];
+		const current = chapter.bundle.graph.node("obstacles").cache as Obstacle[];
 		const next = [...current];
 		const o = next[s.obstacleIndex]!;
 		if (o.kind === "circle") {

@@ -169,13 +169,19 @@ describe("Graph.topology (structural-change companion)", () => {
 		b.stop();
 	});
 
-	it("removeAll() emits one 'removed' event per removed entry", () => {
+	it("bulk-remove via filter loop emits one 'removed' event per entry", () => {
 		const g = new Graph("g");
 		g.add(state(1), { name: "a" });
 		g.add(state(2), { name: "b" });
 		g.add(state(3), { name: "c" });
 		const { events, stop } = collectTopology(g);
-		g.removeAll((name) => name !== "b");
+		// Snapshot the universe from the graph itself so future fixture
+		// growth is picked up automatically (mirrors the deleted
+		// `g.removeAll(filter)` snapshot semantics).
+		const universe = [...g._nodes.keys(), ...g._mounts.keys()];
+		for (const name of universe.filter((n) => n !== "b")) {
+			g.remove(name);
+		}
 		// Should see two "removed" events for a and c
 		expect(events.filter((e) => e.kind === "removed")).toHaveLength(2);
 		const names = events.filter((e) => e.kind === "removed").map((e) => e.name);

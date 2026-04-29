@@ -117,13 +117,13 @@ async function dryRun(): Promise<void> {
 			for (const f of smoke.failures) console.error(JSON.stringify(f));
 			process.exit(3);
 		}
-		const chain = graph.explain("emails", "brief");
+		const chain = graph.describe({ explain: { from: "emails", to: "brief" } });
 		console.log(
 			`Causal chain: ${chain.steps.length} hops (${chain.steps.map((s) => s.path).join(" → ")})`,
 		);
 		// Exercise the `.text` render too — the real run prints it.
 		if (chain.text.length < 10) {
-			console.error(`\n!! graph.explain().text render is degenerate. Aborting.`);
+			console.error(`\n!! describe({ explain }).text render is degenerate. Aborting.`);
 			process.exit(3);
 		}
 		// Path 1B — stdout-native DAG flowchart via `describe({ format: "ascii" })`.
@@ -200,9 +200,9 @@ async function realRun(): Promise<void> {
 		console.log(briefText);
 
 		console.log(`\n${hr("═")}`);
-		console.log("CAUSAL CHAIN — graph.explain('emails', 'brief')");
+		console.log("CAUSAL CHAIN — graph.describe({ explain: { from: 'emails', to: 'brief' } })");
 		console.log(hr("═"));
-		console.log(graph.explain("emails", "brief").text);
+		console.log(graph.describe({ explain: { from: "emails", to: "brief" } }).text);
 
 		// --- Path 2: reactive delta demo --------------------------------------
 		console.log(`\n${hr("═")}`);
