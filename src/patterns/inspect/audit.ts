@@ -105,6 +105,25 @@ export interface AuditTrailOptions {
 export class AuditTrailGraph extends Graph {
 	readonly entries: Node<readonly AuditEntry[]>;
 	readonly count: Node<number>;
+	/**
+	 * Effective set of event types this trail records (EH-18). Reflects
+	 * either the caller-supplied `opts.includeTypes` or the default set
+	 * (`["data", "error", "complete", "teardown"]`). Captured at construction
+	 * — each instance owns its own clone, so a default-using trail can never
+	 * leak mutations into the module-level default set.
+	 *
+	 * **Mutation contract.** Type-system read-only via `ReadonlySet`. Runtime
+	 * mutation through an unsafe cast (`(audit.includeTypes as Set<...>)
+	 * .add(...)`) is unsupported — it would desync the field from the
+	 * recording closure, which captured the original `Set` reference at
+	 * construction. The runtime does NOT enforce immutability beyond the
+	 * type contract; consumers must respect it.
+	 *
+	 * Use this to validate that a `complianceSnapshot.fingerprint` was
+	 * computed against the same recording surface — fingerprints are stable
+	 * only when the recording set is identical across snapshots.
+	 */
+	readonly includeTypes: ReadonlySet<AuditEntry["type"]>;
 	private readonly _log;
 	private readonly _target: Graph;
 
@@ -126,8 +145,13 @@ export class AuditTrailGraph extends Graph {
 		this.add(this.count, { name: "count" });
 		this.addDisposer(keepalive(this.count));
 
-		const includeTypes =
-			opts.includeTypes != null ? new Set(opts.includeTypes) : DEFAULT_INCLUDE_TYPES;
+		// Always clone — DEFAULT_INCLUDE_TYPES is a module-level singleton and
+		// must not be shared across instances (a cast-and-mutate via
+		// `audit.includeTypes` would otherwise corrupt every default audit
+		// trail in the process).
+		const includeTypes: Set<AuditEntry["type"]> =
+			opts.includeTypes != null ? new Set(opts.includeTypes) : new Set(DEFAULT_INCLUDE_TYPES);
+		this.includeTypes = includeTypes;
 		const filter = opts.filter;
 
 		// Monotonic per-trail. **Stagnates** (does not wrap) past

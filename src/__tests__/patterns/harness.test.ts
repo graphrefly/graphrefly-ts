@@ -435,6 +435,80 @@ describe("harnessLoop", () => {
 		expect(matched).toBeDefined();
 	});
 
+	// Tier 6.1 reconciliation regression — items whose route is unknown to
+	// the harness flow into the `__unrouted` dead-letter topic. The router
+	// fans triage output to per-route bridges + an `__unrouted` bridge whose
+	// `map:` predicate fires when `knownRoutes.has(item.route) === false`.
+	// Without this dead-letter, an LLM that hallucinates a non-canonical
+	// route would silently drop the item — the bridge instead surfaces it
+	// for diagnostics.
+	it("Tier 6.1: items with unknown routes flow into the __unrouted dead-letter topic", () => {
+		const adapter = mockAdapter({});
+		const harness = harnessLoop("test-unrouted", { adapter });
+		const unrouted = harness.queues.topic<TriagedItem>("__unrouted");
+		const seen: TriagedItem[] = [];
+		unrouted.latest.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA && m[1] != null) seen.push(m[1] as TriagedItem);
+			}
+		});
+		// Bypass triage — publish directly to triage-output with a route the
+		// hub doesn't know about so the `bridge/__unrouted` predicate fires.
+		harness.queues.topic<TriagedItem>("triage-output").publish({
+			source: "eval",
+			summary: "rogue-route",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+			rootCause: "unknown",
+			intervention: "investigate",
+			route: "not-a-real-route" as TriagedItem["route"],
+			priority: 50,
+		});
+		const matched = seen.find((s) => s.summary === "rogue-route");
+		expect(matched).toBeDefined();
+		expect(matched?.route).toBe("not-a-real-route");
+	});
+
+	// Tier 6.2 reconciliation regression — gates consume `topic.latest`
+	// directly via foreign-node-accept (Session B.1 lock). The
+	// `gateGraph.approvalGate(...)` factory accepts the foreign node without
+	// requiring the caller to first `gateGraph.add(topic.latest)`. The gate
+	// auto-registers the source under `${name}/source` inside its own graph,
+	// keeping the hub's topic as the single source of truth.
+	it("Tier 6.2: gates compose with hub topic.latest via foreign-node-accept (no wrapper node)", () => {
+		const adapter = mockAdapter({});
+		const harness = harnessLoop("test-foreign-accept", { adapter });
+		// Both gated routes (needs-decision, investigation) get GateController
+		// instances. The controller's own .node IS the gated output — no
+		// pipeline wrapper appears between the topic and the gate.
+		const ndGate = harness.gates.get("needs-decision");
+		expect(ndGate).toBeDefined();
+		// **Foreign-node-accept invariant.** The gate factory's auto-add path
+		// registered the hub topic node under `gates::needs-decision/gate/source`
+		// inside the gateGraph — but `nodeToPath` resolution still maps that
+		// node back to its canonical hub path (`queues::needs-decision::latest`)
+		// when describe() walks deps, because the hub registered the topic
+		// FIRST. Two complementary checks:
+		//   (a) `harness.node("gates::needs-decision/gate/source")` resolves
+		//       to the SAME Node instance as `queues::needs-decision::latest`
+		//       — proves no wrapper Node was inserted between them.
+		//   (b) The gate's deps in `describe()` reference the hub's canonical
+		//       path directly, NOT a wrapper-node path inside gates.
+		const hubTopicLatest = harness.node("queues::needs-decision::latest");
+		const gateSource = harness.node("gates::needs-decision/gate/source");
+		expect(gateSource).toBe(hubTopicLatest);
+		// (b) — describe walks deps via nodeToPath, which canonicalizes to
+		// the first registration (the hub). A regression that introduced a
+		// Pipeline wrapper between hub and gate would surface here as a
+		// distinct intermediate path (e.g. `gates::needs-decision/gate/wrap`),
+		// not as the hub topic's canonical path.
+		const desc = harness.describe();
+		const gateEntry = desc.nodes["gates::needs-decision/gate"];
+		expect(gateEntry).toBeDefined();
+		const gateDeps = (gateEntry?.deps as readonly string[] | undefined) ?? [];
+		expect(gateDeps).toContain("queues::needs-decision::latest");
+	});
+
 	// Tier 6.3 — named-node regression. Walks the causal chain from intake to
 	// reflect and asserts no step has an `<anonymous>` path. With triage-input,
 	// router-input, execute-input, execute-enqueue, verify-dispatch, and the
@@ -1007,6 +1081,229 @@ describe("harnessLoop with mockLLM", () => {
 
 		// Strategy should have recorded outcomes
 		expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+	});
+
+	// Tier 6.4 / 6.5 reconciliation — the dispatch effect's verdict routing
+	// is exercised by three existing tests in isolation:
+	//   - "full 7-stage happy path" → verified branch.
+	//   - "fast-retry exhaustion"   → retry branch (then structural fallback).
+	//   - "structural failure"      → structural branch (no retry).
+	// A bundled mixed-batch test adds timing fragility without protection
+	// the per-branch tests don't already provide. The structural-only
+	// regression below adds a missing assertion: the dispatch effect emits
+	// a verifyResults publish on EVERY terminal verdict (verified +
+	// structural), not just verified ones. Pre-Tier-6.5 this was easy to
+	// regress because fastRetry's terminal-record path was conditional.
+	// Tier 6.5 §35 reentrancy regression — under a synchronous mock adapter,
+	// the dispatch effect's `intake.publish(...)` cascade can re-enter
+	// `executeFlow.completed` while the dispatch's outer `for` loop is still
+	// iterating. The dispatchCursor + WeakSet/cursor dedupe protects today's
+	// semantics; this test locks the invariant by counting verifyResults
+	// publishes vs intake items: no double-publish, no audit-ledger drift.
+	it("Tier 6.5: synchronous reingest cascades do not double-dispatch verdicts (§35)", async () => {
+		const mock = mockLLM({
+			stages: {
+				triage: {
+					responses: [
+						{
+							rootCause: "regression",
+							intervention: "investigate",
+							route: "auto-fix",
+							priority: 50,
+						},
+					],
+				},
+				execute: { responses: [{ outcome: "failure", detail: "structural" }] },
+				// First pass: structural failure → reingest. Second pass:
+				// verified → terminal.
+				verify: {
+					responses: [
+						{ verified: false, findings: ["initial fail"], errorClass: "structural" },
+						{ verified: true, findings: ["fixed on reingest"] },
+					],
+				},
+			},
+		});
+		const harness = harnessLoop("mock-reentrancy", {
+			adapter: mock,
+			maxRetries: 0,
+			maxReingestions: 1,
+		});
+		const verifyResults: VerifyResult[] = [];
+		harness.verifyResults.latest.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA && m[1] != null) verifyResults.push(m[1] as VerifyResult);
+			}
+		});
+		harness.intake.publish({
+			source: "eval",
+			summary: "T-reentrancy",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+		});
+		// Wait until the reingestion counter shows 1 AND a verified verdict
+		// landed; that's the full cycle (initial fail → reingest →
+		// verified).
+		await vi.waitFor(
+			() => {
+				expect(harness.totalReingestions.cache).toBe(1);
+				expect(verifyResults.some((r) => r.verified === true)).toBe(true);
+			},
+			{ timeout: 5000, interval: 50 },
+		);
+		// Exactly two verdicts: one structural (initial), one verified
+		// (post-reingest). Reentrancy guard prevents either being published
+		// twice. dispatchCursor advancing past the prior length on each
+		// emission is what protects this.
+		expect(verifyResults.filter((r) => r.verified === false).length).toBe(1);
+		expect(verifyResults.filter((r) => r.verified === true).length).toBe(1);
+	});
+
+	// Tier 6.5 reflectNode tick-count regression — `reflectNode = derived(...,
+	// () => null, { equals: () => false })`. Each `executeFlow.completed`
+	// emission ticks the reflect node exactly once. Drive N items, assert
+	// the reflect node's emission count tracks the verdict count.
+	it("Tier 6.5: reflectNode ticks once per terminal verdict (no over-count under reactive-log trim emits)", {
+		timeout: 15000,
+	}, async () => {
+		const mock = mockLLM({
+			stages: {
+				triage: {
+					responses: [{ rootCause: "a", intervention: "x", route: "auto-fix", priority: 50 }],
+				},
+				execute: { responses: [{ outcome: "success", detail: "ok" }] },
+				verify: { responses: [{ verified: true, findings: ["clean"] }] },
+			},
+		});
+		const harness = harnessLoop("mock-reflect-tick", {
+			adapter: mock,
+			maxRetries: 0,
+			maxReingestions: 0,
+		});
+		// Subscribe to reflect via the harness's typed field (qa D4) — using
+		// `harness.reflect` rather than `harness.node("reflect")` locks the
+		// reference at the type level, so a future rename would surface as
+		// a build error instead of a string-lookup runtime fallthrough.
+		let reflectTicks = 0;
+		const reflectUnsub = harness.reflect.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) reflectTicks++;
+			}
+		});
+		const verdicts: VerifyResult[] = [];
+		harness.verifyResults.latest.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA && m[1] != null) verdicts.push(m[1] as VerifyResult);
+			}
+		});
+		// Publish two items with a small await between so each terminates
+		// before the next enters — mockLLM's stages serialize via Promise
+		// resolution, but rapid fire-and-forget publishes can interleave in
+		// ways that drop late completions out of the retained log under high
+		// load. The reflect-count contract is the same either way (one tick
+		// per terminal verdict); we just want a deterministic count for the
+		// assertion.
+		harness.intake.publish({
+			source: "eval",
+			summary: "T-reflect-0",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+		});
+		await vi.waitFor(
+			() => {
+				expect(verdicts.length).toBeGreaterThanOrEqual(1);
+			},
+			{ timeout: 5000, interval: 30 },
+		);
+		harness.intake.publish({
+			source: "eval",
+			summary: "T-reflect-1",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+		});
+		await vi.waitFor(
+			() => {
+				expect(verdicts.length).toBeGreaterThanOrEqual(2);
+			},
+			{ timeout: 5000, interval: 30 },
+		);
+		// reflect ticks once per executeFlow.completed emission. Each verdict
+		// produces one new completion; reflect's `equals: () => false` keeps
+		// each emit observable (no Object.is collapse). The contract: tick
+		// count equals the verdict count, plus at most one subscribe-time
+		// activation tick (push-on-subscribe of the cached completed log, if
+		// activation arrives before the first verdict lands). qa P3:
+		// tightened from `+2` to `+1` so a 1-tick over-count regression
+		// (e.g. RESOLVED leaking to DATA on the reflect derived) actually
+		// fails the test.
+		expect(reflectTicks).toBeGreaterThanOrEqual(verdicts.length);
+		expect(reflectTicks).toBeLessThanOrEqual(verdicts.length + 1);
+		reflectUnsub();
+	});
+
+	it("Tier 6.4: structural verdict still publishes a VerifyResult to verifyResults topic", async () => {
+		const mock = mockLLM({
+			stages: {
+				triage: {
+					responses: [
+						{
+							rootCause: "composition",
+							intervention: "rewrite",
+							route: "auto-fix",
+							priority: 80,
+						},
+					],
+				},
+				execute: { responses: [{ outcome: "failure", detail: "missing dependency" }] },
+				verify: {
+					responses: [
+						{
+							verified: false,
+							findings: ["dep missing — not parseable"],
+							errorClass: "structural",
+						},
+					],
+				},
+			},
+		});
+		const harness = harnessLoop("mock-structural-publish", {
+			adapter: mock,
+			maxRetries: 0,
+			maxReingestions: 0,
+		});
+		const verifyResults: VerifyResult[] = [];
+		harness.verifyResults.latest.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA && m[1] != null) verifyResults.push(m[1] as VerifyResult);
+			}
+		});
+		harness.intake.publish({
+			source: "eval",
+			summary: "T-structural-publish",
+			evidence: "fixture",
+			affectsAreas: ["core"],
+		});
+		await vi.waitFor(
+			() => {
+				expect(verifyResults.some((r) => r.verified === false)).toBe(true);
+			},
+			{ timeout: 5000, interval: 50 },
+		);
+		const structResult = verifyResults.find((r) => r.verified === false)!;
+		expect(structResult.findings).toContain("dep missing — not parseable");
+		// Strategy should also have recorded the failure.
+		const entry = harness.strategy.lookup("composition", "rewrite");
+		expect(entry).toBeDefined();
+		expect(entry?.successes).toBe(0);
+		// qa P4: lock "no extra verdict" — single-item run with maxRetries=0
+		// + maxReingestions=0 produces EXACTLY one structural verdict and
+		// zero verified verdicts. A regression that publishes both a
+		// structural and a stray verified verdict for the same item would
+		// have passed the `some(...)` checks above but is caught here.
+		// Wait one extra tick to absorb any post-waitFor late emissions.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(verifyResults.filter((r) => r.verified === false).length).toBe(1);
+		expect(verifyResults.filter((r) => r.verified === true).length).toBe(0);
 	});
 
 	it("gate blocking — needs-decision item waits at gate, approve releases it", async () => {

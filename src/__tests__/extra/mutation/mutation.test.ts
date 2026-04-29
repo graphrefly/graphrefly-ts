@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { state } from "../../../core/sugar.js";
 import {
 	type BaseAuditRecord,
@@ -383,5 +383,37 @@ describe("imperative-audit / bumpCursor", () => {
 		const stringCursor = state<number>("oops" as unknown as number, { name: "str" });
 		stringCursor.subscribe(() => undefined);
 		expect(bumpCursor(stringCursor)).toBe(1);
+	});
+
+	it("EH-12: warns once per cursor on silent reset from non-numeric cache", () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			const cursor = state<number>("bad" as unknown as number, { name: "warn" });
+			cursor.subscribe(() => undefined);
+			// First bump on a malformed cache should warn.
+			expect(bumpCursor(cursor)).toBe(1);
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+			expect(String(warnSpy.mock.calls[0]?.[0] ?? "")).toMatch(/non-numeric/);
+			// Second bump (now numeric) is silent.
+			expect(bumpCursor(cursor)).toBe(2);
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+
+	it("EH-12: undefined cache (substrate-not-yet-emitted) does NOT warn", () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			// state<number>(undefined as unknown) treats the seed as the SENTINEL —
+			// `cache` is `undefined`. This is the legitimate "no DATA yet" branch
+			// and should not log; only string/NaN/Infinity-style corruption does.
+			const cursor = state<number>(undefined as unknown as number, { name: "fresh" });
+			cursor.subscribe(() => undefined);
+			expect(bumpCursor(cursor)).toBe(1);
+			expect(warnSpy).not.toHaveBeenCalled();
+		} finally {
+			warnSpy.mockRestore();
+		}
 	});
 });

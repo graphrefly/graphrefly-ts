@@ -86,4 +86,56 @@ describe("validateNoIslands (Tier 9.3)", () => {
 		// Mounted child paths use `<mountName>::<path>` qualification.
 		expect(r.orphans.map((o) => o.path)).toContain("child::subOrphan");
 	});
+
+	it("EH-9: filters synthetic __internal__/ paths from orphan list", () => {
+		// `__internal__/` is the synthetic prefix the registrar falls back to
+		// for unnamed factory helpers; those are bookkeeping, not user
+		// topology. validateNoIslands suppresses them so callers don't get
+		// false-positives from compound factories.
+		const g = new Graph("g");
+		const a = state(1, { name: "a" });
+		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		// Inject a node under the synthetic prefix that would otherwise look
+		// like an orphan (zero deps, no other node references it).
+		const helper = state(0, { name: "__internal__/helper" });
+		g.add(helper, { name: "__internal__/helper" });
+		const r = validateNoIslands(g);
+		expect(r.ok).toBe(true);
+		expect(r.orphans.find((o) => o.path.startsWith("__internal__/"))).toBeUndefined();
+	});
+
+	it("EH-9 (qa P6): filter is path-prefix based and coexists with real orphans", () => {
+		// qa P6: the prior test only covered the prefix-string-filter contract
+		// using a user-named node. This test exercises the real
+		// graph.ts transitive-walk path that synthesizes `__internal__/N`
+		// names — a registered derived whose dep is an UNREGISTERED unnamed
+		// state. describe() walks the dep into `__internal__/0`. Confirm
+		// (a) the synthetic path actually appears in describe under the
+		// `__internal__/` prefix, and (b) the filter still surfaces a
+		// genuine orphan alongside it.
+		const g = new Graph("g");
+		// Unregistered unnamed source. graph.ts:1959 will assign it
+		// `__internal__/0` during describe().
+		const unnamedSource = state(7);
+		const consumer = derived([unnamedSource], ([v]) => (v as number) + 1, { name: "consumer" });
+		g.add(consumer, { name: "consumer" });
+		// A real orphan — must still be flagged.
+		g.add(state(99, { name: "real-orphan" }), { name: "real-orphan" });
+
+		const desc = g.describe({ detail: "minimal" });
+		const allPaths = Object.keys(desc.nodes);
+		const synthPath = allPaths.find((p) => p.startsWith("__internal__/"));
+		expect(
+			synthPath,
+			"describe should synthesize an __internal__/ path for the unnamed dep",
+		).toBeDefined();
+
+		const r = validateNoIslands(g);
+		// Synthetic paths NEVER appear in orphans regardless of edges.
+		expect(r.orphans.find((o) => o.path.startsWith("__internal__/"))).toBeUndefined();
+		// Real orphan still flagged.
+		expect(r.orphans.map((o) => o.path)).toContain("real-orphan");
+	});
 });

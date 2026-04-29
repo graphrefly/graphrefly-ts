@@ -64,6 +64,46 @@ describe("auditTrail (roadmap §9.2)", () => {
 		expect(audit.all()).toHaveLength(1);
 	});
 
+	it("EH-18: exposes effective includeTypes as a readonly Set", () => {
+		// Caller-supplied includeTypes is reflected verbatim.
+		const g1 = new Graph("g1");
+		g1.add(state(0, { name: "a" }), { name: "a" });
+		const customAudit = auditTrail(g1, { includeTypes: ["data", "error"] });
+		expect(customAudit.includeTypes).toBeInstanceOf(Set);
+		expect([...customAudit.includeTypes].sort()).toEqual(["data", "error"]);
+
+		// Default set surfaces when no override is passed.
+		const g2 = new Graph("g2");
+		g2.add(state(0, { name: "a" }), { name: "a" });
+		const defaultAudit = auditTrail(g2);
+		expect([...defaultAudit.includeTypes].sort()).toEqual([
+			"complete",
+			"data",
+			"error",
+			"teardown",
+		]);
+	});
+
+	it("EH-18 (qa P1): default-using trails own distinct includeTypes Sets (no module-singleton sharing)", () => {
+		// Two trails constructed without `opts.includeTypes` must each own a
+		// fresh clone of the default. A cast-and-mutate on one MUST NOT leak
+		// into the other (the original singleton-share bug).
+		const g1 = new Graph("g1-default");
+		g1.add(state(0, { name: "a" }), { name: "a" });
+		const audit1 = auditTrail(g1);
+
+		const g2 = new Graph("g2-default");
+		g2.add(state(0, { name: "a" }), { name: "a" });
+		const audit2 = auditTrail(g2);
+
+		expect(audit1.includeTypes).not.toBe(audit2.includeTypes);
+		// Mutate via unsafe cast (unsupported but the runtime mechanism still
+		// proves isolation): adding to audit1 must not appear in audit2.
+		(audit1.includeTypes as Set<"dirty">).add("dirty");
+		expect(audit1.includeTypes.has("dirty")).toBe(true);
+		expect(audit2.includeTypes.has("dirty")).toBe(false);
+	});
+
 	it("respects custom filter predicate", () => {
 		const g = new Graph("g");
 		g.add(state(0, { name: "a" }), { name: "a" });

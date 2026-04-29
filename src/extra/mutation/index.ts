@@ -196,15 +196,36 @@ function deepFreeze<T>(value: T): T {
  * by a misbehaving codec). `??` alone would let `NaN` and `""` pass through
  * and silently corrupt audit ordering downstream.
  *
+ * **Silent reset diagnostic (EH-12).** When the cache holds a non-numeric
+ * value at bump time, the cursor restarts at 0 and the next bump returns 1
+ * — colliding with the seq stamped on the very first record after construct.
+ * To make seq-monotonicity violations after a restore visible to operators,
+ * the helper emits a one-shot `console.warn` per cursor instance describing
+ * the offending value. The cursor is identified by a `WeakSet<Node<number>>`
+ * so the warning fires exactly once per node — repeat malformed bumps stay
+ * quiet to avoid log spam. Production callers wanting to suppress can swap
+ * the global `console` (universal-safe code path; no Node-only API used).
+ *
  * Works whether or not the cursor has any subscribers — `down` updates the
  * cache regardless, so primitives that bump before consumers attach (e.g.
  * `JobQueueGraph.enqueue`) still see a coherent sequence.
  *
  * @category internal
  */
+const _bumpCursorWarned = new WeakSet<Node<number>>();
 export function bumpCursor(seq: Node<number>): number {
 	const raw = seq.cache;
-	const cur = typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+	const valid = typeof raw === "number" && Number.isFinite(raw);
+	if (!valid && raw !== undefined && !_bumpCursorWarned.has(seq)) {
+		_bumpCursorWarned.add(seq);
+		console.warn(
+			`bumpCursor: cursor cache held a non-numeric value (${String(raw)}); resetting to 0. ` +
+				"Causes include: a snapshot codec round-tripping the cursor as a string / null / NaN, " +
+				"OR a malformed initial seed (e.g. state<number>(NaN)). " +
+				"Audit consumers may see colliding seq values after this point.",
+		);
+	}
+	const cur = valid ? raw : 0;
 	const next = cur + 1;
 	seq.down([[DIRTY], [DATA, next]]);
 	return next;

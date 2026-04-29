@@ -345,6 +345,17 @@ export class HarnessGraph<A = unknown> extends Graph {
 	 */
 	readonly priorityScores?: ReadonlyMap<QueueRoute, Node<number>>;
 
+	/**
+	 * REFLECT-stage tick marker — emits one DATA per terminal verdict observed
+	 * on `executeFlow.completed`. `equals: () => false` so each completion
+	 * produces an observable tick (no Object.is collapse on identical
+	 * `null` payloads). Inspection tools (`harnessTrace`, dashboards) can
+	 * subscribe directly here instead of resolving by string path
+	 * (`harness.node("reflect")`) — the field is the lock against rename
+	 * drift.
+	 */
+	readonly reflect: Node<null>;
+
 	constructor(
 		name: string,
 		queues: MessagingHubGraph,
@@ -355,6 +366,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 		strategy: StrategyModelBundle,
 		totalRetries: Node<number>,
 		totalReingestions: Node<number>,
+		reflect: Node<null>,
 		priorityScores?: Map<QueueRoute, Node<number>>,
 	) {
 		super(name);
@@ -366,6 +378,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 		this.strategy = strategy;
 		this.totalRetries = totalRetries;
 		this.totalReingestions = totalReingestions;
+		this.reflect = reflect;
 		this.priorityScores = priorityScores;
 	}
 
@@ -850,6 +863,7 @@ export function harnessLoop<A = unknown>(
 		strategy,
 		totalRetries,
 		totalReingestions,
+		reflectNode as Node<null>,
 		priorityScores,
 	);
 

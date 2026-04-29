@@ -30,6 +30,15 @@
  * consumers are part of the design. If you have known external-consumer
  * roots, filter them from `result.orphans` before deciding what to act on.
  *
+ * **Synthetic `__internal__/` paths (EH-9).** Compound factories sometimes
+ * surface unnamed helper nodes under the `__internal__/` namespace
+ * (auto-generated when a producer / derived is added without a `name` and
+ * the registrar falls back to a synthetic prefix). These never represent
+ * user-authored topology and should not surface as actionable orphans;
+ * `validateNoIslands` filters them out before reporting. If a real factory
+ * regression accidentally leaks a user-meaningful node under this prefix,
+ * the fix is to give the node a real name — not to remove the filter.
+ *
  * **Non-throwing by default.** Returns a structured result so callers
  * (dry-run blocks, CI smoke tests) can exit non-zero with a diagnostic
  * instead of crashing.
@@ -95,6 +104,9 @@ export function validateNoIslands(graph: Graph): ValidateNoIslandsResult {
 	for (const path of allPaths) {
 		const entry = desc.nodes[path];
 		if (!entry) continue;
+		// EH-9: synthetic `__internal__/` paths are factory bookkeeping, not
+		// user topology. Suppress before edge-counting so they never surface.
+		if (path.startsWith("__internal__/")) continue;
 		const deps = (entry.deps as readonly string[] | undefined) ?? [];
 		const inEdges = deps.length;
 		// `hasOutEdge` is a 0/1 indicator (not a count) — `validateNoIslands`

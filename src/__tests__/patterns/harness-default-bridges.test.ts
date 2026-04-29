@@ -298,6 +298,84 @@ describe("defaultLlmVerifier — bridge-layer failure modes", () => {
 // evaluators (qa D5 regression)
 // ---------------------------------------------------------------------------
 
+describe("evalVerifier — async-evaluator §9a coverage", () => {
+	it("captures the FINAL settled scores when the evaluator emits across microtask boundaries", async () => {
+		// Async-evaluator regression: evaluator's `subscribe`-time recompute
+		// fires through `Promise.resolve().then(...)`, so the first emission
+		// happens AFTER the synchronous wave ends. The §9a `batch()` wrap
+		// inside evalVerifier was specifically aimed at sync-emit
+		// coalescing; async emits skip the §9a hazard entirely (no nested
+		// emit during subscribe), so the JobFlow pump should still see the
+		// final settled scores via the standard first-DATA capture path.
+		const { evalVerifier } = await import("../../patterns/harness/eval-verifier.js");
+		const { state: stateImport } = await import("../../core/sugar.js");
+		type Row = { id: string };
+		type Score = { taskId: string; score: number };
+		const evaluator = (cands: Node<readonly string[]>, ds: Node<readonly Row[]>) => {
+			// SENTINEL initial value (no cached DATA) so the JobFlow pump's
+			// first-DATA capture waits for the actual computed scores. This
+			// is the canonical async-evaluator pattern — emit only AFTER
+			// both deps have arrived. Seeding with `[]` would fire an empty
+			// scores DATA on subscribe, giving the pump a stale "0/0
+			// verified" payload before the real recompute completes. The
+			// zero-arg `state<T>()` overload (qa D2) is the canonical
+			// sentinel-form sugar.
+			const out = stateImport<readonly Score[]>();
+			let lastCands: readonly string[] | null = null;
+			let lastDs: readonly Row[] | null = null;
+			let scheduled = false;
+			const recomputeAsync = (): void => {
+				if (scheduled) return;
+				if (lastCands == null || lastDs == null) return;
+				scheduled = true;
+				Promise.resolve().then(() => {
+					scheduled = false;
+					if (lastCands == null || lastDs == null) return;
+					const best = (lastCands[0] ?? "").toLowerCase();
+					out.emit(
+						lastDs.map((row) => ({
+							taskId: row.id,
+							score: best.includes(row.id.toLowerCase()) ? 1 : 0,
+						})),
+					);
+				});
+			};
+			cands.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) {
+						lastCands = m[1] as readonly string[];
+						recomputeAsync();
+					}
+				}
+			});
+			ds.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA && m[1] != null) {
+						lastDs = m[1] as readonly Row[];
+						recomputeAsync();
+					}
+				}
+			});
+			return out;
+		};
+		const verifier = evalVerifier<string>({
+			evaluator,
+			datasetFor: () => [{ id: "a" }, { id: "b" }, { id: "c" }],
+			threshold: 1.0,
+		});
+		const job = jobFor<string>({
+			item: ITEM,
+			execution: { item: ITEM, outcome: "success", detail: "ok", artifact: "a b c" },
+		});
+		const payload = await awaitFirstData(fromAny(verifier(job)), 2000);
+		// Async-evaluator coalesce: scheduling guard + microtask boundary
+		// means recompute fires once with both deps captured. JobFlow pump
+		// captures that single final emit as the verify result.
+		expect(payload.verify?.verified).toBe(true);
+		expect(payload.verify?.findings.join(" ")).toContain("3/3");
+	});
+});
+
 describe("evalVerifier — synchronous-emit-during-subscribe evaluator coalescing", () => {
 	it("coalesces evaluator's intra-construction emits via batch() so first DATA is the settled value", async () => {
 		// Import inside the test to avoid pulling refine-loop types into the

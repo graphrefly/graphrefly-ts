@@ -19,6 +19,47 @@ describe("sugar constructors", () => {
 		expect(seen).toContain(DATA);
 	});
 
+	it("state<T>() (zero-arg overload) starts in sentinel status with no cached DATA", () => {
+		// qa D2: zero-arg `state<T>()` is the canonical sugar for "no
+		// value yet" — replaces the prior `sentinelState<T>()` factory
+		// (removed pre-1.0) and the `state<T>(undefined as unknown as T)`
+		// cast workaround.
+		const s = state<number>();
+		expect(s.cache).toBeUndefined();
+		expect(s.status).toBe("sentinel");
+		const seen: Array<[symbol, unknown]> = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) seen.push([m[0] as symbol, m[1]]);
+		});
+		// Subscribe-with-sentinel: NO DATA arrives push-on-subscribe
+		// (status="sentinel" means no cached value to replay).
+		expect(seen.find(([t]) => t === DATA)).toBeUndefined();
+		// First emit transitions to "settled" status with a real value.
+		s.emit(42);
+		expect(s.cache).toBe(42);
+		expect(s.status).toBe("settled");
+		expect(seen.find(([t]) => t === DATA)?.[1]).toBe(42);
+		unsub();
+	});
+
+	it("state(null) caches null as a valid DATA value (distinct from sentinel)", () => {
+		// Spec §2.2: `T | null` is the valid DATA domain; only `undefined`
+		// is the SENTINEL. Confirm `state(null)` differs from `state()`:
+		// the null cache puts the node in `"settled"` status with an
+		// observable null DATA on subscribe.
+		const s = state<number | null>(null);
+		expect(s.cache).toBeNull();
+		expect(s.status).toBe("settled");
+		const seen: unknown[] = [];
+		const unsub = s.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) seen.push(m[1]);
+			}
+		});
+		expect(seen).toEqual([null]);
+		unsub();
+	});
+
 	it("producer runs on subscribe and can emit", () => {
 		const p = producer<number>((actions) => {
 			actions.emit(1);
