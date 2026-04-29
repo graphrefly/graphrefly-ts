@@ -1,3 +1,11 @@
+# [0.44.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.43.0...v0.44.0) (2026-04-29)
+
+
+### Features
+
+* add graph methods ([e96a7f8](https://github.com/graphrefly/graphrefly-ts/commit/e96a7f89d8ef89cf27614c795ad4c137f4db7e19))
+* implementation plan final round ([b2a507a](https://github.com/graphrefly/graphrefly-ts/commit/b2a507ae4df494ac5bd1bde9c701a060f1ba1b4f))
+
 # [0.43.0](https://github.com/graphrefly/graphrefly-ts/compare/v0.42.0...v0.43.0) (2026-04-29)
 
 
