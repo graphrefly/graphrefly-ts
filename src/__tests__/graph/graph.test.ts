@@ -1812,3 +1812,432 @@ describe("observe() tier-surfacing variants", () => {
 		expect(lines.some((l) => l.includes("RESUME") && l.includes('"lk"'))).toBe(true);
 	});
 });
+
+// ——————————————————————————————————————————————————————————————
+//  Narrow-waist API: graph.derived / graph.effect / graph.produce / graph.batch
+//  See archive/docs/SESSION-graph-narrow-waist.md (P1–P3 Bundle 1 spot tests).
+// ——————————————————————————————————————————————————————————————
+
+describe("Graph narrow-waist — graph.batch", () => {
+	it("coalesces multiple writes into one downstream wave", async () => {
+		const g = new Graph("nw-batch");
+		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
+		g.add(state<number>(undefined, { name: "b" }), { name: "b" });
+		const out = g.derived("sum", ["a", "b"], ([x, y]) => (x as number) + (y as number));
+		const dataEvents: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
+		});
+		g.batch(() => {
+			g.set("a", 1);
+			g.set("b", 2);
+		});
+		expect(dataEvents).toEqual([3]);
+	});
+
+	it("nested graph.batch coalesces to one downstream wave", () => {
+		const g = new Graph("nw-batch-nest");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		const out = g.derived("twice", ["a"], ([x]) => (x as number) * 2);
+		const dataEvents: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
+		});
+		const before = dataEvents.length;
+		g.batch(() => {
+			g.set("a", 1);
+			g.batch(() => g.set("a", 5));
+			g.set("a", 10);
+		});
+		// Three writes, one outer batch → exactly one new DATA wave downstream
+		// (not three). The final value wins at `a` via equals/dedup, propagated
+		// through `out` as `20`.
+		expect(dataEvents.length - before).toBe(1);
+		expect(dataEvents.at(-1)).toBe(20);
+	});
+});
+
+describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => {
+	it("fn does NOT fire until every dep has delivered real DATA", () => {
+		const g = new Graph("nw-derived-sentinel");
+		// Sentinel form: state<T>() with no initial leaves the node in "sentinel".
+		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
+		g.add(state<number>(undefined, { name: "b" }), { name: "b" });
+		let fnCalls = 0;
+		const out = g.derived("sum", ["a", "b"], ([x, y]) => {
+			fnCalls += 1;
+			return (x as number) + (y as number);
+		});
+		const dataEvents: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
+		});
+		// Subscription alone with two sentinel deps must NOT fire fn.
+		expect(fnCalls).toBe(0);
+		expect(dataEvents).toEqual([]);
+		// Settling only one dep must NOT fire fn.
+		g.set("a", 1);
+		expect(fnCalls).toBe(0);
+		// Settling the second dep releases the gate.
+		g.set("b", 2);
+		expect(fnCalls).toBe(1);
+		expect(dataEvents).toEqual([3]);
+	});
+
+	it("null is a real DATA value and releases the gate", () => {
+		const g = new Graph("nw-derived-null");
+		g.add(state<number | null>(undefined, { name: "a" }), { name: "a" });
+		let saw: unknown = "untouched";
+		const out = g.derived("identity", ["a"], ([x]) => {
+			saw = x;
+			return x as number | null;
+		});
+		out.subscribe(() => {});
+		expect(saw).toBe("untouched");
+		g.set("a", null);
+		expect(saw).toBe(null);
+	});
+
+	it("empty depPaths fires once on activation", () => {
+		const g = new Graph("nw-derived-empty");
+		const out = g.derived("k", [], () => 42);
+		const events: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) events.push(m[1] as number);
+		});
+		expect(events).toEqual([42]);
+	});
+
+	it("registers under the supplied name and exposes describe edges", () => {
+		const g = new Graph("nw-derived-describe");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const out = g.derived("doubled", ["a"], ([x]) => (x as number) * 2);
+		out.subscribe(() => {});
+		const desc = g.describe();
+		expect(Object.keys(desc.nodes)).toContain("doubled");
+		expect(desc.edges).toContainEqual({ from: "a", to: "doubled" });
+	});
+
+	it("forwards equals + initial + meta + annotation through to the underlying primitive", () => {
+		const g = new Graph("nw-derived-opts");
+		g.add(state(0, { name: "a" }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => (x as number) + 1, {
+			equals: (l, r) => l === r,
+			initial: 99,
+			meta: { domain: "test" },
+			annotation: "doubled+1",
+		});
+		expect(out.cache).toBe(99);
+		expect(g.annotation("n")).toBe("doubled+1");
+		const desc = g.describe({ detail: "standard" });
+		expect((desc.nodes.n?.meta as { domain?: string } | undefined)?.domain).toBe("test");
+	});
+});
+
+describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () => {
+	it("keepAlive: false (default) → cache stays sentinel until external subscribe", () => {
+		const g = new Graph("nw-keepalive-off");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => (x as number) * 10);
+		// No keepalive, no subscriber → derived stays inactive, cache is sentinel.
+		expect(out.cache).toBeUndefined();
+	});
+
+	it("keepAlive: true → cache populated immediately and tracks upstream", () => {
+		const g = new Graph("nw-keepalive-on");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => (x as number) * 10, { keepAlive: true });
+		expect(out.cache).toBe(10);
+		g.set("a", 7);
+		expect(out.cache).toBe(70);
+	});
+
+	it("keepAlive keeps cache current for EXTERNAL consumers (UI / debug / audit)", () => {
+		// The supported use of keepAlive: external code reads `.cache` without
+		// having to manage its own subscription. Reactive fns must NOT read
+		// .cache from another node (spec §5.12) — declare it as a real dep
+		// instead. See the next test.
+		const g = new Graph("nw-keepalive-external");
+		g.add(state(5, { name: "value" }), { name: "value" });
+		const doubled = g.derived("doubled", ["value"], ([v]) => (v as number) * 2, {
+			keepAlive: true,
+		});
+		// External (non-reactive) consumer reads .cache directly.
+		expect(doubled.cache).toBe(10);
+		g.set("value", 7);
+		expect(doubled.cache).toBe(14);
+		g.set("value", 100);
+		expect(doubled.cache).toBe(200);
+	});
+
+	it("multi-dep derived composes via real edges (no .cache reads from inside fn)", () => {
+		// The §5.12-correct alternative to "trigger × latest.cache". Both inputs
+		// are real deps; the edge appears in describe(); the message protocol
+		// carries the values. Re-fires when EITHER dep updates.
+		const g = new Graph("nw-derived-composition");
+		g.add(state(2, { name: "trigger" }), { name: "trigger" });
+		g.add(state(5, { name: "value" }), { name: "value" });
+		const out = g.derived(
+			"combined",
+			["trigger", "value"],
+			([t, v]) => (t as number) * (v as number),
+		);
+		const seen: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		expect(seen).toEqual([10]);
+		g.set("value", 100);
+		expect(seen.at(-1)).toBe(200);
+		// Edge "value -> combined" is visible in describe().
+		const desc = g.describe();
+		expect(desc.edges).toContainEqual({ from: "value", to: "combined" });
+	});
+});
+
+describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () => {
+	it("graph.destroy() severs the keepAlive subscription on upstream", () => {
+		const g = new Graph("nw-keepalive-dispose");
+		const a = state(1, { name: "a" });
+		g.add(a, { name: "a" });
+		let fnCalls = 0;
+		g.derived(
+			"n",
+			["a"],
+			([x]) => {
+				fnCalls += 1;
+				return (x as number) * 10;
+			},
+			{ keepAlive: true },
+		);
+		const callsBeforeDestroy = fnCalls;
+		expect(callsBeforeDestroy).toBeGreaterThan(0);
+		g.destroy();
+		// After destroy, the keepAlive disposer must have unsubscribed from
+		// `a`. If it hadn't, this push would re-fire fn and bump the count.
+		a.emit(2);
+		expect(fnCalls).toBe(callsBeforeDestroy);
+	});
+
+	it("two derived with keepAlive on the same graph both get torn down", () => {
+		const g = new Graph("nw-keepalive-many");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		g.derived("x", ["a"], ([v]) => v as number, { keepAlive: true });
+		g.derived("y", ["a"], ([v]) => (v as number) + 1, { keepAlive: true });
+		expect(g.node("x").cache).toBe(1);
+		expect(g.node("y").cache).toBe(2);
+		// destroy() must not throw with multiple keepalive disposers registered.
+		expect(() => g.destroy()).not.toThrow();
+	});
+
+	it("keepAlive disposer self-prunes on graph.remove(name) (qa B3)", () => {
+		// Repeated remove/recreate cycles must not accumulate stale disposers
+		// in the graph's `_disposers` set. The keepalive sink watches for
+		// TEARDOWN on its node and removes its own disposer entry.
+		const g = new Graph("nw-keepalive-selfprune") as Graph & {
+			_disposers: Set<() => void>;
+		};
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const before = g._disposers.size;
+		for (let i = 0; i < 10; i++) {
+			g.derived(`n${i}`, ["a"], ([v]) => v as number, { keepAlive: true });
+			g.remove(`n${i}`);
+		}
+		// All 10 keepAlive disposers must have self-pruned via the TEARDOWN sent
+		// by graph.remove. _disposers should NOT grow by 10.
+		expect(g._disposers.size).toBe(before);
+	});
+});
+
+describe("Graph narrow-waist — graph.effect", () => {
+	it("runs side-effect when deps settle and registers under name", () => {
+		const g = new Graph("nw-effect");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const calls: number[] = [];
+		const fx = g.effect("logger", ["a"], ([x]) => {
+			calls.push(x as number);
+		});
+		fx.subscribe(() => {});
+		g.set("a", 2);
+		g.set("a", 3);
+		expect(calls).toEqual([1, 2, 3]);
+		expect(g.node("logger")).toBe(fx);
+	});
+
+	it("cleanup fires exactly once on graph.destroy()", () => {
+		const g = new Graph("nw-effect-cleanup");
+		g.add(state(1, { name: "a" }), { name: "a" });
+		let cleanups = 0;
+		const fx = g.effect("fx", ["a"], () => {
+			return () => {
+				cleanups += 1;
+			};
+		});
+		fx.subscribe(() => {});
+		// One activation, one deactivation → exactly one cleanup. A double-fire
+		// regression (e.g. TEARDOWN cascading twice) would push this above 1.
+		g.destroy();
+		expect(cleanups).toBe(1);
+	});
+
+	it("respects SENTINEL gate (no fn fire until deps settle)", () => {
+		const g = new Graph("nw-effect-sentinel");
+		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
+		let fnCalls = 0;
+		const fx = g.effect("fx", ["a"], () => {
+			fnCalls += 1;
+		});
+		fx.subscribe(() => {});
+		expect(fnCalls).toBe(0);
+		g.set("a", 1);
+		expect(fnCalls).toBe(1);
+	});
+});
+
+describe("Graph narrow-waist — graph.produce", () => {
+	it("Promise source resolves to a DATA emission and registers under name", async () => {
+		const g = new Graph("nw-produce-promise");
+		const n = g.produce("p", Promise.resolve(42));
+		const seen: number[] = [];
+		n.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(seen).toEqual([42]);
+		expect(g.node("p")).toBe(n);
+	});
+
+	it("scalar source emits the value once", () => {
+		const g = new Graph("nw-produce-scalar");
+		const n = g.produce("p", 7);
+		const seen: number[] = [];
+		n.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		expect(seen).toEqual([7]);
+	});
+
+	it("sync iterable source emits each value then COMPLETE", () => {
+		const g = new Graph("nw-produce-iter");
+		const n = g.produce("p", [1, 2, 3]);
+		const data: number[] = [];
+		let completed = false;
+		n.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) data.push(m[1] as number);
+				else if (m[0] === COMPLETE) completed = true;
+			}
+		});
+		expect(data).toEqual([1, 2, 3]);
+		expect(completed).toBe(true);
+	});
+
+	it("async iterable source streams values in order, terminates on COMPLETE", async () => {
+		const g = new Graph("nw-produce-async");
+		async function* gen(): AsyncIterable<string> {
+			yield "a";
+			yield "b";
+		}
+		const n = g.produce("p", gen());
+		const data: string[] = [];
+		// Wait deterministically for COMPLETE rather than guessing tick counts.
+		await new Promise<void>((resolve) => {
+			n.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === DATA) data.push(m[1] as string);
+					else if (m[0] === COMPLETE) resolve();
+				}
+			});
+		});
+		expect(data).toEqual(["a", "b"]);
+	});
+
+	it("annotation flows through to graph.annotation()", () => {
+		const g = new Graph("nw-produce-annot");
+		g.produce("p", 1, { annotation: "first value" });
+		expect(g.annotation("p")).toBe("first value");
+	});
+
+	it("rejects undefined source (qa B2 — SENTINEL on the wire)", () => {
+		const g = new Graph("nw-produce-undef");
+		// `undefined` is the global SENTINEL (spec §1.1) — emitting it as DATA
+		// would corrupt downstream first-run gates. The boundary throws.
+		expect(() => g.produce("p", undefined as never)).toThrow(/SENTINEL/);
+	});
+
+	it("accepts null source (null is valid DATA per spec §1.1)", () => {
+		const g = new Graph("nw-produce-null");
+		const n = g.produce<number | null>("p", null);
+		const seen: Array<number | null> = [];
+		n.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number | null);
+		});
+		expect(seen).toEqual([null]);
+	});
+
+	it("rejects Node source at runtime (qa B1 — opts silently dropped otherwise)", () => {
+		const g = new Graph("nw-produce-node");
+		const upstream = state(1, { name: "u" });
+		// Type signature excludes Node, but a cast could slip through.
+		expect(() => g.produce("p", upstream as never)).toThrow(/Node sources are rejected/);
+	});
+});
+
+describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
+	it("graph.produce signal abort removes the produced node", async () => {
+		const g = new Graph("nw-signal-produce");
+		const ac = new AbortController();
+		// Promise that never resolves; only abort terminates it.
+		const pending = new Promise<number>(() => {});
+		g.produce("p", pending, { signal: ac.signal });
+		expect(g.tryResolve("p")).not.toBeUndefined();
+		ac.abort();
+		// Microtask + macrotask drain so the abort-listener runs and graph.remove fires.
+		await Promise.resolve();
+		expect(g.tryResolve("p")).toBeUndefined();
+	});
+
+	it("graph.derived signal abort removes the derived node and fires teardown", () => {
+		const g = new Graph("nw-signal-derived");
+		const ac = new AbortController();
+		g.add(state(1, { name: "a" }), { name: "a" });
+		const n = g.derived("d", ["a"], ([v]) => v as number, {
+			signal: ac.signal,
+			keepAlive: true,
+		});
+		expect(n.cache).toBe(1);
+		ac.abort();
+		expect(g.tryResolve("d")).toBeUndefined();
+	});
+
+	it("graph.effect signal abort fires the effect's deactivate cleanup", () => {
+		const g = new Graph("nw-signal-effect");
+		const ac = new AbortController();
+		g.add(state(1, { name: "a" }), { name: "a" });
+		let cleanups = 0;
+		const fx = g.effect(
+			"fx",
+			["a"],
+			() => () => {
+				cleanups += 1;
+			},
+			{ signal: ac.signal },
+		);
+		fx.subscribe(() => {});
+		expect(cleanups).toBe(0);
+		ac.abort();
+		// graph.remove sends TEARDOWN → effect deactivates → cleanup fires.
+		expect(cleanups).toBe(1);
+		expect(g.tryResolve("fx")).toBeUndefined();
+	});
+
+	it("already-aborted signal removes the node synchronously at construction", () => {
+		const g = new Graph("nw-signal-pre-aborted");
+		const ac = new AbortController();
+		ac.abort();
+		g.add(state(1, { name: "a" }), { name: "a" });
+		g.derived("d", ["a"], ([v]) => v as number, { signal: ac.signal });
+		expect(g.tryResolve("d")).toBeUndefined();
+	});
+});
