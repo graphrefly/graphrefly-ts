@@ -89,7 +89,7 @@ describe("patterns.orchestration", () => {
 		g.add(gated, { name: "gated" });
 		const reviewCtrl = g.approval<number>("reviewed", "gated", approved);
 		gated.subscribe(() => undefined);
-		reviewCtrl.node.subscribe(() => undefined);
+		reviewCtrl.output.subscribe(() => undefined);
 
 		g.set("input", 2);
 		expect(g.get("reviewed")).toBe(2);
@@ -246,7 +246,7 @@ describe("patterns.orchestration", () => {
 		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
 		});
 
@@ -272,7 +272,7 @@ describe("patterns.orchestration", () => {
 		const input = node<number>();
 		g.add(input, { name: "input" });
 		const ctrl = g.approvalGate<number>("gated", "input");
-		ctrl.node.subscribe(() => undefined);
+		ctrl.output.subscribe(() => undefined);
 		g.set("input", 10);
 		g.set("input", 20);
 		expect(ctrl.pending.cache).toEqual([10, 20]);
@@ -290,7 +290,7 @@ describe("patterns.orchestration", () => {
 		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
 		});
 
@@ -308,7 +308,7 @@ describe("patterns.orchestration", () => {
 		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
 		});
 
@@ -331,7 +331,7 @@ describe("patterns.orchestration", () => {
 		const ctrl = g.approvalGate<number>("gated", "input", { startOpen: true });
 
 		const approved: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
 		});
 
@@ -349,7 +349,7 @@ describe("patterns.orchestration", () => {
 		const input = state(0);
 		g.add(input, { name: "input" });
 		const ctrl = g.approvalGate<number>("gated", "input", { maxPending: 2 });
-		ctrl.node.subscribe(() => undefined);
+		ctrl.output.subscribe(() => undefined);
 		g.set("input", 1);
 		g.set("input", 2);
 		g.set("input", 3);
@@ -364,7 +364,7 @@ describe("patterns.orchestration", () => {
 		const ctrl = g.approvalGate<number>("gated", "input");
 
 		const approved: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const msg of msgs) if (msg[0] === DATA) approved.push(msg[1] as number);
 		});
 
@@ -404,7 +404,7 @@ describe("patterns.orchestration", () => {
 		g.add(input, { name: "input" });
 		const ctrl = g.approvalGate<number>("gated", "input");
 		const collected: number[] = [];
-		ctrl.node.subscribe((msgs) => {
+		ctrl.output.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) collected.push(m[1] as number);
 		});
 

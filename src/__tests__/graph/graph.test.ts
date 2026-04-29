@@ -809,6 +809,28 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 		expect(root.describe().subgraphs).toEqual([]);
 	});
 
+	it("parent destroy drains child mount disposers (EH-2 regression)", () => {
+		const root = new Graph("root");
+		const child = new Graph("child");
+		root.mount("c", child);
+		// Disposer registered on the CHILD — only reachable via parent destroy
+		// through the _destroyClearOnly cascade. Pre-fix this leaked silently.
+		let childDisposed = 0;
+		child.addDisposer(() => {
+			childDisposed += 1;
+		});
+		// Grandchild too — disposers must drain at every depth.
+		const grandchild = new Graph("gc");
+		child.mount("gc", grandchild);
+		let grandchildDisposed = 0;
+		grandchild.addDisposer(() => {
+			grandchildDisposed += 1;
+		});
+		root.destroy();
+		expect(childDisposed).toBe(1);
+		expect(grandchildDisposed).toBe(1);
+	});
+
 	it("snapshot extends describe with version 1", () => {
 		const g = new Graph("app");
 		g.add(state(1), { name: "z" });

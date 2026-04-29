@@ -10,9 +10,9 @@
  * - Per-instance state lives in a `Map<correlationId, TState>` closure (in-memory).
  *   The `_process_<name>_started` synthetic event is dispatched per `start()`
  *   for an event-sourced audit trail using `correlationId` as `aggregateId`.
- *   Future state-snapshot persistence (`_process_<name>_state`) is reserved
- *   under the same `_process_<name>_*` namespace but not yet implemented;
- *   see `docs/optimizations.md` "Deferred follow-ups".
+ *   Cross-restart state recovery is opt-in via
+ *   `opts.persistence.stateStorage` (kv-tier per-correlationId snapshot,
+ *   Tier 6.5 3.5) plus an explicit `restore()` call after construction.
  * - Watched-event subscriptions are imperative (coordinator role) — each
  *   watched CQRS event type is subscribed to via `entries.subscribe(...)`.
  *   These are NOT reactive node edges; the process manager is intentionally
@@ -31,12 +31,13 @@ import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
-	lightMutation,
 	registerCursor,
+	wrapMutation,
 } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import { fromAny, fromTimer, type NodeInput } from "../../extra/sources.js";
-import type { AppendLogStorageTier } from "../../extra/storage-tiers.js";
+import type { AppendLogStorageTier, KvStorageTier } from "../../extra/storage-tiers.js";
+import { Graph } from "../../graph/index.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,30 @@ export interface ProcessInstance<TState> extends BaseAuditRecord {
 export const processInstanceKeyOf = <TState>(i: ProcessInstance<TState>): string => i.correlationId;
 
 /**
+ * Per-correlationId state snapshot persisted via
+ * {@link ProcessManagerOpts.persistence.stateStorage} (Tier 6.5 3.5,
+ * 2026-04-29). Captures the running instance's current state plus
+ * lifecycle metadata so a fresh `processManager` can resume in-flight
+ * workflows after restart via {@link ProcessManagerResult.restore}.
+ *
+ * Terminal records (`status` ∈ `"terminated" | "errored" | "compensated"`)
+ * are deleted from the kv tier on transition — only running instances
+ * persist between restarts.
+ */
+export interface ProcessStateSnapshot<TState> {
+	readonly correlationId: string;
+	readonly state: TState;
+	readonly status: "running" | "terminated" | "errored" | "compensated";
+	readonly startedAt: number;
+	readonly updatedAt: number;
+	readonly handlerVersion?: { id: string; version: string | number };
+}
+
+/** Recommended `keyOf` for `KvStorageTier<ProcessStateSnapshot<...>>`. */
+export const processStateKeyOf = <TState>(s: ProcessStateSnapshot<TState>): string =>
+	s.correlationId;
+
+/**
  * Options for {@link processManager}.
  */
 export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
@@ -187,10 +212,23 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 		 * Reuses `CqrsGraph.attachEventStorage` so events persist across restarts.
 		 */
 		eventStorage?: readonly AppendLogStorageTier<CqrsEvent>[];
-		// TODO(process-manager-state-persistence): state-snapshot persistence —
-		// declared in spec; deferred until concrete consumer needs it.
-		// Implementation requires snapshot tier + debounce + restore-on-construction
-		// wiring. See docs/optimizations.md "Deferred follow-ups".
+		/**
+		 * Wire per-correlationId state snapshots to kv tiers (Tier 6.5 3.5,
+		 * 2026-04-29). Each `start()` and step transition writes the running
+		 * instance's state under its `correlationId`; terminal transitions
+		 * (`terminated` / `errored` / `compensated`) `delete` the key. After
+		 * restart, callers invoke {@link ProcessManagerResult.restore} to
+		 * reload running instances from the first tier.
+		 *
+		 * Uses {@link KvStorageTier} (not snapshot tier) because per-instance
+		 * state is N records keyed by correlationId, not a single global
+		 * snapshot. {@link processStateKeyOf} is the recommended `keyOf`
+		 * (already aligned with the kv tier's `save(key, value)` shape).
+		 *
+		 * Terminal records are NOT preserved — historical lifecycle is the
+		 * audit log's job. State persistence covers crash-recovery only.
+		 */
+		stateStorage?: readonly KvStorageTier<ProcessStateSnapshot<TState>>[];
 	};
 }
 
@@ -236,6 +274,22 @@ export interface ProcessManagerResult<TState> {
 	 * Returns `undefined` if the instance does not exist or has terminated.
 	 */
 	getState(correlationId: string): TState | undefined;
+	/**
+	 * Restore running instances from the first {@link
+	 * ProcessManagerOpts.persistence.stateStorage} tier (Tier 6.5 3.5,
+	 * 2026-04-29). Loads every record in the tier and re-hydrates
+	 * `instanceStates` / `activeInstances` / `startedAt` for any record
+	 * whose `status === "running"`. Terminal records, if any persisted
+	 * before delete fired, are silently skipped.
+	 *
+	 * Idempotent — calling twice doesn't double-restore (existing entries
+	 * are overwritten). Returns the count of running instances rehydrated.
+	 *
+	 * No-op when no `stateStorage` tier is configured OR the first tier
+	 * lacks a `list?` method (returns 0). Async because kv tier `load` /
+	 * `list` may be async.
+	 */
+	restore(): Promise<number>;
 	/**
 	 * Release all watched-event subscriptions and stop processing new events.
 	 *
@@ -408,35 +462,42 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	const startedAt = new Map<string, number>();
 
 	// ── Audit log + seq cursor ────────────────────────────────────────────
-	// D3 (qa lock): processManager mounts both an audit log
-	// (`${name}_process_instances`) and a seq cursor (`${name}_process_seq`)
-	// directly under `cqrsGraph._nodes`. A second `processManager(cqrsGraph,
-	// name, ...)` with the same `name` triggers `Graph.add` to throw a
-	// generic "node already exists" error. Surface a `processManager`-specific
-	// message so the caller sees actionable context. The collision is
-	// pre-existing for the audit log; the seq cursor (γ-7-B) compounded it.
-	const auditNodeName = `${name}_process_instances`;
-	const seqNodeName = `${name}_process_seq`;
-	if (
-		cqrsGraph.tryResolve(auditNodeName) !== undefined ||
-		cqrsGraph.tryResolve(seqNodeName) !== undefined
-	) {
+	// EH-16 (Tier 6.5 3.3, 2026-04-29): the audit log + seq cursor are
+	// mounted under a per-instance child Graph (`__processManagers__/<name>`)
+	// rather than directly under `cqrsGraph._nodes`. `dispose()` then calls
+	// `cqrsGraph.remove(...)` to unmount the subgraph cleanly via the
+	// existing mount/removeMount lifecycle — no leaked nodes after repeated
+	// create/dispose cycles. Pre-1.0 path-schema change: paths shift from
+	// `${name}_process_instances` / `${name}_process_seq` (top-level) to
+	// `__processManagers__/${name}::instances` / `::seq` (mounted).
+	const mountName = `__processManagers__/${name}`;
+	const subgraph = new Graph(name);
+	try {
+		cqrsGraph.mount(mountName, subgraph);
+	} catch (err) {
+		// `Graph.mount` throws if the mount name is in use; surface a
+		// processManager-specific message so callers see actionable context.
+		const detail = err instanceof Error ? err.message : String(err);
 		throw new Error(
-			`processManager: name "${name}" is already in use on this CQRS graph (collides on "${auditNodeName}" / "${seqNodeName}"). Pick a different name or destroy the previous CQRS graph before re-creating the manager.`,
+			`processManager: name "${name}" is already in use on this CQRS graph ` +
+				`(mount path "${mountName}" collides). Call .dispose() on the prior ` +
+				`manager OR pick a different name before re-creating. (${detail})`,
 		);
 	}
 
 	const instances = createAuditLog<ProcessInstance<TState>>({
-		name: auditNodeName,
+		name: "instances",
 		retainedLimit,
-		graph: cqrsGraph,
+		graph: subgraph,
 	});
 
-	// Tier 8 γ-7-B: seq cursor promoted from `let seq = 0` closure to a
-	// `state(0)` node mounted on `cqrsGraph` (visible in `describe()`). The
-	// audit-record stamping routes through `lightMutation` for centralized
-	// freeze + seq advance + `handlerVersion` stamping.
-	const seqCursor = registerCursor(cqrsGraph, seqNodeName, 0);
+	// Tier 8 γ-7-A (2026-04-28): seq cursor promoted from `let seq = 0` closure
+	// to a `state(0)` node mounted on the per-process subgraph (visible in
+	// `describe()` at `__processManagers__/<name>::seq`). The audit-record
+	// stamping routes through `wrapMutation` for centralized freeze + seq
+	// advance + `handlerVersion` stamping + batch-frame rollback. The batch
+	// frame closes EH-17 (lightMutation re-entrancy hazard).
+	const seqCursor = registerCursor(subgraph, "seq", 0);
 
 	// D4 (qa lock): `freeze: true` so step-handler-supplied state values
 	// captured into audit records cannot be mutated post-record. Process
@@ -444,7 +505,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// flags), so the `deepFreeze` tax is negligible — the safety vs. mutation
 	// trade-off favors freeze. (The 768-dim-vector concern that motivates
 	// `freeze: false` in memory primitives doesn't apply here.)
-	const appendRecord = lightMutation<
+	const appendRecord = wrapMutation<
 		[string, TState, ProcessInstance<TState>["status"], string | undefined],
 		void,
 		ProcessInstance<TState>
@@ -469,6 +530,51 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			}),
 		},
 	);
+
+	// ── State-snapshot persistence (Tier 6.5 3.5) ─────────────────────────
+	const stateStorageTiers = opts.persistence?.stateStorage ?? [];
+	const persistState = (
+		correlationId: string,
+		status: ProcessStateSnapshot<TState>["status"],
+	): void => {
+		if (stateStorageTiers.length === 0) return;
+		const stateValue = instanceStates.get(correlationId);
+		if (stateValue === undefined) return;
+		const snapshot: ProcessStateSnapshot<TState> = {
+			correlationId,
+			state: stateValue,
+			status,
+			startedAt: startedAt.get(correlationId) ?? wallClockNs(),
+			updatedAt: wallClockNs(),
+			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
+		};
+		for (const tier of stateStorageTiers) {
+			try {
+				const r = tier.save(correlationId, snapshot);
+				// Tier may return Promise — fire-and-forget. Storage errors
+				// surface via the tier's own onError plumbing (Tier 4 storage).
+				if (r != null && typeof (r as Promise<void>).then === "function") {
+					(r as Promise<void>).catch(() => undefined);
+				}
+			} catch {
+				// best-effort; persistence failures don't block step execution
+			}
+		}
+	};
+	const removeState = (correlationId: string): void => {
+		if (stateStorageTiers.length === 0) return;
+		for (const tier of stateStorageTiers) {
+			if (!tier.delete) continue;
+			try {
+				const r = tier.delete(correlationId);
+				if (r != null && typeof (r as Promise<void>).then === "function") {
+					(r as Promise<void>).catch(() => undefined);
+				}
+			} catch {
+				// best-effort
+			}
+		}
+	};
 
 	// ── Synthetic event helpers ───────────────────────────────────────────
 	const startedEventType = `_process_${name}_started`;
@@ -502,13 +608,16 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			try {
 				await toPromise(opts.compensate(state, error) as NodeInput<void>);
 				appendRecord(correlationId, state, "compensated", reason);
+				removeState(correlationId);
 			} catch (_compErr) {
 				// Compensation itself failed — still mark as errored so instance
 				// doesn't stay in limbo. Swallow error to prevent cascading.
 				appendRecord(correlationId, state, "errored", undefined);
+				removeState(correlationId);
 			}
 		} else {
 			appendRecord(correlationId, state, "errored", undefined);
+			removeState(correlationId);
 		}
 	}
 
@@ -567,6 +676,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			}
 
 			appendRecord(correlationId, result.state, "running", undefined);
+			persistState(correlationId, "running");
 
 			// Check isTerminal predicate.
 			if (opts.isTerminal?.(result.state)) {
@@ -574,6 +684,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				instanceStates.delete(correlationId);
 				startedAt.delete(correlationId); // M3 — cleanup startedAt on isTerminal terminate
 				appendRecord(correlationId, result.state, "terminated", undefined);
+				removeState(correlationId);
 				return;
 			}
 
@@ -651,6 +762,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			instanceStates.delete(correlationId);
 			startedAt.delete(correlationId); // M3 — cleanup startedAt on terminate
 			appendRecord(correlationId, result.state, "terminated", undefined);
+			removeState(correlationId);
 		}
 	}
 
@@ -748,23 +860,21 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 
 	// ── Public API ────────────────────────────────────────────────────────
 
-	/**
-	 * Start a new process instance.
-	 *
-	 * Idempotent: if a running instance with the same `correlationId` already
-	 * exists, the call is a no-op. Also a no-op after `dispose()`.
-	 */
-	function start(correlationId: string, initialPayload?: unknown): void {
-		if (_disposed) return;
-		if (activeInstances.has(correlationId)) return;
-
-		const now = wallClockNs();
-		startedAt.set(correlationId, now);
-		instanceStates.set(correlationId, opts.initial);
-		activeInstances.add(correlationId);
-
-		// Emit synthetic start event so per-aggregate streams record lifecycle.
-		try {
+	// Tier 8 γ-7-A (2026-04-28): `start()` body is wrapMutation-wrapped so the
+	// synthetic-start-event emit + the running audit record commit in one
+	// batch frame. If `_appendEvent` throws (e.g. event stream terminated),
+	// wrapMutation rolls back the in-band batch (audit append discarded, seq
+	// cursor advance discarded) and re-throws to the caller. Pre-1.0 behavior
+	// change vs. γ-7-B: the previous form silently swallowed `_appendEvent`
+	// failures and still appended the running record. Per COMPOSITION-GUIDE
+	// §35, closure mutations are NOT rolled back — so they are deferred to
+	// after `_appendEvent` succeeds inside the action body.
+	const startInternal = wrapMutation<[string, unknown], void, ProcessInstance<TState>>(
+		(correlationId, initialPayload) => {
+			// Synthetic start event first (potentially throws). Closure
+			// mutations below only run if this call succeeds — per §35,
+			// rollback does not undo them, so they must come after the
+			// throwing work.
 			(
 				cqrsGraph as unknown as {
 					_appendEvent(
@@ -777,11 +887,43 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				correlationId,
 				aggregateId: correlationId,
 			});
-		} catch (_err) {
-			// non-fatal if stream is terminated
-		}
+			startedAt.set(correlationId, wallClockNs());
+			instanceStates.set(correlationId, opts.initial);
+			activeInstances.add(correlationId);
+		},
+		{
+			audit: instances,
+			seq: seqCursor,
+			freeze: true,
+			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
+			onSuccess: ([correlationId], _r, { t_ns, seq }) => ({
+				correlationId,
+				state: opts.initial,
+				status: "running",
+				startedAt: startedAt.get(correlationId) ?? t_ns,
+				updatedAt: t_ns,
+				t_ns,
+				seq: seq ?? 0,
+			}),
+		},
+	);
 
-		appendRecord(correlationId, opts.initial, "running", undefined);
+	/**
+	 * Start a new process instance.
+	 *
+	 * Idempotent: if a running instance with the same `correlationId` already
+	 * exists, the call is a no-op. Also a no-op after `dispose()`.
+	 *
+	 * **Throws** if the synthetic `_process_<name>_started` event stream is
+	 * terminated (γ-7-A, 2026-04-28). The audit log is not appended in that
+	 * case — the in-band batch rolls back so the seq cursor and audit log
+	 * stay consistent with the pre-call state.
+	 */
+	function start(correlationId: string, initialPayload?: unknown): void {
+		if (_disposed) return;
+		if (activeInstances.has(correlationId)) return;
+		startInternal(correlationId, initialPayload);
+		persistState(correlationId, "running");
 	}
 
 	/**
@@ -824,6 +966,24 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	 * async steps complete naturally; no new steps are dispatched after the
 	 * watch subscriptions are released.
 	 */
+	async function restore(): Promise<number> {
+		if (_disposed) return 0;
+		const tier = stateStorageTiers[0];
+		if (tier == null || tier.list == null || tier.load == null) return 0;
+		const keys = await tier.list();
+		let count = 0;
+		for (const key of keys) {
+			const snap = await tier.load(key);
+			if (snap == null) continue;
+			if (snap.status !== "running") continue;
+			instanceStates.set(snap.correlationId, snap.state);
+			activeInstances.add(snap.correlationId);
+			startedAt.set(snap.correlationId, snap.startedAt);
+			count += 1;
+		}
+		return count;
+	}
+
 	function dispose(): void {
 		if (_disposed) return;
 		_disposed = true;
@@ -836,6 +996,15 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			}
 		}
 		watchDisposers.length = 0;
+		// EH-16 (Tier 6.5 3.3): unmount the per-instance subgraph so the
+		// audit log + seq cursor nodes are removed from the CQRS graph and
+		// don't leak across repeated create/dispose cycles. `Graph.remove`
+		// fires TEARDOWN through the subtree.
+		try {
+			cqrsGraph.remove(mountName);
+		} catch (_err) {
+			// non-fatal: best-effort teardown (e.g. cqrsGraph already destroyed)
+		}
 	}
 
 	return {
@@ -844,6 +1013,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		start,
 		cancel,
 		getState,
+		restore,
 		dispose,
 	};
 }

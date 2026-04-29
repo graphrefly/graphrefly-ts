@@ -33,7 +33,9 @@ const REGISTRY = {
 	state: "src/core/sugar.ts",
 	producer: "src/core/sugar.ts",
 	derived: "src/core/sugar.ts",
+	derivedT: "src/core/sugar.ts",
 	effect: "src/core/sugar.ts",
+	effectT: "src/core/sugar.ts",
 	pipe: "src/core/sugar.ts",
 
 	// Extra — timer
@@ -284,6 +286,32 @@ const REGISTRY = {
 	llmExtractor: "src/patterns/ai/prompts/prompt-call.ts",
 	llmConsolidator: "src/patterns/ai/prompts/prompt-call.ts",
 	promptCall: "src/patterns/ai/prompts/prompt-call.ts",
+
+	// Phase 4+ patterns: messaging (Tier 5.3, 2026-04-29)
+	topic: "src/patterns/messaging/index.ts",
+	messagingHub: "src/patterns/messaging/index.ts",
+	subscription: "src/patterns/messaging/index.ts",
+	topicBridge: "src/patterns/messaging/index.ts",
+
+	// Phase 4+ patterns: orchestration
+	pipelineGraph: "src/patterns/orchestration/pipeline-graph.ts",
+	decisionKeyOf: "src/patterns/orchestration/pipeline-graph.ts",
+
+	// Phase 4+ patterns: job-queue / job-flow
+	jobQueue: "src/patterns/job-queue/index.ts",
+	jobFlow: "src/patterns/job-queue/index.ts",
+	jobEventKeyOf: "src/patterns/job-queue/index.ts",
+
+	// Phase 4+ patterns: cqrs
+	cqrs: "src/patterns/cqrs/index.ts",
+	cqrsEventKeyOf: "src/patterns/cqrs/index.ts",
+	dispatchKeyOf: "src/patterns/cqrs/index.ts",
+	sagaInvocationKeyOf: "src/patterns/cqrs/index.ts",
+
+	// Phase 4+ patterns: process manager
+	processManager: "src/patterns/process/index.ts",
+	processInstanceKeyOf: "src/patterns/process/index.ts",
+	processStateKeyOf: "src/patterns/process/index.ts",
 };
 
 // ─── TypeScript parsing ─────────────────────────────────────────────────────

@@ -102,6 +102,14 @@ function inferDescribeType(n: NodeImpl): NodeDescribeKind {
  * - Array — recursed.
  * - Plain object — recursed.
  * - Anything else — `"<unserializable>"`.
+ *
+ * **`undefined`-key caveat (DF11, 2026-04-29 doc lock).** Keys whose value
+ * is `undefined` survive `placeholderArgs` (they are kept as-is per the
+ * heuristic above). However, `JSON.stringify` DROPS such keys at the
+ * serialization boundary, so a spec round-trip via `toJSONString` does
+ * not preserve them. Callers that need `undefined` to round-trip must
+ * substitute an explicit sentinel (e.g. `null`) before tagging — meta-
+ * vs-spec disagreement at the JSON boundary is otherwise inevitable.
  */
 export function placeholderArgs(opts: Record<string, unknown>): Record<string, unknown> {
 	const seen = new WeakSet<object>();

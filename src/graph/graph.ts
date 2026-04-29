@@ -2175,6 +2175,13 @@ export class Graph {
 		from: string | Node<string>,
 		to: string | Node<string>,
 		opts?: {
+			/**
+			 * DF13 (2026-04-29) — narrow the static overload to forbid
+			 * `reactive: true`. A caller passing `{ reactive: true, ... }`
+			 * is steered into the reactive overload instead of falling
+			 * through to the implementation signature's union return.
+			 */
+			reactive?: false;
 			maxDepth?: number | Node<number>;
 			findCycle?: boolean | Node<boolean>;
 		},
@@ -3346,8 +3353,20 @@ export class Graph {
 		return this._destroyed;
 	}
 
-	/** Clear structure after parent already signaled TEARDOWN through this subtree. */
+	/**
+	 * Clear structure after parent already signaled TEARDOWN through this subtree.
+	 *
+	 * Drains both `_disposers` and `_storageDisposers` to mirror the full
+	 * {@link destroy} path — child mounts that registered disposers via
+	 * {@link addDisposer} (audit trails, log dispose hooks, off-event
+	 * callbacks, attached storage) would otherwise leak when destruction
+	 * reaches the subtree via the parent's TEARDOWN cascade rather than a
+	 * direct `destroy()` call (EH-2). Disposers run BEFORE structure clear
+	 * so cleanups can still resolve node paths if needed.
+	 */
 	private _destroyClearOnly(): void {
+		drainDisposers(this._disposers, this.name);
+		drainDisposers(this._storageDisposers, this.name);
 		for (const child of [...this._mounts.values()]) {
 			child._parent = undefined;
 			child._destroyClearOnly();

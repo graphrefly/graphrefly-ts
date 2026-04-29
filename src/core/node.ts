@@ -712,7 +712,14 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Per-dep records: one DepRecord per declared dep.
 		this._deps = deps.map(createDepRecord);
 
-		// Meta companions (simple state children; inherit config + guard).
+		// Meta companions (simple state children; inherit config + guard +
+		// `resubscribable` from parent). EC7 (Tier 4.2, 2026-04-29): meta
+		// companions inherit `resubscribable` so a resubscribable producer's
+		// meta children also accept post-terminal-reset re-emissions.
+		// Without this, a `resubscribable: true` parent's `withStatus.status`
+		// / `withBreaker.breakerState` / `rateLimiter.droppedCount` companion
+		// stays terminated after the parent's first terminal — defeating the
+		// "next subscription cycle resets" semantic the parent advertises.
 		const meta: Record<string, Node> = {};
 		for (const [k, v] of Object.entries(opts.meta ?? {})) {
 			const metaOpts: NodeOptions<unknown> = {
@@ -722,6 +729,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				config: this._config,
 			};
 			if (opts.guard != null) metaOpts.guard = opts.guard;
+			if (opts.resubscribable === true) metaOpts.resubscribable = true;
 			meta[k] = new NodeImpl<unknown>([], undefined, metaOpts);
 		}
 		Object.freeze(meta);

@@ -155,7 +155,7 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 			"artifact",
 			isApproved,
 		);
-		const gated = reviewCtrl.node;
+		const gated = reviewCtrl.output;
 
 		// On approval: deploy
 		const deployed: string[] = [];

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { derived, effect, pipe, producer, state } from "../../core/sugar.js";
+import { derived, derivedT, effect, effectT, pipe, producer, state } from "../../core/sugar.js";
 
 describe("sugar constructors", () => {
 	it("state(initial) is a manual source with initial value", () => {
@@ -111,6 +111,33 @@ describe("sugar constructors", () => {
 		// Initial connect runs once; dep update runs again.
 		expect(runs).toBe(2);
 		expect(e.cache).toBeUndefined();
+	});
+
+	it("derivedT propagates dep value types into the callback tuple (no casts)", () => {
+		const a = state(2);
+		const b = state("hi");
+		// data is typed as readonly [number, string] — no casts needed.
+		const out = derivedT([a, b] as const, ([sum, label]) => `${label}:${sum * 2}`);
+		const unsub = out.subscribe(() => undefined);
+		expect(out.cache).toBe("hi:4");
+		a.down([[DATA, 5]]);
+		expect(out.cache).toBe("hi:10");
+		unsub();
+	});
+
+	it("effectT receives typed deps and runs without auto-emit", () => {
+		const src = state(7);
+		const flag = state(false);
+		let lastSeen: [number, boolean] | undefined;
+		const e = effectT([src, flag] as const, ([n, f]) => {
+			// n is number, f is boolean — no `as` needed.
+			lastSeen = [n, f];
+		});
+		const unsub = e.subscribe(() => undefined);
+		expect(lastSeen).toEqual([7, false]);
+		flag.down([[DATA, true]]);
+		expect(lastSeen).toEqual([7, true]);
+		unsub();
 	});
 
 	it("pipe chains unary node transforms", () => {

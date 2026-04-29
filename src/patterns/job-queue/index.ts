@@ -9,7 +9,15 @@
  */
 
 import { wallClockNs } from "../../core/clock.js";
-import { batch, DATA, derived, ERROR, type Node, placeholderArgs } from "../../core/index.js";
+import {
+	batch,
+	DATA,
+	derived,
+	ERROR,
+	type Node,
+	placeholderArgs,
+	state,
+} from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import {
@@ -331,13 +339,28 @@ export class JobQueueGraph<T> extends Graph {
 // ── StageDef ─────────────────────────────────────────────────────────────
 
 /**
- * Work function for a job flow stage. Receives the full job envelope,
- * returns a `NodeInput<T>` — raw value (sync), Promise (async), or Node
- * (composed pipeline). `fromAny` coerces any of these shapes.
+ * Work function for a job flow stage. Receives the full job envelope and
+ * an optional per-claim options object carrying an `AbortSignal`; returns
+ * a `NodeInput<T>` — raw value (sync), Promise (async), or Node (composed
+ * pipeline). `fromAny` coerces any of these shapes.
  *
  * On error / rejection: the stage nacks the job (no requeue by default).
+ *
+ * **Per-claim signal (Tier 6.5 2.5b, 2026-04-29).** The pump mints an
+ * `AbortController` per claim and supplies its `signal` via `opts`. The
+ * signal aborts when (a) the result node settles (first DATA / first
+ * ERROR — auto-cleanup after the pump captures), OR (b) the pump itself
+ * tears down (e.g. parent Graph `destroy()`). User-supplied work fns that
+ * do long-running async (HTTP, LLM streams, evaluator subgraphs) can
+ * forward this signal into `fetch({ signal })`, `adapter.invoke({ signal
+ * })`, etc. for cooperative cancellation. Sync work fns ignore `opts` —
+ * the second arg is optional, no behavior change for legacy callers.
+ *
+ * Mirrors the `LLMInvokeOptions.signal` / `apply(item, { signal })` /
+ * tool-handler `(args, { signal })` precedents — same shape across the
+ * library's user-callback boundaries.
  */
-export type WorkFn<T> = (job: JobEnvelope<T>) => NodeInput<T>;
+export type WorkFn<T> = (job: JobEnvelope<T>, opts?: { signal: AbortSignal }) => NodeInput<T>;
 
 /**
  * Stage definition for {@link JobFlowGraph}. Either a bare name string
@@ -359,6 +382,21 @@ export type StageDef<T> =
 			 * turn falls back to `DEFAULT_MAX_PER_PUMP` (256).
 			 */
 			maxPerPump?: number;
+			/**
+			 * Per-stage cap on TOTAL concurrent inflight claims (Tier 6.5 3.1,
+			 * 2026-04-29). Distinct from {@link maxPerPump}: `maxPerPump` caps
+			 * claims per pump tick, while `maxInflight` caps the number of
+			 * unsettled in-flight claims at any moment across all ticks. Use
+			 * for rigorous LLM cost ceilings (e.g. "no more than 4 concurrent
+			 * adapter.invoke calls regardless of pending depth").
+			 *
+			 * When set, the stage mounts an internal `state(0)` counter as a
+			 * pump dep so the pump re-fires on each settle — pending items
+			 * resume claiming as soon as inflight drops below the cap.
+			 *
+			 * Unset (default): unbounded inflight, gated only by `maxPerPump`.
+			 */
+			maxInflight?: number;
 	  };
 
 export type JobFlowOptions<T = unknown> = {
@@ -394,6 +432,7 @@ export class JobFlowGraph<T> extends Graph {
 		const stageNames: string[] = [];
 		const stageWorkFns = new Map<string, WorkFn<T>>();
 		const stageMaxPerPump = new Map<string, number>();
+		const stageMaxInflight = new Map<string, number>();
 
 		for (const raw of rawStages) {
 			const stageName = typeof raw === "string" ? raw.trim() : raw.name.trim();
@@ -406,6 +445,15 @@ export class JobFlowGraph<T> extends Graph {
 					Math.max(
 						1,
 						requireNonNegativeInt(raw.maxPerPump, `job flow stage "${stageName}" maxPerPump`),
+					),
+				);
+			}
+			if (typeof raw !== "string" && raw.maxInflight != null) {
+				stageMaxInflight.set(
+					stageName,
+					Math.max(
+						1,
+						requireNonNegativeInt(raw.maxInflight, `job flow stage "${stageName}" maxInflight`),
 					),
 				);
 			}
@@ -462,6 +510,25 @@ export class JobFlowGraph<T> extends Graph {
 			// Per-stage `maxPerPump` override falls back to the top-level cap.
 			// Captured per stage so each pump's loop sees its own resolved limit.
 			const stagePerPump = stageMaxPerPump.get(stage) ?? defaultMaxPerPump;
+			const stageMaxInflightCap = stageMaxInflight.get(stage);
+			// When `maxInflight` is set, mount a state(0) counter on the graph
+			// and wire it as an extra pump dep — settles `inflightCounter.emit`
+			// re-fire the pump so pending items resume claiming after each
+			// settle (without a counter, the pump only fires on `pending`
+			// changes, which `ack` does not affect → maxInflight at saturation
+			// would deadlock the queue).
+			// qa F-D (Tier 5 /qa pass, 2026-04-29): mount under `__inflight__/`
+			// internal namespace so the counter cannot collide with a user-named
+			// stage (e.g. `inflight_my-stage`). Matches the EH-16
+			// `__processManagers__/<name>` convention (COMPOSITION-GUIDE §38 —
+			// internal infrastructure paths use the `__` prefix).
+			const inflightCounter =
+				stageMaxInflightCap !== undefined
+					? state<number>(0, { name: `__inflight__/${stage}` })
+					: null;
+			if (inflightCounter) {
+				this.add(inflightCounter, { name: `__inflight__/${stage}` });
+			}
 
 			// `isTerminal` marks the last stage — completed jobs go into
 			// `_completed` log instead of a next queue.
@@ -473,11 +540,42 @@ export class JobFlowGraph<T> extends Graph {
 				// success; nack on failure.
 				// Per B.3 lock: effects ARE sanctioned for side-effects.
 				// `fromAny` bridges sync value / Promise / Node → Node<T>.
+				//
+				// **Inflight teardown drain (Tier 6.5 2.5a, 2026-04-29).** Each
+				// claim mints a per-claim `AbortController` and tracks the
+				// `(unsub, ac)` pair in a `ctx.store.inflight` Set. The
+				// per-claim signal is supplied to the work fn via the optional
+				// second-arg `{ signal }` (mirrors `LLMInvokeOptions.signal` /
+				// `apply(item, {signal})` / tool-handler precedents). On the
+				// pump's `deactivate` hook (parent Graph TEARDOWN cascade —
+				// e.g. `harness.destroy()`), every inflight entry is aborted +
+				// unsubscribed so user-supplied async work (LLM streams, eval
+				// HTTP calls, refineLoop iterations) gets cooperative
+				// cancellation instead of leaking past the harness lifetime.
+				type InflightEntry = { unsub: () => void; ac: AbortController };
+				type InflightStore = { entries: Set<InflightEntry>; terminated: boolean };
+				const pumpDeps: Node[] =
+					inflightCounter != null ? [current.pending, inflightCounter] : [current.pending];
 				const pump = node<unknown>(
-					[current.pending],
-					() => {
+					pumpDeps,
+					(_data, _actions, ctx) => {
+						if (!("inflight" in ctx.store)) {
+							ctx.store.inflight = {
+								entries: new Set<InflightEntry>(),
+								terminated: false,
+							} satisfies InflightStore;
+						}
+						const inflightStore = ctx.store.inflight as InflightStore;
+						const inflight = inflightStore.entries;
 						let processed = 0;
 						while (processed < stagePerPump) {
+							// 3.1 maxInflight gate: cap concurrent inflight across pump
+							// ticks. The inflightCounter (mounted as a pump dep) re-fires
+							// the pump when a settle decrements it, so pending items
+							// resume claiming when capacity frees up.
+							if (stageMaxInflightCap !== undefined && inflight.size >= stageMaxInflightCap) {
+								break;
+							}
 							const claims = current.claim(1);
 							if (claims.length === 0) break;
 							const job = claims[0] as JobEnvelope<T>;
@@ -487,11 +585,18 @@ export class JobFlowGraph<T> extends Graph {
 							const prevPath = (job.metadata.job_flow_path as readonly string[] | undefined) ?? [];
 							const newPath = [...prevPath, stage];
 
+							const ac = new AbortController();
+							const entry: InflightEntry = { unsub: () => undefined, ac };
+							inflight.add(entry);
+							inflightCounter?.emit(inflight.size);
+
 							let result: NodeInput<T>;
 							try {
-								result = workFn(job);
+								result = workFn(job, { signal: ac.signal });
 							} catch {
 								// Sync throw → nack no-requeue.
+								inflight.delete(entry);
+								inflightCounter?.emit(inflight.size);
 								current.nack(job.id, { requeue: false });
 								processed += 1;
 								continue;
@@ -505,18 +610,28 @@ export class JobFlowGraph<T> extends Graph {
 							// DATA delivery inside subscribe() doesn't hit TDZ on `unsub`.
 							let settled = false;
 							let unsub: (() => void) | undefined;
+							const cleanupSub = (): void => {
+								if (unsub) {
+									unsub();
+								} else {
+									Promise.resolve().then(() => unsub?.());
+								}
+								inflight.delete(entry);
+								// qa F-F (Tier 5 /qa pass, 2026-04-29): skip the counter
+								// emit after teardown — the counter Node is itself in the
+								// cascade. Late ERROR/DATA arriving via the deferred
+								// `Promise.resolve().then(unsub)` path could otherwise emit
+								// on a torn-down node.
+								if (!inflightStore.terminated) {
+									inflightCounter?.emit(inflight.size);
+								}
+							};
 							unsub = resultNode.subscribe((msgs) => {
 								if (settled) return;
 								for (const m of msgs) {
 									if (m[0] === DATA) {
 										settled = true;
-										// Call unsub() directly if already assigned; otherwise
-										// defer to next microtask (TDZ guard for sync DATA delivery).
-										if (unsub) {
-											unsub();
-										} else {
-											Promise.resolve().then(() => unsub?.());
-										}
+										cleanupSub();
 										const newPayload = m[1] as T;
 										const newMetadata = {
 											...job.metadata,
@@ -543,19 +658,38 @@ export class JobFlowGraph<T> extends Graph {
 										return;
 									} else if (m[0] === ERROR) {
 										settled = true;
-										if (unsub) {
-											unsub();
-										} else {
-											Promise.resolve().then(() => unsub?.());
-										}
+										cleanupSub();
 										current.nack(job.id, { requeue: false });
 										return;
 									}
 								}
 							});
+							entry.unsub = () => unsub?.();
 
 							processed += 1;
 						}
+						return {
+							deactivate: () => {
+								// qa F-F: set terminated BEFORE draining so any
+								// `cleanupSub` racing via the deferred-microtask path
+								// (`Promise.resolve().then(() => unsub?.())`) sees
+								// `terminated === true` and skips its `inflightCounter.emit`.
+								inflightStore.terminated = true;
+								for (const e of inflight) {
+									try {
+										e.ac.abort();
+									} catch {
+										// best-effort
+									}
+									try {
+										e.unsub();
+									} catch {
+										// best-effort
+									}
+								}
+								inflight.clear();
+							},
+						};
 					},
 					{
 						name: `pump_${stage}`,

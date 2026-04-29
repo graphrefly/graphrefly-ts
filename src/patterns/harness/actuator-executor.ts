@@ -132,7 +132,7 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 	const onError = config.onError ?? defaultOnError<R>;
 	const skipDetail = config.skipDetail ?? defaultSkipDetail;
 
-	return (job: JobEnvelope<HarnessJobPayload<R>>) => {
+	return (job: JobEnvelope<HarnessJobPayload<R>>, opts) => {
 		const item = job.payload.item;
 
 		if (config.shouldApply && !config.shouldApply(item)) {
@@ -147,6 +147,20 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 		return producer<HarnessJobPayload<R>>(
 			(actions) => {
 				const ac = new AbortController();
+				// Link pump-supplied signal (Tier 6.5 2.5b): parent abort
+				// (e.g. `harness.destroy()`) cascades into the inner AC and
+				// thus into `apply(item, { signal })` + `fromAny({ signal })`.
+				const parentSignal = opts?.signal;
+				let unlinkParent: () => void = () => undefined;
+				if (parentSignal) {
+					if (parentSignal.aborted) {
+						ac.abort();
+					} else {
+						const onParentAbort = (): void => ac.abort();
+						parentSignal.addEventListener("abort", onParentAbort, { once: true });
+						unlinkParent = () => parentSignal.removeEventListener("abort", onParentAbort);
+					}
+				}
 				let captured = false;
 				let unsub: (() => void) | null = null;
 				const emitOnce = (out: ExecuteOutput<R>): void => {
@@ -166,6 +180,7 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 				} catch (err) {
 					emitOnce(onError(err, item));
 					return () => {
+						unlinkParent();
 						ac.abort();
 					};
 				}
@@ -196,6 +211,7 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 					unsub = null;
 				}
 				return () => {
+					unlinkParent();
 					ac.abort();
 					unsub?.();
 					unsub = null;

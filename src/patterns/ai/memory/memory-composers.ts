@@ -7,16 +7,31 @@
 // directly. The composers are additive — they do not duplicate the wiring
 // inside `agentMemory`; both surfaces are valid entry points.
 //
-// Closure-state promotion (`permanentKeys`, `entryCreatedAtNs` → reactive
-// nodes) is tracked separately in `docs/optimizations.md`. Both surfaces
-// share the same pre-Unit-7 closure shape today.
+// Tier 4.1 B + 4.3 B (2026-04-29): `memoryWithTiers` is the construction site
+// for the distill bundle when tiers are configured (`reactiveMap.retention`
+// wired at construction eliminates the §7 feedback cycle the prior
+// `tierClassifier` effect carried). `permanentKeys` and `entryCreatedAtNs`
+// are reactive maps mounted on the graph (not closure state) so
+// `describe()`/`explain()` can walk to the inputs that fed an archival
+// decision.
 // ---------------------------------------------------------------------------
 
 import { batch } from "../../../core/batch.js";
 import { monotonicNs } from "../../../core/clock.js";
+import { DATA } from "../../../core/messages.js";
 import type { Node } from "../../../core/node.js";
 import { derived, effect, state } from "../../../core/sugar.js";
-import type { DistillBundle } from "../../../extra/composite.js";
+import {
+	type DistillBundle,
+	type DistillOptions,
+	distill,
+	type Extraction,
+} from "../../../extra/composite.js";
+import {
+	type ReactiveMapBundle,
+	type ReactiveMapRetention,
+	reactiveMap,
+} from "../../../extra/reactive-map.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
 import { decay } from "../../../extra/utils/decay.js";
@@ -41,14 +56,14 @@ import {
 	type MemoryTiersOptions,
 } from "./tiers.js";
 
-// Tier 4.7 (Wave AM Unit 5 carry): pre-rebuild this module funnelled every
-// `store.store.entries` snapshot through a private `extractStoreMap` helper
-// that ran a runtime `instanceof Map` check before casting to
-// `ReadonlyMap<string, TMem>`. Post-Tier-1.5.4 the upstream `ReactiveMapBundle`
-// always emits a Map (the defensive instanceof-check was paranoid), so the
-// helper was deleted in favor of a typed `as` cast at each callsite. Empty
-// map is the canonical "no entries yet" value — `state(undefined)` would
-// stall a derived/effect's first-run gate (sentinel semantics).
+// Tier 4.7 (Wave AM Unit 5 carry): the pre-rebuild defensive `extractStoreMap`
+// helper (runtime `instanceof Map` check before casting) was deleted in favor
+// of a typed `as` cast at each callsite. The upstream `ReactiveMapBundle`
+// always emits a real Map on the live emit path; non-Map snapshots only
+// surface on `Graph.restore` from a codec that round-tripped Map → JSON →
+// plain object (handled in `extra/composite.ts:mapFromSnapshot` for distill
+// internals). Empty map is the canonical "no entries yet" value —
+// `state(undefined)` would stall a derived/effect's first-run gate.
 //
 // qa F3 (deferred): the typed cast lies if upstream contract ever breaks
 // (e.g. `entries` emits a non-Map non-undefined value). Failure mode is a
@@ -170,29 +185,58 @@ export function memoryWithKG<TMem>(
 // memoryWithTiers
 // ---------------------------------------------------------------------------
 
-export type MemoryWithTiersOptions<TMem> = MemoryTiersOptions<TMem> & {
-	/** Score function — same signature as `agentMemory.score`. */
-	score: (mem: TMem, context: unknown) => number;
-	/** Optional reactive context node (passed to `score`). */
-	context?: NodeInput<unknown>;
-};
+/**
+ * Full options for {@link memoryWithTiers} (Tier 4.1 B + 4.3 B refactor,
+ * 2026-04-29). Combines tier-policy options with the distill-side options
+ * needed to construct the underlying store — `memoryWithTiers` is now the
+ * **construction site** for the distill bundle so it can wire
+ * `reactiveMap.retention` into the store at construction (eliminating the
+ * §7 feedback cycle the previous `tierClassifier` effect carried).
+ *
+ * The retention config built internally maps tier policy to the substrate:
+ * - `archiveThreshold` → `retention.archiveThreshold`
+ * - `maxActive` → `retention.maxSize`
+ * - per-entry `decay(score(mem, ctx), age, decayRate)` → `retention.score`
+ *   (capturing `latestCtx` + `entryCreatedAtNs` via closure-mirror; permanent
+ *   entries score `Infinity` to bypass eviction).
+ */
+export type MemoryWithTiersOptions<TMem> = MemoryTiersOptions<TMem> &
+	Omit<DistillOptions<TMem>, "mapOptions" | "score" | "context"> & {
+		/** Score function — same signature as `agentMemory.score`. */
+		score: (mem: TMem, context: unknown) => number;
+		/** Optional reactive context node (passed to `score`). */
+		context?: NodeInput<unknown>;
+	};
 
 /**
- * Attach 3-tier storage (active / archived / permanent) to a `DistillBundle`.
- * Wires a `tierClassifier` effect that:
- * - Promotes entries matching `permanentFilter` into the permanent tier.
- * - Archives entries whose decayed score falls below `archiveThreshold`.
- * - Caps the active tier at `maxActive`, evicting lowest-scored on overflow.
+ * Attach 3-tier storage (active / archived / permanent) to a fresh distill
+ * store, wiring `reactiveMap.retention` at construction so archival happens
+ * synchronously inside the substrate's mutation pipeline (no §7 feedback
+ * cycle). Promotes `permanentKeys` and `entryCreatedAtNs` to reactive maps
+ * mounted on the graph (Tier 4.3 B — Unit 7 Q3) so `describe()`/`explain()`
+ * can walk to "why was X archived?".
  *
- * **Closure state caveat (Unit 7 Q3 deferred):** `permanentKeys` +
- * `entryCreatedAtNs` are still closure-held for now; promotion to reactive
- * nodes is tracked in `docs/optimizations.md`.
+ * **API shape** (Tier 4.1 B, 2026-04-29 — breaking change vs. pre-refactor):
+ * `memoryWithTiers` constructs the distill bundle internally rather than
+ * accepting a pre-built one. Callers pass `(graph, source, extractFn,
+ * opts)`. The bundle is exposed as `result.store` for downstream composers
+ * (vectors / KG / retrieval).
+ *
+ * - `permanentFilter`-matching entries score `Infinity` in retention →
+ *   never archived. Independent permanent-promotion effect upserts them
+ *   into the `permanent` collection.
+ * - Below-threshold entries → retention archives synchronously.
+ * - Over-`maxActive` entries → retention's `maxSize` evicts lowest-scored.
  */
-export function memoryWithTiers<TMem>(
+export function memoryWithTiers<TRaw, TMem>(
 	graph: Graph,
-	store: DistillBundle<TMem>,
+	source: NodeInput<TRaw>,
+	extractFn: (
+		raw: Node<TRaw>,
+		existing: Node<ReadonlyMap<string, TMem>>,
+	) => NodeInput<Extraction<TMem>>,
 	opts: MemoryWithTiersOptions<TMem>,
-): { tiers: MemoryTiersBundle<TMem>; dispose: () => void } {
+): { store: DistillBundle<TMem>; tiers: MemoryTiersBundle<TMem>; dispose: () => void } {
 	const decayRate = opts.decayRate ?? DEFAULT_DECAY_RATE;
 	const maxActive = opts.maxActive ?? 1000;
 	const archiveThreshold = opts.archiveThreshold ?? 0.1;
@@ -206,7 +250,66 @@ export function memoryWithTiers<TMem>(
 	const permanent = collection<TMem>("permanent", { ranked: false });
 	graph.mount("permanent", permanent);
 
-	const permanentKeys = new Set<string>();
+	// 4.3 B (Unit 7 Q3, 2026-04-29): closure-state promotion. `permanentKeys`
+	// and `entryCreatedAtNs` are now reactive maps mounted on the graph, so
+	// `describe()` can walk to them and `explain()` can trace the inputs that
+	// fed an archival decision.
+	const permanentKeys: ReactiveMapBundle<string, true> = reactiveMap<string, true>({
+		name: "permanentKeys",
+	});
+	graph.add(permanentKeys.entries, { name: "permanentKeys" });
+	const entryCreatedAtNs: ReactiveMapBundle<string, number> = reactiveMap<string, number>({
+		name: "entryCreatedAtNs",
+	});
+	graph.add(entryCreatedAtNs.entries, { name: "entryCreatedAtNs" });
+
+	// Closure-mirror for ctx (§28 factory-time seed). `score(mem, ctx)` runs
+	// inside `retention.score` which is invoked synchronously from store
+	// mutations — no reactive dep on contextNode there. The mirror keeps
+	// `latestCtx` current via subscribe.
+	const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
+	let latestCtx: unknown = contextNode.cache;
+	const ctxUnsub = contextNode.subscribe((msgs) => {
+		for (const m of msgs) if (m[0] === DATA) latestCtx = m[1];
+	});
+
+	// Build retention. `score` runs synchronously inside store mutations.
+	// Permanent matches return Infinity to bypass eviction. New entries have
+	// their creation time recorded inline (the entryCreatedAtNs subscriber
+	// below maintains the GC-on-removal half).
+	const retention: ReactiveMapRetention<string, TMem> = {
+		score: (key, value) => {
+			if (permanentFilter(key, value)) return Number.POSITIVE_INFINITY;
+			if (permanentKeys.has(key)) return Number.POSITIVE_INFINITY;
+			const nowNs = monotonicNs();
+			let createdNs = entryCreatedAtNs.get(key);
+			if (createdNs === undefined) {
+				createdNs = nowNs;
+				entryCreatedAtNs.set(key, nowNs);
+			}
+			const ageSeconds = Number(nowNs - createdNs) / 1e9;
+			return decay(opts.score(value, latestCtx), ageSeconds, decayRate);
+		},
+		archiveThreshold,
+		maxSize: maxActive,
+	};
+
+	// Construct distill with retention wired into mapOptions. The distill
+	// bundle exposed via `result.store` is the same one downstream composers
+	// (vectors / KG / retrieval) consume.
+	const store = distill<TRaw, TMem>(source, extractFn, {
+		score: opts.score,
+		cost: opts.cost,
+		...(opts.budget !== undefined ? { budget: opts.budget } : {}),
+		...(opts.evict !== undefined ? { evict: opts.evict } : {}),
+		...(opts.consolidate !== undefined ? { consolidate: opts.consolidate } : {}),
+		...(opts.consolidateTrigger !== undefined
+			? { consolidateTrigger: opts.consolidateTrigger }
+			: {}),
+		...(opts.context !== undefined ? { context: opts.context } : {}),
+		mapOptions: { retention },
+	});
+
 	const tierOf = (key: string): MemoryTier => {
 		if (permanentKeys.has(key)) return "permanent";
 		const m =
@@ -216,61 +319,46 @@ export function memoryWithTiers<TMem>(
 		return "archived";
 	};
 	const markPermanent = (key: string, value: TMem): void => {
-		permanentKeys.add(key);
+		permanentKeys.set(key, true);
 		permanent.upsert(key, value);
 	};
 
-	const entryCreatedAtNs = new Map<string, number>();
-	const storeNode = store.store.entries;
-	const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
-
-	const tierClassifier = effect([storeNode, contextNode], ([snapshot, ctx]) => {
-		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-		const nowNs = monotonicNs();
-		const toArchive: string[] = [];
-		const toPermanent: Array<{ key: string; value: TMem }> = [];
-
-		for (const [key, mem] of storeMap) {
-			if (!entryCreatedAtNs.has(key)) entryCreatedAtNs.set(key, nowNs);
-			if (permanentFilter(key, mem)) {
-				toPermanent.push({ key, value: mem });
-				continue;
+	// GC entryCreatedAtNs entries that no longer exist in the active store.
+	// (Adds happen inline inside retention.score; removals piggyback on the
+	// store-snapshot subscriber here so the map stays in sync.)
+	const entriesUnsub = store.store.entries.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] !== DATA) continue;
+			const map = m[1] as ReadonlyMap<string, TMem>;
+			const created = entryCreatedAtNs.entries.cache as ReadonlyMap<string, number> | undefined;
+			if (created == null) continue;
+			const toDelete: string[] = [];
+			for (const key of created.keys()) {
+				if (!map.has(key)) toDelete.push(key);
 			}
-			const baseScore = opts.score(mem, ctx);
-			const createdNs = entryCreatedAtNs.get(key) ?? nowNs;
-			const ageSeconds = Number(nowNs - createdNs) / 1e9;
-			const decayed = decay(baseScore, ageSeconds, decayRate);
-			if (decayed < archiveThreshold) toArchive.push(key);
-		}
-
-		for (const key of entryCreatedAtNs.keys()) {
-			if (!storeMap.has(key)) entryCreatedAtNs.delete(key);
-		}
-
-		for (const { key, value } of toPermanent) {
-			if (!permanentKeys.has(key)) markPermanent(key, value);
-		}
-
-		const activeCount = storeMap.size - permanentKeys.size;
-		if (activeCount > maxActive) {
-			const scored = [...storeMap.entries()]
-				.filter(([k]) => !permanentKeys.has(k))
-				.map(([k, m]) => ({ key: k, score: opts.score(m, ctx) }))
-				.sort((a, b) => a.score - b.score);
-			const excess = activeCount - maxActive;
-			for (let i = 0; i < excess && i < scored.length; i++) {
-				const sk = scored[i]!.key;
-				if (!toArchive.includes(sk)) toArchive.push(sk);
+			if (toDelete.length > 0) {
+				batch(() => {
+					for (const key of toDelete) entryCreatedAtNs.delete(key);
+				});
 			}
-		}
-
-		if (toArchive.length > 0) {
-			batch(() => {
-				for (const key of toArchive) store.store.delete(key);
-			});
 		}
 	});
-	const unsub = tierClassifier.subscribe(() => undefined);
+
+	// Permanent-promotion effect. Writes to `permanent` collection +
+	// `permanentKeys` (NOT to the active store), so no §7 cycle: the effect's
+	// dep is `store.store.entries`, but it doesn't write back to that node.
+	const promoter = effect([store.store.entries], ([snapshot]) => {
+		const map = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+		for (const [key, mem] of map) {
+			if (permanentKeys.has(key)) continue;
+			if (permanentFilter(key, mem)) {
+				batch(() => {
+					markPermanent(key, mem);
+				});
+			}
+		}
+	});
+	const promoteUnsub = promoter.subscribe(() => undefined);
 
 	let archiveHandle: StorageHandle | null = null;
 	if (opts.archiveTier) {
@@ -280,19 +368,19 @@ export function memoryWithTiers<TMem>(
 		);
 	}
 
-	// Both teardowns wrapped in a single dispose. Registered with the graph so
-	// `graph.destroy()` reclaims the storage handle / classifier subscription
-	// even when the caller never invokes the returned `dispose()` directly.
 	const dispose = (): void => {
-		unsub();
+		promoteUnsub();
+		entriesUnsub();
+		ctxUnsub();
 		archiveHandle?.dispose();
 	};
 	graph.addDisposer(dispose);
 
 	return {
+		store,
 		tiers: {
 			permanent,
-			activeEntries: storeNode,
+			activeEntries: store.store.entries,
 			archiveHandle,
 			tierOf,
 			markPermanent,

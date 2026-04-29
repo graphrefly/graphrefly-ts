@@ -170,6 +170,72 @@ export function derived<T = unknown>(
 }
 
 // ---------------------------------------------------------------------------
+// derivedT / effectT — typed-tuple variants of derived / effect
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps a tuple of `Node<V>`s to a tuple of `V`s. Used by {@link derivedT}
+ * and {@link effectT} to propagate dep value types into the callback's
+ * `data` parameter — eliminating per-callsite `as` casts.
+ */
+export type NodeValues<TDeps extends readonly Node<unknown>[]> = {
+	readonly [K in keyof TDeps]: TDeps[K] extends Node<infer V> ? V : never;
+};
+
+/**
+ * Typed callback for {@link derivedT}. Each tuple element corresponds
+ * positionally to the matching dep's value type.
+ */
+export type DerivedTFn<TDeps extends readonly Node<unknown>[], TOut> = (
+	data: NodeValues<TDeps>,
+	ctx: FnCtx,
+) => TOut | undefined | null;
+
+/**
+ * Typed callback for {@link effectT}. Each tuple element corresponds
+ * positionally to the matching dep's value type.
+ */
+export type EffectTFn<TDeps extends readonly Node<unknown>[]> = (
+	data: NodeValues<TDeps>,
+	actions: NodeActions,
+	ctx: FnCtx,
+	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
+) => NodeFnCleanup | void;
+
+/**
+ * Typed-tuple variant of {@link derived}. Use when the dep types matter at
+ * the callback boundary — `data` is inferred as a tuple of dep value types
+ * instead of `readonly unknown[]`.
+ *
+ * Same runtime semantics as {@link derived} (first-run gate, snapshot
+ * combine semantics, equals substitution).
+ *
+ * **`partial: true` is rejected at the type level (qa F-E, 2026-04-29).**
+ * Tuple slots in `NodeValues<TDeps>` resolve to `V` (never `V | undefined`),
+ * but `partial: true` lets fn run before every dep has fired. The two are
+ * unsound together — fn would receive `undefined` for an unfired dep but
+ * see it typed as `V`. Callers needing partial firing keep using untyped
+ * {@link derived} where `data` is `readonly unknown[]` and the
+ * `=== undefined` guard is sanctioned (COMPOSITION-GUIDE §3 partial-true
+ * exception).
+ *
+ * @example
+ * ```ts
+ * const a = state(1);
+ * const b = state("hi");
+ * // sum: number, label: string — no casts needed.
+ * const out = derivedT([a, b], ([sum, label]) => `${label}:${sum * 2}`);
+ * ```
+ */
+export function derivedT<TDeps extends readonly Node<unknown>[], TOut>(
+	deps: TDeps,
+	fn: DerivedTFn<TDeps, TOut>,
+	opts?: Omit<NodeOptions<TOut>, "partial"> & { partial?: false },
+): Node<TOut> {
+	return derived<TOut>(deps as unknown as readonly Node[], fn as unknown as DerivedFn<TOut>, opts);
+}
+
+// ---------------------------------------------------------------------------
 // effect — dep-driven side effect, no auto-emit
 // ---------------------------------------------------------------------------
 
@@ -187,6 +253,34 @@ export type EffectFn = (
 	ctx: FnCtx,
 	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
 ) => NodeFnCleanup | void;
+
+/**
+ * Typed-tuple variant of {@link effect}. Use when the dep types matter at
+ * the callback boundary — `data` is inferred as a tuple of dep value types
+ * instead of `readonly unknown[]`.
+ *
+ * Same runtime semantics as {@link effect} (first-run gate, no auto-emit,
+ * cleanup contract).
+ *
+ * **`partial: true` is rejected at the type level (qa F-E, 2026-04-29).**
+ * See {@link derivedT} for the soundness rationale.
+ *
+ * @example
+ * ```ts
+ * const user = state<User | null>(null);
+ * const cfg = state<Config>(defaultCfg);
+ * effectT([user, cfg], ([u, c]) => {
+ *   if (u != null) hydrate(u, c);
+ * });
+ * ```
+ */
+export function effectT<TDeps extends readonly Node<unknown>[]>(
+	deps: TDeps,
+	fn: EffectTFn<TDeps>,
+	opts?: Omit<NodeOptions<unknown>, "partial"> & { partial?: false },
+): Node<unknown> {
+	return effect(deps as unknown as readonly Node[], fn as unknown as EffectFn, opts);
+}
 
 /**
  * Runs a side-effect when deps settle. Return value is not auto-emitted.

@@ -1506,6 +1506,44 @@ describe("patterns.ai.agentMemory", () => {
 		mem.destroy();
 	});
 
+	it("Tier 4.1 B / 4.3 B: archives below-threshold entries via retention; permanentKeys/entryCreatedAtNs are reactive nodes", () => {
+		// Score function: anything <= 0.05 (decayed) gets archived.
+		// archiveThreshold = 0.1, so a base score of 0.05 falls under without decay.
+		let nextKey = 0;
+		const source = state<string>("hello");
+		const mem = agentMemory<string>("tier-archive", source, {
+			extractFn: (raw, _existing) => {
+				// Each emit produces a unique low-score entry that retention should archive.
+				const key = `low-${++nextKey}`;
+				return { upsert: [{ key, value: String(raw) }] };
+			},
+			score: () => 0.05, // below archiveThreshold
+			cost: () => 1,
+			tiers: {
+				permanentFilter: (key) => key.startsWith("core-"),
+				archiveThreshold: 0.1,
+				maxActive: 100,
+			},
+		});
+
+		// Trigger a few extract cycles.
+		source.down([[DATA, "a"]]);
+		source.down([[DATA, "b"]]);
+		source.down([[DATA, "c"]]);
+
+		// Active store should be empty — every entry's score < threshold,
+		// retention archived synchronously inside each set().
+		expect(mem.size.cache).toBe(0);
+
+		// permanentKeys + entryCreatedAtNs nodes are reachable by path —
+		// describe()/explain() can now walk to them (Tier 4.3 B).
+		// agentMemory returns Graph + extras via Object.assign so `mem` IS the graph.
+		expect(mem.tryResolve("permanentKeys")).toBeDefined();
+		expect(mem.tryResolve("entryCreatedAtNs")).toBeDefined();
+
+		mem.destroy();
+	});
+
 	it("retrieval pipeline returns packed results with vector search", () => {
 		const source = state<string>("test");
 		const mem = agentMemory<string>("retr-mem", source, {

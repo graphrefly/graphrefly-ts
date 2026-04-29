@@ -1103,6 +1103,39 @@ export function decompileSpec(graph: Graph): GraphSpec {
 		}
 	}
 
+	// 5.6 (b) — DF1 hard-require (Tier 5, 2026-04-29). Locked: any `::`-path
+	// whose parent prefix exists in the graph but does NOT carry
+	// `meta.factory` is an untagged compound factory. `compileSpec` cannot
+	// reconstruct it, so the spec round-trip would silently break. Fail
+	// loud at decompile time so the offending factory author tags the
+	// parent. Skip well-known internal prefixes that are not factory output
+	// (meta companions, feedback / bridge infrastructure).
+	const allPaths = new Set(Object.keys(desc.nodes));
+	for (const path of allPaths) {
+		const sepIdx = path.indexOf("::");
+		if (sepIdx <= 0) continue;
+		const parent = path.slice(0, sepIdx);
+		// Skip internal infrastructure prefixes (handled below in the main loop).
+		if (path.includes(metaSegment)) continue;
+		if (path.startsWith("__feedback_effect_") || path.startsWith("__bridge_")) continue;
+		// Parent is a tagged compound factory → covered by the existing pre-pass.
+		if (compoundFactoryPrefixes.has(parent)) continue;
+		// Parent doesn't appear in the graph (untagged child path with no
+		// matching parent) — treat as a regular `::`-named node, not a
+		// compound factory. Allowed.
+		if (!allPaths.has(parent)) continue;
+		// Parent IS in the graph but lacks `meta.factory` — untagged compound
+		// factory. Refuse to round-trip.
+		throw new Error(
+			`decompileSpec: untagged compound factory at "${parent}" (child: "${path}"). ` +
+				"Compound factories that ship `parent::child` topology MUST set `meta.factory` " +
+				"on the parent so `compileSpec` can reconstruct the internals via the catalog. " +
+				"Either tag the parent (`{ meta: factoryTag('myFactory', args) }`) OR rename the " +
+				"child to use `/` instead of `::` if it's not a compound-factory internal " +
+				"(see COMPOSITION-GUIDE §38).",
+		);
+	}
+
 	// Build the spec-shaped node map by walking describe's output. Strip
 	// meta-companion paths, bridge / feedback-effect internals, AND compound-
 	// factory `::` internals (per pre-pass above); preserve everything else verbatim.

@@ -47,9 +47,12 @@ export type BudgetGateOptions = Omit<NodeOptions<unknown>, "describeKind" | "nam
  *
  * Storage grows on demand and is compacted opportunistically: once the head
  * pointer crosses the midpoint of the underlying array, we slice the consumed
- * prefix away. This keeps amortized memory at ~2× live size while keeping
- * `push` and `shift` O(1) — replacing the prior `buffer.slice(1)` per drain
- * which was O(N²) over a long-lived bucket (Tier 3.3.1 fix).
+ * prefix away. Memory bound is **worst-case ~3× live size** (DF3, 2026-04-29
+ * doc tighten — a queue that grows to N, drains to 0.6N, then re-pushes 0.4N
+ * retains ~3× live size between compactions). Amortized footprint trends
+ * lower under steady-state usage. Trade-off: keeps `push` and `shift` O(1) —
+ * replacing the prior `buffer.slice(1)` per drain which was O(N²) over a
+ * long-lived bucket (Tier 3.3.1 fix).
  */
 class HeadIndexQueue<T> {
 	private buf: T[] = [];
@@ -153,15 +156,26 @@ class HeadIndexQueue<T> {
  * compositor level (e.g. annotate via `meta.ai.upstream`, or wrap the gate
  * in a parent factory that exposes the deps as constructor args).
  *
- * ## Reference equality
+ * ## Reference equality + Tier 6.5 3.2.5 locked semantics
  *
- * The `constraints` array reference and each `BudgetConstraint.check`
- * function are captured at construction. The factory does NOT diff
- * subsequent `constraints` arrays (there is no subsequent — the array is
- * static for the gate's lifetime). To swap constraints reactively, build
- * the swap at the compositor level above the gate (Architecture-2:
- * compositor-only). Identity changes to `constraints` are observed only by
- * constructing a new gate.
+ * **Constraint VALUES are reactive.** Each `BudgetConstraint.node` is
+ * subscribed at activation; per-value changes flip the gate (re-evaluate
+ * in the same wave) and trigger PAUSE/RESUME upstream. Per the locked
+ * semantic rule for the reactive-options-widening batch (Tier 6.5 3.2.5,
+ * 2026-04-29): "constraints array re-evaluated immediately against
+ * current source; adding/removing constraints triggers gate
+ * re-evaluation in the same wave" — the per-value half is shipped via
+ * the existing constraint-Node subscription model.
+ *
+ * **The constraints ARRAY shape is static.** The factory captures the
+ * `constraints` array reference and each `check` function at
+ * construction; it does NOT diff subsequent arrays. To add or remove
+ * constraints reactively, build the swap at the compositor level (a
+ * `switchMap` rebuild over a constraint-shape Node), or construct a new
+ * gate. Dynamic constraint-array reactivity is intentionally deferred —
+ * the subscription churn (resub on every constraint add/remove) and
+ * `latestValues` shape mutation overshoot the budget-gate's
+ * fire-and-forget ergonomics.
  *
  * @param source - Input node.
  * @param constraints - Reactive constraint checks. MUST be non-empty.

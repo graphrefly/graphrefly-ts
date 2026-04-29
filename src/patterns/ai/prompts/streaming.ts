@@ -367,7 +367,7 @@ export function gatedStream<T = string>(
 	// queue — approve/modify would then surface `undefined` to downstream
 	// consumers. `filter` propagates RESOLVED for falsey matches, keeping the
 	// queue clean. (This was the second half of the gatedStream activation
-	// fix — the first was keepalive-ing `gateCtrl.node`.)
+	// fix — the first was keepalive-ing `gateCtrl.output`.)
 	const nonNullOutput = filter<T | null>(output, (v) => v != null) as Node<T>;
 	graph.add(nonNullOutput, { name: `${name}/raw` });
 
@@ -385,10 +385,10 @@ export function gatedStream<T = string>(
 	//
 	// - `keepalive(output)` activates the streaming switchMap so the adapter
 	//   generator runs even before a downstream subscriber attaches.
-	// - `keepalive(gateCtrl.node)` activates the gate's fn body — which is
+	// - `keepalive(gateCtrl.output)` activates the gate's fn body — which is
 	//   what writes into the internal `pending` queue. Without it, a caller
 	//   that only subscribes to `gate.count` / `gate.pending` / `deltaTopic`
-	//   (but not `gate.node`) would see `count` stuck at 0 indefinitely:
+	//   (but not `gate.output`) would see `count` stuck at 0 indefinitely:
 	//   stream values reach the gate's input but the gate's fn never runs.
 	// - `keepalive(accumulatedText)` ensures `.cache` reflects the running
 	//   total for callers that read the accumulator as a snapshot instead of
@@ -401,7 +401,7 @@ export function gatedStream<T = string>(
 	// `parent.destroy()` reclaims them even if the caller forgets to call
 	// `dispose()`. `dispose()` itself runs them eagerly for prompt teardown.
 	const unsubOutput = keepalive(output);
-	const unsubGate = keepalive(gateCtrl.node);
+	const unsubGate = keepalive(gateCtrl.output);
 	const unsubAccumulated = keepalive(accumulatedText);
 	graph.addDisposer(unsubOutput);
 	graph.addDisposer(unsubGate);
@@ -423,7 +423,7 @@ export function gatedStream<T = string>(
 	};
 
 	return {
-		output: gateCtrl.node,
+		output: gateCtrl.output,
 		deltaTopic,
 		accumulatedText,
 		gate: gateWithAbort,

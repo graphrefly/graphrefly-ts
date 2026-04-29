@@ -240,6 +240,10 @@ export function agentMemory<TMem = unknown>(
 	}
 
 	// --- Build distill bundle (the core) ---
+	// Tier 4.1 B (2026-04-29): when tiers are configured, `memoryWithTiers`
+	// is the construction site for the distill bundle so it can wire
+	// `reactiveMap.retention` into the store at construction (no §7 cycle).
+	// When tiers are NOT configured, agentMemory calls `distill` directly.
 	const distillOpts: DistillOptions<TMem> = {
 		score: opts.score,
 		cost: opts.cost,
@@ -248,7 +252,24 @@ export function agentMemory<TMem = unknown>(
 		consolidate: consolidateFn,
 		consolidateTrigger,
 	};
-	const distillBundle = distill<unknown, TMem>(filteredSource, extractFn, distillOpts);
+
+	let distillBundle: DistillBundle<TMem>;
+	let memoryTiersBundle: MemoryTiersBundle<TMem> | null = null;
+	if (opts.tiers) {
+		const result = memoryWithTiers<unknown, TMem>(graph, filteredSource, extractFn, {
+			...opts.tiers,
+			score: opts.score,
+			cost: opts.cost,
+			...(opts.budget !== undefined ? { budget: opts.budget } : { budget: 2000 }),
+			...(opts.context !== undefined ? { context: opts.context } : {}),
+			...(consolidateFn !== undefined ? { consolidate: consolidateFn } : {}),
+			...(consolidateTrigger !== undefined ? { consolidateTrigger } : {}),
+		});
+		distillBundle = result.store;
+		memoryTiersBundle = result.tiers;
+	} else {
+		distillBundle = distill<unknown, TMem>(filteredSource, extractFn, distillOpts);
+	}
 
 	graph.add(distillBundle.store.entries, { name: "store" });
 	graph.add(distillBundle.compact, { name: "compact" });
@@ -270,16 +291,6 @@ export function agentMemory<TMem = unknown>(
 			mountPath: "kg",
 			entityFn: opts.entityFn,
 		}).kg;
-	}
-
-	// --- 3-tier storage (composer) ---
-	let memoryTiersBundle: MemoryTiersBundle<TMem> | null = null;
-	if (opts.tiers) {
-		memoryTiersBundle = memoryWithTiers(graph, distillBundle, {
-			...opts.tiers,
-			score: opts.score,
-			context: opts.context,
-		}).tiers;
 	}
 
 	// --- Retrieval pipeline (composer) ---
@@ -307,6 +318,13 @@ export function agentMemory<TMem = unknown>(
 		retrieveReactive = bundle.retrieveReactive;
 	}
 
+	// Tier 5.1 (deferred 2026-04-29): the `Object.assign(graph, {...})`
+	// pattern is preserved here because there are no `instanceof
+	// AgentMemoryGraph` consumers in-tree and migrating to a real
+	// `class extends Graph` would require moving the factory body into a
+	// constructor (substantial, low-ROI). When a future consumer needs
+	// `instanceof` narrowing, port to a class — the property shape (above)
+	// is already prototype-friendly.
 	return Object.assign(graph, {
 		distillBundle,
 		compact: distillBundle.compact,

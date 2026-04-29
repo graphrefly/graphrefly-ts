@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { memoryAppendLog } from "../../extra/storage-tiers.js";
+import {
+	type KvStorageTier,
+	kvStorage,
+	memoryAppendLog,
+	memoryBackend,
+} from "../../extra/storage-tiers.js";
 import type { CqrsEvent } from "../../patterns/cqrs/index.js";
 import { cqrs } from "../../patterns/cqrs/index.js";
 import {
 	type ProcessInstance,
+	type ProcessStateSnapshot,
 	processInstanceKeyOf,
 	processManager,
 } from "../../patterns/process/index.js";
@@ -898,6 +904,32 @@ describe("processManager", () => {
 			expect(stepCallCount).toBe(1); // unchanged
 			app.destroy();
 		});
+
+		it("dispose() unmounts the audit-log + seq-cursor subgraph (EH-16, Tier 6.5 3.3)", () => {
+			const app = cqrs("eh16-app");
+			const pm1 = processManager(app, "wf", {
+				initial: { value: 0 },
+				watching: ["fireEv" as const],
+				steps: { fireEv: (s) => ({ outcome: "success" as const, state: s }) },
+			});
+			// Subgraph mounted at __processManagers__/wf — its `seq` cursor
+			// is reachable via the qualified path. Pre-dispose: present.
+			expect(app.tryResolve("__processManagers__/wf::seq")).toBeDefined();
+			pm1.dispose();
+			// After dispose, the mount is gone — repeated create-dispose
+			// cycles no longer leak nodes on the CQRS graph.
+			expect(app.tryResolve("__processManagers__/wf::seq")).toBeUndefined();
+			// A fresh manager with the SAME name must construct cleanly post-dispose.
+			const pm2 = processManager(app, "wf", {
+				initial: { value: 0 },
+				watching: ["fireEv" as const],
+				steps: { fireEv: (s) => ({ outcome: "success" as const, state: s }) },
+			});
+			expect(app.tryResolve("__processManagers__/wf::seq")).toBeDefined();
+			pm2.dispose();
+			expect(app.tryResolve("__processManagers__/wf::seq")).toBeUndefined();
+			app.destroy();
+		});
 	});
 
 	// ── 11. persistence — eventStorage wiring (Audit 3 + Audit 4) ──────────
@@ -933,6 +965,86 @@ describe("processManager", () => {
 			const correlationIds = new Set(started.map((e) => e.aggregateId));
 			expect(correlationIds).toEqual(new Set(["corr-1", "corr-2"]));
 
+			app.destroy();
+		});
+
+		it("stateStorage round-trip — save on start, restore() on fresh manager (Tier 6.5 3.5)", async () => {
+			// Shared backend so the second processManager sees what the first wrote.
+			const backend = memoryBackend();
+			const tier1: KvStorageTier<unknown> = kvStorage(backend, { name: "states" });
+
+			const app1 = cqrs("wf-app-1");
+			app1.command("dispatchEv", (_payload: unknown, { emit }) => {
+				emit("fireEv", _payload);
+			});
+			const pm1 = processManager(app1, "wf", {
+				initial: { step: "init" },
+				watching: ["fireEv" as const],
+				steps: {
+					fireEv: (_s) => ({ outcome: "success" as const, state: { step: "advanced" } }),
+				},
+				persistence: {
+					stateStorage: [tier1 as KvStorageTier<ProcessStateSnapshot<{ step: string }>>],
+				},
+			});
+			pm1.start("corr-A");
+			pm1.start("corr-B");
+			app1.dispatch("dispatchEv", {}, { correlationId: "corr-A" });
+			await flushPromises();
+			await tier1.flush?.();
+
+			// First manager goes away (simulate restart).
+			pm1.dispose();
+			app1.destroy();
+
+			// Fresh manager + fresh CQRS graph; state tier reattached.
+			const app2 = cqrs("wf-app-2");
+			app2.command("dispatchEv", (_payload: unknown, { emit }) => {
+				emit("fireEv", _payload);
+			});
+			const tier2: KvStorageTier<unknown> = kvStorage(backend, { name: "states" });
+			const pm2 = processManager(app2, "wf", {
+				initial: { step: "init" },
+				watching: ["fireEv" as const],
+				steps: {
+					fireEv: (s) => ({ outcome: "success" as const, state: { ...s, step: "advanced-2" } }),
+				},
+				persistence: {
+					stateStorage: [tier2 as KvStorageTier<ProcessStateSnapshot<{ step: string }>>],
+				},
+			});
+			const restored = await pm2.restore();
+			expect(restored).toBe(2);
+			// corr-A had advanced before restart; the persisted state reflects "advanced".
+			expect(pm2.getState("corr-A")).toEqual({ step: "advanced" });
+			expect(pm2.getState("corr-B")).toEqual({ step: "init" });
+
+			pm2.dispose();
+			app2.destroy();
+		});
+
+		it("stateStorage deletes terminal records (Tier 6.5 3.5)", async () => {
+			const tier: KvStorageTier<unknown> = kvStorage(memoryBackend(), { name: "states" });
+			const app = cqrs("wf-term");
+			app.command("dispatchEv", (_payload: unknown, { emit }) => {
+				emit("fireEv", _payload);
+			});
+			const pm = processManager(app, "wf", {
+				initial: { step: "init" },
+				watching: ["fireEv" as const],
+				steps: {
+					fireEv: (s) => ({ outcome: "terminate" as const, state: { ...s, step: "done" } }),
+				},
+				persistence: {
+					stateStorage: [tier as KvStorageTier<ProcessStateSnapshot<{ step: string }>>],
+				},
+			});
+			pm.start("corr-T");
+			expect(await tier.load("corr-T")).toBeDefined();
+			app.dispatch("dispatchEv", {}, { correlationId: "corr-T" });
+			await flushPromises();
+			expect(await tier.load("corr-T")).toBeUndefined();
+			pm.dispose();
 			app.destroy();
 		});
 	});

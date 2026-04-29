@@ -14,10 +14,14 @@ import {
 	withMaxAttempts,
 } from "../../extra/backoff.js";
 import {
+	type CircuitBreakerOptions,
 	CircuitOpenError,
 	circuitBreaker,
 	fallback,
+	type RateLimiterOptions,
 	RateLimiterOverflowError,
+	type RateLimiterState,
+	type RetryOptions,
 	rateLimiter,
 	retry,
 	TimeoutError,
@@ -1052,6 +1056,120 @@ describe("extra resilience (roadmap §3.1)", () => {
 			expect(tb.available()).toBe(0);
 			tb.putBack(2);
 			expect(tb.available()).toBe(2);
+		});
+	});
+
+	// ── Tier 6.5 3.2: reactive option swaps (NodeOrValue<Options>) ──────────
+
+	describe("Tier 6.5 3.2: reactive options widening", () => {
+		it("3.2.1 timeout: Node<number> option re-read on next attempt boundary", () => {
+			vi.useFakeTimers();
+			const src = producer(() => undefined); // never emits
+			const optNode = state<number>(50 * NS_PER_MS);
+			const out = timeout(src, optNode);
+			const { batches, unsub } = collect(out);
+			// Initial 50ms — no fire yet at 30ms.
+			vi.advanceTimersByTime(30);
+			expect(batches.flat().some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
+			// Swap option to 200ms — applies to the NEXT timer (current
+			// in-flight timer keeps its 50ms deadline). Past 50ms total → fire.
+			optNode.emit(200 * NS_PER_MS);
+			vi.advanceTimersByTime(30); // total 60ms — original deadline crossed
+			const flat = batches.flat();
+			expect(
+				flat.some(
+					(m) =>
+						(m as [symbol, unknown])[0] === ERROR &&
+						(m as [symbol, unknown])[1] instanceof TimeoutError,
+				),
+			).toBe(true);
+			unsub();
+			vi.useRealTimers();
+		});
+
+		it("3.2.2 retry: Node<RetryOptions> swap shrinks count → next attempt fails immediately", () => {
+			vi.useFakeTimers();
+			let attemptCount = 0;
+			const optNode = state<RetryOptions>({ count: 5 });
+			const factory = (): Node<number> => {
+				attemptCount += 1;
+				return producer((a) => {
+					a.down([[ERROR, new Error(`attempt ${attemptCount}`)]]);
+				});
+			};
+			const out = retry(factory, optNode);
+			const { batches, unsub } = collect(out);
+			// First attempt fires synchronously via the producer body; further
+			// retries are scheduled via 1ms-floor timer. Drive timer drain.
+			vi.advanceTimersByTime(50);
+			const afterFirstWindow = attemptCount;
+			expect(afterFirstWindow).toBeGreaterThanOrEqual(2);
+			// Shrink count to 0 → next attempt's `getCfg()` reads count=0,
+			// `attempt >= 0` → finishes immediately with ERROR.
+			optNode.emit({ count: 0 });
+			vi.advanceTimersByTime(50);
+			// Retry chain emits final ERROR after exhaustion under new count.
+			const flat = batches.flat();
+			expect(flat.some((m) => (m as [symbol])[0] === ERROR)).toBe(true);
+			// No further attempts after the swap (locked semantic).
+			expect(attemptCount).toBeLessThanOrEqual(afterFirstWindow + 1);
+			unsub();
+			vi.useRealTimers();
+		});
+
+		it("3.2.3 rateLimiter: Node<Options> swap shrinks maxBuffer → drop-oldest until fit", () => {
+			vi.useFakeTimers();
+			const src = state<number>(0);
+			const optNode = state<RateLimiterOptions>({
+				maxEvents: 1,
+				windowNs: NS_PER_SEC,
+				maxBuffer: 10,
+				onOverflow: "drop-newest",
+			});
+			const bundle = rateLimiter(src, optNode);
+			const { unsub } = collect(bundle.node);
+			// Push 5 DATAs into the source. The bucket (capacity=1) consumes
+			// one token per push attempt; subsequent pushes accumulate in
+			// pending until a token refills.
+			for (let i = 1; i <= 5; i++) src.down([[DATA, i]]);
+			const before = bundle.rateLimitState.cache as RateLimiterState;
+			// All pushed items land in `pending` then `tryEmit` consumes
+			// available tokens. With cap=1 and 5 inputs (plus initial state 0
+			// push-on-subscribe) the steady pending count is 5 (one consumed
+			// emit, the rest waiting for refill).
+			expect(before.pendingCount).toBe(5);
+			expect(before.droppedCount).toBe(0);
+			// Shrink maxBuffer to 2 — drop-oldest until pending.size <= 2.
+			optNode.emit({
+				maxEvents: 1,
+				windowNs: NS_PER_SEC,
+				maxBuffer: 2,
+				onOverflow: "drop-newest",
+			});
+			const after = bundle.rateLimitState.cache as RateLimiterState;
+			expect(after.pendingCount).toBe(2);
+			expect(after.droppedCount).toBe(3); // 5 - 2 = 3 dropped
+			unsub();
+			vi.useRealTimers();
+		});
+
+		it("3.2.4 circuitBreaker: Node<Options> swap resets to closed (locked semantic)", () => {
+			const now = 0;
+			const optNode = state<CircuitBreakerOptions>({
+				failureThreshold: 2,
+				cooldownNs: NS_PER_SEC,
+				now: () => now,
+			});
+			const breaker = circuitBreaker(optNode);
+			breaker.recordFailure();
+			breaker.recordFailure();
+			expect(breaker.state).toBe("open"); // hit threshold
+			expect(breaker.failureCount).toBe(2);
+			// Swap options — locked: resets to closed, counters cleared.
+			optNode.emit({ failureThreshold: 5, cooldownNs: NS_PER_SEC, now: () => now });
+			expect(breaker.state).toBe("closed");
+			expect(breaker.failureCount).toBe(0);
+			breaker.dispose();
 		});
 	});
 });

@@ -74,6 +74,16 @@ export interface IntakeItem {
 	affectsAreas: string[];
 	affectsEvalTasks?: string[];
 	severity?: Severity;
+	/**
+	 * Stable identity carrier for retry / reingestion paths. Per qa D1
+	 * (2026-04-29), `relatedTo[0]` MUST be the original tracking key for
+	 * items derived from a prior publish so the harness's `routeJobIds`
+	 * map preserves identity across decorated retry summaries. First-time
+	 * publishes leave this `undefined`; the tracking key falls back to
+	 * `summary`. Two first-time publishes with identical `summary` collide
+	 * on key — see `trackingKey` JSDoc in `patterns/_internal/index.ts`
+	 * for the uniqueness caller contract.
+	 */
 	relatedTo?: string[];
 	/** Item-carried reingestion count. Incremented on each full-loop reingestion. */
 	$reingestions?: number;
@@ -286,6 +296,7 @@ export interface HarnessJobPayload<A = unknown> {
  */
 export type HarnessExecutor<A = unknown> = (
 	job: JobEnvelope<HarnessJobPayload<A>>,
+	opts?: { signal: AbortSignal },
 ) => NodeInput<HarnessJobPayload<A>>;
 
 /**
@@ -306,6 +317,7 @@ export type HarnessExecutor<A = unknown> = (
  */
 export type HarnessVerifier<A = unknown> = (
 	job: JobEnvelope<HarnessJobPayload<A>>,
+	opts?: { signal: AbortSignal },
 ) => NodeInput<HarnessJobPayload<A>>;
 
 /** Triage prompt callable shape — pair of `[intake item, strategy snapshot]`. */

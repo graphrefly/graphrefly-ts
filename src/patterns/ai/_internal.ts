@@ -143,6 +143,14 @@ export interface OneShotLlmCallConfig<T> {
 	 * overridden here (cancellation is a hard contract of this helper).
 	 */
 	invokeOpts?: Omit<LLMInvokeOptions, "signal">;
+	/**
+	 * Optional parent abort signal (e.g. JobFlow pump's per-claim signal).
+	 * When the parent aborts, the helper aborts its inner AbortController —
+	 * so `adapter.invoke({ signal })` and `fromAny({ signal })` see the
+	 * cascade and cancel in-flight work. Pump-driven harness teardown
+	 * (`harness.destroy()`) propagates through this hook (Tier 6.5 2.5b).
+	 */
+	parentSignal?: AbortSignal;
 }
 
 /**
@@ -179,6 +187,20 @@ export function _oneShotLlmCall<T>(
 ): NodeInput<T> {
 	return producer<T>((actions) => {
 		const ac = new AbortController();
+		// Link parent signal (e.g. pump per-claim signal) so cascading
+		// teardown propagates: parent abort → inner ac.abort → adapter +
+		// fromAny cancel.
+		const parentSignal = config.parentSignal;
+		let unlinkParent: () => void = () => undefined;
+		if (parentSignal) {
+			if (parentSignal.aborted) {
+				ac.abort();
+			} else {
+				const onParentAbort = (): void => ac.abort();
+				parentSignal.addEventListener("abort", onParentAbort, { once: true });
+				unlinkParent = () => parentSignal.removeEventListener("abort", onParentAbort);
+			}
+		}
 		let captured = false;
 		let unsub: (() => void) | null = null;
 		const emitOnce = (value: T): void => {
@@ -193,7 +215,10 @@ export function _oneShotLlmCall<T>(
 			invokeResult = adapter.invoke(messages, { ...config.invokeOpts, signal: ac.signal });
 		} catch (err) {
 			emitOnce(config.onFailure("throw", err));
-			return () => ac.abort();
+			return () => {
+				unlinkParent();
+				ac.abort();
+			};
 		}
 		const callNode = fromAny<LLMResponse>(invokeResult, { signal: ac.signal });
 		unsub = callNode.subscribe((batch) => {
@@ -229,6 +254,7 @@ export function _oneShotLlmCall<T>(
 			unsub = null;
 		}
 		return () => {
+			unlinkParent();
 			ac.abort();
 			unsub?.();
 			unsub = null;

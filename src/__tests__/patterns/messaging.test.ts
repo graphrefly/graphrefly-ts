@@ -263,6 +263,85 @@ describe("patterns.messaging", () => {
 			}),
 		).toThrow();
 	});
+
+	it("jobFlow stage maxInflight caps concurrent inflight; resumes on settle (Tier 6.5 3.1)", async () => {
+		// Two slots open per stage. Emit 5 items into stage1; assert at most 2
+		// are in-flight at once. Resolve one held promise → next claim should
+		// kick off (the inflightCounter dep re-fires the pump).
+		const concurrency: number[] = [];
+		let live = 0;
+		const resolvers: Array<(v: number) => void> = [];
+		const flow = jobFlow<number>("flow-cap", {
+			stages: [
+				{
+					name: "work",
+					maxInflight: 2,
+					work: (job) => {
+						live += 1;
+						concurrency.push(live);
+						return new Promise<number>((r) => {
+							resolvers.push((v) => {
+								live -= 1;
+								r(v);
+							});
+						}).then((v) => v + job.payload);
+					},
+				},
+				"done",
+			],
+		});
+		const unsub = flow.completed.subscribe(() => undefined);
+		for (let i = 0; i < 5; i++) flow.queue("work").enqueue(i);
+		// Without maxInflight, all 5 work fns would have started.
+		expect(resolvers.length).toBe(2);
+		expect(concurrency.every((c) => c <= 2)).toBe(true);
+		// Settle one → counter decrements → pump re-fires → next claim starts.
+		resolvers.shift()?.(100);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(resolvers.length).toBe(2);
+		expect(concurrency.every((c) => c <= 2)).toBe(true);
+		// Drain the rest.
+		while (resolvers.length > 0) {
+			resolvers.shift()?.(0);
+			await Promise.resolve();
+			await Promise.resolve();
+		}
+		flow.destroy();
+		unsub();
+	});
+
+	it("jobFlow pump aborts inflight per-claim signal on destroy (Tier 6.5 2.5a)", () => {
+		// Long-running work fn that resolves never inside the test's scope —
+		// the inflight subscription stays open. Capture the signal from opts so
+		// the test can assert teardown propagates abort to user-supplied work.
+		const seen: AbortSignal[] = [];
+		const flow = jobFlow<number>("flow-abort", {
+			stages: [
+				{
+					name: "work",
+					work: (job, opts) => {
+						if (opts?.signal != null) seen.push(opts.signal);
+						return new Promise<number>(() => {
+							/* never resolves — held until abort */
+						});
+					},
+				},
+				"done",
+			],
+		});
+		// Activation: subscribe so the pump effect runs.
+		const unsub = flow.completed.subscribe(() => undefined);
+		flow.queue("work").enqueue(1);
+		flow.queue("work").enqueue(2);
+		// Two claims → two inflight subscriptions → two signals captured.
+		expect(seen.length).toBe(2);
+		expect(seen.every((s) => !s.aborted)).toBe(true);
+		// Destroy the flow graph — pump teardown drains inflight signals.
+		flow.destroy();
+		expect(seen.every((s) => s.aborted)).toBe(true);
+		unsub();
+	});
 });
 
 describe("patterns.messagingHub", () => {

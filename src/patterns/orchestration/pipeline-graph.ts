@@ -78,7 +78,12 @@ export interface GateOptions<T = unknown> {
 }
 
 export interface GateController<T> {
-	readonly node: Node<T>;
+	/**
+	 * The post-gate output node. Renamed from `node` (Tier 5.2 / EC6,
+	 * 2026-04-29) to avoid shadowing `Graph.node(name)` when a gate is
+	 * accessed off a `PipelineGraph` instance.
+	 */
+	readonly output: Node<T>;
 	readonly pending: Node<readonly T[]>;
 	readonly count: Node<number>;
 	readonly isOpen: Node<boolean>;
@@ -501,7 +506,7 @@ export class PipelineGraph extends Graph {
 		this.addDisposer(countNode.subscribe(() => undefined));
 
 		const controller: GateController<T> = {
-			node: output,
+			output,
 			pending: pendingNode,
 			count: countNode,
 			isOpen: isOpenNode,

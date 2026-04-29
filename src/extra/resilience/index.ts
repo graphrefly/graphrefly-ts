@@ -138,9 +138,16 @@ function retryFactoryArgs(opts?: RetryOptions): Record<string, unknown> | undefi
  * the only per-mode logic is supplied via `acquireSource` (returns a fresh `Node<T>`
  * per attempt — for source-mode it just returns the captured `Node`; for factory-mode
  * it calls the user factory and forwards synchronous throws into the same retry path).
+ *
+ * **Reactive cfg (Tier 6.5 3.2.2, 2026-04-29).** `getCfg` is invoked at
+ * every decision point (`scheduleRetryOrFinish` count + strategy reads)
+ * so option swaps mid-flight take effect at the next attempt boundary
+ * per the locked semantic rule: "next attempt fails immediately if
+ * already exhausted under new count; `backoff` swap takes effect at next
+ * retry's delay calculation."
  */
 function _runRetryStateMachine<T>(
-	cfg: ResolvedRetryConfig,
+	getCfg: () => ResolvedRetryConfig,
 	acquireSource: () => Node<T>,
 	a: { emit: (v: T) => void; down: (msgs: Message[]) => void },
 ): () => void {
@@ -157,6 +164,7 @@ function _runRetryStateMachine<T>(
 
 	function scheduleRetryOrFinish(err: unknown): void {
 		if (stopped) return;
+		const cfg = getCfg();
 		if (attempt >= cfg.maxRetries) {
 			disconnectUpstream();
 			a.down([[ERROR, err]]);
@@ -217,6 +225,13 @@ function _runRetryStateMachine<T>(
 					a.emit(m[1] as T);
 				} else if (t === RESOLVED) a.down([[RESOLVED]]);
 				else if (t === COMPLETE) {
+					// DF2 (2026-04-29): set `stopped = true` BEFORE
+					// `disconnectUpstream()` so a re-entrant ERROR delivered
+					// in the same wave (after disconnect runs but before the
+					// teardown closure fires `stopped = true`) hits the
+					// `if (stopped) return` guard at line 159 and cannot
+					// schedule a new retry timer.
+					stopped = true;
 					disconnectUpstream();
 					a.down([[COMPLETE]]);
 				} else if (t === ERROR) {
@@ -281,34 +296,101 @@ function _runRetryStateMachine<T>(
  *
  * @category extra
  */
-export function retry<T>(input: Node<T>, opts?: RetryOptions): Node<T>;
-export function retry<T>(input: () => Node<T>, opts?: RetryFactoryOptions<T>): Node<T>;
+export function retry<T>(input: Node<T>, opts?: NodeOrValue<RetryOptions>): Node<T>;
+export function retry<T>(input: () => Node<T>, opts?: NodeOrValue<RetryFactoryOptions<T>>): Node<T>;
 export function retry<T>(
 	input: Node<T> | (() => Node<T>),
-	opts?: RetryOptions | RetryFactoryOptions<T>,
+	opts?: NodeOrValue<RetryOptions | RetryFactoryOptions<T>>,
 ): Node<T> {
 	if (typeof input === "function") {
-		return _retryFactory(input, opts as RetryFactoryOptions<T> | undefined);
+		return _retryFactory(input, opts as NodeOrValue<RetryFactoryOptions<T>> | undefined);
 	}
-	return _retrySource(input, opts);
+	return _retrySource(input, opts as NodeOrValue<RetryOptions> | undefined);
 }
 
-function _retrySource<T>(source: Node<T>, opts?: RetryOptions): Node<T> {
-	const cfg = resolveRetryConfig(opts);
-	return producer<T>((a) => _runRetryStateMachine(cfg, () => source, a), {
-		...operatorOpts(),
-		initial: source.cache,
-		meta: { ...(opts?.meta ?? {}), ...factoryTag("retry", retryFactoryArgs(opts)) },
-	});
+// DF6 (2026-04-29): once-per-source dedup for the source-mode-retry warn.
+// Mirrors the `_bumpCursorWarned` pattern in `extra/mutation/index.ts`.
+const _retrySourceNonResubscribableWarned = new WeakSet<Node<unknown>>();
+
+function _retrySource<T>(source: Node<T>, opts?: NodeOrValue<RetryOptions>): Node<T> {
+	// Source-mode retry re-subscribes to the SAME source node after each
+	// terminal ERROR. If the upstream was constructed with the default
+	// `resubscribable: false`, the second subscribe-after-terminal is a
+	// silent no-op and retries effectively never re-deliver. Surface
+	// once-per-source so misconfigurations fail loud without log spam.
+	const sourceWithFlag = source as unknown as { _resubscribable?: boolean };
+	if (
+		sourceWithFlag._resubscribable === false &&
+		!_retrySourceNonResubscribableWarned.has(source)
+	) {
+		_retrySourceNonResubscribableWarned.add(source);
+		console.warn(
+			"retry(source, opts): source-mode requires `resubscribable: true` on the upstream " +
+				"node. Retries will be silent no-ops after the first ERROR. Either pass " +
+				"`resubscribable: true` to the source factory, OR use factory-mode retry " +
+				"`retry(() => buildSource(), opts)` so each attempt builds a fresh node.",
+		);
+	}
+	const staticOpts = isNode(opts) ? undefined : (opts as RetryOptions | undefined);
+	// Eager validation for static-form opts (preserves construction-time
+	// "backoff without count" RangeError). Reactive-form opts re-validate
+	// per `getCfg()` call inside the state machine.
+	if (!isNode(opts)) resolveRetryConfig(staticOpts);
+	return producer<T>(
+		(a) => {
+			const optMirror = resolveReactiveOption<RetryOptions>(opts as NodeOrValue<RetryOptions>);
+			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(optMirror.current());
+			const inner = _runRetryStateMachine(getCfg, () => source, a);
+			return () => {
+				inner();
+				optMirror.unsub();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: source.cache,
+			meta: {
+				...(staticOpts?.meta ?? {}),
+				...factoryTag(
+					"retry",
+					isNode(opts) ? { reactiveOpts: true } : retryFactoryArgs(staticOpts),
+				),
+			},
+		},
+	);
 }
 
-function _retryFactory<T>(factory: () => Node<T>, opts?: RetryFactoryOptions<T>): Node<T> {
-	const cfg = resolveRetryConfig(opts);
-	return producer<T>((a) => _runRetryStateMachine(cfg, factory, a), {
-		...operatorOpts(),
-		initial: opts?.initial as T | undefined,
-		meta: { ...(opts?.meta ?? {}), ...factoryTag("retry", retryFactoryArgs(opts)) },
-	});
+function _retryFactory<T>(
+	factory: () => Node<T>,
+	opts?: NodeOrValue<RetryFactoryOptions<T>>,
+): Node<T> {
+	const staticOpts = isNode(opts) ? undefined : (opts as RetryFactoryOptions<T> | undefined);
+	// Eager validation for static-form opts (Tier 3.1 footgun preservation).
+	if (!isNode(opts)) resolveRetryConfig(staticOpts);
+	return producer<T>(
+		(a) => {
+			const optMirror = resolveReactiveOption<RetryFactoryOptions<T>>(
+				opts as NodeOrValue<RetryFactoryOptions<T>>,
+			);
+			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(optMirror.current());
+			const inner = _runRetryStateMachine(getCfg, factory, a);
+			return () => {
+				inner();
+				optMirror.unsub();
+			};
+		},
+		{
+			...operatorOpts(),
+			initial: staticOpts?.initial as T | undefined,
+			meta: {
+				...(staticOpts?.meta ?? {}),
+				...factoryTag(
+					"retry",
+					isNode(opts) ? { reactiveOpts: true } : retryFactoryArgs(staticOpts),
+				),
+			},
+		},
+	);
 }
 
 export type CircuitState = "closed" | "open" | "half-open";
@@ -362,6 +444,13 @@ export interface CircuitBreaker {
 	readonly failureCount: number;
 	/** Manually reset to closed state, clearing all counters. */
 	reset(): void;
+	/**
+	 * Release the reactive-options subscription (Tier 6.5 3.2.4, 2026-04-29).
+	 * No-op when constructed with static options. Call when retiring a
+	 * breaker whose options came from a `Node<CircuitBreakerOptions>` to
+	 * avoid leaking the option-Node subscription.
+	 */
+	dispose(): void;
 }
 
 /**
@@ -370,11 +459,23 @@ export interface CircuitBreaker {
  * Supports escalating cooldown via an optional {@link BackoffStrategy} — each consecutive
  * open→half-open→open cycle increments the backoff attempt.
  *
- * @param options - Threshold, cooldown, half-open limit, and optional clock override.
+ * @param options - Threshold, cooldown, half-open limit, and optional clock
+ *   override; OR a `Node<CircuitBreakerOptions>` carrying the same shape
+ *   reactively (Tier 6.5 3.2.4).
  * @returns {@link CircuitBreaker} instance.
  *
  * @remarks
  * **Timing:** Uses `monotonicNs()` by default (nanoseconds). Override `now` for tests.
+ *
+ * **Reactive options (locked semantics, Tier 6.5 3.2.4, 2026-04-29).**
+ * When `options` is a `Node<CircuitBreakerOptions>`, the breaker
+ * subscribes at construction and re-reads `failureThreshold` /
+ * `cooldownNs` / `cooldown` / `halfOpenMax` / `now` on each DATA. **An
+ * option swap RESETS the breaker to `"closed"`** with all counters
+ * cleared — operators tuning a runaway breaker get a clean baseline.
+ * If retaining failure history across re-tunings matters, derive a new
+ * breaker per-tuning instead. Call `breaker.dispose()` when retiring to
+ * release the option-Node subscription.
  *
  * @example
  * ```ts
@@ -388,12 +489,20 @@ export interface CircuitBreaker {
  *
  * @category extra
  */
-export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker {
-	const threshold = Math.max(1, options?.failureThreshold ?? 5);
-	const baseCooldownNs = clampNonNegative(options?.cooldownNs ?? 30 * NS_PER_SEC);
-	const cooldownStrategy = options?.cooldown ?? null;
-	const halfOpenMax = Math.max(1, options?.halfOpenMax ?? 1);
-	const now = options?.now ?? monotonicNs;
+export function circuitBreaker(options?: NodeOrValue<CircuitBreakerOptions>): CircuitBreaker {
+	let threshold = 5;
+	let baseCooldownNs = 30 * NS_PER_SEC;
+	let cooldownStrategy: BackoffStrategy | null = null;
+	let halfOpenMax = 1;
+	let now: () => number = monotonicNs;
+
+	function applyOptions(o: CircuitBreakerOptions | undefined): void {
+		threshold = Math.max(1, o?.failureThreshold ?? 5);
+		baseCooldownNs = clampNonNegative(o?.cooldownNs ?? 30 * NS_PER_SEC);
+		cooldownStrategy = o?.cooldown ?? null;
+		halfOpenMax = Math.max(1, o?.halfOpenMax ?? 1);
+		now = o?.now ?? monotonicNs;
+	}
 
 	let _state: CircuitState = "closed";
 	let _failureCount = 0;
@@ -401,6 +510,23 @@ export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker 
 	let _lastOpenedAt = 0;
 	let _lastCooldownNs = baseCooldownNs;
 	let _halfOpenAttempts = 0;
+
+	// Initial application + reactive subscription. On every DATA from a
+	// reactive option Node, reset the breaker to "closed" so re-tuning
+	// produces a clean baseline (locked semantic).
+	const optMirror = resolveReactiveOption<CircuitBreakerOptions>(
+		options as NodeOrValue<CircuitBreakerOptions>,
+		(next) => {
+			applyOptions(next);
+			_state = "closed";
+			_failureCount = 0;
+			_openCycle = 0;
+			_halfOpenAttempts = 0;
+			_lastCooldownNs = baseCooldownNs;
+		},
+	);
+	applyOptions(optMirror.current());
+	_lastCooldownNs = baseCooldownNs;
 
 	function getCooldownNs(): number {
 		if (!cooldownStrategy) return baseCooldownNs;
@@ -474,6 +600,10 @@ export function circuitBreaker(options?: CircuitBreakerOptions): CircuitBreaker 
 			_failureCount = 0;
 			_openCycle = 0;
 			_halfOpenAttempts = 0;
+		},
+
+		dispose(): void {
+			optMirror.unsub();
 		},
 	};
 
@@ -824,37 +954,63 @@ export type RateLimiterBundle<T> = {
  *
  * @category extra
  */
-export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateLimiterBundle<T> {
-	const { maxEvents, windowNs } = opts;
-	if (maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
-	if (windowNs <= 0) throw new RangeError("windowNs must be > 0");
-	const maxBuffer = opts.maxBuffer;
-	if (maxBuffer === undefined) {
-		throw new RangeError(
-			"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
-		);
+export function rateLimiter<T>(
+	source: Node<T>,
+	opts: NodeOrValue<RateLimiterOptions>,
+): RateLimiterBundle<T> {
+	// Eager validation of static-form opts. Reactive-form opts re-validate
+	// on each emit via `applyOpts` (invalid runtime config keeps the previous
+	// values rather than throwing — the producer body's swap path never
+	// throws into the dataplane).
+	const isReactive = isNode(opts);
+	if (!isReactive) {
+		const o = opts as RateLimiterOptions;
+		if (o.maxEvents <= 0) throw new RangeError("maxEvents must be > 0");
+		if (o.windowNs <= 0) throw new RangeError("windowNs must be > 0");
+		if (o.maxBuffer === undefined) {
+			throw new RangeError(
+				"rateLimiter requires explicit maxBuffer (use Infinity to opt in to unbounded)",
+			);
+		}
+		const isUnbounded0 = o.maxBuffer === Infinity;
+		if (!isUnbounded0 && (!Number.isInteger(o.maxBuffer) || o.maxBuffer < 1)) {
+			throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
+		}
 	}
-	// Allow `Infinity` for opt-in unbounded; otherwise require a positive integer.
-	const isUnbounded = maxBuffer === Infinity;
-	if (!isUnbounded && (!Number.isInteger(maxBuffer) || maxBuffer < 1)) {
-		throw new RangeError("maxBuffer must be a positive integer (or Infinity for unbounded)");
-	}
-	const onOverflow: RateLimiterOverflowPolicy = opts.onOverflow ?? "drop-newest";
-	const refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
+	// Mode (bounded vs unbounded) is locked at construction time per the
+	// Tier 6.5 3.2.3 swap rule — runtime opt swaps change the cap WITHIN
+	// the same mode. Toggling between bounded/unbounded requires re-mounting
+	// the rateLimiter; the queue type is structural, not a tunable. For
+	// reactive opts we read the FIRST value (cached or undefined) to lock
+	// the mode; if the cache is undefined at construction we conservatively
+	// default to bounded with a placeholder cap, and the first emit re-locks.
+	const initialOpts: RateLimiterOptions | undefined = isReactive
+		? ((opts as Node<RateLimiterOptions>).cache as RateLimiterOptions | undefined)
+		: (opts as RateLimiterOptions);
+	const initialMaxBuffer = initialOpts?.maxBuffer;
+	const isUnbounded = initialMaxBuffer === Infinity;
 
 	const out = producer<T>(
 		(a) => {
-			const bucket = tokenBucket(maxEvents, refillPerSec);
+			// Mutable closure-state — replaced on each option swap.
+			let maxEvents = initialOpts?.maxEvents ?? 1;
+			let windowNs = initialOpts?.windowNs ?? NS_PER_SEC;
+			let maxBuffer = initialMaxBuffer ?? 1;
+			let onOverflow: RateLimiterOverflowPolicy = initialOpts?.onOverflow ?? "drop-newest";
+			let refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
+			let tokenTimeNs = NS_PER_SEC / refillPerSec;
+			let bucket = tokenBucket(maxEvents, refillPerSec);
+
 			// RingBuffer for O(1) push + shift. Unbounded mode falls back to a plain
 			// array (RingBuffer requires a positive integer capacity); the caller
 			// explicitly opted in via `maxBuffer: Infinity` and accepts the cost.
+			// Bounded mode allocates with the INITIAL `maxBuffer`; runtime cap
+			// reductions enforce drop-oldest at push time without resizing the ring.
 			const pending: { push: (v: T) => void; shift: () => T | undefined; size: number } =
-				isUnbounded ? makeArrayQueue<T>() : ringBufferQueue<T>(maxBuffer);
+				isUnbounded ? makeArrayQueue<T>() : ringBufferQueue<T>(Math.max(1, maxBuffer));
 			const timer = new ResettableTimer();
 			let terminated = false;
 			let dropped = 0;
-
-			const tokenTimeNs = NS_PER_SEC / refillPerSec;
 
 			// Mirror the dropped counter + combined state to the meta companions.
 			// The `emit` call is the same subscribe-callback effect-mirror
@@ -887,6 +1043,71 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 			lastState = RATE_LIMITER_INITIAL_STATE;
 			droppedNode.emit(0);
 			stateNode.emit(RATE_LIMITER_INITIAL_STATE);
+
+			// Tier 6.5 3.2.3 (2026-04-29): reactive option swap handler.
+			// Locked semantics: `maxEvents`/`windowNs` swap rebuilds the
+			// token bucket at the next refill window (tokens reset to new
+			// capacity, refill rate updates immediately). `maxBuffer` shrink
+			// drops oldest pending entries until size ≤ new cap. `onOverflow`
+			// swap takes effect at the next overflow check. Mode toggling
+			// (bounded ↔ unbounded) is NOT supported — locked at construction.
+			const optMirror = resolveReactiveOption<RateLimiterOptions>(
+				opts as NodeOrValue<RateLimiterOptions>,
+				(next) => {
+					if (terminated) return;
+					if (next == null) return;
+					// Validate; if invalid, keep previous values (no throw into dataplane).
+					if (!(next.maxEvents > 0) || !(next.windowNs > 0)) return;
+					const nextBuf = next.maxBuffer;
+					if (nextBuf === undefined) return;
+					const nextUnbounded = nextBuf === Infinity;
+					if (nextUnbounded !== isUnbounded) {
+						// Mode toggle not supported — skip silently. Caller using
+						// reactive opts must keep maxBuffer in the same mode.
+						return;
+					}
+					if (!nextUnbounded && (!Number.isInteger(nextBuf) || nextBuf < 1)) return;
+
+					// qa F-C (Tier 5 /qa pass, 2026-04-29): reactive `maxBuffer`
+					// is monotonically non-increasing. The pending RingBuffer is
+					// allocated once at construction; growing the cap reactively
+					// would let the overflow check pass more pushes than the
+					// ring's capacity → silent drop-oldest at the substrate level
+					// (RingBuffer.push wraps), bypassing our `dropped` counter
+					// and `onOverflow: "error"` arm. Reject grow swaps with a
+					// console.warn and keep the previous cap. Shrink stays
+					// supported (drop-oldest below).
+					if (!nextUnbounded && nextBuf > maxBuffer) {
+						console.warn(
+							`rateLimiter: reactive maxBuffer grow (${maxBuffer} → ${nextBuf}) ` +
+								"rejected. The pending ring buffer is allocated at construction; " +
+								"reactive maxBuffer is monotonically non-increasing. Recreate " +
+								"the rateLimiter with the larger cap if growth is required.",
+						);
+						return;
+					}
+
+					maxEvents = next.maxEvents;
+					windowNs = next.windowNs;
+					maxBuffer = nextBuf;
+					onOverflow = next.onOverflow ?? "drop-newest";
+					refillPerSec = (maxEvents * NS_PER_SEC) / windowNs;
+					tokenTimeNs = NS_PER_SEC / refillPerSec;
+					// Rebuild bucket — tokens snap to new capacity. The old refill
+					// timer continues to fire `tryEmit` which will use the new
+					// bucket (same closure variable).
+					bucket = tokenBucket(maxEvents, refillPerSec);
+
+					// Drop-oldest until pending.size <= maxBuffer (bounded only).
+					if (!nextUnbounded) {
+						while (pending.size > maxBuffer) {
+							pending.shift();
+							dropped += 1;
+						}
+					}
+					syncState();
+				},
+			);
 
 			function tryEmit(): void {
 				while (pending.size > 0) {
@@ -965,6 +1186,7 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 				terminated = true;
 				timer.cancel();
 				unsub();
+				optMirror.unsub();
 			};
 		},
 		{
@@ -973,10 +1195,10 @@ export function rateLimiter<T>(source: Node<T>, opts: RateLimiterOptions): RateL
 			meta: {
 				// Caller-supplied meta first; companion seeds + factoryTag
 				// override below so they always win.
-				...(opts.meta ?? {}),
+				...(isReactive ? {} : ((opts as RateLimiterOptions).meta ?? {})),
 				droppedCount: 0,
 				rateLimitState: RATE_LIMITER_INITIAL_STATE,
-				...factoryTag("rateLimiter", opts),
+				...factoryTag("rateLimiter", isReactive ? { reactiveOpts: true } : opts),
 			},
 		},
 	);
@@ -1060,6 +1282,17 @@ export type WithStatusBundle<T> = {
  * to `out` see the throttled DATA stream; `status` / `error` companions may not
  * appear as edges in `describe()` if no consumer subscribes to them (per
  * COMPOSITION-GUIDE §1, push-on-subscribe semantics).
+ *
+ * **Per-subscribe lifecycle (DF8, 2026-04-29 doc lock).** When the wrapped
+ * source is `resubscribable: true` and multiple consumers attach in
+ * sequence, each new subscription cycle re-runs the producer fn AND
+ * re-emits the initial `pending` + `null` companion DATAs. Downstream
+ * subscribers to the `status` / `error` companions see thrash:
+ * `pending → running → completed → pending → running …`. This is the
+ * intended fresh-cycle semantic (each subscription cycle reports its own
+ * lifecycle); consumers that need a "stable" status across cycles should
+ * derive a snapshot via a separate `state()` mirror rather than depending
+ * on the per-cycle reset.
  *
  * @example
  * ```ts
@@ -1166,6 +1399,58 @@ function isNode(x: unknown): x is Node {
 		"cache" in x &&
 		typeof (x as Node).subscribe === "function"
 	);
+}
+
+/**
+ * Either a literal value or a reactive Node carrying it. Mirrors
+ * {@link FallbackInput}'s precedent for "options that may be reactive."
+ *
+ * Used by {@link timeout} / {@link retry} / {@link rateLimiter} /
+ * {@link circuitBreaker} / {@link budgetGate} to accept reactive option
+ * configurations (Tier 6.5 3.2, 2026-04-29). Each primitive subscribes
+ * to the option Node via {@link resolveReactiveOption} and rebinds
+ * internal state per its locked swap-semantic rule (see each primitive's
+ * JSDoc for the rule).
+ *
+ * @category extra
+ */
+export type NodeOrValue<T> = T | Node<T>;
+
+/**
+ * Closure-mirror helper for `NodeOrValue<T>` options
+ * (COMPOSITION-GUIDE §28). Returns:
+ * - `current()` — read the latest value (cached at construction; updated
+ *   on each Node DATA emission).
+ * - `unsub()` — release the subscription. Static-form arg never
+ *   subscribes; `unsub` is a no-op there.
+ *
+ * `onChange` fires on each DATA after the initial value (skips the
+ * cache-seed read). Use to rebind primitive-internal state per the
+ * primitive's locked swap-semantic rule.
+ *
+ * @internal
+ */
+function resolveReactiveOption<T>(
+	arg: NodeOrValue<T>,
+	onChange?: (next: T) => void,
+): { current: () => T; unsub: () => void } {
+	if (!isNode(arg)) {
+		return { current: () => arg, unsub: () => undefined };
+	}
+	const node = arg as Node<T>;
+	let latest: T = node.cache as T;
+	const unsub = node.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] === DATA) {
+				latest = m[1] as T;
+				if (onChange) onChange(latest);
+			}
+		}
+	});
+	return {
+		current: () => latest,
+		unsub,
+	};
 }
 
 function isThenable(x: unknown): x is PromiseLike<unknown> {
@@ -1288,13 +1573,22 @@ export function fallback<T>(
  * the timer. Terminal messages (`COMPLETE`/`ERROR`) cancel the timer.
  *
  * @param source - Upstream node.
- * @param timeoutNs - Deadline in **nanoseconds** (must be > 0). Internally converted to milliseconds for `setTimeout` scheduling.
+ * @param timeoutNs - Deadline in **nanoseconds** (must be > 0), or a
+ *   `Node<number>` carrying the deadline reactively (Tier 6.5 3.2.1).
+ *   Internally converted to milliseconds for `setTimeout` scheduling.
  * @returns Node that errors on timeout.
  *
  * @throws {RangeError} when `timeoutNs <= 0`.
  *
  * @remarks
  * **Scheduling:** internally uses {@link ResettableTimer} (raw `setTimeout`) per spec §5.10's resilience-operator carve-out. The deadline is `timeoutNs / NS_PER_MS` ms; sub-millisecond `timeoutNs` values get the same minimum-1ms host-scheduler granularity that `setTimeout` provides.
+ *
+ * **Reactive `timeoutNs` (locked semantics, Tier 6.5 3.2.1, 2026-04-29).**
+ * When `timeoutNs` is a `Node<number>`, each timer-(re)start reads the
+ * latest value. An option swap mid-flight applies to the **next** timer
+ * window (no in-flight reset) — the active timer keeps its original
+ * deadline; the next DATA-driven `startTimer()` call reads the new
+ * value. Static-form callers see no behavior change.
  *
  * @example
  * ```ts
@@ -1308,25 +1602,46 @@ export function fallback<T>(
  */
 export function timeout<T>(
 	source: Node<T>,
-	timeoutNs: number,
+	timeoutNs: NodeOrValue<number>,
 	options?: { meta?: Record<string, unknown> },
 ): Node<T> {
-	if (timeoutNs <= 0) throw new RangeError("timeoutNs must be > 0");
+	// Static-form validation: only validate up-front when the arg is a
+	// literal number. Reactive-form validation runs lazily inside the
+	// producer body (each emit reads latest cache and re-validates).
+	if (!isNode(timeoutNs) && timeoutNs <= 0) {
+		throw new RangeError("timeoutNs must be > 0");
+	}
 	const callerMeta = options?.meta;
+	const factoryArgs = isNode(timeoutNs) ? { timeoutNs: "Node<number>" } : { timeoutNs };
 
 	return producer<T>(
 		(a) => {
 			let stopped = false;
 			const timer = new ResettableTimer();
+			// Closure-mirror per §28: subscribe to the option Node (static-form
+			// returns a no-op unsub). Each `startTimer()` reads the latest via
+			// `currentNs()` so option swaps take effect at the next attempt
+			// boundary per the locked semantic rule.
+			const optMirror = resolveReactiveOption<number>(timeoutNs);
+			const currentNs = (): number => {
+				const v = optMirror.current();
+				return typeof v === "number" && v > 0 ? v : 0;
+			};
 
 			function startTimer(): void {
-				const delayMs = timeoutNs / NS_PER_MS;
+				const ns = currentNs();
+				if (ns <= 0) {
+					// Reactive option not yet populated (or invalid) — skip
+					// scheduling; next DATA will retry.
+					return;
+				}
+				const delayMs = ns / NS_PER_MS;
 				// §5.10: setTimeout (not fromTimer) — resettable deadline needs clearTimeout/setTimeout; fromTimer creates a new Node per reset, adding lifecycle overhead on every DATA.
 				timer.start(delayMs, () => {
 					if (stopped) return;
 					stopped = true;
 					unsub();
-					a.down([[ERROR, new TimeoutError(timeoutNs)]]);
+					a.down([[ERROR, new TimeoutError(ns)]]);
 				});
 			}
 
@@ -1364,12 +1679,13 @@ export function timeout<T>(
 				stopped = true;
 				timer.cancel();
 				unsub();
+				optMirror.unsub();
 			};
 		},
 		{
 			...operatorOpts(),
 			initial: source.cache,
-			meta: { ...(callerMeta ?? {}), ...factoryTag("timeout", { timeoutNs }) },
+			meta: { ...(callerMeta ?? {}), ...factoryTag("timeout", factoryArgs) },
 		},
 	);
 }

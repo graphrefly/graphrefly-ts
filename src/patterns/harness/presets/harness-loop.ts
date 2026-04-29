@@ -122,7 +122,7 @@ export function defaultLlmExecutor<A = unknown>(
 	const promptFn = resolvePromptFn<TriagedItem>(prompt, DEFAULT_EXECUTE_PROMPT, (tpl, item) =>
 		tpl.replace("{{item}}", JSON.stringify(item)),
 	);
-	return (job) => {
+	return (job, opts) => {
 		const item = job.payload.item;
 		const messages: readonly ChatMessage[] = [{ role: "user", content: promptFn(item) }];
 		// Bridge-layer flakes get `outcome: "failure"` with no `errorClass`.
@@ -139,8 +139,11 @@ export function defaultLlmExecutor<A = unknown>(
 		const formatErr = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 		// One-shot bridge via `_oneShotLlmCall` (patterns/ai/_internal.ts).
 		// Helper owns subscription / abort / first-DATA capture / COMPLETE
-		// arm; this site owns parse + validate + payload mapping.
+		// arm; this site owns parse + validate + payload mapping. Pump-
+		// supplied `opts.signal` (Tier 6.5 2.5b) cascades into adapter +
+		// fromAny via `parentSignal`.
 		return _oneShotLlmCall<HarnessJobPayload<A>>(adapter, messages, {
+			parentSignal: opts?.signal,
 			onSuccess: (resp) => {
 				let parsed: unknown;
 				try {
@@ -202,7 +205,7 @@ export function defaultLlmVerifier<A = unknown>(
 				.replace("{{item}}", JSON.stringify(item));
 		},
 	);
-	return (job) => {
+	return (job, opts) => {
 		const { item, execution } = job.payload;
 		if (execution == null) {
 			// Defensive — verify stage runs after execute; if execution is
@@ -238,8 +241,10 @@ export function defaultLlmVerifier<A = unknown>(
 		const formatErr = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 		// One-shot bridge — see `_oneShotLlmCall` JSDoc. Helper owns the
 		// subscribe + capture + abort + COMPLETE arm; this site owns parse +
-		// validate + verify-payload mapping.
+		// validate + verify-payload mapping. Pump-supplied `opts.signal`
+		// (Tier 6.5 2.5b) cascades into adapter + fromAny via `parentSignal`.
 		return _oneShotLlmCall<HarnessJobPayload<A>>(adapter, messages, {
+			parentSignal: opts?.signal,
 			onSuccess: (resp) => {
 				let parsed: unknown;
 				try {
@@ -655,7 +660,7 @@ export function harnessLoop<A = unknown>(
 	for (const route of QUEUE_NAMES) {
 		const config = queueConfigs.get(route)!;
 		if (config.gated && gateControllers.has(route)) {
-			queueOutputs.push(gateControllers.get(route)!.node as Node<TriagedItem | null>);
+			queueOutputs.push(gateControllers.get(route)!.output as Node<TriagedItem | null>);
 		} else {
 			queueOutputs.push(queueTopics.get(route)!.latest as Node<TriagedItem | null>);
 		}
