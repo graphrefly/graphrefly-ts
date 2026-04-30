@@ -176,11 +176,18 @@ export class AgentLoopGraph extends Graph {
 
 		// --- Reactive pipeline ---
 		//
-		// Closure-held mirrors (COMPOSITION-GUIDE §28). Subscribe once at
-		// construction and keep a plain closure variable updated by the
-		// handler. Effects / raw-node fns then consult the mirror
-		// synchronously — the P3 "no `.cache` reads inside a reactive
-		// callback" rule routes around that gray zone.
+		// Closure-held mirrors (COMPOSITION-GUIDE §28 factory-time seed
+		// pattern). Subscribe once at construction, seed from `.cache`
+		// (sanctioned §3.6 boundary read), keep a plain closure variable
+		// updated by the handler. Effects / raw-node fns then read the
+		// closure variable synchronously — closure reads are NOT P3
+		// violations per §28 ("they read a closure variable, not a
+		// `.cache`"). An in-session Phase 9 plan would have replaced this
+		// with `graph.derived(..., { keepAlive: true })` + `.cache` reads
+		// (which IS a P3 violation); plan was reverted at the design level
+		// after re-reading §28 — pattern preserved in this file. See
+		// `archive/docs/SESSION-graph-narrow-waist.md` § "Status of existing
+		// modifications".
 		//
 		// Symmetry matters: `latestTurn` / `latestAborted` / `latestStatus`
 		// plus `latestMessages` / `latestSchemas` all feed the same
@@ -489,10 +496,10 @@ export class AgentLoopGraph extends Graph {
 		// completion path raced the abort), skip the redundant emit so the
 		// status-node event log isn't polluted with a trailing duplicate.
 		// Closure-mirror `latestStatus` keeps the comparison synchronous and
-		// P3-compliant. Seeded from `statusNode.cache` to match the §28
-		// factory-time-seed pattern that `latestTurn` / `latestAborted` use
-		// — the literal `"idle"` would silently drift if the constructor
-		// initial value ever changed.
+		// P3-compliant (closure read, not `.cache` read — see §28). Seeded
+		// from `statusNode.cache` to match the §28 factory-time-seed pattern
+		// that `latestTurn` / `latestAborted` use — the literal `"idle"` would
+		// silently drift if the constructor initial value ever changed.
 		let latestStatus: AgentLoopStatus = (statusNode.cache as AgentLoopStatus | undefined) ?? "idle";
 		const statusSub = statusNode.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) latestStatus = m[1] as AgentLoopStatus;

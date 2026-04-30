@@ -87,6 +87,17 @@ export function verifiable<T, TVerify = VerifyValue>(
 		//    (§3.6 boundary read) and kept current via a subscribe handler.
 		//    The switchMap fn reads the closure, never `sourceNode.cache`
 		//    from a reactive context.
+		//
+		// **Phase 16 attempt (2026-04-29) reverted.** Tried `withLatestFrom(
+		// triggerNode, sourceNode) + switchMap`; this is the WRONG migration
+		// per COMPOSITION-GUIDE §28. The §28 closure-mirror is the canonical
+		// pattern. **Phase 10.5 (the same-day partial-flag flip on
+		// `withLatestFrom`)** removes the initial-pair drop, but this site
+		// stays on closure-mirror form pending Phase 11 restricted signatures
+		// (when `graph.derived(partial:false) + ctx.prevData + switchMap`
+		// becomes the §5.12-clean replacement). See `archive/docs/SESSION-
+		// graph-narrow-waist.md` § "Status of existing modifications" + §
+		// "Phase 10.5 — `partial: false` is the actual fix".
 		let verifyStream: Node<TVerify>;
 		if (triggerNode === (sourceNode as Node<unknown>)) {
 			verifyStream = switchMap(sourceNode, (src) => verifyFn(src as T));
@@ -206,6 +217,14 @@ export function distill<TRaw, TMem>(
 	// current via subscribe. The `mapFromSnapshot` helper guards against the
 	// snapshot-restore path where a serialized Map round-trips as a plain
 	// object — see the helper's docstring for the rationale.
+	//
+	// **Phase 16 attempt (2026-04-29) reverted.** Tried `withLatestFrom(
+	// consolidateTrigger, store.entries) + switchMap`; this is the WRONG
+	// migration per COMPOSITION-GUIDE §28. **Phase 10.5 (same-day partial-
+	// flag flip on `withLatestFrom`)** removes the initial-pair drop, but
+	// this site stays on closure-mirror form pending Phase 11 restricted
+	// signatures. See `archive/docs/SESSION-graph-narrow-waist.md` § "Status
+	// of existing modifications" + § "Phase 10.5".
 	let latestStore: ReadonlyMap<string, TMem> = mapFromSnapshot<TMem>(store.entries.cache);
 	store.entries.subscribe((msgs) => {
 		for (const m of msgs) {

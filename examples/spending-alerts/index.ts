@@ -41,7 +41,9 @@ alertMessage.subscribe((msgs) => {
 			const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
 			const heavy = "═".repeat(60);
 			console.log(`\n${heavy}`);
-			console.log("Causal chain — graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } }):");
+			console.log(
+				"Causal chain — graph.describe({ explain: { from: 'txFeed', to: 'alertMessage' } }):",
+			);
 			console.log(heavy);
 			console.log(chain.text);
 		}

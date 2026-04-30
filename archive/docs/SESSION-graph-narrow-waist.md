@@ -593,19 +593,341 @@ TLA+ extension for Graph-level is NOT planned — the Graph methods are thin wra
 
 The narrow waist must be designed to the patterns, not the patterns forced to the waist. If real patterns expose gaps, the waist grows to absorb them — through rigorous design review, not ad-hoc patching.
 
-### Implementation sequence
+### Implementation sequence (original plan — Phases 1–6 landed; 7 + partial 9 landed; superseded by the corrected plan below)
 
-| Phase | Scope | Risk |
+| Phase | Scope | Risk | Status |
+|---|---|---|---|
+| 1 | `graph.batch(fn)` | Trivial — 1 LOC wrapper | ✅ landed (Bundle 1) |
+| 2 | `graph.derived(name, depPaths, fn, opts)` with `keepAlive` | Low — wraps resolve + derived + add + optional keepalive | ✅ landed (Bundle 1) |
+| 3 | `graph.effect(name, depPaths, fn, opts)` | Low — wraps resolve + effect + add | ✅ landed (Bundle 1) |
+| 4 | `graph.produce(name, source, opts)` | Moderate — decide `fromAny` vs `singleFromAny` dispatch | ✅ landed (Bundle 1) |
+| 5 | Fold `explain` + `reachable` into `describe()` | Moderate — overload signature changes | ✅ landed (Bundle 3) |
+| 6 | Remove `get`, `setAll`, `removeAll`; extract `trace` to inspect/ addon | Breaking (pre-1.0) | ✅ partial (`get`/`setAll`/`removeAll` removed; `trace` retained — load-bearing for `explain`'s annotation surface) |
+| 7 | Fast-check properties P1-P7 | Tests only | ✅ landed (registry 57 → 64; P5 restated) |
+| 8 | Composition guide split into 4 level-based files | Docs only | ⏸ deferred until corrected plan below |
+| 9 | Migrate 1-2 patterns per phase to validate | Validation | ⚠ partial: agent-loop.ts (5 mirrors) + pipeline-graph.ts (1 mirror) migrated as `keepAlive` + `.cache` reads — directional step, see Course Correction below for the redo |
+
+---
+
+## Course Correction — Findings from Phases 7 + 9 (2026-04-29 evening)
+
+### What we observed
+
+Implementing Phases 7 + 9 surfaced a deeper issue: **the 4 methods as originally designed did not actually narrow the waist.** They added a more ergonomic registration path on top of core sugar without subtracting protocol exposure.
+
+Concretely, each Graph method wraps its core-sugar counterpart 1:1 with the same fn signature:
+
+- `graph.derived(name, deps, fn)` → `derived(deps, fn) + graph.add` — fn is `(values) => T | undefined | null`
+- `graph.effect(name, deps, fn)` → `effect(deps, fn) + graph.add` — fn is `(values, actions, ctx) => cleanup`, full protocol surface
+- `graph.produce(name, source)` → `fromAny + graph.add` — source-bridge form
+
+Pattern authors can still reach for `derived` / `effect` / `producer` from `core/sugar.ts` directly, OR raw `node()` from `core/node.ts`. **Three valid paths to "build a node," each with the same protocol exposure.** The fast-check verification matrix is unchanged: 57 protocol invariants + 7 graph properties + 50+ operator invariants. Patterns combine all three rows and have no covering verification.
+
+The Level 1 / 2 / 3 taxonomy proposed in this session is doc-only (progressive disclosure). It does not narrow what fast-check / TLA+ has to verify per pattern.
+
+### The closure-mirror replacement was also incomplete
+
+Phase 9's "§28 closure-mirror → `graph.derived(..., {keepAlive: true})`" replacement moves the value from a closure variable to a registered Graph node, but consumers still read its `.cache` from inside reactive fn bodies — same `.cache`-from-inside-fn boundary the protocol layer forbids for non-inspection use.
+
+```ts
+// Phase 9 migration (still wrong shape)
+const latestMessagesNode = graph.derived("latestMessages", ["chat::messages"],
+  ([v]) => v, { keepAlive: true });
+// promptInput.fn reads latestMessagesNode.cache — that's another node's cache from inside a reactive fn body
+```
+
+True elimination of cycle-break-via-cache requires `withLatestFrom`-style operators: sample passively via real reactive deps, no `.cache` access from inside fn bodies. The migration as landed is an improvement over the closure-mirror form (visible edge from upstream into the mirror node) but is not the final shape.
+
+### The corrected design
+
+To actually narrow the waist, two changes are required together:
+
+**1. Subtract the core sugar layer.** Remove `state` / `derived` / `effect` / `producer` from `core/sugar.ts` exports. Operators (`extra/operators/*`, `extra/sources/*`) use raw `node()` directly. Patterns use only Graph methods + operators. Raw `node()` + `graph.add` is the explicit escape hatch — grep-able for review, signaling "I am writing protocol-layer code."
+
+**2. Make Graph methods strictly narrower than core sugar was.** Restricted fn signatures hide protocol-domain dispatch:
+
+```ts
+// Pure cell — no fn at all
+graph.state<T>(name: string, initial: T, opts?: GraphStateOptions<T>): Node<T>
+
+// Compute — deps + ctx → array of values to emit this wave
+//   single emit: [v]    no emit: []    multi-emit: [v1, v2, v3]
+//   undefined excluded — SENTINEL stays protocol-only
+type DerivedFn<T> = (
+  values: readonly unknown[],
+  ctx: FnCtxDerived,         // exposes prevData (deps' prior values) + cache (own previous emit only)
+) => readonly (T | null)[];
+graph.derived<T>(name, deps, fn, opts?): Node<T>
+
+// Side effect — pure sink. up is the only actions surface; no downstream dispatch possible
+type EffectFn = (
+  values: readonly unknown[],
+  up: NodeUpActions,         // pause() / resume() only
+  ctx: FnCtxEffect,
+) => Cleanup | void | NodeFnCleanupHooks;
+graph.effect(name, deps, fn, opts?): Node<unknown>
+
+// Source bridge — push channel; same array-emission shape as derived
+type ProducerSetupFn<T> = (
+  push: (values: readonly (T | null)[]) => void,
+  ctx: FnCtxProducer,
+) => Cleanup | void | NodeFnCleanupHooks;
+graph.producer<T>(name, setup, opts?): Node<T>      // renamed from graph.produce — noun consistency
+
+graph.batch(fn: () => void): void                                // unchanged
+graph.add<T extends Node>(node: T, opts: { name; … }): T          // unchanged — escape-hatch registration
+```
+
+`opts` for each: `equals`, `initial`, `meta`, `annotation`, `keepAlive` (derived only), `signal`, `describeKind`. Unchanged from current Graph methods.
+
+**Locked design decisions (2026-04-29 evening):**
+
+- **Q-A — single-value ergonomic for derived: A.1 strict array always.** No discriminated `T | null | T[]` form. Wrapping `[v]` is verbose for the common case but avoids defensive checks for array-T ambiguity. Pre-1.0; not worth the complexity.
+- **Q-B — producer signature: B.1 push-channel fn.** `(push, ctx) => cleanup`. Async sources wrap explicitly: `graph.producer(name, (push) => { promise.then(v => push([v])); return () => abort.abort(); })`. Uniform shape with derived (array emissions), no source-shape discrimination.
+- **Q-C — opts stay in opts.** `equals`, `initial`, `meta`, `annotation`, `keepAlive`, `signal`, `describeKind`. Same surface as today.
+- **Q-D — `ctx.cache` for the current node's own previous emit IS allowed.** Symmetric with `ctx.prevData[i]` for dep prior values — both read "past records." Reading other nodes' `.cache` from inside reactive fn bodies remains forbidden (inspection-only rule). Enables scan-style accumulators in `derived` without operator composition.
+- **Q-E — `NodeUpActions` for effect.** `pause()` and `resume()` only. No `emit` / `down` / `up(messages)`. Minimal upstream control. Effects that need to emit downstream use `producer` or drop to raw `node()`.
+- **`NodeFnCleanupHooks`** — included in cleanup return type for both `effect` and `producer` for consistency. Granular `{ deactivate?, … }` rarely needed; `Cleanup | void` is the typical case.
+
+### What this delivers that the original 4 methods don't
+
+| Concern | Original 4 methods | Corrected restricted signatures |
 |---|---|---|
-| 1 | `graph.batch(fn)` | Trivial — 1 LOC wrapper |
-| 2 | `graph.derived(name, depPaths, fn, opts)` with `keepAlive` | Low — wraps resolve + derived + add + optional keepalive |
-| 3 | `graph.effect(name, depPaths, fn, opts)` | Low — wraps resolve + effect + add |
-| 4 | `graph.produce(name, source, opts)` | Moderate — decide `fromAny` vs `singleFromAny` dispatch |
-| 5 | Fold `explain` + `reachable` into `describe()` | Moderate — overload signature changes |
-| 6 | Remove `get`, `setAll`, `removeAll`; extract `trace` to inspect/ addon | Breaking (pre-1.0) |
-| 7 | Fast-check properties P1-P7 | Tests only |
-| 8 | Composition guide split into 4 level-based files | Docs only |
-| 9 | Migrate 1-2 patterns per phase to validate | Validation |
+| Pattern author can manually emit COMPLETE/ERROR from a derived | ✅ via `actions.down([[…]])` | ❌ removed; cascade-config or escape-hatch only |
+| Pattern author can dispatch RESOLVED explicitly | ✅ via `actions.down([[RESOLVED]])` | encoded as empty array — explicit, not protocol-typed |
+| Pattern author sees `undefined` (SENTINEL) as a value | possibly via raw `data` | ❌ excluded from `T \| null` |
+| Pattern author calls `actions.emit` from an effect | ✅ (footgun) | ❌ effect's fn doesn't see `emit` |
+| Pattern author calls multiple `actions.emit` in derived | ✅ ad-hoc | encoded as array length — explicit |
+| Async source bridging | `graph.produce(name, NodeInput)` source-shape | `graph.producer(name, (push, ctx) => …)` push channel — uniform model |
+| Three valid paths to "build a node" | ✅ (core sugar + Graph methods + raw node) | ❌ two paths only (Graph methods OR raw `node()` + `graph.add`) |
+
+The fn body sees a value-domain interface only. Protocol semantics (DIRTY, RESOLVED, SENTINEL, terminal cascade, batch coalescing) live below the waist, not exposed above it.
+
+### What this delivers for verification
+
+Three rows to verify, no fourth:
+
+| Row | What it covers | Status |
+|---|---|---|
+| Core protocol — `node()` + `batch()` | Invariants 1–57 in `_invariants.ts` | ✅ |
+| Operators — `extra/operators/*` | Invariants 18–53 cover individual operators | ✅ |
+| Graph methods (restricted) | P1–P7 + new P8+ enumerating array-emission semantics ("derived returning array of length N → graph emits N DATAs in one wave") | partial — P1-P7 currently test legacy fn signature; redo with new signatures in Phase 17 |
+
+Patterns become compositions over an already-verified base. The "patterns aren't covered" gap in fast-check reduces to a documentation problem (which compositions are sound) rather than a verification problem (which behaviors are correct).
+
+### Status of existing modifications — REVERTED per §28 reading
+
+**Phase 9 migrations REVERTED to closure-mirror form (2026-04-29 evening, post-§28 reading).** The earlier "do not revert; directional improvement" framing was wrong: the migrations replaced the §28-canonical closure-mirror pattern (closure variable read inside fn body — sanctioned, NOT a P3 violation) with `graph.derived(..., {keepAlive: true})` + `.cache` reads inside fn bodies (which IS a P3 violation). Net regression. COMPOSITION-GUIDE §28 explicitly documents:
+
+> The closure reads inside the reactive fn are NOT P3 violations — they read a closure variable, not a `.cache`. This is the pattern used by `stratify`'s `latestRules`, `budgetGate`'s `latestValues`, `gate()`'s `latestIsOpen`, and `distill`'s `latestStore`.
+
+§40 reinforces it for `distill`: "Why closure-mirror, not `withLatestFrom`: `withLatestFrom(rawNode, existingNode)` swallows the initial source emission..."
+
+**State of each site after revert:**
+
+- **agent-loop.ts** ([src/patterns/ai/presets/agent-loop.ts](../../src/patterns/ai/presets/agent-loop.ts)) — 5 closure-mirrors restored (`latestTurn`, `latestAborted`, `latestStatus`, `latestMessages`, `latestSchemas`). Reads inside `promptInput.fn` / effects are closure-variable reads per §28. Tests + lint clean.
+- **pipeline-graph.ts** ([src/patterns/orchestration/pipeline-graph.ts](../../src/patterns/orchestration/pipeline-graph.ts)) — `latestIsOpen` closure-mirror restored. Read inside `output.fn` is a closure-variable read per §28. Tests + lint clean.
+- **agent-memory.ts** ([src/patterns/ai/presets/agent-memory.ts:192-208](../../src/patterns/ai/presets/agent-memory.ts#L192)) + **distill internal** ([extra/composite.ts:204-216](../../src/extra/composite.ts#L204)) + **verifiable** ([extra/composite.ts:81-114](../../src/extra/composite.ts#L81)) — Phase 16 attempt was reverted; closure-mirrors remain. These are §28's named exemplars (verifiable's `latestSource`, distill's `latestStore`).
+- **memory-composers.ts** ([src/patterns/ai/memory/memory-composers.ts:266-274](../../src/patterns/ai/memory/memory-composers.ts#L266)) — closure-mirror form, §28-canonical. The retention.score read of `latestCtx` is a closure-variable read; `retention.score` is a sync mutation-path callback (not a reactive fn), which is a separate concern (optimizations.md D1 — score-fn-writing-into-graph violates pure-fn contract; orthogonal to closure-mirror).
+
+### How to actually narrow this — the real fix is at the framework layer
+
+The closure-mirror visibility issue (closure variables don't appear in `describe()`) IS solvable, but the fix is at the runtime/operator layer, NOT at the migration site. Already tracked in [docs/optimizations.md:812-822](../../docs/optimizations.md#L812):
+
+> A naïve `[secondary, primary]` flip in `withLatestFrom` produces the correct initial pair but breaks topology-sensitive diamond callers — [harness/loop.ts:297–300](../../src/patterns/harness/loop.ts#L297) `executeContextNode` relies on the current ordering for same-wave settlement through the `executeInput → executeNode → executeContextNode` + `executeInput → executeContextNode` diamond. The reingestion test `reingestion — verify failure reingests to intake` times out when the flip is applied. A real framework fix needs: (a) either a diamond-topology audit of all in-tree `withLatestFrom` callers, or (b) a non-declaration-order subscribe mechanism (e.g. activation-phase batching so all deps' push-on-subscribe fires land in one combined wave). Candidate future design session.
+
+Once that framework fix lands, the §28 sites can migrate to `withLatestFrom + switchMap + graph.add` cleanly: real reactive edges visible in `describe()`, no `.cache` reads inside fn bodies, no closure-mirrors. The "narrow waist" promise (visible-edges-by-construction) genuinely materializes.
+
+**Concrete recommendation:** open a separate design session for activation-phase batching (option b above). That's the framework fix that unblocks the §28 cleanup across the entire library. Closure-mirror sites currently exist in `stratify`, `budgetGate`, `gate()`, `distill`, `verifiable`, `agent-loop` (5 sites), `pipeline-graph` (`approvalGate`'s latestIsOpen), `agent-memory`, `memory-composers`, and probably more — every one of them turns into a clean `withLatestFrom + switchMap` chain post-fix.
+
+**Until that lands:** §28 closure-mirror IS the canonical pattern. Don't migrate. Don't replace with `graph.derived(keepAlive)` + `.cache` reads (that's worse). Don't attempt `withLatestFrom + switchMap` directly (that's the documented WRONG migration per §28's "WRONG: withLatestFrom drops the initial pair" warning).
+
+### Phase 16 status — reverted, parked behind framework fix
+
+The Phase 16 attempt (closure-mirror → `withLatestFrom + switchMap`) was directionally correct (the eventual right shape post-framework-fix) but blocked on the activation-phase issue. Reverted; closure-mirrors restored at:
+- [extra/composite.ts:81-114](../../src/extra/composite.ts#L81) (`verifiable` explicit-trigger)
+- [extra/composite.ts:204-216](../../src/extra/composite.ts#L204) (`distill` consolidate `latestStore`)
+- [agent-memory.ts:192-208](../../src/patterns/ai/presets/agent-memory.ts#L192) (§40 extractFn bridge)
+
+All three remain §28-canonical. Tests + lint clean post-revert.
+
+### Implications for the restricted-signature design (Phase 11)
+
+The §28 reading also drops the **Q-D' / `ctx.fired`** proposal entirely. I introduced that to support trigger-only-on-X without same-value re-emit fragility, but §28's closure-mirror handles this case natively (the closure handler captures every emit, not just value-changes). Once activation-phase batching lands, withLatestFrom + switchMap covers the same need. No new ctx slot required.
+
+**Locked Q-D stays as drafted** (current-node `cache` + dep `prevData` only).
+
+The other Phase 11 design decisions (Q-A array return, Q-B push-channel producer, Q-C opts unchanged, Q-E `up`-only effect, NodeFnCleanupHooks symmetric) are unaffected by the §28 reading. They narrow the surface for the cases where the simple sugar already fits — they don't replace closure-mirror for the cases that need it.
+
+### LOCKED Q4 decisions (2026-04-29 evening, post-Q2–Q9 review)
+
+| # | Item | Lock |
+|---|---|---|
+| 1 | Producer construction-throw semantics | Surface to caller. Synchronous throw at `graph.producer(...)` propagates up. Async errors (in setup body, via push) become `[[ERROR, e]]` emissions on the node. |
+| 2 | `describeKind` override behavior | Graph method always wins — auto-set by the method. Caller-supplied `opts.describeKind` is ignored. |
+| 3 | Core sugar removal mechanism | **Clean removal — no internal re-exports.** `state` / `derived` / `effect` / `producer` exports come out of `core/sugar.ts` entirely. Operators (`extra/operators/*`, `extra/sources/*`) refactor to use raw `node()` + `batch()` directly (Phase 12). Pattern code refactors to Graph methods + operators + §28 closure-mirror + raw `node() + graph.add` as escape hatch (Phase 13). |
+| 4 | Async-source sugar (`graph.fromPromise` / `graph.fromAsyncIter`) | Deferred. Promise/AsyncIterable wrap explicitly via `graph.producer(name, (push) => { ... })`. Revisit if pain surfaces post-migration. |
+
+### Final Phase 11 surface (locked)
+
+```ts
+// Pure cell — no fn at all
+graph.state<T>(name: string, initial: T, opts?: GraphStateOptions<T>): Node<T>
+
+// Compute — deps + ctx → array of values to emit this wave
+//   single emit: [v]    no emit: []    multi: [v1, v2, v3]
+//   undefined excluded — SENTINEL stays protocol-only
+type DerivedFn<T> = (
+  values: readonly unknown[],
+  ctx: FnCtxDerived,         // exposes prevData (deps' prior values) + cache (own previous emit only)
+) => readonly (T | null)[];
+graph.derived<T>(name, deps, fn, opts?): Node<T>
+
+// Side effect — pure sink. up is the only actions surface; no downstream emit possible.
+type EffectFn = (
+  values: readonly unknown[],
+  up: NodeUpActions,         // pause() / resume() only
+  ctx: FnCtxEffect,
+) => Cleanup | void | NodeFnCleanupHooks;
+graph.effect(name, deps, fn, opts?): Node<unknown>
+
+// Source bridge — push-channel; same array-emission shape as derived
+type ProducerSetupFn<T> = (
+  push: (values: readonly (T | null)[]) => void,
+  ctx: FnCtxProducer,
+) => Cleanup | void | NodeFnCleanupHooks;
+graph.producer<T>(name, setup, opts?): Node<T>      // renamed from graph.produce
+
+graph.batch(fn: () => void): void                                // unchanged
+graph.add<T extends Node>(node: T, opts: { name; … }): T          // unchanged — escape-hatch registration
+```
+
+`opts` for each: `equals`, `initial`, `meta`, `annotation`, `keepAlive` (derived only), `signal`. `describeKind` is auto-set by the method (caller opts ignored). Same surface as today's Graph methods, just with the restricted fn signatures.
+
+### Q2–Q9 review CLOSED (2026-04-29 evening)
+
+Phase 10 design lock complete. Decisions:
+
+| Question | Outcome |
+|---|---|
+| Q1 — semantics, purpose, implementation | Locked surface above |
+| Q2 — semantically correct | 🟢 all paths verified against §1 / §3 / §28 / §40 / §41 |
+| Q3 — design-invariant violations | 🟢 actively closes §5.12 footguns; preserves §28/§40/§41 |
+| Q4 — open items | 4 locks above (producer-throw, describeKind, clean-removal, defer-async-sugar) |
+| Q5 — right abstraction | 🟢 right granularity; merge-rejected; trigger-only-mode-rejected |
+| Q6 — long-term | 🟢 Phase 11 low burden; closure-mirror cost honest until Phase 10.5 ships |
+| Q7 — perf / topology | 🟢 zero overhead; closure-mirror sites visible only post-Phase-10.5 |
+| Q8 — alternatives | Alt A locked; mechanism C rejected per Q4#3; Alt B/D/E/F rejected |
+| Q9 — recommendation | **Alt A — restricted signatures + clean core-sugar removal + Phase 10.5 framework fix as separate prerequisite for Phase 15 library-wide closure-mirror cleanup** |
+
+### Phase 10.5 — `partial: false` is the actual fix (insight 2026-04-29 evening)
+
+The framework fix tracked in [optimizations.md:812-822](../../docs/optimizations.md#L812) was scoped to either (a) dep-order flip (breaks diamond callers) or (b) activation-phase batching (combined wave). Neither is needed: the existing `NodeOptions.partial: false` first-run gate ALREADY solves the activation-phase coalescing — fn waits until every dep delivers real DATA before firing.
+
+`withLatestFrom` currently passes `partial: true` (per [core/node.ts:262](../../src/core/node.ts#L262) comment). Flipping to `partial: false` gates the first run; subsequent waves are gate-free (gate scope is `_hasCalledFnOnce === false` only, per [core/node.ts:268](../../src/core/node.ts#L268)). The "fire on primary alone after warmup" semantics are preserved for waves 2+; only the activation drop is fixed.
+
+**Behavior diff:** activation when one dep is sentinel forever — `partial: true` (current) emits RESOLVED on primary's push-on-subscribe; `partial: false` (proposed) stays silent. Audit needed: any consumer depending on the activation-RESOLVED-with-sentinel-dep behavior. Likely empty.
+
+**Phase 10.5 rescoped to: flip withLatestFrom's partial flag, run tests.** If green, audit `valve` and worker-bridge aggregators (the other partial:true consumers) for the same flip. Single-PR change rather than a separate design session.
+
+Once 10.5 is green, Phase 15 (library-wide §28 cleanup) is unblocked.
+
+### Phase 16 finding (2026-04-29 evening) — superseded by §28 reading; kept for history
+
+**Note (post-§28 reading):** the analysis below describes what was attempted before reading COMPOSITION-GUIDE §28. §28 documents the Phase 16 migration target (`withLatestFrom + switchMap`) as the WRONG direction for state+state-cached deps; the test failures listed below are the documented symptom from §28. Closure-mirror IS the canonical pattern; the framework-fix path is at the runtime layer (activation-phase batching), not at the migration site. Section retained for the failure-mode catalog only.
+
+**What was attempted.** Phase 16 (per the Course Correction's "agent-memory + distill internal closure-mirror → `withLatestFrom + switchMap`") refactored three sites:
+- `extra/composite.ts` `verifiable` explicit-trigger path
+- `extra/composite.ts` `distill` consolidate path
+- `patterns/ai/presets/agent-memory.ts` §40 extractFn bridge
+
+**What broke.** 5 test failures, all the same root cause:
+- `runs verification from explicit trigger` ([__tests__/extra/composite.test.ts:11](../../src/__tests__/extra/composite.test.ts#L11)) — initial verification dropped.
+- `accepts falsy scalar trigger values` ([__tests__/extra/composite.test.ts:47](../../src/__tests__/extra/composite.test.ts#L47)) — same.
+- `accepts falsy scalar context and consolidateTrigger` ([__tests__/extra/composite.test.ts:147](../../src/__tests__/extra/composite.test.ts#L147)) — initial consolidate dropped.
+- `B12: contextWeight boosts entries whose breadcrumb matches the query` ([__tests__/patterns/ai.test.ts:1444](../../src/__tests__/patterns/ai.test.ts#L1444)) — agent-memory initial extraction dropped.
+- `B20: retrieveReactive emits results when query node changes` ([__tests__/patterns/ai.test.ts:1410](../../src/__tests__/patterns/ai.test.ts#L1410)) — same.
+
+**Root cause.** `withLatestFrom`'s documented caveat ([extra/operators/index.ts:896-906](../../src/extra/operators/index.ts#L896)): on initial activation when both deps are state-cached, the paired emission is dropped. Subscription order is sequential (primary first, secondary second), so primary's push-on-subscribe fires while secondary is still SENTINEL → first-run gate forces RESOLVED. Secondary's later push fires alone → fn's "emit only when primary fired this wave" rule takes the else branch. Net: no DATA reaches downstream from the initial pair.
+
+The closure-mirror form works around this by reading `sourceNode.cache` at FACTORY TIME (boundary read, not inside a reactive fn) and seeding `latestSource` directly. The first trigger emission then sees a populated closure variable. withLatestFrom has no equivalent factory-time seed for secondary's prevData.
+
+**Implication.** Every closure-mirror site that needs "first trigger emit pairs with current secondary cache" hits W1. That's:
+- agent-loop's 5 mirrors (Phase 15 redo) — the gate-only-on-status pattern needs initial pairing.
+- pipeline-graph's `latestIsOpen` (Phase 15 redo) — initial gate decision needs `isOpenNode`'s cached value.
+- agent-memory's §40 extractFn (Phase 16 attempt) — initial raw emission needs current existing.
+- distill's consolidate (Phase 16 attempt) — initial trigger needs current store.
+- verifiable's explicit trigger (Phase 16 attempt) — initial verify needs current source.
+
+**Resolution path — re-scoped after the partial:false insight (2026-04-29 evening).** W1 is **specific to `withLatestFrom` and other partial-dep operators** that explicitly disable the §2.7 first-run gate (`partial: true`) to admit "primary fires alone, secondary samples passively" semantics. `graph.derived` defaults to `partial: false` — its fn waits until every dep has delivered real DATA before firing. State-cached deps deliver immediately via push-on-subscribe; fn fires once with all values populated. **W1 does not block `graph.derived`.**
+
+This re-frames the closure-mirror migrations entirely: instead of routing through `withLatestFrom + switchMap` (which is partial:true and hits W1), route through `graph.derived(partial: false) + switchMap`. The bridge becomes:
+
+```ts
+// agent-memory §40 — under restricted signatures (Phase 11+)
+const triggerStream = graph.derived(
+  ["raw", "existing"],
+  ([raw, existing], ctx) => {
+    if (raw == null) return [];
+    if (Object.is(raw, ctx.prevData[0])) return [];   // raw didn't change → no re-extract
+    return [{ raw, existing }];
+  },
+);
+const extractionStream = switchMap(triggerStream, ({ raw, existing }) =>
+  rawExtractFn(raw, existing as ReadonlyMap<string, TMem>),
+);
+```
+
+No closure-mirror, no `.cache` from inside fn, no W1. Cycle-break preserved: when `existing` emits because of an applied extraction, fn re-fires, prev-comparison says "raw unchanged" → returns `[]` → no re-extraction. Same shape works for `distill` consolidate and `verifiable` explicit trigger.
+
+**Edge case surfaced:** prev-comparison treats same-value-re-emit as no-op. For state-backed triggers where the user wants `trigger.emit(true)` followed by `trigger.emit(true)` to fire twice, prev-comparison won't differentiate. To handle this, the fn needs wave-level info ("did this dep fire DATA this wave?"), which prev-comparison alone doesn't provide. See **Q-D' below** (new design question for the restricted ctx scope).
+
+**Position of W1 in the corrected plan:**
+- **W1 is no longer a Phase 16 blocker** for the closure-mirror migrations (agent-memory, distill, verifiable). They migrate via `graph.derived(partial:false) + switchMap` once Phase 11 (restricted signatures + ctx access) lands.
+- **W1 is no longer a Phase 15 blocker** for agent-loop / pipeline-graph closure-mirror redos — same `graph.derived(partial:false) + ctx.prevData` pattern handles them.
+- **W1 remains an outstanding bug** in `withLatestFrom` itself. Two resolutions still on the table:
+  - **W1.A — runtime activation seeding in `core/node.ts`** (`ctx.prevData[i]` initialized from `deps[i].cache`). Benefits any partial:true operator. Risk: changes meaning of `prevData[i] === undefined`.
+  - **W1.B — sibling operator** (`withLatestFromEager`) with the eager-initial behavior. Narrower, lower-risk.
+  - W1 fix can land independently (anytime); no longer co-prerequisite for the narrow-waist redo.
+
+**Phase 16 status update.** The reverted code (closure-mirrors retained at [composite.ts:94-99 + 209-216](../../src/extra/composite.ts) and [agent-memory.ts:196-208](../../src/patterns/ai/presets/agent-memory.ts#L196)) stays in place pending Phase 11. Comments on those sites updated to reference the corrected migration target (`graph.derived(partial:false)` once restricted signatures land), not the abandoned `withLatestFrom + switchMap` form.
+
+### Q-D' — new design question surfaced by the partial:false insight
+
+Under the restricted `FnCtxDerived` (Q-D), what minimal extension to ctx covers the "did this dep fire DATA in the current wave" detection without re-exposing the full protocol surface?
+
+- **D.1 — `prevData` + `cache` only** (current Q-D lock). Authors use prev-comparison for trigger-detection. Fragile for same-value re-emits.
+- **D.2 — add `ctx.fired: readonly boolean[]`.** Parallel array to `values` indicating whether each dep emitted DATA in the current wave. Smallest extension that lets fn express trigger-only-on-X without re-exposing batch/protocol shape. `if (!ctx.fired[0]) return [];` reads naturally.
+- **D.3 — expose `ctx.batch[i]`** (per-dep wave emission array, raw `node()` ctx surface). Authors get full wave granularity but the abstraction collapses — fn ctx becomes the same as raw `node()` ctx, defeating narrowing.
+
+**Recommendation: D.2.** Smallest extension. Lets `graph.derived(partial:false)` fully replace `withLatestFrom` for trigger-only semantics in pattern-author code, without any operator-layer fix. Lock D.2 as part of Phase 11.
+
+### Updated implementation sequence (post-§28 reading)
+
+Phases 1–9 stay above as the historical record (Phases 1-7 landed; Phase 9 reverted post-§28-reading). Phases 10+ are the corrected plan with §28-aware ordering:
+
+| Phase | Scope | Risk | Status |
+|---|---|---|---|
+| 10 | Q2–Q9 design pass on restricted signatures (Q-A array return, Q-B push-channel producer, Q-C opts unchanged, Q-D current-node cache + dep prevData, Q-E up-only effect, NodeFnCleanupHooks symmetric, `graph.state` new, `graph.producer` rename) | Design — locks the new API shape | Q2-Q9 in progress this session |
+| **10.5** | **Activation-phase batching design session (framework fix for closure-mirror visibility).** Either (a) diamond-topology audit + naïve `[secondary, primary]` flip in `withLatestFrom`, or (b) coalesce all deps' push-on-subscribe into one combined initial wave at activation. Tracked in [optimizations.md:812-822](../../docs/optimizations.md#L812). **Unblocks Phase 15 cleanup across the library.** | Framework — significant. Needs its own 9-question session. | pending — separate design session |
+| 11 | Implement restricted signatures: `graph.state` (new), `graph.derived` (signature change to array-return + tightened `ctx`), `graph.effect` (signature change to `up`-only + tightened ctx), `graph.producer` (rename + push-channel signature) | Breaking pre-1.0; tests + patterns adapt | pending Phase 10 lock |
+| 12 | Refactor `extra/operators/*` and `extra/sources/*` to use raw `node()` + `batch()` directly (drop core-sugar imports) | Low — most operators already use `node` | pending |
+| 13 | Refactor `src/patterns/` to use only Graph methods + operators + closure-mirrors per §28 (escape hatch: raw `node() + graph.add`) | Moderate — touches all 16 domains | pending |
+| 14 | Remove `state` / `derived` / `effect` / `producer` exports from `core/sugar.ts` | Trivial after 12 + 13 | pending |
+| 15 | **Post-Phase-10.5 only.** Closure-mirror cleanup library-wide: every §28 site (`stratify`, `budgetGate`, `gate()`, `distill`'s `latestStore`, `verifiable`'s `latestSource`, agent-loop's 5 mirrors, pipeline-graph's `latestIsOpen`, agent-memory's §40 bridge, memory-composers' `latestCtx`, ...) migrates to `withLatestFrom + switchMap + graph.add`. Real reactive edges replace closure variables. | Low — tests exist; depends on 10.5 | **blocked on Phase 10.5** |
+| 16 | (subsumed into Phase 15) — agent-memory + distill internal + verifiable are §28 sites covered by 15 | n/a | n/a |
+| 17 | Update P1–P7 properties for restricted signatures + add P8+ covering array-emission semantics | Tests only | pending — P1-P7 in `_invariants.ts` registry 57–64 currently test legacy signature |
+| 18 | Composition guide rewrite (the original Phase 8, now with the corrected taxonomy: `node()` + operators + Graph methods + closure-mirror as documented §28 escape hatch until Phase 10.5 unblocks the library-wide migration) | Docs only | pending |
+
+Out of scope for this redo (separate design units): Unit B (`reactiveMap` reactive-retention + optimizations.md D1), `distill` API change to take a graph + register store eagerly (post-Phase-15 distill internal closure-mirror migrates anyway, so the API change becomes optional).
+
+### What changes in the project memory
+
+`project_graph_narrow_waist.md` to be updated with:
+- Bound the "narrow waist" claim — registration ergonomics + restricted signatures, NOT a pattern↔protocol decoupling layer in itself.
+- Operators are Level-2 authoring vocabulary, not "escape hatches" or Level-3-only.
+- Restricted fn signatures lock decisions A.1, B.1, Q-D, Q-E above.
+- Core sugar (`state`/`derived`/`effect`/`producer` from `core/sugar.ts`) is removed from the public API; raw `node()` + `graph.add` is the explicit escape hatch.
 
 ---
 

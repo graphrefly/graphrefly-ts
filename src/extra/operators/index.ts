@@ -45,6 +45,31 @@ function partialOperatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
 }
 
 /**
+ * Like {@link partialOperatorOpts} but declares `partial: false` — first-run
+ * gate ON. Use for operators that DO need to wait for every dep to deliver
+ * real DATA before firing the first time, but want the standard derived/
+ * effect "operator" describeKind for describe() output.
+ *
+ * Phase 10.5 (2026-04-29; `archive/docs/SESSION-graph-narrow-waist.md` §
+ * "Phase 10.5"): introduced when `withLatestFrom` flipped from `partial:
+ * true` to `partial: false`. The first-run gate fixes the documented W1
+ * initial-pair drop without breaking post-warmup semantics (the gate is
+ * `_hasCalledFnOnce === false` only — once fn fires, subsequent waves are
+ * gate-free).
+ *
+ * **Caller override:** the spread order is `{ ..., ...opts }`, so a
+ * user-supplied `opts.partial = true` silently overrides the helper's
+ * default. Same shape as {@link partialOperatorOpts}'s override behavior.
+ * If you want to FORCE `partial: false` on a specific operator regardless
+ * of caller opts, write the helper inline at the call site (e.g.
+ * `{ describeKind: "derived", ...opts, partial: false }`) so the override
+ * is rejected.
+ */
+function gatedOperatorOpts<T = unknown>(opts?: ExtraOpts): NodeOptions<T> {
+	return { describeKind: "derived", partial: false, ...opts } as NodeOptions<T>;
+}
+
+/**
  * Maps each settled value from `source` through `project`.
  *
  * @param source - Upstream node.
@@ -893,17 +918,32 @@ export function withLatestFrom<A, B>(
 	secondary: Node<B>,
 	opts?: ExtraOpts,
 ): Node<readonly [A, B]> {
-	// Known semantic (documented): on initial activation when BOTH deps are
-	// `state()` nodes with cached values, the paired emission is dropped.
-	// `_activate` (src/core/node.ts:1002) subscribes deps sequentially in
-	// declaration order; primary's push-on-subscribe fires before secondary
-	// has subscribed, so the first-run gate (§2.7) forces RESOLVED. Secondary
-	// then fires in a separate wave with primary silent, and the fn's
-	// "emit only when primary fired this wave" rule takes the else branch.
-	// Use the factory-time seed pattern for initial-value pairing (see
-	// stratify, budgetGate, distill for examples; COMPOSITION-GUIDE §21).
-	// A naïve `[secondary, primary]` flip breaks topology-sensitive diamond
-	// callers like `harness/loop.ts` — the fix needs a deeper design pass.
+	// **Phase 10.5 (2026-04-29; see `archive/docs/SESSION-graph-narrow-waist.md`
+	// § "Phase 10.5 — `partial: false` is the actual fix"):** flipped from
+	// `partial: true` to `partial: false`. Previously withLatestFrom opted
+	// out of the §2.7 first-run gate to admit partial-dep waves; the side
+	// effect was that on initial activation with state+state-cached deps,
+	// the paired emission was dropped (W1 — see [optimizations.md "Multi-dep
+	// push-on-subscribe ordering"](../../../docs/optimizations.md), and
+	// COMPOSITION-GUIDE §28). With `partial: false` the gate holds during
+	// activation until both deps deliver real DATA, then fires once with
+	// `[primary, latestSecondary]` populated. The gate scope is
+	// `_hasCalledFnOnce === false` only ([core/node.ts:1642-1645]) — once
+	// fn fires, subsequent waves are gate-free and the "fire on primary
+	// alone after warmup" semantic is preserved. Behavior diff vs the prior
+	// `partial: true`: at activation when one dep is sentinel forever, fn
+	// no longer emits a RESOLVED; it stays silent until the missing dep
+	// delivers real DATA. **Audit (in-tree `withLatestFrom` consumers):**
+	// `harness-loop.ts:511 triageInput` (both deps state-cached, gate
+	// releases at activation), `harness-loop.ts:547 routerInput` (both deps
+	// sentinel until first triage cycle, gate holds in both pre and post
+	// Phase 10.5 — equivalent), `suggest-strategy.ts:176 paired`
+	// (sentinel-forever-secondary case: pre-Phase-10.5 dispatched RESOLVED
+	// but RESOLVED does not release downstream first-run gates per
+	// [core/node.ts:1651-1660], so end state is identical). Flipping
+	// individually in this fn (not via `partialOperatorOpts`) so `valve`
+	// (which deliberately needs `partial: true` for control-alone-on-
+	// activation) and any other partial-dep operators remain unaffected.
 	return node<readonly [A, B]>(
 		[primary as Node, secondary as Node],
 		(data, a, ctx) => {
@@ -919,6 +959,18 @@ export function withLatestFrom<A, B>(
 			if (batch0 != null && batch0.length > 0) {
 				// secondary has never produced DATA — undefined is the protocol
 				// sentinel for "never sent DATA"; null is a valid DATA value.
+				// With `partial: false` the gate holds during activation until
+				// secondary delivers real DATA, so this branch is dead on the
+				// first wave. It IS reachable post-warmup if secondary
+				// INVALIDATEs (which clears `prevData[1]` to undefined per
+				// `_depInvalidated` at [core/node.ts:1624-1635]) and then
+				// primary fires before secondary re-delivers. INVALIDATE does
+				// NOT re-arm the first-run gate ([core/node.ts:269] "Subsequent
+				// waves, INVALIDATE, and `_addDep` do not re-gate"), so this
+				// guard catches that re-delivery-pending window. (Terminal
+				// settlement on secondary leaves `prevData[1]` populated per
+				// `_depSettledAsTerminal` at [core/node.ts:1609-1617] — that
+				// path doesn't reach this branch.)
 				if (!(batch1 != null && batch1.length > 0) && ctx.prevData[1] === undefined) {
 					a.down([[RESOLVED]]);
 					return;
@@ -931,12 +983,8 @@ export function withLatestFrom<A, B>(
 				a.down([[RESOLVED]]);
 			}
 		},
-		// withLatestFrom fires on primary alone (secondary handled via
-		// ctx.prevData fallback or RESOLVED when secondary never delivered)
-		// and on secondary-alone waves (emits RESOLVED). Needs the §2.7 gate
-		// disabled so these partial-dep waves can reach fn.
 		{
-			...partialOperatorOpts(opts),
+			...gatedOperatorOpts<readonly [A, B]>(opts),
 			meta: { ...factoryTag("withLatestFrom"), ...(opts?.meta ?? {}) },
 		},
 	);
@@ -2589,6 +2637,17 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOp
 		// valve fires on either source-alone (forwards) or control-alone
 		// (re-emits prior source when gate opens). Needs partial firing so
 		// the control wave can reach fn before source has ever delivered.
+		// **Asymmetry vs `withLatestFrom` (Phase 10.5, 2026-04-29):**
+		// `withLatestFrom` flipped to `partial: false` to fix the W1
+		// initial-pair drop. `valve` cannot make the same flip — its
+		// control-alone-on-activation semantic explicitly requires firing
+		// before `source` delivers. Consequence: `valve(stateSource,
+		// stateControl)` may drop the initial paired emission when both
+		// deps are state-cached at activation, same shape as the pre-fix
+		// `withLatestFrom`. Callers that need the initial-pair guarantee
+		// should use the §28 closure-mirror pattern (capture
+		// `source.cache` + `control.cache` at wiring time, read inside a
+		// downstream fn). See COMPOSITION-GUIDE §28.
 		partialOperatorOpts(opts),
 	);
 }

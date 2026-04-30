@@ -79,6 +79,7 @@ import {
 	windowCount,
 	zip,
 } from "../../extra/operators.js";
+import { Graph } from "../../graph/graph.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
 
 // ---------------------------------------------------------------------------
@@ -3579,6 +3580,453 @@ const invariant57NoDepCascadeTerminalWhenGateFalse: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Graph narrow-waist (P1–P7) — composition contract for graph.derived /
+// graph.effect / graph.produce / graph.batch. Source: `archive/docs/SESSION-
+// graph-narrow-waist.md` § "TLA+ / Fast-Check Coverage Plan".
+//
+// These properties exercise the **path-based** API at small generated
+// topologies. Each property uses a fresh `Graph` per run so state cannot leak
+// between runs. The underlying primitive contracts (first-run gate, equals,
+// terminal cascade, etc.) are exercised by invariants 1–57 — these mirror
+// only the Graph-layer absorption surface.
+// ---------------------------------------------------------------------------
+
+/**
+ * #58 — graph-derived-sentinel-absorption (Plan P1).
+ *
+ * `graph.derived` resolves dep paths to Node refs and inherits the underlying
+ * `derived()` first-run gate (spec §2.7, partial: false). fn must NOT fire
+ * while ANY dep is in `sentinel` status. Once every dep has delivered at
+ * least one real DATA, the gate releases on the next settle.
+ *
+ * Topology: K ∈ [1, 4] sentinel `state<number>()` deps + one `graph.derived`
+ * summing them. Drive: settle K-1 deps and assert fn stays at 0; settle the
+ * last dep and assert fn fires exactly once.
+ *
+ * Catches: regressions where graph.derived loses the underlying first-run
+ * gate (e.g. accidentally setting `partial: true` while resolving paths), or
+ * where path resolution returns a populated stand-in instead of a SENTINEL
+ * source.
+ */
+const invariant58GraphDerivedSentinelAbsorption: Invariant = {
+	name: "graph-derived-sentinel-absorption",
+	description:
+		"graph.derived's fn does not fire while any dep path resolves to a SENTINEL node — fires only after the last dep delivers real DATA.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P1 (via spec §2.7 partial: false default)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.integer({ min: 0, max: 10 }), { minLength: 4, maxLength: 8 }),
+			(k, values) => {
+				const g = new Graph("prop-p1");
+				try {
+					for (let i = 0; i < k; i++) {
+						g.add(state<number>(undefined, { name: `a${i}` }), { name: `a${i}` });
+					}
+					let fnCalls = 0;
+					const out = g.derived(
+						"sum",
+						Array.from({ length: k }, (_, i) => `a${i}`),
+						(vals) => {
+							fnCalls += 1;
+							return (vals as number[]).reduce((s, v) => s + v, 0);
+						},
+					);
+					out.subscribe(() => {});
+					if (fnCalls !== 0) return false;
+					// Settle k-1 deps; gate must stay closed.
+					for (let i = 0; i < k - 1; i++) {
+						g.set(`a${i}`, values[i]);
+						if (fnCalls !== 0) return false;
+					}
+					// Settle the last dep; gate releases — exactly one fn invocation.
+					g.set(`a${k - 1}`, values[k - 1]);
+					return fnCalls === 1;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #59 — graph-derived-keepalive-cache-current (Plan P2).
+ *
+ * A `graph.derived(name, deps, fn, { keepAlive: true })` node's `.cache` must
+ * reflect `fn(latest deps)` after every emission, EVEN WITH NO EXTERNAL
+ * SUBSCRIBER. The keepAlive sink owns the activation; without it, the
+ * derived's RAM cache stays at `undefined` (spec §2.2). This pins the
+ * keepAlive primitive contract independent of the §28 closure-mirror
+ * pattern (the §28 pattern stays canonical for sample-passively-on-trigger
+ * cases — see `archive/docs/SESSION-graph-narrow-waist.md` § "Status of
+ * existing modifications" for the post-§28-reading reframing).
+ *
+ * Topology: `state(0) → graph.derived("doubled", ["a"], v => v*2, { keepAlive })`
+ * with no external subscriber. Drive: random sequence of `state.emit(v)` and
+ * `batch(...)` events on the source. Assert: after every event, `out.cache`
+ * equals `2 * a.cache` (or `undefined` only while a is sentinel — but the
+ * source `state(0)` is seeded so a is never sentinel here).
+ *
+ * Catches: a regression where the keepAlive sink fails to keep the derived
+ * activated across emission boundaries (e.g. self-pruning fires too eagerly),
+ * or where `derived`'s cache update lags the keepAlive sink's read.
+ */
+const invariant59GraphDerivedKeepAliveCacheCurrent: Invariant = {
+	name: "graph-derived-keepalive-cache-current",
+	description:
+		"A graph.derived(..., { keepAlive: true }) node's `.cache` reflects fn(latest deps) after every emission, even with no external subscriber.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P2",
+	property: () =>
+		fc.property(eventSequenceArb({ valueRange: [0, 50] }), (events) => {
+			const g = new Graph("prop-p2");
+			try {
+				const a = state(0, { name: "a" });
+				g.add(a, { name: "a" });
+				const out = g.derived("doubled", ["a"], ([x]) => (x as number) * 2, {
+					keepAlive: true,
+				});
+				// No external subscribe — keepAlive must keep cache current on its own.
+				if (out.cache !== 0) return false; // initial fn(0) = 0
+				const completed = { value: false };
+				for (const ev of events) {
+					if (completed.value) break;
+					applyEvent(a, ev, completed);
+					if (completed.value) break;
+					const aCache = a.cache as number | undefined;
+					if (aCache === undefined) return false; // a was seeded, must never go sentinel
+					if (out.cache !== aCache * 2) return false;
+				}
+				return true;
+			} finally {
+				g.destroy();
+			}
+		}),
+};
+
+/**
+ * #60 — graph-disposal-completeness (Plan P3).
+ *
+ * After `graph.destroy()`, every subscription created by `graph.derived` /
+ * `graph.effect` / `graph.produce` (including keepAlive subscriptions) must
+ * be torn down. Concretely: emissions on a SOURCE NODE that is held outside
+ * the graph and was registered (so the graph subscribed to it) must NOT
+ * reach any of the graph's fns after destroy.
+ *
+ * Topology: external `state(0)` registered via `g.add` as "a"; N
+ * `graph.derived(..., { keepAlive: true })` nodes over "a". Drive: emit once,
+ * record `fnCallCount`, destroy graph, emit again. Assert post-destroy
+ * `fnCallCount` is unchanged.
+ *
+ * Catches: regressions where the keepAlive disposer is forgotten on
+ * destroy, or where a future option flag (e.g. `keepAlive: "weak"`) leaks a
+ * subscription past destroy.
+ */
+const invariant60GraphDisposalCompleteness: Invariant = {
+	name: "graph-disposal-completeness",
+	description:
+		"After graph.destroy(), upstream emissions on retained source nodes do not reach any fn registered via graph.derived/effect/produce.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P3",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.integer({ min: 1, max: 5 }),
+			(numDerived, postDestroyEmits) => {
+				const a = state(0, { name: "a" });
+				const g = new Graph("prop-p3");
+				let fnCallCount = 0;
+				try {
+					g.add(a, { name: "a" });
+					for (let i = 0; i < numDerived; i++) {
+						g.derived(
+							`d${i}`,
+							["a"],
+							([x]) => {
+								fnCallCount += 1;
+								return (x as number) + i;
+							},
+							{ keepAlive: true },
+						);
+					}
+					// Drive at least one fn invocation so the property is non-vacuous.
+					a.emit(1);
+					if (fnCallCount === 0) return false;
+				} finally {
+					g.destroy();
+				}
+				const beforeDestroyCalls = fnCallCount;
+				// Post-destroy: emissions on the retained source must not reach
+				// any of the graph's fns. Positive assertion guards the
+				// vacuous-pass case where a future change makes `state.emit`
+				// silently no-op on a borrowed-but-destroyed source — verify
+				// `a.cache` actually advances on each emit so we know the
+				// emit had real effect. (If a future change DOES tear down
+				// borrowed sources on graph.destroy, this guard surfaces it
+				// instead of letting the gate-check pass trivially.)
+				for (let i = 0; i < postDestroyEmits; i++) {
+					const expected = 2 + i;
+					a.emit(expected);
+					if (a.cache !== expected) return false;
+				}
+				return fnCallCount === beforeDestroyCalls;
+			},
+		),
+};
+
+/**
+ * #61 — graph-batch-atomicity (Plan P4).
+ *
+ * Inside `graph.batch(fn)`, all `graph.set(name, v)` calls produce exactly
+ * ONE coalesced downstream wave per affected node — not one per `set`. This
+ * is the same semantics as core `batch()` (spec §1.3 invariant 7); the
+ * property pins it at the Graph-method boundary so a future graph-scoped
+ * batch implementation can't regress the contract.
+ *
+ * Topology: `state(0) → graph.derived("x2", ["a"], v => v*2)`. Subscribe.
+ * Drive: random sequence of values, all written to "a" inside ONE
+ * `graph.batch(...)`. Assert: downstream sees exactly one DATA settlement,
+ * with the final batched value (or no DATA if the final value equals the
+ * pre-batch cache, in which case there is exactly one RESOLVED).
+ *
+ * Catches: a regression where `graph.batch` accidentally maps to a no-op or
+ * to per-call delivery (e.g. a future graph-scoped frame implementation
+ * forgetting to defer DATA).
+ */
+const invariant61GraphBatchAtomicity: Invariant = {
+	name: "graph-batch-atomicity",
+	description:
+		"Inside graph.batch(fn), N graph.set() calls on the same path produce exactly one coalesced settlement (DATA or RESOLVED) downstream.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P4 (via spec §1.3 invariant 7)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 20 }), { minLength: 1, maxLength: 6 }),
+			(vals) => {
+				const g = new Graph("prop-p4");
+				try {
+					g.add(state(0, { name: "a" }), { name: "a" });
+					const out = g.derived("x2", ["a"], ([x]) => (x as number) * 2);
+					let postBatchSettlements = 0;
+					out.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA || m[0] === RESOLVED) postBatchSettlements += 1;
+						}
+					});
+					// Subscription handshake delivered up to one initial DATA. Reset
+					// the counter to measure only post-batch settlements.
+					postBatchSettlements = 0;
+					g.batch(() => {
+						for (const v of vals) g.set("a", v);
+					});
+					// Exactly one settlement (DATA when final value differs, RESOLVED
+					// when it matches the pre-batch cache).
+					return postBatchSettlements === 1;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #62 — graph-derived-path-resolution-construction (Plan P5, RESTATED).
+ *
+ * `graph.derived(name, paths, fn)` resolves every path via `graph.resolve`
+ * AT CONSTRUCTION TIME. Paths must address Nodes that exist on the current
+ * topology; emissions on those resolved Nodes during their lifetime drive
+ * fn. Cross-mount paths via `::` are supported.
+ *
+ * **Restated from session-doc P5:** the original P5 ("if mount removed, the
+ * derived errors rather than silently reading stale refs") is deferred —
+ * post-construction mount removal is undefined behavior tracked under
+ * `project_rewire_gap` / optimizations.md C4. This property only asserts
+ * the **construction-time + lifetime** contract: paths resolve to the
+ * expected Nodes, and emissions during the mount's lifetime reach the
+ * derived's fn.
+ *
+ * Topology: parent graph with one mounted child holding K ∈ [1, 3] state
+ * nodes; `graph.derived` over `mount::aN` paths. Drive: emit values into
+ * each child state; assert the derived's fn fires with the corresponding
+ * values delivered through the resolved deps.
+ *
+ * Catches: regressions where path resolution silently swallows `::`
+ * segments or returns a wrong Node ref.
+ */
+const invariant62GraphDerivedPathResolutionConstruction: Invariant = {
+	name: "graph-derived-path-resolution-construction",
+	description:
+		"graph.derived resolves `::`-qualified paths at construction time and routes upstream emissions through the resolved deps to fn during the mount's lifetime.",
+	specRef:
+		"archive/docs/SESSION-graph-narrow-waist.md § P5 (RESTATED — post-mount-removal behavior tracked under optimizations.md C4 rewire gap)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 3 }),
+			fc.array(fc.integer({ min: 0, max: 30 }), { minLength: 3, maxLength: 6 }),
+			(k, values) => {
+				const parent = new Graph("prop-p5-parent");
+				try {
+					const child = new Graph("child");
+					for (let i = 0; i < k; i++) {
+						child.add(state(0, { name: `a${i}` }), { name: `a${i}` });
+					}
+					parent.mount("m", child);
+					let lastSeen: number | undefined;
+					const out = parent.derived(
+						"sum",
+						Array.from({ length: k }, (_, i) => `m::a${i}`),
+						(vals) => {
+							const sum = (vals as number[]).reduce((s, v) => s + v, 0);
+							lastSeen = sum;
+							return sum;
+						},
+					);
+					out.subscribe(() => {});
+					// Drive emissions through the resolved cross-mount deps.
+					let expected = 0;
+					for (let i = 0; i < values.length; i++) {
+						const idx = i % k;
+						const v = values[i];
+						parent.set(`m::a${idx}`, v);
+						// Recompute expected sum from current child caches.
+						let s = 0;
+						for (let j = 0; j < k; j++) {
+							s += child.node(`a${j}`).cache as number;
+						}
+						expected = s;
+						if (lastSeen !== expected) return false;
+					}
+					return true;
+				} finally {
+					parent.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #63 — graph-narrow-waist-topology-visibility (Plan P6).
+ *
+ * Every node created by `graph.derived` / `graph.effect` / `graph.produce`
+ * appears in `graph.describe().nodes` under its registered name, with
+ * correct edges in `describe().edges`. The contract is: pattern authors
+ * never create islands when they use the narrow-waist API.
+ *
+ * Topology: K ∈ [1, 4] state nodes plus M ∈ [1, 4] derived nodes wired to
+ * a random subset of the states. Build via `graph.derived`; assert each
+ * registered name appears in `describe().nodes` and each (state → derived)
+ * edge appears in `describe().edges`.
+ *
+ * Catches: a regression where `graph.derived/effect/produce` skip the
+ * `graph.add` registration step (e.g. via a future "anonymous" mode), or
+ * where the underlying `_deps` walk in `edges()` misses path-resolved deps.
+ */
+const invariant63GraphNarrowWaistTopologyVisibility: Invariant = {
+	name: "graph-narrow-waist-topology-visibility",
+	description:
+		"Every node created via graph.derived/effect/produce appears in graph.describe().nodes under its registered name, with edges from each dep path in graph.describe().edges.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P6",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.array(fc.nat(3), { minLength: 1, maxLength: 4 }), {
+				minLength: 1,
+				maxLength: 4,
+			}),
+			(numStates, derivedSpecs) => {
+				const g = new Graph("prop-p6");
+				try {
+					for (let i = 0; i < numStates; i++) {
+						g.add(state(i, { name: `s${i}` }), { name: `s${i}` });
+					}
+					const expectedDerivedNames: string[] = [];
+					const expectedEdges = new Set<string>();
+					for (let i = 0; i < derivedSpecs.length; i++) {
+						const depIdxs = Array.from(new Set(derivedSpecs[i].map((idx) => idx % numStates)));
+						const depPaths = depIdxs.map((idx) => `s${idx}`);
+						const name = `d${i}`;
+						g.derived(name, depPaths, (vals) => (vals as number[]).reduce((s, v) => s + v, 0));
+						expectedDerivedNames.push(name);
+						for (const p of depPaths) expectedEdges.add(`${p}->${name}`);
+					}
+					const desc = g.describe();
+					// Every state must be in nodes.
+					for (let i = 0; i < numStates; i++) {
+						if (!(`s${i}` in desc.nodes)) return false;
+					}
+					// Every derived must be in nodes.
+					for (const name of expectedDerivedNames) {
+						if (!(name in desc.nodes)) return false;
+					}
+					// Every expected edge must be present.
+					const actualEdges = new Set(desc.edges.map((e) => `${e.from}->${e.to}`));
+					for (const ee of expectedEdges) {
+						if (!actualEdges.has(ee)) return false;
+					}
+					// No phantom edges — every actual edge between the named nodes
+					// must correspond to an expected one (or be among non-derived
+					// state-to-state, which there shouldn't be any of since states
+					// have no deps).
+					for (const e of desc.edges) {
+						if (!expectedEdges.has(`${e.from}->${e.to}`)) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #64 — graph-derived-keepalive-equivalence (Plan P7).
+ *
+ * For the same fn and dep paths, `graph.derived(name, deps, fn, { keepAlive:
+ * true })` and `graph.derived(name, deps, fn)` (default no-keepAlive) must
+ * produce identical `.cache` values WHENEVER both are activated. The
+ * keepAlive option is a subscription convenience — it owns activation when
+ * no external subscriber exists, but does not change the computed value.
+ *
+ * Topology: shared upstream `state(0) → "a"`. Two derived nodes "with" and
+ * "without" keepAlive computing the same fn on the same dep. To activate
+ * the no-keepAlive variant we attach an external subscribe; the keepAlive
+ * variant has none. Drive: random sequence of emits on "a"; assert the two
+ * caches are equal after every event.
+ *
+ * Catches: a regression where keepAlive accidentally changes the value
+ * pipeline (e.g. by intercepting DATA messages or by reordering the
+ * subscription wave so the two fns see different snapshots).
+ */
+const invariant64GraphDerivedKeepAliveEquivalence: Invariant = {
+	name: "graph-derived-keepalive-equivalence",
+	description:
+		"graph.derived with keepAlive: true and an externally-subscribed graph.derived without keepAlive produce identical .cache values for the same fn and deps after every emission.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P7",
+	property: () =>
+		fc.property(eventSequenceArb({ valueRange: [0, 30] }), (events) => {
+			const g = new Graph("prop-p7");
+			try {
+				const a = state(0, { name: "a" });
+				g.add(a, { name: "a" });
+				const fn = ([x]: readonly unknown[]): number => (x as number) * 3 + 1;
+				const withKA = g.derived("withKA", ["a"], fn, { keepAlive: true });
+				const noKA = g.derived("noKA", ["a"], fn);
+				// Activate noKA via an external subscribe. withKA stays activation-
+				// owned by its keepAlive sink.
+				noKA.subscribe(() => {});
+				const completed = { value: false };
+				if (withKA.cache !== noKA.cache) return false;
+				for (const ev of events) {
+					if (completed.value) break;
+					applyEvent(a, ev, completed);
+					if (completed.value) break;
+					if (withKA.cache !== noKA.cache) return false;
+				}
+				return true;
+			} finally {
+				g.destroy();
+			}
+		}),
+};
+
+// ---------------------------------------------------------------------------
 // Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
 // follow-ons"):
 //
@@ -3668,6 +4116,13 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant55CleanupWitnessNotSentinel,
 	invariant56CleanupWitnessAccounting,
 	invariant57NoDepCascadeTerminalWhenGateFalse,
+	invariant58GraphDerivedSentinelAbsorption,
+	invariant59GraphDerivedKeepAliveCacheCurrent,
+	invariant60GraphDisposalCompleteness,
+	invariant61GraphBatchAtomicity,
+	invariant62GraphDerivedPathResolutionConstruction,
+	invariant63GraphNarrowWaistTopologyVisibility,
+	invariant64GraphDerivedKeepAliveEquivalence,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

@@ -251,6 +251,14 @@ export class PipelineGraph extends Graph {
 		let queue: T[] = [];
 		let torn = false;
 		let latched = false;
+		// Closure-mirror per COMPOSITION-GUIDE §28 factory-time seed pattern.
+		// `output` samples `latestIsOpen` inside its fn body when deciding
+		// emit-vs-enqueue; reading a closure variable is NOT a P3 violation
+		// (§28). An in-session Phase 9 plan would have relocated the value to
+		// `internal.derived("latestIsOpen", ...)` + `.cache` reads (which IS
+		// a P3 violation); plan was reverted at the design level after
+		// re-reading §28 — pattern preserved here. See `archive/docs/SESSION-
+		// graph-narrow-waist.md` § "Status of existing modifications".
 		let latestIsOpen = startOpen;
 		const isOpenUnsub = isOpenNode.subscribe((msgs) => {
 			for (const m of msgs) {

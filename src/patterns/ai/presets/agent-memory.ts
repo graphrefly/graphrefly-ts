@@ -189,6 +189,14 @@ export function agentMemory<TMem = unknown>(
 	// closure-mirror for `existing` (COMPOSITION-GUIDE §40 recipe).
 	// QA F9: register the closure-mirror's unsub with the host graph so
 	// `graph.destroy()` reclaims it — was previously leaked.
+	//
+	// **Phase 16 attempt (2026-04-29) reverted.** Tried `withLatestFrom(
+	// rawNode, existingNode) + switchMap`; this is the WRONG migration per
+	// COMPOSITION-GUIDE §28. **Phase 10.5 (same-day partial-flag flip on
+	// `withLatestFrom`)** removes the initial-pair drop, but this site stays
+	// on closure-mirror form pending Phase 11 restricted signatures. See
+	// `archive/docs/SESSION-graph-narrow-waist.md` § "Status of existing
+	// modifications" + § "Phase 10.5".
 	const extractFn = (
 		rawNode: Node<unknown>,
 		existingNode: Node<ReadonlyMap<string, TMem>>,
