@@ -195,10 +195,112 @@ agentMemory(name, opts?) → Graph
 4. LLM extraction/consolidation lives in `llmExtractor`/`llmConsolidator` (userland adapters), never inside core primitives.
 5. OpenViking's L0/L1/L2 progressive loading maps to `derived()` chains — leaf summaries aggregate into parent summaries. Worth considering as a retrieval optimization in `agentMemory()`.
 
+---
+
+## PART 6: LEARNED MEMORY — THE "SECOND HALF" PARADIGM SHIFT (April 2026)
+
+Source: Xiaohongshu discussion thread + two key papers (user-provided, April 30 2026).
+
+### Context: The "Second Half" Thesis
+
+The field is shifting from *handcrafted memory heuristics* to *learned memory policies*. The core claim: **memory should not be designed by engineers — it should be trained end-to-end with the agent so the agent learns how to do memory better.**
+
+Two papers crystallize this:
+
+### Paper 1: "Rethinking Memory Mechanisms of Foundation Agents in the Second Half: A Survey"
+
+**Authors:** Wei-Chieh Huang et al. (60 authors, Salesforce AI Research, UIUC, UCLA, etc.)
+**arXiv:** 2602.06052 (Jan 2026, v3 Feb 2026)
+**Scope:** 218 papers surveyed across 2023Q1–2025Q4
+
+**Three-dimensional taxonomy:**
+
+| Dimension | Categories |
+|---|---|
+| **Memory substrate** | Internal (in-weights) vs External (retrieval stores) |
+| **Cognitive mechanism** | Episodic, Semantic, Sensory, Working, Procedural |
+| **Memory subject** | Agent-centric vs User-centric |
+
+**Critical section — §5 "Memory Learning Policy" — three paradigms:**
+
+1. **Prompt-based** (static rules or dynamic reflection): Memory operations encoded as natural language instructions. Includes static schemas (MemGPT, A-Mem, Zep) and dynamic self-correction (Reflexion, WebCoach). Interpretable but lacks credit assignment — cannot optimize long-term memory quality.
+
+2. **Fine-tuning** (parameterized policies): Memory policies baked into model weights via SFT. Approaches include internalizing memory content itself (MEMORYLLM), learning retrieval interfaces (Memory3), and hierarchical organization (separating long-tail from core knowledge). More stable but frozen after training.
+
+3. **Reinforcement learning** (the frontier): Memory operations become learnable actions optimized by task reward. Three scopes:
+   - **Step-level:** Atomic memory ops (add/update/delete/skip) as RL actions. Memory-R1 defines explicit memory action spaces; MemAgent learns what to write under capacity constraints; Mem-α frames memory construction itself as sequential decision-making.
+   - **Trajectory-level:** Compact memory representations learned via delayed reward. Summarization/compression as policy decisions evaluated through future outcomes. InftyThink+ and IterResearch treat memory state as part of the Markov state.
+   - **Cross-episode:** Experience distilled into transferable decision knowledge across episodes. Graph-based experience abstraction, reflective retrieval policies (Retroformer, Memento), shared multi-agent memory (MAICC).
+
+**Key quote from the survey:** *"Only long-term and cross-episode reward signals can determine which memories should persist, adapt, or be revised by the memory policy."*
+
+### Paper 2: "InftyThink+: Effective and Efficient Infinite-Horizon Reasoning via Reinforcement Learning"
+
+**Authors:** Yuchen Yan et al. (Zhejiang University, ZJU-REAL lab)
+**arXiv:** 2602.06960 (Feb 2026)
+**Code:** github.com/ZJU-REAL/InftyThink-Plus
+
+**Core idea:** Agent produces periodic *summaries* during reasoning as a form of working memory. The agent learns **when** to summarize, **what** to preserve, and **how** to resume reasoning — all via end-to-end RL, not fixed heuristics.
+
+**Architecture:**
+```
+Reason (segment) → Summarize (compress) → Continue (from summary) → ... (iterate)
+```
+
+**Training:** Two-stage — SFT cold-start teaches the summarization pattern, then trajectory-level RL optimizes the full iterative reasoning trajectory.
+
+**Results:** +21% accuracy on AIME24 vs baseline, reduced inference latency, better OOD generalization. The model evolves three capabilities:
+1. **When to summarize** — strategic timing, not fixed intervals
+2. **How to summarize** — learned compression, not template extraction
+3. **How to continue from summary** — Markov chain-style reasoning where each step only sees the summary, not the full history
+
+**Connection to xiaohongshu comment:** The commenter noted this aligns with the survey's thesis — memory operations should emerge from training, not be handcrafted. InftyThink+ is a concrete proof: RL-trained summarization outperforms fixed-heuristic summarization.
+
+### What This Means for GraphReFly's agentMemory()
+
+**Current design (Parts 1-5 above):** Our `agentMemory()` is a *handcrafted composition* — we ship fixed strategies (3D funnel, decay formula, periodic consolidation) with pluggable overrides. This is squarely in the survey's **Paradigm 1 (prompt/rule-based)** — powerful, interpretable, but not learning from outcomes.
+
+**The gap:** We don't have a feedback loop where memory quality feeds back into memory policy. Our `consolidateFn`, `admissionFilter`, and `score` are static or prompt-tuned — they don't improve as the agent uses them.
+
+**Opportunities (ordered by feasibility):**
+
+1. **Reactive reward signal (low-hanging fruit, fits existing architecture):**
+   - Add an `outcome` source node to `agentMemory()` that receives task success/failure signals
+   - Wire `outcome` → `derived()` that adjusts `decay()` parameters or `admissionFilter` thresholds
+   - This is still rule-based but uses reactive propagation to make rules adaptive
+   - **GraphReFly advantage:** push-based propagation means policy adjustments propagate instantly to all downstream views — no polling
+
+2. **Memory-as-action-space (medium, requires promptNode integration):**
+   - Model memory operations (admit/evict/consolidate/skip) as explicit actions in a `promptNode` harness loop
+   - The harness VERIFY stage evaluates memory quality via downstream task performance
+   - REFLECT stage updates memory strategy
+   - Maps to Memory-R1 / Mem-α pattern but using our reactive harness instead of external RL framework
+   - **GraphReFly advantage:** harness loop already has EXECUTE→VERIFY→REFLECT; memory ops fit naturally as actions
+
+3. **Learned summarization (aspirational, requires model training):**
+   - InftyThink+ shows that RL-trained summarization beats fixed heuristics
+   - Our `llmConsolidator` could be replaced by a fine-tuned model that learned consolidation through trajectory-level RL
+   - We don't train models, but we can provide the **training harness** — reactive graph that logs (memory state, action, outcome) trajectories for external RL training
+   - **GraphReFly advantage:** `observe()` + `spy()` already capture full causal traces — ideal training data for memory RL
+
+4. **Cross-episode memory evolution (long-term):**
+   - The survey's §5.3.3 describes memory policies that improve across episodes
+   - Our `autoCheckpoint` + `knowledgeGraph` already persist cross-session
+   - Missing piece: a cross-session reward signal that tells the memory system "this remembered fact was useful 3 sessions later"
+   - Could instrument via `observe()` on retrieval hits correlated with task success
+
+### Key Takeaway
+
+**The handcrafted vs learned memory debate mirrors the handcrafted vs learned features debate in computer vision (SIFT → CNN).** The "second half" thesis is that memory heuristics will follow the same trajectory — today's carefully designed memory pipelines will be replaced by end-to-end learned memory policies.
+
+**GraphReFly's position:** We are *not* an RL training framework and should not try to be one. But we can be the **reactive substrate** on which learned memory policies execute. Our advantages (push-based propagation, causal observability, diamond-safe coordination, in-process speed) are *orthogonal* to whether the memory policy is handcrafted or learned. The reactive graph is the execution layer; the policy can come from rules, prompts, or RL — and our architecture supports all three without structural changes.
+
+**Concrete next step:** Add an `outcome` feedback node to `agentMemory()` (opportunity #1) as the first step toward adaptive memory. This is pure composition — no new primitives needed — and creates the reward signal infrastructure that opportunities #2-4 build on.
+
+---
+
 ## FILES CHANGED
 
-- This file created: `archive/docs/SESSION-agentic-memory-research.md`
-- Updated: `archive/docs/DESIGN-ARCHIVE-INDEX.md` (new entry)
-- Updated: `docs/roadmap.md` (Phase 4.4 refined with default strategy)
+- This file updated: `archive/docs/SESSION-agentic-memory-research.md` (added Part 6)
 
 ---END SESSION---

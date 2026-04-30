@@ -81,3 +81,24 @@ export function collect(
 export function collectFlat(node: Subscribable) {
 	return collect(node, { flat: true });
 }
+
+/**
+ * Collapse the raw `data: readonly (readonly unknown[] | undefined)[]` shape
+ * passed to `GraphDerivedFn` / `GraphEffectFn` into per-dep latest scalars.
+ *
+ * For each dep `i`:
+ * - If `data[i]` has at least one DATA value, returns the LAST one.
+ * - Otherwise (dep not involved this wave, or RESOLVED), returns
+ *   `ctx.prevData[i]` — the last DATA value from the prior wave.
+ *
+ * Mirrors the canonical scalar-read formula documented on `GraphDerivedFn`.
+ * Tests that don't care about multi-emit semantics use this; tests that DO
+ * care should index `data[i]` directly. The name reflects the collapse —
+ * "latest of each dep" — not "all values."
+ */
+export function latestVals(
+	data: readonly (readonly unknown[] | undefined)[],
+	ctx: { readonly prevData: readonly unknown[] },
+): readonly unknown[] {
+	return data.map((b, i) => (b != null && b.length > 0 ? b[b.length - 1] : ctx.prevData[i]));
+}

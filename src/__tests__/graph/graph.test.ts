@@ -13,6 +13,7 @@ import {
 	type ObserveResult,
 	reachable,
 } from "../../graph/graph.js";
+import { latestVals } from "../test-helpers.js";
 import { assertDescribeMatchesAppendixB } from "./validate-describe-appendix-b.js";
 
 describe("Graph (Phase 1.1)", () => {
@@ -2116,7 +2117,10 @@ describe("Graph narrow-waist — graph.batch", () => {
 		const g = new Graph("nw-batch");
 		g.add(node<number>([], { name: "a", initial: undefined }), { name: "a" });
 		g.add(node<number>([], { name: "b", initial: undefined }), { name: "b" });
-		const out = g.derived("sum", ["a", "b"], ([x, y]) => [(x as number) + (y as number)]);
+		const out = g.derived("sum", ["a", "b"], (data, ctx) => {
+			const [x, y] = latestVals(data, ctx);
+			return [(x as number) + (y as number)];
+		});
 		const dataEvents: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
@@ -2131,7 +2135,10 @@ describe("Graph narrow-waist — graph.batch", () => {
 	it("nested graph.batch coalesces to one downstream wave", () => {
 		const g = new Graph("nw-batch-nest");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-		const out = g.derived("twice", ["a"], ([x]) => [(x as number) * 2]);
+		const out = g.derived("twice", ["a"], (data, ctx) => {
+			const [x] = latestVals(data, ctx);
+			return [(x as number) * 2];
+		});
 		const dataEvents: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
@@ -2157,8 +2164,9 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 		g.add(node<number>([], { name: "a", initial: undefined }), { name: "a" });
 		g.add(node<number>([], { name: "b", initial: undefined }), { name: "b" });
 		let fnCalls = 0;
-		const out = g.derived("sum", ["a", "b"], ([x, y]) => {
+		const out = g.derived("sum", ["a", "b"], (data, ctx) => {
 			fnCalls += 1;
+			const [x, y] = latestVals(data, ctx);
 			return [(x as number) + (y as number)];
 		});
 		const dataEvents: number[] = [];
@@ -2181,7 +2189,8 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 		const g = new Graph("nw-derived-null");
 		g.add(node<number | null>([], { name: "a", initial: undefined }), { name: "a" });
 		let saw: unknown = "untouched";
-		const out = g.derived("identity", ["a"], ([x]) => {
+		const out = g.derived("identity", ["a"], (data, ctx) => {
+			const [x] = latestVals(data, ctx);
 			saw = x;
 			return [x as number | null];
 		});
@@ -2204,7 +2213,10 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 	it("registers under the supplied name and exposes describe edges", () => {
 		const g = new Graph("nw-derived-describe");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		const out = g.derived("doubled", ["a"], ([x]) => [(x as number) * 2]);
+		const out = g.derived("doubled", ["a"], (data, ctx) => {
+			const [x] = latestVals(data, ctx);
+			return [(x as number) * 2];
+		});
 		out.subscribe(() => {});
 		const desc = g.describe();
 		expect(Object.keys(desc.nodes)).toContain("doubled");
@@ -2214,12 +2226,20 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 	it("forwards equals + initial + meta + annotation through to the underlying primitive", () => {
 		const g = new Graph("nw-derived-opts");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => [(x as number) + 1], {
-			equals: (l, r) => l === r,
-			initial: 99,
-			meta: { domain: "test" },
-			annotation: "doubled+1",
-		});
+		const out = g.derived(
+			"n",
+			["a"],
+			(data, ctx) => {
+				const [x] = latestVals(data, ctx);
+				return [(x as number) + 1];
+			},
+			{
+				equals: (l, r) => l === r,
+				initial: 99,
+				meta: { domain: "test" },
+				annotation: "doubled+1",
+			},
+		);
 		expect(out.cache).toBe(99);
 		expect(g.annotation("n")).toBe("doubled+1");
 		const desc = g.describe({ detail: "standard" });
@@ -2231,7 +2251,10 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 	it("keepAlive: false (default) → cache stays sentinel until external subscribe", () => {
 		const g = new Graph("nw-keepalive-off");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => [(x as number) * 10]);
+		const out = g.derived("n", ["a"], (data, ctx) => {
+			const [x] = latestVals(data, ctx);
+			return [(x as number) * 10];
+		});
 		// No keepalive, no subscriber → derived stays inactive, cache is sentinel.
 		expect(out.cache).toBeUndefined();
 	});
@@ -2239,7 +2262,15 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 	it("keepAlive: true → cache populated immediately and tracks upstream", () => {
 		const g = new Graph("nw-keepalive-on");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => [(x as number) * 10], { keepAlive: true });
+		const out = g.derived(
+			"n",
+			["a"],
+			(data, ctx) => {
+				const [x] = latestVals(data, ctx);
+				return [(x as number) * 10];
+			},
+			{ keepAlive: true },
+		);
 		expect(out.cache).toBe(10);
 		g.set("a", 7);
 		expect(out.cache).toBe(70);
@@ -2252,9 +2283,17 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 		// instead. See the next test.
 		const g = new Graph("nw-keepalive-external");
 		g.add(node([], { name: "value", initial: 5 }), { name: "value" });
-		const doubled = g.derived("doubled", ["value"], ([v]) => [(v as number) * 2], {
-			keepAlive: true,
-		});
+		const doubled = g.derived(
+			"doubled",
+			["value"],
+			(data, ctx) => {
+				const [v] = latestVals(data, ctx);
+				return [(v as number) * 2];
+			},
+			{
+				keepAlive: true,
+			},
+		);
 		// External (non-reactive) consumer reads .cache directly.
 		expect(doubled.cache).toBe(10);
 		g.set("value", 7);
@@ -2270,9 +2309,10 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 		const g = new Graph("nw-derived-composition");
 		g.add(node([], { name: "trigger", initial: 2 }), { name: "trigger" });
 		g.add(node([], { name: "value", initial: 5 }), { name: "value" });
-		const out = g.derived("combined", ["trigger", "value"], ([t, v]) => [
-			(t as number) * (v as number),
-		]);
+		const out = g.derived("combined", ["trigger", "value"], (data, ctx) => {
+			const [t, v] = latestVals(data, ctx);
+			return [(t as number) * (v as number)];
+		});
 		const seen: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
@@ -2295,7 +2335,8 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 		g.derived(
 			"n",
 			["a"],
-			([x]) => {
+			(data, ctx) => {
+				const [x] = latestVals(data, ctx);
 				fnCalls += 1;
 				return [(x as number) * 10];
 			},
@@ -2313,8 +2354,24 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 	it("two derived with keepAlive on the same graph both get torn down", () => {
 		const g = new Graph("nw-keepalive-many");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		g.derived("x", ["a"], ([v]) => [v as number], { keepAlive: true });
-		g.derived("y", ["a"], ([v]) => [(v as number) + 1], { keepAlive: true });
+		g.derived(
+			"x",
+			["a"],
+			(data, ctx) => {
+				const [v] = latestVals(data, ctx);
+				return [v as number];
+			},
+			{ keepAlive: true },
+		);
+		g.derived(
+			"y",
+			["a"],
+			(data, ctx) => {
+				const [v] = latestVals(data, ctx);
+				return [(v as number) + 1];
+			},
+			{ keepAlive: true },
+		);
 		expect(g.node("x").cache).toBe(1);
 		expect(g.node("y").cache).toBe(2);
 		// destroy() must not throw with multiple keepalive disposers registered.
@@ -2331,7 +2388,15 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const before = g._disposers.size;
 		for (let i = 0; i < 10; i++) {
-			g.derived(`n${i}`, ["a"], ([v]) => [v as number], { keepAlive: true });
+			g.derived(
+				`n${i}`,
+				["a"],
+				(data, ctx) => {
+					const [v] = latestVals(data, ctx);
+					return [v as number];
+				},
+				{ keepAlive: true },
+			);
 			g.remove(`n${i}`);
 		}
 		// All 10 keepAlive disposers must have self-pruned via the TEARDOWN sent
@@ -2345,7 +2410,8 @@ describe("Graph narrow-waist — graph.effect", () => {
 		const g = new Graph("nw-effect");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const calls: number[] = [];
-		const fx = g.effect("logger", ["a"], ([x]) => {
+		const fx = g.effect("logger", ["a"], (data, _up, ctx) => {
+			const [x] = latestVals(data, ctx);
 			calls.push(x as number);
 		});
 		fx.subscribe(() => {});
@@ -2489,10 +2555,18 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 		const g = new Graph("nw-signal-derived");
 		const ac = new AbortController();
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		const n = g.derived("d", ["a"], ([v]) => [v as number], {
-			signal: ac.signal,
-			keepAlive: true,
-		});
+		const n = g.derived(
+			"d",
+			["a"],
+			(data, ctx) => {
+				const [v] = latestVals(data, ctx);
+				return [v as number];
+			},
+			{
+				signal: ac.signal,
+				keepAlive: true,
+			},
+		);
 		expect(n.cache).toBe(1);
 		ac.abort();
 		expect(g.tryResolve("d")).toBeUndefined();
@@ -2524,7 +2598,15 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 		const ac = new AbortController();
 		ac.abort();
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		g.derived("d", ["a"], ([v]) => [v as number], { signal: ac.signal });
+		g.derived(
+			"d",
+			["a"],
+			(data, ctx) => {
+				const [v] = latestVals(data, ctx);
+				return [v as number];
+			},
+			{ signal: ac.signal },
+		);
 		expect(g.tryResolve("d")).toBeUndefined();
 	});
 });

@@ -79,6 +79,7 @@ import {
 	zip,
 } from "../../extra/operators.js";
 import { Graph } from "../../graph/graph.js";
+import { latestVals } from "../test-helpers.js";
 import { applyEvent, captureTrace, type Event, eventSequenceArb } from "./_generators.js";
 
 // ---------------------------------------------------------------------------
@@ -3832,9 +3833,9 @@ const invariant58GraphDerivedSentinelAbsorption: Invariant = {
 					const out = g.derived(
 						"sum",
 						Array.from({ length: k }, (_, i) => `a${i}`),
-						(vals) => {
+						(data, ctx) => {
 							fnCalls += 1;
-							return [(vals as number[]).reduce((s, v) => s + v, 0)];
+							return [(latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0)];
 						},
 					);
 					out.subscribe(() => {});
@@ -3887,9 +3888,17 @@ const invariant59GraphDerivedKeepAliveCacheCurrent: Invariant = {
 			try {
 				const a = node([], { name: "a", initial: 0 });
 				g.add(a, { name: "a" });
-				const out = g.derived("doubled", ["a"], ([x]) => [(x as number) * 2], {
-					keepAlive: true,
-				});
+				const out = g.derived(
+					"doubled",
+					["a"],
+					(data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						return [(x as number) * 2];
+					},
+					{
+						keepAlive: true,
+					},
+				);
 				// No external subscribe — keepAlive must keep cache current on its own.
 				if (out.cache !== 0) return false; // initial fn(0) = 0
 				const completed = { value: false };
@@ -3945,7 +3954,8 @@ const invariant60GraphDisposalCompleteness: Invariant = {
 						g.derived(
 							`d${i}`,
 							["a"],
-							([x]) => {
+							(data, ctx) => {
+								const [x] = latestVals(data, ctx);
 								fnCallCount += 1;
 								return [(x as number) + i];
 							},
@@ -4008,7 +4018,10 @@ const invariant61GraphBatchAtomicity: Invariant = {
 				const g = new Graph("prop-p4");
 				try {
 					g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-					const out = g.derived("x2", ["a"], ([x]) => [(x as number) * 2]);
+					const out = g.derived("x2", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						return [(x as number) * 2];
+					});
 					let postBatchSettlements = 0;
 					out.subscribe((msgs) => {
 						for (const m of msgs) {
@@ -4077,8 +4090,8 @@ const invariant62GraphDerivedPathResolutionConstruction: Invariant = {
 					const out = parent.derived(
 						"sum",
 						Array.from({ length: k }, (_, i) => `m::a${i}`),
-						(vals) => {
-							const sum = (vals as number[]).reduce((s, v) => s + v, 0);
+						(data, ctx) => {
+							const sum = (latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0);
 							lastSeen = sum;
 							return [sum];
 						},
@@ -4147,7 +4160,9 @@ const invariant63GraphNarrowWaistTopologyVisibility: Invariant = {
 						const depIdxs = Array.from(new Set(derivedSpecs[i].map((idx) => idx % numStates)));
 						const depPaths = depIdxs.map((idx) => `s${idx}`);
 						const name = `d${i}`;
-						g.derived(name, depPaths, (vals) => [(vals as number[]).reduce((s, v) => s + v, 0)]);
+						g.derived(name, depPaths, (data, ctx) => [
+							(latestVals(data, ctx) as number[]).reduce((s, v) => s + v, 0),
+						]);
 						expectedDerivedNames.push(name);
 						for (const p of depPaths) expectedEdges.add(`${p}->${name}`);
 					}
@@ -4210,7 +4225,13 @@ const invariant64GraphDerivedKeepAliveEquivalence: Invariant = {
 			try {
 				const a = node([], { name: "a", initial: 0 });
 				g.add(a, { name: "a" });
-				const fn = ([x]: readonly unknown[]): readonly number[] => [(x as number) * 3 + 1];
+				const fn = (
+					data: readonly (readonly unknown[] | undefined)[],
+					ctx: { readonly prevData: readonly unknown[] },
+				): readonly number[] => {
+					const [x] = latestVals(data, ctx);
+					return [(x as number) * 3 + 1];
+				};
 				const withKA = g.derived("withKA", ["a"], fn, { keepAlive: true });
 				const noKA = g.derived("noKA", ["a"], fn);
 				// Activate noKA via an external subscribe. withKA stays activation-
@@ -4229,6 +4250,160 @@ const invariant64GraphDerivedKeepAliveEquivalence: Invariant = {
 				g.destroy();
 			}
 		}),
+};
+
+/**
+ * #65 — graph-derived-multi-emit-array-semantics (Plan P8).
+ *
+ * When `graph.derived`'s fn returns `[v1, v2, ..., vN]` (N > 1),
+ * downstream receives all N values as DATA messages in the same wave,
+ * in the exact order the array specifies. This verifies the multi-emit
+ * contract documented in `GraphDerivedFn`'s JSDoc: `[v1, v2, ...]` →
+ * multi-emit in one wave.
+ *
+ * Topology: `node([], { initial: 1 }) → graph.derived("multi", ["a"], fn)`
+ * where fn returns `[v, v*10, v*100]`. Subscribe and collect DATA values.
+ * Drive: emit K random values; assert downstream receives exactly 3*K DATA
+ * values (plus activation DATAs from the initial) in correct order.
+ *
+ * Catches: regressions where multi-element array returns are collapsed
+ * into a single emit, emitted out of order, or partially dropped.
+ */
+const invariant65GraphDerivedMultiEmitArray: Invariant = {
+	name: "graph-derived-multi-emit-array-semantics",
+	description:
+		"When graph.derived fn returns [v1, v2, ..., vN], downstream receives all N values as DATA in order within one wave.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P8",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 1, max: 50 }), { minLength: 1, maxLength: 10 }),
+			(values) => {
+				const g = new Graph("prop-p8");
+				try {
+					// equals: () => false so same-value sets still emit DATA — this
+					// property tests multi-emit semantics, not dedup.
+					const a = node<number>([], {
+						name: "a",
+						initial: values[0],
+						equals: () => false,
+					});
+					g.add(a, { name: "a" });
+					const out = g.derived("multi", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						const v = x as number;
+						return [v, v * 10, v * 100];
+					});
+					const collected: number[] = [];
+					out.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) collected.push(msg[1] as number);
+						}
+					});
+					// Activation emits fn(initial) = [values[0], values[0]*10, values[0]*100].
+					if (collected.length !== 3) return false;
+					if (collected[0] !== values[0]) return false;
+					if (collected[1] !== values[0] * 10) return false;
+					if (collected[2] !== values[0] * 100) return false;
+					// Drive subsequent emissions.
+					for (let i = 1; i < values.length; i++) {
+						g.set("a", values[i]);
+						const base = (i + 1) * 3;
+						if (collected.length !== base) return false;
+						if (collected[base - 3] !== values[i]) return false;
+						if (collected[base - 2] !== values[i] * 10) return false;
+						if (collected[base - 1] !== values[i] * 100) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #66 — graph-derived-empty-array-resolved (Plan P9).
+ *
+ * When `graph.derived`'s fn returns `[]` (empty array), the node settles
+ * as RESOLVED — no DATA is emitted. This is the "no change" contract:
+ * the derived fn computed but produced nothing new. Downstream must see
+ * RESOLVED (not an empty array as DATA, not silence).
+ *
+ * Topology: `node([], { initial: 0 }) → graph.derived("gate", ["a"], fn)`
+ * where fn returns `[v]` for even values and `[]` for odd values.
+ * Subscribe, capture all message types. Drive: emit K random values;
+ * assert DATA appears only for even inputs, RESOLVED appears for odd.
+ *
+ * Catches: regressions where `[]` return is treated as a DATA emission
+ * of an empty array, or where the RESOLVED signal is lost entirely.
+ */
+const invariant66GraphDerivedEmptyArrayResolved: Invariant = {
+	name: "graph-derived-empty-array-resolved",
+	description:
+		"When graph.derived fn returns [], the node emits RESOLVED (no DATA), not an empty array as DATA.",
+	specRef: "archive/docs/SESSION-graph-narrow-waist.md § P9",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 100 }), { minLength: 1, maxLength: 15 }),
+			(values) => {
+				const g = new Graph("prop-p9");
+				try {
+					const a = node<number>([], { name: "a", initial: values[0] });
+					g.add(a, { name: "a" });
+					// fn returns [v] for even values, [] for odd values.
+					const out = g.derived("gate", ["a"], (data, ctx) => {
+						const [x] = latestVals(data, ctx);
+						const v = x as number;
+						return v % 2 === 0 ? [v] : [];
+					});
+					const dataValues: number[] = [];
+					let resolvedCount = 0;
+					out.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) dataValues.push(msg[1] as number);
+							if (msg[0] === RESOLVED) resolvedCount++;
+						}
+					});
+					// Activation: fn(values[0]) — DATA if even, RESOLVED if odd.
+					const initEven = values[0] % 2 === 0;
+					if (initEven) {
+						if (dataValues.length !== 1 || dataValues[0] !== values[0]) return false;
+					} else {
+						if (dataValues.length !== 0) return false;
+						if (resolvedCount < 1) return false;
+					}
+					// Drive subsequent values.
+					let expectedDataCount = initEven ? 1 : 0;
+					for (let i = 1; i < values.length; i++) {
+						const cur = values[i];
+						const resolvedBefore = resolvedCount;
+						g.set("a", cur);
+						const curEven = cur % 2 === 0;
+						if (curEven) {
+							// Even → DATA expected (unless equals suppressed when cache
+							// already holds `cur`). Either way, no spurious value.
+							if (dataValues.length > expectedDataCount) {
+								if (dataValues[dataValues.length - 1] !== cur) return false;
+								expectedDataCount = dataValues.length;
+							}
+						} else {
+							// Odd → fn returns [] → must emit RESOLVED, never DATA.
+							if (dataValues.length !== expectedDataCount) return false;
+							// Strict: the [] return must produce exactly one RESOLVED
+							// for the wave (no silence, no DATA leak).
+							if (resolvedCount <= resolvedBefore) return false;
+						}
+					}
+					// Final: no DATA was ever emitted for an odd input.
+					for (const d of dataValues) {
+						if (d % 2 !== 0) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
 };
 
 // ---------------------------------------------------------------------------
@@ -4328,6 +4503,8 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant62GraphDerivedPathResolutionConstruction,
 	invariant63GraphNarrowWaistTopologyVisibility,
 	invariant64GraphDerivedKeepAliveEquivalence,
+	invariant65GraphDerivedMultiEmitArray,
+	invariant66GraphDerivedEmptyArrayResolved,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

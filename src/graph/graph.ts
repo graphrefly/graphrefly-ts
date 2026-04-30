@@ -25,6 +25,7 @@ import {
 } from "../core/meta.js";
 import {
 	defaultConfig,
+	type FnCtx,
 	type Node,
 	type NodeFn,
 	type NodeFnCleanup,
@@ -103,33 +104,47 @@ export interface GraphOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Restricted context for {@link Graph.derived} fns. Exposes only
- * dep prior values and the node's own previous emit — no `actions`,
- * no `terminalDeps`, no `store`.
+ * Context for {@link Graph.derived} fns. Matches raw {@link FnCtx} shape
+ * (prevData / terminalDeps / store) plus the node's own previous emit.
  *
  * - `prevData[i]` — last DATA from dep `i` (end of prior wave).
  *   `undefined` means dep `i` has never produced DATA (sentinel).
+ * - `terminalDeps[i]` — `undefined` (live), `true` (COMPLETE), or the
+ *   ERROR payload. See {@link FnCtx}.
+ * - `store` — mutable bag persisting across fn runs within one
+ *   activation cycle.
  * - `cache` — the node's own previous emit. `undefined` when no
  *   prior emit (sentinel or first run), `null` when the prior emit
  *   was `null`, otherwise `T`.
  */
-export interface FnCtxDerived<T = unknown> {
-	readonly prevData: readonly unknown[];
+export interface FnCtxDerived<T = unknown> extends FnCtx {
 	readonly cache: T | null | undefined;
 }
 
 /**
- * Restricted fn for {@link Graph.derived}. Returns an array of values
+ * Restricted fn for {@link Graph.derived}. Receives the raw per-dep
+ * batch shape (matching {@link NodeFn}) and returns an array of values
  * to emit this wave:
  * - `[v]` — single emit (common case).
  * - `[]` — no emit (settled unchanged → RESOLVED).
  * - `[v1, v2, ...]` — multi-emit in one wave.
  *
+ * `data[i]` shape:
+ * - `undefined` — dep `i` was not involved this wave (no DIRTY).
+ * - `[]` — dep `i` was involved but settled as RESOLVED. Read
+ *   `ctx.prevData[i]` for its last known value.
+ * - `[v1, v2, ...]` — dep `i` sent one or more DATA values.
+ *
+ * Common scalar read (collapse multi-emit to "latest of dep i"):
+ *   `data[i] != null && data[i].length > 0 ? data[i].at(-1) : ctx.prevData[i]`
+ * Do NOT use `data[i]?.at(-1) ?? ctx.prevData[i]` — `null` is a valid DATA
+ * payload and `??` would incorrectly fall through to `prevData` on it.
+ *
  * `undefined` is excluded from the return type — SENTINEL stays
  * protocol-only.
  */
 export type GraphDerivedFn<T> = (
-	values: readonly unknown[],
+	data: readonly (readonly unknown[] | undefined)[],
 	ctx: FnCtxDerived<T>,
 ) => readonly (T | null)[];
 
@@ -146,20 +161,30 @@ export interface NodeUpActions {
 }
 
 /**
- * Restricted context for {@link Graph.effect} fns.
+ * Context for {@link Graph.effect} fns. Matches raw {@link FnCtx} shape:
  *
- * - `prevData[i]` — same semantics as {@link FnCtxDerived.prevData}.
+ * - `prevData[i]` — last DATA from dep `i` (end of prior wave).
+ * - `terminalDeps[i]` — `undefined` (live), `true` (COMPLETE), or the
+ *   ERROR payload. Effects can branch on dep terminals (e.g. log on
+ *   COMPLETE, escalate on ERROR) without needing access to `actions`.
+ * - `store` — mutable bag persisting across fn runs within one
+ *   activation cycle. Use for cross-run accumulators (counters, last-
+ *   seen timestamps) without closure `let` vars.
  */
-export interface FnCtxEffect {
-	readonly prevData: readonly unknown[];
-}
+export type FnCtxEffect = FnCtx;
 
 /**
  * Restricted fn for {@link Graph.effect}. Pure sink — no downstream
- * dispatch possible. Return a cleanup function or granular hooks.
+ * dispatch possible. Receives raw per-dep batch shape (matching
+ * {@link NodeFn}) so authors can observe multi-emit waves, RESOLVED
+ * (involved but no new DATA), and not-involved deps.
+ *
+ * `data[i]` shape: see {@link GraphDerivedFn}.
+ *
+ * Return a cleanup function or granular hooks.
  */
 export type GraphEffectFn = (
-	values: readonly unknown[],
+	data: readonly (readonly unknown[] | undefined)[],
 	up: NodeUpActions,
 	ctx: FnCtxEffect,
 	// biome-ignore lint/suspicious/noConfusingVoidType: cleanup return.
@@ -1741,18 +1766,19 @@ export class Graph {
 		const { keepAlive, annotation, equals, initial, meta, signal } = opts ?? {};
 
 		// Wrap restricted GraphDerivedFn → raw NodeFn.
+		// Pass batchData and full ctx straight through; restriction is
+		// only on the OUTPUT side (return array, no actions).
 		// Closure captures `nodeRef` so the wrapper can read `.cache` for
 		// the ctx.cache field (same pattern as autoTrackNode).
 		let nodeRef: Node<T> | undefined;
 		const wrapped: NodeFn = (batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
 			const derivedCtx: FnCtxDerived<T> = {
 				prevData: ctx.prevData,
+				terminalDeps: ctx.terminalDeps,
+				store: ctx.store,
 				cache: nodeRef?.cache,
 			};
-			const result = fn(data, derivedCtx);
+			const result = fn(batchData, derivedCtx);
 			if (result.length === 0) {
 				// Empty array → no change → settle as RESOLVED.
 				actions.down(RESOLVED_ONLY_BATCH);
@@ -1812,17 +1838,14 @@ export class Graph {
 		const { annotation, meta, signal } = opts ?? {};
 
 		// Wrap restricted GraphEffectFn → raw NodeFn.
-		// Exposes only pause/resume (NodeUpActions), no emit/down.
+		// Pass batchData and full ctx straight through; restriction is
+		// only on the OUTPUT side (up.pause/resume only, no emit/down).
 		const wrapped: NodeFn = (batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
 			const up: NodeUpActions = {
 				pause: (lockId) => actions.up([PAUSE, lockId]),
 				resume: (lockId) => actions.up([RESUME, lockId]),
 			};
-			const effectCtx: FnCtxEffect = { prevData: ctx.prevData };
-			return fn(data, up, effectCtx) ?? undefined;
+			return fn(batchData, up, ctx) ?? undefined;
 		};
 
 		const n = node(deps, wrapped, {

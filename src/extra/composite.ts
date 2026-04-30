@@ -9,7 +9,7 @@ import { batch } from "../core/batch.js";
 import { DATA } from "../core/messages.js";
 import { factoryTag } from "../core/meta.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
-import { merge, switchMap } from "./operators.js";
+import { merge, switchMap, withLatestFrom } from "./operators.js";
 import { type ReactiveMapBundle, type ReactiveMapOptions, reactiveMap } from "./reactive-map.js";
 import { forEach, fromAny, type NodeInput } from "./sources.js";
 
@@ -79,36 +79,21 @@ export function verifiable<T, TVerify = VerifyValue>(
 	}
 
 	if (triggerNode !== null) {
-		// Closes P3 audit #2. Two patterns used depending on trigger shape:
+		// Two patterns depending on trigger shape:
 		//  - autoVerify-only (triggerNode === sourceNode): the projected
 		//    switchMap value IS the source DATA, pass it directly.
-		//  - explicit trigger: capture the source value into a closure
-		//    (`latestSource`) seeded from `sourceNode.cache` at wiring time
-		//    (§3.6 boundary read) and kept current via a subscribe handler.
-		//    The switchMap fn reads the closure, never `sourceNode.cache`
-		//    from a reactive context.
-		//
-		// **Phase 16 attempt (2026-04-29) reverted.** Tried `withLatestFrom(
-		// triggerNode, sourceNode) + switchMap`; this is the WRONG migration
-		// per COMPOSITION-GUIDE §28. The §28 closure-mirror is the canonical
-		// pattern. **Phase 10.5 (the same-day partial-flag flip on
-		// `withLatestFrom`)** removes the initial-pair drop, but this site
-		// stays on closure-mirror form pending Phase 11 restricted signatures
-		// (when `graph.derived(partial:false) + ctx.prevData + switchMap`
-		// becomes the §5.12-clean replacement). See `archive/docs/SESSION-
-		// graph-narrow-waist.md` § "Status of existing modifications" + §
-		// "Phase 10.5 — `partial: false` is the actual fix".
+		//  - explicit trigger: `withLatestFrom(trigger, source)` pairs each
+		//    trigger emission with the latest source value. Phase 10.5
+		//    (`withLatestFrom` flipped to `partial: false`) fixed the W1
+		//    initial-pair drop — both deps settle before fn fires, so the
+		//    first trigger correctly pairs with the seeded source cache.
+		//    Replaces the §28 closure-mirror that was canonical pre-10.5.
 		let verifyStream: Node<TVerify>;
 		if (triggerNode === (sourceNode as Node<unknown>)) {
 			verifyStream = switchMap(sourceNode, (src) => verifyFn(src as T));
 		} else {
-			let latestSource: T | undefined = sourceNode.cache as T | undefined;
-			sourceNode.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) latestSource = m[1] as T;
-				}
-			});
-			verifyStream = switchMap(triggerNode, () => verifyFn(latestSource as T));
+			const paired = withLatestFrom(triggerNode, sourceNode);
+			verifyStream = switchMap(paired, ([, source]) => verifyFn(source as T));
 		}
 		forEach(verifyStream, (value) => {
 			batch(() => {
@@ -212,27 +197,13 @@ export function distill<TRaw, TMem>(
 	const hasContext = opts.context !== undefined && opts.context !== null;
 	const contextNode = hasContext ? fromAny(opts.context) : node<unknown>([], { initial: null });
 
-	// Closure-mirror for `consolidate` (still callback-style — Tier 1.5.4 only
-	// migrated `extractFn`). Seeded at wiring time (§3.6 boundary read), kept
-	// current via subscribe. The `mapFromSnapshot` helper guards against the
-	// snapshot-restore path where a serialized Map round-trips as a plain
-	// object — see the helper's docstring for the rationale.
-	//
-	// **Phase 16 attempt (2026-04-29) reverted.** Tried `withLatestFrom(
-	// consolidateTrigger, store.entries) + switchMap`; this is the WRONG
-	// migration per COMPOSITION-GUIDE §28. **Phase 10.5 (same-day partial-
-	// flag flip on `withLatestFrom`)** removes the initial-pair drop, but
-	// this site stays on closure-mirror form pending Phase 11 restricted
-	// signatures. See `archive/docs/SESSION-graph-narrow-waist.md` § "Status
-	// of existing modifications" + § "Phase 10.5".
-	let latestStore: ReadonlyMap<string, TMem> = mapFromSnapshot<TMem>(store.entries.cache);
-	store.entries.subscribe((msgs) => {
-		for (const m of msgs) {
-			if (m[0] === DATA) {
-				latestStore = mapFromSnapshot<TMem>(m[1]);
-			}
-		}
-	});
+	// `latestStore` (formerly a §28 closure-mirror) is no longer needed —
+	// Phase 10.5 (`withLatestFrom` flipped to `partial: false`) fixed the
+	// W1 initial-pair drop. `consolidate` now uses
+	// `withLatestFrom(trigger, store.entries)` below to pair each trigger
+	// with the latest store snapshot via a real reactive edge (visible in
+	// `describe()`). The `mapFromSnapshot` transform runs inside the
+	// switchMap fn body.
 
 	// Tier 1.5.4: one-shot wire. User's `extractFn` returns the reactive
 	// extraction stream — distill just `forEach`s and applies. No internal
@@ -299,8 +270,12 @@ export function distill<TRaw, TMem>(
 		opts.consolidateTrigger !== undefined && opts.consolidateTrigger !== null;
 	if (opts.consolidate && hasConsolidateTrigger) {
 		const consolidateTriggerNode = fromAny(opts.consolidateTrigger);
-		const consolidationStream = switchMap(consolidateTriggerNode, () =>
-			opts.consolidate!(latestStore),
+		const consolidatePaired = withLatestFrom(
+			consolidateTriggerNode,
+			store.entries as Node<unknown>,
+		);
+		const consolidationStream = switchMap(consolidatePaired, ([, entries]) =>
+			opts.consolidate!(mapFromSnapshot<TMem>(entries)),
 		);
 		forEach(consolidationStream, (extraction) => {
 			applyExtraction(store, extraction);

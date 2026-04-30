@@ -830,7 +830,7 @@ The framework fix tracked in [optimizations.md:812-822](../../docs/optimizations
 
 **Phase 10.5 rescoped to: flip withLatestFrom's partial flag, run tests.** If green, audit `valve` and worker-bridge aggregators (the other partial:true consumers) for the same flip. Single-PR change rather than a separate design session.
 
-Once 10.5 is green, Phase 15 (library-wide §28 cleanup) is unblocked.
+**Phase 10.5 LANDED.** The flip shipped; all tests passed. Phase 15 (closure-mirror cleanup) was unblocked and executed (scope-reduced — see phase table below).
 
 ### Phase 16 finding (2026-04-29 evening) — superseded by §28 reading; kept for history
 
@@ -890,7 +890,7 @@ No closure-mirror, no `.cache` from inside fn, no W1. Cycle-break preserved: whe
   - **W1.B — sibling operator** (`withLatestFromEager`) with the eager-initial behavior. Narrower, lower-risk.
   - W1 fix can land independently (anytime); no longer co-prerequisite for the narrow-waist redo.
 
-**Phase 16 status update.** The reverted code (closure-mirrors retained at [composite.ts:94-99 + 209-216](../../src/extra/composite.ts) and [agent-memory.ts:196-208](../../src/patterns/ai/presets/agent-memory.ts#L196)) stays in place pending Phase 11. Comments on those sites updated to reference the corrected migration target (`graph.derived(partial:false)` once restricted signatures land), not the abandoned `withLatestFrom + switchMap` form.
+**Phase 16 status update (superseded 2026-04-30).** Phase 10.5 (`withLatestFrom` flipped to `partial: false`) landed, fixing W1. Two `composite.ts` closure-mirror sites (`verifiable` explicit-trigger, `distill` consolidate) were successfully migrated to `withLatestFrom` reactive edges in Phase 15. Agent-loop, pipeline-graph, and memory-composers closure-mirrors retained — classified as Level-3 infrastructure with legitimate reasons not to migrate (§7 feedback cycles, imperative gate patterns, sync callback reads).
 
 ### Q-D' — new design question surfaced by the partial:false insight
 
@@ -902,22 +902,25 @@ Under the restricted `FnCtxDerived` (Q-D), what minimal extension to ctx covers 
 
 **Recommendation: D.2.** Smallest extension. Lets `graph.derived(partial:false)` fully replace `withLatestFrom` for trigger-only semantics in pattern-author code, without any operator-layer fix. Lock D.2 as part of Phase 11.
 
+**Resolution (2026-04-30, Phase 11.5):** Q-D' resolved by going further than D.2 — full ctx unification. `GraphDerivedFn`/`GraphEffectFn` first arg now matches raw `NodeFn`'s `data: readonly (readonly unknown[] | undefined)[]` shape. Authors detect "did this dep fire DATA this wave" via `data[i] != null` (involved) and `data[i].length > 0` (DATA, not RESOLVED). Same-value re-emits in one batch surface as `data[i].length === N`. No new ctx field needed; the protocol's existing batch shape carries the information truthfully. `FnCtxDerived` extends `FnCtx` (gains `terminalDeps` + `store`); pattern authors get full ctx parity with raw `node()`. Output side stays restricted (return array, no actions).
+
 ### Updated implementation sequence (post-§28 reading)
 
 Phases 1–9 stay above as the historical record (Phases 1-7 landed; Phase 9 reverted post-§28-reading). Phases 10+ are the corrected plan with §28-aware ordering:
 
 | Phase | Scope | Risk | Status |
 |---|---|---|---|
-| 10 | Q2–Q9 design pass on restricted signatures (Q-A array return, Q-B push-channel producer, Q-C opts unchanged, Q-D current-node cache + dep prevData, Q-E up-only effect, NodeFnCleanupHooks symmetric, `graph.state` new, `graph.producer` rename) | Design — locks the new API shape | Q2-Q9 in progress this session |
-| **10.5** | **Activation-phase batching design session (framework fix for closure-mirror visibility).** Either (a) diamond-topology audit + naïve `[secondary, primary]` flip in `withLatestFrom`, or (b) coalesce all deps' push-on-subscribe into one combined initial wave at activation. Tracked in [optimizations.md:812-822](../../docs/optimizations.md#L812). **Unblocks Phase 15 cleanup across the library.** | Framework — significant. Needs its own 9-question session. | pending — separate design session |
-| 11 | Implement restricted signatures: `graph.state` (new), `graph.derived` (signature change to array-return + tightened `ctx`), `graph.effect` (signature change to `up`-only + tightened ctx), `graph.producer` (rename + push-channel signature) | Breaking pre-1.0; tests + patterns adapt | pending Phase 10 lock |
-| 12 | Refactor `extra/operators/*` and `extra/sources/*` to use raw `node()` + `batch()` directly (drop core-sugar imports) | Low — most operators already use `node` | pending |
-| 13 | Refactor `src/patterns/` to use only Graph methods + operators + closure-mirrors per §28 (escape hatch: raw `node() + graph.add`) | Moderate — touches all 16 domains | pending |
-| 14 | Remove `state` / `derived` / `effect` / `producer` exports from `core/sugar.ts` | Trivial after 12 + 13 | pending |
-| 15 | **Post-Phase-10.5 only.** Closure-mirror cleanup library-wide: every §28 site (`stratify`, `budgetGate`, `gate()`, `distill`'s `latestStore`, `verifiable`'s `latestSource`, agent-loop's 5 mirrors, pipeline-graph's `latestIsOpen`, agent-memory's §40 bridge, memory-composers' `latestCtx`, ...) migrates to `withLatestFrom + switchMap + graph.add`. Real reactive edges replace closure variables. | Low — tests exist; depends on 10.5 | **blocked on Phase 10.5** |
+| 10 | Q2–Q9 design pass on restricted signatures (Q-A array return, Q-B push-channel producer, Q-C opts unchanged, Q-D current-node cache + dep prevData, Q-E up-only effect, NodeFnCleanupHooks symmetric, `graph.state` new, `graph.producer` rename) | Design — locks the new API shape | **LANDED** |
+| **10.5** | **Flip `withLatestFrom` from `partial: true` to `partial: false`.** The `partial: false` first-run gate already coalesces multi-dep activation. Flipping fixes the W1 initial-pair drop. No separate design session needed — the partial flag IS the fix. | Framework — single flag flip | **LANDED** |
+| 11 | Implement restricted signatures: `graph.state` (new), `graph.derived` (signature change to array-return + tightened `ctx`), `graph.effect` (signature change to `up`-only + tightened ctx), `graph.producer` (rename + push-channel signature) | Breaking pre-1.0; tests + patterns adapt | **LANDED** |
+| 12 | Refactor `extra/operators/*` and `extra/sources/*` to use raw `node()` + `batch()` directly (drop core-sugar imports) | Low — most operators already use `node` | **LANDED** |
+| 13 | Refactor `src/patterns/` to use only Graph methods + operators + closure-mirrors per §28 (escape hatch: raw `node() + graph.add`) | Moderate — touches all 16 domains | **LANDED** |
+| 14 | Remove `state` / `derived` / `effect` / `producer` exports from `core/sugar.ts`. Only `dynamicNode`, `autoTrackNode`, `pipe` remain. | Trivial after 12 + 13 | **LANDED** |
+| 15 | Closure-mirror cleanup. **Scope reduction (2026-04-30):** only 2 of ~9 sites are migratable post-10.5. `composite.ts` `verifiable` (explicit-trigger path) and `distill` (consolidate path) migrated to `withLatestFrom` reactive edges. Agent-loop (5 mirrors — §7 feedback cycle prevents reactive deps), pipeline-graph (`latestIsOpen` — imperative gate pattern), and memory-composers (`latestCtx` — sync callback, not reactive fn body) are legitimately Level-3 and retain closure-mirrors. | Low | **LANDED** (scope-reduced) |
 | 16 | (subsumed into Phase 15) — agent-memory + distill internal + verifiable are §28 sites covered by 15 | n/a | n/a |
-| 17 | Update P1–P7 properties for restricted signatures + add P8+ covering array-emission semantics | Tests only | pending — P1-P7 in `_invariants.ts` registry 57–64 currently test legacy signature |
-| 18 | Composition guide rewrite (the original Phase 8, now with the corrected taxonomy: `node()` + operators + Graph methods + closure-mirror as documented §28 escape hatch until Phase 10.5 unblocks the library-wide migration) | Docs only | pending |
+| 17 | Verify P1–P7 properties use restricted signatures. **Finding (2026-04-30):** invariants 58–64 (`_invariants.ts`) already use `GraphDerivedFn` array-return signatures — no changes needed. Gap: P8+ (array-emission semantics for multi-emit, empty-array RESOLVED) not yet implemented. | Tests only | **VERIFIED** (P1-P7 current; P8+ deferred) |
+| 18 | Composition guide restructured into 4 level-based files (2026-04-30). `COMPOSITION-GUIDE.md` → index. `COMPOSITION-GUIDE-PROTOCOL.md` (L0: §1,§2,§5,§9,§9a,§12,§19,§21,§22,§24,§25,§28,§32,§38,§39,§41). `COMPOSITION-GUIDE-GRAPH.md` (L1: §3,§4,§6,§7,§10,§13,§14,§20,§23,§26,§27). `COMPOSITION-GUIDE-PATTERNS.md` (L2: §8,§11,§15,§16,§17,§29-§37,§40). `COMPOSITION-GUIDE-SOLUTIONS.md` (L3: NEW harness/memory/pipeline/multi-agent recipes). | Docs only | **LANDED** |
+| **11.5** | **Ctx unification (2026-04-30, post-design):** `GraphDerivedFn` and `GraphEffectFn` first arg changes from unwrapped `values: readonly unknown[]` to raw batch shape `data: readonly (readonly unknown[] \| undefined)[]` (matches `NodeFn`). `FnCtxDerived` extends `FnCtx` (gains `terminalDeps` + `store`); `FnCtxEffect` aliases `FnCtx`. `FnCtxProducer` stays `{ store }` only (per user lock). Resolves Q-D' ctx.fired question by uniformity — batch info exposed natively, authors can detect same-value re-emits via `data[i].length`. Migration: ~30 call sites in `graph.test.ts` + `_invariants.ts` rewritten with local `vals(data, ctx)` / `_vals(data, ctx)` helper for scalar reads. P8 invariant updated to use `equals: () => false` for multi-emit-of-same-value testing. All 2607 tests pass; build clean. | Breaking pre-1.0 | **LANDED** |
 
 Out of scope for this redo (separate design units): Unit B (`reactiveMap` reactive-retention + optimizations.md D1), `distill` API change to take a graph + register store eagerly (post-Phase-15 distill internal closure-mirror migrates anyway, so the API change becomes optional).
 
@@ -934,7 +937,11 @@ Out of scope for this redo (separate design units): Unit B (`reactiveMap` reacti
 ## Related Files
 
 - `~/src/graphrefly/GRAPHREFLY-SPEC.md` — protocol spec
-- `~/src/graphrefly/COMPOSITION-GUIDE.md` — current monolithic guide (to be split)
+- `~/src/graphrefly/COMPOSITION-GUIDE.md` — index (split into 4 level files 2026-04-30)
+- `~/src/graphrefly/COMPOSITION-GUIDE-PROTOCOL.md` — Level 0: Protocol
+- `~/src/graphrefly/COMPOSITION-GUIDE-GRAPH.md` — Level 1: Graph
+- `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` — Level 2: Domain Patterns
+- `~/src/graphrefly/COMPOSITION-GUIDE-SOLUTIONS.md` — Level 3: Solutions
 - `src/graph/graph.ts` — Graph class (methods added here)
 - `src/core/sugar.ts` — `derived`, `effect`, `producer` (underlying primitives)
 - `src/extra/sources/index.ts` — `keepalive`, `fromAny`, `NodeInput` (reused by new methods)
