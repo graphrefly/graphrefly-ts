@@ -12,9 +12,10 @@ export * from "./actuator-executor.js";
 export * from "./auto-solidify.js";
 export * from "./bridge.js";
 export * from "./defaults.js";
-// `effectivenessTracker` was demoted to a harness preset per Tier 2.3 — its
-// only consumer was `strategy.ts`, so building-block status was unwarranted.
-export * from "./effectiveness-tracker.js";
+// `effectivenessTracker` was deleted per Class B audit Alt E (2026-04-30).
+// The shared substrate now lives in `extra/composition/audited-success-tracker.ts`
+// — re-exported via `@graphrefly/graphrefly-ts/extra` for general use. The
+// (zero-consumer) `effectivenessTracker(opts?)` factory shape was not retained.
 export * from "./eval-verifier.js";
 // Tier 9.1 γ-form γ-β: presets live under `presets/`. `harnessLoop` and
 // `refineLoop` are presets composing the building blocks above.

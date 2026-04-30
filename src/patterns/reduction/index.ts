@@ -328,6 +328,6 @@ export function scorer(
 	);
 }
 
-// `effectivenessTracker` was demoted to a harness preset per Tier 2.3 (the
-// only consumer was the harness strategy model). Import from
-// `@graphrefly/graphrefly/patterns/harness` instead.
+// `effectivenessTracker` was deleted per Class B audit Alt E (2026-04-30).
+// The shared substrate now lives in `extra/composition/audited-success-tracker.ts`
+// — re-exported via `@graphrefly/graphrefly-ts/extra` for general use.

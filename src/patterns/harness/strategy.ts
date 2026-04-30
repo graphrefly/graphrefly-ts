@@ -1,22 +1,27 @@
 /**
  * Strategy model and priority scoring (roadmap §9.0).
  *
- * Pure-computation derived nodes — no LLM, no async.
+ * `strategyModel` returns a typed alias of {@link AuditedSuccessTrackerGraph}
+ * keyed by `StrategyKey` (the composite `rootCause→intervention` string).
+ * The shared substrate (Class B audit Alt E collapse, 2026-04-30) replaces
+ * the prior bespoke bundle shape; composite-key callers use {@link strategyKey}
+ * to compute the key and pass `{ rootCause, intervention }` as record decoration.
  *
  * @module
  */
 
 import { monotonicNs } from "../../core/clock.js";
 import { type Node, node } from "../../core/node.js";
-import { reactiveMap } from "../../extra/reactive-map.js";
+import {
+	type AuditedSuccessTrackerGraph,
+	auditedSuccessTracker,
+} from "../../extra/composition/audited-success-tracker.js";
 import { decay } from "../../extra/utils/decay.js";
 
 import {
 	DEFAULT_DECAY_RATE,
 	DEFAULT_SEVERITY_WEIGHTS,
-	type Intervention,
 	type PrioritySignals,
-	type RootCause,
 	type StrategyEntry,
 	type StrategyKey,
 	strategyKey,
@@ -27,89 +32,34 @@ import {
 // Strategy model
 // ---------------------------------------------------------------------------
 
-/** Snapshot shape for the strategy model node. */
+/** Snapshot shape for the strategy-model `entries` node. */
 export type StrategySnapshot = ReadonlyMap<StrategyKey, StrategyEntry>;
 
-/** Bundle returned by {@link strategyModel}. */
-export interface StrategyModelBundle {
-	/** Reactive node — current strategy map. */
-	readonly node: Node<StrategySnapshot>;
-
-	/** Record a completed issue (success or failure). */
-	record(rootCause: RootCause, intervention: Intervention, success: boolean): void;
-
-	/** Look up effectiveness for a specific pair. */
-	lookup(rootCause: RootCause, intervention: Intervention): StrategyEntry | undefined;
-
-	/** Tear down internal keepalive subscriptions. */
-	dispose(): void;
-}
+/** Strategy-model graph: a typed alias of {@link AuditedSuccessTrackerGraph}. */
+export type StrategyModelGraph = AuditedSuccessTrackerGraph<StrategyKey, StrategyEntry>;
 
 /**
  * Create a strategy model that tracks `rootCause × intervention → successRate`
- * over completed issues. Pure derived computation — no LLM.
+ * over completed issues. Returns an {@link AuditedSuccessTrackerGraph} keyed
+ * by {@link StrategyKey}.
+ *
+ * The reactive `entries` field is a `Node<StrategySnapshot>` suitable for
+ * `describe()` / `withLatestFrom` composition.
+ *
+ * Composite-key conversion happens at the call site:
+ * ```ts
+ * const strategy = strategyModel();
+ * strategy.record(strategyKey(rootCause, intervention), success, {
+ *   rootCause,
+ *   intervention,
+ * });
+ * strategy.lookup(strategyKey(rootCause, intervention));
+ * ```
  *
  * The model feeds back into TRIAGE for routing hints.
  */
-export function strategyModel(): StrategyModelBundle {
-	// `strategyMap` is a reactive-map bundle; `_`-prefix was misleading
-	// (Unit 19 C rename) — it's a local binding, not a "private field on
-	// a class" in the JS/TS sense.
-	const strategyMap = reactiveMap<StrategyKey, StrategyEntry>({ name: "strategy-entries" });
-
-	// Derived node that projects the reactive map into a plain Map snapshot.
-	const snapshot = node<StrategySnapshot>(
-		[strategyMap.entries],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const raw = data[0] as ReadonlyMap<StrategyKey, StrategyEntry>;
-			// Return a fresh frozen copy so consumers see a stable reference.
-			actions.emit(new Map(raw));
-		},
-		{
-			name: "strategy-model",
-			describeKind: "derived",
-			equals: (a, b) => {
-				const am = a as StrategySnapshot;
-				const bm = b as StrategySnapshot;
-				if (am.size !== bm.size) return false;
-				for (const [k, v] of am) {
-					const bv = bm.get(k);
-					if (!bv || v.attempts !== bv.attempts || v.successes !== bv.successes) return false;
-				}
-				return true;
-			},
-		},
-	);
-
-	function record(rootCause: RootCause, intervention: Intervention, success: boolean): void {
-		const key = strategyKey(rootCause, intervention);
-		const existing = strategyMap.get(key);
-		const attempts = (existing?.attempts ?? 0) + 1;
-		const successes = (existing?.successes ?? 0) + (success ? 1 : 0);
-		strategyMap.set(key, {
-			rootCause,
-			intervention,
-			attempts,
-			successes,
-			successRate: successes / attempts,
-		});
-	}
-
-	function lookup(rootCause: RootCause, intervention: Intervention): StrategyEntry | undefined {
-		return strategyMap.get(strategyKey(rootCause, intervention));
-	}
-
-	// Keep the derived alive so get() works without an external subscriber.
-	const snapshotUnsub = snapshot.subscribe(() => {});
-
-	function dispose(): void {
-		snapshotUnsub();
-	}
-
-	return { node: snapshot, record, lookup, dispose };
+export function strategyModel(): StrategyModelGraph {
+	return auditedSuccessTracker<StrategyKey, StrategyEntry>({ name: "strategy" });
 }
 
 // ---------------------------------------------------------------------------

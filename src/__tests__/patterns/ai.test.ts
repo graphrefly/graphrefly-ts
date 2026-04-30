@@ -1536,8 +1536,15 @@ describe("patterns.ai.agentMemory", () => {
 		});
 
 		expect(mem.vectors).not.toBeNull();
-		const desc = mem.describe() as { nodes: Record<string, unknown> };
-		expect(desc.nodes).toHaveProperty("vectorIndex");
+		// Class B audit (2026-04-30): the vector index is mounted inside the
+		// `vectors` subgraph (`MemoryWithVectorsGraph`). Walking into the
+		// describe tree confirms the mount + the inner VectorIndexGraph.
+		const desc = mem.describe();
+		expect(desc.subgraphs).toContain("vectors");
+		// `vectors::vectorIndex` is a mount-of-a-mount; resolve a node inside
+		// the inner `VectorIndexGraph` to confirm wiring (its `entries`
+		// state node is registered top-level on the inner graph).
+		expect(mem.tryResolve("vectors::vectorIndex::entries")).toBeDefined();
 		mem.destroy();
 	});
 
@@ -1611,9 +1618,10 @@ describe("patterns.ai.agentMemory", () => {
 
 		// permanentKeys + entryCreatedAtNs nodes are reachable by path —
 		// describe()/explain() can now walk to them (Tier 4.3 B).
-		// agentMemory returns Graph + extras via Object.assign so `mem` IS the graph.
-		expect(mem.tryResolve("permanentKeys")).toBeDefined();
-		expect(mem.tryResolve("entryCreatedAtNs")).toBeDefined();
+		// Class B audit (2026-04-30): the tier nodes live inside the
+		// `tiers` subgraph (`MemoryWithTiersGraph`).
+		expect(mem.tryResolve("tiers::permanentKeys")).toBeDefined();
+		expect(mem.tryResolve("tiers::entryCreatedAtNs")).toBeDefined();
 
 		mem.destroy();
 	});

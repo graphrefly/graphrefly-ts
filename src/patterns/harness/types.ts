@@ -108,17 +108,25 @@ export interface TriagedItem extends IntakeItem {
 // Strategy model
 // ---------------------------------------------------------------------------
 
-/** Effectiveness record for a rootCause→intervention pair. */
+/** Key format: `${rootCause}→${intervention}`. */
+export type StrategyKey = `${RootCause}→${Intervention}`;
+
+/**
+ * Effectiveness record for a rootCause→intervention pair. Stored under
+ * `auditedSuccessTracker<StrategyKey, StrategyEntry>` (Class B audit Alt E
+ * collapse, 2026-04-30) — `key` is the composite `strategyKey(rc, intv)`
+ * computed at the call site; `rootCause` / `intervention` are decoration
+ * carried via `record(...)` so consumers can read them without re-parsing
+ * the key.
+ */
 export interface StrategyEntry {
+	key: StrategyKey;
 	rootCause: RootCause;
 	intervention: Intervention;
 	attempts: number;
 	successes: number;
 	successRate: number;
 }
-
-/** Key format: `${rootCause}→${intervention}`. */
-export type StrategyKey = `${RootCause}→${Intervention}`;
 
 // ---------------------------------------------------------------------------
 // Execution & verification
@@ -374,7 +382,7 @@ export interface HarnessLoopOptions<A = unknown> {
 	 * priority score age-decay term for `HarnessGraph.priorityScores`.
 	 *
 	 * **Required when `opts.priority` is set.** Priority score nodes only
-	 * re-derive when `topic.latest`, `strategy.node`, or this tick settles —
+	 * re-derive when `topic.latest`, `strategy.snapshot`, or this tick settles —
 	 * an idle queue would freeze its age at construction time if we
 	 * auto-defaulted. Typical sources:
 	 *  - `fromTimer(60_000)` — steady tick, uniform decay.

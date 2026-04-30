@@ -29,7 +29,14 @@
 
 import { COMPLETE, ERROR } from "../core/messages.js";
 import type { Node } from "../core/node.js";
-import { firstValueFrom, fromAny, type NodeInput } from "./sources.js";
+// Import directly from the source sub-files (rather than the `./sources.js`
+// barrel) so the `single-from-any` module is NOT part of any cycle that runs
+// through `extra/sources/index.ts` — eager re-exports through the barrel were
+// observed to leave `firstValueFrom` / `keepalive` unresolved during nested
+// import chains under vite-node.
+import type { NodeInput } from "./sources/_internal.js";
+import { fromAny } from "./sources/async.js";
+import { firstValueFrom } from "./sources/settled.js";
 
 export interface SingleFromAnyOptions<K> {
 	/**

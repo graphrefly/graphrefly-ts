@@ -7,6 +7,7 @@ export * from "./backoff.js";
 export * from "./backpressure.js";
 export * from "./cascading-cache.js";
 export * from "./composite.js";
+export * from "./composition/audited-success-tracker.js";
 export type {
 	DescribeChangeset,
 	DescribeEvent,

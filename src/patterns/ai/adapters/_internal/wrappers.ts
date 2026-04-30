@@ -23,7 +23,7 @@
 
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
 import { ERROR } from "../../../../core/messages.js";
-import type { Node } from "../../../../core/node.js";
+import { type Node, node } from "../../../../core/node.js";
 
 import { onFirstData } from "../../../../extra/operators.js";
 import { fromAny } from "../../../../extra/sources.js";

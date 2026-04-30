@@ -132,10 +132,6 @@ export interface ClassifyResult<TTag extends string, T> {
 // ── PipelineGraph ────────────────────────────────────────────────────────
 
 export class PipelineGraph extends Graph {
-	constructor(name: string, opts?: GraphOptions) {
-		super(name, opts);
-	}
-
 	// -- task -----------------------------------------------------------------
 
 	/**
@@ -250,32 +246,22 @@ export class PipelineGraph extends Graph {
 
 		// State subgraph
 		const internal = new Graph(`${name}_state`);
-		const pendingNode = node<readonly T[]>([], {
-			name: "pending",
-			initial: [],
+		const pendingNode = internal.state<readonly T[]>("pending", [], {
 			equals: () => false,
 		});
-		const isOpenNode = node<boolean>([], { name: "isOpen", initial: startOpen });
-		const countNode = node<number>(
-			[pendingNode],
-			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-				);
-				actions.emit((data[0] as readonly T[]).length);
-			},
-			{ name: "count", describeKind: "derived" },
-		);
-		const droppedCountNode = node<number>([], { name: "droppedCount", initial: 0 });
+		const isOpenNode = internal.state<boolean>("isOpen", startOpen);
+		const countNode = internal.derived<number>("count", ["pending"], (batchData, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			return [(data[0] as readonly T[]).length];
+		});
+		const droppedCountNode = internal.state<number>("droppedCount", 0);
 		const decisions = createAuditLog<Decision<T>>({
 			name: "decisions",
 			retainedLimit: 1024,
 			graph: internal,
 		});
-		internal.add(pendingNode, { name: "pending" });
-		internal.add(isOpenNode, { name: "isOpen" });
-		internal.add(countNode, { name: "count" });
-		internal.add(droppedCountNode, { name: "droppedCount" });
 		this.mount(`${name}_state`, internal);
 
 		let queue: T[] = [];
@@ -612,8 +598,7 @@ export class PipelineGraph extends Graph {
 				name,
 				describeKind: "derived",
 				completeWhenDepsComplete:
-					opts.completeWhenDepsComplete ??
-					(mode === "completed" || mode === "terminal" ? false : true),
+					opts.completeWhenDepsComplete ?? !(mode === "completed" || mode === "terminal"),
 				errorWhenDepsError: !(mode === "errored" || mode === "terminal"),
 				meta: meta("catch", opts.meta),
 			} as NodeOptions<T>,

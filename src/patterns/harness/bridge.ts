@@ -11,6 +11,7 @@
 import { type Node, node } from "../../core/node.js";
 import { switchMap } from "../../extra/operators.js";
 import { fromAny } from "../../extra/sources.js";
+import type { Graph } from "../../graph/graph.js";
 import type { TopicGraph } from "../messaging/index.js";
 
 import type { IntakeItem, Severity, TriagedItem } from "./types.js";
@@ -20,8 +21,16 @@ import type { IntakeItem, Severity, TriagedItem } from "./types.js";
 // ---------------------------------------------------------------------------
 
 /** Options for {@link createIntakeBridge}. */
-export interface IntakeBridgeOptions {
-	/** Name for the effect node (default "intake-bridge"). */
+export interface CreateIntakeBridgeOptions<T> {
+	/** Graph to register the effect node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** Reactive node emitting domain-specific data. */
+	source: Node<T>;
+	/** TopicGraph to publish IntakeItem entries to. */
+	intakeTopic: TopicGraph<IntakeItem>;
+	/** Converts source data into IntakeItem[]. Return empty array to skip. */
+	parser: (value: T) => IntakeItem[];
+	/** Effect-node name (default `"intake-bridge"`). */
 	name?: string;
 }
 
@@ -36,19 +45,14 @@ export interface IntakeBridgeOptions {
  * CI results, test failures, Slack messages, monitoring alerts, or any domain
  * where structured results should flow into a harness loop.
  *
- * @param source - Reactive node emitting domain-specific data.
- * @param intakeTopic - TopicGraph to publish IntakeItem entries to.
- * @param parser - Converts source data into IntakeItem[]. Return empty array to skip.
- * @param opts - Optional configuration.
+ * The effect node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
+ *
  * @returns The effect node (for lifecycle management).
  */
-export function createIntakeBridge<T>(
-	source: Node<T>,
-	intakeTopic: TopicGraph<IntakeItem>,
-	parser: (value: T) => IntakeItem[],
-	opts?: IntakeBridgeOptions,
-): Node<unknown> {
-	return node(
+export function createIntakeBridge<T>(opts: CreateIntakeBridgeOptions<T>): Node<unknown> {
+	const { graph, source, intakeTopic, parser, name = "intake-bridge" } = opts;
+	const eff = node(
 		[source as Node<unknown>],
 		(batchData, _actions, ctx) => {
 			const data = batchData.map((batch, i) =>
@@ -61,8 +65,10 @@ export function createIntakeBridge<T>(
 				intakeTopic.publish(item);
 			}
 		},
-		{ name: opts?.name ?? "intake-bridge", describeKind: "effect" },
+		{ describeKind: "effect" },
 	);
+	graph.add(eff, { name });
+	return eff;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,9 +104,15 @@ export interface EvalJudgeScore {
 // ---------------------------------------------------------------------------
 
 export interface EvalIntakeBridgeOptions {
-	/** Name for the effect node (default "eval-intake-bridge"). */
+	/** Graph to register the effect node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** Node emitting EvalRunResult (or EvalRunResult[]). */
+	source: Node<EvalRunResult | EvalRunResult[]>;
+	/** TopicGraph to publish IntakeItem entries to. */
+	intakeTopic: TopicGraph<IntakeItem>;
+	/** Effect-node name (default `"eval-intake-bridge"`). */
 	name?: string;
-	/** Minimum severity for eval-sourced items (default "medium"). */
+	/** Minimum severity for eval-sourced items (default `"medium"`). */
 	defaultSeverity?: Severity;
 }
 
@@ -111,20 +123,22 @@ export interface EvalIntakeBridgeOptions {
  * Each failing judge criterion produces a separate IntakeItem — not one
  * item per task. This gives the triage stage granular findings to classify.
  *
- * @param evalSource - Node emitting EvalRunResult (or EvalRunResult[]).
- * @param intakeTopic - TopicGraph to publish IntakeItem entries to.
- * @param opts - Optional configuration.
+ * The effect node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
+ *
  * @returns The effect node (for lifecycle management).
  */
-export function evalIntakeBridge(
-	evalSource: Node<EvalRunResult | EvalRunResult[]>,
-	intakeTopic: TopicGraph<IntakeItem>,
-	opts?: EvalIntakeBridgeOptions,
-): Node<unknown> {
-	const defaultSeverity = opts?.defaultSeverity ?? "medium";
+export function evalIntakeBridge(opts: EvalIntakeBridgeOptions): Node<unknown> {
+	const {
+		graph,
+		source,
+		intakeTopic,
+		name = "eval-intake-bridge",
+		defaultSeverity = "medium",
+	} = opts;
 
-	return node(
-		[evalSource],
+	const eff = node(
+		[source as Node<unknown>],
 		(batchData, _actions, ctx) => {
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
@@ -170,8 +184,10 @@ export function evalIntakeBridge(
 				}
 			}
 		},
-		{ name: opts?.name ?? "eval-intake-bridge", describeKind: "effect" },
+		{ describeKind: "effect" },
 	);
+	graph.add(eff, { name });
+	return eff;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +200,9 @@ export function evalIntakeBridge(
  * When `trigger` emits, calls `runner()` and emits the result downstream.
  * Uses `switchMap` + `fromAny` — the async boundary stays in the source
  * layer (spec §5.10). A new trigger cancels any in-flight run.
+ *
+ * Pure transform via operator composition — does not construct an
+ * effect/derived node, so no `graph` parameter is needed.
  *
  * ```ts
  * const trigger = state(0);         // bump to trigger a new run
@@ -225,20 +244,30 @@ export interface EvalDelta {
 	overallImproved: boolean;
 }
 
+/** Options for {@link beforeAfterCompare}. */
+export interface BeforeAfterCompareOptions {
+	/** Graph to register the derived node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** Node holding the baseline eval result. */
+	before: Node<EvalRunResult>;
+	/** Node holding the new eval result. */
+	after: Node<EvalRunResult>;
+	/** Derived-node name (default `"eval-delta"`). */
+	name?: string;
+}
+
 /**
  * Derived node that computes before/after eval deltas.
  *
  * Pure computation: no LLM, no async. Compares per-task validity and
  * pass counts between two `EvalRunResult` snapshots.
  *
- * @param before - Node holding the baseline eval result.
- * @param after  - Node holding the new eval result.
+ * The derived node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
  */
-export function beforeAfterCompare(
-	before: Node<EvalRunResult>,
-	after: Node<EvalRunResult>,
-): Node<EvalDelta> {
-	return node<EvalDelta>(
+export function beforeAfterCompare(opts: BeforeAfterCompareOptions): Node<EvalDelta> {
+	const { graph, before, after, name = "eval-delta" } = opts;
+	const der = node<EvalDelta>(
 		[before as Node<unknown>, after as Node<unknown>],
 		(batchData, actions, ctx) => {
 			const data = batchData.map((batch, i) =>
@@ -284,11 +313,28 @@ export function beforeAfterCompare(
 				overallImproved: resolved.length > newFailures.length,
 			});
 		},
-		{ name: "eval-delta", describeKind: "derived" },
+		{ describeKind: "derived" },
 	);
+	graph.add(der as Node<unknown>, { name });
+	return der;
 }
 
 // ---------------------------------------------------------------------------
+
+/** Options for {@link affectedTaskFilter}. */
+export interface AffectedTaskFilterOptions {
+	/** Graph to register the derived node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** Node holding the current list of triaged items. */
+	issues: Node<readonly TriagedItem[]>;
+	/**
+	 * Optional node (or plain array) of all known task IDs.
+	 * When provided, output is the intersection.
+	 */
+	fullTaskSet?: Node<readonly string[]> | readonly string[];
+	/** Derived-node name (default `"affected-task-filter"`). */
+	name?: string;
+}
 
 /**
  * Derived node that selects which eval task IDs to re-run.
@@ -299,25 +345,30 @@ export function beforeAfterCompare(
  * Use this to avoid re-running the full eval suite after each fix: only the
  * tasks that the triaged items claim to affect are returned.
  *
- * @param issues      - Node holding the current list of triaged items.
- * @param fullTaskSet - Optional node (or plain array) of all known task IDs.
- *                      When provided, output is the intersection.
+ * The derived node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
  */
-export function affectedTaskFilter(
-	issues: Node<readonly TriagedItem[]>,
-	fullTaskSet?: Node<readonly string[]> | readonly string[],
-): Node<string[]> {
-	const taskSetNode: Node<unknown> | null =
-		fullTaskSet == null
-			? null
-			: Array.isArray(fullTaskSet)
-				? (node([], { initial: fullTaskSet as readonly string[] }) as Node<unknown>)
-				: (fullTaskSet as Node<unknown>);
+export function affectedTaskFilter(opts: AffectedTaskFilterOptions): Node<string[]> {
+	const { graph, issues, fullTaskSet, name = "affected-task-filter" } = opts;
+
+	let taskSetNode: Node<unknown> | null = null;
+	if (fullTaskSet != null) {
+		if (Array.isArray(fullTaskSet)) {
+			// Static-array form: register the inline state node so it appears
+			// in `describe()`/`explain()` walks (EC8 — qa 2026-04-30).
+			const inlineSet = node([], { initial: fullTaskSet as readonly string[] });
+			graph.add(inlineSet, { name: `${name}/fullTaskSet` });
+			taskSetNode = inlineSet as Node<unknown>;
+		} else {
+			// User-supplied Node — owned by the caller's graph; don't re-add.
+			taskSetNode = fullTaskSet as Node<unknown>;
+		}
+	}
 
 	const deps: Node<unknown>[] = [issues as Node<unknown>];
 	if (taskSetNode) deps.push(taskSetNode);
 
-	return node<string[]>(
+	const der = node<string[]>(
 		deps,
 		(batchData, actions, ctx) => {
 			const data = batchData.map((batch, i) =>
@@ -334,8 +385,10 @@ export function affectedTaskFilter(
 			}
 			actions.emit([...affected].sort());
 		},
-		{ name: "affected-task-filter", describeKind: "derived" },
+		{ describeKind: "derived" },
 	);
+	graph.add(der as Node<unknown>, { name });
+	return der;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,9 +421,17 @@ export interface CodeChange {
 
 /** Options for {@link codeChangeBridge}. */
 export interface CodeChangeBridgeOptions {
-	/** Name for the effect node (default "code-change-bridge"). */
+	/** Graph to register the effect node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** Node emitting CodeChange events. */
+	source: Node<CodeChange>;
+	/** TopicGraph to publish IntakeItem entries to. */
+	intakeTopic: TopicGraph<IntakeItem>;
+	/** Optional custom parser (overrides default). */
+	parser?: (change: CodeChange) => IntakeItem[];
+	/** Effect-node name (default `"code-change-bridge"`). */
 	name?: string;
-	/** Default severity for generated IntakeItems (default "high"). */
+	/** Default severity for generated IntakeItems (default `"high"`). */
 	defaultSeverity?: Severity;
 }
 
@@ -381,18 +442,18 @@ export interface CodeChangeBridgeOptions {
  * `IntakeItem` per lint error and per test failure to the intake topic.
  * Pass a custom `parser` to override the default mapping.
  *
- * @param source      - Node emitting CodeChange events.
- * @param intakeTopic - TopicGraph to publish IntakeItem entries to.
- * @param parser      - Optional custom parser (overrides default).
- * @param opts        - Optional configuration.
+ * The effect node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
  */
-export function codeChangeBridge(
-	source: Node<CodeChange>,
-	intakeTopic: TopicGraph<IntakeItem>,
-	parser?: (change: CodeChange) => IntakeItem[],
-	opts?: CodeChangeBridgeOptions,
-): Node<unknown> {
-	const defaultSeverity = opts?.defaultSeverity ?? "high";
+export function codeChangeBridge(opts: CodeChangeBridgeOptions): Node<unknown> {
+	const {
+		graph,
+		source,
+		intakeTopic,
+		parser,
+		name = "code-change-bridge",
+		defaultSeverity = "high",
+	} = opts;
 
 	function defaultParser(change: CodeChange): IntakeItem[] {
 		const items: IntakeItem[] = [];
@@ -420,7 +481,7 @@ export function codeChangeBridge(
 
 	const resolve = parser ?? defaultParser;
 
-	return node(
+	const eff = node(
 		[source as Node<unknown>],
 		(batchData, _actions, ctx) => {
 			const data = batchData.map((batch, i) =>
@@ -432,8 +493,10 @@ export function codeChangeBridge(
 				intakeTopic.publish(item);
 			}
 		},
-		{ name: opts?.name ?? "code-change-bridge", describeKind: "effect" },
+		{ describeKind: "effect" },
 	);
+	graph.add(eff, { name });
+	return eff;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,8 +505,14 @@ export function codeChangeBridge(
 export type NotifyTransport<T> = (item: T) => void | Promise<void>;
 
 /** Options for {@link notifyEffect}. */
-export interface NotifyEffectOptions {
-	/** Name for the effect node (default "notify-effect"). */
+export interface NotifyEffectOptions<T> {
+	/** Graph to register the effect node on (B.1 narrow-waist visibility). */
+	graph: Graph;
+	/** TopicGraph whose latest entry triggers the notification. */
+	topic: TopicGraph<T>;
+	/** Called with each new item. May return a Promise. */
+	transport: NotifyTransport<T>;
+	/** Effect-node name (default `"notify-effect"`). */
 	name?: string;
 }
 
@@ -456,22 +525,18 @@ export interface NotifyEffectOptions {
  * Typical use: Slack webhook, GitHub PR comment, email notification, etc.
  * The factory provides reactive wiring; the transport supplies domain logic.
  *
- * ```ts
- * notifyEffect(alertQueue, async (item) => {
- *   await fetch(SLACK_WEBHOOK, { method: 'POST', body: JSON.stringify({ text: item.summary }) });
- * });
- * ```
+ * The effect node is registered on the supplied `graph` so it appears in
+ * `describe()` and is owned by the graph's lifecycle.
  *
- * @param topic     - TopicGraph whose latest entry triggers the notification.
- * @param transport - Called with each new item. May return a Promise.
- * @param opts      - Optional configuration.
+ * ```ts
+ * notifyEffect({ graph, topic: alertQueue, transport: async (item) => {
+ *   await fetch(SLACK_WEBHOOK, { method: 'POST', body: JSON.stringify({ text: item.summary }) });
+ * }});
+ * ```
  */
-export function notifyEffect<T>(
-	topic: TopicGraph<T>,
-	transport: NotifyTransport<T>,
-	opts?: NotifyEffectOptions,
-): Node<unknown> {
-	return node(
+export function notifyEffect<T>(opts: NotifyEffectOptions<T>): Node<unknown> {
+	const { graph, topic, transport, name = "notify-effect" } = opts;
+	const eff = node(
 		[topic.latest as Node<unknown>],
 		(batchData, _actions, ctx) => {
 			const data = batchData.map((batch, i) =>
@@ -484,6 +549,8 @@ export function notifyEffect<T>(
 			// graph. Suppress unhandled-rejection noise by voiding the return.
 			void transport(item as T);
 		},
-		{ name: opts?.name ?? "notify-effect", describeKind: "effect" },
+		{ describeKind: "effect" },
 	);
+	graph.add(eff, { name });
+	return eff;
 }

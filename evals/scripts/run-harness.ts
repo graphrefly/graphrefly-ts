@@ -59,7 +59,7 @@ import { type Node, node } from "../../src/core/node.js";
 import { fileStorage } from "../../src/extra/storage-node.js";
 import type { GraphPersistSnapshot } from "../../src/graph/graph.js";
 import { agentMemory } from "../../src/patterns/ai/index.js";
-import { type EvalResult, evalIntakeBridge } from "../../src/patterns/harness/bridge.js";
+import { type EvalRunResult, evalIntakeBridge } from "../../src/patterns/harness/bridge.js";
 import {
 	actuatorExecutor,
 	autoSolidify,
@@ -223,10 +223,10 @@ async function loadResults(resultsDir: string): Promise<EvalRun[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Adapt EvalRun → EvalResult (bridge shape)
+// Adapt EvalRun → EvalRunResult (bridge shape)
 // ---------------------------------------------------------------------------
 
-function adaptEvalRun(run: EvalRun): EvalResult {
+function adaptEvalRun(run: EvalRun): EvalRunResult {
 	return {
 		run_id: run.run_id,
 		model: run.model,
@@ -527,8 +527,12 @@ async function main() {
 	}
 
 	// --- Wire eval bridge ---
-	const evalSource = node<EvalResult | null>([], { initial: null });
-	const bridge = evalIntakeBridge(evalSource as Node<EvalResult | EvalResult[]>, harness.intake);
+	const evalSource = node<EvalRunResult | null>([], { initial: null });
+	const bridge = evalIntakeBridge({
+		graph: harness,
+		source: evalSource as Node<EvalRunResult | EvalRunResult[]>,
+		intakeTopic: harness.intake,
+	});
 	bridge.subscribe(() => {}); // keepalive
 
 	// --- Retrospective memory ---

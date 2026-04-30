@@ -12,6 +12,7 @@
  * `observable.ts` / `pubsub.ts` / `backpressure.ts` are barrel-only re-exports.
  */
 
+export * from "./audited-success-tracker.js";
 export * from "./backpressure.js";
 export * from "./composite.js";
 export * from "./external-register.js";

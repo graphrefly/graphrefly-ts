@@ -406,7 +406,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 	>();
 	private readonly _projections = new Set<string>();
 	private readonly _sagas = new Set<string>();
-	private readonly _keepaliveDisposers: Array<() => void> = [];
 	private _seq = 0;
 	private readonly _retainedLimit: number;
 	private readonly _freezeCommandPayload: boolean;
@@ -488,12 +487,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				t_ns: wallClockNs(),
 			});
 		}
-	}
-
-	override destroy(): void {
-		for (const dispose of this._keepaliveDisposers) dispose();
-		this._keepaliveDisposers.length = 0;
-		super.destroy();
 	}
 
 	/** Tiers attached via {@link attachEventStorage}; auto-wired into future event streams. */
@@ -605,7 +598,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			},
 		);
 		this.add(guarded, { name: name });
-		this._keepaliveDisposers.push(keepalive(guarded));
+		this.addDisposer(keepalive(guarded));
 		this._eventLogs.set(name, { log, node: guarded });
 		// M4: auto-wire any storage tiers attached via `attachEventStorage`.
 		this._autoWireStreamStorage(name, log);
@@ -673,7 +666,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			// Name collision (likely with main type stream); skip mount —
 			// per-aggregate stream still functions, just not graph-visible.
 		}
-		this._keepaliveDisposers.push(keepalive(guarded));
+		this.addDisposer(keepalive(guarded));
 		const entry = { log, node: guarded };
 		byType.set(aggregateId, entry);
 		// M4: auto-wire any tiers attached via `attachEventStorage`.
@@ -1053,8 +1046,8 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		);
 
 		this.add(projNode, { name: name });
-		this._keepaliveDisposers.push(keepalive(projNode));
-		this._keepaliveDisposers.push(() => {
+		this.addDisposer(keepalive(projNode));
+		this.addDisposer(() => {
 			if (saveTimer !== undefined) {
 				clearTimeout(saveTimer);
 				saveTimer = undefined;
@@ -1214,7 +1207,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			const sub = cursor.subscribe((msgs) => {
 				for (const m of msgs) if (m[0] === DATA) latestCursors.set(eName, m[1] as number);
 			});
-			this._keepaliveDisposers.push(sub);
+			this.addDisposer(sub);
 		}
 
 		// Tier 8 / COMPOSITION-GUIDE §35: per-event handler invocation routes
@@ -1254,9 +1247,10 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		);
 
 		const sagaRef: { n?: Node<unknown> } = {};
-		const sagaNode = node(
-			eventNodes,
-			(snapshots, _actions) => {
+		const sagaNode = this.effect(
+			name,
+			eventNames as readonly string[],
+			(snapshots, _up) => {
 				const errNode = sagaRef.n!.meta.error as Node<unknown>;
 				for (let i = 0; i < snapshots.length; i++) {
 					const batch = snapshots[i];
@@ -1291,8 +1285,6 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				}
 			},
 			{
-				name,
-				describeKind: "effect",
 				meta: {
 					...cqrsMeta("saga", { saga_name: name, source_events: eventNames }),
 					error: null,
@@ -1301,8 +1293,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		) as Node<unknown>;
 		sagaRef.n = sagaNode;
 
-		this.add(sagaNode, { name: name });
-		this._keepaliveDisposers.push(keepalive(sagaNode));
+		this.addDisposer(keepalive(sagaNode));
 		this._sagas.add(name);
 		return {
 			node: sagaNode,

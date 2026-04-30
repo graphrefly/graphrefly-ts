@@ -283,6 +283,9 @@ const REGISTRY = {
 	memoryWithKG: "src/patterns/ai/memory/memory-composers.ts",
 	memoryWithTiers: "src/patterns/ai/memory/memory-composers.ts",
 	memoryRetrieval: "src/patterns/ai/memory/memory-composers.ts",
+
+	// extra/composition — domain-agnostic substrates (Class B audit Alt E, 2026-04-30)
+	auditedSuccessTracker: "src/extra/composition/audited-success-tracker.ts",
 	llmExtractor: "src/patterns/ai/prompts/prompt-call.ts",
 	llmConsolidator: "src/patterns/ai/prompts/prompt-call.ts",
 	promptCall: "src/patterns/ai/prompts/prompt-call.ts",

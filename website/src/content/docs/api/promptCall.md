@@ -1,17 +1,17 @@
 ---
 title: "promptCall()"
-description: "Build a one-shot LLM JSON-call factory: each invocation wraps `input` in a\nfresh `state(input)`, delegates to `promptNode({format: \"json\"})`, and\nreturns a `Nod"
+description: "Build a one-shot LLM JSON-call factory: each invocation wraps `input` in a\nfresh `node([], { initial: input })`, delegates to `promptNode({format: \"json\"})`, an"
 ---
 
 Build a one-shot LLM JSON-call factory: each invocation wraps `input` in a
-fresh `state(input)`, delegates to `promptNode({format: "json"})`, and
+fresh `node([], { initial: input })`, delegates to `promptNode({format: "json"})`, and
 returns a `NodeInput&lt;TOut&gt;` that the caller plugs into `distill` /
 `agentLoop` / any reactive composition that accepts `NodeInput`.
 
 **Per-call lifecycle.** The returned `NodeInput&lt;TOut&gt;` is a producer that
 emits exactly one `DATA` per upstream input (per Tier 1.2 Session C lock —
 `promptNode` guarantees one DATA per wave). When the consumer's switchMap
-supersedes it, the per-call `state(input)` and the inner `prompt_node::call`
+supersedes it, the per-call `node([], { initial: input })` and the inner `prompt_node::call`
 tear down together.
 
 ## Signature

@@ -136,17 +136,17 @@ export class AuditTrailGraph extends Graph {
 		this.entries = this._log.entries;
 		this.add(this.entries, { name: "entries" });
 
-		this.count = node<number>(
-			[this.entries],
-			(batchData, actions, ctx) => {
+		this.count = this.derived<number>(
+			"count",
+			["entries"],
+			(batchData, ctx) => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
-				actions.emit((data[0] as readonly AuditEntry[]).length);
+				return [(data[0] as readonly AuditEntry[]).length];
 			},
-			{ name: "count", describeKind: "derived", meta: auditMeta("count") },
+			{ meta: auditMeta("count") },
 		);
-		this.add(this.count, { name: "count" });
 		this.addDisposer(keepalive(this.count));
 
 		// Always clone — DEFAULT_INCLUDE_TYPES is a module-level singleton and
@@ -353,21 +353,19 @@ export class PolicyGateGraph extends Graph {
 		});
 		this.mount("violations", this.violations);
 
-		this.violationCount = node<number>(
-			[this.violations.events],
-			(batchData, actions, ctx) => {
+		this.violationCount = this.derived<number>(
+			"violationCount",
+			["violations::events"],
+			(batchData, ctx) => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
-				actions.emit((data[0] as readonly PolicyViolation[]).length);
+				return [(data[0] as readonly PolicyViolation[]).length];
 			},
 			{
-				name: "violationCount",
-				describeKind: "derived",
 				meta: auditMeta("policy_violation_count"),
 			},
 		);
-		this.add(this.violationCount, { name: "violationCount" });
 		this.addDisposer(keepalive(this.violationCount));
 
 		// Factory-time seed (COMPOSITION-GUIDE §28): cache the latest rules

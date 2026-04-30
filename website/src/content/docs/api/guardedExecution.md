@@ -27,7 +27,7 @@ function guardedExecution(
 
 ```ts
 const guarded = guardedExecution(app, {
-    actor: state<Actor>({ type: "human", id: "alice" }), // reactive — re-derive on swap
+    actor: node<Actor>([], { initial: { type: "human", id: "alice" } }), // reactive — re-derive on swap
     policies: [
       { effect: "allow", action: "read", actorType: "human" },
       { effect: "deny", action: "write", pathPattern: "system::*" },

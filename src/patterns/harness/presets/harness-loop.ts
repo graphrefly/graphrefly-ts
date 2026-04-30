@@ -62,7 +62,7 @@ import {
 	QUEUE_NAMES,
 	resolvePromptFn,
 } from "../defaults.js";
-import { type StrategyModelBundle, type StrategySnapshot, strategyModel } from "../strategy.js";
+import { type StrategyModelGraph, type StrategySnapshot, strategyModel } from "../strategy.js";
 import type {
 	ErrorClassifier,
 	ExecuteOutput,
@@ -80,6 +80,7 @@ import type {
 	VerifyPromptFn,
 	VerifyResult,
 } from "../types.js";
+import { strategyKey } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hub topic names (internal constants — strings are the routing API)
@@ -331,8 +332,8 @@ export class HarnessGraph<A = unknown> extends Graph {
 	 */
 	readonly queueTopics: ReadonlyMap<QueueRoute, TopicGraph<TriagedItem>>;
 
-	/** Strategy model bundle — record outcomes, lookup effectiveness. */
-	readonly strategy: StrategyModelBundle;
+	/** Strategy model — `auditedSuccessTracker` keyed by `StrategyKey`. */
+	readonly strategy: StrategyModelGraph;
 
 	/** Global retry count across all items (circuit breaker). Reactive — subscribable. */
 	readonly totalRetries: Node<number>;
@@ -367,7 +368,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 		queueTopics: Map<QueueRoute, TopicGraph<TriagedItem>>,
 		jobs: Map<QueueRoute, JobQueueGraph<TriagedItem>>,
 		gates: Map<QueueRoute, GateController<TriagedItem>>,
-		strategy: StrategyModelBundle,
+		strategy: StrategyModelGraph,
 		totalRetries: Node<number>,
 		totalReingestions: Node<number>,
 		reflect: Node<null>,
@@ -439,7 +440,7 @@ export class HarnessGraph<A = unknown> extends Graph {
 			{ label: "EXECUTE", paths: ["executeFlow::execute::events"] },
 			{ label: "VERIFY", paths: ["executeFlow::verify::events"] },
 			{ label: "REFLECT", paths: ["reflect"] },
-			{ label: "STRATEGY", paths: ["strategy"] },
+			{ label: "STRATEGY", paths: ["strategy::entries"] },
 		];
 	}
 }
@@ -503,13 +504,13 @@ export function harnessLoop<A = unknown>(
 	const strategy = strategyModel();
 
 	// --- Stage 2: TRIAGE ---
-	// triageInput pairs intake.latest (trigger) with strategy.node
+	// triageInput pairs intake.latest (trigger) with strategy.entries
 	// (advisory, sampled via withLatestFrom). Breaks the feedback cycle
-	// (verify → strategy.record → strategy.node would otherwise re-fire
+	// (verify → strategy.record → strategy.entries would otherwise re-fire
 	// triage on every recorded outcome).
 	const triageInput = withLatestFrom(
 		intake.latest as Node<unknown>,
-		strategy.node as Node<unknown>,
+		strategy.entries as Node<unknown>,
 	);
 
 	const triagePromptFn = resolvePromptFn<readonly [IntakeItem, StrategySnapshot]>(
@@ -756,7 +757,10 @@ export function harnessLoop<A = unknown>(
 	}
 
 	function handleVerified(vr: VerifyResult<A>, item: TriagedItem): void {
-		strategy.record(item.rootCause, item.intervention, true);
+		strategy.record(strategyKey(item.rootCause, item.intervention), true, {
+			rootCause: item.rootCause,
+			intervention: item.intervention,
+		});
 		verifyResults.publish(vr);
 		ackJob(item);
 	}
@@ -776,7 +780,10 @@ export function harnessLoop<A = unknown>(
 	}
 
 	function handleStructural(vr: VerifyResult<A>, item: TriagedItem): void {
-		strategy.record(item.rootCause, item.intervention, false);
+		strategy.record(strategyKey(item.rootCause, item.intervention), false, {
+			rootCause: item.rootCause,
+			intervention: item.intervention,
+		});
 		verifyResults.publish(vr);
 		ackJob(item);
 		const key = trackingKey(item);
@@ -901,7 +908,9 @@ export function harnessLoop<A = unknown>(
 	harness.addDisposer(routerUnsub);
 	harness.addDisposer(enqueueUnsub);
 	harness.addDisposer(dispatchUnsub);
-	harness.addDisposer(strategy.dispose);
+	// Strategy is mounted as a child subgraph below; its disposal cascades
+	// via the mount lifecycle (no separate `addDisposer(strategy.dispose)`
+	// needed post Class B audit Alt E migration).
 	for (const unsub of jobMirrorUnsubs) harness.addDisposer(unsub);
 
 	// Register stage nodes for introspection (harnessTrace, describe,
@@ -915,7 +924,6 @@ export function harnessLoop<A = unknown>(
 	harness.add(enqueueEffect as Node<unknown>, { name: "execute-enqueue" });
 	harness.add(dispatchEffect as Node<unknown>, { name: "verify-dispatch" });
 	harness.add(reflectNode as Node<unknown>, { name: "reflect" });
-	harness.add(strategy.node as Node<unknown>, { name: "strategy" });
 	// Reflect is a topology marker — subscribe so its fn registers as a
 	// reactive edge visible in `describe()` / `explain()` immediately on
 	// harness construction.
@@ -931,6 +939,7 @@ export function harnessLoop<A = unknown>(
 	harness.mount("queues", queuesHub);
 	harness.mount("gates", gateGraph);
 	harness.mount("executeFlow", executeFlow);
+	harness.mount("strategy", strategy);
 	for (const [route, jq] of jobQueues) {
 		harness.mount(`jobs/${route}`, jq);
 	}
@@ -948,7 +957,7 @@ export function harnessLoop<A = unknown>(
 
 function buildPriorityScores<A>(
 	queueTopics: Map<QueueRoute, TopicGraph<TriagedItem>>,
-	strategy: StrategyModelBundle,
+	strategy: StrategyModelGraph,
 	opts: HarnessLoopOptions<A>,
 ): Map<QueueRoute, Node<number>> {
 	if (!opts.lastInteractionNs) {
@@ -971,7 +980,7 @@ function buildPriorityScores<A>(
 		const score = node<number>(
 			[
 				topic.latest as Node<unknown>,
-				strategy.node as Node<unknown>,
+				strategy.entries as Node<unknown>,
 				lastInteractionNs as Node<unknown>,
 			],
 			(batchData, actions, ctx) => {
@@ -986,7 +995,7 @@ function buildPriorityScores<A>(
 				const baseWeight = severityWeights[item.severity ?? "medium"] ?? 40;
 				const ageSeconds = (monotonicNs() - (vals[2] as number)) / 1e9;
 				let s = baseWeight * Math.exp(-decayRate * Math.max(0, ageSeconds));
-				const key = `${item.rootCause}→${item.intervention}`;
+				const key = strategyKey(item.rootCause, item.intervention);
 				const strat = vals[1] as ReadonlyMap<string, { successRate: number }>;
 				const entry = strat?.get(key);
 				if (entry && entry.successRate >= effectivenessThreshold) {

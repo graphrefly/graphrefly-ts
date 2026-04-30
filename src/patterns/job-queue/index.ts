@@ -698,18 +698,16 @@ export class JobFlowGraph<T> extends Graph {
 						};
 					},
 					{
-						name: `pump_${stage}`,
-						describeKind: "effect",
 						meta: jobQueueMeta("job_flow_pump", { stage, has_work: true }),
 					},
 				);
-				this.add(pump, { name: `pump_${stage}` });
 				this.addDisposer(keepalive(pump));
 			} else {
 				// ── Stage without work hook (pass-through ferry) ──────────────
 				// Claim, accumulate path, forward to next stage or completed.
-				const pump = node<unknown>(
-					[current.pending],
+				const pump = this.effect(
+					`pump_${stage}`,
+					[`${stage}::pending`],
 					() => {
 						let moved = 0;
 						while (moved < stagePerPump) {
@@ -743,12 +741,9 @@ export class JobFlowGraph<T> extends Graph {
 						}
 					},
 					{
-						name: `pump_${stage}`,
-						describeKind: "effect",
 						meta: jobQueueMeta("job_flow_pump", { stage, has_work: false }),
 					},
 				);
-				this.add(pump, { name: `pump_${stage}` });
 				this.addDisposer(keepalive(pump));
 			}
 		}

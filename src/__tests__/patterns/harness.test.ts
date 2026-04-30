@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
 import { node } from "../../core/node.js";
+import { Graph } from "../../graph/graph.js";
 
 import { contentGate, redactor } from "../../patterns/ai/index.js";
 import {
@@ -69,17 +70,26 @@ describe("harness types", () => {
 describe("strategyModel", () => {
 	it("starts empty", () => {
 		const sm = strategyModel();
-		expect(sm.node.cache.size).toBe(0);
-		expect(sm.lookup("composition", "template")).toBeUndefined();
+		expect(sm.entries.cache.size).toBe(0);
+		expect(sm.lookup(strategyKey("composition", "template"))).toBeUndefined();
 	});
 
 	it("records successes and failures with correct rates", () => {
 		const sm = strategyModel();
-		sm.record("composition", "template", true);
-		sm.record("composition", "template", true);
-		sm.record("composition", "template", false);
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		sm.record(strategyKey("composition", "template"), false, {
+			rootCause: "composition",
+			intervention: "template",
+		});
 
-		const entry = sm.lookup("composition", "template");
+		const entry = sm.lookup(strategyKey("composition", "template"));
 		expect(entry).toBeDefined();
 		expect(entry!.attempts).toBe(3);
 		expect(entry!.successes).toBe(2);
@@ -88,24 +98,36 @@ describe("strategyModel", () => {
 
 	it("tracks multiple rootCause→intervention pairs independently", () => {
 		const sm = strategyModel();
-		sm.record("composition", "template", true);
-		sm.record("missing-fn", "catalog-fn", true);
-		sm.record("missing-fn", "catalog-fn", true);
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		sm.record(strategyKey("missing-fn", "catalog-fn"), true, {
+			rootCause: "missing-fn",
+			intervention: "catalog-fn",
+		});
+		sm.record(strategyKey("missing-fn", "catalog-fn"), true, {
+			rootCause: "missing-fn",
+			intervention: "catalog-fn",
+		});
 
-		expect(sm.lookup("composition", "template")!.attempts).toBe(1);
-		expect(sm.lookup("missing-fn", "catalog-fn")!.attempts).toBe(2);
+		expect(sm.lookup(strategyKey("composition", "template"))!.attempts).toBe(1);
+		expect(sm.lookup(strategyKey("missing-fn", "catalog-fn"))!.attempts).toBe(2);
 	});
 
 	it("reactive node updates on record()", () => {
 		const sm = strategyModel();
 		const values: StrategySnapshot[] = [];
-		sm.node.subscribe((msgs) => {
+		sm.entries.subscribe((msgs) => {
 			for (const msg of msgs) {
 				if (msg[0] === DATA) values.push(msg[1] as StrategySnapshot);
 			}
 		});
 
-		sm.record("bad-docs", "docs", true);
+		sm.record(strategyKey("bad-docs", "docs"), true, {
+			rootCause: "bad-docs",
+			intervention: "docs",
+		});
 		expect(values.length).toBeGreaterThanOrEqual(1);
 		const last = values[values.length - 1];
 		expect(last.get("bad-docs→docs")).toBeDefined();
@@ -135,7 +157,7 @@ describe("priorityScore", () => {
 		const sm = strategyModel();
 		const lastInteraction = node<number>([], { initial: monotonicNs() }); // recent
 
-		const score = priorityScore(item, sm.node, lastInteraction);
+		const score = priorityScore(item, sm.entries, lastInteraction);
 		score.subscribe(() => undefined); // activate
 
 		const val = score.cache;
@@ -162,16 +184,25 @@ describe("priorityScore", () => {
 		const lastInteraction = node<number>([], { initial: monotonicNs() });
 
 		// Without strategy data
-		const scoreWithout = priorityScore(item, sm.node, lastInteraction);
+		const scoreWithout = priorityScore(item, sm.entries, lastInteraction);
 		scoreWithout.subscribe(() => undefined);
 		const valWithout = scoreWithout.cache;
 
 		// Record high effectiveness
-		sm.record("composition", "template", true);
-		sm.record("composition", "template", true);
-		sm.record("composition", "template", true);
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		sm.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
 
-		const scoreWith = priorityScore(item, sm.node, lastInteraction);
+		const scoreWith = priorityScore(item, sm.entries, lastInteraction);
 		scoreWith.subscribe(() => undefined);
 		const valWith = scoreWith.cache;
 
@@ -189,7 +220,12 @@ describe("evalIntakeBridge", () => {
 		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake");
-		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
+		const g = new Graph("test-bridge-1");
+		const bridgeNode = evalIntakeBridge({
+			graph: g,
+			source: evalResults as any,
+			intakeTopic: intake,
+		});
 
 		// Activate bridge + subscribe to intake before emitting data
 		bridgeNode.subscribe(() => undefined);
@@ -234,7 +270,12 @@ describe("evalIntakeBridge", () => {
 		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-2");
-		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
+		const g = new Graph("test-bridge-2");
+		const bridgeNode = evalIntakeBridge({
+			graph: g,
+			source: evalResults as any,
+			intakeTopic: intake,
+		});
 		bridgeNode.subscribe(() => undefined);
 
 		const items: IntakeItem[] = [];
@@ -263,7 +304,12 @@ describe("evalIntakeBridge", () => {
 		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-3");
-		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
+		const g = new Graph("test-bridge-3");
+		const bridgeNode = evalIntakeBridge({
+			graph: g,
+			source: evalResults as any,
+			intakeTopic: intake,
+		});
 		bridgeNode.subscribe(() => undefined);
 
 		const items: IntakeItem[] = [];
@@ -387,8 +433,11 @@ describe("harnessLoop", () => {
 		const adapter = mockAdapter({});
 		const harness = harnessLoop("test-harness-5", { adapter });
 
-		harness.strategy.record("composition", "template", true);
-		const entry = harness.strategy.lookup("composition", "template");
+		harness.strategy.record(strategyKey("composition", "template"), true, {
+			rootCause: "composition",
+			intervention: "template",
+		});
+		const entry = harness.strategy.lookup(strategyKey("composition", "template"));
 		expect(entry).toBeDefined();
 		expect(entry!.successRate).toBe(1);
 	});
@@ -652,13 +701,13 @@ describe("harnessLoop e2e", () => {
 		// (proves: triage → route → execute → verify → strategy.record)
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThan(0);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThan(0);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
 
 		// Verify full chain executed
-		expect(harness.strategy.lookup("missing-fn", "catalog-fn")).toBeDefined();
+		expect(harness.strategy.lookup(strategyKey("missing-fn", "catalog-fn"))).toBeDefined();
 		expect(calls.length).toBeGreaterThanOrEqual(3); // triage + execute + verify (SENTINEL skips initial empty)
 	});
 
@@ -746,9 +795,13 @@ describe("harnessLoop e2e", () => {
 		const adapter = stageAdapter();
 		const harness = harnessLoop("e2e-bridge", { adapter });
 
-		// Wire the bridge
+		// Wire the bridge — harness extends Graph, so register on it directly
 		const evalSource = node<EvalRunResult | null>([], { initial: null });
-		const bridgeNode = evalIntakeBridge(evalSource as any, harness.intake);
+		const bridgeNode = evalIntakeBridge({
+			graph: harness,
+			source: evalSource as any,
+			intakeTopic: harness.intake,
+		});
 		bridgeNode.subscribe(() => undefined);
 
 		// Emit an eval result with 1 failing criterion
@@ -839,7 +892,7 @@ describe("harnessLoop with mockLLM", () => {
 		expect(mock.callsFor("verify").length).toBeGreaterThanOrEqual(1);
 
 		// Strategy model should record a success
-		const entry = harness.strategy.lookup("missing-fn", "catalog-fn");
+		const entry = harness.strategy.lookup(strategyKey("missing-fn", "catalog-fn"));
 		expect(entry).toBeDefined();
 		expect(entry!.successes).toBeGreaterThanOrEqual(1);
 
@@ -901,7 +954,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy to accumulate entries
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
@@ -955,7 +1008,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy model to record the failure (proves retries exhausted)
 		await vi.waitFor(
 			() => {
-				const entry = harness.strategy.lookup("schema-gap", "schema-change");
+				const entry = harness.strategy.lookup(strategyKey("schema-gap", "schema-change"));
 				expect(entry).toBeDefined();
 			},
 			{ timeout: 15000, interval: 100 },
@@ -965,7 +1018,7 @@ describe("harnessLoop with mockLLM", () => {
 		expect(harness.totalRetries.cache).toBe(2);
 
 		// Strategy should record failure
-		const entry = harness.strategy.lookup("schema-gap", "schema-change")!;
+		const entry = harness.strategy.lookup(strategyKey("schema-gap", "schema-change"))!;
 		expect(entry.successes).toBe(0);
 	});
 
@@ -1014,7 +1067,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy model to record the failure (proves full chain executed)
 		await vi.waitFor(
 			() => {
-				const entry = harness.strategy.lookup("composition", "template");
+				const entry = harness.strategy.lookup(strategyKey("composition", "template"));
 				expect(entry).toBeDefined();
 			},
 			{ timeout: 5000, interval: 50 },
@@ -1024,7 +1077,7 @@ describe("harnessLoop with mockLLM", () => {
 		expect(harness.totalRetries.cache).toBe(0);
 
 		// Strategy should record failure
-		const entry = harness.strategy.lookup("composition", "template")!;
+		const entry = harness.strategy.lookup(strategyKey("composition", "template"))!;
 		expect(entry.successes).toBe(0);
 		expect(entry.attempts).toBeGreaterThanOrEqual(1);
 	});
@@ -1085,7 +1138,7 @@ describe("harnessLoop with mockLLM", () => {
 		);
 
 		// Strategy should have recorded outcomes
-		expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+		expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 	});
 
 	// Tier 6.4 / 6.5 reconciliation — the dispatch effect's verdict routing
@@ -1297,7 +1350,7 @@ describe("harnessLoop with mockLLM", () => {
 		const structResult = verifyResults.find((r) => r.verified === false)!;
 		expect(structResult.findings).toContain("dep missing — not parseable");
 		// Strategy should also have recorded the failure.
-		const entry = harness.strategy.lookup("composition", "rewrite");
+		const entry = harness.strategy.lookup(strategyKey("composition", "rewrite"));
 		expect(entry).toBeDefined();
 		expect(entry?.successes).toBe(0);
 		// qa P4: lock "no extra verdict" — single-item run with maxRetries=0
@@ -1363,7 +1416,7 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for the item to flow through execute → verify
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
@@ -1432,9 +1485,9 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for modified item to flow through execute → verify → strategy
 		// (reactive subscription, no polling — §5.8).
 		await new Promise<void>((resolve) => {
-			const unsub = harness.strategy.node.subscribe((msgs) => {
+			const unsub = harness.strategy.entries.subscribe((msgs) => {
 				for (const msg of msgs) {
-					if (msg[0] === DATA && harness.strategy.lookup("composition", "template")) {
+					if (msg[0] === DATA && harness.strategy.lookup(strategyKey("composition", "template"))) {
 						unsub();
 						resolve();
 						return;
@@ -1443,9 +1496,9 @@ describe("harnessLoop with mockLLM", () => {
 			});
 		});
 		// Original classification should NOT appear (modify replaced it).
-		expect(harness.strategy.lookup("unknown", "investigate")).toBeUndefined();
+		expect(harness.strategy.lookup(strategyKey("unknown", "investigate"))).toBeUndefined();
 
-		const entry = harness.strategy.lookup("composition", "template")!;
+		const entry = harness.strategy.lookup(strategyKey("composition", "template"))!;
 		expect(entry.successes).toBeGreaterThanOrEqual(1);
 
 		// Structured events revalidation: verify stage ordering without string parsing
@@ -1503,7 +1556,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 3000, interval: 50 },
 		);
@@ -1567,13 +1620,13 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for first item to complete
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 5000, interval: 50 },
 		);
 
 		// Strategy should have at least one entry recorded
-		const snapshot = harness.strategy.node.cache;
+		const snapshot = harness.strategy.entries.cache;
 		expect(snapshot.size).toBeGreaterThanOrEqual(1);
 
 		// At least one key should have attempts > 0
@@ -1621,7 +1674,7 @@ describe("harnessLoop with mockLLM", () => {
 
 		await vi.waitFor(
 			() => {
-				expect(harness.strategy.node.cache.size).toBeGreaterThanOrEqual(1);
+				expect(harness.strategy.entries.cache.size).toBeGreaterThanOrEqual(1);
 			},
 			{ timeout: 3000, interval: 50 },
 		);
@@ -1742,7 +1795,8 @@ describe("beforeAfterCompare", () => {
 			]),
 		});
 
-		const delta = beforeAfterCompare(before, after);
+		const g = new Graph("delta-test-1");
+		const delta = beforeAfterCompare({ graph: g, before, after });
 		const unsub = delta.subscribe(() => {});
 
 		const d = delta.cache!;
@@ -1769,7 +1823,8 @@ describe("beforeAfterCompare", () => {
 			]),
 		});
 
-		const delta = beforeAfterCompare(before, after);
+		const g = new Graph("delta-test-2");
+		const delta = beforeAfterCompare({ graph: g, before, after });
 		const unsub = delta.subscribe(() => {});
 
 		const d = delta.cache!;
@@ -1788,7 +1843,8 @@ describe("beforeAfterCompare", () => {
 			initial: makeResult("a", [{ id: "t1", valid: true, passes: 3, total: 4 }]),
 		});
 
-		const delta = beforeAfterCompare(before, after);
+		const g = new Graph("delta-test-3");
+		const delta = beforeAfterCompare({ graph: g, before, after });
 		const unsub = delta.subscribe(() => {});
 
 		const td = delta.cache!.taskDeltas[0];
@@ -1820,7 +1876,8 @@ describe("affectedTaskFilter", () => {
 		const issuesNode = node<readonly TriagedItem[]>([], {
 			initial: [mkTI(["T1", "T2"]), mkTI(["T2", "T3"])],
 		});
-		const filtered = affectedTaskFilter(issuesNode);
+		const g = new Graph("affected-test-1");
+		const filtered = affectedTaskFilter({ graph: g, issues: issuesNode });
 		const unsub = filtered.subscribe(() => {});
 
 		expect(filtered.cache).toEqual(["T1", "T2", "T3"]);
@@ -1829,7 +1886,12 @@ describe("affectedTaskFilter", () => {
 
 	it("intersects with fullTaskSet when provided", () => {
 		const issuesNode = node<readonly TriagedItem[]>([], { initial: [mkTI(["T1", "T2", "T3"])] });
-		const filtered = affectedTaskFilter(issuesNode, ["T1", "T3", "T5"] as readonly string[]);
+		const g = new Graph("affected-test-2");
+		const filtered = affectedTaskFilter({
+			graph: g,
+			issues: issuesNode,
+			fullTaskSet: ["T1", "T3", "T5"] as readonly string[],
+		});
 		const unsub = filtered.subscribe(() => {});
 
 		expect(filtered.cache).toEqual(["T1", "T3"]); // T2 excluded, T5 not affected
@@ -1853,10 +1915,12 @@ describe("codeChangeBridge", () => {
 			}
 		});
 
-		const bridge = codeChangeBridge(
-			source as ReturnType<typeof state<CodeChange>>,
-			intakeTopic as unknown as TopicGraph<IntakeItem>,
-		);
+		const g = new Graph("code-change-test");
+		const bridge = codeChangeBridge({
+			graph: g,
+			source: source as ReturnType<typeof state<CodeChange>>,
+			intakeTopic: intakeTopic as unknown as TopicGraph<IntakeItem>,
+		});
 		const unsubBridge = bridge.subscribe(() => {});
 
 		const change: CodeChange = {
@@ -1885,9 +1949,12 @@ describe("notifyEffect", () => {
 	it("calls transport for each new topic entry", () => {
 		const alertTopic = topic<string>("alerts");
 		const calls: string[] = [];
-		const eff = notifyEffect(alertTopic as unknown as TopicGraph<string>, (item: string) =>
-			calls.push(item),
-		);
+		const g = new Graph("notify-test-1");
+		const eff = notifyEffect({
+			graph: g,
+			topic: alertTopic as unknown as TopicGraph<string>,
+			transport: (item: string) => calls.push(item),
+		});
 		const unsub = eff.subscribe(() => {});
 
 		alertTopic.publish("first");
@@ -1905,7 +1972,12 @@ describe("notifyEffect", () => {
 			await Promise.resolve();
 			calls.push(item);
 		};
-		const eff = notifyEffect(alertTopic as unknown as TopicGraph<string>, transport);
+		const g = new Graph("notify-test-2");
+		const eff = notifyEffect({
+			graph: g,
+			topic: alertTopic as unknown as TopicGraph<string>,
+			transport,
+		});
 		const unsub = eff.subscribe(() => {});
 
 		alertTopic.publish("hello");

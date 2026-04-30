@@ -1,30 +1,25 @@
 ---
 title: "memoryWithVectors()"
-description: "Attach a vector index to a `DistillBundle`. Indexes every entry in the\nstore as it changes. Returns the `VectorIndexGraph` so retrieval can read\nits `entries` a"
+description: "Attach a vector index to a `DistillBundle`. Indexes every entry in the\nstore as it changes. Returns the `MemoryWithVectorsGraph` whose `vectors`\nfield exposes t"
 ---
 
 Attach a vector index to a `DistillBundle`. Indexes every entry in the
-store as it changes. Returns the `VectorIndexGraph` so retrieval can read
-its `entries` and call `search()`.
+store as it changes. Returns the `MemoryWithVectorsGraph` whose `vectors`
+field exposes the underlying `VectorIndexGraph`.
 
-The indexer's keepalive is registered with `graph.addDisposer` so it tears
-down on `graph.destroy()`. The returned `dispose()` is also available for
-early release without destroying the parent graph.
+Teardown is handled by `Graph.destroy()` — typically inherited via
+mounting the result on a parent graph (see `agentMemory`).
 
 ## Signature
 
 ```ts
 function memoryWithVectors<TMem>(
-	graph: Graph,
-	store: DistillBundle<TMem>,
 	opts: MemoryWithVectorsOptions<TMem>,
-): { vectors: VectorIndexGraph<TMem>; dispose: () => void }
+): MemoryWithVectorsGraph<TMem>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `graph` | `Graph` |  |
-| `store` | `DistillBundle&lt;TMem&gt;` |  |
 | `opts` | `MemoryWithVectorsOptions&lt;TMem&gt;` |  |

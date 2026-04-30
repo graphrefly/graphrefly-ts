@@ -4,8 +4,13 @@
 // Each composer attaches one capability (vectors, KG, tiers, retrieval) to a
 // `DistillBundle`. `agentMemory` continues to ship as the ergonomic sugar
 // over the full pipeline; power users who want a subset call these factories
-// directly. The composers are additive — they do not duplicate the wiring
-// inside `agentMemory`; both surfaces are valid entry points.
+// directly.
+//
+// Class B audit (2026-04-30): the composers were migrated from
+// bundle-returning factories to **Graph subclasses** so they participate in
+// `describe()` / `destroy()` like every other Phase 4+ Graph (mirrors
+// `AuditTrailGraph`, `PolicyGateGraph`, `CqrsGraph`). The factory functions
+// remain as ergonomic constructors (`memoryWithVectors(opts) → MemoryWithVectorsGraph`).
 //
 // Tier 4.1 B + 4.3 B (2026-04-29): `memoryWithTiers` is the construction site
 // for the distill bundle when tiers are configured (`reactiveMap.retention`
@@ -32,10 +37,10 @@ import {
 	type ReactiveMapRetention,
 	reactiveMap,
 } from "../../../extra/reactive-map.js";
-import { fromAny, type NodeInput } from "../../../extra/sources.js";
+import { fromAny, keepalive, type NodeInput } from "../../../extra/sources.js";
 import type { StorageHandle } from "../../../extra/storage-core.js";
 import { decay } from "../../../extra/utils/decay.js";
-import type { Graph } from "../../../graph/graph.js";
+import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import {
 	collection,
 	cosineSimilarity,
@@ -76,64 +81,97 @@ import {
 // memoryWithVectors
 // ---------------------------------------------------------------------------
 
-export type MemoryWithVectorsOptions<TMem> = {
+export interface MemoryWithVectorsOptions<TMem> {
+	/** Optional Graph identity — passed through to the underlying `Graph` ctor. */
+	graph?: GraphOptions;
+	/** Subgraph name. Default: `"memory-vectors"`. */
+	name?: string;
+	/** The substrate distill store to index. */
+	store: DistillBundle<TMem>;
 	/** Embedding dimension. Must match the `embedFn` output length. */
 	dimension: number;
 	/** Extract an embedding vector for a memory entry. */
 	embedFn: (mem: TMem) => readonly number[] | undefined;
-};
+}
+
+/**
+ * Graph subclass that attaches a vector index to a `DistillBundle`. The inner
+ * `VectorIndexGraph` is mounted at `"vectorIndex"`; an internal effect
+ * subscribes to the substrate store and re-indexes on every change.
+ *
+ * Mirrors `AuditTrailGraph` / `PolicyGateGraph` shape — fully self-contained,
+ * teardown via the Graph's `destroy()` cascade.
+ */
+export class MemoryWithVectorsGraph<TMem> extends Graph {
+	readonly vectors: VectorIndexGraph<TMem>;
+	private readonly _store: DistillBundle<TMem>;
+
+	constructor(opts: MemoryWithVectorsOptions<TMem>) {
+		super(opts.name ?? "memory-vectors", opts.graph);
+		this._store = opts.store;
+		this.vectors = vectorIndex<TMem>({ dimension: opts.dimension });
+		this.mount("vectorIndex", this.vectors);
+
+		const embedFn = opts.embedFn;
+		const vectorsRef = this.vectors;
+
+		// Indexer effect — subscribes to the substrate's store entries, upserts
+		// vectors. Pure side-effect; restricted `effect` fn (no emit/down).
+		// Cross-graph dep on `opts.store.store.entries` is fine — the substrate
+		// is the upstream wired in by the parent factory.
+		const indexer = node(
+			[opts.store.store.entries],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+				);
+				const storeMap =
+					(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+				for (const [key, mem] of storeMap) {
+					const vec = embedFn(mem);
+					if (vec) vectorsRef.upsert(key, vec, mem);
+				}
+			},
+			{ name: "indexer", describeKind: "effect" },
+		);
+		this.add(indexer, { name: "indexer" });
+		this.addDisposer(keepalive(indexer));
+	}
+}
 
 /**
  * Attach a vector index to a `DistillBundle`. Indexes every entry in the
- * store as it changes. Returns the `VectorIndexGraph` so retrieval can read
- * its `entries` and call `search()`.
+ * store as it changes. Returns the `MemoryWithVectorsGraph` whose `vectors`
+ * field exposes the underlying `VectorIndexGraph`.
  *
- * The indexer's keepalive is registered with `graph.addDisposer` so it tears
- * down on `graph.destroy()`. The returned `dispose()` is also available for
- * early release without destroying the parent graph.
+ * Teardown is handled by `Graph.destroy()` — typically inherited via
+ * mounting the result on a parent graph (see `agentMemory`).
  */
 export function memoryWithVectors<TMem>(
-	graph: Graph,
-	store: DistillBundle<TMem>,
 	opts: MemoryWithVectorsOptions<TMem>,
-): { vectors: VectorIndexGraph<TMem>; dispose: () => void } {
-	const vectors = vectorIndex<TMem>({ dimension: opts.dimension });
-	graph.add(vectors.entries, { name: "vectorIndex" });
-	const indexer = node(
-		[store.store.entries],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const storeMap =
-				(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-			for (const [key, mem] of storeMap) {
-				const vec = opts.embedFn(mem);
-				if (vec) vectors.upsert(key, vec, mem);
-			}
-		},
-		{ describeKind: "effect" },
-	);
-	const unsub = indexer.subscribe(() => undefined);
-	graph.addDisposer(unsub);
-	return { vectors, dispose: () => unsub() };
+): MemoryWithVectorsGraph<TMem> {
+	return new MemoryWithVectorsGraph<TMem>(opts);
 }
 
 // ---------------------------------------------------------------------------
 // memoryWithKG
 // ---------------------------------------------------------------------------
 
-export type MemoryWithKGOptions<TMem> = {
-	/**
-	 * Mount path for the KG subgraph on the parent graph. Defaults to `name`.
-	 * Pass a different value when the parent graph reserves a stable mount
-	 * path (e.g. `agentMemory` mounts at `"kg"` regardless of outer name).
-	 */
+export interface MemoryWithKGOptions<TMem> {
+	/** Optional Graph identity. */
+	graph?: GraphOptions;
+	/** Subgraph name. Default: `"memory-kg"`. */
+	name?: string;
+	/** The substrate distill store to index. */
+	store: DistillBundle<TMem>;
+	/** Inner KnowledgeGraph name. Default: `${name}-kg`. */
+	kgName?: string;
+	/** Mount path within this Graph for the KnowledgeGraph. Default: `"kg"`. */
 	mountPath?: string;
 	/**
 	 * Extract entities + relations for a memory entry. Omit to mount an empty
 	 * KG without an indexer effect — caller upserts entities / relations
-	 * directly on the returned `kg` handle.
+	 * directly on the `kg` field.
 	 */
 	entityFn?: (
 		key: string,
@@ -144,57 +182,60 @@ export type MemoryWithKGOptions<TMem> = {
 				relations?: Array<{ from: string; to: string; relation: string; weight?: number }>;
 		  }
 		| undefined;
-};
+}
 
 /**
- * Attach a knowledge graph alongside a `DistillBundle`. Inner graph is named
- * `${name}-kg`; mount path defaults to `name` but can be overridden via
- * `opts.mountPath` so a parent factory (e.g. `agentMemory`) can keep a stable
- * mount path independent of the inner graph's identity.
- *
- * If `opts.entityFn` is omitted, no indexer effect is wired — the empty KG is
- * mounted for manual `upsertEntity` / `link` use.
- *
- * Indexer keepalive (when present) is registered with `graph.addDisposer`;
- * explicit `dispose()` is also available.
+ * Graph subclass that attaches a knowledge graph alongside a `DistillBundle`.
+ * Mounts the inner `KnowledgeGraph` at `mountPath` (default `"kg"`); when
+ * `entityFn` is provided, an indexer effect populates entities/relations on
+ * every store change.
  */
-export function memoryWithKG<TMem>(
-	graph: Graph,
-	store: DistillBundle<TMem>,
-	name: string,
-	opts: MemoryWithKGOptions<TMem>,
-): { kg: KnowledgeGraph<unknown, string>; dispose: () => void } {
-	const mountPath = opts.mountPath ?? name;
-	const kg = knowledgeGraph<unknown, string>(`${name}-kg`);
-	graph.mount(mountPath, kg);
-	if (!opts.entityFn) {
-		return { kg, dispose: () => undefined };
+export class MemoryWithKGGraph<TMem> extends Graph {
+	readonly kg: KnowledgeGraph<unknown, string>;
+
+	constructor(opts: MemoryWithKGOptions<TMem>) {
+		const name = opts.name ?? "memory-kg";
+		super(name, opts.graph);
+		const kgName = opts.kgName ?? `${name}-kg`;
+		const mountPath = opts.mountPath ?? "kg";
+		this.kg = knowledgeGraph<unknown, string>(kgName);
+		this.mount(mountPath, this.kg);
+
+		if (!opts.entityFn) return;
+		const entityFn = opts.entityFn;
+		const kgRef = this.kg;
+		const indexer = node(
+			[opts.store.store.entries],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+				);
+				const storeMap =
+					(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+				for (const [key, mem] of storeMap) {
+					const extracted = entityFn(key, mem);
+					if (!extracted) continue;
+					for (const ent of extracted.entities ?? []) {
+						kgRef.upsertEntity(ent.id, ent.value);
+					}
+					for (const rel of extracted.relations ?? []) {
+						kgRef.link(rel.from, rel.to, rel.relation, rel.weight);
+					}
+				}
+			},
+			{ name: "indexer", describeKind: "effect" },
+		);
+		this.add(indexer, { name: "indexer" });
+		this.addDisposer(keepalive(indexer));
 	}
-	const entityFn = opts.entityFn;
-	const indexer = node(
-		[store.store.entries],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const storeMap =
-				(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-			for (const [key, mem] of storeMap) {
-				const extracted = entityFn(key, mem);
-				if (!extracted) continue;
-				for (const ent of extracted.entities ?? []) {
-					kg.upsertEntity(ent.id, ent.value);
-				}
-				for (const rel of extracted.relations ?? []) {
-					kg.link(rel.from, rel.to, rel.relation as string, rel.weight);
-				}
-			}
-		},
-		{ describeKind: "effect" },
-	);
-	const unsub = indexer.subscribe(() => undefined);
-	graph.addDisposer(unsub);
-	return { kg, dispose: () => unsub() };
+}
+
+/**
+ * Attach a knowledge graph alongside a `DistillBundle`. Returns the
+ * `MemoryWithKGGraph` whose `kg` field exposes the inner `KnowledgeGraph`.
+ */
+export function memoryWithKG<TMem>(opts: MemoryWithKGOptions<TMem>): MemoryWithKGGraph<TMem> {
+	return new MemoryWithKGGraph<TMem>(opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,20 +245,24 @@ export function memoryWithKG<TMem>(
 /**
  * Full options for {@link memoryWithTiers} (Tier 4.1 B + 4.3 B refactor,
  * 2026-04-29). Combines tier-policy options with the distill-side options
- * needed to construct the underlying store — `memoryWithTiers` is now the
+ * needed to construct the underlying store — `memoryWithTiers` is the
  * **construction site** for the distill bundle so it can wire
  * `reactiveMap.retention` into the store at construction (eliminating the
  * §7 feedback cycle the previous `tierClassifier` effect carried).
- *
- * The retention config built internally maps tier policy to the substrate:
- * - `archiveThreshold` → `retention.archiveThreshold`
- * - `maxActive` → `retention.maxSize`
- * - per-entry `decay(score(mem, ctx), age, decayRate)` → `retention.score`
- *   (capturing `latestCtx` + `entryCreatedAtNs` via closure-mirror; permanent
- *   entries score `Infinity` to bypass eviction).
  */
-export type MemoryWithTiersOptions<TMem> = MemoryTiersOptions<TMem> &
+export type MemoryWithTiersOptions<TRaw, TMem> = MemoryTiersOptions<TMem> &
 	Omit<DistillOptions<TMem>, "mapOptions" | "score" | "context"> & {
+		/** Optional Graph identity. */
+		graph?: GraphOptions;
+		/** Subgraph name. Default: `"memory-tiers"`. */
+		name?: string;
+		/** Raw source feeding distill. */
+		source: NodeInput<TRaw>;
+		/** Reactive extraction wiring (same shape as `distill`). */
+		extractFn: (
+			raw: Node<TRaw>,
+			existing: Node<ReadonlyMap<string, TMem>>,
+		) => NodeInput<Extraction<TMem>>;
 		/** Score function — same signature as `agentMemory.score`. */
 		score: (mem: TMem, context: unknown) => number;
 		/** Optional reactive context node (passed to `score`). */
@@ -225,18 +270,215 @@ export type MemoryWithTiersOptions<TMem> = MemoryTiersOptions<TMem> &
 	};
 
 /**
- * Attach 3-tier storage (active / archived / permanent) to a fresh distill
- * store, wiring `reactiveMap.retention` at construction so archival happens
- * synchronously inside the substrate's mutation pipeline (no §7 feedback
- * cycle). Promotes `permanentKeys` and `entryCreatedAtNs` to reactive maps
- * mounted on the graph (Tier 4.3 B — Unit 7 Q3) so `describe()`/`explain()`
- * can walk to "why was X archived?".
+ * Graph subclass attaching 3-tier storage (active / archived / permanent) to
+ * a fresh distill store, wiring `reactiveMap.retention` at construction so
+ * archival happens synchronously inside the substrate's mutation pipeline
+ * (no §7 feedback cycle). Promotes `permanentKeys` and `entryCreatedAtNs` to
+ * reactive maps registered on this graph (Tier 4.3 B — Unit 7 Q3) so
+ * `describe()` / `explain()` can walk to "why was X archived?".
  *
- * **API shape** (Tier 4.1 B, 2026-04-29 — breaking change vs. pre-refactor):
- * `memoryWithTiers` constructs the distill bundle internally rather than
- * accepting a pre-built one. Callers pass `(graph, source, extractFn,
- * opts)`. The bundle is exposed as `result.store` for downstream composers
- * (vectors / KG / retrieval).
+ * Public-face fields:
+ * - `store` — the distill bundle (construction site, exposed for downstream
+ *   composers).
+ * - `tiers` — tier classification + permanent promotion handles.
+ * - `compact`, `size` — alias for `store.compact` / `store.size` (registered
+ *   under their canonical names so `describe()` keys match `agentMemory`'s
+ *   pre-migration layout).
+ */
+export class MemoryWithTiersGraph<TRaw, TMem> extends Graph {
+	readonly store: DistillBundle<TMem>;
+	readonly tiers: MemoryTiersBundle<TMem>;
+	readonly compact: Node<Array<{ key: string; value: TMem; score: number }>>;
+	readonly size: Node<number>;
+	readonly permanent: ReturnType<typeof collection<TMem>>;
+	readonly permanentKeys: ReactiveMapBundle<string, true>;
+	readonly entryCreatedAtNs: ReactiveMapBundle<string, number>;
+
+	constructor(opts: MemoryWithTiersOptions<TRaw, TMem>) {
+		super(opts.name ?? "memory-tiers", opts.graph);
+
+		const decayRate = opts.decayRate ?? DEFAULT_DECAY_RATE;
+		const maxActive = opts.maxActive ?? 1000;
+		const archiveThreshold = opts.archiveThreshold ?? 0.1;
+		const permanentFilter = opts.permanentFilter ?? (() => false);
+
+		// Tier 2.3 fold: `lightCollection` was merged into
+		// `collection({ranked: false})`. The unified factory returns a Graph (not
+		// a detached bundle), so it's mounted as a subgraph for `describe()`.
+		this.permanent = collection<TMem>("permanent", { ranked: false });
+		this.mount("permanent", this.permanent);
+
+		// 4.3 B (Unit 7 Q3, 2026-04-29): closure-state promotion. `permanentKeys`
+		// and `entryCreatedAtNs` are reactive maps registered on this graph so
+		// `describe()` can walk to them and `explain()` can trace the inputs
+		// that fed an archival decision.
+		this.permanentKeys = reactiveMap<string, true>({ name: "permanentKeys" });
+		this.add(this.permanentKeys.entries, { name: "permanentKeys" });
+		this.entryCreatedAtNs = reactiveMap<string, number>({ name: "entryCreatedAtNs" });
+		this.add(this.entryCreatedAtNs.entries, { name: "entryCreatedAtNs" });
+
+		// Closure-mirror for ctx (§28 factory-time seed). `score(mem, ctx)` runs
+		// inside `retention.score` which is invoked synchronously from store
+		// mutations — no reactive dep on contextNode there. The mirror keeps
+		// `latestCtx` current via subscribe.
+		//
+		// Topology visibility: the local-default branch registers the context
+		// state node so it appears in `describe()`. The user-supplied-Node
+		// branch deliberately leaves the node unregistered — `fromAny` returns
+		// the caller's owned Node, which is owned by their graph; mounting it
+		// here would corrupt cross-graph ownership.
+		let contextNode: Node<unknown>;
+		if (opts.context) {
+			contextNode = fromAny(opts.context);
+		} else {
+			contextNode = node<unknown>([], { initial: null });
+			this.add(contextNode, { name: "context" });
+		}
+		let latestCtx: unknown = contextNode.cache;
+		const ctxUnsub = contextNode.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) latestCtx = m[1];
+		});
+		this.addDisposer(ctxUnsub);
+
+		const permanentKeysRef = this.permanentKeys;
+		const entryCreatedAtNsRef = this.entryCreatedAtNs;
+		const score = opts.score;
+
+		// Build retention. `score` runs synchronously inside store mutations.
+		// Permanent matches return Infinity to bypass eviction. New entries have
+		// their creation time recorded inline (the entryCreatedAtNs subscriber
+		// below maintains the GC-on-removal half).
+		const retention: ReactiveMapRetention<string, TMem> = {
+			score: (key, value) => {
+				if (permanentFilter(key, value)) return Number.POSITIVE_INFINITY;
+				if (permanentKeysRef.has(key)) return Number.POSITIVE_INFINITY;
+				const nowNs = monotonicNs();
+				let createdNs = entryCreatedAtNsRef.get(key);
+				if (createdNs === undefined) {
+					createdNs = nowNs;
+					entryCreatedAtNsRef.set(key, nowNs);
+				}
+				const ageSeconds = Number(nowNs - createdNs) / 1e9;
+				return decay(score(value, latestCtx), ageSeconds, decayRate);
+			},
+			archiveThreshold,
+			maxSize: maxActive,
+		};
+
+		// Construct distill with retention wired into mapOptions.
+		this.store = distill<TRaw, TMem>(opts.source, opts.extractFn, {
+			score: opts.score,
+			cost: opts.cost,
+			...(opts.budget !== undefined ? { budget: opts.budget } : {}),
+			...(opts.evict !== undefined ? { evict: opts.evict } : {}),
+			...(opts.consolidate !== undefined ? { consolidate: opts.consolidate } : {}),
+			...(opts.consolidateTrigger !== undefined
+				? { consolidateTrigger: opts.consolidateTrigger }
+				: {}),
+			...(opts.context !== undefined ? { context: opts.context } : {}),
+			mapOptions: { retention },
+		});
+
+		// Register the distill bundle's exposed nodes under their canonical
+		// names so consumers (and `describe()`) see the same shape as the
+		// pre-migration top-level surface on `agentMemory`.
+		this.add(this.store.store.entries, { name: "store" });
+		this.compact = this.store.compact;
+		this.add(this.compact, { name: "compact" });
+		this.size = this.store.size;
+		this.add(this.size, { name: "size" });
+
+		const storeRef = this.store;
+		const tierOf = (key: string): MemoryTier => {
+			if (permanentKeysRef.has(key)) return "permanent";
+			const m =
+				(storeRef.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
+				new Map<string, TMem>();
+			if (m.has(key)) return "active";
+			return "archived";
+		};
+		const permanentRef = this.permanent;
+		const markPermanent = (key: string, value: TMem): void => {
+			permanentKeysRef.set(key, true);
+			permanentRef.upsert(key, value);
+		};
+
+		// GC entryCreatedAtNs entries that no longer exist in the active store.
+		// (Adds happen inline inside retention.score; removals piggyback on the
+		// store-snapshot subscriber here so the map stays in sync.)
+		const entriesUnsub = this.store.store.entries.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				const map = m[1] as ReadonlyMap<string, TMem>;
+				const created = entryCreatedAtNsRef.entries.cache as
+					| ReadonlyMap<string, number>
+					| undefined;
+				if (created == null) continue;
+				const toDelete: string[] = [];
+				for (const key of created.keys()) {
+					if (!map.has(key)) toDelete.push(key);
+				}
+				if (toDelete.length > 0) {
+					batch(() => {
+						for (const key of toDelete) entryCreatedAtNsRef.delete(key);
+					});
+				}
+			}
+		});
+		this.addDisposer(entriesUnsub);
+
+		// Permanent-promotion effect. Writes to `permanent` collection +
+		// `permanentKeys` (NOT to the active store), so no §7 cycle: the effect's
+		// dep is `store.store.entries`, but it doesn't write back to that node.
+		const promoter = node(
+			[this.store.store.entries],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+				);
+				const map = (data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+				for (const [key, mem] of map) {
+					if (permanentKeysRef.has(key)) continue;
+					if (permanentFilter(key, mem)) {
+						batch(() => {
+							markPermanent(key, mem);
+						});
+					}
+				}
+			},
+			{ name: "promoter", describeKind: "effect" },
+		);
+		this.add(promoter, { name: "promoter" });
+		this.addDisposer(keepalive(promoter));
+
+		let archiveHandle: StorageHandle | null = null;
+		if (opts.archiveTier) {
+			archiveHandle = this.attachSnapshotStorage(
+				[opts.archiveTier],
+				opts.archiveStorageOptions ?? {},
+			);
+			this.addDisposer(() => archiveHandle?.dispose());
+		}
+
+		this.tiers = {
+			permanent: this.permanent,
+			activeEntries: this.store.store.entries,
+			archiveHandle,
+			tierOf,
+			markPermanent,
+		};
+	}
+}
+
+/**
+ * Attach 3-tier storage (active / archived / permanent) over a fresh distill
+ * store. Returns a `MemoryWithTiersGraph` whose `store` and `tiers` fields
+ * mirror the previous bundle shape.
+ *
+ * **API shape** (Class B audit, 2026-04-30 — breaking change vs.
+ * pre-migration): the factory takes a single opts bag including `source`
+ * and `extractFn`. The bundle is exposed as `result.store` for downstream
+ * composers (vectors / KG / retrieval).
  *
  * - `permanentFilter`-matching entries score `Infinity` in retention →
  *   never archived. Independent permanent-promotion effect upserts them
@@ -245,178 +487,26 @@ export type MemoryWithTiersOptions<TMem> = MemoryTiersOptions<TMem> &
  * - Over-`maxActive` entries → retention's `maxSize` evicts lowest-scored.
  */
 export function memoryWithTiers<TRaw, TMem>(
-	graph: Graph,
-	source: NodeInput<TRaw>,
-	extractFn: (
-		raw: Node<TRaw>,
-		existing: Node<ReadonlyMap<string, TMem>>,
-	) => NodeInput<Extraction<TMem>>,
-	opts: MemoryWithTiersOptions<TMem>,
-): { store: DistillBundle<TMem>; tiers: MemoryTiersBundle<TMem>; dispose: () => void } {
-	const decayRate = opts.decayRate ?? DEFAULT_DECAY_RATE;
-	const maxActive = opts.maxActive ?? 1000;
-	const archiveThreshold = opts.archiveThreshold ?? 0.1;
-	const permanentFilter = opts.permanentFilter ?? (() => false);
-
-	// Tier 2.3 fold: `lightCollection` was merged into
-	// `collection({ranked: false})`. The unified factory returns a Graph (not
-	// a detached bundle), so the prior `graph.add(permanent.entries, ...)`
-	// line is replaced with `graph.mount("permanent", permanent)` to surface
-	// the inner state in `describe()`.
-	const permanent = collection<TMem>("permanent", { ranked: false });
-	graph.mount("permanent", permanent);
-
-	// 4.3 B (Unit 7 Q3, 2026-04-29): closure-state promotion. `permanentKeys`
-	// and `entryCreatedAtNs` are now reactive maps mounted on the graph, so
-	// `describe()` can walk to them and `explain()` can trace the inputs that
-	// fed an archival decision.
-	const permanentKeys: ReactiveMapBundle<string, true> = reactiveMap<string, true>({
-		name: "permanentKeys",
-	});
-	graph.add(permanentKeys.entries, { name: "permanentKeys" });
-	const entryCreatedAtNs: ReactiveMapBundle<string, number> = reactiveMap<string, number>({
-		name: "entryCreatedAtNs",
-	});
-	graph.add(entryCreatedAtNs.entries, { name: "entryCreatedAtNs" });
-
-	// Closure-mirror for ctx (§28 factory-time seed). `score(mem, ctx)` runs
-	// inside `retention.score` which is invoked synchronously from store
-	// mutations — no reactive dep on contextNode there. The mirror keeps
-	// `latestCtx` current via subscribe.
-	const contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
-	let latestCtx: unknown = contextNode.cache;
-	const ctxUnsub = contextNode.subscribe((msgs) => {
-		for (const m of msgs) if (m[0] === DATA) latestCtx = m[1];
-	});
-
-	// Build retention. `score` runs synchronously inside store mutations.
-	// Permanent matches return Infinity to bypass eviction. New entries have
-	// their creation time recorded inline (the entryCreatedAtNs subscriber
-	// below maintains the GC-on-removal half).
-	const retention: ReactiveMapRetention<string, TMem> = {
-		score: (key, value) => {
-			if (permanentFilter(key, value)) return Number.POSITIVE_INFINITY;
-			if (permanentKeys.has(key)) return Number.POSITIVE_INFINITY;
-			const nowNs = monotonicNs();
-			let createdNs = entryCreatedAtNs.get(key);
-			if (createdNs === undefined) {
-				createdNs = nowNs;
-				entryCreatedAtNs.set(key, nowNs);
-			}
-			const ageSeconds = Number(nowNs - createdNs) / 1e9;
-			return decay(opts.score(value, latestCtx), ageSeconds, decayRate);
-		},
-		archiveThreshold,
-		maxSize: maxActive,
-	};
-
-	// Construct distill with retention wired into mapOptions. The distill
-	// bundle exposed via `result.store` is the same one downstream composers
-	// (vectors / KG / retrieval) consume.
-	const store = distill<TRaw, TMem>(source, extractFn, {
-		score: opts.score,
-		cost: opts.cost,
-		...(opts.budget !== undefined ? { budget: opts.budget } : {}),
-		...(opts.evict !== undefined ? { evict: opts.evict } : {}),
-		...(opts.consolidate !== undefined ? { consolidate: opts.consolidate } : {}),
-		...(opts.consolidateTrigger !== undefined
-			? { consolidateTrigger: opts.consolidateTrigger }
-			: {}),
-		...(opts.context !== undefined ? { context: opts.context } : {}),
-		mapOptions: { retention },
-	});
-
-	const tierOf = (key: string): MemoryTier => {
-		if (permanentKeys.has(key)) return "permanent";
-		const m =
-			(store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
-			new Map<string, TMem>();
-		if (m.has(key)) return "active";
-		return "archived";
-	};
-	const markPermanent = (key: string, value: TMem): void => {
-		permanentKeys.set(key, true);
-		permanent.upsert(key, value);
-	};
-
-	// GC entryCreatedAtNs entries that no longer exist in the active store.
-	// (Adds happen inline inside retention.score; removals piggyback on the
-	// store-snapshot subscriber here so the map stays in sync.)
-	const entriesUnsub = store.store.entries.subscribe((msgs) => {
-		for (const m of msgs) {
-			if (m[0] !== DATA) continue;
-			const map = m[1] as ReadonlyMap<string, TMem>;
-			const created = entryCreatedAtNs.entries.cache as ReadonlyMap<string, number> | undefined;
-			if (created == null) continue;
-			const toDelete: string[] = [];
-			for (const key of created.keys()) {
-				if (!map.has(key)) toDelete.push(key);
-			}
-			if (toDelete.length > 0) {
-				batch(() => {
-					for (const key of toDelete) entryCreatedAtNs.delete(key);
-				});
-			}
-		}
-	});
-
-	// Permanent-promotion effect. Writes to `permanent` collection +
-	// `permanentKeys` (NOT to the active store), so no §7 cycle: the effect's
-	// dep is `store.store.entries`, but it doesn't write back to that node.
-	const promoter = node(
-		[store.store.entries],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const map = (data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-			for (const [key, mem] of map) {
-				if (permanentKeys.has(key)) continue;
-				if (permanentFilter(key, mem)) {
-					batch(() => {
-						markPermanent(key, mem);
-					});
-				}
-			}
-		},
-		{ describeKind: "effect" },
-	);
-	const promoteUnsub = promoter.subscribe(() => undefined);
-
-	let archiveHandle: StorageHandle | null = null;
-	if (opts.archiveTier) {
-		archiveHandle = graph.attachSnapshotStorage(
-			[opts.archiveTier],
-			opts.archiveStorageOptions ?? {},
-		);
-	}
-
-	const dispose = (): void => {
-		promoteUnsub();
-		entriesUnsub();
-		ctxUnsub();
-		archiveHandle?.dispose();
-	};
-	graph.addDisposer(dispose);
-
-	return {
-		store,
-		tiers: {
-			permanent,
-			activeEntries: store.store.entries,
-			archiveHandle,
-			tierOf,
-			markPermanent,
-		},
-		dispose,
-	};
+	opts: MemoryWithTiersOptions<TRaw, TMem>,
+): MemoryWithTiersGraph<TRaw, TMem> {
+	return new MemoryWithTiersGraph<TRaw, TMem>(opts);
 }
 
 // ---------------------------------------------------------------------------
 // memoryRetrieval
 // ---------------------------------------------------------------------------
 
-export type MemoryRetrievalOptions<TMem> = {
+export interface MemoryRetrievalOptions<TMem> {
+	/** Optional Graph identity. */
+	graph?: GraphOptions;
+	/** Subgraph name. Default: `"memory-retrieval"`. */
+	name?: string;
+	/** The substrate distill store. */
+	store: DistillBundle<TMem>;
+	/** Optional vector index for similarity search. */
+	vectors?: VectorIndexGraph<TMem> | null;
+	/** Optional knowledge graph for entity-relation expansion. */
+	kg?: KnowledgeGraph<unknown, string> | null;
 	/** Score function (same shape as `agentMemory.score`). */
 	score: (mem: TMem, context: unknown) => number;
 	/** Cost function for budget packing. */
@@ -433,20 +523,7 @@ export type MemoryRetrievalOptions<TMem> = {
 	contextOf?: (mem: TMem) => readonly string[] | undefined;
 	/** Optional reactive context node (passed to `score`). */
 	context?: NodeInput<unknown>;
-};
-
-export type MemoryRetrievalBundle<TMem> = {
-	/** State node mirroring the latest packed retrieval result. */
-	readonly retrieval: Node<ReadonlyArray<RetrievalEntry<TMem>>>;
-	/** State node mirroring the latest retrieval trace. */
-	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null>;
-	/** Imperative consumer API — synchronous; reads cache at call time. */
-	readonly retrieve: (query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>;
-	/** Reactive sibling — chain into the graph. Mirrors observability state. */
-	readonly retrieveReactive: (
-		queryInput: NodeInput<RetrievalQuery | null>,
-	) => Node<ReadonlyArray<RetrievalEntry<TMem>>>;
-};
+}
 
 function sharedPrefixDepth(
 	q: readonly string[] | undefined,
@@ -460,46 +537,105 @@ function sharedPrefixDepth(
 }
 
 /**
- * Build the retrieval pipeline (vector + KG + budget packing) over a
- * `DistillBundle` and optional `vectors` / `kg` bundles.
+ * Graph subclass that builds the retrieval pipeline (vector + KG + budget
+ * packing) over a `DistillBundle` and optional vectors / kg substrates.
  *
  * Both consumer surfaces (`retrieve`, `retrieveReactive`) write to the same
  * `retrieval` + `retrievalTrace` state nodes — observers subscribed to those
  * see ALL queries regardless of which API issued them.
  */
-export function memoryRetrieval<TMem>(
-	graph: Graph,
-	store: DistillBundle<TMem>,
-	vectors: VectorIndexGraph<TMem> | null,
-	kg: KnowledgeGraph<unknown, string> | null,
-	opts: MemoryRetrievalOptions<TMem>,
-): MemoryRetrievalBundle<TMem> {
-	const topK = opts.topK ?? 20;
-	const graphDepth = opts.graphDepth ?? 1;
-	const budget = opts.budget ?? 2000;
-	const contextWeight = opts.contextWeight ?? 0;
-	const contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
+export class MemoryRetrievalGraph<TMem> extends Graph {
+	/** State node mirroring the latest packed retrieval result. */
+	readonly retrieval: Node<ReadonlyArray<RetrievalEntry<TMem>>>;
+	/** State node mirroring the latest retrieval trace. */
+	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null>;
 
-	const runRetrieval = (
+	private readonly _store: DistillBundle<TMem>;
+	private readonly _vectors: VectorIndexGraph<TMem> | null;
+	private readonly _kg: KnowledgeGraph<unknown, string> | null;
+	private readonly _opts: MemoryRetrievalOptions<TMem>;
+	private readonly _contextNode: Node<unknown>;
+	private readonly _topK: number;
+	private readonly _graphDepth: number;
+	private readonly _budget: number;
+	private readonly _contextWeight: number;
+
+	constructor(opts: MemoryRetrievalOptions<TMem>) {
+		super(opts.name ?? "memory-retrieval", opts.graph);
+
+		this._store = opts.store;
+		this._vectors = opts.vectors ?? null;
+		this._kg = opts.kg ?? null;
+		this._opts = opts;
+		this._topK = opts.topK ?? 20;
+		this._graphDepth = opts.graphDepth ?? 1;
+		this._budget = opts.budget ?? 2000;
+		this._contextWeight = opts.contextWeight ?? 0;
+		this._contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
+
+		// QA-fix: element-wise reference-equality dedup so subscribers don't wake
+		// up when an identical packed array lands (runRetrieval allocates a new
+		// outer array reference every call).
+		const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
+			if (a === b) return true;
+			if (a.length !== b.length) return false;
+			for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+			return true;
+		};
+
+		// Raw `node()` + `this.add(...)` here (not `this.state(...)`): the
+		// state nodes need a custom `equals` predicate (not yet plumbed
+		// through `GraphStateOptions` — actually IS plumbed; but `equals`
+		// closure capture happens here for `packedEquals` typing). Both
+		// nodes need explicit `meta` (aiMeta) and `name` for describe — the
+		// restricted-state options support those, but keeping the raw node()
+		// shape keeps the code aligned with the pre-migration internals.
+		this.retrieval = node<ReadonlyArray<RetrievalEntry<TMem>>>([], {
+			initial: [],
+			name: "retrieval",
+			describeKind: "state",
+			meta: aiMeta("retrieval_pipeline"),
+			equals: packedEquals,
+		});
+		this.add(this.retrieval, { name: "retrieval" });
+
+		this.retrievalTrace = node<RetrievalTrace<TMem> | null>([], {
+			initial: null,
+			name: "retrievalTrace",
+			describeKind: "state",
+			meta: aiMeta("retrieval_trace"),
+		});
+		this.add(this.retrievalTrace, { name: "retrievalTrace" });
+
+		// Stash packedEquals for retrieveReactive's projection node.
+		this._packedEquals = packedEquals;
+	}
+
+	private readonly _packedEquals: <T>(a: readonly T[], b: readonly T[]) => boolean;
+
+	private _runRetrieval(
 		storeMap: ReadonlyMap<string, TMem>,
 		ctx: unknown,
 		query: RetrievalQuery,
-	): { packed: RetrievalEntry<TMem>[]; trace: RetrievalTrace<TMem> } => {
+	): { packed: RetrievalEntry<TMem>[]; trace: RetrievalTrace<TMem> } {
+		const opts = this._opts;
 		const candidateMap = new Map<
 			string,
 			{ value: TMem; sources: Set<"vector" | "graph" | "store"> }
 		>();
 
 		let vectorCandidates: VectorSearchResult<TMem>[] = [];
-		if (vectors && query.vector) {
+		if (this._vectors && query.vector) {
 			// Wave A migrated `vectorIndex` to a reactive-only read API
 			// (`searchNode`); inline the equivalent flat-cosine snapshot scan
-			// here since `runRetrieval` is sync and `searchNode` is async-shaped.
+			// here since `_runRetrieval` is sync and `searchNode` is async-shaped.
 			// `patterns/ai/memory/` is queued for its own audit per the Wave A
 			// session doc § D.1.
 			const q = query.vector;
-			const snapshot = vectors.entries.cache as ReadonlyMap<string, VectorRecord<TMem>> | undefined;
-			if (snapshot && snapshot.size > 0 && topK > 0) {
+			const snapshot = this._vectors.entries.cache as
+				| ReadonlyMap<string, VectorRecord<TMem>>
+				| undefined;
+			if (snapshot && snapshot.size > 0 && this._topK > 0) {
 				const scored = [...snapshot.values()]
 					.map(
 						(row): VectorSearchResult<TMem> => ({
@@ -509,7 +645,7 @@ export function memoryRetrieval<TMem>(
 						}),
 					)
 					.sort((a, b) => b.score - a.score)
-					.slice(0, topK);
+					.slice(0, this._topK);
 				vectorCandidates = scored;
 				for (const vc of vectorCandidates) {
 					const mem = storeMap.get(vc.id);
@@ -519,22 +655,22 @@ export function memoryRetrieval<TMem>(
 		}
 
 		const graphExpanded: string[] = [];
-		if (kg) {
+		if (this._kg) {
 			// Wave A migrated `knowledgeGraph` to a reactive-only `relatedNode`
 			// API; inline the equivalent adjacency-snapshot scan here for the
 			// sync expansion. `adjacencyOut` / `adjacencyIn` are kept warm by
 			// the kg's own internal keepalive disposers, so `.cache` is always
 			// populated post-construction.
-			const adjOut = kg.adjacencyOut.cache as
+			const adjOut = this._kg.adjacencyOut.cache as
 				| ReadonlyMap<string, readonly KnowledgeEdge<string>[]>
 				| undefined;
-			const adjIn = kg.adjacencyIn.cache as
+			const adjIn = this._kg.adjacencyIn.cache as
 				| ReadonlyMap<string, readonly KnowledgeEdge<string>[]>
 				| undefined;
 			const seedIds = [...(query.entityIds ?? []), ...[...candidateMap.keys()]];
 			const visited = new Set<string>();
 			let frontier = seedIds;
-			for (let depth = 0; depth < graphDepth; depth++) {
+			for (let depth = 0; depth < this._graphDepth; depth++) {
 				const nextFrontier: string[] = [];
 				for (const id of frontier) {
 					if (visited.has(id)) continue;
@@ -585,9 +721,9 @@ export function memoryRetrieval<TMem>(
 		for (const [key, { value, sources }] of candidateMap) {
 			const entryContext = opts.contextOf ? opts.contextOf(value) : undefined;
 			let score = opts.score(value, ctx);
-			if (contextWeight > 0 && qDepth > 0) {
+			if (this._contextWeight > 0 && qDepth > 0) {
 				const shared = sharedPrefixDepth(query.context, entryContext);
-				if (shared > 0) score = score * (1 + (contextWeight * shared) / qDepth);
+				if (shared > 0) score = score * (1 + (this._contextWeight * shared) / qDepth);
 			}
 			const entry: RetrievalEntry<TMem> = entryContext
 				? { key, value, score, sources: [...sources], context: entryContext }
@@ -600,69 +736,51 @@ export function memoryRetrieval<TMem>(
 		let usedBudget = 0;
 		for (const entry of ranked) {
 			const c = opts.cost(entry.value);
-			if (usedBudget + c > budget && packed.length > 0) break;
+			if (usedBudget + c > this._budget && packed.length > 0) break;
 			packed.push(entry);
 			usedBudget += c;
 		}
 
 		return { packed, trace: { vectorCandidates, graphExpanded, ranked, packed } };
-	};
+	}
 
-	// QA-fix: element-wise reference-equality dedup so subscribers don't wake
-	// up when an identical packed array lands (runRetrieval allocates a new
-	// outer array reference every call).
-	const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
-		if (a === b) return true;
-		if (a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-		return true;
-	};
-	const retrievalOutput = node<ReadonlyArray<RetrievalEntry<TMem>>>([], {
-		initial: [],
-		name: "retrieval",
-		describeKind: "state",
-		meta: aiMeta("retrieval_pipeline"),
-		equals: packedEquals,
-	});
-	graph.add(retrievalOutput, { name: "retrieval" });
-
-	const traceState = node<RetrievalTrace<TMem> | null>([], {
-		initial: null,
-		name: "retrievalTrace",
-		describeKind: "state",
-		meta: aiMeta("retrieval_trace"),
-	});
-	graph.add(traceState, { name: "retrievalTrace" });
-
-	const retrieve = (query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> => {
+	/**
+	 * Imperative consumer API — synchronous; reads cache at call time and
+	 * batch-writes both `retrieval` and `retrievalTrace` state nodes.
+	 */
+	retrieve(query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> {
 		const storeMap =
-			(store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
+			(this._store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
 			new Map<string, TMem>();
-		const { packed, trace } = runRetrieval(storeMap, contextNode.cache, query);
+		const { packed, trace } = this._runRetrieval(storeMap, this._contextNode.cache, query);
 		batch(() => {
-			retrievalOutput.emit(packed);
-			traceState.emit(trace);
+			this.retrieval.emit(packed);
+			this.retrievalTrace.emit(trace);
 		});
 		return packed;
-	};
+	}
 
-	// QA-fix (Group 1A): split the reactive recompute into a pure `result`
-	// derived + a co-mounted `mirror` effect + a packed projection. The mirror
-	// makes the writes to `retrievalOutput` / `traceState` topology-visible
-	// (proper §32 state-mirror) instead of hidden inside a `derived` fn body
-	// (which §28 doesn't actually sanction — §28 covers factory-time *reads*).
-	const retrieveReactive = (
+	/**
+	 * Reactive sibling — chain into the graph. Mirrors observability state.
+	 *
+	 * QA-fix (Group 1A): the reactive recompute is split into a pure `result`
+	 * derived + a co-mounted `mirror` effect + a packed projection. The mirror
+	 * makes the writes to `retrievalOutput` / `traceState` topology-visible
+	 * (proper §32 state-mirror) instead of hidden inside a `derived` fn body
+	 * (which §28 doesn't actually sanction — §28 covers factory-time *reads*).
+	 */
+	retrieveReactive(
 		queryInput: NodeInput<RetrievalQuery | null>,
-	): Node<ReadonlyArray<RetrievalEntry<TMem>>> => {
+	): Node<ReadonlyArray<RetrievalEntry<TMem>>> {
 		const q = fromAny(queryInput);
 		const result = node<{
 			packed: ReadonlyArray<RetrievalEntry<TMem>>;
 			trace: RetrievalTrace<TMem> | null;
 		}>(
-			[store.store.entries, contextNode, q],
+			[this._store.store.entries, this._contextNode, q],
 			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
 				const query = data[2];
 				if (query == null) {
@@ -671,7 +789,7 @@ export function memoryRetrieval<TMem>(
 				}
 				const storeMap =
 					(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-				const { packed, trace } = runRetrieval(storeMap, data[1], query as RetrievalQuery);
+				const { packed, trace } = this._runRetrieval(storeMap, data[1], query as RetrievalQuery);
 				actions.emit({ packed, trace });
 			},
 			{
@@ -681,30 +799,31 @@ export function memoryRetrieval<TMem>(
 				initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
 			},
 		);
+		const retrievalRef = this.retrieval;
+		const traceRef = this.retrievalTrace;
 		const mirror = node(
 			[result],
-			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
 				const v = data[0] as {
 					packed: ReadonlyArray<RetrievalEntry<TMem>>;
 					trace: RetrievalTrace<TMem> | null;
 				};
 				batch(() => {
-					retrievalOutput.emit(v.packed);
-					if (v.trace) traceState.emit(v.trace);
+					retrievalRef.emit(v.packed);
+					if (v.trace) traceRef.emit(v.trace);
 				});
 			},
 			{ describeKind: "effect" },
 		);
-		const unsub = mirror.subscribe(() => undefined);
-		graph.addDisposer(unsub);
+		this.addDisposer(keepalive(mirror));
 		return node<ReadonlyArray<RetrievalEntry<TMem>>>(
 			[result],
 			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
 				actions.emit((data[0] as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed);
 			},
@@ -713,10 +832,20 @@ export function memoryRetrieval<TMem>(
 				name: "retrievalReactive",
 				meta: aiMeta("retrieval_reactive"),
 				initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
-				equals: packedEquals,
+				equals: this._packedEquals,
 			},
 		);
-	};
+	}
+}
 
-	return { retrieval: retrievalOutput, retrievalTrace: traceState, retrieve, retrieveReactive };
+/**
+ * Build the retrieval pipeline (vector + KG + budget packing) over a
+ * `DistillBundle` and optional `vectors` / `kg` substrates. Returns a
+ * `MemoryRetrievalGraph` exposing `retrieval` / `retrievalTrace` reactive
+ * state and `retrieve` / `retrieveReactive` consumer methods.
+ */
+export function memoryRetrieval<TMem>(
+	opts: MemoryRetrievalOptions<TMem>,
+): MemoryRetrievalGraph<TMem> {
+	return new MemoryRetrievalGraph<TMem>(opts);
 }

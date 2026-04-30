@@ -1,13 +1,14 @@
 // ---------------------------------------------------------------------------
 // agentMemory — sugar over the memoryWith* composers (Unit 7 B).
 //
-// Thin wiring: distill() builds the core store; optional capabilities delegate
-// to the composers in `memory-composers.ts`. Every composer registers its own
-// keepalives + disposers on the Graph, so `agentMemory` just passes the graph
-// through and exposes the composed bundles on the public `AgentMemoryGraph`.
+// Thin wiring: distill() builds the core store (when no tiers configured);
+// optional capabilities delegate to the composer Graph subclasses in
+// `memory-composers.ts`. Each composer is a self-contained
+// `MemoryWithXxxGraph` that agentMemory mounts on its own Graph (Class B
+// audit, 2026-04-30) — teardown cascades via `Graph.destroy()`.
 // ---------------------------------------------------------------------------
 
-import { DATA } from "../../../core/messages.js";
+import { DATA, RESOLVED } from "../../../core/messages.js";
 import { placeholderArgs } from "../../../core/meta.js";
 import { type Node, node } from "../../../core/node.js";
 
@@ -230,7 +231,13 @@ export function agentMemory<TMem = unknown>(
 				if (filter(raw)) {
 					actions.emit(raw);
 				} else {
-					actions.emit(undefined);
+					// EC1 (qa 2026-04-30): emitting `undefined` would violate spec §5.12
+					// (undefined is the protocol SENTINEL — TopicGraph.publish even
+					// throws on it). Downstream `batch.at(-1) : ctx.prevData[i]`
+					// would also resolve `undefined` back to the prior accepted
+					// value, leaking past-the-filter. Emit a tier-3 RESOLVED so the
+					// wave settles cleanly without surfacing a stale DATA.
+					actions.down([[RESOLVED]]);
 				}
 			},
 			{ name: "admissionFilter", describeKind: "derived" },
@@ -271,8 +278,14 @@ export function agentMemory<TMem = unknown>(
 	let distillBundle: DistillBundle<TMem>;
 	let memoryTiersBundle: MemoryTiersBundle<TMem> | null = null;
 	if (opts.tiers) {
-		const result = memoryWithTiers<unknown, TMem>(graph, filteredSource, extractFn, {
+		const tiersGraph = memoryWithTiers<unknown, TMem>({
+			// User customization first; canonical agent-memory-level overrides
+			// last so they always win even if `MemoryTiersOptions` later adds
+			// any of the same keys.
 			...opts.tiers,
+			name: "tiers",
+			source: filteredSource,
+			extractFn,
 			score: opts.score,
 			cost: opts.cost,
 			...(opts.budget !== undefined ? { budget: opts.budget } : { budget: 2000 }),
@@ -280,32 +293,41 @@ export function agentMemory<TMem = unknown>(
 			...(consolidateFn !== undefined ? { consolidate: consolidateFn } : {}),
 			...(consolidateTrigger !== undefined ? { consolidateTrigger } : {}),
 		});
-		distillBundle = result.store;
-		memoryTiersBundle = result.tiers;
+		graph.mount("tiers", tiersGraph);
+		distillBundle = tiersGraph.store;
+		memoryTiersBundle = tiersGraph.tiers;
 	} else {
 		distillBundle = distill<unknown, TMem>(filteredSource, extractFn, distillOpts);
+		graph.add(distillBundle.store.entries, { name: "store" });
+		graph.add(distillBundle.compact, { name: "compact" });
+		graph.add(distillBundle.size, { name: "size" });
 	}
-
-	graph.add(distillBundle.store.entries, { name: "store" });
-	graph.add(distillBundle.compact, { name: "compact" });
-	graph.add(distillBundle.size, { name: "size" });
 
 	// --- Vector index (composer) ---
 	let vectors: VectorIndexGraph<TMem> | null = null;
 	if (opts.vectorDimensions && opts.vectorDimensions > 0 && opts.embedFn) {
-		vectors = memoryWithVectors(graph, distillBundle, {
+		const vectorsGraph = memoryWithVectors<TMem>({
+			name: "vectors",
+			store: distillBundle,
 			dimension: opts.vectorDimensions,
 			embedFn: opts.embedFn,
-		}).vectors;
+		});
+		graph.mount("vectors", vectorsGraph);
+		vectors = vectorsGraph.vectors;
 	}
 
-	// --- Knowledge graph (composer; inner name "${name}-kg", mounted at "kg") ---
+	// --- Knowledge graph (composer) ---
 	let kg: KnowledgeGraph<unknown, string> | null = null;
 	if (opts.enableKnowledgeGraph) {
-		kg = memoryWithKG(graph, distillBundle, name, {
+		const kgGraph = memoryWithKG<TMem>({
+			name: "knowledge",
+			store: distillBundle,
+			kgName: `${name}-kg`,
 			mountPath: "kg",
-			entityFn: opts.entityFn,
-		}).kg;
+			...(opts.entityFn !== undefined ? { entityFn: opts.entityFn } : {}),
+		});
+		graph.mount("knowledge", kgGraph);
+		kg = kgGraph.kg;
 	}
 
 	// --- Retrieval pipeline (composer) ---
@@ -317,20 +339,27 @@ export function agentMemory<TMem = unknown>(
 		| null = null;
 
 	if (vectors || kg) {
-		const bundle = memoryRetrieval<TMem>(graph, distillBundle, vectors, kg, {
+		const retrievalGraph = memoryRetrieval<TMem>({
+			name: "retrieval",
+			store: distillBundle,
+			vectors,
+			kg,
 			score: opts.score,
 			cost: opts.cost,
-			budget: opts.budget,
-			topK: opts.retrieval?.topK,
-			graphDepth: opts.retrieval?.graphDepth,
-			contextOf: opts.contextOf,
-			contextWeight: opts.contextWeight,
-			context: opts.context,
+			...(opts.budget !== undefined ? { budget: opts.budget } : {}),
+			...(opts.retrieval?.topK !== undefined ? { topK: opts.retrieval.topK } : {}),
+			...(opts.retrieval?.graphDepth !== undefined
+				? { graphDepth: opts.retrieval.graphDepth }
+				: {}),
+			...(opts.contextOf !== undefined ? { contextOf: opts.contextOf } : {}),
+			...(opts.contextWeight !== undefined ? { contextWeight: opts.contextWeight } : {}),
+			...(opts.context !== undefined ? { context: opts.context } : {}),
 		});
-		retrievalNode = bundle.retrieval;
-		retrievalTraceNode = bundle.retrievalTrace;
-		retrieveFn = bundle.retrieve;
-		retrieveReactive = bundle.retrieveReactive;
+		graph.mount("retrieval", retrievalGraph);
+		retrievalNode = retrievalGraph.retrieval;
+		retrievalTraceNode = retrievalGraph.retrievalTrace;
+		retrieveFn = retrievalGraph.retrieve.bind(retrievalGraph);
+		retrieveReactive = retrievalGraph.retrieveReactive.bind(retrievalGraph);
 	}
 
 	// Tier 5.1 (deferred 2026-04-29): the `Object.assign(graph, {...})`

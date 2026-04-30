@@ -239,13 +239,9 @@ export class SubscriptionGraph<T> extends Graph {
 			initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
 		}
 
-		this.cursor = node([], {
-			name: "cursor",
-			describeKind: "state",
-			initial: initialCursor,
+		this.cursor = this.state<number>("cursor", initialCursor, {
 			meta: messagingMeta("subscription_cursor"),
 		});
-		this.add(this.cursor, { name: "cursor" });
 
 		// B.1 Unit 12 lock: `available` depends directly on topic.events + cursor
 		// via `view({ kind: "fromCursor" })`. No `source` passthrough node —
@@ -447,13 +443,9 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 
 		// bridgedCount: state node accumulating total bridged items.
 		// Updated by ackPump after each batch — edge visible via ackPump dep on output.
-		this.bridgedCount = node<number>([], {
-			name: "bridgedCount",
-			describeKind: "state",
-			initial: 0,
+		this.bridgedCount = this.state<number>("bridgedCount", 0, {
 			meta: messagingMeta("topic_bridge_count"),
 		});
-		this.add(this.bridgedCount, { name: "bridgedCount" });
 		this.addDisposer(keepalive(this.bridgedCount));
 
 		// ackPump: effect that advances the subscription cursor and updates
@@ -463,8 +455,9 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		const outputRef = this.output;
 		const subRef = this._sourceSub;
 		const countRef = this.bridgedCount;
-		const ackPump = node<unknown>(
-			[outputRef],
+		const ackPump = this.effect(
+			"ackPump",
+			["output"],
 			() => {
 				const outBatch = outputRef.cache as readonly TOut[];
 				if (outBatch.length === 0) return;
@@ -477,12 +470,9 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 				}
 			},
 			{
-				name: "ackPump",
-				describeKind: "effect",
 				meta: messagingMeta("topic_bridge_ack_pump"),
 			},
 		);
-		this.add(ackPump, { name: "ackPump" });
 		this.addDisposer(keepalive(ackPump));
 
 		// Wire output into target topic's log reactively.
@@ -594,13 +584,9 @@ export class MessagingHubGraph extends Graph {
 	constructor(name: string, opts: MessagingHubOptions = {}) {
 		super(name, opts.graph);
 		// B.2 Unit 14 lock: promote _version → version: Node<number>.
-		const versionNode = node([], {
-			name: "version",
-			describeKind: "state",
-			initial: 0,
+		const versionNode = this.state<number>("version", 0, {
 			meta: messagingMeta("hub_version"),
 		});
-		this.add(versionNode, { name: "version" });
 		this.version = versionNode;
 		this._registry = new TopicRegistry(versionNode);
 		// P8: shallow-copy caller-provided defaults so post-construction
