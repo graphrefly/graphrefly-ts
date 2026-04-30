@@ -5,10 +5,12 @@
  * indexing, empty-list throws, batched appends (coalescing contract),
  * diamond topology, initial-array isolation, and snapshot-before-return ordering.
  */
+
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, DIRTY } from "../../core/messages.js";
-import { derived } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { combine } from "../../extra/operators.js";
 import { type ListBackend, NativeListBackend, reactiveList } from "../../extra/reactive-list.js";
 import { collect } from "../test-helpers.js";
@@ -174,13 +176,25 @@ describe("reactiveList stress tests", () => {
 	it("S8: diamond topology via combine — observed pairs are consistent", () => {
 		const lst = reactiveList<number>();
 
-		const length = derived([lst.items], ([snap]) => (snap as readonly number[]).length, {
-			initial: 0,
-		});
-		const sum = derived(
+		const length = node(
 			[lst.items],
-			([snap]) => (snap as readonly number[]).reduce((a, b) => a + b, 0),
-			{ initial: 0 },
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly number[]).length);
+			},
+			{ describeKind: "derived", initial: 0 },
+		);
+		const sum = node(
+			[lst.items],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly number[]).reduce((a, b) => a + b, 0));
+			},
+			{ describeKind: "derived", initial: 0 },
 		);
 
 		const combined = combine(length, sum);

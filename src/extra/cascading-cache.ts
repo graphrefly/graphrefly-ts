@@ -10,8 +10,7 @@
  * stay zero-microtask (the cascade inspects the return type and branches).
  */
 import { DATA, TEARDOWN } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 import type { KvStorageTier } from "./storage-tiers.js";
 
 // ——————————————————————————————————————————————————————————————
@@ -266,7 +265,7 @@ export function cascadingCache<V = unknown>(
 			if (policy && maxSize > 0 && policy.size() >= maxSize) {
 				evictIfNeeded();
 			}
-			const nd = state<V | undefined>(undefined);
+			const nd = node<V | undefined>([], { initial: undefined });
 			entries.set(key, nd);
 			policy?.insert(key);
 			cascade(key, nd);
@@ -297,7 +296,7 @@ export function cascadingCache<V = unknown>(
 				if (policy && maxSize > 0 && policy.size() >= maxSize) {
 					evictIfNeeded();
 				}
-				const nd = state<V | undefined>(value);
+				const nd = node<V | undefined>([], { initial: value });
 				entries.set(key, nd);
 				policy?.insert(key);
 			}

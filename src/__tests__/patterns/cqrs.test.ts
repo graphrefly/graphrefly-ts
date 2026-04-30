@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GuardDenied } from "../../core/guard.js";
+import { node } from "../../core/node.js";
 import { mergeReactiveLogs } from "../../extra/reactive-log.js";
 import { memoryAppendLog } from "../../extra/storage-tiers.js";
 import {

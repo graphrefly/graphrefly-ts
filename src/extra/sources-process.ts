@@ -11,8 +11,7 @@
 
 import { type SpawnOptions, spawn } from "node:child_process";
 import { COMPLETE, DATA, ERROR, type Messages } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,8 +83,8 @@ export function fromSpawn(
 	args: readonly string[],
 	opts?: FromSpawnOptions,
 ): Node<SpawnEvent> {
-	return producer<SpawnEvent>(
-		(actions) => {
+	return node<SpawnEvent>(
+		(_data, actions) => {
 			const child = spawn(cmd, args as string[], {
 				cwd: opts?.cwd,
 				env: opts?.env,
@@ -194,8 +193,8 @@ export function runProcess(
 		exitCode: number | null;
 		signal: NodeJS.Signals | null;
 	};
-	return producer<Result>(
-		(actions) => {
+	return node<Result>(
+		(_data, actions) => {
 			const child = spawn(cmd, args as string[], {
 				cwd: opts?.cwd,
 				env: opts?.env,

@@ -8,8 +8,7 @@ import { existsSync, watch } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { wallClockNs } from "../core/clock.js";
 import { DATA, ERROR, type Message } from "../core/messages.js";
-import type { Node, NodeOptions } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 import { globToRegExp, matchesAnyPattern } from "./sources.js";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
@@ -53,7 +52,7 @@ export function fromFSWatch(paths: string | string[], opts?: FromFSWatchOptions)
 	const excludePatterns = (exclude ?? ["**/node_modules/**", "**/.git/**", "**/dist/**"]).map(
 		globToRegExp,
 	);
-	return producer<FSEvent>((a) => {
+	return node<FSEvent>((_data, a) => {
 		const pending = new Map<string, FSEvent>();
 		const watchers: ReturnType<typeof watch>[] = [];
 		let stopped = false;

@@ -1,7 +1,8 @@
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { autoTrackNode, state, type TrackFn } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+import { autoTrackNode, type TrackFn } from "../../core/sugar.js";
 
 /**
  * Options for creating signals.
@@ -69,7 +70,8 @@ class SignalState<T> implements AnySignal<T> {
 
 	constructor(initial: T, opts?: SignalOptions) {
 		this._equals = (opts?.equals ?? Object.is) as (a: T, b: T) => boolean;
-		this._node = state<T>(initial, {
+		this._node = node<T>([], {
+			initial,
 			...opts,
 			resubscribable: true,
 			resetOnTeardown: true,

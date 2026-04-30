@@ -14,7 +14,6 @@ import {
 } from "../../core/messages.js";
 import { describeNode, metaSnapshot } from "../../core/meta.js";
 import { node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
 
 describe("node primitive", () => {
 	it("source node emits messages to subscribers", () => {
@@ -38,9 +37,16 @@ describe("node primitive", () => {
 
 	it("derived node emits RESOLVED when equals says unchanged", () => {
 		const source = node<number>({ initial: 1 });
-		const d = derived([source], ([v]) => ((v as number) > 0 ? "positive" : "other"), {
-			equals: (a, b) => a === b,
-		});
+		const d = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) > 0 ? "positive" : "other");
+			},
+			{ describeKind: "derived", equals: (a, b) => a === b },
+		);
 		const seen: symbol[][] = [];
 		const unsub = d.subscribe((messages) => {
 			seen.push(messages.map((m) => m[0] as symbol));
@@ -55,13 +61,38 @@ describe("node primitive", () => {
 
 	it("diamond settles once per upstream change", () => {
 		const a = node<number>({ initial: 0 });
-		const b = derived([a], ([v]) => (v as number) + 1);
-		const c = derived([a], ([v]) => (v as number) + 2);
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived" },
+		);
 		let dRuns = 0;
-		const d = derived([b, c], ([bv, cv]) => {
-			dRuns += 1;
-			return (bv as number) + (cv as number);
-		});
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				dRuns += 1;
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = d.subscribe(() => undefined);
 		const before = dRuns;
@@ -75,9 +106,13 @@ describe("node primitive", () => {
 
 	it("fn throw is forwarded as ERROR downstream", () => {
 		const source = node<number>({ initial: 0 });
-		const broken = derived([source], () => {
-			throw new Error("boom");
-		});
+		const broken = node(
+			[source],
+			(_batchData, _actions) => {
+				throw new Error("boom");
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const payloads: unknown[] = [];
 		const unsub = broken.subscribe((messages) => {
@@ -100,14 +135,28 @@ describe("node primitive", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.3 — RESOLVED enables transitive skip (leaf fn not re-run).
 	it("RESOLVED on mid skips leaf compute when value unchanged", () => {
 		const source = node<number>({ initial: 0 });
-		const mid = derived([source], ([v]) => ((v as number) > 0 ? "p" : "n"), {
-			equals: (a, b) => a === b,
-		});
+		const mid = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) > 0 ? "p" : "n");
+			},
+			{ describeKind: "derived", equals: (a, b) => a === b },
+		);
 		let leafRuns = 0;
-		const leaf = derived([mid], ([m]) => {
-			leafRuns += 1;
-			return m;
-		});
+		const leaf = node(
+			[mid],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				leafRuns += 1;
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = leaf.subscribe(() => undefined);
 		const afterConnect = leafRuns;
 
@@ -123,9 +172,13 @@ describe("node primitive", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.4 — ERROR is terminal (no further downstream messages).
 	it("after ERROR, non-resubscribable node does not emit to sinks again", () => {
 		const source = node<number>();
-		const broken = derived([source], () => {
-			throw new Error("boom");
-		});
+		const broken = node(
+			[source],
+			(_batchData, _actions) => {
+				throw new Error("boom");
+			},
+			{ describeKind: "derived" },
+		);
 		let deliveries = 0;
 		const unsub = broken.subscribe(() => {
 			deliveries += 1;
@@ -146,13 +199,23 @@ describe("node primitive", () => {
 	it("custom equals is not called with undefined on first computation", () => {
 		const source = node<number>({ initial: 1 });
 		let equalsCalled = false;
-		const mid = derived([source], ([v]) => new Map([["k", v]]), {
-			equals: (a, b) => {
-				equalsCalled = true;
-				// This would crash if a were undefined: (a as Map<...>).size
-				return (a as Map<string, unknown>).size === (b as Map<string, unknown>).size;
+		const mid = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(new Map([["k", data[0]]]));
 			},
-		});
+			{
+				describeKind: "derived",
+				equals: (a, b) => {
+					equalsCalled = true;
+					// This would crash if a were undefined: (a as Map<...>).size
+					return (a as Map<string, unknown>).size === (b as Map<string, unknown>).size;
+				},
+			},
+		);
 		const unsub = mid.subscribe(() => {});
 		// First computation should NOT call equals (cached is still undefined)
 		expect(equalsCalled).toBe(false);
@@ -167,7 +230,7 @@ describe("node primitive", () => {
 	it("ERROR message tuple contains the exact thrown Error instance as payload", () => {
 		const source = node<number>({ initial: 0 });
 		const theError = new Error("exact-instance");
-		const broken = derived([source], () => {
+		const broken = node([source], (_batchData, _actions) => {
 			throw theError;
 		});
 		const collected: unknown[][] = [];
@@ -256,7 +319,16 @@ describe("node primitive", () => {
 
 	it("forwards PAUSE and RESUME through a derived node", () => {
 		const source = node<number>({ initial: 0 });
-		const d = derived([source], ([v]) => v as number);
+		const d = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
@@ -274,8 +346,26 @@ describe("node primitive", () => {
 
 	it("forwards PAUSE then RESUME through multi-hop derived chain", () => {
 		const source = node<number>({ initial: 1 });
-		const hop = derived([source], ([v]) => v as number);
-		const leaf = derived([hop], ([v]) => (v as number) * 2);
+		const hop = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
+		const leaf = node(
+			[hop],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = leaf.subscribe((messages) => {
 			for (const m of messages) {
@@ -293,8 +383,26 @@ describe("node primitive", () => {
 
 	it("INVALIDATE propagates and clears caches along multi-hop derived chain", () => {
 		const source = node<number>({ initial: 42 });
-		const hop = derived([source], ([v]) => v as number);
-		const leaf = derived([hop], ([v]) => (v as number) + 1);
+		const hop = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
+		const leaf = node(
+			[hop],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 		let sawInvalidate = false;
 		const unsub = leaf.subscribe((messages) => {
 			sawInvalidate ||= messages.some((m) => m[0] === INVALIDATE);
@@ -316,10 +424,17 @@ describe("node primitive", () => {
 	it("INVALIDATE clears dep memo so identical DATA triggers recompute", () => {
 		const source = node<number>({ initial: 7 });
 		let runs = 0;
-		const d = derived([source], ([v]) => {
-			runs += 1;
-			return (v as number) + 1;
-		});
+		const d = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				runs += 1;
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => undefined);
 		expect(runs).toBe(1);
 		expect(d.cache).toBe(8);
@@ -358,9 +473,16 @@ describe("node primitive", () => {
 	it("completeWhenDepsComplete: false suppresses auto-COMPLETE", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
-		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number), {
-			completeWhenDepsComplete: false,
-		});
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", completeWhenDepsComplete: false },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
@@ -379,7 +501,16 @@ describe("node primitive", () => {
 	it("completeWhenDepsComplete: true (default) emits COMPLETE when all deps complete", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
-		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
@@ -403,10 +534,17 @@ describe("node primitive", () => {
 		}
 
 		let fnRuns = 0;
-		const sum = derived(sources, (deps) => {
-			fnRuns += 1;
-			return (deps as number[]).reduce((a, b) => a + b, 0);
-		});
+		const sum = node(
+			sources,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				fnRuns += 1;
+				actions.emit((data as number[]).reduce((a, b) => a + b, 0));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = sum.subscribe(() => undefined);
 		const before = fnRuns;
@@ -427,10 +565,17 @@ describe("node primitive", () => {
 		}
 
 		let fnRuns = 0;
-		const combined = derived(sources, (deps) => {
-			fnRuns += 1;
-			return (deps as number[]).reduce((a, b) => a + b, 0);
-		});
+		const combined = node(
+			sources,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				fnRuns += 1;
+				actions.emit((data as number[]).reduce((a, b) => a + b, 0));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = combined.subscribe(() => undefined);
 		const before = fnRuns;
@@ -452,7 +597,16 @@ describe("node primitive", () => {
 			sources.push(node<number>({ initial: i }));
 		}
 
-		const combined = derived(sources, (deps) => (deps as number[]).reduce((a, b) => a + b, 0));
+		const combined = node(
+			sources,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data as number[]).reduce((a, b) => a + b, 0));
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = combined.subscribe((messages) => {
 			for (const m of messages) {
@@ -475,8 +629,26 @@ describe("node primitive", () => {
 
 	it("chain computes correctly through derived nodes", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = derived([source], ([v]) => (v as number) * 2);
-		const leaf = derived([d1], ([v]) => (v as number) + 100);
+		const d1 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
+		const leaf = node(
+			[d1],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 100);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = leaf.subscribe(() => undefined);
 
 		source.down([[DIRTY], [DATA, 5]]);
@@ -489,13 +661,38 @@ describe("node primitive", () => {
 
 	it("diamond still settles once", () => {
 		const a = node<number>({ initial: 0 });
-		const b = derived([a], ([v]) => (v as number) + 1);
-		const c = derived([a], ([v]) => (v as number) + 2);
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived" },
+		);
 		let dRuns = 0;
-		const d = derived([b, c], ([bv, cv]) => {
-			dRuns += 1;
-			return (bv as number) + (cv as number);
-		});
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				dRuns += 1;
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = d.subscribe(() => undefined);
 		const before = dRuns;
@@ -510,8 +707,26 @@ describe("node primitive", () => {
 
 	it("DIRTY is always delivered to subscribers", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = derived([source], ([v]) => (v as number) + 1);
-		const d2 = derived([source], ([v]) => (v as number) + 2);
+		const d1 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
+		const d2 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived" },
+		);
 
 		const e1: symbol[][] = [];
 		const e2: symbol[][] = [];
@@ -537,7 +752,16 @@ describe("node primitive", () => {
 
 	it("handles RESOLVED for unchanged values", () => {
 		const source = node<number>({ initial: 1 });
-		const d = derived([source], ([v]) => ((v as number) > 0 ? "positive" : "negative"));
+		const d = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) > 0 ? "positive" : "negative");
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub1 = d.subscribe(() => undefined);
 
 		const emissions: symbol[][] = [];
@@ -560,7 +784,16 @@ describe("node primitive", () => {
 
 	it("standalone DIRTY passes through to derived nodes", () => {
 		const source = node<number>({ initial: 0 });
-		const d = derived([source], ([v]) => (v as number) * 2);
+		const d = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((messages) => {
 			for (const m of messages) {
@@ -580,10 +813,17 @@ describe("node primitive", () => {
 		const a = node<number>({ initial: 1 });
 		const b = node<number>({ initial: 2 });
 		let fnRuns = 0;
-		const d = derived([a, b], ([av, bv]) => {
-			fnRuns += 1;
-			return (av as number) + (bv as number);
-		});
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				fnRuns += 1;
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = d.subscribe(() => undefined);
 		const before = fnRuns;
@@ -622,9 +862,36 @@ describe("node primitive", () => {
 
 	it("double-unsubscribe is safe", () => {
 		const source = node<number>({ initial: 0 });
-		const d1 = derived([source], ([v]) => (v as number) + 1);
-		const d2 = derived([source], ([v]) => (v as number) + 2);
-		const d3 = derived([source], ([v]) => (v as number) + 3);
+		const d1 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
+		const d2 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived" },
+		);
+		const d3 = node(
+			[source],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 3);
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub1 = d1.subscribe(() => undefined);
 		const unsub2 = d2.subscribe(() => undefined);
@@ -672,9 +939,16 @@ describe("D2: DIRTY→COMPLETE without DATA unsticks dirty node", () => {
 		const a = node({ initial: 1 });
 		const b = node({ initial: 2 });
 		const sinkMsgs: symbol[][] = [];
-		const d = derived([a, b], ([av, bv]) => {
-			return (av as number) + (bv as number);
-		});
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 		d.subscribe((msgs) => {
 			sinkMsgs.push(msgs.map((m) => m[0] as symbol));
 		});
@@ -696,7 +970,16 @@ describe("D2: DIRTY→COMPLETE without DATA unsticks dirty node", () => {
 	it("dep goes DIRTY then COMPLETE — multi-dep diamond unsticks", () => {
 		const a = node({ initial: 1 });
 		const b = node({ initial: 2 });
-		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 		d.subscribe(() => undefined);
 
 		// Both deps go dirty, only b settles; a completes without DATA
@@ -743,10 +1026,17 @@ describe("connect-order re-entrancy guard", () => {
 		const b = node<number>({ initial: 42, name: "b" });
 
 		const seen: unknown[][] = [];
-		const d = derived([a, b], (depValues) => {
-			seen.push([...depValues]);
-			return `${depValues[0]}-${depValues[1]}`;
-		});
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				seen.push([...data]);
+				actions.emit(`${data[0]}-${data[1]}`);
+			},
+			{ describeKind: "derived" },
+		);
 
 		const unsub = d.subscribe(() => undefined);
 
@@ -765,7 +1055,16 @@ describe("connect-order re-entrancy guard", () => {
 			{ name: "a" },
 		);
 		const b = node<number>({ initial: 2, name: "b" });
-		const d = derived([a, b], ([av, bv]) => (av as number) + (bv as number));
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => undefined);
 
 		// After connect, normal updates still propagate
@@ -777,10 +1076,17 @@ describe("connect-order re-entrancy guard", () => {
 	it("runFn terminal guard: dep updates after COMPLETE do not recompute", () => {
 		const src = node({ initial: 1 });
 		let recompute = 0;
-		const d = derived([src], ([v]) => {
-			recompute += 1;
-			return v;
-		});
+		const d = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				recompute += 1;
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		d.subscribe(() => undefined);
 		expect(recompute).toBe(1);
 		src.down([[COMPLETE]]);
@@ -795,7 +1101,16 @@ describe("connect-order re-entrancy guard", () => {
 
 	it("TEARDOWN after COMPLETE runs lifecycle and reaches sinks (B3)", () => {
 		const src = node({ initial: 1 });
-		const n = derived([src], ([v]) => v, { meta: { m: 0 } });
+		const n = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", meta: { m: 0 } },
+		);
 		const sinkTypes: symbol[] = [];
 		let metaSawTeardown = false;
 		const unsubMeta = n.meta.m.subscribe((msgs) => {
@@ -816,10 +1131,16 @@ describe("connect-order re-entrancy guard", () => {
 
 describe("meta (companion stores)", () => {
 	it("meta keys are subscribable nodes with initial values", () => {
-		const n = derived([node({ initial: 0 })], ([v]) => v, {
-			name: "with-meta",
-			meta: { description: "hi", status: "idle" },
-		});
+		const n = node(
+			[node({ initial: 0 })],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "with-meta", meta: { description: "hi", status: "idle" } },
+		);
 		expect(n.meta.description.cache).toBe("hi");
 		expect(n.meta.status.cache).toBe("idle");
 		expect(metaSnapshot(n)).toEqual({ description: "hi", status: "idle" });
@@ -827,9 +1148,16 @@ describe("meta (companion stores)", () => {
 
 	it("meta field is independently subscribable from the parent node", () => {
 		const src = node({ initial: 1 });
-		const n = derived([src], ([v]) => (v as number) * 2, {
-			meta: { err: null as string | null },
-		});
+		const n = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", meta: { err: null as string | null } },
+		);
 		const seen: symbol[][] = [];
 		const unsub = n.meta.err.subscribe((msgs) => {
 			seen.push(msgs.map((m) => m[0] as symbol));
@@ -858,9 +1186,16 @@ describe("meta (companion stores)", () => {
 
 	it("parent TEARDOWN still disconnects when one meta.down throws", () => {
 		const src = node({ initial: 1 });
-		const n = derived([src], ([v]) => (v as number) * 2, {
-			meta: { flaky: 0, stable: 1 },
-		});
+		const n = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", meta: { flaky: 0, stable: 1 } },
+		);
 		const origFlakyDown = n.meta.flaky.down.bind(n.meta.flaky);
 		n.meta.flaky.down = (msgs) => {
 			if (msgs[0]?.[0] === TEARDOWN) throw new Error("meta teardown boom");
@@ -959,10 +1294,16 @@ describe("meta (companion stores)", () => {
 
 	it("describeNode derived lists dep names", () => {
 		const src = node({ initial: 1, name: "input" });
-		const n = derived([src], ([v]) => (v as number) * 2, {
-			name: "validate",
-			meta: { description: "ok" },
-		});
+		const n = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "validate", meta: { description: "ok" } },
+		);
 		const snap = describeNode(n);
 		expect(snap.type).toBe("derived");
 		expect(snap.deps).toEqual(["input"]);

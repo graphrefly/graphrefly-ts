@@ -20,7 +20,6 @@ import {
 	TEARDOWN,
 } from "../core/messages.js";
 import { type Node, type NodeOptions, node } from "../core/node.js";
-import { state } from "../core/sugar.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
 
 /** A single routing rule for {@link stratify}. */
@@ -64,7 +63,8 @@ export function stratify<T>(
 	const g = new Graph(name, opts);
 
 	g.add(source as Node<unknown>, { name: "source" });
-	const rulesNode = state<ReadonlyArray<StratifyRule<T>>>(rules, {
+	const rulesNode = node<ReadonlyArray<StratifyRule<T>>>([], {
+		initial: rules,
 		meta: { kind: "stratify_rules" },
 	});
 	g.add(rulesNode as Node<unknown>, { name: "rules" });

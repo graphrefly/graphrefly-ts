@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import {
 	blindVariation,
 	type DatasetItem,
@@ -24,15 +25,22 @@ const DS: readonly DatasetItem[] = [{ id: "t1" }, { id: "t2" }, { id: "t3" }];
  * aggregate score reflects how well the candidate does overall.
  */
 const numericEvaluator: Evaluator<number> = (candidates, dataset) =>
-	derived([candidates, dataset], ([cs, ds]) => {
-		const candidate = (cs as readonly number[]).at(-1) ?? 0;
-		const targets = (ds as readonly DatasetItem[]).map((t) => Number(t.id.slice(1)));
-		const results: EvalResult[] = targets.map((target, i) => ({
-			taskId: (ds as readonly DatasetItem[])[i]!.id,
-			score: -Math.abs(candidate - target),
-		}));
-		return results;
-	});
+	node(
+		[candidates, dataset],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const candidate = (data[0] as readonly number[]).at(-1) ?? 0;
+			const targets = (data[1] as readonly DatasetItem[]).map((t) => Number(t.id.slice(1)));
+			const results: EvalResult[] = targets.map((target, i) => ({
+				taskId: (data[1] as readonly DatasetItem[])[i]!.id,
+				score: -Math.abs(candidate - target),
+			}));
+			actions.emit(results);
+		},
+		{ describeKind: "derived" },
+	);
 
 /** Drain any settled async work so iteration effects propagate. */
 async function tick(rounds = 30): Promise<void> {
@@ -117,7 +125,16 @@ describe("refineLoop — convergence rules", () => {
 			},
 		};
 		const highScoreEvaluator: Evaluator<number> = (candidates, _ds) =>
-			derived([candidates], () => [{ taskId: "t1", score: 0.95 }] as const);
+			node(
+				[candidates],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit([{ taskId: "t1", score: 0.95 }] as const);
+				},
+				{ describeKind: "derived" },
+			);
 
 		const loop = refineLoop(0, highScoreEvaluator, strategy, {
 			dataset: DS,
@@ -319,8 +336,8 @@ describe("refineLoop — observability", () => {
 		}
 	});
 
-	it("reactive dataset: wrapping a state() node allows mid-run dataset swap", async () => {
-		const datasetNode = state<readonly DatasetItem[]>(DS);
+	it("reactive dataset: wrapping a node([]) node allows mid-run dataset swap", async () => {
+		const datasetNode = node<readonly DatasetItem[]>([], { initial: DS });
 		const strategy = blindVariation<number>({
 			width: 1,
 			teacher: (ctx) => ctx.prior,
@@ -353,19 +370,26 @@ describe("errorCritique — built-in strategy", () => {
 	 * higher score = closer to target.
 	 */
 	const perTaskEvaluator: Evaluator<number> = (candidates, dataset) =>
-		derived([candidates, dataset], ([cs, ds]) => {
-			const cands = cs as readonly number[];
-			const tasks = ds as readonly DatasetItem[];
-			const out: EvalResult[] = [];
-			for (let ci = 0; ci < cands.length; ci++) {
-				const c = cands[ci]!;
-				for (const t of tasks) {
-					const target = Number(t.id.slice(1));
-					out.push({ taskId: t.id, score: -Math.abs(c - target), candidateIndex: ci });
+		node(
+			[candidates, dataset],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const cands = data[0] as readonly number[];
+				const tasks = data[1] as readonly DatasetItem[];
+				const out: EvalResult[] = [];
+				for (let ci = 0; ci < cands.length; ci++) {
+					const c = cands[ci]!;
+					for (const t of tasks) {
+						const target = Number(t.id.slice(1));
+						out.push({ taskId: t.id, score: -Math.abs(c - target), candidateIndex: ci });
+					}
 				}
-			}
-			return out;
-		});
+				actions.emit(out);
+			},
+			{ describeKind: "derived" },
+		);
 
 	it("seeds with just the seed at iteration 0", () => {
 		const strategy = errorCritique<number>({
@@ -614,10 +638,17 @@ describe("errorCritique — built-in strategy", () => {
 		// Teacher always moves prior up by 1. With seed=0 and targets {1,2,3},
 		// the single-task evaluator below will reach -0 (perfect) quickly.
 		const singleTaskEvaluator: Evaluator<number> = (candidates) =>
-			derived([candidates], ([cs]) => {
-				const c = (cs as readonly number[]).at(-1) ?? 0;
-				return [{ taskId: "t2", score: -Math.abs(c - 2) }] as const;
-			});
+			node(
+				[candidates],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					const c = (data[0] as readonly number[]).at(-1) ?? 0;
+					actions.emit([{ taskId: "t2", score: -Math.abs(c - 2) }] as const);
+				},
+				{ describeKind: "derived" },
+			);
 
 		const strategy = errorCritique<number>({
 			width: 1,
@@ -721,7 +752,7 @@ describe("errorCritique — built-in strategy", () => {
 	// -------------------------------------------------------------------------
 
 	it("writes running-total tokens to `opts.tokens` after each iteration (success path)", async () => {
-		const tokens = state<number>(0, { name: "tokens" });
+		const tokens = node<number>([], { name: "tokens", initial: 0 });
 		const strategy = errorCritique<number>({
 			width: 2,
 			tokens,
@@ -739,7 +770,7 @@ describe("errorCritique — built-in strategy", () => {
 	});
 
 	it("delivers partial tokens on teacher throw via finally (no spend lost)", async () => {
-		const tokens = state<number>(0, { name: "tokens-err" });
+		const tokens = node<number>([], { name: "tokens-err", initial: 0 });
 		tokens.subscribe(() => undefined);
 		let calls = 0;
 		const strategy = errorCritique<number>({
@@ -761,7 +792,7 @@ describe("errorCritique — built-in strategy", () => {
 	});
 
 	it("accumulates tokens across iterations (prev + delta)", async () => {
-		const tokens = state<number>(100, { name: "tokens-prev" });
+		const tokens = node<number>([], { name: "tokens-prev", initial: 100 });
 		tokens.subscribe(() => undefined);
 		const strategy = errorCritique<number>({
 			width: 1,
@@ -779,7 +810,7 @@ describe("errorCritique — built-in strategy", () => {
 	});
 
 	it("no-op on tokens when the teacher never calls reportCost", async () => {
-		const tokens = state<number>(0, { name: "tokens-unused" });
+		const tokens = node<number>([], { name: "tokens-unused", initial: 0 });
 		tokens.subscribe(() => undefined);
 		const strategy = errorCritique<number>({
 			width: 2,
@@ -863,7 +894,7 @@ describe("errorCritique — built-in strategy", () => {
 	});
 
 	it("blindVariation also writes to opts.tokens", async () => {
-		const tokens = state<number>(0, { name: "bv-tokens" });
+		const tokens = node<number>([], { name: "bv-tokens", initial: 0 });
 		tokens.subscribe(() => undefined);
 		const strategy = blindVariation<number>({
 			width: 2,

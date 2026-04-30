@@ -7,7 +7,9 @@
  *
  * The producer-shape on the inner is load-bearing: it emits exactly one DATA
  * + COMPLETE per wave, so the outer switchMap sees one DATA per wave (matches
- * the `HarnessExecutor` contract). A `derived([call], parse)` would have its
+ * the `HarnessExecutor` contract). A `node([call], (batchData, actions, ctx) => {
+ *   const data = ...; actions.emit(parse(data[0]));
+ * }, { describeKind: "derived" })` would have its
  * own first-run / push-on-subscribe semantics that can leak a transient null
  * before the real response arrives — observed and reverted in an earlier
  * attempt; see SESSION-ai-harness-module-review.md line 3654 for context.
@@ -32,7 +34,7 @@
  * survives across new outer DATAs — `promptNode`'s cached value persists
  * until the next wave fully resolves. Consumers that need to distinguish
  * "fresh value for THIS session" from "stale cache from a prior session"
- * (e.g. `agentLoop` resetting on new `run()`) must add a `state()` mirror
+ * (e.g. `agentLoop` resetting on new `run()`) must add a `node([])` mirror
  * at their session boundary and depend on the mirror, not the `promptNode`
  * output directly. `promptNode` itself stays primitive — it does not
  * embed a state-mirror.
@@ -41,8 +43,8 @@
  */
 
 import { COMPLETE, DATA, ERROR } from "../../../core/messages.js";
-import type { Node } from "../../../core/node.js";
-import { derived, producer, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { switchMap } from "../../../extra/operators.js";
 import { fromAny, type NodeInput, nodeSignal } from "../../../extra/sources.js";
 import { aiMeta, stripFences } from "../_internal.js";
@@ -84,7 +86,7 @@ export type PromptNodeOptions = {
 	 *
 	 * **Activation note:** since `tools` is a real declared dep, `messagesNode`
 	 * waits for the tools Node to DATA at least once before firing
-	 * (push-on-subscribe SENTINEL gate). Pass a `state<ToolDefinition[]>([])`
+	 * (push-on-subscribe SENTINEL gate). Pass a `node<ToolDefinition[]>([], { initial: [] })`
 	 * if you want immediate activation with no tools, or the latest published
 	 * `toolSelector.tools` Node.
 	 */
@@ -204,7 +206,7 @@ export function promptNode<T = string>(
 	//     `messagesNode`'s fn entirely. It never emits, switchMap never
 	//     fires, outer cache stays `undefined`.
 	//   - **Mid-flow no-input** (deps previously DATA'd then went nullish):
-	//     fn runs, returns `[]`, switchMap dispatches the `state(null)`
+	//     fn runs, returns `[]`, switchMap dispatches the `node([], { initial: null })`
 	//     branch → outer emits `null` as the domain "input went away" signal.
 	// No `initial: []` and no closure flag — `prevData === undefined` is
 	// already the sentinel marker, and the gate already enforces "don't fire
@@ -221,28 +223,35 @@ export function promptNode<T = string>(
 	const userDepsLength = deps.length;
 	const allDeps: readonly Node<unknown>[] =
 		opts?.tools !== undefined ? [...deps, opts.tools as Node<unknown>] : deps;
-	const messagesNode = derived<Envelope>(
+	const messagesNode = node<Envelope>(
 		allDeps as Node<unknown>[],
-		(values) => {
-			const userValues = values.slice(0, userDepsLength);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const userValues = data.slice(0, userDepsLength);
 			const toolsValue =
 				opts?.tools !== undefined
-					? (values[userDepsLength] as readonly ToolDefinition[] | undefined)
+					? (data[userDepsLength] as readonly ToolDefinition[] | undefined)
 					: undefined;
 			// Dep-level null guard (composition guide §8): if any USER dep is
 			// nullish, emit empty messages → switchMap emits null (mid-flow
 			// drop-out). The tools dep can legitimately be empty `[]`; only
 			// user deps gate the call.
 			if (userValues.some((v) => v == null)) {
-				return { messages: [], tools: toolsValue };
+				actions.emit({ messages: [], tools: toolsValue });
+				return;
 			}
 			const text = typeof prompt === "string" ? prompt : prompt(...userValues);
-			if (!text) return { messages: [], tools: toolsValue };
+			if (!text) {
+				actions.emit({ messages: [], tools: toolsValue });
+				return;
+			}
 			// systemPrompt forwarded through invoke opts only (no double-send).
-			return {
+			actions.emit({
 				messages: [{ role: "user" as const, content: text }],
 				tools: toolsValue,
-			};
+			});
 		},
 		{
 			name: `${baseName}::messages`,
@@ -255,15 +264,15 @@ export function promptNode<T = string>(
 		(envelope) => {
 			const { messages: msgs, tools } = envelope;
 			if (!msgs || msgs.length === 0) {
-				return state<T | null>(null) as NodeInput<T | null>;
+				return node<T | null>([], { initial: null }) as NodeInput<T | null>;
 			}
 
 			// Producer ensures exactly one DATA + COMPLETE per wave; switchMap
 			// sees one DATA, the harness's "one emission per wave" contract is
-			// honored. Earlier attempts using `derived([call], parse)` leaked
+			// honored. Earlier attempts using a derived node leaked
 			// transient nulls via the derived's first-run gate.
-			return producer<T | null>(
-				(actions) => {
+			return node<T | null>(
+				(_data, actions) => {
 					let done = false;
 					let cancelled = false;
 					let abortDispose: (() => void) | undefined;
@@ -353,6 +362,7 @@ export function promptNode<T = string>(
 					};
 				},
 				{
+					describeKind: "producer",
 					name: `${baseName}::call`,
 					meta: aiMeta("prompt_node::call"),
 				},

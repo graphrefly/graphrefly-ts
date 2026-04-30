@@ -22,9 +22,8 @@ import type { GuardAction, NodeGuard, PolicyRuleData } from "../../core/guard.js
 import { policyFromRules } from "../../core/guard.js";
 import { DATA } from "../../core/messages.js";
 import { placeholderArgs } from "../../core/meta.js";
-import type { Node } from "../../core/node.js";
-import { NodeImpl } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, NodeImpl, node } from "../../core/node.js";
+
 import { defaultHash } from "../../core/versioning.js";
 import { domainMeta } from "../../extra/meta.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
@@ -137,9 +136,14 @@ export class AuditTrailGraph extends Graph {
 		this.entries = this._log.entries;
 		this.add(this.entries, { name: "entries" });
 
-		this.count = derived<number>(
+		this.count = node<number>(
 			[this.entries],
-			([snapshot]) => (snapshot as readonly AuditEntry[]).length,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly AuditEntry[]).length);
+			},
 			{ name: "count", describeKind: "derived", meta: auditMeta("count") },
 		);
 		this.add(this.count, { name: "count" });
@@ -340,7 +344,7 @@ export class PolicyGateGraph extends Graph {
 
 		const policiesNode = isNode(policies)
 			? policies
-			: state<readonly PolicyRuleData[]>(policies, { name: "policies" });
+			: node<readonly PolicyRuleData[]>([], { name: "policies", initial: policies });
 		this.policies = policiesNode;
 		this.add(this.policies, { name: "policies" });
 
@@ -349,9 +353,14 @@ export class PolicyGateGraph extends Graph {
 		});
 		this.mount("violations", this.violations);
 
-		this.violationCount = derived<number>(
+		this.violationCount = node<number>(
 			[this.violations.events],
-			([snapshot]) => (snapshot as readonly PolicyViolation[]).length,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly PolicyViolation[]).length);
+			},
 			{
 				name: "violationCount",
 				describeKind: "derived",

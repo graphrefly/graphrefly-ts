@@ -9,8 +9,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 
 /** Options for {@link redactor}. */
 export type RedactorOptions = {
@@ -42,9 +41,14 @@ export function redactor(
 		return result;
 	}
 
-	return derived<string>(
+	return node<string>(
 		[accumulatedText],
-		([text]) => sanitize((text as string | undefined) ?? ""),
-		{ name: opts?.name ?? "redactor", initial: "" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(sanitize((data[0] as string | undefined) ?? ""));
+		},
+		{ describeKind: "derived", name: opts?.name ?? "redactor", initial: "" },
 	);
 }

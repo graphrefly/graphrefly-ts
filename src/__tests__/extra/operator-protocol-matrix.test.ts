@@ -6,7 +6,7 @@ import type { Message, Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
 import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+
 import {
 	audit,
 	buffer,
@@ -91,14 +91,14 @@ describe("Tier 1 operator protocol matrix", () => {
 	describe("map", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3.1 — DIRTY precedes DATA/RESOLVED in two-phase push.
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = map(s, (n) => (n as number) * 2);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
 		});
 
 		// Regression: GRAPHREFLY-SPEC §1.3.3 — RESOLVED when recomputed value unchanged.
 		it("emits RESOLVED when projected value is unchanged", () => {
-			const s = state(2);
+			const s = node([], { initial: 2 });
 			const out = map(s, (n) => (n as number) % 2);
 			const cap = subscribeProtocol(out);
 			s.down([[DATA, 2]]);
@@ -110,7 +110,7 @@ describe("Tier 1 operator protocol matrix", () => {
 		// Regression: GRAPHREFLY-SPEC §2 — subscribe lifecycle; operators reset inner state on teardown where applicable.
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = map(s, (n) => (n as number) + 1);
 				return {
 					source: s,
@@ -123,13 +123,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("filter", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = filter(s, (n) => (n as number) > -1);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
 		});
 
 		it("emits RESOLVED when filtered output value repeats", () => {
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const out = filter(s, (n) => (n as number) % 2 === 1);
 			const cap = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -140,7 +140,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = filter(s, (n) => (n as number) >= 0);
 				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
 			});
@@ -149,13 +149,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("tap", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = tap(s, () => undefined);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
 		});
 
 		it("emits RESOLVED when upstream value maps to same output via following map semantics", () => {
-			const s = state(2);
+			const s = node([], { initial: 2 });
 			const out = tap(
 				map(s, (n) => (n as number) % 2),
 				() => undefined,
@@ -169,7 +169,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = tap(s, () => undefined);
 				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
 			});
@@ -178,13 +178,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("scan", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = scan(s, (a, x) => a + (x as number), 0);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 2]]));
 		});
 
 		it("may emit RESOLVED when accumulator unchanged (same protocol as derived nodes)", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = scan(s, (_a, x) => (x as number) % 2, 0);
 			const cap = subscribeProtocol(out);
 			s.down([[DATA, 2]]);
@@ -195,7 +195,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0, { resubscribable: true });
+				const s = node([], { resubscribable: true, initial: 0 });
 				const out = scan(s, (a, x) => a + (x as number), 0);
 				return { source: s, out };
 			});
@@ -204,13 +204,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("take", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = take(s, 5);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("emits RESOLVED when further DATA would repeat current output before take limit", () => {
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const out = take(
 				map(s, (n) => (n as number) % 2),
 				3,
@@ -224,7 +224,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0, { resubscribable: true });
+				const s = node([], { resubscribable: true, initial: 0 });
 				const out = take(s, 10);
 				return { source: s, out };
 			});
@@ -233,13 +233,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("skip", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = skip(s, 0);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("forwards RESOLVED when inner mapped value unchanged", () => {
-			const s = state(2);
+			const s = node([], { initial: 2 });
 			const out = skip(
 				map(s, (n) => (n as number) % 2),
 				0,
@@ -253,7 +253,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = skip(s, 0);
 				return { source: s, out, pushSecond: () => s.down([[DATA, 2]]) };
 			});
@@ -262,13 +262,13 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("distinctUntilChanged", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = distinctUntilChanged(s);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("suppresses duplicate consecutive values (RESOLVED / no duplicate DATA)", () => {
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const out = distinctUntilChanged(s);
 			const cap = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -281,7 +281,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0, { resubscribable: true });
+				const s = node([], { resubscribable: true, initial: 0 });
 				const out = distinctUntilChanged(s);
 				return { source: s, out };
 			});
@@ -291,7 +291,7 @@ describe("Tier 1 operator protocol matrix", () => {
 	describe("pairwise", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3 — after two source values, output delivers a DATA tuple (ordering may omit DIRTY at sink per single-callback batches).
 		it("emits DATA tuple after two source emissions", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = pairwise(s);
 			const cap = subscribeProtocol(out);
 			s.down([[DATA, 0]]);
@@ -302,7 +302,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = pairwise(s);
 				return {
 					source: s,
@@ -318,15 +318,33 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("derived with initial (replaces startWith)", () => {
 		it("DIRTY precedes DATA when source uses two-phase down after seed", () => {
-			const s = state(0);
-			const out = derived([s as Node], ([v]) => v, { initial: -1 });
+			const s = node([], { initial: 0 });
+			const out = node(
+				[s as Node],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived", initial: -1 },
+			);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 0]]));
 		});
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0, { resubscribable: true });
-				const out = derived([s as Node], ([v]) => v, { initial: 0 });
+				const s = node([], { resubscribable: true, initial: 0 });
+				const out = node(
+					[s as Node],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(data[0]);
+					},
+					{ describeKind: "derived", initial: 0 },
+				);
 				return { source: s, out };
 			});
 		});
@@ -334,14 +352,14 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("first", () => {
 		it("DIRTY precedes DATA when source uses two-phase down", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = first(s);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 7]]));
 		});
 
 		// Regression: GRAPHREFLY-SPEC §2 — resubscribable `take(1)` resets counters on resubscribe (`onResubscribe`).
 		it("resubscribable first() delivers DATA again after prior COMPLETE", () => {
-			const s = state(0, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 0 });
 			const out = first(s, { resubscribable: true });
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -356,15 +374,15 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("combine", () => {
 		it("DIRTY precedes DATA on two-phase update", () => {
-			const a = state(1);
-			const b = state(2);
+			const a = node([], { initial: 1 });
+			const b = node([], { initial: 2 });
 			const c = combine(a, b);
 			assertDirtyBeforeDataOnTwoPhase(c, () => a.down([[DIRTY], [DATA, 10]]));
 		});
 
 		it("emits RESOLVED when tuple unchanged", () => {
-			const a = state(1);
-			const b = state(2);
+			const a = node([], { initial: 1 });
+			const b = node([], { initial: 2 });
 			const c = combine(a, b);
 			const cap = subscribeProtocol(c);
 			a.down([[DATA, 0]]);
@@ -376,8 +394,8 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 
 		it("second subscription sees updates after unsubscribe", () => {
-			const a = state(1);
-			const b = state(2);
+			const a = node([], { initial: 1 });
+			const b = node([], { initial: 2 });
 			const c = combine(a, b);
 			const x = subscribeProtocol(c);
 			a.down([[DATA, 3]]);
@@ -392,8 +410,8 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("zip", () => {
 		it("DIRTY precedes DATA when first arm uses two-phase", () => {
-			const x = state(1);
-			const y = state(2);
+			const x = node([], { initial: 1 });
+			const y = node([], { initial: 2 });
 			const z = zip(x, y);
 			const cap = subscribeProtocol(z);
 			x.down([[DIRTY], [DATA, 10]]);
@@ -403,8 +421,8 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 
 		it("second subscription receives paired DATA after unsubscribe", () => {
-			const x = state(1);
-			const y = state(2);
+			const x = node([], { initial: 1 });
+			const y = node([], { initial: 2 });
 			const z = zip(x, y);
 			const a = subscribeProtocol(z);
 			x.down([[DATA, 1]]);
@@ -422,15 +440,15 @@ describe("Tier 1 operator protocol matrix", () => {
 	describe("merge", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3.5 — merge completes only after all sources complete.
 		it("DIRTY precedes DATA when a source uses two-phase down", () => {
-			const a = state(0);
-			const b = state(0);
+			const a = node([], { initial: 0 });
+			const b = node([], { initial: 0 });
 			const m = merge(a, b);
 			assertDirtyBeforeDataOnTwoPhase(m, () => a.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("second subscription receives DATA from either source after unsubscribe", () => {
-			const a = state(0);
-			const b = state(0);
+			const a = node([], { initial: 0 });
+			const b = node([], { initial: 0 });
 			const m = merge(a, b);
 			const x = subscribeProtocol(m);
 			a.down([[DATA, 1]]);
@@ -445,22 +463,22 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("race", () => {
 		it("DIRTY precedes DATA when winning source uses two-phase", () => {
-			const a = state(0);
-			const b = state(0);
+			const a = node([], { initial: 0 });
+			const b = node([], { initial: 0 });
 			const r = race(a, b);
 			assertDirtyBeforeDataOnTwoPhase(r, () => a.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("new race() instance forwards DATA after prior race completed", () => {
-			const a1 = state(0, { resubscribable: true });
-			const b1 = state(0, { resubscribable: true });
+			const a1 = node([], { resubscribable: true, initial: 0 });
+			const b1 = node([], { resubscribable: true, initial: 0 });
 			const r1 = race(a1, b1);
 			const x = subscribeProtocol(r1);
 			a1.down([[DATA, 1]]);
 			expect(x.flat().some((m) => m[0] === DATA)).toBe(true);
 			x.unsub();
-			const a2 = state(0, { resubscribable: true });
-			const b2 = state(0, { resubscribable: true });
+			const a2 = node([], { resubscribable: true, initial: 0 });
+			const b2 = node([], { resubscribable: true, initial: 0 });
 			const r2 = race(a2, b2);
 			const y = subscribeProtocol(r2);
 			b2.down([[DATA, 2]]);
@@ -478,8 +496,8 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 
 		it("second subscription receives DATA after unsubscribe", () => {
-			const a = state(0, { resubscribable: true });
-			const b = state(0, { resubscribable: true });
+			const a = node([], { resubscribable: true, initial: 0 });
+			const b = node([], { resubscribable: true, initial: 0 });
 			const c = concat(a, b);
 			const x = subscribeProtocol(c);
 			a.down([[DATA, 1]]);
@@ -498,8 +516,8 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("withLatestFrom", () => {
 		it("DIRTY on primary precedes DATA when paired", () => {
-			const p = state(1);
-			const q = state(2);
+			const p = node([], { initial: 1 });
+			const q = node([], { initial: 2 });
 			const w = withLatestFrom(p, q);
 			const cap = subscribeProtocol(w);
 			q.down([[DATA, 20]]);
@@ -509,8 +527,8 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 
 		it("second subscription receives DATA after unsubscribe", () => {
-			const p = state(1);
-			const q = state(2);
+			const p = node([], { initial: 1 });
+			const q = node([], { initial: 2 });
 			const w = withLatestFrom(p, q);
 			const x = subscribeProtocol(w);
 			q.down([[DATA, 1]]);
@@ -527,7 +545,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("reduce", () => {
 		it("does not emit DATA until upstream COMPLETE (operator semantics)", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const r = reduce(s, (a, x) => a + (x as number), 0);
 			const cap = subscribeProtocol(r);
 			s.down([[DIRTY], [DATA, 1]]);
@@ -536,7 +554,7 @@ describe("Tier 1 operator protocol matrix", () => {
 		});
 
 		it("second subscription can complete again with resubscribable source", () => {
-			const s = state(0, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 0 });
 			const r = reduce(s, (a, x) => a + (x as number), 0, { resubscribable: true });
 			const x = subscribeProtocol(r);
 			s.down([[DATA, 1]]);
@@ -557,7 +575,7 @@ describe("Tier 1 operator protocol matrix", () => {
 		// takeUntil's COMPLETE on subscribe — the test verifies the primary
 		// stream's two-phase protocol while the notifier is idle.
 		it("DIRTY precedes DATA on primary when notifier has not fired", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const stop = node<number>();
 			const out = takeUntil(s, stop);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 3]]));
@@ -565,8 +583,8 @@ describe("Tier 1 operator protocol matrix", () => {
 
 		it("second subscription receives DATA after unsubscribe (notifier idle)", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
-				// Use SENTINEL for notifier — state(0) would push DATA on resubscribe,
+				const s = node([], { initial: 0 });
+				// Use SENTINEL for notifier — node([], { initial: 0 }) would push DATA on resubscribe,
 				// triggering takeUntil's COMPLETE (notifier must be truly idle).
 				const stop = node<number>();
 				const out = takeUntil(s, stop);
@@ -577,14 +595,14 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("takeWhile", () => {
 		it("DIRTY precedes DATA when predicate still holds", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = takeWhile(s, (n) => (n as number) < 9);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 
 		it("second subscription receives later DATA after unsubscribe", () => {
 			assertReconnectSeesData(() => {
-				const s = state(0);
+				const s = node([], { initial: 0 });
 				const out = takeWhile(s, (n) => (n as number) < 100);
 				return { source: s, out };
 			});
@@ -593,14 +611,14 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("find", () => {
 		it("DIRTY precedes DATA on two-phase source", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = find(s, (n) => (n as number) >= 0);
 			assertDirtyBeforeDataOnTwoPhase(out, () => s.down([[DIRTY], [DATA, 1]]));
 		});
 
 		// Regression: GRAPHREFLY-SPEC §2 — resubscribable take(1) inside find.
 		it("resubscribable find allows another first match after COMPLETE", () => {
-			const s = state(0, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 0 });
 			const out = find(s, (n) => (n as number) > 0, { resubscribable: true });
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -615,7 +633,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("elementAt", () => {
 		it("DIRTY precedes DATA when reaching indexed emission", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = elementAt(s, 1);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY], [DATA, 10]]);
@@ -627,7 +645,7 @@ describe("Tier 1 operator protocol matrix", () => {
 
 	describe("last", () => {
 		it("DIRTY precedes final DATA on COMPLETE after two-phase source", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = last(s);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY], [DATA, 7]]);
@@ -649,15 +667,15 @@ describe("Tier 1 operator protocol matrix", () => {
 	describe("valve", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3 — valve derives from source when control is open.
 		it("DIRTY precedes DATA when control is true", () => {
-			const data = state(0);
-			const open = state(true);
+			const data = node([], { initial: 0 });
+			const open = node([], { initial: true });
 			const out = valve(data, open);
 			assertDirtyBeforeDataOnTwoPhase(out, () => data.down([[DIRTY], [DATA, 5]]));
 		});
 
 		it("second subscription receives later DATA after unsubscribe", () => {
-			const data = state(0);
-			const open = state(true);
+			const data = node([], { initial: 0 });
+			const open = node([], { initial: true });
 			const out = valve(data, open);
 			const a = subscribeProtocol(out);
 			data.down([[DATA, 1]]);
@@ -690,8 +708,8 @@ describe("Tier 2 operator protocol matrix", () => {
 		});
 
 		it("second subscription follows new outer DATA after unsubscribe", () => {
-			const src = state(0);
-			const inner = state(100);
+			const src = node([], { initial: 0 });
+			const inner = node([], { initial: 100 });
 			const out = switchMap(src, () => inner);
 			const a = subscribeProtocol(out);
 			src.down([[DATA, 1]]);
@@ -710,8 +728,8 @@ describe("Tier 2 operator protocol matrix", () => {
 		// Regression: GRAPHREFLY-SPEC §1.3 — inner DIRTY propagates before inner DATA.
 		// After initial attach on connect, push to the inner and verify ordering.
 		it("inner DIRTY precedes inner DATA through exhaustMap", () => {
-			const src = state(0);
-			const inner = state(10);
+			const src = node([], { initial: 0 });
+			const inner = node([], { initial: 10 });
 			const out = exhaustMap(src, () => inner);
 			// Subscribe and let initial connect attach to inner.
 			const batches: Messages[] = [];
@@ -740,9 +758,9 @@ describe("Tier 2 operator protocol matrix", () => {
 
 		it("second subscription runs sequential inners after unsubscribe", () => {
 			const run = (): void => {
-				const src = state(0);
-				const a = state(100);
-				const b = state(200);
+				const src = node([], { initial: 0 });
+				const a = node([], { initial: 100 });
+				const b = node([], { initial: 200 });
 				let wave = 0;
 				const out = concatMap(src, () => {
 					wave += 1;
@@ -780,8 +798,8 @@ describe("Tier 2 operator protocol matrix", () => {
 		});
 
 		it("second subscription follows new outer DATA after unsubscribe", () => {
-			const src = state(0);
-			const inner = state(100);
+			const src = node([], { initial: 0 });
+			const inner = node([], { initial: 100 });
 			const out = mergeMap(src, () => inner);
 			const a = subscribeProtocol(out);
 			src.down([[DATA, 1]]);
@@ -817,7 +835,7 @@ describe("Tier 2 operator protocol matrix", () => {
 	describe("debounce", () => {
 		it("after reconnect, emits debounced DATA for new activity (fake timers)", () => {
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = debounce(s, 50);
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -839,7 +857,7 @@ describe("Tier 2 operator protocol matrix", () => {
 		// source's transition until the delayed value is ready.
 		it("DIRTY+DATA arrive together after timer fires (fake timers)", () => {
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = delay(s, 40);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY]]);
@@ -882,8 +900,8 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("sample", () => {
 		it("DIRTY on notifier precedes sampled DATA", () => {
-			const src = state(1);
-			const tick = state(0);
+			const src = node([], { initial: 1 });
+			const tick = node([], { initial: 0 });
 			const out = sample(src, tick);
 			const cap = subscribeProtocol(out);
 			src.down([[DATA, 10]]);
@@ -896,7 +914,7 @@ describe("Tier 2 operator protocol matrix", () => {
 	describe("audit", () => {
 		it("after reconnect, emits audited DATA for new activity (fake timers)", () => {
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = audit(s, 50);
 			const a = subscribeProtocol(out);
 			s.down([[DATA, 1]]);
@@ -913,8 +931,8 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("buffer", () => {
 		it("DIRTY precedes flushed buffer DATA when notifier uses two-phase", () => {
-			const src = state(0);
-			const n = state(0);
+			const src = node([], { initial: 0 });
+			const n = node([], { initial: 0 });
 			const out = buffer(src, n);
 			const cap = subscribeProtocol(out);
 			src.down([[DATA, 1]]);
@@ -928,7 +946,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("bufferCount", () => {
 		it("DIRTY precedes DATA when buffer fills on two-phase pushes", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = bufferCount(s, 2);
 			const cap = subscribeProtocol(out);
 			s.down([[DIRTY], [DATA, 1]]);
@@ -961,7 +979,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("windowCount", () => {
 		it("DIRTY precedes DATA when filling a window (no eager outer DATA)", () => {
-			const src = state<number | undefined>(undefined);
+			const src = node<number | undefined>([], { initial: undefined });
 			const out = windowCount(src, 2);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -973,8 +991,8 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("window", () => {
 		it("DIRTY precedes first window emission when notifier closes on two-phase", () => {
-			const src = state<number | undefined>(undefined);
-			const n = state(0);
+			const src = node<number | undefined>([], { initial: undefined });
+			const n = node([], { initial: 0 });
 			const out = window(src, n);
 			const cap = subscribeProtocol(out);
 			src.down([[DIRTY], [DATA, 1]]);
@@ -1008,7 +1026,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 		it("emits ERROR after idle window (fake timers)", () => {
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const out = timeout(s, 30);
 			const cap = subscribeProtocol(out);
 			vi.advanceTimersByTime(30);
@@ -1043,7 +1061,7 @@ describe("Tier 2 operator protocol matrix", () => {
 
 	describe("repeat", () => {
 		it("completes producer after N inner COMPLETE rounds", () => {
-			const s = state(1, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 1 });
 			const out = repeat(s, 2);
 			const cap = subscribeProtocol(out);
 			s.down([[COMPLETE]]);

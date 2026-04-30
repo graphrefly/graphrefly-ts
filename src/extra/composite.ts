@@ -8,8 +8,7 @@
 import { batch } from "../core/batch.js";
 import { DATA } from "../core/messages.js";
 import { factoryTag } from "../core/meta.js";
-import type { Node, NodeOptions } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 import { merge, switchMap } from "./operators.js";
 import { type ReactiveMapBundle, type ReactiveMapOptions, reactiveMap } from "./reactive-map.js";
 import { forEach, fromAny, type NodeInput } from "./sources.js";
@@ -61,7 +60,8 @@ export function verifiable<T, TVerify = VerifyValue>(
 ): VerifiableBundle<T, TVerify> {
 	const sourceNode = fromAny(source);
 	const hasSourceVersioning = sourceNode.v != null;
-	const verified = state<TVerify | null>(opts?.initialVerified ?? null, {
+	const verified = node<TVerify | null>([], {
+		initial: opts?.initialVerified ?? null,
 		meta: {
 			...factoryTag("verifiable"),
 			...(hasSourceVersioning ? { sourceVersion: null } : {}),
@@ -210,7 +210,7 @@ export function distill<TRaw, TMem>(
 	const store = reactiveMap<string, TMem>(opts.mapOptions ?? {});
 	const budget = opts.budget ?? 2000;
 	const hasContext = opts.context !== undefined && opts.context !== null;
-	const contextNode = hasContext ? fromAny(opts.context) : state<unknown>(null);
+	const contextNode = hasContext ? fromAny(opts.context) : node<unknown>([], { initial: null });
 
 	// Closure-mirror for `consolidate` (still callback-style — Tier 1.5.4 only
 	// migrated `extractFn`). Seeded at wiring time (§3.6 boundary read), kept
@@ -248,42 +248,48 @@ export function distill<TRaw, TMem>(
 		// Track active verdict-node subscriptions so we can react to Node<boolean> changes.
 		const verdictUnsubs = new Map<string, () => void>();
 
-		const evictionKeys = derived([store.entries], ([snapshot]) => {
-			const out: string[] = [];
-			const entries = mapFromSnapshot<TMem>(snapshot);
-			// Clean up verdict subscriptions for removed keys.
-			for (const key of verdictUnsubs.keys()) {
-				if (!entries.has(key)) {
-					verdictUnsubs.get(key)!();
-					verdictUnsubs.delete(key);
-				}
-			}
-			for (const [key, mem] of entries) {
-				const verdict = opts.evict!(key, mem);
-				if (isNodeLike<boolean>(verdict)) {
-					// Subscribe if not already — push-on-subscribe fires with
-					// the verdict's current value on first subscribe, so an
-					// already-true verdict deletes via the callback without
-					// needing a `verdict.cache` read (closes P3 audit #3).
-					// Future transitions to `true` flow through the same path.
-					if (!verdictUnsubs.has(key)) {
-						const unsub = forEach(verdict, (val) => {
-							if (val === true && store.has(key)) {
-								store.delete(key);
-							}
-						});
-						verdictUnsubs.set(key, unsub);
+		const evictionKeys = node<string[]>(
+			[store.entries],
+			(batchData, actions, ctx) => {
+				const batch0 = batchData[0];
+				const snapshot = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+				const out: string[] = [];
+				const entries = mapFromSnapshot<TMem>(snapshot);
+				// Clean up verdict subscriptions for removed keys.
+				for (const key of verdictUnsubs.keys()) {
+					if (!entries.has(key)) {
+						verdictUnsubs.get(key)!();
+						verdictUnsubs.delete(key);
 					}
-					continue;
 				}
-				if (typeof verdict === "boolean") {
-					if (verdict) out.push(key);
-					continue;
+				for (const [key, mem] of entries) {
+					const verdict = opts.evict!(key, mem);
+					if (isNodeLike<boolean>(verdict)) {
+						// Subscribe if not already — push-on-subscribe fires with
+						// the verdict's current value on first subscribe, so an
+						// already-true verdict deletes via the callback without
+						// needing a `verdict.cache` read (closes P3 audit #3).
+						// Future transitions to `true` flow through the same path.
+						if (!verdictUnsubs.has(key)) {
+							const unsub = forEach(verdict, (val) => {
+								if (val === true && store.has(key)) {
+									store.delete(key);
+								}
+							});
+							verdictUnsubs.set(key, unsub);
+						}
+						continue;
+					}
+					if (typeof verdict === "boolean") {
+						if (verdict) out.push(key);
+						continue;
+					}
+					throw new TypeError("distill evict() must return boolean or Node<boolean>");
 				}
-				throw new TypeError("distill evict() must return boolean or Node<boolean>");
-			}
-			return out;
-		});
+				actions.emit(out);
+			},
+			{ describeKind: "derived" },
+		);
 		forEach(evictionKeys, (keys) => {
 			for (const key of keys) store.delete(key);
 		});
@@ -301,9 +307,14 @@ export function distill<TRaw, TMem>(
 		});
 	}
 
-	const compact = derived(
+	const compact = node<Array<{ key: string; value: TMem; score: number }>>(
 		[store.entries, contextNode],
-		([snapshot, context]) => {
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const snapshot = data[0];
+			const context = data[1];
 			const map = mapFromSnapshot<TMem>(snapshot);
 			const entries = [...map.entries()].map(([key, value]) => ({
 				key,
@@ -321,12 +332,20 @@ export function distill<TRaw, TMem>(
 					remaining -= item.cost;
 				}
 			}
-			return packed;
+			actions.emit(packed);
 		},
-		{ meta: { ...factoryTag("distill", { budget }) } },
+		{ describeKind: "derived", meta: { ...factoryTag("distill", { budget }) } },
 	);
 
-	const size = derived([store.entries], ([snapshot]) => mapFromSnapshot<TMem>(snapshot).size);
+	const size = node<number>(
+		[store.entries],
+		(batchData, actions, ctx) => {
+			const batch0 = batchData[0];
+			const snapshot = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+			actions.emit(mapFromSnapshot<TMem>(snapshot).size);
+		},
+		{ describeKind: "derived" },
+	);
 	keepalive(compact);
 	keepalive(size);
 

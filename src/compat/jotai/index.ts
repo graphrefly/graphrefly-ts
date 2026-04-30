@@ -1,6 +1,7 @@
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { autoTrackNode, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+import { autoTrackNode } from "../../core/sugar.js";
 
 /**
  * Options for creating an atom.
@@ -108,7 +109,8 @@ function pull<T>(n: Node<T>): T {
 }
 
 function createPrimitiveAtom<T>(initial: T, options?: AtomOptions): WritableAtom<T> {
-	const n = state(initial, {
+	const n = node([], {
+		initial,
 		...options,
 		resubscribable: true,
 		resetOnTeardown: true,

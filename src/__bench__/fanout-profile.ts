@@ -15,7 +15,7 @@
  * notifyCount === 2 * subs * emits).
  */
 
-import { state } from "../core/sugar.js";
+import { node } from "../core/node.js";
 import { Graph } from "../graph/graph.js";
 import { graphProfile } from "../graph/profile.js";
 
@@ -36,7 +36,7 @@ interface Sample {
 }
 
 function sample(subs: number): Sample {
-	const src = state<number>(0, { versioning: 0 });
+	const src = node<number>([], { initial: 0, versioning: 0 });
 	let notifyCount = 0;
 	const unsubs: (() => void)[] = [];
 	for (let i = 0; i < subs; i++) {

@@ -10,9 +10,8 @@
  * - `MeasurementAdapter` — pluggable backends (`measureSegment`; optional `clearCache`)
  */
 import { monotonicNs } from "../../core/clock.js";
-import type { Node } from "../../core/node.js";
-import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { emitToMeta } from "../_internal/index.js";
 
@@ -1115,10 +1114,10 @@ export type ReactiveLayoutOptions = {
  *
  * ```
  * Graph("reactive-layout")
- * ├── state("text")
- * ├── state("font")
- * ├── state("line-height")
- * ├── state("max-width")
+ * ├── node([], { initial: "text" })
+ * ├── node([], { initial: "font" })
+ * ├── node([], { initial: "line-height" })
+ * ├── node([], { initial: "max-width" })
  * ├── derived("segments")      — text + font → PreparedSegment[]
  * ├── derived("line-breaks")   — segments + max-width → LineBreaksResult
  * ├── derived("height")        — line-breaks → number
@@ -1133,15 +1132,18 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	const measureCache = new Map<string, Map<string, number>>();
 
 	// --- State nodes ---
-	const textNode = state<string>(opts.text ?? "", { name: "text" });
-	const fontNode = state<string>(opts.font ?? "16px sans-serif", {
+	const textNode = node<string>([], { name: "text", initial: opts.text ?? "" });
+	const fontNode = node<string>([], {
 		name: "font",
+		initial: opts.font ?? "16px sans-serif",
 	});
-	const lineHeightNode = state<number>(opts.lineHeight ?? 20, {
+	const lineHeightNode = node<number>([], {
 		name: "line-height",
+		initial: opts.lineHeight ?? 20,
 	});
-	const maxWidthNode = state<number>(Math.max(0, opts.maxWidth ?? 800), {
+	const maxWidthNode = node<number>([], {
 		name: "max-width",
+		initial: Math.max(0, opts.maxWidth ?? 800),
 	});
 
 	// --- Derived: segments (text + font → PreparedSegment[]) ---
@@ -1235,19 +1237,25 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	);
 
 	// --- Derived: line-breaks (segments + max-width + font → LineBreaksResult) ---
-	const lineBreaksNode = derived<LineBreaksResult>(
+	const lineBreaksNode = node<LineBreaksResult>(
 		[segmentsNode, maxWidthNode, fontNode],
-		([segs, mw, font]) => {
-			return computeLineBreaks(
-				segs as PreparedSegment[],
-				mw as number,
-				adapter,
-				font as string,
-				measureCache,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				computeLineBreaks(
+					data[0] as PreparedSegment[],
+					data[1] as number,
+					adapter,
+					data[2] as string,
+					measureCache,
+				),
 			);
 		},
 		{
 			name: "line-breaks",
+			describeKind: "derived",
 			equals: (a, b) => {
 				const la = a as LineBreaksResult | null;
 				const lb = b as LineBreaksResult | null;
@@ -1272,20 +1280,35 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 	);
 
 	// --- Derived: height ---
-	const heightNode = derived<number>(
+	const heightNode = node<number>(
 		[lineBreaksNode, lineHeightNode],
-		([lb, lh]) => (lb as LineBreaksResult).lineCount * (lh as number),
-		{ name: "height" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as LineBreaksResult).lineCount * (data[1] as number));
+		},
+		{ describeKind: "derived", name: "height" },
 	);
 
 	// --- Derived: char-positions ---
-	const charPositionsNode = derived<CharPosition[]>(
+	const charPositionsNode = node<CharPosition[]>(
 		[lineBreaksNode, segmentsNode, lineHeightNode],
-		([lb, segs, lh]) => {
-			return computeCharPositions(lb as LineBreaksResult, segs as PreparedSegment[], lh as number);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				computeCharPositions(
+					data[0] as LineBreaksResult,
+					data[1] as PreparedSegment[],
+					data[2] as number,
+				),
+			);
 		},
 		{
 			name: "char-positions",
+			describeKind: "derived",
 			equals: (a, b) => {
 				const ca = a as CharPosition[] | null;
 				const cb = b as CharPosition[] | null;

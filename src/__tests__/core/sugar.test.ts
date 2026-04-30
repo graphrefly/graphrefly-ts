@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { derived, derivedT, effect, effectT, pipe, producer, state } from "../../core/sugar.js";
+import { pipe } from "../../core/sugar.js";
 
 describe("sugar constructors", () => {
-	it("state(initial) is a manual source with initial value", () => {
-		const s = state(10);
+	it("node([], { initial }) is a manual source with initial value", () => {
+		const s = node([], { initial: 10 });
 		expect(s.cache).toBe(10);
 		const seen: symbol[] = [];
 		const unsub = s.subscribe((msgs) => {
@@ -19,12 +19,9 @@ describe("sugar constructors", () => {
 		expect(seen).toContain(DATA);
 	});
 
-	it("state<T>() (zero-arg overload) starts in sentinel status with no cached DATA", () => {
-		// qa D2: zero-arg `state<T>()` is the canonical sugar for "no
-		// value yet" — replaces the prior `sentinelState<T>()` factory
-		// (removed pre-1.0) and the `state<T>(undefined as unknown as T)`
-		// cast workaround.
-		const s = state<number>();
+	it("node([]) (zero-arg overload) starts in sentinel status with no cached DATA", () => {
+		// qa D2: zero-arg `node([])` is the canonical raw form for "no value yet".
+		const s = node<number>([]);
 		expect(s.cache).toBeUndefined();
 		expect(s.status).toBe("sentinel");
 		const seen: Array<[symbol, unknown]> = [];
@@ -42,12 +39,12 @@ describe("sugar constructors", () => {
 		unsub();
 	});
 
-	it("state(null) caches null as a valid DATA value (distinct from sentinel)", () => {
+	it("node([], { initial: null }) caches null as a valid DATA value (distinct from sentinel)", () => {
 		// Spec §2.2: `T | null` is the valid DATA domain; only `undefined`
-		// is the SENTINEL. Confirm `state(null)` differs from `state()`:
+		// is the SENTINEL. Confirm `node([], { initial: null })` differs from `node([])`:
 		// the null cache puts the node in `"settled"` status with an
 		// observable null DATA on subscribe.
-		const s = state<number | null>(null);
+		const s = node<number | null>([], { initial: null });
 		expect(s.cache).toBeNull();
 		expect(s.status).toBe("settled");
 		const seen: unknown[] = [];
@@ -60,10 +57,14 @@ describe("sugar constructors", () => {
 		unsub();
 	});
 
-	it("producer runs on subscribe and can emit", () => {
-		const p = producer<number>((actions) => {
-			actions.emit(1);
-		});
+	it("node producer runs on subscribe and can emit", () => {
+		const p = node<number>(
+			[],
+			(_data, actions) => {
+				actions.emit(1);
+			},
+			{ describeKind: "producer" },
+		);
 		const seen: number[] = [];
 		const unsub = p.subscribe((msgs) => {
 			for (const m of msgs) {
@@ -76,9 +77,18 @@ describe("sugar constructors", () => {
 		unsub();
 	});
 
-	it("derived is an alias for deps + value-returning fn", () => {
-		const src = state(2);
-		const d = derived([src], ([v]) => (v as number) * 3);
+	it("node derived is deps + value-returning fn", () => {
+		const src = node([], { initial: 2 });
+		const d = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 3);
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
@@ -90,21 +100,42 @@ describe("sugar constructors", () => {
 	});
 
 	it("effect and producer set describe kind for describe()", () => {
-		const e = effect([state(0)], () => {});
+		const e = node(
+			[node([], { initial: 0 })],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				void data;
+			},
+			{ describeKind: "effect" },
+		);
 		expect(describeNode(e).type).toBe("effect");
-		const p = producer((actions) => {
-			actions.emit(1);
-		});
+		const p = node<number>(
+			[],
+			(_data, actions) => {
+				actions.emit(1);
+			},
+			{ describeKind: "producer" },
+		);
 		expect(describeNode(p).type).toBe("producer");
 	});
 
 	it("effect runs without auto-emit from return value", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		let runs = 0;
-		const e = effect([src], () => {
-			runs += 1;
-			return undefined;
-		});
+		const e = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				void data;
+				runs += 1;
+				return undefined;
+			},
+			{ describeKind: "effect" },
+		);
 		const unsub = e.subscribe(() => undefined);
 		src.down([[DIRTY], [DATA, 1]]);
 		unsub();
@@ -113,11 +144,21 @@ describe("sugar constructors", () => {
 		expect(e.cache).toBeUndefined();
 	});
 
-	it("derivedT propagates dep value types into the callback tuple (no casts)", () => {
-		const a = state(2);
-		const b = state("hi");
-		// data is typed as readonly [number, string] — no casts needed.
-		const out = derivedT([a, b] as const, ([sum, label]) => `${label}:${sum * 2}`);
+	it("node derived propagates dep value types into the callback (no extra casts needed)", () => {
+		const a = node([], { initial: 2 });
+		const b = node([], { initial: "hi" as string });
+		const out = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const sum = data[0] as number;
+				const label = data[1] as string;
+				actions.emit(`${label}:${sum * 2}`);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = out.subscribe(() => undefined);
 		expect(out.cache).toBe("hi:4");
 		a.down([[DATA, 5]]);
@@ -125,14 +166,22 @@ describe("sugar constructors", () => {
 		unsub();
 	});
 
-	it("effectT receives typed deps and runs without auto-emit", () => {
-		const src = state(7);
-		const flag = state(false);
+	it("node effect receives typed deps and runs without auto-emit", () => {
+		const src = node([], { initial: 7 });
+		const flag = node([], { initial: false });
 		let lastSeen: [number, boolean] | undefined;
-		const e = effectT([src, flag] as const, ([n, f]) => {
-			// n is number, f is boolean — no `as` needed.
-			lastSeen = [n, f];
-		});
+		const e = node(
+			[src, flag],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const n = data[0] as number;
+				const f = data[1] as boolean;
+				lastSeen = [n, f];
+			},
+			{ describeKind: "effect" },
+		);
 		const unsub = e.subscribe(() => undefined);
 		expect(lastSeen).toEqual([7, false]);
 		flag.down([[DATA, true]]);
@@ -141,8 +190,18 @@ describe("sugar constructors", () => {
 	});
 
 	it("pipe chains unary node transforms", () => {
-		const src = state(1);
-		const doubled = (n: Node) => derived([n], ([v]) => (v as number) * 2);
+		const src = node([], { initial: 1 });
+		const doubled = (n: Node) =>
+			node(
+				[n],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) * 2);
+				},
+				{ describeKind: "derived" },
+			);
 		const out = pipe(src, doubled, doubled);
 		const unsub = out.subscribe(() => undefined);
 		expect(out.cache).toBe(4);
@@ -150,12 +209,12 @@ describe("sugar constructors", () => {
 	});
 
 	it("pipe with no ops returns source", () => {
-		const src = state("x");
+		const src = node([], { initial: "x" as string });
 		expect(pipe(src)).toBe(src);
 	});
 
 	it("raw node with explicit actions.down() does not emit DATA", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const d = node([src], (_data, actions) => {
 			actions.down([[DIRTY], [RESOLVED]]);
 		});

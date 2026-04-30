@@ -15,7 +15,8 @@
 
 import { describe, expect, it } from "vitest";
 import { DATA, ERROR } from "../../../../core/messages.js";
-import { state } from "../../../../core/sugar.js";
+import { node } from "../../../../core/node.js";
+
 import { awaitSettled } from "../../../../extra/sources.js";
 import type { ToolCall } from "../../../../patterns/ai/adapters/core/types.js";
 import { type ToolResult, toolExecution } from "../../../../patterns/ai/agents/tool-execution.js";
@@ -40,10 +41,9 @@ describe("toolExecution — happy path", () => {
 			parameters: {},
 			handler: (args) => (args.a as number) + (args.b as number),
 		});
-		const toolCalls = state<readonly ToolCall[]>([
-			call("c1", "echo", { msg: "hi" }),
-			call("c2", "add", { a: 3, b: 4 }),
-		]);
+		const toolCalls = node<readonly ToolCall[]>([], {
+			initial: [call("c1", "echo", { msg: "hi" }), call("c2", "add", { a: 3, b: 4 })],
+		});
 		const out = toolExecution({ toolCalls, tools: tr });
 		const result = await awaitSettled(out);
 		expect(result).toEqual([
@@ -56,7 +56,7 @@ describe("toolExecution — happy path", () => {
 describe("toolExecution — empty batch", () => {
 	it("throws on empty batch (caller contract violation)", async () => {
 		const tr = toolRegistry("empty-tools");
-		const toolCalls = state<readonly ToolCall[]>([]);
+		const toolCalls = node<readonly ToolCall[]>([], { initial: [] });
 		const out = toolExecution({ toolCalls, tools: tr });
 		// switchMap dispatches the project fn synchronously on subscribe;
 		// the throw surfaces as ERROR on the node.
@@ -88,7 +88,9 @@ describe("toolExecution — error handling", () => {
 			parameters: {},
 			handler: () => "fine",
 		});
-		const toolCalls = state<readonly ToolCall[]>([call("c1", "boom"), call("c2", "ok")]);
+		const toolCalls = node<readonly ToolCall[]>([], {
+			initial: [call("c1", "boom"), call("c2", "ok")],
+		});
 		// Default onError is "rescue". retryCount=0 to stop retrying the doomed call.
 		const out = toolExecution({ toolCalls, tools: tr, retryCount: 0 });
 		const result = await awaitSettled(out);
@@ -116,7 +118,9 @@ describe("toolExecution — error handling", () => {
 			parameters: {},
 			handler: () => "fine",
 		});
-		const toolCalls = state<readonly ToolCall[]>([call("c1", "boom"), call("c2", "ok")]);
+		const toolCalls = node<readonly ToolCall[]>([], {
+			initial: [call("c1", "boom"), call("c2", "ok")],
+		});
 		const out = toolExecution({
 			toolCalls,
 			tools: tr,
@@ -154,7 +158,7 @@ describe("toolExecution — retry", () => {
 				return "second-time-lucky";
 			},
 		});
-		const toolCalls = state<readonly ToolCall[]>([call("c1", "flaky")]);
+		const toolCalls = node<readonly ToolCall[]>([], { initial: [call("c1", "flaky")] });
 		const out = toolExecution({ toolCalls, tools: tr, retryCount: 1 });
 		const result = await awaitSettled(out);
 		expect(result).toEqual([{ id: "c1", content: "second-time-lucky" }]);
@@ -189,7 +193,7 @@ describe("toolExecution — supersede cancellation", () => {
 			parameters: {},
 			handler: () => "done",
 		});
-		const toolCalls = state<readonly ToolCall[]>([call("c1", "longRunning")]);
+		const toolCalls = node<readonly ToolCall[]>([], { initial: [call("c1", "longRunning")] });
 		const out = toolExecution({ toolCalls, tools: tr, retryCount: 0 });
 		out.subscribe(() => {});
 		await Promise.resolve();

@@ -21,7 +21,6 @@
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import { defaultConfig, type Node, type NodeSink, node } from "../../core/node.js";
-import { effect, state } from "../../core/sugar.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";
@@ -76,7 +75,7 @@ export function workerSelf<TImport extends readonly string[]>(
 	const lastSeenImportVersions = new Map<string, number>();
 	const importedObj: any = {};
 	for (const name of importNames) {
-		const s = state(undefined, { name: `worker::${name}` });
+		const s = node([], { initial: undefined, name: `worker::${name}` });
 		proxyNodes.set(name, s);
 		importedObj[name] = s;
 	}
@@ -115,32 +114,39 @@ export function workerSelf<TImport extends readonly string[]>(
 			{ name: "workerSelf::aggregated", partial: true },
 		);
 
-		const effectNode = effect([aggregated], (data) => {
-			if (destroyed) return;
-			const updates = data[0] as Record<string, unknown> | undefined;
-			if (updates == null || Object.keys(updates).length === 0) return;
+		const effectNode = node(
+			[aggregated],
+			(batchData, _actions, ctx) => {
+				const batch0 = batchData[0];
+				const data0 = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+				if (destroyed) return undefined;
+				const updates = data0 as Record<string, unknown> | undefined;
+				if (updates == null || Object.keys(updates).length === 0) return undefined;
 
-			const transferList: Transferable[] = [];
-			for (const name of Object.keys(updates)) {
-				const fn = (transferFns as any)[name];
-				if (fn) transferList.push(...fn(updates[name]));
-			}
-
-			// V0 delta sync: include version counters when available (§6.0b).
-			let versions: Record<string, number> | undefined;
-			for (const [name, n] of exposeEntries) {
-				if (name in updates && n.v != null) {
-					if (versions == null) versions = {};
-					versions[name] = n.v.version;
+				const transferList: Transferable[] = [];
+				for (const name of Object.keys(updates)) {
+					const fn = (transferFns as any)[name];
+					if (fn) transferList.push(...fn(updates[name]));
 				}
-			}
-			const msg: BatchMessage = { t: "b", u: updates, ...(versions ? { v: versions } : {}) };
-			try {
-				transport.post(msg, transferList.length > 0 ? transferList : undefined);
-			} catch (_err) {
-				// Transport failure — bridge is likely destroyed; swallow
-			}
-		});
+
+				// V0 delta sync: include version counters when available (§6.0b).
+				let versions: Record<string, number> | undefined;
+				for (const [name, n] of exposeEntries) {
+					if (name in updates && n.v != null) {
+						if (versions == null) versions = {};
+						versions[name] = n.v.version;
+					}
+				}
+				const msg: BatchMessage = { t: "b", u: updates, ...(versions ? { v: versions } : {}) };
+				try {
+					transport.post(msg, transferList.length > 0 ? transferList : undefined);
+				} catch (_err) {
+					// Transport failure — bridge is likely destroyed; swallow
+				}
+				return undefined;
+			},
+			{ describeKind: "effect" },
+		);
 		// Effect nodes are lazy — subscribe to activate the chain
 		effectUnsub = effectNode.subscribe(() => {});
 	}

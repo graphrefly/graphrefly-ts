@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import type { Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, TEARDOWN } from "../../core/messages.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { workerBridge } from "../../extra/worker/bridge.js";
 import {
 	deserializeError,
@@ -96,7 +97,7 @@ describe("workerBridge + workerSelf", () => {
 	it("completes handshake and exchanges initial values", async () => {
 		const [mainTransport, workerTransport] = transportPair();
 
-		const mainNode = state(42, { name: "mainVal" });
+		const mainNode = node([], { name: "mainVal", initial: 42 });
 
 		const bridge = workerBridge(mainTransport, {
 			expose: { mainVal: mainNode },
@@ -108,7 +109,7 @@ describe("workerBridge + workerSelf", () => {
 		const self = workerSelf(workerTransport, {
 			import: ["mainVal"] as const,
 			expose: () => {
-				const w = state(100, { name: "workerVal" });
+				const w = node([], { name: "workerVal", initial: 100 });
 				return { workerVal: w };
 			},
 		});
@@ -126,7 +127,7 @@ describe("workerBridge + workerSelf", () => {
 	it("forwards value updates from main to worker", async () => {
 		const [mainTransport, workerTransport] = transportPair();
 
-		const mainNode = state("hello", { name: "msg" });
+		const mainNode = node([], { name: "msg", initial: "hello" });
 		const bridge = workerBridge(mainTransport, {
 			expose: { msg: mainNode },
 			import: ["echo"] as const,
@@ -139,7 +140,16 @@ describe("workerBridge + workerSelf", () => {
 			expose: (imported) => {
 				workerProxy = imported.msg;
 				// Echo: derive from imported msg
-				const echo = derived([imported.msg], ([v]) => `echo:${v}`);
+				const echo = node(
+					[imported.msg],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(`echo:${data[0]}`);
+					},
+					{ describeKind: "derived" },
+				);
 				return { echo };
 			},
 		});
@@ -169,7 +179,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const c = state(0, { name: "counter" });
+				const c = node([], { name: "counter", initial: 0 });
 				workerCounter = c;
 				return { counter: c };
 			},
@@ -191,8 +201,8 @@ describe("workerBridge + workerSelf", () => {
 	it("coalesces batch updates into single message", async () => {
 		const [mainTransport, workerTransport] = transportPair();
 
-		const a = state(0, { name: "a" });
-		const b = state(0, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node([], { name: "b", initial: 0 });
 
 		const postSpy = vi.fn(mainTransport.post);
 		mainTransport.post = postSpy;
@@ -204,7 +214,7 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(bridge);
 
 		const self = workerSelf(workerTransport, {
-			expose: () => ({ ack: state("ok") }),
+			expose: () => ({ ack: node([], { initial: "ok" }) }),
 		});
 		bridges.push(self);
 
@@ -254,7 +264,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},
@@ -284,7 +294,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},
@@ -325,7 +335,7 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(bridge);
 
 		const self = workerSelf(workerTransport, {
-			expose: () => ({ val: state(1) }),
+			expose: () => ({ val: node([], { initial: 1 }) }),
 		});
 		bridges.push(self);
 
@@ -353,7 +363,7 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(bridge);
 
 		const self = workerSelf(workerTransport, {
-			expose: () => ({ val: state(99) }),
+			expose: () => ({ val: node([], { initial: 99 }) }),
 		});
 
 		await tick(50);
@@ -376,7 +386,7 @@ describe("workerBridge + workerSelf", () => {
 		bridges.push(bridge);
 
 		const self = workerSelf(workerTransport, {
-			expose: () => ({ data: state({ x: 1 }) }),
+			expose: () => ({ data: node([], { initial: { x: 1 } }) }),
 		});
 		bridges.push(self);
 
@@ -387,7 +397,7 @@ describe("workerBridge + workerSelf", () => {
 	it("handles expose-only bridge (no import)", async () => {
 		const [mainTransport, workerTransport] = transportPair();
 
-		const mainNode = state("shared");
+		const mainNode = node([], { initial: "shared" });
 		const bridge = workerBridge(mainTransport, {
 			expose: { shared: mainNode },
 		});
@@ -416,7 +426,7 @@ describe("workerBridge + workerSelf", () => {
 		});
 
 		const self = workerSelf(workerTransport, {
-			expose: () => ({ v: state(1) }),
+			expose: () => ({ v: node([], { initial: 1 }) }),
 		});
 
 		await tick(50);
@@ -439,7 +449,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},
@@ -470,7 +480,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},
@@ -503,7 +513,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},
@@ -533,7 +543,7 @@ describe("workerBridge + workerSelf", () => {
 
 		const self = workerSelf(workerTransport, {
 			expose: () => {
-				const s = state(0, { name: "src" });
+				const s = node([], { name: "src", initial: 0 });
 				workerNode = s;
 				return { src: s };
 			},

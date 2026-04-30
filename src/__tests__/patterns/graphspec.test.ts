@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DATA, type Messages } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../../patterns/ai/index.js";
 import {
@@ -32,19 +33,90 @@ function mockAdapter(responses: LLMResponse[]): LLMAdapter {
 /** Catalog with simple fns for testing. */
 const testCatalog: GraphSpecCatalog = {
 	fns: {
-		double: (deps) => derived(deps, ([v]) => (v as number) * 2),
-		sum: (deps) => derived(deps, (vals) => (vals as number[]).reduce((a, b) => a + b, 0)),
+		double: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) * 2);
+				},
+				{ describeKind: "derived" },
+			),
+		sum: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data as number[]).reduce((a, b) => a + b, 0));
+				},
+				{ describeKind: "derived" },
+			),
 		logEffect: (deps) =>
-			effect(deps, () => {
-				/* side effect */
-			}),
-		identity: (deps) => derived(deps, ([v]) => v),
-		timeout: (deps, _config) => derived(deps, ([v]) => v), // simplified
-		retry: (deps, _config) => derived(deps, ([v]) => v), // simplified
-		fallback: (deps, _config) => derived(deps, ([v]) => v), // simplified
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					return (
+						(() => {
+							/* side effect */
+						})(data, actions, ctx) ?? undefined
+					);
+				},
+				{ describeKind: "effect" },
+			),
+		identity: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived" },
+			),
+		timeout: (deps, _config) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived" },
+			), // simplified
+		retry: (deps, _config) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived" },
+			), // simplified
+		fallback: (deps, _config) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived" },
+			), // simplified
 	},
 	sources: {
-		"rest-api": (config) => state(null, { meta: { source: "rest-api", ...config } }),
+		"rest-api": (config) => node([], { meta: { source: "rest-api", ...config }, initial: null }),
 	},
 };
 
@@ -440,7 +512,7 @@ describe("graphspec.compileSpec", () => {
 describe("graphspec.decompileSpec", () => {
 	it("decompiles a simple graph", () => {
 		const g = new Graph("simple");
-		const a = state(42, { name: "a", meta: { description: "input" } });
+		const a = node([], { name: "a", meta: { description: "input" }, initial: 42 });
 		g.add(a, { name: "a" });
 
 		const spec = decompileSpec(g);
@@ -454,8 +526,17 @@ describe("graphspec.decompileSpec", () => {
 
 	it("decompiles a graph with derived node deps", () => {
 		const g = new Graph("deps");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		b.subscribe(() => {});
@@ -492,7 +573,7 @@ describe("graphspec.decompileSpec", () => {
 
 	it("skips meta segment nodes", () => {
 		const g = new Graph("meta-skip");
-		const a = state(1, { name: "a", meta: { label: "test" } });
+		const a = node([], { name: "a", meta: { label: "test" }, initial: 1 });
 		g.add(a, { name: "a" });
 
 		const spec = decompileSpec(g);

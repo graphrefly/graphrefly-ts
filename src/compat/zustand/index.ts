@@ -1,5 +1,5 @@
 import { DATA } from "../../core/messages.js";
-import { state as stateNode } from "../../core/sugar.js";
+import { node as nodeFactory } from "../../core/node.js";
 import { Graph } from "../../graph/graph.js";
 
 // Zustand fires listeners on every setState, regardless of reference
@@ -42,7 +42,8 @@ export type StateCreator<T> = (
  */
 export function create<T extends object>(initializer: StateCreator<T>): Graph & StoreApi<T> {
 	const g = new Graph("zustand");
-	const s = stateNode<T>(undefined as unknown as T, {
+	const s = nodeFactory<T>([], {
+		initial: undefined as unknown as T,
 		name: "state",
 		equals: alwaysDiffer,
 	});

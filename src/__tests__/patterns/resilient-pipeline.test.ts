@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DATA, ERROR } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
 import { type NodeActions, type NodeFn, node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+
 import { NS_PER_MS, NS_PER_SEC } from "../../extra/backoff.js";
 import {
 	ResilientPipelineGraph,
@@ -28,7 +28,7 @@ function collect<T>(n: { subscribe: (fn: (msgs: unknown[][]) => void) => () => v
 
 describe("resilientPipeline — basic shape", () => {
 	it("returns a ResilientPipelineGraph subclass", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src);
 		expect(pipeline).toBeInstanceOf(ResilientPipelineGraph);
 		expect(typeof pipeline.describe).toBe("function");
@@ -36,7 +36,7 @@ describe("resilientPipeline — basic shape", () => {
 	});
 
 	it("degenerate case: no options — source passes through via withStatus only", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src);
 		const { events, stop } = collect<number>(pipeline.output);
 		src.emit(1);
@@ -50,7 +50,7 @@ describe("resilientPipeline — basic shape", () => {
 	});
 
 	it("breaker option: exposes breakerState in the graph + describe surface", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src, {
 			breaker: { failureThreshold: 2 },
 		});
@@ -65,7 +65,7 @@ describe("resilientPipeline — basic shape", () => {
 	});
 
 	it("rateLimit option: exposes droppedCount + rateLimitState companions", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src, {
 			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 },
 		});
@@ -90,8 +90,8 @@ describe("resilientPipeline — basic shape", () => {
 
 describe("resilientPipeline — domain meta tagging (D8)", () => {
 	it("each layer carries domainMeta('resilient', kind) on its produced node", () => {
-		const src = state(0);
-		const allowed = state(true);
+		const src = node([], { initial: 0 });
+		const allowed = node([], { initial: true });
 		const pipeline = resilientPipeline(src, {
 			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 },
 			budget: [{ node: allowed, check: (v) => v === true }],
@@ -132,18 +132,18 @@ describe("resilientPipeline — domain meta tagging (D8)", () => {
 
 describe("resilientPipeline — layer behavior", () => {
 	it("timeoutMs throws on non-positive value", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		expect(() => resilientPipeline(src, { timeoutMs: 0 })).toThrow(/timeoutMs must be > 0/);
 		expect(() => resilientPipeline(src, { timeoutMs: -1 })).toThrow(/timeoutMs must be > 0/);
 	});
 
 	it("timeoutMs throws on overflow risk (> 9_000_000 ms)", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		expect(() => resilientPipeline(src, { timeoutMs: 9_000_001 })).toThrow(/9_000_000/);
 	});
 
 	it("rateLimit layer: permits through when under limit", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src, {
 			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
 		});
@@ -173,7 +173,7 @@ describe("resilientPipeline — layer behavior", () => {
 	});
 
 	it("withStatus reports status transitions through the pipeline", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src, { initialStatus: "pending" });
 		pipeline.output.subscribe(() => {});
 		expect(pipeline.status.cache).toBe("running");
@@ -181,8 +181,8 @@ describe("resilientPipeline — layer behavior", () => {
 	});
 
 	it("composition order preserved: all layers chain without type errors", () => {
-		const src = state(0);
-		const maxBudget = state(100);
+		const src = node([], { initial: 0 });
+		const maxBudget = node([], { initial: 100 });
 		const opts: ResilientPipelineOptions<number> = {
 			rateLimit: { maxEvents: 10, windowNs: NS_PER_SEC },
 			budget: [{ node: maxBudget, check: (v) => (v as number) > 0 }],
@@ -209,8 +209,8 @@ describe("resilientPipeline — layer behavior", () => {
 	});
 
 	it("budget option: blocks DATA when constraint fails", () => {
-		const src = state(0);
-		const allowed = state(true);
+		const src = node([], { initial: 0 });
+		const allowed = node([], { initial: true });
 		const pipeline = resilientPipeline(src, {
 			budget: [{ node: allowed, check: (v) => v === true }],
 		});
@@ -228,8 +228,8 @@ describe("resilientPipeline — layer behavior", () => {
 
 describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-prime)", () => {
 	it("accepts a Node<RateLimiterOptions>; layer is mounted and switchMap'd over the option Node", () => {
-		const src = state(0, { resubscribable: true });
-		const rateOpts = state({ maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 });
+		const src = node([], { resubscribable: true, initial: 0 });
+		const rateOpts = node([], { initial: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 } });
 		const pipeline = resilientPipeline(src, { rateLimit: rateOpts });
 		pipeline.output.subscribe(() => {});
 		// Layer mounted.
@@ -242,8 +242,8 @@ describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-p
 	});
 
 	it("accepts a Node<RetryOptions>; layer rebuilds on each emission (state-loss caveat)", () => {
-		const src = state(0, { resubscribable: true });
-		const retryOpts = state({ count: 3 });
+		const src = node([], { resubscribable: true, initial: 0 });
+		const retryOpts = node([], { initial: { count: 3 } });
 		const pipeline = resilientPipeline(src, { retry: retryOpts });
 		pipeline.output.subscribe(() => {});
 		expect(pipeline.describe().nodes.retryWrapped).toBeDefined();
@@ -255,8 +255,8 @@ describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-p
 	});
 
 	it("accepts a Node<number> for timeoutMs; respects validation on each emission", () => {
-		const src = state(0, { resubscribable: true });
-		const timeoutNode = state(5_000);
+		const src = node([], { resubscribable: true, initial: 0 });
+		const timeoutNode = node([], { initial: 5_000 });
 		const pipeline = resilientPipeline(src, { timeoutMs: timeoutNode });
 		pipeline.output.subscribe(() => {});
 		expect(pipeline.describe().nodes.timeoutWrapped).toBeDefined();
@@ -267,11 +267,11 @@ describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-p
 	});
 
 	it("accepts a Node<readonly BudgetConstraint[]> with an initially-empty array; no layer until non-empty emits", () => {
-		const src = state(0, { resubscribable: true });
-		const allowed = state(true);
-		const constraints = state<
+		const src = node([], { resubscribable: true, initial: 0 });
+		const allowed = node([], { initial: true });
+		const constraints = node<
 			ReadonlyArray<{ node: typeof allowed; check: (v: unknown) => boolean }>
-		>([]);
+		>([], { initial: [] });
 		const pipeline = resilientPipeline(src, { budget: constraints });
 		pipeline.output.subscribe(() => {});
 		// Empty array — layer projection returns the upstream as-is. The
@@ -289,8 +289,8 @@ describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-p
 
 describe("resilientPipeline — describe metadata", () => {
 	it("self-tags via tagFactory so describe() surfaces the factory + JSON-safe args", () => {
-		const src = state(0);
-		const retryNode = state({ count: 2 });
+		const src = node([], { initial: 0 });
+		const retryNode = node([], { initial: { count: 2 } });
 		const pipeline = resilientPipeline(src, {
 			retry: retryNode,
 			timeoutMs: 5_000,
@@ -307,7 +307,7 @@ describe("resilientPipeline — describe metadata", () => {
 	});
 
 	it("primitives carry their own factoryTag meta on the externally-visible nodes", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const pipeline = resilientPipeline(src);
 		// `withStatus` (the always-last layer) stamps `meta.factory =
 		// "withStatus"` on the output node, so the Graph's `factory` ride is

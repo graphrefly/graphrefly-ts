@@ -8,8 +8,8 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { domainMeta } from "../../extra/meta.js";
 import { fromAny, type NodeInput } from "../../extra/sources.js";
 import { ResettableTimer } from "../../extra/timer.js";
@@ -185,79 +185,82 @@ export function _oneShotLlmCall<T>(
 	messages: readonly ChatMessage[],
 	config: OneShotLlmCallConfig<T>,
 ): NodeInput<T> {
-	return producer<T>((actions) => {
-		const ac = new AbortController();
-		// Link parent signal (e.g. pump per-claim signal) so cascading
-		// teardown propagates: parent abort → inner ac.abort → adapter +
-		// fromAny cancel.
-		const parentSignal = config.parentSignal;
-		let unlinkParent: () => void = () => undefined;
-		if (parentSignal) {
-			if (parentSignal.aborted) {
-				ac.abort();
-			} else {
-				const onParentAbort = (): void => ac.abort();
-				parentSignal.addEventListener("abort", onParentAbort, { once: true });
-				unlinkParent = () => parentSignal.removeEventListener("abort", onParentAbort);
+	return node<T>(
+		(_data, actions) => {
+			const ac = new AbortController();
+			// Link parent signal (e.g. pump per-claim signal) so cascading
+			// teardown propagates: parent abort → inner ac.abort → adapter +
+			// fromAny cancel.
+			const parentSignal = config.parentSignal;
+			let unlinkParent: () => void = () => undefined;
+			if (parentSignal) {
+				if (parentSignal.aborted) {
+					ac.abort();
+				} else {
+					const onParentAbort = (): void => ac.abort();
+					parentSignal.addEventListener("abort", onParentAbort, { once: true });
+					unlinkParent = () => parentSignal.removeEventListener("abort", onParentAbort);
+				}
 			}
-		}
-		let captured = false;
-		let unsub: (() => void) | null = null;
-		const emitOnce = (value: T): void => {
-			if (captured) return;
-			captured = true;
-			actions.down([[DATA, value], [COMPLETE]] satisfies Messages);
-			unsub?.();
-			unsub = null;
-		};
-		let invokeResult: NodeInput<LLMResponse>;
-		try {
-			invokeResult = adapter.invoke(messages, { ...config.invokeOpts, signal: ac.signal });
-		} catch (err) {
-			emitOnce(config.onFailure("throw", err));
+			let captured = false;
+			let unsub: (() => void) | null = null;
+			const emitOnce = (value: T): void => {
+				if (captured) return;
+				captured = true;
+				actions.down([[DATA, value], [COMPLETE]] satisfies Messages);
+				unsub?.();
+				unsub = null;
+			};
+			let invokeResult: NodeInput<LLMResponse>;
+			try {
+				invokeResult = adapter.invoke(messages, { ...config.invokeOpts, signal: ac.signal });
+			} catch (err) {
+				emitOnce(config.onFailure("throw", err));
+				return () => {
+					unlinkParent();
+					ac.abort();
+				};
+			}
+			const callNode = fromAny<LLMResponse>(invokeResult, { signal: ac.signal });
+			unsub = callNode.subscribe((batch) => {
+				for (const m of batch) {
+					if (captured) return;
+					if (m[0] === DATA) {
+						try {
+							emitOnce(config.onSuccess(m[1] as LLMResponse));
+						} catch (err) {
+							emitOnce(config.onFailure("onSuccess-threw", err));
+						}
+						return;
+					}
+					if (m[0] === ERROR) {
+						emitOnce(config.onFailure("error", m[1]));
+						return;
+					}
+					if (m[0] === COMPLETE) {
+						// COMPLETE without prior DATA — without this arm the JobFlow
+						// pump's claim would stall (qa F1 regression). Helper handles
+						// for ALL callers; defaults can't regress.
+						emitOnce(config.onFailure("complete", undefined));
+						return;
+					}
+				}
+			});
+			// Sync DATA delivery (cached state / `fromAny` over a sync value):
+			// the callback ran reentrantly before `unsub` was assigned, so the
+			// `unsub?.()` call inside `emitOnce` was a no-op. Drop the upstream
+			// subscription now that we have the handle.
+			if (captured && unsub) {
+				unsub();
+				unsub = null;
+			}
 			return () => {
 				unlinkParent();
 				ac.abort();
+				unsub?.();
+				unsub = null;
 			};
-		}
-		const callNode = fromAny<LLMResponse>(invokeResult, { signal: ac.signal });
-		unsub = callNode.subscribe((batch) => {
-			for (const m of batch) {
-				if (captured) return;
-				if (m[0] === DATA) {
-					try {
-						emitOnce(config.onSuccess(m[1] as LLMResponse));
-					} catch (err) {
-						emitOnce(config.onFailure("onSuccess-threw", err));
-					}
-					return;
-				}
-				if (m[0] === ERROR) {
-					emitOnce(config.onFailure("error", m[1]));
-					return;
-				}
-				if (m[0] === COMPLETE) {
-					// COMPLETE without prior DATA — without this arm the JobFlow
-					// pump's claim would stall (qa F1 regression). Helper handles
-					// for ALL callers; defaults can't regress.
-					emitOnce(config.onFailure("complete", undefined));
-					return;
-				}
-			}
-		});
-		// Sync DATA delivery (cached state / `fromAny` over a sync value):
-		// the callback ran reentrantly before `unsub` was assigned, so the
-		// `unsub?.()` call inside `emitOnce` was a no-op. Drop the upstream
-		// subscription now that we have the handle.
-		if (captured && unsub) {
-			unsub();
-			unsub = null;
-		}
-		return () => {
-			unlinkParent();
-			ac.abort();
-			unsub?.();
-			unsub = null;
-		};
-	});
+		},
+		{ describeKind: "producer" },
+	);
 }

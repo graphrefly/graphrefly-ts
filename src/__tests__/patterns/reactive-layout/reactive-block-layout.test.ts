@@ -4,8 +4,10 @@
  * Uses mock adapters with deterministic dimensions (8px per char for text,
  * fixed sizes for images/SVGs) so tests are environment-independent.
  */
+
 import { describe, expect, it } from "vitest";
 import { INVALIDATE } from "../../../core/messages.js";
+import { node } from "../../../core/node.js";
 import {
 	ImageSizeAdapter,
 	SvgBoundsAdapter,

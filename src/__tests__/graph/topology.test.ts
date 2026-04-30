@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph, type TopologyEvent } from "../../graph/index.js";
 
 function collectTopology(g: Graph): {
@@ -20,7 +21,7 @@ describe("Graph.topology (structural-change companion)", () => {
 	it("emits { added, node } on add()", () => {
 		const g = new Graph("g");
 		const { events, stop } = collectTopology(g);
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		expect(events).toEqual([{ kind: "added", name: "a", nodeKind: "node" }]);
 		stop();
 	});
@@ -36,7 +37,7 @@ describe("Graph.topology (structural-change companion)", () => {
 
 	it("emits { removed, node, audit } on remove() of a local node", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const { events, stop } = collectTopology(g);
 		g.remove("a");
 		expect(events).toHaveLength(1);
@@ -53,7 +54,7 @@ describe("Graph.topology (structural-change companion)", () => {
 	it("emits { removed, mount, audit } on unmount", () => {
 		const parent = new Graph("parent");
 		const child = new Graph("child");
-		child.add(state(0), { name: "x" });
+		child.add(node([], { initial: 0 }), { name: "x" });
 		parent.mount("kids", child);
 		const { events, stop } = collectTopology(parent);
 		parent.remove("kids");
@@ -80,7 +81,7 @@ describe("Graph.topology (structural-change companion)", () => {
 
 	it("does not emit for value mutations (only structural changes)", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
+		const a = node([], { name: "a", initial: 0 });
 		g.add(a, { name: "a" });
 		const { events, stop } = collectTopology(g);
 		a.emit(1);
@@ -91,12 +92,12 @@ describe("Graph.topology (structural-change companion)", () => {
 
 	it("does not emit events that happened before first subscription (no retention)", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
-		g.add(state(2), { name: "b" });
+		g.add(node([], { initial: 1 }), { name: "a" });
+		g.add(node([], { initial: 2 }), { name: "b" });
 		const { events, stop } = collectTopology(g);
 		// Late subscriber sees only subsequent events.
 		expect(events).toEqual([]);
-		g.add(state(3), { name: "c" });
+		g.add(node([], { initial: 3 }), { name: "c" });
 		expect(events).toEqual([{ kind: "added", name: "c", nodeKind: "node" }]);
 		stop();
 	});
@@ -106,12 +107,12 @@ describe("Graph.topology (structural-change companion)", () => {
 		const child = new Graph("child");
 		parent.mount("kids", child);
 		const { events, stop } = collectTopology(parent);
-		child.add(state(0), { name: "x" });
+		child.add(node([], { initial: 0 }), { name: "x" });
 		// parent sees no event — the add happened on `child`, not `parent`.
 		expect(events).toEqual([]);
 		// child's own topology does see it
 		const childObs = collectTopology(child);
-		child.add(state(1), { name: "y" });
+		child.add(node([], { initial: 1 }), { name: "y" });
 		expect(childObs.events).toEqual([{ kind: "added", name: "y", nodeKind: "node" }]);
 		childObs.stop();
 		stop();
@@ -119,9 +120,9 @@ describe("Graph.topology (structural-change companion)", () => {
 
 	it("does not emit on failed add() (name collision) — emit only after successful registration", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const { events, stop } = collectTopology(g);
-		expect(() => g.add(state(2), { name: "a" })).toThrow(/already exists/);
+		expect(() => g.add(node([], { initial: 2 }), { name: "a" })).toThrow(/already exists/);
 		expect(events).toEqual([]);
 		stop();
 	});
@@ -143,8 +144,8 @@ describe("Graph.topology (structural-change companion)", () => {
 		const topology = g.topology;
 		expect(topology).toBeDefined();
 		// Perform mutations — nothing should be observable since no sink exists.
-		g.add(state(1), { name: "a" });
-		g.add(state(2), { name: "b" });
+		g.add(node([], { initial: 1 }), { name: "a" });
+		g.add(node([], { initial: 2 }), { name: "b" });
 		// Subscribe AFTER mutations — no retention of past events.
 		const { events, stop } = collectTopology(g);
 		expect(events).toEqual([]);
@@ -162,7 +163,7 @@ describe("Graph.topology (structural-change companion)", () => {
 		const g = new Graph("g");
 		const a = collectTopology(g);
 		const b = collectTopology(g);
-		g.add(state(0), { name: "x" });
+		g.add(node([], { initial: 0 }), { name: "x" });
 		expect(a.events).toEqual([{ kind: "added", name: "x", nodeKind: "node" }]);
 		expect(b.events).toEqual([{ kind: "added", name: "x", nodeKind: "node" }]);
 		a.stop();
@@ -171,9 +172,9 @@ describe("Graph.topology (structural-change companion)", () => {
 
 	it("bulk-remove via filter loop emits one 'removed' event per entry", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
-		g.add(state(2), { name: "b" });
-		g.add(state(3), { name: "c" });
+		g.add(node([], { initial: 1 }), { name: "a" });
+		g.add(node([], { initial: 2 }), { name: "b" });
+		g.add(node([], { initial: 3 }), { name: "c" });
 		const { events, stop } = collectTopology(g);
 		// Snapshot the universe from the graph itself so future fixture
 		// growth is picked up automatically (mirrors the deleted
@@ -192,10 +193,10 @@ describe("Graph.topology (structural-change companion)", () => {
 	it("interleaved add + remove yields correct event sequence", () => {
 		const g = new Graph("g");
 		const { events, stop } = collectTopology(g);
-		g.add(state(1), { name: "a" });
-		g.add(state(2), { name: "b" });
+		g.add(node([], { initial: 1 }), { name: "a" });
+		g.add(node([], { initial: 2 }), { name: "b" });
 		g.remove("a");
-		g.add(state(3), { name: "c" });
+		g.add(node([], { initial: 3 }), { name: "c" });
 		expect(events.map((e) => `${e.kind}:${e.name}`)).toEqual([
 			"added:a",
 			"added:b",

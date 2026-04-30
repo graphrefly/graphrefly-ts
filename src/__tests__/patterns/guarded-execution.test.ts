@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Actor } from "../../core/actor.js";
 import { type PolicyRuleData, policy } from "../../core/guard.js";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { firstValueFrom } from "../../extra/sources/index.js";
 import { Graph } from "../../graph/index.js";
 import {
@@ -18,7 +19,7 @@ const llm: Actor = { type: "llm", id: "agent-1" };
 describe("guardedExecution — write enforcement", () => {
 	it("wraps target with policyGate and blocks disallowed writes (enforce mode default)", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		guardedExecution(g, {
 			actor: alice,
 			policies: [
@@ -36,7 +37,7 @@ describe("guardedExecution — write enforcement", () => {
 
 	it("audit mode records violations without blocking writes", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write", actorType: "llm" }],
@@ -55,8 +56,10 @@ describe("guardedExecution — write enforcement", () => {
 
 	it("policies can be a live Node for runtime updates", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const policies = state<readonly PolicyRuleData[]>([{ effect: "allow", action: "write" }]);
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const policies = node<readonly PolicyRuleData[]>([], {
+			initial: [{ effect: "allow", action: "write" }],
+		});
 
 		guardedExecution(g, { actor: alice, policies });
 
@@ -70,7 +73,7 @@ describe("guardedExecution — write enforcement", () => {
 
 	it("violations topic is exposed and composable", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write" }],
@@ -90,7 +93,7 @@ describe("guardedExecution — write enforcement", () => {
 			policies: [{ effect: "deny", action: "write" }],
 		});
 
-		child.add(state(0, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 0 }), { name: "x" });
 		expect(() => g.set("kids::x", 1, { actor: alice })).toThrow();
 	});
 
@@ -111,8 +114,8 @@ describe("guardedExecution — scopedDescribe (mounted property — qa G1A)", ()
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
-		g.add(state(1, { name: "public" }), { name: "public" });
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
 
 		const guarded = guardedExecution(g, {
 			actor: alice,
@@ -129,10 +132,10 @@ describe("guardedExecution — scopedDescribe (mounted property — qa G1A)", ()
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
-		g.add(state(1, { name: "public" }), { name: "public" });
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
 
-		const actorNode = state<Actor>(alice, { name: "current-actor" });
+		const actorNode = node<Actor>([], { name: "current-actor", initial: alice });
 		const guarded = guardedExecution(g, {
 			actor: actorNode,
 			policies: [] as readonly PolicyRuleData[],
@@ -154,7 +157,7 @@ describe("guardedExecution — scopedDescribe (mounted property — qa G1A)", ()
 
 	it("scopedDescribe appears in wrapper.describe() as a mounted node", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "allow", action: "*" }],
@@ -170,8 +173,8 @@ describe("guardedExecution — scopedDescribeNode (per-call escape hatch)", () =
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
-		g.add(state(1, { name: "public" }), { name: "public" });
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
 
 		// Audit mode: no extra guards stacked, so per-node guard alone gates visibility.
 		const guarded = guardedExecution(g, {
@@ -194,10 +197,10 @@ describe("guardedExecution — scopedDescribeNode (per-call escape hatch)", () =
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
-		g.add(state(1, { name: "public" }), { name: "public" });
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
 
-		const actorNode = state<Actor>(alice, { name: "current-actor" });
+		const actorNode = node<Actor>([], { name: "current-actor", initial: alice });
 		const guarded = guardedExecution(g, {
 			actor: actorNode,
 			policies: [] as readonly PolicyRuleData[],
@@ -229,8 +232,8 @@ describe("guardedExecution — scopedDescribeNode (per-call escape hatch)", () =
 		const onlyAlice = policy((allow) => {
 			allow("observe", { where: (a) => a.id === "alice" });
 		});
-		g.add(state(0, { name: "alice-only", guard: onlyAlice }), { name: "alice-only" });
-		g.add(state(1, { name: "public" }), { name: "public" });
+		g.add(node([], { name: "alice-only", guard: onlyAlice, initial: 0 }), { name: "alice-only" });
+		g.add(node([], { name: "public", initial: 1 }), { name: "public" });
 
 		const guarded = guardedExecution(g, {
 			actor: alice,
@@ -254,7 +257,7 @@ describe("guardedExecution — scopedDescribeNode (per-call escape hatch)", () =
 
 	it("passes through detail option to the target describe", async () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "allow", action: "*" }],
@@ -276,7 +279,7 @@ describe("guardedExecution — scopedDescribeNode (per-call escape hatch)", () =
 
 	it("dispose() is idempotent", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "allow", action: "*" }],
@@ -303,8 +306,10 @@ describe("guardedExecution — lints", () => {
 
 	it("emits one-time empty-policies lint when a Node emits empty in enforce mode", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const policies = state<readonly PolicyRuleData[]>([{ effect: "allow", action: "*" }]);
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const policies = node<readonly PolicyRuleData[]>([], {
+			initial: [{ effect: "allow", action: "*" }],
+		});
 		const guarded = guardedExecution(g, { actor: alice, policies, mode: "enforce" });
 
 		expect(guarded.lints.retained()).toHaveLength(0);
@@ -321,7 +326,7 @@ describe("guardedExecution — lints", () => {
 
 	it("tolerates empty policies in audit mode", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		expect(() =>
 			guardedExecution(g, {
 				actor: alice,
@@ -333,7 +338,7 @@ describe("guardedExecution — lints", () => {
 
 	it("emits audit-no-effect lint when audit mode + target has no per-node guards", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" }); // no guard
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" }); // no guard
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write" }],
@@ -345,7 +350,7 @@ describe("guardedExecution — lints", () => {
 
 	it("does NOT emit audit-no-effect when target has per-node guards", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "deny", action: "write" }],
@@ -357,7 +362,7 @@ describe("guardedExecution — lints", () => {
 
 	it("emits no-actor lint when actor is omitted from configuration", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			policies: [{ effect: "allow", action: "*" }],
 		});
@@ -369,8 +374,10 @@ describe("guardedExecution — lints", () => {
 describe("guardedExecution — scope derived", () => {
 	it("publishes the configuration tuple and re-emits when policies update", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const policies = state<readonly PolicyRuleData[]>([{ effect: "allow", action: "*" }]);
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const policies = node<readonly PolicyRuleData[]>([], {
+			initial: [{ effect: "allow", action: "*" }],
+		});
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies,
@@ -398,7 +405,7 @@ describe("guardedExecution — scope derived", () => {
 
 	it("scope.actor is null when no actor is configured", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			policies: [{ effect: "allow", action: "*" }],
 		});
@@ -418,10 +425,11 @@ describe("guardedExecution — scope derived", () => {
 		// `null` so `scope` activates immediately; the actor Node forwards real
 		// Actor values once it emits.
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		// Sentinel actor — emits no DATA until we explicitly trigger.
-		const actorSentinel = state<Actor>(undefined as unknown as Actor, {
+		const actorSentinel = node<Actor>([], {
 			name: "sentinel-actor",
+			initial: undefined as unknown as Actor,
 		});
 		const guarded = guardedExecution(g, {
 			actor: actorSentinel,
@@ -449,7 +457,7 @@ describe("guardedExecution — scope derived", () => {
 describe("guardedExecution — domainMeta tagging", () => {
 	it("tags the scope derived with guarded_type metadata", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const guarded = guardedExecution(g, {
 			actor: alice,
 			policies: [{ effect: "allow", action: "*" }],

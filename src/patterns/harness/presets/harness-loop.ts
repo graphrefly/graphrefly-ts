@@ -28,9 +28,8 @@
  */
 
 import { monotonicNs } from "../../../core/clock.js";
-import { derived, type Node } from "../../../core/index.js";
+import { type Node, node } from "../../../core/index.js";
 import { placeholderArgs } from "../../../core/meta.js";
-import { effect, state } from "../../../core/sugar.js";
 import { tryIncrementBounded } from "../../../extra/mutation/index.js";
 import { merge, withLatestFrom } from "../../../extra/operators.js";
 import { Graph } from "../../../graph/graph.js";
@@ -545,22 +544,30 @@ export function harnessLoop<A = unknown>(
 	// filtering on `item.route`. Unknown routes flow into `__unrouted` so
 	// misclassified items become a subscribable dead-letter signal.
 	const routerInput = withLatestFrom(triageNode as Node<unknown>, triageInput as Node<unknown>);
-	const router = effect([routerInput as Node<unknown>], ([pair]) => {
-		if (pair == null) return;
-		const [classification, triagePair] = pair as [
-			TriagedItem | null,
-			[IntakeItem | null, StrategySnapshot] | null,
-		];
-		if (!classification?.route) return;
-		const intakeItem = triagePair?.[0];
-		// Intake fields win over classification: the LLM only owns the five
-		// triage-classification fields (rootCause, intervention, route,
-		// priority, triageReasoning); any intake state it accidentally
-		// returns is overwritten by the real intake value via the trailing
-		// spread.
-		const merged: TriagedItem = { ...classification, ...intakeItem } as TriagedItem;
-		triageOutput.publish(merged);
-	});
+	const router = node(
+		[routerInput as Node<unknown>],
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const pair = data[0];
+			if (pair == null) return;
+			const [classification, triagePair] = pair as [
+				TriagedItem | null,
+				[IntakeItem | null, StrategySnapshot] | null,
+			];
+			if (!classification?.route) return;
+			const intakeItem = triagePair?.[0];
+			// Intake fields win over classification: the LLM only owns the five
+			// triage-classification fields (rootCause, intervention, route,
+			// priority, triageReasoning); any intake state it accidentally
+			// returns is overwritten by the real intake value via the trailing
+			// spread.
+			const merged: TriagedItem = { ...classification, ...intakeItem } as TriagedItem;
+			triageOutput.publish(merged);
+		},
+		{ describeKind: "effect" },
+	);
 	const routerUnsub = router.subscribe(() => {});
 
 	// TopicBridges fan triage-output into per-route queues (visible edges).
@@ -608,9 +615,13 @@ export function harnessLoop<A = unknown>(
 		const topic = queueTopics.get(route)!;
 		const jq = jobQueues.get(route)!;
 		const seen = new WeakSet<object>();
-		const mirror = effect(
+		const mirror = node(
 			[topic.events as Node<unknown>],
-			([events]) => {
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const events = data[0];
 				const arr = (events ?? []) as readonly TriagedItem[];
 				for (const item of arr) {
 					if (seen.has(item as unknown as object)) continue;
@@ -619,7 +630,7 @@ export function harnessLoop<A = unknown>(
 					routeJobIds.set(trackingKey(item), { route, id });
 				}
 			},
-			{ name: `jobs/${route}-mirror` },
+			{ name: `jobs/${route}-mirror`, describeKind: "effect" },
 		);
 		jobMirrorUnsubs.push(mirror.subscribe(() => {}));
 	}
@@ -695,13 +706,17 @@ export function harnessLoop<A = unknown>(
 	// stream into the JobFlow. Each non-null item becomes one JobEnvelope
 	// at the execute stage. Retry items (via `retryTopic`) re-enter the
 	// flow as fresh enqueues with their `$retries` counter bumped.
-	const enqueueEffect = effect(
+	const enqueueEffect = node(
 		[executeInput as Node<unknown>],
-		([item]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const item = data[0];
 			if (item == null) return;
 			executeFlow.enqueue({ item: item as TriagedItem });
 		},
-		{ name: "execute-enqueue" },
+		{ name: "execute-enqueue", describeKind: "effect" },
 	);
 	const enqueueUnsub = enqueueEffect.subscribe(() => {});
 
@@ -723,8 +738,8 @@ export function harnessLoop<A = unknown>(
 	const maxReingestions = opts.maxReingestions ?? 1;
 	const maxTotalRetries = Math.min(opts.maxTotalRetries ?? maxRetries * 10, 100);
 	const maxTotalReingestions = Math.min(opts.maxTotalReingestions ?? maxReingestions * 10, 100);
-	const totalRetries = state(0);
-	const totalReingestions = state(0);
+	const totalRetries = node([], { initial: 0 });
+	const totalReingestions = node([], { initial: 0 });
 
 	function assembleResult(
 		execution: ExecutionResult<A>,
@@ -792,9 +807,13 @@ export function harnessLoop<A = unknown>(
 	// drops oldest entries past the limit, `arr.length` shrinks and the
 	// cursor catches up automatically).
 	let dispatchCursor = 0;
-	const dispatchEffect = effect(
+	const dispatchEffect = node(
 		[executeFlow.completed as Node<unknown>],
-		([log]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const log = data[0];
 			const arr = (log ?? []) as readonly JobEnvelope<HarnessJobPayload<A>>[];
 			// Trim handling: if the retained log shrunk below our cursor, the
 			// missing entries are gone (we already processed them or the trim
@@ -836,7 +855,7 @@ export function harnessLoop<A = unknown>(
 				}
 			}
 		},
-		{ name: "verify-dispatch" },
+		{ name: "verify-dispatch", describeKind: "effect" },
 	);
 	const dispatchUnsub = dispatchEffect.subscribe(() => {});
 
@@ -846,10 +865,16 @@ export function harnessLoop<A = unknown>(
 	// wave). Without this, `null === null` would collapse every emit
 	// after the first into RESOLVED and the trace would show a single
 	// REFLECT event over the whole run.
-	const reflectNode = derived([executeFlow.completed as Node<unknown>], () => null, {
-		name: "reflect",
-		equals: () => false,
-	});
+	const reflectNode = node(
+		[executeFlow.completed as Node<unknown>],
+		(_batchData, actions) => {
+			actions.emit(null);
+		},
+		{
+			name: "reflect",
+			equals: () => false,
+		},
+	);
 
 	// --- Optional priority scoring (Unit 19) ---
 	let priorityScores: Map<QueueRoute, Node<number>> | undefined;
@@ -943,15 +968,21 @@ function buildPriorityScores<A>(
 
 	const scores = new Map<QueueRoute, Node<number>>();
 	for (const [route, topic] of queueTopics) {
-		const score = derived<number>(
+		const score = node<number>(
 			[
 				topic.latest as Node<unknown>,
 				strategy.node as Node<unknown>,
 				lastInteractionNs as Node<unknown>,
 			],
-			(vals) => {
+			(batchData, actions, ctx) => {
+				const vals = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const item = vals[0] as TriagedItem | null;
-				if (item == null) return 0;
+				if (item == null) {
+					actions.emit(0);
+					return;
+				}
 				const baseWeight = severityWeights[item.severity ?? "medium"] ?? 40;
 				const ageSeconds = (monotonicNs() - (vals[2] as number)) / 1e9;
 				let s = baseWeight * Math.exp(-decayRate * Math.max(0, ageSeconds));
@@ -961,9 +992,9 @@ function buildPriorityScores<A>(
 				if (entry && entry.successRate >= effectivenessThreshold) {
 					s += effectivenessBoost;
 				}
-				return s;
+				actions.emit(s);
 			},
-			{ name: `priority/${route}` },
+			{ name: `priority/${route}`, describeKind: "derived" },
 		);
 		scores.set(route, score);
 	}

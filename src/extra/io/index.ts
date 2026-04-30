@@ -25,7 +25,6 @@ import {
 	TEARDOWN,
 } from "../../core/messages.js";
 import { defaultConfig, type Node, type NodeOptions, node } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
 import type { GraphCheckpointRecord } from "../../graph/graph.js";
 import { NS_PER_MS, NS_PER_SEC } from "../backoff.js";
 import {
@@ -111,74 +110,78 @@ export function fromWebSocket<T = unknown>(
 	},
 ): Node<T> {
 	const { parse, closeOnTeardown = false, ...rest } = opts ?? {};
-	return producer<T>((a) => {
-		let active = true;
-		let cleanup: (() => void) | undefined;
-		const runCleanup = () => {
-			const fn = cleanup;
-			cleanup = undefined;
-			fn?.();
-		};
-		const terminate = (message: Message) => {
-			if (!active) return;
-			active = false;
-			a.down([message]);
-			runCleanup();
-		};
-		const emit = (raw: unknown, event: unknown = raw) => {
-			if (!active) return;
-			try {
-				const payload =
-					raw !== null && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
-						? (raw as WebSocketMessageEventLike).data
-						: raw;
-				const parsed = parse ? parse(payload, event) : (payload as T);
-				a.emit(parsed);
-			} catch (err) {
-				terminate([ERROR, err]);
-			}
-		};
-		const error = (err: unknown) => {
-			terminate([ERROR, err]);
-		};
-		const complete = () => {
-			terminate([COMPLETE]);
-		};
-		if (typeof socketOrRegister === "function") {
-			try {
-				cleanup = socketOrRegister(emit, error, complete);
-				if (typeof cleanup !== "function") {
-					throw new Error(
-						"fromWebSocket register contract violation: register must return cleanup callable",
-					);
+	return node<T>(
+		[],
+		(_data, a) => {
+			let active = true;
+			let cleanup: (() => void) | undefined;
+			const runCleanup = () => {
+				const fn = cleanup;
+				cleanup = undefined;
+				fn?.();
+			};
+			const terminate = (message: Message) => {
+				if (!active) return;
+				active = false;
+				a.down([message]);
+				runCleanup();
+			};
+			const emit = (raw: unknown, event: unknown = raw) => {
+				if (!active) return;
+				try {
+					const payload =
+						raw !== null && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
+							? (raw as WebSocketMessageEventLike).data
+							: raw;
+					const parsed = parse ? parse(payload, event) : (payload as T);
+					a.emit(parsed);
+				} catch (err) {
+					terminate([ERROR, err]);
 				}
-			} catch (err) {
+			};
+			const error = (err: unknown) => {
 				terminate([ERROR, err]);
+			};
+			const complete = () => {
+				terminate([COMPLETE]);
+			};
+			if (typeof socketOrRegister === "function") {
+				try {
+					cleanup = socketOrRegister(emit, error, complete);
+					if (typeof cleanup !== "function") {
+						throw new Error(
+							"fromWebSocket register contract violation: register must return cleanup callable",
+						);
+					}
+				} catch (err) {
+					terminate([ERROR, err]);
+				}
+				return () => {
+					active = false;
+					runCleanup();
+				};
 			}
+
+			const ws = socketOrRegister;
+			const onMessage = (event: unknown) => emit(event, event);
+			const onError = (event: unknown) => error(event);
+			const onClose = () => complete();
+			ws.addEventListener("message", onMessage);
+			ws.addEventListener("error", onError);
+			ws.addEventListener("close", onClose);
+			cleanup = () => {
+				ws.removeEventListener("message", onMessage);
+				ws.removeEventListener("error", onError);
+				ws.removeEventListener("close", onClose);
+				if (closeOnTeardown) ws.close();
+			};
 			return () => {
 				active = false;
 				runCleanup();
 			};
-		}
-
-		const ws = socketOrRegister;
-		const onMessage = (event: unknown) => emit(event, event);
-		const onError = (event: unknown) => error(event);
-		const onClose = () => complete();
-		ws.addEventListener("message", onMessage);
-		ws.addEventListener("error", onError);
-		ws.addEventListener("close", onClose);
-		cleanup = () => {
-			ws.removeEventListener("message", onMessage);
-			ws.removeEventListener("error", onError);
-			ws.removeEventListener("close", onClose);
-			if (closeOnTeardown) ws.close();
-		};
-		return () => {
-			active = false;
-			runCleanup();
-		};
-	}, sourceOpts(rest));
+		},
+		sourceOpts(rest),
+	);
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -325,9 +328,9 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 		...rest
 	} = opts ?? {};
 
-	const fetchCount = state(0, { name: `${rest.name ?? "http"}/fetchCount` });
-	const lastUpdated = state(0, { name: `${rest.name ?? "http"}/lastUpdated` });
-	const fetched = state(false, { name: `${rest.name ?? "http"}/fetched` });
+	const fetchCount = node<number>([], { initial: 0, name: `${rest.name ?? "http"}/fetchCount` });
+	const lastUpdated = node<number>([], { initial: 0, name: `${rest.name ?? "http"}/lastUpdated` });
+	const fetched = node<boolean>([], { initial: false, name: `${rest.name ?? "http"}/fetched` });
 	// Closure-owned counter: `fetchCount` is a write-only observable of this
 	// local count. Avoids the `fetchCount.cache + 1` read-modify-write pattern
 	// (P3 audit #6) — the node stays in sync because every write flows through
@@ -395,8 +398,9 @@ export function fromHTTP<T = any>(url: string, opts?: FromHTTPOptions): HTTPBund
 		};
 	};
 
-	const sourceNode = producer<T>(
-		(a) =>
+	const sourceNode = node<T>(
+		[],
+		(_data, a) =>
 			runFetch({
 				emit: (v) => a.emit(v),
 				down: (msgs) => a.down(msgs as unknown as [symbol, unknown?][]),
@@ -726,7 +730,7 @@ export function toSSEBytes<T>(source: Node<T>, opts?: ToSSEOptions): Node<Uint8A
 		eventNameResolver = messageTypeLabel,
 	} = opts ?? {};
 	const encoder = new TextEncoder();
-	return producer<Uint8Array>((a) => {
+	return node<Uint8Array>([], (_data, a) => {
 		let active = true;
 		let keepAlive: ReturnType<typeof setInterval> | undefined;
 		const emitFrame = (event: string, data?: string) => {
@@ -1059,26 +1063,30 @@ export function fromSSE<T = string>(
 	opts?: FromSSEOptions<T>,
 ): Node<SSEEvent<T>> {
 	const { parse, ...rest } = opts ?? {};
-	return producer<SSEEvent<T>>((a) => {
-		let active = true;
-		const ctrl = new AbortController();
-		const run = async () => {
-			try {
-				for await (const ev of parseSSEStream<T>(source, { parse, signal: ctrl.signal })) {
-					if (!active) return;
-					a.emit(ev);
+	return node<SSEEvent<T>>(
+		[],
+		(_data, a) => {
+			let active = true;
+			const ctrl = new AbortController();
+			const run = async () => {
+				try {
+					for await (const ev of parseSSEStream<T>(source, { parse, signal: ctrl.signal })) {
+						if (!active) return;
+						a.emit(ev);
+					}
+					if (active) a.down([[COMPLETE]]);
+				} catch (err) {
+					if (active) a.down([[ERROR, err]]);
 				}
-				if (active) a.down([[COMPLETE]]);
-			} catch (err) {
-				if (active) a.down([[ERROR, err]]);
-			}
-		};
-		void run();
-		return () => {
-			active = false;
-			ctrl.abort();
-		};
-	}, sourceOpts(rest));
+			};
+			void run();
+			return () => {
+				active = false;
+				ctrl.abort();
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -1105,48 +1113,52 @@ export type FromHTTPStreamOptions = ExtraOpts & {
  */
 export function fromHTTPStream(url: string, opts?: FromHTTPStreamOptions): Node<Uint8Array> {
 	const { method = "GET", headers, body: bodyOpt, signal: externalSignal, ...rest } = opts ?? {};
-	return producer<Uint8Array>((a) => {
-		let active = true;
-		const abort = new AbortController();
-		if (externalSignal?.aborted) {
-			a.down([[ERROR, externalSignal.reason ?? new Error("Aborted")]]);
-			return () => {};
-		}
-		externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), {
-			once: true,
-		});
-		const body =
-			bodyOpt !== undefined
-				? typeof bodyOpt === "string"
-					? bodyOpt
-					: JSON.stringify(bodyOpt)
-				: undefined;
-
-		const run = async () => {
-			try {
-				const res = await fetch(url, { method, headers, body, signal: abort.signal });
-				if (!active) return;
-				if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-				if (!res.body) throw new Error("HTTP response has no body");
-				const reader = res.body.getReader();
-				while (active) {
-					const { value, done } = await reader.read();
-					if (done) break;
-					if (value) a.emit(value);
-				}
-				if (active) a.down([[COMPLETE]]);
-			} catch (err) {
-				if (!active) return;
-				if (err && (err as Error).name === "AbortError") return;
-				a.down([[ERROR, err]]);
+	return node<Uint8Array>(
+		[],
+		(_data, a) => {
+			let active = true;
+			const abort = new AbortController();
+			if (externalSignal?.aborted) {
+				a.down([[ERROR, externalSignal.reason ?? new Error("Aborted")]]);
+				return () => {};
 			}
-		};
-		void run();
-		return () => {
-			active = false;
-			abort.abort();
-		};
-	}, sourceOpts(rest));
+			externalSignal?.addEventListener("abort", () => abort.abort(externalSignal.reason), {
+				once: true,
+			});
+			const body =
+				bodyOpt !== undefined
+					? typeof bodyOpt === "string"
+						? bodyOpt
+						: JSON.stringify(bodyOpt)
+					: undefined;
+
+			const run = async () => {
+				try {
+					const res = await fetch(url, { method, headers, body, signal: abort.signal });
+					if (!active) return;
+					if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+					if (!res.body) throw new Error("HTTP response has no body");
+					const reader = res.body.getReader();
+					while (active) {
+						const { value, done } = await reader.read();
+						if (done) break;
+						if (value) a.emit(value);
+					}
+					if (active) a.down([[COMPLETE]]);
+				} catch (err) {
+					if (!active) return;
+					if (err && (err as Error).name === "AbortError") return;
+					a.down([[ERROR, err]]);
+				}
+			};
+			void run();
+			return () => {
+				active = false;
+				abort.abort();
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 // ——————————————————————————————————————————————————————————————
@@ -1854,7 +1866,7 @@ export function fromPrometheus(
 	// switches to a fresh inner producer that does one scrape and completes —
 	// switchMap cancels any in-flight scrape when the next tick arrives.
 	return switchMap(fromTimer(0, { period: intervalMs, signal: externalSignal }), () =>
-		producer<PrometheusMetric>((a) => {
+		node<PrometheusMetric>([], (_data, a) => {
 			let active = true;
 			const abort = new AbortController();
 			const timeoutId = setTimeout(
@@ -2080,44 +2092,48 @@ export function fromKafka<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<KafkaMessage<T>>((a) => {
-		let active = true;
+	return node<KafkaMessage<T>>(
+		[],
+		(_data, a) => {
+			let active = true;
 
-		const start = async () => {
-			try {
-				await consumer.subscribe({ topic, fromBeginning });
-				await consumer.run({
-					eachMessage: async ({ topic: t, partition, message: msg }) => {
-						if (!active) return;
-						const headers: Record<string, string> = {};
-						if (msg.headers) {
-							for (const [k, v] of Object.entries(msg.headers)) {
-								if (v !== undefined) headers[k] = typeof v === "string" ? v : v.toString();
+			const start = async () => {
+				try {
+					await consumer.subscribe({ topic, fromBeginning });
+					await consumer.run({
+						eachMessage: async ({ topic: t, partition, message: msg }) => {
+							if (!active) return;
+							const headers: Record<string, string> = {};
+							if (msg.headers) {
+								for (const [k, v] of Object.entries(msg.headers)) {
+									if (v !== undefined) headers[k] = typeof v === "string" ? v : v.toString();
+								}
 							}
-						}
-						a.emit({
-							topic: t,
-							partition,
-							key: msg.key?.toString() ?? null,
-							value: deserialize(msg.value) as T,
-							headers,
-							offset: msg.offset,
-							timestamp: msg.timestamp,
-							timestampNs: wallClockNs(),
-						});
-					},
-				});
-			} catch (err) {
-				if (active) a.down([[ERROR, err]]);
-			}
-		};
+							a.emit({
+								topic: t,
+								partition,
+								key: msg.key?.toString() ?? null,
+								value: deserialize(msg.value) as T,
+								headers,
+								offset: msg.offset,
+								timestamp: msg.timestamp,
+								timestampNs: wallClockNs(),
+							});
+						},
+					});
+				} catch (err) {
+					if (active) a.down([[ERROR, err]]);
+				}
+			};
 
-		void start();
+			void start();
 
-		return () => {
-			active = false;
-		};
-	}, sourceOpts(rest));
+			return () => {
+				active = false;
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /** Options for {@link toKafka}. */
@@ -2241,42 +2257,46 @@ export function fromRedisStream<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<RedisStreamEntry<T>>((a) => {
-		let active = true;
-		let lastId = startId;
+	return node<RedisStreamEntry<T>>(
+		[],
+		(_data, a) => {
+			let active = true;
+			let lastId = startId;
 
-		const poll = async () => {
-			while (active) {
-				try {
-					const result = await client.xread("BLOCK", blockMs, "STREAMS", key, lastId);
-					if (!active) return;
-					if (result) {
-						for (const [_streamKey, entries] of result) {
-							for (const [id, fields] of entries) {
-								lastId = id;
-								a.emit({
-									id,
-									key,
-									data: parse(fields) as T,
-									timestampNs: wallClockNs(),
-								});
+			const poll = async () => {
+				while (active) {
+					try {
+						const result = await client.xread("BLOCK", blockMs, "STREAMS", key, lastId);
+						if (!active) return;
+						if (result) {
+							for (const [_streamKey, entries] of result) {
+								for (const [id, fields] of entries) {
+									lastId = id;
+									a.emit({
+										id,
+										key,
+										data: parse(fields) as T,
+										timestampNs: wallClockNs(),
+									});
+								}
 							}
 						}
+					} catch (err) {
+						if (!active) return;
+						a.down([[ERROR, err]]);
+						return;
 					}
-				} catch (err) {
-					if (!active) return;
-					a.down([[ERROR, err]]);
-					return;
 				}
-			}
-		};
+			};
 
-		void poll();
+			void poll();
 
-		return () => {
-			active = false;
-		};
-	}, sourceOpts(rest));
+			return () => {
+				active = false;
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /** Options for {@link toRedisStream}. */
@@ -2369,69 +2389,73 @@ export function fromCSV(source: AsyncIterable<string>, opts?: FromCSVOptions): N
 	} = opts ?? {};
 	const parse = parseLine ?? ((line: string) => parseCSVLine(line, delimiter));
 
-	return producer<CSVRow>((a) => {
-		let cancelled = false;
+	return node<CSVRow>(
+		[],
+		(_data, a) => {
+			let cancelled = false;
 
-		const run = async () => {
-			try {
-				let headers: string[] | undefined = explicitColumns;
-				let buffer = "";
+			const run = async () => {
+				try {
+					let headers: string[] | undefined = explicitColumns;
+					let buffer = "";
 
-				for await (const chunk of source) {
-					if (cancelled) return;
-					buffer += chunk;
-
-					const lines = buffer.split(/\r?\n/);
-					// Keep last partial line in buffer.
-					buffer = lines.pop() ?? "";
-
-					for (const line of lines) {
+					for await (const chunk of source) {
 						if (cancelled) return;
-						if (!line.trim()) continue;
+						buffer += chunk;
 
-						const values = parse(line);
+						const lines = buffer.split(/\r?\n/);
+						// Keep last partial line in buffer.
+						buffer = lines.pop() ?? "";
 
-						if (!headers && hasHeader) {
-							headers = values;
-							continue;
+						for (const line of lines) {
+							if (cancelled) return;
+							if (!line.trim()) continue;
+
+							const values = parse(line);
+
+							if (!headers && hasHeader) {
+								headers = values;
+								continue;
+							}
+
+							if (!headers) {
+								headers = values.map((_, i) => `col${i}`);
+							}
+
+							const row: CSVRow = {};
+							for (let i = 0; i < headers.length; i++) {
+								row[headers[i]] = values[i] ?? "";
+							}
+							a.emit(row);
 						}
-
-						if (!headers) {
-							headers = values.map((_, i) => `col${i}`);
-						}
-
-						const row: CSVRow = {};
-						for (let i = 0; i < headers.length; i++) {
-							row[headers[i]] = values[i] ?? "";
-						}
-						a.emit(row);
 					}
-				}
 
-				// Process remaining buffer.
-				if (!cancelled && buffer.trim()) {
-					const values = parse(buffer);
-					if (headers) {
-						const row: CSVRow = {};
-						for (let i = 0; i < headers.length; i++) {
-							row[headers[i]] = values[i] ?? "";
+					// Process remaining buffer.
+					if (!cancelled && buffer.trim()) {
+						const values = parse(buffer);
+						if (headers) {
+							const row: CSVRow = {};
+							for (let i = 0; i < headers.length; i++) {
+								row[headers[i]] = values[i] ?? "";
+							}
+							a.emit(row);
 						}
-						a.emit(row);
 					}
+
+					if (!cancelled) a.down([[COMPLETE]]);
+				} catch (err) {
+					if (!cancelled) a.down([[ERROR, err]]);
 				}
+			};
 
-				if (!cancelled) a.down([[COMPLETE]]);
-			} catch (err) {
-				if (!cancelled) a.down([[ERROR, err]]);
-			}
-		};
+			void run();
 
-		void run();
-
-		return () => {
-			cancelled = true;
-		};
-	}, sourceOpts(rest));
+			return () => {
+				cancelled = true;
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /**
@@ -2592,45 +2616,49 @@ export function fromNDJSON<T = unknown>(
 	source: AsyncIterable<string>,
 	opts?: FromNDJSONOptions,
 ): Node<T> {
-	return producer<T>((a) => {
-		let cancelled = false;
+	return node<T>(
+		[],
+		(_data, a) => {
+			let cancelled = false;
 
-		const run = async () => {
-			try {
-				let buffer = "";
+			const run = async () => {
+				try {
+					let buffer = "";
 
-				for await (const chunk of source) {
-					if (cancelled) return;
-					buffer += chunk;
-
-					const lines = buffer.split(/\r?\n/);
-					buffer = lines.pop() ?? "";
-
-					for (const line of lines) {
+					for await (const chunk of source) {
 						if (cancelled) return;
-						const trimmed = line.trim();
-						if (!trimmed) continue;
-						a.emit(JSON.parse(trimmed) as T);
+						buffer += chunk;
+
+						const lines = buffer.split(/\r?\n/);
+						buffer = lines.pop() ?? "";
+
+						for (const line of lines) {
+							if (cancelled) return;
+							const trimmed = line.trim();
+							if (!trimmed) continue;
+							a.emit(JSON.parse(trimmed) as T);
+						}
 					}
+
+					// Process remaining buffer.
+					if (!cancelled && buffer.trim()) {
+						a.emit(JSON.parse(buffer.trim()) as T);
+					}
+
+					if (!cancelled) a.down([[COMPLETE]]);
+				} catch (err) {
+					if (!cancelled) a.down([[ERROR, err]]);
 				}
+			};
 
-				// Process remaining buffer.
-				if (!cancelled && buffer.trim()) {
-					a.emit(JSON.parse(buffer.trim()) as T);
-				}
+			void run();
 
-				if (!cancelled) a.down([[COMPLETE]]);
-			} catch (err) {
-				if (!cancelled) a.down([[ERROR, err]]);
-			}
-		};
-
-		void run();
-
-		return () => {
-			cancelled = true;
-		};
-	}, sourceOpts(opts));
+			return () => {
+				cancelled = true;
+			};
+		},
+		sourceOpts(opts),
+	);
 }
 
 // ——— ClickHouse live materialized view ———
@@ -2700,7 +2728,7 @@ export function fromClickHouseWatch(
 	// query each; switchMap cancels any in-flight inner when the next tick
 	// arrives. First tick at t=0, then every intervalMs.
 	return switchMap(fromTimer(0, { period: intervalMs, signal: externalSignal }), () =>
-		producer<ClickHouseRow>((a) => {
+		node<ClickHouseRow>([], (_data, a) => {
 			let active = true;
 			const run = async () => {
 				try {
@@ -2843,72 +2871,76 @@ export function fromPulsar<T = unknown>(
 		}
 	};
 
-	return producer<PulsarMessage<T> | AckableMessage<PulsarMessage<T>>>((a) => {
-		let active = true;
+	return node<PulsarMessage<T> | AckableMessage<PulsarMessage<T>>>(
+		[],
+		(_data, a) => {
+			let active = true;
 
-		const loop = async () => {
-			while (active) {
-				try {
-					const rawMsg = await consumer.receive();
-					if (!active) return;
-					const structured: PulsarMessage<T> = {
-						topic: rawMsg.getTopicName(),
-						messageId: rawMsg.getMessageId().toString(),
-						key: rawMsg.getPartitionKey(),
-						value: deserialize(rawMsg.getData()) as T,
-						properties: rawMsg.getProperties(),
-						publishTime: rawMsg.getPublishTimestamp(),
-						eventTime: rawMsg.getEventTimestamp(),
-						timestampNs: wallClockNs(),
-					};
-					if (autoAck) {
-						a.emit(structured);
-						void consumer.acknowledge(rawMsg).catch(reportAckError);
-					} else {
-						// Manual ack — wrap in AckableMessage. Pulsar's SDK has no
-						// per-message nack(requeue=false) — a plain `nack` re-delivers
-						// after the subscription's negativeAckRedeliveryDelay. `requeue`
-						// is honored as "always redeliver" (SDK default).
-						let settled = false;
-						const envelope: AckableMessage<PulsarMessage<T>> = {
-							value: structured,
-							ack() {
-								if (settled) return;
-								settled = true;
-								void consumer.acknowledge(rawMsg).catch(reportAckError);
-							},
-							nack(_opts) {
-								if (settled) return;
-								settled = true;
-								const anyConsumer = consumer as unknown as {
-									negativeAcknowledge?: (m: unknown) => Promise<void> | void;
-								};
-								try {
-									const result = anyConsumer.negativeAcknowledge?.(rawMsg);
-									// nack may return Promise (some SDKs) — route rejection.
-									if (result && typeof (result as Promise<void>).then === "function") {
-										void (result as Promise<void>).catch(reportAckError);
-									}
-								} catch (err) {
-									reportAckError(err);
-								}
-							},
+			const loop = async () => {
+				while (active) {
+					try {
+						const rawMsg = await consumer.receive();
+						if (!active) return;
+						const structured: PulsarMessage<T> = {
+							topic: rawMsg.getTopicName(),
+							messageId: rawMsg.getMessageId().toString(),
+							key: rawMsg.getPartitionKey(),
+							value: deserialize(rawMsg.getData()) as T,
+							properties: rawMsg.getProperties(),
+							publishTime: rawMsg.getPublishTimestamp(),
+							eventTime: rawMsg.getEventTimestamp(),
+							timestampNs: wallClockNs(),
 						};
-						a.emit(envelope);
+						if (autoAck) {
+							a.emit(structured);
+							void consumer.acknowledge(rawMsg).catch(reportAckError);
+						} else {
+							// Manual ack — wrap in AckableMessage. Pulsar's SDK has no
+							// per-message nack(requeue=false) — a plain `nack` re-delivers
+							// after the subscription's negativeAckRedeliveryDelay. `requeue`
+							// is honored as "always redeliver" (SDK default).
+							let settled = false;
+							const envelope: AckableMessage<PulsarMessage<T>> = {
+								value: structured,
+								ack() {
+									if (settled) return;
+									settled = true;
+									void consumer.acknowledge(rawMsg).catch(reportAckError);
+								},
+								nack(_opts) {
+									if (settled) return;
+									settled = true;
+									const anyConsumer = consumer as unknown as {
+										negativeAcknowledge?: (m: unknown) => Promise<void> | void;
+									};
+									try {
+										const result = anyConsumer.negativeAcknowledge?.(rawMsg);
+										// nack may return Promise (some SDKs) — route rejection.
+										if (result && typeof (result as Promise<void>).then === "function") {
+											void (result as Promise<void>).catch(reportAckError);
+										}
+									} catch (err) {
+										reportAckError(err);
+									}
+								},
+							};
+							a.emit(envelope);
+						}
+					} catch (err) {
+						if (active) a.down([[ERROR, err]]);
+						return;
 					}
-				} catch (err) {
-					if (active) a.down([[ERROR, err]]);
-					return;
 				}
-			}
-		};
+			};
 
-		void loop();
+			void loop();
 
-		return () => {
-			active = false;
-		};
-	}, sourceOpts(rest));
+			return () => {
+				active = false;
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /** Options for {@link toPulsar}. */
@@ -3037,42 +3069,46 @@ export function fromNATS<T = unknown>(
 		...rest
 	} = opts ?? {};
 
-	return producer<NATSMessage<T>>((a) => {
-		let active = true;
-		const sub = client.subscribe(subject, queue ? { queue } : undefined);
+	return node<NATSMessage<T>>(
+		[],
+		(_data, a) => {
+			let active = true;
+			const sub = client.subscribe(subject, queue ? { queue } : undefined);
 
-		const loop = async () => {
-			try {
-				for await (const msg of sub) {
-					if (!active) return;
-					const headers: Record<string, string> = {};
-					if (msg.headers) {
-						for (const k of msg.headers.keys()) {
-							headers[k] = msg.headers.get(k);
+			const loop = async () => {
+				try {
+					for await (const msg of sub) {
+						if (!active) return;
+						const headers: Record<string, string> = {};
+						if (msg.headers) {
+							for (const k of msg.headers.keys()) {
+								headers[k] = msg.headers.get(k);
+							}
 						}
+						a.emit({
+							subject: msg.subject,
+							data: deserialize(msg.data) as T,
+							headers,
+							reply: msg.reply,
+							sid: msg.sid,
+							timestampNs: wallClockNs(),
+						});
 					}
-					a.emit({
-						subject: msg.subject,
-						data: deserialize(msg.data) as T,
-						headers,
-						reply: msg.reply,
-						sid: msg.sid,
-						timestampNs: wallClockNs(),
-					});
+					// Subscription closed (drain or unsubscribe) — complete.
+					if (active) a.down([[COMPLETE]]);
+				} catch (err) {
+					if (active) a.down([[ERROR, err]]);
 				}
-				// Subscription closed (drain or unsubscribe) — complete.
-				if (active) a.down([[COMPLETE]]);
-			} catch (err) {
-				if (active) a.down([[ERROR, err]]);
-			}
-		};
+			};
 
-		void loop();
+			void loop();
 
-		return () => {
-			active = false;
-		};
-	}, sourceOpts(rest));
+			return () => {
+				active = false;
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /** Options for {@link toNATS}. */
@@ -3236,94 +3272,98 @@ export function fromRabbitMQ<T = unknown>(
 		}
 	};
 
-	return producer<RabbitMQMessage<T> | AckableMessage<RabbitMQMessage<T>>>((a) => {
-		let active = true;
-		let consumerTag: string | undefined;
+	return node<RabbitMQMessage<T> | AckableMessage<RabbitMQMessage<T>>>(
+		[],
+		(_data, a) => {
+			let active = true;
+			let consumerTag: string | undefined;
 
-		const start = async () => {
-			try {
-				const result = await channel.consume(
-					queue,
-					(rawMsg) => {
-						if (!active) return;
-						if (rawMsg === null) {
-							// Broker cancelled the consumer (queue deleted, etc.).
-							if (active) a.down([[ERROR, new Error("Consumer cancelled by broker")]]);
-							return;
-						}
-						const structured: RabbitMQMessage<T> = {
-							queue,
-							routingKey: rawMsg.fields.routingKey,
-							exchange: rawMsg.fields.exchange,
-							content: deserialize(rawMsg.content) as T,
-							properties: rawMsg.properties,
-							deliveryTag: rawMsg.fields.deliveryTag,
-							redelivered: rawMsg.fields.redelivered,
-							timestampNs: wallClockNs(),
-						};
-						if (autoAck) {
-							a.emit(structured);
-							try {
-								channel.ack(rawMsg);
-							} catch (err) {
-								reportAckError(err);
+			const start = async () => {
+				try {
+					const result = await channel.consume(
+						queue,
+						(rawMsg) => {
+							if (!active) return;
+							if (rawMsg === null) {
+								// Broker cancelled the consumer (queue deleted, etc.).
+								if (active) a.down([[ERROR, new Error("Consumer cancelled by broker")]]);
+								return;
 							}
-						} else {
-							let settled = false;
-							const channelWithNack = channel as unknown as {
-								nack?: (msg: unknown, allUpTo?: boolean, requeue?: boolean) => void;
+							const structured: RabbitMQMessage<T> = {
+								queue,
+								routingKey: rawMsg.fields.routingKey,
+								exchange: rawMsg.fields.exchange,
+								content: deserialize(rawMsg.content) as T,
+								properties: rawMsg.properties,
+								deliveryTag: rawMsg.fields.deliveryTag,
+								redelivered: rawMsg.fields.redelivered,
+								timestampNs: wallClockNs(),
 							};
-							const envelope: AckableMessage<RabbitMQMessage<T>> = {
-								value: structured,
-								ack() {
-									if (settled) return;
-									settled = true;
-									try {
-										channel.ack(rawMsg);
-									} catch (err) {
-										reportAckError(err);
-									}
-								},
-								nack(nackOpts) {
-									if (settled) return;
-									settled = true;
-									// `requeue` passes through to SDK — `undefined` lets the
-									// SDK apply its own default (amqplib: true). Explicit
-									// `false` routes to DLX if configured.
-									const requeue = nackOpts?.requeue;
-									if (!channelWithNack.nack) {
-										reportAckError(
-											new Error("RabbitMQ channel does not expose `nack`; cannot negative-ack"),
-										);
-										return;
-									}
-									try {
-										channelWithNack.nack(rawMsg, false, requeue);
-									} catch (err) {
-										reportAckError(err);
-									}
-								},
-							};
-							a.emit(envelope);
-						}
-					},
-					{ noAck: false },
-				);
-				consumerTag = result.consumerTag;
-			} catch (err) {
-				if (active) a.down([[ERROR, err]]);
-			}
-		};
+							if (autoAck) {
+								a.emit(structured);
+								try {
+									channel.ack(rawMsg);
+								} catch (err) {
+									reportAckError(err);
+								}
+							} else {
+								let settled = false;
+								const channelWithNack = channel as unknown as {
+									nack?: (msg: unknown, allUpTo?: boolean, requeue?: boolean) => void;
+								};
+								const envelope: AckableMessage<RabbitMQMessage<T>> = {
+									value: structured,
+									ack() {
+										if (settled) return;
+										settled = true;
+										try {
+											channel.ack(rawMsg);
+										} catch (err) {
+											reportAckError(err);
+										}
+									},
+									nack(nackOpts) {
+										if (settled) return;
+										settled = true;
+										// `requeue` passes through to SDK — `undefined` lets the
+										// SDK apply its own default (amqplib: true). Explicit
+										// `false` routes to DLX if configured.
+										const requeue = nackOpts?.requeue;
+										if (!channelWithNack.nack) {
+											reportAckError(
+												new Error("RabbitMQ channel does not expose `nack`; cannot negative-ack"),
+											);
+											return;
+										}
+										try {
+											channelWithNack.nack(rawMsg, false, requeue);
+										} catch (err) {
+											reportAckError(err);
+										}
+									},
+								};
+								a.emit(envelope);
+							}
+						},
+						{ noAck: false },
+					);
+					consumerTag = result.consumerTag;
+				} catch (err) {
+					if (active) a.down([[ERROR, err]]);
+				}
+			};
 
-		void start();
+			void start();
 
-		return () => {
-			active = false;
-			if (consumerTag !== undefined) {
-				void channel.cancel(consumerTag);
-			}
-		};
-	}, sourceOpts(rest));
+			return () => {
+				active = false;
+				if (consumerTag !== undefined) {
+					void channel.cancel(consumerTag);
+				}
+			};
+		},
+		sourceOpts(rest),
+	);
 }
 
 /** Options for {@link toRabbitMQ}. */
@@ -4049,8 +4089,9 @@ export function fromSqlite<T = unknown>(
 ): Node<T[]> {
 	const { mapRow = (r: unknown) => r as T, params, ...rest } = opts ?? {};
 
-	return producer<T[]>(
-		(a) => {
+	return node<T[]>(
+		[],
+		(_data, a) => {
 			try {
 				const rows = db.query(query, params);
 				const mapped = rows.map(mapRow);
@@ -4089,8 +4130,9 @@ export function fromSqliteCursor<T = unknown>(
 	opts?: FromSqliteOptions<T>,
 ): Node<T> {
 	const { mapRow = (r: unknown) => r as T, params, ...rest } = opts ?? {};
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		[],
+		(_data, a) => {
 			try {
 				const it = db.iterate(query, params);
 				batch(() => {
@@ -4191,11 +4233,14 @@ export function toSqlite<T>(
 	// before invoking `sendBatch`, so we keep a bespoke transactional loop on
 	// top of the reactiveSink skeleton: custom `flush()` + local pending
 	// queue with re-queue semantics on BEGIN failure.
-	const errorsNode = state<SinkTransportError | null>(null);
-	const sentNode = state<T | undefined>(undefined, { equals: () => false }) as unknown as Node<T>;
-	const failedNode = state<SinkFailure<T> | null>(null);
-	const inFlightNode = state(0);
-	const bufferedNode = state(0);
+	const errorsNode = node<SinkTransportError | null>([], { initial: null });
+	const sentNode = node<T | undefined>([], {
+		initial: undefined,
+		equals: () => false,
+	}) as unknown as Node<T>;
+	const failedNode = node<SinkFailure<T> | null>([], { initial: null });
+	const inFlightNode = node<number>([], { initial: 0 });
+	const bufferedNode = node<number>([], { initial: 0 });
 
 	const reportError = (err: SinkTransportError) => {
 		try {
@@ -4414,8 +4459,9 @@ export function fromPrisma<T = unknown, U = T>(
 ): Node<U[]> {
 	const { args, mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
-	return producer<U[]>(
-		(a) => {
+	return node<U[]>(
+		[],
+		(_data, a) => {
 			let active = true;
 
 			void model
@@ -4490,8 +4536,9 @@ export function fromDrizzle<T = unknown, U = T>(
 ): Node<U[]> {
 	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
-	return producer<U[]>(
-		(a) => {
+	return node<U[]>(
+		[],
+		(_data, a) => {
 			let active = true;
 
 			void query
@@ -4565,8 +4612,9 @@ export function fromKysely<T = unknown, U = T>(
 ): Node<U[]> {
 	const { mapRow = (r: T) => r as unknown as U, ...rest } = opts ?? {};
 
-	return producer<U[]>(
-		(a) => {
+	return node<U[]>(
+		[],
+		(_data, a) => {
 			let active = true;
 
 			void query

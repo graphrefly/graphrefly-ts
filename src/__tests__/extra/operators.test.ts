@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { derived, producer, state } from "../../core/sugar.js";
+
 import {
 	audit,
 	bufferCount,
@@ -50,7 +50,7 @@ function tick(ms = 0): Promise<void> {
 describe("extra operators (Tier 1)", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3 — derived map forwards DATA through the protocol.
 	it("map doubles values for downstream subscribers", () => {
-		const s = state(1);
+		const s = node([], { initial: 1 });
 		const m = map(s, (n) => n * 2);
 		const { batches, unsub } = collect(m);
 		s.down([[DATA, 2]]);
@@ -60,7 +60,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — filter is a derived gate on settled values.
 	it("filter passes only values matching the predicate", () => {
-		const s = state(1);
+		const s = node([], { initial: 1 });
 		const f = filter(
 			map(s, (n) => n * 2),
 			(n) => n > 2,
@@ -73,7 +73,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §2.6 — tap observes without changing the stream shape.
 	it("tap runs side effects for each forwarded DATA", () => {
-		const s = state(1);
+		const s = node([], { initial: 1 });
 		const seen: number[] = [];
 		const t = tap(
 			filter(
@@ -93,7 +93,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — scan accumulates on each DATA/RESOLVED cycle.
 	it("scan folds successive DATA into an accumulator", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const sc = scan(s, (a, x) => a + (x as number), 0);
 		const { batches: bs } = collect(sc);
 		s.down([[DATA, 1]]);
@@ -104,7 +104,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — reduce emits once when upstream completes.
 	it("reduce emits aggregated DATA on upstream COMPLETE", () => {
-		const sR = state(0);
+		const sR = node([], { initial: 0 });
 		const r = reduce(sR, (a, x) => a + (x as number), 0);
 		const { batches: br } = collect(r);
 		sR.down([[DATA, 10]]);
@@ -141,7 +141,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — takeWhile completes when predicate fails.
 	it("takeWhile forwards DATA until predicate is false", () => {
-		const s = state(1);
+		const s = node([], { initial: 1 });
 		const tw = takeWhile(s, (n) => (n as number) < 3);
 		const { batches } = collect(tw);
 		// Push-on-subscribe delivers initial value 1 (passes predicate)
@@ -171,8 +171,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — takeUntil completes when notifier matches predicate.
 	it("takeUntil completes when notifier emits matching DATA", () => {
-		const s = state(0);
-		const stop = state(0);
+		const s = node([], { initial: 0 });
+		const stop = node([], { initial: 0 });
 		const tu = takeUntil(s, stop);
 		const { batches } = collect(tu);
 		s.down([[DATA, 1]]);
@@ -194,7 +194,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — pairwise needs two source emissions before first tuple.
 	it("pairwise emits a tuple of the last two DATA values", () => {
-		const s3 = state(0);
+		const s3 = node([], { initial: 0 });
 		const p = pairwise(s3);
 		const { batches: bp } = collect(p);
 		s3.down([[DATA, 1]]);
@@ -208,8 +208,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — combine is multi-dep derived (latest tuple).
 	it("combine reflects latest value from each source", () => {
-		const a = state(1);
-		const b = state(2);
+		const a = node([], { initial: 1 });
+		const b = node([], { initial: 2 });
 		const c = combine(a, b);
 		collect(c);
 		a.down([[DATA, 10]]);
@@ -218,8 +218,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — zip pairs DATA in lockstep.
 	it("zip emits when each source has produced a value", () => {
-		const x = state(1);
-		const y = state(2);
+		const x = node([], { initial: 1 });
+		const y = node([], { initial: 2 });
 		const z = zip(x, y);
 		const { batches: bz } = collect(z);
 		x.down([[DATA, 3]]);
@@ -229,8 +229,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — merge forwards any source DATA.
 	it("merge forwards DATA from the first source that emits", () => {
-		const m1 = state(1);
-		const m2 = state(2);
+		const m1 = node([], { initial: 1 });
+		const m2 = node([], { initial: 2 });
 		const mg = merge(m1, m2);
 		const { batches: bm } = collect(mg);
 		m1.down([[DATA, 5]]);
@@ -239,8 +239,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — merge completes only after all sources complete.
 	it("merge completes only after every source has completed", () => {
-		const e1 = state(0);
-		const e2 = state(0);
+		const e1 = node([], { initial: 0 });
+		const e2 = node([], { initial: 0 });
 		const mgc = merge(e1, e2);
 		const { batches: bmc } = collect(mgc);
 		e1.down([[COMPLETE]]);
@@ -251,8 +251,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — concat serializes sources after the first completes.
 	it("concat forwards second source only after the first completes", () => {
-		const f = state(1);
-		const sec = state(2);
+		const f = node([], { initial: 1 });
+		const sec = node([], { initial: 2 });
 		const co = concat(f, sec);
 		const { batches: bco } = collect(co);
 		f.down([[DATA, 7]]);
@@ -268,8 +268,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — race mirrors first winning DATA source.
 	it("race forwards DATA from whichever source wins", () => {
-		const r1 = state(1);
-		const r2 = state(2);
+		const r1 = node([], { initial: 1 });
+		const r2 = node([], { initial: 2 });
 		const rc = race(r1, r2);
 		const { batches: br } = collect(rc);
 		r1.down([[DATA, 11]]);
@@ -278,8 +278,17 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — derived with initial seeds before upstream DATA.
 	it("derived with initial emits seed before upstream DATA", () => {
-		const s = state(0);
-		const sw = derived([s as Node], ([v]) => v, { initial: -1 });
+		const s = node([], { initial: 0 });
+		const sw = node(
+			[s as Node],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", initial: -1 },
+		);
 		const { batches: bsw } = collect(sw);
 		s.down([[DATA, 0]]);
 		expect(
@@ -303,7 +312,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — find is filter + take(1).
 	it("find completes on first value matching the predicate", () => {
-		const s3 = state(0);
+		const s3 = node([], { initial: 0 });
 		const fd = find(s3, (n) => (n as number) >= 2);
 		const { batches: bfd } = collect(fd);
 		s3.down([[DATA, 1]]);
@@ -313,7 +322,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — last emits on upstream COMPLETE (or default).
 	it("last emits the final DATA when upstream completes", () => {
-		const s4 = state(0);
+		const s4 = node([], { initial: 0 });
 		const la = last(s4, { defaultValue: 99 });
 		const { batches: bla } = collect(la);
 		s4.down([[DATA, 42]]);
@@ -324,7 +333,7 @@ describe("extra operators (Tier 1)", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3 — withLatestFrom pairs primary with latest secondary.
 	it("withLatestFrom forwards primary with secondary snapshot", () => {
 		const p = node<number>();
-		const q = state(2);
+		const q = node([], { initial: 2 });
 		const w = withLatestFrom(p, q);
 		const { batches } = collect(w);
 		q.down([[DATA, 20]]);
@@ -351,7 +360,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.2 — diamond: phase-1 completes before phase-2 recompute.
 	it("map through diamond topology", () => {
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const left = map(src, (n) => (n as number) * 2);
 		const right = map(src, (n) => (n as number) + 10);
 		const combo = combine(left, right);
@@ -362,7 +371,7 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.5 — reduce aggregates until COMPLETE, then emits once.
 	it("reduce emits only on COMPLETE", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const r = reduce(s, (a, x) => a + (x as number), 0);
 		const { batches } = collect(r);
 		s.down([[DATA, 1]]);
@@ -379,8 +388,8 @@ describe("extra operators (Tier 1)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — concat may buffer second source until first completes.
 	it("concat buffers second-source DATA during phase 0", () => {
-		const a = state(0);
-		const b = state(0);
+		const a = node([], { initial: 0 });
+		const b = node([], { initial: 0 });
 		const co = concat(a, b);
 		const { batches } = collect(co);
 		b.down([[DATA, 50]]);
@@ -400,9 +409,9 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §2 — switchMap tears down previous inner subscription on new outer DATA.
 	it("switchMap unsubscribes prior inner", () => {
-		const src = state(0);
-		const innerA = state(100);
-		const innerB = state(200);
+		const src = node([], { initial: 0 });
+		const innerA = node([], { initial: 100 });
+		const innerB = node([], { initial: 200 });
 		const out = switchMap(src, (v) => ((v as number) === 0 ? innerA : innerB));
 		const { batches, unsub } = collect(out);
 		innerA.down([[DATA, 11]]);
@@ -423,8 +432,8 @@ describe("extra operators (Tier 2)", () => {
 	// fn+closure B pattern: source is a declared dep, so the dep-wave
 	// propagates DIRTY downstream. Drop emits RESOLVED to close the wave.
 	it("exhaustMap drops outer DATA while inner active", () => {
-		const src = state(0);
-		const inner = state(10);
+		const src = node([], { initial: 0 });
+		const inner = node([], { initial: 10 });
 		const out = exhaustMap(src, () => inner);
 		const { batches, unsub } = collect(out);
 		src.down([[DATA, 1]]);
@@ -443,9 +452,9 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §2 — concatMap waits for inner COMPLETE before next outer value.
 	it("concatMap runs inners sequentially", () => {
-		const src = state(0);
-		const a = state(100);
-		const b = state(200);
+		const src = node([], { initial: 0 });
+		const a = node([], { initial: 100 });
+		const b = node([], { initial: 200 });
 		let wave = 0;
 		const out = concatMap(src, () => {
 			wave += 1;
@@ -474,9 +483,9 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §2 — mergeMap multiplexes concurrent inner subscriptions.
 	it("mergeMap keeps multiple inners active", () => {
-		const src = state(0);
-		const inner1 = state(1);
-		const inner2 = state(2);
+		const src = node([], { initial: 0 });
+		const inner1 = node([], { initial: 1 });
+		const inner2 = node([], { initial: 2 });
 		let pick = 0;
 		const out = mergeMap(src, () => {
 			pick += 1;
@@ -503,7 +512,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: roadmap §3.1b — higher-order projects accept scalar via fromAny coercion.
 	it("switchMap coerces scalar project returns", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const out = switchMap(src, (v) => (v as number) + 100);
 		const { batches, unsub } = collect(out);
 		src.down([[DATA, 2]]);
@@ -517,7 +526,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: roadmap §3.1b — higher-order projects accept PromiseLike via fromAny coercion.
 	it("switchMap coerces Promise project returns", async () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const out = switchMap(src, (v) => Promise.resolve((v as number) + 5));
 		const { batches, unsub } = collect(out);
 		src.down([[DATA, 3]]);
@@ -532,8 +541,8 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: parity 3.1 — forwardInner emits current settled inner value on attach.
 	it("switchMap forwards settled inner current value immediately", () => {
-		const src = state(1);
-		const out = switchMap(src, (v) => state((v as number) * 10));
+		const src = node([], { initial: 1 });
+		const out = switchMap(src, (v) => node([], { initial: (v as number) * 10 }));
 		const { batches, unsub } = collect(out);
 		const dataVals = batches
 			.flat()
@@ -562,9 +571,13 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: roadmap §3.1b — higher-order projects accept Iterable via fromAny coercion.
 	it("concatMap coerces iterable project returns", () => {
-		const src = producer<number>((a) => {
-			a.down([[DATA, 4], [COMPLETE]]);
-		});
+		const src = node<number>(
+			[],
+			(_data, a) => {
+				a.down([[DATA, 4], [COMPLETE]]);
+			},
+			{ describeKind: "producer" },
+		);
 		const out = concatMap(src, (v) => [v * 2, v * 3]);
 		const { batches, unsub } = collect(out);
 		const dataVals = batches
@@ -577,7 +590,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: roadmap §3.1b — higher-order projects accept AsyncIterable via fromAny coercion.
 	it("mergeMap coerces async iterable project returns", async () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const out = mergeMap(src, async function* (v: number) {
 			yield v + 1;
 			yield v + 2;
@@ -597,7 +610,7 @@ describe("extra operators (Tier 2)", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3 — debounce delays phase-2 until quiet window (timers).
 	it("debounce emits once after quiet window (fake timers)", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const out = debounce(s, 50);
 		const { batches, unsub } = collect(out);
 		s.down([[DATA, 1]]);
@@ -642,7 +655,7 @@ describe("extra operators (Tier 2)", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3.4 — timeout emits ERROR when no DATA resets the timer.
 	it("timeout errors when idle (fake timers)", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const out = timeout(s, 30);
 		const { batches, unsub } = collect(out);
 		vi.advanceTimersByTime(30);
@@ -677,7 +690,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — bufferCount emits fixed-size arrays of DATA.
 	it("bufferCount batches DATA", () => {
-		const s = state(1);
+		const s = node([], { initial: 1 });
 		const out = bufferCount(s, 2);
 		const { batches, unsub } = collect(out);
 		s.down([[DATA, 2]]);
@@ -706,12 +719,16 @@ describe("extra operators (Tier 2)", () => {
 	// Regression: SESSION-tier2-parity-nonlocal-forward-inner — rescue wrapped around a higher-order
 	// operator must recover inner ERROR as DATA and avoid leaking terminal ERROR downstream.
 	it("rescue recovers ERROR from switchMap inner source", () => {
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const out = rescue(
 			switchMap(src, () =>
-				producer<number>((a) => {
-					a.down([[ERROR, new Error("inner")], [COMPLETE]]);
-				}),
+				node<number>(
+					[],
+					(_data, a) => {
+						a.down([[ERROR, new Error("inner")], [COMPLETE]]);
+					},
+					{ describeKind: "producer" },
+				),
 			),
 			() => 123,
 		);
@@ -724,7 +741,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.3.4 — rescue recovery failure propagates ERROR.
 	it("rescue forwards ERROR when recover throws", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const boom = new Error("recover");
 		const out = rescue(s, () => {
 			throw boom;
@@ -738,7 +755,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §1.2 — PAUSE buffers; RESUME flushes pending protocol messages.
 	it("pausable buffers then flushes on RESUME", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const out = pausable(s);
 		const { batches, unsub } = collect(out);
 		const lock = Symbol("test-lock");
@@ -766,7 +783,7 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: GRAPHREFLY-SPEC §2 — repeat resubscribes to source for N terminal rounds.
 	it("repeat completes after N rounds", () => {
-		const s = state(1, { resubscribable: true });
+		const s = node([], { resubscribable: true, initial: 1 });
 		const out = repeat(s, 2);
 		const { batches, unsub } = collect(out);
 		s.down([[COMPLETE]]);
@@ -778,7 +795,7 @@ describe("extra operators (Tier 2)", () => {
 	// Regression: GRAPHREFLY-SPEC §1.3 — audit samples latest after window (trailing edge).
 	it("audit emits trailing-only after timer (fake timers)", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const out = audit(s, 100);
 		const { batches, unsub } = collect(out);
 		s.down([[DATA, 1]]);
@@ -794,13 +811,13 @@ describe("extra operators (Tier 2)", () => {
 
 	// Regression: operator validates repeat count > 0.
 	it("repeat throws on count <= 0", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		expect(() => repeat(s, 0)).toThrow(RangeError);
 	});
 
 	// Regression: operator validates bufferCount count > 0.
 	it("bufferCount throws on count <= 0", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		expect(() => bufferCount(s, 0)).toThrow(RangeError);
 	});
 });
@@ -812,7 +829,7 @@ describe("extra operators (Tier 2)", () => {
 describe("Tier 1 operator matrix — map", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const m = map(src, (x) => (x as number) * 2);
 		const types: symbol[] = [];
 		const unsub = m.subscribe((msgs) => {
@@ -829,7 +846,7 @@ describe("Tier 1 operator matrix — map", () => {
 
 	it("RESOLVED suppression: same-value upstream emits RESOLVED, fn does not rerun", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.3
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		let fnRuns = 0;
 		const m = map(src, (x) => {
 			fnRuns += 1;
@@ -848,7 +865,7 @@ describe("Tier 1 operator matrix — map", () => {
 			void msgs;
 		});
 		unsub2();
-		const src2 = state(1);
+		const src2 = node([], { initial: 1 });
 		const m2 = map(src2, (x) => {
 			return (x as number) > 0 ? "pos" : "neg";
 		});
@@ -866,7 +883,7 @@ describe("Tier 1 operator matrix — map", () => {
 
 	it("ERROR propagation: upstream ERROR flows through map", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const m = map(src, (x) => x);
 		const types: symbol[] = [];
 		const unsub = m.subscribe((msgs) => {
@@ -880,7 +897,7 @@ describe("Tier 1 operator matrix — map", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through map", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const m = map(src, (x) => x);
 		const types: symbol[] = [];
 		const unsub = m.subscribe((msgs) => {
@@ -892,7 +909,7 @@ describe("Tier 1 operator matrix — map", () => {
 	});
 
 	it("reconnect after teardown: resubscribe receives fresh values", () => {
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const m = map(src, (x) => (x as number) * 2);
 		const unsub1 = m.subscribe(() => undefined);
 		unsub1();
@@ -911,7 +928,7 @@ describe("Tier 1 operator matrix — map", () => {
 describe("Tier 1 operator matrix — filter", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const f = filter(src, (x) => (x as number) > 0);
 		const types: symbol[] = [];
 		const unsub = f.subscribe((msgs) => {
@@ -928,7 +945,7 @@ describe("Tier 1 operator matrix — filter", () => {
 
 	it("RESOLVED suppression: filtered-out value emits RESOLVED not DATA", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.3
-		const src = state(5);
+		const src = node([], { initial: 5 });
 		const f = filter(src, (x) => (x as number) > 10);
 		const types: symbol[] = [];
 		const unsub = f.subscribe((msgs) => {
@@ -943,7 +960,7 @@ describe("Tier 1 operator matrix — filter", () => {
 
 	it("ERROR propagation: upstream ERROR flows through filter", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const f = filter(src, (x) => (x as number) > 0);
 		const types: symbol[] = [];
 		const unsub = f.subscribe((msgs) => {
@@ -956,7 +973,7 @@ describe("Tier 1 operator matrix — filter", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through filter", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const f = filter(src, (x) => (x as number) > 0);
 		const types: symbol[] = [];
 		const unsub = f.subscribe((msgs) => {
@@ -968,7 +985,7 @@ describe("Tier 1 operator matrix — filter", () => {
 	});
 
 	it("reconnect after teardown: resubscribe receives fresh values", () => {
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const f = filter(src, (x) => (x as number) > 0);
 		const unsub1 = f.subscribe(() => undefined);
 		unsub1();
@@ -987,7 +1004,7 @@ describe("Tier 1 operator matrix — filter", () => {
 describe("Tier 1 operator matrix — scan", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sc = scan(src, (a, x) => a + (x as number), 0);
 		const types: symbol[] = [];
 		const unsub = sc.subscribe((msgs) => {
@@ -1004,7 +1021,7 @@ describe("Tier 1 operator matrix — scan", () => {
 
 	it("ERROR propagation: upstream ERROR flows through scan", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sc = scan(src, (a, x) => a + (x as number), 0);
 		const types: symbol[] = [];
 		const unsub = sc.subscribe((msgs) => {
@@ -1017,7 +1034,7 @@ describe("Tier 1 operator matrix — scan", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through scan", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sc = scan(src, (a, x) => a + (x as number), 0);
 		const types: symbol[] = [];
 		const unsub = sc.subscribe((msgs) => {
@@ -1029,7 +1046,7 @@ describe("Tier 1 operator matrix — scan", () => {
 	});
 
 	it("reconnect after teardown: resubscribe accumulates fresh", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sc = scan(src, (a, x) => a + (x as number), 0);
 		const unsub1 = sc.subscribe(() => undefined);
 		src.down([[DATA, 5]]);
@@ -1050,7 +1067,7 @@ describe("Tier 1 operator matrix — scan", () => {
 describe("Tier 1 operator matrix — take", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const t = take(src, 5);
 		const types: symbol[] = [];
 		const unsub = t.subscribe((msgs) => {
@@ -1067,7 +1084,7 @@ describe("Tier 1 operator matrix — take", () => {
 
 	it("RESOLVED suppression: upstream RESOLVED flows as RESOLVED (no DATA)", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.3
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const t = take(src, 5);
 		// Push same value twice via a derived with equals
 		const derived2 = map(src, (x) => ((x as number) > 0 ? "pos" : "neg"));
@@ -1086,7 +1103,7 @@ describe("Tier 1 operator matrix — take", () => {
 
 	it("ERROR propagation: upstream ERROR flows through take", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const t = take(src, 5);
 		const types: symbol[] = [];
 		const unsub = t.subscribe((msgs) => {
@@ -1099,7 +1116,7 @@ describe("Tier 1 operator matrix — take", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through take", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const t = take(src, 5);
 		const types: symbol[] = [];
 		const unsub = t.subscribe((msgs) => {
@@ -1131,7 +1148,7 @@ describe("Tier 1 operator matrix — take", () => {
 describe("Tier 1 operator matrix — takeWhile", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const tw = takeWhile(src, (x) => (x as number) < 100);
 		const types: symbol[] = [];
 		const unsub = tw.subscribe((msgs) => {
@@ -1148,7 +1165,7 @@ describe("Tier 1 operator matrix — takeWhile", () => {
 
 	it("ERROR propagation: upstream ERROR flows through takeWhile", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const tw = takeWhile(src, (x) => (x as number) < 100);
 		const types: symbol[] = [];
 		const unsub = tw.subscribe((msgs) => {
@@ -1165,7 +1182,7 @@ describe("Tier 1 operator matrix — takeWhile", () => {
 		// COMPLETE from upstream while predicate is still passing is intentionally not forwarded
 		// because the stream is still live. Only when the predicate gate closes does upstream
 		// COMPLETE propagate.
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const tw = takeWhile(src, (x) => (x as number) < 3);
 		const types: symbol[] = [];
 		const unsub = tw.subscribe((msgs) => {
@@ -1180,7 +1197,7 @@ describe("Tier 1 operator matrix — takeWhile", () => {
 	});
 
 	it("reconnect after teardown: resubscribe receives fresh values", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const tw = takeWhile(src, (x) => (x as number) < 100);
 		const unsub1 = tw.subscribe(() => undefined);
 		unsub1();
@@ -1199,7 +1216,7 @@ describe("Tier 1 operator matrix — takeWhile", () => {
 describe("Tier 1 operator matrix — skip", () => {
 	it("DIRTY arrives before DATA at subscriber (after skip threshold)", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sk = skip(src, 0);
 		const types: symbol[] = [];
 		const unsub = sk.subscribe((msgs) => {
@@ -1216,7 +1233,7 @@ describe("Tier 1 operator matrix — skip", () => {
 
 	it("ERROR propagation: upstream ERROR flows through skip", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sk = skip(src, 0);
 		const types: symbol[] = [];
 		const unsub = sk.subscribe((msgs) => {
@@ -1229,7 +1246,7 @@ describe("Tier 1 operator matrix — skip", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through skip", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sk = skip(src, 0);
 		const types: symbol[] = [];
 		const unsub = sk.subscribe((msgs) => {
@@ -1241,7 +1258,7 @@ describe("Tier 1 operator matrix — skip", () => {
 	});
 
 	it("reconnect after teardown: resubscribe receives fresh values", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const sk = skip(src, 0);
 		const unsub1 = sk.subscribe(() => undefined);
 		unsub1();
@@ -1260,7 +1277,7 @@ describe("Tier 1 operator matrix — skip", () => {
 describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const d = distinctUntilChanged(src);
 		const types: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
@@ -1277,7 +1294,7 @@ describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 
 	it("RESOLVED suppression: duplicate value emits RESOLVED not DATA", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.3
-		const src = state(5);
+		const src = node([], { initial: 5 });
 		const d = distinctUntilChanged(src);
 		const types: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
@@ -1292,7 +1309,7 @@ describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 
 	it("ERROR propagation: upstream ERROR flows through distinctUntilChanged", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const d = distinctUntilChanged(src);
 		const types: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
@@ -1305,7 +1322,7 @@ describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through distinctUntilChanged", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const d = distinctUntilChanged(src);
 		const types: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
@@ -1317,7 +1334,7 @@ describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 	});
 
 	it("reconnect after teardown: resubscribe receives fresh values", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const d = distinctUntilChanged(src);
 		const unsub1 = d.subscribe(() => undefined);
 		unsub1();
@@ -1336,7 +1353,7 @@ describe("Tier 1 operator matrix — distinctUntilChanged", () => {
 describe("Tier 1 operator matrix — pairwise", () => {
 	it("DIRTY arrives before DATA at subscriber", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.1
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const p = pairwise(src);
 		const types: symbol[] = [];
 		const unsub = p.subscribe((msgs) => {
@@ -1355,7 +1372,7 @@ describe("Tier 1 operator matrix — pairwise", () => {
 
 	it("ERROR propagation: upstream ERROR flows through pairwise", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const p = pairwise(src);
 		const types: symbol[] = [];
 		const unsub = p.subscribe((msgs) => {
@@ -1368,7 +1385,7 @@ describe("Tier 1 operator matrix — pairwise", () => {
 
 	it("COMPLETE propagation: upstream COMPLETE flows through pairwise", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const p = pairwise(src);
 		const types: symbol[] = [];
 		const unsub = p.subscribe((msgs) => {
@@ -1380,7 +1397,7 @@ describe("Tier 1 operator matrix — pairwise", () => {
 	});
 
 	it("reconnect after teardown: resubscribe gets fresh pair on two pushes", () => {
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const p = pairwise(src);
 		const unsub1 = p.subscribe(() => undefined);
 		src.down([[DATA, 1]]);
@@ -1402,7 +1419,7 @@ describe("Tier 1 operator matrix — pairwise", () => {
 describe("Tier 1 operator matrix — reduce", () => {
 	it("ERROR propagation: upstream ERROR flows through reduce", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3.4
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const r = reduce(src, (a, x) => a + (x as number), 0);
 		const types: symbol[] = [];
 		const unsub = r.subscribe((msgs) => {
@@ -1416,7 +1433,7 @@ describe("Tier 1 operator matrix — reduce", () => {
 	it("reconnect after teardown: resubscribe emits on COMPLETE (accumulated value)", () => {
 		// reduce is stateful across subscriptions unless resubscribable:true is set.
 		// After teardown and re-subscribe, it still emits on upstream COMPLETE.
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const r = reduce(src, (a, x) => a + (x as number), 0);
 		const unsub1 = r.subscribe(() => undefined);
 		unsub1();
@@ -1445,11 +1462,11 @@ describe("Tier 2 teardown and reconnect freshness — switchMap", () => {
 
 	it("after teardown, resubscribe creates a new inner subscription (old state not retained)", () => {
 		// Spec: GRAPHREFLY-SPEC §2
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		let innerCallCount = 0;
 		const out = switchMap(src, (v) => {
 			innerCallCount += 1;
-			return state((v as number) * 10);
+			return node([], { initial: (v as number) * 10 });
 		});
 		const unsub1 = out.subscribe(() => undefined);
 		const firstCount = innerCallCount;
@@ -1476,7 +1493,7 @@ describe("Tier 2 teardown and reconnect freshness — debounce", () => {
 	it("after teardown, timers are cleared — no stale emissions after unsubscribe + timer advance", () => {
 		// Spec: GRAPHREFLY-SPEC §1.3
 		vi.useFakeTimers();
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const out = debounce(src, 50);
 		const staleValues: number[] = [];
 		const unsub = out.subscribe((msgs) => {
@@ -1503,11 +1520,11 @@ describe("Tier 2 teardown and reconnect freshness — concatMap", () => {
 		// Spec: GRAPHREFLY-SPEC §2
 		// Verify that after teardown and resubscribe, the concatMap processes
 		// new outer values fresh (no stale buffered items leak across subscriptions).
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		let wave = 0;
 		const out = concatMap(src, (v) => {
 			wave += 1;
-			return state((v as number) * 100);
+			return node([], { initial: (v as number) * 100 });
 		});
 		const unsub1 = out.subscribe(() => undefined);
 		src.down([[DATA, 1]]);
@@ -1537,7 +1554,7 @@ describe("diamond resolution through operator chain", () => {
 		// Spec: GRAPHREFLY-SPEC §2 (diamond resolution)
 		// A and B both depend on src; combine waits for both to settle before recomputing.
 		// Exactly one DATA message should reach the combine subscriber per src push.
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const a = map(src, (x) => x);
 		const b = map(src, (x) => x);
 		const c = combine(a, b);
@@ -1566,7 +1583,7 @@ describe("SENTINEL dep safety (D8 fallback)", () => {
 		let projectCalls = 0;
 		const out = switchMap(trigger, (_v) => {
 			projectCalls++;
-			return state("inner");
+			return node([], { initial: "inner" });
 		});
 		const { messages, unsub } = collect(out, { flat: true });
 		expect(projectCalls).toBe(0);
@@ -1582,7 +1599,7 @@ describe("SENTINEL dep safety (D8 fallback)", () => {
 		let projectCalls = 0;
 		const out = exhaustMap(trigger, (_v) => {
 			projectCalls++;
-			return state("inner");
+			return node([], { initial: "inner" });
 		});
 		const { unsub } = collect(out, { flat: true });
 		expect(projectCalls).toBe(0);
@@ -1596,7 +1613,7 @@ describe("SENTINEL dep safety (D8 fallback)", () => {
 		let projectCalls = 0;
 		const out = concatMap(trigger, (_v) => {
 			projectCalls++;
-			return state("inner");
+			return node([], { initial: "inner" });
 		});
 		const { unsub } = collect(out, { flat: true });
 		expect(projectCalls).toBe(0);
@@ -1610,7 +1627,7 @@ describe("SENTINEL dep safety (D8 fallback)", () => {
 		let projectCalls = 0;
 		const out = mergeMap(trigger, (_v) => {
 			projectCalls++;
-			return state("inner");
+			return node([], { initial: "inner" });
 		});
 		const { unsub } = collect(out, { flat: true });
 		expect(projectCalls).toBe(0);
@@ -1681,7 +1698,7 @@ describe("withLatestFrom — secondary dep semantics", () => {
 
 	it("secondary updates, then primary fires — pairs with latest secondary value", () => {
 		const primary = node<number>();
-		const secondary = state(10);
+		const secondary = node([], { initial: 10 });
 		const w = withLatestFrom(primary, secondary);
 		const { messages, unsub } = collect(w, { flat: true });
 		secondary.down([[DATA, 20]]);
@@ -1696,7 +1713,7 @@ describe("withLatestFrom — secondary dep semantics", () => {
 		// withLatestFrom does not complete. ctx.prevData[1] retains the
 		// last secondary value for future primary emissions.
 		const primary = node<number>();
-		const secondary = state(10);
+		const secondary = node([], { initial: 10 });
 		const w = withLatestFrom(primary, secondary);
 		const { messages, unsub } = collect(w, { flat: true });
 		secondary.down([[COMPLETE]]);
@@ -1711,8 +1728,8 @@ describe("withLatestFrom — secondary dep semantics", () => {
 		// Both deps must be settled (sentinelDepCount=0) for _maybeAutoTerminalAfterWave
 		// to fire. A sentinel primary blocks terminal propagation from secondary — see
 		// "withLatestFrom sentinel gate swallows secondary ERROR" in docs/optimizations.md.
-		const primary = state(1);
-		const secondary = state(10);
+		const primary = node([], { initial: 1 });
+		const secondary = node([], { initial: 10 });
 		const w = withLatestFrom(primary, secondary);
 		const { messages, unsub } = collect(w, { flat: true });
 		secondary.down([[ERROR, new Error("secondary failed")]]);

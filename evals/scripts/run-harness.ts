@@ -55,8 +55,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { DATA } from "../../src/core/messages.js";
-import type { Node } from "../../src/core/node.js";
-import { state } from "../../src/core/sugar.js";
+import { type Node, node } from "../../src/core/node.js";
 import { fileStorage } from "../../src/extra/storage-node.js";
 import type { GraphPersistSnapshot } from "../../src/graph/graph.js";
 import { agentMemory } from "../../src/patterns/ai/index.js";
@@ -528,7 +527,7 @@ async function main() {
 	}
 
 	// --- Wire eval bridge ---
-	const evalSource = state<EvalResult | null>(null);
+	const evalSource = node<EvalResult | null>([], { initial: null });
 	const bridge = evalIntakeBridge(evalSource as Node<EvalResult | EvalResult[]>, harness.intake);
 	bridge.subscribe(() => {}); // keepalive
 

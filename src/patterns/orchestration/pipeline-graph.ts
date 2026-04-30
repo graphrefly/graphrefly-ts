@@ -21,7 +21,6 @@ import type { NodeActions } from "../../core/config.js";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { placeholderArgs } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
-import { type DerivedFn, derived, state } from "../../core/sugar.js";
 import { domainMeta } from "../../extra/meta.js";
 import { type BaseAuditRecord, createAuditLog, wrapMutation } from "../../extra/mutation/index.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
@@ -140,20 +139,33 @@ export class PipelineGraph extends Graph {
 	// -- task -----------------------------------------------------------------
 
 	/**
-	 * Register a workflow task (`derived` + auto-add). String deps resolve via
+	 * Register a workflow task (`node` + auto-add). String deps resolve via
 	 * `this.resolve(path)`; Node deps via {@link Graph.nameOf} O(1) lookup.
+	 *
+	 * `run` receives `(data: readonly unknown[], ctx)` — the snapshot of latest
+	 * values per dep (same shape as the old `DerivedFn` sugar).
 	 */
 	task<T>(
 		name: string,
-		run: DerivedFn<T>,
+		run: (data: readonly unknown[], ctx: { prevData: readonly unknown[] }) => T | undefined | null,
 		opts: { deps?: ReadonlyArray<StepRef>; meta?: Record<string, unknown> } = {},
 	): Node<T> {
 		const deps = (opts.deps ?? []).map((d) => this._resolveStep(d));
-		const step = derived<T>(deps, run, {
-			name,
-			describeKind: "derived",
-			meta: meta("task", opts.meta),
-		} as NodeOptions<T>);
+		const step = node<T>(
+			deps,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const result = run(data, ctx);
+				if (result !== undefined && result !== null) actions.emit(result);
+			},
+			{
+				name,
+				describeKind: "derived",
+				meta: meta("task", opts.meta),
+			} as NodeOptions<T>,
+		);
 		this.add(step, { name });
 		return step;
 	}
@@ -167,13 +179,17 @@ export class PipelineGraph extends Graph {
 		opts: { meta?: Record<string, unknown> } = {},
 	): Node<ClassifyResult<TTag, T>> {
 		const src = this._resolveStep(source);
-		const step = derived<ClassifyResult<TTag, T>>(
+		const step = node<ClassifyResult<TTag, T>>(
 			[src],
-			([value]) => {
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const value = data[0];
 				try {
-					return { tag: tagger(value as T), value: value as T };
+					actions.emit({ tag: tagger(value as T), value: value as T });
 				} catch (error) {
-					return { tag: "error" as const, value: value as T, error };
+					actions.emit({ tag: "error" as const, value: value as T, error });
 				}
 			},
 			{
@@ -195,14 +211,17 @@ export class PipelineGraph extends Graph {
 	): Node<{ [K in keyof R]: unknown }> {
 		const keys = Object.keys(deps) as Array<keyof R & string>;
 		const nodes = keys.map((k) => this._resolveStep(deps[k] as StepRef));
-		const step = derived<{ [K in keyof R]: unknown }>(
+		const step = node<{ [K in keyof R]: unknown }>(
 			nodes,
-			(values) => {
+			(batchData, actions, ctx) => {
+				const values = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const out = {} as { [K in keyof R]: unknown };
 				for (let i = 0; i < keys.length; i++) {
 					(out as Record<string, unknown>)[keys[i] as string] = values[i];
 				}
-				return out;
+				actions.emit(out);
 			},
 			{
 				name,
@@ -231,12 +250,23 @@ export class PipelineGraph extends Graph {
 
 		// State subgraph
 		const internal = new Graph(`${name}_state`);
-		const pendingNode = state<readonly T[]>([], { name: "pending", equals: () => false });
-		const isOpenNode = state<boolean>(startOpen, { name: "isOpen" });
-		const countNode = derived<number>([pendingNode], ([arr]) => (arr as readonly T[]).length, {
-			name: "count",
+		const pendingNode = node<readonly T[]>([], {
+			name: "pending",
+			initial: [],
+			equals: () => false,
 		});
-		const droppedCountNode = state<number>(0, { name: "droppedCount" });
+		const isOpenNode = node<boolean>([], { name: "isOpen", initial: startOpen });
+		const countNode = node<number>(
+			[pendingNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly T[]).length);
+			},
+			{ name: "count", describeKind: "derived" },
+		);
+		const droppedCountNode = node<number>([], { name: "droppedCount", initial: 0 });
 		const decisions = createAuditLog<Decision<T>>({
 			name: "decisions",
 			retainedLimit: 1024,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { factoryTag } from "../../../core/meta.js";
-import { derived } from "../../../core/sugar.js";
+import { node } from "../../../core/node.js";
+
 import { memoryKv } from "../../../extra/storage-tiers.js";
 import { Graph } from "../../../graph/graph.js";
 import type { GraphSpec, GraphSpecCatalog } from "../../../patterns/graphspec/index.js";
@@ -18,9 +19,39 @@ import {
 /** Shared catalog for surface tests. Mirrors the style in graphspec tests. */
 const catalog: GraphSpecCatalog = {
 	fns: {
-		double: (deps) => derived(deps, ([v]) => (v as number) * 2),
-		addOne: (deps) => derived(deps, ([v]) => (v as number) + 1),
-		identity: (deps) => derived(deps, ([v]) => v),
+		double: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) * 2);
+				},
+				{ describeKind: "derived" },
+			),
+		addOne: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as number) + 1);
+				},
+				{ describeKind: "derived" },
+			),
+		identity: (deps) =>
+			node(
+				deps,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived" },
+			),
 	},
 };
 
@@ -123,8 +154,28 @@ describe("surface.runReduction", () => {
 		// must return the cache rather than timeout.
 		const alwaysOne: GraphSpecCatalog = {
 			fns: {
-				double: (deps) => derived(deps, ([v]) => (v as number) * 2),
-				constOne: (deps) => derived(deps, () => 1),
+				double: (deps) =>
+					node(
+						deps,
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit((data[0] as number) * 2);
+						},
+						{ describeKind: "derived" },
+					),
+				constOne: (deps) =>
+					node(
+						deps,
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit(1);
+						},
+						{ describeKind: "derived" },
+					),
 			},
 		};
 		const spec: GraphSpec = {
@@ -193,12 +244,23 @@ describe("surface.snapshot", () => {
 			factories: {
 				"**": (_name, ctx) => {
 					seen.push(ctx.path);
-					return derived(ctx.resolvedDeps, ([v]) =>
-						ctx.path === "doubled"
-							? (v as number) * 2
-							: ctx.path === "output"
-								? (v as number) + 1
-								: v,
+					const nodePath = ctx.path;
+					return node(
+						ctx.resolvedDeps,
+						(batchData, actions, fnCtx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : fnCtx.prevData[i],
+							);
+							const v = data[0];
+							const result =
+								nodePath === "doubled"
+									? (v as number) * 2
+									: nodePath === "output"
+										? (v as number) + 1
+										: v;
+							actions.emit(result);
+						},
+						{ describeKind: "derived" },
 					);
 				},
 			},

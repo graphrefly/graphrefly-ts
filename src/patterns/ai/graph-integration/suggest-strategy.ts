@@ -5,7 +5,8 @@
 import type { Actor } from "../../../core/actor.js";
 import { COMPLETE, ERROR } from "../../../core/messages.js";
 import type { Node } from "../../../core/node.js";
-import { producer, state } from "../../../core/sugar.js";
+import { node } from "../../../core/node.js";
+
 import { switchMap, withLatestFrom } from "../../../extra/operators.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
@@ -175,10 +176,10 @@ export function suggestStrategyReactive(
 	// graph-edit-feedback loop to suggestStrategy when callers apply ops.
 	const paired = withLatestFrom(problemNode as Node<unknown>, graph as Node<unknown>);
 	return switchMap<unknown, StrategyPlan | null>(paired, (pair) => {
-		if (pair == null) return state<StrategyPlan | null>(null);
+		if (pair == null) return node<StrategyPlan | null>([], { initial: null });
 		const [pText, g] = pair as [string | null, Graph | null];
 		if (!g || !pText || typeof pText !== "string" || pText.trim().length === 0) {
-			return state<StrategyPlan | null>(null);
+			return node<StrategyPlan | null>([], { initial: null });
 		}
 		// QA-fix: skip rather than ERROR if the sampled Graph was destroyed
 		// between the `withLatestFrom` sample and this project fn. Common when
@@ -186,9 +187,9 @@ export function suggestStrategyReactive(
 		// than `suggestStrategy` resolves; the supersede was the user's intent,
 		// so emitting null here matches "input not ready" semantics rather
 		// than surfacing a spurious ERROR on the StrategyPlan stream.
-		if (g.destroyed) return state<StrategyPlan | null>(null);
-		return producer<StrategyPlan | null>(
-			(actions) => {
+		if (g.destroyed) return node<StrategyPlan | null>([], { initial: null });
+		return node<StrategyPlan | null>(
+			(_data, actions) => {
 				const controller = new AbortController();
 				let cancelled = false;
 				suggestStrategy(g, pText, adapter, { ...opts, signal: controller.signal })
@@ -206,7 +207,7 @@ export function suggestStrategyReactive(
 					controller.abort();
 				};
 			},
-			{ name: "suggestStrategy::call" },
+			{ describeKind: "producer", ...{ name: "suggestStrategy::call" } },
 		);
 	});
 }

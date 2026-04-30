@@ -5,10 +5,12 @@
  * LRU under concurrent reads, diamond topology, TTL precision,
  * maxSize=1, subscriber-during-batch, and empty-map no-ops.
  */
+
 import { describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, DIRTY } from "../../core/messages.js";
-import { derived } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { combine } from "../../extra/operators.js";
 import { type MapBackend, NativeMapBackend, reactiveMap } from "../../extra/reactive-map.js";
 import { collect } from "../test-helpers.js";
@@ -157,21 +159,27 @@ describe("reactiveMap stress tests", () => {
 		m.set("x", 10);
 
 		// Two derived nodes from the same entries source
-		const left = derived(
+		const left = node(
 			[m.entries],
-			([snap]) => {
-				const s = snap as ReadonlyMap<string, number>;
-				return s.get("x") ?? 0;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const s = data[0] as ReadonlyMap<string, number>;
+				actions.emit(s.get("x") ?? 0);
 			},
-			{ initial: 10 },
+			{ describeKind: "derived", initial: 10 },
 		);
-		const right = derived(
+		const right = node(
 			[m.entries],
-			([snap]) => {
-				const s = snap as ReadonlyMap<string, number>;
-				return (s.get("x") ?? 0) * 2;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const s = data[0] as ReadonlyMap<string, number>;
+				actions.emit((s.get("x") ?? 0) * 2);
 			},
-			{ initial: 20 },
+			{ describeKind: "derived", initial: 20 },
 		);
 
 		// Combine — should never see inconsistent (left, right) pair

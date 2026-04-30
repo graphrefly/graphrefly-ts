@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import {
 	type DemoShellHandle,
@@ -151,9 +152,18 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/mermaid");
 
 		const demo = new Graph("test-demo");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		demo.add(a, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		demo.add(b, { name: "b" });
 
 		shell.setDemoGraph(demo);
@@ -169,12 +179,12 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/mermaid");
 
 		const demo = new Graph("test-demo");
-		demo.add(state(1, { name: "x" }), { name: "x" });
+		demo.add(node([], { name: "x", initial: 1 }), { name: "x" });
 		shell.setDemoGraph(demo);
 		const before = shell.graph.node("graph/mermaid").cache as string;
 		expect(before).toContain("x");
 
-		demo.add(state(2, { name: "y" }), { name: "y" });
+		demo.add(node([], { name: "y", initial: 2 }), { name: "y" });
 		shell.bumpGraphTick();
 		const after = shell.graph.node("graph/mermaid").cache as string;
 		expect(after).toContain("y");
@@ -192,7 +202,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "graph/describe");
 
 		const demo = new Graph("test-demo");
-		demo.add(state(42, { name: "node1" }), { name: "node1" });
+		demo.add(node([], { name: "node1", initial: 42 }), { name: "node1" });
 		shell.setDemoGraph(demo);
 
 		const desc = shell.graph.node("graph/describe").cache as Record<string, unknown>;
@@ -260,7 +270,7 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "inspect/node-detail");
 
 		const demo = new Graph("test-demo");
-		demo.add(state(7, { name: "counter" }), { name: "counter" });
+		demo.add(node([], { name: "counter", initial: 7 }), { name: "counter" });
 		shell.setDemoGraph(demo);
 		shell.selectNode("counter");
 
@@ -340,9 +350,18 @@ describe("patterns.demoShell", () => {
 		subscribePath(shell, "layout/graph-labels");
 
 		const demo = new Graph("test-demo");
-		demo.add(state(1, { name: "counter" }), { name: "counter" });
+		demo.add(node([], { name: "counter", initial: 1 }), { name: "counter" });
 		demo.add(
-			derived([demo.node("counter")!], ([v]) => v, { name: "display" }),
+			node(
+				[demo.node("counter")!],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ describeKind: "derived", name: "display" },
+			),
 			{ name: "display" },
 		);
 		shell.setDemoGraph(demo);
@@ -401,8 +420,10 @@ describe("patterns.demoShell", () => {
 		expect(shell.graph.node("layout/side-width-hint").cache).toBe(200);
 
 		const demo = new Graph("test-demo");
-		demo.add(state(1, { name: "short" }), { name: "short" });
-		demo.add(state(2, { name: "a-much-longer-node-name" }), { name: "a-much-longer-node-name" });
+		demo.add(node([], { name: "short", initial: 1 }), { name: "short" });
+		demo.add(node([], { name: "a-much-longer-node-name", initial: 2 }), {
+			name: "a-much-longer-node-name",
+		});
 		shell.setDemoGraph(demo);
 		shell.bumpGraphTick();
 

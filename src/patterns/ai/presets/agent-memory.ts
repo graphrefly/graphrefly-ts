@@ -9,8 +9,8 @@
 
 import { DATA } from "../../../core/messages.js";
 import { placeholderArgs } from "../../../core/meta.js";
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import {
 	type DistillBundle,
 	type DistillOptions,
@@ -220,11 +220,18 @@ export function agentMemory<TMem = unknown>(
 	if (opts.admissionFilter) {
 		const srcNode = fromAny(source);
 		const filter = opts.admissionFilter;
-		filteredSource = derived(
+		filteredSource = node(
 			[srcNode],
-			([raw]) => {
-				if (filter(raw)) return raw;
-				return undefined;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const raw = data[0];
+				if (filter(raw)) {
+					actions.emit(raw);
+				} else {
+					actions.emit(undefined);
+				}
 			},
 			{ name: "admissionFilter", describeKind: "derived" },
 		);

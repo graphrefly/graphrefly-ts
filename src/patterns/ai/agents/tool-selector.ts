@@ -1,6 +1,5 @@
 import { factoryTag } from "../../../core/meta.js";
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import { aiMeta } from "../_internal.js";
 import type { ToolDefinition } from "../adapters/core/types.js";
@@ -36,11 +35,20 @@ export interface ToolSelectorOptions {
  *
  * @example
  * ```ts
- * const hasBudget = derived([costMeter], (c) => c.total < BUDGET);
+ * const hasBudget = node([costMeter], (batchData, actions, ctx) => {
+ *   const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ *   actions.emit((data[0] as CostMeter).total < BUDGET);
+ * }, { describeKind: "derived" });
  * const canDestroy = state(false, { name: "destructive-allowed" });
  * const tools = toolSelector(registry.schemas, [
- *   derived([hasBudget], (b) => (t) => !t.meta?.expensive || b === true),
- *   derived([canDestroy], (c) => (t) => !t.meta?.destructive || c === true),
+ *   node([hasBudget], (batchData, actions, ctx) => {
+ *     const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ *     actions.emit((t) => !t.meta?.expensive || data[0] === true);
+ *   }, { describeKind: "derived" }),
+ *   node([canDestroy], (batchData, actions, ctx) => {
+ *     const data = batchData.map((batch, i) => batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i]);
+ *     actions.emit((t) => !t.meta?.destructive || data[0] === true);
+ *   }, { describeKind: "derived" }),
  * ]);
  * const agent = promptNode(graph, "agent", { ..., tools });
  * ```
@@ -53,24 +61,29 @@ export function toolSelector(
 	const allToolsNode = fromAny(allTools);
 	const constraintNodes = constraints.map((c) => fromAny(c));
 	const deps = [allToolsNode, ...constraintNodes] as const;
-	return derived<readonly ToolDefinition[]>(
+	return node<readonly ToolDefinition[]>(
 		deps,
-		(values) => {
-			const tools = (values[0] as readonly ToolDefinition[] | null | undefined) ?? [];
-			const preds = values.slice(1) as ReadonlyArray<
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const tools = (data[0] as readonly ToolDefinition[] | null | undefined) ?? [];
+			const preds = data.slice(1) as ReadonlyArray<
 				((t: ToolDefinition) => boolean) | null | undefined
 			>;
-			return tools.filter((tool) => {
-				for (const pred of preds) {
-					// Pass-through when a predicate hasn't settled — callers with
-					// async constraints should not have every tool silently dropped
-					// on the first emit. Constraints are "deny when false", not
-					// "deny when not yet ready".
-					if (pred == null) continue;
-					if (!pred(tool)) return false;
-				}
-				return true;
-			});
+			actions.emit(
+				tools.filter((tool) => {
+					for (const pred of preds) {
+						// Pass-through when a predicate hasn't settled — callers with
+						// async constraints should not have every tool silently dropped
+						// on the first emit. Constraints are "deny when false", not
+						// "deny when not yet ready".
+						if (pred == null) continue;
+						if (!pred(tool)) return false;
+					}
+					return true;
+				}),
+			);
 		},
 		{
 			name: opts?.name ?? "tool-selector",

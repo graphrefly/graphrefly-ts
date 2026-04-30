@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import {
 	type AnomalyResult,
 	contentModerationGraph,
@@ -24,7 +25,7 @@ import {
 
 describe("observabilityGraph", () => {
 	it("creates a graph with well-known nodes", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", { source });
 		const desc = g.describe();
 
@@ -38,7 +39,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("stratifies signals into branches by default", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", { source });
 		const desc = g.describe();
 
@@ -48,7 +49,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("accepts custom branches", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", {
 			source,
 			branches: [{ name: "logs", classify: (v) => (v as Record<string, unknown>)?.type === "log" }],
@@ -58,7 +59,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("correlate node receives branch values", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		let correlatedValues: unknown[] | null = null;
 		const g = observabilityGraph("obs", {
 			source,
@@ -78,7 +79,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("SLO check defaults to pass", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", { source });
 
 		const slo = g.node("slo_verified");
@@ -92,7 +93,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("feedback wires up for SLO failures", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", {
 			source,
 			sloCheck: () => ({ pass: false, reason: "latency" }),
@@ -105,7 +106,7 @@ describe("observabilityGraph", () => {
 	});
 
 	it("graph is destroyable", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = observabilityGraph("obs", { source });
 		expect(() => g.destroy()).not.toThrow();
 	});
@@ -117,7 +118,7 @@ describe("observabilityGraph", () => {
 
 describe("issueTrackerGraph", () => {
 	it("creates a graph with well-known nodes", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = issueTrackerGraph("issues", { source });
 		const desc = g.describe();
 
@@ -132,7 +133,7 @@ describe("issueTrackerGraph", () => {
 	});
 
 	it("extracts structured issues from raw findings", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = issueTrackerGraph("issues", {
 			source,
 			extract: (raw) => ({
@@ -156,7 +157,7 @@ describe("issueTrackerGraph", () => {
 	});
 
 	it("verify defaults to valid", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = issueTrackerGraph("issues", { source });
 
 		const verify = g.node("verify");
@@ -170,7 +171,7 @@ describe("issueTrackerGraph", () => {
 	});
 
 	it("regression detection works with custom fn", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = issueTrackerGraph("issues", {
 			source,
 			detectRegression: (issue, _known) => ({
@@ -189,7 +190,7 @@ describe("issueTrackerGraph", () => {
 	});
 
 	it("priority scorer combines severity and regression signals", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = issueTrackerGraph("issues", {
 			source,
 			extract: (raw) => ({
@@ -220,7 +221,7 @@ describe("issueTrackerGraph", () => {
 
 describe("contentModerationGraph", () => {
 	it("creates a graph with well-known nodes", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = contentModerationGraph("moderation", { source });
 		const desc = g.describe();
 
@@ -234,7 +235,7 @@ describe("contentModerationGraph", () => {
 	});
 
 	it("stratifies into safe/review/block branches", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = contentModerationGraph("moderation", { source });
 		const desc = g.describe();
 
@@ -244,7 +245,7 @@ describe("contentModerationGraph", () => {
 	});
 
 	it("classify defaults to review", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = contentModerationGraph("moderation", { source });
 
 		const classify = g.node("classify");
@@ -259,7 +260,7 @@ describe("contentModerationGraph", () => {
 	});
 
 	it("custom classify routes correctly", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = contentModerationGraph("moderation", {
 			source,
 			classify: (content) => ({
@@ -280,7 +281,7 @@ describe("contentModerationGraph", () => {
 	});
 
 	it("policy is writable state", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = contentModerationGraph("moderation", { source });
 
 		const policy = g.node("policy");
@@ -295,7 +296,7 @@ describe("contentModerationGraph", () => {
 
 describe("dataQualityGraph", () => {
 	it("creates a graph with well-known nodes", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", { source });
 		const desc = g.describe();
 
@@ -310,7 +311,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("validate defaults to valid", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", { source });
 
 		const validate = g.node("validate");
@@ -325,7 +326,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("custom validation catches invalid records", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", {
 			source,
 			validate: (record) => {
@@ -349,7 +350,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("anomaly detection works", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", {
 			source,
 			detectAnomaly: (record) => {
@@ -375,7 +376,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("baseline updates on valid records", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", { source });
 
 		// Activate the full chain including baseline updater effect
@@ -391,7 +392,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("output combines all quality checks", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", { source });
 
 		const output = g.node("output");
@@ -406,7 +407,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("feedback wires anomalies to validation rules", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", {
 			source,
 			detectAnomaly: (record) => ({
@@ -422,7 +423,7 @@ describe("dataQualityGraph", () => {
 	});
 
 	it("graph is destroyable", () => {
-		const source = state<unknown>(null);
+		const source = node<unknown>([], { initial: null });
 		const g = dataQualityGraph("dq", { source });
 		expect(() => g.destroy()).not.toThrow();
 	});

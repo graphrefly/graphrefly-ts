@@ -5,9 +5,11 @@
  * no-ops, byPrimary cascade, bulk operations, diamond topology, emit ordering
  * across `ordered` and `byPrimary`, pluggable backend, version counter advance.
  */
+
 import { describe, expect, it } from "vitest";
 import { DATA, DIRTY } from "../../core/messages.js";
-import { derived } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { combine } from "../../extra/operators.js";
 import {
 	type IndexBackend,
@@ -140,15 +142,27 @@ describe("reactiveIndex stress tests", () => {
 	// ── Scenario 8: Diamond topology — glitch-free ──────────────────────
 	it("S8: two derived views from ordered — combine sees consistent pairs", () => {
 		const idx = reactiveIndex<string, number>();
-		const count = derived(
+		const count = node(
 			[idx.ordered],
-			([rows]) => (rows as readonly IndexRow<string, number>[]).length,
-			{ initial: 0 },
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly IndexRow<string, number>[]).length);
+			},
+			{ describeKind: "derived", initial: 0 },
 		);
-		const total = derived(
+		const total = node(
 			[idx.ordered],
-			([rows]) => (rows as readonly IndexRow<string, number>[]).reduce((a, r) => a + r.value, 0),
-			{ initial: 0 },
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(
+					(data[0] as readonly IndexRow<string, number>[]).reduce((a, r) => a + r.value, 0),
+				);
+			},
+			{ describeKind: "derived", initial: 0 },
 		);
 		const combined = combine(count, total);
 

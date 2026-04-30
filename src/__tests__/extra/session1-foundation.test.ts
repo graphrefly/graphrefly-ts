@@ -12,7 +12,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { fromSSE, parseSSEStream } from "../../extra/adapters.js";
 import {
 	ContentAddressedMissError,
@@ -71,7 +72,7 @@ describe("makeHttpError (Wave A Unit 12)", () => {
 
 describe("onFirstData / tapFirst (Wave A cross-cutting)", () => {
 	it("fires once on the first non-null DATA; passes subsequent values through", () => {
-		const src = state<number | null>(null);
+		const src = node<number | null>([], { initial: null });
 		const calls: number[] = [];
 		const wrapped = onFirstData(src, (v) => calls.push(v as number));
 		const { unsub } = collect(wrapped);
@@ -83,7 +84,7 @@ describe("onFirstData / tapFirst (Wave A cross-cutting)", () => {
 	});
 
 	it("does not count null as 'first' by default", () => {
-		const src = state<number | null>(null);
+		const src = node<number | null>([], { initial: null });
 		const calls: number[] = [];
 		const wrapped = onFirstData(src, (v) => calls.push(v as number));
 		const { unsub } = collect(wrapped);
@@ -95,7 +96,7 @@ describe("onFirstData / tapFirst (Wave A cross-cutting)", () => {
 	});
 
 	it("custom where predicate overrides the null default", () => {
-		const src = state<number>(0);
+		const src = node<number>([], { initial: 0 });
 		const calls: number[] = [];
 		const wrapped = onFirstData(src, (v) => calls.push(v), {
 			where: (v) => v >= 10,
@@ -110,7 +111,7 @@ describe("onFirstData / tapFirst (Wave A cross-cutting)", () => {
 	});
 
 	it("forwards values unchanged", () => {
-		const src = state<number>(5);
+		const src = node<number>([], { initial: 5 });
 		const wrapped = onFirstData(src, () => {});
 		const { messages, unsub } = collect(wrapped, { flat: true });
 		src.emit(10);
@@ -130,7 +131,7 @@ describe("onFirstData / tapFirst (Wave A cross-cutting)", () => {
 
 describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 	it("fires abort when the node emits true", () => {
-		const aborted = state(false);
+		const aborted = node([], { initial: false });
 		const { signal, dispose } = nodeSignal(aborted);
 		expect(signal.aborted).toBe(false);
 		aborted.emit(true);
@@ -139,14 +140,14 @@ describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 	});
 
 	it("aborts immediately when the cached value is already true (push-on-subscribe)", () => {
-		const aborted = state(true);
+		const aborted = node([], { initial: true });
 		const { signal, dispose } = nodeSignal(aborted);
 		expect(signal.aborted).toBe(true);
 		dispose();
 	});
 
 	it("ignores null / false values and only fires on true", () => {
-		const aborted = state<boolean>(false);
+		const aborted = node<boolean>([], { initial: false });
 		const { signal, dispose } = nodeSignal(aborted);
 		aborted.emit(false);
 		aborted.emit(false);
@@ -157,7 +158,7 @@ describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 	});
 
 	it("uses the provided reason on abort", () => {
-		const aborted = state(false);
+		const aborted = node([], { initial: false });
 		const reason = new Error("custom cancellation");
 		const { signal, dispose } = nodeSignal(aborted, { reason });
 		aborted.emit(true);
@@ -166,7 +167,7 @@ describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 	});
 
 	it("dispose cleanly unsubscribes from the source before any abort", () => {
-		const aborted = state(false);
+		const aborted = node([], { initial: false });
 		const { signal, dispose } = nodeSignal(aborted);
 		dispose();
 		aborted.emit(true);
@@ -175,11 +176,18 @@ describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 
 	it("treats source ERROR as an abort (fail-closed semantics)", () => {
 		// Use a derived that synchronously throws → ERROR message.
-		const trigger = state(0);
-		const failing = derived<boolean>([trigger], ([v]) => {
-			if ((v as number) > 0) throw new Error("broken");
-			return false;
-		});
+		const trigger = node([], { initial: 0 });
+		const failing = node<boolean>(
+			[trigger],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if ((data[0] as number) > 0) throw new Error("broken");
+				actions.emit(false);
+			},
+			{ describeKind: "derived" },
+		);
 		const { signal, dispose } = nodeSignal(failing);
 		trigger.emit(1);
 		expect(signal.aborted).toBe(true);
@@ -191,7 +199,7 @@ describe("nodeSignal (Wave A Unit 4 / Unit 11)", () => {
 
 describe("awaitSettled({ skipCurrent: true }) (Wave A Unit 4)", () => {
 	it("ignores the cached value and resolves on the next emission", async () => {
-		const s = state<string | null>("stale");
+		const s = node<string | null>([], { initial: "stale" });
 		const p = awaitSettled(s, { skipCurrent: true });
 		// The cached "stale" is synchronously pushed — must be ignored.
 		setTimeout(() => s.emit("fresh"), 5);
@@ -199,13 +207,13 @@ describe("awaitSettled({ skipCurrent: true }) (Wave A Unit 4)", () => {
 	});
 
 	it("without skipCurrent, resolves immediately with the cached value", async () => {
-		const s = state<string | null>("cached");
+		const s = node<string | null>([], { initial: "cached" });
 		const val = await awaitSettled(s);
 		expect(val).toBe("cached");
 	});
 
 	it("combines with timeoutMs", async () => {
-		const s = state<string | null>("stale");
+		const s = node<string | null>([], { initial: "stale" });
 		await expect(awaitSettled(s, { skipCurrent: true, timeoutMs: 25 })).rejects.toThrow(
 			/Timed out/,
 		);

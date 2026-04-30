@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { toAscii } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 
@@ -22,7 +23,7 @@ function allBoxesPresent(output: string, paths: readonly string[]): boolean {
 describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => {
 	it("renders a single node as one box containing its label", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const out = toAscii(g.describe());
 		expect(out).toContain("a");
 		// Default Unicode charset uses box-drawing corners.
@@ -31,9 +32,27 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("LR chain: three nodes arranged left-to-right with rightward arrows", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 1, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -53,9 +72,27 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("TD chain: three nodes arranged top-to-bottom with downward arrows", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 1, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -74,12 +111,37 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("diamond (A→B, A→C, B→D, C→D): 4 boxes, no broken edges", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const c = derived([a], ([v]) => (v as number) + 2, { name: "c" });
-		const d = derived([b, c], ([bv, cv]) => (bv as number) + (cv as number), {
-			name: "d",
-		});
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", name: "d" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -98,12 +160,37 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		// Virtual-node splitting should make a→d flow through the middle
 		// layers cleanly; no stray empty gutter.
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 1, { name: "c" });
-		const d = derived([c, a], ([cv, av]) => (cv as number) + (av as number), {
-			name: "d",
-		});
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
+		const d = node(
+			[c, a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", name: "d" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -125,8 +212,17 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("asciiCharset: 'ascii' uses plain ASCII glyphs only", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const out = toAscii(g.describe(), { asciiCharset: "ascii" });
@@ -138,7 +234,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("maxLabelWidth truncates long labels with an ellipsis", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "this_is_a_rather_long_path_name" }), {
+		g.add(node([], { name: "this_is_a_rather_long_path_name", initial: 1 }), {
 			name: "this_is_a_rather_long_path_name",
 		});
 		const out = toAscii(g.describe(), { maxLabelWidth: 10 });
@@ -148,7 +244,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("CJK labels keep box structure aligned (2 cells per wide char)", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "日本語" }), { name: "日本語" });
+		g.add(node([], { name: "日本語", initial: 1 }), { name: "日本語" });
 		const out = toAscii(g.describe());
 		expect(out).toContain("日本語");
 		// The box borders should be long enough that the top row has at
@@ -163,7 +259,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 	it("subgraph-qualified paths render as full labels", () => {
 		const g = new Graph("g");
 		const sub = new Graph("sub");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		sub.add(a, { name: "a" });
 		g.mount("sub", sub);
 		const out = toAscii(g.describe());
@@ -172,7 +268,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("invalid direction throws a clear error", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		expect(() => toAscii(g.describe(), { direction: "BT" as unknown as "LR" })).toThrow(
 			/ascii describe supports direction "LR" or "TD"/,
 		);
@@ -180,7 +276,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("logger callback fires with the rendered text before return", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		let captured = "";
 		const out = toAscii(g.describe(), {
 			logger: (text) => {
@@ -191,18 +287,27 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		expect(captured).toContain("a");
 	});
 
-	it("derived(describe({reactive:true}), toAscii) yields a live string Node", () => {
+	it("node([describe({reactive:true})], fn) yields a live string Node", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const handle = g.describe({ reactive: true });
-		const ascii = derived([handle.node], ([snap]) => toAscii(snap), { name: "live-ascii" });
+		const ascii = node(
+			[handle.node],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(toAscii(data[0]));
+			},
+			{ describeKind: "derived", name: "live-ascii" },
+		);
 		const unsub = ascii.subscribe(() => {});
 		try {
 			const first = ascii.cache;
 			expect(typeof first).toBe("string");
 			expect(first).toContain("a");
 			// Add a second node — describe recomputes → ascii recomputes.
-			g.add(state(2, { name: "b" }), { name: "b" });
+			g.add(node([], { name: "b", initial: 2 }), { name: "b" });
 			const second = ascii.cache;
 			expect(typeof second).toBe("string");
 			expect(second).toContain("b");
@@ -216,7 +321,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		const g = new Graph("g");
 		const roots: ReturnType<typeof state>[] = [];
 		for (let i = 0; i < 10; i += 1) {
-			const s = state(i, { name: `r${i}` });
+			const s = node([], { name: `r${i}`, initial: i });
 			roots.push(s);
 			g.add(s, { name: `r${i}` });
 		}
@@ -229,9 +334,16 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 					prev[(i * 3 + layer) % prev.length]!,
 					prev[(i * 7 + layer + 1) % prev.length]!,
 				];
-				const d = derived(deps, ([a, b]) => (a as number) + (b as number), {
-					name: `L${layer}_n${i}`,
-				});
+				const d = node(
+					deps,
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit((data[0] as number) + (data[1] as number));
+					},
+					{ describeKind: "derived", name: `L${layer}_n${i}` },
+				);
 				next.push(d as unknown as ReturnType<typeof state>);
 				g.add(d, { name: `L${layer}_n${i}` });
 			}
@@ -286,12 +398,37 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("LR and TD of the same graph contain the same set of labels", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "alpha" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "beta" });
-		const c = derived([a], ([v]) => (v as number) + 2, { name: "gamma" });
-		const d = derived([b, c], ([bv, cv]) => (bv as number) + (cv as number), {
-			name: "delta",
-		});
+		const a = node([], { name: "alpha", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "beta" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 2);
+			},
+			{ describeKind: "derived", name: "gamma" },
+		);
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", name: "delta" },
+		);
 		g.add(a, { name: "alpha" });
 		g.add(b, { name: "beta" });
 		g.add(c, { name: "gamma" });

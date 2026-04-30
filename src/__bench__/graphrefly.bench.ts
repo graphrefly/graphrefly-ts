@@ -8,8 +8,7 @@
 import { afterAll, bench, describe } from "vitest";
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY, type Messages } from "../core/messages.js";
-import { node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 
 const push = (n: { down: (m: Messages) => void }, v: number) => {
 	n.down([[DIRTY], [DATA, v]]);
@@ -19,14 +18,14 @@ const read = (n: { cache: unknown }) => n.cache;
 // ─── Primitives (state analogue) ───────────────────────────
 
 describe("state: read", () => {
-	const s = state<number>(0);
+	const s = node<number>([], { initial: 0 });
 	bench("state.cache", () => {
 		read(s);
 	});
 });
 
 describe("state: write (no subscribers)", () => {
-	const s = state<number>(0);
+	const s = node<number>([], { initial: 0 });
 	let i = 0;
 	bench("state.set()", () => {
 		push(s, i++);
@@ -34,7 +33,7 @@ describe("state: write (no subscribers)", () => {
 });
 
 describe("state: write (with subscriber)", () => {
-	const s = state<number>(0);
+	const s = node<number>([], { initial: 0 });
 	const unsub = s.subscribe(() => undefined);
 	let i = 0;
 	bench("state.set() + subscriber", () => {
@@ -46,8 +45,17 @@ describe("state: write (with subscriber)", () => {
 // ─── Derived ───────────────────────────────────────────────
 
 describe("derived: single-dep (P0 fast path)", () => {
-	const a = state<number>(0);
-	const d = derived([a], ([v]) => (v as number) * 2);
+	const a = node<number>([], { initial: 0 });
+	const d = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = d.subscribe(() => undefined);
 	let i = 0;
 	bench("set + get", () => {
@@ -58,9 +66,18 @@ describe("derived: single-dep (P0 fast path)", () => {
 });
 
 describe("derived: multi-dep", () => {
-	const a = state<number>(0);
-	const b = state<number>(0);
-	const d = derived([a, b], ([x, y]) => (x as number) + (y as number));
+	const a = node<number>([], { initial: 0 });
+	const b = node<number>([], { initial: 0 });
+	const d = node(
+		[a, b],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = d.subscribe(() => undefined);
 	let i = 0;
 	bench("set one dep + get", () => {
@@ -71,8 +88,17 @@ describe("derived: multi-dep", () => {
 });
 
 describe("derived: cached read (unchanged deps)", () => {
-	const a = state<number>(5);
-	const d = derived([a], ([v]) => (v as number) * 2);
+	const a = node<number>([], { initial: 5 });
+	const d = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = d.subscribe(() => undefined);
 	bench("get (cached)", () => {
 		read(d);
@@ -83,10 +109,37 @@ describe("derived: cached read (unchanged deps)", () => {
 // ─── Diamond ───────────────────────────────────────────────
 
 describe("diamond: A → B,C → D", () => {
-	const a = state<number>(0);
-	const b = derived([a], ([v]) => (v as number) + 1);
-	const c = derived([a], ([v]) => (v as number) * 2);
-	const d = derived([b, c], ([bv, cv]) => (bv as number) + (cv as number));
+	const a = node<number>([], { initial: 0 });
+	const b = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + 1);
+		},
+		{ describeKind: "derived" },
+	);
+	const c = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
+	const d = node(
+		[b, c],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = d.subscribe(() => undefined);
 	let i = 0;
 	bench("set root + get leaf", () => {
@@ -97,12 +150,57 @@ describe("diamond: A → B,C → D", () => {
 });
 
 describe("diamond: deep (5 levels)", () => {
-	const root = state<number>(0);
-	const l1a = derived([root], ([v]) => (v as number) + 1);
-	const l1b = derived([root], ([v]) => (v as number) * 2);
-	const l2a = derived([l1a, l1b], ([x, y]) => (x as number) + (y as number));
-	const l2b = derived([l1a, l1b], ([x, y]) => (x as number) * (y as number));
-	const leaf = derived([l2a, l2b], ([x, y]) => (x as number) + (y as number));
+	const root = node<number>([], { initial: 0 });
+	const l1a = node(
+		[root],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + 1);
+		},
+		{ describeKind: "derived" },
+	);
+	const l1b = node(
+		[root],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
+	const l2a = node(
+		[l1a, l1b],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
+	const l2b = node(
+		[l1a, l1b],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
+	const leaf = node(
+		[l2a, l2b],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = leaf.subscribe(() => undefined);
 	let i = 0;
 	bench("set root + get leaf", () => {
@@ -113,12 +211,28 @@ describe("diamond: deep (5 levels)", () => {
 });
 
 describe("diamond: wide (10 intermediates)", () => {
-	const root = state<number>(0);
+	const root = node<number>([], { initial: 0 });
 	const intermediates = Array.from({ length: 10 }, (_, j) =>
-		derived([root], ([rv]) => (rv as number) + j),
+		node(
+			[root],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + j);
+			},
+			{ describeKind: "derived" },
+		),
 	);
-	const leaf = derived(intermediates, (deps) =>
-		deps.reduce((sum: number, v) => sum + (v as number), 0),
+	const leaf = node(
+		intermediates,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(data.reduce((sum: number, v) => sum + (v as number), 0));
+		},
+		{ describeKind: "derived" },
 	);
 	const unsub = leaf.subscribe(() => undefined);
 	let i = 0;
@@ -132,7 +246,7 @@ describe("diamond: wide (10 intermediates)", () => {
 // ─── Effect (subscriber / derived re-run) ─────────────────
 
 describe("effect: single dep re-run", () => {
-	const trigger = state<number>(0);
+	const trigger = node<number>([], { initial: 0 });
 	const unsub = trigger.subscribe(() => {
 		read(trigger);
 	});
@@ -144,10 +258,37 @@ describe("effect: single dep re-run", () => {
 });
 
 describe("effect: multi-dep (diamond + effect)", () => {
-	const a = state<number>(0);
-	const b = derived([a], ([v]) => (v as number) + 1);
-	const c = derived([a], ([v]) => (v as number) * 2);
-	const eff = derived([b, c], ([bv, cv]) => (bv as number) + (cv as number));
+	const a = node<number>([], { initial: 0 });
+	const b = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + 1);
+		},
+		{ describeKind: "derived" },
+	);
+	const c = node(
+		[a],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
+	const eff = node(
+		[b, c],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = eff.subscribe(() => undefined);
 	let i = 0;
 	bench("set root, effect runs once", () => {
@@ -159,7 +300,7 @@ describe("effect: multi-dep (diamond + effect)", () => {
 // ─── Fan-out ───────────────────────────────────────────────
 
 describe("fan-out: 10 subscribers", () => {
-	const src = state<number>(0);
+	const src = node<number>([], { initial: 0 });
 	const unsubs = Array.from({ length: 10 }, () => src.subscribe(() => undefined));
 	let i = 0;
 	bench("set with 10 subscribers", () => {
@@ -171,7 +312,7 @@ describe("fan-out: 10 subscribers", () => {
 });
 
 describe("fan-out: 100 subscribers", () => {
-	const src = state<number>(0);
+	const src = node<number>([], { initial: 0 });
 	const unsubs = Array.from({ length: 100 }, () => src.subscribe(() => undefined));
 	let i = 0;
 	bench("set with 100 subscribers", () => {
@@ -184,7 +325,7 @@ describe("fan-out: 100 subscribers", () => {
 
 // B18 — extended fan-out scaling to validate the sink-notification cost trend.
 describe("fan-out: 1000 subscribers", () => {
-	const src = state<number>(0);
+	const src = node<number>([], { initial: 0 });
 	const unsubs = Array.from({ length: 1000 }, () => src.subscribe(() => undefined));
 	let i = 0;
 	bench("set with 1000 subscribers", () => {
@@ -205,8 +346,8 @@ describe("fan-out: 1000 subscribers", () => {
 // decision in B7.
 
 describe("passthrough: 5-level fn-less chain", () => {
-	const head = state<number>(0);
-	let cur: ReturnType<typeof state<number>> = head;
+	const head = node<number>([], { initial: 0 });
+	let cur: Node<number> = head;
 	for (let j = 0; j < 5; j++) cur = node<number>([cur]);
 	const tail = cur;
 	const unsub = tail.subscribe(() => undefined);
@@ -218,8 +359,8 @@ describe("passthrough: 5-level fn-less chain", () => {
 });
 
 describe("passthrough: 10-level fn-less chain", () => {
-	const head = state<number>(0);
-	let cur: ReturnType<typeof state<number>> = head;
+	const head = node<number>([], { initial: 0 });
+	let cur: Node<number> = head;
 	for (let j = 0; j < 10; j++) cur = node<number>([cur]);
 	const tail = cur;
 	const unsub = tail.subscribe(() => undefined);
@@ -231,8 +372,8 @@ describe("passthrough: 10-level fn-less chain", () => {
 });
 
 describe("passthrough: 20-level fn-less chain", () => {
-	const head = state<number>(0);
-	let cur: ReturnType<typeof state<number>> = head;
+	const head = node<number>([], { initial: 0 });
+	let cur: Node<number> = head;
 	for (let j = 0; j < 20; j++) cur = node<number>([cur]);
 	const tail = cur;
 	const unsub = tail.subscribe(() => undefined);
@@ -246,8 +387,17 @@ describe("passthrough: 20-level fn-less chain", () => {
 // ─── Batching ──────────────────────────────────────────────
 
 describe("batch: 10 sets + derived reader", () => {
-	const items = Array.from({ length: 10 }, (_, k) => state<number>(k));
-	const agg = derived(items, (deps) => deps.reduce((s, v) => (s as number) + (v as number), 0));
+	const items = Array.from({ length: 10 }, (_, k) => node<number>([], { initial: k }));
+	const agg = node(
+		items,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(data.reduce((s, v) => (s as number) + (v as number), 0));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = agg.subscribe(() => undefined);
 	let k = 0;
 	let k2 = 0;
@@ -265,19 +415,71 @@ describe("batch: 10 sets + derived reader", () => {
 // ─── Equals (push-phase memoization) ───────────────────────
 
 describe("equals: diamond with memoization", () => {
-	const a1 = state<number>(0);
-	const b1 = derived([a1], ([v]) => ((v as number) >= 5 ? 1 : 0));
-	const c1 = derived([a1], ([v]) => (v as number) * 2);
-	const e1 = derived([b1, c1], ([bv, cv]) => (bv as number) + (cv as number));
+	const a1 = node<number>([], { initial: 0 });
+	const b1 = node(
+		[a1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) >= 5 ? 1 : 0);
+		},
+		{ describeKind: "derived" },
+	);
+	const c1 = node(
+		[a1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
+	const e1 = node(
+		[b1, c1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const u1 = e1.subscribe(() => undefined);
 	let k1 = 0;
 
-	const a2 = state<number>(0);
-	const b2 = derived([a2], ([v]) => ((v as number) >= 5 ? 1 : 0), {
-		equals: (x, y) => x === y,
-	});
-	const c2 = derived([a2], ([v]) => (v as number) * 2);
-	const e2 = derived([b2, c2], ([bv, cv]) => (bv as number) + (cv as number));
+	const a2 = node<number>([], { initial: 0 });
+	const b2 = node(
+		[a2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) >= 5 ? 1 : 0);
+		},
+		{ describeKind: "derived", equals: (x, y) => x === y },
+	);
+	const c2 = node(
+		[a2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) * 2);
+		},
+		{ describeKind: "derived" },
+	);
+	const e2 = node(
+		[b2, c2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const u2 = e2.subscribe(() => undefined);
 	let k2 = 0;
 
@@ -296,11 +498,20 @@ describe("equals: diamond with memoization", () => {
 // ─── GraphReFly protocol extras (not in callbag compare) ───
 
 describe("graphrefly: linear 10-node chain", () => {
-	const head = state<number>(0);
-	let cur: ReturnType<typeof state<number>> = head;
+	const head = node<number>([], { initial: 0 });
+	let cur: Node<number> = head;
 	for (let j = 0; j < 9; j++) {
 		const prev = cur;
-		cur = derived([prev], ([v]) => (v as number) + 1);
+		cur = node(
+			[prev],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 	}
 	const tail = cur;
 	const unsub = tail.subscribe(() => undefined);
@@ -312,9 +523,18 @@ describe("graphrefly: linear 10-node chain", () => {
 });
 
 describe("graphrefly: fan-in batch", () => {
-	const x = state<number>(0);
-	const y = state<number>(0);
-	const sum = derived([x, y], ([a, b]) => (a as number) + (b as number));
+	const x = node<number>([], { initial: 0 });
+	const y = node<number>([], { initial: 0 });
+	const sum = node(
+		[x, y],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as number) + (data[1] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	const unsub = sum.subscribe(() => undefined);
 	let i = 0;
 	bench("fan-in: batched DIRTY+DATA on two sources", () => {
@@ -374,13 +594,29 @@ describe("equals: 5-level linear chain, 50% no-op writes (heavy fn)", () => {
 	// fully propagates through the chain — the source never collapses
 	// duplicates, downstream levels never pre-fn skip. Represents a naive
 	// reactive system with no memoization anywhere.
-	const a1 = state<number>(0, { equals: alwaysDiffer });
-	let cur1: ReturnType<typeof state<number>> = derived([a1], ([v]) => heavyTransform(v as number), {
-		equals: alwaysDiffer,
-	});
+	const a1 = node<number>([], { initial: 0, equals: alwaysDiffer });
+	let cur1: Node<number> = node(
+		[a1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number));
+		},
+		{ describeKind: "derived", equals: alwaysDiffer },
+	);
 	for (let j = 0; j < 4; j++) {
 		const prev = cur1;
-		cur1 = derived([prev], ([v]) => heavyTransform(v as number), { equals: alwaysDiffer });
+		cur1 = node(
+			[prev],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(heavyTransform(data[0] as number));
+			},
+			{ describeKind: "derived", equals: alwaysDiffer },
+		);
 	}
 	const tail1 = cur1;
 	const u1 = tail1.subscribe(() => undefined);
@@ -390,11 +626,29 @@ describe("equals: 5-level linear chain, 50% no-op writes (heavy fn)", () => {
 	// duplicate writes to RESOLVED via §3.5.1 substitution, downstream
 	// levels pre-fn skip (`!_waveHasNewData`) so the leaf fn only runs on
 	// actual transitions (half the time for the noop pattern).
-	const a2 = state<number>(0);
-	let cur2: ReturnType<typeof state<number>> = derived([a2], ([v]) => heavyTransform(v as number));
+	const a2 = node<number>([], { initial: 0 });
+	let cur2: Node<number> = node(
+		[a2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number));
+		},
+		{ describeKind: "derived" },
+	);
 	for (let j = 0; j < 4; j++) {
 		const prev = cur2;
-		cur2 = derived([prev], ([v]) => heavyTransform(v as number));
+		cur2 = node(
+			[prev],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(heavyTransform(data[0] as number));
+			},
+			{ describeKind: "derived" },
+		);
 	}
 	const tail2 = cur2;
 	const u2 = tail2.subscribe(() => undefined);
@@ -419,19 +673,71 @@ describe("equals: diamond with 50% no-op inputs (heavy fn)", () => {
 	// doesn't change, both legs emit RESOLVED at the first node and the
 	// join's pre-fn skip fires. Baseline uses `alwaysDiffer` on every
 	// node including the source so nothing collapses.
-	const src1 = state<number>(0, { equals: alwaysDiffer });
-	const l1 = derived([src1], ([v]) => heavyTransform(v as number), { equals: alwaysDiffer });
-	const r1 = derived([src1], ([v]) => heavyTransform(v as number) + 1, { equals: alwaysDiffer });
-	const j1 = derived([l1, r1], ([l, r]) => heavyTransform((l as number) + (r as number)), {
-		equals: alwaysDiffer,
-	});
+	const src1 = node<number>([], { initial: 0, equals: alwaysDiffer });
+	const l1 = node(
+		[src1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number));
+		},
+		{ describeKind: "derived", equals: alwaysDiffer },
+	);
+	const r1 = node(
+		[src1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number) + 1);
+		},
+		{ describeKind: "derived", equals: alwaysDiffer },
+	);
+	const j1 = node(
+		[l1, r1],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform((data[0] as number) + (data[1] as number)));
+		},
+		{ describeKind: "derived", equals: alwaysDiffer },
+	);
 	const u1 = j1.subscribe(() => undefined);
 	let k1 = 0;
 
-	const src2 = state<number>(0);
-	const l2 = derived([src2], ([v]) => heavyTransform(v as number));
-	const r2 = derived([src2], ([v]) => heavyTransform(v as number) + 1);
-	const j2 = derived([l2, r2], ([l, r]) => heavyTransform((l as number) + (r as number)));
+	const src2 = node<number>([], { initial: 0 });
+	const l2 = node(
+		[src2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number));
+		},
+		{ describeKind: "derived" },
+	);
+	const r2 = node(
+		[src2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform(data[0] as number) + 1);
+		},
+		{ describeKind: "derived" },
+	);
+	const j2 = node(
+		[l2, r2],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(heavyTransform((data[0] as number) + (data[1] as number)));
+		},
+		{ describeKind: "derived" },
+	);
 	const u2 = j2.subscribe(() => undefined);
 	let k2 = 0;
 

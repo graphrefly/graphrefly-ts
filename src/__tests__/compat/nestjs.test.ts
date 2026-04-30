@@ -45,7 +45,7 @@ import {
 	TEARDOWN,
 } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+
 import { toObservable } from "../../extra/observable.js";
 import { Graph } from "../../graph/graph.js";
 import type { CommandActions, CqrsEvent, CqrsGraph } from "../../patterns/cqrs/index.js";
@@ -68,7 +68,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable: errors on ERROR", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 
 		const errorP = new Promise<unknown>((_, reject) => {
 			toObservable(s).subscribe({ next: () => {}, error: reject });
@@ -125,7 +125,7 @@ describe("nestjs compat — RxJS bridge", () => {
 	});
 
 	it("toObservable({ raw: true }): terminal batch emitted before Observable error", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const batches: Messages[] = [];
 		let caughtError: unknown;
 
@@ -173,7 +173,16 @@ describe("nestjs compat — RxJS bridge", () => {
 
 	it("toObservable: works with derived nodes (reactive chain)", () => {
 		const count = node<number>();
-		const doubled = derived([count], (c: number) => c * 2);
+		const doubled = node(
+			[count],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
 
 		const values: number[] = [];
 		const sub = toObservable(doubled).subscribe((v) => values.push(v));
@@ -232,7 +241,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 			imports: [
 				GraphReflyModule.forRoot({
 					build: (g) => {
-						g.add(state(42), { name: "counter" });
+						g.add(node([], { initial: 42 }), { name: "counter" });
 					},
 				}),
 			],
@@ -246,14 +255,14 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 
 	it("restores from snapshot after build", async () => {
 		const seed = new Graph("root");
-		seed.add(state(0), { name: "counter" });
+		seed.add(node([], { initial: 0 }), { name: "counter" });
 		const snapshot = seed.snapshot();
 		snapshot.nodes.counter.value = 99;
 
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add(state(0), { name: "counter" }),
+					build: (g) => g.add(node([], { initial: 0 }), { name: "counter" }),
 					snapshot,
 				}),
 			],
@@ -269,7 +278,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				GraphReflyModule.forRoot({
-					build: (g) => g.add(state(7), { name: "count" }),
+					build: (g) => g.add(node([], { initial: 7 }), { name: "count" }),
 					nodes: ["count"],
 				}),
 			],
@@ -288,7 +297,7 @@ describe("nestjs compat — GraphReflyModule.forRoot", () => {
 			imports: [
 				GraphReflyModule.forRoot({
 					build: (g) => {
-						const s = state(1);
+						const s = node([], { initial: 1 });
 						s.subscribe((msgs) => {
 							for (const m of msgs) {
 								if (m[0] === TEARDOWN) teardownSpy();
@@ -318,7 +327,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "payments",
-					build: (g) => g.add(state(100), { name: "amount" }),
+					build: (g) => g.add(node([], { initial: 100 }), { name: "amount" }),
 				}),
 			],
 		}).compile();
@@ -342,7 +351,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forFeature({
 					name: "temp",
 					build: (g) => {
-						const s = state(1);
+						const s = node([], { initial: 1 });
 						s.subscribe((msgs) => {
 							for (const m of msgs) {
 								if (m[0] === TEARDOWN) teardownSpy();
@@ -368,7 +377,7 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "orders",
-					build: (g) => g.add(state(250), { name: "total" }),
+					build: (g) => g.add(node([], { initial: 250 }), { name: "total" }),
 					nodes: ["total"],
 				}),
 			],
@@ -386,11 +395,11 @@ describe("nestjs compat — GraphReflyModule.forFeature", () => {
 				GraphReflyModule.forRoot(),
 				GraphReflyModule.forFeature({
 					name: "auth",
-					build: (g) => g.add(state("alice"), { name: "user" }),
+					build: (g) => g.add(node([], { initial: "alice" }), { name: "user" }),
 				}),
 				GraphReflyModule.forFeature({
 					name: "billing",
-					build: (g) => g.add(state("pro"), { name: "plan" }),
+					build: (g) => g.add(node([], { initial: "pro" }), { name: "plan" }),
 				}),
 			],
 		}).compile();
@@ -897,7 +906,7 @@ describe("nestjs compat — actor bridge", () => {
 
 describe("nestjs compat — observeSSE", () => {
 	it("streams DATA values as SSE frames", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-test");
 		g.add(s, { name: "counter" });
 
@@ -924,7 +933,7 @@ describe("nestjs compat — observeSSE", () => {
 	});
 
 	it("closes on ERROR", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-err");
 		g.add(s, { name: "n" });
 
@@ -946,10 +955,11 @@ describe("nestjs compat — observeSSE", () => {
 	});
 
 	it("respects actor guard on observe", () => {
-		const s = state(0, {
+		const s = node([], {
 			guard: policy((allow) => {
 				allow("observe", { where: (a) => a.type === "human" });
 			}),
+			initial: 0,
 		});
 		const g = new Graph("sse-guard");
 		g.add(s, { name: "guarded" });
@@ -968,7 +978,7 @@ describe("nestjs compat — observeSSE", () => {
 
 	it("supports keepAlive", async () => {
 		vi.useFakeTimers();
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-ka");
 		g.add(s, { name: "n" });
 
@@ -1027,7 +1037,7 @@ describe("nestjs compat — observeSubscription", () => {
 	});
 
 	it("supports filter option", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sub-filter");
 		g.add(s, { name: "n" });
 
@@ -1066,10 +1076,11 @@ describe("nestjs compat — observeSubscription", () => {
 	});
 
 	it("respects actor guard", () => {
-		const s = state(0, {
+		const s = node([], {
 			guard: policy((_allow) => {
 				// no observe allowed
 			}),
+			initial: 0,
 		});
 		const g = new Graph("sub-guard");
 		g.add(s, { name: "n" });
@@ -1087,7 +1098,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	}
 
 	it("subscribe and receive DATA", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-test");
 		g.add(s, { name: "counter" });
 
@@ -1112,7 +1123,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("unsubscribe removes subscription", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-unsub");
 		g.add(s, { name: "n" });
 
@@ -1185,10 +1196,11 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("respects actor guard via extractActor", () => {
-		const s = state(0, {
+		const s = node([], {
 			guard: policy((allow) => {
 				allow("observe", { where: (a) => a.type === "human" });
 			}),
+			initial: 0,
 		});
 		const g = new Graph("gw-guard");
 		g.add(s, { name: "guarded" });
@@ -1219,8 +1231,8 @@ describe("nestjs compat — ObserveGateway", () => {
 
 	it("disconnect disposes all client subscriptions", () => {
 		const g = new Graph("gw-disc");
-		g.add(state(1), { name: "a" });
-		g.add(state(2), { name: "b" });
+		g.add(node([], { initial: 1 }), { name: "a" });
+		g.add(node([], { initial: 2 }), { name: "b" });
 
 		const gw = new ObserveGateway(g);
 		const client = makeMockClient();
@@ -1238,7 +1250,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("forwards ERROR and COMPLETE to client", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-term");
 		g.add(s, { name: "n" });
 
@@ -1258,7 +1270,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("COMPLETE auto-cleans subscription — allows resubscribe", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-resub");
 		g.add(s, { name: "n" });
 
@@ -1281,7 +1293,7 @@ describe("nestjs compat — ObserveGateway", () => {
 	});
 
 	it("TEARDOWN closes WS subscription", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-td");
 		g.add(s, { name: "n" });
 
@@ -1304,7 +1316,7 @@ describe("nestjs compat — ObserveGateway", () => {
 
 describe("nestjs compat — TEARDOWN handling", () => {
 	it("observeSSE closes on TEARDOWN", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-td");
 		g.add(s, { name: "n" });
 

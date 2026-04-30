@@ -17,18 +17,33 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { compileSpec, decompileSpec, type GraphSpec } from "../../patterns/graphspec/index.js";
 
 describe("describe({ detail: 'spec' })", () => {
 	it("projects type/deps/meta and strips runtime fields", () => {
 		const g = new Graph("g");
-		const a = state(42, { name: "a", meta: { ...factoryTag("counter", { initial: 42 }) } });
-		const b = derived([a], ([v]) => (v as number) * 2, {
-			name: "b",
-			meta: { ...factoryTag("multiplier", { by: 2 }), domain: "math" },
+		const a = node([], {
+			name: "a",
+			meta: { ...factoryTag("counter", { initial: 42 }) },
+			initial: 42,
 		});
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{
+				describeKind: "derived",
+				name: "b",
+				meta: { ...factoryTag("multiplier", { by: 2 }), domain: "math" },
+			},
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// Activate so values populate; spec projection should still strip them.
@@ -108,9 +123,15 @@ describe("compileSpec reads meta.factory directly (Tier 1.5.3 Phase 3)", () => {
 			catalog: {
 				fns: {
 					multiply: (deps, config) =>
-						derived(
+						node(
 							[deps[0] as Parameters<typeof derived>[0][number]],
-							([v]) => (v as number) * (config.by as number),
+							(batchData, actions, ctx) => {
+								const data = batchData.map((batch, i) =>
+									batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+								);
+								actions.emit((data[0] as number) * (config.by as number));
+							},
+							{ describeKind: "derived" },
 						),
 				},
 			},
@@ -140,7 +161,7 @@ describe("compileSpec reads meta.factory directly (Tier 1.5.3 Phase 3)", () => {
 				sources: {
 					seedSource: (config) => {
 						receivedConfig = config;
-						return state(config.value);
+						return node([], { initial: config.value });
 					},
 				},
 			},
@@ -190,7 +211,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { rateLimiter } = await import("../../extra/resilience.js");
 		const { NS_PER_SEC } = await import("../../extra/backoff.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const { node: limited } = rateLimiter(src, {
 			maxEvents: 5,
 			windowNs: NS_PER_SEC,
@@ -217,7 +238,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { timeout } = await import("../../extra/resilience.js");
 		const { NS_PER_SEC } = await import("../../extra/backoff.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const timed = timeout(src, 5 * NS_PER_SEC);
 		const off = timed.subscribe(() => {});
 
@@ -235,7 +256,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("retry tags itself", async () => {
 		const { retry } = await import("../../extra/resilience.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = retry(src, { count: 3, backoff: "exponential" });
 		const off = wrapped.subscribe(() => {});
 
@@ -254,7 +275,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("retry omits non-serializable backoff function from factoryArgs", async () => {
 		const { retry } = await import("../../extra/resilience.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = retry(src, { count: 2, backoff: () => 100 });
 		const off = wrapped.subscribe(() => {});
 
@@ -273,7 +294,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("scan tags itself", async () => {
 		const { scan } = await import("../../extra/operators.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = scan(src, (a: number, x: number) => a + x, 10);
 		const off = wrapped.subscribe(() => {});
 
@@ -291,7 +312,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("distinctUntilChanged tags itself", async () => {
 		const { distinctUntilChanged } = await import("../../extra/operators.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = distinctUntilChanged(src);
 		const off = wrapped.subscribe(() => {});
 
@@ -309,8 +330,8 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("merge tags itself", async () => {
 		const { merge } = await import("../../extra/operators.js");
 
-		const a = state(1);
-		const b = state(2);
+		const a = node([], { initial: 1 });
+		const b = node([], { initial: 2 });
 		const wrapped = merge(a, b);
 		const off = wrapped.subscribe(() => {});
 
@@ -328,8 +349,8 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("switchMap tags itself", async () => {
 		const { switchMap } = await import("../../extra/operators.js");
 
-		const src = state(0);
-		const wrapped = switchMap(src, (n: number) => state(n * 2));
+		const src = node([], { initial: 0 });
+		const wrapped = switchMap(src, (n: number) => node([], { initial: n * 2 }));
 		const off = wrapped.subscribe(() => {});
 
 		const g = new Graph("g");
@@ -346,7 +367,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("debounce tags itself", async () => {
 		const { debounce } = await import("../../extra/operators.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = debounce(src, 50);
 		const off = wrapped.subscribe(() => {});
 
@@ -364,7 +385,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("throttle tags itself", async () => {
 		const { throttle } = await import("../../extra/operators.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = throttle(src, 75, { trailing: true });
 		const off = wrapped.subscribe(() => {});
 
@@ -388,7 +409,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("bufferTime tags itself", async () => {
 		const { bufferTime } = await import("../../extra/operators.js");
 
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const wrapped = bufferTime(src, 100);
 		const off = wrapped.subscribe(() => {});
 
@@ -406,7 +427,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 	it("frozenContext tags itself", async () => {
 		const { frozenContext } = await import("../../patterns/ai/prompts/frozen-context.js");
 
-		const src = state("hello");
+		const src = node([], { initial: "hello" });
 		const wrapped = frozenContext(src, { name: "ctx" });
 		const off = wrapped.subscribe(() => {});
 
@@ -430,7 +451,7 @@ describe("decompileSpec is the canonical name (Phase 3)", () => {
 
 	it("decompileSpec(g) ≈ g.describe({ detail: 'spec' }) (modulo feedback sugar + meta-companion stripping)", () => {
 		const g = new Graph("g");
-		g.add(state(7, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 7 }), { name: "a" });
 
 		const viaSpec = decompileSpec(g);
 		const viaDescribe = g.describe({ detail: "spec" });
@@ -446,7 +467,7 @@ describe("decompileSpec is the canonical name (Phase 3)", () => {
 
 	it("state initial round-trips through decompileSpec → compileSpec", () => {
 		const g1 = new Graph("g");
-		g1.add(state(99, { name: "counter" }), { name: "counter" });
+		g1.add(node([], { name: "counter", initial: 99 }), { name: "counter" });
 		const spec = decompileSpec(g1);
 		const g2 = compileSpec(spec);
 		expect(g2.resolve("counter").cache).toBe(99);
@@ -457,11 +478,17 @@ describe("decompileSpec → compileSpec round-trip", () => {
 	it("a graph using factoryTag-stamped derived survives decompile→compile", () => {
 		// 1) Build a graph using factoryTag on a derived node.
 		const g1 = new Graph("g");
-		const input = state(6, { name: "input" });
-		const doubled = derived([input], ([v]) => (v as number) * 2, {
-			name: "doubled",
-			meta: { ...factoryTag("multiply", { by: 2 }) },
-		});
+		const input = node([], { name: "input", initial: 6 });
+		const doubled = node(
+			[input],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "doubled", meta: { ...factoryTag("multiply", { by: 2 }) } },
+		);
 		g1.add(input, { name: "input" });
 		g1.add(doubled, { name: "doubled" });
 		const offOriginal = doubled.subscribe(() => {});
@@ -479,9 +506,15 @@ describe("decompileSpec → compileSpec round-trip", () => {
 			catalog: {
 				fns: {
 					multiply: (deps, config) =>
-						derived(
+						node(
 							[deps[0] as Parameters<typeof derived>[0][number]],
-							([v]) => (v as number) * (config.by as number),
+							(batchData, actions, ctx) => {
+								const data = batchData.map((batch, i) =>
+									batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+								);
+								actions.emit((data[0] as number) * (config.by as number));
+							},
+							{ describeKind: "derived" },
 						),
 				},
 			},
@@ -506,7 +539,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	it("Graph.tagFactory(name, args) surfaces top-level factory + factoryArgs in describe()", () => {
 		const g = new Graph("g");
 		g.tagFactory("agentMemory", { budget: 2000, vectorDimensions: 1536 });
-		g.add(state(0, { name: "store" }), { name: "store" });
+		g.add(node([], { name: "store", initial: 0 }), { name: "store" });
 
 		const out = g.describe();
 		expect(out.factory).toBe("agentMemory");
@@ -533,7 +566,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 		// `paths` may be a static array OR a Node-of-array. Both must survive
 		// `placeholderArgs` cleanly — the Node form collapses to `"<Node>"`,
 		// the array form recurses element-wise.
-		const pathsNode = state<readonly string[]>(["a", "b"]);
+		const pathsNode = node<readonly string[]>([], { initial: ["a", "b"] });
 		const args = placeholderArgs({
 			paths: pathsNode,
 			mode: "enforce",
@@ -555,7 +588,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 	it("placeholderArgs substitutes non-JSON fields with descriptive strings (DG2=ii)", async () => {
 		const { placeholderArgs } = await import("../../core/meta.js");
 		const adapter = { invoke: () => ({ content: "x" }) }; // not a Node, but has a function
-		const sourceNode = state(0);
+		const sourceNode = node([], { initial: 0 });
 		const args = placeholderArgs({
 			budget: 2000,
 			adapter,
@@ -589,7 +622,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 					myAgentMemory: (args) => {
 						receivedArgs = args;
 						const sub = new Graph("g");
-						sub.add(state(123, { name: "marker" }), { name: "marker" });
+						sub.add(node([], { name: "marker", initial: 123 }), { name: "marker" });
 						sub.tagFactory("myAgentMemory", args);
 						return sub;
 					},
@@ -625,7 +658,7 @@ describe("Tier 1.5.3 Phase 2.5 — Graph-level factory tagging (DG1=B)", () => {
 describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom self-tag", () => {
 	it("map tags itself", async () => {
 		const { map } = await import("../../extra/operators.js");
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const m = map(src, (v) => v * 2);
 		const off = m.subscribe(() => {});
 		const g = new Graph("g");
@@ -636,7 +669,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 
 	it("filter tags itself", async () => {
 		const { filter } = await import("../../extra/operators.js");
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const f = filter(src, (v) => v > 0);
 		const off = f.subscribe(() => {});
 		const g = new Graph("g");
@@ -647,7 +680,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 
 	it("reduce tags itself with initial seed", async () => {
 		const { reduce } = await import("../../extra/operators.js");
-		const src = state(1);
+		const src = node([], { initial: 1 });
 		const r = reduce(src, (a, v) => a + v, 100);
 		const off = r.subscribe(() => {});
 		const g = new Graph("g");
@@ -660,7 +693,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 
 	it("take tags itself with count", async () => {
 		const { take } = await import("../../extra/operators.js");
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const t = take(src, 3);
 		const off = t.subscribe(() => {});
 		const g = new Graph("g");
@@ -673,7 +706,7 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 
 	it("tap tags itself (function form)", async () => {
 		const { tap } = await import("../../extra/operators.js");
-		const src = state(0);
+		const src = node([], { initial: 0 });
 		const t = tap(src, () => undefined);
 		const off = t.subscribe(() => {});
 		const g = new Graph("g");
@@ -684,8 +717,8 @@ describe("Phase 2 operator mop-up — map/filter/reduce/take/tap/withLatestFrom 
 
 	it("withLatestFrom tags itself", async () => {
 		const { withLatestFrom } = await import("../../extra/operators.js");
-		const a = state(1);
-		const b = state(2);
+		const a = node([], { initial: 1 });
+		const b = node([], { initial: 2 });
 		const w = withLatestFrom(a, b);
 		const off = w.subscribe(() => {});
 		const g = new Graph("g");

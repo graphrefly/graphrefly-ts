@@ -11,8 +11,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import type { TopicGraph } from "../../messaging/index.js";
 import { aiMeta } from "../_internal.js";
 import { sumInputTokens, sumOutputTokens } from "../adapters/core/types.js";
@@ -66,10 +65,17 @@ export function costMeterExtractor(
 		estimatedTokens: 0,
 		estimated: true,
 	};
-	return derived<CostMeterReading>(
+	return node<CostMeterReading>(
 		[deltaTopic.latest],
-		([d], ctx) => {
-			if (d == null) return ZERO;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const d = data[0];
+			if (d == null) {
+				actions.emit(ZERO);
+				return;
+			}
 			const delta = d as StampedDelta;
 
 			if (!("chunkCount" in ctx.store)) {
@@ -96,12 +102,12 @@ export function costMeterExtractor(
 			const estimatedTokens = store.sawUsage
 				? store.usageTokens
 				: Math.ceil(store.charCount / charsPerToken);
-			return {
+			actions.emit({
 				chunkCount: store.chunkCount,
 				charCount: store.charCount,
 				estimatedTokens,
 				estimated: !store.sawUsage,
-			};
+			});
 		},
 		{
 			name: opts?.name ?? "cost-meter",

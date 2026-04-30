@@ -5,9 +5,11 @@
  * seed oversize, trimHead edges, tail memoization, slice semantics, diamond,
  * size/at getters, pluggable backend, version counter advance.
  */
+
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { combine } from "../../extra/operators.js";
 import {
 	type LogBackend,
@@ -540,10 +542,10 @@ describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
 
 	it("attach(upstream) drains DATA into the log and disposer detaches", () => {
 		const lg = reactiveLog<number>();
-		const src = state<number>(0);
+		const src = node<number>([], { initial: 0 });
 		const detach = lg.attach(src);
 
-		// On subscribe, push-on-subscribe replays `state(0)`'s cached `0` —
+		// On subscribe, push-on-subscribe replays `node([], { initial: 0 })`'s cached `0` —
 		// the attach handler treats that DATA the same as any post-subscribe
 		// emission, so the initial cached value lands in the log.
 		expect(lg.entries.cache).toEqual([0]);
@@ -559,7 +561,7 @@ describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
 
 	it("disposeAllViews releases tail/slice/fromCursor view caches", () => {
 		const lg = reactiveLog<number>([1, 2, 3, 4, 5]);
-		const cursor = state<number>(0);
+		const cursor = node<number>([], { initial: 0 });
 
 		const t = lg.view({ kind: "tail", n: 2 });
 		const s = lg.view({ kind: "slice", start: 1 });
@@ -583,7 +585,7 @@ describe("reactiveLog Audit 1 helpers — lifecycle composition", () => {
 		const lg = reactiveLog<number>([10, 20, 30]);
 		const tail = lg.view({ kind: "tail", n: 2 });
 		const lastValue = lg.lastValue;
-		const upstream = state<number>(40);
+		const upstream = node<number>([], { initial: 40 });
 		const detach = lg.attach(upstream);
 
 		expect(lg.entries.cache).toEqual([10, 20, 30, 40]);

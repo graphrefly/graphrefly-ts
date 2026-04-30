@@ -40,8 +40,7 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 
 import type { VerifyResult } from "./types.js";
 
@@ -114,8 +113,9 @@ export function autoSolidify<R, T = R>(config: AutoSolidifyConfig<R, T>): Node<T
 		config.extract ?? ((vr: VerifyResult<R>) => (vr.execution.artifact ?? null) as T | null);
 	const predicate = config.predicate ?? (() => true);
 
-	return producer<T>(
-		(actions) => {
+	return node<T>(
+		[],
+		(_data, actions) => {
 			let unsub: (() => void) | null = null;
 			let terminated = false;
 			const tearDown = (): void => {
@@ -188,6 +188,6 @@ export function autoSolidify<R, T = R>(config: AutoSolidifyConfig<R, T>): Node<T
 				tearDown();
 			};
 		},
-		{ name },
+		{ name, describeKind: "producer" },
 	);
 }

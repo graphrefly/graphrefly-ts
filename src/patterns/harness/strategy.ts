@@ -7,8 +7,7 @@
  */
 
 import { monotonicNs } from "../../core/clock.js";
-import type { Node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
 import { decay } from "../../extra/utils/decay.js";
 
@@ -59,15 +58,19 @@ export function strategyModel(): StrategyModelBundle {
 	const strategyMap = reactiveMap<StrategyKey, StrategyEntry>({ name: "strategy-entries" });
 
 	// Derived node that projects the reactive map into a plain Map snapshot.
-	const snapshot = derived<StrategySnapshot>(
+	const snapshot = node<StrategySnapshot>(
 		[strategyMap.entries],
-		([mapSnap]) => {
-			const raw = mapSnap as ReadonlyMap<StrategyKey, StrategyEntry>;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const raw = data[0] as ReadonlyMap<StrategyKey, StrategyEntry>;
 			// Return a fresh frozen copy so consumers see a stable reference.
-			return new Map(raw);
+			actions.emit(new Map(raw));
 		},
 		{
 			name: "strategy-model",
+			describeKind: "derived",
 			equals: (a, b) => {
 				const am = a as StrategySnapshot;
 				const bm = b as StrategySnapshot;
@@ -155,9 +158,12 @@ export function priorityScore(
 	const deps: Node<unknown>[] = [item, strategy, lastInteractionNs];
 	if (urgency) deps.push(urgency);
 
-	return derived<number>(
+	return node<number>(
 		deps,
-		(values) => {
+		(batchData, actions, ctx) => {
+			const values = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
 			const itm = values[0] as TriagedItem;
 			const strat = values[1] as StrategySnapshot;
 			const lastNs = values[2] as number;
@@ -178,8 +184,8 @@ export function priorityScore(
 			// External urgency boost (0–1 scale → 0–20 points)
 			score += urg * 20;
 
-			return score;
+			actions.emit(score);
 		},
-		{ name: "priority-score" },
+		{ name: "priority-score", describeKind: "derived" },
 	);
 }

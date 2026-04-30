@@ -1,5 +1,5 @@
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { type ReactiveLogBundle, reactiveLog } from "../../../extra/reactive-log.js";
 import { keepalive } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -31,11 +31,14 @@ export class ChatStreamGraph extends Graph {
 		this.messages = this._log.entries;
 		this.add(this.messages, { name: "messages" });
 
-		this.latest = derived<ChatMessage | null>(
+		this.latest = node<ChatMessage | null>(
 			[this.messages],
-			([snapshot]) => {
-				const entries = snapshot as readonly ChatMessage[];
-				return entries.length === 0 ? null : (entries[entries.length - 1] as ChatMessage);
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const entries = data[0] as readonly ChatMessage[];
+				actions.emit(entries.length === 0 ? null : (entries[entries.length - 1] as ChatMessage));
 			},
 			{
 				name: "latest",
@@ -46,9 +49,14 @@ export class ChatStreamGraph extends Graph {
 		this.add(this.latest, { name: "latest" });
 		this.addDisposer(keepalive(this.latest));
 
-		this.messageCount = derived<number>(
+		this.messageCount = node<number>(
 			[this.messages],
-			([snapshot]) => (snapshot as readonly ChatMessage[]).length,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly ChatMessage[]).length);
+			},
 			{
 				name: "messageCount",
 				describeKind: "derived",

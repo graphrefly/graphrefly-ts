@@ -2,11 +2,13 @@
  * Edge-case tests for operators — P0 (data-loss) and P1 (correctness).
  * Cross-referenced from docs/batch-review/batch-7.md.
  */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import type { Messages } from "../../core/messages.js";
 import { COMPLETE, DATA, DIRTY, ERROR } from "../../core/messages.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import {
 	combine,
 	concat,
@@ -45,7 +47,7 @@ afterEach(() => {
 describe("P0: debounce flush-on-complete", () => {
 	it("flushes pending value on source COMPLETE", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const d = debounce(s, 100);
 		const { batches, unsub } = collect(d);
 
@@ -67,7 +69,7 @@ describe("P0: debounce flush-on-complete", () => {
 
 	it("cancels pending on upstream ERROR", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const d = debounce(s, 100);
 		const { batches, unsub } = collect(d);
 
@@ -83,7 +85,7 @@ describe("P0: debounce flush-on-complete", () => {
 
 	it("forwards upstream COMPLETE even without pending", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const d = debounce(s, 100);
 		const { batches, unsub } = collect(d);
 
@@ -94,7 +96,7 @@ describe("P0: debounce flush-on-complete", () => {
 
 	it("emits each debounced value in sequence", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const d = debounce(s, 50);
 		const { batches, unsub } = collect(d);
 
@@ -113,7 +115,7 @@ describe("P0: debounce flush-on-complete", () => {
 describe("P0: throttle COMPLETE/ERROR forwarding", () => {
 	it("forwards upstream COMPLETE", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const t = throttle(s, 100);
 		const { batches, unsub } = collect(t);
 
@@ -124,7 +126,7 @@ describe("P0: throttle COMPLETE/ERROR forwarding", () => {
 
 	it("forwards upstream ERROR", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const t = throttle(s, 100);
 		const { batches, unsub } = collect(t);
 
@@ -137,7 +139,7 @@ describe("P0: throttle COMPLETE/ERROR forwarding", () => {
 describe("P0: timeout timer cleanup", () => {
 	it("clears timer when source completes before timeout", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const t = timeout(s, 100);
 		const { batches, unsub } = collect(t);
 
@@ -153,7 +155,7 @@ describe("P0: timeout timer cleanup", () => {
 
 	it("clears timer when source errors before timeout", () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const t = timeout(s, 100);
 		const { batches, unsub } = collect(t);
 
@@ -168,7 +170,7 @@ describe("P0: timeout timer cleanup", () => {
 
 	it("resets timer on each DATA emission", async () => {
 		vi.useFakeTimers();
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const t = timeout(s, 100);
 		const { batches, unsub } = collect(t);
 
@@ -195,8 +197,8 @@ describe("P0: timeout timer cleanup", () => {
 
 describe("P0: merge ALL-complete semantics", () => {
 	it("completes only after ALL sources complete", () => {
-		const s1 = state(1);
-		const s2 = state(2);
+		const s1 = node([], { initial: 1 });
+		const s2 = node([], { initial: 2 });
 		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
@@ -209,8 +211,8 @@ describe("P0: merge ALL-complete semantics", () => {
 	});
 
 	it("error from one source propagates immediately", () => {
-		const s1 = state(1);
-		const s2 = state(2);
+		const s1 = node([], { initial: 1 });
+		const s2 = node([], { initial: 2 });
 		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
@@ -220,8 +222,8 @@ describe("P0: merge ALL-complete semantics", () => {
 	});
 
 	it("forwards values from each source independently", () => {
-		const s1 = state(0);
-		const s2 = state(0);
+		const s1 = node([], { initial: 0 });
+		const s2 = node([], { initial: 0 });
 		const m = merge(s1, s2);
 		const { batches, unsub } = collect(m);
 
@@ -245,8 +247,8 @@ describe("P0: merge ALL-complete semantics", () => {
 
 describe("P1: switchMap outer-complete waits for inner", () => {
 	it("waits for active inner to complete before emitting COMPLETE", () => {
-		const outer = state(0);
-		const inner = state(10);
+		const outer = node([], { initial: 0 });
+		const inner = node([], { initial: 10 });
 		const out = switchMap(outer, () => inner);
 		const { batches, unsub } = collect(out);
 
@@ -261,8 +263,8 @@ describe("P1: switchMap outer-complete waits for inner", () => {
 	});
 
 	it("error in inner propagates to output", () => {
-		const outer = state(0);
-		const inner = state(10);
+		const outer = node([], { initial: 0 });
+		const inner = node([], { initial: 10 });
 		const out = switchMap(outer, () => inner);
 		const { batches, unsub } = collect(out);
 
@@ -274,8 +276,8 @@ describe("P1: switchMap outer-complete waits for inner", () => {
 
 describe("P1: concatMap inner error propagation", () => {
 	it("inner error forwards to output", () => {
-		const outer = state(0);
-		const inner = state(10);
+		const outer = node([], { initial: 0 });
+		const inner = node([], { initial: 10 });
 		const out = concatMap(outer, () => inner);
 		const { batches, unsub } = collect(out);
 
@@ -287,8 +289,8 @@ describe("P1: concatMap inner error propagation", () => {
 
 describe("P1: exhaustMap inner error propagation", () => {
 	it("inner error forwards to output", () => {
-		const outer = state(0);
-		const inner = state(10);
+		const outer = node([], { initial: 0 });
+		const inner = node([], { initial: 10 });
 		const out = exhaustMap(outer, () => inner);
 		const { batches, unsub } = collect(out);
 
@@ -300,7 +302,7 @@ describe("P1: exhaustMap inner error propagation", () => {
 
 describe("P1: diamond glitch-freedom", () => {
 	it("combine never exposes intermediate state in a diamond", () => {
-		const root = state(1);
+		const root = node([], { initial: 1 });
 		const left = map(root, (x) => (x as number) * 2);
 		const right = map(root, (x) => (x as number) + 10);
 		const joined = combine(left, right);
@@ -339,8 +341,17 @@ describe("P1: diamond glitch-freedom", () => {
 
 describe("P1: reentrancy safety", () => {
 	it("subscriber modifying state during emission produces consistent final value", () => {
-		const s = state(0);
-		const d = derived([s], ([v]) => v as number);
+		const s = node([], { initial: 0 });
+		const d = node(
+			[s],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
 		const values: number[] = [];
 
 		d.subscribe((batchMsgs: Messages) => {
@@ -370,7 +381,7 @@ describe("P1: reentrancy safety", () => {
 	});
 
 	it("self-unsubscribe during emission does not crash", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		let unsub: (() => void) | undefined;
 
 		unsub = s.subscribe((batchMsgs: Messages) => {
@@ -394,8 +405,8 @@ describe("P1: reentrancy safety", () => {
 
 describe("P1: combine edge cases", () => {
 	it("error from any source propagates", () => {
-		const s1 = state(1);
-		const s2 = state(2);
+		const s1 = node([], { initial: 1 });
+		const s2 = node([], { initial: 2 });
 		const c = combine(s1, s2);
 		const { batches, unsub } = collect(c);
 
@@ -405,7 +416,7 @@ describe("P1: combine edge cases", () => {
 	});
 
 	it("single source combine works", () => {
-		const s = state(42);
+		const s = node([], { initial: 42 });
 		const c = combine(s);
 		const { batches, unsub } = collect(c);
 
@@ -418,8 +429,8 @@ describe("P1: combine edge cases", () => {
 
 describe("P1: concat error handling", () => {
 	it("error from first source stops chain", () => {
-		const s1 = state(1);
-		const s2 = state(2);
+		const s1 = node([], { initial: 1 });
+		const s2 = node([], { initial: 2 });
 		const c = concat(s1, s2);
 		const { batches, unsub } = collect(c);
 
@@ -432,7 +443,7 @@ describe("P1: concat error handling", () => {
 
 describe("P1: filter does not dedup", () => {
 	it("passes consecutive different values through", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const f = filter(s, () => true);
 		const { batches, unsub } = collect(f);
 
@@ -454,8 +465,17 @@ describe("P1: filter does not dedup", () => {
 
 describe("P1: batch + diamond coalescing", () => {
 	it("batch coalesces to final value", () => {
-		const s = state(0);
-		const d = derived([s], ([v]) => v as number);
+		const s = node([], { initial: 0 });
+		const d = node(
+			[s],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
 		const { batches, unsub } = collect(d);
 
 		batch(() => {

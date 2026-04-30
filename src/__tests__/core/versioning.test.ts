@@ -4,7 +4,7 @@ import { registerBuiltins } from "../../core/config.js";
 import { DATA, DIRTY, RESOLVED } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
 import { GraphReFlyConfig, type NodeImpl, node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+
 import {
 	advanceVersion,
 	createVersioning,
@@ -95,14 +95,14 @@ describe("defaultHash", () => {
 
 describe("node V0 versioning", () => {
 	it("state node has v with id and version 0", () => {
-		const s = state(42, { versioning: 0 });
+		const s = node([], { versioning: 0, initial: 42 });
 		expect(s.v).toBeDefined();
 		expect(s.v!.id).toBeTypeOf("string");
 		expect(s.v!.version).toBe(0);
 	});
 
 	it("version increments on DATA", () => {
-		const s = state(0, { versioning: 0 });
+		const s = node([], { versioning: 0, initial: 0 });
 		const unsub = s.subscribe(() => {});
 		s.down([[DATA, 1]]);
 		expect(s.v!.version).toBe(1);
@@ -112,7 +112,7 @@ describe("node V0 versioning", () => {
 	});
 
 	it("version does NOT increment on RESOLVED", () => {
-		const s = state(0, { versioning: 0 });
+		const s = node([], { versioning: 0, initial: 0 });
 		const unsub = s.subscribe(() => {});
 		s.down([[DIRTY], [RESOLVED]]);
 		expect(s.v!.version).toBe(0);
@@ -120,11 +120,17 @@ describe("node V0 versioning", () => {
 	});
 
 	it("version increments in derived node on recompute", () => {
-		const a = state(1, { name: "a" });
-		const b = derived([a], (deps) => (deps[0] as number) * 2, {
-			name: "b",
-			versioning: 0,
-		});
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b", versioning: 0 },
+		);
 		const unsub = b.subscribe(() => {});
 		// Initial compute on subscribe: version is already 1
 		expect(b.v!.version).toBe(1);
@@ -135,9 +141,18 @@ describe("node V0 versioning", () => {
 	});
 
 	it("version does NOT increment when derived value unchanged (RESOLVED)", () => {
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		// derived always returns constant — emits RESOLVED after first DATA
-		const b = derived([a], () => 42, { name: "b", versioning: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(42);
+			},
+			{ describeKind: "derived", name: "b", versioning: 0 },
+		);
 		const unsub = b.subscribe(() => {});
 		// Initial compute: version 0 → 1 (first DATA)
 		expect(b.v!.version).toBe(1);
@@ -148,19 +163,19 @@ describe("node V0 versioning", () => {
 	});
 
 	it("v is undefined when versioning not enabled", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		expect(s.v).toBeUndefined();
 	});
 
 	it("custom id is preserved", () => {
-		const s = state(0, { versioning: 0, versioningId: "my-node-001" });
+		const s = node([], { versioning: 0, versioningId: "my-node-001", initial: 0 });
 		expect(s.v!.id).toBe("my-node-001");
 	});
 });
 
 describe("node V1 versioning", () => {
 	it("state node has cid and prev", () => {
-		const s = state(42, { versioning: 1 });
+		const s = node([], { versioning: 1, initial: 42 });
 		expect(s.v).toBeDefined();
 		expect(isV1(s.v!)).toBe(true);
 		const v = s.v as V1;
@@ -170,7 +185,7 @@ describe("node V1 versioning", () => {
 	});
 
 	it("cid changes and prev links on DATA", () => {
-		const s = state("a", { versioning: 1 });
+		const s = node([], { versioning: 1, initial: "a" });
 		const initialCid = (s.v as V1).cid;
 
 		const unsub = s.subscribe(() => {});
@@ -183,7 +198,7 @@ describe("node V1 versioning", () => {
 	});
 
 	it("linked history across multiple updates", () => {
-		const s = state(0, { versioning: 1 });
+		const s = node([], { versioning: 1, initial: 0 });
 		const unsub = s.subscribe(() => {});
 		const cids: string[] = [(s.v as V1).cid];
 		for (let i = 1; i <= 3; i++) {
@@ -198,7 +213,7 @@ describe("node V1 versioning", () => {
 
 	it("custom hash function", () => {
 		const customHash = (v: unknown) => `custom-${String(v)}`;
-		const s = state(42, { versioning: 1, versioningHash: customHash });
+		const s = node([], { versioning: 1, versioningHash: customHash, initial: 42 });
 		expect((s.v as V1).cid).toBe("custom-42");
 
 		const unsub = s.subscribe(() => {});
@@ -211,7 +226,7 @@ describe("node V1 versioning", () => {
 
 describe("versioning in batch", () => {
 	it("version advances once per DATA in batch", () => {
-		const s = state(0, { versioning: 0 });
+		const s = node([], { versioning: 0, initial: 0 });
 		const unsub = s.subscribe(() => {});
 		batch(() => {
 			s.down([[DATA, 1]]);
@@ -225,7 +240,7 @@ describe("versioning in batch", () => {
 
 describe("versioning in describeNode", () => {
 	it("V0 appears in describe output", () => {
-		const s = state(0, { versioning: 0, name: "x" });
+		const s = node([], { versioning: 0, name: "x", initial: 0 });
 		const d = describeNode(s);
 		expect(d.v).toBeDefined();
 		expect(d.v!.id).toBe(s.v!.id);
@@ -234,7 +249,7 @@ describe("versioning in describeNode", () => {
 	});
 
 	it("V1 appears in describe output with cid and prev", () => {
-		const s = state(42, { versioning: 1, name: "x" });
+		const s = node([], { versioning: 1, name: "x", initial: 42 });
 		const d = describeNode(s);
 		expect(d.v).toBeDefined();
 		expect(d.v!.cid).toBeTypeOf("string");
@@ -242,7 +257,7 @@ describe("versioning in describeNode", () => {
 	});
 
 	it("no v field when versioning disabled", () => {
-		const s = state(0, { name: "x" });
+		const s = node([], { name: "x", initial: 0 });
 		const d = describeNode(s);
 		expect(d.v).toBeUndefined();
 	});
@@ -254,7 +269,7 @@ describe("versioning in describeNode", () => {
 
 describe("_applyVersioning — retroactive + monotonic upgrade", () => {
 	it("attaches V0 to a node that had no versioning", () => {
-		const s = state(42) as unknown as NodeImpl<number>;
+		const s = node([], { initial: 42 }) as unknown as NodeImpl<number>;
 		expect(s.v).toBeUndefined();
 		s._applyVersioning(0);
 		expect(s.v).toBeDefined();
@@ -262,7 +277,7 @@ describe("_applyVersioning — retroactive + monotonic upgrade", () => {
 	});
 
 	it("upgrades V0 → V1, preserving id and version counter", () => {
-		const s = state(42, { versioning: 0 }) as unknown as NodeImpl<number>;
+		const s = node([], { versioning: 0, initial: 42 }) as unknown as NodeImpl<number>;
 		const unsub = s.subscribe(() => {});
 		s.down([[DATA, 99]]);
 		const originalId = s.v!.id;
@@ -278,7 +293,7 @@ describe("_applyVersioning — retroactive + monotonic upgrade", () => {
 	});
 
 	it("is monotonic — V1 → V0 is a no-op (levels only go up)", () => {
-		const s = state(42, { versioning: 1 }) as unknown as NodeImpl<number>;
+		const s = node([], { versioning: 1, initial: 42 }) as unknown as NodeImpl<number>;
 		const cidBefore = (s.v as V1).cid;
 		s._applyVersioning(0);
 		expect(isV1(s.v!)).toBe(true);
@@ -294,7 +309,7 @@ describe("config-level defaults — defaultVersioning + defaultHashFn", () => {
 			defaultVersioning: 0,
 		});
 		registerBuiltins(cfg);
-		const s = state(1, { config: cfg });
+		const s = node([], { config: cfg, initial: 1 });
 		expect(s.v).toBeDefined();
 		expect(s.v!.version).toBe(0);
 	});
@@ -312,7 +327,7 @@ describe("config-level defaults — defaultVersioning + defaultHashFn", () => {
 			defaultHashFn: customHash,
 		});
 		registerBuiltins(cfg);
-		const s = state(42, { config: cfg });
+		const s = node([], { config: cfg, initial: 42 });
 		expect(customHashCalls).toBeGreaterThanOrEqual(1);
 		expect((s.v as V1).cid).toBe("cust-42");
 	});
@@ -325,7 +340,7 @@ describe("config-level defaults — defaultVersioning + defaultHashFn", () => {
 		});
 		registerBuiltins(cfg);
 		// Per-node opt-out at v0.
-		const s = state(1, { config: cfg, versioning: 0 });
+		const s = node([], { config: cfg, versioning: 0, initial: 1 });
 		expect(s.v).toBeDefined();
 		expect(isV1(s.v!)).toBe(false);
 	});
@@ -333,7 +348,7 @@ describe("config-level defaults — defaultVersioning + defaultHashFn", () => {
 
 describe("versioning with effect nodes", () => {
 	it("effect nodes can have V0 versioning (no auto-emit, so version stays 0)", () => {
-		const a = state(1);
+		const a = node([], { initial: 1 });
 		let called = 0;
 		// Use node() directly since effect() sugar doesn't accept extra opts
 		const e = node(

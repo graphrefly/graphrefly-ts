@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { keepalive } from "../../extra/sources.js";
 import { decay } from "../../extra/utils/decay.js";
 import {
@@ -78,7 +79,7 @@ describe("patterns.memory.collection({ ranked: false }) — Tier 2.3 lightCollec
 
 	it("itemNode reactively reflects upsert / remove", () => {
 		const c = collection<number>("c", { ranked: false });
-		const idNode = state("a");
+		const idNode = node([], { initial: "a" });
 		const itemN = c.itemNode(idNode);
 		const seen: Array<CollectionEntry<number> | undefined> = [];
 		itemN.subscribe((msgs) => {
@@ -97,7 +98,7 @@ describe("patterns.memory.collection({ ranked: false }) — Tier 2.3 lightCollec
 
 	it("hasNode reactively reflects upsert / remove", () => {
 		const c = collection<number>("c", { ranked: false });
-		const idNode = state("a");
+		const idNode = node([], { initial: "a" });
 		const hasN = c.hasNode(idNode);
 		const seen: boolean[] = [];
 		hasN.subscribe((msgs) => {
@@ -156,7 +157,7 @@ describe("patterns.memory.collection", () => {
 
 	it("itemNode reactively returns the entry by id", () => {
 		const g = collection<number>("mem", { score: (v) => v });
-		const idN = state("a");
+		const idN = node([], { initial: "a" });
 		const itemN = g.itemNode(idN);
 		itemN.subscribe(() => undefined);
 		g.upsert("a", 4);
@@ -166,7 +167,7 @@ describe("patterns.memory.collection", () => {
 	});
 
 	it("rescore re-applies the latest score fn to existing entries", () => {
-		const scoreFnNode = state<(v: number) => number>((v) => v);
+		const scoreFnNode = node<(v: number) => number>([], { initial: (v: number) => v });
 		const g = collection<number>("mem", { score: scoreFnNode });
 		g.addDisposer(keepalive(g.ranked));
 		g.upsert("a", 2);
@@ -241,7 +242,7 @@ describe("patterns.memory.vectorIndex", () => {
 		});
 		idx.upsert("a", [1, 0], { label: "x-axis" });
 		idx.upsert("b", [0, 1], { label: "y-axis" });
-		const query = state<readonly number[]>([0.9, 0.1]);
+		const query = node<readonly number[]>([], { initial: [0.9, 0.1] });
 		const results = idx.searchNode(query, 1);
 		results.subscribe(() => undefined);
 		const out = results.cache as readonly VectorSearchResult<{ label: string }>[];
@@ -251,7 +252,7 @@ describe("patterns.memory.vectorIndex", () => {
 
 	it("searchNode re-derives when entries change", () => {
 		const idx = vectorIndex<{ label: string }>({ backend: "flat", dimension: 2 });
-		const query = state<readonly number[]>([1, 0]);
+		const query = node<readonly number[]>([], { initial: [1, 0] });
 		const results = idx.searchNode(query, 5);
 		results.subscribe(() => undefined);
 		idx.upsert("a", [1, 0], { label: "x" });
@@ -276,7 +277,7 @@ describe("patterns.memory.vectorIndex", () => {
 			strictDimension: false,
 		});
 		idx.upsert("long", [1, 0, 0, 1], { label: "four" });
-		const query = state<readonly number[]>([1, 0]);
+		const query = node<readonly number[]>([], { initial: [1, 0] });
 		const results = idx.searchNode(query, 1);
 		results.subscribe(() => undefined);
 		const out = results.cache as readonly VectorSearchResult<{ label: string }>[];
@@ -375,7 +376,7 @@ describe("patterns.memory.knowledgeGraph", () => {
 		kg.upsertEntity("c", { name: "C" });
 		kg.link("a", "b", "knows");
 		kg.link("c", "b", "knows");
-		const idN = state("b");
+		const idN = node([], { initial: "b" });
 		const related = kg.relatedNode(idN);
 		related.subscribe(() => undefined);
 		const edges = related.cache as readonly KnowledgeEdge[];
@@ -388,8 +389,8 @@ describe("patterns.memory.knowledgeGraph", () => {
 		const kg = knowledgeGraph<{ name: string }, "knows" | "owes">("kg");
 		kg.link("a", "b", "knows");
 		kg.link("a", "b", "owes");
-		const idN = state("a");
-		const relN = state<"knows" | "owes">("knows");
+		const idN = node([], { initial: "a" });
+		const relN = node<"knows" | "owes">([], { initial: "knows" });
 		const filtered = kg.relatedNode(idN, relN);
 		filtered.subscribe(() => undefined);
 		expect((filtered.cache as readonly KnowledgeEdge[]).length).toBe(1);

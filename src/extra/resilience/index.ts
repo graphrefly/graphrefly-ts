@@ -33,7 +33,6 @@ import {
 } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
@@ -336,8 +335,8 @@ function _retrySource<T>(source: Node<T>, opts?: NodeOrValue<RetryOptions>): Nod
 	// "backoff without count" RangeError). Reactive-form opts re-validate
 	// per `getCfg()` call inside the state machine.
 	if (!isNode(opts)) resolveRetryConfig(staticOpts);
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			const optMirror = resolveReactiveOption<RetryOptions>(opts as NodeOrValue<RetryOptions>);
 			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(optMirror.current());
 			const inner = _runRetryStateMachine(getCfg, () => source, a);
@@ -367,8 +366,8 @@ function _retryFactory<T>(
 	const staticOpts = isNode(opts) ? undefined : (opts as RetryFactoryOptions<T> | undefined);
 	// Eager validation for static-form opts (Tier 3.1 footgun preservation).
 	if (!isNode(opts)) resolveRetryConfig(staticOpts);
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			const optMirror = resolveReactiveOption<RetryFactoryOptions<T>>(
 				opts as NodeOrValue<RetryFactoryOptions<T>>,
 			);
@@ -990,8 +989,8 @@ export function rateLimiter<T>(
 	const initialMaxBuffer = initialOpts?.maxBuffer;
 	const isUnbounded = initialMaxBuffer === Infinity;
 
-	const out = producer<T>(
-		(a) => {
+	const out = node<T>(
+		(_data, a) => {
 			// Mutable closure-state — replaced on each option swap.
 			let maxEvents = initialOpts?.maxEvents ?? 1;
 			let windowNs = initialOpts?.windowNs ?? NS_PER_SEC;
@@ -1505,8 +1504,8 @@ export function fallback<T>(
 	options?: { meta?: Record<string, unknown> },
 ): Node<T> {
 	const callerMeta = options?.meta;
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			let fallbackUnsub: (() => void) | undefined;
 			let sourceUnsub: (() => void) | undefined;
 
@@ -1614,8 +1613,8 @@ export function timeout<T>(
 	const callerMeta = options?.meta;
 	const factoryArgs = isNode(timeoutNs) ? { timeoutNs: "Node<number>" } : { timeoutNs };
 
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			let stopped = false;
 			const timer = new ResettableTimer();
 			// Closure-mirror per §28: subscribe to the option Node (static-form

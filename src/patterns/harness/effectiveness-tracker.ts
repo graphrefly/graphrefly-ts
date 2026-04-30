@@ -11,8 +11,7 @@
  * @module
  */
 
-import type { Node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { reactiveMap } from "../../extra/reactive-map.js";
 import { keepalive } from "../../extra/sources.js";
 
@@ -68,13 +67,17 @@ export function effectivenessTracker(
 		name: opts?.name ?? "effectiveness-entries",
 	});
 
-	const snapshot = derived<EffectivenessSnapshot>(
+	const snapshot = node<EffectivenessSnapshot>(
 		[_map.entries],
-		([mapSnap]) => {
-			return new Map(mapSnap as ReadonlyMap<string, EffectivenessEntry>);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(new Map(data[0] as ReadonlyMap<string, EffectivenessEntry>));
 		},
 		{
 			name: `${opts?.name ?? "effectiveness"}-snapshot`,
+			describeKind: "derived",
 			equals: (a, b) => {
 				const am = a as EffectivenessSnapshot;
 				const bm = b as EffectivenessSnapshot;

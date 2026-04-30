@@ -19,8 +19,7 @@
 
 import { batch } from "../core/batch.js";
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
-import type { Node, NodeOptions } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
 
@@ -97,7 +96,7 @@ export function externalProducer<T = unknown>(
 	register: ExternalRegister<EmitTriad<T>>,
 	opts?: ExtraOpts,
 ): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let active = true;
 		const triad: EmitTriad<T> = {
 			emit(value) {
@@ -207,8 +206,8 @@ export function externalBundle<TChannels extends Record<string, unknown>>(
 	for (const ch of channels) {
 		const name = opts?.name ? `${opts.name}::${ch}` : ch;
 		const chOpts = opts?.channelOpts?.[ch];
-		const n = producer<TChannels[typeof ch]>(
-			(_a) => {
+		const n = node<TChannels[typeof ch]>(
+			(_data, _a) => {
 				activatedCount++;
 				return () => {
 					teardownCount++;

@@ -11,7 +11,7 @@
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, ERROR, type Message } from "../../core/messages.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
+
 import { merge } from "../../extra/operators.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
 
@@ -109,12 +109,16 @@ export function funnel<T>(
 		const stageInputPath = `${stage.name}::input`;
 		const stageInput = g.resolve(stageInputPath);
 		const bridgeName = `__bridge_${prevOutputPath}→${stage.name}_input`;
-		const br = effect(
+		const br = node(
 			[prevNode],
-			([data]) => {
-				stageInput.emit(data);
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				stageInput.emit(data[0]);
+				return undefined;
 			},
-			{ name: bridgeName },
+			{ describeKind: "effect", name: bridgeName },
 		);
 		g.add(br as Node<unknown>, { name: bridgeName });
 		g.addDisposer(keepalive(br));
@@ -167,12 +171,15 @@ export function feedback(
 	// Internal counter node — source of truth for iteration bound.
 	// Reset to 0 to allow more iterations.
 	const counterName = `__feedback_${condition}`;
-	const counter = state<number>(0, {
-		meta: baseMeta("feedback_counter", {
-			maxIterations: maxIter,
-			feedbackFrom: condition,
-			feedbackTo: reentry,
-		}),
+	const counter = node<number>([], {
+		...{
+			meta: baseMeta("feedback_counter", {
+				maxIterations: maxIter,
+				feedbackFrom: condition,
+				feedbackTo: reentry,
+			}),
+		},
+		initial: 0,
 	});
 	graph.add(counter as Node<unknown>, { name: counterName });
 
@@ -280,9 +287,12 @@ export function scorer(
 	const n = sources.length;
 	const scoreFns = opts?.scoreFns;
 
-	return derived<ScoredItem<number[]>>(
+	return node<ScoredItem<number[]>>(
 		allDeps,
-		(vals) => {
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
 			const signals = vals.slice(0, n) as number[];
 			const weightValues = vals.slice(n) as number[];
 
@@ -298,11 +308,11 @@ export function scorer(
 				totalScore += weighted;
 			}
 
-			return {
+			actions.emit({
 				value: signals,
 				score: totalScore,
 				breakdown,
-			};
+			});
 		},
 		{
 			...(opts

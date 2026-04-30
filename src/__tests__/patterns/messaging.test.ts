@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { state } from "../../core/index.js";
+import { node } from "../../core/node.js";
+
 import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
 import { messagingHub, subscription, topic, topicBridge } from "../../patterns/messaging/index.js";
 
@@ -194,9 +195,9 @@ describe("patterns.messaging", () => {
 
 	it("JobQueueGraph.consumeFrom wires an external source into the queue", () => {
 		const q = jobQueue<number>("q");
-		// Use state(7) which pushes DATA(7) on subscribe (that's expected behaviour).
+		// Use node([], { initial: 7 }) which pushes DATA(7) on subscribe (that's expected behaviour).
 		// Count from initial subscribe + 1 more emit = depth of 2, then dispose.
-		const src = state<number>(7);
+		const src = node<number>([], { initial: 7 });
 		const disposer = q.consumeFrom(src);
 		// After subscribe: depth = 1 (push-on-subscribe with initial 7).
 		src.emit(8);

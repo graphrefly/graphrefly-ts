@@ -12,8 +12,7 @@
 import { batch } from "../core/batch.js";
 import { monotonicNs } from "../core/clock.js";
 import { DATA, DIRTY } from "../core/messages.js";
-import type { Node, NodeOptions } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 import type { VersioningLevel } from "../core/versioning.js";
 
 export type ReactiveMapOptions<K, V> = {
@@ -467,7 +466,8 @@ export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): React
 	const backend: MapBackend<K, V> =
 		userBackend ?? new NativeMapBackend<K, V>({ maxSize, defaultTtl });
 
-	const n = state<ReadonlyMap<K, V>>(backend.toMap(), {
+	const n = node<ReadonlyMap<K, V>>([], {
+		initial: backend.toMap(),
 		name,
 		describeKind: "state",
 		equals: (a, b) => a === b,

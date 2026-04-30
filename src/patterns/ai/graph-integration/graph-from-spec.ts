@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 
 import { COMPLETE, ERROR } from "../../../core/messages.js";
-import type { Node } from "../../../core/node.js";
-import { producer, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { switchMap } from "../../../extra/operators.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
@@ -120,7 +120,7 @@ export async function graphFromSpec(
  * Reactive variant of {@link graphFromSpec}: re-invokes the LLM and
  * recompiles the graph whenever `input` emits a new natural-language
  * description. Useful inside the harness or refine loop when the spec text
- * itself is a reactive value (e.g. fed by a `state(...)` knob, a memory
+ * itself is a reactive value (e.g. fed by a `node([], { initial: ... })` knob, a memory
  * snapshot, or an upstream `promptNode` output).
  *
  * **Supersede:** when the input changes mid-flight, switchMap tears the
@@ -149,15 +149,15 @@ export function graphFromSpecReactive(
 	const inputNode = fromAny(input);
 	return switchMap<string, Graph | null>(inputNode, (nl) => {
 		if (!nl || typeof nl !== "string" || nl.trim().length === 0) {
-			return state<Graph | null>(null);
+			return node<Graph | null>([], { initial: null });
 		}
 		// Producer guarantees a single DATA + COMPLETE per upstream wave —
 		// matches the `promptNode` shape (see Unit 1 review). On supersede,
 		// switchMap tears down the producer; cleanup aborts the in-flight LLM
 		// call AND destroys any Graph that lands post-abort (would otherwise
 		// leak its mounted state nodes / storage handles until GC).
-		return producer<Graph | null>(
-			(actions) => {
+		return node<Graph | null>(
+			(_data, actions) => {
 				const controller = new AbortController();
 				let cancelled = false;
 				graphFromSpec(nl, adapter, { ...opts, signal: controller.signal })
@@ -178,7 +178,7 @@ export function graphFromSpecReactive(
 					controller.abort();
 				};
 			},
-			{ name: "graphFromSpec::call" },
+			{ describeKind: "producer", ...{ name: "graphFromSpec::call" } },
 		);
 	});
 }

@@ -21,8 +21,8 @@
 
 import { monotonicNs } from "../../../../core/clock.js";
 import { DATA } from "../../../../core/messages.js";
-import type { Node } from "../../../../core/node.js";
-import { derived, state } from "../../../../core/sugar.js";
+import { type Node, node } from "../../../../core/node.js";
+
 import { type ReactiveLogBundle, reactiveLog } from "../../../../extra/reactive-log.js";
 import { keepalive } from "../../../../extra/sources.js";
 import {
@@ -129,21 +129,41 @@ export function withBudgetGate(
 
 	// O(1) running totals — incremented per `record()` rather than reduced over
 	// the full log. Reactive surface preserved via `state<BudgetTotals>`.
-	const totals = state<BudgetTotals>(makeEmptyTotals(), {
+	const totals = node<BudgetTotals>([], {
 		name: opts.name ? `${opts.name}/totals` : "budgetGate/totals",
+		initial: makeEmptyTotals(),
 	});
 
-	const isOpen = derived<boolean>(
+	const isOpen = node<boolean>(
 		[totals],
-		([t]) => {
-			const tt = t as BudgetTotals;
-			if (opts.caps.calls != null && tt.calls >= opts.caps.calls) return false;
-			if (opts.caps.inputTokens != null && tt.inputTokens >= opts.caps.inputTokens) return false;
-			if (opts.caps.outputTokens != null && tt.outputTokens >= opts.caps.outputTokens) return false;
-			if (opts.caps.usd != null && tt.usd >= opts.caps.usd) return false;
-			return true;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const tt = data[0] as BudgetTotals;
+			if (opts.caps.calls != null && tt.calls >= opts.caps.calls) {
+				actions.emit(false);
+				return;
+			}
+			if (opts.caps.inputTokens != null && tt.inputTokens >= opts.caps.inputTokens) {
+				actions.emit(false);
+				return;
+			}
+			if (opts.caps.outputTokens != null && tt.outputTokens >= opts.caps.outputTokens) {
+				actions.emit(false);
+				return;
+			}
+			if (opts.caps.usd != null && tt.usd >= opts.caps.usd) {
+				actions.emit(false);
+				return;
+			}
+			actions.emit(true);
 		},
-		{ name: opts.name ? `${opts.name}/isOpen` : "budgetGate/isOpen", initial: true },
+		{
+			describeKind: "derived",
+			name: opts.name ? `${opts.name}/isOpen` : "budgetGate/isOpen",
+			initial: true,
+		},
 	);
 	// Keep the isOpen derived live so `.cache` stays current without an external subscriber.
 	keepalive(isOpen);

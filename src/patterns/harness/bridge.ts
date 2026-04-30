@@ -8,8 +8,7 @@
  * @module
  */
 
-import type { Node } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { switchMap } from "../../extra/operators.js";
 import { fromAny } from "../../extra/sources.js";
 import type { TopicGraph } from "../messaging/index.js";
@@ -49,16 +48,20 @@ export function createIntakeBridge<T>(
 	parser: (value: T) => IntakeItem[],
 	opts?: IntakeBridgeOptions,
 ): Node<unknown> {
-	return effect(
+	return node(
 		[source as Node<unknown>],
-		([value]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const value = data[0];
 			if (value == null) return;
 			const items = parser(value as T);
 			for (const item of items) {
 				intakeTopic.publish(item);
 			}
 		},
-		{ name: opts?.name ?? "intake-bridge" },
+		{ name: opts?.name ?? "intake-bridge", describeKind: "effect" },
 	);
 }
 
@@ -120,9 +123,13 @@ export function evalIntakeBridge(
 ): Node<unknown> {
 	const defaultSeverity = opts?.defaultSeverity ?? "medium";
 
-	return effect(
+	return node(
 		[evalSource],
-		([results]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const results = data[0];
 			if (results == null) return;
 			const runs = Array.isArray(results)
 				? (results as EvalRunResult[])
@@ -163,7 +170,7 @@ export function evalIntakeBridge(
 				}
 			}
 		},
-		{ name: opts?.name ?? "eval-intake-bridge" },
+		{ name: opts?.name ?? "eval-intake-bridge", describeKind: "effect" },
 	);
 }
 
@@ -231,11 +238,14 @@ export function beforeAfterCompare(
 	before: Node<EvalRunResult>,
 	after: Node<EvalRunResult>,
 ): Node<EvalDelta> {
-	return derived<EvalDelta>(
+	return node<EvalDelta>(
 		[before as Node<unknown>, after as Node<unknown>],
-		([b, a]) => {
-			const bRes = b as EvalRunResult;
-			const aRes = a as EvalRunResult;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const bRes = data[0] as EvalRunResult;
+			const aRes = data[1] as EvalRunResult;
 
 			const beforeMap = new Map<string, EvalTaskResult>(bRes.tasks.map((t) => [t.task_id, t]));
 			const afterMap = new Map<string, EvalTaskResult>(aRes.tasks.map((t) => [t.task_id, t]));
@@ -267,14 +277,14 @@ export function beforeAfterCompare(
 				if (!beforeValid && afterValid) resolved.push(id);
 			}
 
-			return {
+			actions.emit({
 				newFailures,
 				resolved,
 				taskDeltas,
 				overallImproved: resolved.length > newFailures.length,
-			};
+			});
 		},
-		{ name: "eval-delta" },
+		{ name: "eval-delta", describeKind: "derived" },
 	);
 }
 
@@ -301,17 +311,20 @@ export function affectedTaskFilter(
 		fullTaskSet == null
 			? null
 			: Array.isArray(fullTaskSet)
-				? (state(fullTaskSet as readonly string[]) as Node<unknown>)
+				? (node([], { initial: fullTaskSet as readonly string[] }) as Node<unknown>)
 				: (fullTaskSet as Node<unknown>);
 
 	const deps: Node<unknown>[] = [issues as Node<unknown>];
 	if (taskSetNode) deps.push(taskSetNode);
 
-	return derived<string[]>(
+	return node<string[]>(
 		deps,
-		(values) => {
-			const items = values[0] as readonly TriagedItem[];
-			const all = taskSetNode ? new Set(values[1] as readonly string[]) : null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const items = data[0] as readonly TriagedItem[];
+			const all = taskSetNode ? new Set(data[1] as readonly string[]) : null;
 
 			const affected = new Set<string>();
 			for (const item of items) {
@@ -319,9 +332,9 @@ export function affectedTaskFilter(
 					if (all == null || all.has(id)) affected.add(id);
 				}
 			}
-			return [...affected].sort();
+			actions.emit([...affected].sort());
 		},
-		{ name: "affected-task-filter" },
+		{ name: "affected-task-filter", describeKind: "derived" },
 	);
 }
 
@@ -407,15 +420,19 @@ export function codeChangeBridge(
 
 	const resolve = parser ?? defaultParser;
 
-	return effect(
+	return node(
 		[source as Node<unknown>],
-		([change]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const change = data[0];
 			if (change == null) return;
 			for (const item of resolve(change as CodeChange)) {
 				intakeTopic.publish(item);
 			}
 		},
-		{ name: opts?.name ?? "code-change-bridge" },
+		{ name: opts?.name ?? "code-change-bridge", describeKind: "effect" },
 	);
 }
 
@@ -454,15 +471,19 @@ export function notifyEffect<T>(
 	transport: NotifyTransport<T>,
 	opts?: NotifyEffectOptions,
 ): Node<unknown> {
-	return effect(
+	return node(
 		[topic.latest as Node<unknown>],
-		([item]) => {
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const item = data[0];
 			if (item == null) return;
 			// transport is a side effect (webhook, Slack, email). Async transports
 			// are fire-and-forget — the Promise result does not feed back into the
 			// graph. Suppress unhandled-rejection noise by voiding the return.
 			void transport(item as T);
 		},
-		{ name: opts?.name ?? "notify-effect" },
+		{ name: opts?.name ?? "notify-effect", describeKind: "effect" },
 	);
 }

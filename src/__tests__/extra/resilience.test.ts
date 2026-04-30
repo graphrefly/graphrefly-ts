@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
+
 import {
 	constant,
 	decorrelatedJitter,
@@ -127,11 +127,12 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("retry", () => {
 		it("forwards ERROR when count is 0", () => {
-			const src = producer(
-				(a) => {
+			const src = node(
+				[],
+				(_data, a) => {
 					a.down([[ERROR, new Error("x")]]);
 				},
-				{ resubscribable: true },
+				{ describeKind: "producer", resubscribable: true },
 			);
 			const out = retry(src, { count: 0 });
 			const { batches, unsub } = collect(out);
@@ -142,8 +143,9 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("resubscribes after ERROR when producer is resubscribable", async () => {
 			vi.useFakeTimers();
 			let runs = 0;
-			const src = producer(
-				(a) => {
+			const src = node(
+				[],
+				(_data, a) => {
 					runs += 1;
 					if (runs === 1) {
 						a.down([[ERROR, new Error("fail")]]);
@@ -151,7 +153,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 						a.emit(42);
 					}
 				},
-				{ resubscribable: true },
+				{ describeKind: "producer", resubscribable: true },
 			);
 			const out = retry(src, { count: 2, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
@@ -166,12 +168,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("null from strategy stops retry immediately", async () => {
 			vi.useFakeTimers();
 			let runs = 0;
-			const src = producer(
-				(a) => {
+			const src = node(
+				[],
+				(_data, a) => {
 					runs += 1;
 					a.down([[ERROR, new Error(`fail-${runs}`)]]);
 				},
-				{ resubscribable: true },
+				{ describeKind: "producer", resubscribable: true },
 			);
 			// withMaxAttempts(constant(0), 2) → attempts 0,1 get 0 delay; attempt 2 → null → stop.
 			// `count: Infinity` because the strategy's null-return is what bounds the retries here.
@@ -193,13 +196,17 @@ describe("extra resilience (roadmap §3.1)", () => {
 			let builds = 0;
 			const factory = () => {
 				builds += 1;
-				return producer<number>((a) => {
-					if (builds < 3) {
-						a.down([[ERROR, new Error(`boom-${builds}`)]]);
-					} else {
-						a.emit(42);
-					}
-				});
+				return node<number>(
+					[],
+					(_data, a) => {
+						if (builds < 3) {
+							a.down([[ERROR, new Error(`boom-${builds}`)]]);
+						} else {
+							a.emit(42);
+						}
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, { count: 5, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
@@ -213,9 +220,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("surfaces ERROR when count is 0", () => {
 			const factory = () =>
-				producer<number>((a) => {
-					a.down([[ERROR, new Error("x")]]);
-				});
+				node<number>(
+					[],
+					(_data, a) => {
+						a.down([[ERROR, new Error("x")]]);
+					},
+					{ describeKind: "producer" },
+				);
 			const out = retry(factory, { count: 0 });
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
@@ -227,9 +238,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 			let builds = 0;
 			const factory = () => {
 				builds += 1;
-				return producer<number>((a) => {
-					a.down([[ERROR, new Error(`build-${builds}`)]]);
-				});
+				return node<number>(
+					[],
+					(_data, a) => {
+						a.down([[ERROR, new Error(`build-${builds}`)]]);
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, { count: 2, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
@@ -247,9 +262,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const factory = () => {
 				builds += 1;
 				if (builds < 2) throw new Error("factory threw");
-				return producer<number>((a) => {
-					a.emit(7);
-				});
+				return node<number>(
+					[],
+					(_data, a) => {
+						a.emit(7);
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, { count: 3, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
@@ -264,10 +283,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 			let builds = 0;
 			const factory = () => {
 				builds += 1;
-				return producer<number>((a) => {
-					a.emit(1);
-					a.down([[COMPLETE]]);
-				});
+				return node<number>(
+					[],
+					(_data, a) => {
+						a.emit(1);
+						a.down([[COMPLETE]]);
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, { count: 5, backoff: constant(0) });
 			const { batches, unsub } = collect(out);
@@ -281,17 +304,21 @@ describe("extra resilience (roadmap §3.1)", () => {
 			let builds = 0;
 			const factory = () => {
 				builds += 1;
-				return producer<number>((a) => {
-					if (builds === 1) {
-						a.emit(10);
-						// Then error — next build should start fresh (attempt=0)
-						a.down([[ERROR, new Error("mid-stream")]]);
-					} else if (builds <= 4) {
-						a.down([[ERROR, new Error(`e-${builds}`)]]);
-					} else {
-						a.emit(20);
-					}
-				});
+				return node<number>(
+					[],
+					(_data, a) => {
+						if (builds === 1) {
+							a.emit(10);
+							// Then error — next build should start fresh (attempt=0)
+							a.down([[ERROR, new Error("mid-stream")]]);
+						} else if (builds <= 4) {
+							a.down([[ERROR, new Error(`e-${builds}`)]]);
+						} else {
+							a.emit(20);
+						}
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			// Without reset-on-DATA, count=4 permits builds 1..5 regardless.
 			// With reset-on-DATA semantics, after build=1 emits 10 the attempt
@@ -312,11 +339,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 			let innerTeardowns = 0;
 			const factory = () => {
 				builds += 1;
-				return producer<number>((_a) => {
-					return () => {
-						innerTeardowns += 1;
-					};
-				});
+				return node<number>(
+					(_a) => {
+						return () => {
+							innerTeardowns += 1;
+						};
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) });
 			const { unsub } = collect(out);
@@ -328,7 +358,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("forwards DATA / DIRTY / RESOLVED transparently", async () => {
-			const src = state<number>(1);
+			const src = node<number>([], { initial: 1 });
 			const out = retry(() => src, { count: 0 });
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 2]]);
@@ -437,7 +467,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("skip emits RESOLVED when open", () => {
 			const b = circuitBreaker({ failureThreshold: 1, cooldownNs: 600 * NS_PER_SEC });
 			b.recordFailure();
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const { node: out } = withBreaker(b)(s);
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 2]]);
@@ -448,7 +478,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("onOpen error emits CircuitOpenError", () => {
 			const b = circuitBreaker({ failureThreshold: 1, cooldownNs: 600 * NS_PER_SEC });
 			b.recordFailure();
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const { node: out } = withBreaker(b, { onOpen: "error" })(s);
 			const { batches, unsub } = collect(out);
 			s.down([[DATA, 2]]);
@@ -490,7 +520,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const now = { v: 1_000_000 };
 			const spy = vi.spyOn(performance, "now").mockImplementation(() => now.v);
 			vi.useFakeTimers();
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 1 * NS_PER_SEC,
@@ -520,7 +550,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("rateLimiter maxBuffer + drop-newest drops incoming overflow", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -543,7 +573,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("rateLimiter maxBuffer + drop-oldest evicts the oldest pending item", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -560,7 +590,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("rateLimiter maxBuffer + error emits RateLimiterOverflowError", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -592,7 +622,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("clears error on DATA after errored (batched)", () => {
-			const s = state(0, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 0 });
 			const { node: out, status, error } = withStatus(s);
 			const { unsub } = collect(out);
 			s.down([[ERROR, new Error("e")]]);
@@ -608,14 +638,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 	describe("meta integration (spec §2.3)", () => {
 		it("withBreaker breakerState is accessible via node.meta", () => {
 			const b = circuitBreaker({ failureThreshold: 2 });
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const bundle = withBreaker(b)(s);
 			expect(bundle.node.meta.breakerState).toBe(bundle.breakerState);
 			expect(bundle.breakerState.cache).toBe("closed");
 		});
 
 		it("withStatus companions are accessible via node.meta", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const bundle = withStatus(s);
 			expect(bundle.node.meta.status).toBe(bundle.status);
 			expect(bundle.node.meta.error).toBe(bundle.error);
@@ -624,7 +654,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("withBreaker breakerState appears in graph.describe()", () => {
 			const b = circuitBreaker({ failureThreshold: 2 });
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const bundle = withBreaker(b)(s);
 			const g = new Graph("test");
 			g.add(s, { name: "src" });
@@ -636,7 +666,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("withStatus companions appear in graph.describe()", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const bundle = withStatus(s);
 			const g = new Graph("test");
 			g.add(s, { name: "src" });
@@ -651,7 +681,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("pipe composition", () => {
 		it("pipe accepts retry operator", () => {
-			const s = state(1);
+			const s = node([], { initial: 1 });
 			const out = retry(s, { count: 0 });
 			expect(out.cache).toBe(1);
 		});
@@ -663,7 +693,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("fallback", () => {
 		it("passes through DATA/COMPLETE from healthy source", () => {
-			const src = state(42);
+			const src = node([], { initial: 42 });
 			const out = fallback(src, 0);
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 99]]);
@@ -693,7 +723,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("switches to fallback node on ERROR (node mode)", () => {
 			const src = throwError(new Error("boom"));
-			const fb = state("fallback-value");
+			const fb = node([], { initial: "fallback-value" });
 			const out = fallback(src, fb);
 			const { batches, unsub } = collect(out);
 			const flat = batches.flat();
@@ -758,11 +788,12 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("composes with retry: retry then fallback", async () => {
-			const src = producer(
-				(a) => {
+			const src = node(
+				[],
+				(_data, a) => {
 					a.down([[ERROR, new Error("x")]]);
 				},
-				{ resubscribable: true },
+				{ describeKind: "producer", resubscribable: true },
 			);
 			// retry with count: 0 means no retries — ERROR propagates immediately
 			const out = fallback(retry(src, { count: 0 }), "safe");
@@ -780,13 +811,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("timeout", () => {
 		it("throws RangeError for non-positive timeoutNs", () => {
-			expect(() => timeout(state(1), 0)).toThrow(RangeError);
-			expect(() => timeout(state(1), -1)).toThrow(RangeError);
+			expect(() => timeout(node([], { initial: 1 }), 0)).toThrow(RangeError);
+			expect(() => timeout(node([], { initial: 1 }), -1)).toThrow(RangeError);
 		});
 
 		it("emits TimeoutError when no DATA arrives", () => {
 			vi.useFakeTimers();
-			const src = producer(() => undefined); // never emits
+			const src = node(() => undefined, { describeKind: "producer" }); // never emits
 			const out = timeout(src, 100 * NS_PER_MS);
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(150);
@@ -803,7 +834,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("DATA resets the timer", () => {
 			vi.useFakeTimers();
-			const src = state(0);
+			const src = node([], { initial: 0 });
 			const out = timeout(src, 100 * NS_PER_MS);
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(80);
@@ -820,9 +851,13 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("COMPLETE cancels the timer", () => {
 			vi.useFakeTimers();
-			const src = producer((a) => {
-				a.down([[COMPLETE]]);
-			});
+			const src = node(
+				[],
+				(_data, a) => {
+					a.down([[COMPLETE]]);
+				},
+				{ describeKind: "producer" },
+			);
 			const out = timeout(src, 100 * NS_PER_MS);
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(200);
@@ -833,7 +868,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("passes DATA through on time", () => {
-			const src = state(42);
+			const src = node([], { initial: 42 });
 			const out = timeout(src, 10 * NS_PER_SEC);
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 99]]);
@@ -853,26 +888,26 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("Tier 3.1 footgun: retry({ backoff }) without count", () => {
 		it("source mode throws RangeError when backoff is set without count", () => {
-			const src = state(0);
+			const src = node([], { initial: 0 });
 			expect(() => retry(src, { backoff: constant(0) })).toThrow(
 				/retry\(\{ backoff \}\) requires explicit count/,
 			);
 		});
 
 		it("factory mode throws RangeError when backoff is set without count", () => {
-			const factory = () => state(0);
+			const factory = () => node([], { initial: 0 });
 			expect(() => retry(factory, { backoff: constant(0) })).toThrow(
 				/retry\(\{ backoff \}\) requires explicit count/,
 			);
 		});
 
 		it("count: Infinity opts in to unbounded retries (no throw)", () => {
-			const src = state(0);
+			const src = node([], { initial: 0 });
 			expect(() => retry(src, { count: Infinity, backoff: constant(0) })).not.toThrow();
 		});
 
 		it("backoff omitted does not require count (back-compat for default-zero retries)", () => {
-			const src = state(0);
+			const src = node([], { initial: 0 });
 			expect(() => retry(src)).not.toThrow();
 			expect(() => retry(src, {})).not.toThrow();
 			expect(() => retry(src, { count: 5 })).not.toThrow();
@@ -884,13 +919,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 			vi.useFakeTimers();
 			// Build a sequence that errors twice then emits 99.
 			let sourceRuns = 0;
-			const sharedSrc = producer<number>(
-				(a) => {
+			const sharedSrc = node<number>(
+				[],
+				(_data, a) => {
 					sourceRuns += 1;
 					if (sourceRuns < 3) a.down([[ERROR, new Error(`fail-${sourceRuns}`)]]);
 					else a.emit(99);
 				},
-				{ resubscribable: true },
+				{ describeKind: "producer", resubscribable: true },
 			);
 			const sourceOut = retry(sharedSrc, { count: 5, backoff: constant(0) });
 			const sourceCollect = collect(sourceOut);
@@ -900,10 +936,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const factoryOut = retry(
 				() => {
 					factoryBuilds += 1;
-					return producer<number>((a) => {
-						if (factoryBuilds < 3) a.down([[ERROR, new Error(`fail-${factoryBuilds}`)]]);
-						else a.emit(99);
-					});
+					return node<number>(
+						[],
+						(_data, a) => {
+							if (factoryBuilds < 3) a.down([[ERROR, new Error(`fail-${factoryBuilds}`)]]);
+							else a.emit(99);
+						},
+						{ describeKind: "producer" },
+					);
 				},
 				{ count: 5, backoff: constant(0) },
 			);
@@ -927,28 +967,28 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("Tier 3.2 footgun: rateLimiter without maxBuffer", () => {
 		it("throws RangeError when maxBuffer is omitted", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			expect(() => rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC } as never)).toThrow(
 				/rateLimiter requires explicit maxBuffer/,
 			);
 		});
 
 		it("accepts Infinity for opt-in unbounded buffer", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			expect(() =>
 				rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: Infinity }),
 			).not.toThrow();
 		});
 
 		it("accepts a positive integer maxBuffer", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			expect(() =>
 				rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 100 }),
 			).not.toThrow();
 		});
 
 		it("rejects fractional maxBuffer values", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			expect(() => rateLimiter(s, { maxEvents: 5, windowNs: NS_PER_SEC, maxBuffer: 1.5 })).toThrow(
 				/maxBuffer must be a positive integer/,
 			);
@@ -957,7 +997,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("Tier 3.2 droppedCount reactive companion", () => {
 		it("increments on drop-newest overflow", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out, droppedCount } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -976,7 +1016,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("increments on drop-oldest overflow", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const { node: out, droppedCount } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -999,7 +1039,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			// thought drops were undone. New contract: final count is the
 			// last observable state. Next subscription cycle re-zeros for
 			// the new cycle (see `cache !== 0` reset path at activation).
-			const s = state(0, { resubscribable: true });
+			const s = node([], { resubscribable: true, initial: 0 });
 			const { node: out, droppedCount } = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -1017,7 +1057,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		});
 
 		it("droppedCount appears as a reactive companion via node.meta", () => {
-			const s = state(0);
+			const s = node([], { initial: 0 });
 			const bundle = rateLimiter(s, {
 				maxEvents: 1,
 				windowNs: 10 * NS_PER_SEC,
@@ -1064,8 +1104,8 @@ describe("extra resilience (roadmap §3.1)", () => {
 	describe("Tier 6.5 3.2: reactive options widening", () => {
 		it("3.2.1 timeout: Node<number> option re-read on next attempt boundary", () => {
 			vi.useFakeTimers();
-			const src = producer(() => undefined); // never emits
-			const optNode = state<number>(50 * NS_PER_MS);
+			const src = node(() => undefined, { describeKind: "producer" }); // never emits
+			const optNode = node<number>([], { initial: 50 * NS_PER_MS });
 			const out = timeout(src, optNode);
 			const { batches, unsub } = collect(out);
 			// Initial 50ms — no fire yet at 30ms.
@@ -1090,12 +1130,16 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("3.2.2 retry: Node<RetryOptions> swap shrinks count → next attempt fails immediately", () => {
 			vi.useFakeTimers();
 			let attemptCount = 0;
-			const optNode = state<RetryOptions>({ count: 5 });
+			const optNode = node<RetryOptions>([], { initial: { count: 5 } });
 			const factory = (): Node<number> => {
 				attemptCount += 1;
-				return producer((a) => {
-					a.down([[ERROR, new Error(`attempt ${attemptCount}`)]]);
-				});
+				return node(
+					[],
+					(_data, a) => {
+						a.down([[ERROR, new Error(`attempt ${attemptCount}`)]]);
+					},
+					{ describeKind: "producer" },
+				);
 			};
 			const out = retry(factory, optNode);
 			const { batches, unsub } = collect(out);
@@ -1119,12 +1163,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("3.2.3 rateLimiter: Node<Options> swap shrinks maxBuffer → drop-oldest until fit", () => {
 			vi.useFakeTimers();
-			const src = state<number>(0);
-			const optNode = state<RateLimiterOptions>({
-				maxEvents: 1,
-				windowNs: NS_PER_SEC,
-				maxBuffer: 10,
-				onOverflow: "drop-newest",
+			const src = node<number>([], { initial: 0 });
+			const optNode = node<RateLimiterOptions>([], {
+				initial: {
+					maxEvents: 1,
+					windowNs: NS_PER_SEC,
+					maxBuffer: 10,
+					onOverflow: "drop-newest",
+				},
 			});
 			const bundle = rateLimiter(src, optNode);
 			const { unsub } = collect(bundle.node);
@@ -1155,10 +1201,12 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("3.2.4 circuitBreaker: Node<Options> swap resets to closed (locked semantic)", () => {
 			const now = 0;
-			const optNode = state<CircuitBreakerOptions>({
-				failureThreshold: 2,
-				cooldownNs: NS_PER_SEC,
-				now: () => now,
+			const optNode = node<CircuitBreakerOptions>([], {
+				initial: {
+					failureThreshold: 2,
+					cooldownNs: NS_PER_SEC,
+					now: () => now,
+				},
 			});
 			const breaker = circuitBreaker(optNode);
 			breaker.recordFailure();

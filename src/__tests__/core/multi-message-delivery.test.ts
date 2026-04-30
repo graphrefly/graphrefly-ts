@@ -24,7 +24,6 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, START } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
 
 // Snapshot a batchData argument to a comparable shape.
 function snapBatch(batchData: readonly (readonly unknown[] | undefined)[]): unknown[] {
@@ -33,7 +32,7 @@ function snapBatch(batchData: readonly (readonly unknown[] | undefined)[]): unkn
 
 describe("multi-message delivery — fn-run contract", () => {
 	it("single-dep: multi-DATA .down() on source fires derived fn per message today (design intent: once)", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const runs: unknown[][] = [];
 		const b = node([a], (batchData, actions) => {
 			runs.push(snapBatch(batchData));
@@ -57,7 +56,7 @@ describe("multi-message delivery — fn-run contract", () => {
 	});
 
 	it("single-dep: source.emit() three times outside batch fires fn three times (one per wave)", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const runs: unknown[][] = [];
 		const b = node([a], (batchData, actions) => {
 			runs.push(snapBatch(batchData));
@@ -75,7 +74,7 @@ describe("multi-message delivery — fn-run contract", () => {
 	});
 
 	it("single-dep: K emits inside batch — documents current fn-run count at derived", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const runs: unknown[][] = [];
 		const b = node([a], (batchData, actions) => {
 			runs.push(snapBatch(batchData));
@@ -95,7 +94,7 @@ describe("multi-message delivery — fn-run contract", () => {
 	});
 
 	it("diamond: K emits inside batch — fan-in D's fn-run count (the K+1 finding)", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const b = node([a], (batchData, actions) => {
 			actions.emit((batchData[0] ?? []).at(-1) as number);
 		});
@@ -128,7 +127,7 @@ describe("multi-message delivery — fn-run contract", () => {
 
 describe("multi-message delivery — subscriber batch structure", () => {
 	it("derived's own subscriber sees multi-DATA from a single source .down() as how many sink calls?", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const b = node([a], (batchData, actions) => {
 			actions.emit((batchData[0] ?? []).at(-1) as number);
 		});
@@ -153,7 +152,7 @@ describe("multi-message delivery — subscriber batch structure", () => {
 	});
 
 	it("diamond: K=2 emits in batch — per-node sink call counts", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		const b = node([a], (batchData, actions) => {
 			actions.emit((batchData[0] ?? []).at(-1) as number);
 		});

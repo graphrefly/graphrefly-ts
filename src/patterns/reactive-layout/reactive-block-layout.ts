@@ -7,9 +7,9 @@
  * Graph shape:
  * ```
  * Graph("reactive-block-layout")
- * ├── state("blocks")              — ContentBlock[] input
- * ├── state("max-width")           — container constraint
- * ├── state("gap")                 — vertical gap between blocks (px)
+ * ├── node([], { initial: "blocks" })              — ContentBlock[] input
+ * ├── node([], { initial: "max-width" })           — container constraint
+ * ├── node([], { initial: "gap" })                 — vertical gap between blocks (px)
  * ├── derived("measured-blocks")   — blocks → MeasuredBlock[] (per-type measurement)
  * ├── derived("block-flow")        — measured-blocks + max-width + gap → PositionedBlock[]
  * ├── derived("total-height")      — block-flow → total height
@@ -17,9 +17,8 @@
  * ```
  */
 import { monotonicNs } from "../../core/clock.js";
-import type { Node } from "../../core/node.js";
-import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { emitToMeta } from "../_internal/index.js";
 import {
@@ -268,9 +267,9 @@ export function computeTotalHeight(flow: PositionedBlock[]): number {
  *
  * ```
  * Graph("reactive-block-layout")
- * ├── state("blocks")              — ContentBlock[] input
- * ├── state("max-width")           — container constraint
- * ├── state("gap")                 — vertical gap (px)
+ * ├── node([], { initial: "blocks" })              — ContentBlock[] input
+ * ├── node([], { initial: "max-width" })           — container constraint
+ * ├── node([], { initial: "gap" })                 — vertical gap (px)
  * ├── derived("measured-blocks")   — blocks + max-width → MeasuredBlock[]
  * ├── derived("block-flow")        — measured-blocks + gap → PositionedBlock[]
  * ├── derived("total-height")      — block-flow → number
@@ -290,9 +289,12 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	const measureCache = new Map<string, Map<string, number>>();
 
 	// --- State nodes ---
-	const blocksNode = state<ContentBlock[]>(opts.blocks ?? [], { name: "blocks" });
-	const maxWidthNode = state<number>(Math.max(0, opts.maxWidth ?? 800), { name: "max-width" });
-	const gapNode = state<number>(opts.gap ?? 0, { name: "gap" });
+	const blocksNode = node<ContentBlock[]>([], { name: "blocks", initial: opts.blocks ?? [] });
+	const maxWidthNode = node<number>([], {
+		name: "max-width",
+		initial: Math.max(0, opts.maxWidth ?? 800),
+	});
+	const gapNode = node<number>([], { name: "gap", initial: opts.gap ?? 0 });
 
 	// --- Derived: measured-blocks ---
 	// Raw `node(...)` instead of `derived(...)` so the fn can return a
@@ -361,13 +363,17 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	);
 
 	// --- Derived: block-flow ---
-	const blockFlowNode = derived<PositionedBlock[]>(
+	const blockFlowNode = node<PositionedBlock[]>(
 		[measuredBlocksNode, gapNode],
-		([measured, gapVal]) => {
-			return computeBlockFlow(measured as MeasuredBlock[], gapVal as number);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(computeBlockFlow(data[0] as MeasuredBlock[], data[1] as number));
 		},
 		{
 			name: "block-flow",
+			describeKind: "derived",
 			equals: (a, b) => {
 				const fa = a as PositionedBlock[] | null;
 				const fb = b as PositionedBlock[] | null;
@@ -385,10 +391,15 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 	);
 
 	// --- Derived: total-height ---
-	const totalHeightNode = derived<number>(
+	const totalHeightNode = node<number>(
 		[blockFlowNode],
-		([flow]) => computeTotalHeight(flow as PositionedBlock[]),
-		{ name: "total-height" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(computeTotalHeight(data[0] as PositionedBlock[]));
+		},
+		{ describeKind: "derived", name: "total-height" },
 	);
 
 	// --- Register in graph ---

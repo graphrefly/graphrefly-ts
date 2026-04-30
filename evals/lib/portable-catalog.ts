@@ -19,7 +19,7 @@
  * the Run-4 gap analysis that motivates Treatment D additions.
  */
 
-import { derived, effect, state } from "../../src/core/sugar.js";
+import { node } from "../../src/core/node.js";
 import type {
 	CatalogFnEntry,
 	CatalogSourceEntry,
@@ -43,15 +43,32 @@ const EFFECTS = "Effects (sinks)";
 // Placeholder factories — pass-through derived/state/effect for runtime safety
 // ---------------------------------------------------------------------------
 
-const passthroughDerived: CatalogFnEntry["factory"] = (deps) => derived(deps, ([v]) => v);
+const passthroughDerived: CatalogFnEntry["factory"] = (deps) =>
+	node(
+		deps,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((([v]) => v)(data, ctx));
+		},
+		{ describeKind: "derived" },
+	);
 
 const passthroughEffect: CatalogFnEntry["factory"] = (deps) =>
-	effect(deps, () => {
-		/* placeholder side effect */
-	});
+	node(
+		deps,
+		(batchData, _actions, ctx) => {
+			batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			/* placeholder side effect */
+		},
+		{ describeKind: "effect" },
+	);
 
 const passthroughSource: CatalogSourceEntry["factory"] = (config) =>
-	state(null, { meta: { source: "placeholder", ...config } });
+	node([], { initial: null, meta: { source: "placeholder", ...config } });
 
 // ---------------------------------------------------------------------------
 // Function catalog

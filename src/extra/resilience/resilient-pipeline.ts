@@ -43,7 +43,7 @@
  * @module
  */
 import { placeholderArgs } from "../../core/meta.js";
-import type { Node } from "../../core/node.js";
+import { type Node, node } from "../../core/node.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
 import { NS_PER_MS } from "../backoff.js";
 import { domainMeta } from "../meta.js";

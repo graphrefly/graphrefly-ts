@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { explainPath, Graph } from "../../graph/index.js";
 
 describe("explainPath (roadmap §9.2)", () => {
 	it("single-hop: state → derived returns 2-step chain", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// Activate so derived computes.
@@ -24,10 +34,37 @@ describe("explainPath (roadmap §9.2)", () => {
 	it("multi-hop diamond returns shortest path", () => {
 		// a → b, a → c, d depends on [b, c]
 		const g = new Graph("diamond");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const c = derived([a], ([v]) => (v as number) + 10, { name: "c" });
-		const d = derived([b, c], ([x, y]) => (x as number) + (y as number), { name: "d" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 10);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", name: "d" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -45,8 +82,8 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("returns no-path when nodes are disconnected", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const z = state("z", { name: "z" });
+		const a = node([], { name: "a", initial: 1 });
+		const z = node([], { name: "z", initial: "z" });
 		g.add(a, { name: "a" });
 		g.add(z, { name: "z" });
 
@@ -59,7 +96,7 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("returns no-such-from / no-such-to for unknown nodes", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 
 		expect(g.describe({ explain: { from: "missing", to: "a" } }).reason).toBe("no-such-from");
 		expect(g.describe({ explain: { from: "a", to: "missing" } }).reason).toBe("no-such-to");
@@ -67,7 +104,7 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("from === to returns single-step chain", () => {
 		const g = new Graph("g");
-		g.add(state(42, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 42 }), { name: "a" });
 		const chain = g.describe({ explain: { from: "a", to: "a" } });
 		expect(chain.found).toBe(true);
 		expect(chain.steps).toHaveLength(1);
@@ -77,10 +114,37 @@ describe("explainPath (roadmap §9.2)", () => {
 	it("respects maxDepth and reports max-depth-exceeded when truncated", () => {
 		// chain: a → b → c → d
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
-		const c = derived([b], ([v]) => v, { name: "c" });
-		const d = derived([c], ([v]) => v, { name: "d" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
+		const d = node(
+			[c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "d" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -98,8 +162,17 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("attaches graph.trace() reason annotations to steps", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -131,9 +204,10 @@ describe("explainPath (roadmap §9.2)", () => {
 
 	it("includes lastMutation actor when guarded writes occurred", () => {
 		const g = new Graph("g");
-		const a = state<number>(0, {
+		const a = node<number>([], {
 			name: "a",
 			guard: () => true, // permissive — we just want the lastMutation populated
+			initial: 0,
 		});
 		g.add(a, { name: "a" });
 		g.set("a", 5, { actor: { type: "llm", id: "agent-7" } });
@@ -145,7 +219,7 @@ describe("explainPath (roadmap §9.2)", () => {
 	it("includes lastMutation for unguarded nodes when actor is provided", () => {
 		// QA fix A1: actor attribution no longer requires a guard.
 		const g = new Graph("g");
-		g.add(state<number>(0, { name: "a" }), { name: "a" }); // no guard
+		g.add(node<number>([], { name: "a", initial: 0 }), { name: "a" }); // no guard
 		g.set("a", 9, { actor: { type: "human", id: "alice" } });
 		const chain = g.describe({ explain: { from: "a", to: "a" } });
 		expect(chain.steps[0]?.lastMutation?.actor.id).toBe("alice");
@@ -154,8 +228,8 @@ describe("explainPath (roadmap §9.2)", () => {
 	it("findCycle: returns shortest cycle when from === to and a cycle exists", () => {
 		// a → b → a (feedback)
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = state(2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node([], { name: "b", initial: 2 });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// Synthesize cycle topology via raw describe (the standalone explainPath
@@ -231,13 +305,29 @@ describe("explainPath (roadmap §9.2)", () => {
 		// `out`. Post-fix the intermediate is surfaced under its meta.name and
 		// the chain completes.
 		const g = new Graph("factory-internals");
-		const src = state(1, { name: "src" });
+		const src = node([], { name: "src", initial: 1 });
 		// Intermediate is NOT graph.add-ed — simulates promptNode's internal
 		// `brief::messages` derived helper.
-		const intermediate = derived([src], ([v]) => (v as number) * 2, {
-			name: "prompt::messages",
-		});
-		const out = derived([intermediate], ([v]) => (v as number) + 100, { name: "out" });
+		const intermediate = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "prompt::messages" },
+		);
+		const out = node(
+			[intermediate],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 100);
+			},
+			{ describeKind: "derived", name: "out" },
+		);
 		g.add(src, { name: "src" });
 		g.add(out, { name: "out" });
 		// Activate so every node computes.
@@ -265,14 +355,50 @@ describe("explainPath (roadmap §9.2)", () => {
 		// Two factory-internal derived nodes both named "internal" — the
 		// describe walk must not collapse them. Second one gets "#2" suffix.
 		const g = new Graph("dup-internals");
-		const a = state(1, { name: "a" });
-		const b = state(10, { name: "b" });
-		const internalA = derived([a], ([v]) => (v as number) + 1, { name: "internal" });
-		const internalB = derived([b], ([v]) => (v as number) + 1, { name: "internal" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node([], { name: "b", initial: 10 });
+		const internalA = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "internal" },
+		);
+		const internalB = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "internal" },
+		);
 		// Neither internal is graph.add-ed; both are upstream of their own
 		// registered terminal.
-		const outA = derived([internalA], ([v]) => (v as number) * 10, { name: "outA" });
-		const outB = derived([internalB], ([v]) => (v as number) * 10, { name: "outB" });
+		const outA = node(
+			[internalA],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 10);
+			},
+			{ describeKind: "derived", name: "outA" },
+		);
+		const outB = node(
+			[internalB],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 10);
+			},
+			{ describeKind: "derived", name: "outB" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(outA, { name: "outA" });

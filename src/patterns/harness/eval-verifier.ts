@@ -16,8 +16,7 @@
  */
 
 import { batch } from "../../core/batch.js";
-import type { Node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { filter } from "../../extra/operators.js";
 import type { JobEnvelope } from "../job-queue/index.js";
 import type {
@@ -198,24 +197,32 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 		// single-emit). See `harness-default-bridges.test.ts` regression test
 		// "evalVerifier coalesces synchronous-emit-during-subscribe
 		// evaluators" for the locked contract.
-		const candidates = state<readonly T[]>([artifact as T], {
+		const candidates = node<readonly T[]>([], {
+			initial: [artifact as T],
 			name: `${name}/candidates`,
 		});
-		const dataset = state<readonly DatasetItem[]>(config.datasetFor(item), {
+		const dataset = node<readonly DatasetItem[]>([], {
+			initial: config.datasetFor(item),
 			name: `${name}/dataset`,
 		});
 		let scoresNode!: ReturnType<Evaluator<T>>;
 		batch(() => {
 			scoresNode = config.evaluator(candidates, dataset);
 		});
-		const raw = derived<HarnessJobPayload<T> | null>(
+		const raw = node<HarnessJobPayload<T> | null>(
 			[scoresNode as Node<unknown>],
-			([scores]) => {
-				const arr = scores as readonly EvalResult[] | null | undefined;
-				if (arr == null) return null;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const arr = data[0] as readonly EvalResult[] | null | undefined;
+				if (arr == null) {
+					actions.emit(null);
+					return;
+				}
 				const mean = meanScore(arr);
 				const passCount = arr.filter((s) => s.score >= threshold).length;
-				return {
+				actions.emit({
 					...job.payload,
 					verify: toOutput({
 						scores: arr,
@@ -224,9 +231,9 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 						total: arr.length,
 						threshold,
 					}),
-				};
+				});
 			},
-			{ name: `${name}/output` },
+			{ name: `${name}/output`, describeKind: "derived" },
 		);
 		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as ReturnType<
 			HarnessVerifier<T>

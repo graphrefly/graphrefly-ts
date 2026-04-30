@@ -74,22 +74,11 @@ export {
 export {
 	type AutoTrackOptions,
 	autoTrackNode,
-	type DerivedFn,
-	type DerivedTFn,
 	type DynamicFn,
-	derived,
-	derivedT,
 	dynamicNode,
-	type EffectFn,
-	type EffectTFn,
-	effect,
-	effectT,
 	type NodeValues,
 	type PipeOperator,
-	type ProducerFn,
 	pipe,
-	producer,
-	state,
 	type TrackFn,
 } from "./sugar.js";
 export {

@@ -12,7 +12,7 @@
  * infrastructure with topics.
  */
 
-import { batch, COMPLETE, DATA, derived, type Node, state } from "../../core/index.js";
+import { batch, COMPLETE, DATA, type Node } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import { lightMutation } from "../../extra/mutation/index.js";
@@ -76,11 +76,14 @@ export class TopicGraph<T> extends Graph {
 		this._log.withLatest();
 		this.events = this._log.entries;
 		this.add(this.events, { name: "events" });
-		this.latest = derived<T | null>(
+		this.latest = node<T | null>(
 			[this.events],
-			([snapshot]) => {
-				const entries = snapshot as readonly T[];
-				return entries.length === 0 ? null : (entries[entries.length - 1] as T);
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const entries = data[0] as readonly T[];
+				actions.emit(entries.length === 0 ? null : (entries[entries.length - 1] as T));
 			},
 			{
 				name: "latest",
@@ -91,9 +94,14 @@ export class TopicGraph<T> extends Graph {
 		this.add(this.latest, { name: "latest" });
 		this.addDisposer(keepalive(this.latest));
 
-		this.hasLatest = derived<boolean>(
+		this.hasLatest = node<boolean>(
 			[this.events],
-			([snapshot]) => (snapshot as readonly T[]).length > 0,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly T[]).length > 0);
+			},
 			{
 				name: "hasLatest",
 				describeKind: "derived",
@@ -231,9 +239,10 @@ export class SubscriptionGraph<T> extends Graph {
 			initialCursor = requireNonNegativeInt(opts.cursor ?? 0, "subscription cursor");
 		}
 
-		this.cursor = state(initialCursor, {
+		this.cursor = node([], {
 			name: "cursor",
 			describeKind: "state",
+			initial: initialCursor,
 			meta: messagingMeta("subscription_cursor"),
 		});
 		this.add(this.cursor, { name: "cursor" });
@@ -411,17 +420,20 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 		// §24 compliant — output is a real derived edge, visible in describe.
 		// Replaces imperative publish loop. Items where mapValue returns undefined
 		// are filtered out (opt-out / filter).
-		this.output = derived<readonly TOut[]>(
+		this.output = node<readonly TOut[]>(
 			[this._sourceSub.available],
-			([avail]) => {
-				const arr = avail as readonly TIn[];
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const arr = data[0] as readonly TIn[];
 				const outBatch: TOut[] = [];
 				const take = Math.min(arr.length, maxPerPump);
 				for (let i = 0; i < take; i++) {
 					const mapped = mapValue(arr[i] as TIn);
 					if (mapped !== undefined) outBatch.push(mapped);
 				}
-				return outBatch;
+				actions.emit(outBatch);
 			},
 			{
 				name: "output",
@@ -435,9 +447,10 @@ export class TopicBridgeGraph<TIn, TOut = TIn> extends Graph {
 
 		// bridgedCount: state node accumulating total bridged items.
 		// Updated by ackPump after each batch — edge visible via ackPump dep on output.
-		this.bridgedCount = state<number>(0, {
+		this.bridgedCount = node<number>([], {
 			name: "bridgedCount",
 			describeKind: "state",
+			initial: 0,
 			meta: messagingMeta("topic_bridge_count"),
 		});
 		this.add(this.bridgedCount, { name: "bridgedCount" });
@@ -581,9 +594,10 @@ export class MessagingHubGraph extends Graph {
 	constructor(name: string, opts: MessagingHubOptions = {}) {
 		super(name, opts.graph);
 		// B.2 Unit 14 lock: promote _version → version: Node<number>.
-		const versionNode = state(0, {
+		const versionNode = node([], {
 			name: "version",
 			describeKind: "state",
+			initial: 0,
 			meta: messagingMeta("hub_version"),
 		});
 		this.add(versionNode, { name: "version" });

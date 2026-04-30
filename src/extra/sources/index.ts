@@ -11,7 +11,6 @@
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, START } from "../../core/messages.js";
 import { type Node, type NodeOptions, type NodeSink, node } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
 import { type CronSchedule, matchesCron, parseCron } from "../cron.js";
 
 type ExtraOpts = Omit<NodeOptions<unknown>, "describeKind">;
@@ -127,7 +126,7 @@ function wrapSubscribeHook<T>(inner: Node<T>, before: (sink: NodeSink) => void):
  */
 export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number }): Node<number> {
 	const { signal, period, ...rest } = opts ?? {};
-	return producer<number>((a) => {
+	return node<number>((_data, a) => {
 		let done = false;
 		let count = 0;
 		let t: ReturnType<typeof setTimeout> | undefined;
@@ -198,7 +197,7 @@ export function fromTimer(ms: number, opts?: AsyncSourceOpts & { period?: number
  */
 export function fromRaf(opts?: AsyncSourceOpts): Node<number> {
 	const { signal, ...rest } = opts ?? {};
-	return producer<number>((a) => {
+	return node<number>((_data, a) => {
 		let done = false;
 		let rafId: number | undefined;
 		let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
@@ -296,8 +295,8 @@ export function fromCron(expr: string, opts?: FromCronOptions): Node<number | Da
 	const { tickMs: tickOpt, output, ...rest } = opts ?? {};
 	const tickMs = tickOpt ?? 60_000;
 	const emitDate = output === "date";
-	return producer<number | Date>(
-		(a) => {
+	return node<number | Date>(
+		(_data, a) => {
 			let lastFiredKey = -1;
 			const check = () => {
 				const now = new Date();
@@ -343,7 +342,7 @@ export function fromEvent<T = unknown>(
 	opts?: ExtraOpts & { capture?: boolean; passive?: boolean; once?: boolean },
 ): Node<T> {
 	const { capture, passive, once, ...rest } = opts ?? {};
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		const handler = (e: unknown) => {
 			a.emit(e as T);
 		};
@@ -370,7 +369,7 @@ export function fromEvent<T = unknown>(
  * @category extra
  */
 export function fromIter<T>(iterable: Iterable<T>, opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let cancelled = false;
 		try {
 			for (const x of iterable) {
@@ -409,7 +408,7 @@ function isThenable(x: unknown): x is PromiseLike<unknown> {
  */
 export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourceOpts): Node<T> {
 	const { signal, ...rest } = opts ?? {};
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let settled = false;
 		const onAbort = () => {
 			if (settled) return;
@@ -464,7 +463,7 @@ export function fromPromise<T>(p: Promise<T> | PromiseLike<T>, opts?: AsyncSourc
  */
 export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceOpts): Node<T> {
 	const { signal: outerSignal, ...rest } = opts ?? {};
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		const ac = new AbortController();
 		const onOuterAbort = () => ac.abort(outerSignal?.reason);
 		if (outerSignal?.aborted) {
@@ -588,7 +587,7 @@ export function of<T>(...values: T[]): Node<T> {
  * @category extra
  */
 export function empty<T = never>(opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		a.down([[COMPLETE]]);
 		return undefined;
 	}, sourceOpts(opts));
@@ -610,7 +609,7 @@ export function empty<T = never>(opts?: ExtraOpts): Node<T> {
  * @category extra
  */
 export function never<T = never>(opts?: ExtraOpts): Node<T> {
-	return producer<T>(() => undefined, sourceOpts(opts));
+	return node<T>(() => undefined, sourceOpts(opts));
 }
 
 /**
@@ -630,7 +629,7 @@ export function never<T = never>(opts?: ExtraOpts): Node<T> {
  * @category extra
  */
 export function throwError(err: unknown, opts?: ExtraOpts): Node<never> {
-	return producer<never>((a) => {
+	return node<never>((_data, a) => {
 		a.down([[ERROR, err]]);
 		return undefined;
 	}, sourceOpts(opts));
@@ -697,7 +696,7 @@ export function defer<T>(thunk: () => NodeInput<T>, opts?: AsyncSourceOpts): Nod
 	const { signal: _sig, ...nodeOpts } = (opts ?? {}) as AsyncSourceOpts;
 	const sOpts = sourceOpts<T>(nodeOpts);
 	const merged = sOpts.resubscribable === undefined ? { ...sOpts, resubscribable: true } : sOpts;
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let unsub: (() => void) | undefined;
 		let stopped = false;
 		try {
@@ -837,8 +836,8 @@ export function toArray<T>(source: Node<T>, opts?: ExtraOpts): Node<T[]> {
  * @category extra
  */
 export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
-	return producer<T>(
-		(a) =>
+	return node<T>(
+		(_data, a) =>
 			source.subscribe((msgs) => {
 				a.down(msgs);
 			}),
@@ -867,8 +866,8 @@ export function share<T>(source: Node<T>, opts?: ExtraOpts): Node<T> {
 export function replay<T>(source: Node<T>, bufferSize: number, opts?: ExtraOpts): Node<T> {
 	if (bufferSize < 1) throw new RangeError("replay expects bufferSize >= 1");
 	const buf: T[] = [];
-	const inner = producer<T>(
-		(a) =>
+	const inner = node<T>(
+		(_data, a) =>
 			source.subscribe((msgs) => {
 				for (const m of msgs) {
 					if (m[0] === DATA) {
@@ -1308,7 +1307,7 @@ export type ReactiveCounterBundle = {
  * @category extra
  */
 export function reactiveCounter(cap: number): ReactiveCounterBundle {
-	const counter = state(0);
+	const counter = node([], { initial: 0 });
 	return {
 		node: counter,
 		increment() {

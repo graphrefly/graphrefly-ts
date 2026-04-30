@@ -19,8 +19,8 @@
 import { batch } from "../../../core/batch.js";
 import { monotonicNs } from "../../../core/clock.js";
 import { DATA } from "../../../core/messages.js";
-import type { Node } from "../../../core/node.js";
-import { derived, effect, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import {
 	type DistillBundle,
 	type DistillOptions,
@@ -63,7 +63,7 @@ import {
 // surface on `Graph.restore` from a codec that round-tripped Map → JSON →
 // plain object (handled in `extra/composite.ts:mapFromSnapshot` for distill
 // internals). Empty map is the canonical "no entries yet" value —
-// `state(undefined)` would stall a derived/effect's first-run gate.
+// `node([], { initial: undefined })` would stall a derived/effect's first-run gate.
 //
 // qa F3 (deferred): the typed cast lies if upstream contract ever breaks
 // (e.g. `entries` emits a non-Map non-undefined value). Failure mode is a
@@ -99,13 +99,21 @@ export function memoryWithVectors<TMem>(
 ): { vectors: VectorIndexGraph<TMem>; dispose: () => void } {
 	const vectors = vectorIndex<TMem>({ dimension: opts.dimension });
 	graph.add(vectors.entries, { name: "vectorIndex" });
-	const indexer = effect([store.store.entries], ([snapshot]) => {
-		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-		for (const [key, mem] of storeMap) {
-			const vec = opts.embedFn(mem);
-			if (vec) vectors.upsert(key, vec, mem);
-		}
-	});
+	const indexer = node(
+		[store.store.entries],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const storeMap =
+				(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+			for (const [key, mem] of storeMap) {
+				const vec = opts.embedFn(mem);
+				if (vec) vectors.upsert(key, vec, mem);
+			}
+		},
+		{ describeKind: "effect" },
+	);
 	const unsub = indexer.subscribe(() => undefined);
 	graph.addDisposer(unsub);
 	return { vectors, dispose: () => unsub() };
@@ -163,19 +171,27 @@ export function memoryWithKG<TMem>(
 		return { kg, dispose: () => undefined };
 	}
 	const entityFn = opts.entityFn;
-	const indexer = effect([store.store.entries], ([snapshot]) => {
-		const storeMap = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-		for (const [key, mem] of storeMap) {
-			const extracted = entityFn(key, mem);
-			if (!extracted) continue;
-			for (const ent of extracted.entities ?? []) {
-				kg.upsertEntity(ent.id, ent.value);
+	const indexer = node(
+		[store.store.entries],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const storeMap =
+				(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+			for (const [key, mem] of storeMap) {
+				const extracted = entityFn(key, mem);
+				if (!extracted) continue;
+				for (const ent of extracted.entities ?? []) {
+					kg.upsertEntity(ent.id, ent.value);
+				}
+				for (const rel of extracted.relations ?? []) {
+					kg.link(rel.from, rel.to, rel.relation as string, rel.weight);
+				}
 			}
-			for (const rel of extracted.relations ?? []) {
-				kg.link(rel.from, rel.to, rel.relation as string, rel.weight);
-			}
-		}
-	});
+		},
+		{ describeKind: "effect" },
+	);
 	const unsub = indexer.subscribe(() => undefined);
 	graph.addDisposer(unsub);
 	return { kg, dispose: () => unsub() };
@@ -267,7 +283,7 @@ export function memoryWithTiers<TRaw, TMem>(
 	// inside `retention.score` which is invoked synchronously from store
 	// mutations — no reactive dep on contextNode there. The mirror keeps
 	// `latestCtx` current via subscribe.
-	const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
+	const contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
 	let latestCtx: unknown = contextNode.cache;
 	const ctxUnsub = contextNode.subscribe((msgs) => {
 		for (const m of msgs) if (m[0] === DATA) latestCtx = m[1];
@@ -347,17 +363,24 @@ export function memoryWithTiers<TRaw, TMem>(
 	// Permanent-promotion effect. Writes to `permanent` collection +
 	// `permanentKeys` (NOT to the active store), so no §7 cycle: the effect's
 	// dep is `store.store.entries`, but it doesn't write back to that node.
-	const promoter = effect([store.store.entries], ([snapshot]) => {
-		const map = (snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-		for (const [key, mem] of map) {
-			if (permanentKeys.has(key)) continue;
-			if (permanentFilter(key, mem)) {
-				batch(() => {
-					markPermanent(key, mem);
-				});
+	const promoter = node(
+		[store.store.entries],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const map = (data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+			for (const [key, mem] of map) {
+				if (permanentKeys.has(key)) continue;
+				if (permanentFilter(key, mem)) {
+					batch(() => {
+						markPermanent(key, mem);
+					});
+				}
 			}
-		}
-	});
+		},
+		{ describeKind: "effect" },
+	);
 	const promoteUnsub = promoter.subscribe(() => undefined);
 
 	let archiveHandle: StorageHandle | null = null;
@@ -455,7 +478,7 @@ export function memoryRetrieval<TMem>(
 	const graphDepth = opts.graphDepth ?? 1;
 	const budget = opts.budget ?? 2000;
 	const contextWeight = opts.contextWeight ?? 0;
-	const contextNode = opts.context ? fromAny(opts.context) : state<unknown>(null);
+	const contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
 
 	const runRetrieval = (
 		storeMap: ReadonlyMap<string, TMem>,
@@ -594,7 +617,8 @@ export function memoryRetrieval<TMem>(
 		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
 		return true;
 	};
-	const retrievalOutput = state<ReadonlyArray<RetrievalEntry<TMem>>>([], {
+	const retrievalOutput = node<ReadonlyArray<RetrievalEntry<TMem>>>([], {
+		initial: [],
 		name: "retrieval",
 		describeKind: "state",
 		meta: aiMeta("retrieval_pipeline"),
@@ -602,7 +626,8 @@ export function memoryRetrieval<TMem>(
 	});
 	graph.add(retrievalOutput, { name: "retrieval" });
 
-	const traceState = state<RetrievalTrace<TMem> | null>(null, {
+	const traceState = node<RetrievalTrace<TMem> | null>([], {
+		initial: null,
 		name: "retrievalTrace",
 		describeKind: "state",
 		meta: aiMeta("retrieval_trace"),
@@ -630,43 +655,62 @@ export function memoryRetrieval<TMem>(
 		queryInput: NodeInput<RetrievalQuery | null>,
 	): Node<ReadonlyArray<RetrievalEntry<TMem>>> => {
 		const q = fromAny(queryInput);
-		const result = derived<{
+		const result = node<{
 			packed: ReadonlyArray<RetrievalEntry<TMem>>;
 			trace: RetrievalTrace<TMem> | null;
 		}>(
 			[store.store.entries, contextNode, q],
-			([snapshot, ctx, query]) => {
-				if (query == null) return { packed: [], trace: null };
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const query = data[2];
+				if (query == null) {
+					actions.emit({ packed: [], trace: null });
+					return;
+				}
 				const storeMap =
-					(snapshot as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
-				const { packed, trace } = runRetrieval(storeMap, ctx, query as RetrievalQuery);
-				return { packed, trace };
+					(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+				const { packed, trace } = runRetrieval(storeMap, data[1], query as RetrievalQuery);
+				actions.emit({ packed, trace });
 			},
 			{
-				name: "retrievalReactive::result",
 				describeKind: "derived",
+				name: "retrievalReactive::result",
 				meta: aiMeta("retrieval_reactive_result"),
 				initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
 			},
 		);
-		const mirror = effect([result], ([r]) => {
-			const v = r as {
-				packed: ReadonlyArray<RetrievalEntry<TMem>>;
-				trace: RetrievalTrace<TMem> | null;
-			};
-			batch(() => {
-				retrievalOutput.emit(v.packed);
-				if (v.trace) traceState.emit(v.trace);
-			});
-		});
+		const mirror = node(
+			[result],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const v = data[0] as {
+					packed: ReadonlyArray<RetrievalEntry<TMem>>;
+					trace: RetrievalTrace<TMem> | null;
+				};
+				batch(() => {
+					retrievalOutput.emit(v.packed);
+					if (v.trace) traceState.emit(v.trace);
+				});
+			},
+			{ describeKind: "effect" },
+		);
 		const unsub = mirror.subscribe(() => undefined);
 		graph.addDisposer(unsub);
-		return derived<ReadonlyArray<RetrievalEntry<TMem>>>(
+		return node<ReadonlyArray<RetrievalEntry<TMem>>>(
 			[result],
-			([r]) => (r as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed);
+			},
 			{
-				name: "retrievalReactive",
 				describeKind: "derived",
+				name: "retrievalReactive",
 				meta: aiMeta("retrieval_reactive"),
 				initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
 				equals: packedEquals,

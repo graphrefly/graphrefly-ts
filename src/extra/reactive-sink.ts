@@ -21,8 +21,7 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Message, TEARDOWN } from "../core/messages.js";
-import { defaultConfig, type Node } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import { defaultConfig, type Node, node } from "../core/node.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
@@ -299,15 +298,23 @@ export function reactiveSink<T, Ctx = unknown>(
 
 	const nameFor = (suffix: string) => (name ? `${name}::${suffix}` : undefined);
 
-	const sent = state<T | undefined>(undefined, {
+	const sent = node<T | undefined>([], {
+		initial: undefined,
 		equals: () => false,
 		name: nameFor("sent"),
 	}) as unknown as Node<T>;
-	const failed = state<SinkFailure<T> | null>(null, { name: nameFor("failed") });
-	const inFlightCountNode = state(0, { name: nameFor("inFlight") });
-	const errorsNode = state<SinkTransportError | null>(null, { name: nameFor("errors") });
-	const bufferedNode = useBuffering ? state(0, { name: nameFor("buffered") }) : undefined;
-	const pausedNode = backpressure ? state(false, { name: nameFor("paused") }) : undefined;
+	const failed = node<SinkFailure<T> | null>([], { initial: null, name: nameFor("failed") });
+	const inFlightCountNode = node([], { initial: 0, name: nameFor("inFlight") });
+	const errorsNode = node<SinkTransportError | null>([], {
+		initial: null,
+		name: nameFor("errors"),
+	});
+	const bufferedNode = useBuffering
+		? node([], { initial: 0, name: nameFor("buffered") })
+		: undefined;
+	const pausedNode = backpressure
+		? node([], { initial: false, name: nameFor("paused") })
+		: undefined;
 
 	let inFlightCount = 0;
 	const bumpInFlight = (delta: number) => {

@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA, DIRTY, ERROR } from "../../core/messages.js";
 import { type NodeImpl, node } from "../../core/node.js";
-import { autoTrackNode, derived, state } from "../../core/sugar.js";
+import { autoTrackNode } from "../../core/sugar.js";
 
 describe("regressions", () => {
 	// Spec: GRAPHREFLY-SPEC §1.2 — bare [DATA] without payload is a protocol violation.
@@ -90,11 +90,20 @@ describe("regressions", () => {
 	// re-subscribable without counter drift.
 
 	it("subscribe rollback: _activate() dep-throw leaves node clean for re-subscribe", () => {
-		const a = state<number>(1);
-		const b = state<number>(2);
+		const a = node<number>([], { initial: 1 });
+		const b = node<number>([], { initial: 2 });
 		// combined depends on [a, b]. We patch b.subscribe to throw once,
 		// so _activate() succeeds on a then fails on b.
-		const combined = derived([a, b], ([x, y]) => (x as number) + (y as number));
+		const combined = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const err = new Error("subscribe-denied");
 		const origB = (b as NodeImpl<number>).subscribe.bind(b);
@@ -129,12 +138,18 @@ describe("regressions", () => {
 		// - a must have 0 sinks (was subscribed, then rolled back)
 		// - b must have 0 sinks (subscribe threw before sink registration)
 		// - c must have 0 sinks (never reached)
-		const a = state<number>(10);
-		const b = state<number>(20);
-		const c = state<number>(30);
-		const combined = derived(
+		const a = node<number>([], { initial: 10 });
+		const b = node<number>([], { initial: 20 });
+		const c = node<number>([], { initial: 30 });
+		const combined = node(
 			[a, b, c],
-			([x, y, z]) => (x as number) + (y as number) + (z as number),
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number) + (data[2] as number));
+			},
+			{ describeKind: "derived" },
 		);
 
 		const origB = (b as NodeImpl<number>).subscribe.bind(b);
@@ -168,8 +183,8 @@ describe("regressions", () => {
 		// a transient cache read (stores error in ctx.store, does NOT emit ERROR),
 		// retries on pendingRerun, succeeds on the second _addDep(b) call, and
 		// eventually emits the correct sum without any ERROR.
-		const a = state<number>(1);
-		const b = state<number>(2);
+		const a = node<number>([], { initial: 1 });
+		const b = node<number>([], { initial: 2 });
 
 		const origB = (b as NodeImpl<number>).subscribe.bind(b);
 		let addDepCallCount = 0;
@@ -215,9 +230,18 @@ describe("regressions", () => {
 	// dropped — it must NOT trigger the node's fn or cause any emissions.
 
 	it("stale drainPhase2 closure is silently dropped after unsubscription", () => {
-		const s = state<number>(1);
+		const s = node<number>([], { initial: 1 });
 		const seen: number[] = [];
-		const derived1 = derived([s], ([v]) => (v as number) * 10);
+		const derived1 = node(
+			[s],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 10);
+			},
+			{ describeKind: "derived" },
+		);
 
 		batch(() => {
 			// Subscribe to derived1 inside the batch. The handshake DATA(10) is
@@ -240,8 +264,17 @@ describe("regressions", () => {
 	it("stale closure dropped but re-subscription after batch works correctly", () => {
 		// After the stale-closure scenario, a fresh subscribe must produce the
 		// correct value — no counter drift from the dropped stale wave.
-		const s = state<number>(5);
-		const doubled = derived([s], ([v]) => (v as number) * 2);
+		const s = node<number>([], { initial: 5 });
+		const doubled = node(
+			[s],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
 
 		batch(() => {
 			const unsub = doubled.subscribe(() => {});

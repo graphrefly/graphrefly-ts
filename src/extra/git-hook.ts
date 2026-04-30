@@ -11,8 +11,7 @@
 
 import { wallClockNs } from "../core/clock.js";
 import { ERROR } from "../core/messages.js";
-import type { Node, NodeOptions } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { type Node, type NodeOptions, node } from "../core/node.js";
 import { switchMap } from "./operators.js";
 import { fromTimer, globToRegExp, matchesAnyPattern } from "./sources.js";
 
@@ -70,7 +69,7 @@ export function fromGitHook(repoPath: string, opts?: FromGitHookOptions): Node<G
 	// cancels any in-flight inner on next tick. First tick at t=0 records the
 	// baseline HEAD silently; subsequent ticks emit `GitEvent` on HEAD change.
 	return switchMap(fromTimer(0, { period: pollMs }), () =>
-		producer<GitEvent>((a) => {
+		node<GitEvent>((_data, a) => {
 			try {
 				const head = gitQuery(["rev-parse", "HEAD"]);
 				if (!head) {

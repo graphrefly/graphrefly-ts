@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
 import { node } from "../core/node.js";
-import { derived, effect, state } from "../core/sugar.js";
+
 import { merge, scan, withLatestFrom } from "../extra/operators.js";
 import { Graph } from "../graph/graph.js";
 import {
@@ -64,7 +64,7 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 		const g = pipelineGraph("doc-processor");
 
 		// Stage 1: Input source (human submits a document)
-		const input = state<{ text: string; source: string } | undefined>(undefined);
+		const input = node<{ text: string; source: string } | undefined>([], { initial: undefined });
 		g.add(input, { name: "input" });
 
 		// Stage 2: Classify document type (derived from input)
@@ -100,10 +100,21 @@ describe("Phase 5 — Scenario 1: Multi-stage document processing", () => {
 		// Stage 5: Output effect — use core `effect` + `graph.add` (post-A/B cleanup
 		// the old patterns/orchestration.forEach graph-registering sugar is gone).
 		const results: Array<{ type: string; entities: string[] }> = [];
-		const output = effect([g.resolve("validated")], ([val]) => {
-			const rec = val as { classify: string; extract: string[] };
-			results.push({ type: rec.classify, entities: rec.extract });
-		});
+		const output = node(
+			[g.resolve("validated")],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				return (
+					(([val]) => {
+						const rec = val as { classify: string; extract: string[] };
+						results.push({ type: rec.classify, entities: rec.extract });
+					})(data, actions, ctx) ?? undefined
+				);
+			},
+			{ describeKind: "effect" },
+		);
 		g.add(output, { name: "output" });
 
 		// KEY INSIGHT: Every leaf node needs a subscriber to activate the
@@ -142,11 +153,11 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 		const g = pipelineGraph("deploy");
 
 		// Build artifact
-		const artifact = state({ version: "1.2.0", sha: "abc123" });
+		const artifact = node([], { initial: { version: "1.2.0", sha: "abc123" } });
 		g.add(artifact, { name: "artifact" });
 
 		// Human approval control
-		const isApproved = state(false);
+		const isApproved = node([], { initial: false });
 		g.add(isApproved, { name: "approved" });
 
 		// Gate: holds artifact until approved
@@ -194,36 +205,63 @@ describe("Phase 5 — Scenario 2: Approval-gated deployment", () => {
 describe("Phase 5 — Scenario 3: Real-time metrics aggregation", () => {
 	it("aggregates multiple metric sources into a derived dashboard state", () => {
 		// Source metrics (simulating live feeds)
-		const cpuLoad = state(0.45);
-		const memUsage = state(0.62);
-		const reqPerSec = state(150);
-		const errorRate = state(0.02);
+		const cpuLoad = node([], { initial: 0.45 });
+		const memUsage = node([], { initial: 0.62 });
+		const reqPerSec = node([], { initial: 150 });
+		const errorRate = node([], { initial: 0.02 });
 
 		// Derived: health score (weighted aggregate)
-		const healthScore = derived([cpuLoad, memUsage, errorRate], ([cpu, mem, err]) => {
-			const c = cpu as number;
-			const m = mem as number;
-			const e = err as number;
-			// Lower is worse: 1.0 = perfect health
-			return Math.max(0, 1 - (c * 0.3 + m * 0.3 + e * 10 * 0.4));
-		});
+		const healthScore = node(
+			[cpuLoad, memUsage, errorRate],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const c = data[0] as number;
+				const m = data[1] as number;
+				const e = data[2] as number;
+				// Lower is worse: 1.0 = perfect health
+				actions.emit(Math.max(0, 1 - (c * 0.3 + m * 0.3 + e * 10 * 0.4)));
+			},
+			{ describeKind: "derived" },
+		);
 
 		// Derived: alert level
-		const alertLevel = derived([healthScore], ([score]) => {
-			const s = score as number;
-			if (s > 0.8) return "green";
-			if (s > 0.5) return "yellow";
-			return "red";
-		});
+		const alertLevel = node(
+			[healthScore],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const s = data[0] as number;
+				if (s > 0.8) {
+					actions.emit("green");
+					return;
+				}
+				if (s > 0.5) {
+					actions.emit("yellow");
+					return;
+				}
+				actions.emit("red");
+			},
+			{ describeKind: "derived" },
+		);
 
 		// Derived: capacity forecast (combine throughput + resource usage)
-		const capacityForecast = derived([reqPerSec, cpuLoad, memUsage], ([rps, cpu, mem]) => {
-			const r = rps as number;
-			const c = cpu as number;
-			const m = mem as number;
-			const headroom = Math.min(1 - c, 1 - m);
-			return Math.round(r / (1 - headroom + 0.001)); // projected max RPS
-		});
+		const capacityForecast = node(
+			[reqPerSec, cpuLoad, memUsage],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const r = data[0] as number;
+				const c = data[1] as number;
+				const m = data[2] as number;
+				const headroom = Math.min(1 - c, 1 - m);
+				actions.emit(Math.round(r / (1 - headroom + 0.001))); // projected max RPS
+			},
+			{ describeKind: "derived" },
+		);
 
 		// Activate all derived nodes (composition guide §5: subscribe to activate)
 		healthScore.subscribe(() => {});
@@ -393,7 +431,9 @@ describe("Phase 5 — Scenario 4: LLM agent with tool use", () => {
 describe("Phase 5 — Scenario 5: Event-sourced order processing", () => {
 	it("scan builds projections from an event stream", () => {
 		// Event source (orders coming in)
-		const orderEvent = state<{ type: string; orderId: string; amount?: number } | null>(null);
+		const orderEvent = node<{ type: string; orderId: string; amount?: number } | null>([], {
+			initial: null,
+		});
 
 		// Projection: running total revenue
 		const totalRevenue = scan(
@@ -450,8 +490,8 @@ describe("Phase 5 — Scenario 5: Event-sourced order processing", () => {
 
 describe("Phase 5 — Scenario 6: Adaptive API client with config", () => {
 	it("withLatestFrom reads config without triggering on config changes", () => {
-		const request = state<string | null>(null);
-		const config = state({ maxRetries: 3, timeout: 5000 });
+		const request = node<string | null>([], { initial: null });
+		const config = node([], { initial: { maxRetries: 3, timeout: 5000 } });
 
 		// withLatestFrom: request triggers, config is sampled
 		const enriched = withLatestFrom(request, config);
@@ -493,7 +533,7 @@ describe("Phase 5 — Scenario 7: LLM graph self-awareness via describe + gauges
 		const g = new Graph("system");
 
 		// Knobs: LLM-writable configuration
-		const retryLimit = state(3, {
+		const retryLimit = node([], {
 			name: "retry_limit",
 			meta: {
 				description: "Maximum retry attempts",
@@ -501,8 +541,9 @@ describe("Phase 5 — Scenario 7: LLM graph self-awareness via describe + gauges
 				range: [1, 10],
 				access: "both",
 			},
+			initial: 3,
 		});
-		const model = state("gpt-4", {
+		const model = node([], {
 			name: "model",
 			meta: {
 				description: "LLM model to use",
@@ -510,14 +551,16 @@ describe("Phase 5 — Scenario 7: LLM graph self-awareness via describe + gauges
 				values: ["gpt-4", "claude-3"],
 				access: "both",
 			},
+			initial: "gpt-4",
 		});
 		g.add(retryLimit, { name: "retry_limit" });
 		g.add(model, { name: "model" });
 
 		// Gauges: read-only metrics
-		const successRate = state(0.95, {
+		const successRate = node([], {
 			name: "success_rate",
 			meta: { description: "Current success rate", format: "percentage", access: "system" },
+			initial: 0.95,
 		});
 		g.add(successRate, { name: "success_rate" });
 
@@ -555,9 +598,9 @@ describe("Phase 5 — Scenario 8: Multi-source merge with error isolation", () =
 		const g = pipelineGraph("ingest");
 
 		// Three data sources
-		const source1 = state<number>(10);
-		const source2 = state<number>(20);
-		const source3 = state<number>(30);
+		const source1 = node<number>([], { initial: 10 });
+		const source2 = node<number>([], { initial: 20 });
+		const source3 = node<number>([], { initial: 30 });
 		g.add(source1, { name: "s1" });
 		g.add(source2, { name: "s2" });
 		g.add(source3, { name: "s3" });
@@ -597,9 +640,9 @@ describe("Phase 5 — Scenario 8: Multi-source merge with error isolation", () =
 
 describe("Phase 5 — Scenario 9: Dynamic system prompt composition", () => {
 	it("systemPromptBuilder reacts to section changes", () => {
-		const role = state("You are a helpful coding assistant.");
-		const rules = state("Always explain your reasoning.");
-		const context = state("The user is working on a TypeScript project.");
+		const role = node([], { initial: "You are a helpful coding assistant." });
+		const rules = node([], { initial: "Always explain your reasoning." });
+		const context = node([], { initial: "The user is working on a TypeScript project." });
 
 		const prompt = systemPromptBuilder([role, rules, context]);
 
@@ -630,15 +673,40 @@ describe("Phase 5 — Scenario 10: Diamond dependency glitch-free guarantee", ()
 		//   B   C
 		//    \ /
 		//     D
-		const a = state(1);
-		const b = derived([a], ([v]) => (v as number) * 2);
-		const c = derived([a], ([v]) => (v as number) + 10);
+		const a = node([], { initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 10);
+			},
+			{ describeKind: "derived" },
+		);
 
 		let computeCount = 0;
-		const d = derived([b, c], ([bv, cv]) => {
-			computeCount++;
-			return `${bv}+${cv}`;
-		});
+		const d = node(
+			[b, c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				computeCount++;
+				actions.emit(`${data[0]}+${data[1]}`);
+			},
+			{ describeKind: "derived" },
+		);
 
 		d.subscribe(() => {});
 

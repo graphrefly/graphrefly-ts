@@ -47,7 +47,7 @@
 
 import type { Actor } from "../../../core/actor.js";
 import { placeholderArgs } from "../../../core/meta.js";
-import type { Node } from "../../../core/node.js";
+import { type Node, node } from "../../../core/node.js";
 import type { CausalChain } from "../../../graph/explain.js";
 import { Graph } from "../../../graph/graph.js";
 import {

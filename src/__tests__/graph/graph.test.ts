@@ -4,7 +4,7 @@ import { batch } from "../../core/batch.js";
 import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { derived, effect, producer, state } from "../../core/sugar.js";
+
 import { toD2, toJson, toMermaid, toMermaidUrl, toPretty } from "../../extra/render/index.js";
 import {
 	GRAPH_META_SEGMENT,
@@ -24,7 +24,7 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("add / remove / node / get / set", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		g.add(a, { name: "a" });
 		expect(g.node("a").cache).toBe(1);
 		g.set("a", 2);
@@ -36,21 +36,21 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("add duplicate name throws", () => {
 		const g = new Graph("g");
-		const n = state(0);
+		const n = node([], { initial: 0 });
 		g.add(n, { name: "x" });
-		expect(() => g.add(state(1), { name: "x" })).toThrow(/already exists/);
+		expect(() => g.add(node([], { initial: 1 }), { name: "x" })).toThrow(/already exists/);
 	});
 
 	it("add duplicate node instance throws", () => {
 		const g = new Graph("g");
-		const n = state(0);
+		const n = node([], { initial: 0 });
 		g.add(n, { name: "x" });
 		expect(() => g.add(n, { name: "y" })).toThrow(/already registered/);
 	});
 
 	it("remove sends TEARDOWN", () => {
 		const g = new Graph("g");
-		const n = state(0);
+		const n = node([], { initial: 0 });
 		const seen: symbol[] = [];
 		n.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
@@ -62,8 +62,17 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("remove removes node and derived edges go with it", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		expect(g.edges().length).toBe(1);
@@ -76,8 +85,17 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("set on graph drives derived value (wiring via deps)", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		b.subscribe(() => {
@@ -89,13 +107,22 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("empty local name throws on add", () => {
 		const g = new Graph("g");
-		expect(() => g.add(state(0), { name: "" })).toThrow(/non-empty/);
+		expect(() => g.add(node([], { initial: 0 }), { name: "" })).toThrow(/non-empty/);
 	});
 
 	it("edges() returns edges derived from constructor deps", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// Derived from b's _deps — no explicit connect() call needed.
@@ -104,7 +131,7 @@ describe("Graph (Phase 1.1)", () => {
 
 	it("single colon in names is allowed", () => {
 		const g = new Graph("g");
-		const n = state(0);
+		const n = node([], { initial: 0 });
 		g.add(n, { name: "my:node" });
 		expect(g.node("my:node")).toBe(n);
 		expect(g.node("my:node").cache).toBe(0);
@@ -126,7 +153,7 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("mount + resolve by relative path", () => {
 		const root = new Graph("app");
 		const child = new Graph("payment");
-		const n = state(7, { name: "amount" });
+		const n = node([], { name: "amount", initial: 7 });
 		child.add(n, { name: "amount" });
 		root.mount("payment", child);
 		expect(root.resolve("payment::amount")).toBe(n);
@@ -136,7 +163,7 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("resolve strips leading graph name when it matches this.name", () => {
 		const root = new Graph("app");
 		const child = new Graph("pay");
-		const n = state(1, { name: "x" });
+		const n = node([], { name: "x", initial: 1 });
 		child.add(n, { name: "x" });
 		root.mount("payment", child);
 		expect(root.resolve("app::payment::x")).toBe(n);
@@ -144,7 +171,7 @@ describe("Graph composition (Phase 1.2)", () => {
 
 	it("resolve on child strips child graph name prefix", () => {
 		const child = new Graph("pay");
-		const n = state(2, { name: "x" });
+		const n = node([], { name: "x", initial: 2 });
 		child.add(n, { name: "x" });
 		expect(child.resolve("pay::x")).toBe(n);
 		expect(child.resolve("x")).toBe(n);
@@ -153,26 +180,26 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("resolve throws when path ends at subgraph", () => {
 		const root = new Graph("app");
 		const child = new Graph("c");
-		child.add(state(0), { name: "x" });
+		child.add(node([], { initial: 0 }), { name: "x" });
 		root.mount("sub", child);
 		expect(() => root.resolve("sub")).toThrow(/subgraph/);
 	});
 
 	it("resolve throws for trailing path after a node name", () => {
 		const g = new Graph("g");
-		g.add(state(0), { name: "a" });
+		g.add(node([], { initial: 0 }), { name: "a" });
 		expect(() => g.resolve("a::b")).toThrow(/node/);
 	});
 
 	it("add after mount at same name throws", () => {
 		const root = new Graph("r");
 		root.mount("m", new Graph("c"));
-		expect(() => root.add(state(0), { name: "m" })).toThrow(/mount/);
+		expect(() => root.add(node([], { initial: 0 }), { name: "m" })).toThrow(/mount/);
 	});
 
 	it("mount after add at same name throws", () => {
 		const root = new Graph("r");
-		root.add(state(0), { name: "m" });
+		root.add(node([], { initial: 0 }), { name: "m" });
 		expect(() => root.mount("m", new Graph("c"))).toThrow(/node/);
 	});
 
@@ -186,7 +213,7 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("same child graph instance mounted twice is rejected", () => {
 		const root = new Graph("root");
 		const child = new Graph("ch");
-		child.add(state(0), { name: "n" });
+		child.add(node([], { initial: 0 }), { name: "n" });
 		root.mount("c1", child);
 		expect(() => root.mount("c2", child)).toThrow(/already mounted/);
 	});
@@ -194,7 +221,7 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("signal reaches nodes inside mounted graphs once per node", () => {
 		const root = new Graph("root");
 		const child = new Graph("child");
-		const n = state(0, { name: "n" });
+		const n = node([], { name: "n", initial: 0 });
 		child.add(n, { name: "n" });
 		root.mount("c", child);
 		const seen: symbol[] = [];
@@ -209,8 +236,8 @@ describe("Graph composition (Phase 1.2)", () => {
 		const root = new Graph("root");
 		const child = new Graph("child");
 		const order: string[] = [];
-		const rootNode = state(0, { name: "rootN" });
-		const childNode = state(0, { name: "childN" });
+		const rootNode = node([], { name: "rootN", initial: 0 });
+		const childNode = node([], { name: "childN", initial: 0 });
 		child.add(childNode, { name: "cn" });
 		root.add(rootNode, { name: "rn" });
 		root.mount("c", child);
@@ -224,13 +251,13 @@ describe("Graph composition (Phase 1.2)", () => {
 
 	it(":: in local add name throws", () => {
 		const g = new Graph("g");
-		expect(() => g.add(state(0), { name: "a::b" })).toThrow(/path separator/);
+		expect(() => g.add(node([], { initial: 0 }), { name: "a::b" })).toThrow(/path separator/);
 	});
 
 	it("single colon in mount name is allowed", () => {
 		const root = new Graph("r");
 		const child = new Graph("c");
-		child.add(state(0), { name: "x" });
+		child.add(node([], { initial: 0 }), { name: "x" });
 		root.mount("my:mount", child);
 		expect(root.resolve("my:mount::x").cache).toBe(0);
 	});
@@ -238,7 +265,7 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("node / get / set accept :: qualified paths", () => {
 		const root = new Graph("app");
 		const child = new Graph("sub");
-		const n = state(10, { name: "val" });
+		const n = node([], { name: "val", initial: 10 });
 		child.add(n, { name: "val" });
 		root.mount("sub", child);
 		expect(root.node("sub::val")).toBe(n);
@@ -250,8 +277,17 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("child graph's edges() reflects constructor deps regardless of parent mount", () => {
 		const root = new Graph("app");
 		const child = new Graph("sub");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		child.add(a, { name: "a" });
 		child.add(b, { name: "b" });
 		root.mount("sub", child);
@@ -263,8 +299,8 @@ describe("Graph composition (Phase 1.2)", () => {
 		const root = new Graph("root");
 		const child = new Graph("child");
 		const grandchild = new Graph("gc");
-		const n1 = state(1, { name: "n1" });
-		const n2 = state(2, { name: "n2" });
+		const n1 = node([], { name: "n1", initial: 1 });
+		const n2 = node([], { name: "n2", initial: 2 });
 		child.add(n1, { name: "n1" });
 		grandchild.add(n2, { name: "n2" });
 		child.mount("gc", grandchild);
@@ -289,8 +325,17 @@ describe("Graph composition (Phase 1.2)", () => {
 	it("remove(mount_name) unmounts subgraph — tree edges drop accordingly", () => {
 		const root = new Graph("root");
 		const child = new Graph("child");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		root.add(a, { name: "a" });
 		child.add(b, { name: "b" });
 		root.mount("sub", child);
@@ -304,14 +349,14 @@ describe("Graph composition (Phase 1.2)", () => {
 describe("Graph introspection (Phase 1.3)", () => {
 	it("does not override options.name on add", () => {
 		const g = new Graph("g");
-		const n = state(1, { name: "keep" });
+		const n = node([], { name: "keep", initial: 1 });
 		g.add(n, { name: "alias" });
 		expect(n.name).toBe("keep");
 	});
 
 	it("rejects reserved __meta__ for add and mount", () => {
 		const g = new Graph("g");
-		expect(() => g.add(state(0), { name: GRAPH_META_SEGMENT })).toThrow(/reserved/);
+		expect(() => g.add(node([], { initial: 0 }), { name: GRAPH_META_SEGMENT })).toThrow(/reserved/);
 		expect(() => g.mount(GRAPH_META_SEGMENT, new Graph("c"))).toThrow(/reserved/);
 	});
 
@@ -319,11 +364,20 @@ describe("Graph introspection (Phase 1.3)", () => {
 		const root = new Graph("app");
 		const child = new Graph("pay");
 		const grandchild = new Graph("inner");
-		const a = state(1);
-		const b = derived([a], ([v]) => (v as number) + 1);
+		const a = node([], { initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 		child.add(a, { name: "a" });
 		child.add(b, { name: "b" });
-		grandchild.add(state(0), { name: "x" });
+		grandchild.add(node([], { initial: 0 }), { name: "x" });
 		child.mount("gc", grandchild);
 		root.mount("sub", child);
 		const d = root.describe();
@@ -337,8 +391,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("describe filter supports depsIncludes, metaHas, and path-aware predicate", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a", meta: { label: "input" } });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", meta: { label: "input" }, initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -360,7 +423,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("metaHas filter at minimal detail excludes all nodes (no meta at minimal)", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a", meta: { label: "input" } }), { name: "a" });
+		g.add(node([], { name: "a", meta: { label: "input" }, initial: 1 }), { name: "a" });
 		// Default (minimal) detail omits meta, so metaHas filter matches nothing
 		const d = g.describe({ filter: { metaHas: "label" } });
 		expect(Object.keys(d.nodes)).toEqual([]);
@@ -488,8 +551,8 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("observe() sink sees sorted paths for graph.signal", () => {
 		const g = new Graph("g");
-		g.add(state(0), { name: "b" });
-		g.add(state(0), { name: "a" });
+		g.add(node([], { initial: 0 }), { name: "b" });
+		g.add(node([], { initial: 0 }), { name: "a" });
 		const order: string[] = [];
 		g.observe().subscribe((path, msgs) => {
 			for (const m of msgs) {
@@ -502,8 +565,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("observe(path, { timeline: true }) includes timestamp and batch context", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const obs = g.observe("b", { timeline: true });
@@ -519,8 +591,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("observe(path, { causal: true, derived: true }) captures trigger and dep snapshots", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const obs = g.observe("b", { causal: true, derived: true, timeline: true });
@@ -542,9 +623,18 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("dep_batches tracks per-dep wave batches", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = state(100, { name: "b" });
-		const c = derived([a, b], ([va, vb]) => (va as number) + (vb as number), { name: "c" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node([], { name: "b", initial: 100 });
+		const c = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -570,8 +660,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("observe(path, { causal: true, derived: true }) includes initial derived run", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const obs = g.observe("b", { causal: true, derived: true, timeline: true });
@@ -589,8 +688,8 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("observe({ structured: true }) on whole graph returns structured result", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		g.add(state(2, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 2 }), { name: "b" });
 		const obs = g.observe({ structured: true, timeline: true });
 		g.set("a", 10);
 		g.set("b", 20);
@@ -605,8 +704,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 	it("toMermaid exports qualified nodes and edges with direction", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		child.add(a, { name: "a" });
 		child.add(b, { name: "b" });
 		g.mount("sub", child);
@@ -619,8 +727,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toD2 exports qualified nodes and maps direction", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const text = toD2(g.describe(), { direction: "RL" });
@@ -632,7 +749,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toMermaid rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		expect(() => toMermaid(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
 			/invalid diagram direction/,
 		);
@@ -640,7 +757,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toD2 rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		expect(() => toD2(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
 			/invalid diagram direction/,
 		);
@@ -648,8 +765,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("D2: describe({ reactive: true }) returns a reactive handle that recomputes on graph change", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -661,7 +787,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(Object.keys(first?.nodes ?? {}).sort()).toEqual(["a", "b"]);
 
 		// Structural change — add a new node.
-		g.add(state(9, { name: "c" }), { name: "c" });
+		g.add(node([], { name: "c", initial: 9 }), { name: "c" });
 		const next = live.node.cache;
 		expect(Object.keys(next?.nodes ?? {})).toContain("c");
 
@@ -671,9 +797,18 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("D2: derived(describe({ reactive: true }) → toMermaid) yields a live Mermaid Node<string>", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const live = g.describe({ reactive: true });
-		const mermaid = derived([live.node], ([snap]) => toMermaid(snap), { name: "live-mermaid" });
+		const mermaid = node(
+			[live.node],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(toMermaid(data[0]));
+			},
+			{ describeKind: "derived", name: "live-mermaid" },
+		);
 		const unsub = mermaid.subscribe(() => {});
 		expect(typeof mermaid.cache).toBe("string");
 		expect(mermaid.cache).toContain("flowchart");
@@ -683,8 +818,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toMermaidUrl emits mermaid.live deep link round-trippable to mermaid source", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const url = toMermaidUrl(g.describe());
@@ -701,8 +845,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toMermaid and toD2 render constructor deps without explicit connect", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// No connect() — deps only
@@ -714,7 +867,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("trace() silently drops unknown paths and follows inspector gating", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		g.trace("a", "first");
 		expect(g.trace().some((e) => e.annotation === "first")).toBe(true);
 		// Unit 14 E (batch 8): unknown path → silent drop (matches observe
@@ -736,7 +889,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 	it("observe({ format }) logs events with include/exclude filters", () => {
 		const g = new Graph("g");
 		const logs: string[] = [];
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const obs = g.observe("a", {
 			format: "pretty",
 			includeTypes: ["data", "dirty", "resolved"],
@@ -753,8 +906,8 @@ describe("Graph introspection (Phase 1.3)", () => {
 	it("observe({ format: 'json' }) supports JSON output in graph-wide mode", () => {
 		const g = new Graph("g");
 		const lines: string[] = [];
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
 		const obs = g.observe({
 			format: "json",
 			theme: "none",
@@ -770,8 +923,17 @@ describe("Graph introspection (Phase 1.3)", () => {
 
 	it("toPretty / toJson render the snapshot", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const pretty = toPretty(g.describe({ detail: "standard" }));
@@ -795,7 +957,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 	it("destroy signals TEARDOWN and clears registries (including mounts)", () => {
 		const root = new Graph("root");
 		const child = new Graph("child");
-		const n = state(0, { name: "n" });
+		const n = node([], { name: "n", initial: 0 });
 		child.add(n, { name: "n" });
 		root.mount("c", child);
 		const types: symbol[] = [];
@@ -833,8 +995,8 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("snapshot extends describe with version 1", () => {
 		const g = new Graph("app");
-		g.add(state(1), { name: "z" });
-		g.add(state(2), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "z" });
+		g.add(node([], { initial: 2 }), { name: "a" });
 		const snap = g.snapshot();
 		expect(snap.version).toBe(1);
 		expect(snap.name).toBe("app");
@@ -844,8 +1006,8 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("snapshot returns stable output with sorted keys", () => {
 		const g = new Graph("g");
-		g.add(state(0), { name: "b" });
-		g.add(state(0), { name: "a" });
+		g.add(node([], { initial: 0 }), { name: "b" });
+		g.add(node([], { initial: 0 }), { name: "a" });
 		const o1 = g.snapshot();
 		const o2 = g.snapshot();
 		expect(JSON.stringify(o1)).toBe(JSON.stringify(o2));
@@ -854,8 +1016,8 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("JSON.stringify(graph) works via toJSON hook", () => {
 		const g = new Graph("g");
-		g.add(state(0), { name: "b" });
-		g.add(state(0), { name: "a" });
+		g.add(node([], { initial: 0 }), { name: "b" });
+		g.add(node([], { initial: 0 }), { name: "a" });
 		const j1 = JSON.stringify(g);
 		const j2 = JSON.stringify(g);
 		expect(j1).toBe(j2);
@@ -865,8 +1027,17 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("restore applies state (and producer) values; skips derived", () => {
 		const g = new Graph("g");
-		const a = state(10, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 10 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		b.subscribe(() => {});
@@ -891,14 +1062,14 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 	});
 
 	it("Graph.fromSnapshot with build restores values", () => {
-		const a = state(0, { name: "a" });
+		const a = node([], { name: "a", initial: 0 });
 		const g0 = new Graph("app");
 		g0.add(a, { name: "a" });
 		g0.set("a", 7);
 		const snap = g0.snapshot();
 
 		const g1 = Graph.fromSnapshot(snap, (g) => {
-			g.add(state(0, { name: "a" }), { name: "a" });
+			g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		});
 		expect(g1.node("a").cache).toBe(7);
 	});
@@ -919,7 +1090,7 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("attachSnapshotStorage triggers only for messageTier >= 3", async () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const saves: unknown[] = [];
 		const tier = {
 			name: "test",
@@ -944,8 +1115,8 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("restore supports selective hydration via only pattern", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		g.add(state(2, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 2 }), { name: "b" });
 		const snap = g.snapshot();
 		g.set("a", 10);
 		g.set("b", 20);
@@ -956,15 +1127,34 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 
 	it("fromSnapshot reconstructs dynamic nodes via factories option", () => {
 		const g0 = new Graph("g");
-		const a = state(1, { name: "a" });
-		const sum = derived([a], ([v]) => (v as number) + 1, { name: "sum" });
+		const a = node([], { name: "a", initial: 1 });
+		const sum = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "sum" },
+		);
 		g0.add(a, { name: "a" });
 		g0.add(sum, { name: "sum" });
 		sum.subscribe(() => {});
 		const snap = g0.snapshot();
 		const g1 = Graph.fromSnapshot(snap, {
 			factories: {
-				sum: (name, ctx) => derived(ctx.resolvedDeps, ([v]) => (v as number) + 1, { name }),
+				sum: (name, ctx) =>
+					node(
+						ctx.resolvedDeps,
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit((data[0] as number) + 1);
+						},
+						{ describeKind: "derived", name },
+					),
 			},
 		});
 		const s = g1.node("sum");
@@ -980,13 +1170,14 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("meta companions inherit primary guard", () => {
 		const g = new Graph("g");
-		const n = state(0, {
+		const n = node([], {
 			name: "n",
 			meta: { note: "a" },
 			guard: policy((allow, deny) => {
 				allow("write", { where: (a) => a.type === "human" });
 				deny("write", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(n, { name: "n" });
 		const metaPath = `n::${GRAPH_META_SEGMENT}::note`;
@@ -997,8 +1188,9 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("set and signal use write vs signal actions", () => {
 		const g = new Graph("g");
-		const n = state(0, {
+		const n = node([], {
 			guard: (_a, action) => action !== "signal",
+			initial: 0,
 		});
 		g.add(n, { name: "x" });
 		expect(() => g.signal([[PAUSE, "p"]])).toThrow(GuardDenied);
@@ -1008,13 +1200,14 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("describe and observe respect observe action", () => {
 		const g = new Graph("g");
-		const secret = state(0, {
+		const secret = node([], {
 			name: "secret",
 			guard: policy((allow, deny) => {
 				allow("write");
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(secret, { name: "secret" });
 		const dLlm = g.describe({ actor: llm });
@@ -1030,16 +1223,17 @@ describe("Graph guard (Phase 1.5)", () => {
 	// Unit 6 / B.1: GraphDescribeOptions.actor accepts Actor | Node<Actor>.
 	it("describe({ actor: Node<Actor> }) static — unwraps current cache", () => {
 		const g = new Graph("g");
-		const secret = state(0, {
+		const secret = node([], {
 			name: "secret",
 			guard: policy((allow, deny) => {
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(secret, { name: "secret" });
 
-		const actorNode = state(human, { name: "actor" });
+		const actorNode = node([], { name: "actor", initial: human });
 		actorNode.subscribe(() => undefined);
 
 		expect(g.describe({ actor: actorNode }).nodes.secret).toBeDefined();
@@ -1049,16 +1243,17 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("describe({ reactive: true, actor: Node<Actor> }) re-derives when actor changes", () => {
 		const g = new Graph("g");
-		const secret = state(0, {
+		const secret = node([], {
 			name: "secret",
 			guard: policy((allow, deny) => {
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(secret, { name: "secret" });
 
-		const actorNode = state(human, { name: "actor" });
+		const actorNode = node([], { name: "actor", initial: human });
 		actorNode.subscribe(() => undefined);
 
 		const handle = g.describe({ reactive: true, actor: actorNode });
@@ -1081,16 +1276,17 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("describe({ reactive: true, actor: Node<Actor> }) reflects mixed actor + topology change in final state", () => {
 		const g = new Graph("g");
-		const secret = state(0, {
+		const secret = node([], {
 			name: "secret",
 			guard: policy((allow, deny) => {
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(secret, { name: "secret" });
 
-		const actorNode = state(human, { name: "actor" });
+		const actorNode = node([], { name: "actor", initial: human });
 		actorNode.subscribe(() => undefined);
 
 		const handle = g.describe({ reactive: true, actor: actorNode });
@@ -1099,7 +1295,7 @@ describe("Graph guard (Phase 1.5)", () => {
 		// Final state must reflect BOTH the actor switch and the new topology.
 		batch(() => {
 			actorNode.emit(llm);
-			g.add(state(1, { name: "b" }), { name: "b" });
+			g.add(node([], { name: "b", initial: 1 }), { name: "b" });
 		});
 
 		const cache = handle.node.cache as { nodes: Record<string, unknown> };
@@ -1112,8 +1308,8 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("describe({ reactive: true, actor: Node<Actor> }) cleans up actor subscription on dispose", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const actorNode = state(human, { name: "actor" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const actorNode = node([], { name: "actor", initial: human });
 		actorNode.subscribe(() => undefined);
 
 		// Spy on the actor's subscribe so we can prove the unsubscribe really
@@ -1145,16 +1341,17 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("describe({ reactive: true, actor: Node<Actor> }) releases subscription on actor COMPLETE", () => {
 		const g = new Graph("g");
-		const secret = state(0, {
+		const secret = node([], {
 			name: "secret",
 			guard: policy((allow, deny) => {
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(secret, { name: "secret" });
 
-		const actorNode = state(human, { name: "actor" });
+		const actorNode = node([], { name: "actor", initial: human });
 		actorNode.subscribe(() => undefined);
 
 		const realSubscribe = actorNode.subscribe.bind(actorNode);
@@ -1187,12 +1384,13 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("observe() filters paths for actor", () => {
 		const g = new Graph("g");
-		const n = state(0, {
+		const n = node([], {
 			name: "hidden",
 			guard: policy((allow, deny) => {
 				allow("observe");
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		g.add(n, { name: "hidden" });
 		const paths: string[] = [];
@@ -1204,7 +1402,7 @@ describe("Graph guard (Phase 1.5)", () => {
 	});
 
 	it("lastMutation records actor on guarded write (timestamp_ns)", () => {
-		const n = state(0, { guard: () => true });
+		const n = node([], { guard: () => true, initial: 0 });
 		n.down([[DATA, 5]], { actor: human });
 		expect(n.lastMutation?.actor.type).toBe("human");
 		expect(typeof n.lastMutation?.timestamp_ns).toBe("number");
@@ -1212,12 +1410,13 @@ describe("Graph guard (Phase 1.5)", () => {
 	});
 
 	it("subscribe checks observe guard when actor is passed", () => {
-		const n = state(0, {
+		const n = node([], {
 			guard: policy((allow, deny) => {
 				allow("write");
 				allow("observe", { where: (a) => a.type === "human" });
 				deny("observe", { where: (a) => a.type === "llm" });
 			}),
+			initial: 0,
 		});
 		expect(() => n.subscribe(() => {}, llm)).toThrow(GuardDenied);
 		const unsub = n.subscribe(() => {}, human);
@@ -1226,15 +1425,16 @@ describe("Graph guard (Phase 1.5)", () => {
 
 	it("internal TEARDOWN bypasses guard", () => {
 		const g = new Graph("g");
-		const n = state(0, { guard: () => false });
+		const n = node([], { guard: () => false, initial: 0 });
 		g.add(n, { name: "x" });
 		g.remove("x");
 		expect(true).toBe(true);
 	});
 
 	it("DEFAULT_ACTOR satisfies allow-all guard", () => {
-		const n = state(0, {
+		const n = node([], {
 			guard: (a) => a.type === "system",
+			initial: 0,
 		});
 		n.down([[DATA, 1]]);
 		expect(n.cache).toBe(1);
@@ -1247,10 +1447,28 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("describe() conforms to GRAPHREFLY-SPEC Appendix B (all node kinds)", () => {
 		const g = new Graph("app");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
-		const p = producer(() => {}, { name: "p" });
-		const e = effect([a], () => {});
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const p = node(() => {}, { describeKind: "producer", name: "p" });
+		const e = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				return (() => {})(data, actions, ctx) ?? undefined;
+			},
+			{ describeKind: "effect" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(p, { name: "p" });
@@ -1261,7 +1479,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 	it("describe() on nested mounts conforms to Appendix B", () => {
 		const root = new Graph("root");
 		const child = new Graph("ch");
-		const n = state(0, { name: "n" });
+		const n = node([], { name: "n", initial: 0 });
 		child.add(n, { name: "n" });
 		root.mount("c", child);
 		assertDescribeMatchesAppendixB(root.describe({ detail: "standard" }));
@@ -1269,7 +1487,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("observe(path) on state sees DATA when graph.set writes (DATA-only batch)", () => {
 		const g = new Graph("g");
-		const n = state(0, { name: "n" });
+		const n = node([], { name: "n", initial: 0 });
 		g.add(n, { name: "n" });
 		const seq: symbol[] = [];
 		const off = g.observe("n").subscribe((msgs) => {
@@ -1283,8 +1501,17 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("observe(path) on derived sees DIRTY before DATA when upstream graph.set recomputes", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const seq: symbol[] = [];
@@ -1303,7 +1530,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 	it("snapshot survives JSON wire and restores nested mount values", () => {
 		const root0 = new Graph("app");
 		const child0 = new Graph("sub");
-		const n0 = state(3, { name: "x" });
+		const n0 = node([], { name: "x", initial: 3 });
 		child0.add(n0, { name: "x" });
 		root0.mount("sub", child0);
 		const snap = root0.snapshot();
@@ -1311,7 +1538,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 		const root1 = Graph.fromSnapshot(wired, (g) => {
 			const ch = new Graph("sub");
-			ch.add(state(0, { name: "x" }), { name: "x" });
+			ch.add(node([], { name: "x", initial: 0 }), { name: "x" });
 			g.mount("sub", ch);
 		});
 		expect(root1.name).toBe("app");
@@ -1322,8 +1549,8 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		const root = new Graph("root");
 		const c1 = new Graph("c1");
 		const c2 = new Graph("c2");
-		const n1 = state(0, { name: "n1" });
-		const n2 = state(0, { name: "n2" });
+		const n1 = node([], { name: "n1", initial: 0 });
+		const n2 = node([], { name: "n2", initial: 0 });
 		c1.add(n1, { name: "n1" });
 		c2.add(n2, { name: "n2" });
 		root.mount("m1", c1);
@@ -1344,7 +1571,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 			allow("write", { where: (a) => a.type === "human" });
 			deny("write", { where: (a) => a.id === "u1" });
 		});
-		const n = state(0, { guard: g });
+		const n = node([], { guard: g, initial: 0 });
 		expect(g(human, "write")).toBe(false);
 		expect(g({ type: "human", id: "u2" }, "write")).toBe(true);
 		n.down([[DATA, 1]], { actor: { type: "human", id: "u2" } });
@@ -1372,7 +1599,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 		});
 		const both = (a: Parameters<typeof p1>[0], act: Parameters<typeof p1>[1]) =>
 			p1(a, act) && p2(a, act);
-		const n = state(0, { guard: both });
+		const n = node([], { guard: both, initial: 0 });
 		n.down([[DATA, 9]], { actor: human });
 		expect(n.cache).toBe(9);
 		expect(() => n.down([[DATA, 0]], { actor: { type: "human", id: "other" } })).toThrow(
@@ -1389,7 +1616,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("graph.set records lastMutation with actor", () => {
 		const g = new Graph("g");
-		const n = state(0, { name: "n", guard: () => true });
+		const n = node([], { name: "n", guard: () => true, initial: 0 });
 		g.add(n, { name: "n" });
 		g.set("n", 5, { actor: human });
 		expect(n.lastMutation?.actor.type).toBe("human");
@@ -1400,7 +1627,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 	it("observe() whole-graph delivers qualified paths for mounted nodes", () => {
 		const g = new Graph("g");
 		const child = new Graph("ch");
-		const n = state(0, { name: "n" });
+		const n = node([], { name: "n", initial: 0 });
 		child.add(n, { name: "n" });
 		g.mount("sub", child);
 		const paths: string[] = [];
@@ -1414,7 +1641,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("restore rejects snapshot with wrong version", () => {
 		const g = new Graph("g");
-		g.add(state(0), { name: "x" });
+		g.add(node([], { initial: 0 }), { name: "x" });
 		const snap = g.snapshot();
 		(snap as Record<string, unknown>).version = 99;
 		expect(() => g.restore(snap)).toThrow(/version/);
@@ -1429,8 +1656,17 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 
 	it("fromSnapshot without build rejects edges", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const snap = g.snapshot();
@@ -1451,7 +1687,7 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 	it("fromSnapshot without build auto-creates mounts and state nodes", () => {
 		const root = new Graph("app");
 		const child = new Graph("sub");
-		child.add(state(42, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 42 }), { name: "x" });
 		root.mount("sub", child);
 		const snap = root.snapshot();
 		const wired = JSON.parse(JSON.stringify(snap)) as GraphPersistSnapshot;
@@ -1468,8 +1704,17 @@ describe("Graph Phase 1.6 — describe schema, observe streams, snapshot, signal
 describe("describe() detail levels (3.3b)", () => {
 	function makeGraph() {
 		const g = new Graph("test-detail");
-		const a = state(10, { name: "a", meta: { description: "source", access: "both" } });
-		const b = derived([a], (av) => av * 2, { name: "b" });
+		const a = node([], { name: "a", meta: { description: "source", access: "both" }, initial: 10 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		return { g, a, b };
@@ -1515,7 +1760,7 @@ describe("describe() detail levels (3.3b)", () => {
 	it('detail: "full" includes standard + versioning + guard + lastMutation', () => {
 		const tester = { type: "human", name: "tester" };
 		const g = new Graph("full-detail");
-		const a = state(5, {
+		const a = node([], {
 			name: "a",
 			versioning: 0,
 			guard: policy((allow) => {
@@ -1523,6 +1768,7 @@ describe("describe() detail levels (3.3b)", () => {
 				allow("observe");
 			}),
 			meta: { description: "guarded" },
+			initial: 5,
 		});
 		g.add(a, { name: "a" });
 		// Trigger a mutation with actor to populate lastMutation
@@ -1545,7 +1791,7 @@ describe("describe() detail levels (3.3b)", () => {
 describe("describe() field selection (3.3b)", () => {
 	it("fields override detail level", () => {
 		const g = new Graph("fields");
-		g.add(state(42, { name: "x", meta: { label: "X", extra: "e" } }), { name: "x" });
+		g.add(node([], { name: "x", meta: { label: "X", extra: "e" }, initial: 42 }), { name: "x" });
 
 		const d = g.describe({ fields: ["type", "status"] });
 		const x = d.nodes.x!;
@@ -1558,7 +1804,9 @@ describe("describe() field selection (3.3b)", () => {
 
 	it("dotted meta path selects specific meta keys", () => {
 		const g = new Graph("meta-dot");
-		g.add(state(1, { name: "x", meta: { label: "L", secret: "S", extra: "E" } }), { name: "x" });
+		g.add(node([], { name: "x", meta: { label: "L", secret: "S", extra: "E" }, initial: 1 }), {
+			name: "x",
+		});
 
 		const d = g.describe({ fields: ["type", "meta.label"] });
 		const x = d.nodes.x!;
@@ -1570,7 +1818,7 @@ describe("describe() field selection (3.3b)", () => {
 
 	it("rejects mixing detail and fields (qa A6 — pass either, not both)", () => {
 		const g = new Graph("precedence");
-		g.add(state(1, { name: "x" }), { name: "x" });
+		g.add(node([], { name: "x", initial: 1 }), { name: "x" });
 
 		// Mixing detail+fields was permissive but produced ambiguous spec-mode
 		// semantics (e.g. `{detail: "spec", fields: [...]}` had specMode=true
@@ -1588,8 +1836,17 @@ describe("describe() detail: minimal", () => {
 		// projection (type + deps only). The richer `detail: "spec"` projection
 		// (type + deps + meta) lives in `core/meta.ts` `resolveDescribeFields`.
 		const g = new Graph("spec-format");
-		const a = state(1, { name: "a", meta: { description: "src" } });
-		const b = derived([a], (v) => v + 1, { name: "b" });
+		const a = node([], { name: "a", meta: { description: "src" }, initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -1608,7 +1865,7 @@ describe("describe() detail: minimal", () => {
 describe("describe() expand() (3.3b)", () => {
 	it("expand from minimal to standard re-reads live graph", () => {
 		const g = new Graph("expand");
-		const a = state(1, { name: "a", meta: { label: "A" } });
+		const a = node([], { name: "a", meta: { label: "A" }, initial: 1 });
 		g.add(a, { name: "a" });
 
 		const minimal = g.describe();
@@ -1626,7 +1883,7 @@ describe("describe() expand() (3.3b)", () => {
 
 	it("expand with field array", () => {
 		const g = new Graph("expand-fields");
-		g.add(state(5, { name: "x" }), { name: "x" });
+		g.add(node([], { name: "x", initial: 5 }), { name: "x" });
 
 		const d = g.describe();
 		const expanded = d.expand!(["type", "value"]);
@@ -1640,8 +1897,17 @@ describe("observe() detail levels (3.3b)", () => {
 	it('detail: "minimal" only includes DATA events', () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-min");
-		const a = state(1, { name: "a" });
-		const b = derived([a], (v) => v * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -1663,8 +1929,17 @@ describe("observe() detail levels (3.3b)", () => {
 	it('detail: "full" enables timeline + causal + derived', () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-full");
-		const a = state(10, { name: "a" });
-		const b = derived([a], (v: number) => v * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 10 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -1692,8 +1967,17 @@ describe("observe() detail levels (3.3b)", () => {
 	it('graph-wide detail: "minimal" filters non-DATA events', () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-all-min");
-		const a = state(1, { name: "a" });
-		const b = derived([a], (v) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -1712,8 +1996,17 @@ describe("observe() expand() (3.3b)", () => {
 	it("expand upgrades observation from minimal to full", () => {
 		Graph.inspectorEnabled = true;
 		const g = new Graph("obs-expand");
-		const a = state(1, { name: "a" });
-		const b = derived([a], (v) => v + 10, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data + 10);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -1740,7 +2033,7 @@ describe("observe() expand() (3.3b)", () => {
 describe("observe() tier-surfacing variants", () => {
 	it("surfaces INVALIDATE events with counter", () => {
 		const g = new Graph("obs-inv");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const obs = g.observe("a", { structured: true }) as ObserveResult;
 		obs.events.length = 0;
 		g.invalidate("a");
@@ -1751,7 +2044,7 @@ describe("observe() tier-surfacing variants", () => {
 
 	it("surfaces PAUSE and RESUME events with lockId payload", () => {
 		const g = new Graph("obs-pr");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const obs = g.observe("a", { structured: true }) as ObserveResult;
 		obs.events.length = 0;
 		g.node("a").down([[PAUSE, "lock-1"]], { internal: true });
@@ -1769,7 +2062,7 @@ describe("observe() tier-surfacing variants", () => {
 
 	it("surfaces TEARDOWN when graph.destroy() runs", () => {
 		const g = new Graph("obs-td");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const obs = g.observe("a", { structured: true }) as ObserveResult;
 		obs.events.length = 0;
 		g.destroy();
@@ -1780,7 +2073,7 @@ describe("observe() tier-surfacing variants", () => {
 
 	it('detail: "minimal" bumps new counters without emitting events', () => {
 		const g = new Graph("obs-min-new");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const obs = g.observe("a", { detail: "minimal" }) as ObserveResult;
 		obs.events.length = 0;
 		g.invalidate("a");
@@ -1795,7 +2088,7 @@ describe("observe() tier-surfacing variants", () => {
 
 	it("pretty format renders lockId for pause/resume", () => {
 		const g = new Graph("obs-fmt");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const lines: string[] = [];
 		const obs = g.observe("a", {
 			format: "pretty",
@@ -1814,16 +2107,16 @@ describe("observe() tier-surfacing variants", () => {
 });
 
 // ——————————————————————————————————————————————————————————————
-//  Narrow-waist API: graph.derived / graph.effect / graph.produce / graph.batch
+//  Narrow-waist API: graph.derived / graph.effect / graph.state / graph.producer / graph.batch
 //  See archive/docs/SESSION-graph-narrow-waist.md (P1–P3 Bundle 1 spot tests).
 // ——————————————————————————————————————————————————————————————
 
 describe("Graph narrow-waist — graph.batch", () => {
 	it("coalesces multiple writes into one downstream wave", async () => {
 		const g = new Graph("nw-batch");
-		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
-		g.add(state<number>(undefined, { name: "b" }), { name: "b" });
-		const out = g.derived("sum", ["a", "b"], ([x, y]) => (x as number) + (y as number));
+		g.add(node<number>([], { name: "a", initial: undefined }), { name: "a" });
+		g.add(node<number>([], { name: "b", initial: undefined }), { name: "b" });
+		const out = g.derived("sum", ["a", "b"], ([x, y]) => [(x as number) + (y as number)]);
 		const dataEvents: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
@@ -1837,8 +2130,8 @@ describe("Graph narrow-waist — graph.batch", () => {
 
 	it("nested graph.batch coalesces to one downstream wave", () => {
 		const g = new Graph("nw-batch-nest");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const out = g.derived("twice", ["a"], ([x]) => (x as number) * 2);
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const out = g.derived("twice", ["a"], ([x]) => [(x as number) * 2]);
 		const dataEvents: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) dataEvents.push(m[1] as number);
@@ -1860,13 +2153,13 @@ describe("Graph narrow-waist — graph.batch", () => {
 describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => {
 	it("fn does NOT fire until every dep has delivered real DATA", () => {
 		const g = new Graph("nw-derived-sentinel");
-		// Sentinel form: state<T>() with no initial leaves the node in "sentinel".
-		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
-		g.add(state<number>(undefined, { name: "b" }), { name: "b" });
+		// Sentinel form: node<T>([]) with no initial leaves the node in "sentinel".
+		g.add(node<number>([], { name: "a", initial: undefined }), { name: "a" });
+		g.add(node<number>([], { name: "b", initial: undefined }), { name: "b" });
 		let fnCalls = 0;
 		const out = g.derived("sum", ["a", "b"], ([x, y]) => {
 			fnCalls += 1;
-			return (x as number) + (y as number);
+			return [(x as number) + (y as number)];
 		});
 		const dataEvents: number[] = [];
 		out.subscribe((msgs) => {
@@ -1886,11 +2179,11 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 
 	it("null is a real DATA value and releases the gate", () => {
 		const g = new Graph("nw-derived-null");
-		g.add(state<number | null>(undefined, { name: "a" }), { name: "a" });
+		g.add(node<number | null>([], { name: "a", initial: undefined }), { name: "a" });
 		let saw: unknown = "untouched";
 		const out = g.derived("identity", ["a"], ([x]) => {
 			saw = x;
-			return x as number | null;
+			return [x as number | null];
 		});
 		out.subscribe(() => {});
 		expect(saw).toBe("untouched");
@@ -1900,7 +2193,7 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 
 	it("empty depPaths fires once on activation", () => {
 		const g = new Graph("nw-derived-empty");
-		const out = g.derived("k", [], () => 42);
+		const out = g.derived("k", [], () => [42]);
 		const events: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) events.push(m[1] as number);
@@ -1910,8 +2203,8 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 
 	it("registers under the supplied name and exposes describe edges", () => {
 		const g = new Graph("nw-derived-describe");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		const out = g.derived("doubled", ["a"], ([x]) => (x as number) * 2);
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const out = g.derived("doubled", ["a"], ([x]) => [(x as number) * 2]);
 		out.subscribe(() => {});
 		const desc = g.describe();
 		expect(Object.keys(desc.nodes)).toContain("doubled");
@@ -1920,8 +2213,8 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 
 	it("forwards equals + initial + meta + annotation through to the underlying primitive", () => {
 		const g = new Graph("nw-derived-opts");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => (x as number) + 1, {
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => [(x as number) + 1], {
 			equals: (l, r) => l === r,
 			initial: 99,
 			meta: { domain: "test" },
@@ -1937,16 +2230,16 @@ describe("Graph narrow-waist — graph.derived (P1 SENTINEL absorption)", () => 
 describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () => {
 	it("keepAlive: false (default) → cache stays sentinel until external subscribe", () => {
 		const g = new Graph("nw-keepalive-off");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => (x as number) * 10);
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => [(x as number) * 10]);
 		// No keepalive, no subscriber → derived stays inactive, cache is sentinel.
 		expect(out.cache).toBeUndefined();
 	});
 
 	it("keepAlive: true → cache populated immediately and tracks upstream", () => {
 		const g = new Graph("nw-keepalive-on");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		const out = g.derived("n", ["a"], ([x]) => (x as number) * 10, { keepAlive: true });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const out = g.derived("n", ["a"], ([x]) => [(x as number) * 10], { keepAlive: true });
 		expect(out.cache).toBe(10);
 		g.set("a", 7);
 		expect(out.cache).toBe(70);
@@ -1958,8 +2251,8 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 		// .cache from another node (spec §5.12) — declare it as a real dep
 		// instead. See the next test.
 		const g = new Graph("nw-keepalive-external");
-		g.add(state(5, { name: "value" }), { name: "value" });
-		const doubled = g.derived("doubled", ["value"], ([v]) => (v as number) * 2, {
+		g.add(node([], { name: "value", initial: 5 }), { name: "value" });
+		const doubled = g.derived("doubled", ["value"], ([v]) => [(v as number) * 2], {
 			keepAlive: true,
 		});
 		// External (non-reactive) consumer reads .cache directly.
@@ -1975,13 +2268,11 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 		// are real deps; the edge appears in describe(); the message protocol
 		// carries the values. Re-fires when EITHER dep updates.
 		const g = new Graph("nw-derived-composition");
-		g.add(state(2, { name: "trigger" }), { name: "trigger" });
-		g.add(state(5, { name: "value" }), { name: "value" });
-		const out = g.derived(
-			"combined",
-			["trigger", "value"],
-			([t, v]) => (t as number) * (v as number),
-		);
+		g.add(node([], { name: "trigger", initial: 2 }), { name: "trigger" });
+		g.add(node([], { name: "value", initial: 5 }), { name: "value" });
+		const out = g.derived("combined", ["trigger", "value"], ([t, v]) => [
+			(t as number) * (v as number),
+		]);
 		const seen: number[] = [];
 		out.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
@@ -1998,7 +2289,7 @@ describe("Graph narrow-waist — graph.derived (P2 keepAlive consistency)", () =
 describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () => {
 	it("graph.destroy() severs the keepAlive subscription on upstream", () => {
 		const g = new Graph("nw-keepalive-dispose");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		g.add(a, { name: "a" });
 		let fnCalls = 0;
 		g.derived(
@@ -2006,7 +2297,7 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 			["a"],
 			([x]) => {
 				fnCalls += 1;
-				return (x as number) * 10;
+				return [(x as number) * 10];
 			},
 			{ keepAlive: true },
 		);
@@ -2021,9 +2312,9 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 
 	it("two derived with keepAlive on the same graph both get torn down", () => {
 		const g = new Graph("nw-keepalive-many");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		g.derived("x", ["a"], ([v]) => v as number, { keepAlive: true });
-		g.derived("y", ["a"], ([v]) => (v as number) + 1, { keepAlive: true });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		g.derived("x", ["a"], ([v]) => [v as number], { keepAlive: true });
+		g.derived("y", ["a"], ([v]) => [(v as number) + 1], { keepAlive: true });
 		expect(g.node("x").cache).toBe(1);
 		expect(g.node("y").cache).toBe(2);
 		// destroy() must not throw with multiple keepalive disposers registered.
@@ -2037,10 +2328,10 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 		const g = new Graph("nw-keepalive-selfprune") as Graph & {
 			_disposers: Set<() => void>;
 		};
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const before = g._disposers.size;
 		for (let i = 0; i < 10; i++) {
-			g.derived(`n${i}`, ["a"], ([v]) => v as number, { keepAlive: true });
+			g.derived(`n${i}`, ["a"], ([v]) => [v as number], { keepAlive: true });
 			g.remove(`n${i}`);
 		}
 		// All 10 keepAlive disposers must have self-pruned via the TEARDOWN sent
@@ -2052,7 +2343,7 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 describe("Graph narrow-waist — graph.effect", () => {
 	it("runs side-effect when deps settle and registers under name", () => {
 		const g = new Graph("nw-effect");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const calls: number[] = [];
 		const fx = g.effect("logger", ["a"], ([x]) => {
 			calls.push(x as number);
@@ -2066,7 +2357,7 @@ describe("Graph narrow-waist — graph.effect", () => {
 
 	it("cleanup fires exactly once on graph.destroy()", () => {
 		const g = new Graph("nw-effect-cleanup");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		let cleanups = 0;
 		const fx = g.effect("fx", ["a"], () => {
 			return () => {
@@ -2082,7 +2373,7 @@ describe("Graph narrow-waist — graph.effect", () => {
 
 	it("respects SENTINEL gate (no fn fire until deps settle)", () => {
 		const g = new Graph("nw-effect-sentinel");
-		g.add(state<number>(undefined, { name: "a" }), { name: "a" });
+		g.add(node<number>([], { name: "a", initial: undefined }), { name: "a" });
 		let fnCalls = 0;
 		const fx = g.effect("fx", ["a"], () => {
 			fnCalls += 1;
@@ -2094,81 +2385,34 @@ describe("Graph narrow-waist — graph.effect", () => {
 	});
 });
 
-describe("Graph narrow-waist — graph.produce", () => {
-	it("Promise source resolves to a DATA emission and registers under name", async () => {
-		const g = new Graph("nw-produce-promise");
-		const n = g.produce("p", Promise.resolve(42));
+describe("Graph narrow-waist — graph.state", () => {
+	it("creates a dep-free state node with initial value and registers under name", () => {
+		const g = new Graph("nw-state-basic");
+		const n = g.state("s", 42);
 		const seen: number[] = [];
 		n.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
 		});
-		await Promise.resolve();
-		await Promise.resolve();
 		expect(seen).toEqual([42]);
-		expect(g.node("p")).toBe(n);
+		expect(g.node("s")).toBe(n);
 	});
 
-	it("scalar source emits the value once", () => {
-		const g = new Graph("nw-produce-scalar");
-		const n = g.produce("p", 7);
+	it("creates a sentinel state node when no initial is provided", () => {
+		const g = new Graph("nw-state-sentinel");
+		const n = g.state<number>("s");
 		const seen: number[] = [];
 		n.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
 		});
+		expect(seen).toEqual([]);
+		// Setting a value should emit DATA.
+		g.set("s", 7);
 		expect(seen).toEqual([7]);
 	});
 
-	it("sync iterable source emits each value then COMPLETE", () => {
-		const g = new Graph("nw-produce-iter");
-		const n = g.produce("p", [1, 2, 3]);
-		const data: number[] = [];
-		let completed = false;
-		n.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) data.push(m[1] as number);
-				else if (m[0] === COMPLETE) completed = true;
-			}
-		});
-		expect(data).toEqual([1, 2, 3]);
-		expect(completed).toBe(true);
-	});
-
-	it("async iterable source streams values in order, terminates on COMPLETE", async () => {
-		const g = new Graph("nw-produce-async");
-		async function* gen(): AsyncIterable<string> {
-			yield "a";
-			yield "b";
-		}
-		const n = g.produce("p", gen());
-		const data: string[] = [];
-		// Wait deterministically for COMPLETE rather than guessing tick counts.
-		await new Promise<void>((resolve) => {
-			n.subscribe((msgs) => {
-				for (const m of msgs) {
-					if (m[0] === DATA) data.push(m[1] as string);
-					else if (m[0] === COMPLETE) resolve();
-				}
-			});
-		});
-		expect(data).toEqual(["a", "b"]);
-	});
-
-	it("annotation flows through to graph.annotation()", () => {
-		const g = new Graph("nw-produce-annot");
-		g.produce("p", 1, { annotation: "first value" });
-		expect(g.annotation("p")).toBe("first value");
-	});
-
-	it("rejects undefined source (qa B2 — SENTINEL on the wire)", () => {
-		const g = new Graph("nw-produce-undef");
-		// `undefined` is the global SENTINEL (spec §1.1) — emitting it as DATA
-		// would corrupt downstream first-run gates. The boundary throws.
-		expect(() => g.produce("p", undefined as never)).toThrow(/SENTINEL/);
-	});
-
-	it("accepts null source (null is valid DATA per spec §1.1)", () => {
-		const g = new Graph("nw-produce-null");
-		const n = g.produce<number | null>("p", null);
+	it("accepts null as a valid initial value (null is valid DATA per spec §1.1)", () => {
+		const g = new Graph("nw-state-null");
+		const n = g.state<number | null>("s", null);
 		const seen: Array<number | null> = [];
 		n.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number | null);
@@ -2176,33 +2420,76 @@ describe("Graph narrow-waist — graph.produce", () => {
 		expect(seen).toEqual([null]);
 	});
 
-	it("rejects Node source at runtime (qa B1 — opts silently dropped otherwise)", () => {
-		const g = new Graph("nw-produce-node");
-		const upstream = state(1, { name: "u" });
-		// Type signature excludes Node, but a cast could slip through.
-		expect(() => g.produce("p", upstream as never)).toThrow(/Node sources are rejected/);
+	it("annotation flows through to graph.annotation()", () => {
+		const g = new Graph("nw-state-annot");
+		g.state("s", 1, { annotation: "first value" });
+		expect(g.annotation("s")).toBe("first value");
+	});
+});
+
+describe("Graph narrow-waist — graph.producer", () => {
+	it("creates a dep-free source with push channel and registers under name", () => {
+		const g = new Graph("nw-producer-basic");
+		const seen: number[] = [];
+		const n = g.producer<number>("p", (push) => {
+			push([10]);
+			push([20]);
+		});
+		n.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		expect(seen).toEqual([10, 20]);
+		expect(g.node("p")).toBe(n);
+	});
+
+	it("push([v1, v2]) emits multi-DATA", () => {
+		const g = new Graph("nw-producer-multi");
+		const seen: number[] = [];
+		const n = g.producer<number>("p", (push) => {
+			push([1, 2, 3]);
+		});
+		n.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		expect(seen).toEqual([1, 2, 3]);
+	});
+
+	it("returns cleanup function from setupFn", () => {
+		const g = new Graph("nw-producer-cleanup");
+		let cleanedUp = false;
+		const n = g.producer("p", () => {
+			return () => {
+				cleanedUp = true;
+			};
+		});
+		// Subscribe to activate the node (setup fn runs on first subscriber).
+		n.subscribe(() => {});
+		g.destroy();
+		expect(cleanedUp).toBe(true);
+	});
+
+	it("annotation flows through to graph.annotation()", () => {
+		const g = new Graph("nw-producer-annot");
+		g.producer("p", () => {}, { annotation: "producer node" });
+		expect(g.annotation("p")).toBe("producer node");
 	});
 });
 
 describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
-	it("graph.produce signal abort removes the produced node", async () => {
-		const g = new Graph("nw-signal-produce");
+	it("graph.producer signal abort removes the produced node", () => {
+		const g = new Graph("nw-signal-producer");
 		const ac = new AbortController();
-		// Promise that never resolves; only abort terminates it.
-		const pending = new Promise<number>(() => {});
-		g.produce("p", pending, { signal: ac.signal });
+		g.producer("p", () => {}, { signal: ac.signal });
 		expect(g.tryResolve("p")).not.toBeUndefined();
 		ac.abort();
-		// Microtask + macrotask drain so the abort-listener runs and graph.remove fires.
-		await Promise.resolve();
 		expect(g.tryResolve("p")).toBeUndefined();
 	});
 
 	it("graph.derived signal abort removes the derived node and fires teardown", () => {
 		const g = new Graph("nw-signal-derived");
 		const ac = new AbortController();
-		g.add(state(1, { name: "a" }), { name: "a" });
-		const n = g.derived("d", ["a"], ([v]) => v as number, {
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const n = g.derived("d", ["a"], ([v]) => [v as number], {
 			signal: ac.signal,
 			keepAlive: true,
 		});
@@ -2214,7 +2501,7 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 	it("graph.effect signal abort fires the effect's deactivate cleanup", () => {
 		const g = new Graph("nw-signal-effect");
 		const ac = new AbortController();
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		let cleanups = 0;
 		const fx = g.effect(
 			"fx",
@@ -2236,8 +2523,8 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 		const g = new Graph("nw-signal-pre-aborted");
 		const ac = new AbortController();
 		ac.abort();
-		g.add(state(1, { name: "a" }), { name: "a" });
-		g.derived("d", ["a"], ([v]) => v as number, { signal: ac.signal });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		g.derived("d", ["a"], ([v]) => [v as number], { signal: ac.signal });
 		expect(g.tryResolve("d")).toBeUndefined();
 	});
 });
@@ -2251,8 +2538,17 @@ describe("Graph narrow-waist — graph.* signal forwarding (qa B4)", () => {
 describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 	it("returns a CausalChain matching the deleted Graph.explain shape", () => {
 		const g = new Graph("explain-fold");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -2263,8 +2559,17 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 
 	it("returns reactive { node, dispose } when reactive: true is set", () => {
 		const g = new Graph("explain-fold-reactive");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const handle = g.describe({ explain: { from: "a", to: "b" }, reactive: true });
@@ -2279,9 +2584,27 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 
 	it("threads maxDepth + findCycle into the underlying explainPath call", () => {
 		const g = new Graph("explain-fold-opts");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
-		const c = derived([b], ([v]) => v, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -2293,8 +2616,17 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 
 	it("name option flows through to the reactive derived's meta.name", () => {
 		const g = new Graph("explain-fold-name");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const handle = g.describe({
@@ -2308,8 +2640,17 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 
 	it("reactiveName falls back to the explain-mode `name` slot when name is absent", () => {
 		const g = new Graph("explain-fold-fallback");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const handle = g.describe({
@@ -2323,8 +2664,17 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 
 	it("name wins over reactiveName when both are set", () => {
 		const g = new Graph("explain-fold-name-wins");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const handle = g.describe({
@@ -2341,9 +2691,27 @@ describe("Graph.describe({ explain }) — fold dispatch (Bundle 3)", () => {
 describe("Graph.describe({ reachable }) — fold dispatch (Bundle 3)", () => {
 	it("returns string[] matching the deleted Graph.reachable default form", () => {
 		const g = new Graph("reach-fold");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
-		const c = derived([b], ([v]) => v, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -2356,8 +2724,17 @@ describe("Graph.describe({ reachable }) — fold dispatch (Bundle 3)", () => {
 
 	it("returns ReachableResult shape when withDetail: true", () => {
 		const g = new Graph("reach-fold-detail");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -2373,9 +2750,27 @@ describe("Graph.describe({ reachable }) — fold dispatch (Bundle 3)", () => {
 
 	it("threads maxDepth + both into the underlying reachable() call", () => {
 		const g = new Graph("reach-fold-depth");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
-		const c = derived([b], ([v]) => v, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -2388,8 +2783,17 @@ describe("Graph.describe({ reachable }) — fold dispatch (Bundle 3)", () => {
 
 	it("matches the standalone reachable() helper for parity", () => {
 		const g = new Graph("reach-fold-parity");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -2464,8 +2868,17 @@ describe("Graph.describe() — mode-conflict TypeError dispatch (Bundle 3)", () 
 
 	it("accepts `reachable` + `reactive: false` as a no-op (qa BH1/EC8 — symmetric with explain mode)", () => {
 		const g = new Graph("reach-reactive-false-allowed");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -2491,8 +2904,17 @@ describe("Graph.describe() — mode-conflict TypeError dispatch (Bundle 3)", () 
 
 	it("accepts `explain` + `reactive: false` as a no-op", () => {
 		const g = new Graph("explain-reactive-false");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => v, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});

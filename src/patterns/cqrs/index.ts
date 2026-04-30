@@ -13,7 +13,7 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import { policy } from "../../core/guard.js";
-import { DATA, derived, type Node, node, placeholderArgs, state } from "../../core/index.js";
+import { DATA, type Node, node, placeholderArgs } from "../../core/index.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
@@ -588,12 +588,17 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		});
 		log.withLatest();
 		const entries = log.entries;
-		const guarded = derived<readonly CqrsEvent[]>(
+		const guarded = node<readonly CqrsEvent[]>(
 			[entries],
-			([snapshot]) => snapshot as readonly CqrsEvent[],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as readonly CqrsEvent[]);
+			},
 			{
 				name,
-				describeKind: "state",
+				describeKind: "derived",
 				meta: cqrsMeta("event", { event_name: name }),
 				guard: EVENT_GUARD,
 				initial: entries.cache as readonly CqrsEvent[],
@@ -634,12 +639,17 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		});
 		log.withLatest();
 		const entries = log.entries;
-		const guarded = derived<readonly CqrsEvent[]>(
+		const guarded = node<readonly CqrsEvent[]>(
 			[entries],
-			([snapshot]) => snapshot as readonly CqrsEvent[],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as readonly CqrsEvent[]);
+			},
 			{
 				name: nodeName,
-				describeKind: "state",
+				describeKind: "derived",
 				meta: cqrsMeta("event_aggregate", {
 					event_name: type,
 					aggregate_id: aggregateId,
@@ -755,9 +765,10 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		}
 		const reg: CommandRegistration<T> =
 			typeof handlerOrReg === "function" ? { handler: handlerOrReg } : handlerOrReg;
-		const cmdNode = state<T>(undefined as T, {
+		const cmdNode = node<T>([], {
 			name,
 			describeKind: "state",
+			initial: undefined as T,
 			meta: {
 				...cqrsMeta("command", { command_name: name }),
 				error: null,
@@ -1003,9 +1014,12 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			}, saveDebounceMs);
 		}
 
-		const projNode = derived<TState>(
+		const projNode = node<TState>(
 			eventNodes,
-			(snapshots) => {
+			(batchData, actions, ctx) => {
+				const snapshots = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const allEvents = collectAllEvents(snapshots as readonly (readonly CqrsEvent[])[]);
 
 				let newState: TState;
@@ -1027,7 +1041,7 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				}
 
 				scheduleSave(newState);
-				return newState;
+				actions.emit(newState);
 			},
 			{
 				name,

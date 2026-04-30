@@ -4,7 +4,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
 
 // Helper: SENTINEL source that never pushes on subscribe but supports .down().
 function makeSrc<T>(): { src: import("../../core/node.js").Node<T>; emit: (v: T) => void } {
@@ -287,11 +286,15 @@ describe("reactiveSink — buffered via sendBatch", () => {
 
 	it("flushes on tier-3 terminal (COMPLETE)", async () => {
 		const chunks: number[][] = [];
-		const src = producer<number>((a) => {
-			a.emit(1);
-			a.emit(2);
-			a.down([[COMPLETE]]);
-		});
+		const src = node<number>(
+			[],
+			(_data, a) => {
+				a.emit(1);
+				a.emit(2);
+				a.down([[COMPLETE]]);
+			},
+			{ describeKind: "producer" },
+		);
 		const h = reactiveSink<number>(src, {
 			batchSize: 100,
 			flushIntervalMs: 10_000,

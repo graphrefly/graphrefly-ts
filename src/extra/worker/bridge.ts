@@ -21,7 +21,6 @@
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import { defaultConfig, type Node, type NodeSink, node } from "../../core/node.js";
-import { effect, state } from "../../core/sugar.js";
 import { filter, first, map, merge } from "../operators.js";
 import { fromTimer } from "../sources.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
@@ -98,10 +97,12 @@ export function workerBridge<
 	const transferFns = opts.transfer ?? {};
 
 	// -- Meta: connection status -----------------------------------------------
-	const statusNode = state<"connecting" | "connected" | "closed">("connecting", {
+	const statusNode = node<"connecting" | "connected" | "closed">([], {
+		initial: "connecting",
 		name: `${bridgeName}::meta::status`,
 	});
-	const errorNode = state<Error | null>(null, {
+	const errorNode = node<Error | null>([], {
+		initial: null,
 		name: `${bridgeName}::meta::error`,
 	});
 
@@ -109,7 +110,7 @@ export function workerBridge<
 	const proxyNodes = new Map<string, Node<any>>();
 	const lastSeenImportVersions = new Map<string, number>();
 	for (const name of importNames) {
-		const proxy = state(undefined, { name: `${bridgeName}::${name}` });
+		const proxy = node([], { initial: undefined, name: `${bridgeName}::${name}` });
 		proxyNodes.set(name, proxy);
 	}
 
@@ -151,31 +152,38 @@ export function workerBridge<
 			{ name: `${bridgeName}::aggregated`, partial: true },
 		);
 
-		const effectNode = effect([aggregated], (data) => {
-			const updates = data[0] as Record<string, unknown> | undefined;
-			if (updates == null || Object.keys(updates).length === 0) return;
+		const effectNode = node(
+			[aggregated],
+			(batchData, _actions, ctx) => {
+				const batch0 = batchData[0];
+				const data0 = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+				const updates = data0 as Record<string, unknown> | undefined;
+				if (updates == null || Object.keys(updates).length === 0) return undefined;
 
-			const transferList: Transferable[] = [];
-			for (const name of Object.keys(updates)) {
-				const fn = (transferFns as any)[name];
-				if (fn) transferList.push(...fn(updates[name]));
-			}
-
-			// V0 delta sync: include version counters when available (§6.0b).
-			let versions: Record<string, number> | undefined;
-			for (const [name, n] of exposeEntries) {
-				if (name in updates && n.v != null) {
-					if (versions == null) versions = {};
-					versions[name] = n.v.version;
+				const transferList: Transferable[] = [];
+				for (const name of Object.keys(updates)) {
+					const fn = (transferFns as any)[name];
+					if (fn) transferList.push(...fn(updates[name]));
 				}
-			}
-			const msg: BatchMessage = { t: "b", u: updates, ...(versions ? { v: versions } : {}) };
-			try {
-				transport.post(msg, transferList.length > 0 ? transferList : undefined);
-			} catch (err) {
-				errorNode.down([[DATA, err instanceof Error ? err : new Error(String(err))]]);
-			}
-		});
+
+				// V0 delta sync: include version counters when available (§6.0b).
+				let versions: Record<string, number> | undefined;
+				for (const [name, n] of exposeEntries) {
+					if (name in updates && n.v != null) {
+						if (versions == null) versions = {};
+						versions[name] = n.v.version;
+					}
+				}
+				const msg: BatchMessage = { t: "b", u: updates, ...(versions ? { v: versions } : {}) };
+				try {
+					transport.post(msg, transferList.length > 0 ? transferList : undefined);
+				} catch (err) {
+					errorNode.down([[DATA, err instanceof Error ? err : new Error(String(err))]]);
+				}
+				return undefined;
+			},
+			{ describeKind: "effect" },
+		);
 		// Effect nodes are lazy — subscribe to activate the chain
 		effectUnsub = effectNode.subscribe(() => {});
 	}

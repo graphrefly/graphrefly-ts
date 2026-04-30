@@ -18,8 +18,7 @@
  */
 
 import type { DescribeNodeOutput } from "../../core/meta.js";
-import type { Node } from "../../core/node.js";
-import { derived, effect, producer, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { GRAPH_META_SEGMENT, Graph, type GraphDescribeOutput } from "../../graph/graph.js";
 import type { ChatMessage, LLMAdapter, LLMResponse } from "../ai/index.js";
 import { feedback as feedbackPrimitive } from "../reduction/index.js";
@@ -706,7 +705,7 @@ export type CompileSpecOptions = {
 	/**
 	 * How to handle nodes whose `fn` / `source` is missing from the catalog.
 	 * - `"placeholder"` (default): silently substitute identity passthroughs
-	 *   (`producer(() => {})` / `derived(deps, vals => vals[0])`). Backward-
+	 *   (`node([], () => {})` / `node(deps, (bd, a, ctx) => a.emit(bd[0]?.at(-1)))`). Backward-
 	 *   compatible — preserves the historical "soft compile" behavior.
 	 * - `"warn"`: substitute placeholders AND log each missing entry via
 	 *   `console.warn`, or via the `onWarn` callback if supplied.
@@ -829,8 +828,9 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 
 		if (n.type === "state") {
 			const initial = readStateInitial(n);
-			const nd = state(initial, {
+			const nd = node([], {
 				name,
+				initial,
 				meta: stripFactoryMeta(n.meta),
 			});
 			g.add(nd, { name: name });
@@ -850,8 +850,9 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 			} else {
 				// No catalog entry — create a bare producer placeholder.
 				if (factoryName) recordMissing(name, "source", factoryName);
-				const nd = producer(() => {}, {
+				const nd = node([], () => {}, {
 					name,
+					describeKind: "producer",
 					meta: { ...stripFactoryMeta(n.meta), _specSource: factoryName },
 				});
 				g.add(nd, { name: name });
@@ -881,11 +882,20 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 				nd = fnFactory(resolvedDeps, factoryArgs);
 			} else if (n.type === "effect") {
 				if (factoryName) recordMissing(name, "fn", factoryName);
-				nd = effect(resolvedDeps, () => {});
+				nd = node(resolvedDeps, () => {}, { describeKind: "effect" });
 			} else {
 				// derived without catalog fn — identity passthrough
 				if (factoryName) recordMissing(name, "fn", factoryName);
-				nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
+				nd = node(
+					resolvedDeps,
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(data[0]);
+					},
+					{ describeKind: "derived" },
+				);
 			}
 			g.add(nd, { name: name });
 			created.set(name, nd);
@@ -922,8 +932,9 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 
 			if (nSpec.type === "state") {
 				const initial = readStateInitial(nSpec);
-				const nd = state(initial, {
+				const nd = node([], {
 					name: nName,
+					initial,
 					meta: stripFactoryMeta(nSpec.meta),
 				});
 				sub.add(nd, { name: nName });
@@ -941,8 +952,9 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 					subCreated.set(nName, nd);
 				} else {
 					if (factoryName) recordMissing(`${name}.${nName}`, "source", factoryName);
-					const nd = producer(() => {}, {
+					const nd = node([], () => {}, {
 						name: nName,
+						describeKind: "producer",
 						meta: { ...stripFactoryMeta(nSpec.meta), _specSource: factoryName },
 					});
 					sub.add(nd, { name: nName });
@@ -973,10 +985,19 @@ export function compileSpec(spec: GraphSpec, opts?: CompileSpecOptions): Graph {
 					nd = fnFactory(resolvedDeps, factoryArgs);
 				} else if (nSpec.type === "effect") {
 					if (factoryName) recordMissing(`${name}.${nName}`, "fn", factoryName);
-					nd = effect(resolvedDeps, () => {});
+					nd = node(resolvedDeps, () => {}, { describeKind: "effect" });
 				} else {
 					if (factoryName) recordMissing(`${name}.${nName}`, "fn", factoryName);
-					nd = derived(resolvedDeps, (vals: readonly unknown[]) => vals[0]);
+					nd = node(
+						resolvedDeps,
+						(batchData, actions, ctx) => {
+							const data = batchData.map((batch, i) =>
+								batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+							);
+							actions.emit(data[0]);
+						},
+						{ describeKind: "derived" },
+					);
 				}
 				sub.add(nd, { name: nName });
 				subCreated.set(nName, nd);

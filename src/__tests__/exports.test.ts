@@ -85,11 +85,9 @@ describe("graphrefly", () => {
 	});
 
 	it("exports core sugar helpers", () => {
-		expect(typeof core.state).toBe("function");
-		expect(typeof core.producer).toBe("function");
-		expect(typeof core.derived).toBe("function");
-		expect(typeof core.effect).toBe("function");
 		expect(typeof core.pipe).toBe("function");
+		expect(typeof core.dynamicNode).toBe("function");
+		expect(typeof core.autoTrackNode).toBe("function");
 	});
 
 	it("exports reactive-log helpers from extra (Audit 1)", () => {

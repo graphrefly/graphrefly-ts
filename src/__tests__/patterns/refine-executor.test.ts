@@ -9,8 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import {
 	evalVerifier,
 	type HarnessJobPayload,
@@ -30,17 +30,23 @@ const REQUIRED = ["reactive", "composable", "inspectable"] as const;
 const DATASET: readonly DatasetItem[] = REQUIRED.map((kw) => ({ id: kw }));
 
 const keywordEvaluator: Evaluator<string> = (candidates, dataset) =>
-	derived<readonly EvalResult[]>(
+	node<readonly EvalResult[]>(
 		[candidates as Node<unknown>, dataset as Node<unknown>],
-		([cands, rows]) => {
-			const cs = cands as readonly string[];
-			const ds = rows as readonly DatasetItem[];
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const cs = data[0] as readonly string[];
+			const ds = data[1] as readonly DatasetItem[];
 			const best = (cs[0] ?? "").toLowerCase();
-			return ds.map((row) => ({
-				taskId: row.id,
-				score: best.includes(row.id.toLowerCase()) ? 1 : 0,
-			}));
+			actions.emit(
+				ds.map((row) => ({
+					taskId: row.id,
+					score: best.includes(row.id.toLowerCase()) ? 1 : 0,
+				})),
+			);
 		},
+		{ describeKind: "derived" },
 	);
 
 const keywordAppender: RefineStrategy<string> = {

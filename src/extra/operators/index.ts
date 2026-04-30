@@ -22,7 +22,6 @@ import {
 } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
-import { derived, producer } from "../../core/sugar.js";
 import { NS_PER_MS } from "../backoff.js";
 import { fromAny, type NodeInput } from "../sources.js";
 
@@ -460,8 +459,8 @@ export function takeUntil<T>(
 	const pred = opts?.predicate ?? ((m: Message) => m[0] === DATA);
 	const { predicate: _, ...restOpts } = opts ?? {};
 	// Use producer pattern — subscribe to both manually for message-level control.
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			let stopped = false;
 			const srcUnsub = source.subscribe((msgs) => {
 				if (stopped) return;
@@ -884,16 +883,25 @@ export function combine<const T extends readonly unknown[]>(
 	...sources: { [K in keyof T]: Node<T[K]> }
 ): Node<T> {
 	const deps = [...sources] as unknown as Node[];
-	return derived(deps, (vals) => vals as unknown as T, {
-		...operatorOpts<T>(),
-		equals: (a, b) => {
-			if (a.length !== b.length) return false;
-			for (let i = 0; i < a.length; i++) {
-				if (!Object.is(a[i], b[i])) return false;
-			}
-			return true;
+	return node<T>(
+		deps,
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(vals as unknown as T);
 		},
-	});
+		{
+			...operatorOpts<T>(),
+			equals: (a, b) => {
+				if (a.length !== b.length) return false;
+				for (let i = 0; i < a.length; i++) {
+					if (!Object.is(a[i], b[i])) return false;
+				}
+				return true;
+			},
+		},
+	);
 }
 
 /**
@@ -1010,8 +1018,8 @@ export function withLatestFrom<A, B>(
  */
 export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
-		return producer<T>(
-			(a) => {
+		return node<T>(
+			(_data, a) => {
 				a.down([[COMPLETE]]);
 			},
 			{ ...operatorOpts(), meta: { ...factoryTag("merge") } },
@@ -1020,8 +1028,8 @@ export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 	// producer pattern: node() cannot be used here because the sentinel gate
 	// would block the fn until ALL sources have sent their first DATA, which
 	// defeats the purpose of merge (forward whichever source fires first).
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			const n = sources.length;
 			let completed = 0;
 			const unsubs: (() => void)[] = [];
@@ -1071,13 +1079,13 @@ export function zip<const T extends readonly unknown[]>(
 ): Node<T> {
 	const n = sources.length;
 	if (n === 0) {
-		return producer<T>((a) => {
+		return node<T>((_data, a) => {
 			a.emit([] as unknown as T);
 			a.down([[COMPLETE]]);
 		}, operatorOpts());
 	}
 	// Producer pattern: manage queues internally.
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		const queues: unknown[][] = Array.from({ length: n }, () => []);
 		let active = n;
 
@@ -1136,7 +1144,7 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
 	// would block the fn until ALL sources have sent their first DATA, which
 	// defeats the purpose of concat (start forwarding firstSrc immediately,
 	// regardless of secondSrc state).
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let phase: 0 | 1 = 0;
 		const pending: unknown[] = [];
 		let firstUnsub: (() => void) | undefined;
@@ -1199,7 +1207,7 @@ export function concat<T>(firstSrc: Node<T>, secondSrc: Node<T>, opts?: ExtraOpt
  */
 export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 	if (sources.length === 0) {
-		return producer<T>((a) => {
+		return node<T>((_data, a) => {
 			a.down([[COMPLETE]]);
 		}, operatorOpts());
 	}
@@ -1219,7 +1227,7 @@ export function race<T>(...sources: readonly Node<T>[]): Node<T> {
 		);
 	}
 	// Producer pattern: first DATA wins.
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let winner: number | null = null;
 		const unsubs: (() => void)[] = [];
 		for (let i = 0; i < sources.length; i++) {
@@ -1683,7 +1691,7 @@ export const flatMap = mergeMap;
  * @category extra
  */
 export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		const timers = new Set<ReturnType<typeof setTimeout>>();
 		function clearAll(): void {
 			for (const id of timers) clearTimeout(id);
@@ -1739,8 +1747,8 @@ export function delay<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T>
  * @category extra
  */
 export function debounce<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			let pending: T | undefined;
 
@@ -1813,8 +1821,8 @@ export function throttle<T>(
 	const trailing = trailingOpt === true;
 	const windowNs = ms * NS_PER_MS;
 
-	return producer<T>(
-		(a) => {
+	return node<T>(
+		(_data, a) => {
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			let lastEmitNs = -Infinity;
 			let pending: T | undefined;
@@ -1907,7 +1915,7 @@ export function throttle<T>(
  * @category extra
  */
 export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let lastSourceValue: { v: T } | undefined;
 		let terminated = false;
 		let sourceCompleted = false;
@@ -1970,7 +1978,7 @@ export function sample<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  * @category extra
  */
 export function audit<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let latest: T | undefined;
 		let has = false;
@@ -2033,7 +2041,7 @@ export function timeout<T>(
 	const { with: withPayload, ...timeoutNodeOpts } = opts ?? {};
 	const err = withPayload ?? new Error("timeout");
 
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let timer: ReturnType<typeof setTimeout> | undefined;
 
 		function arm(): void {
@@ -2083,7 +2091,7 @@ export function timeout<T>(
  * @category extra
  */
 export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: ExtraOpts): Node<T[]> {
-	return producer<T[]>((a) => {
+	return node<T[]>((_data, a) => {
 		const buf: T[] = [];
 
 		const srcUnsub = source.subscribe((msgs) => {
@@ -2142,7 +2150,7 @@ export function buffer<T>(source: Node<T>, notifier: Node<unknown>, opts?: Extra
  */
 export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T[]> {
 	if (count <= 0) throw new RangeError("bufferCount expects count > 0");
-	return producer<T[]>((a) => {
+	return node<T[]>((_data, a) => {
 		const buf: T[] = [];
 
 		const srcUnsub = source.subscribe((msgs) => {
@@ -2189,12 +2197,12 @@ export function bufferCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
 export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<Node<T>> {
 	if (count <= 0) throw new RangeError("windowCount expects count > 0");
 
-	return producer<Node<T>>((a) => {
+	return node<Node<T>>((_data, a) => {
 		let winDown: ((msgs: Messages) => void) | undefined;
 		let n = 0;
 
 		function openWindow(): void {
-			const s = producer<T>((actions) => {
+			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
 				return () => {
 					winDown = undefined;
@@ -2251,8 +2259,8 @@ export function windowCount<T>(source: Node<T>, count: number, opts?: ExtraOpts)
  * @category extra
  */
 export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<T[]> {
-	return producer<T[]>(
-		(a) => {
+	return node<T[]>(
+		(_data, a) => {
 			const buf: T[] = [];
 
 			const iv = setInterval(() => {
@@ -2312,7 +2320,7 @@ export function bufferTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
  * @category extra
  */
 export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): Node<Node<T>> {
-	return producer<Node<T>>((a) => {
+	return node<Node<T>>((_data, a) => {
 		let winDown: ((msgs: Messages) => void) | undefined;
 
 		function closeWindow(): void {
@@ -2321,7 +2329,7 @@ export function windowTime<T>(source: Node<T>, ms: number, opts?: ExtraOpts): No
 		}
 
 		function openWindow(): void {
-			const s = producer<T>((actions) => {
+			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
 				return () => {
 					winDown = undefined;
@@ -2383,7 +2391,7 @@ export function window<T>(
 	notifier: Node<unknown>,
 	opts?: ExtraOpts,
 ): Node<Node<T>> {
-	return producer<Node<T>>((a) => {
+	return node<Node<T>>((_data, a) => {
 		let winDown: ((msgs: Messages) => void) | undefined;
 
 		function closeWindow(): void {
@@ -2392,7 +2400,7 @@ export function window<T>(
 		}
 
 		function openWindow(): void {
-			const s = producer<T>((actions) => {
+			const s = node<T>((_data2, actions) => {
 				winDown = actions.down.bind(actions);
 				return () => {
 					winDown = undefined;
@@ -2450,7 +2458,7 @@ export function window<T>(
  * @category extra
  */
 export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
-	return producer<number>((a, ctx) => {
+	return node<number>((_data, a, ctx) => {
 		if (!("n" in ctx.store)) ctx.store.n = 0;
 		const id = setInterval(() => {
 			a.emit(ctx.store.n as number);
@@ -2478,7 +2486,7 @@ export function interval(periodMs: number, opts?: ExtraOpts): Node<number> {
  */
 export function repeat<T>(source: Node<T>, count: number, opts?: ExtraOpts): Node<T> {
 	if (count <= 0) throw new RangeError("repeat expects count > 0");
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let remaining = count;
 		let innerU: (() => void) | undefined;
 
@@ -2565,7 +2573,7 @@ export function rescue<T>(
 	recover: (err: unknown) => T,
 	opts?: ExtraOpts,
 ): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		const srcUnsub = source.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {

@@ -25,8 +25,8 @@
 import { batch } from "../../../core/batch.js";
 import { wallClockNs } from "../../../core/clock.js";
 import { factoryTag } from "../../../core/meta.js";
-import type { Node } from "../../../core/node.js";
-import { derived, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { filter, switchMap } from "../../../extra/operators.js";
 import { fromAny, keepalive, type NodeInput } from "../../../extra/sources.js";
 import type { Graph } from "../../../graph/graph.js";
@@ -130,11 +130,18 @@ function parseAccumulated<T>(accumulated: string, format: "text" | "json"): T | 
  * COMPOSITION-GUIDE §20 — accumulator clears on deactivation.
  */
 function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string): Node<string> {
-	return derived<string>(
+	return node<string>(
 		[deltaTopic.latest],
-		([d], ctx) => {
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const d = data[0];
 			const store = ctx.store as { acc?: string };
-			if (d == null) return store.acc ?? "";
+			if (d == null) {
+				actions.emit(store.acc ?? "");
+				return;
+			}
 			const delta = d as StampedDelta;
 			// `seq === 0` marks the first delta of a fresh invocation — reset
 			// the accumulator so runs don't concatenate across switchMap
@@ -145,10 +152,11 @@ function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string)
 			if (delta.type === "token") {
 				store.acc = (store.acc ?? "") + delta.delta;
 			}
-			return store.acc ?? "";
+			actions.emit(store.acc ?? "");
 		},
 		{
 			name,
+			describeKind: "derived",
 			meta: aiMeta("accumulated_text"),
 			initial: "",
 		},
@@ -179,13 +187,22 @@ export function streamingPromptNode<T = string>(
 		...(opts?.retainedLimit != null ? { retainedLimit: opts.retainedLimit } : {}),
 	});
 
-	const messagesNode = derived<readonly ChatMessage[]>(
+	const messagesNode = node<readonly ChatMessage[]>(
 		deps as Node<unknown>[],
-		(values) => {
-			if (values.some((v) => v == null)) return [];
-			const text = typeof prompt === "string" ? prompt : prompt(...values);
-			if (!text) return [];
-			return [{ role: "user", content: text }];
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			if (data.some((v) => v == null)) {
+				actions.emit([]);
+				return;
+			}
+			const text = typeof prompt === "string" ? prompt : prompt(...data);
+			if (!text) {
+				actions.emit([]);
+				return;
+			}
+			actions.emit([{ role: "user", content: text }]);
 		},
 		{
 			name: `${sourceName}::messages`,
@@ -199,7 +216,7 @@ export function streamingPromptNode<T = string>(
 		(msgs) => {
 			const chatMsgs = msgs as readonly ChatMessage[];
 			if (!chatMsgs || chatMsgs.length === 0) {
-				return state<T | null>(null) as NodeInput<T | null>;
+				return node<T | null>([], { initial: null }) as NodeInput<T | null>;
 			}
 			const ac = new AbortController();
 			async function* pumpAndCollect(): AsyncGenerator<T | null> {
@@ -298,7 +315,7 @@ export function gatedStream<T = string>(
 	prompt: string | ((...depValues: unknown[]) => string),
 	opts?: GatedStreamOptions,
 ): GatedStreamHandle<T> {
-	const cancelSignal = state<number>(0, { name: `${name}/cancel` });
+	const cancelSignal = node<number>([], { name: `${name}/cancel`, initial: 0 });
 	let cancelCounter = 0;
 
 	const allDeps = [...deps, cancelSignal] as readonly Node<unknown>[];
@@ -309,15 +326,24 @@ export function gatedStream<T = string>(
 		...(opts?.retainedLimit != null ? { retainedLimit: opts.retainedLimit } : {}),
 	});
 
-	const messagesNode = derived<readonly ChatMessage[]>(
+	const messagesNode = node<readonly ChatMessage[]>(
 		allDeps as Node<unknown>[],
-		(values) => {
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
 			// Last dep is the cancel signal — exclude from prompt args.
-			const depValues = values.slice(0, -1);
-			if (depValues.some((v) => v == null)) return [];
+			const depValues = data.slice(0, -1);
+			if (depValues.some((v) => v == null)) {
+				actions.emit([]);
+				return;
+			}
 			const text = typeof prompt === "string" ? prompt : prompt(...depValues);
-			if (!text) return [];
-			return [{ role: "user", content: text }];
+			if (!text) {
+				actions.emit([]);
+				return;
+			}
+			actions.emit([{ role: "user", content: text }]);
 		},
 		{
 			name: `${sourceName}::messages`,
@@ -331,7 +357,7 @@ export function gatedStream<T = string>(
 		(msgs) => {
 			const chatMsgs = msgs as readonly ChatMessage[];
 			if (!chatMsgs || chatMsgs.length === 0) {
-				return state<T | null>(null) as NodeInput<T | null>;
+				return node<T | null>([], { initial: null }) as NodeInput<T | null>;
 			}
 			const ac = new AbortController();
 			async function* pumpAndCollect(): AsyncGenerator<T | null> {

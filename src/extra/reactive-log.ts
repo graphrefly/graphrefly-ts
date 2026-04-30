@@ -15,7 +15,6 @@ import { batch } from "../core/batch.js";
 import type { NodeGuard } from "../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../core/messages.js";
 import { type Node, node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import { keepalive } from "./sources.js";
 import type { AppendLogStorageTier } from "./storage-tiers.js";
@@ -382,7 +381,8 @@ export function reactiveLog<T>(
 	const { name, maxSize, versioning, guard, backend: userBackend } = options;
 	const backend: LogBackend<T> = userBackend ?? new NativeLogBackend<T>(initial, maxSize);
 
-	const entries = state<readonly T[]>(backend.toArray(), {
+	const entries = node<readonly T[]>([], {
+		initial: backend.toArray(),
 		name,
 		describeKind: "state",
 		equals: (a, b) => a === b,
@@ -442,12 +442,17 @@ export function reactiveLog<T>(
 			return hit.node;
 		}
 		evictOldestIfFull(tailCache);
-		const node_ = derived(
+		const node_ = node(
 			[entries],
-			([s]) => {
+			(batchData, actions, ctx) => {
+				const batch0 = batchData[0];
+				const s = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
 				const list = s as readonly T[];
-				if (n === 0 || list.length === 0) return [];
-				return list.slice(Math.max(0, list.length - n));
+				if (n === 0 || list.length === 0) {
+					actions.emit([] as unknown as readonly T[]);
+					return;
+				}
+				actions.emit(list.slice(Math.max(0, list.length - n)));
 			},
 			{ initial: backend.tail(n), describeKind: "derived" },
 		);
@@ -471,11 +476,13 @@ export function reactiveLog<T>(
 			return hit.node;
 		}
 		evictOldestIfFull(sliceCache);
-		const node_ = derived(
+		const node_ = node(
 			[entries],
-			([s]) => {
+			(batchData, actions, ctx) => {
+				const batch0 = batchData[0];
+				const s = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
 				const list = s as readonly T[];
-				return stop === undefined ? list.slice(start) : list.slice(start, stop);
+				actions.emit(stop === undefined ? list.slice(start) : list.slice(start, stop));
 			},
 			{ initial: backend.slice(start, stop), describeKind: "derived" },
 		);
@@ -487,12 +494,15 @@ export function reactiveLog<T>(
 	function fromCursorView(cursor: Node<number>): Node<readonly T[]> {
 		const hit = cursorCache.get(cursor);
 		if (hit !== undefined) return hit.node;
-		const node_ = derived(
+		const node_ = node(
 			[entries, cursor],
-			([sourceSnapshot, c]) => {
-				const arr = sourceSnapshot as readonly T[];
-				const start = Math.max(0, Math.trunc((c as number) ?? 0));
-				return arr.slice(start);
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const arr = data[0] as readonly T[];
+				const start = Math.max(0, Math.trunc((data[1] as number) ?? 0));
+				actions.emit(arr.slice(start));
 			},
 			{ initial: [], describeKind: "derived" },
 		);
@@ -528,11 +538,19 @@ export function reactiveLog<T>(
 				initial: backend.size === 0 ? undefined : (backend.at(backend.size - 1) as T),
 			},
 		);
-		hasLatestCached = derived<boolean>([entries], ([s]) => (s as readonly T[]).length > 0, {
-			name: name != null ? `${name}::hasLatest` : "hasLatest",
-			describeKind: "derived",
-			initial: backend.size > 0,
-		});
+		hasLatestCached = node<boolean>(
+			[entries],
+			(batchData, actions, ctx) => {
+				const batch0 = batchData[0];
+				const s = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
+				actions.emit((s as readonly T[]).length > 0);
+			},
+			{
+				name: name != null ? `${name}::hasLatest` : "hasLatest",
+				describeKind: "derived",
+				initial: backend.size > 0,
+			},
+		);
 		keepaliveDerived(lastValueCached);
 		keepaliveDerived(hasLatestCached);
 	}
@@ -727,7 +745,8 @@ export function mergeReactiveLogs<T>(logs: readonly Node<readonly T[]>[]): Merge
 
 	// Use a producer-pattern derived: we subscribe to inputs internally (not
 	// declared as deps) to keep the merge invisible to describe per Audit 1 #4.
-	const out = state<readonly T[]>(initial, {
+	const out = node<readonly T[]>([], {
+		initial,
 		name: "mergeReactiveLogs",
 		describeKind: "state",
 		equals: (a, b) => a === b,

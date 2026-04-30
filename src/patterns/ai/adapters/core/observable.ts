@@ -7,8 +7,8 @@
  */
 
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
-import type { Node } from "../../../../core/node.js";
-import { derived, state } from "../../../../core/sugar.js";
+import { type Node, node } from "../../../../core/node.js";
+
 import { type ReactiveLogBundle, reactiveLog } from "../../../../extra/reactive-log.js";
 import { keepalive } from "../../../../extra/sources.js";
 import {
@@ -108,31 +108,45 @@ export function observableAdapter(
 		maxSize: logMax,
 	});
 
-	const lastCall = state<CallStatsEvent | null>(null, {
+	const lastCall = node<CallStatsEvent | null>([], {
 		name: "adapterStats/lastCall",
+		initial: null,
 	});
 
 	// Counters as derived views over the log — self-maintaining (Unit 10 B).
 	// `initial` seeds them so late subscribers see 0 before any call lands.
-	const totalCalls = derived<number>(
+	const totalCalls = node<number>(
 		[allCalls.entries],
-		([entries]) => (entries as readonly CallStatsEvent[]).length,
-		{ name: "adapterStats/totalCalls", initial: 0 },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const entries = data[0] as readonly CallStatsEvent[];
+			actions.emit(entries.length);
+		},
+		{ describeKind: "derived", name: "adapterStats/totalCalls", initial: 0 },
 	);
-	const totalInputTokens = derived<number>(
+	const totalInputTokens = node<number>(
 		[allCalls.entries],
-		([entries]) =>
-			(entries as readonly CallStatsEvent[]).reduce((acc, ev) => acc + sumInputTokens(ev.usage), 0),
-		{ name: "adapterStats/totalInputTokens", initial: 0 },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const entries = data[0] as readonly CallStatsEvent[];
+			actions.emit(entries.reduce((acc, ev) => acc + sumInputTokens(ev.usage), 0));
+		},
+		{ describeKind: "derived", name: "adapterStats/totalInputTokens", initial: 0 },
 	);
-	const totalOutputTokens = derived<number>(
+	const totalOutputTokens = node<number>(
 		[allCalls.entries],
-		([entries]) =>
-			(entries as readonly CallStatsEvent[]).reduce(
-				(acc, ev) => acc + sumOutputTokens(ev.usage),
-				0,
-			),
-		{ name: "adapterStats/totalOutputTokens", initial: 0 },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const entries = data[0] as readonly CallStatsEvent[];
+			actions.emit(entries.reduce((acc, ev) => acc + sumOutputTokens(ev.usage), 0));
+		},
+		{ describeKind: "derived", name: "adapterStats/totalOutputTokens", initial: 0 },
 	);
 	// Keepalive — counters track the log whether or not an external subscriber
 	// is attached, so `.cache` on the counters stays current. Captured as an

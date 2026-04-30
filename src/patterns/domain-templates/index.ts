@@ -14,8 +14,7 @@
  */
 
 import { batch } from "../../core/batch.js";
-import type { Node } from "../../core/node.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { reactiveLog } from "../../extra/reactive-log.js";
 import { type StratifyRule, stratify } from "../../extra/stratify.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
@@ -117,16 +116,31 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	const branchNodes = branches.map((b) => {
 		try {
 			const raw = g.resolve(`stratify::branch/${b.name}`);
-			return derived([raw as Node], ([v]) => v, { initial: null });
+			return node(
+				[raw as Node],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(data[0]);
+				},
+				{ initial: null, describeKind: "derived" },
+			);
 		} catch {
-			return state<unknown>(null);
+			return node<unknown>([], { initial: null });
 		}
 	});
 	const correlateFn = opts.correlate ?? ((vals: unknown[]) => vals);
-	const correlateNode = derived<unknown>(
+	const correlateNode = node<unknown>(
 		branchNodes as Node[],
-		(vals) => correlateFn(vals as unknown[]),
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(correlateFn(vals as unknown[]));
+		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("observability", { stage: "correlate" }),
 		},
 	);
@@ -134,21 +148,50 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 
 	// --- SLO verification ---
 	const sloCheckFn = opts.sloCheck ?? (() => ({ pass: true }));
-	const sloValue = derived<unknown>([correlateNode], (vals) => vals[0], {
-		meta: baseMeta("observability", { stage: "slo_value" }),
-	});
-	const sloVerified = derived<unknown>([sloValue], (vals) => sloCheckFn(vals[0]), {
-		meta: baseMeta("observability", { stage: "slo_verified" }),
-	});
+	const sloValue = node<unknown>(
+		[correlateNode],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(data[0]);
+		},
+		{
+			describeKind: "derived",
+			meta: baseMeta("observability", { stage: "slo_value" }),
+		},
+	);
+	const sloVerified = node<unknown>(
+		[sloValue],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(sloCheckFn(data[0]));
+		},
+		{
+			describeKind: "derived",
+			meta: baseMeta("observability", { stage: "slo_verified" }),
+		},
+	);
 	g.add(sloValue, { name: "slo_value" });
 	g.add(sloVerified, { name: "slo_verified" });
 
 	// --- Alert scorer ---
 	const weightValues = opts.weights ?? branches.map(() => 1);
 	const signalNodes = branchNodes.map((bn) =>
-		derived<number>([bn], (vals) => (vals[0] != null ? 1 : 0)),
+		node<number>(
+			[bn],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] != null ? 1 : 0);
+			},
+			{ describeKind: "derived" },
+		),
 	);
-	const weightNodes = weightValues.map((w) => state<number>(w));
+	const weightNodes = weightValues.map((w) => node<number>([], { initial: w }));
 	for (let i = 0; i < signalNodes.length; i++) {
 		g.add(signalNodes[i] as Node<unknown>, { name: `__signal_${i}` });
 		g.add(weightNodes[i] as Node<unknown>, { name: `__weight_${i}` });
@@ -160,13 +203,19 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 	g.add(alerts as Node<unknown>, { name: "alerts" });
 
 	// --- Output alias ---
-	const output = derived<unknown>(
+	const output = node<unknown>(
 		[alerts as Node, sloVerified],
-		(vals) => ({
-			scored: vals[0],
-			slo: vals[1],
-		}),
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				scored: vals[0],
+				slo: vals[1],
+			});
+		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("observability", { stage: "output" }),
 		},
 	);
@@ -174,18 +223,22 @@ export function observabilityGraph(name: string, opts: ObservabilityGraphOptions
 
 	// --- Feedback (false-positive learning) ---
 	// SLO failures feed back to re-check with updated context.
-	const fbReentry = state<unknown>(null, {
+	const fbReentry = node<unknown>([], {
+		initial: null,
 		meta: baseMeta("observability", { stage: "feedback_reentry" }),
 	});
 	g.add(fbReentry, { name: "feedback_reentry" });
-	const fbCondition = derived<unknown>(
+	const fbCondition = node<unknown>(
 		[sloVerified],
-		(vals) => {
-			const result = vals[0] as Record<string, unknown> | null;
-			if (result && result.pass === false) return result;
-			return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const result = data[0] as Record<string, unknown> | null;
+			actions.emit(result && result.pass === false ? result : null);
 		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("observability", { stage: "feedback_condition" }),
 		},
 	);
@@ -269,58 +322,90 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 		raw,
 	});
 	const extractFn = opts.extract ?? defaultExtract;
-	const extractNode = derived<ExtractedIssue>([opts.source], (vals) => extractFn(vals[0]), {
-		meta: baseMeta("issue_tracker", { stage: "extract" }),
-	});
+	const extractNode = node<ExtractedIssue>(
+		[opts.source],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(extractFn(data[0]));
+		},
+		{
+			describeKind: "derived",
+			meta: baseMeta("issue_tracker", { stage: "extract" }),
+		},
+	);
 	g.add(extractNode as Node<unknown>, { name: "extract" });
 
 	// --- Verify ---
 	const verifyFn = opts.verify ?? (() => ({ valid: true }));
-	const verifyNode = derived<unknown>(
+	const verifyNode = node<unknown>(
 		[extractNode as Node],
-		(vals) => {
-			const issue = vals[0] as ExtractedIssue;
-			return { issue, verification: verifyFn(issue) };
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const issue = data[0] as ExtractedIssue;
+			actions.emit({ issue, verification: verifyFn(issue) });
 		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("issue_tracker", { stage: "verify" }),
 		},
 	);
 	g.add(verifyNode, { name: "verify" });
 
 	// --- Known patterns (memory / distillation state) ---
-	const knownPatterns = state<unknown[]>([], {
+	const knownPatterns = node<unknown[]>([], {
+		initial: [],
 		meta: baseMeta("issue_tracker", { stage: "known_patterns" }),
 	});
 	g.add(knownPatterns as Node<unknown>, { name: "known_patterns" });
 
 	// --- Regression detection ---
 	const detectFn = opts.detectRegression ?? (() => ({ regression: false }));
-	const regressionNode = derived<unknown>(
+	const regressionNode = node<unknown>(
 		[extractNode as Node, knownPatterns as Node],
-		(vals) => {
-			const issue = vals[0] as ExtractedIssue;
-			const known = vals[1];
-			return { issue, regression: detectFn(issue, known) };
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const issue = data[0] as ExtractedIssue;
+			const known = data[1];
+			actions.emit({ issue, regression: detectFn(issue, known) });
 		},
-		{ meta: baseMeta("issue_tracker", { stage: "regression" }) },
+		{ describeKind: "derived", meta: baseMeta("issue_tracker", { stage: "regression" }) },
 	);
 	g.add(regressionNode, { name: "regression" });
 
 	// --- Priority scoring ---
-	const severitySignal = derived<number>([extractNode as Node], (vals) => {
-		const issue = vals[0] as ExtractedIssue;
-		return issue?.severity ?? 0;
-	});
-	const regressionSignal = derived<number>([regressionNode], (vals) => {
-		const r = vals[0] as Record<string, unknown> | null;
-		return r?.regression ? 2 : 0;
-	});
+	const severitySignal = node<number>(
+		[extractNode as Node],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const issue = data[0] as ExtractedIssue;
+			actions.emit(issue?.severity ?? 0);
+		},
+		{ describeKind: "derived" },
+	);
+	const regressionSignal = node<number>(
+		[regressionNode],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const r = data[0] as Record<string, unknown> | null;
+			actions.emit(r?.regression ? 2 : 0);
+		},
+		{ describeKind: "derived" },
+	);
 	g.add(severitySignal as Node<unknown>, { name: "__severity_signal" });
 	g.add(regressionSignal as Node<unknown>, { name: "__regression_signal" });
 
-	const severityWeight = state<number>(1);
-	const regressionWeight = state<number>(1.5);
+	const severityWeight = node<number>([], { initial: 1 });
+	const regressionWeight = node<number>([], { initial: 1.5 });
 	g.add(severityWeight as Node<unknown>, { name: "__severity_weight" });
 	g.add(regressionWeight as Node<unknown>, { name: "__regression_weight" });
 
@@ -328,33 +413,46 @@ export function issueTrackerGraph(name: string, opts: IssueTrackerGraphOptions):
 	g.add(priority as Node<unknown>, { name: "priority" });
 
 	// --- Output ---
-	const output = derived<unknown>(
+	const output = node<unknown>(
 		[verifyNode, regressionNode, priority as Node],
-		(vals) => ({
-			verified: vals[0],
-			regression: vals[1],
-			priority: vals[2],
-		}),
-		{ meta: baseMeta("issue_tracker", { stage: "output" }) },
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				verified: vals[0],
+				regression: vals[1],
+				priority: vals[2],
+			});
+		},
+		{ describeKind: "derived", meta: baseMeta("issue_tracker", { stage: "output" }) },
 	);
 	g.add(output, { name: "output" });
 
 	// --- Feedback (re-scan on verification failure) ---
-	const fbReentry = state<unknown>(null, {
+	const fbReentry = node<unknown>([], {
+		initial: null,
 		meta: baseMeta("issue_tracker", { stage: "feedback_reentry" }),
 	});
 	g.add(fbReentry, { name: "feedback_reentry" });
-	const fbCondition = derived<unknown>(
+	const fbCondition = node<unknown>(
 		[verifyNode],
-		(vals) => {
-			const result = vals[0] as Record<string, unknown> | null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const result = data[0] as Record<string, unknown> | null;
 			if (result) {
 				const v = result.verification as Record<string, unknown> | null;
-				if (v && v.valid === false) return result;
+				if (v && v.valid === false) {
+					actions.emit(result);
+					return;
+				}
 			}
-			return null;
+			actions.emit(null);
 		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("issue_tracker", { stage: "feedback_condition" }),
 		},
 	);
@@ -430,9 +528,19 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 		original: content,
 	});
 	const classifyFn = opts.classify ?? defaultClassify;
-	const classifyNode = derived<ModerationResult>([opts.source], (vals) => classifyFn(vals[0]), {
-		meta: baseMeta("content_moderation", { stage: "classify" }),
-	});
+	const classifyNode = node<ModerationResult>(
+		[opts.source],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(classifyFn(data[0]));
+		},
+		{
+			describeKind: "derived",
+			meta: baseMeta("content_moderation", { stage: "classify" }),
+		},
+	);
 	g.add(classifyNode as Node<unknown>, { name: "classify" });
 
 	// --- Stratify (safe / review / block) ---
@@ -455,15 +563,22 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	try {
 		reviewBranch = g.resolve("stratify::branch/review");
 	} catch {
-		reviewBranch = state<unknown>(null);
+		reviewBranch = node<unknown>([], { initial: null });
 		g.add(reviewBranch, { name: "__review_fallback" });
 	}
-	const reviewAccumulator = effect([reviewBranch], (vals) => {
-		const item = vals[0] as ModerationResult | null;
-		if (item) {
-			reviewLog.append(item);
-		}
-	});
+	const reviewAccumulator = node(
+		[reviewBranch],
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const item = data[0] as ModerationResult | null;
+			if (item) {
+				reviewLog.append(item);
+			}
+		},
+		{ describeKind: "effect" },
+	);
 	g.add(reviewAccumulator as Node<unknown>, { name: "__review_accumulator" });
 	g.addDisposer(keepalive(reviewAccumulator as Node<unknown>));
 	try {
@@ -472,34 +587,51 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	}
 
 	// --- Policy state (human/LLM writable) ---
-	const policy = state<Record<string, unknown>>(
-		{},
-		{
-			meta: baseMeta("content_moderation", {
-				stage: "policy",
-				access: "both",
-				description: "Moderation policy rules — updated via feedback",
-			}),
-		},
-	);
+	const policy = node<Record<string, unknown>>([], {
+		initial: {},
+		meta: baseMeta("content_moderation", {
+			stage: "policy",
+			access: "both",
+			description: "Moderation policy rules — updated via feedback",
+		}),
+	});
 	g.add(policy as Node<unknown>, { name: "policy" });
 
 	// --- Priority scorer ---
 	const weights = opts.weights ?? [0.1, 1, 2];
-	const confidenceSignal = derived<number>([classifyNode as Node], (vals) => {
-		const r = vals[0] as ModerationResult | null;
-		return r?.confidence ?? 0;
-	});
-	const severitySignal = derived<number>([classifyNode as Node], (vals) => {
-		const r = vals[0] as ModerationResult | null;
-		if (!r) return 0;
-		return r.label === "block" ? weights[2] : r.label === "review" ? weights[1] : weights[0];
-	});
+	const confidenceSignal = node<number>(
+		[classifyNode as Node],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const r = data[0] as ModerationResult | null;
+			actions.emit(r?.confidence ?? 0);
+		},
+		{ describeKind: "derived" },
+	);
+	const severitySignal = node<number>(
+		[classifyNode as Node],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const r = data[0] as ModerationResult | null;
+			if (!r) {
+				actions.emit(0);
+				return;
+			}
+			actions.emit(
+				r.label === "block" ? weights[2] : r.label === "review" ? weights[1] : weights[0],
+			);
+		},
+		{ describeKind: "derived" },
+	);
 	g.add(confidenceSignal as Node<unknown>, { name: "__confidence_signal" });
 	g.add(severitySignal as Node<unknown>, { name: "__severity_signal" });
 
-	const wConfidence = state<number>(1);
-	const wSeverity = state<number>(1);
+	const wConfidence = node<number>([], { initial: 1 });
+	const wSeverity = node<number>([], { initial: 1 });
 	g.add(wConfidence as Node<unknown>, { name: "__w_confidence" });
 	g.add(wSeverity as Node<unknown>, { name: "__w_severity" });
 
@@ -507,33 +639,43 @@ export function contentModerationGraph(name: string, opts: ContentModerationGrap
 	g.add(priority as Node<unknown>, { name: "priority" });
 
 	// --- Output ---
-	const output = derived<unknown>(
+	const output = node<unknown>(
 		[classifyNode as Node, priority as Node],
-		(vals) => ({
-			classification: vals[0],
-			priority: vals[1],
-		}),
-		{ meta: baseMeta("content_moderation", { stage: "output" }) },
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				classification: vals[0],
+				priority: vals[1],
+			});
+		},
+		{ describeKind: "derived", meta: baseMeta("content_moderation", { stage: "output" }) },
 	);
 	g.add(output, { name: "output" });
 
 	// --- Feedback (false positive → policy refinement) ---
 	// Feedback condition: human marks a review item as false positive.
 	// When review_queue changes and policy exists, signal for update.
-	const fbCondition = derived<unknown>(
+	const fbCondition = node<unknown>(
 		[reviewLog.entries as Node, policy as Node],
-		(vals) => {
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
 			const entries = vals[0] as readonly ModerationResult[] | null;
 			if (entries && entries.length > 0) {
 				const latest = entries[entries.length - 1];
 				// Items explicitly marked as false positive feed back
 				if (latest && (latest as unknown as Record<string, unknown>).falsePositive) {
-					return latest;
+					actions.emit(latest);
+					return;
 				}
 			}
-			return null;
+			actions.emit(null);
 		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("content_moderation", { stage: "feedback_condition" }),
 		},
 	);
@@ -626,10 +768,15 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			errors: [],
 			record,
 		}));
-	const validateNode = derived<ValidationResult | undefined>(
+	const validateNode = node<ValidationResult | undefined>(
 		[opts.source],
-		(vals) => (vals[0] != null ? validateFn(vals[0]) : undefined),
-		{ meta: baseMeta("data_quality", { stage: "validate" }) },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(data[0] != null ? validateFn(data[0]) : undefined);
+		},
+		{ describeKind: "derived", meta: baseMeta("data_quality", { stage: "validate" }) },
 	);
 	g.add(validateNode as Node<unknown>, { name: "validate" });
 
@@ -641,15 +788,21 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 			score: 0,
 			record,
 		}));
-	const anomalyNode = derived<AnomalyResult | undefined>(
+	const anomalyNode = node<AnomalyResult | undefined>(
 		[opts.source],
-		(vals) => (vals[0] != null ? detectAnomalyFn(vals[0]) : undefined),
-		{ meta: baseMeta("data_quality", { stage: "anomaly" }) },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(data[0] != null ? detectAnomalyFn(data[0]) : undefined);
+		},
+		{ describeKind: "derived", meta: baseMeta("data_quality", { stage: "anomaly" }) },
 	);
 	g.add(anomalyNode as Node<unknown>, { name: "anomaly" });
 
 	// --- Baseline (rolling state) ---
-	const baseline = state<unknown>(null, {
+	const baseline = node<unknown>([], {
+		initial: null,
 		meta: baseMeta("data_quality", {
 			stage: "baseline",
 			description: "Rolling baseline for drift detection",
@@ -658,66 +811,93 @@ export function dataQualityGraph(name: string, opts: DataQualityGraphOptions): G
 	g.add(baseline, { name: "baseline" });
 
 	// Update baseline on valid records
-	const baselineUpdater = effect([validateNode as Node], (vals) => {
-		const result = vals[0] as ValidationResult;
-		if (result?.valid) {
-			batch(() => {
-				baseline.emit(result.record);
-			});
-		}
-	});
+	const baselineUpdater = node(
+		[validateNode as Node],
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const result = data[0] as ValidationResult;
+			if (result?.valid) {
+				batch(() => {
+					baseline.emit(result.record);
+				});
+			}
+		},
+		{ describeKind: "effect" },
+	);
 	g.add(baselineUpdater as Node<unknown>, { name: "__baseline_updater" });
 	keepalive(baselineUpdater as Node<unknown>);
 
 	// --- Drift detection ---
 	const detectDriftFn = opts.detectDrift ?? (() => ({ drift: false }));
-	const driftNode = derived<unknown>(
+	const driftNode = node<unknown>(
 		[opts.source, baseline],
-		(vals) => detectDriftFn(vals[0], vals[1]),
-		{ meta: baseMeta("data_quality", { stage: "drift" }) },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(detectDriftFn(data[0], data[1]));
+		},
+		{ describeKind: "derived", meta: baseMeta("data_quality", { stage: "drift" }) },
 	);
 	g.add(driftNode, { name: "drift" });
 
 	// --- Remediation suggestions ---
 	const suggestFn = opts.suggest ?? (() => null);
-	const remediateNode = derived<unknown>(
+	const remediateNode = node<unknown>(
 		[validateNode as Node, anomalyNode as Node],
-		(vals) =>
-			suggestFn({
-				validation: vals[0] as ValidationResult,
-				anomaly: vals[1] as AnomalyResult,
-			}),
-		{ meta: baseMeta("data_quality", { stage: "remediate" }) },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				suggestFn({
+					validation: data[0] as ValidationResult,
+					anomaly: data[1] as AnomalyResult,
+				}),
+			);
+		},
+		{ describeKind: "derived", meta: baseMeta("data_quality", { stage: "remediate" }) },
 	);
 	g.add(remediateNode, { name: "remediate" });
 
 	// --- Output ---
-	const output = derived<unknown>(
+	const output = node<unknown>(
 		[validateNode as Node, anomalyNode as Node, driftNode, remediateNode],
-		(vals) => ({
-			validation: vals[0],
-			anomaly: vals[1],
-			drift: vals[2],
-			remediation: vals[3],
-		}),
-		{ meta: baseMeta("data_quality", { stage: "output" }) },
+		(batchData, actions, ctx) => {
+			const vals = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				validation: vals[0],
+				anomaly: vals[1],
+				drift: vals[2],
+				remediation: vals[3],
+			});
+		},
+		{ describeKind: "derived", meta: baseMeta("data_quality", { stage: "output" }) },
 	);
 	g.add(output, { name: "output" });
 
 	// --- Feedback (anomaly → validation rule refinement) ---
-	const validationRules = state<unknown[]>([], {
+	const validationRules = node<unknown[]>([], {
+		initial: [],
 		meta: baseMeta("data_quality", { stage: "validation_rules" }),
 	});
 	g.add(validationRules as Node<unknown>, { name: "validation_rules" });
 
-	const fbCondition = derived<unknown>(
+	const fbCondition = node<unknown>(
 		[anomalyNode as Node],
-		(vals) => {
-			const a = vals[0] as AnomalyResult | null;
-			if (a?.anomaly) return a;
-			return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const a = data[0] as AnomalyResult | null;
+			actions.emit(a?.anomaly ? a : null);
 		},
 		{
+			describeKind: "derived",
 			meta: baseMeta("data_quality", { stage: "feedback_condition" }),
 		},
 	);

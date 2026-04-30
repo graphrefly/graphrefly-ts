@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, ERROR, type Messages, RESOLVED } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { budgetGate } from "../../extra/resilience/budget-gate.js";
 import { type StratifyRule, stratify } from "../../extra/stratify.js";
 import { Graph } from "../../graph/graph.js";
@@ -18,7 +19,7 @@ import { feedback, funnel, scorer } from "../../patterns/reduction/index.js";
 
 describe("reduction.stratify", () => {
 	it("routes values to matching branches", () => {
-		const source = state<number>(0);
+		const source = node<number>([], { initial: 0 });
 		const rules: StratifyRule<number>[] = [
 			{ name: "even", classify: (v) => v % 2 === 0 },
 			{ name: "odd", classify: (v) => v % 2 !== 0 },
@@ -54,7 +55,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("reactive rules: rewriting rules at runtime changes classification", () => {
-		const source = state<string>("");
+		const source = node<string>([], { initial: "" });
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
 
 		const g = stratify("dynamic", source, rules);
@@ -83,7 +84,7 @@ describe("reduction.stratify", () => {
 		// to `source`), so the source→branch wire is not a constructor dep and
 		// is not reflected in edges() / describe(). This test asserts the
 		// registry-level surface rather than the derived edge.
-		const source = state(0);
+		const source = node([], { initial: 0 });
 		const rules: StratifyRule<number>[] = [{ name: "pos", classify: (v) => v > 0 }];
 
 		const g = stratify("edges", source, rules);
@@ -92,7 +93,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("propagates COMPLETE through branches", () => {
-		const source = state<number>(0);
+		const source = node<number>([], { initial: 0 });
 		const rules: StratifyRule<number>[] = [{ name: "all", classify: () => true }];
 
 		const g = stratify("term", source, rules);
@@ -108,7 +109,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("two-dep gating: batch source + rules uses settled rules", () => {
-		const source = state<string>("x");
+		const source = node<string>([], { initial: "x" });
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
 
 		const g = stratify("gate", source, rules);
@@ -132,7 +133,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("source-only update still classifies correctly", () => {
-		const source = state<number>(0);
+		const source = node<number>([], { initial: 0 });
 		const rules: StratifyRule<number>[] = [{ name: "pos", classify: (v) => v > 0 }];
 
 		const g = stratify("src-only", source, rules);
@@ -150,7 +151,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("rules-only update produces no downstream emission", () => {
-		const source = state<string>("a");
+		const source = node<string>([], { initial: "a" });
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "a" }];
 
 		const g = stratify("rules-only", source, rules);
@@ -168,7 +169,7 @@ describe("reduction.stratify", () => {
 	});
 
 	it("rules-only update after source settlement produces no spurious data", () => {
-		const source = state<string>("");
+		const source = node<string>([], { initial: "" });
 		const rules: StratifyRule<string>[] = [{ name: "match", classify: (v) => v === "x" }];
 
 		const g = stratify("resolved", source, rules);
@@ -199,8 +200,8 @@ describe("reduction.stratify", () => {
 
 describe("reduction.funnel", () => {
 	it("merges sources and pipes through stages", () => {
-		const s1 = state<number>(0);
-		const s2 = state<number>(0);
+		const s1 = node<number>([], { initial: 0 });
+		const s2 = node<number>([], { initial: 0 });
 
 		const g = funnel(
 			"pipe",
@@ -209,9 +210,9 @@ describe("reduction.funnel", () => {
 				{
 					name: "double",
 					build(sub) {
-						const input = state<number>(0);
+						const input = node<number>([], { initial: 0 });
 						sub.add(input, { name: "input" });
-						const output = state<number>(0);
+						const output = node<number>([], { initial: 0 });
 						sub.add(output, { name: "output" });
 						// Wire: when input gets DATA, double it and set output
 						input.subscribe((msgs: Messages) => {
@@ -250,19 +251,19 @@ describe("reduction.funnel", () => {
 	});
 
 	it("rejects empty stages", () => {
-		expect(() => funnel("bad", [state(0)], [])).toThrow("at least one stage");
+		expect(() => funnel("bad", [node([], { initial: 0 })], [])).toThrow("at least one stage");
 	});
 
 	it("rejects stage without input node", () => {
 		expect(() =>
 			funnel(
 				"bad",
-				[state(0)],
+				[node([], { initial: 0 })],
 				[
 					{
 						name: "noInput",
 						build(sub) {
-							sub.add(state(0), { name: "output" });
+							sub.add(node([], { initial: 0 }), { name: "output" });
 						},
 					},
 				],
@@ -274,12 +275,12 @@ describe("reduction.funnel", () => {
 		expect(() =>
 			funnel(
 				"bad",
-				[state(0)],
+				[node([], { initial: 0 })],
 				[
 					{
 						name: "noOutput",
 						build(sub) {
-							sub.add(state(0), { name: "input" });
+							sub.add(node([], { initial: 0 }), { name: "input" });
 						},
 					},
 				],
@@ -295,11 +296,11 @@ describe("reduction.funnel", () => {
 describe("reduction.feedback", () => {
 	it("routes condition output back to reentry", () => {
 		const g = new Graph("fb");
-		const input = state<number>(0);
+		const input = node<number>([], { initial: 0 });
 		g.add(input, { name: "input" });
 
 		// Condition: pass through if < 5
-		const cond = state<number | null>(null);
+		const cond = node<number | null>([], { initial: null });
 		g.add(cond, { name: "condition" });
 
 		// Wire: input → condition (simplified: effect watches input, writes to condition)
@@ -335,11 +336,11 @@ describe("reduction.feedback", () => {
 
 	it("respects maxIterations bound", () => {
 		const g = new Graph("bounded");
-		const input = state<number>(0);
+		const input = node<number>([], { initial: 0 });
 		g.add(input, { name: "input" });
 
 		// Always-true condition → infinite feedback without bound
-		const cond = state<number>(0);
+		const cond = node<number>([], { initial: 0 });
 		g.add(cond, { name: "condition" });
 
 		input.subscribe((msgs: Messages) => {
@@ -368,8 +369,8 @@ describe("reduction.feedback", () => {
 
 describe("reduction.budgetGate", () => {
 	it("passes DATA when budget is available", () => {
-		const source = state<number>(0);
-		const budget = state<number>(100); // budget = 100
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 100 }); // budget = 100
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const seen: number[] = [];
@@ -386,8 +387,8 @@ describe("reduction.budgetGate", () => {
 	});
 
 	it("buffers DATA when budget exhausted, flushes on replenish", () => {
-		const source = state<number>(0);
-		const budget = state<number>(0); // exhausted
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // exhausted
 
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
@@ -416,7 +417,7 @@ describe("reduction.budgetGate", () => {
 		// class shape matters for caller `instanceof` checks in compositors.
 		let caught: unknown;
 		try {
-			budgetGate(state(0), []);
+			budgetGate(node([], { initial: 0 }), []);
 		} catch (e) {
 			caught = e;
 		}
@@ -425,12 +426,12 @@ describe("reduction.budgetGate", () => {
 	});
 
 	it("propagates COMPLETE and force-flushes buffered DATA before terminal (invariant 1)", () => {
-		// Note: source `state<number>(0)` push-on-subscribe delivers the initial
+		// Note: source `node<number>([], { initial: 0 })` push-on-subscribe delivers the initial
 		// 0 to the gate while the gate is closed — so the initial value is part
 		// of the FIFO buffer and force-flushes BEFORE COMPLETE alongside the
 		// later DATA. This is correct behavior (the initial value is real DATA).
-		const source = state<number>(0);
-		const budget = state<number>(0); // closed
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const events: Array<["DATA", number] | ["COMPLETE"]> = [];
@@ -455,8 +456,8 @@ describe("reduction.budgetGate", () => {
 	});
 
 	it("propagates ERROR and force-flushes buffered DATA before terminal (invariant 1)", () => {
-		const source = state<number>(0);
-		const budget = state<number>(0); // closed
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const events: Array<["DATA", number] | ["ERROR"]> = [];
@@ -478,8 +479,8 @@ describe("reduction.budgetGate", () => {
 	});
 
 	it("drains buffer FIFO when constraint releases — PAUSE→RESUME ordering (invariant 2)", () => {
-		const source = state<number>(0);
-		const budget = state<number>(0); // closed initially
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // closed initially
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const order: number[] = [];
@@ -514,8 +515,8 @@ describe("reduction.budgetGate", () => {
 		// We assert correctness (FIFO over many items) — the perf gain is
 		// implicit in not timing out.
 		const N = 5_000;
-		const source = state<number>(0);
-		const budget = state<number>(0); // closed
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const order: number[] = [];
@@ -543,8 +544,8 @@ describe("reduction.budgetGate", () => {
 	});
 
 	it("RESOLVED is deferred until buffer drains (invariant 3)", () => {
-		const source = state<number>(0);
-		const budget = state<number>(0); // closed
+		const source = node<number>([], { initial: 0 });
+		const budget = node<number>([], { initial: 0 }); // closed
 		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
 
 		const events: Array<["DATA", number] | ["RESOLVED"]> = [];
@@ -573,10 +574,10 @@ describe("reduction.budgetGate", () => {
 
 describe("reduction.scorer", () => {
 	it("computes weighted scores from signal and weight nodes", () => {
-		const sig1 = state<number>(0);
-		const sig2 = state<number>(0);
-		const w1 = state<number>(1);
-		const w2 = state<number>(1);
+		const sig1 = node<number>([], { initial: 0 });
+		const sig2 = node<number>([], { initial: 0 });
+		const w1 = node<number>([], { initial: 1 });
+		const w2 = node<number>([], { initial: 1 });
 
 		const s = scorer([sig1, sig2], [w1, w2]);
 
@@ -598,8 +599,8 @@ describe("reduction.scorer", () => {
 	});
 
 	it("reacts to weight changes", () => {
-		const sig1 = state<number>(5);
-		const w1 = state<number>(1);
+		const sig1 = node<number>([], { initial: 5 });
+		const w1 = node<number>([], { initial: 1 });
 
 		const s = scorer([sig1], [w1]);
 
@@ -618,8 +619,8 @@ describe("reduction.scorer", () => {
 	});
 
 	it("supports custom scoreFns", () => {
-		const sig1 = state<number>(0);
-		const w1 = state<number>(1);
+		const sig1 = node<number>([], { initial: 0 });
+		const w1 = node<number>([], { initial: 1 });
 
 		const s = scorer([sig1], [w1], {
 			scoreFns: [(v) => (v as number) ** 2], // square the signal
@@ -637,9 +638,9 @@ describe("reduction.scorer", () => {
 	});
 
 	it("rejects mismatched sources/weights", () => {
-		expect(() => scorer([state(0), state(0)], [state(1)])).toThrow(
-			"same number of sources and weights",
-		);
+		expect(() =>
+			scorer([node([], { initial: 0 }), node([], { initial: 0 })], [node([], { initial: 1 })]),
+		).toThrow("same number of sources and weights");
 	});
 
 	it("rejects empty sources", () => {
@@ -647,7 +648,7 @@ describe("reduction.scorer", () => {
 	});
 
 	it("has reduction meta", () => {
-		const s = scorer([state(0)], [state(1)]);
+		const s = scorer([node([], { initial: 0 })], [node([], { initial: 1 })]);
 		const meta = s.meta;
 		expect(meta.reduction.cache).toBe(true);
 		expect(meta.reduction_type.cache).toBe("scorer");

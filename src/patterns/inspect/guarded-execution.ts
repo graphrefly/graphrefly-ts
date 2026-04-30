@@ -29,8 +29,8 @@ import type { Actor } from "../../core/actor.js";
 import { monotonicNs } from "../../core/clock.js";
 import type { PolicyRuleData } from "../../core/guard.js";
 import { DATA } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { domainMeta } from "../../extra/meta.js";
 import { keepalive } from "../../extra/sources.js";
 import {
@@ -188,7 +188,7 @@ export class GuardedExecutionGraph extends Graph {
 		// the v5 sentinel-as-undefined model) means "no actor configured" —
 		// `target.describe({ reactive: true })`'s `resolveActorOption` treats
 		// `null` cache as "no scoping" (full visibility), and the `scope`
-		// derived can publish `actor: null` cleanly. Using `state(undefined)`
+		// derived can publish `actor: null` cleanly. Using `node([], { initial: undefined })`
 		// here would leave the actor node in sentinel state, which never fires
 		// DATA on subscribe and would block the `scope` derived's first-run
 		// gate from completing.
@@ -197,21 +197,26 @@ export class GuardedExecutionGraph extends Graph {
 		// cache may itself be SENTINEL at construction (e.g. a `producer`
 		// awaiting first emission, or a deferred `derived`). Forwarding the raw
 		// Node would re-introduce the same sentinel-stall on `scope`. Bridge
-		// through a `derived([actorOpt], ...)` with a `null` initial so the
+		// through a node bridge with a `null` initial so the
 		// internal `_actorNode` always carries non-sentinel cache; the bridge
 		// re-emits whenever the caller's Node emits, and forwards `null`
 		// through unchanged.
 		const actorOpt = opts.actor;
 		if (actorOpt == null) {
-			this._actorNode = state<Actor | null>(null, { name: "actor" });
+			this._actorNode = node<Actor | null>([], { name: "actor", initial: null });
 		} else if (isNode<Actor>(actorOpt)) {
-			this._actorNode = derived<Actor | null>(
+			this._actorNode = node<Actor | null>(
 				[actorOpt],
-				([a]) => (a as Actor | null | undefined) ?? null,
-				{ name: "actor", initial: null },
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((data[0] as Actor | null | undefined) ?? null);
+				},
+				{ describeKind: "derived", name: "actor", initial: null },
 			);
 		} else {
-			this._actorNode = state<Actor | null>(actorOpt, { name: "actor" });
+			this._actorNode = node<Actor | null>([], { name: "actor", initial: actorOpt });
 		}
 
 		// Mount the enforcer.
@@ -230,7 +235,7 @@ export class GuardedExecutionGraph extends Graph {
 			// Two paths here intentionally:
 			//   (1) Synchronous cache seed — fires immediately if the Node was
 			//       constructed with an empty array as its current cache. This
-			//       covers `state<…[]>([])` and any pre-emitted derived.
+			//       covers `node<…[]>([], { initial: [] })` and any pre-emitted derived.
 			//   (2) Subscribe path — catches subsequent empty emissions AND
 			//       handles the SENTINEL case (cache=undefined at construction)
 			//       where the Node fires its first DATA after the wrapper is
@@ -292,13 +297,18 @@ export class GuardedExecutionGraph extends Graph {
 		}
 
 		// Scope derived: live tuple of {actor, mode, policiesCount}.
-		this.scope = derived<GuardedScope>(
+		this.scope = node<GuardedScope>(
 			[this._actorNode, this.enforcer.policies],
-			([actor, policies]) => ({
-				actor: (actor as Actor | null | undefined) ?? null,
-				mode: this._mode,
-				policiesCount: (policies as readonly PolicyRuleData[]).length,
-			}),
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit({
+					actor: (data[0] as Actor | null | undefined) ?? null,
+					mode: this._mode,
+					policiesCount: (data[1] as readonly PolicyRuleData[]).length,
+				});
+			},
 			{
 				name: "scope",
 				describeKind: "derived",
@@ -368,7 +378,7 @@ export class GuardedExecutionGraph extends Graph {
 				? this._actorNode
 				: isNode<Actor>(actorOverride)
 					? actorOverride
-					: state<Actor>(actorOverride, { name: "actor_override" });
+					: node<Actor>([], { name: "actor_override", initial: actorOverride });
 		const handle = this._target.describe({
 			reactive: true,
 			// `_actorNode` is `Node<Actor | null>`. The `as Node<Actor>` cast is
@@ -402,7 +412,7 @@ export class GuardedExecutionGraph extends Graph {
  * @example
  * ```ts
  * const guarded = guardedExecution(app, {
- *   actor: state<Actor>({ type: "human", id: "alice" }), // reactive — re-derive on swap
+ *   actor: node<Actor>([], { initial: { type: "human", id: "alice" } }), // reactive — re-derive on swap
  *   policies: [
  *     { effect: "allow", action: "read", actorType: "human" },
  *     { effect: "deny", action: "write", pathPattern: "system::*" },

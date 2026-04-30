@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
-import { producer, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { fromMCP, fromWebhook, fromWebSocket, toSSE, toWebSocket } from "../../extra/adapters.js";
 import { parseCron } from "../../extra/cron.js";
 import { fromGitHook } from "../../extra/git-hook.js";
@@ -237,7 +238,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("fromAny with existing Node returns same reference", () => {
-		const s = state(99);
+		const s = node([], { initial: 99 });
 		const result = fromAny(s);
 		expect(result).toBe(s);
 	});
@@ -278,13 +279,17 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 
 	it("share uses one upstream subscription", () => {
 		let subs = 0;
-		const src = producer<number>((a) => {
-			subs += 1;
-			a.emit(1);
-			return () => {
-				subs -= 1;
-			};
-		});
+		const src = node<number>(
+			[],
+			(_data, a) => {
+				subs += 1;
+				a.emit(1);
+				return () => {
+					subs -= 1;
+				};
+			},
+			{ describeKind: "producer" },
+		);
 		const hub = share(src);
 		const a = collect(hub);
 		const b = collect(hub);
@@ -294,7 +299,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("replay replays buffer to late subscriber", async () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const r = replay(s, 2);
 		const first = collect(r);
 		await tick(0);
@@ -313,7 +318,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("cached is replay(1)", async () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const c = cached(s);
 		const { batches, unsub } = collect(c);
 		await tick(0);
@@ -625,10 +630,14 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	it("toWebSocket reports close failure and closes idempotently", () => {
 		const errors: Array<{ stage: string; error: Error; message?: [symbol, unknown?] | undefined }> =
 			[];
-		const repeatedTerminal = producer((a) => {
-			a.down([[COMPLETE], [ERROR, new Error("late")]]);
-			return () => {};
-		});
+		const repeatedTerminal = node(
+			[],
+			(_data, a) => {
+				a.down([[COMPLETE], [ERROR, new Error("late")]]);
+				return () => {};
+			},
+			{ describeKind: "producer" },
+		);
 		class FakeWebSocket {
 			closed = 0;
 			send(_data: string | ArrayBufferLike | Blob | ArrayBufferView) {}
@@ -686,10 +695,10 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("firstValueFrom resolves synchronously — shouldUnsub path", async () => {
-		// state(42) pushes DATA synchronously inside subscribe; unsub is
+		// node([], { initial: 42 }) pushes DATA synchronously inside subscribe; unsub is
 		// not yet assigned when the callback fires, so shouldUnsub = true
 		// must clean up after subscribe returns.
-		const result = await firstValueFrom(state(42));
+		const result = await firstValueFrom(node([], { initial: 42 }));
 		expect(result).toBe(42);
 	});
 
@@ -703,14 +712,14 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("awaitSettled resolves on first non-nullish DATA (default predicate)", async () => {
-		const s = state<string | null>(null);
+		const s = node<string | null>([], { initial: null });
 		const p = awaitSettled(s);
 		s.emit("hello");
 		expect(await p).toBe("hello");
 	});
 
 	it("awaitSettled respects custom predicate", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const p = awaitSettled(s, { predicate: (v) => v > 5 });
 		s.emit(3);
 		s.emit(7);
@@ -718,19 +727,19 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("awaitSettled rejects with TimeoutError on deadline", async () => {
-		const s = state<string | null>(null);
+		const s = node<string | null>([], { initial: null });
 		await expect(awaitSettled(s, { timeoutMs: 25 })).rejects.toThrow(/Timed out/);
 	});
 
 	it("awaitSettled with timeoutMs resolves before deadline", async () => {
-		const s = state<string | null>(null);
+		const s = node<string | null>([], { initial: null });
 		const p = awaitSettled(s, { timeoutMs: 500 });
 		setTimeout(() => s.emit("before-deadline"), 5);
 		expect(await p).toBe("before-deadline");
 	});
 
 	it("firstWhere resolves on synchronous source — shouldUnsub path", async () => {
-		const result = await firstWhere(state(42), (v) => v === 42);
+		const result = await firstWhere(node([], { initial: 42 }), (v) => v === 42);
 		expect(result).toBe(42);
 	});
 
@@ -775,10 +784,14 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("toSSE can include DIRTY and RESOLVED events", async () => {
-		const n = producer((a) => {
-			a.down([[DIRTY], [RESOLVED], [COMPLETE]]);
-			return () => {};
-		});
+		const n = node(
+			[],
+			(_data, a) => {
+				a.down([[DIRTY], [RESOLVED], [COMPLETE]]);
+				return () => {};
+			},
+			{ describeKind: "producer" },
+		);
 		const text = await readSSE(toSSE(n, { includeDirty: true, includeResolved: true }));
 		expect(text).toContain(`event: ${String(DIRTY.description ?? "")}`);
 		expect(text).toContain(`event: ${String(RESOLVED.description ?? "")}`);
@@ -798,8 +811,8 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("valve forwards DATA when control is truthy", () => {
-		const src = state(42);
-		const ctrl = state(true);
+		const src = node([], { initial: 42 });
+		const ctrl = node([], { initial: true });
 		const g = valve(src, ctrl);
 		const { batches, unsub } = collect(g);
 		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 42)).toBe(true);
@@ -807,8 +820,8 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("valve emits RESOLVED when control is falsy", () => {
-		const src = state(42);
-		const ctrl = state(false);
+		const src = node([], { initial: 42 });
+		const ctrl = node([], { initial: false });
 		const g = valve(src, ctrl);
 		const { batches, unsub } = collect(g);
 		expect(batches.flat().some((m) => m[0] === RESOLVED)).toBe(true);
@@ -890,7 +903,7 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 	});
 
 	it("defer accepts a Node input and forwards DATA", () => {
-		const upstream = state(7);
+		const upstream = node([], { initial: 7 });
 		const g = defer<number>(() => upstream);
 		const { batches, unsub } = collect(g);
 		const data = batches

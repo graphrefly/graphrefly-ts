@@ -3,8 +3,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { aiMeta } from "../_internal.js";
 
 /** A tool call detected in the stream. */
@@ -49,10 +48,17 @@ export function toolCallExtractor(
 	accumulatedText: Node<string>,
 	opts?: { name?: string },
 ): Node<readonly ExtractedToolCall[]> {
-	return derived<readonly ExtractedToolCall[]>(
+	return node<readonly ExtractedToolCall[]>(
 		[accumulatedText],
-		([text], ctx) => {
-			if (text == null) return [];
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const text = data[0];
+			if (text == null) {
+				actions.emit([]);
+				return;
+			}
 			const accumulated = text as string;
 
 			if (!("calls" in ctx.store)) {
@@ -123,7 +129,7 @@ export function toolCallExtractor(
 
 			// Always return a fresh copy so downstream never holds a live
 			// reference to ctx.store.calls.
-			return added ? [...calls] : calls.slice();
+			actions.emit(added ? [...calls] : calls.slice());
 		},
 		{
 			name: opts?.name ?? "tool-call-extractor",

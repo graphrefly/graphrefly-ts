@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DATA, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+
 import { awaitSettled } from "../../extra/sources.js";
 import { Graph } from "../../graph/graph.js";
 import {
@@ -184,7 +184,7 @@ describe("patterns.ai.toolRegistry", () => {
 
 	it("executeReactive forwards Node handler results", async () => {
 		const tr = toolRegistry("test-tools");
-		const n = state(42);
+		const n = node([], { initial: 42 });
 		tr.register({
 			name: "nodeVal",
 			description: "Reactive node",
@@ -265,21 +265,29 @@ describe("patterns.ai.toolSelector (D8)", () => {
 	};
 
 	it("filters tools reactively when predicates flip", () => {
-		const all = state<readonly ToolDefinition[]>([search, write, llm], { name: "all" });
-		const hasBudget = state(true, { name: "budget" });
-		const destructiveAllowed = state(true, { name: "dstr" });
+		const all = node<readonly ToolDefinition[]>([], { name: "all", initial: [search, write, llm] });
+		const hasBudget = node([], { name: "budget", initial: true });
+		const destructiveAllowed = node([], { name: "dstr", initial: true });
 		const sel = toolSelector(all, [
-			derived(
+			node(
 				[hasBudget],
-				([b]) =>
-					(t: ToolDefinition) =>
-						!(t.meta?.expensive === true) || b === true,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((t: ToolDefinition) => !(t.meta?.expensive === true) || data[0] === true);
+				},
+				{ describeKind: "derived" },
 			),
-			derived(
+			node(
 				[destructiveAllowed],
-				([d]) =>
-					(t: ToolDefinition) =>
-						!(t.meta?.destructive === true) || d === true,
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit((t: ToolDefinition) => !(t.meta?.destructive === true) || data[0] === true);
+				},
+				{ describeKind: "derived" },
 			),
 		]);
 		const unsub = sel.subscribe(() => {});
@@ -326,7 +334,7 @@ describe("patterns.ai.systemPromptBuilder", () => {
 	});
 
 	it("reacts to section changes", () => {
-		const role = state("You are an assistant.");
+		const role = node([], { initial: "You are an assistant." });
 		const prompt = systemPromptBuilder([role, "Be concise."]);
 		expect(prompt.cache).toBe("You are an assistant.\n\nBe concise.");
 
@@ -353,7 +361,7 @@ describe("patterns.ai.promptNode (raw format — fromLLM fold)", () => {
 	it("emits the full LLMResponse object when format is 'raw'", () => {
 		const resp: LLMResponse = { content: "Hello!" };
 		const adapter = mockAdapter([resp]);
-		const msgs = state<ChatMessage[]>([{ role: "user", content: "hi" }]);
+		const msgs = node<ChatMessage[]>([], { initial: [{ role: "user", content: "hi" }] });
 		const result = promptNode<LLMResponse>(
 			adapter,
 			[msgs],
@@ -368,11 +376,20 @@ describe("patterns.ai.promptNode (raw format — fromLLM fold)", () => {
 
 describe("patterns.ai.handoff (B10)", () => {
 	it("no condition: always routes through the specialist factory", () => {
-		const from = state<string | null>("hi");
+		const from = node<string | null>([], { initial: "hi" });
 		let factoryCalls = 0;
 		const routed = handoff(from, (input) => {
 			factoryCalls += 1;
-			return derived([input], ([v]) => `[specialist] ${v}`);
+			return node(
+				[input],
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					actions.emit(`[specialist] ${data[0]}`);
+				},
+				{ describeKind: "derived" },
+			);
 		});
 		const unsub = routed.subscribe(() => {});
 		expect(routed.cache).toBe("[specialist] hi");
@@ -381,11 +398,25 @@ describe("patterns.ai.handoff (B10)", () => {
 	});
 
 	it("condition gates specialist engagement", () => {
-		const from = state<string | null>("q");
-		const urgent = state(false);
-		const routed = handoff(from, (input) => derived([input], ([v]) => `[urgent] ${v}`), {
-			condition: urgent,
-		});
+		const from = node<string | null>([], { initial: "q" });
+		const urgent = node([], { initial: false });
+		const routed = handoff(
+			from,
+			(input) =>
+				node(
+					[input],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(`[urgent] ${data[0]}`);
+					},
+					{ describeKind: "derived" },
+				),
+			{
+				condition: urgent,
+			},
+		);
 		const unsub = routed.subscribe(() => {});
 		// Condition closed — pass-through.
 		expect(routed.cache).toBe("q");
@@ -400,10 +431,24 @@ describe("patterns.ai.handoff (B10)", () => {
 	});
 
 	it("null `from` value emits null regardless of condition", () => {
-		const from = state<string | null>(null);
-		const routed = handoff(from, (input) => derived([input], ([v]) => `[s] ${v}`), {
-			condition: state(true),
-		});
+		const from = node<string | null>([], { initial: null });
+		const routed = handoff(
+			from,
+			(input) =>
+				node(
+					[input],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit(`[s] ${data[0]}`);
+					},
+					{ describeKind: "derived" },
+				),
+			{
+				condition: node([], { initial: true }),
+			},
+		);
 		const unsub = routed.subscribe(() => {});
 		expect(routed.cache).toBeNull();
 		unsub();
@@ -412,7 +457,7 @@ describe("patterns.ai.handoff (B10)", () => {
 
 describe("patterns.ai.frozenContext (B11)", () => {
 	it("materializes once without refresh trigger — source changes are ignored", () => {
-		const source = state("v1");
+		const source = node([], { initial: "v1" });
 		const frozen = frozenContext(source);
 		const unsub = frozen.subscribe(() => {});
 		expect(frozen.cache).toBe("v1");
@@ -424,8 +469,8 @@ describe("patterns.ai.frozenContext (B11)", () => {
 	});
 
 	it("with refreshTrigger: emits current source only when trigger fires", () => {
-		const source = state("s1");
-		const trigger = state(0);
+		const source = node([], { initial: "s1" });
+		const trigger = node([], { initial: 0 });
 		const frozen = frozenContext(source, { refreshTrigger: trigger });
 		const unsub = frozen.subscribe(() => {});
 		// Activation: src fires first (captured), trigger fires in its own
@@ -457,7 +502,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 	it("emits final result after stream completes", async () => {
 		const chunks = ["Hello", " ", "world", "!"];
 		const adapter = mockAdapter([], [chunks]);
-		const input = state("greet");
+		const input = node([], { initial: "greet" });
 
 		const { output } = streamingPromptNode(adapter, [input], (v) => `say ${v}`);
 
@@ -477,7 +522,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 	it("publishes stamped deltas to the delta topic", async () => {
 		const chunks = ["A", "B", "C"];
 		const adapter = mockAdapter([], [chunks]);
-		const input = state("go");
+		const input = node([], { initial: "go" });
 
 		const { output, deltaTopic } = streamingPromptNode(adapter, [input], (v) => `${v}`);
 
@@ -508,7 +553,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 		const chunks1 = ["slow", "stream"];
 		const chunks2 = ["fast"];
 		const adapter = mockAdapter([], [chunks1, chunks2]);
-		const input = state("first");
+		const input = node([], { initial: "first" });
 
 		const { output } = streamingPromptNode(adapter, [input], (v) => `${v}`);
 
@@ -558,7 +603,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 
 	it("emits null for nullish deps (SENTINEL gate)", () => {
 		const adapter = mockAdapter([], []);
-		const dep = state<string | null>(null);
+		const dep = node<string | null>([], { initial: null });
 
 		const { output } = streamingPromptNode(adapter, [dep], (v) => `${v}`);
 
@@ -569,7 +614,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 			}
 		});
 
-		// null dep → empty messages → switchMap returns state(null) → pushed synchronously
+		// null dep → empty messages → switchMap returns node([], { initial: null }) → pushed synchronously
 		expect(values).toContain(null);
 	});
 
@@ -587,7 +632,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 				yield { type: "finish" as const, reason: "stop" };
 			},
 		};
-		const input = state("go");
+		const input = node([], { initial: "go" });
 
 		const { output } = streamingPromptNode<{ key: string }>(adapter, [input], (v) => `${v}`, {
 			format: "json",
@@ -609,7 +654,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 	it("dispose destroys the delta topic (TEARDOWN)", () => {
 		const { deltaTopic, dispose } = streamingPromptNode(
 			mockAdapter([], []),
-			[state("go")],
+			[node([], { initial: "go" })],
 			(v) => `${v}`,
 		);
 
@@ -632,7 +677,7 @@ describe("patterns.ai.streamingPromptNode", () => {
 
 describe("patterns.ai.streamExtractor", () => {
 	it("extracts values from an accumulated-text source", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 
 		const extracted: Array<string | null> = [];
 		const extractor = streamExtractor(
@@ -658,7 +703,7 @@ describe("patterns.ai.streamExtractor", () => {
 	});
 
 	it("returns null for an empty accumulated-text source", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = streamExtractor(textState, (t) => (t.length > 0 ? "found" : null));
 		extractor.subscribe(() => {});
 		expect(extractor.cache).toBe(null);
@@ -671,7 +716,7 @@ describe("patterns.ai.streamExtractor", () => {
 
 describe("patterns.ai.keywordFlagExtractor", () => {
 	it("detects keyword matches in accumulated text", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 
 		const flags: KeywordFlag[][] = [];
 		const extractor = keywordFlagExtractor(textState, {
@@ -698,7 +743,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 	});
 
 	it("returns empty array when no matches", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = keywordFlagExtractor(textState, {
 			patterns: [{ pattern: /setTimeout/, label: "violation" }],
 		});
@@ -708,7 +753,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 	});
 
 	it("finds multiple matches of the same pattern", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = keywordFlagExtractor(textState, {
 			patterns: [{ pattern: /TODO/g, label: "todo" }],
 		});
@@ -721,7 +766,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 	});
 
 	it("throws at factory time when a pattern exceeds maxPatternLength", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		// 150-char pattern vs default 128 max → throw.
 		const long = new RegExp("x".repeat(150));
 		expect(() =>
@@ -738,7 +783,7 @@ describe("patterns.ai.keywordFlagExtractor", () => {
 
 describe("patterns.ai.toolCallExtractor", () => {
 	it("extracts tool calls from accumulated text", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const calls: ExtractedToolCall[][] = [];
 		const extractor = toolCallExtractor(textState);
 		extractor.subscribe((messages) => {
@@ -757,7 +802,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 	});
 
 	it("returns empty array for partial JSON", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = toolCallExtractor(textState);
 		extractor.subscribe(() => {});
 		textState.emit('{"name": "run');
@@ -765,7 +810,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 	});
 
 	it("ignores JSON objects without name+arguments shape", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = toolCallExtractor(textState);
 		extractor.subscribe(() => {});
 		textState.emit('{"foo": "bar"}');
@@ -773,7 +818,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 	});
 
 	it("handles braces inside JSON string values", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = toolCallExtractor(textState);
 		extractor.subscribe(() => {});
 		const toolJson = JSON.stringify({
@@ -788,7 +833,7 @@ describe("patterns.ai.toolCallExtractor", () => {
 	});
 
 	it("extracts multiple tool calls from accumulated text", () => {
-		const textState = state<string>("");
+		const textState = node<string>([], { initial: "" });
 		const extractor = toolCallExtractor(textState);
 		extractor.subscribe(() => {});
 		const call1 = JSON.stringify({ name: "a", arguments: { x: 1 } });
@@ -815,7 +860,11 @@ describe("patterns.ai.costMeterExtractor", () => {
 	}
 
 	it("tracks chunk count, char count, and estimated tokens (fallback mode)", () => {
-		const { deltaTopic } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+		const { deltaTopic } = streamingPromptNode(
+			mockAdapter([], []),
+			[node([], { initial: "go" })],
+			(v) => `${v}`,
+		);
 		const extractor = costMeterExtractor(deltaTopic);
 		extractor.subscribe(() => {});
 
@@ -828,7 +877,11 @@ describe("patterns.ai.costMeterExtractor", () => {
 	});
 
 	it("accumulates across token deltas", () => {
-		const { deltaTopic } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+		const { deltaTopic } = streamingPromptNode(
+			mockAdapter([], []),
+			[node([], { initial: "go" })],
+			(v) => `${v}`,
+		);
 		const extractor = costMeterExtractor(deltaTopic);
 		extractor.subscribe(() => {});
 
@@ -842,7 +895,11 @@ describe("patterns.ai.costMeterExtractor", () => {
 	});
 
 	it("uses custom charsPerToken", () => {
-		const { deltaTopic } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+		const { deltaTopic } = streamingPromptNode(
+			mockAdapter([], []),
+			[node([], { initial: "go" })],
+			(v) => `${v}`,
+		);
 		const extractor = costMeterExtractor(deltaTopic, { charsPerToken: 2 });
 		extractor.subscribe(() => {});
 
@@ -851,7 +908,11 @@ describe("patterns.ai.costMeterExtractor", () => {
 	});
 
 	it("returns zero reading when no deltas", () => {
-		const { deltaTopic } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+		const { deltaTopic } = streamingPromptNode(
+			mockAdapter([], []),
+			[node([], { initial: "go" })],
+			(v) => `${v}`,
+		);
 		const extractor = costMeterExtractor(deltaTopic);
 		extractor.subscribe(() => {});
 		expect(extractor.cache).toEqual({
@@ -863,7 +924,11 @@ describe("patterns.ai.costMeterExtractor", () => {
 	});
 
 	it("prefers real usage delta over char estimate when present", () => {
-		const { deltaTopic } = streamingPromptNode(mockAdapter([], []), [state("go")], (v) => `${v}`);
+		const { deltaTopic } = streamingPromptNode(
+			mockAdapter([], []),
+			[node([], { initial: "go" })],
+			(v) => `${v}`,
+		);
 		const extractor = costMeterExtractor(deltaTopic);
 		extractor.subscribe(() => {});
 
@@ -912,7 +977,7 @@ describe("patterns.ai.gatedStream", () => {
 	it("gates output and allows approval", async () => {
 		const adapter = mockAdapter([], [["hello", " world"]]);
 		const graph = new Graph("test");
-		const dep = state("go");
+		const dep = node([], { initial: "go" });
 
 		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
 		const results: unknown[] = [];
@@ -948,7 +1013,7 @@ describe("patterns.ai.gatedStream", () => {
 		};
 
 		const graph = new Graph("test");
-		const dep = state("go");
+		const dep = node([], { initial: "go" });
 		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
 		handle.output.subscribe(() => {});
 
@@ -972,7 +1037,7 @@ describe("patterns.ai.gatedStream", () => {
 	it("modify transforms pending value before forwarding", async () => {
 		const adapter = mockAdapter([], [["original"]]);
 		const graph = new Graph("test");
-		const dep = state("go");
+		const dep = node([], { initial: "go" });
 
 		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `say ${v}`);
 		const results: unknown[] = [];
@@ -990,7 +1055,7 @@ describe("patterns.ai.gatedStream", () => {
 	it("delta topic publishes stamped deltas while gate is pending", async () => {
 		const adapter = mockAdapter([], [["a", "b", "c"]]);
 		const graph = new Graph("test");
-		const dep = state("go");
+		const dep = node([], { initial: "go" });
 
 		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `${v}`);
 		const deltas: StampedDelta[] = [];
@@ -1013,7 +1078,7 @@ describe("patterns.ai.gatedStream", () => {
 	it("startOpen auto-approves without gating", async () => {
 		const adapter = mockAdapter([], [["auto"]]);
 		const graph = new Graph("test");
-		const dep = state("go");
+		const dep = node([], { initial: "go" });
 
 		const handle = gatedStream(graph, "review", adapter, [dep], (v) => `${v}`, {
 			gate: { startOpen: true },
@@ -1272,8 +1337,15 @@ describe("patterns.ai.agentLoop", () => {
 			adapter,
 			tools: [allowTool, forbidTool],
 			interceptToolCalls: (calls) =>
-				derived([calls], ([raw]) =>
-					(raw as readonly ToolCall[]).filter((c) => c.name !== "forbid"),
+				node(
+					[calls],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit((data[0] as readonly ToolCall[]).filter((c) => c.name !== "forbid"));
+					},
+					{ describeKind: "derived" },
 				),
 		});
 
@@ -1342,7 +1414,7 @@ describe("patterns.ai.llmConsolidator", () => {
 
 describe("patterns.ai.agentMemory", () => {
 	it("creates a graph with store, compact, and size nodes", () => {
-		const source = state<string>("test input");
+		const source = node<string>([], { initial: "test input" });
 		const mem = agentMemory("test-mem", source, {
 			extractFn: (raw, _existing) => ({
 				upsert: [{ key: "k1", value: String(raw) }],
@@ -1361,7 +1433,7 @@ describe("patterns.ai.agentMemory", () => {
 
 	it("throws when neither extractFn nor adapter+extractPrompt provided", () => {
 		expect(() =>
-			agentMemory("bad", state(null), {
+			agentMemory("bad", node([], { initial: null }), {
 				score: () => 1,
 				cost: () => 1,
 			}),
@@ -1369,7 +1441,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("exposes null for optional features when not configured", () => {
-		const mem = agentMemory("test-mem", state("x"), {
+		const mem = agentMemory("test-mem", node([], { initial: "x" }), {
 			extractFn: () => ({ upsert: [] }),
 			score: () => 1,
 			cost: () => 1,
@@ -1386,7 +1458,7 @@ describe("patterns.ai.agentMemory", () => {
 
 	it("B20: retrieveReactive emits results when query node changes", () => {
 		type Mem = { text: string };
-		const mem = agentMemory<Mem>("reactive-retrieve", state<string>("seed"), {
+		const mem = agentMemory<Mem>("reactive-retrieve", node<string>([], { initial: "seed" }), {
 			extractFn: (raw) => ({
 				upsert: [
 					{ key: "a", value: { text: String(raw) } },
@@ -1399,7 +1471,7 @@ describe("patterns.ai.agentMemory", () => {
 			embedFn: () => [0.5, 0.5],
 		});
 		expect(mem.retrieveReactive).not.toBeNull();
-		const query = state<{ vector?: readonly number[] } | null>(null);
+		const query = node<{ vector?: readonly number[] } | null>([], { initial: null });
 		const resultNode = mem.retrieveReactive!(query);
 		const unsub = resultNode.subscribe(() => {});
 		// Null query → empty.
@@ -1416,7 +1488,7 @@ describe("patterns.ai.agentMemory", () => {
 
 	it("B12: contextWeight boosts entries whose breadcrumb matches the query", () => {
 		type Mem = { text: string; context: readonly string[] };
-		const mem = agentMemory<Mem>("hier", state<string>("seed"), {
+		const mem = agentMemory<Mem>("hier", node<string>([], { initial: "seed" }), {
 			extractFn: () => ({
 				upsert: [
 					{ key: "authA", value: { text: "auth", context: ["projects", "auth", "tokens"] } },
@@ -1431,9 +1503,11 @@ describe("patterns.ai.agentMemory", () => {
 			vectorDimensions: 2,
 			embedFn: () => [0.5, 0.5],
 		});
-		const q = state<{ vector?: readonly number[]; context?: readonly string[] } | null>({
-			vector: [0.5, 0.5],
-			context: ["projects", "auth"],
+		const q = node<{ vector?: readonly number[]; context?: readonly string[] } | null>([], {
+			initial: {
+				vector: [0.5, 0.5],
+				context: ["projects", "auth"],
+			},
 		});
 		const r = mem.retrieveReactive!(q);
 		const unsub = r.subscribe(() => {});
@@ -1449,7 +1523,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("creates vector index when vectorDimensions + embedFn provided", () => {
-		const source = state<string>("hello");
+		const source = node<string>([], { initial: "hello" });
 		const mem = agentMemory<string>("vec-mem", source, {
 			extractFn: (raw) => ({
 				upsert: [{ key: "k1", value: String(raw) }],
@@ -1468,7 +1542,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("mounts knowledge graph when enableKnowledgeGraph is true", () => {
-		const source = state<string>("hello");
+		const source = node<string>([], { initial: "hello" });
 		const mem = agentMemory<string>("kg-mem", source, {
 			extractFn: (raw) => ({
 				upsert: [{ key: "k1", value: String(raw) }],
@@ -1486,7 +1560,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("sets up 3-tier storage with permanent filter", () => {
-		const source = state<string>("hello");
+		const source = node<string>([], { initial: "hello" });
 		const mem = agentMemory<string>("tier-mem", source, {
 			extractFn: (raw) => ({
 				upsert: [{ key: "core-profile", value: String(raw) }],
@@ -1510,7 +1584,7 @@ describe("patterns.ai.agentMemory", () => {
 		// Score function: anything <= 0.05 (decayed) gets archived.
 		// archiveThreshold = 0.1, so a base score of 0.05 falls under without decay.
 		let nextKey = 0;
-		const source = state<string>("hello");
+		const source = node<string>([], { initial: "hello" });
 		const mem = agentMemory<string>("tier-archive", source, {
 			extractFn: (raw, _existing) => {
 				// Each emit produces a unique low-score entry that retention should archive.
@@ -1545,7 +1619,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("retrieval pipeline returns packed results with vector search", () => {
-		const source = state<string>("test");
+		const source = node<string>([], { initial: "test" });
 		const mem = agentMemory<string>("retr-mem", source, {
 			extractFn: (raw) => ({
 				upsert: [
@@ -1572,7 +1646,7 @@ describe("patterns.ai.agentMemory", () => {
 	});
 
 	it("retrieval trace captures pipeline stages", () => {
-		const source = state<string>("input");
+		const source = node<string>([], { initial: "input" });
 		const mem = agentMemory<string>("trace-mem", source, {
 			extractFn: (raw) => ({
 				upsert: [{ key: "k1", value: String(raw) }],
@@ -1651,7 +1725,7 @@ describe("patterns.ai.admissionFilter3D", () => {
 			}),
 		});
 
-		const source = state<string>("keep");
+		const source = node<string>([], { initial: "keep" });
 		const mem = agentMemory<string>("3d-mem", source, {
 			extractFn: (raw) => {
 				admitted.push(raw);
@@ -1714,7 +1788,7 @@ describe("patterns.ai.admissionScored", () => {
 describe("knobsAsTools", () => {
 	it("generates tool schemas from state nodes with meta", () => {
 		const g = new Graph("test");
-		const temp = state(72, {
+		const temp = node([], {
 			name: "temperature",
 			meta: {
 				description: "Room temperature",
@@ -1723,8 +1797,9 @@ describe("knobsAsTools", () => {
 				unit: "°F",
 				access: "both",
 			},
+			initial: 72,
 		});
-		const mode = state("auto", {
+		const mode = node([], {
 			name: "mode",
 			meta: {
 				description: "HVAC mode",
@@ -1732,12 +1807,19 @@ describe("knobsAsTools", () => {
 				values: ["auto", "cool", "heat", "off"],
 				access: "llm",
 			},
+			initial: "auto",
 		});
 		// Derived node should NOT appear as a tool
-		const summary = derived([temp, mode], ([t, m]) => `${m}: ${t}`, {
-			name: "summary",
-			meta: { description: "Summary display" },
-		});
+		const summary = node(
+			[temp, mode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(`${data[1]}: ${data[0]}`);
+			},
+			{ describeKind: "derived", name: "summary", meta: { description: "Summary display" } },
+		);
 		g.add(temp, { name: "temperature" });
 		g.add(mode, { name: "mode" });
 		g.add(summary, { name: "summary" });
@@ -1786,9 +1868,10 @@ describe("knobsAsTools", () => {
 
 	it("excludes state nodes with access=human", () => {
 		const g = new Graph("test");
-		const secret = state("pw", {
+		const secret = node([], {
 			name: "secret",
 			meta: { description: "Human-only secret", access: "human" },
+			initial: "pw",
 		});
 		g.add(secret, { name: "secret" });
 
@@ -1799,10 +1882,11 @@ describe("knobsAsTools", () => {
 
 	it("includes V0 version metadata for knob definitions", () => {
 		const g = new Graph("versioned-knobs");
-		const knob = state(1, {
+		const knob = node([], {
 			name: "knob",
 			versioning: 0,
 			meta: { description: "Versioned knob", access: "both" },
+			initial: 1,
 		});
 		g.add(knob, { name: "knob" });
 
@@ -1821,17 +1905,20 @@ describe("knobsAsTools", () => {
 describe("gaugesAsContext", () => {
 	it("formats gauge nodes as context string", () => {
 		const g = new Graph("dashboard");
-		const revenue = state(1234.5, {
+		const revenue = node([], {
 			name: "revenue",
 			meta: { description: "Monthly revenue", format: "currency", tags: ["finance"] },
+			initial: 1234.5,
 		});
-		const growth = state(0.15, {
+		const growth = node([], {
 			name: "growth",
 			meta: { description: "Growth rate", format: "percentage", tags: ["finance"] },
+			initial: 0.15,
 		});
-		const status = state("healthy", {
+		const status = node([], {
 			name: "status",
 			meta: { description: "System status", format: "status" },
+			initial: "healthy",
 		});
 		g.add(revenue, { name: "revenue" });
 		g.add(growth, { name: "growth" });
@@ -1849,7 +1936,7 @@ describe("gaugesAsContext", () => {
 
 	it("returns empty string when no gauges", () => {
 		const g = new Graph("empty");
-		const plain = state(42, { name: "plain" });
+		const plain = node([], { name: "plain", initial: 42 });
 		g.add(plain, { name: "plain" });
 
 		expect(gaugesAsContext(g)).toBe("");
@@ -1858,10 +1945,11 @@ describe("gaugesAsContext", () => {
 
 	it("supports V0 delta filtering via sinceVersion", () => {
 		const g = new Graph("delta");
-		const metric = state(1, {
+		const metric = node([], {
 			name: "metric",
 			versioning: 0,
 			meta: { description: "Metric", access: "both" },
+			initial: 1,
 		});
 		g.add(metric, { name: "metric" });
 
@@ -2023,10 +2111,10 @@ describe("graphFromSpec", () => {
 			nodes: { x: { type: "state", deps: [], value: 7, meta: { description: "X" } } },
 		};
 		const adapter = mockAdapter([{ content: JSON.stringify(spec), finishReason: "end_turn" }]);
-		const input = state("");
-		const node = graphFromSpecReactive(input, adapter);
+		const input = node([], { initial: "" });
+		const graphNode2 = graphFromSpecReactive(input, adapter);
 		const seen: (Graph | null)[] = [];
-		const unsub = node.subscribe((batch) => {
+		const unsub = graphNode2.subscribe((batch) => {
 			for (const m of batch) {
 				if (m[0] === DATA) seen.push(m[1] as Graph | null);
 			}
@@ -2072,7 +2160,7 @@ describe("suggestStrategy", () => {
 		const adapter = mockAdapter([{ content: JSON.stringify(plan), finishReason: "end_turn" }]);
 
 		const g = new Graph("api");
-		const maxRate = state(50, { name: "max_rate", meta: { description: "Max rate" } });
+		const maxRate = node([], { name: "max_rate", meta: { description: "Max rate" }, initial: 50 });
 		g.add(maxRate, { name: "max_rate" });
 
 		const result = await suggestStrategy(g, "API calls are being throttled", adapter);
@@ -2117,13 +2205,15 @@ describe("suggestStrategy", () => {
 		const adapter = mockAdapter([{ content: JSON.stringify(plan), finishReason: "end_turn" }]);
 
 		const g = new Graph("rx");
-		g.add(state(3, { name: "max_retries", meta: { description: "max" } }), { name: "max_retries" });
-		const graphNode = state<Graph | null>(g);
-		const problem = state("");
+		g.add(node([], { name: "max_retries", meta: { description: "max" }, initial: 3 }), {
+			name: "max_retries",
+		});
+		const graphNode = node<Graph | null>([], { initial: g });
+		const problem = node([], { initial: "" });
 
-		const node = suggestStrategyReactive(graphNode, problem, adapter);
+		const strategyNode = suggestStrategyReactive(graphNode, problem, adapter);
 		const seen: (StrategyPlan | null)[] = [];
-		const unsub = node.subscribe((batch) => {
+		const unsub = strategyNode.subscribe((batch) => {
 			for (const m of batch) {
 				if (m[0] === DATA) seen.push(m[1] as StrategyPlan | null);
 			}
@@ -2131,7 +2221,7 @@ describe("suggestStrategy", () => {
 
 		await new Promise((r) => setTimeout(r, 0));
 		// withLatestFrom's documented initial-activation quirk: when both deps
-		// are state() nodes, the first paired emission is dropped (see comment
+		// are node([]) nodes, the first paired emission is dropped (see comment
 		// in extra/operators.ts:866). So `seen` may be empty at this point —
 		// real DATA arrives after `problem` fires below.
 
@@ -2174,7 +2264,7 @@ describe("patterns.ai.promptNode", () => {
 			},
 		};
 
-		const dep = state("hello");
+		const dep = node([], { initial: "hello" });
 		const pn = promptNode<string>(adapter, [dep], (v: string) => `summarize: ${v}`, {
 			systemPrompt: "be terse",
 		});
@@ -2222,8 +2312,8 @@ describe("patterns.ai.promptNode", () => {
 			},
 		};
 
-		const dep = state("hello");
-		const abort = state(false);
+		const dep = node([], { initial: "hello" });
+		const abort = node([], { initial: false });
 		const pn = promptNode<string>(adapter, [dep], (v: string) => `summarize: ${v}`, {
 			abort,
 		});
@@ -2272,11 +2362,11 @@ describe("patterns.ai.promptNode", () => {
 		expect(sentinelPn.cache).toBe(undefined);
 		sentinelUnsub();
 
-		// DATA-seen path: dep starts as state(null) — first DATA value IS null.
+		// DATA-seen path: dep starts as node([], { initial: null }) — first DATA value IS null.
 		// Per the SENTINEL convention (`prevData === undefined` is the only
 		// SENTINEL marker), this counts as "input arrived but is nullish" →
 		// emit `null` immediately.
-		const dep = state<string | null>(null);
+		const dep = node<string | null>([], { initial: null });
 		const pn = promptNode<string>(adapter, [dep], (v) => `summarize: ${v}`);
 		const seen: (string | null)[] = [];
 		const unsub = pn.subscribe((batch) => {
@@ -2318,7 +2408,7 @@ describe("patterns.ai.promptNode", () => {
 			},
 		};
 
-		const dep = state("x");
+		const dep = node([], { initial: "x" });
 		const pn = promptNode<{ key: string }>(adapter, [dep], "extract", { format: "json" });
 		const unsub = pn.subscribe(() => {});
 		await tick();
@@ -2345,7 +2435,7 @@ describe("patterns.ai.promptNode", () => {
 			},
 		};
 
-		const dep = state("x");
+		const dep = node([], { initial: "x" });
 		const pn = promptNode<string>(adapter, [dep], "test", { systemPrompt: "be helpful" });
 		const unsub = pn.subscribe(() => {});
 		await tick();
@@ -2389,8 +2479,8 @@ describe("patterns.ai.promptNode", () => {
 			handler: () => null,
 		};
 
-		const dep = state("hello");
-		const toolsNode = state<readonly ToolDefinition[]>([toolA]);
+		const dep = node([], { initial: "hello" });
+		const toolsNode = node<readonly ToolDefinition[]>([], { initial: [toolA] });
 		const pn = promptNode<string>(adapter, [dep], "echo", {
 			format: "raw",
 			tools: toolsNode,

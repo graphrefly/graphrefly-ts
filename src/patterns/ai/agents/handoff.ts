@@ -1,6 +1,5 @@
 import { factoryTag } from "../../../core/meta.js";
-import type { Node } from "../../../core/node.js";
-import { derived, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { switchMap } from "../../../extra/operators.js";
 import { fromAny, type NodeInput } from "../../../extra/sources.js";
 
@@ -87,9 +86,9 @@ export function handoff<T>(
 	const cond = opts?.condition != null ? fromAny(opts.condition) : null;
 
 	// Shared `null` state — reused across null source emissions so repeated
-	// nulls don't allocate a fresh `state<T | null>(null)` per switchMap
-	// project call. Minor allocation-churn win when the source oscillates.
-	const nullState: Node<T | null> = state<T | null>(null, {
+	// nulls don't allocate a fresh node per switchMap project call.
+	const nullState: Node<T | null> = node<T | null>([], {
+		initial: null,
 		name: opts?.name ? `${opts.name}::null` : "handoff::null",
 	});
 
@@ -99,7 +98,7 @@ export function handoff<T>(
 			src,
 			(v) => {
 				if (v == null) return nullState as NodeInput<T | null>;
-				const input = state<T>(v);
+				const input = node<T>([], { initial: v });
 				return toFactory(input) as NodeInput<T | null>;
 			},
 			{ meta: factoryTag("handoff") },
@@ -110,17 +109,22 @@ export function handoff<T>(
 	// to either the specialist (when open) or a pass-through state (when
 	// closed). Each router emission may re-instantiate the specialist — the
 	// switchMap cancels the stale branch.
-	const router = derived<{ v: T | null; open: boolean }>(
+	const router = node<{ v: T | null; open: boolean }>(
 		[src, cond],
-		([v, open]) => ({ v: v as T | null, open: open === true }),
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({ v: data[0] as T | null, open: data[1] === true });
+		},
 		{ name: opts?.name ? `${opts.name}::router` : "handoff::router", describeKind: "derived" },
 	);
 	return switchMap<{ v: T | null; open: boolean }, T | null>(
 		router,
 		({ v, open }) => {
 			if (v == null) return nullState as NodeInput<T | null>;
-			if (!open) return state<T | null>(v) as NodeInput<T | null>;
-			const input = state<T>(v);
+			if (!open) return node<T | null>([], { initial: v }) as NodeInput<T | null>;
+			const input = node<T>([], { initial: v });
 			return toFactory(input) as NodeInput<T | null>;
 		},
 		{ meta: factoryTag("handoff") },

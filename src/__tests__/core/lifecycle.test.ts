@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA, DIRTY, INVALIDATE, type Messages, PAUSE } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
 
 describe("0.6 lifecycle: INVALIDATE", () => {
 	it("INVALIDATE marks a source node dirty and reaches subscribers", () => {
@@ -23,7 +22,16 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 
 	it("derived node forwards INVALIDATE from a dependency to its sinks", () => {
 		const src = node<number>({ initial: 0 });
-		const d = derived([src], ([v]) => (v as number) * 2);
+		const d = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived" },
+		);
 		const seen: symbol[] = [];
 		const unsub = d.subscribe((msgs) => {
 			for (const m of msgs) seen.push(m[0] as symbol);
@@ -81,8 +89,26 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 		// and the INVALIDATE was re-broadcast to D's children. The guard
 		// matches the TLA+ `CleanupWitnessNonTrivial` invariant's semantic.
 		const a = node<number>({ initial: 1 });
-		const b = derived([a], ([x]) => x as number);
-		const c = derived([a], ([x]) => (x as number) + 1);
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
+		const c = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 		let invalidates = 0;
 		const d = node<number>([b, c], (data, actions, _ctx) => {
 			// Compute + emit so `d._cached` is populated — the guard's input.
@@ -97,7 +123,16 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 		});
 		// Sink on D's own downstream to observe the INVALIDATE broadcast count
 		// reaching children.
-		const e = derived([d], ([x]) => x as number);
+		const e = node(
+			[d],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0] as number);
+			},
+			{ describeKind: "derived" },
+		);
 		const eSeen: symbol[] = [];
 		const unsubE = e.subscribe((msgs) => {
 			for (const [t] of msgs as Messages) eSeen.push(t);
@@ -294,7 +329,16 @@ describe("0.6 lifecycle: node.up fan-out", () => {
 	it("up() invokes each dependency's up with the same message batch", () => {
 		const a = node<number>({ initial: 0 });
 		const b = node<number>({ initial: 0 });
-		const d = derived([a, b], ([x, y]) => (x as number) + (y as number));
+		const d = node(
+			[a, b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 		d.subscribe(() => {});
 
 		const spyA = vi.spyOn(a, "up");
@@ -315,7 +359,16 @@ describe("0.6 lifecycle: node.up fan-out", () => {
 describe("0.6 two-phase ordering", () => {
 	it("derived subscriber sees DIRTY before DATA in dep push order", () => {
 		const src = node<number>({ initial: 0 });
-		const d = derived([src], ([v]) => (v as number) + 1);
+		const d = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived" },
+		);
 		const batches: symbol[][] = [];
 		const unsub = d.subscribe((msgs) => {
 			batches.push(msgs.map((m) => m[0] as symbol));

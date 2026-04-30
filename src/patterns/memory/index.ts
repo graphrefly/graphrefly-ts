@@ -27,8 +27,7 @@
  */
 
 import { monotonicNs, wallClockNs } from "../../core/clock.js";
-import { type Node, NodeImpl } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, NodeImpl, node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import {
 	type BaseAuditRecord,
@@ -62,7 +61,7 @@ function memoryMeta(kind: string, extra?: Record<string, unknown>): Record<strin
  */
 function toNode<T>(v: T | Node<T>, name?: string): Node<T> {
 	if (v instanceof NodeImpl) return v as Node<T>;
-	return state<T>(v as T, name ? { name } : undefined);
+	return node<T>([], { initial: v as T, ...(name ? { name } : undefined) });
 }
 
 function ageSeconds(now: number, lastNs: number): number {
@@ -368,12 +367,18 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		// status until ~`refreshIntervalMs` after first activation, and a
 		// caller reading `rankedNode.cache` immediately after `upsert` would
 		// see `undefined`.
-		refreshTick = derived([tickCounter], () => monotonicNs(), {
-			name: "refresh_tick_ns",
-			describeKind: "derived",
-			initial: monotonicNs(),
-			meta: memoryMeta("clock"),
-		});
+		refreshTick = node(
+			[tickCounter],
+			(_batchData, actions) => {
+				actions.emit(monotonicNs());
+			},
+			{
+				name: "refresh_tick_ns",
+				describeKind: "derived",
+				initial: monotonicNs(),
+				meta: memoryMeta("clock"),
+			},
+		);
 		graph.add(refreshTick, { name: "refresh_tick_ns" });
 	}
 
@@ -385,9 +390,12 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		const rankedDeps: Node<unknown>[] = [items.entries];
 		if (refreshTick) rankedDeps.push(refreshTick);
 		if (scoreNode) rankedDeps.push(scoreNode);
-		rankedNode = derived(
+		rankedNode = node(
 			rankedDeps,
-			(values) => {
+			(batchData, actions, ctx) => {
+				const values = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const snapshot = values[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
 				let now: number;
 				if (refreshTick) {
@@ -396,7 +404,10 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 				} else {
 					now = monotonicNs();
 				}
-				if (!snapshot || snapshot.size === 0) return [] as readonly RankedCollectionEntry<T>[];
+				if (!snapshot || snapshot.size === 0) {
+					actions.emit([] as readonly RankedCollectionEntry<T>[]);
+					return;
+				}
 				const out: RankedCollectionEntry<T>[] = [];
 				for (const entry of snapshot.values()) {
 					out.push({
@@ -405,7 +416,7 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 					});
 				}
 				out.sort((a, b) => b.score - a.score || b.lastAccessNs - a.lastAccessNs);
-				return out as readonly RankedCollectionEntry<T>[];
+				actions.emit(out as readonly RankedCollectionEntry<T>[]);
 			},
 			{
 				name: "ranked",
@@ -416,7 +427,8 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		) as Node<readonly RankedCollectionEntry<T>[]>;
 		graph.add(rankedNode, { name: "ranked" });
 	} else {
-		rankedNode = state<readonly RankedCollectionEntry<T>[]>([], {
+		rankedNode = node<readonly RankedCollectionEntry<T>[]>([], {
+			initial: [] as readonly RankedCollectionEntry<T>[],
 			name: "ranked",
 			describeKind: "state",
 			meta: memoryMeta("ranked_disabled"),
@@ -424,9 +436,15 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 		graph.add(rankedNode, { name: "ranked" });
 	}
 
-	const size = derived(
+	const size = node(
 		[items.entries],
-		([snapshot]) => ((snapshot ?? new Map()) as ReadonlyMap<string, CollectionEntry<T>>).size,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const snapshot = data[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
+			actions.emit(((snapshot ?? new Map()) as ReadonlyMap<string, CollectionEntry<T>>).size);
+		},
 		{
 			name: "size",
 			describeKind: "derived",
@@ -506,11 +524,15 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 
 	function itemNode(id: NodeOrValue<string>): Node<CollectionEntry<T> | undefined> {
 		const idN = toNode(id, "id");
-		return derived(
+		return node(
 			[items.entries, idN],
-			([snap, key]) => {
-				const map = snap as ReadonlyMap<string, CollectionEntry<T>> | undefined;
-				return map?.get(key as string);
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const map = data[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
+				const key = data[1] as string;
+				actions.emit(map?.get(key));
 			},
 			{
 				describeKind: "derived",
@@ -521,11 +543,15 @@ export function collection<T>(name: string, opts: CollectionOptions<T> = {}): Co
 
 	function hasNode(id: NodeOrValue<string>): Node<boolean> {
 		const idN = toNode(id, "id");
-		return derived(
+		return node(
 			[items.entries, idN],
-			([snap, key]) => {
-				const map = snap as ReadonlyMap<string, CollectionEntry<T>> | undefined;
-				return map?.has(key as string) ?? false;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const map = data[0] as ReadonlyMap<string, CollectionEntry<T>> | undefined;
+				const key = data[1] as string;
+				actions.emit(map?.has(key) ?? false);
 			},
 			{
 				describeKind: "derived",
@@ -843,9 +869,12 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 		k: NodeOrValue<number> = 5,
 	): Node<readonly VectorSearchResult<TMeta>[]> {
 		const kN = toNode<number>(k, "k");
-		return derived(
+		return node(
 			[entries.entries, query, kN],
-			(values) => {
+			(batchData, actions, ctx) => {
+				const values = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const snapshot = values[0] as ReadonlyMap<string, VectorRecord<TMeta>> | undefined;
 				const q = values[1] as readonly number[] | undefined;
 				const kRaw = values[2] as number;
@@ -854,7 +883,8 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 				// values > 2^31. Use a proper floor with a non-negative floor.
 				const kVal = Number.isFinite(kRaw) ? Math.max(0, Math.floor(kRaw)) : 0;
 				if (!snapshot || snapshot.size === 0 || kVal <= 0) {
-					return [] as readonly VectorSearchResult<TMeta>[];
+					actions.emit([] as readonly VectorSearchResult<TMeta>[]);
+					return;
 				}
 				// Auto-fix: defensive guard for unset / empty query — earlier
 				// the fn would TypeError on `q.length` reading `undefined`,
@@ -864,18 +894,21 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 				// used to throw; reactive deriveds shouldn't throw, so
 				// degrade to empty results).
 				if (q == null || q.length === 0) {
-					return [] as readonly VectorSearchResult<TMeta>[];
+					actions.emit([] as readonly VectorSearchResult<TMeta>[]);
+					return;
 				}
 				const expectedDim = dimension ?? (strictDimension ? inferredDimension : undefined);
 				if (expectedDim !== undefined && q.length !== expectedDim) {
-					return [] as readonly VectorSearchResult<TMeta>[];
+					actions.emit([] as readonly VectorSearchResult<TMeta>[]);
+					return;
 				}
 				if (backend === "hnsw") {
 					// Defensive copy of the adapter's return — HNSW libs
 					// sometimes hand back internal buffers; downstream
 					// subscribers must not be able to corrupt adapter state.
 					const adapterResults = hnsw!.search(q, kVal);
-					return [...adapterResults] as readonly VectorSearchResult<TMeta>[];
+					actions.emit([...adapterResults] as readonly VectorSearchResult<TMeta>[]);
+					return;
 				}
 				const ranked = [...snapshot.values()]
 					.map((row) => {
@@ -888,7 +921,7 @@ export function vectorIndex<TMeta>(opts: VectorIndexOptions<TMeta> = {}): Vector
 					})
 					.sort((a, b) => b.score - a.score)
 					.slice(0, kVal);
-				return ranked as readonly VectorSearchResult<TMeta>[];
+				actions.emit(ranked as readonly VectorSearchResult<TMeta>[]);
 			},
 			{
 				describeKind: "derived",
@@ -1072,13 +1105,15 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	graph.add(entitiesMap.entries, { name: "entities" });
 	graph.add(edgesMap.entries, { name: "edges" });
 
-	const adjacencyOut = derived(
+	const adjacencyOut = node(
 		[edgesMap.entries],
-		([snapshot]) =>
-			buildAdjacency<TRelation>(
-				snapshot as ReadonlyMap<string, KnowledgeEdge<TRelation>> | undefined,
-				"from",
-			),
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const snapshot = data[0] as ReadonlyMap<string, KnowledgeEdge<TRelation>> | undefined;
+			actions.emit(buildAdjacency<TRelation>(snapshot, "from"));
+		},
 		{
 			name: "adjacencyOut",
 			describeKind: "derived",
@@ -1087,13 +1122,15 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 			meta: memoryMeta("adjacency_out"),
 		},
 	) as Node<ReadonlyMap<string, readonly KnowledgeEdge<TRelation>[]>>;
-	const adjacencyIn = derived(
+	const adjacencyIn = node(
 		[edgesMap.entries],
-		([snapshot]) =>
-			buildAdjacency<TRelation>(
-				snapshot as ReadonlyMap<string, KnowledgeEdge<TRelation>> | undefined,
-				"to",
-			),
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const snapshot = data[0] as ReadonlyMap<string, KnowledgeEdge<TRelation>> | undefined;
+			actions.emit(buildAdjacency<TRelation>(snapshot, "to"));
+		},
 		{
 			name: "adjacencyIn",
 			describeKind: "derived",
@@ -1107,14 +1144,26 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 	graph.addDisposer(keepalive(adjacencyOut));
 	graph.addDisposer(keepalive(adjacencyIn));
 
-	const entityCount = derived(
+	const entityCount = node(
 		[entitiesMap.entries],
-		([m]) => ((m ?? new Map()) as ReadonlyMap<string, TEntity>).size,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const m = data[0] as ReadonlyMap<string, TEntity> | undefined;
+			actions.emit(((m ?? new Map()) as ReadonlyMap<string, TEntity>).size);
+		},
 		{ name: "entityCount", describeKind: "derived", initial: 0, meta: memoryMeta("entity_count") },
 	);
-	const edgeCount = derived(
+	const edgeCount = node(
 		[edgesMap.entries],
-		([m]) => ((m ?? new Map()) as ReadonlyMap<string, KnowledgeEdge<TRelation>>).size,
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const m = data[0] as ReadonlyMap<string, KnowledgeEdge<TRelation>> | undefined;
+			actions.emit(((m ?? new Map()) as ReadonlyMap<string, KnowledgeEdge<TRelation>>).size);
+		},
 		{ name: "edgeCount", describeKind: "derived", initial: 0, meta: memoryMeta("edge_count") },
 	);
 	graph.add(entityCount, { name: "entityCount" });
@@ -1273,15 +1322,18 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 		const deps: Node<unknown>[] = relN
 			? [adjacencyOut, adjacencyIn, idN, relN]
 			: [adjacencyOut, adjacencyIn, idN];
-		return derived(
+		return node(
 			deps,
-			(values) => {
+			(batchData, actions, ctx) => {
+				const values = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
 				const out = values[0] as ReadonlyMap<string, readonly KnowledgeEdge<TRelation>[]>;
 				const inb = values[1] as ReadonlyMap<string, readonly KnowledgeEdge<TRelation>[]>;
 				const key = values[2] as string;
 				const rel = relN ? (values[3] as TRelation | undefined) : undefined;
-				const outE = out.get(key) ?? [];
-				const inE = inb.get(key) ?? [];
+				const outE = out?.get(key) ?? [];
+				const inE = inb?.get(key) ?? [];
 				// Concatenate, then dedupe by triple key (a self-loop would appear in both).
 				const seen = new Set<string>();
 				const acc: KnowledgeEdge<TRelation>[] = [];
@@ -1299,7 +1351,7 @@ export function knowledgeGraph<TEntity, TRelation extends string = string>(
 					seen.add(k);
 					acc.push(edge);
 				}
-				return acc as readonly KnowledgeEdge<TRelation>[];
+				actions.emit(acc as readonly KnowledgeEdge<TRelation>[]);
 			},
 			{
 				describeKind: "derived",

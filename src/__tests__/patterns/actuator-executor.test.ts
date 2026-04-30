@@ -10,8 +10,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { COMPLETE, DATA } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { producer, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { fromAny } from "../../extra/sources.js";
 import {
 	actuatorExecutor,
@@ -170,10 +170,14 @@ describe("actuatorExecutor — contract guarantees", () => {
 		// into exactly one execution payload.
 		const exec = actuatorExecutor<string>({
 			apply() {
-				return producer<string>((actions) => {
-					actions.down([[DATA, "first"], [DATA, "second"], [DATA, "third"], [COMPLETE]]);
-					return () => {};
-				});
+				return node<string>(
+					[],
+					(_data, actions) => {
+						actions.down([[DATA, "first"], [DATA, "second"], [DATA, "third"], [COMPLETE]]);
+						return () => {};
+					},
+					{ describeKind: "producer" },
+				);
 			},
 		});
 		const seen: HarnessJobPayload<string>[] = [];
@@ -273,7 +277,7 @@ const REQUIRED = ["a", "b", "c"] as const;
 const DATASET: readonly DatasetItem[] = REQUIRED.map((kw) => ({ id: kw }));
 
 const presenceEvaluator: Evaluator<string> = (candidates, dataset) => {
-	const out = state<readonly EvalResult[]>([]);
+	const out = node<readonly EvalResult[]>([], { initial: [] });
 	let lastCands: readonly string[] = [];
 	let lastDs: readonly DatasetItem[] = [];
 	const recompute = (): void => {

@@ -10,7 +10,8 @@
 
 import { batch } from "../../core/batch.js";
 import { describeNode, resolveDescribeFields } from "../../core/meta.js";
-import { derived, effect, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { toMermaid } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
@@ -118,12 +119,15 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	const g = new Graph("demo-shell");
 
 	// ── Layout state ─────────────────────────────────────
-	const paneMainRatio = state(mainRatioInit, { name: "pane/main-ratio" });
-	const paneSideSplit = state(sideSplitInit, { name: "pane/side-split" });
-	const paneFullscreen = state<FullscreenPane>(null, {
-		name: "pane/fullscreen",
+	const paneMainRatio = node([], { ...{ name: "pane/main-ratio" }, initial: mainRatioInit });
+	const paneSideSplit = node([], { ...{ name: "pane/side-split" }, initial: sideSplitInit });
+	const paneFullscreen = node<FullscreenPane>([], {
+		...{
+			name: "pane/fullscreen",
+		},
+		initial: null,
 	});
-	const viewportWidth = state(viewportInit, { name: "viewport/width" });
+	const viewportWidth = node([], { ...{ name: "viewport/width" }, initial: viewportInit });
 
 	g.add(paneMainRatio, { name: "pane/main-ratio" });
 	g.add(paneSideSplit, { name: "pane/side-split" });
@@ -131,52 +135,67 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	g.add(viewportWidth, { name: "viewport/width" });
 
 	// ── Derived pane dimensions ──────────────────────────
-	const paneMainWidth = derived(
+	const paneMainWidth = node(
 		[paneMainRatio, viewportWidth, paneFullscreen],
-		([ratio, vw, fs]) => {
-			const r = ratio as number;
-			const w = vw as number;
-			const fullscreen = fs as FullscreenPane;
-			if (fullscreen === "main") return w;
-			if (fullscreen === "graph" || fullscreen === "code") return 0;
-			return Math.round(w * r);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const r = data[0] as number;
+			const w = data[1] as number;
+			const fullscreen = data[2] as FullscreenPane;
+			if (fullscreen === "main") actions.emit(w);
+			else if (fullscreen === "graph" || fullscreen === "code") actions.emit(0);
+			else actions.emit(Math.round(w * r));
 		},
-		{ name: "pane/main-width" },
+		{ describeKind: "derived", ...{ name: "pane/main-width" } },
 	);
 
-	const paneSideWidth = derived(
+	const paneSideWidth = node(
 		[paneMainWidth, viewportWidth, paneFullscreen],
-		([main, vw, fs]) => {
-			const fullscreen = fs as FullscreenPane;
-			const w = vw as number;
-			if (fullscreen === "main") return 0;
-			if (fullscreen === "graph" || fullscreen === "code") return w;
-			return (w as number) - (main as number);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const main = data[0] as number;
+			const w = data[1] as number;
+			const fullscreen = data[2] as FullscreenPane;
+			if (fullscreen === "main") actions.emit(0);
+			else if (fullscreen === "graph" || fullscreen === "code") actions.emit(w);
+			else actions.emit(w - main);
 		},
-		{ name: "pane/side-width" },
+		{ describeKind: "derived", ...{ name: "pane/side-width" } },
 	);
 
-	const paneGraphHeight = derived(
+	const paneGraphHeight = node(
 		[paneSideSplit, paneFullscreen],
-		([split, fs]) => {
-			const fullscreen = fs as FullscreenPane;
-			if (fullscreen === "graph") return 1;
-			if (fullscreen === "code") return 0;
-			if (fullscreen === "main") return 0;
-			return clamp01(split as number);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const split = data[0] as number;
+			const fullscreen = data[1] as FullscreenPane;
+			if (fullscreen === "graph") actions.emit(1);
+			else if (fullscreen === "code") actions.emit(0);
+			else if (fullscreen === "main") actions.emit(0);
+			else actions.emit(clamp01(split));
 		},
-		{ name: "pane/graph-height-ratio" },
+		{ describeKind: "derived", ...{ name: "pane/graph-height-ratio" } },
 	);
 
-	const paneCodeHeight = derived(
+	const paneCodeHeight = node(
 		[paneGraphHeight, paneFullscreen],
-		([graphH, fs]) => {
-			const fullscreen = fs as FullscreenPane;
-			if (fullscreen === "code") return 1;
-			if (fullscreen === "graph" || fullscreen === "main") return 0;
-			return 1 - (graphH as number);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const graphH = data[0] as number;
+			const fullscreen = data[1] as FullscreenPane;
+			if (fullscreen === "code") actions.emit(1);
+			else if (fullscreen === "graph" || fullscreen === "main") actions.emit(0);
+			else actions.emit(1 - graphH);
 		},
-		{ name: "pane/code-height-ratio" },
+		{ describeKind: "derived", ...{ name: "pane/code-height-ratio" } },
 	);
 
 	g.add(paneMainWidth, { name: "pane/main-width" });
@@ -185,72 +204,97 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 	g.add(paneCodeHeight, { name: "pane/code-height-ratio" });
 
 	// ── External graph observation ───────────────────────
-	const demoGraphRef = state<Graph | null>(null, {
-		name: "demo/graph-ref",
+	const demoGraphRef = node<Graph | null>([], {
+		...{
+			name: "demo/graph-ref",
+		},
+		initial: null,
 	});
-	const demoGraphTick = state(0, { name: "demo/graph-tick" });
+	const demoGraphTick = node([], { ...{ name: "demo/graph-tick" }, initial: 0 });
 
 	g.add(demoGraphRef, { name: "demo/graph-ref" });
 	g.add(demoGraphTick, { name: "demo/graph-tick" });
 
-	const graphMermaid = derived(
+	const graphMermaid = node(
 		[demoGraphRef, demoGraphTick],
-		([ref, _tick]) => {
-			const demo = ref as Graph | null;
-			if (!demo) return "";
-			return toMermaid(demo.describe());
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const demo = data[0] as Graph | null;
+			actions.emit(demo ? toMermaid(demo.describe()) : "");
 		},
-		{ name: "graph/mermaid" },
+		{ describeKind: "derived", ...{ name: "graph/mermaid" } },
 	);
 
-	const graphDescribe = derived(
+	const graphDescribe = node(
 		[demoGraphRef, demoGraphTick],
-		([ref, _tick]) => {
-			const demo = ref as Graph | null;
-			if (!demo) return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const demo = data[0] as Graph | null;
+			if (!demo) {
+				actions.emit(null);
+				return;
+			}
 			const { expand: _, ...snapshot } = demo.describe({ detail: "standard" });
-			return snapshot;
+			actions.emit(snapshot);
 		},
-		{ name: "graph/describe" },
+		{ describeKind: "derived", ...{ name: "graph/describe" } },
 	);
 
 	g.add(graphMermaid, { name: "graph/mermaid" });
 	g.add(graphDescribe, { name: "graph/describe" });
 
 	// ── Cross-highlighting ───────────────────────────────
-	const hoverTarget = state<HoverTarget>(null, { name: "hover/target" });
+	const hoverTarget = node<HoverTarget>([], { ...{ name: "hover/target" }, initial: null });
 	g.add(hoverTarget, { name: "hover/target" });
 
-	const highlightCodeScroll = derived(
+	const highlightCodeScroll = node(
 		[hoverTarget],
-		([target]) => {
-			const t = target as HoverTarget;
-			if (!t) return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const t = data[0] as HoverTarget;
+			if (!t) {
+				actions.emit(null);
+				return;
+			}
 			const entry = registry.get(t.id);
-			return entry ? entry.codeLine : null;
+			actions.emit(entry ? entry.codeLine : null);
 		},
-		{ name: "highlight/code-scroll" },
+		{ describeKind: "derived", ...{ name: "highlight/code-scroll" } },
 	);
 
-	const highlightVisual = derived(
+	const highlightVisual = node(
 		[hoverTarget],
-		([target]) => {
-			const t = target as HoverTarget;
-			if (!t) return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const t = data[0] as HoverTarget;
+			if (!t) {
+				actions.emit(null);
+				return;
+			}
 			const entry = registry.get(t.id);
-			return entry ? entry.visualSelector : null;
+			actions.emit(entry ? entry.visualSelector : null);
 		},
-		{ name: "highlight/visual" },
+		{ describeKind: "derived", ...{ name: "highlight/visual" } },
 	);
 
-	const highlightGraph = derived(
+	const highlightGraph = node(
 		[hoverTarget],
-		([target]) => {
-			const t = target as HoverTarget;
-			if (!t) return null;
-			return t.id;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const t = data[0] as HoverTarget;
+			actions.emit(t ? t.id : null);
 		},
-		{ name: "highlight/graph" },
+		{ describeKind: "derived", ...{ name: "highlight/graph" } },
 	);
 
 	g.add(highlightCodeScroll, { name: "highlight/code-scroll" });
@@ -263,92 +307,132 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 
 	if (onHighlight?.codeScroll) {
 		const cb = onHighlight.codeScroll;
-		const applyCodeScroll = effect([highlightCodeScroll], ([line]) => {
-			cb(line as number | null);
-		});
+		const applyCodeScroll = node(
+			[highlightCodeScroll],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				cb(data[0] as number | null);
+			},
+			{ describeKind: "effect" },
+		);
 		g.add(applyCodeScroll, { name: "highlight/apply-code-scroll" });
 	}
 
 	if (onHighlight?.visual) {
 		const cb = onHighlight.visual;
-		const applyVisual = effect([highlightVisual], ([selector]) => {
-			cb(selector as string | null);
-		});
+		const applyVisual = node(
+			[highlightVisual],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				cb(data[0] as string | null);
+			},
+			{ describeKind: "effect" },
+		);
 		g.add(applyVisual, { name: "highlight/apply-visual" });
 	}
 
 	if (onHighlight?.graph) {
 		const cb = onHighlight.graph;
-		const applyGraph = effect([highlightGraph], ([nodeId]) => {
-			cb(nodeId as string | null);
-		});
+		const applyGraph = node(
+			[highlightGraph],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				cb(data[0] as string | null);
+			},
+			{ describeKind: "effect" },
+		);
 		g.add(applyGraph, { name: "highlight/apply-graph" });
 	}
 
 	// ── Inspect panel ────────────────────────────────────
-	const inspectSelected = state<string | null>(null, {
-		name: "inspect/selected-node",
+	const inspectSelected = node<string | null>([], {
+		...{
+			name: "inspect/selected-node",
+		},
+		initial: null,
 	});
 	g.add(inspectSelected, { name: "inspect/selected-node" });
 
 	const standardFields = resolveDescribeFields("standard");
 
-	const inspectNodeDetail = derived(
+	const inspectNodeDetail = node(
 		[inspectSelected, demoGraphRef, demoGraphTick],
-		([path, ref, _tick]) => {
-			const demo = ref as Graph | null;
-			const p = path as string | null;
-			if (!demo || !p) return null;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const p = data[0] as string | null;
+			const demo = data[1] as Graph | null;
+			if (!demo || !p) {
+				actions.emit(null);
+				return;
+			}
 			try {
 				const nd = demo.resolve(p);
 				const nodeDesc = describeNode(nd, standardFields);
-				return { path: p, ...nodeDesc, value: nd.cache };
+				actions.emit({ path: p, ...nodeDesc, value: nd.cache });
 			} catch {
-				return null;
+				actions.emit(null);
 			}
 		},
-		{ name: "inspect/node-detail" },
+		{ describeKind: "derived", ...{ name: "inspect/node-detail" } },
 	);
 
-	const inspectTraceLog = derived(
+	const inspectTraceLog = node(
 		[demoGraphRef, demoGraphTick],
-		([ref, _tick]) => {
-			const demo = ref as Graph | null;
-			if (!demo) return [];
-			return demo.trace();
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const demo = data[0] as Graph | null;
+			actions.emit(demo ? demo.trace() : []);
 		},
-		{ name: "inspect/trace-log" },
+		{ describeKind: "derived", ...{ name: "inspect/trace-log" } },
 	);
 
 	g.add(inspectNodeDetail, { name: "inspect/node-detail" });
 	g.add(inspectTraceLog, { name: "inspect/trace-log" });
 
 	// ── Meta debug toggle ────────────────────────────────
-	const metaDebug = state(false, { name: "meta/debug" });
+	const metaDebug = node([], { ...{ name: "meta/debug" }, initial: false });
 	g.add(metaDebug, { name: "meta/debug" });
 
-	const metaShellMermaid = derived(
+	const metaShellMermaid = node(
 		[metaDebug, demoGraphTick],
-		([debug, _tick]) => {
-			if (!(debug as boolean)) return "";
-			return toMermaid(g.describe());
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data[0] as boolean) ? toMermaid(g.describe()) : "");
 		},
-		{ name: "meta/shell-mermaid" },
+		{ describeKind: "derived", ...{ name: "meta/shell-mermaid" } },
 	);
 	g.add(metaShellMermaid, { name: "meta/shell-mermaid" });
 
 	// ── Layout engine integration (optional, requires adapter) ──
-	const codeTextNode = state("", { name: "layout/code-text" });
+	const codeTextNode = node([], { ...{ name: "layout/code-text" }, initial: "" });
 	g.add(codeTextNode, { name: "layout/code-text" });
 
 	if (adapter) {
 		const measureCache = new Map<string, Map<string, number>>();
 
-		const graphLabels = derived(
+		const graphLabels = node(
 			[graphDescribe],
-			([desc]) => {
-				const d = desc as { nodes: Record<string, { type: string }> } | null;
-				if (!d) return new Map<string, GraphLabelSize>();
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const d = data[0] as { nodes: Record<string, { type: string }> } | null;
+				if (!d) {
+					actions.emit(new Map<string, GraphLabelSize>());
+					return;
+				}
 				const result = new Map<string, GraphLabelSize>();
 				for (const [name] of Object.entries(d.nodes)) {
 					const segments = analyzeAndMeasure(name, layoutFont, adapter, measureCache);
@@ -357,49 +441,66 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 					const height = lb.lineCount * 20; // line-height approximation
 					result.set(name, { width, height });
 				}
-				return result;
+				actions.emit(result);
 			},
 			{
-				name: "layout/graph-labels",
-				equals: (a, b) => {
-					if (a === b) return true;
-					const ma = a as Map<string, GraphLabelSize>;
-					const mb = b as Map<string, GraphLabelSize>;
-					if (ma.size !== mb.size) return false;
-					for (const [k, v] of ma) {
-						const bv = mb.get(k);
-						if (!bv || bv.width !== v.width || bv.height !== v.height) return false;
-					}
-					return true;
+				describeKind: "derived",
+				...{
+					name: "layout/graph-labels",
+					equals: (a, b) => {
+						if (a === b) return true;
+						const ma = a as Map<string, GraphLabelSize>;
+						const mb = b as Map<string, GraphLabelSize>;
+						if (ma.size !== mb.size) return false;
+						for (const [k, v] of ma) {
+							const bv = mb.get(k);
+							if (!bv || bv.width !== v.width || bv.height !== v.height) return false;
+						}
+						return true;
+					},
 				},
 			},
 		);
 
-		const codeLines = derived(
+		const codeLines = node(
 			[codeTextNode, paneSideWidth],
-			([text, sideW]) => {
-				const t = text as string;
-				if (!t) return { lineCount: 0, lines: [] };
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const t = data[0] as string;
+				if (!t) {
+					actions.emit({ lineCount: 0, lines: [] });
+					return;
+				}
 				const segments = analyzeAndMeasure(t, layoutFont, adapter, measureCache);
-				const maxW = (sideW as number) - 40; // side pane minus padding
-				return computeLineBreaks(segments, Math.max(100, maxW), adapter, layoutFont, measureCache);
+				const maxW = (data[1] as number) - 40; // side pane minus padding
+				actions.emit(
+					computeLineBreaks(segments, Math.max(100, maxW), adapter, layoutFont, measureCache),
+				);
 			},
-			{ name: "layout/code-lines" },
+			{ describeKind: "derived", name: "layout/code-lines" },
 		);
 
-		const sideWidthHint = derived(
+		const sideWidthHint = node(
 			[graphLabels],
-			([labels]) => {
-				const m = labels as Map<string, GraphLabelSize>;
-				if (m.size === 0) return 200; // minimum default
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const m = data[0] as Map<string, GraphLabelSize>;
+				if (m.size === 0) {
+					actions.emit(200);
+					return;
+				}
 				let maxW = 0;
 				for (const { width } of m.values()) {
 					if (width > maxW) maxW = width;
 				}
 				// widest label + padding (node box chrome + margin)
-				return Math.max(200, Math.round(maxW + 80));
+				actions.emit(Math.max(200, Math.round(maxW + 80)));
 			},
-			{ name: "layout/side-width-hint" },
+			{ describeKind: "derived", name: "layout/side-width-hint" },
 		);
 
 		g.add(graphLabels, { name: "layout/graph-labels" });

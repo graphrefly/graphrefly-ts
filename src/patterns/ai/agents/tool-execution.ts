@@ -21,8 +21,8 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { rescue, switchMap } from "../../../extra/operators.js";
 import { retry } from "../../../extra/resilience.js";
 import type { ToolCall } from "../adapters/core/types.js";
@@ -118,10 +118,16 @@ export function toolExecution(opts: ToolExecutionOptions): Node<readonly ToolRes
 		// "propagate" modes (the rescue handler builds a `ToolResult`
 		// shape; the success `derived` builds one directly). The join
 		// just forwards the per-call values — no shape coercion needed.
-		return derived(perCall, (values) => values as readonly ToolResult[], {
-			name: "toolExecution::batch",
-			equals: batchEquals,
-		});
+		return node(
+			perCall,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data as readonly ToolResult[]);
+			},
+			{ describeKind: "derived", name: "toolExecution::batch", equals: batchEquals },
+		);
 	});
 }
 
@@ -151,10 +157,20 @@ function executeOne(
 	const attempted: Node<unknown> = retry(() => tools.executeReactive(call.name, call.arguments), {
 		count: retryCount,
 	});
-	const onSuccess = derived<ToolResult>([attempted], ([val]) => ({
-		id: call.id,
-		content: typeof val === "string" ? val : JSON.stringify(val),
-	}));
+	const onSuccess = node<ToolResult>(
+		[attempted],
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const val = data[0];
+			actions.emit({
+				id: call.id,
+				content: typeof val === "string" ? val : JSON.stringify(val),
+			});
+		},
+		{ describeKind: "derived" },
+	);
 	if (onError === "propagate") return onSuccess;
 	return rescue(onSuccess, (err) => ({
 		id: call.id,

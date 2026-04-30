@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { monotonicNs } from "../../core/clock.js";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { contentGate, redactor } from "../../patterns/ai/index.js";
 import {
 	affectedTaskFilter,
@@ -117,20 +118,22 @@ describe("strategyModel", () => {
 
 describe("priorityScore", () => {
 	it("computes score from severity and decay", () => {
-		const item = state<TriagedItem>({
-			source: "eval",
-			summary: "test",
-			evidence: "test",
-			affectsAreas: [],
-			rootCause: "composition",
-			intervention: "template",
-			route: "auto-fix",
-			priority: 50,
-			severity: "high",
+		const item = node<TriagedItem>([], {
+			initial: {
+				source: "eval",
+				summary: "test",
+				evidence: "test",
+				affectsAreas: [],
+				rootCause: "composition",
+				intervention: "template",
+				route: "auto-fix",
+				priority: 50,
+				severity: "high",
+			},
 		});
 
 		const sm = strategyModel();
-		const lastInteraction = state<number>(monotonicNs()); // recent
+		const lastInteraction = node<number>([], { initial: monotonicNs() }); // recent
 
 		const score = priorityScore(item, sm.node, lastInteraction);
 		score.subscribe(() => undefined); // activate
@@ -141,20 +144,22 @@ describe("priorityScore", () => {
 	});
 
 	it("boosts score when strategy model shows high effectiveness", () => {
-		const item = state<TriagedItem>({
-			source: "eval",
-			summary: "test",
-			evidence: "test",
-			affectsAreas: [],
-			rootCause: "composition",
-			intervention: "template",
-			route: "auto-fix",
-			priority: 50,
-			severity: "medium",
+		const item = node<TriagedItem>([], {
+			initial: {
+				source: "eval",
+				summary: "test",
+				evidence: "test",
+				affectsAreas: [],
+				rootCause: "composition",
+				intervention: "template",
+				route: "auto-fix",
+				priority: 50,
+				severity: "medium",
+			},
 		});
 
 		const sm = strategyModel();
-		const lastInteraction = state<number>(monotonicNs());
+		const lastInteraction = node<number>([], { initial: monotonicNs() });
 
 		// Without strategy data
 		const scoreWithout = priorityScore(item, sm.node, lastInteraction);
@@ -181,7 +186,7 @@ describe("priorityScore", () => {
 describe("evalIntakeBridge", () => {
 	it("publishes per-criterion findings for failing judge scores", () => {
 		// Start with null — bridge fires on value change, not initial
-		const evalResults = state<EvalRunResult | null>(null);
+		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -226,7 +231,7 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("handles task-level invalidity without judge scores", () => {
-		const evalResults = state<EvalRunResult | null>(null);
+		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-2");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -255,7 +260,7 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("skips fully passing tasks", () => {
-		const evalResults = state<EvalRunResult | null>(null);
+		const evalResults = node<EvalRunResult | null>([], { initial: null });
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-3");
 		const bridgeNode = evalIntakeBridge(evalResults as any, intake);
@@ -742,7 +747,7 @@ describe("harnessLoop e2e", () => {
 		const harness = harnessLoop("e2e-bridge", { adapter });
 
 		// Wire the bridge
-		const evalSource = state<EvalRunResult | null>(null);
+		const evalSource = node<EvalRunResult | null>([], { initial: null });
 		const bridgeNode = evalIntakeBridge(evalSource as any, harness.intake);
 		bridgeNode.subscribe(() => undefined);
 
@@ -1646,7 +1651,7 @@ describe("evalSource", () => {
 	it("fires runner on trigger and emits the result reactively", async () => {
 		// Use state so trigger has an initial value on subscribe, then update it.
 		// evalSource fires runner for every trigger DATA — including the initial one.
-		const trigger = state("run-a");
+		const trigger = node([], { initial: "run-a" });
 		const runner = (id: string) =>
 			Promise.resolve({ run_id: id, model: "test", tasks: [] as EvalRunResult["tasks"] });
 
@@ -1669,7 +1674,7 @@ describe("evalSource", () => {
 
 	it("emits the result for each trigger — last-write wins via switchMap", async () => {
 		// Each trigger value determines the run_id so we can track which run resolved.
-		const trigger = state<string | null>(null);
+		const trigger = node<string | null>([], { initial: null });
 		const runner = () => {
 			const id = trigger.cache;
 			// Slow promise so earlier runs haven't resolved yet when a new trigger fires.
@@ -1724,18 +1729,18 @@ describe("beforeAfterCompare", () => {
 	});
 
 	it("identifies new failures and resolved tasks", () => {
-		const before = state(
-			makeResult("b", [
+		const before = node([], {
+			initial: makeResult("b", [
 				{ id: "t1", valid: true },
 				{ id: "t2", valid: false },
 			]),
-		);
-		const after = state(
-			makeResult("a", [
+		});
+		const after = node([], {
+			initial: makeResult("a", [
 				{ id: "t1", valid: false },
 				{ id: "t2", valid: true },
 			]),
-		);
+		});
 
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
@@ -1749,20 +1754,20 @@ describe("beforeAfterCompare", () => {
 	});
 
 	it("overall improved when more resolved than failures", () => {
-		const before = state(
-			makeResult("b", [
+		const before = node([], {
+			initial: makeResult("b", [
 				{ id: "t1", valid: false },
 				{ id: "t2", valid: false },
 				{ id: "t3", valid: true },
 			]),
-		);
-		const after = state(
-			makeResult("a", [
+		});
+		const after = node([], {
+			initial: makeResult("a", [
 				{ id: "t1", valid: true },
 				{ id: "t2", valid: true },
 				{ id: "t3", valid: false },
 			]),
-		);
+		});
 
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
@@ -1776,8 +1781,12 @@ describe("beforeAfterCompare", () => {
 	});
 
 	it("computes scoreDiff when judge_scores present", () => {
-		const before = state(makeResult("b", [{ id: "t1", valid: true, passes: 2, total: 4 }]));
-		const after = state(makeResult("a", [{ id: "t1", valid: true, passes: 3, total: 4 }]));
+		const before = node([], {
+			initial: makeResult("b", [{ id: "t1", valid: true, passes: 2, total: 4 }]),
+		});
+		const after = node([], {
+			initial: makeResult("a", [{ id: "t1", valid: true, passes: 3, total: 4 }]),
+		});
 
 		const delta = beforeAfterCompare(before, after);
 		const unsub = delta.subscribe(() => {});
@@ -1808,7 +1817,9 @@ describe("affectedTaskFilter", () => {
 	}
 
 	it("collects affected task IDs from triaged items", () => {
-		const issuesNode = state<readonly TriagedItem[]>([mkTI(["T1", "T2"]), mkTI(["T2", "T3"])]);
+		const issuesNode = node<readonly TriagedItem[]>([], {
+			initial: [mkTI(["T1", "T2"]), mkTI(["T2", "T3"])],
+		});
 		const filtered = affectedTaskFilter(issuesNode);
 		const unsub = filtered.subscribe(() => {});
 
@@ -1817,7 +1828,7 @@ describe("affectedTaskFilter", () => {
 	});
 
 	it("intersects with fullTaskSet when provided", () => {
-		const issuesNode = state<readonly TriagedItem[]>([mkTI(["T1", "T2", "T3"])]);
+		const issuesNode = node<readonly TriagedItem[]>([], { initial: [mkTI(["T1", "T2", "T3"])] });
 		const filtered = affectedTaskFilter(issuesNode, ["T1", "T3", "T5"] as readonly string[]);
 		const unsub = filtered.subscribe(() => {});
 
@@ -1832,7 +1843,7 @@ describe("affectedTaskFilter", () => {
 
 describe("codeChangeBridge", () => {
 	it("publishes IntakeItems for lint errors and test failures", () => {
-		const source = state<CodeChange | null>(null);
+		const source = node<CodeChange | null>([], { initial: null });
 		const intakeTopic = topic<IntakeItem>("intake");
 
 		const published: IntakeItem[] = [];
@@ -1910,7 +1921,7 @@ describe("notifyEffect", () => {
 
 describe("redactor", () => {
 	it("replaces matched patterns with [REDACTED]", () => {
-		const text = state<string>("");
+		const text = node<string>([], { initial: "" });
 		const sanitized = redactor(text, [/\d{3}-\d{2}-\d{4}/g]); // SSN pattern
 		const results: string[] = [];
 		const unsub = sanitized.subscribe((msgs) => {
@@ -1926,7 +1937,7 @@ describe("redactor", () => {
 	});
 
 	it("uses custom replaceFn when provided", () => {
-		const text = state<string>("");
+		const text = node<string>([], { initial: "" });
 		const sanitized = redactor(text, [/secret/gi], () => "***");
 		const results: string[] = [];
 		const unsub = sanitized.subscribe((msgs) => {
@@ -1948,7 +1959,7 @@ describe("redactor", () => {
 
 describe("contentGate", () => {
 	it("returns allow when score is below threshold", () => {
-		const text = state<string>("");
+		const text = node<string>([], { initial: "" });
 		const gate = contentGate(text, (t) => t.length / 100, 0.5); // low threshold
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
@@ -1963,7 +1974,7 @@ describe("contentGate", () => {
 	});
 
 	it("returns review when score is in [threshold, hard)", () => {
-		const text = state<string>("");
+		const text = node<string>([], { initial: "" });
 		// hardMultiplier default 1.5 → hard = 0.5 × 1.5 = 0.75
 		const gate = contentGate(text, () => 0.6, 0.5);
 		const decisions: string[] = [];
@@ -1979,7 +1990,7 @@ describe("contentGate", () => {
 	});
 
 	it("returns block when score exceeds hard threshold", () => {
-		const text = state<string>("");
+		const text = node<string>([], { initial: "" });
 		const gate = contentGate(text, () => 0.9, 0.5); // 0.9 ≥ 0.75
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {
@@ -1994,8 +2005,8 @@ describe("contentGate", () => {
 	});
 
 	it("accepts a Node<number> classifier", () => {
-		const text = state<string>("");
-		const score = state(0.8);
+		const text = node<string>([], { initial: "" });
+		const score = node([], { initial: 0.8 });
 		const gate = contentGate(text, score, 0.5); // 0.8 ≥ 0.75 → block
 		const decisions: string[] = [];
 		const unsub = gate.subscribe((msgs) => {

@@ -12,12 +12,12 @@
  *
  * ```
  * Graph("reactive-flow-layout")
- * ├── state("text")
- * ├── state("font")
- * ├── state("line-height")
- * ├── state("container")           — { width, height, paddingX, paddingY }
- * ├── state("columns")             — { count, gap }
- * ├── state("obstacles")           — Obstacle[] (moves reactively — rAF-friendly)
+ * ├── node([], { initial: "text" })
+ * ├── node([], { initial: "font" })
+ * ├── node([], { initial: "line-height" })
+ * ├── node([], { initial: "container" })           — { width, height, paddingX, paddingY }
+ * ├── node([], { initial: "columns" })             — { count, gap }
+ * ├── node([], { initial: "obstacles" })           — Obstacle[] (moves reactively — rAF-friendly)
  * ├── derived("segments")          — text + font → PreparedSegment[]  (from reactiveLayout)
  * ├── derived("flow-lines")        — segments + container + columns + obstacles + line-height
  * │                                  → PositionedLine[]
@@ -29,9 +29,8 @@
  * reactive source like `fromRaf()` piped into a state node.
  */
 import { monotonicNs } from "../../core/clock.js";
-import type { Node } from "../../core/node.js";
-import { node } from "../../core/node.js";
-import { derived, state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { emitToMeta } from "../_internal/index.js";
 import {
@@ -356,25 +355,27 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 
 	const measureCache = new Map<string, Map<string, number>>();
 
-	const textNode = state<string>(opts.text ?? "", { name: "text" });
-	const fontNode = state<string>(opts.font ?? "16px sans-serif", { name: "font" });
-	const lineHeightNode = state<number>(opts.lineHeight ?? 20, { name: "line-height" });
-	const containerNode = state<FlowContainer>(
-		opts.container ?? { width: 800, height: 600, paddingX: 0, paddingY: 0 },
-		{ name: "container" },
-	);
-	const columnsNode = state<FlowColumns>(opts.columns ?? { count: 1, gap: 0 }, {
-		name: "columns",
+	const textNode = node<string>([], { name: "text", initial: opts.text ?? "" });
+	const fontNode = node<string>([], { name: "font", initial: opts.font ?? "16px sans-serif" });
+	const lineHeightNode = node<number>([], { name: "line-height", initial: opts.lineHeight ?? 20 });
+	const containerNode = node<FlowContainer>([], {
+		name: "container",
+		initial: opts.container ?? { width: 800, height: 600, paddingX: 0, paddingY: 0 },
 	});
-	const obstaclesNode = state<Obstacle[]>(opts.obstacles ?? [], { name: "obstacles" });
+	const columnsNode = node<FlowColumns>([], {
+		name: "columns",
+		initial: opts.columns ?? { count: 1, gap: 0 },
+	});
+	const obstaclesNode = node<Obstacle[]>([], { name: "obstacles", initial: opts.obstacles ?? [] });
 	// `paragraphSpacing` is reactive with a "track lineHeight" default. The
 	// state node holds `number | null` — when `null`, `flow-lines` substitutes
 	// the CURRENT `lineHeight` value, so the default stays truly reactive
 	// as lineHeight updates. A caller who wants a fixed independent gap sets
 	// an explicit number via the constructor or `setParagraphSpacing`; passing
 	// `null` back restores the track-lineHeight behavior.
-	const paragraphSpacingNode = state<number | null>(opts.paragraphSpacing ?? null, {
+	const paragraphSpacingNode = node<number | null>([], {
 		name: "paragraph-spacing",
+		initial: opts.paragraphSpacing ?? null,
 	});
 
 	const segmentsNode: Node<PreparedSegment[]> = node<PreparedSegment[]>(
@@ -398,21 +399,24 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		{ name: "segments", describeKind: "derived" },
 	);
 
-	const flowLinesNode = derived<PositionedLine[]>(
+	const flowLinesNode = node<PositionedLine[]>(
 		[segmentsNode, containerNode, columnsNode, obstaclesNode, lineHeightNode, paragraphSpacingNode],
-		([segs, cont, cols, obs, lh, ps]) => {
-			const segments = segs as PreparedSegment[];
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const segments = data[0] as PreparedSegment[];
 			const t0 = monotonicNs();
 			// `ps === null` → track current lineHeight. Any explicit number
 			// (0, 60, …) overrides; passing `null` via `setParagraphSpacing`
 			// restores tracking.
-			const effectiveSpacing = (ps as number | null) ?? (lh as number);
+			const effectiveSpacing = (data[5] as number | null) ?? (data[4] as number);
 			const { lines: result, cursor } = computeFlowLines(
 				segments,
-				cont as FlowContainer,
-				cols as FlowColumns,
-				obs as Obstacle[],
-				lh as number,
+				data[1] as FlowContainer,
+				data[2] as FlowColumns,
+				data[3] as Obstacle[],
+				data[4] as number,
 				minSlotWidth,
 				{ paragraphSpacing: effectiveSpacing },
 			);
@@ -428,9 +432,10 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 				emitToMeta(meta["layout-time-ns"], elapsed);
 				emitToMeta(meta["overflow-segments"], overflow);
 			}
-			return result;
+			actions.emit(result);
 		},
 		{
+			describeKind: "derived",
 			name: "flow-lines",
 			meta: {
 				"line-count": 0,

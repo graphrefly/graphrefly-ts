@@ -7,7 +7,7 @@ import {
 } from "../../compat/nestjs/gateway.js";
 import { COMPLETE, DATA, type Messages, PAUSE, RESUME } from "../../core/messages.js";
 import { node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+
 import { createWatermarkController } from "../../extra/backpressure.js";
 import { Graph } from "../../graph/graph.js";
 
@@ -152,7 +152,7 @@ describe("WatermarkController", () => {
 
 describe("GraphObserveOne.up()", () => {
 	it("propagates PAUSE upstream through observed node", () => {
-		const s = state(0);
+		const s = node([], { initial: 0 });
 		const g = new Graph("bp-up");
 		g.add(s, { name: "s" });
 
@@ -174,8 +174,8 @@ describe("GraphObserveOne.up()", () => {
 	});
 
 	it("graph-wide observe.up() targets specific path", () => {
-		const a = state(0);
-		const b = state(0);
+		const a = node([], { initial: 0 });
+		const b = node([], { initial: 0 });
 		const g = new Graph("bp-up-all");
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
@@ -265,7 +265,7 @@ describe("observeSubscription — backpressure", () => {
 	});
 
 	it("dispose sends RESUME on iterator return", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sub-bp-dispose");
 		g.add(s, { name: "n" });
 
@@ -332,7 +332,7 @@ describe("ObserveGateway — backpressure", () => {
 	});
 
 	it("disconnect disposes watermark controllers", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-bp-dc");
 		g.add(s, { name: "n" });
 
@@ -360,7 +360,7 @@ describe("ObserveGateway — backpressure", () => {
 	});
 
 	it("no backpressure when watermarks not configured", () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("gw-no-bp");
 		g.add(s, { name: "n" });
 
@@ -394,7 +394,7 @@ describe("ObserveGateway — backpressure", () => {
 
 describe("observeSSE — backpressure", () => {
 	it("buffers and drains via pull when watermarks set", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-bp");
 		g.add(s, { name: "n" });
 
@@ -436,7 +436,7 @@ describe("observeSSE — backpressure", () => {
 	});
 
 	it("works without backpressure (default)", async () => {
-		const s = state<number>(0);
+		const s = node<number>([], { initial: 0 });
 		const g = new Graph("sse-no-bp");
 		g.add(s, { name: "n" });
 

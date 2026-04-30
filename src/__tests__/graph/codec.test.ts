@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GraphReFlyConfig, registerBuiltins } from "../../core/config.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import {
 	decodeEnvelope,
 	diffForWAL,
@@ -32,7 +33,7 @@ describe("GraphCodec — JsonCodec", () => {
 
 	it("round-trips a graph snapshot", () => {
 		const g = new Graph("g");
-		g.add(state(42), { name: "a" });
+		g.add(node([], { initial: 42 }), { name: "a" });
 		const snap = g.snapshot();
 		const bytes = JsonCodec.encode(snap);
 		const decoded = JsonCodec.decode(bytes);
@@ -206,7 +207,7 @@ describe("config codec registry", () => {
 describe("Graph.snapshot({format}) overloads", () => {
 	it("no arg → GraphPersistSnapshot object", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const snap = g.snapshot();
 		expect(typeof snap).toBe("object");
 		expect(snap.name).toBe("g");
@@ -214,7 +215,7 @@ describe("Graph.snapshot({format}) overloads", () => {
 
 	it('{format: "json-string"} → deterministic JSON string', () => {
 		const g = new Graph("g");
-		g.add(state(7), { name: "a" });
+		g.add(node([], { initial: 7 }), { name: "a" });
 		const str = g.snapshot({ format: "json-string" });
 		expect(typeof str).toBe("string");
 		const reparsed = JSON.parse(str);
@@ -224,7 +225,7 @@ describe("Graph.snapshot({format}) overloads", () => {
 
 	it('{format: "bytes", codec: "json"} → Uint8Array with envelope', () => {
 		const g = new Graph("g");
-		g.add(state(42), { name: "a" });
+		g.add(node([], { initial: 42 }), { name: "a" });
 		const bytes = g.snapshot({ format: "bytes", codec: "json" });
 		expect(bytes).toBeInstanceOf(Uint8Array);
 		// Envelope header + "json" + 2 bytes of codec_v = at least 8 bytes
@@ -251,7 +252,7 @@ describe("Graph.snapshot({format}) overloads", () => {
 describe("Graph.decode(bytes)", () => {
 	it("round-trips snapshot bytes via defaultConfig", () => {
 		const g = new Graph("g");
-		g.add(state(99), { name: "a" });
+		g.add(node([], { initial: 99 }), { name: "a" });
 		const bytes = g.snapshot({ format: "bytes", codec: "json" });
 		const snap = Graph.decode(bytes);
 		expect(snap.name).toBe("g");
@@ -262,7 +263,7 @@ describe("Graph.decode(bytes)", () => {
 		const cfg = freshConfig();
 		registerBuiltinCodecs(cfg);
 		const g = new Graph("g", { config: cfg });
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const bytes = g.snapshot({ format: "bytes", codec: "json" });
 		const snap = Graph.decode(bytes, { config: cfg });
 		expect(snap.name).toBe("g");
@@ -278,7 +279,7 @@ describe("Graph.decode(bytes)", () => {
 describe("replayWAL (unaffected by codec changes)", () => {
 	it("replays full+diff chain", () => {
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const first = g.snapshot();
 		g.set("a", 2);
 		const second = g.snapshot();
@@ -306,9 +307,9 @@ describe("replayWAL (unaffected by codec changes)", () => {
 		// Regression guard for D3: diffs must carry full slices for added
 		// nodes, otherwise replay between compacts loses topology.
 		const g = new Graph("g");
-		g.add(state(1), { name: "a" });
+		g.add(node([], { initial: 1 }), { name: "a" });
 		const first = g.snapshot();
-		g.add(state(42), { name: "b" });
+		g.add(node([], { initial: 42 }), { name: "b" });
 		const second = g.snapshot();
 		const entries: WALEntry[] = [
 			{ mode: "full", snapshot: first, seq: 1, timestamp_ns: 100, format_version: 1 },

@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { validateGraphObservability } from "../../graph/validate-observability.js";
 
 describe("validateGraphObservability (D4)", () => {
 	it("passes a clean graph with registered paths and reachable pairs", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateGraphObservability(g, {
@@ -22,7 +32,7 @@ describe("validateGraphObservability (D4)", () => {
 
 	it("reports an observe failure on a non-existent path", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const r = validateGraphObservability(g, { paths: ["missing"] });
 		expect(r.ok).toBe(false);
 		const obs = r.failures.find((c) => c.kind === "observe");
@@ -32,8 +42,8 @@ describe("validateGraphObservability (D4)", () => {
 
 	it("reports an explain failure when requireFound is true and no path exists", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = state(2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node([], { name: "b", initial: 2 });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateGraphObservability(g, { pairs: [["a", "b"]] });
@@ -43,8 +53,8 @@ describe("validateGraphObservability (D4)", () => {
 
 	it("requireFound: false keeps no-path pairs as passing", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
-		g.add(state(2, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 2 }), { name: "b" });
 		const r = validateGraphObservability(g, {
 			pairs: [["a", "b"]],
 			requireFound: false,
@@ -54,8 +64,17 @@ describe("validateGraphObservability (D4)", () => {
 
 	it("D1 formats: exercises each requested describe format and reports render length", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateGraphObservability(g, {

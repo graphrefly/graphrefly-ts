@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { InspectGraph, inspect } from "../../patterns/inspect/index.js";
 
 describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => {
 	it("returns an InspectGraph subclass", () => {
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		expect(view).toBeInstanceOf(InspectGraph);
 		expect(view).toBeInstanceOf(Graph);
@@ -16,7 +17,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("exposes lens nodes via `view.lens.*` (lens lives in a `lens::*` mounted subgraph)", () => {
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		const desc = view.describe({ detail: "minimal" });
 		// D1 (qa lock): lens lives under a child mount, so lens paths are
@@ -32,7 +33,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("exposes target reference + lens view + audit subgraph", () => {
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		expect(view.target).toBe(target);
 		expect(view.audit).toBeDefined();
@@ -41,8 +42,17 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("explainTarget delegates to target.explain (static form)", () => {
 		const target = new Graph("target");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		target.add(a, { name: "a" });
 		target.add(b, { name: "b" });
 
@@ -55,8 +65,17 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("explainTarget reactive form returns {node, dispose} that tears down cleanly (A4 qa)", () => {
 		const target = new Graph("target");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		target.add(a, { name: "a" });
 		target.add(b, { name: "b" });
 
@@ -74,7 +93,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("complianceSnapshot pairs the target's persisted state with the audit log", () => {
 		const target = new Graph("target");
-		target.add(state(42, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 42 }), { name: "a" });
 		const view = inspect(target, { actor: { id: "ops", role: "auditor" } });
 		const snap = view.complianceSnapshot();
 		expect(snap.format_version).toBe(1);
@@ -87,7 +106,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("mounts the auditTrail subgraph under `audit::*`", () => {
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		const desc = view.describe({ detail: "minimal" });
 		// Mounted child paths appear with the mount prefix.
@@ -98,7 +117,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 
 	it("self-tags via tagFactory (A1 qa) — `describe().factory === 'inspect'`", () => {
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		const desc = view.describe({ detail: "spec" });
 		expect(desc.factory).toBe("inspect");
@@ -111,7 +130,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 		// describe snapshot. `inspect.lens.topology` is `Node<GraphDescribeOutput>`
 		// (the wrapped target's describe). They MUST be different objects.
 		const target = new Graph("target");
-		target.add(state(1, { name: "a" }), { name: "a" });
+		target.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const view = inspect(target);
 		expect(view.topology).not.toBe(view.lens.topology);
 		view.destroy();
@@ -124,7 +143,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 		// inspect graph's own `_nodes`. The lens nodes themselves are NOT
 		// directly registered under inspect's path table.
 		const target = new Graph("target");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		target.add(a, { name: "a" });
 		const view = inspect(target);
 
@@ -144,7 +163,7 @@ describe("inspect() preset (Tier 9.1 γ-form γ-II + Q5-6 medium scope)", () => 
 		// Confirms the lens always observes the target graph, NEVER the
 		// inspect wrapper itself.
 		const target = new Graph("target");
-		const a = state(1, { name: "a" });
+		const a = node([], { name: "a", initial: 1 });
 		target.add(a, { name: "a" });
 		const view = inspect(target);
 

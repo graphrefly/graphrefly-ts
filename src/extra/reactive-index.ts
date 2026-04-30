@@ -10,8 +10,7 @@
  */
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 import type { VersioningLevel } from "../core/versioning.js";
 
 export type IndexRow<K, V = unknown> = {
@@ -389,20 +388,23 @@ export function reactiveIndex<K, V = unknown>(
 		return { ...opts, equals: defaultEquals };
 	}
 
-	const ordered = state<readonly IndexRow<K, V>[]>([], {
+	const ordered = node<readonly IndexRow<K, V>[]>([], {
+		initial: [],
 		name,
 		describeKind: "state",
 		equals: (a, b) => a === b,
 		...(versioning != null ? { versioning } : {}),
 	});
 
-	const byPrimary = derived(
+	const byPrimary = node<ReadonlyMap<K, V>>(
 		[ordered],
-		([s]) => {
+		(batchData, actions, ctx) => {
+			const batch0 = batchData[0];
+			const s = batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0];
 			const rows = s as readonly IndexRow<K, V>[];
 			const m = new Map<K, V>();
 			for (const r of rows) m.set(r.primary, r.value);
-			return m;
+			actions.emit(m);
 		},
 		{ initial: backend.toPrimaryMap(), describeKind: "derived" },
 	);

@@ -21,7 +21,7 @@
  * @module
  */
 
-import { derived } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
 import { filter } from "../../extra/operators.js";
 import type { JobEnvelope } from "../job-queue/index.js";
 import {
@@ -129,25 +129,31 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 		});
 		// Terminal-allowlist guard — emit non-null only on `converged` / `budget` /
 		// `errored`; intermediate `running` waves emit `null` (deduped via the
-		// derived's default Object.is). The trailing `filter(v != null)` strips
+		// node's default Object.is). The trailing `filter(v != null)` strips
 		// the null DATA so the JobFlow pump's first-DATA capture sees the
 		// terminal payload, not the intermediate null.
-		const raw = derived<HarnessJobPayload<T> | null>(
+		const raw = node<HarnessJobPayload<T> | null>(
 			[loop.status, loop.best, loop.score],
-			([status, best, score]) => {
-				const s = status as RefineStatus;
-				if (s !== "converged" && s !== "budget" && s !== "errored") return null;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const s = data[0] as RefineStatus;
+				if (s !== "converged" && s !== "budget" && s !== "errored") {
+					actions.emit(null);
+					return;
+				}
 				const exec = toOutput({
-					best: best as T | null,
-					score: score as number,
+					best: data[1] as T | null,
+					score: data[2] as number,
 					status: s,
 				});
-				return {
+				actions.emit({
 					...job.payload,
 					execution: { item, ...exec },
-				};
+				});
 			},
-			{ name: `${name}/output` },
+			{ name: `${name}/output`, describeKind: "derived" },
 		);
 		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as ReturnType<
 			HarnessExecutor<T>

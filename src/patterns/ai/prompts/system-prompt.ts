@@ -4,8 +4,8 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived, state } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
+
 import { fromAny, keepalive, type NodeInput } from "../../../extra/sources.js";
 import { aiMeta } from "../_internal.js";
 
@@ -20,10 +20,17 @@ export function systemPromptBuilder(
 	opts?: { separator?: string; name?: string },
 ): SystemPromptHandle {
 	const separator = opts?.separator ?? "\n\n";
-	const sectionNodes = sections.map((s) => (typeof s === "string" ? state(s) : fromAny(s)));
-	const prompt = derived(
+	const sectionNodes = sections.map((s) =>
+		typeof s === "string" ? node([], { initial: s }) : fromAny(s),
+	);
+	const prompt = node(
 		sectionNodes,
-		(values) => (values as string[]).filter((v) => v != null && v !== "").join(separator),
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit((data as string[]).filter((v) => v != null && v !== "").join(separator));
+		},
 		{
 			name: opts?.name ?? "systemPrompt",
 			describeKind: "derived",

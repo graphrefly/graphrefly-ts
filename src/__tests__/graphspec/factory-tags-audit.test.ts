@@ -12,14 +12,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/index.js";
 import { policyGate } from "../../patterns/inspect/audit.js";
 
 describe("Tier 1.5.3 Phase 2.5 — factory tags (audit)", () => {
 	it("policyGate tags the PolicyGateGraph with factory='policyGate' and factoryArgs", () => {
 		const target = new Graph("target");
-		target.add(state(0, { name: "x" }), { name: "x" });
+		target.add(node([], { name: "x", initial: 0 }), { name: "x" });
 
 		const gate = policyGate(target, [{ effect: "allow", action: "write" }], {
 			mode: "audit",
@@ -38,7 +39,7 @@ describe("Tier 1.5.3 Phase 2.5 — factory tags (audit)", () => {
 
 	it("policyGate tags with default opts — factoryArgs is the empty placeholder object", () => {
 		const target = new Graph("target");
-		target.add(state(0, { name: "x" }), { name: "x" });
+		target.add(node([], { name: "x", initial: 0 }), { name: "x" });
 
 		const gate = policyGate(target, []);
 		const out = gate.describe();

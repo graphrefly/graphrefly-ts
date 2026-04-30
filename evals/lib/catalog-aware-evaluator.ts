@@ -21,8 +21,7 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../src/core/messages.js";
-import type { Node } from "../../src/core/node.js";
-import { producer } from "../../src/core/sugar.js";
+import { type Node, node } from "../../src/core/node.js";
 import type { GraphSpecCatalog } from "../../src/patterns/graphspec/index.js";
 import type { DatasetItem, EvalResult, Evaluator } from "../../src/patterns/refine-loop/index.js";
 import type { CatalogOverlayBundle } from "./catalog-overlay.js";
@@ -109,8 +108,8 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 		candidates: Node<readonly T[]>,
 		dataset: Node<readonly DatasetItem[]>,
 	): Node<readonly EvalResult[]> => {
-		return producer<readonly EvalResult[]>(
-			(actions) => {
+		return node<readonly EvalResult[]>(
+			(_data, actions) => {
 				let latestCandidates: readonly T[] | null = null;
 				let latestDataset: readonly DatasetItem[] | null = null;
 				let pending: AbortController | null = null;
@@ -196,7 +195,7 @@ export function catalogAwareEvaluator<T>(config: CatalogAwareEvaluatorConfig<T>)
 					tearDown();
 				};
 			},
-			{ name },
+			{ describeKind: "producer", name },
 		);
 	};
 }

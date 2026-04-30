@@ -11,7 +11,8 @@ import { catalogAwareEvaluator } from "../../../evals/lib/catalog-aware-evaluato
 import { catalogOverlay } from "../../../evals/lib/catalog-overlay.js";
 import { portableCatalog, portableFns } from "../../../evals/lib/portable-catalog.js";
 import { DATA, ERROR } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import type { CatalogFnEntry } from "../../patterns/graphspec/index.js";
 import type { DatasetItem, EvalResult } from "../../patterns/harness/presets/refine-loop.js";
 
@@ -41,11 +42,11 @@ describe("catalogAwareEvaluator — happy path", () => {
 				return dataset.map((d) => ({ taskId: d.id, score: 1 }));
 			},
 		});
-		const candidates = state<readonly string[]>(["c1"]);
-		const dataset = state<readonly DatasetItem[]>([{ id: "t1" }]);
-		const node = evaluator(candidates, dataset);
+		const candidates = node<readonly string[]>([], { initial: ["c1"] });
+		const dataset = node<readonly DatasetItem[]>([], { initial: [{ id: "t1" }] });
+		const evalNode = evaluator(candidates, dataset);
 		const seen: readonly EvalResult[][] = [];
-		node.subscribe((batch) => {
+		evalNode.subscribe((batch) => {
 			for (const m of batch) {
 				if (m[0] === DATA && m[1] != null) (seen as EvalResult[][]).push(m[1] as EvalResult[]);
 			}
@@ -75,10 +76,10 @@ describe("catalogAwareEvaluator — happy path", () => {
 				return [];
 			},
 		});
-		const candidates = state<readonly string[]>(["c"]);
-		const dataset = state<readonly DatasetItem[]>([{ id: "t1" }]);
-		const node = evaluator(candidates, dataset);
-		node.subscribe(() => {});
+		const candidates = node<readonly string[]>([], { initial: ["c"] });
+		const dataset = node<readonly DatasetItem[]>([], { initial: [{ id: "t1" }] });
+		const evalNode = evaluator(candidates, dataset);
+		evalNode.subscribe(() => {});
 		await Promise.resolve();
 		await Promise.resolve();
 		const baselineCount = sizes.length;
@@ -106,11 +107,11 @@ describe("catalogAwareEvaluator — failure surfacing", () => {
 				throw new Error("eval boom");
 			},
 		});
-		const candidates = state<readonly string[]>(["c"]);
-		const dataset = state<readonly DatasetItem[]>([{ id: "t1" }]);
-		const node = evaluator(candidates, dataset);
+		const candidates = node<readonly string[]>([], { initial: ["c"] });
+		const dataset = node<readonly DatasetItem[]>([], { initial: [{ id: "t1" }] });
+		const evalNode = evaluator(candidates, dataset);
 		const errors: unknown[] = [];
-		node.subscribe((batch) => {
+		evalNode.subscribe((batch) => {
 			for (const m of batch) {
 				if (m[0] === ERROR) errors.push(m[1]);
 			}
@@ -140,10 +141,10 @@ describe("catalogAwareEvaluator — supersede cancellation", () => {
 				});
 			},
 		});
-		const candidates = state<readonly string[]>(["c1"]);
-		const dataset = state<readonly DatasetItem[]>([{ id: "t1" }]);
-		const node = evaluator(candidates, dataset);
-		node.subscribe(() => {});
+		const candidates = node<readonly string[]>([], { initial: ["c1"] });
+		const dataset = node<readonly DatasetItem[]>([], { initial: [{ id: "t1" }] });
+		const evalNode = evaluator(candidates, dataset);
+		evalNode.subscribe(() => {});
 		await Promise.resolve();
 		await Promise.resolve();
 		expect(seenSignals).toHaveLength(1);

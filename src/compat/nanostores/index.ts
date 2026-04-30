@@ -1,7 +1,8 @@
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages } from "../../core/messages.js";
 import type { Node } from "../../core/node.js";
-import { dynamicNode, state, type TrackFn } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+import { dynamicNode, type TrackFn } from "../../core/sugar.js";
 
 /**
  * A Nanostores-compatible atom.
@@ -136,7 +137,8 @@ function getVal<T>(n: Node<T>): T {
  * @category compat
  */
 export function atom<T>(initial: T): NanoAtom<T> {
-	const n = state<T>(initial, {
+	const n = node<T>([], {
+		initial,
 		resubscribable: true,
 		resetOnTeardown: true,
 	});
@@ -213,7 +215,8 @@ export function computed<T>(stores: any, fn: (...args: any[]) => T): NanoCompute
  * @category compat
  */
 export function map<T extends Record<string, unknown>>(initial: T): NanoMap<T> {
-	const n = state<T>(initial, {
+	const n = node<T>([], {
+		initial,
 		resubscribable: true,
 		resetOnTeardown: true,
 		equals: () => false,

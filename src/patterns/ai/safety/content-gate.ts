@@ -3,8 +3,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 
 /** Content safety decision. */
 export type ContentDecision = "allow" | "block" | "review";
@@ -51,20 +50,32 @@ export function contentGate(
 	const deps: Node<unknown>[] = [accumulatedText];
 	if (isNodeClassifier) deps.push(classifier as Node<unknown>);
 
-	return derived<ContentDecision>(
+	return node<ContentDecision>(
 		deps,
-		(values) => {
-			const text = (values[0] as string | undefined) ?? "";
-			if (text.length === 0) return "allow";
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const text = (data[0] as string | undefined) ?? "";
+			if (text.length === 0) {
+				actions.emit("allow");
+				return;
+			}
 
 			const score = isNodeClassifier
-				? ((values[1] as number | undefined) ?? 0)
+				? ((data[1] as number | undefined) ?? 0)
 				: (classifier as (t: string) => number)(text);
 
-			if (score >= hardThreshold) return "block";
-			if (score >= threshold) return "review";
-			return "allow";
+			if (score >= hardThreshold) {
+				actions.emit("block");
+				return;
+			}
+			if (score >= threshold) {
+				actions.emit("review");
+				return;
+			}
+			actions.emit("allow");
 		},
-		{ name: opts?.name ?? "content-gate", initial: "allow" },
+		{ describeKind: "derived", name: opts?.name ?? "content-gate", initial: "allow" },
 	);
 }

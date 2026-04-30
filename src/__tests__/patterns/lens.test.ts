@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { describeNode } from "../../core/meta.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/index.js";
 import { type FlowEntry, graphLens, type HealthReport } from "../../patterns/inspect/lens.js";
 
@@ -15,8 +16,17 @@ function getFlowCache(node: { cache: unknown }): ReadonlyMap<string, FlowEntry> 
 describe("graphLens — topology", () => {
 	it("topology is a live describe of the target", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) + 1, { name: "b" });
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
@@ -32,7 +42,7 @@ describe("graphLens — topology", () => {
 
 	it("topology re-emits when a node is added to the target", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const lens = graphLens(g);
 
 		try {
@@ -47,7 +57,7 @@ describe("graphLens — topology", () => {
 			});
 			expect(seen.at(-1)).toBe(1);
 
-			g.add(state(1, { name: "b" }), { name: "b" });
+			g.add(node([], { name: "b", initial: 1 }), { name: "b" });
 			expect(seen.at(-1)).toBe(2);
 		} finally {
 			lens.dispose();
@@ -56,9 +66,9 @@ describe("graphLens — topology", () => {
 
 	it("topology covers transitively-mounted subgraphs", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const child = new Graph("child");
-		child.add(state(1, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 1 }), { name: "x" });
 		g.mount("kids", child);
 
 		const lens = graphLens(g);
@@ -75,7 +85,7 @@ describe("graphLens — topology", () => {
 describe("graphLens — health", () => {
 	it("ok=true when no nodes are errored", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const lens = graphLens(g);
 		try {
 			lens.health.subscribe(() => {});
@@ -88,14 +98,17 @@ describe("graphLens — health", () => {
 
 	it("flips to ok=false with a problem entry when a node errors", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived(
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
 			[a],
-			([v]) => {
-				if ((v as number) < 0) throw new Error("negative");
-				return (v as number) + 1;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if ((data[0] as number) < 0) throw new Error("negative");
+				actions.emit((data[0] as number) + 1);
 			},
-			{ name: "b" },
+			{ describeKind: "derived", name: "b" },
 		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
@@ -118,16 +131,28 @@ describe("graphLens — health", () => {
 
 	it("sets upstreamCause when the error originates upstream", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
-		const b = derived(
+		const a = node([], { name: "a", initial: 0 });
+		const b = node(
 			[a],
-			([v]) => {
-				if ((v as number) < 0) throw new Error("from b");
-				return (v as number) + 1;
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if ((data[0] as number) < 0) throw new Error("from b");
+				actions.emit((data[0] as number) + 1);
 			},
-			{ name: "b" },
+			{ describeKind: "derived", name: "b" },
 		);
-		const c = derived([b], ([v]) => (v as number) * 2, { name: "c" });
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -149,7 +174,7 @@ describe("graphLens — health", () => {
 describe("graphLens — flow", () => {
 	it("counts DATA emissions per qualified path", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
+		const a = node([], { name: "a", initial: 0 });
 		g.add(a, { name: "a" });
 
 		const lens = graphLens(g);
@@ -174,7 +199,7 @@ describe("graphLens — flow", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
 		g.mount("kids", child);
-		child.add(state(0, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 0 }), { name: "x" });
 
 		const lens = graphLens(g);
 		try {
@@ -190,8 +215,8 @@ describe("graphLens — flow", () => {
 
 	it("reconciles entries when a node is removed from the target", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
 
 		const lens = graphLens(g);
 		try {
@@ -209,7 +234,7 @@ describe("graphLens — flow", () => {
 
 	it("emits a fresh map snapshot on each settle (no in-place mutation)", () => {
 		const g = new Graph("g");
-		const a = state(0, { name: "a" });
+		const a = node([], { name: "a", initial: 0 });
 		g.add(a, { name: "a" });
 
 		const lens = graphLens(g);
@@ -236,7 +261,7 @@ describe("graphLens — flow", () => {
 describe("graphLens — domain meta tagging", () => {
 	it("tags the health and flow deriveds with lens_type metadata", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const lens = graphLens(g);
 		try {
 			const healthMeta = describeNode(lens.health).meta;
@@ -254,7 +279,7 @@ describe("graphLens — domain meta tagging", () => {
 describe("graphLens — lifecycle", () => {
 	it("dispose tears down the topology subscription cleanly", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const lens = graphLens(g);
 		lens.topology.subscribe(() => {});
 		lens.health.subscribe(() => {});
@@ -264,7 +289,7 @@ describe("graphLens — lifecycle", () => {
 		// Idempotent — second dispose is a no-op.
 		expect(() => lens.dispose()).not.toThrow();
 		// Mutate after dispose; lens should not react (no assertion beyond "no crash").
-		g.add(state(1), { name: "b" });
+		g.add(node([], { initial: 1 }), { name: "b" });
 		g.set("a", 99);
 	});
 });

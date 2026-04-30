@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/graph.js";
 import { validateNoIslands } from "../../graph/validate-no-islands.js";
 
 describe("validateNoIslands (Tier 9.3)", () => {
 	it("passes a connected graph (state → derived chain)", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateNoIslands(g);
@@ -18,9 +28,18 @@ describe("validateNoIslands (Tier 9.3)", () => {
 
 	it("reports a node with zero in-edges AND zero out-edges as an island", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		const orphan = state(99, { name: "orphan" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const orphan = node([], { name: "orphan", initial: 99 });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(orphan, { name: "orphan" });
@@ -38,8 +57,17 @@ describe("validateNoIslands (Tier 9.3)", () => {
 	it("does NOT flag source nodes (zero in-edges, ≥1 out-edge)", () => {
 		// `a` has no deps but `b` declares it; out-edge count = 1 → not an island.
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateNoIslands(g);
@@ -49,8 +77,17 @@ describe("validateNoIslands (Tier 9.3)", () => {
 	it("does NOT flag sink nodes (≥1 in-edge, zero out-edges)", () => {
 		// `b` has deps but no other node references it → in=1, out=0 → not an island.
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateNoIslands(g);
@@ -62,10 +99,10 @@ describe("validateNoIslands (Tier 9.3)", () => {
 		// case and digits, so the assertion actively distinguishes "sorted"
 		// from "insertion-ordered".
 		const g = new Graph("g");
-		g.add(state(0, { name: "Zeta" }), { name: "Zeta" });
-		g.add(state(0, { name: "alpha" }), { name: "alpha" });
-		g.add(state(0, { name: "Beta" }), { name: "Beta" });
-		g.add(state(0, { name: "10gamma" }), { name: "10gamma" });
+		g.add(node([], { name: "Zeta", initial: 0 }), { name: "Zeta" });
+		g.add(node([], { name: "alpha", initial: 0 }), { name: "alpha" });
+		g.add(node([], { name: "Beta", initial: 0 }), { name: "Beta" });
+		g.add(node([], { name: "10gamma", initial: 0 }), { name: "10gamma" });
 		const r = validateNoIslands(g);
 		// ASCII-asc: digits < uppercase < lowercase.
 		expect(r.orphans.map((o) => o.path)).toEqual(["10gamma", "Beta", "Zeta", "alpha"]);
@@ -74,11 +111,20 @@ describe("validateNoIslands (Tier 9.3)", () => {
 	it("walks mounted subgraphs (path-qualified orphans appear with subgraph prefix)", () => {
 		const g = new Graph("parent");
 		const sub = new Graph("child");
-		sub.add(state(0, { name: "subOrphan" }), { name: "subOrphan" });
+		sub.add(node([], { name: "subOrphan", initial: 0 }), { name: "subOrphan" });
 		g.mount("child", sub);
 		// Add a connected pair on the parent so the mounted-orphan is the only flag.
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		const r = validateNoIslands(g);
@@ -93,13 +139,22 @@ describe("validateNoIslands (Tier 9.3)", () => {
 		// topology. validateNoIslands suppresses them so callers don't get
 		// false-positives from compound factories.
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// Inject a node under the synthetic prefix that would otherwise look
 		// like an orphan (zero deps, no other node references it).
-		const helper = state(0, { name: "__internal__/helper" });
+		const helper = node([], { name: "__internal__/helper", initial: 0 });
 		g.add(helper, { name: "__internal__/helper" });
 		const r = validateNoIslands(g);
 		expect(r.ok).toBe(true);
@@ -118,11 +173,20 @@ describe("validateNoIslands (Tier 9.3)", () => {
 		const g = new Graph("g");
 		// Unregistered unnamed source. graph.ts:1959 will assign it
 		// `__internal__/0` during describe().
-		const unnamedSource = state(7);
-		const consumer = derived([unnamedSource], ([v]) => (v as number) + 1, { name: "consumer" });
+		const unnamedSource = node([], { initial: 7 });
+		const consumer = node(
+			[unnamedSource],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "consumer" },
+		);
 		g.add(consumer, { name: "consumer" });
 		// A real orphan — must still be flagged.
-		g.add(state(99, { name: "real-orphan" }), { name: "real-orphan" });
+		g.add(node([], { name: "real-orphan", initial: 99 }), { name: "real-orphan" });
 
 		const desc = g.describe({ detail: "minimal" });
 		const allPaths = Object.keys(desc.nodes);

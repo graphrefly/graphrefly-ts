@@ -4,8 +4,10 @@
  * Uses a MockMeasureAdapter with deterministic widths (8px per character)
  * so tests are environment-independent (no Canvas/DOM).
  */
+
 import { afterEach, describe, expect, it } from "vitest";
 import { INVALIDATE } from "../../../core/messages.js";
+import { node } from "../../../core/node.js";
 import {
 	analyzeAndMeasure,
 	computeCharPositions,

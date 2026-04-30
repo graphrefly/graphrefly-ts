@@ -24,7 +24,7 @@
 import { monotonicNs, wallClockNs } from "../../../../core/clock.js";
 import { ERROR } from "../../../../core/messages.js";
 import type { Node } from "../../../../core/node.js";
-import { derived } from "../../../../core/sugar.js";
+
 import { onFirstData } from "../../../../extra/operators.js";
 import { fromAny } from "../../../../extra/sources.js";
 import type { CallStatsEvent } from "../core/observable.js";
@@ -166,14 +166,24 @@ export function adaptInvokeResult<R>(
 		captured = onResp(v);
 		mapped = true;
 	});
-	return derived<R>(
+	return node<R>(
 		[tapped],
-		([v]) => {
-			if (v == null) return null as R;
-			if (mapped) return captured;
-			return onResp(v as LLMResponse);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const v = data[0];
+			if (v == null) {
+				actions.emit(null as R);
+				return;
+			}
+			if (mapped) {
+				actions.emit(captured);
+				return;
+			}
+			actions.emit(onResp(v as LLMResponse));
 		},
-		{ name: name ?? "adapt/invokeTap" },
+		{ describeKind: "derived", name: name ?? "adapt/invokeTap" },
 	);
 }
 

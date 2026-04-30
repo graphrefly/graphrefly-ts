@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { distill, verifiable } from "../../extra/composite.js";
 
 function tick(ms = 0): Promise<void> {
@@ -9,8 +10,8 @@ function tick(ms = 0): Promise<void> {
 
 describe("extra composite verifiable (roadmap §3.2b)", () => {
 	it("runs verification from explicit trigger", () => {
-		const source = state(2);
-		const trigger = state(0);
+		const source = node([], { initial: 2 });
+		const trigger = node([], { initial: 0 });
 		const bundle = verifiable(source, (value) => ({ holds: value > 0, checked: value }), {
 			trigger,
 			autoVerify: false,
@@ -22,8 +23,8 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 	});
 
 	it("cancels stale verification with switchMap", async () => {
-		const source = state(1);
-		const trigger = state(0);
+		const source = node([], { initial: 1 });
+		const trigger = node([], { initial: 0 });
 		const bundle = verifiable(
 			source,
 			(value) =>
@@ -45,15 +46,15 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 	});
 
 	it("accepts falsy scalar trigger values", () => {
-		const source = state(3);
+		const source = node([], { initial: 3 });
 		const bundle = verifiable(source, (value) => value * 10, { trigger: 0 as const });
 		expect(bundle.trigger).not.toBe(null);
 		expect(bundle.verified.cache).toBe(30);
 	});
 
 	it("stamps sourceVersion meta when source node has V0", () => {
-		const source = state(2, { versioning: 0 });
-		const trigger = state(0);
+		const source = node([], { versioning: 0, initial: 2 });
+		const trigger = node([], { initial: 0 });
 		const bundle = verifiable(source, (value) => ({ checked: value }), {
 			trigger,
 			autoVerify: false,
@@ -70,13 +71,23 @@ describe("extra composite verifiable (roadmap §3.2b)", () => {
 
 describe("extra composite distill (roadmap §3.2b)", () => {
 	it("extracts memories and builds compact view", () => {
-		const source = state("alpha");
+		const source = node([], { initial: "alpha" });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) => ({
-					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
-				})),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						const raw = data[0];
+						actions.emit({
+							upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+						});
+					},
+					{ describeKind: "derived" },
+				),
 			{
 				score: (mem) => mem.points,
 				cost: () => 1,
@@ -91,12 +102,21 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	});
 
 	it("reactively evicts via dynamicNode-tracked condition", () => {
-		const source = state("x");
-		const evictToggle = state(false);
+		const source = node([], { initial: "x" });
+		const evictToggle = node([], { initial: false });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) => ({ upsert: [{ key: raw, value: { text: raw } }] })),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit({ upsert: [{ key: data[0], value: { text: data[0] } }] });
+					},
+					{ describeKind: "derived" },
+				),
 			{
 				score: () => 1,
 				cost: () => 1,
@@ -112,14 +132,24 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	});
 
 	it("runs consolidation from trigger and keeps extraction atomic", () => {
-		const source = state("seed");
-		const consolidateTrigger = state(false);
+		const source = node([], { initial: "seed" });
+		const consolidateTrigger = node([], { initial: false });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) => ({
-					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
-				})),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						const raw = data[0];
+						actions.emit({
+							upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+						});
+					},
+					{ describeKind: "derived" },
+				),
 			{
 				score: (mem) => mem.points,
 				cost: () => 1,
@@ -145,13 +175,23 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	});
 
 	it("accepts falsy scalar context and consolidateTrigger", () => {
-		const source = state("seed");
+		const source = node([], { initial: "seed" });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) => ({
-					upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
-				})),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						const raw = data[0];
+						actions.emit({
+							upsert: [{ key: raw, value: { text: raw, points: raw.length } }],
+						});
+					},
+					{ describeKind: "derived" },
+				),
 			{
 				score: (mem, context) => mem.points + (context as number),
 				cost: () => 1,
@@ -170,11 +210,20 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	});
 
 	it("throws for invalid evict return type", () => {
-		const source = state("x");
+		const source = node([], { initial: "x" });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) => ({ upsert: [{ key: raw, value: { text: raw } }] })),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						actions.emit({ upsert: [{ key: data[0], value: { text: data[0] } }] });
+					},
+					{ describeKind: "derived" },
+				),
 			{
 				score: () => 1,
 				cost: () => 1,
@@ -187,18 +236,28 @@ describe("extra composite distill (roadmap §3.2b)", () => {
 	});
 
 	it("throws when extraction omits upsert", () => {
-		const source = state("seed");
+		const source = node([], { initial: "seed" });
 		const bundle = distill(
 			source,
 			(rawNode) =>
-				derived([rawNode], ([raw]) =>
-					raw === "seed"
-						? { upsert: [{ key: raw, value: { text: raw } }] }
-						: ({
-								remove: ["seed"],
-							} as unknown as {
-								upsert: Array<{ key: string; value: { text: string } }>;
-							}),
+				node(
+					[rawNode],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((batch, i) =>
+							batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+						);
+						const raw = data[0];
+						actions.emit(
+							raw === "seed"
+								? { upsert: [{ key: raw, value: { text: raw } }] }
+								: ({
+										remove: ["seed"],
+									} as unknown as {
+										upsert: Array<{ key: string; value: { text: string } }>;
+									}),
+						);
+					},
+					{ describeKind: "derived" },
 				),
 			{
 				score: () => 1,

@@ -12,8 +12,7 @@
  */
 import { batch } from "../core/batch.js";
 import { DATA, DIRTY } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 import type { VersioningLevel } from "../core/versioning.js";
 
 export type ReactiveListOptions<T> = {
@@ -235,7 +234,8 @@ export function reactiveList<T>(
 	const { name, versioning, backend: userBackend } = options;
 	const backend: ListBackend<T> = userBackend ?? new NativeListBackend<T>(initial);
 
-	const items = state<readonly T[]>(backend.toArray(), {
+	const items = node<readonly T[]>([], {
+		initial: backend.toArray(),
 		name,
 		describeKind: "state",
 		equals: (a, b) => a === b,

@@ -17,8 +17,7 @@ import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { type NodeGuard, policy } from "../../core/guard.js";
 import { DATA, DIRTY } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { state } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { Graph } from "../../graph/graph.js";
 import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "../reactive-log.js";
 
@@ -429,7 +428,7 @@ export function wrapMutation<TArgs extends readonly unknown[], TResult, R extend
  * @category internal
  */
 export function registerCursor(graph: Graph, name: string, initial = 0): Node<number> {
-	const cursor = state<number>(initial, { name, describeKind: "state" });
+	const cursor = node<number>([], { initial, name, describeKind: "state" });
 	graph.add(cursor, { name });
 	return cursor;
 }
@@ -453,7 +452,8 @@ export function registerCursorMap<K extends string>(
 	// an incompatible constructor signature (e.g., CqrsGraph(name, opts)).
 	const sub = new Graph(name);
 	for (const k of keys) {
-		const cursor = state<number>(initial, {
+		const cursor = node<number>([], {
+			initial,
 			name: k,
 			describeKind: "state",
 		});

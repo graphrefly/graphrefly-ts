@@ -16,8 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { fromAny } from "../../extra/sources.js";
 import type {
 	ChatMessage,
@@ -154,10 +154,14 @@ describe("defaultLlmExecutor — bridge-layer failure modes", () => {
 
 	it("Node-shaped invokeResult that COMPLETEs without DATA surfaces as failure (qa F1 regression)", async () => {
 		const adapter = adapterReturning(() =>
-			producer<LLMResponse>((actions) => {
-				actions.down([[COMPLETE]] satisfies Messages);
-				return () => {};
-			}),
+			node<LLMResponse>(
+				[],
+				(_data, actions) => {
+					actions.down([[COMPLETE]] satisfies Messages);
+					return () => {};
+				},
+				{ describeKind: "producer" },
+			),
 		);
 		const exec = defaultLlmExecutor(adapter);
 		const payload = await awaitFirstData(fromAny(exec(jobFor({ item: ITEM }))));
@@ -167,10 +171,14 @@ describe("defaultLlmExecutor — bridge-layer failure modes", () => {
 
 	it("Node-shaped invokeResult that emits ERROR surfaces as failure", async () => {
 		const adapter = adapterReturning(() =>
-			producer<LLMResponse>((actions) => {
-				actions.down([[ERROR, new Error("upstream node error")]] satisfies Messages);
-				return () => {};
-			}),
+			node<LLMResponse>(
+				[],
+				(_data, actions) => {
+					actions.down([[ERROR, new Error("upstream node error")]] satisfies Messages);
+					return () => {};
+				},
+				{ describeKind: "producer" },
+			),
 		);
 		const exec = defaultLlmExecutor(adapter);
 		const payload = await awaitFirstData(fromAny(exec(jobFor({ item: ITEM }))));
@@ -264,10 +272,14 @@ describe("defaultLlmVerifier — bridge-layer failure modes", () => {
 
 	it("Node-shaped invokeResult COMPLETEs without DATA → SELF-CORRECTABLE failure (qa F1)", async () => {
 		const adapter = adapterReturning(() =>
-			producer<LLMResponse>((actions) => {
-				actions.down([[COMPLETE]] satisfies Messages);
-				return () => {};
-			}),
+			node<LLMResponse>(
+				[],
+				(_data, actions) => {
+					actions.down([[COMPLETE]] satisfies Messages);
+					return () => {};
+				},
+				{ describeKind: "producer" },
+			),
 		);
 		const verifier = defaultLlmVerifier(adapter);
 		const payload = await awaitFirstData(fromAny(verifier(jobFor(baseExec))));
@@ -308,7 +320,6 @@ describe("evalVerifier — async-evaluator §9a coverage", () => {
 		// emit during subscribe), so the JobFlow pump should still see the
 		// final settled scores via the standard first-DATA capture path.
 		const { evalVerifier } = await import("../../patterns/harness/eval-verifier.js");
-		const { state: stateImport } = await import("../../core/sugar.js");
 		type Row = { id: string };
 		type Score = { taskId: string; score: number };
 		const evaluator = (cands: Node<readonly string[]>, ds: Node<readonly Row[]>) => {
@@ -317,10 +328,8 @@ describe("evalVerifier — async-evaluator §9a coverage", () => {
 			// is the canonical async-evaluator pattern — emit only AFTER
 			// both deps have arrived. Seeding with `[]` would fire an empty
 			// scores DATA on subscribe, giving the pump a stale "0/0
-			// verified" payload before the real recompute completes. The
-			// zero-arg `state<T>()` overload (qa D2) is the canonical
-			// sentinel-form sugar.
-			const out = stateImport<readonly Score[]>();
+			// verified" payload before the real recompute completes.
+			const out = node<readonly Score[]>([]);
 			let lastCands: readonly string[] | null = null;
 			let lastDs: readonly Row[] | null = null;
 			let scheduled = false;
@@ -381,7 +390,6 @@ describe("evalVerifier — synchronous-emit-during-subscribe evaluator coalescin
 		// Import inside the test to avoid pulling refine-loop types into the
 		// top-level deps when not needed elsewhere.
 		const { evalVerifier } = await import("../../patterns/harness/eval-verifier.js");
-		const { state: stateImport } = await import("../../core/sugar.js");
 		// A "presenceEvaluator"-shaped evaluator: subscribes to candidates AND
 		// dataset; each subscribe-callback fires synchronously with the cached
 		// value, calls recompute() which emits to `out`. Without the §9a
@@ -393,7 +401,7 @@ describe("evalVerifier — synchronous-emit-during-subscribe evaluator coalescin
 		type Row = { id: string };
 		type Score = { taskId: string; score: number };
 		const evaluator = (cands: Node<readonly string[]>, ds: Node<readonly Row[]>) => {
-			const out = stateImport<readonly Score[]>([]);
+			const out = node<readonly Score[]>([], { initial: [] });
 			let lastCands: readonly string[] = [];
 			let lastDs: readonly Row[] = [];
 			const recompute = (): void => {

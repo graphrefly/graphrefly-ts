@@ -8,7 +8,8 @@
  */
 
 import type { Node } from "../../../../core/node.js";
-import { derived } from "../../../../core/sugar.js";
+import { node } from "../../../../core/node.js";
+
 import { reactiveMap } from "../../../../extra/reactive-map.js";
 import type { ModelPricing } from "./pricing.js";
 
@@ -169,20 +170,30 @@ export function createCapabilitiesRegistry(
 		}
 	};
 
-	const entriesNode = derived<readonly ModelCapabilities[]>(
+	const entriesNode = node<readonly ModelCapabilities[]>(
 		[bundle.entries],
-		([snapshot]) => {
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const snapshot = data[0];
 			// Defensive coercion: `ReactiveMapBundle.entries` always emits a
 			// real `Map` on the live emit path, but a snapshot-restore round
 			// trip can deliver a plain `{}` (the default codec serializes
 			// `Map` to a non-Map shape). Without the `instanceof` guard,
 			// `.values()` would be `undefined`. Same defense pattern as
 			// `mapFromSnapshot` in `extra/composite.ts`.
-			return snapshot instanceof Map
-				? Array.from((snapshot as ReadonlyMap<string, ModelCapabilities>).values())
-				: [];
+			actions.emit(
+				snapshot instanceof Map
+					? Array.from((snapshot as ReadonlyMap<string, ModelCapabilities>).values())
+					: [],
+			);
 		},
-		{ name: "capabilitiesRegistry/entries", initial: [] },
+		{
+			describeKind: "derived",
+			name: "capabilitiesRegistry/entries",
+			initial: [] as ModelCapabilities[],
+		},
 	);
 
 	return {
@@ -210,16 +221,19 @@ export function createCapabilitiesRegistry(
 				lookupCache.set(cacheKey, cached);
 				return cached;
 			}
-			const node = derived<ModelCapabilities | undefined>(
+			const lookupNode = node<ModelCapabilities | undefined>(
 				[bundle.entries],
-				() => lookupSync(provider, model),
+				(_batchData, actions) => {
+					actions.emit(lookupSync(provider, model));
+				},
 				{
+					describeKind: "derived",
 					name: `capabilitiesRegistry/lookup/${provider}::${model}`,
 					initial: undefined,
 				},
 			);
-			lruTouch(lookupCache, cacheKey, node, LOOKUP_CACHE_MAX);
-			return node;
+			lruTouch(lookupCache, cacheKey, lookupNode, LOOKUP_CACHE_MAX);
+			return lookupNode;
 		},
 		entriesNode,
 		byProvider(provider) {
@@ -229,17 +243,23 @@ export function createCapabilitiesRegistry(
 				byProviderCache.set(provider, cached);
 				return cached;
 			}
-			const node = derived<readonly ModelCapabilities[]>(
+			const providerNode = node<readonly ModelCapabilities[]>(
 				[entriesNode],
-				([entries]) =>
-					(entries as readonly ModelCapabilities[]).filter((c) => c.provider === provider),
+				(batchData, actions, ctx) => {
+					const data = batchData.map((batch, i) =>
+						batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+					);
+					const entries = data[0] as readonly ModelCapabilities[];
+					actions.emit(entries.filter((c) => c.provider === provider));
+				},
 				{
+					describeKind: "derived",
 					name: `capabilitiesRegistry/byProvider/${provider}`,
 					initial: [],
 				},
 			);
-			lruTouch(byProviderCache, provider, node, LOOKUP_CACHE_MAX);
-			return node;
+			lruTouch(byProviderCache, provider, providerNode, LOOKUP_CACHE_MAX);
+			return providerNode;
 		},
 	};
 }

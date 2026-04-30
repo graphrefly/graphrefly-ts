@@ -12,6 +12,7 @@ import {
 	type Messages,
 	PAUSE,
 	RESOLVED,
+	RESOLVED_ONLY_BATCH,
 	RESUME,
 	TEARDOWN,
 } from "../core/messages.js";
@@ -25,21 +26,16 @@ import {
 import {
 	defaultConfig,
 	type Node,
+	type NodeFn,
+	type NodeFnCleanup,
 	NodeImpl,
 	type NodeSink,
 	type NodeTransportOptions,
+	node,
 } from "../core/node.js";
-import {
-	type DerivedFn,
-	derived,
-	type EffectFn,
-	effect,
-	producer,
-	state as stateNode,
-} from "../core/sugar.js";
 import type { VersioningLevel } from "../core/versioning.js";
 import { type DescribeChangeset, topologyDiff } from "../extra/composition/topology-diff.js";
-import { fromAny, keepalive, type NodeInput } from "../extra/sources.js";
+import { keepalive } from "../extra/sources.js";
 import type { StorageHandle } from "../extra/storage-core.js";
 import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
 import { ResettableTimer } from "../extra/timer.js";
@@ -102,27 +98,119 @@ export interface GraphOptions {
 	[key: string]: unknown;
 }
 
+// ---------------------------------------------------------------------------
+// Graph-level restricted fn types (narrow waist — SESSION-graph-narrow-waist.md)
+// ---------------------------------------------------------------------------
+
 /**
- * Options for {@link Graph.derived}. Forwarded to the underlying
- * {@link derived} primitive plus graph-level extras.
+ * Restricted context for {@link Graph.derived} fns. Exposes only
+ * dep prior values and the node's own previous emit — no `actions`,
+ * no `terminalDeps`, no `store`.
+ *
+ * - `prevData[i]` — last DATA from dep `i` (end of prior wave).
+ *   `undefined` means dep `i` has never produced DATA (sentinel).
+ * - `cache` — the node's own previous emit. `undefined` when no
+ *   prior emit (sentinel or first run), `null` when the prior emit
+ *   was `null`, otherwise `T`.
+ */
+export interface FnCtxDerived<T = unknown> {
+	readonly prevData: readonly unknown[];
+	readonly cache: T | null | undefined;
+}
+
+/**
+ * Restricted fn for {@link Graph.derived}. Returns an array of values
+ * to emit this wave:
+ * - `[v]` — single emit (common case).
+ * - `[]` — no emit (settled unchanged → RESOLVED).
+ * - `[v1, v2, ...]` — multi-emit in one wave.
+ *
+ * `undefined` is excluded from the return type — SENTINEL stays
+ * protocol-only.
+ */
+export type GraphDerivedFn<T> = (
+	values: readonly unknown[],
+	ctx: FnCtxDerived<T>,
+) => readonly (T | null)[];
+
+/**
+ * Upstream-only actions for {@link Graph.effect} fns. No `emit` /
+ * `down` — effects that need downstream emission use
+ * {@link Graph.producer} or drop to raw `node() + graph.add()`.
+ */
+export interface NodeUpActions {
+	/** Pause upstream deps. `lockId` is required per spec §2.6. */
+	pause(lockId: unknown): void;
+	/** Resume upstream deps. Must match a prior `pause` lockId. */
+	resume(lockId: unknown): void;
+}
+
+/**
+ * Restricted context for {@link Graph.effect} fns.
+ *
+ * - `prevData[i]` — same semantics as {@link FnCtxDerived.prevData}.
+ */
+export interface FnCtxEffect {
+	readonly prevData: readonly unknown[];
+}
+
+/**
+ * Restricted fn for {@link Graph.effect}. Pure sink — no downstream
+ * dispatch possible. Return a cleanup function or granular hooks.
+ */
+export type GraphEffectFn = (
+	values: readonly unknown[],
+	up: NodeUpActions,
+	ctx: FnCtxEffect,
+	// biome-ignore lint/suspicious/noConfusingVoidType: cleanup return.
+) => NodeFnCleanup | void;
+
+/**
+ * Restricted context for {@link Graph.producer} setup fns.
+ *
+ * - `store` — mutable bag persisting across activation cycles.
+ */
+export interface FnCtxProducer {
+	readonly store: Record<string, unknown>;
+}
+
+/**
+ * Setup fn for {@link Graph.producer}. Receives a `push` channel
+ * with the same array-emission shape as {@link GraphDerivedFn}:
+ * - `push([v])` — single DATA.
+ * - `push([v1, v2])` — multi-DATA in one wave.
+ *
+ * Return a cleanup function or granular hooks for teardown.
+ */
+export type GraphProducerSetupFn<T> = (
+	push: (values: readonly (T | null)[]) => void,
+	ctx: FnCtxProducer,
+	// biome-ignore lint/suspicious/noConfusingVoidType: cleanup return.
+) => NodeFnCleanup | void;
+
+/**
+ * Options for {@link Graph.state}.
+ */
+export interface GraphStateOptions<T> {
+	equals?: (a: T, b: T) => boolean;
+	signal?: AbortSignal;
+	meta?: Record<string, unknown>;
+	annotation?: string;
+}
+
+/**
+ * Options for {@link Graph.derived}.
  *
  * - `keepAlive: true` — installs an internal subscription so the node
  *   stays activated and `.cache` stays current for **external consumers**
- *   (UI render, debug snapshot, audit log) with no real subscriber. The
- *   subscription self-prunes on the node's terminal (`COMPLETE` / `ERROR`
- *   / `TEARDOWN`) and is also drained by {@link Graph.destroy}, so
- *   repeated `graph.remove(name)` cycles do not accumulate stale
- *   disposers.
+ *   (UI render, debug snapshot, audit log). The subscription self-prunes
+ *   on the node's terminal and is drained by {@link Graph.destroy}.
  *
  *   **Do not read `node.cache` from inside another reactive fn** (spec
- *   §5.12) — declare the node as a real dep instead. `keepAlive` is a
- *   convenience for *external* read patterns, not a shortcut around the
- *   message protocol.
- * - `signal` — when aborted, removes this node from the graph via
- *   {@link Graph.remove}, which sends `[[TEARDOWN]]` and drains cleanup
- *   hooks. Already-aborted signals trigger removal synchronously.
- * - `equals`, `initial`, `meta` — pass-through to {@link NodeOptions}.
- * - `annotation` — forwarded to {@link Graph.add} (see `graph.trace`).
+ *   §5.12) — declare the node as a real dep instead.
+ * - `signal` — when aborted, removes this node from the graph.
+ * - `equals`, `initial`, `meta` — pass-through to node options.
+ * - `annotation` — forwarded to {@link Graph.add}.
  */
 export interface GraphDerivedOptions<T> {
 	equals?: (a: T, b: T) => boolean;
@@ -135,11 +223,6 @@ export interface GraphDerivedOptions<T> {
 
 /**
  * Options for {@link Graph.effect}.
- *
- * - `signal` — when aborted, removes this node from the graph via
- *   {@link Graph.remove} (fires the effect's `deactivate` cleanup).
- * - `meta` / `annotation` — same forwarding shape as
- *   {@link GraphDerivedOptions}.
  */
 export interface GraphEffectOptions {
 	signal?: AbortSignal;
@@ -148,30 +231,14 @@ export interface GraphEffectOptions {
 }
 
 /**
- * Options for {@link Graph.produce}.
- *
- * - `signal` — forwarded to the underlying {@link fromAny} for in-flight
- *   cancellation of `Promise` / `AsyncIterable` sources, AND triggers
- *   {@link Graph.remove} when aborted so the graph topology reflects the
- *   cancellation.
- * - `equals` / `meta` / `annotation` — same forwarding shape as
- *   {@link GraphDerivedOptions}.
+ * Options for {@link Graph.producer}.
  */
-export interface GraphProduceOptions<T> {
+export interface GraphProducerOptions<T> {
 	equals?: (a: T, b: T) => boolean;
 	signal?: AbortSignal;
 	meta?: Record<string, unknown>;
 	annotation?: string;
 }
-
-/**
- * Source shapes accepted by {@link Graph.produce}. Excludes `Node<T>` —
- * Node→Node passthrough is rejected at the boundary because `fromAny`
- * passes Nodes through verbatim, which would silently drop `meta`/`equals`
- * options and bypass the `add()` registration's name semantics. For
- * Node→Node, use {@link Graph.derived} with `keepAlive: true` instead.
- */
-export type GraphProduceInput<T> = PromiseLike<T> | AsyncIterable<T> | Iterable<T> | T;
 
 /** Filter for {@link Graph.describe} — object-style partial match or predicate. */
 export type DescribeFilter =
@@ -1300,8 +1367,8 @@ export class Graph {
 	 */
 	get topology(): Node<TopologyEvent> {
 		if (this._topology == null) {
-			this._topology = producer<TopologyEvent>(
-				(actions) => {
+			this._topology = node<TopologyEvent>(
+				(_data, actions) => {
 					const handler = (event: TopologyEvent): void => {
 						actions.emit(event);
 					};
@@ -1310,7 +1377,7 @@ export class Graph {
 						this._topologyEmitters.delete(handler);
 					};
 				},
-				{ name: `${this.name}_topology` },
+				{ name: `${this.name}_topology`, describeKind: "producer" },
 			);
 		}
 		return this._topology;
@@ -1633,50 +1700,78 @@ export class Graph {
 	}
 
 	/**
-	 * Path-based reactive derivation. Resolves each entry in `depPaths` via
-	 * {@link Graph.resolve}, builds a {@link derived} node, registers it via
-	 * {@link Graph.add}, and returns the registered Node.
+	 * Path-based reactive derivation. Resolves each entry in `depPaths`,
+	 * builds a node with restricted {@link GraphDerivedFn}, registers it,
+	 * and returns the registered Node.
 	 *
-	 * **First-run gate inherited.** fn does not fire until every dep has
-	 * delivered at least one real DATA — same gate as `derived()` (spec §2.7,
-	 * `partial: false`). A SENTINEL dep holds activation; `null` is a real
-	 * DATA value and releases the gate. **Empty `depPaths` is a vacuous
-	 * gate** — fn fires once synchronously on first activation. Use this
-	 * for one-shot constants only; for async sources prefer
-	 * {@link Graph.produce}.
+	 * **Array-return semantics.** fn returns `readonly (T | null)[]`:
+	 * - `[v]` — single emit (common case).
+	 * - `[]` — no change, settle as RESOLVED.
+	 * - `[v1, v2, ...]` — multi-emit in one wave.
 	 *
-	 * **`keepAlive: true`** — installs an internal subscription so the node
-	 * stays activated and `.cache` stays current for **external consumers**
-	 * (UI render, debug snapshot, audit log). The subscription self-prunes
-	 * on the node's terminal and is also drained by {@link Graph.destroy}.
+	 * **First-run gate.** fn does not fire until every dep has delivered
+	 * at least one real DATA (spec §2.7, `partial: false`). A SENTINEL
+	 * dep holds activation; `null` is valid DATA and releases the gate.
+	 * **Empty `depPaths` is a vacuous gate** — fn fires once
+	 * synchronously on first activation. For async sources prefer
+	 * {@link Graph.producer}.
 	 *
-	 * **Do not read `node.cache` from inside another reactive fn** — that
-	 * is a §5.12 boundary violation regardless of `keepAlive`. Declare the
-	 * node as a real dep instead so the edge appears in `describe()` and
-	 * the message protocol carries the value.
+	 * **`ctx.cache`** — the node's own previous emit (`undefined` when
+	 * no prior emit, `null` when the prior emit was `null`, otherwise `T`).
+	 *
+	 * **`keepAlive: true`** — installs an internal subscription so the
+	 * node stays activated and `.cache` stays current for external
+	 * consumers. Self-prunes on terminal; drained by {@link Graph.destroy}.
 	 *
 	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
 	 * @param depPaths - `::`-qualified paths resolved at construction time.
-	 * @param fn - Pure compute receiving sugar-unwrapped scalar dep values.
+	 * @param fn - Restricted compute — see {@link GraphDerivedFn}.
 	 * @param opts - {@link GraphDerivedOptions}.
 	 * @returns The registered `Node<T>`.
 	 */
 	derived<T>(
 		name: string,
 		depPaths: readonly string[],
-		fn: DerivedFn<T>,
+		fn: GraphDerivedFn<T>,
 		opts?: GraphDerivedOptions<T>,
 	): Node<T> {
 		const deps = depPaths.map((p) => this.resolve(p));
 		const { keepAlive, annotation, equals, initial, meta, signal } = opts ?? {};
-		const n = derived<T>(deps, fn, {
+
+		// Wrap restricted GraphDerivedFn → raw NodeFn.
+		// Closure captures `nodeRef` so the wrapper can read `.cache` for
+		// the ctx.cache field (same pattern as autoTrackNode).
+		let nodeRef: Node<T> | undefined;
+		const wrapped: NodeFn = (batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const derivedCtx: FnCtxDerived<T> = {
+				prevData: ctx.prevData,
+				cache: nodeRef?.cache,
+			};
+			const result = fn(data, derivedCtx);
+			if (result.length === 0) {
+				// Empty array → no change → settle as RESOLVED.
+				actions.down(RESOLVED_ONLY_BATCH);
+			} else {
+				for (const v of result) {
+					actions.emit(v);
+				}
+			}
+			return undefined;
+		};
+
+		const n = node<T>(deps, wrapped, {
 			name,
+			describeKind: "derived",
 			...(equals != null ? { equals } : {}),
 			...(initial !== undefined ? { initial } : {}),
 			...(meta != null ? { meta } : {}),
 		});
+		nodeRef = n;
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		if (keepAlive === true) {
 			this._registerSelfPruningKeepalive(n);
@@ -1687,35 +1782,52 @@ export class Graph {
 
 	/**
 	 * Path-based managed side effect. Resolves each entry in `depPaths`,
-	 * builds an {@link effect} node, registers it, and returns the
-	 * registered Node. fn does not auto-emit — call `actions.emit(v)` /
-	 * `actions.down(msgs)` explicitly to produce downstream messages.
+	 * builds a node with restricted {@link GraphEffectFn}, registers it,
+	 * and returns the registered Node.
 	 *
-	 * **Cleanup.** Return a cleanup function (`() => void`) or granular
-	 * hooks (`{ beforeRun?, deactivate?, invalidate? }`) — fired on the
-	 * matching transition by the underlying primitive (see
-	 * {@link NodeFnCleanup}). Graph teardown propagates `[[TEARDOWN]]`
-	 * which triggers `deactivate`.
+	 * **Pure sink.** fn has no `emit`/`down` — effects that need
+	 * downstream emission use {@link Graph.producer} or drop to raw
+	 * `node() + graph.add()`. fn receives `up.pause(lockId)` /
+	 * `up.resume(lockId)` for upstream backpressure only.
 	 *
-	 * **`signal`** — when aborted, removes this node from the graph (fires
-	 * the effect's `deactivate` cleanup).
+	 * **Cleanup.** Return a cleanup function or granular hooks
+	 * (`{ beforeRun?, deactivate?, invalidate? }`) — see
+	 * {@link NodeFnCleanup}. Graph teardown triggers `deactivate`.
+	 *
+	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
 	 * @param depPaths - `::`-qualified paths resolved at construction time.
-	 * @param fn - Side-effect receiving sugar-unwrapped scalar dep values.
+	 * @param fn - Restricted side-effect — see {@link GraphEffectFn}.
 	 * @param opts - {@link GraphEffectOptions}.
 	 * @returns The registered `Node<unknown>`.
 	 */
 	effect(
 		name: string,
 		depPaths: readonly string[],
-		fn: EffectFn,
+		fn: GraphEffectFn,
 		opts?: GraphEffectOptions,
 	): Node<unknown> {
 		const deps = depPaths.map((p) => this.resolve(p));
 		const { annotation, meta, signal } = opts ?? {};
-		const n = effect(deps, fn, {
+
+		// Wrap restricted GraphEffectFn → raw NodeFn.
+		// Exposes only pause/resume (NodeUpActions), no emit/down.
+		const wrapped: NodeFn = (batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const up: NodeUpActions = {
+				pause: (lockId) => actions.up([PAUSE, lockId]),
+				resume: (lockId) => actions.up([RESUME, lockId]),
+			};
+			const effectCtx: FnCtxEffect = { prevData: ctx.prevData };
+			return fn(data, up, effectCtx) ?? undefined;
+		};
+
+		const n = node(deps, wrapped, {
 			name,
+			describeKind: "effect",
 			...(meta != null ? { meta } : {}),
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
@@ -1724,57 +1836,76 @@ export class Graph {
 	}
 
 	/**
-	 * Wraps an external/async source as a named graph node via
-	 * {@link fromAny}. Accepts {@link GraphProduceInput} shapes:
-	 * `Promise`, `AsyncIterable`, `Iterable`, or scalar.
+	 * Creates a named state node — a dep-free node with an initial value.
+	 * State nodes are the primary entry points for external data into the
+	 * graph. Emit new values via `node.emit(v)` or protocol-level
+	 * `down([[DATA, v]])`.
 	 *
-	 * **Node sources are rejected.** For `Node → Node`, use
-	 * {@link Graph.derived} with `keepAlive: true` — `fromAny` would
-	 * passthrough a Node verbatim and silently drop `meta`/`equals`
-	 * options. The type signature excludes `Node<T>`; a runtime guard
-	 * catches casts.
-	 *
-	 * **`undefined` is rejected.** `undefined` is the global SENTINEL;
-	 * emitting it as DATA would corrupt downstream first-run gates.
-	 * `null` (a valid DATA value) is accepted.
-	 *
-	 * **`signal`** — forwarded to {@link fromAny} for in-flight cancel of
-	 * Promise/AsyncIterable sources, AND triggers {@link Graph.remove}
-	 * when aborted so the topology reflects the cancellation.
+	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
-	 * @param source - Any {@link GraphProduceInput} shape.
-	 * @param opts - {@link GraphProduceOptions}.
+	 * @param initial - Initial value. `null` is valid; `undefined` is
+	 *   sentinel and means "no initial value".
+	 * @param opts - {@link GraphStateOptions}.
 	 * @returns The registered `Node<T>`.
 	 */
-	produce<T>(name: string, source: GraphProduceInput<T>, opts?: GraphProduceOptions<T>): Node<T> {
-		if (source === undefined) {
-			throw new Error(
-				`Graph "${this.name}".produce("${name}", …): source must not be \`undefined\` — ` +
-					"undefined is the global SENTINEL (spec §1.1). Pass `null` for nullary DATA, " +
-					"or a Promise/AsyncIterable/Iterable for async sources.",
-			);
-		}
-		// Defense-in-depth: the type narrows out Node<T>, but a cast could slip
-		// through. Detect via duck-typing (subscribe + cache shape).
-		if (
-			source !== null &&
-			typeof source === "object" &&
-			"cache" in (source as object) &&
-			typeof (source as { subscribe?: unknown }).subscribe === "function"
-		) {
-			throw new Error(
-				`Graph "${this.name}".produce("${name}", …): Node sources are rejected. ` +
-					"For Node→Node, use graph.derived(name, [path], ([v]) => v, { keepAlive: true }) — " +
-					"fromAny passes Nodes through verbatim and silently drops opts.",
-			);
-		}
+	state<T>(name: string, initial?: T | null, opts?: GraphStateOptions<T>): Node<T> {
 		const { annotation, meta, equals, signal } = opts ?? {};
-		const n = fromAny<T>(source as NodeInput<T>, {
+		const n = node<T>([], {
 			name,
+			describeKind: "state",
+			...(initial !== undefined ? { initial } : {}),
+			...(equals != null ? { equals } : {}),
 			...(meta != null ? { meta } : {}),
-			...(equals != null ? { equals: equals as (a: unknown, b: unknown) => boolean } : {}),
-			...(signal != null ? { signal } : {}),
+		});
+		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
+		this._wireSignalToRemove(name, signal);
+		return n;
+	}
+
+	/**
+	 * Creates a named producer node — a dep-free source with a setup
+	 * function that receives a `push` channel for emitting values.
+	 *
+	 * The setup fn runs once when the first subscriber connects.
+	 * `push` follows the same array-emission shape as
+	 * {@link GraphDerivedFn}: `push([v])` for single DATA,
+	 * `push([v1, v2])` for multi-DATA.
+	 *
+	 * Return a cleanup function or granular hooks for teardown.
+	 *
+	 * **`signal`** — when aborted, removes this node from the graph
+	 * (fires the producer's `deactivate` cleanup).
+	 *
+	 * @param name - Local registration name (must be unique on this graph).
+	 * @param setupFn - {@link GraphProducerSetupFn}.
+	 * @param opts - {@link GraphProducerOptions}.
+	 * @returns The registered `Node<T>`.
+	 */
+	producer<T>(
+		name: string,
+		setupFn: GraphProducerSetupFn<T>,
+		opts?: GraphProducerOptions<T>,
+	): Node<T> {
+		const { annotation, meta, equals, signal } = opts ?? {};
+
+		// Wrap GraphProducerSetupFn → raw NodeFn.
+		// The push channel is built from actions.emit in the NodeFn body.
+		const wrapped: NodeFn = (_data, actions, ctx) => {
+			const push = (values: readonly (T | null)[]): void => {
+				for (const v of values) {
+					actions.emit(v);
+				}
+			};
+			const producerCtx: FnCtxProducer = { store: ctx.store };
+			return setupFn(push, producerCtx) ?? undefined;
+		};
+
+		const n = node<T>(wrapped, {
+			name,
+			describeKind: "producer",
+			...(equals != null ? { equals } : {}),
+			...(meta != null ? { meta } : {}),
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);
@@ -2553,7 +2684,7 @@ export class Graph {
 		const innerOpts: GraphDescribeOptions = { ...options, reactive: false };
 		const name = options.reactiveName ?? "describe";
 		let v = 0;
-		const version = stateNode(v, { name: `${name}_version` });
+		const version = node<number>([], { initial: v, name: `${name}_version` });
 		const handle = this.observe({ timeline: true, structured: true });
 		let pendingBump = false;
 		let disposed = false;
@@ -2645,19 +2776,21 @@ export class Graph {
 			});
 		}
 
-		let node: Node<GraphDescribeOutput>;
+		let reactiveDescNode: Node<GraphDescribeOutput>;
 		try {
-			node = derived<GraphDescribeOutput>(
+			reactiveDescNode = node<GraphDescribeOutput>(
 				[version],
-				() => this.describe(innerOpts) as GraphDescribeOutput,
+				(_data, actions) => {
+					actions.emit(this.describe(innerOpts) as GraphDescribeOutput);
+				},
 				{
 					name,
 					describeKind: "derived",
 					meta: { domain: "audit", kind: "describe" } as const,
 					// Reference-only equals is fine — describe() rebuilds a fresh
 					// object every call. Users who want structural dedup can wrap
-					// with their own `derived` + structural `equals`.
-					equals: (a, b) => a === b,
+					// with their own derived + structural `equals`.
+					equals: (a: GraphDescribeOutput, b: GraphDescribeOutput) => a === b,
 				},
 			);
 		} catch (err) {
@@ -2667,10 +2800,10 @@ export class Graph {
 			handle.dispose();
 			throw err;
 		}
-		const stopKeepalive = keepalive(node);
+		const stopKeepalive = keepalive(reactiveDescNode);
 
 		return {
-			node,
+			node: reactiveDescNode,
 			dispose() {
 				disposed = true;
 				off();
@@ -2710,12 +2843,13 @@ export class Graph {
 		let prev = this.describe(innerOpts) as GraphDescribeOutput;
 		const initialDiff = topologyDiff(empty, prev);
 
-		const diffNode = stateNode<DescribeChangeset>(initialDiff, {
+		const diffNode = node<DescribeChangeset>([], {
+			initial: initialDiff,
 			name,
 			meta: { domain: "audit", kind: "describe-diff" } as const,
 			// Reference equals — every changeset is a fresh object; downstream
 			// consumers wanting structural dedup wrap with their own equals.
-			equals: (a, b) => a === b,
+			equals: (a: DescribeChangeset, b: DescribeChangeset) => a === b,
 		});
 
 		// Reuse `_describeReactive` for the bump-on-topology-change machinery
@@ -2780,7 +2914,7 @@ export class Graph {
 		// recompute. Outside a batch the hook fires immediately (see
 		// `registerBatchFlushHook` contract) — no change to sync-wave behavior.
 		let v = 0;
-		const version = stateNode(v, { name: "explain_version" });
+		const version = node<number>([], { initial: v, name: "explain_version" });
 		const handle = this.observe({ timeline: true, structured: true });
 		let pendingBump = false;
 		let disposed = false;
@@ -2855,42 +2989,37 @@ export class Graph {
 		//
 		// Resolve reactive args INSIDE the fn so each recompute reads the
 		// latest cache. Static args close over directly.
-		let node: Node<CausalChain>;
+		let explainNode: Node<CausalChain>;
 		try {
-			node = derived<CausalChain>(
+			explainNode = node<CausalChain>(
 				[version],
-				() => {
-					if (!allReactiveArgsSettled()) return buildPendingChain();
-					const currentFrom = resolveExplainPath(from);
-					const currentTo = resolveExplainPath(to);
-					const currentOpts = {
-						...(opts?.maxDepth !== undefined
-							? { maxDepth: resolveExplainNumber(opts.maxDepth) }
-							: {}),
-						...(opts?.findCycle !== undefined
-							? { findCycle: resolveExplainBoolean(opts.findCycle) }
-							: {}),
-					};
-					return this._explainStatic(currentFrom, currentTo, currentOpts);
+				(_data, actions) => {
+					if (!allReactiveArgsSettled()) {
+						actions.emit(buildPendingChain());
+					} else {
+						const currentFrom = resolveExplainPath(from);
+						const currentTo = resolveExplainPath(to);
+						const currentOpts = {
+							...(opts?.maxDepth !== undefined
+								? { maxDepth: resolveExplainNumber(opts.maxDepth) }
+								: {}),
+							...(opts?.findCycle !== undefined
+								? { findCycle: resolveExplainBoolean(opts.findCycle) }
+								: {}),
+						};
+						actions.emit(this._explainStatic(currentFrom, currentTo, currentOpts));
+					}
 				},
 				{
 					name: opts?.name ?? "explain",
 					describeKind: "derived",
-					// `audit` domain tag preserves parity with the legacy
-					// `reactiveExplainPath` in `patterns/audit.ts`, so audit
-					// dashboards / policy enforcers that filter on
-					// `meta.domain === "audit"` and `meta.kind === "explain_path"`
-					// still pick up reactive-explain nodes after the B21
-					// consolidation. `from`/`to` in the meta surface the
-					// initial cache for reactive args (best-effort provenance);
-					// the derived recomputes against the latest cache at emit time.
 					meta: {
 						domain: "audit",
 						kind: "explain_path",
 						from: resolveExplainPath(from),
 						to: resolveExplainPath(to),
 					} as const,
-					equals: (a, b) =>
+					equals: (a: CausalChain, b: CausalChain) =>
 						a.found === b.found &&
 						a.reason === b.reason &&
 						a.steps.length === b.steps.length &&
@@ -2902,7 +3031,7 @@ export class Graph {
 			handle.dispose();
 			throw err;
 		}
-		const stopKeepalive = keepalive(node);
+		const stopKeepalive = keepalive(explainNode);
 
 		// Now wire reactive-arg subscriptions (after derived + keepalive). Each
 		// subscription holder is captured so the terminal handler can self-clear
@@ -2937,7 +3066,7 @@ export class Graph {
 		for (const arg of reactiveArgs) argUnsubs.push(subscribeReactiveArg(arg));
 
 		return {
-			node,
+			node: explainNode,
 			dispose() {
 				disposed = true;
 				off();
@@ -3097,8 +3226,8 @@ export class Graph {
 		const tierSet = tiers != null ? new Set(tiers) : null;
 		const name = options.reactiveName ?? "observe";
 
-		return producer<ObserveChangeset>(
-			(actions) => {
+		return node<ObserveChangeset>(
+			(_data, actions) => {
 				const events: ObserveEvent[] = [];
 				let pendingFlush = false;
 				let disposed = false;
@@ -3165,6 +3294,7 @@ export class Graph {
 			},
 			{
 				name,
+				describeKind: "producer",
 				meta: { domain: "audit", kind: "observe-reactive" } as const,
 			},
 		);
@@ -3939,12 +4069,12 @@ export class Graph {
 				const [owner, localName] = ownerForPath(path);
 				const meta: Record<string, unknown> = { ...(slice?.meta ?? {}) };
 				const factory = factoryForPath(path);
-				let node: Node;
+				let n: Node;
 				if (slice?.type === "state") {
-					node = stateNode(slice.value, { meta });
+					n = node([], { initial: slice.value, meta });
 				} else {
 					if (factory == null) continue;
-					node = factory(localName, {
+					n = factory(localName, {
 						path,
 						type: slice.type,
 						value: slice.value,
@@ -3953,8 +4083,8 @@ export class Graph {
 						resolvedDeps: deps.map((dep) => created.get(dep)!),
 					});
 				}
-				owner.add(node, { name: localName });
-				created.set(path, node);
+				owner.add(n, { name: localName });
+				created.set(path, n);
 				pending.delete(path);
 				progressed = true;
 			}

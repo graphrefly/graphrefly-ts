@@ -12,8 +12,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { aiMeta } from "../_internal.js";
 
 /**
@@ -41,11 +40,14 @@ export function streamExtractor<T>(
 		equals?: (a: T | null, b: T | null) => boolean;
 	},
 ): Node<T | null> {
-	return derived<T | null>(
+	return node<T | null>(
 		[accumulatedText],
-		([text]) => {
-			if (text == null) return null;
-			return extractFn(text as string);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const text = data[0];
+			actions.emit(text == null ? null : extractFn(text as string));
 		},
 		{
 			name: opts?.name ?? "extractor",

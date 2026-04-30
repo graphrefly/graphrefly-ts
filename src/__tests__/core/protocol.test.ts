@@ -15,7 +15,6 @@ import {
 	TEARDOWN,
 } from "../../core/messages.js";
 import { defaultConfig, node } from "../../core/node.js";
-import { derived, producer, state } from "../../core/sugar.js";
 
 /** Shorthand for the tierOf callback required by downWithBatch in v5. */
 const tierOf = (t: symbol) => defaultConfig.messageTier(t);
@@ -404,9 +403,13 @@ describe("integration: void sources", () => {
 		const log: [symbol, unknown?][] = [];
 		// Simulate a one-shot void source (like fromIDBTransaction).
 		// null is the protocol-idiomatic "void" value; undefined is reserved as sentinel.
-		const oneShot = producer<null>((actions) => {
-			actions.down([[DATA, null], [COMPLETE]]);
-		});
+		const oneShot = node<null>(
+			[],
+			(_data, actions) => {
+				actions.down([[DATA, null], [COMPLETE]]);
+			},
+			{ describeKind: "producer" },
+		);
 		const unsub = oneShot.subscribe((msgs: Messages) => {
 			for (const m of msgs) log.push([m[0], m[1]]);
 		});
@@ -432,18 +435,48 @@ describe("B3: equals subtree skip — downstream fn-run counts under no-op input
 		// the chain, which fires the downstream pre-fn skip at every level.
 		// The leaf fn should run exactly (writes / 2 + 1) times — once for
 		// each distinct value, not once per write.
-		const a = state<number>(0);
+		const a = node<number>([], { initial: 0 });
 		let leafRuns = 0;
-		const b = derived([a], ([v]) => (v as number) * 2, { equals: (x, y) => x === y });
-		const c = derived([b], ([v]) => (v as number) + 1, { equals: (x, y) => x === y });
-		const d = derived([c], ([v]) => (v as number) - 1, { equals: (x, y) => x === y });
-		const e = derived(
-			[d],
-			([v]) => {
-				leafRuns += 1;
-				return (v as number) + 7;
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
 			},
-			{ equals: (x, y) => x === y },
+			{ describeKind: "derived", equals: (x, y) => x === y },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", equals: (x, y) => x === y },
+		);
+		const d = node(
+			[c],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) - 1);
+			},
+			{ describeKind: "derived", equals: (x, y) => x === y },
+		);
+		const e = node(
+			[d],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				leafRuns += 1;
+				actions.emit((data[0] as number) + 7);
+			},
+			{ describeKind: "derived", equals: (x, y) => x === y },
 		);
 		const unsub = e.subscribe(() => undefined);
 		const baseRuns = leafRuns; // initial activation run
@@ -467,21 +500,38 @@ describe("B3: equals subtree skip — downstream fn-run counts under no-op input
 	it("diamond: both legs collapse to RESOLVED when source doesn't change", () => {
 		// Source toggle drives both legs. Duplicate writes should produce
 		// RESOLVED on both legs, which the join's pre-fn skip absorbs.
-		const src = state<number>(0);
+		const src = node<number>([], { initial: 0 });
 		let joinRuns = 0;
-		const left = derived([src], ([v]) => (v as number) * 2, {
-			equals: (x, y) => x === y,
-		});
-		const right = derived([src], ([v]) => (v as number) + 10, {
-			equals: (x, y) => x === y,
-		});
-		const joined = derived(
-			[left, right],
-			([l, r]) => {
-				joinRuns += 1;
-				return (l as number) + (r as number);
+		const left = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
 			},
-			{ equals: (x, y) => x === y },
+			{ describeKind: "derived", equals: (x, y) => x === y },
+		);
+		const right = node(
+			[src],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 10);
+			},
+			{ describeKind: "derived", equals: (x, y) => x === y },
+		);
+		const joined = node(
+			[left, right],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				joinRuns += 1;
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived", equals: (x, y) => x === y },
 		);
 		const unsub = joined.subscribe(() => undefined);
 		const baseRuns = joinRuns;
@@ -504,29 +554,54 @@ describe("B3: equals subtree skip — downstream fn-run counts under no-op input
 
 describe("C0: PAUSE/RESUME lock-id", () => {
 	it("bare [[PAUSE]] without lockId throws", () => {
-		const a = state(0);
-		const d = derived([a], ([v]) => v);
+		const a = node([], { initial: 0 });
+		const d = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => {});
 		expect(() => a.down([[PAUSE]])).toThrow(/lockId/);
 		unsub();
 	});
 
 	it("bare [[RESUME]] without lockId throws", () => {
-		const a = state(0);
-		const d = derived([a], ([v]) => v);
+		const a = node([], { initial: 0 });
+		const d = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => {});
 		expect(() => a.down([[RESUME]])).toThrow(/lockId/);
 		unsub();
 	});
 
 	it("multi-pauser correctness — releasing one lock keeps paused while another holds", () => {
-		const a = state(0);
+		const a = node([], { initial: 0 });
 		// effect-style node that can be observed for paused state
 		let fnRuns = 0;
-		const d = derived([a], ([v]) => {
-			fnRuns += 1;
-			return v;
-		});
+		const d = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				fnRuns += 1;
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => {});
 		const baseRuns = fnRuns;
 
@@ -554,8 +629,17 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 	});
 
 	it("idempotent RESUME for unknown lockId is a no-op", () => {
-		const a = state(0);
-		const d = derived([a], ([v]) => v);
+		const a = node([], { initial: 0 });
+		const d = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(data[0]);
+			},
+			{ describeKind: "derived" },
+		);
 		const unsub = d.subscribe(() => {});
 
 		const lock = Symbol("ghost");
@@ -609,7 +693,7 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 		// TEARDOWN's bypass. Prior to this: tier-4 was captured in pauseBuffer
 		// and silently discarded at _deactivate if no RESUME ever came,
 		// stranding subscribers without an end-of-stream signal.
-		const s = state(0, { pausable: "resumeAll" });
+		const s = node([], { pausable: "resumeAll", initial: 0 });
 		const seen: Array<[symbol, unknown?]> = [];
 		const unsub = s.subscribe((msgs) => {
 			for (const m of msgs) seen.push([m[0], m[1]]);
@@ -640,7 +724,7 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 
 	it("pausable: resumeAll — ERROR bypasses bufferAll and reaches subscribers even while paused", () => {
 		// Companion to the COMPLETE test: tier-4 ERROR also bypasses bufferAll.
-		const s = state(0, { pausable: "resumeAll" });
+		const s = node([], { pausable: "resumeAll", initial: 0 });
 		const seen: Array<{ type: symbol; value?: unknown }> = [];
 		const unsub = s.subscribe((msgs) => {
 			for (const m of msgs) seen.push({ type: m[0], value: m[1] });
@@ -662,9 +746,10 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 		// non-resubscribable nodes and a correctness bug on resubscribable
 		// nodes (new subscribers would see a permanently stuck node with
 		// pauseLocks from a dead lifecycle).
-		const s = state<number>(0, {
+		const s = node<number>([], {
 			pausable: "resumeAll",
 			resubscribable: true,
+			initial: 0,
 		}) as unknown as import("../../core/node.js").NodeImpl<number>;
 		const lockOldLifecycle = Symbol("lock-old");
 
@@ -710,7 +795,7 @@ describe("globalInspector hook", () => {
 		const events: GlobalInspectorEvent[] = [];
 		cfg.globalInspector = (ev) => events.push(ev);
 
-		const s = state(0, { config: cfg });
+		const s = node([], { config: cfg, initial: 0 });
 		const off = s.subscribe(() => {});
 		// Subscribe handshake delivers START + cached DATA via `downToSink`,
 		// not through `_emit`'s framing waist — hook does not fire on handshake.
@@ -737,7 +822,7 @@ describe("globalInspector hook", () => {
 			calls++;
 		};
 
-		const s = state(0, { config: cfg });
+		const s = node([], { config: cfg, initial: 0 });
 		const off = s.subscribe(() => {});
 		s.emit(1);
 		expect(calls).toBe(0);
@@ -750,7 +835,7 @@ describe("globalInspector hook", () => {
 			throw new Error("inspector blew up");
 		};
 
-		const s = state(0, { config: cfg });
+		const s = node([], { config: cfg, initial: 0 });
 		const log: number[] = [];
 		const off = s.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) log.push(m[1] as number);
@@ -762,7 +847,7 @@ describe("globalInspector hook", () => {
 
 	it("settable at any time (does not freeze the config)", () => {
 		const cfg = freshConfig();
-		const s = state(0, { config: cfg });
+		const s = node([], { config: cfg, initial: 0 });
 		// Touching a hook getter freezes the config; touching globalInspector must not.
 		const initial = cfg.globalInspector;
 		expect(initial).toBeUndefined();

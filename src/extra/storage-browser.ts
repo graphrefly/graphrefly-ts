@@ -13,8 +13,7 @@
 /// <reference lib="dom" />
 
 import { COMPLETE, DATA, ERROR } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { producer } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 
 // IndexedDbStorageSpec is no longer needed here — it's defined in storage-tiers-browser.ts.
 
@@ -28,7 +27,7 @@ import { producer } from "../core/sugar.js";
  * @category extra
  */
 export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
-	return producer<T>((a) => {
+	return node<T>((_data, a) => {
 		let done = false;
 		const clear = () => {
 			req.onsuccess = null;
@@ -63,7 +62,7 @@ export function fromIDBRequest<T>(req: IDBRequest<T>): Node<T> {
  * @category extra
  */
 export function fromIDBTransaction(tx: IDBTransaction): Node<void> {
-	return producer<void>((a) => {
+	return node<void>((_data, a) => {
 		let done = false;
 		const clear = () => {
 			tx.oncomplete = null;

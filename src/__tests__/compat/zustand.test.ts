@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { create } from "../../compat/zustand/index.js";
 import { DATA } from "../../core/messages.js";
-import { derived } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
 
 describe("zustand compat", () => {
 	it("create: initializes with state from initializer", () => {
@@ -91,9 +91,36 @@ describe("zustand compat", () => {
 		};
 
 		// Left leg: x * 10. Right leg: x + 100. Diamond: left + right.
-		const left = derived([state], ([s]) => (s as { x: number }).x * 10);
-		const right = derived([state], ([s]) => (s as { x: number }).x + 100);
-		const final = derived([left, right], ([l, r]) => (l as number) + (r as number));
+		const left = node(
+			[state],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as { x: number }).x * 10);
+			},
+			{ describeKind: "derived" },
+		);
+		const right = node(
+			[state],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as { x: number }).x + 100);
+			},
+			{ describeKind: "derived" },
+		);
+		const final = node(
+			[left, right],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + (data[1] as number));
+			},
+			{ describeKind: "derived" },
+		);
 
 		const seen: number[] = [];
 		const unsub = final.subscribe((msgs) => {

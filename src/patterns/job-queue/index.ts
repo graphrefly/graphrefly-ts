@@ -9,15 +9,7 @@
  */
 
 import { wallClockNs } from "../../core/clock.js";
-import {
-	batch,
-	DATA,
-	derived,
-	ERROR,
-	type Node,
-	placeholderArgs,
-	state,
-} from "../../core/index.js";
+import { batch, DATA, ERROR, type Node, placeholderArgs } from "../../core/index.js";
 import { node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import {
@@ -108,12 +100,21 @@ export class JobQueueGraph<T> extends Graph {
 		this.jobs = this._jobs.entries;
 		this.add(this.pending, { name: "pending" });
 		this.add(this.jobs, { name: "jobs" });
-		this.depth = derived([this.pending], ([snapshot]) => (snapshot as readonly string[]).length, {
-			name: "depth",
-			describeKind: "derived",
-			meta: jobQueueMeta("queue_depth"),
-			initial: 0,
-		});
+		this.depth = node(
+			[this.pending],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly string[]).length);
+			},
+			{
+				name: "depth",
+				describeKind: "derived",
+				meta: jobQueueMeta("queue_depth"),
+				initial: 0,
+			},
+		);
 		this.add(this.depth, { name: "depth" });
 		this.addDisposer(keepalive(this.depth));
 
@@ -482,9 +483,14 @@ export class JobFlowGraph<T> extends Graph {
 		});
 		this.completed = this._completed.entries;
 		this.add(this.completed, { name: "completed" });
-		this.completedCount = derived(
+		this.completedCount = node(
 			[this.completed],
-			([snapshot]) => (snapshot as readonly JobEnvelope<T>[]).length,
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as readonly JobEnvelope<T>[]).length);
+			},
 			{
 				name: "completedCount",
 				describeKind: "derived",
@@ -524,7 +530,7 @@ export class JobFlowGraph<T> extends Graph {
 			// internal infrastructure paths use the `__` prefix).
 			const inflightCounter =
 				stageMaxInflightCap !== undefined
-					? state<number>(0, { name: `__inflight__/${stage}` })
+					? node<number>([], { name: `__inflight__/${stage}`, initial: 0 })
 					: null;
 			if (inflightCounter) {
 				this.add(inflightCounter, { name: `__inflight__/${stage}` });

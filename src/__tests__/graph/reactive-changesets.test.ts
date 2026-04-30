@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { batch } from "../../core/batch.js";
 import { DATA } from "../../core/messages.js";
-import { state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { type DescribeChangeset, topologyDiff } from "../../extra/composition/topology-diff.js";
 import { Graph, type GraphDescribeOutput, type ObserveChangeset } from "../../graph/graph.js";
 
@@ -115,7 +116,7 @@ describe("topologyDiff (pure function)", () => {
 describe("Graph.describe({ reactive: 'diff' })", () => {
 	it("seeds the initial cache with a synthetic full-add diff", () => {
 		const g = new Graph("g");
-		const a = state(1);
+		const a = node([], { initial: 1 });
 		g.add(a, { name: "a" });
 
 		const handle = g.describe({ reactive: "diff" });
@@ -131,7 +132,7 @@ describe("Graph.describe({ reactive: 'diff' })", () => {
 
 	it("emits a non-empty changeset on topology change", () => {
 		const g = new Graph("g");
-		const a = state(1);
+		const a = node([], { initial: 1 });
 		g.add(a, { name: "a" });
 
 		const handle = g.describe({ reactive: "diff" });
@@ -147,7 +148,7 @@ describe("Graph.describe({ reactive: 'diff' })", () => {
 		expect(initialCount).toBeGreaterThanOrEqual(1);
 
 		// Add another node — should fire a new diff after coalescing.
-		const b = state(2);
+		const b = node([], { initial: 2 });
 		g.add(b, { name: "b" });
 
 		expect(changesets.length).toBeGreaterThan(initialCount);
@@ -165,12 +166,12 @@ describe("Graph.describe({ reactive: 'diff' })", () => {
 describe("Graph.observe({ reactive: true })", () => {
 	it("emits an ObserveChangeset wrapping observed events", () => {
 		const g = new Graph("g");
-		const a = state<number | null>(null);
+		const a = node<number | null>([], { initial: null });
 		g.add(a, { name: "a" });
 
-		const node = g.observe({ reactive: true });
+		const observeNode = g.observe({ reactive: true });
 		const changesets: ObserveChangeset[] = [];
-		const off = node.subscribe((msgs) => {
+		const off = observeNode.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) changesets.push(m[1] as ObserveChangeset);
 			}
@@ -189,14 +190,14 @@ describe("Graph.observe({ reactive: true })", () => {
 
 	it("delivers events from multiple sources fired in one batch", () => {
 		const g = new Graph("g");
-		const a = state<number | null>(null);
-		const b = state<number | null>(null);
+		const a = node<number | null>([], { initial: null });
+		const b = node<number | null>([], { initial: null });
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
-		const node = g.observe({ reactive: true });
+		const observeNode = g.observe({ reactive: true });
 		const allEvents: ObserveChangeset["events"][number][] = [];
-		const off = node.subscribe((msgs) => {
+		const off = observeNode.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {
 					const cs = m[1] as ObserveChangeset;
@@ -220,13 +221,13 @@ describe("Graph.observe({ reactive: true })", () => {
 
 	it("filters events by tiers", () => {
 		const g = new Graph("g");
-		const a = state<number | null>(null);
+		const a = node<number | null>([], { initial: null });
 		g.add(a, { name: "a" });
 
 		// "data" events excluded — only "error" / "complete" / "teardown".
-		const node = g.observe({ reactive: true, tiers: ["error", "complete", "teardown"] });
+		const observeNode = g.observe({ reactive: true, tiers: ["error", "complete", "teardown"] });
 		const changesets: ObserveChangeset[] = [];
-		const off = node.subscribe((msgs) => {
+		const off = observeNode.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) changesets.push(m[1] as ObserveChangeset);
 			}

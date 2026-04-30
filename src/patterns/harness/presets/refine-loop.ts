@@ -37,7 +37,6 @@ import { batch } from "../../../core/batch.js";
 import { monotonicNs } from "../../../core/clock.js";
 import { DATA, ERROR } from "../../../core/messages.js";
 import { type Node, node } from "../../../core/node.js";
-import { derived, effect, state } from "../../../core/sugar.js";
 import { switchMap } from "../../../extra/operators.js";
 import type { NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -330,45 +329,50 @@ export function refineLoop<T>(
 	// --- Dataset: auto-wrap arrays into a state node ------------------------
 	const datasetNode: Node<readonly DatasetItem[]> = isNode<readonly DatasetItem[]>(opts.dataset)
 		? opts.dataset
-		: state<readonly DatasetItem[]>(opts.dataset as readonly DatasetItem[], { name: "dataset" });
+		: node<readonly DatasetItem[]>([], {
+				name: "dataset",
+				initial: opts.dataset as readonly DatasetItem[],
+			});
 	g.add(datasetNode, { name: "dataset" });
 
 	// --- State nodes --------------------------------------------------------
-	const iterationTrigger = state<number>(0, { name: "iteration" });
+	const iterationTrigger = node<number>([], { name: "iteration", initial: 0 });
 	g.add(iterationTrigger, { name: "iteration" });
 
-	const strategyNode = state<RefineStrategy<T>>(initialStrategy, {
+	const strategyNode = node<RefineStrategy<T>>([], {
 		name: "strategy",
+		initial: initialStrategy,
 		equals: () => false, // always propagate strategy swaps
 	});
 	g.add(strategyNode, { name: "strategy" });
 
-	const lastFeedbackState = state<Feedback | null>(null, { name: "lastFeedback" });
+	const lastFeedbackState = node<Feedback | null>([], { name: "lastFeedback", initial: null });
 	g.add(lastFeedbackState, { name: "lastFeedback" });
 
-	const prevCandidatesState = state<readonly T[]>([], { name: "prevCandidates" });
+	const prevCandidatesState = node<readonly T[]>([], { name: "prevCandidates", initial: [] });
 	g.add(prevCandidatesState, { name: "prevCandidates" });
 
-	const pauseState = state<boolean>(false, { name: "paused" });
+	const pauseState = node<boolean>([], { name: "paused", initial: false });
 	g.add(pauseState, { name: "paused" });
 
-	const statusState = state<RefineStatus>("running", { name: "status" });
+	const statusState = node<RefineStatus>([], { name: "status", initial: "running" });
 	g.add(statusState, { name: "status" });
 
-	const historyState = state<readonly Iteration<T>[]>([], {
+	const historyState = node<readonly Iteration<T>[]>([], {
 		name: "history",
+		initial: [],
 		equals: () => false, // append-style; reactive consumers want every push
 	});
 	g.add(historyState, { name: "history" });
 
-	const bestState = state<T | null>(null, { name: "best" });
+	const bestState = node<T | null>([], { name: "best", initial: null });
 	g.add(bestState, { name: "best" });
 
-	const scoreState = state<number>(Number.NEGATIVE_INFINITY, { name: "score" });
+	const scoreState = node<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
 	g.add(scoreState, { name: "score" });
 
 	// --- Budget counter -----------------------------------------------------
-	const budgetState = state<number>(0, { name: "budget-used" });
+	const budgetState = node<number>([], { name: "budget-used", initial: 0 });
 	g.add(budgetState, { name: "budget-used" });
 
 	// --- Stage hub (Shape B + C-aspects) ------------------------------------
@@ -463,15 +467,15 @@ export function refineLoop<T>(
 	// Error watcher — strategy throws surface as ERROR on `candidatesNode`.
 	// Promote to `status = "errored"` so callers don't have to subscribe to
 	// the error channel directly.
-	const errorWatcher = effect(
+	const errorWatcher = node(
 		[candidatesNode],
-		(_data, _actions, ctx) => {
+		(_batchData, _actions, ctx) => {
 			const terminal = ctx.terminalDeps[0];
 			if (terminal !== undefined && terminal !== true) {
 				statusState.emit("errored");
 			}
 		},
-		{ name: "error-watcher", errorWhenDepsError: false },
+		{ name: "error-watcher", describeKind: "effect", errorWhenDepsError: false },
 	);
 	g.add(errorWatcher, { name: "error-watcher" });
 	g.addDisposer(errorWatcher.subscribe(() => undefined));
@@ -481,34 +485,45 @@ export function refineLoop<T>(
 	// (2) publish effect routes the derived event to the hub topic.
 	// (3) mirror effect keeps prevCandidatesState in sync for §28 closure reads.
 	// Budget accounting stays in decideEffect (single authority).
-	const generateEventNode = derived<GenerateEvent<T>>(
+	const generateEventNode = node<GenerateEvent<T>>(
 		[candidatesNode, iterationTrigger],
-		([candidates, iter]) => ({
-			iteration: iter as number,
-			candidates: candidates as readonly T[],
-			timestamp_ns: monotonicNs(),
-		}),
-		{ name: "generate-event" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				iteration: data[1] as number,
+				candidates: data[0] as readonly T[],
+				timestamp_ns: monotonicNs(),
+			});
+		},
+		{ name: "generate-event", describeKind: "derived" },
 	);
 	g.add(generateEventNode, { name: "generate-event" });
 	g.addDisposer(generateEventNode.subscribe(() => undefined));
 
-	const generatePublishEffect = effect(
+	const generatePublishEffect = node(
 		[generateEventNode],
-		([evt]) => {
-			hubGenerateTopic.publish(evt as GenerateEvent<T>);
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			hubGenerateTopic.publish(data[0] as GenerateEvent<T>);
 		},
-		{ name: "generate-publish" },
+		{ name: "generate-publish", describeKind: "effect" },
 	);
 	g.add(generatePublishEffect, { name: "generate-publish" });
 	g.addDisposer(generatePublishEffect.subscribe(() => undefined));
 
-	const generateMirrorEffect = effect(
+	const generateMirrorEffect = node(
 		[candidatesNode],
-		([cs]) => {
-			prevCandidatesState.emit(cs as readonly T[]);
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			prevCandidatesState.emit(data[0] as readonly T[]);
 		},
-		{ name: "generate-mirror" },
+		{ name: "generate-mirror", describeKind: "effect" },
 	);
 	g.add(generateMirrorEffect, { name: "generate-mirror" });
 	g.addDisposer(generateMirrorEffect.subscribe(() => undefined));
@@ -518,116 +533,169 @@ export function refineLoop<T>(
 	g.add(scoresNode, { name: "scores" });
 
 	// EVALUATE stage: derived event node + publish effect.
-	const evaluateEventNode = derived<EvaluateEvent<T>>(
+	const evaluateEventNode = node<EvaluateEvent<T>>(
 		[scoresNode, candidatesNode, iterationTrigger],
-		([scores, candidates, iter]) => ({
-			iteration: iter as number,
-			candidates: candidates as readonly T[],
-			scores: scores as readonly EvalResult[],
-			timestamp_ns: monotonicNs(),
-		}),
-		{ name: "evaluate-event" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				iteration: data[2] as number,
+				candidates: data[1] as readonly T[],
+				scores: data[0] as readonly EvalResult[],
+				timestamp_ns: monotonicNs(),
+			});
+		},
+		{ name: "evaluate-event", describeKind: "derived" },
 	);
 	g.add(evaluateEventNode, { name: "evaluate-event" });
 	g.addDisposer(evaluateEventNode.subscribe(() => undefined));
 
-	const evaluatePublishEffect = effect(
+	const evaluatePublishEffect = node(
 		[evaluateEventNode],
-		([evt]) => {
-			hubEvaluateTopic.publish(evt as EvaluateEvent<T>);
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			hubEvaluateTopic.publish(data[0] as EvaluateEvent<T>);
 		},
-		{ name: "evaluate-publish" },
+		{ name: "evaluate-publish", describeKind: "effect" },
 	);
 	g.add(evaluatePublishEffect, { name: "evaluate-publish" });
 	g.addDisposer(evaluatePublishEffect.subscribe(() => undefined));
 
 	// --- ANALYZE: strategy.analyze(scores, candidates) → feedback -----------
-	const feedbackNode = derived<Feedback>(
+	const feedbackNode = node<Feedback>(
 		[scoresNode, candidatesNode],
-		([scores, candidates]) => {
-			return latestStrategy.analyze(scores as readonly EvalResult[], candidates as readonly T[]);
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				latestStrategy.analyze(data[0] as readonly EvalResult[], data[1] as readonly T[]),
+			);
 		},
-		{ name: "feedback" },
+		{ name: "feedback", describeKind: "derived" },
 	);
 	g.add(feedbackNode, { name: "feedback" });
 
 	// ANALYZE stage: derived event node + publish effect.
-	const analyzeEventNode = derived<AnalyzeEvent<T>>(
+	const analyzeEventNode = node<AnalyzeEvent<T>>(
 		[feedbackNode, candidatesNode, iterationTrigger],
-		([feedback, candidates, iter]) => ({
-			iteration: iter as number,
-			candidates: candidates as readonly T[],
-			feedback: feedback as Feedback,
-			timestamp_ns: monotonicNs(),
-		}),
-		{ name: "analyze-event" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit({
+				iteration: data[2] as number,
+				candidates: data[1] as readonly T[],
+				feedback: data[0] as Feedback,
+				timestamp_ns: monotonicNs(),
+			});
+		},
+		{ name: "analyze-event", describeKind: "derived" },
 	);
 	g.add(analyzeEventNode, { name: "analyze-event" });
 	g.addDisposer(analyzeEventNode.subscribe(() => undefined));
 
-	const analyzePublishEffect = effect(
+	const analyzePublishEffect = node(
 		[analyzeEventNode],
-		([evt]) => {
-			hubAnalyzeTopic.publish(evt as AnalyzeEvent<T>);
+		(batchData, _actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			hubAnalyzeTopic.publish(data[0] as AnalyzeEvent<T>);
 		},
-		{ name: "analyze-publish" },
+		{ name: "analyze-publish", describeKind: "effect" },
 	);
 	g.add(analyzePublishEffect, { name: "analyze-publish" });
 	g.addDisposer(analyzePublishEffect.subscribe(() => undefined));
 
 	// --- Convergence: four derived nodes fanning into one boolean -----------
-	const patienceNode = derived<boolean>(
+	const patienceNode = node<boolean>(
 		[historyState],
-		([hist]) => {
-			const h = hist as readonly Iteration<T>[];
-			if (opts.patience == null || h.length <= opts.patience) return false;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const h = data[0] as readonly Iteration<T>[];
+			if (opts.patience == null || h.length <= opts.patience) {
+				actions.emit(false);
+				return;
+			}
 			// No improvement over the last `patience` iterations.
 			const lookback = h.slice(-(opts.patience + 1));
 			const baseline = lookback[0]!.bestScore;
-			return lookback.slice(1).every((i) => i.bestScore <= baseline);
+			actions.emit(lookback.slice(1).every((i) => i.bestScore <= baseline));
 		},
-		{ name: "patience-check" },
+		{ name: "patience-check", describeKind: "derived" },
 	);
 	g.add(patienceNode, { name: "patience-check" });
 
-	const minScoreNode = derived<boolean>(
+	const minScoreNode = node<boolean>(
 		[scoreState],
-		([s]) => opts.minScore != null && (s as number) >= opts.minScore,
-		{ name: "min-score-check" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(opts.minScore != null && (data[0] as number) >= opts.minScore);
+		},
+		{ name: "min-score-check", describeKind: "derived" },
 	);
 	g.add(minScoreNode, { name: "min-score-check" });
 
-	const minDeltaNode = derived<boolean>(
+	const minDeltaNode = node<boolean>(
 		[historyState],
-		([hist]) => {
-			const h = hist as readonly Iteration<T>[];
-			if (opts.minDelta == null || h.length < 2) return false;
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const h = data[0] as readonly Iteration<T>[];
+			if (opts.minDelta == null || h.length < 2) {
+				actions.emit(false);
+				return;
+			}
 			const prev = h[h.length - 2]!.bestScore;
 			const curr = h[h.length - 1]!.bestScore;
-			return Math.abs(curr - prev) < opts.minDelta;
+			actions.emit(Math.abs(curr - prev) < opts.minDelta);
 		},
-		{ name: "min-delta-check" },
+		{ name: "min-delta-check", describeKind: "derived" },
 	);
 	g.add(minDeltaNode, { name: "min-delta-check" });
 
-	const maxEvalsNode = derived<boolean>(
+	const maxEvalsNode = node<boolean>(
 		[budgetState],
-		([used]) => opts.maxEvaluations != null && (used as number) >= opts.maxEvaluations,
-		{ name: "max-evaluations-check" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(opts.maxEvaluations != null && (data[0] as number) >= opts.maxEvaluations);
+		},
+		{ name: "max-evaluations-check", describeKind: "derived" },
 	);
 	g.add(maxEvalsNode, { name: "max-evaluations-check" });
 
-	const maxIterNode = derived<boolean>(
+	const maxIterNode = node<boolean>(
 		[iterationTrigger],
-		([i]) => opts.maxIterations != null && (i as number) >= opts.maxIterations,
-		{ name: "max-iterations-check" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(opts.maxIterations != null && (data[0] as number) >= opts.maxIterations);
+		},
+		{ name: "max-iterations-check", describeKind: "derived" },
 	);
 	g.add(maxIterNode, { name: "max-iterations-check" });
 
-	const budgetExhaustedNode = derived<boolean>(
+	const budgetExhaustedNode = node<boolean>(
 		[budgetState],
-		([used]) => opts.budget != null && (used as number) >= opts.budget,
-		{ name: "budget-exhausted-check" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(opts.budget != null && (data[0] as number) >= opts.budget);
+		},
+		{ name: "budget-exhausted-check", describeKind: "derived" },
 	);
 	g.add(budgetExhaustedNode, { name: "budget-exhausted-check" });
 
@@ -642,17 +710,36 @@ export function refineLoop<T>(
 	g.addDisposer(maxIterNode.subscribe(() => undefined));
 	g.addDisposer(budgetExhaustedNode.subscribe(() => undefined));
 
-	const convergedNode = derived<{ converged: boolean; reason?: string }>(
+	const convergedNode = node<{ converged: boolean; reason?: string }>(
 		[patienceNode, minScoreNode, minDeltaNode, maxEvalsNode, maxIterNode],
-		([p, ms, md, me, mi]) => {
-			if (p) return { converged: true, reason: "patience" };
-			if (ms) return { converged: true, reason: "min-score" };
-			if (md) return { converged: true, reason: "min-delta" };
-			if (me) return { converged: true, reason: "max-evaluations" };
-			if (mi) return { converged: true, reason: "max-iterations" };
-			return { converged: false };
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const [p, ms, md, me, mi] = data;
+			if (p) {
+				actions.emit({ converged: true, reason: "patience" });
+				return;
+			}
+			if (ms) {
+				actions.emit({ converged: true, reason: "min-score" });
+				return;
+			}
+			if (md) {
+				actions.emit({ converged: true, reason: "min-delta" });
+				return;
+			}
+			if (me) {
+				actions.emit({ converged: true, reason: "max-evaluations" });
+				return;
+			}
+			if (mi) {
+				actions.emit({ converged: true, reason: "max-iterations" });
+				return;
+			}
+			actions.emit({ converged: false });
 		},
-		{ name: "converged" },
+		{ name: "converged", describeKind: "derived" },
 	);
 	g.add(convergedNode, { name: "converged" });
 	g.addDisposer(convergedNode.subscribe(() => undefined));
@@ -665,9 +752,12 @@ export function refineLoop<T>(
 	// Track last-decided iteration to avoid re-deciding when deps re-fire in the
 	// same iteration (the fn can fire multiple times per wave as deps settle).
 	let lastDecidedIteration = -1;
-	const decideEffect = effect(
+	const decideEffect = node(
 		[feedbackNode, scoresNode, candidatesNode],
-		([feedback, scoresIn, candidates]) => {
+		(batchData, _actions, ctx) => {
+			const [feedback, scoresIn, candidates] = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
 			// Read iteration from cache — it's always latest. Using it as a fn
 			// dep produces stale reads when iterationTrigger's wave and the
 			// candidates-cascade wave land in different drain cycles (candidates
@@ -774,7 +864,7 @@ export function refineLoop<T>(
 				}
 			});
 		},
-		{ name: "decide-bridge" },
+		{ name: "decide-bridge", describeKind: "effect" },
 	);
 	g.add(decideEffect, { name: "decide-bridge" });
 	g.addDisposer(decideEffect.subscribe(() => undefined));

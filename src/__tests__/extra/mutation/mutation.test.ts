@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { state } from "../../../core/sugar.js";
+import { node } from "../../../core/node.js";
+
 import {
 	type BaseAuditRecord,
 	bumpCursor,
@@ -117,7 +118,7 @@ describe("imperative-audit / lightMutation", () => {
 
 	it("seq cursor: advances on each call; substrate-tier — bump persists on throw", () => {
 		const { audit, dispose } = makeAuditLog();
-		const cursor = state<number>(0, { name: "seq" });
+		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 		let callIndex = 0;
 		const op = lightMutation(
@@ -185,7 +186,7 @@ describe("imperative-audit / lightMutation", () => {
 
 	// Tier 8 γ-0: audit-optional opt-in.
 	it("audit omitted: still freezes / re-throws / advances seq, but skips audit emission", () => {
-		const cursor = state<number>(0, { name: "seq" });
+		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 		const seenFrozen: boolean[] = [];
 
@@ -221,7 +222,7 @@ describe("imperative-audit / lightMutation", () => {
 describe("imperative-audit / wrapMutation regression", () => {
 	it("success: appends success record with stamped seq and handlerVersion", () => {
 		const { audit, dispose } = makeAuditLog();
-		const cursor = state<number>(0, { name: "seq" });
+		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 
 		const op = wrapMutation((key: string) => key.toUpperCase(), {
@@ -252,7 +253,7 @@ describe("imperative-audit / wrapMutation regression", () => {
 
 	it("throw: appends failure record outside the rolled-back batch frame", () => {
 		const { audit, dispose } = makeAuditLog();
-		const cursor = state<number>(0, { name: "seq" });
+		const cursor = node<number>([], { name: "seq", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 
 		const op = wrapMutation(
@@ -315,7 +316,7 @@ describe("imperative-audit / wrapMutation regression", () => {
 		// wrapMutation without audit still opens a batch frame, freezes args,
 		// advances seq, and re-throws. There is no audit log surface; no
 		// records are appended.
-		const cursor = state<number>(0, { name: "c" });
+		const cursor = node<number>([], { name: "c", initial: 0 });
 		const sub = cursor.subscribe(() => undefined);
 		const seenFrozen: boolean[] = [];
 
@@ -345,7 +346,7 @@ describe("imperative-audit / wrapMutation regression", () => {
 
 describe("imperative-audit / bumpCursor", () => {
 	it("emits DIRTY then DATA(next) and returns the new value", () => {
-		const cursor = state<number>(5, { name: "c" });
+		const cursor = node<number>([], { name: "c", initial: 5 });
 		const sub = cursor.subscribe(() => undefined);
 		const next = bumpCursor(cursor);
 		expect(next).toBe(6);
@@ -354,7 +355,7 @@ describe("imperative-audit / bumpCursor", () => {
 	});
 
 	it("starts from 0 when the cursor cache is undefined", () => {
-		const cursor = state<number>(undefined as unknown as number, { name: "c" });
+		const cursor = node<number>([], { name: "c", initial: undefined as unknown as number });
 		const sub = cursor.subscribe(() => undefined);
 		const next = bumpCursor(cursor);
 		expect(next).toBe(1);
@@ -365,22 +366,22 @@ describe("imperative-audit / bumpCursor", () => {
 		// JobQueueGraph.enqueue and similar primitives may bump the seq cursor
 		// before any consumer attaches. The contract: `bumpCursor` updates
 		// `cursor.cache` regardless of subscriber count.
-		const cursor = state<number>(0, { name: "c" });
+		const cursor = node<number>([], { name: "c", initial: 0 });
 		const next = bumpCursor(cursor);
 		expect(next).toBe(1);
 		expect(cursor.cache).toBe(1);
 	});
 
 	it("resets to 0 on NaN / non-finite / non-numeric cache (corrupted state)", () => {
-		const nanCursor = state<number>(Number.NaN, { name: "nan" });
+		const nanCursor = node<number>([], { name: "nan", initial: Number.NaN });
 		nanCursor.subscribe(() => undefined);
 		expect(bumpCursor(nanCursor)).toBe(1);
 
-		const infCursor = state<number>(Number.POSITIVE_INFINITY, { name: "inf" });
+		const infCursor = node<number>([], { name: "inf", initial: Number.POSITIVE_INFINITY });
 		infCursor.subscribe(() => undefined);
 		expect(bumpCursor(infCursor)).toBe(1);
 
-		const stringCursor = state<number>("oops" as unknown as number, { name: "str" });
+		const stringCursor = node<number>([], { name: "str", initial: "oops" as unknown as number });
 		stringCursor.subscribe(() => undefined);
 		expect(bumpCursor(stringCursor)).toBe(1);
 	});
@@ -388,7 +389,7 @@ describe("imperative-audit / bumpCursor", () => {
 	it("EH-12: warns once per cursor on silent reset from non-numeric cache", () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		try {
-			const cursor = state<number>("bad" as unknown as number, { name: "warn" });
+			const cursor = node<number>([], { name: "warn", initial: "bad" as unknown as number });
 			cursor.subscribe(() => undefined);
 			// First bump on a malformed cache should warn.
 			expect(bumpCursor(cursor)).toBe(1);
@@ -405,10 +406,10 @@ describe("imperative-audit / bumpCursor", () => {
 	it("EH-12: undefined cache (substrate-not-yet-emitted) does NOT warn", () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 		try {
-			// state<number>(undefined as unknown) treats the seed as the SENTINEL —
+			// node<number>([], { initial: undefined as unknown }) treats the seed as the SENTINEL —
 			// `cache` is `undefined`. This is the legitimate "no DATA yet" branch
 			// and should not log; only string/NaN/Infinity-style corruption does.
-			const cursor = state<number>(undefined as unknown as number, { name: "fresh" });
+			const cursor = node<number>([], { name: "fresh", initial: undefined as unknown as number });
 			cursor.subscribe(() => undefined);
 			expect(bumpCursor(cursor)).toBe(1);
 			expect(warnSpy).not.toHaveBeenCalled();

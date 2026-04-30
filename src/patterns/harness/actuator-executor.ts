@@ -32,8 +32,7 @@
  */
 
 import { COMPLETE, DATA, ERROR, type Messages } from "../../core/messages.js";
-import type { Node } from "../../core/node.js";
-import { producer } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
 import { fromAny, type NodeInput } from "../../extra/sources.js";
 import type { JobEnvelope } from "../job-queue/index.js";
 
@@ -144,8 +143,9 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 			} satisfies HarnessJobPayload<R>;
 		}
 
-		return producer<HarnessJobPayload<R>>(
-			(actions) => {
+		return node<HarnessJobPayload<R>>(
+			[],
+			(_data, actions) => {
 				const ac = new AbortController();
 				// Link pump-supplied signal (Tier 6.5 2.5b): parent abort
 				// (e.g. `harness.destroy()`) cascades into the inner AC and
@@ -217,7 +217,7 @@ export function actuatorExecutor<R>(config: ActuatorExecutorConfig<R>): HarnessE
 					unsub = null;
 				};
 			},
-			{ name: `${name}/inner` },
+			{ name: `${name}/inner`, describeKind: "producer" },
 		);
 	};
 }

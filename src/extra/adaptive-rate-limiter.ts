@@ -22,8 +22,7 @@
 
 import { monotonicNs } from "../core/clock.js";
 import { DATA } from "../core/messages.js";
-import type { Node } from "../core/node.js";
-import { derived, state } from "../core/sugar.js";
+import { type Node, node } from "../core/node.js";
 import { NS_PER_SEC } from "./backoff.js";
 import { type TokenBucket, tokenBucket } from "./resilience.js";
 import { fromAny, type NodeInput } from "./sources.js";
@@ -143,30 +142,49 @@ export function adaptiveRateLimiter(
 	// Resolve reactive rpm/tpm inputs. Callers may pass `NodeInput` which
 	// could be a literal number or a Node. `fromAny` normalizes to a Node.
 	const rpmInputNode =
-		opts.rpm != null ? fromAny(opts.rpm as NodeInput<number>) : state(Number.POSITIVE_INFINITY);
+		opts.rpm != null
+			? fromAny(opts.rpm as NodeInput<number>)
+			: node<number>([], { initial: Number.POSITIVE_INFINITY });
 	const tpmInputNode =
-		opts.tpm != null ? fromAny(opts.tpm as NodeInput<number>) : state(Number.POSITIVE_INFINITY);
+		opts.tpm != null
+			? fromAny(opts.tpm as NodeInput<number>)
+			: node<number>([], { initial: Number.POSITIVE_INFINITY });
 
 	// Signal cap state — updated by recordSignal() / adaptation source.
 	// The decay timer relaxes the cap back to Infinity after `clampCooldownMs`.
-	const signalRpmCap = state<number>(Number.POSITIVE_INFINITY, {
+	const signalRpmCap = node<number>([], {
+		initial: Number.POSITIVE_INFINITY,
 		name: "adaptiveRateLimiter/signalRpmCap",
 	});
-	const signalTpmCap = state<number>(Number.POSITIVE_INFINITY, {
+	const signalTpmCap = node<number>([], {
+		initial: Number.POSITIVE_INFINITY,
 		name: "adaptiveRateLimiter/signalTpmCap",
 	});
-	const lastSignal = state<RateLimitSignal>({}, { name: "adaptiveRateLimiter/lastSignal" });
+	const lastSignal = node<RateLimitSignal>([], {
+		initial: {},
+		name: "adaptiveRateLimiter/lastSignal",
+	});
 
 	// Compute effective rpm/tpm: min of user-configured cap and signal cap.
-	const effectiveRpm = derived<number>(
+	const effectiveRpm = node<number>(
 		[rpmInputNode, signalRpmCap],
-		([user, sig]) => Math.min(Number(user ?? Infinity), Number(sig ?? Infinity)),
-		{ name: "adaptiveRateLimiter/effectiveRpm" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(Math.min(Number(data[0] ?? Infinity), Number(data[1] ?? Infinity)));
+		},
+		{ name: "adaptiveRateLimiter/effectiveRpm", describeKind: "derived" },
 	);
-	const effectiveTpm = derived<number>(
+	const effectiveTpm = node<number>(
 		[tpmInputNode, signalTpmCap],
-		([user, sig]) => Math.min(Number(user ?? Infinity), Number(sig ?? Infinity)),
-		{ name: "adaptiveRateLimiter/effectiveTpm" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(Math.min(Number(data[0] ?? Infinity), Number(data[1] ?? Infinity)));
+		},
+		{ name: "adaptiveRateLimiter/effectiveTpm", describeKind: "derived" },
 	);
 
 	// Token buckets — rebuilt when effective caps change.
@@ -261,11 +279,13 @@ export function adaptiveRateLimiter(
 		}
 	}
 
-	const pending = state<number>(0, { name: "adaptiveRateLimiter/pending" });
-	const rpmAvailableNode = state<number>(Number.POSITIVE_INFINITY, {
+	const pending = node<number>([], { initial: 0, name: "adaptiveRateLimiter/pending" });
+	const rpmAvailableNode = node<number>([], {
+		initial: Number.POSITIVE_INFINITY,
 		name: "adaptiveRateLimiter/rpmAvailable",
 	});
-	const tpmAvailableNode = state<number>(Number.POSITIVE_INFINITY, {
+	const tpmAvailableNode = node<number>([], {
+		initial: Number.POSITIVE_INFINITY,
 		name: "adaptiveRateLimiter/tpmAvailable",
 	});
 

@@ -3,8 +3,7 @@
  * @module
  */
 
-import type { Node } from "../../../core/node.js";
-import { derived } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { aiMeta } from "../_internal.js";
 
 /** A keyword match detected in the stream. */
@@ -87,10 +86,17 @@ export function keywordFlagExtractor(
 		pattern: p.pattern,
 		compiled: new RegExp(p.pattern.source, `${p.pattern.flags.replace("g", "")}g`),
 	}));
-	return derived<readonly KeywordFlag[]>(
+	return node<readonly KeywordFlag[]>(
 		[accumulatedText],
-		([text], ctx) => {
-			if (text == null) return [];
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const text = data[0];
+			if (text == null) {
+				actions.emit([]);
+				return;
+			}
 			const accumulated = text as string;
 
 			if (!("flags" in ctx.store)) {
@@ -115,7 +121,7 @@ export function keywordFlagExtractor(
 				}
 			}
 			ctx.store.scannedTo = accumulated.length;
-			return added ? [...flags] : flags.slice();
+			actions.emit(added ? [...flags] : flags.slice());
 		},
 		{
 			name: opts.name ?? "keyword-flag-extractor",

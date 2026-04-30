@@ -1,17 +1,21 @@
 /**
- * Sugar constructors over the raw `node()` primitive.
+ * Remaining sugar constructors over the raw `node()` primitive.
  *
- * Each factory wraps a user-friendly function into the canonical
- * `NodeFn = (data, actions, ctx) => cleanup | void` shape, then calls
- * `node(...)`. This is the only place `actions.emit(...)` is invoked
- * on behalf of the user — if you need finer control (multi-emission,
- * raw `actions.down` / `actions.up`, cleanup return), use the raw
- * `node()` factory from `./node.js` directly.
+ * `state`, `derived`, `effect`, `producer` (and typed variants `derivedT`,
+ * `effectT`) have been removed from core. Their equivalents live as
+ * restricted-signature methods on `Graph` (see `graph.ts`):
+ *   - `graph.state(name, initial?, opts?)`
+ *   - `graph.derived(name, depPaths, fn, opts?)`
+ *   - `graph.effect(name, depPaths, fn, opts?)`
+ *   - `graph.producer(name, setupFn, opts?)`
  *
- * See SESSION-foundation-redesign.md §8.5 + §10.6 for the rewrite.
+ * What remains here:
+ *   - `dynamicNode` — track-proxy wrapper (no Graph equivalent yet)
+ *   - `autoTrackNode` — runtime dep discovery (Jotai/signals compat)
+ *   - `pipe` — left-to-right operator composition
+ *   - `NodeValues` — tuple-mapped type utility (used by compat layers)
  */
 
-import type { NodeActions } from "./config.js";
 import {
 	type FnCtx,
 	type Node,
@@ -23,293 +27,19 @@ import {
 } from "./node.js";
 
 // ---------------------------------------------------------------------------
-// First-run gate — now enforced in core (spec §2.7)
-// ---------------------------------------------------------------------------
-//
-// Previous versions of this file carried a `sentinelGuard` helper that emitted
-// RESOLVED whenever any dep was still sentinel at fn-fire time. That guard
-// lived at the sugar layer, which made the first-run gate observable on the
-// wire as `[[DIRTY], [RESOLVED], [DIRTY], [DATA]]` for multi-parent derived
-// activation (one DIRTY/RESOLVED pair per partial-dep settle in the subscribe
-// loop).
-//
-// The gate is now in core (`NodeImpl._maybeRunFnOnSettlement`, controlled by
-// `NodeOptions.partial`). Sugar `derived` / `effect` inherit the default
-// `partial: false` so their wrapped fn only runs with all deps settled —
-// wire is the clean `[[START], [DIRTY], [DATA, fn(initial...)]]` shape.
-// Callers who need pre-gate partial firing pass `partial: true`; the sugar
-// wrapper falls back to `ctx.prevData[i]` (which is `undefined` for sentinel
-// deps) so user fn sees the same "undefined for unset dep" contract it had
-// under the old `allowPartial: true` path.
-
-// ---------------------------------------------------------------------------
-// state — manual source with an optional initial value
+// NodeValues — tuple-mapped type utility
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a manual source node. Drive it with `state.emit(v)` (framed,
- * diamond-safe) or `state.down([[DATA, v]])` (raw compat path).
- *
- * **Sentinel form.** Omit `initial` (or pass `undefined`) to leave the
- * node in `"sentinel"` status — the canonical "no value yet" state.
- * Downstream `derived` first-run gate then waits for the first real DATA
- * before firing. Pass an explicit `null` to cache `null` as DATA — `null`
- * is a valid DATA value per spec §2.2 ("`T | null` is the only valid DATA
- * domain; `undefined` is reserved as the global SENTINEL").
- *
- * @example
- * ```ts
- * import { state, derived } from "@graphrefly/graphrefly";
- *
- * // Cached form — starts at 10, derived fires immediately on subscribe.
- * const counter = state(10);
- *
- * // Sentinel form — derived's first-run gate waits for the first emit.
- * const candidates = state<readonly string[]>();
- * const ready = derived([candidates], ([cands]) => cands.length > 0);
- * candidates.emit(["v1"]); // ready fires now
- * ```
- *
- * @param initial - Starting cached value (optional). Omit or pass
- *   `undefined` for the sentinel form; pass `null` to cache `null`.
- * @param opts - Optional {@link NodeOptions} (excluding `initial`).
- */
-export function state<T>(initial?: T, opts?: Omit<NodeOptions<T>, "initial">): Node<T> {
-	return node<T>([], { ...opts, initial });
-}
-
-// ---------------------------------------------------------------------------
-// producer — no-deps source with a compute body
-// ---------------------------------------------------------------------------
-
-/**
- * User-level producer compute: runs once on first-subscriber activation.
- * Receives `actions` for imperative emission and `ctx` for FnCtx (typically
- * only `store` is useful on a producer — no deps means `prevData` and
- * `terminalDeps` are empty).
- */
-export type ProducerFn = (
-	actions: NodeActions,
-	ctx: FnCtx,
-	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
-) => NodeFnCleanup | void;
-
-/**
- * Creates a producer node with no deps; `fn` runs once when the first
- * subscriber connects. Return a cleanup function (`() => void` — fires on
- * every transition) or an object with granular hooks
- * (`{ beforeRun?, deactivate?, invalidate? }` — each hook fires on its named
- * transition only) to register teardown. See {@link NodeFnCleanup}.
- *
- * @example
- * ```ts
- * const ticker = producer((actions) => {
- *   const id = setInterval(() => actions.emit(Date.now()), 1000);
- *   return () => clearInterval(id);
- * });
- * ```
- */
-export function producer<T = unknown>(fn: ProducerFn, opts?: NodeOptions<T>): Node<T> {
-	const wrapped: NodeFn = (_data, actions, ctx) => fn(actions, ctx) ?? undefined;
-	return node<T>(wrapped, { describeKind: "producer", ...opts });
-}
-
-// ---------------------------------------------------------------------------
-// derived — dep-driven pure compute
-// ---------------------------------------------------------------------------
-
-/**
- * User-level derived compute: receives the latest DATA from each dep and
- * returns the new value. The sugar wraps it with `actions.emit(fn(...))`
- * so the return value flows through the framed emit pipeline.
- *
- * For derived nodes that need to inspect `ctx.prevData` / `ctx.terminalDeps`
- * / `ctx.store`, accept the optional second parameter.
- */
-export type DerivedFn<T> = (data: readonly unknown[], ctx: FnCtx) => T | undefined | null;
-
-/**
- * Creates a derived node that computes **one output per wave** from the latest
- * value of each dependency — **snapshot / combine semantics**.
- *
- * `fn` receives one scalar per dep (the last DATA value seen this wave, or the
- * prior-wave value as fallback). It is called once per settled wave and emits
- * a single value via `actions.emit`. The equals check then suppresses the
- * emission as `RESOLVED` if the output has not changed.
- *
- * **Not for streaming one-to-one transforms.** If each DATA value in a batch
- * must produce a corresponding output (e.g. transforming every item emitted by
- * `fromIter` individually), use {@link map} or raw `node()` with full batch
- * iteration instead. `derived` only sees the *last* value per dep when a batch
- * carries multiple DATAs.
- *
- * @example
- * ```ts
- * const a = state(1);
- * const b = derived([a], ([x]) => (x as number) * 2);
- * ```
- */
-export function derived<T = unknown>(
-	deps: readonly Node[],
-	fn: DerivedFn<T>,
-	opts?: NodeOptions<T>,
-): Node<T> {
-	// First-run gate lives in core (§2.7). Core default `partial: false`
-	// matches sugar's intent — no explicit flag needed. Spread-order note: a
-	// hypothetical `opts.partial = undefined` still resolves to the core
-	// default because spread of an undefined property is a no-op (v8+); the
-	// `?? false` on the core side would cover it anyway.
-	const wrapped: NodeFn = (batchData, actions, ctx) => {
-		const data = batchData.map((batch, i) =>
-			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-		);
-		actions.emit(fn(data, ctx));
-		return undefined;
-	};
-	return node<T>(deps, wrapped, { describeKind: "derived", ...opts });
-}
-
-// ---------------------------------------------------------------------------
-// derivedT / effectT — typed-tuple variants of derived / effect
-// ---------------------------------------------------------------------------
-
-/**
- * Maps a tuple of `Node<V>`s to a tuple of `V`s. Used by {@link derivedT}
- * and {@link effectT} to propagate dep value types into the callback's
- * `data` parameter — eliminating per-callsite `as` casts.
+ * Maps a tuple of `Node<V>`s to a tuple of `V`s. Used by compat layers
+ * and typed APIs to propagate dep value types into callback parameters.
  */
 export type NodeValues<TDeps extends readonly Node<unknown>[]> = {
 	readonly [K in keyof TDeps]: TDeps[K] extends Node<infer V> ? V : never;
 };
 
-/**
- * Typed callback for {@link derivedT}. Each tuple element corresponds
- * positionally to the matching dep's value type.
- */
-export type DerivedTFn<TDeps extends readonly Node<unknown>[], TOut> = (
-	data: NodeValues<TDeps>,
-	ctx: FnCtx,
-) => TOut | undefined | null;
-
-/**
- * Typed callback for {@link effectT}. Each tuple element corresponds
- * positionally to the matching dep's value type.
- */
-export type EffectTFn<TDeps extends readonly Node<unknown>[]> = (
-	data: NodeValues<TDeps>,
-	actions: NodeActions,
-	ctx: FnCtx,
-	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
-) => NodeFnCleanup | void;
-
-/**
- * Typed-tuple variant of {@link derived}. Use when the dep types matter at
- * the callback boundary — `data` is inferred as a tuple of dep value types
- * instead of `readonly unknown[]`.
- *
- * Same runtime semantics as {@link derived} (first-run gate, snapshot
- * combine semantics, equals substitution).
- *
- * **`partial: true` is rejected at the type level (qa F-E, 2026-04-29).**
- * Tuple slots in `NodeValues<TDeps>` resolve to `V` (never `V | undefined`),
- * but `partial: true` lets fn run before every dep has fired. The two are
- * unsound together — fn would receive `undefined` for an unfired dep but
- * see it typed as `V`. Callers needing partial firing keep using untyped
- * {@link derived} where `data` is `readonly unknown[]` and the
- * `=== undefined` guard is sanctioned (COMPOSITION-GUIDE §3 partial-true
- * exception).
- *
- * @example
- * ```ts
- * const a = state(1);
- * const b = state("hi");
- * // sum: number, label: string — no casts needed.
- * const out = derivedT([a, b], ([sum, label]) => `${label}:${sum * 2}`);
- * ```
- */
-export function derivedT<TDeps extends readonly Node<unknown>[], TOut>(
-	deps: TDeps,
-	fn: DerivedTFn<TDeps, TOut>,
-	opts?: Omit<NodeOptions<TOut>, "partial"> & { partial?: false },
-): Node<TOut> {
-	return derived<TOut>(deps as unknown as readonly Node[], fn as unknown as DerivedFn<TOut>, opts);
-}
-
 // ---------------------------------------------------------------------------
-// effect — dep-driven side effect, no auto-emit
-// ---------------------------------------------------------------------------
-
-/**
- * User-level effect compute: fires when deps settle. Return value is NOT
- * auto-emitted — use `actions.emit(v)` / `actions.down(msgs)` explicitly if
- * the effect also wants to produce downstream messages. Return a cleanup
- * function (`() => void`) or an object with granular hooks
- * (`{ beforeRun?, deactivate?, invalidate? }`) to register teardown.
- * See {@link NodeFnCleanup}.
- */
-export type EffectFn = (
-	data: readonly unknown[],
-	actions: NodeActions,
-	ctx: FnCtx,
-	// biome-ignore lint/suspicious/noConfusingVoidType: matches NodeFn — see its JSDoc.
-) => NodeFnCleanup | void;
-
-/**
- * Typed-tuple variant of {@link effect}. Use when the dep types matter at
- * the callback boundary — `data` is inferred as a tuple of dep value types
- * instead of `readonly unknown[]`.
- *
- * Same runtime semantics as {@link effect} (first-run gate, no auto-emit,
- * cleanup contract).
- *
- * **`partial: true` is rejected at the type level (qa F-E, 2026-04-29).**
- * See {@link derivedT} for the soundness rationale.
- *
- * @example
- * ```ts
- * const user = state<User | null>(null);
- * const cfg = state<Config>(defaultCfg);
- * effectT([user, cfg], ([u, c]) => {
- *   if (u != null) hydrate(u, c);
- * });
- * ```
- */
-export function effectT<TDeps extends readonly Node<unknown>[]>(
-	deps: TDeps,
-	fn: EffectTFn<TDeps>,
-	opts?: Omit<NodeOptions<unknown>, "partial"> & { partial?: false },
-): Node<unknown> {
-	return effect(deps as unknown as readonly Node[], fn as unknown as EffectFn, opts);
-}
-
-/**
- * Runs a side-effect when deps settle. Return value is not auto-emitted.
- *
- * @example
- * ```ts
- * effect([source], ([v]) => {
- *   console.log(v);
- * });
- * ```
- */
-export function effect(
-	deps: readonly Node[],
-	fn: EffectFn,
-	opts?: NodeOptions<unknown>,
-): Node<unknown> {
-	// First-run gate lives in core (§2.7). Core default matches sugar's
-	// intent. User override: pass `partial: true` to fire on partial deps.
-	const wrapped: NodeFn = (batchData, actions, ctx) => {
-		const data = batchData.map((batch, i) =>
-			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-		);
-		return fn(data, actions, ctx) ?? undefined;
-	};
-	return node(deps, wrapped, { describeKind: "effect", ...opts });
-}
-
-// ---------------------------------------------------------------------------
-// dynamicNode — track-proxy wrapper over `derived`
+// dynamicNode — track-proxy wrapper
 // ---------------------------------------------------------------------------
 
 /**
@@ -326,11 +56,10 @@ export type TrackFn = (dep: Node) => unknown;
 export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
 
 /**
- * Sugar over `derived(...)` that exposes dep values via a `track(dep)`
- * proxy instead of positional `data[i]`. All declared `allDeps` participate
- * in wave tracking, so the first fn run waits for every dep to settle.
- * Unused deps that update just re-run fn; `equals` absorbs unchanged
- * outputs as RESOLVED.
+ * Exposes dep values via a `track(dep)` proxy instead of positional
+ * `data[i]`. All declared `allDeps` participate in wave tracking, so
+ * the first fn run waits for every dep to settle. Unused deps that
+ * update just re-run fn; `equals` absorbs unchanged outputs as RESOLVED.
  *
  * P3-compliant: `track(dep)` reads from the framework-managed
  * `DepRecord.prevData` populated by the protocol, never from
@@ -338,8 +67,8 @@ export type DynamicFn<T> = (track: TrackFn, ctx: FnCtx) => T | undefined | null;
  *
  * @example
  * ```ts
- * const a = state(1);
- * const b = state(10);
+ * const a = node<number>([], { initial: 1 });
+ * const b = node<number>([], { initial: 10 });
  * const sum = dynamicNode([a, b], (track) => (track(a) as number) + (track(b) as number));
  * ```
  */
@@ -352,25 +81,23 @@ export function dynamicNode<T = unknown>(
 	allDeps.forEach((d, i) => {
 		depIndex.set(d, i);
 	});
-	return derived<T>(
-		allDeps,
-		// data[i] is already sugar-unwrapped to a scalar by derived()'s wrapper.
-		(data, ctx) => {
-			const track: TrackFn = (dep) => {
-				const i = depIndex.get(dep);
-				if (i == null) {
-					throw new Error(`dynamicNode: untracked dep "${dep.name ?? "<unnamed>"}"`);
-				}
-				return data[i];
-			};
-			return fn(track, ctx);
-		},
-		opts,
-	);
+	const wrapped: NodeFn = (batchData, actions, ctx) => {
+		const data = batchData.map((batch, i) =>
+			batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+		);
+		const track: TrackFn = (dep) => {
+			const i = depIndex.get(dep);
+			if (i == null) {
+				throw new Error(`dynamicNode: untracked dep "${dep.name ?? "<unnamed>"}"`);
+			}
+			return data[i];
+		};
+		actions.emit(fn(track, ctx));
+		return undefined;
+	};
+	return node<T>(allDeps, wrapped, { describeKind: "derived", ...opts });
 }
 
-// ---------------------------------------------------------------------------
-// pipe — left-to-right operator composition
 // ---------------------------------------------------------------------------
 // autoTrackNode — runtime dep discovery (Jotai/signals compat)
 // ---------------------------------------------------------------------------
@@ -402,7 +129,8 @@ export function dynamicNode<T = unknown>(
  *
  * @example
  * ```ts
- * const a = state(1), b = state(2);
+ * const a = node<number>([], { initial: 1 });
+ * const b = node<number>([], { initial: 2 });
  * const sum = autoTrackNode((track) => track(a) + track(b));
  * // deps [a, b] discovered automatically on first run
  * ```

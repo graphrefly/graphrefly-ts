@@ -36,8 +36,8 @@
  *
  * @module
  */
-import type { Node } from "../../core/node.js";
-import { derived } from "../../core/sugar.js";
+import { type Node, node } from "../../core/node.js";
+
 import { domainMeta } from "../../extra/meta.js";
 import { keepalive } from "../../extra/sources.js";
 import {
@@ -180,9 +180,14 @@ export function graphLens(target: Graph): GraphLensView {
 	});
 	const topology = topologyHandle.node;
 
-	const health = derived<HealthReport>(
+	const health = node<HealthReport>(
 		[topology],
-		([described]) => computeHealthReport(described as GraphDescribeOutput),
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(computeHealthReport(data[0] as GraphDescribeOutput));
+		},
 		{
 			name: "graphLens.health",
 			describeKind: "derived",
@@ -212,9 +217,14 @@ export function graphLens(target: Graph): GraphLensView {
 	const flowMap = new Map<string, FlowEntry>();
 	let lastAppliedFlush_ns = -1;
 	const dataFlow = target.observe({ reactive: true, tiers: ["data"] });
-	const flow = derived<ReadonlyMap<string, FlowEntry>>(
+	const flow = node<ReadonlyMap<string, FlowEntry>>(
 		[dataFlow, topology],
-		([changeset, described]) => {
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			const changeset = data[0];
+			const described = data[1];
 			const c = changeset as ObserveChangeset | undefined;
 			const desc = described as GraphDescribeOutput | undefined;
 
@@ -252,7 +262,7 @@ export function graphLens(target: Graph): GraphLensView {
 			}
 
 			// Snapshot — consumers receive a frozen view.
-			return new Map(flowMap) as ReadonlyMap<string, FlowEntry>;
+			actions.emit(new Map(flowMap) as ReadonlyMap<string, FlowEntry>);
 		},
 		{
 			name: "graphLens.flow",

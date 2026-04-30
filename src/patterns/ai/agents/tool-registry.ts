@@ -1,6 +1,5 @@
 import { ERROR, type Messages } from "../../../core/messages.js";
-import type { Node } from "../../../core/node.js";
-import { derived, producer } from "../../../core/sugar.js";
+import { type Node, node } from "../../../core/node.js";
 import { reactiveMap } from "../../../extra/reactive-map.js";
 import { fromAsyncIter, fromPromise, keepalive } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -49,9 +48,15 @@ export class ToolRegistryGraph extends Graph {
 		this.definitions = this._bundle.entries;
 		this.add(this.definitions, { name: "definitions" });
 
-		this.schemas = derived<readonly ToolDefinition[]>(
+		this.schemas = node<readonly ToolDefinition[]>(
 			[this.definitions],
-			([defs]) => [...((defs ?? new Map()) as ReadonlyMap<string, ToolDefinition>).values()],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const defs = data[0];
+				actions.emit([...((defs ?? new Map()) as ReadonlyMap<string, ToolDefinition>).values()]);
+			},
 			{
 				name: "schemas",
 				describeKind: "derived",
@@ -98,8 +103,9 @@ export class ToolRegistryGraph extends Graph {
 	executeReactive(name: string, args: Record<string, unknown>): Node<unknown> {
 		const tool = this._bundle.get(name);
 		if (!tool) throw new Error(`toolRegistry: unknown tool "${name}"`);
-		return producer<unknown>(
-			(actions) => {
+		return node<unknown>(
+			[],
+			(_data, actions) => {
 				const ac = new AbortController();
 				let inner: Node<unknown>;
 				try {
@@ -122,7 +128,11 @@ export class ToolRegistryGraph extends Graph {
 					unsub();
 				};
 			},
-			{ name: `executeReactive::${name}`, meta: aiMeta("tool_execute_reactive") },
+			{
+				name: `executeReactive::${name}`,
+				describeKind: "producer",
+				meta: aiMeta("tool_execute_reactive"),
+			},
 		);
 	}
 

@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { type PolicyRuleData, policy } from "../../core/guard.js";
-import { derived, state } from "../../core/sugar.js";
+import { node } from "../../core/node.js";
+
 import { Graph } from "../../graph/index.js";
 import { auditTrail, complianceSnapshot, policyGate } from "../../patterns/inspect/audit.js";
 
 describe("auditTrail (roadmap §9.2)", () => {
 	it("records DATA mutations with seq, timestamps, value", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g);
 
 		g.set("a", 1);
@@ -26,8 +27,8 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("byNode / byActor / byTimeRange queries", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
-		g.add(state(0, { name: "b", guard: () => true }), { name: "b" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", guard: () => true, initial: 0 }), { name: "b" });
 		const audit = auditTrail(g);
 
 		const t0 = performance.now() * 1e6;
@@ -45,7 +46,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("captures graph.trace() reason annotations on entries", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g);
 
 		g.trace("a", "set by pricing rule R7");
@@ -57,7 +58,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("respects includeTypes filter", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g, { includeTypes: ["data"] });
 
 		g.set("a", 1);
@@ -67,14 +68,14 @@ describe("auditTrail (roadmap §9.2)", () => {
 	it("EH-18: exposes effective includeTypes as a readonly Set", () => {
 		// Caller-supplied includeTypes is reflected verbatim.
 		const g1 = new Graph("g1");
-		g1.add(state(0, { name: "a" }), { name: "a" });
+		g1.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const customAudit = auditTrail(g1, { includeTypes: ["data", "error"] });
 		expect(customAudit.includeTypes).toBeInstanceOf(Set);
 		expect([...customAudit.includeTypes].sort()).toEqual(["data", "error"]);
 
 		// Default set surfaces when no override is passed.
 		const g2 = new Graph("g2");
-		g2.add(state(0, { name: "a" }), { name: "a" });
+		g2.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const defaultAudit = auditTrail(g2);
 		expect([...defaultAudit.includeTypes].sort()).toEqual([
 			"complete",
@@ -89,11 +90,11 @@ describe("auditTrail (roadmap §9.2)", () => {
 		// fresh clone of the default. A cast-and-mutate on one MUST NOT leak
 		// into the other (the original singleton-share bug).
 		const g1 = new Graph("g1-default");
-		g1.add(state(0, { name: "a" }), { name: "a" });
+		g1.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit1 = auditTrail(g1);
 
 		const g2 = new Graph("g2-default");
-		g2.add(state(0, { name: "a" }), { name: "a" });
+		g2.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit2 = auditTrail(g2);
 
 		expect(audit1.includeTypes).not.toBe(audit2.includeTypes);
@@ -106,7 +107,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("respects custom filter predicate", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g, {
 			filter: (e) => typeof e.value === "number" && (e.value as number) >= 10,
 		});
@@ -121,7 +122,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("count node updates reactively as entries accrue", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g);
 		audit.observe("count").subscribe(() => {});
 
@@ -134,7 +135,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 		// Previously _lastMutation only populated when a guard ran; auditTrail
 		// missed actor attribution for the common case of unguarded nodes.
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" }); // no guard
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" }); // no guard
 		const audit = auditTrail(g);
 
 		g.set("a", 1, { actor: { type: "llm", id: "agent-7" } });
@@ -149,7 +150,7 @@ describe("auditTrail (roadmap §9.2)", () => {
 
 	it("ring-buffer cap (maxSize) drops oldest entries", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const audit = auditTrail(g, { maxSize: 3 });
 
 		for (let i = 1; i <= 5; i++) g.set("a", i);
@@ -168,7 +169,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("audit mode: records would-be denials without blocking writes", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const enforcer = policyGate(g, denyLlmWrites, { mode: "audit" });
 
 		// LLM write should succeed (audit mode doesn't block) but be recorded.
@@ -185,7 +186,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("audit mode: human writes pass without recording violations", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const enforcer = policyGate(g, denyLlmWrites, { mode: "audit" });
 
 		g.set("a", 5, { actor: { type: "human", id: "alice" } });
@@ -199,7 +200,7 @@ describe("policyGate (roadmap §9.2)", () => {
 			{ effect: "deny" as const, action: "write" as const },
 		];
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
 		const enforcer = policyGate(g, denyNonHuman, { mode: "audit" });
 
 		// Write with no actor — previously silently skipped, now must be
@@ -214,7 +215,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("enforce mode: blocks disallowed writes by throwing GuardDenied", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const enforcer = policyGate(g, denyLlmWrites, { mode: "enforce" });
 
 		// Human ok
@@ -233,7 +234,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("enforce mode: dispose restores original guards", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		const enforcer = policyGate(g, denyLlmWrites, { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "llm", id: "bot" } })).toThrow();
@@ -245,8 +246,11 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("reactive policies: updating policies node changes enforcement", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		const policies = state<readonly PolicyRuleData[]>(denyLlmWrites, { name: "policies" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		const policies = node<readonly PolicyRuleData[]>([], {
+			name: "policies",
+			initial: denyLlmWrites,
+		});
 		policyGate(g, policies, { mode: "enforce" });
 
 		// Initially LLMs blocked.
@@ -268,7 +272,7 @@ describe("policyGate (roadmap §9.2)", () => {
 			allow("write", { where: (a) => a.type === "human" });
 		});
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: onlyHumans }), { name: "a" });
+		g.add(node([], { name: "a", guard: onlyHumans, initial: 0 }), { name: "a" });
 		policyGate(g, [{ effect: "allow", action: "write", actorId: "alice" }], {
 			mode: "enforce",
 		});
@@ -283,8 +287,8 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("paths option restricts which nodes are watched", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
 		const enforcer = policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
@@ -299,7 +303,7 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("enforce mode: dynamic coverage — nodes added after construction are guarded (closes optimizations.md dynamic-coverage gap)", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		// paths omitted → dynamic coverage mode
 		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
@@ -307,13 +311,13 @@ describe("policyGate (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Add a new node AFTER enforcer is built — it should be guarded too.
-		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
 		expect(() => g.set("b", 1, { actor: { type: "human", id: "x" } })).toThrow();
 	});
 
 	it("enforce mode: static paths option does NOT dynamically cover late adds (documented caveat)", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: ["a"],
@@ -322,7 +326,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Late-added node — NOT covered because paths was explicit.
-		g.add(state(0, { name: "b" }), { name: "b" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
 		g.set("b", 1, { actor: { type: "human", id: "x" } });
 		expect(g.node("b").cache).toBe(1);
 	});
@@ -330,7 +334,7 @@ describe("policyGate (roadmap §9.2)", () => {
 	it("enforce mode: dynamic coverage — mount added after construction gets its contents guarded", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
-		child.add(state(0, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 0 }), { name: "x" });
 		// paths omitted → dynamic coverage mode
 		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
@@ -345,14 +349,14 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("enforce mode: dynamic coverage — removed node releases guard bookkeeping (re-add under same name re-wraps)", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 
 		// Remove and re-add under the same name — the new node should be guarded too.
 		g.remove("a");
-		g.add(state(0, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
 		expect(() => g.set("a", 1, { actor: { type: "human", id: "x" } })).toThrow();
 	});
 
@@ -363,7 +367,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		policyGate(g, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
 		// Add to the already-mounted child — watchTopologyTree should cover this.
-		child.add(state(0, { name: "x" }), { name: "x" });
+		child.add(node([], { name: "x", initial: 0 }), { name: "x" });
 		expect(() => g.set("kids::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
 	});
 
@@ -375,7 +379,7 @@ describe("policyGate (roadmap §9.2)", () => {
 		root.mount("mid", mid);
 		policyGate(root, [{ effect: "deny", action: "write" }], { mode: "enforce" });
 
-		leaf.add(state(0, { name: "x" }), { name: "x" });
+		leaf.add(node([], { name: "x", initial: 0 }), { name: "x" });
 		expect(() => root.set("mid::leaf::x", 1, { actor: { type: "human", id: "a" } })).toThrow();
 	});
 
@@ -385,9 +389,9 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("Tier 3.4 enforce mode: reactive `paths` — Node<readonly string[]> initial sweep guards starting set", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
+		const pathsNode = node<readonly string[]>([], { name: "paths", initial: ["a"] });
 		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
@@ -401,9 +405,9 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("Tier 3.4 enforce mode: reactive `paths` rebinds — paths added to set get wrapped, paths removed get released", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
+		const pathsNode = node<readonly string[]>([], { name: "paths", initial: ["a"] });
 		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
@@ -423,9 +427,9 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("Tier 3.4 enforce mode: reactive `paths` — adding to set wraps newly-included path without re-wrapping existing", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a" }), { name: "a" });
-		g.add(state(0, { name: "b" }), { name: "b" });
-		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", initial: 0 }), { name: "b" });
+		const pathsNode = node<readonly string[]>([], { name: "paths", initial: ["a"] });
 		policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "enforce",
 			paths: pathsNode,
@@ -442,9 +446,9 @@ describe("policyGate (roadmap §9.2)", () => {
 
 	it("Tier 3.4 audit mode: reactive `paths` filter rebinds on emission", () => {
 		const g = new Graph("g");
-		g.add(state(0, { name: "a", guard: () => true }), { name: "a" });
-		g.add(state(0, { name: "b", guard: () => true }), { name: "b" });
-		const pathsNode = state<readonly string[]>(["a"], { name: "paths" });
+		g.add(node([], { name: "a", guard: () => true, initial: 0 }), { name: "a" });
+		g.add(node([], { name: "b", guard: () => true, initial: 0 }), { name: "b" });
+		const pathsNode = node<readonly string[]>([], { name: "paths", initial: ["a"] });
 		const enforcer = policyGate(g, [{ effect: "deny", action: "write" }], {
 			mode: "audit",
 			paths: pathsNode,
@@ -466,8 +470,17 @@ describe("policyGate (roadmap §9.2)", () => {
 describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 	it("B21: graph.describe({ explain, reactive: true }) returns the same reactive chain", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -486,9 +499,27 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 	it("D5: debounces recompute across a batch — N events in one batch → one recompute", async () => {
 		const { batch } = await import("../../core/batch.js");
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 1, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
@@ -517,8 +548,17 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 
 	it("recomputes when audited graph mutates", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.observe("b").subscribe(() => {});
@@ -555,16 +595,34 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 
 	it("Tier 3.5: reactive `from` and `to` recompute the chain when the path nodes emit", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 100, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 100);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.observe("c").subscribe(() => {});
 
-		const fromNode = state<string>("a", { name: "from" });
-		const toNode = state<string>("b", { name: "to" });
+		const fromNode = node<string>([], { name: "from", initial: "a" });
+		const toNode = node<string>([], { name: "to", initial: "b" });
 		const live = g.describe({ explain: { from: fromNode, to: toNode }, reactive: true });
 		const unsub = live.node.subscribe(() => {});
 
@@ -586,15 +644,33 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 
 	it("Tier 3.5: reactive `maxDepth` recomputes the chain when the limit changes", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
-		const c = derived([b], ([v]) => (v as number) + 100, { name: "c" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		const c = node(
+			[b],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 100);
+			},
+			{ describeKind: "derived", name: "c" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.observe("c").subscribe(() => {});
 
-		const maxDepth = state<number>(1, { name: "max" });
+		const maxDepth = node<number>([], { name: "max", initial: 1 });
 		const live = g.describe({ explain: { from: "a", to: "c", maxDepth }, reactive: true });
 		const unsub = live.node.subscribe(() => {});
 
@@ -612,12 +688,21 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 
 	it("Tier 3.5: static call (no `reactive: true`) accepts reactive args by snapshotting their cache", () => {
 		const g = new Graph("g");
-		const a = state(1, { name: "a" });
-		const b = derived([a], ([v]) => (v as number) * 2, { name: "b" });
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) * 2);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 
-		const fromNode = state<string>("a", { name: "from" });
+		const fromNode = node<string>([], { name: "from", initial: "a" });
 		// Static call returns a CausalChain snapshot, not a reactive handle.
 		const chain = g.describe({ explain: { from: fromNode, to: "b" } });
 		expect("steps" in chain && Array.isArray(chain.steps)).toBe(true);
@@ -633,7 +718,7 @@ describe("graph.describe({ explain, reactive: true }) (roadmap §9.2)", () => {
 describe("complianceSnapshot (roadmap §9.2)", () => {
 	it("returns full graph state + audit + policies + fingerprint", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a", guard: () => true }), { name: "a" });
+		g.add(node([], { name: "a", guard: () => true, initial: 1 }), { name: "a" });
 		const audit = auditTrail(g);
 		const enforcer = policyGate(g, [{ effect: "allow", action: "write" }], { mode: "audit" });
 
@@ -656,7 +741,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("fingerprint is deterministic across calls with same input", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 
 		const s1 = complianceSnapshot(g);
 		const s2 = complianceSnapshot(g);
@@ -671,7 +756,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("fingerprint changes when graph state changes", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const snap1 = complianceSnapshot(g);
 		g.set("a", 999);
 		const snap2 = complianceSnapshot(g);
@@ -680,7 +765,7 @@ describe("complianceSnapshot (roadmap §9.2)", () => {
 
 	it("works without optional audit/policies bundles", () => {
 		const g = new Graph("g");
-		g.add(state(1, { name: "a" }), { name: "a" });
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const snap = complianceSnapshot(g);
 		expect(snap.audit).toBeUndefined();
 		expect(snap.policies).toBeUndefined();

@@ -7,8 +7,8 @@ export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 import { batch } from "../../../core/batch.js";
 import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
 import { placeholderArgs } from "../../../core/meta.js";
-import { type Node, node as nodeFactory } from "../../../core/node.js";
-import { effect, state } from "../../../core/sugar.js";
+import { type Node, node, node as nodeFactory } from "../../../core/node.js";
+
 import { switchMap } from "../../../extra/operators.js";
 import { awaitSettled, fromAny, keepalive } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -153,24 +153,33 @@ export class AgentLoopGraph extends Graph {
 		}
 
 		// --- State nodes (always have a real value; explicit initials) ---
-		this.status = state<AgentLoopStatus>("idle", {
-			name: "status",
-			describeKind: "state",
-			meta: aiMeta("agent_status"),
+		this.status = node<AgentLoopStatus>([], {
+			...{
+				name: "status",
+				describeKind: "state",
+				meta: aiMeta("agent_status"),
+			},
+			initial: "idle",
 		});
 		this.add(this.status, { name: "status" });
 
-		this.turn = state<number>(0, {
-			name: "turn",
-			describeKind: "state",
-			meta: aiMeta("agent_turn_count"),
+		this.turn = node<number>([], {
+			...{
+				name: "turn",
+				describeKind: "state",
+				meta: aiMeta("agent_turn_count"),
+			},
+			initial: 0,
 		});
 		this.add(this.turn, { name: "turn" });
 
-		this.aborted = state<boolean>(false, {
-			name: "aborted",
-			describeKind: "state",
-			meta: aiMeta("agent_aborted"),
+		this.aborted = node<boolean>([], {
+			...{
+				name: "aborted",
+				describeKind: "state",
+				meta: aiMeta("agent_aborted"),
+			},
+			initial: false,
 		});
 		this.add(this.aborted, { name: "aborted" });
 
@@ -359,17 +368,20 @@ export class AgentLoopGraph extends Graph {
 		// signal rejects AbortError (no stale response leak)`) — both
 		// fail when `_terminalResult` is rewired to depend on `llmResponse`
 		// directly. See COMPOSITION-GUIDE §32 (cross-wave reset reframe).
-		const lastResponseState = state<LLMResponse | null>(null, {
-			name: "lastResponse",
-			describeKind: "state",
-			meta: aiMeta("agent_last_response"),
+		const lastResponseState = node<LLMResponse | null>([], {
+			...{
+				name: "lastResponse",
+				describeKind: "state",
+				meta: aiMeta("agent_last_response"),
+			},
+			initial: null,
 		});
 		this.lastResponse = lastResponseState;
 
 		// toolCalls: raw node that emits DATA only when status === "acting" and
 		// the current response has tool calls. Otherwise emits RESOLVED. Using
 		// DATA([]) for the idle case would cause switchMap(toolCalls) to
-		// re-dispatch its inner (creating a fresh state([]) source whose
+		// re-dispatch its inner (creating a fresh node([], { initial: [] }) source whose
 		// emissions re-trigger effects downstream). RESOLVED keeps the inner
 		// alive and lets upstream waves pass through without re-dispatch.
 		// Inner raw tool-call stream — name `toolCallsRaw` so the post-intercept
@@ -450,41 +462,55 @@ export class AgentLoopGraph extends Graph {
 		// ERROR — but that ERROR propagation arrives in a separate wave, so
 		// this guard covers the "Promise already resolved before abort hit
 		// the controller" case.
-		const effResponse = effect([llmResponse], ([resp]) => {
-			if (latestAborted) return;
-			const response = resp as LLMResponse;
-			const next = latestTurn + 1;
-			const hasToolCalls = response.toolCalls != null && response.toolCalls.length > 0;
-			const naturalStop =
-				response.finishReason === "end_turn" &&
-				(!response.toolCalls || response.toolCalls.length === 0);
-			const customStop = stopWhen?.(response) === true;
-			const capReached = next >= maxTurns;
-			const nextStatus: AgentLoopStatus =
-				customStop || naturalStop || !hasToolCalls || capReached ? "done" : "acting";
-			batch(() => {
-				lastResponseState.emit(response);
-				statusNode.emit(nextStatus);
-				turnNode.emit(next);
-				chat.append("assistant", response.content, {
-					toolCalls: response.toolCalls,
+		const effResponse = node(
+			[llmResponse],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if (latestAborted) return;
+				const response = data[0] as LLMResponse;
+				const next = latestTurn + 1;
+				const hasToolCalls = response.toolCalls != null && response.toolCalls.length > 0;
+				const naturalStop =
+					response.finishReason === "end_turn" &&
+					(!response.toolCalls || response.toolCalls.length === 0);
+				const customStop = stopWhen?.(response) === true;
+				const capReached = next >= maxTurns;
+				const nextStatus: AgentLoopStatus =
+					customStop || naturalStop || !hasToolCalls || capReached ? "done" : "acting";
+				batch(() => {
+					lastResponseState.emit(response);
+					statusNode.emit(nextStatus);
+					turnNode.emit(next);
+					chat.append("assistant", response.content, {
+						toolCalls: response.toolCalls,
+					});
 				});
-			});
-		});
+			},
+			{ describeKind: "effect" },
+		);
 
 		// Effect 2: Tool results landed → append to chat, transition to
 		// thinking (or done if turn cap reached). Same ordering discipline —
 		// status emits before chat mutations. Abort guard mirrors effResponse.
-		const effResults = effect([toolResultsNode], ([results]) => {
-			if (latestAborted) return;
-			const arr = results as readonly ToolResult[];
-			if (arr.length === 0) return;
-			const nextStatus: AgentLoopStatus = latestTurn >= maxTurns ? "done" : "thinking";
-			batch(() => {
-				statusNode.emit(nextStatus);
-				for (const r of arr) chat.appendToolResult(r.id, r.content);
-			});
-		});
+		const effResults = node(
+			[toolResultsNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if (latestAborted) return;
+				const arr = data[0] as readonly ToolResult[];
+				if (arr.length === 0) return;
+				const nextStatus: AgentLoopStatus = latestTurn >= maxTurns ? "done" : "thinking";
+				batch(() => {
+					statusNode.emit(nextStatus);
+					for (const r of arr) chat.appendToolResult(r.id, r.content);
+				});
+			},
+			{ describeKind: "effect" },
+		);
 
 		// Effect 3: external abort → cancel in-flight wire call + terminal status.
 		// Aborting the controller causes the switchMap inner's `fromAny` to
@@ -504,12 +530,19 @@ export class AgentLoopGraph extends Graph {
 		const statusSub = statusNode.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) latestStatus = m[1] as AgentLoopStatus;
 		});
-		const effAbort = effect([abortedNode], ([isAborted]) => {
-			if (isAborted === true) {
-				this._currentAbortController?.abort(new Error("agentLoop: aborted"));
-				if (latestStatus !== "done") statusNode.emit("done");
-			}
-		});
+		const effAbort = node(
+			[abortedNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				if (data[0] === true) {
+					this._currentAbortController?.abort(new Error("agentLoop: aborted"));
+					if (latestStatus !== "done") statusNode.emit("done");
+				}
+			},
+			{ describeKind: "effect" },
+		);
 
 		// Keepalive so the pipeline stays activated even without external
 		// subscribers. Callers don't need to subscribe to `llmResponse` /

@@ -25,7 +25,7 @@
  */
 
 import type { Node } from "../../src/core/node.js";
-import { derived } from "../../src/core/sugar.js";
+import { node } from "../../src/core/node.js";
 import { type ReactiveMapBundle, reactiveMap } from "../../src/extra/reactive-map.js";
 import type {
 	CatalogFnEntry,
@@ -183,25 +183,45 @@ export function catalogOverlay(options: CatalogOverlayOptions = {}): CatalogOver
 	const sourceOverrides = reactiveMap<string, CatalogSourceEntry | TombstoneMarker>();
 	const templateOverrides = reactiveMap<string, GraphSpecTemplate | TombstoneMarker>();
 
-	const effective = derived<GraphSpecCatalog>(
+	const effective = node<GraphSpecCatalog>(
 		[fnOverrides.entries as Node<unknown>, sourceOverrides.entries as Node<unknown>],
-		([fnLive, sourceLive]) => {
-			return {
-				fns: mergeRecord(baseFns, fnLive as ReadonlyMap<string, CatalogFnEntry | TombstoneMarker>),
-				sources: mergeRecord(
-					baseSources,
-					sourceLive as ReadonlyMap<string, CatalogSourceEntry | TombstoneMarker>,
-				),
-			};
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				(([fnLive, sourceLive]) => {
+					return {
+						fns: mergeRecord(
+							baseFns,
+							fnLive as ReadonlyMap<string, CatalogFnEntry | TombstoneMarker>,
+						),
+						sources: mergeRecord(
+							baseSources,
+							sourceLive as ReadonlyMap<string, CatalogSourceEntry | TombstoneMarker>,
+						),
+					};
+				})(data, ctx),
+			);
 		},
-		{ name: "catalog-overlay/effective" },
+		{ describeKind: "derived", ...{ name: "catalog-overlay/effective" } },
 	);
 
-	const effectiveTemplates = derived<Record<string, GraphSpecTemplate>>(
+	const effectiveTemplates = node<Record<string, GraphSpecTemplate>>(
 		[templateOverrides.entries as Node<unknown>],
-		([live]) =>
-			mergeRecord(baseTemplates, live as ReadonlyMap<string, GraphSpecTemplate | TombstoneMarker>),
-		{ name: "catalog-overlay/effective-templates" },
+		(batchData, actions, ctx) => {
+			const data = batchData.map((batch, i) =>
+				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+			);
+			actions.emit(
+				(([live]) =>
+					mergeRecord(
+						baseTemplates,
+						live as ReadonlyMap<string, GraphSpecTemplate | TombstoneMarker>,
+					))(data, ctx),
+			);
+		},
+		{ describeKind: "derived", name: "catalog-overlay/effective-templates" },
 	);
 
 	const applyPatch = (patch: CatalogPatch): CatalogPatch => {
