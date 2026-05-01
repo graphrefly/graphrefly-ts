@@ -10,7 +10,26 @@
 
 ## Active work items
 
-- **QA follow-ups from A/B/C/D /qa pass (opened 2026-04-30).** Adversarial review by Blind Hunter + Edge Case Hunter on the 8-piece A/B/C1/C2/C2-followup/D1/D2/D3 batch surfaced 49 raw findings, deduplicated to 25 unique. 10 architecture-affecting (Group 1) + 15 auto-applicable (Group 2) all approved + applied in-batch. The following 10 deferrals are pre-existing or out-of-scope for this batch:
+- **QA follow-ups from A/B/C/D /qa pass (LANDED 2026-04-30).** Adversarial review by Blind Hunter + Edge Case Hunter on the 8-piece A/B/C1/C2/C2-followup/D1/D2/D3 batch surfaced 49 raw findings, deduplicated to 25 unique. All 10 architecture-affecting (Group 1) + 15 auto-applicable (Group 2) fixes landed. Final tip: 2638/2638 tests pass; build green incl. `assertBrowserSafeBundles`; lint at 9 errors / 38 warnings (all pre-existing in `scripts/*.mjs`). Patches:
+  - **F-1 + F-21:** changeset stream subscribes to nodes added AFTER activation; symmetric inspector hook attach/detach via path-keyed maps. 2 regression tests.
+  - **F-2:** `GraphChangeData` JSDoc documents the prod-build edge-attribution degradation when `inspectorEnabled === false` (default).
+  - **F-3:** `GraphChangeNodeAdded.nodeKind` populated with the resolved node's `_describeKind`. Regression test.
+  - **F-4:** separate `GraphChange["type"]`-based tier whitelist; topology + batch frame events now respected by `tiers:` filter. Regression test.
+  - **F-5:** `TopologyViewGraph._computeLayout` short-circuits to empty layout when `target.destroyed`. Regression test.
+  - **F-6:** `MemoryRetrievalGraph` `result` derived declares `vectors.entries` / `kg.adjacencyOut` / `kg.adjacencyIn` as deps when configured.
+  - **F-7 + F-11 + F-12:** `promptNode` calls `abortDispose?.()` on COMPLETE / ERROR / parse-error terminal branches; `cancelled` re-checked inside batch loop; `extractContent` cached on parse-failure path.
+  - **F-9:** dropped shared `MemoryRetrievalGraph.retrieval` / `retrievalTrace` state-node mirrors (last-writer-wins under concurrent calls). `AgentMemoryGraph` updated; tests updated.
+  - **F-10:** `layoutFrameToSvg` routes color options through `escapeXml` (XSS hardening for user-supplied themes).
+  - **F-13 + F-14:** envelope `timestamp_ns` + `version` JSDoc tightened (per-handle; not comparable to wall-clock).
+  - **F-15:** `GraphDerivedOptions` `equals: undefined` semantics pinned in JSDoc (falls back to `Object.is`).
+  - **F-16:** `GraphChange` discriminated union split — `GraphChange` (12 emitted variants) + `GraphChangeReserved` (6 forward-compat variants). Consumers `switch` over emitted-only without dead branches.
+  - **F-17:** canonical `LayoutFrame` / `LayoutBox` / `LayoutEdge` / `LayoutFn` types moved to `src/extra/render/layout-types.ts`. `patterns/topology-view/types.ts` re-exports them. Layering inversion eliminated.
+  - **F-18:** `AttachStorageGraphLike` verified internal-only — no barrel re-export needed.
+  - **F-19 + F-20:** upstream Node ref captured directly from inspector hook event (survives `dynamicNode` deps mutation); `"<anonymous>"` sentinel for unresolvable upstreams.
+  - **F-22:** `defaultLayout` `depIndex` resolution uses per-(to, from) running cursor for duplicate-dep diamonds.
+  - **F-23 + F-24:** regression tests for `partial: true` data-only-wave seam and edge attribution via inspector.
+
+  The following 10 deferrals are pre-existing or out-of-scope for this batch:
   - **D-1 — `fromPulsar` cleanup leaves `await consumer.receive()` pending forever.** [`src/extra/io/pulsar.ts:135-196`](../src/extra/io/pulsar.ts). Consumer holds resources indefinitely after teardown if broker is idle. Pre-existing in pre-split `io/index.ts`. **Fix path:** thread an `AbortSignal` through `consumer.receive()` (where SDK supports), or call `consumer.close()` in cleanup. Defer until a real long-running pulsar consumer hits it.
   - **D-2 — `fromRabbitMQ` race: cleanup runs before `start()` resolves → consumer leaks.** [`src/extra/io/rabbitmq.ts:142-227`](../src/extra/io/rabbitmq.ts). `consumerTag` is set only after `await channel.consume(...)` resolves; teardown-during-init skips `channel.cancel`. Broker-side subscription leaks per teardown-during-init. Pre-existing. **Fix path:** add a `cancelRequested` flag; after the await, if `cancelRequested`, call `channel.cancel(result.consumerTag)` immediately. Defer.
   - **D-3 — `fromHTTP` / `fromHTTPStream` accumulate abort listeners on long-lived `externalSignal` across resubscriptions.** [`src/extra/io/http.ts:128-130, 352-354`](../src/extra/io/http.ts). Listeners use `{once:true}` but never `removeEventListener` in cleanup. Each fresh activation under `resubscribable: true` appends another listener. If the signal never fires, listeners stay registered indefinitely. Pre-existing. Defer.

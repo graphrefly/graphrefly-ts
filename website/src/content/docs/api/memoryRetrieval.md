@@ -6,7 +6,7 @@ description: "Build the retrieval pipeline (vector + KG + budget packing) over a
 Build the retrieval pipeline (vector + KG + budget packing) over a
 `DistillBundle` and optional `vectors` / `kg` substrates. Returns a
 `MemoryRetrievalGraph` exposing `retrieval` / `retrievalTrace` reactive
-state and `retrieve` / `retrieveReactive` consumer methods.
+state and the `retrieveReactive(input)` consumer method.
 
 ## Signature
 
