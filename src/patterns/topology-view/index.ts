@@ -184,6 +184,15 @@ export class TopologyViewGraph extends Graph {
 	}
 
 	private _computeLayout(): Pick<LayoutFrame, "boxes" | "edges"> {
+		// /qa F-5: short-circuit if the target was destroyed. `target.describe()`
+		// on a destroyed graph returns empty topology silently — without this
+		// guard, frame consumers would see a degraded layout (empty boxes /
+		// edges) with no signal that the underlying graph is gone. The COMPLETE
+		// propagation is handled by the changeset stream's teardown variant
+		// flowing through `frame`.
+		if (this.target.destroyed) {
+			return { boxes: [], edges: [] };
+		}
 		const spec = this.target.describe();
 		return this.layout(spec);
 	}

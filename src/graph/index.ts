@@ -17,6 +17,7 @@ export type {
 	GraphChangeNodeAdded,
 	GraphChangeNodeRemoved,
 	GraphChangePause,
+	GraphChangeReserved,
 	GraphChangeResolved,
 	GraphChangeResubscribe,
 	GraphChangeResume,

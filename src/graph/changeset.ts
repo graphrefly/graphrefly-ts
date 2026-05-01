@@ -33,11 +33,15 @@ import type { Actor } from "../core/actor.js";
 /**
  * Common fields for every {@link GraphChange} variant.
  *
- * - `version` — monotonic counter (sourced via `core/versioning.ts`'s V0
- *   counter convention; per-stream stamp). Strictly increasing across all
- *   events from the same observe handle, regardless of variant.
+ * - `version` — monotonic counter, **per observe handle**. Comparisons are only
+ *   valid within a single subscription; different concurrent observers of the
+ *   same graph see independent counter sequences (their `version` values may
+ *   coincide for the same underlying event). Strictly increasing across all
+ *   events from a single handle regardless of variant.
  * - `timestamp_ns` — monotonic nanosecond timestamp from `core/clock.ts`
- *   `monotonicNs()`. Use for ordering / animation timing only.
+ *   `monotonicNs()`. Use for ordering / animation timing only — NOT comparable
+ *   to wall-clock or to `lastMutation.timestamp_ns` semantics elsewhere in the
+ *   codebase. Strictly use within a single observe handle's stream.
  * - `scope` — the `::`-delimited path that scopes this change. For node-level
  *   variants this is the node's qualified path; for graph-level topology
  *   events (`node-added` / `node-removed` / `mount` / `unmount`) this is the
@@ -65,6 +69,13 @@ export interface GraphChangeEnvelope {
  *
  * `actor` mirrors `Graph.observe()`'s `data` event attribution: present when
  * the originating `node.down(...)` supplied an actor, else `DEFAULT_ACTOR`.
+ *
+ * **Production note.** Edge attribution is sourced from the inspector hook,
+ * which only attaches when `cfg.inspectorEnabled` is true. The default in
+ * production builds is `false` (see `src/core/config.ts`). With the inspector
+ * disabled, `fromPath` falls back to `scope` (the consuming node) and
+ * `fromDepIndex` is `-1`. Enable inspector via `cfg.inspectorEnabled = true`
+ * (or rely on the dev-mode default) when accurate attribution matters.
  */
 export interface GraphChangeData extends GraphChangeEnvelope {
 	readonly type: "data";
@@ -174,10 +185,16 @@ export interface GraphChangeSnapshot extends GraphChangeEnvelope {
 // ---------------------------------------------------------------------------
 
 /**
- * Discriminated union of every changeset event variant. The runtime currently
- * emits the core data flow, topology, and batch boundary variants; the
- * remaining variants are reserved for forward-compatibility (post-1.0
- * store-level ops, pause/resume, etc.).
+ * Discriminated union of every changeset event variant **emitted by the
+ * runtime today**. Consumers can exhaustively `switch (c.type)` over this
+ * union and trust every branch corresponds to an actually-fired event.
+ *
+ * /qa F-16 (2026-04-30): the reserved variants (pause / resume / invalidate /
+ * trace / resubscribe / snapshot) live in {@link GraphChangeReserved} —
+ * separate so a `switch` over `GraphChange` doesn't mandate dead branches.
+ * If a future runtime extension promotes a reserved variant, it migrates
+ * from {@link GraphChangeReserved} into this `GraphChange` union (a
+ * non-breaking append).
  */
 export type GraphChange =
 	| GraphChangeData
@@ -191,8 +208,16 @@ export type GraphChange =
 	| GraphChangeMount
 	| GraphChangeUnmount
 	| GraphChangeBatchStart
-	| GraphChangeBatchEnd
-	// Reserved (not emitted by current implementation):
+	| GraphChangeBatchEnd;
+
+/**
+ * Reserved (not emitted by the current runtime). Forward-compatible — adding
+ * runtime emission for any reserved variant migrates it into {@link GraphChange}
+ * as a non-breaking append. Consumers building inspector pipelines that want
+ * to handle every possible future variant can switch over `GraphChange |
+ * GraphChangeReserved`.
+ */
+export type GraphChangeReserved =
 	| GraphChangePause
 	| GraphChangeResume
 	| GraphChangeInvalidate
@@ -200,5 +225,5 @@ export type GraphChange =
 	| GraphChangeResubscribe
 	| GraphChangeSnapshot;
 
-/** Tier name extracted from the `type` discriminator. */
+/** Tier name extracted from the `type` discriminator (emitted variants only). */
 export type GraphChangeType = GraphChange["type"];

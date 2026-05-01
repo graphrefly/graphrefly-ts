@@ -77,13 +77,18 @@ export function defaultLayout(
 
 	// Build a quick "to → ordered deps" lookup for `depIndex` attribution. The
 	// describe snapshot's `nodes[id].deps` is the positional dep array; the
-	// edge's depIndex is the position of `from` in `to`'s deps. Multiple
-	// occurrences (rare) collapse to the first match — `topologyView`'s
-	// frame events carry edge attribution from the source `data` event, so
-	// renderers can join change-events to edges by `(from,to)` pair.
+	// edge's depIndex is the position of `from` in `to`'s deps.
+	//
+	// /qa F-22: when the same upstream appears multiple times in `to.deps`
+	// (diamond / duplicate-dep patterns), each (from, to) edge gets a distinct
+	// depIndex via a per-`to` running cursor over occurrences in `toDeps`.
+	const seenPerTo = new Map<string, number>();
 	const edgeOut = result.edges.map((e) => {
 		const toDeps = spec.nodes[e.to]?.deps ?? [];
-		const depIndex = toDeps.indexOf(e.from);
+		const cursorKey = `${e.to}::${e.from}`;
+		const startFrom = seenPerTo.get(cursorKey) ?? 0;
+		const depIndex = toDeps.indexOf(e.from, startFrom);
+		seenPerTo.set(cursorKey, depIndex >= 0 ? depIndex + 1 : startFrom);
 		const points = e.points.map((p: LayoutEdgePoint) => [p.x, p.y] as const);
 		return {
 			from: e.from,

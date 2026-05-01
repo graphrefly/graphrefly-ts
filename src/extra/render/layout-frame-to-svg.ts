@@ -14,7 +14,7 @@
  * @category extra
  */
 
-import type { LayoutFrame } from "../../patterns/topology-view/types.js";
+import type { LayoutFrame } from "./layout-types.js";
 
 export interface LayoutFrameToSvgOptions {
 	/** Pixel width of one cell. Default: `12`. */
@@ -57,10 +57,14 @@ export function layoutFrameToSvg(frame: LayoutFrame, opts?: LayoutFrameToSvgOpti
 	const cellW = opts?.cellWidth ?? 12;
 	const cellH = opts?.cellHeight ?? 18;
 	const pad = opts?.padding ?? 16;
-	const boxStroke = opts?.boxStroke ?? "#444";
-	const boxFill = opts?.boxFill ?? "#fff";
-	const edgeStroke = opts?.edgeStroke ?? "#888";
-	const textColor = opts?.textColor ?? "#111";
+	// /qa F-10: route option-bag string attributes through escapeXml so that
+	// user-supplied themes (URL params, dashboard config, etc.) cannot inject
+	// `"/><script>...` and break out of the attribute. Numeric `fontSize` has
+	// no XSS surface; escape only when caller passes a string.
+	const boxStroke = escapeXml(opts?.boxStroke ?? "#444");
+	const boxFill = escapeXml(opts?.boxFill ?? "#fff");
+	const edgeStroke = escapeXml(opts?.edgeStroke ?? "#888");
+	const textColor = escapeXml(opts?.textColor ?? "#111");
 	const fontFamily = opts?.fontFamily ?? "ui-monospace, monospace";
 	const fontSize = opts?.fontSize ?? 12;
 
