@@ -543,13 +543,16 @@ describe("harnessLoop", () => {
 		expect(matched?.route).toBe("not-a-real-route");
 	});
 
-	// Tier 6.2 reconciliation regression — gates consume `topic.latest`
-	// directly via foreign-node-accept (Session B.1 lock). The
-	// `gateGraph.approvalGate(...)` factory accepts the foreign node without
-	// requiring the caller to first `gateGraph.add(topic.latest)`. The gate
-	// auto-registers the source under `${name}/source` inside its own graph,
-	// keeping the hub's topic as the single source of truth.
-	it("Tier 6.2: gates compose with hub topic.latest via foreign-node-accept (no wrapper node)", () => {
+	// Tier 6.2 reconciliation regression — C3 ownership: foreign sources
+	// wrapped in local proxy. Session B.1's "no wrapper node" invariant
+	// (`gateSource === hubTopicLatest`) was retired by the C3 lock: a Node
+	// may belong to at most one Graph, so the gate cannot share-register the
+	// hub's topic node under `gates::…/gate/source`. Instead, the gate's
+	// foreign-source path wraps the hub topic in a local proxy derived
+	// (`describeKind: "derived"`, `meta.factory: "proxy"`). Identity is
+	// broken (locked trade-off); causal chain is preserved via the dep edge,
+	// so `describe()` still walks from the hub topic into the gate.
+	it("Tier 6.2: C3 ownership — gates wrap foreign hub topic in a local proxy", () => {
 		const adapter = mockAdapter({});
 		const harness = harnessLoop("test-foreign-accept", { adapter });
 		// Both gated routes (needs-decision, investigation) get GateController
@@ -557,30 +560,28 @@ describe("harnessLoop", () => {
 		// pipeline wrapper appears between the topic and the gate.
 		const ndGate = harness.gates.get("needs-decision");
 		expect(ndGate).toBeDefined();
-		// **Foreign-node-accept invariant.** The gate factory's auto-add path
-		// registered the hub topic node under `gates::needs-decision/gate/source`
-		// inside the gateGraph — but `nodeToPath` resolution still maps that
-		// node back to its canonical hub path (`queues::needs-decision::latest`)
-		// when describe() walks deps, because the hub registered the topic
-		// FIRST. Two complementary checks:
-		//   (a) `harness.node("gates::needs-decision/gate/source")` resolves
-		//       to the SAME Node instance as `queues::needs-decision::latest`
-		//       — proves no wrapper Node was inserted between them.
-		//   (b) The gate's deps in `describe()` reference the hub's canonical
-		//       path directly, NOT a wrapper-node path inside gates.
+		// (a) — Identity is broken (Session B.1 retired). The gate's source
+		// inside gateGraph is now a *proxy*, NOT the hub topic node. The
+		// proxy is owned by the gateGraph; the hub topic stays owned by the
+		// hub. Same Node could not legally be registered on both graphs
+		// under C3.
 		const hubTopicLatest = harness.node("queues::needs-decision::latest");
 		const gateSource = harness.node("gates::needs-decision/gate/source");
-		expect(gateSource).toBe(hubTopicLatest);
-		// (b) — describe walks deps via nodeToPath, which canonicalizes to
-		// the first registration (the hub). A regression that introduced a
-		// Pipeline wrapper between hub and gate would surface here as a
-		// distinct intermediate path (e.g. `gates::needs-decision/gate/wrap`),
-		// not as the hub topic's canonical path.
+		expect(gateSource).not.toBe(hubTopicLatest);
+		// (b) — Causal chain preserved via the dep edge. The proxy's dep is
+		// the hub topic; describe walks deps via nodeToPath, which
+		// canonicalizes to the first (hub) registration.
 		const desc = harness.describe();
+		const gateSourceEntry = desc.nodes["gates::needs-decision/gate/source"];
+		expect(gateSourceEntry).toBeDefined();
+		const gateSourceDeps = (gateSourceEntry?.deps as readonly string[] | undefined) ?? [];
+		expect(gateSourceDeps).toContain("queues::needs-decision::latest");
+		// (c) — The gate itself depends on the proxy (its locally-registered
+		// source), so its deps still resolve cleanly inside the gateGraph.
 		const gateEntry = desc.nodes["gates::needs-decision/gate"];
 		expect(gateEntry).toBeDefined();
 		const gateDeps = (gateEntry?.deps as readonly string[] | undefined) ?? [];
-		expect(gateDeps).toContain("queues::needs-decision::latest");
+		expect(gateDeps).toContain("gates::needs-decision/gate/source");
 	});
 
 	// Tier 6.3 — named-node regression. Walks the causal chain from intake to

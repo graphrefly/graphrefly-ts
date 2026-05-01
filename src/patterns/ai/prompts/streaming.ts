@@ -400,10 +400,20 @@ export function gatedStream<T = string>(
 	// Wire gate on the output. Type parameter is `T` (not `T | null`) — the
 	// `filter` above drops nulls before they reach the gate, so the pending
 	// queue's DATA domain is `T` only.
+	//
+	// C3 — `nonNullOutput` is owned by the parent `graph`. Pass it as a Node
+	// ref to `approvalGate`; the gate's foreign-source path wraps it in a
+	// local proxy derived registered under `${name}/gate/source` inside
+	// gateSubgraph. The dual-add pattern (`graph.add` + `gateSubgraph.add`)
+	// is retired — Session B.1's "no wrapper" invariant gave way to the
+	// single-owner invariant per the C3 lock.
 	const gateSubgraph = pipelineGraph(`${name}/gate-graph`);
 	graph.mount(`${name}/gate-graph`, gateSubgraph);
-	gateSubgraph.add(nonNullOutput, { name: `${name}/raw` });
-	const gateCtrl = gateSubgraph.approvalGate<T>(`${name}/gate`, `${name}/raw`, opts?.gate);
+	const gateCtrl = gateSubgraph.approvalGate<T>(
+		`${name}/gate`,
+		nonNullOutput as Node<unknown>,
+		opts?.gate,
+	);
 
 	// Keepalive the switchMap product, the gate's output node, AND the
 	// accumulator so the full bundle contract ("three reactive surfaces, any

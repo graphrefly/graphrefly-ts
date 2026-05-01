@@ -19,7 +19,7 @@ import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import type { NodeActions } from "../../core/config.js";
 import { COMPLETE, DATA, ERROR, RESOLVED } from "../../core/messages.js";
-import { placeholderArgs } from "../../core/meta.js";
+import { factoryTag, placeholderArgs } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { domainMeta } from "../../extra/meta.js";
 import { type BaseAuditRecord, createAuditLog, wrapMutation } from "../../extra/mutation/index.js";
@@ -238,11 +238,32 @@ export class PipelineGraph extends Graph {
 		}
 		const startOpen = opts.startOpen ?? false;
 
-		// Auto-add foreign source if not yet registered.
-		if (typeof source !== "string" && this.nameOf(source) === undefined) {
-			this.add(source, { name: `${name}/source` });
+		// C3 — wrap a foreign Node source in a local proxy derived. The proxy
+		// is owned by THIS graph; downstream wiring uses the proxy (not the
+		// foreign Node) so the cross-graph ownership invariant holds. Causal
+		// chain is preserved via the dep edge — `describe()` still surfaces
+		// the foreign Node's path through the proxy.
+		let src: Node<unknown>;
+		if (typeof source === "string") {
+			src = this._resolveStep(source);
+		} else if (this.nameOf(source) !== undefined) {
+			src = source;
+		} else {
+			const proxy = node<unknown>(
+				[source],
+				(batchData, actions) => {
+					const batch0 = batchData[0];
+					if (batch0 == null || batch0.length === 0) return;
+					for (const v of batch0) actions.emit(v);
+				},
+				{
+					describeKind: "derived",
+					meta: factoryTag("proxy"),
+				},
+			);
+			this.add(proxy, { name: `${name}/source` });
+			src = proxy;
 		}
-		const src = this._resolveStep(source);
 
 		// State subgraph
 		const internal = new Graph(`${name}-state`);

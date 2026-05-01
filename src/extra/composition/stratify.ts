@@ -19,6 +19,7 @@ import {
 	RESOLVED,
 	TEARDOWN,
 } from "../../core/messages.js";
+import { factoryTag } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { Graph, type GraphOptions } from "../../graph/graph.js";
 
@@ -62,7 +63,25 @@ export function stratify<T>(
 ): Graph {
 	const g = new Graph(name, opts);
 
-	g.add(source as Node<unknown>, { name: "source" });
+	// C3 — wrap the foreign source in a local proxy derived. The proxy is
+	// owned by `g`; downstream branches subscribe to the proxy (not the
+	// foreign Node) so the cross-graph ownership invariant holds. The proxy
+	// also keeps `describe(g)` self-contained: the source path resolves
+	// inside `g` while the dep edge preserves the causal chain back to the
+	// foreign source.
+	const sourceProxy = node<T>(
+		[source as Node<unknown>],
+		(batchData, actions) => {
+			const batch0 = batchData[0];
+			if (batch0 == null || batch0.length === 0) return;
+			for (const v of batch0) actions.emit(v as T);
+		},
+		{
+			describeKind: "derived",
+			meta: factoryTag("proxy"),
+		},
+	);
+	g.add(sourceProxy as Node<unknown>, { name: "source" });
 	const rulesNode = node<ReadonlyArray<StratifyRule<T>>>([], {
 		initial: rules,
 		meta: { kind: "stratify_rules" },
@@ -70,7 +89,7 @@ export function stratify<T>(
 	g.add(rulesNode as Node<unknown>, { name: "rules" });
 
 	for (const rule of rules) {
-		_addBranch(g, source, rulesNode, rule);
+		_addBranch(g, sourceProxy, rulesNode, rule);
 	}
 
 	return g;

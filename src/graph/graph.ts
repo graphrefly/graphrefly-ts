@@ -1361,6 +1361,21 @@ function teardownMountedGraph(root: Graph): void {
  *
  * @category graph
  */
+/**
+ * @internal Module-scoped ownership stamp (C3 — cross-graph Node ownership).
+ *
+ * A Node may belong to **at most one** non-destroyed Graph at a time. Set on
+ * {@link Graph.add} (and during {@link Graph.mount}'s defensive child-walk),
+ * cleared synchronously on {@link Graph.remove} of that name and on
+ * {@link Graph.destroy} / `_destroyClearOnly` for the owning graph. Cleared
+ * BEFORE the TEARDOWN cascade so a "freshly-detached" Node can be re-registered
+ * on a different Graph in the same tick without surprising the caller.
+ *
+ * Standalone `node([], fn)` usage that never goes through any `Graph.add`
+ * carries no stamp and is unaffected.
+ */
+const GRAPH_OWNER = new WeakMap<Node, Graph>();
+
 export class Graph {
 	readonly name: string;
 	readonly opts: Readonly<GraphOptions>;
@@ -1546,8 +1561,32 @@ export class Graph {
 	 * `graph.trace(name, annotation)` entry — same effect as calling
 	 * `graph.trace` right after, but reads naturally next to the registration.
 	 *
+	 * **C3 — cross-graph ownership.** A Node instance may belong to at most
+	 * one non-destroyed Graph at a time. Calling `add` for a Node already
+	 * registered on a different Graph throws a `TypeError` with
+	 * `code === "cross-graph-ownership"` (the message names both graphs and the
+	 * original registration name). To migrate a Node between graphs, the
+	 * previous owner must release it first via {@link Graph.remove} or
+	 * {@link Graph.destroy}; the stamp is dropped synchronously in the same
+	 * call as the TEARDOWN cascade, so a `freshly-detached` Node may be
+	 * re-registered on another Graph in the same tick:
+	 *
+	 * ```ts
+	 * g1.add(n, { name: "x" });
+	 * g1.remove("x");      // releases the stamp
+	 * g2.add(n, { name: "y" }); // succeeds — n is freshly-detached
+	 * ```
+	 *
+	 * Standalone `node([], fn)` usage without any `add` carries no stamp and
+	 * is unaffected. To compose foreign Nodes across Graphs without taking
+	 * ownership, wrap them in a local proxy derived (see the `proxy` factory
+	 * pattern used by `pipelineGraph.approvalGate` / `gatedStream` /
+	 * `stratify`).
+	 *
 	 * @param node - Node instance to own.
 	 * @param opts - `{ name?, annotation? }`.
+	 * @throws {TypeError} `code: "cross-graph-ownership"` when the Node is
+	 *   already registered on a different non-destroyed Graph.
 	 */
 	/**
 	 * O(1) reverse lookup — returns the name the given Node was registered
@@ -1583,8 +1622,26 @@ export class Graph {
 				`Graph "${this.name}": node instance already registered as "${existingName}"`,
 			);
 		}
+		// C3 — cross-graph ownership stamp (see GRAPH_OWNER above + JSDoc).
+		// At this point we know the node isn't already registered on `this`
+		// (the `_nodeToName` check above ruled that out), so any non-undefined
+		// `GRAPH_OWNER` entry necessarily points at a *different* Graph.
+		const owner = GRAPH_OWNER.get(node);
+		if (owner !== undefined && owner !== this && !owner.destroyed) {
+			const ownerName = owner.name !== "" ? owner.name : "<unnamed>";
+			const thisName = this.name !== "" ? this.name : "<unnamed>";
+			const ownerRegName = owner._nodeToName.get(node) ?? "<unknown>";
+			const err = new TypeError(
+				`Graph "${thisName}": node already owned by Graph "${ownerName}" (registered there as "${ownerRegName}"). ` +
+					`A Node may belong to at most one Graph; release it via ${ownerName}.remove("${ownerRegName}") or ${ownerName}.destroy() first, ` +
+					`or wrap it in a local proxy derived (see Graph.add JSDoc).`,
+			) as TypeError & { code: string };
+			err.code = "cross-graph-ownership";
+			throw err;
+		}
 		this._nodes.set(name, node);
 		this._nodeToName.set(node, name);
+		GRAPH_OWNER.set(node, this);
 		// Edges are derived on demand from node `_deps` (see `edges()`) — no
 		// stored registry to keep in sync. See Unit 7 of the graph review.
 		this._emitTopology({ kind: "added", name, nodeKind: "node" });
@@ -1676,6 +1733,12 @@ export class Graph {
 		}
 		this._nodes.delete(name);
 		this._nodeToName.delete(node);
+		// C3 — release the cross-graph ownership stamp BEFORE the TEARDOWN
+		// cascade so a "freshly-detached" Node may be re-registered on
+		// another Graph in the same tick (see Graph.add JSDoc).
+		if (GRAPH_OWNER.get(node) === this) {
+			GRAPH_OWNER.delete(node);
+		}
 		node.down([[TEARDOWN]] satisfies Messages, { internal: true });
 		const audit: GraphRemoveAudit = { kind: "node", nodes: [name], mounts: [] };
 		this._emitTopology({ kind: "removed", name, nodeKind: "node", audit });
@@ -2196,6 +2259,28 @@ export class Graph {
 		for (let p: Graph | undefined = this; p != null; p = p._parent) {
 			if (p === (child as Graph)) {
 				throw new Error(`Graph "${this.name}": mount("${name}", …) would create a mount cycle`);
+			}
+		}
+		// C3 — defensive child-walk. Mount lineage stays innermost-owned: the
+		// child's nodes remain owned by the child, NOT by the parent. This
+		// loop only catches direct mutation of `child._nodes` that bypassed
+		// `child.add` (the bypass would have skipped the stamp). Reject
+		// unconditionally if a node is already owned by a *different* graph
+		// than the child — a mounted child carrying a foreign Node violates
+		// the single-owner invariant just like a direct dual-add.
+		for (const n of child._nodes.values()) {
+			const owner = GRAPH_OWNER.get(n);
+			if (owner === undefined) {
+				GRAPH_OWNER.set(n, child as Graph);
+			} else if (owner !== (child as Graph) && !owner.destroyed) {
+				const ownerName = owner.name !== "" ? owner.name : "<unnamed>";
+				const childName = (child as Graph).name !== "" ? (child as Graph).name : "<unnamed>";
+				const ownerRegName = owner._nodeToName.get(n) ?? "<unknown>";
+				const err = new TypeError(
+					`Graph "${this.name}": cannot mount "${name}" — child graph "${childName}" carries a node already owned by Graph "${ownerName}" (registered there as "${ownerRegName}").`,
+				) as TypeError & { code: string };
+				err.code = "cross-graph-ownership";
+				throw err;
 			}
 		}
 		this._mounts.set(name, child);
@@ -4346,6 +4431,10 @@ export class Graph {
 		// Drain iteratively so disposers registered mid-drain also run; cap
 		// iterations to guard against a disposer that re-registers itself.
 		drainDisposers(this._disposers, this.name);
+		// C3 — release cross-graph ownership stamps SYNCHRONOUSLY in the same
+		// call as the TEARDOWN cascade so a freshly-detached Node may be
+		// re-registered on another Graph in the same tick (see Graph.add JSDoc).
+		this._releaseOwnershipStamps();
 		// TEARDOWN is tier 5 — below `attachSnapshotStorage`'s `tier < 5` gate, so no
 		// final checkpoint fires; storage disposers unsubscribe after TEARDOWN
 		// has propagated through the subscription pipeline.
@@ -4359,6 +4448,23 @@ export class Graph {
 		this._nodes.clear();
 		this._parent = undefined;
 		this._destroyed = true;
+	}
+
+	/**
+	 * @internal C3 — drop the cross-graph ownership stamp for every locally
+	 * registered node whose stamp still points at `this`. Recurses into mounted
+	 * children so the entire subtree releases ownership in one synchronous
+	 * pass. Idempotent: nodes whose stamp already points elsewhere are skipped.
+	 */
+	private _releaseOwnershipStamps(): void {
+		for (const node of this._nodes.values()) {
+			if (GRAPH_OWNER.get(node) === this) {
+				GRAPH_OWNER.delete(node);
+			}
+		}
+		for (const child of this._mounts.values()) {
+			child._releaseOwnershipStamps();
+		}
 	}
 
 	/**
@@ -4385,6 +4491,9 @@ export class Graph {
 	 */
 	private _destroyClearOnly(): void {
 		drainDisposers(this._disposers, this.name);
+		// C3 — symmetric with destroy(): release ownership stamps for the
+		// subtree before clearing structure.
+		this._releaseOwnershipStamps();
 		drainDisposers(this._storageDisposers, this.name);
 		for (const child of [...this._mounts.values()]) {
 			child._parent = undefined;

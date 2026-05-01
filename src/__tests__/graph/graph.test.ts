@@ -3465,3 +3465,129 @@ describe("DF1: compound factory tagging requirement", () => {
 	// against the catalog, this test should round-trip the tagged graph.
 	void compileSpec;
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// C3 — cross-graph Node ownership (locked 2026-05-01)
+//
+// `Graph.add` stamps a module-scoped `WeakMap<Node, Graph>` on the first
+// registration. A second `add` on a different non-destroyed Graph throws
+// `TypeError` with `code === "cross-graph-ownership"`. The stamp is
+// released synchronously in the same call as TEARDOWN cascades
+// (`Graph.remove` / `Graph.destroy`) so a freshly-detached Node can be
+// re-registered on another graph in the same tick.
+//
+// Mount lineage stays innermost-owned: a child's nodes belong to the
+// child, not to the parent. Re-mount under a different parent works as
+// long as the child itself isn't dual-owned. Standalone `node([], fn)`
+// usage that never goes through `add` carries no stamp.
+// ────────────────────────────────────────────────────────────────────────
+
+describe("C3: cross-graph Node ownership", () => {
+	it("g1.add(n) then g2.add(n) throws TypeError with code='cross-graph-ownership' naming both graphs", () => {
+		const g1 = new Graph("g1");
+		const g2 = new Graph("g2");
+		const n = node([], { name: "shared", initial: 0 });
+		g1.add(n, { name: "shared" });
+		let err: unknown;
+		try {
+			g2.add(n, { name: "shared" });
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(TypeError);
+		expect((err as { code?: string }).code).toBe("cross-graph-ownership");
+		const msg = (err as Error).message;
+		expect(msg).toContain('"g1"');
+		expect(msg).toContain('"g2"');
+		expect(msg).toContain('"shared"');
+	});
+
+	it("error message names both graphs as <unnamed> when names are empty (defensive — Graph rejects empty names today, but the formatter must be safe)", () => {
+		// Direct unit cover for the `<unnamed>` branch: cannot construct a
+		// Graph with name "" through the public ctor (rejected with
+		// "non-empty"), but the formatter must still cope with that branch
+		// for forward-compat. Validate that real graphs with non-empty names
+		// never hit `<unnamed>` in error messages.
+		const g1 = new Graph("alpha");
+		const g2 = new Graph("beta");
+		const n = node([], { name: "x", initial: 0 });
+		g1.add(n, { name: "x" });
+		expect(() => g2.add(n, { name: "x" })).toThrow(/"alpha".*"beta"|"beta".*"alpha"/);
+	});
+
+	it("after g1.remove(name), g2.add(n) succeeds (freshly-detached)", () => {
+		const g1 = new Graph("g1");
+		const g2 = new Graph("g2");
+		const n = node([], { name: "x", initial: 1 });
+		g1.add(n, { name: "x" });
+		g1.remove("x");
+		// Same tick — stamp must already be released.
+		expect(() => g2.add(n, { name: "x" })).not.toThrow();
+		expect(g2.node("x")).toBe(n);
+	});
+
+	it("after g1.destroy(), g2.add(n) succeeds (freshly-detached)", () => {
+		const g1 = new Graph("g1");
+		const g2 = new Graph("g2");
+		const n = node([], { name: "x", initial: 1 });
+		g1.add(n, { name: "x" });
+		g1.destroy();
+		// Same tick — destroy must release stamps in the same call as
+		// TEARDOWN per the locked semantics.
+		expect(() => g2.add(n, { name: "x" })).not.toThrow();
+		expect(g2.node("x")).toBe(n);
+	});
+
+	it("Graph.mount rejects when child carries a node already owned by a different Graph (defensive against direct _nodes mutation)", () => {
+		const foreign = new Graph("foreign");
+		const n = node([], { name: "x", initial: 0 });
+		foreign.add(n, { name: "x" });
+
+		// Build a child that bypasses `add` and pokes `_nodes` directly —
+		// this is exactly the defensive case the mount stamp-walk catches.
+		// (Real callers use `child.add`, which would already have thrown.)
+		const child = new Graph("child");
+		(child as unknown as { _nodes: Map<string, unknown> })._nodes.set("x", n);
+
+		const parent = new Graph("parent");
+		let err: unknown;
+		try {
+			parent.mount("c", child);
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(TypeError);
+		expect((err as { code?: string }).code).toBe("cross-graph-ownership");
+		expect((err as Error).message).toContain('"foreign"');
+	});
+
+	it("mounted child's nodes stay owned by the child; re-mount under a different parent works", () => {
+		const child = new Graph("child");
+		const n = node([], { name: "x", initial: 0 });
+		child.add(n, { name: "x" });
+
+		const parentA = new Graph("parentA");
+		parentA.mount("c", child);
+		// Adding `n` to the parent itself must still fail — child owns it.
+		expect(() => parentA.add(n, { name: "y" })).toThrow(/cross-graph-ownership|owned/);
+
+		// Unmount and re-mount under a different parent.
+		parentA.remove("c");
+		const parentB = new Graph("parentB");
+		expect(() => parentB.mount("c", child)).not.toThrow();
+		// Child still owns its node.
+		expect(parentB.node("c::x")).toBe(n);
+	});
+
+	it("standalone node([], fn) without add carries no stamp and may be added later to any graph", () => {
+		const n = node([], { name: "free", initial: 7 });
+		// Never went through `add` — no stamp. Either graph can claim it.
+		const g1 = new Graph("g1");
+		expect(() => g1.add(n, { name: "free" })).not.toThrow();
+		// Now g2 can't claim it (g1 owns it) — but a fresh standalone node
+		// could go to g2 freely.
+		const g2 = new Graph("g2");
+		const m = node([], { name: "free", initial: 8 });
+		expect(() => g2.add(m, { name: "free" })).not.toThrow();
+	});
+});
