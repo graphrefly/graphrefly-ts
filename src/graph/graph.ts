@@ -417,6 +417,26 @@ export type GraphDescribeOptions = {
 	 * both `name` and `reactiveName` are set in explain-mode, `name` wins.
 	 */
 	reactiveName?: string;
+	/**
+	 * Enforce the DF1 compound-factory tagging requirement (default `true`).
+	 *
+	 * Compound factories that emit `parent::child` topology MUST stamp
+	 * `meta.factory` on the parent node (via {@link factoryTag}) so
+	 * `decompileSpec` / `compileSpec` can round-trip the factory's internals
+	 * without surfacing them as top-level spec nodes. When `true`,
+	 * `describe()` walks the resolved node set and throws a clear
+	 * `TypeError` if any `parent::child` path's parent is registered on the
+	 * graph but lacks `meta.factory`. The failure surfaces at inspection
+	 * time — not at construction — so a graph that won't round-trip is
+	 * caught before its first describe() / decompileSpec() rather than at
+	 * graph build.
+	 *
+	 * Set to `false` for legacy / debug graphs that intentionally use `::`
+	 * in node names without compound-factory semantics. The decompileSpec
+	 * pre-pass enforces the same invariant — disabling the describe-walk
+	 * assertion does not opt out of decompile-time validation.
+	 */
+	strictFactoryTags?: boolean;
 };
 
 /** Handle returned by {@link Graph.describe} with `{ reactive: true }`. */
@@ -2745,6 +2765,66 @@ export class Graph {
 						return [...nodeKeys].some((k) => k === sg || k.startsWith(prefix));
 					})
 				: allSubgraphs;
+
+		// DF1 (Tier 5, 2026-04-30 lock — `docs/optimizations.md` "DF1"). Compound
+		// factories that emit `parent::child` topology MUST stamp `meta.factory`
+		// on the parent so `decompileSpec` / `compileSpec` can round-trip the
+		// factory's internals. The decompileSpec pre-pass enforces this at
+		// spec-projection time, but a graph that won't round-trip is a graph
+		// that can't be inspected via the standard tools — surface the failure
+		// at every describe() call so the offending factory author fixes it
+		// before it lands in a snapshot or a `compileSpec` round-trip.
+		//
+		// Walk the FULL set of resolved paths (not the post-filter `nodes` map)
+		// so an `actor` / `filter` projection can't hide a violation. Skip
+		// known internal prefixes (meta companions, feedback / bridge
+		// infrastructure, transitive-deps `__internal__/...`) and parents that
+		// are subgraph mounts (those carry their factory tag on the Graph
+		// itself via `tagFactory`, and the local `_nodes` map of a mount does
+		// not include the mount's own name as a node entry).
+		const strictFactoryTags = topologyOptions?.strictFactoryTags !== false;
+		if (strictFactoryTags) {
+			const allPathsMap = new Map<string, Node>();
+			for (const [p, n] of allTargets) allPathsMap.set(p, n);
+			const subgraphPaths = new Set(allSubgraphs);
+			for (const [path, _node] of allPathsMap) {
+				const sepIdx = path.indexOf(PATH_SEP);
+				if (sepIdx <= 0) continue;
+				const parent = path.slice(0, sepIdx);
+				// Skip meta-companion paths (`name::__meta__::key`) — meta is
+				// not a factory output by definition.
+				if (path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
+				// Skip well-known internal prefixes (feedback / bridge /
+				// transitive-deps synthetic paths). Mirrors decompileSpec.
+				if (path.startsWith("__feedback_effect_") || path.startsWith("__bridge_")) continue;
+				if (path.startsWith("__internal__/")) continue;
+				// Parent is a subgraph mount — tagged via Graph.tagFactory, not
+				// node meta. The mount itself is not a node entry, so the
+				// `allPathsMap.has(parent)` check below already skips this case
+				// most of the time, but guard explicitly for clarity.
+				if (subgraphPaths.has(parent)) continue;
+				const parentNode = allPathsMap.get(parent);
+				// Parent isn't a registered node — treat as a regular `::`-named
+				// node, not a compound factory. Allowed (e.g. naming convention
+				// in user code).
+				if (parentNode == null) continue;
+				// Parent IS in the graph — check `meta.factory`.
+				const parentMeta = parentNode.meta as Record<string, Node> | undefined;
+				const factoryNode = parentMeta?.factory;
+				const hasFactory = factoryNode != null && typeof factoryNode.cache === "string";
+				if (hasFactory) continue;
+				throw new TypeError(
+					`Graph "${this.name}".describe(): untagged compound factory at "${parent}" ` +
+						`(child: "${path}"). Compound factories that ship \`parent::child\` topology ` +
+						"MUST stamp `meta.factory` on the parent so decompileSpec/compileSpec can " +
+						"reconstruct the internals. Add " +
+						`\`{ meta: factoryTag("${parent}", placeholderArgs(opts)) }\` to the parent's ` +
+						'constructor (see docs/optimizations.md "DF1" and ' +
+						"COMPOSITION-GUIDE.md §38). To opt out for legacy/debug graphs, pass " +
+						"`describe({ strictFactoryTags: false })`.",
+				);
+			}
+		}
 
 		// Capture graph ref and base options for expand()
 		const graph = this;
