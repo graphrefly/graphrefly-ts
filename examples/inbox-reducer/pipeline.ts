@@ -154,7 +154,7 @@ export function inboxReducerGraph(
 		adapter,
 		[emails],
 		(es) => classifyPrompt(es as readonly Email[]),
-		{ name: "classify", format: "json", systemPrompt: CLASSIFY_SYSTEM, retries: 1 },
+		{ name: "classify", format: "json", systemPrompt: CLASSIFY_SYSTEM },
 	);
 	graph.add(classifications, {
 		name: "classifications",
@@ -185,7 +185,7 @@ export function inboxReducerGraph(
 		adapter,
 		[actionable],
 		(as) => extractPrompt(as as readonly Email[]),
-		{ name: "extract", format: "json", systemPrompt: EXTRACT_SYSTEM, retries: 1 },
+		{ name: "extract", format: "json", systemPrompt: EXTRACT_SYSTEM },
 	);
 	graph.add(extractions, {
 		name: "extractions",
@@ -229,7 +229,7 @@ export function inboxReducerGraph(
 		adapter,
 		[top3],
 		(t3) => briefPrompt(t3 as readonly RankedItem[]),
-		{ name: "brief", format: "text", systemPrompt: BRIEF_SYSTEM, retries: 1 },
+		{ name: "brief", format: "text", systemPrompt: BRIEF_SYSTEM },
 	);
 	graph.add(brief, {
 		name: "brief",

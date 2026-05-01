@@ -382,7 +382,6 @@ export function createTriagePipeline(opts: TriagePipelineOptions): TriagePipelin
 			name: "classify",
 			format: "json",
 			systemPrompt: CLASSIFY_SYSTEM,
-			retries: 1,
 		},
 	);
 	graph.add(classify, { name: "classify" });

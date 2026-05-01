@@ -343,16 +343,16 @@ describe("Phase 5 — Scenario 4: LLM agent with tool use", () => {
 		expect(result.status).not.toBe("pending");
 	});
 
-	it("prompt_node::call is transient — describe() does not surface it (Session C L9)", () => {
+	it("prompt_node::response is transient — describe() does not surface it (Session C L9)", () => {
 		// Session C L9 acceptance: when no LLM call is in flight, describe()
-		// only shows ::messages + ::output. The per-wave producer (`::call`)
+		// only shows ::messages + ::output. The per-wave producer (`::response`)
 		// activates inside switchMap during a wave and tears down on supersede
 		// or COMPLETE — it is intentionally transient.
 		//
 		// With a sync mockAdapter the producer activates and completes within
 		// the same synchronous wave, so any post-wave describe() never sees it.
 		// With a real (async) adapter, describe() called mid-wave WOULD see
-		// it via meta.ai = "prompt_node::call" — but that's an in-flight
+		// it via meta.ai = "prompt_node::response" — but that's an in-flight
 		// observation, not a steady-state expectation.
 		const adapter = mockAdapter([{ content: "ok" }]);
 		const input = node<string>();
@@ -371,9 +371,9 @@ describe("Phase 5 — Scenario 4: LLM agent with tool use", () => {
 		expect(paths.some((p) => p.endsWith("prompt_node::messages"))).toBe(true);
 		expect(paths.some((p) => p === "answer" || p.endsWith("prompt_node::output"))).toBe(true);
 
-		// `::call` is per-wave; with a synchronous adapter it has already
+		// `::response` is per-wave; with a synchronous adapter it has already
 		// torn down by the time we describe.
-		expect(paths.some((p) => p.endsWith("prompt_node::call"))).toBe(false);
+		expect(paths.some((p) => p.endsWith("prompt_node::response"))).toBe(false);
 
 		off();
 	});

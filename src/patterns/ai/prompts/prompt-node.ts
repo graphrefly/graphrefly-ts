@@ -1,19 +1,20 @@
 /**
  * `promptNode` — universal LLM transform as a reactive derived node.
  *
- * The shape: `deps → messagesNode (derived) → switchMap → call (producer) → output`.
+ * The shape: `deps → messagesNode (derived) → switchMap → response (producer) → output`.
  * Each upstream wave is one LLM call; superseding waves cancel the in-flight
  * call via the abort signal threaded through `nodeSignal(opts.abort)`.
  *
  * The producer-shape on the inner is load-bearing: it emits exactly one DATA
  * + COMPLETE per wave, so the outer switchMap sees one DATA per wave (matches
- * the `HarnessExecutor` contract). A `node([call], (batchData, actions, ctx) => {
+ * the `HarnessExecutor` contract). A `node([response], (batchData, actions, ctx) => {
  *   const data = ...; actions.emit(parse(data[0]));
  * }, { describeKind: "derived" })` would have its
  * own first-run / push-on-subscribe semantics that can leak a transient null
  * before the real response arrives — observed and reverted in an earlier
  * attempt; see SESSION-ai-harness-module-review.md line 3654 for context.
- * Locked as path (b) producer-based by Session C (2026-04-27).
+ * Locked as path (b) producer-based by Session C (2026-04-27); inner-node
+ * naming aligned to `prompt_node::response` per the C+D widening (2026-04-30).
  *
  * **Retry / replay-cache.** Stack middleware on the adapter:
  *
@@ -129,9 +130,9 @@ function previewContent(text: string, max = 200): string {
  *
  * **Topology** (visible in `describe()`):
  * ```
- * <deps...>, [tools?]  → <name>::messages   (derived, meta.ai = prompt_node)
+ * <deps...>, [tools?]  → <name>::messages   (derived, meta.ai = prompt_node::messages)
  * <name>::messages     → <name>::output     (switchMap product, meta.ai = prompt_node::output)
- *   per-wave inner:    <name>::call         (producer, meta.ai = prompt_node::call)
+ *   per-wave inner:    <name>::response     (producer, meta.ai = prompt_node::response)
  * ```
  * When `opts.tools` is supplied, the tools `Node` is appended to
  * `messagesNode`'s declared deps so it appears as a real edge in `describe()`
@@ -255,7 +256,7 @@ export function promptNode<T = string>(
 		},
 		{
 			name: `${baseName}::messages`,
-			meta: aiMeta("prompt_node"),
+			meta: aiMeta("prompt_node::messages"),
 		},
 	);
 
@@ -363,8 +364,8 @@ export function promptNode<T = string>(
 				},
 				{
 					describeKind: "producer",
-					name: `${baseName}::call`,
-					meta: aiMeta("prompt_node::call"),
+					name: `${baseName}::response`,
+					meta: aiMeta("prompt_node::response"),
 				},
 			) as NodeInput<T | null>;
 		},

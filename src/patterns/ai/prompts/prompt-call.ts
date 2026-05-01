@@ -26,7 +26,7 @@ export type PromptCallOptions = {
 	maxTokens?: number;
 	/**
 	 * Optional name forwarded to the underlying `promptNode` (used as the
-	 * `<name>::messages` / `<name>::call` / `<name>::output` path prefix).
+	 * `<name>::messages` / `<name>::response` / `<name>::output` path prefix).
 	 * Defaults differ per call site so multiple `promptCall`s wired into the
 	 * same graph don't collide on `prompt_node::output`.
 	 */
@@ -42,7 +42,7 @@ export type PromptCallOptions = {
  * **Per-call lifecycle.** The returned `NodeInput<TOut>` is a producer that
  * emits exactly one `DATA` per upstream input (per Tier 1.2 Session C lock —
  * `promptNode` guarantees one DATA per wave). When the consumer's switchMap
- * supersedes it, the per-call `node([], { initial: input })` and the inner `prompt_node::call`
+ * supersedes it, the per-call `node([], { initial: input })` and the inner `prompt_node::response`
  * tear down together.
  *
  * @param systemPrompt - System message sent on every call.

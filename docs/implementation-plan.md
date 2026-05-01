@@ -39,7 +39,7 @@ The 2026-04-28 polish batch (initial 4-batch sweep) and follow-up /qa pass depar
 
 ### A — Approved during planning (deliberate scope changes)
 - **A1 — Batch A scope downgrade from "implement signal plumbing" to "audit + add regression tests."** The optimizations.md entry (opened 2026-04-28) said the work was mechanical plumbing; audit during Phase 1 recon revealed every shipped provider already plumbed `LLMInvokeOptions.signal` correctly through to `fetch(..., { signal })` / SDK `{ signal }` calls. Re-doing already-correct work would have been worse than wasted; locking the contract via tests is the right move. ✅ Legitimate.
-- **A2 — Tier 6.6 / 6.7 regression tests skipped in Batch B.** Verified during recon that `prompt_node::call` lifecycle (Tier 6.6) and gatedStream timing keepalive (Tier 6.7) both already have dedicated regression tests in `phase5-llm-composition.test.ts` and `ai.test.ts`. ✅ Legitimate.
+- **A2 — Tier 6.6 / 6.7 regression tests skipped in Batch B.** Verified during recon that `prompt_node::response` lifecycle (Tier 6.6) and gatedStream timing keepalive (Tier 6.7) both already have dedicated regression tests in `phase5-llm-composition.test.ts` and `ai.test.ts`. ✅ Legitimate.
 
 ### B — Implementation slips caught and corrected by /qa
 - **B1 — Bundled 3-way verdict test (verified/retry/structural) timed out and was downgraded to a single-branch structural-publish test.** Initial attempt with mockLLM response cycling + 3-item interleaving + retry-attempt timing was flaky under both 5s and 15s timeouts. Per-branch coverage exists in three separate tests already. Bundled test deferred to `optimizations.md` "QA follow-ups from polish-batch /qa pass" entry pending a deterministic-timing mock primitive. **Partially legitimate** — coverage of the individual branches is preserved; cross-branch routing-confusion regressions could still escape until the bundled test lands.
@@ -84,19 +84,19 @@ Full session logs in chat history. Locks summarized inline at each tier they unb
   - "Never-populated case" — first-time INVALIDATE at unsettled mid-chain derived is a no-op.
 - **Action:** mark optimizations.md entry resolved.
 
-### 1.2 Session C — `promptNode` switchMap sentinel handling ✅ locked 2026-04-27
+### 1.2 Session C — `promptNode` switchMap sentinel handling ✅ locked 2026-04-27 (L2 revised 2026-04-30)
 - **Source:** AI/harness audit Unit 1 ([SESSION-ai-harness-module-review.md:223](archive/docs/SESSION-ai-harness-module-review.md:223)) + reverted-rewrite root cause ([line 3654](archive/docs/SESSION-ai-harness-module-review.md:3654)).
-- **Lock summary:** Path (b) producer-based confirmed. Topology: `prompt_node::messages` (derived) → `prompt_node::output` (switchMap product, `meta.ai = "prompt_node::output"`). Per-wave inner: `prompt_node::call` (producer wrapping `fromAny(adapter.invoke(msgs)).subscribe(...)`, `meta.ai = "prompt_node::call"`). Empty-msgs branch dispatches `state<T|null>(null)`. Abort via `nodeSignal(opts.abort)` + `AbortController`.
+- **Lock summary:** Path (b) producer-based confirmed. Topology: `prompt_node::messages` (derived, `meta.ai = "prompt_node::messages"`) → `prompt_node::output` (switchMap product, `meta.ai = "prompt_node::output"`). Per-wave inner: `prompt_node::response` (producer wrapping `fromAny(adapter.invoke(msgs)).subscribe(...)`, `meta.ai = "prompt_node::response"`). Empty-msgs branch dispatches `state<T|null>(null)`. Abort via `nodeSignal(opts.abort)` + `AbortController`.
 - **Decisions locked (L1–L9):**
   - **L1** — Path (b) producer-based is the official design. Path (a) `derived + filter/distinctUntilChanged` rejected: derived's first-run gate leaks transient nulls; filter doesn't address the secondary 20-retry race observed in the reverted attempt.
-  - **L2** — Inner-node naming `::call` (not `::response`). `meta.ai.kind = "prompt_node::call"` already shipped; "call" describes the action, `::output` already covers the produced node.
+  - **L2 (revised 2026-04-30 in C+D widening)** — Inner-node naming `::response` (was `::call`). Aligned with Unit 1 Q8 D-path naming and `meta.ai.kind = "prompt_node::response"`. Messages-node `meta.ai.kind = "prompt_node::messages"` (was `"prompt_node"`). Output naming unchanged. Inner is still a producer (path (b)) — no topology change.
   - **L3** — Empty-msgs branch keeps `state<T|null>(null)`. Push-on-subscribe semantics emit the mid-flow drop-out signal exactly once.
   - **L4** — Initial-no-input (SENTINEL, no emission) vs mid-flow no-input (emits `null`) distinction is load-bearing for `withLatestFrom`-paired triggers; keep.
   - **L5** — Forward-unknown for non-DATA/ERROR/COMPLETE messages via `actions.down([msg as never])` per spec §1.3.6.
   - **L6** — Cross-wave cache stickiness (§32) is a consumer concern. `promptNode` stays primitive; JSDoc cross-link to §32 required in Tier 6.6.
   - **L7** — JSON-parse failure emits `[ERROR, wrapped]` + terminates inner. "Retry on invalid JSON" is downstream (verifier stage or `withRetry` policy on adapter).
   - **L8** — Acceptance gate: `harness.test.ts` retry/reingestion/queue-depth stay green AND add isolated unit test ("N upstream dep waves → exactly N DATAs on `prompt_node::output`, zero transient nulls, zero coalesce loss") to `phase5-llm-composition.test.ts` or new `prompt-node.test.ts`.
-  - **L9** — Tier 6.6 reduced scope: JSDoc additions (§32 cross-link + middleware recipe), L8 unit test, resolution of the open `prompt_node::call`-in-`describe()` visibility question. No topology change.
+  - **L9** — Tier 6.6 reduced scope: JSDoc additions (§32 cross-link + middleware recipe), L8 unit test, resolution of the open `prompt_node::response`-in-`describe()` visibility question. No topology change.
 - **Unblocks:** Tier 6.6.
 
 ---
@@ -254,7 +254,7 @@ Tests (7 new in spec-roundtrip.test.ts):
 Doc + light-migration locks for path-separator naming and data-level outcome/status enums. Naming is observation-of-existing-practice (no code migration); enum migrations ride along with Tier 2.3.
 
 ### 1.6.1 Path-separator convention
-- **`::`** — compound-factory internals: one factory ships multiple sub-nodes that operate as a unit; `meta.ai.kind` matchers and `describe()` pretty-rendering use the prefix. Examples: [prompt-node.ts:142](src/patterns/ai/prompts/prompt-node.ts:142) `prompt_node::messages` / `::call` / `::output`; [reduction/index.ts:118](src/patterns/reduction/index.ts:118) `${stage}::input` / `::output`; [suggest-strategy.ts:209](src/patterns/ai/graph-integration/suggest-strategy.ts:209) `suggestStrategy::call`.
+- **`::`** — compound-factory internals: one factory ships multiple sub-nodes that operate as a unit; `meta.ai.kind` matchers and `describe()` pretty-rendering use the prefix. Examples: [prompt-node.ts:142](src/patterns/ai/prompts/prompt-node.ts:142) `prompt_node::messages` / `::response` / `::output`; [reduction/index.ts:118](src/patterns/reduction/index.ts:118) `${stage}::input` / `::output`; [suggest-strategy.ts:209](src/patterns/ai/graph-integration/suggest-strategy.ts:209) `suggestStrategy::call`.
 - **`/`** — namespace / domain grouping for independent nodes. Examples: [demo-shell/index.ts:120](src/patterns/demo-shell/index.ts:120) `pane/main-ratio`, `viewport/width`, `graph/mermaid`, `hover/target`.
 - **Doc target:** new §38 "Naming conventions" in `~/src/graphrefly/COMPOSITION-GUIDE.md`. No code migration — current usage already conforms.
 
@@ -471,7 +471,7 @@ The pre-Tier-6.5 fastRetry effect carried all three Unit 18b fixes (Unit 18b C: 
 - **✅ JSDoc cross-link to COMPOSITION-GUIDE §32 landed:** [prompt-node.ts:31–38](src/patterns/ai/prompts/prompt-node.ts:31) — cross-wave cache stickiness pattern.
 - **✅ Middleware recipe landed:** [prompt-node.ts:16–29](src/patterns/ai/prompts/prompt-node.ts:16) and [:129–131](src/patterns/ai/prompts/prompt-node.ts:129) — `withRetry` / `withReplayCache` adapter stack.
 - **✅ Isolated unit test (Session C L8) landed (2026-04-27):** [phase5-llm-composition.test.ts](src/__tests__/phase5-llm-composition.test.ts) — "N upstream dep waves → exactly N DATAs on `prompt_node::output`, zero transient nulls, zero coalesce loss" covering 3 waves with synchronous `mockAdapter`. Locks the contract independent of harness entanglement.
-- **✅ Open Q (Session C L9) resolved (2026-04-27):** `prompt_node::call` is **transient by design** — it activates inside switchMap during a wave and tears down on supersede / COMPLETE. With a synchronous adapter the producer activates and completes within the same wave, so steady-state `describe()` only shows `::messages` + `::output`. Mid-wave `describe()` (real async adapter, observed during in-flight call) WOULD see `::call` via `meta.ai = "prompt_node::call"`. Regression test landed in `phase5-llm-composition.test.ts`.
+- **✅ Open Q (Session C L9) resolved (2026-04-27, renamed 2026-04-30):** `prompt_node::response` is **transient by design** — it activates inside switchMap during a wave and tears down on supersede / COMPLETE. With a synchronous adapter the producer activates and completes within the same wave, so steady-state `describe()` only shows `::messages` + `::output`. Mid-wave `describe()` (real async adapter, observed during in-flight call) WOULD see `::response` via `meta.ai = "prompt_node::response"`. Regression test landed in `phase5-llm-composition.test.ts`.
 
 ### 6.7 Unit 2 — `gatedStream` timing (3 skipped tests) ✅ landed
 The 4 previously-skipped tests un-skipped at [ai.test.ts:894–1034](src/__tests__/patterns/ai.test.ts:894). Inline comment confirms the keepalive fix on the gate's output node, which closed the activation gap that left streamed values reaching the gate's input but never entering the pending queue.
