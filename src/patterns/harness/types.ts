@@ -108,19 +108,42 @@ export interface TriagedItem extends IntakeItem {
 // Strategy model
 // ---------------------------------------------------------------------------
 
-/** Key format: `${rootCause}→${intervention}`. */
-export type StrategyKey = `${RootCause}→${Intervention}`;
+/**
+ * Preset / persona / skill identifier. Open string set; conventionally
+ * matches keys used in {@link presetRegistry} (Phase 13.H). Use
+ * {@link DEFAULT_PRESET_ID} ("default") when no preset registry is wired.
+ */
+export type PresetId = string;
+
+/** Default presetId used when no preset registry is wired (back-compat for 2-axis callers). */
+export const DEFAULT_PRESET_ID: PresetId = "default";
 
 /**
- * Effectiveness record for a rootCause→intervention pair. Stored under
- * `auditedSuccessTracker<StrategyKey, StrategyEntry>` (Class B audit Alt E
- * collapse, 2026-04-30) — `key` is the composite `strategyKey(rc, intv)`
- * computed at the call site; `rootCause` / `intervention` are decoration
- * carried via `record(...)` so consumers can read them without re-parsing
- * the key.
+ * Key format: `${presetId}|${rootCause}→${intervention}`.
+ *
+ * **Phase 13.I axis extension (DS-13.I, 2026-05-01).** Widened from the
+ * pre-multi-agent 2-axis `${rootCause}→${intervention}` to a 3-axis key
+ * carrying the presetId of the agent that ran. Pre-1.0 breaking change;
+ * existing callsites pass {@link DEFAULT_PRESET_ID} for the new axis when
+ * they don't have a preset registry wired. The strategy-model storage
+ * (`auditedSuccessTracker<StrategyKey, StrategyEntry>`) is unchanged
+ * structurally — the key shape change cascades through the existing
+ * tracker without surface refactor.
+ */
+export type StrategyKey = `${PresetId}|${RootCause}→${Intervention}`;
+
+/**
+ * Effectiveness record for a `(presetId, rootCause, intervention)` triple.
+ * Stored under `auditedSuccessTracker<StrategyKey, StrategyEntry>` (Class B
+ * audit Alt E collapse, 2026-04-30; presetId axis added Phase 13.I,
+ * 2026-05-01) — `key` is the composite `strategyKey(presetId, rc, intv)`
+ * computed at the call site; `presetId` / `rootCause` / `intervention` are
+ * decoration carried via `record(...)` so consumers can read them without
+ * re-parsing the key.
  */
 export interface StrategyEntry {
 	key: StrategyKey;
+	presetId: PresetId;
 	rootCause: RootCause;
 	intervention: Intervention;
 	attempts: number;

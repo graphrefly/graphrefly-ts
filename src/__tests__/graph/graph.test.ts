@@ -2639,6 +2639,62 @@ describe("Graph narrow-waist — graph.effect", () => {
 		g.set("a", 1);
 		expect(fnCalls).toBe(1);
 	});
+
+	// F5 — `keepAlive: true` parity with `Graph.derived`. Without this opt
+	// (or an external subscriber / explicit `keepalive(...)` from
+	// extra/sources), an effect is dormant and its fn never fires when its
+	// deps emit. With it, the effect activates internally and stays live.
+	it("keepAlive: true activates the effect without an external subscriber", () => {
+		const g = new Graph("nw-effect-keepalive");
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const calls: number[] = [];
+		g.effect(
+			"logger",
+			["a"],
+			(data, _up, ctx) => {
+				const [x] = latestVals(data, ctx);
+				calls.push(x as number);
+			},
+			{ keepAlive: true },
+		);
+		// No fx.subscribe() — the keepAlive opt installs the internal sub.
+		g.set("a", 2);
+		g.set("a", 3);
+		expect(calls).toEqual([1, 2, 3]);
+	});
+
+	it("keepAlive default (omitted / false) leaves effect dormant", () => {
+		const g = new Graph("nw-effect-dormant");
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		const calls: number[] = [];
+		g.effect("logger", ["a"], (data, _up, ctx) => {
+			const [x] = latestVals(data, ctx);
+			calls.push(x as number);
+		});
+		// No subscribe + no keepAlive → fn never fires.
+		g.set("a", 2);
+		g.set("a", 3);
+		expect(calls).toEqual([]);
+	});
+
+	it("keepAlive: true drains on graph.destroy() (no leak)", () => {
+		const g = new Graph("nw-effect-keepalive-drain");
+		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
+		let cleanups = 0;
+		g.effect(
+			"fx",
+			["a"],
+			() => {
+				return () => {
+					cleanups += 1;
+				};
+			},
+			{ keepAlive: true },
+		);
+		g.destroy();
+		// One activation (from keepAlive), one deactivation → exactly one cleanup.
+		expect(cleanups).toBe(1);
+	});
 });
 
 describe("Graph narrow-waist — graph.state", () => {

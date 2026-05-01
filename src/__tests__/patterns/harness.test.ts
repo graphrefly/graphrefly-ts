@@ -22,6 +22,7 @@ import {
 	strategyModel,
 } from "../../patterns/harness/strategy.js";
 import {
+	DEFAULT_PRESET_ID,
 	defaultErrorClassifier,
 	type ExecutionResult,
 	type IntakeItem,
@@ -36,9 +37,17 @@ import { mockLLM } from "../helpers/mock-llm.js";
 // ---------------------------------------------------------------------------
 
 describe("harness types", () => {
-	it("strategyKey formats rootCause→intervention", () => {
-		expect(strategyKey("composition", "template")).toBe("composition→template");
-		expect(strategyKey("missing-fn", "catalog-fn")).toBe("missing-fn→catalog-fn");
+	it("strategyKey formats presetId|rootCause→intervention (Phase 13.I axis extension)", () => {
+		expect(strategyKey(DEFAULT_PRESET_ID, "composition", "template")).toBe(
+			"default|composition→template",
+		);
+		expect(strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn")).toBe(
+			"default|missing-fn→catalog-fn",
+		);
+		// Custom presetId on the new axis.
+		expect(strategyKey("researcher", "composition", "template")).toBe(
+			"researcher|composition→template",
+		);
 	});
 
 	it("defaultErrorClassifier classifies parse/config as self-correctable", () => {
@@ -71,25 +80,25 @@ describe("strategyModel", () => {
 	it("starts empty", () => {
 		const sm = strategyModel();
 		expect(sm.entries.cache.size).toBe(0);
-		expect(sm.lookup(strategyKey("composition", "template"))).toBeUndefined();
+		expect(sm.lookup(strategyKey(DEFAULT_PRESET_ID, "composition", "template"))).toBeUndefined();
 	});
 
 	it("records successes and failures with correct rates", () => {
 		const sm = strategyModel();
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		sm.record(strategyKey("composition", "template"), false, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), false, {
 			rootCause: "composition",
 			intervention: "template",
 		});
 
-		const entry = sm.lookup(strategyKey("composition", "template"));
+		const entry = sm.lookup(strategyKey(DEFAULT_PRESET_ID, "composition", "template"));
 		expect(entry).toBeDefined();
 		expect(entry!.attempts).toBe(3);
 		expect(entry!.successes).toBe(2);
@@ -98,21 +107,21 @@ describe("strategyModel", () => {
 
 	it("tracks multiple rootCause→intervention pairs independently", () => {
 		const sm = strategyModel();
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		sm.record(strategyKey("missing-fn", "catalog-fn"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn"), true, {
 			rootCause: "missing-fn",
 			intervention: "catalog-fn",
 		});
-		sm.record(strategyKey("missing-fn", "catalog-fn"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn"), true, {
 			rootCause: "missing-fn",
 			intervention: "catalog-fn",
 		});
 
-		expect(sm.lookup(strategyKey("composition", "template"))!.attempts).toBe(1);
-		expect(sm.lookup(strategyKey("missing-fn", "catalog-fn"))!.attempts).toBe(2);
+		expect(sm.lookup(strategyKey(DEFAULT_PRESET_ID, "composition", "template"))!.attempts).toBe(1);
+		expect(sm.lookup(strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn"))!.attempts).toBe(2);
 	});
 
 	it("reactive node updates on record()", () => {
@@ -124,13 +133,13 @@ describe("strategyModel", () => {
 			}
 		});
 
-		sm.record(strategyKey("bad-docs", "docs"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "bad-docs", "docs"), true, {
 			rootCause: "bad-docs",
 			intervention: "docs",
 		});
 		expect(values.length).toBeGreaterThanOrEqual(1);
 		const last = values[values.length - 1];
-		expect(last.get("bad-docs→docs")).toBeDefined();
+		expect(last.get("default|bad-docs→docs")).toBeDefined();
 	});
 });
 
@@ -189,15 +198,15 @@ describe("priorityScore", () => {
 		const valWithout = scoreWithout.cache;
 
 		// Record high effectiveness
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		sm.record(strategyKey("composition", "template"), true, {
+		sm.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
@@ -442,11 +451,13 @@ describe("harnessLoop", () => {
 		const adapter = mockAdapter({});
 		const harness = harnessLoop("test-harness-5", { adapter });
 
-		harness.strategy.record(strategyKey("composition", "template"), true, {
+		harness.strategy.record(strategyKey(DEFAULT_PRESET_ID, "composition", "template"), true, {
 			rootCause: "composition",
 			intervention: "template",
 		});
-		const entry = harness.strategy.lookup(strategyKey("composition", "template"));
+		const entry = harness.strategy.lookup(
+			strategyKey(DEFAULT_PRESET_ID, "composition", "template"),
+		);
 		expect(entry).toBeDefined();
 		expect(entry!.successRate).toBe(1);
 	});
@@ -716,7 +727,9 @@ describe("harnessLoop e2e", () => {
 		);
 
 		// Verify full chain executed
-		expect(harness.strategy.lookup(strategyKey("missing-fn", "catalog-fn"))).toBeDefined();
+		expect(
+			harness.strategy.lookup(strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn")),
+		).toBeDefined();
 		expect(calls.length).toBeGreaterThanOrEqual(3); // triage + execute + verify (SENTINEL skips initial empty)
 	});
 
@@ -902,7 +915,9 @@ describe("harnessLoop with mockLLM", () => {
 		expect(mock.callsFor("verify").length).toBeGreaterThanOrEqual(1);
 
 		// Strategy model should record a success
-		const entry = harness.strategy.lookup(strategyKey("missing-fn", "catalog-fn"));
+		const entry = harness.strategy.lookup(
+			strategyKey(DEFAULT_PRESET_ID, "missing-fn", "catalog-fn"),
+		);
 		expect(entry).toBeDefined();
 		expect(entry!.successes).toBeGreaterThanOrEqual(1);
 
@@ -1018,7 +1033,9 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy model to record the failure (proves retries exhausted)
 		await vi.waitFor(
 			() => {
-				const entry = harness.strategy.lookup(strategyKey("schema-gap", "schema-change"));
+				const entry = harness.strategy.lookup(
+					strategyKey(DEFAULT_PRESET_ID, "schema-gap", "schema-change"),
+				);
 				expect(entry).toBeDefined();
 			},
 			{ timeout: 15000, interval: 100 },
@@ -1028,7 +1045,9 @@ describe("harnessLoop with mockLLM", () => {
 		expect(harness.totalRetries.cache).toBe(2);
 
 		// Strategy should record failure
-		const entry = harness.strategy.lookup(strategyKey("schema-gap", "schema-change"))!;
+		const entry = harness.strategy.lookup(
+			strategyKey(DEFAULT_PRESET_ID, "schema-gap", "schema-change"),
+		)!;
 		expect(entry.successes).toBe(0);
 	});
 
@@ -1077,7 +1096,9 @@ describe("harnessLoop with mockLLM", () => {
 		// Wait for strategy model to record the failure (proves full chain executed)
 		await vi.waitFor(
 			() => {
-				const entry = harness.strategy.lookup(strategyKey("composition", "template"));
+				const entry = harness.strategy.lookup(
+					strategyKey(DEFAULT_PRESET_ID, "composition", "template"),
+				);
 				expect(entry).toBeDefined();
 			},
 			{ timeout: 5000, interval: 50 },
@@ -1087,7 +1108,9 @@ describe("harnessLoop with mockLLM", () => {
 		expect(harness.totalRetries.cache).toBe(0);
 
 		// Strategy should record failure
-		const entry = harness.strategy.lookup(strategyKey("composition", "template"))!;
+		const entry = harness.strategy.lookup(
+			strategyKey(DEFAULT_PRESET_ID, "composition", "template"),
+		)!;
 		expect(entry.successes).toBe(0);
 		expect(entry.attempts).toBeGreaterThanOrEqual(1);
 	});
@@ -1360,7 +1383,7 @@ describe("harnessLoop with mockLLM", () => {
 		const structResult = verifyResults.find((r) => r.verified === false)!;
 		expect(structResult.findings).toContain("dep missing — not parseable");
 		// Strategy should also have recorded the failure.
-		const entry = harness.strategy.lookup(strategyKey("composition", "rewrite"));
+		const entry = harness.strategy.lookup(strategyKey(DEFAULT_PRESET_ID, "composition", "rewrite"));
 		expect(entry).toBeDefined();
 		expect(entry?.successes).toBe(0);
 		// qa P4: lock "no extra verdict" — single-item run with maxRetries=0
@@ -1497,7 +1520,10 @@ describe("harnessLoop with mockLLM", () => {
 		await new Promise<void>((resolve) => {
 			const unsub = harness.strategy.entries.subscribe((msgs) => {
 				for (const msg of msgs) {
-					if (msg[0] === DATA && harness.strategy.lookup(strategyKey("composition", "template"))) {
+					if (
+						msg[0] === DATA &&
+						harness.strategy.lookup(strategyKey(DEFAULT_PRESET_ID, "composition", "template"))
+					) {
 						unsub();
 						resolve();
 						return;
@@ -1506,9 +1532,13 @@ describe("harnessLoop with mockLLM", () => {
 			});
 		});
 		// Original classification should NOT appear (modify replaced it).
-		expect(harness.strategy.lookup(strategyKey("unknown", "investigate"))).toBeUndefined();
+		expect(
+			harness.strategy.lookup(strategyKey(DEFAULT_PRESET_ID, "unknown", "investigate")),
+		).toBeUndefined();
 
-		const entry = harness.strategy.lookup(strategyKey("composition", "template"))!;
+		const entry = harness.strategy.lookup(
+			strategyKey(DEFAULT_PRESET_ID, "composition", "template"),
+		)!;
 		expect(entry.successes).toBeGreaterThanOrEqual(1);
 
 		// Structured events revalidation: verify stage ordering without string parsing

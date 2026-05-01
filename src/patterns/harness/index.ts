@@ -21,6 +21,7 @@ export * from "./eval-verifier.js";
 // `refineLoop` are presets composing the building blocks above.
 export * from "./presets/harness-loop.js";
 export * from "./presets/refine-loop.js";
+export * from "./presets/spawnable.js";
 export * from "./profile.js";
 export * from "./refine-executor.js";
 export * from "./strategy.js";

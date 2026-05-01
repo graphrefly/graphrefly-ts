@@ -2,7 +2,20 @@ import { describe, expect, it } from "vitest";
 import { node } from "../../core/node.js";
 
 import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
-import { messagingHub, subscription, topic, topicBridge } from "../../patterns/messaging/index.js";
+import {
+	DEFERRED_TOPIC,
+	INJECTIONS_TOPIC,
+	type Message,
+	messagingHub,
+	PROMPTS_TOPIC,
+	RESPONSES_TOPIC,
+	SPAWNS_TOPIC,
+	STANDARD_TOPICS,
+	type StandardTopic,
+	subscription,
+	topic,
+	topicBridge,
+} from "../../patterns/messaging/index.js";
 
 describe("patterns.messaging", () => {
 	it("topic retains events and updates latest value", () => {
@@ -489,5 +502,85 @@ describe("patterns.messagingHub", () => {
 		// hub.orders::events should be resolvable through the mounted subgraph
 		const ordersEvents = hub.node("orders::events");
 		expect(ordersEvents.cache).toEqual([42]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 13.B — Message<T> envelope + standard topic constants
+// ---------------------------------------------------------------------------
+
+describe("patterns.messaging — Message envelope + standard topic constants (Phase 13.B)", () => {
+	it("exposes the five well-known topic constants with stable names", () => {
+		expect(PROMPTS_TOPIC).toBe("prompts");
+		expect(RESPONSES_TOPIC).toBe("responses");
+		expect(INJECTIONS_TOPIC).toBe("injections");
+		expect(DEFERRED_TOPIC).toBe("deferred");
+		expect(SPAWNS_TOPIC).toBe("spawns");
+	});
+
+	it("STANDARD_TOPICS tuple contains all five constants in declared order", () => {
+		expect(STANDARD_TOPICS).toEqual([
+			PROMPTS_TOPIC,
+			RESPONSES_TOPIC,
+			INJECTIONS_TOPIC,
+			DEFERRED_TOPIC,
+			SPAWNS_TOPIC,
+		]);
+		// Compile-time check: StandardTopic is the union of the literal types.
+		const _t: StandardTopic = "prompts";
+		void _t;
+	});
+
+	it("Message<T> round-trips through a hub topic with all envelope fields", () => {
+		const hub = messagingHub("hub");
+		const t = hub.topic<Message<{ text: string }>>(PROMPTS_TOPIC);
+
+		const msg: Message<{ text: string }> = {
+			id: "msg-1",
+			schema: {
+				type: "object",
+				properties: { text: { type: "string" } },
+				required: ["text"],
+			},
+			expiresAt: "2026-12-31T23:59:59Z",
+			correlationId: "session-42",
+			payload: { text: "hello" },
+		};
+		t.publish(msg);
+
+		const received = t.retained()[0]!;
+		expect(received.id).toBe("msg-1");
+		expect(received.correlationId).toBe("session-42");
+		expect(received.expiresAt).toBe("2026-12-31T23:59:59Z");
+		expect(received.payload.text).toBe("hello");
+		expect(received.schema?.properties?.text?.type).toBe("string");
+	});
+
+	it("Message<T> round-trips through a hub topic with only the required `id` + `payload`", () => {
+		const hub = messagingHub("hub-min");
+		const t = hub.topic<Message<number>>(SPAWNS_TOPIC);
+
+		t.publish({ id: "msg-2", payload: 42 });
+
+		const received = t.retained()[0]!;
+		expect(received.id).toBe("msg-2");
+		expect(received.payload).toBe(42);
+		expect(received.schema).toBeUndefined();
+		expect(received.correlationId).toBeUndefined();
+		expect(received.expiresAt).toBeUndefined();
+	});
+
+	it("filtering envelopes by correlationId works via derived (request/response pairing)", () => {
+		const hub = messagingHub("hub-corr");
+		const responses = hub.topic<Message<string>>(RESPONSES_TOPIC);
+
+		responses.publish({ id: "r1", correlationId: "req-A", payload: "ans-A" });
+		responses.publish({ id: "r2", correlationId: "req-B", payload: "ans-B" });
+		responses.publish({ id: "r3", correlationId: "req-A", payload: "ans-A2" });
+
+		const all = responses.retained();
+		const matchingA = all.filter((m) => m.correlationId === "req-A");
+		expect(matchingA).toHaveLength(2);
+		expect(matchingA.map((m) => m.payload)).toEqual(["ans-A", "ans-A2"]);
 	});
 });

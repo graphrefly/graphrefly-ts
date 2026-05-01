@@ -31,6 +31,7 @@ import {
 	rescue,
 	sample,
 	scan,
+	settle,
 	skip,
 	switchMap,
 	take,
@@ -39,6 +40,7 @@ import {
 	tap,
 	throttle,
 	timeout,
+	valve,
 	withLatestFrom,
 	zip,
 } from "../../extra/operators.js";
@@ -1788,6 +1790,204 @@ describe("withLatestFrom — secondary dep semantics", () => {
 		primary.down([[DATA, 5]]);
 		const dataVals = messages.filter((m) => m[0] === DATA);
 		expect(dataVals).toHaveLength(0); // no pairable value → suppress
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 13.E — valve `abortInFlight` opt
+// ---------------------------------------------------------------------------
+
+describe("valve abortInFlight (Phase 13.E / DS-13.E)", () => {
+	it("calls controller.abort() on the truthy → falsy edge", () => {
+		const ctrl = new AbortController();
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: true });
+		const v = valve(src, open, { abortInFlight: ctrl });
+		const { unsub } = collect(v);
+
+		expect(ctrl.signal.aborted).toBe(false);
+		open.emit(false);
+		expect(ctrl.signal.aborted).toBe(true);
+
+		unsub();
+	});
+
+	it("does not abort on activation when control starts falsy (no transition)", () => {
+		const ctrl = new AbortController();
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: false });
+		const v = valve(src, open, { abortInFlight: ctrl });
+		const { unsub } = collect(v);
+
+		// Initial state is closed; no DATA-driven transition has fired yet.
+		expect(ctrl.signal.aborted).toBe(false);
+
+		unsub();
+	});
+
+	it("does not abort on falsy → truthy → falsy second close (single-shot — controller is already aborted)", () => {
+		const ctrl = new AbortController();
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: true });
+		const v = valve(src, open, { abortInFlight: ctrl });
+		const { unsub } = collect(v);
+
+		open.emit(false);
+		expect(ctrl.signal.aborted).toBe(true);
+
+		// Re-opening the gate AFTER an abort has fired — the AbortController is
+		// already aborted, so a subsequent close is a no-op (.abort() is
+		// idempotent per spec).
+		open.emit(true);
+		open.emit(false);
+		expect(ctrl.signal.aborted).toBe(true);
+
+		unsub();
+	});
+
+	it("does not abort when no abortInFlight is provided (backwards compat)", () => {
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: true });
+		const v = valve(src, open);
+		const { unsub } = collect(v);
+		open.emit(false);
+		// No abortInFlight — nothing to assert beyond the lack of an exception.
+		// The valve still emits RESOLVED on close (covered in sources.test.ts).
+		unsub();
+	});
+
+	it("forwards source DATA while open, regardless of abortInFlight", () => {
+		const ctrl = new AbortController();
+		const src = node<number>([], { initial: 1 });
+		const open = node<boolean>([], { initial: true });
+		const v = valve(src, open, { abortInFlight: ctrl });
+		const { messages, unsub } = collect(v, { flat: true });
+
+		src.emit(2);
+		src.emit(3);
+
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toContain(2);
+		expect(dataVals).toContain(3);
+		expect(ctrl.signal.aborted).toBe(false);
+		unsub();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 13.L — `settle` operator
+// ---------------------------------------------------------------------------
+
+describe("settle (Phase 13.L / DS-13.L) — convergence detector", () => {
+	// `equals: () => false` defeats the source node's default Object.is dedup
+	// so every emit() fires a real wave that settle can count. Real-world
+	// callers usually feed settle from upstream operators / topic streams
+	// that don't dedup; this is the test-fixture knob.
+	const noDedup = { equals: () => false };
+
+	it("forwards each upstream DATA unchanged", () => {
+		const src = node<number>([], { initial: 1, ...noDedup });
+		const s = settle(src, { quietWaves: 3, equals: (a, b) => a === b });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		src.emit(2);
+		src.emit(3);
+
+		const dataVals = messages.filter((m) => m[0] === DATA).map((m) => m[1]);
+		expect(dataVals).toEqual([1, 2, 3]);
+		unsub();
+	});
+
+	it("emits COMPLETE after `quietWaves` consecutive no-change waves under `equals`", () => {
+		const src = node<number>([], { initial: 1, ...noDedup });
+		const s = settle(src, { quietWaves: 2, equals: (a, b) => a === b });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		// Initial activation: wave 1, sees DATA=1 (change vs SENTINEL).
+		// Re-emit 1 twice — under `equals`, both count as quiet.
+		src.emit(1);
+		src.emit(1);
+
+		const completeMsgs = messages.filter((m) => m[0] === COMPLETE);
+		expect(completeMsgs).toHaveLength(1);
+		unsub();
+	});
+
+	it("resets the quiet counter when DATA changes", () => {
+		const src = node<number>([], { initial: 1, ...noDedup });
+		const s = settle(src, { quietWaves: 2, equals: (a, b) => a === b });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		// One quiet wave (re-emit 1).
+		src.emit(1);
+		// Real change — resets counter.
+		src.emit(2);
+		// One quiet wave (re-emit 2) — should NOT complete yet (need 2 in a row).
+		src.emit(2);
+
+		expect(messages.filter((m) => m[0] === COMPLETE)).toHaveLength(0);
+
+		// Second quiet — now completes.
+		src.emit(2);
+		expect(messages.filter((m) => m[0] === COMPLETE)).toHaveLength(1);
+		unsub();
+	});
+
+	it("without `equals`, every DATA wave resets the quiet counter (strict no-DATA semantics)", () => {
+		const src = node<number>([], { initial: 1, ...noDedup });
+		// No `equals` — only true "no DATA in this wave" counts as quiet.
+		const s = settle(src, { quietWaves: 3 });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		// Even repeated emits of the same value reset the counter under strict
+		// semantics (no `equals`).
+		src.emit(1);
+		src.emit(1);
+		src.emit(1);
+		src.emit(1);
+
+		// Five total DATA waves; never any quiet waves → no COMPLETE.
+		expect(messages.filter((m) => m[0] === COMPLETE)).toHaveLength(0);
+		unsub();
+	});
+
+	it("`maxWaves` forces COMPLETE on cap regardless of convergence", () => {
+		const src = node<number>([], { initial: 0, ...noDedup });
+		const s = settle(src, { quietWaves: 100, maxWaves: 3 });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		// quietWaves is 100 (effectively unreachable). maxWaves=3 forces COMPLETE
+		// on the third wave. Initial activation counts as wave 1.
+		src.emit(1); // wave 2
+		src.emit(2); // wave 3 → maxWaves reached → COMPLETE
+
+		expect(messages.filter((m) => m[0] === COMPLETE)).toHaveLength(1);
+		unsub();
+	});
+
+	it("rejects invalid quietWaves at construction", () => {
+		const src = node<number>([], { initial: 1 });
+		expect(() => settle(src, { quietWaves: 0 })).toThrow(RangeError);
+		expect(() => settle(src, { quietWaves: -1 })).toThrow(RangeError);
+		expect(() => settle(src, { quietWaves: 1.5 })).toThrow(RangeError);
+	});
+
+	it("rejects invalid maxWaves at construction", () => {
+		const src = node<number>([], { initial: 1 });
+		expect(() => settle(src, { quietWaves: 1, maxWaves: 0 })).toThrow(RangeError);
+		expect(() => settle(src, { quietWaves: 1, maxWaves: -1 })).toThrow(RangeError);
+		expect(() => settle(src, { quietWaves: 1, maxWaves: 1.5 })).toThrow(RangeError);
+	});
+
+	it("upstream COMPLETE propagates through (terminal-deps default)", () => {
+		const src = node<number>([], { initial: 1 });
+		const s = settle(src, { quietWaves: 100 });
+		const { messages, unsub } = collect(s, { flat: true });
+
+		src.down([[COMPLETE]]);
+
+		expect(messages.filter((m) => m[0] === COMPLETE)).toHaveLength(1);
 		unsub();
 	});
 });

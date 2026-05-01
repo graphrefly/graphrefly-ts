@@ -85,8 +85,10 @@ export * from "./safety/redactor.js";
 // Agents (chat, tools, multi-agent routing — building blocks)
 // ---------------------------------------------------------------------------
 
+export * from "./agents/agent.js";
 export * from "./agents/chat-stream.js";
 export * from "./agents/handoff.js";
+export * from "./agents/presets.js";
 export * from "./agents/tool-execution.js";
 export * from "./agents/tool-registry.js";
 export * from "./agents/tool-selector.js";

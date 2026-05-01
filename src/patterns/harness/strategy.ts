@@ -20,6 +20,7 @@ import { decay } from "../../extra/utils/decay.js";
 
 import {
 	DEFAULT_DECAY_RATE,
+	DEFAULT_PRESET_ID,
 	DEFAULT_SEVERITY_WEIGHTS,
 	type PrioritySignals,
 	type StrategyEntry,
@@ -39,9 +40,10 @@ export type StrategySnapshot = ReadonlyMap<StrategyKey, StrategyEntry>;
 export type StrategyModelGraph = AuditedSuccessTrackerGraph<StrategyKey, StrategyEntry>;
 
 /**
- * Create a strategy model that tracks `rootCause × intervention → successRate`
- * over completed issues. Returns an {@link AuditedSuccessTrackerGraph} keyed
- * by {@link StrategyKey}.
+ * Create a strategy model that tracks
+ * `presetId × rootCause × intervention → successRate` over completed
+ * issues (presetId axis added in Phase 13.I, 2026-05-01). Returns an
+ * {@link AuditedSuccessTrackerGraph} keyed by {@link StrategyKey}.
  *
  * The reactive `entries` field is a `Node<StrategySnapshot>` suitable for
  * `describe()` / `withLatestFrom` composition.
@@ -49,12 +51,16 @@ export type StrategyModelGraph = AuditedSuccessTrackerGraph<StrategyKey, Strateg
  * Composite-key conversion happens at the call site:
  * ```ts
  * const strategy = strategyModel();
- * strategy.record(strategyKey(rootCause, intervention), success, {
+ * strategy.record(strategyKey(presetId, rootCause, intervention), success, {
+ *   presetId,
  *   rootCause,
  *   intervention,
  * });
- * strategy.lookup(strategyKey(rootCause, intervention));
+ * strategy.lookup(strategyKey(presetId, rootCause, intervention));
  * ```
+ *
+ * Pass {@link DEFAULT_PRESET_ID} (`"default"`) for the presetId axis when
+ * no preset registry is wired (single-agent harness).
  *
  * The model feeds back into TRIAGE for routing hints.
  */
@@ -125,7 +131,7 @@ export function priorityScore(
 			let score = decay(baseWeight, ageSeconds, decayRate, 0);
 
 			// Strategy model boost
-			const key = strategyKey(itm.rootCause, itm.intervention);
+			const key = strategyKey(DEFAULT_PRESET_ID, itm.rootCause, itm.intervention);
 			const entry = strat.get(key);
 			if (entry && entry.successRate >= effectivenessThreshold) {
 				score += effectivenessBoost;

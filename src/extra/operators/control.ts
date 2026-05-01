@@ -355,13 +355,53 @@ export function rescue<T>(
 }
 
 /**
+ * Options for {@link valve}.
+ *
+ * Extends {@link ExtraOpts} with `abortInFlight` (Phase 13.E / DS-13.E).
+ */
+export type ValveOpts = ExtraOpts & {
+	/**
+	 * Optional `AbortController`. When supplied AND the `control` node flips
+	 * from truthy → falsy, `valve` calls `controller.abort()` automatically.
+	 * Useful for "panic stop" / "kill in-flight LLM call" patterns where
+	 * cutting reactive propagation alone leaves an in-flight async boundary
+	 * (HTTP, fetch, adapter call) burning resources.
+	 *
+	 * **Caller contract.** The caller threads `controller.signal` into the
+	 * async boundary they want to cancel (e.g. `adapter.invoke({ signal })`).
+	 * `valve` only fires `controller.abort()` — it does not own the
+	 * controller's lifecycle. If the controller is reused across multiple
+	 * valve cycles, the caller is responsible for minting a fresh one when
+	 * the gate re-opens.
+	 *
+	 * **Edge cases.**
+	 * - Already-aborted controller: `valve` calls `abort()` again, which is a
+	 *   no-op per `AbortController` spec.
+	 * - Control node never delivers DATA (stays SENTINEL): no abort fires,
+	 *   even though `control` is "effectively closed" — the abort triggers
+	 *   on the falsy *transition*, not on the closed state itself. Pass an
+	 *   explicit `state(false)` if you want activation-time abort.
+	 * - Source emits ERROR or COMPLETE: `valve` does not auto-abort; the
+	 *   caller's signal handling on the async boundary already covers
+	 *   terminal-error cases.
+	 */
+	abortInFlight?: AbortController;
+};
+
+/**
  * Forwards upstream `DATA` only while `control.get()` is truthy; when closed, emits `RESOLVED`
  * instead of repeating the last value (value-level valve). For protocol pause/resume, use default
  * node PAUSE/RESUME behavior.
  *
+ * **`abortInFlight` (Phase 13.E).** Pass an `AbortController` in `opts` to
+ * have `valve` call `controller.abort()` automatically when the gate flips
+ * from truthy → falsy. Pairs with `adapter.invoke({ signal })` so closing
+ * the valve cancels the in-flight async boundary in addition to cutting
+ * reactive propagation.
+ *
  * @param source - Upstream value node.
  * @param control - Boolean node; when falsy, output stays "closed" for that tick.
- * @param opts - Optional node options (excluding `describeKind`).
+ * @param opts - Optional {@link ValveOpts}.
  * @returns `Node<T>` gated by `control`.
  *
  * @example
@@ -371,17 +411,37 @@ export function rescue<T>(
  * const data = state(1);
  * const open = state(true);
  * valve(data, open);
+ *
+ * // With abortInFlight — close-the-gate cancels the LLM call:
+ * const ctrl = new AbortController();
+ * adapter.invoke(messages, { signal: ctrl.signal });
+ * valve(streamTopic.latest, open, { abortInFlight: ctrl });
+ * open.emit(false); // → ctrl.abort() fires
  * ```
  *
  * @category extra
  */
-export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOpts): Node<T> {
+export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ValveOpts): Node<T> {
+	const { abortInFlight, ...nodeOpts } = opts ?? {};
+	// Track previous control state so we can detect the truthy → falsy edge.
+	// `undefined` (initial) is treated as "closed-but-no-prior-state" — we
+	// only fire `abort()` on a real DATA-driven transition, never on
+	// activation. This matches the JSDoc edge-case contract.
+	let prevControlValue: boolean | undefined;
 	return node<T>(
 		[source as Node, control as Node],
 		(data, a, ctx) => {
 			const batch1 = data[1];
 			// undefined = control never sent DATA (gate closed); falsy = explicitly closed.
 			const controlValue = batch1 != null && batch1.length > 0 ? batch1.at(-1) : ctx.prevData[1];
+			if (abortInFlight != null) {
+				// Truthy → falsy edge: fire abort. Skip if the prior state was
+				// also falsy (no edge) or undefined (activation, no prior).
+				if (prevControlValue === true && !controlValue) {
+					abortInFlight.abort();
+				}
+				prevControlValue = controlValue ? true : controlValue == null ? undefined : false;
+			}
 			if (!controlValue) {
 				a.down([[RESOLVED]]);
 				return;
@@ -415,7 +475,7 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOp
 		// should use the §28 closure-mirror pattern (capture
 		// `source.cache` + `control.cache` at wiring time, read inside a
 		// downstream fn). See COMPOSITION-GUIDE §28.
-		partialOperatorOpts(opts),
+		partialOperatorOpts(nodeOpts),
 	);
 }
 
@@ -437,3 +497,149 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ExtraOp
  * @category extra
  */
 export const catchError = rescue;
+
+// ---------------------------------------------------------------------------
+// settle (Phase 13.L / DS-13.L) — convergence detector
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for {@link settle}.
+ */
+export type SettleOpts<T> = ExtraOpts & {
+	/**
+	 * Consecutive upstream waves with no DATA (or with DATA equal to the
+	 * previous DATA via {@link SettleOpts.equals}) that must elapse before
+	 * `settle` declares the source converged and emits `COMPLETE`. Required.
+	 *
+	 * "Wave" is one upstream emission round — a `DATA` batch, or a bare
+	 * `RESOLVED` end-of-wave marker. Each call to `settle`'s fn body counts
+	 * as one wave.
+	 */
+	quietWaves: number;
+	/**
+	 * Optional hard cap on total waves before forced completion. When the
+	 * upstream fires `maxWaves` times without converging, `settle` emits
+	 * `COMPLETE` carrying the last-seen DATA (if any). Useful as a
+	 * runaway-loop guard for shared-state termination patterns where the
+	 * source might never settle on its own.
+	 */
+	maxWaves?: number;
+	/**
+	 * Optional value-equality comparator. When provided, an upstream `DATA`
+	 * whose value satisfies `equals(prev, next)` does NOT reset the quiet
+	 * counter — it is considered a "no-change" wave. Without `equals`, ANY
+	 * `DATA` resets the counter (strict "no-DATA-arrival" semantics).
+	 *
+	 * Use `Object.is` for SameValue equality; `(a, b) => a === b` for
+	 * strict-equality; lodash `isEqual` for deep equality.
+	 */
+	equals?: (a: T, b: T) => boolean;
+};
+
+/**
+ * Reactive operator form of `awaitSettled` — emits each upstream `DATA`
+ * unchanged, watches for convergence, and emits `COMPLETE` once the source
+ * has been quiet for `quietWaves` consecutive waves.
+ *
+ * **Boundary vs `awaitSettled`** (the existing one-shot Promise sugar in
+ * `extra/sources`): `awaitSettled` resolves a `Promise<T>` once the source
+ * settles to a matching value. `settle` is the operator-level reactive form
+ * — it stays in the graph, can complete on convergence, and (optionally,
+ * not yet shipped) re-arms if upstream resumes.
+ *
+ * **Use cases.**
+ * - Shared-state pattern termination: parent waits for "no new updates on
+ *   the blackboard for N reactive waves" → emit final state and complete.
+ * - Multi-agent quiescence: hub topic stops carrying spawn requests for N
+ *   waves → harness considers the run done.
+ * - Streaming aggregator: stop accumulating when the source stops producing.
+ *
+ * **Topology.** `settle(source)` exposes a single edge in `describe()` —
+ * the operator forwards every DATA, so consumers see live values up to the
+ * `COMPLETE`. The convergence counter is internal closure state (visible
+ * to inspection only via the operator's own meta).
+ *
+ * **Spec compliance.**
+ * - No polling (spec §5.8): the wave counter advances only on real upstream
+ *   waves; no `setTimeout` or busy-wait.
+ * - No imperative trigger (spec §5.9): the operator emits via the standard
+ *   reactive `actions` API.
+ * - Wave is the unit of progress (spec §1.3): "no DATA for N waves" means
+ *   N consecutive operator-fn invocations where the upstream batch had no
+ *   DATA (or DATA equal to prior, when `equals` is supplied).
+ *
+ * @param source - Upstream node.
+ * @param opts - {@link SettleOpts}.
+ * @returns `Node<T>` that forwards each upstream DATA and emits COMPLETE on
+ *   convergence (or on `maxWaves` exhaustion).
+ *
+ * @example
+ * ```ts
+ * import { settle, state } from "@graphrefly/graphrefly-ts";
+ *
+ * const board = state<Update>({ ... });
+ * const final = settle(board, { quietWaves: 3, equals: deepEqual });
+ * // After 3 consecutive waves with no new (deep-different) update,
+ * // `final` completes carrying the last-stable Update value.
+ * ```
+ *
+ * @category extra
+ */
+export function settle<T>(source: Node<T>, opts: SettleOpts<T>): Node<T> {
+	const { quietWaves, maxWaves, equals, ...nodeOpts } = opts;
+	if (!Number.isInteger(quietWaves) || quietWaves < 1) {
+		throw new RangeError(
+			`settle: quietWaves must be a positive integer (got ${String(quietWaves)})`,
+		);
+	}
+	if (maxWaves != null && (!Number.isInteger(maxWaves) || maxWaves < 1)) {
+		throw new RangeError(
+			`settle: maxWaves must be a positive integer when set (got ${String(maxWaves)})`,
+		);
+	}
+	let lastValue: T | undefined;
+	let hasValue = false;
+	let quietCount = 0;
+	let waveCount = 0;
+	let completed = false;
+	return node<T>(
+		[source as Node],
+		(data, a) => {
+			if (completed) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			waveCount += 1;
+			const batch0 = data[0];
+			let sawChange = false;
+			if (batch0 != null && batch0.length > 0) {
+				for (const v of batch0) {
+					const next = v as T;
+					const isChange = !hasValue || equals == null || !equals(lastValue as T, next);
+					if (isChange) sawChange = true;
+					lastValue = next;
+					hasValue = true;
+					a.emit(next);
+				}
+			}
+			if (sawChange) {
+				quietCount = 0;
+			} else {
+				quietCount += 1;
+			}
+			const settled = hasValue && quietCount >= quietWaves;
+			const exhausted = maxWaves != null && waveCount >= maxWaves;
+			if (settled || exhausted) {
+				completed = true;
+				a.down([[COMPLETE]]);
+				return;
+			}
+			// No DATA forwarded this wave AND not yet settled — emit RESOLVED so
+			// downstream sees the wave (rather than a "stuck DIRTY").
+			if (batch0 == null || batch0.length === 0) {
+				a.down([[RESOLVED]]);
+			}
+		},
+		partialOperatorOpts(nodeOpts),
+	);
+}

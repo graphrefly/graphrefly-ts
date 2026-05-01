@@ -14,6 +14,7 @@ import type {
 	ErrorClassifier,
 	ExecutionResult,
 	Intervention,
+	PresetId,
 	QueueConfig,
 	QueueRoute,
 	RootCause,
@@ -62,9 +63,20 @@ export const DEFAULT_DECAY_RATE = Math.LN2 / (7 * 24 * 3600);
 // Strategy model
 // ---------------------------------------------------------------------------
 
-/** Canonical `${RootCause}→${Intervention}` join char; used by the `StrategyKey` template literal. */
-export function strategyKey(rootCause: RootCause, intervention: Intervention): StrategyKey {
-	return `${rootCause}→${intervention}`;
+/**
+ * Canonical 3-axis composite-key factory: `${presetId}|${rootCause}→${intervention}`.
+ *
+ * **Phase 13.I axis extension (DS-13.I, 2026-05-01).** Pre-multi-agent
+ * callers without a preset registry pass {@link DEFAULT_PRESET_ID}
+ * (`"default"`) for the first arg. Pre-1.0 breaking signature change;
+ * persisted strategy-model snapshots from before this date are NOT portable.
+ */
+export function strategyKey(
+	presetId: PresetId,
+	rootCause: RootCause,
+	intervention: Intervention,
+): StrategyKey {
+	return `${presetId}|${rootCause}→${intervention}`;
 }
 
 // ---------------------------------------------------------------------------

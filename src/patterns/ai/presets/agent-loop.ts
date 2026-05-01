@@ -90,14 +90,14 @@ export type AgentLoopOptions = {
  *
  * **Lifecycle: single-mount.** `AgentLoopGraph` instances expect to be
  * constructed once and used until `destroy()`. The internal closure mirrors
- * (`latestTurn` / `latestAborted` / `latestStatus` / `latestMessages` /
- * `latestSchemas`) are wired by subscribe-and-capture at construction time;
- * their corresponding `addDisposer`-registered subscriptions are torn down
- * on subgraph unmount or `destroy()`. After teardown the mirrors freeze at
- * their last value, so re-using a destroyed instance — calling `run()`
- * again, or remounting under a new parent — would silently feed stale
- * mirror data into `promptInput`. If you need to "reset" an agent, build a
- * fresh `AgentLoopGraph` instance instead of recycling.
+ * (`latestTurn` / `latestAborted` / `latestStatus`) are wired by
+ * subscribe-and-capture at construction time; their `addDisposer`-registered
+ * subscriptions are torn down on subgraph unmount or `destroy()`. After
+ * teardown the mirrors freeze at their last value, so re-using a destroyed
+ * instance — calling `run()` again, or remounting under a new parent —
+ * would silently feed stale mirror data into reactive fn bodies. If you
+ * need to "reset" an agent, build a fresh `AgentLoopGraph` instance instead
+ * of recycling.
  */
 export class AgentLoopGraph extends Graph {
 	readonly chat: ChatStreamGraph;
@@ -185,25 +185,30 @@ export class AgentLoopGraph extends Graph {
 
 		// --- Reactive pipeline ---
 		//
-		// Closure-held mirrors (COMPOSITION-GUIDE §28 factory-time seed
-		// pattern). Subscribe once at construction, seed from `.cache`
-		// (sanctioned §3.6 boundary read), keep a plain closure variable
-		// updated by the handler. Effects / raw-node fns then read the
-		// closure variable synchronously — closure reads are NOT P3
-		// violations per §28 ("they read a closure variable, not a
-		// `.cache`"). An in-session Phase 9 plan would have replaced this
-		// with `graph.derived(..., { keepAlive: true })` + `.cache` reads
-		// (which IS a P3 violation); plan was reverted at the design level
-		// after re-reading §28 — pattern preserved in this file. See
-		// `archive/docs/SESSION-graph-narrow-waist.md` § "Status of existing
-		// modifications".
+		// **Read pattern (Phase 12 D1 lock + F2 fix 2026-05-01).** State
+		// scratchpad held on this `AgentLoopGraph` (turn / aborted / chat /
+		// tools) is read inside reactive fn bodies via either:
+		//   (a) `data[i]` / `ctx.prevData[i]` for declared deps, OR
+		//   (b) sole-owner `.cache` reads on subgraph-mounted state Nodes
+		//       (chat / tools mounted as subgraphs of this Graph; the agent
+		//       is the sole owner; promptInput / effResponse / effResults
+		//       live in the same enclosing constructor scope — sanctioned
+		//       form per Phase 12 D1 read-pattern lock).
 		//
-		// Symmetry matters: `latestTurn` / `latestAborted` / `latestStatus`
-		// plus `latestMessages` / `latestSchemas` all feed the same
-		// `promptInput` raw node. Mixing "some mirrors, some inline
-		// `.cache` reads" was the pre-Wave-B shape and made the reactive
-		// fn body harder to audit — every cross-graph read now goes
-		// through the same subscribe-and-mirror template.
+		// Closure mirrors (`latestTurn` / `latestAborted` / `latestStatus`)
+		// are kept ONLY for fields where (b) doesn't simplify the call site
+		// — turn / aborted / status are state Nodes registered on `this`
+		// directly (not subgraphs), and the closure form keeps
+		// effResponse's batch logic readable. They are CORRECT but are NOT
+		// safe under nested drains (the subscribe handler may not have run
+		// yet when a downstream fn reads the closure). For nested-drain-
+		// reachable reads (promptInput, called via `agentLoop.run` from
+		// inside another graph's reactive subscribe handler), prefer (a) or
+		// (b) over the closure mirror. F2 root cause: chat.messages.cache
+		// is updated DURING the DATA-settle phase (before subscribers
+		// run), so `.cache` reads are always at least as fresh as closure
+		// mirrors. See `optimizations.md` "Phase 13 design-session inputs
+		// from §13.M lock-test" F2.
 		//
 		// **Pattern note on `latestTurn` staleness under in-batch reads.**
 		// Effect 1 emits `turnNode.emit(next)` inside its batch; Effect 2
@@ -220,39 +225,6 @@ export class AgentLoopGraph extends Graph {
 		let latestAborted = false;
 		const abortedSub = this.aborted.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === DATA) latestAborted = m[1] as boolean;
-		});
-		// Seed from the subgraph's current cache (chat.messages is a
-		// ReactiveLogBundle, always starts with a cached snapshot) so the
-		// first `promptInput` wave sees the full conversation, even if the
-		// subscribe happens before any append. Same seeding discipline as
-		// `latestStatus` below.
-		//
-		// **Ordering invariant (load-bearing).** `promptInput`'s ONLY
-		// reactive dep is `statusNode`; `latestMessages` and `latestSchemas`
-		// are sampled from closures. Inside Effect 1's batch, `chat.append`
-		// fires before the status transition, so `messagesSub`'s handler
-		// drains (→ updates `latestMessages`) before any downstream wave
-		// reads the mirror. If a future refactor adds `chat.messageCount`
-		// (or any message-driven dep) as a reactive trigger on
-		// `promptInput`, the closure mirror could lag the actual array by
-		// one wave inside Effect 1's own batch — that is exactly the
-		// feedback-cycle hazard COMPOSITION-GUIDE §7 warns against, and
-		// the current "only status triggers" gating is what keeps this
-		// mirror shape safe.
-		let latestMessages: readonly ChatMessage[] =
-			(this.chat.messages.cache as readonly ChatMessage[] | undefined) ?? [];
-		const messagesSub = this.chat.messages.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) latestMessages = m[1] as readonly ChatMessage[];
-			}
-		});
-		// `tools.schemas` has `initial: []`, so the cache is always seeded.
-		let latestSchemas: readonly ToolDefinition[] =
-			(this.tools.schemas.cache as readonly ToolDefinition[] | undefined) ?? [];
-		const schemasSub = this.tools.schemas.subscribe((msgs) => {
-			for (const m of msgs) {
-				if (m[0] === DATA) latestSchemas = m[1] as readonly ToolDefinition[];
-			}
 		});
 
 		const adapter = opts.adapter;
@@ -287,23 +259,37 @@ export class AgentLoopGraph extends Graph {
 					actions.down([[RESOLVED]]);
 					return;
 				}
-				// Don't invoke with an empty conversation — most adapters reject
-				// this or return degenerate responses. RESOLVED holds the loop
-				// idle until the caller appends something to chat.
-				if (latestMessages.length === 0) {
+				// F2 fix (2026-05-01): under nested drains, the closure mirrors
+				// `latestMessages` / `latestSchemas` lag the actual node state —
+				// messagesSub / schemasSub subscribers may not have run yet when
+				// promptInput fires (the drain processes status's downstream
+				// before chat.messages's subscribers fire, even though
+				// chat.messages.cache is already settled). Read `.cache`
+				// directly per Phase 12 D1 read-pattern lock: chat / tools are
+				// mounted as subgraphs of this AgentLoopGraph (sole owner) and
+				// promptInput is a reactive reader in the same enclosing
+				// constructor scope — sanctioned `.cache` form. See
+				// `optimizations.md` "Phase 13 design-session inputs from §13.M
+				// lock-test" F2.
+				const messages = (this.chat.messages.cache as readonly ChatMessage[] | undefined) ?? [];
+				if (messages.length === 0) {
 					actions.down([[RESOLVED]]);
 					return;
 				}
-				actions.emit({ messages: latestMessages, tools: latestSchemas });
+				const schemas = (this.tools.schemas.cache as readonly ToolDefinition[] | undefined) ?? [];
+				actions.emit({ messages, tools: schemas });
 			},
 			{
 				name: "promptInput",
 				describeKind: "derived",
 				meta: aiMeta("agent_prompt_input", {
-					// COMPOSITION-GUIDE §28 closure-mirror reads. These are NOT
-					// reactive deps (statusNode is the only one); listed here so
-					// inspection tooling can surface "what other state samples
-					// fold into this node's fn body" without grepping source.
+					// State this fn body samples beyond its declared `statusNode`
+					// dep. `aborted` / `turn` come from §28 closure mirrors
+					// (`latestAborted` / `latestTurn`); `chat.messages` /
+					// `tools.schemas` come from sole-owner `.cache` reads
+					// (Phase 12 D1 lock + F2 fix; see comment block above).
+					// Listed here so inspection tooling can surface fold-in
+					// state without grepping source.
 					closureReads: ["aborted", "turn", "chat.messages", "tools.schemas"],
 				}),
 			},
@@ -627,8 +613,6 @@ export class AgentLoopGraph extends Graph {
 		this.addDisposer(turnSub);
 		this.addDisposer(abortedSub);
 		this.addDisposer(statusSub);
-		this.addDisposer(messagesSub);
-		this.addDisposer(schemasSub);
 		this.addDisposer(kaResponse);
 		this.addDisposer(kaResults);
 		this.addDisposer(kaAbort);

@@ -7,10 +7,27 @@
  * - `topicBridge()` for autonomous topic-to-topic relay.
  * - `messagingHub()` for a lazy topic registry.
  *
+ * Plus the Phase 13.B standard `Message<T>` envelope and well-known topic
+ * name constants ({@link PROMPTS_TOPIC} / {@link RESPONSES_TOPIC} /
+ * {@link INJECTIONS_TOPIC} / {@link DEFERRED_TOPIC} / {@link SPAWNS_TOPIC})
+ * — recommended (not enforced) wire shape for cross-graph topic payloads.
+ *
  * Job queue / job flow primitives live in `patterns/job-queue` — they are a
  * distinct domain that happens to share reactive-log / reactive-map
  * infrastructure with topics.
  */
+
+export {
+	DEFERRED_TOPIC,
+	INJECTIONS_TOPIC,
+	type JsonSchema,
+	type Message,
+	PROMPTS_TOPIC,
+	RESPONSES_TOPIC,
+	SPAWNS_TOPIC,
+	STANDARD_TOPICS,
+	type StandardTopic,
+} from "./message.js";
 
 import { batch, COMPLETE, DATA, type Node } from "../../core/index.js";
 import { node } from "../../core/node.js";

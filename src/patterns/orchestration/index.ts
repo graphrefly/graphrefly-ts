@@ -7,6 +7,11 @@
  */
 
 export {
+	type HumanInputOpts,
+	type HumanPromptPayload,
+	humanInput,
+} from "./human-input.js";
+export {
 	type CatchOptions,
 	type ClassifyResult,
 	type Decision,
@@ -19,3 +24,8 @@ export {
 	type StepRef,
 	type TerminalCause,
 } from "./pipeline-graph.js";
+export {
+	type TrackerBundle,
+	type TrackerOpts,
+	tracker,
+} from "./tracker.js";

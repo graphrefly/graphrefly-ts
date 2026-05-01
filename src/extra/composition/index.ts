@@ -16,6 +16,7 @@ export * from "./audited-success-tracker.js";
 export * from "./backpressure.js";
 export * from "./composite.js";
 export * from "./external-register.js";
+export * from "./materialize.js";
 export * from "./observable.js";
 export * from "./pubsub.js";
 export * from "./stratify.js";

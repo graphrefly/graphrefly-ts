@@ -912,7 +912,13 @@ The `::messages` / `::output` topology was already in code from the prior `::cal
 
 ---
 
-### Phase 13 — Multi-agent + intervention substrate
+### Phase 13 — Multi-agent + intervention substrate ✅ closed (2026-05-01) — 13 sub-units shipped + /qa pass
+
+All 13 sub-units (A through M) landed across the day. Final /qa pass on the batch landed 13 auto-applicable patches + N1(b) "agent input queue" architectural change — see `docs/optimizations.md` "/qa pass on Phase 13 batch" entry for the full patch set. 2734 tests pass; build green; lint clean.
+
+Outstanding: 13.K `topicBridge` end-to-end `explain()` walk gap (filed in optimizations.md, deferred per user direction).
+
+
 
 Source docs:
 - `archive/docs/SESSION-human-llm-intervention-primitives.md` (locked 2026-04-28).
@@ -925,76 +931,104 @@ User flagged "I'm sure we have a lot more to discuss about the multi agent" — 
 - ✅ Copied `/tmp/recovered-multi-agent-gap-analysis.md` (extracted from session export of `agent/stupefied-curie-2498c2`) to `archive/docs/SESSION-multi-agent-gap-analysis.md`.
 - ✅ Appended index entry to `archive/docs/design-archive-index.jsonl` (id: `multi-agent-gap-analysis`).
 
-#### 13.B `Message<T>` envelope + standard topic constants
+#### 13.B `Message<T>` envelope + standard topic constants ✅ landed (2026-05-01)
 *Source: SESSION-human-llm-intervention-primitives §6 #2 + #4; SESSION-multi-agent-gap-analysis §6 cross-cut*
-Add to `src/patterns/messaging/`:
-- `interface Message<T> { id: string; schema?: JsonSchema; expiresAt?: string; correlationId?: string; payload: T }`.
-- Standard topic name constants: `PROMPTS_TOPIC` / `RESPONSES_TOPIC` / `INJECTIONS_TOPIC` / `DEFERRED_TOPIC` / `SPAWNS_TOPIC`. Co-land both sessions' topic conventions in the same edit so the file isn't double-touched.
-- JSDoc clarifying `Message<T>` is a recommended envelope for hub topics, not a required protocol type.
-- **DS-13.B (LOCKED 2026-04-30):** `JsonSchema` = minimal local type. Keeps zero-dep posture; we only need a structural shape for envelope validation, not a full JSON-Schema validator. Validators are caller-supplied if used.
+Shipped in `src/patterns/messaging/message.ts` (re-exported from `patterns/messaging/index.ts`):
+- `interface Message<T> { id: string; schema?: JsonSchema; expiresAt?: string; correlationId?: string; payload: T }` — recommended (not required) envelope for hub topics.
+- Standard topic name constants: `PROMPTS_TOPIC` (`"prompts"`) / `RESPONSES_TOPIC` (`"responses"`) / `INJECTIONS_TOPIC` (`"injections"`) / `DEFERRED_TOPIC` (`"deferred"`) / `SPAWNS_TOPIC` (`"spawns"`). Co-landed both sessions' topic conventions.
+- `STANDARD_TOPICS` tuple + `StandardTopic` union type for compile-time exhaustiveness.
+- `JsonSchema` = minimal local type per DS-13.B (zero-dep posture; structural shape only — full validators are caller-supplied via `ajv`/`zod`/`valibot`).
+- 4 regression tests in `src/__tests__/patterns/messaging.test.ts` ("patterns.messaging — Message envelope + standard topic constants"): constants stable, tuple ordering, full envelope round-trip, minimal-fields round-trip, correlationId filtering.
 
-#### 13.C `selector` + `materialize` composers
+#### 13.C `selector` + `materialize` composers ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G2 lock C*
-Add to `src/extra/composition/`:
-- `selector<TIn, TKey>(input: Node<TIn>, fn: (input: TIn) => TKey): Node<TKey>`.
-- `materialize<TKey, TGraph extends Graph>(key: Node<TKey>, factories: Map<TKey, GraphFactory<TGraph>>, parent: Graph): Node<TGraph>`.
-- Reusable beyond agents (harnessLoop strategy routing, pipelineGraph dynamic stage, refineLoop strategy swap).
-- `materialize` `factories` arg shape: `Node<Map<TKey, factory>>` (reactive read) so registry mutations re-mount slots; full hot-swap correctness deferred to G10 (parked).
+Shipped in `src/extra/composition/materialize.ts` (re-exported from `composition/index.ts` and the top-level `extra/index.ts` barrel):
+- **`selector<TIn, TKey>(input, fn, opts?)`** — projects each upstream value to a routing key, deduped on the projected key (custom `equals` accepted; defaults to `Object.is`). Differs from `map`: emits ONLY when the projected key changes, so downstream `materialize` skips unnecessary unmount/remount cycles. `factoryTag("selector")` for describe.
+- **`materialize<TKey, TGraph extends Graph>(key, factories, parent, opts?)`** — given a reactive `key: Node<TKey>` and a reactive `factories: Node<ReadonlyMap<TKey, GraphFactory<TGraph>>>`, mounts the matching factory's Graph under `parent.mount(slotName, ...)` (default `slotName: "materialized"`). Re-mounts on key change (unmounts old slot via `parent.remove`, mints fresh via factory thunk, mounts new). When `factories` mutates but `key` stays the same, the active slot is preserved per the G10 deferral ("current sessions complete on old factory; new sessions use new factory"). Cleanup on terminate / subscriber teardown unmounts the active slot. Output `Node<TGraph>` carries the active mount; SENTINEL when no factory matches `key`. `factoryTag("materialize")` + `slotName` in meta for describe.
+- **`GraphFactory<TGraph>` type** — `() => TGraph` thunk; each invocation MUST return a fresh, never-before-mounted Graph (Graph.mount rejects re-parenting).
+- **11 regression tests** in `src/__tests__/extra/materialize.test.ts`: selector projects + dedupes (3 tests), materialize mounts on key change, fresh instance per mount, deferred-hot-swap, cleanup on teardown, no-factory SENTINEL, COMPLETE propagation, selector+materialize composition.
+- **Reusable beyond agents**: harnessLoop strategy routing (selector), pipelineGraph dynamic stage selection (potential), refineLoop strategy swap (potential), Phase 13.I `spawnable()` slot mounting (consumer).
 
-#### 13.D Recipe docs (no code) — COMPOSITION-GUIDE-PATTERNS.md
+#### 13.D Recipe docs (no code) — COMPOSITION-GUIDE-PATTERNS.md ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G7, G8; SESSION-human-llm-intervention-primitives §3d, §6*
-Add to `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` (cross-repo edit):
-- New §: **Criteria-grid verifier recipe** (humanInput<{axes}> OR structured promptNode aggregating to `derived(.every)` → approvalGate). Replaces the deferred G7 factory.
-- New §: **Cost-bubble recipe** (`costMeterExtractor` per agent + parent `derived` aggregator + `budgetGate` upstream of spawn).
-- New §: **`buffer(source, notifier)` as `bufferWhen`** — point intervention session §3d boundary-drain consumers at the existing operator with the alias note.
+Three new recipes added to `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` (cross-repo edit):
+- **§41 Criteria-grid verifier recipe** — `humanInput<{axes}>` (or structured-output `promptNode`) → `derived(.every)` → `approvalGate`. Substitutable human/LLM verifiers via the schema. Pairs with Phase 15 `auto-solidify` for catalog promotion.
+- **§42 Cost-bubble recipe** — parent `derived` over per-agent `bundle.cost` (preserves full `TokenUsage`); USD conversion via downstream `derived` + `pricing.ts`; honest cost control = bubble + adapter-abort.
+- **§43 `boundaryDrain` recipe** — locked Phase 13.J: `buffer(source, notifier)` already covers `bufferWhen` semantics; no factory. Alias documented; promotion criterion (when to introduce a thin sugar) noted.
 
-#### 13.E `valve` + abort wiring decision
+#### 13.E `valve` + abort wiring decision ✅ landed (2026-05-01)
 *Source: SESSION-human-llm-intervention-primitives §3a + §6 Real Gap #1*
-Two paths:
-- **(i)** Add `valve(source, { open, abortInFlight?: AbortController })` opt — when controller is supplied AND `open` flips to `false`, fire `abort()` automatically.
-- **(ii)** Document the existing pattern: caller manages `AbortController`, passes `controller.signal` into `LLMInvokeOptions.signal`, AND closes the valve.
+Path (i) per DS-13.E. `valve(source, control, opts?)` keeps its existing positional shape; `opts` widens via the new `ValveOpts = ExtraOpts & { abortInFlight?: AbortController }`. When `abortInFlight` is supplied AND `control` flips truthy → falsy, `valve` automatically calls `controller.abort()`. JSDoc-locked edge cases: activation-with-falsy-control does NOT abort (no transition); already-aborted controller is no-op-safe; second close after re-open is no-op (controller already aborted). 5 regression tests in `src/__tests__/extra/operators.test.ts` ("valve abortInFlight (Phase 13.E / DS-13.E)"). Caller-managed pattern (ii) remains available as the unwrapped form when `abortInFlight` is omitted.
 
-**DS-13.E (LOCKED 2026-04-30):** path **(i)** — `valve` accepts `abortInFlight?: AbortController`; auto-`abort()` when `open` flips false. One wiring step instead of two; matches "panic stop kills tokens" commitment. Underlying signal-threading already ships end-to-end (optimizations.md "Phase 1 adapter-abort path" + R2.5b harness `parentSignal`); this is purely valve ergonomics. Caller-managed pattern (ii) remains available as the unwrapped form for advanced cases.
-
-#### 13.F `humanInput<T>` + `tracker` sibling presets
+#### 13.F `humanInput<T>` + `tracker` sibling presets ✅ landed (2026-05-01)
 *Source: SESSION-human-llm-intervention-primitives §5, §9 Phase 2*
-- `humanInput<T>(prompt: NodeInput<string>, opts?: { schema?: JsonSchema, name?: string })` in `src/patterns/orchestration/` (sibling to `approvalGate`). Returns `Node<T>`. Publishes envelope to `PROMPTS_TOPIC`; reads response from `RESPONSES_TOPIC` matching by `correlationId`.
-- `tracker(opts?: { topicName?: string })` factory exposing cursor-based deferred queue API. Formalize from `archive/docs/SKETCH-reactive-tracker-factory.md` and `project_reactive_tracker` memory.
-- **Open question (intervention session §11 #3):** `tracker` vs `parkedQueue` vs `deferredTracker`? Decide during implementation.
+Two sibling presets shipped in `src/patterns/orchestration/`:
+- **`humanInput<T>(opts: { hub, prompt, schema?, idGenerator? })`** ([human-input.ts](src/patterns/orchestration/human-input.ts)) — LLM↔human runtime Q&A channel. Each `prompt` DATA mints a fresh correlationId, publishes `Message<HumanPromptPayload>` to `PROMPTS_TOPIC`, watches `RESPONSES_TOPIC` for the matching correlationId, emits `T` payload. Switchmap semantics: new prompt mid-flight abandons the prior watcher. Sibling to `approvalGate` (design-time veto vs runtime Q&A — share substrate, differ in role).
+- **`tracker<T>(opts: { hub, topicName?, name?, from? })`** ([tracker.ts](src/patterns/orchestration/tracker.ts)) — Park-as-deferred queue consumer over `DEFERRED_TOPIC` (configurable). Returns `{ topic, subscription, pending, cursor, total, add, ack, pullAndAck }`. Multi-tracker on same hub topic gets independent cursors. Total counter is `keepAlive: true` so `cache` is current without external subscribers.
+- **Naming locked (open question §11 #3 resolved):** `tracker` over `parkedQueue` / `deferredTracker`. Simpler, more general — the deferred-queue semantic is a recipe, not a name overload. Other use cases (issue tracker, todo tracker, retrospective tracker per `project_reactive_tracker`) reuse the same primitive.
+- **13 regression tests** in `src/__tests__/patterns/orchestration/human-input-tracker.test.ts`: humanInput envelope publishing (5 tests — initial publish, response correlation, ignore non-matching, switchMap semantics, schema carriage); tracker (8 tests — DEFERRED_TOPIC default, add/pending, ack, pullAndAck, multi-tracker independent cursors, custom topicName, `from: "now"`, total counter).
 
-#### 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph`
+#### 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph` ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G1 lock B; depends on Phase 12.D*
-- Type: `interface AgentBundle<TIn, TOut> { in: NodeInput<TIn>; out: Node<TOut>; status: Node<"idle"|"running"|"verifying"|"done"|"error">; cost: Node<CostState>; graph: AgentGraph<TIn, TOut> }`.
-- Class: `class AgentGraph<TIn, TOut> extends Graph` mounting promptNode + tools + memory + verifier. §32 state-mirror for `status` / `cost`.
-- Lives in `src/patterns/ai/agents/agent.ts`.
+Shipped in `src/patterns/ai/agents/agent.ts`:
+- **Types:** `AgentStatus = "idle" | "running" | "verifying" | "done" | "error"` (verifying reserved for future verifier slot). `CostState = { usage: TokenUsage; turns: number }` — wraps the canonical {@link TokenUsage} so consumers get full cache/reasoning/audio/multimodal disaggregation (per user feedback during 13.G design). `ZERO_COST` empty baseline. `addUsage(a, b)` accumulator that sums all token classes (regular / cacheRead / cacheWrite5m / cacheWrite1h / audio / image / video / toolUse / reasoning / predictionAccepted/Rejected / extensions / auxiliary).
+- **`AgentSpec<TIn, TOut>`:** required `name` + `adapter`; optional `systemPrompt`, `tools` (static array OR `Node<readonly ToolDefinition[]>` for reactive reconciliation), `memory` (shared instance for §29 handoff; default private), `inMapper` / `outMapper` (default identity for `TIn=string` / `TOut=LLMResponse`; throw at boundary otherwise), `maxIterations`, `meta`. Verifier slot intentionally NOT in v1 (G7 reframe — caller-composed recipe).
+- **`AgentBundle<TIn, TOut>`:** `in: Node<TIn>` (writable, SENTINEL until first emit, `equals: () => false` so repeat emits trigger), `out: Node<TOut>` (SENTINEL until first response, `equals: () => false` so structurally-equal responses still propagate), `status: Node<AgentStatus>`, `cost: Node<CostState>`, `graph: AgentGraph<TIn, TOut>`.
+- **`class AgentGraph<TIn, TOut> extends Graph`:** mounts inner `agentLoop` subgraph at `loop/` + (optional) `memory/`; top-level `in` / `out` / `status` / `cost`. §32 mirror translates `loop.status` (`thinking`/`acting`) → `running`. Cost rollup effect accumulates via `addUsage` on each `loop.lastResponse` emit. `in` subscriber is F2-safe — kicks via `chat.append + status.emit("thinking")` rather than `agentLoop.run()`'s Promise bridge.
 
-#### 13.H `agent(spec)` preset + `presetRegistry` sugar
+#### 13.H `agent(spec)` preset + `presetRegistry` sugar ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G1 + G2*
-- `agent<TIn, TOut>(parent: Graph, spec: AgentSpec<TIn, TOut>): AgentBundle<TIn, TOut>` in `src/patterns/ai/agents/presets.ts`. Default = private memory per agent (each call creates own `AgentMemoryGraph` if none passed).
-- `presetRegistry<TPreset>(initial?: ReadonlyMap<string, TPreset>): { registry: ReactiveMapBundle<string, TPreset>; put; remove }` thin sugar over `reactiveMap`.
-- **No** `agent.run()` imperative sugar (cross-cut #1 lock — `awaitSettled(bundle.out)` is the escape hatch).
+Shipped in `src/patterns/ai/agents/presets.ts`:
+- **`agent<TIn = string, TOut = LLMResponse>(parent, spec)`** — mints `AgentGraph`, mounts under `parent.mount(spec.name, ...)`, returns `AgentBundle`. Default type params cover the "string in, LLMResponse out" common case; custom types require both mappers.
+- **`presetRegistry<TPreset>(initial?)`** — thin sugar over `reactiveMap<string, TPreset>`; returns `{ registry, put, remove }`. Generic over `TPreset` (decoupled from `AgentSpec`) so the same primitive powers harnessLoop strategy registries / pipelineGraph stage catalogs / agent preset catalogs. Composes with **13.C `materialize`**: pass `registry.entries` directly when `TPreset` is a `() => Graph` factory, or `derived(...)`-adapt when it's a richer spec.
+- **No `agent.run()`** per cross-cut #1 lock. Caller-side runtime is `bundle.in.emit(input)` + `awaitSettled(bundle.out, { skipCurrent: true })`. Subscribe-before-emit pattern is documented (otherwise the synchronous-adapter case races push-on-subscribe vs the kick).
+- **17 regression tests** in `src/__tests__/patterns/ai/agents/agent.test.ts`: basic in→out, custom mappers, default-mapper boundary throws, status idle→done, cost rollup with full TokenUsage, per-input cost reset, static + reactive tools (DF12 reconciliation: `register`/`unregister` driven by Node emits), memory partition (default private + explicit shared), presetRegistry put/replace/remove + reactive entries snapshot, F2 reachability (two-agent reactive handoff via subscriber on `classifier.out → executor.in.emit`), standalone `new AgentGraph` construction.
 
-#### 13.I `spawnable()` harness preset + strategy-key axis extension
+#### 13.I `spawnable()` harness preset + strategy-key axis extension ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G3 lock B + G5 reframe*
-- `spawnable(opts: { hub, registry, budgetGate?, depthCap?, validatorSchema? })` in `src/patterns/harness/presets/spawnable.ts`. Wraps `MessagingHubGraph` + `presetRegistry` + `materialize` + depth-guard `valve` + termination contract (`expiresAt` → `timeout` + `fallback`).
-- Returns `{ spawnTopic, activeSlot: Node<ReadonlyMap<...>>, rejected: TopicGraph<...> }`.
-- **DS-13.I (LOCKED 2026-04-30):** Strategy-key axis extension `(presetId × rootCause × intervention) → successRate` lands **inline with 13.I**. Single template-literal-type bump in `harness/types.ts`; pre-1.0 breaking is fine. No standalone pre-step — keeping it bundled with `spawnable()` keeps the migration narrative coherent ("multi-agent introduces presetId axis"). Existing 2-axis strategy nodes get the new key shape with `presetId="default"` if no preset registry is wired.
 
-#### 13.J `boundaryDrain` (recipe vs factory)
+**`spawnable()` harness preset** shipped in `src/patterns/harness/presets/spawnable.ts`:
+- `spawnable<TIn = string, TOut = LLMResponse>(opts)` mints a `SpawnableGraph` that mounts under `opts.hub` at `opts.name` (default `"spawnable"`). Returns `{ spawnTopic, activeSlot, rejected, graph }`.
+- **`spawnTopic`** = `hub.topic<Message<SpawnPayload<TIn>>>(SPAWNS_TOPIC)` — well-known name from 13.B.
+- **`activeSlot: Node<ReadonlyMap<string, AgentBundle<TIn, TOut>>>`** — currently-mounted agent bundles keyed by request id. Mutations emit fresh `Map` snapshots (`equals: () => false`).
+- **`rejected: TopicGraph<SpawnRejection<TIn>>`** — out-of-policy requests (depth-cap exceeded, unknown presetId, schema-invalid, expired) with `{ request, reason }`.
+- **Per-request handler** subscribes to `subscription(spawnTopic).available` (cursor-based, multi-spawnable-safe). For each request: validate (custom predicate + minimal structural check via `validatorSchema`), depth-cap, `expiresAt` (ISO 8601), preset-registry lookup, mint via `agent(this, { ...spec, name: \`spawn-${req.id}\` })`, watch `bundle.status` → on `done`/`error` unmount + remove. Idempotent terminal-handler guard against double-fire.
+- **Termination contract:** `done` / `error` → unmount; `expiresAt` past on entry → reject with `"expired"`; recipe-style `timeout(...)` per-spawn deferred to 13.D.
+- **Cross-cut #1 honored:** kicks each agent via `bundle.in.emit(taskInput)`; no `agent.run()` Promise bridge.
+- **Depth-cap implementation note:** locked recipe (DS-13.I) is `valve(spawnTopic, derived([depthCounter], n => n < cap))`, but the practical pattern checks depth per-request inside the handler so over-cap requests surface on `rejected`. Hard-cut callers can wrap their publish path with `valve` per the recipe.
+
+**Strategy-key axis extension (DS-13.I)** shipped in `src/patterns/harness/types.ts` + `defaults.ts`:
+- `StrategyKey = \`${PresetId}|${RootCause}→${Intervention}\`` (was `\`${RootCause}→${Intervention}\``).
+- New `PresetId = string` type + `DEFAULT_PRESET_ID = "default"` const.
+- `strategyKey(presetId, rootCause, intervention)` — 3-arg signature; pre-1.0 breaking change.
+- `StrategyEntry` adds required `presetId` field.
+- Migrated all callsites: `harness-loop.ts` × 3 + `strategy.ts` × 1 pass `DEFAULT_PRESET_ID`. Tests: 28 callsites in `harness.test.ts` migrated via `strategyKey(DEFAULT_PRESET_ID, ...)` form; literal-string assertion updated to expect the new `default|composition→template` shape.
+
+**11 regression tests** in `src/__tests__/patterns/harness/spawnable.test.ts`: basic spawn lifecycle (mid-flight presence + completion cleanup), taskInput forwarded to bundle.in (chat first message verified), depth-cap rejection with reason, unknown-presetId rejection, schema validator rejection (empty id), custom validator predicate, `expiresAt` past → reject + future → accept, `SPAWNS_TOPIC` integration, multiple spawnable instances on the same hub use distinct names + share the well-known topic, multi-request flow.
+
+**Phase 13 keystone:** spawnable composes 13.B (`Message` + `SPAWNS_TOPIC`) + 13.G/H (`agent` + `presetRegistry` + `AgentBundle`) + 13.E (per-spawn abort hook is wired via the agent's existing `loop.abort()` path; valve recipe documented in 13.D). With 13.I shipped, the multi-agent topology that the §13.M lock-test hand-rolled is now first-class — Phase 13.M can be migrated to use spawnable + agent without changing the topology.
+
+#### 13.J `boundaryDrain` (recipe vs factory) ✅ locked as recipe (2026-05-01)
 *Source: SESSION-human-llm-intervention-primitives §3d, §11 #4*
-Today's `buffer(source, notifier)` covers `bufferWhen`. Decision: ship as named factory `boundaryDrain(topic, notifier)` OR document as recipe. **Lean: recipe (covered by 13.D)**; promote to factory if a second consumer surfaces.
+**Locked: recipe.** Today's `buffer(source, notifier)` already covers `bufferWhen` semantics — no factory needed. Documented as **§43 `boundaryDrain` recipe** in `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` as part of the 13.D landing. Promotion criterion (when to upgrade to a thin sugar): a second consumer surfaces with non-trivial wiring around the buffer (max-buffer-size cap, fallback emission on timeout, per-boundary TTL).
 
-#### 13.K G6 cross-graph `explain()` validation
+#### 13.K G6 cross-graph `explain()` validation ✅ landed (2026-05-01) — partial confirmation, 1 gap filed
 *Source: SESSION-multi-agent-gap-analysis G6, §5 drift suspicion*
-Validation pass — write a regression test: parent hub + 2 mounted agent subgraphs + topicBridge between them; assert `g.explain(parent.intake, child.out)` walks across the mount boundary without losing tier/causal info. **If the test fails**, file a separate gap and design session before claiming the static-face / dynamic-interior pitch.
+Regression test shipped at `src/__tests__/graph/explain-cross-mount.test.ts` (5 tests). Three topology cases probed:
+- ✅ **Case 1 — parent → child:** `parent.derived` ← `child::node` walks cleanly. No `<anonymous>` steps.
+- ✅ **Case 2 — childA → parent → childB:** explain traces the multi-mount path through a parent-level shared node by Node-ref deps. The `shared` step is in the chain at the expected hop.
+- ❌ **Case 3 — `topicBridge` end-to-end:** `src::events → bridge::output` walks; `src::events → dst::events` does NOT, because `bridge.output → target.events` goes through `_attachArrayToLog` (imperative subscribe, not a declared dep). Test pins the failure mode (`expect(endToEnd.found).toBe(false)`); flip the assertion when the gap is fixed.
+- ✅ Sanity: explain returns `no-such-from` / `no-such-to` for missing paths.
 
-#### 13.L G9 `convergence` operator
+**Static-face / dynamic-interior pitch impact:** holds for declared cross-mount deps (the common case for `agent` / `materialize` / `spawnable` topology — parent.derived aggregating child outputs, `agent.in` fed by selector/materialize, etc.). The gap is specifically `topicBridge`'s imperative attach. Filed in [optimizations.md](docs/optimizations.md) "Phase 13.K — `topicBridge` end-to-end `explain()` walk gap" with three resolution options (declare attach edge / extend explain to consume `meta.targetRef` / accept gap + document). Defer until a real consumer hits it OR Phase 14's changesets-deltas work surfaces a more general "imperative attach" representation.
+
+#### 13.L G9 `convergence` operator ✅ landed as `settle` (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis G9, §11 stub*
-`settle<T>(source: Node<T>, opts: { quietWaves: number, maxWaves?: number, equals? }): Node<T>` in `src/extra/operators/control.ts`. Emits last-stable value + `COMPLETE` when no DATA for N waves. **DS-13.L (LOCKED 2026-04-30):** name = **`settle`**. Semantically adjacent to `awaitSettled` (one-shot promise-style); `settle` is the reactive operator form of the same notion ("value has stabilized"). `convergence` is grandiose; `quiet`/`idle` lose the "value stabilized" connotation. Boundary: `awaitSettled` resolves a Promise once the graph reaches a quiet point; `settle` emits a Node value when its source has been quiet for N waves — operator-level, composable, can complete and re-arm if upstream resumes.
+`settle<T>(source: Node<T>, opts: SettleOpts<T>): Node<T>` in `src/extra/operators/control.ts`. Forwards every upstream DATA unchanged; tracks "quiet waves" (consecutive operator-fn invocations where the upstream batch had no DATA, or DATA equal-to-prior under the optional `equals` comparator); emits `COMPLETE` after `quietWaves` consecutive quiet waves, or after `maxWaves` total waves regardless of convergence. Construction-time validation rejects non-positive-integer `quietWaves` / `maxWaves`. 8 regression tests in `src/__tests__/extra/operators.test.ts` ("settle (Phase 13.L / DS-13.L) — convergence detector"): forwards DATA, COMPLETE on convergence, counter resets on change, strict no-DATA semantics without `equals`, `maxWaves` cap, validation, upstream COMPLETE propagation. **Boundary recap (DS-13.L):** `awaitSettled` is one-shot Promise; `settle` is the reactive operator form — composable, completes on quiescence, source-COMPLETE propagates through.
 
-#### 13.M Worked multi-agent example test
+#### 13.M Worked multi-agent example test ✅ landed (2026-05-01)
 *Source: SESSION-multi-agent-gap-analysis §13 #9*
-`src/__tests__/patterns/ai/agents/multi-agent-example.test.ts` — handoff between two `agent()` instances using `topicBridge`. **Hand-roll first** (using existing primitives) BEFORE 13.B–13.I implementation lands; serves as the design lock-test. Refactor as primitives ship.
+`src/__tests__/patterns/ai/agents/multi-agent-example.test.ts` — handoff between two `agent()` instances using `topicBridge`. **Hand-rolled first** using shipped primitives (`messagingHub`, `topic`, `agentLoop`, `valve`, `Graph.derived/effect/state`, `parent.describe({ explain })`) BEFORE 13.B–13.I implementation lands; serves as the design lock-test. **Six tests passing** (handoff via topic, cost-bubble, depth-valve, cross-graph explain, SENTINEL guard, SpawnRequest envelope). Friction filed in `optimizations.md` as **"Phase 13 design-session inputs from §13.M lock-test"** — items F1–F9 motivate 13.B (`Message<T>`), 13.G (`AgentBundle.in / .out / .cost`), 13.G re-entrancy contract for `agent.run` under nested drains, and a small `keepAlive` opt on `GraphEffectOptions`. F7 confirms the basic cross-graph explain walk works (parent.derived ← `classifier::lastResponse`), so 13.K's regression test can claim this baseline; 13.K still needs the multi-mount + topicBridge case before the static-face / dynamic-interior pitch is locked. F8 confirms the depth-valve recipe; F9 pins the SENTINEL/initial-null trap as a 13.G API-shape requirement. **Refactors planned:** as 13.B/13.G/13.I land, the test should rewrite from hand-rolled `SpawnRequest` interface + imperative `executor.run` kick to `Message<SpawnPayload>` envelope + `bundle.in.emit(...)` reactive entry — no topology changes, only surface simplification.
 
 ---
 

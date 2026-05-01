@@ -80,7 +80,7 @@ import type {
 	VerifyPromptFn,
 	VerifyResult,
 } from "../types.js";
-import { strategyKey } from "../types.js";
+import { DEFAULT_PRESET_ID, strategyKey } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Hub topic names (internal constants — strings are the routing API)
@@ -764,7 +764,8 @@ export function harnessLoop<A = unknown>(
 	}
 
 	function handleVerified(vr: VerifyResult<A>, item: TriagedItem): void {
-		strategy.record(strategyKey(item.rootCause, item.intervention), true, {
+		strategy.record(strategyKey(DEFAULT_PRESET_ID, item.rootCause, item.intervention), true, {
+			presetId: DEFAULT_PRESET_ID,
 			rootCause: item.rootCause,
 			intervention: item.intervention,
 		});
@@ -787,7 +788,8 @@ export function harnessLoop<A = unknown>(
 	}
 
 	function handleStructural(vr: VerifyResult<A>, item: TriagedItem): void {
-		strategy.record(strategyKey(item.rootCause, item.intervention), false, {
+		strategy.record(strategyKey(DEFAULT_PRESET_ID, item.rootCause, item.intervention), false, {
+			presetId: DEFAULT_PRESET_ID,
 			rootCause: item.rootCause,
 			intervention: item.intervention,
 		});
@@ -1002,7 +1004,7 @@ function buildPriorityScores<A>(
 				const baseWeight = severityWeights[item.severity ?? "medium"] ?? 40;
 				const ageSeconds = (monotonicNs() - (vals[2] as number)) / 1e9;
 				let s = baseWeight * Math.exp(-decayRate * Math.max(0, ageSeconds));
-				const key = strategyKey(item.rootCause, item.intervention);
+				const key = strategyKey(DEFAULT_PRESET_ID, item.rootCause, item.intervention);
 				const strat = vals[1] as ReadonlyMap<string, { successRate: number }>;
 				const entry = strat?.get(key);
 				if (entry && entry.successRate >= effectivenessThreshold) {

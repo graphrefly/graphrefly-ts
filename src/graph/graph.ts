@@ -291,11 +291,20 @@ export interface GraphDerivedOptions<T> extends SharedNodeOpts<T> {
  * Options for {@link Graph.effect}.
  *
  * Inherits all input-side {@link NodeOptions} (`meta`, `guard`, `partial`,
- * `pausable`, `versioning*`, …) plus graph-specific extras (`signal`,
- * `annotation`). Output side stays restricted via {@link GraphEffectFn} —
- * `up.pause` / `up.resume` only, no `emit` / `down`.
+ * `pausable`, `versioning*`, …) plus graph-specific extras (`keepAlive`,
+ * `signal`, `annotation`). Output side stays restricted via
+ * {@link GraphEffectFn} — `up.pause` / `up.resume` only, no `emit` / `down`.
  */
 export interface GraphEffectOptions extends SharedNodeOpts<unknown> {
+	/**
+	 * When `true`, installs an internal subscription so the effect stays
+	 * activated even without an external subscriber. Symmetric with
+	 * {@link GraphDerivedOptions.keepAlive}. Self-prunes on terminal; drained
+	 * by {@link Graph.destroy}. Default `false` — effects without external
+	 * subscribers are dormant unless this flag is set or the caller wires
+	 * their own `keepalive(...)` from `extra/sources`.
+	 */
+	keepAlive?: boolean;
 	signal?: AbortSignal;
 	annotation?: string;
 }
@@ -1917,6 +1926,12 @@ export class Graph {
 	 * (`{ beforeRun?, deactivate?, invalidate? }`) — see
 	 * {@link NodeFnCleanup}. Graph teardown triggers `deactivate`.
 	 *
+	 * **`keepAlive: true`** — installs an internal subscription so the
+	 * effect stays activated even without an external subscriber.
+	 * Symmetric with {@link Graph.derived}'s `keepAlive`. Without it, an
+	 * effect with no external subscriber is dormant — its fn never fires.
+	 * Self-prunes on terminal; drained by {@link Graph.destroy}.
+	 *
 	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
@@ -1933,7 +1948,7 @@ export class Graph {
 		opts?: GraphEffectOptions,
 	): Node<unknown> {
 		const resolvedDeps = deps.map((d) => (typeof d === "string" ? this.resolve(d) : d));
-		const { annotation, signal, ...nodeOpts } = opts ?? {};
+		const { keepAlive, annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap restricted GraphEffectFn → raw NodeFn.
 		// Pass batchData and full ctx straight through; restriction is
@@ -1952,6 +1967,9 @@ export class Graph {
 			describeKind: "effect",
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
+		if (keepAlive === true) {
+			this._registerSelfPruningKeepalive(n);
+		}
 		this._wireSignalToRemove(name, signal);
 		return n;
 	}
