@@ -18,9 +18,10 @@
 |-----|------|
 | `~/src/graphrefly/GRAPHREFLY-SPEC.md` | **Behavior spec** — messages, `node`, `Graph`, invariants |
 | `~/src/graphrefly/COMPOSITION-GUIDE.md` | **Composition guide** — insights, patterns, recipes for Phase 4+ factory authors. **Read before building factories that compose primitives.** Covers: lazy activation, subscription ordering, null guards, feedback cycles, promptNode SENTINEL, wiring order. |
-| `docs/optimizations.md` | **Active backlog** — open work items, anti-patterns, deferred follow-ups, proposed improvements. Add new items here. |
+| `docs/implementation-plan.md` | **CANONICAL pre-1.0 sequencer** — Phases 11–16 + Parked + Open design sessions. Tier 1–10 historical record + the active Phase 11–16 plan locked 2026-04-30 (cleanup → consolidation → multi-agent → changesets/diff → roadmap residuals → eval → launch). Read this FIRST when picking up "what's next." Phase 13 covers multi-agent + intervention substrate (sources: `archive/docs/SESSION-multi-agent-gap-analysis.md` + `SESSION-human-llm-intervention-primitives.md`). |
+| `docs/optimizations.md` | **Active backlog (line-item state)** — open work items, anti-patterns, deferred follow-ups, proposed improvements. Item-level provenance for entries that the implementation-plan.md phases reference. Add new items here. |
 | `archive/optimizations/` | **Optimizations archive** — built-in optimizations, resolved design decisions, cross-language parity notes. Check before introducing new optimizations or debugging perf issues. **Backlog/proposed items belong in `docs/optimizations.md`, not here.** |
-| `docs/roadmap.md` | Phased implementation checklist (covers both TS and PY) |
+| `docs/roadmap.md` | **Vision / wave context** (no longer the active sequencer per 2026-04-30 migration — see `implementation-plan.md`). Useful for the strategic frame: Wave 0/1/2/3 announcement structure, harness engineering positioning, eval-story narrative. New items go to `implementation-plan.md`, not here. |
 | `docs/docs-guidance.md` | How to document APIs and long-form docs (covers both TS and PY) |
 | `docs/test-guidance.md` | How to write and organize tests (covers both TS and PY) |
 | `archive/docs/SESSION-graphrefly-spec-design.md` | Design history and migration from callbag-recharge |

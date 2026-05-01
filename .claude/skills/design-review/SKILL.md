@@ -40,8 +40,9 @@ Read these in parallel before reviewing:
 
 - `~/src/graphrefly/GRAPHREFLY-SPEC.md` § 5.8–5.12 (design invariants)
 - `~/src/graphrefly/COMPOSITION-GUIDE.md` § 1, 2, 3, 5, 7, 8, 28, 32 (composition patterns)
-- `docs/optimizations.md` "Active work items" (related architectural questions in flight)
-- `docs/roadmap.md` (what phase / wave the target lives in)
+- `docs/implementation-plan.md` — find the phase the target belongs to (Phase 11–16). The phase entry shows scope locks, design-session IDs (DS-#), and dependencies. If the target's design is locked in a phase, the design review validates against that lock; if not yet locked, the review's output may need to land as a new sub-phase entry or DS-# session.
+- `docs/optimizations.md` "Active work items" (related architectural questions in flight, line-item state)
+- `docs/roadmap.md` — vision context only (no longer the active sequencer; consult only for the strategic frame)
 - The target file(s) themselves
 - 1–2 closest existing primitives in the same directory (precedent)
 - Optionally `~/src/callbag-recharge/` for analogous prior art (NOT spec authority)
@@ -200,9 +201,10 @@ Resolved decisions move to `archive/optimizations/resolved-decisions.jsonl` per 
 
 1. **`~/src/graphrefly/GRAPHREFLY-SPEC.md`** — protocol contract
 2. **`~/src/graphrefly/COMPOSITION-GUIDE.md`** — composition patterns
-3. **`docs/roadmap.md`** — phase scope
+3. **`docs/implementation-plan.md`** — pre-1.0 phase locks (canonical sequencer); the matching phase entry holds locked design decisions for active work
 4. **`docs/test-guidance.md`** — testability shape
 5. Existing patterns in `src/` — only when the above are silent
+6. **`docs/roadmap.md`** — vision context only; consult for strategic frame, not phase scope
 
 If a finding seems to conflict with a higher-authority document, surface it explicitly — DO NOT silently override.
 

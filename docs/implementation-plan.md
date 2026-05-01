@@ -745,4 +745,413 @@ Tier 10 — anytime; low priority
     - 5 deferrals filed: D1 (`retention.score` re-entrant write into `entryCreatedAtNs`); D2 (`processManager.start()` `persistState` outside rollback boundary); D3 (`processManager.restore()` await-boundary race with watch handlers); D4 (rateLimiter Node-form opts with `undefined` cache locks bounded mode); D5 (`processManager.restore()` mid-dispose race).
     - **Verification.** 2550 tests pass, lint clean, build green (`assertBrowserSafeBundles` honored throughout).
 
-18. **← NEXT.** Tier 9.2 `classifyError` deferred (no caller). PY parity work held until rigor-infrastructure projects 1–3 land (per `archive/docs/SESSION-rigor-infrastructure-plan.md`). Optimizations.md residual backlog substantively cleared via item 16; remaining items either await consumer demand or are architectural follow-ons (`topologyView(graph)`, primitive-side companion Nodes for resilience). No pressing structural work remains.
+18. **Tiers 1–10 closed (2026-04-29).** Tier 9.2 `classifyError` deferred (no caller). Optimizations.md residual backlog substantively cleared via item 16. The next stretch of pre-1.0 work is captured below as **Phases 11–16**, locked 2026-04-30 — see "Pre-1.0 remaining work" section.
+
+---
+
+## Pre-1.0 remaining work (sequenced 2026-04-30)
+
+This section sequences all remaining open work from `docs/optimizations.md`, `docs/roadmap.md`, and the two latest session docs (`archive/docs/SESSION-human-llm-intervention-primitives.md` + `archive/docs/SESSION-multi-agent-gap-analysis.md`). **Implementation-plan.md is canonical from this point forward**; `docs/roadmap.md` is retained as the vision/wave context document. `docs/optimizations.md` continues to track item-level provenance (each phase entry below cross-references the optimizations.md anchor).
+
+### Re-prioritization (locked 2026-04-30)
+
+1. **Phase 11 — Cleanup batch.** Reduce deferred-item backlog before opening multi-agent. Real bugs + mechanical carries land; "wait-for-consumer" items get a hard look ("does multi-agent surface the consumer?").
+2. **Phase 12 — Consolidation closure.** Cross-cutting refactors that affect surface area: `io/` body extraction, sibling-file relocation, `extends Graph` sweep (gates Phase 13.G/H), `promptNode` B.3 widening.
+3. **Phase 13 — Multi-agent + intervention substrate.** Recovers the multi-agent gap-analysis doc (13.A — DO FIRST), lands Phase 0 substrate (envelope + topics + composers), then the agent layer (G1–G4), then `spawnable()` (G3).
+4. **Phase 14 — Post-1.0 changesets / diff (single unified design session).** Op-log changesets + worker-bridge wire-protocol B + `lens.flow` delta + `reactiveLog.scan` + WAL replay for `restoreSnapshot mode: "diff"`. Co-designed because they share the version-counter substrate.
+5. **Phase 14.5 — Roadmap residuals.** Pre-1.0 polish unblocked by Phase 13 (`refineExecutor`, `toolInterceptor` sugar, `mockLLM` promotion); Phase 7.6 verification pass; surfacing items that flow to Phase 16 (framework packages, demo deck) or Parked (Phase 8.x scale, Phase 6.x content addressing depth, Phase 7.4/7.5 quality hardening).
+6. **Phase 15 — Eval program.** Pushed AFTER core / extras / graph / patterns / solutions stabilize (post-Phase-13). Two-tier (synthetic + human-graded) eval design + catalog automation + harness scorecard + eval adapter stack migration.
+7. **Phase 16 — Launch wave.** MCP server, CLI surface, OpenClaw context engine plugin, demos (Demo 0 / Demo 2 multi-agent / Demo 6 / inbox-stream), framework infiltration packages, npm publish, README + docs site. Lands when Phase 15 ships.
+8. **Parked until 1.0:** PY parity (umbrella), Path X (Node-returning mutations), G10 atomic registry hot-swap, codec lazy decode, dormant subgraph eviction, AG-UI / A2UI translation adapters, Phase 8.5 distributed (peerGraph / shardedGraph), Phase 8.6 pluggable codec, Phase 8.8 memory optimization, Phase 6.x content-addressing depth, Phase 7.3 Demos 1/3/4/5/7, Phase 7.4 scenario tests, Phase 7.5 inspection stress.
+
+### Sequencing rationale
+
+```
+Phase 11 — cleanup ──────┐
+                         ├──→ Phase 13 — multi-agent ──→ Phase 14 — changesets/diff ──→ Phase 14.5 — residuals ──→ Phase 15 — eval ──→ Phase 16 — launch
+Phase 12 — consolidation ┤                                                               │
+                         │                                                               ├──→ (some items co-land in Phase 16; demoted to Parked)
+                         └──→ (12.D `extends Graph` sweep gates Phase 13.G/H AgentGraph)  │
+                                                                                          └──→ (refineExecutor / toolInterceptor land inline with Phase 13 if consumers surface)
+
+Parked: PY parity (until 1.0); Path X (blocked); G10 (rewire-gap dependent); codec lazy decode (post-1.0); Phase 8.x scale + memory; Phase 6.x content addressing; Phase 7.3+ post-launch demos.
+```
+
+**Critical-path note:** Phase 13.A (recover `SESSION-multi-agent-gap-analysis.md` to `archive/docs/`) is the FIRST operation — without it, future agents cannot pick up the locked G1–G4 decisions. ✅ **Landed 2026-04-30** along with this plan.
+
+---
+
+### Phase 11 — Cleanup batch (deferred-item roll-up)
+
+Items below are pre-screened from `optimizations.md`. Each entry tags status as **NOW** (land in the cleanup batch), **WAIT** (genuinely consumer-driven; revisit when caller surfaces), or **POST-1.0** (defer past 1.0). `optimizations.md` remains the source of truth for per-item context — this section is the sequencer.
+
+#### 11.1 Class A/B migration QA carries
+*Source: optimizations.md "QA follow-ups from Class B migration /qa pass (opened 2026-04-30)" + "Class B audit follow-ups from B.2/Alt E migration"*
+- **NOW:** EC2/EC7 — bridge `value == null` → `=== undefined` per v5 guard convention (4 sites in [bridge.ts:60, :147, :484, :538](src/patterns/harness/bridge.ts:60)).
+- **NOW:** EC16 — TopicGraph dispose ordering ([messaging/index.ts:114-124](src/patterns/messaging/index.ts:114)). Cosmetic but fix-once.
+- **NOW:** EC17 — `approvalGate` `${name}_state` mount-name separator → hyphen.
+- **NOW:** `GraphDerivedOptions` widening to expose `guard:` so 4 cqrs sites can adopt `this.derived(name, deps, fn, opts)` instead of falling back to raw `node()` + `this.add()`.
+- **NOW:** `TopicGraph` self-resolve path collision (Class A Batch 2 carry) — tighten `_resolveFromSegments` OR document the `node([events], …)` + `this.add(...)` pattern as the in-name-spaced graph idiom.
+- **WAIT:** M4 + EC3/EC4/EC12-14 — `MemoryRetrievalGraph` per-input subgraph + state crosstalk + anonymous internal nodes. **Re-evaluate when Phase 13 surfaces a multi-agent retrieval consumer.**
+- **WAIT:** M7 — saga `audit === invocations` aliasing. Defer until security review need.
+- **WAIT:** M8 — `singleNodeFromAny` keepalive-for-DATA-only-nodes. Pre-existing; JSDoc documents the contract.
+- **WAIT:** M10 — `pipelineGraph.approvalGate` cross-graph batch order. Bundles with §28 framework cleanup (post-Phase-13).
+- **WAIT:** EC10/EC15 — strategy ownership doc. JSDoc-only when next harness touch.
+
+#### 11.2 ctx-unification + Graph narrow-waist Bundle 1 carries
+*Source: optimizations.md "QA follow-ups from Phase 11.5 ctx-unification" + "QA follow-ups from Graph narrow-waist Bundle 1"*
+- **NOW:** P11.5-D1 — topology regression test pinning the `verifiable`/`distill` `withLatestFrom` chain shape (~30 LOC test in `src/__tests__/extra/composite.test.ts`).
+- **WAIT:** P11.5-D2 — multi-emit through `graph.derived` end-to-end test. Until consumer needs it.
+- **WAIT:** P11.5-D3 — `verifiable` trigger-before-source-DATA semantic pin. Until consumer hits new behavior.
+- **WAIT:** C1–C2 (graph.batch throw, keepAlive cache) — pre-existing core-batch / RAM-cache semantics; documented.
+- **WAIT:** C3 — cross-graph Node ownership via `Graph.add`. `produce` already partially mitigates; full guard defers until dual-ownership consumer hits.
+- **PARKED:** C4 — path-based `graph.derived` reaches across mounts. Tied to `project_rewire_gap` (G10 parked).
+
+#### 11.3 Tier 6.5 harness / JobFlow carries
+*Source: optimizations.md "Tier 6.5 follow-ups from C2 lock"*
+- ✅ **DONE:** `maxInflight` per-stage cap (R3.1); routeJobIds collision JSDoc (R2.2).
+- **WAIT:** Structural→reingest topology edge — blocked on reactive bounded counter primitive. Park until that primitive lands or the dispatch-effect imperative-publish surfaces a real explainability gap.
+- **WAIT:** Per-claim eval-verifier subgraph mounting story. Bundles with future eval primitive (Phase 15).
+
+#### 11.4 Tier 9.1 / inspect / processManager carries
+*Source: optimizations.md "QA follow-ups from Tier 9.1 /qa pass"*
+- ✅ **DONE:** EH-2 framework gap `Graph._destroyClearOnly` drain disposers (R1.5); EH-16 `processManager.dispose()` mount-based cleanup (R3.3); EH-17 `lightMutation` re-entrancy hazard via R2.6 wrapMutation migration; EH-9 `validateNoIslands` `__internal__/` filter; EH-12 `bumpCursor` warn; EH-18 `auditTrail.includeTypes` exposed.
+- **WAIT:** EH-19 — `validateNoIslands` reactive companion. Ship when 10k-node continuous-validation consumer surfaces.
+
+#### 11.5 Tier 8 / Wave C mutation-framework carries
+*Source: optimizations.md "Tier 8 follow-ups from γ-0 / γ-1..6 batch"*
+- ✅ **DONE:** γ-7-A processManager `wrapMutation` migration (R2.6).
+- **WAIT:** Messaging audit-record schemas (γ-5 / γ-6). Defer until real audit consumer surfaces in messaging.
+
+#### 11.6 Tier 5.2 reactive-options + companion Nodes
+*Source: optimizations.md "Tier 5.2 follow-up — primitive-side reactive-options widening"*
+- ✅ **DONE:** rateLimiter / breaker / timeout / retry / fallback widened (R3.2). `meta` forwarding (D8). `rateLimitState` companion (D7).
+- **WAIT:** Companion Nodes `budgetState` / `retryAttempts` / `lastTimeout` — additive observability, ship when consumer asks.
+- **WAIT:** EC5 `audit-no-effect` lint reactivity; EC7 meta companion `resubscribable` propagation — landed R4.2; doc-only delta remains.
+- **WAIT:** F8 `as Node<Actor>` cast; F9 `graphLens.flow` reconciliation O(N) — bundle with `graphLens` 50k-node scaling (10.8 design follow-up).
+
+#### 11.7 Wave 2B DF1–DF14 cluster
+*Source: optimizations.md "Wave 2B Tier 3 audits"*
+- ✅ **DONE:** DF1 (R5.6 option b), DF2 (R2.1), DF3 (R5.7), DF6 (R2.3), DF8 (R5.7), DF11 (R5.7), DF12 (Tier 7.5), DF13 (R2.4).
+- **NOW:** DF9 — release-note for `permanent.entries` → `permanent::items` path-schema change (Wave 2A `lightCollection` fold). Doc-only.
+- **NOW:** DF10 — verify `CollectionAuditRecord.action` superset includes `upsert`/`remove`/`clear` (was a TODO at lightCollection fold).
+- **WAIT:** DF4 — HeadIndexQueue `undefined`-write V8 deopt. Needs profiler before changing.
+- **WAIT:** DF5 — rateLimiter `droppedCount` activation-time emit when no subscriber. Design call deferred.
+- **WAIT:** DF14 — `describeNode` specMode SENTINEL preservation. Needs SENTINEL-aware state factory; defer until round-trip use case.
+- **POST-1.0:** DF7 PY parity policyGate.
+
+#### 11.8 Tier 1.5.3 F-cluster
+*Source: optimizations.md "Tier 1.5.3 deferred QA items"*
+- ✅ **DONE:** F18 (Phase 15 verifiable migration), F24 (normalizeSpec deletion), F25 (Phase 15 distill migration).
+- **NOW:** F15 — `merge()` factoryTag opts override. Small variadic-signature change.
+- **WAIT:** F16/F17 — `_describeReactiveDiff` empty-graph + race. Observable transient; doc-only.
+- **WAIT:** F19 `withStatus` non-recovery DATA branch; F20 factoryTag double-call override; F21 `tap` observer-arg `meta` drop; F22 switchMap factoryTag fragility; F23 metaEqual Map/Set/Date — minor consistency, no consumer.
+
+#### 11.9 Wave AM follow-ups
+*Source: optimizations.md "Wave AM audit closed", "extends Graph pattern consistency sweep", "reactiveExtractFn migration tracker"*
+- ✅ **DONE:** Wave AM AM.0–AM.3 (Tier 4); `mapFromSnapshot` deletion-then-restore (Tier 9.1 D2); reactiveExtractFn migration audit (R5.5); `memoryWithTiers` refactor + closure-state promotion (R4.1).
+- **WAIT:** `diffMap<K, V>` operator extraction. Wait for third consumer (Tier 10.2).
+- **GATES PHASE 13:** `extends Graph` sweep — `RefineLoopGraph` + `AgentMemoryGraph` migration. R5.1 deferred but **lifts in Phase 12.D** because `agent()` (Phase 13.G) wants the same shape.
+
+#### 11.10 Operator-layer review (one-shot)
+*Source: optimizations.md "Operator-layer: filter mixed-batch RESOLVED forwarding"*
+- **DESIGN-SESSION-NEEDED (DS-11.10):** mixed-batch RESOLVED across `filter` / `map` / `take` / `skip`. Decide (a) emission-semantics normalization, (b) per-item RESOLVED tagging contract, (c) tier-3 counter dependence. Scope is operator-layer-wide. Land before Phase 13 if multi-agent surfaces per-item accounting needs; otherwise can defer to Phase 14 design session.
+
+#### 11.11 Misc consumer-driven follow-ups
+- **WAIT:** Tier R3.6 `refineLoop` persistent re-seed `setSeed` / `reset`.
+- **WAIT:** Tier R3.7 `executeAndVerify` unified harness slot.
+- **WAIT:** Tier R3.8 `actuatorExecutor` `mode: supersede|queue|drop`; `dispose` hook + late-resolution suppression.
+- **WAIT:** `appendLogStorage.loadEntries` pagination cursor.
+- **WAIT:** MCP session graph-registry race (`packages/mcp-server/src/tools.ts`) under future HTTP/SSE transports.
+- **WAIT:** Demo Flow chapter useEffect-owned rAF subscription. Pragmatic shape until a second physics-integrator consumer.
+- **POST-1.0:** `withStatus` decomposition into `statusOf` + `errorOf`.
+- **POST-1.0:** `processManager` lone `queueMicrotask` cleanup. Soft-violation, defensive.
+- **POST-1.0:** `actuatorExecutor` migrate to protocol ERROR when Path X lands. Path X is parked.
+- **POST-1.0:** Surface `restoreSnapshot` rejects `mode: "diff"` records (Tier 10.6). Bundles with Phase 14.
+
+---
+
+### Phase 12 — Consolidation closure (cross-cutting refactors)
+
+#### 12.A `io/` body extraction
+*Source: optimizations.md "io/ body extraction deferred (Tier 2.1 carry)"*
+Mechanical split of `extra/io/index.ts` (4642 LOC) into ~25 protocol-adapter sub-files following the `_internal.ts` model already used in `resilience/`, `sources/`, `operators/`. Pure mechanical; codemod-amenable. Land in single batch.
+
+#### 12.B Sibling-file physical relocation
+*Source: optimizations.md "Sibling-file physical relocation deferred (Tier 2.1 carry)"*
+Move `composite.ts`, `external-register.ts`, `stratify.ts`, `observable.ts`, `pubsub.ts`, `backpressure.ts`, `reactive-{map,list,log,index}.ts`, `storage-*.ts`, `cascading-cache.ts`, `content-addressed-storage.ts`, `http-error.ts`, `backoff.ts`, `reactive-sink.ts` into their respective `extra/<folder>/<name>.ts` (today they're 8-LOC re-export shims). Pure mechanical; codemod.
+
+#### 12.C `promptNode` B.3 widening
+*Source: optimizations.md "promptNode (B.3) widening" carry*
+The `::messages` / `::output` migration. Touches ~30 callsites in tests/demos/examples. Tier 6.6 `prompt_node::output` regression test is the lock-in point. Land as a focused batch with `/qa`.
+
+#### 12.D `extends Graph` sweep — gates Phase 13.G/H
+*Source: optimizations.md "extends Graph pattern consistency sweep" + Tier R5.1 deferred*
+Migrate `RefineLoopGraph` ([patterns/harness/presets/refine-loop.ts](src/patterns/harness/presets/refine-loop.ts)) and `AgentMemoryGraph` ([patterns/ai/presets/agent-memory.ts](src/patterns/ai/presets/agent-memory.ts)) from the `Object.assign(graph, ...)` factory pattern to `class extends Graph`. Tier R5.1 was deferred ("waiting for `instanceof` consumer") but Phase 13.G's `agent(spec)` factory IS the consumer — `AgentBundle.graph: AgentGraph<TIn, TOut>` requires the class shape. Constructor-time invariants assertable; consistent with `MemoryWith*Graph` precedent. **Required before Phase 13.G/H.**
+
+---
+
+### Phase 13 — Multi-agent + intervention substrate
+
+Source docs:
+- `archive/docs/SESSION-human-llm-intervention-primitives.md` (locked 2026-04-28).
+- `archive/docs/SESSION-multi-agent-gap-analysis.md` (locked 2026-04-28; recovered + re-saved 2026-04-30 — see 13.A).
+
+User flagged "I'm sure we have a lot more to discuss about the multi agent" — expect 1–2 additional design sessions during this phase, especially around (a) `AgentSpec` `meta` escape hatch, (b) handoff context-transfer ergonomics, and (c) verifier slot type widening.
+
+#### 13.A Recover + index multi-agent gap-analysis doc — ✅ DONE 2026-04-30
+[recovery operation, completed alongside this plan]
+- ✅ Copied `/tmp/recovered-multi-agent-gap-analysis.md` (extracted from session export of `agent/stupefied-curie-2498c2`) to `archive/docs/SESSION-multi-agent-gap-analysis.md`.
+- ✅ Appended index entry to `archive/docs/design-archive-index.jsonl` (id: `multi-agent-gap-analysis`).
+
+#### 13.B `Message<T>` envelope + standard topic constants
+*Source: SESSION-human-llm-intervention-primitives §6 #2 + #4; SESSION-multi-agent-gap-analysis §6 cross-cut*
+Add to `src/patterns/messaging/`:
+- `interface Message<T> { id: string; schema?: JsonSchema; expiresAt?: string; correlationId?: string; payload: T }`.
+- Standard topic name constants: `PROMPTS_TOPIC` / `RESPONSES_TOPIC` / `INJECTIONS_TOPIC` / `DEFERRED_TOPIC` / `SPAWNS_TOPIC`. Co-land both sessions' topic conventions in the same edit so the file isn't double-touched.
+- JSDoc clarifying `Message<T>` is a recommended envelope for hub topics, not a required protocol type.
+- **DESIGN-SESSION-NEEDED (DS-13.B):** `JsonSchema` import strategy — `@types/json-schema` or minimal local type? Tiny session; lean: minimal local type to keep zero-dep posture.
+
+#### 13.C `selector` + `materialize` composers
+*Source: SESSION-multi-agent-gap-analysis G2 lock C*
+Add to `src/extra/composition/`:
+- `selector<TIn, TKey>(input: Node<TIn>, fn: (input: TIn) => TKey): Node<TKey>`.
+- `materialize<TKey, TGraph extends Graph>(key: Node<TKey>, factories: Map<TKey, GraphFactory<TGraph>>, parent: Graph): Node<TGraph>`.
+- Reusable beyond agents (harnessLoop strategy routing, pipelineGraph dynamic stage, refineLoop strategy swap).
+- `materialize` `factories` arg shape: `Node<Map<TKey, factory>>` (reactive read) so registry mutations re-mount slots; full hot-swap correctness deferred to G10 (parked).
+
+#### 13.D Recipe docs (no code) — COMPOSITION-GUIDE-PATTERNS.md
+*Source: SESSION-multi-agent-gap-analysis G7, G8; SESSION-human-llm-intervention-primitives §3d, §6*
+Add to `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` (cross-repo edit):
+- New §: **Criteria-grid verifier recipe** (humanInput<{axes}> OR structured promptNode aggregating to `derived(.every)` → approvalGate). Replaces the deferred G7 factory.
+- New §: **Cost-bubble recipe** (`costMeterExtractor` per agent + parent `derived` aggregator + `budgetGate` upstream of spawn).
+- New §: **`buffer(source, notifier)` as `bufferWhen`** — point intervention session §3d boundary-drain consumers at the existing operator with the alias note.
+
+#### 13.E `valve` + abort wiring decision
+*Source: SESSION-human-llm-intervention-primitives §3a + §6 Real Gap #1*
+Two paths:
+- **(i)** Add `valve(source, { open, abortInFlight?: AbortController })` opt — when controller is supplied AND `open` flips to `false`, fire `abort()` automatically.
+- **(ii)** Document the existing pattern: caller manages `AbortController`, passes `controller.signal` into `LLMInvokeOptions.signal`, AND closes the valve.
+
+**DESIGN-SESSION-NEEDED (DS-13.E):** ≤30 min. Lean: (i) — one fewer wiring step; matches the session's "panic stop kills tokens" commitment. **Note:** the underlying signal-threading IS shipped end-to-end (per optimizations.md "Phase 1 adapter-abort path" + R2.5b harness `parentSignal`); this is purely about ergonomics of `valve` itself.
+
+#### 13.F `humanInput<T>` + `tracker` sibling presets
+*Source: SESSION-human-llm-intervention-primitives §5, §9 Phase 2*
+- `humanInput<T>(prompt: NodeInput<string>, opts?: { schema?: JsonSchema, name?: string })` in `src/patterns/orchestration/` (sibling to `approvalGate`). Returns `Node<T>`. Publishes envelope to `PROMPTS_TOPIC`; reads response from `RESPONSES_TOPIC` matching by `correlationId`.
+- `tracker(opts?: { topicName?: string })` factory exposing cursor-based deferred queue API. Formalize from `archive/docs/SKETCH-reactive-tracker-factory.md` and `project_reactive_tracker` memory.
+- **Open question (intervention session §11 #3):** `tracker` vs `parkedQueue` vs `deferredTracker`? Decide during implementation.
+
+#### 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph`
+*Source: SESSION-multi-agent-gap-analysis G1 lock B; depends on Phase 12.D*
+- Type: `interface AgentBundle<TIn, TOut> { in: NodeInput<TIn>; out: Node<TOut>; status: Node<"idle"|"running"|"verifying"|"done"|"error">; cost: Node<CostState>; graph: AgentGraph<TIn, TOut> }`.
+- Class: `class AgentGraph<TIn, TOut> extends Graph` mounting promptNode + tools + memory + verifier. §32 state-mirror for `status` / `cost`.
+- Lives in `src/patterns/ai/agents/agent.ts`.
+
+#### 13.H `agent(spec)` preset + `presetRegistry` sugar
+*Source: SESSION-multi-agent-gap-analysis G1 + G2*
+- `agent<TIn, TOut>(parent: Graph, spec: AgentSpec<TIn, TOut>): AgentBundle<TIn, TOut>` in `src/patterns/ai/agents/presets.ts`. Default = private memory per agent (each call creates own `AgentMemoryGraph` if none passed).
+- `presetRegistry<TPreset>(initial?: ReadonlyMap<string, TPreset>): { registry: ReactiveMapBundle<string, TPreset>; put; remove }` thin sugar over `reactiveMap`.
+- **No** `agent.run()` imperative sugar (cross-cut #1 lock — `awaitSettled(bundle.out)` is the escape hatch).
+
+#### 13.I `spawnable()` harness preset + strategy-key axis extension
+*Source: SESSION-multi-agent-gap-analysis G3 lock B + G5 reframe*
+- `spawnable(opts: { hub, registry, budgetGate?, depthCap?, validatorSchema? })` in `src/patterns/harness/presets/spawnable.ts`. Wraps `MessagingHubGraph` + `presetRegistry` + `materialize` + depth-guard `valve` + termination contract (`expiresAt` → `timeout` + `fallback`).
+- Returns `{ spawnTopic, activeSlot: Node<ReadonlyMap<...>>, rejected: TopicGraph<...> }`.
+- **DESIGN-SESSION-NEEDED (DS-13.I):** Strategy-key axis extension `(presetId × rootCause × intervention) → successRate`. Pre-1.0 breaking change to `harness/types.ts` `StrategyKey` template literal type. Decide if extension lands inline with 13.I or as a separate pre-implementation step.
+
+#### 13.J `boundaryDrain` (recipe vs factory)
+*Source: SESSION-human-llm-intervention-primitives §3d, §11 #4*
+Today's `buffer(source, notifier)` covers `bufferWhen`. Decision: ship as named factory `boundaryDrain(topic, notifier)` OR document as recipe. **Lean: recipe (covered by 13.D)**; promote to factory if a second consumer surfaces.
+
+#### 13.K G6 cross-graph `explain()` validation
+*Source: SESSION-multi-agent-gap-analysis G6, §5 drift suspicion*
+Validation pass — write a regression test: parent hub + 2 mounted agent subgraphs + topicBridge between them; assert `g.explain(parent.intake, child.out)` walks across the mount boundary without losing tier/causal info. **If the test fails**, file a separate gap and design session before claiming the static-face / dynamic-interior pitch.
+
+#### 13.L G9 `convergence` operator
+*Source: SESSION-multi-agent-gap-analysis G9, §11 stub*
+`convergence<T>(source: Node<T>, opts: { quietWaves: number, maxWaves?: number, equals? }): Node<T>` in `src/extra/operators/control.ts`. Emits last-stable value + `COMPLETE` when no DATA for N waves. **DESIGN-SESSION-NEEDED (DS-13.L):** name (`convergence` / `settle` / `quiet` / `idle`); clarify boundary with existing `awaitSettled`. Walk Q2–Q9; small operator, single session.
+
+#### 13.M Worked multi-agent example test
+*Source: SESSION-multi-agent-gap-analysis §13 #9*
+`src/__tests__/patterns/ai/agents/multi-agent-example.test.ts` — handoff between two `agent()` instances using `topicBridge`. **Hand-roll first** (using existing primitives) BEFORE 13.B–13.I implementation lands; serves as the design lock-test. Refactor as primitives ship.
+
+---
+
+### Phase 14 — Post-1.0 changesets/diff (single unified design session)
+
+*Source: optimizations.md "Store-mutation-events protocol (deferred post-1.0...)"*
+
+Pre-1.0 placement justified by user re-prio: lands AFTER Phase 13 multi-agent ships so the agent-layer ergonomics don't get rewritten under us, and BEFORE Phase 15 evals so eval-side reactivity benefits from the new delta protocol.
+
+**DESIGN-SESSION-NEEDED (DS-14):** substantial 9Q audit. Co-design five threads in one session because they share the version-counter substrate (Wave 4 `*Backend.version: number` already shipped):
+
+1. **Op-log changeset protocol** — `reactiveMap` / `reactiveList` / `reactiveLog` / `reactiveIndex` emit `{ version, ops, rootRef? }` instead of full snapshots.
+2. **Worker bridge wire-protocol Option B** — drop `lastSent` closure diffing; emit full snapshots on real changes only via `equals`-based RESOLVED suppression.
+3. **`lens.flow` delta companion** — `Node<FlowDelta>` peer of `.entries`; O(1) per event regardless of subscriber count.
+4. **`reactiveLog.scan(initial, step)` incremental-reduce operator** — O(1) per append for `withBudgetGate`-style aggregates.
+5. **`restoreSnapshot mode: "diff"` WAL replay** — depends on (1)+(2)+the `StorageTier.listByPrefix(prefix)` / `readWAL(key)` extension.
+
+Co-design rationale: all five rest on a delta protocol with `version` field = the per-substrate counter. Designing in isolation produces incompatible deltas. Landing across 2–3 implementation sessions afterward.
+
+---
+
+### Phase 14.5 — Roadmap residuals (between changesets and eval)
+
+*Source: `docs/roadmap.md` items not otherwise covered by Phases 11–14 or 16. Pulled into the canonical plan 2026-04-30 so consumers do not need to cross-reference roadmap.md.*
+
+This phase captures roadmap items that didn't fit elsewhere in the new sequencing. Most are post-Phase-13 follow-ons (multi-agent unblocks them) or pre-launch polish (lands inline with Phase 16 prep). A few are Phase 11 carries that were already triaged — listed here for cross-reference only.
+
+#### 14.5.1 §9.8 `refineLoop` tail
+*Source: roadmap.md §9.8 "Reactive optimization loop"; v1 shipped 2026-04-22, follow-ons deferred*
+- **NOW-eligible (Phase 13 follow-on):** `refineExecutor(refineLoopFactory, opts?)` — adapter that plugs `refineLoop` into the EXECUTE slot of `harnessLoop`. Composition E from §9.0. v1 unblocked the surface; the Phase 13 multi-agent layer is the natural caller (refining a sub-agent's prompt within an outer harness loop). Land when a real consumer surfaces.
+- **POST-1.0:** `mutateAndRefine(teacher, styles?, opts?)` — built-in strategy variant.
+- **POST-1.0:** `strategyRegistry(entries)` + `autoSelectStrategy(registry, context)` — BMAD-inspired registry for strategy selection.
+- **TIES TO PHASE 15:** `optimizeCatalog(catalog, dataset, opts?)` — wraps `refineLoop` for catalog description optimization. Co-land with Phase 15 catalog automation (§9.1b in roadmap).
+- **Phase 16 deliverables:** Blog "The feedback loop is the product"; comparison page "GraphReFly refineLoop vs DSPy vs agent-opt".
+
+#### 14.5.2 `toolInterceptor(agentLoop, opts?)` sugar
+*Source: roadmap.md §9.0 Composition C "Agent tool interception"; previously blocked on agentLoop reactive refactor*
+- **NOW-eligible (Phase 13 follow-on):** the `interceptToolCalls` splice shipped 2026-04-22 (`agentLoop.interceptToolCalls?: (calls: Node<readonly ToolCall[]>) => Node<readonly ToolCall[]>`). `toolInterceptor` becomes thin sugar: a named primitive that builds a valve + budgetGate + gate pipeline and feeds it into `interceptToolCalls`. Land alongside Phase 13.G/H if a real consumer surfaces; otherwise document as a recipe in COMPOSITION-GUIDE-PATTERNS §31.
+
+#### 14.5.3 `mockLLM` promotion to public testing export
+*Source: roadmap.md Phase 7.6 "Mock LLM fixture system"*
+- **NOW-eligible:** scenario-scripted `mockLLM` exists at `src/__tests__/helpers/mock-llm.ts` with stage detection, call recording, per-stage cycling, and `callsFor(stage)` inspection. Promote to public export at `src/testing/mock-llm.ts` (or `@graphrefly/graphrefly/testing` subpath) so any developer testing AI patterns can use it. **Useful for Phase 13.M worked multi-agent example test** — likely lands inline with that.
+
+#### 14.5.4 Phase 7.6 foreseen building blocks (verification pass)
+*Source: roadmap.md Phase 7.6*
+- **VERIFY:** Reactive cursor (shared by `subscription` + `jobQueue`) — likely already shipped via `SubscriptionGraph` cursor + `JobQueueGraph` cursor. Confirm during Phase 12 / Phase 13 work; if shipped, archive the roadmap item.
+- **VERIFY:** Factory composition helper — Phase 13.C `selector` + `materialize` likely subsumes this. Archive when 13.C lands.
+- **WAIT:** Cross-island state bridge — Astro-specific demo concern; not core lib. Demote to demo-side concern (Phase 16 if relevant).
+- **WAIT:** Guard-aware describe (`describe({ showDenied: true })`) — small describe option; defer until consumer.
+- **WAIT:** Time simulation `monotonicNs()` test-mode override — non-trivial infrastructure; defer until concrete `vi.useFakeTimers()` integration request.
+
+#### 14.5.5 §9.6 Framework infiltration package list
+*Source: roadmap.md §9.6 "Framework infiltration packages"; lands in Phase 16 launch wave*
+Captured here so Phase 16 doesn't underbid scope:
+- `@graphrefly/ai-sdk` — Vercel AI SDK middleware (`graphreflyMiddleware` wrapping any model).
+- `@graphrefly/langgraph` — LangGraph TS tools (Zod-validated tools exposing graph operations). Note: LangGraph consumes MCP natively, so §9.3 MCP server may suffice.
+- 3 golden template repos: incident triage reduction; agent run observatory; alert dedup/prioritization.
+
+#### 14.5.6 §9.7 Demo 6 stream extractor showcase + Demo 2 Multi-Agent Task Board
+*Source: roadmap.md Phase 7.3 + 7.3b + §9.7*
+- **Phase 16 deliverable:** Demo 0 (Personal email triage), Demo 6 (AI Agent Observatory), Demo 7 (Log Reduction).
+- **Phase 16 deliverable, multi-agent-dependent:** Demo 2 (Multi-Agent Task Board, React + WebLLM + Gemma 4 E2B) — unblocked by Phase 13 multi-agent layer. Showcase the new `agent()` + `spawnable()` primitives.
+- **Phase 16 deliverable, distinct demo:** Inbox-stream demo (`website/src/content/docs/demos/inbox-stream.md`) — per-email classify topology that genuinely shows reactive-savings + `graph.explain` UX. Pairs with the existing inbox-reducer baseline.
+- **POST-1.0 (post-launch):** Demos 1, 3, 4, 5 — order pipeline, monitoring dashboard, docs assistant, observability pipeline. Park.
+
+#### 14.5.7 Phase 8.x scale work
+*Source: roadmap.md Phase 8.5, 8.6, 8.8 (Phase 8.7 Delta + WAL is in Phase 14)*
+**ALL POST-1.0 — see Parked table.** No pre-1.0 placement:
+- Phase 8.5 — `peerGraph(transport)`, `shardedGraph(shardFn)`, adaptive sampling, 10k-node benchmark suite.
+- Phase 8.6 — `GraphCodec` pluggable serialization (`DagCborCodec`, `DagCborZstdCodec`, codec negotiation for `peerGraph`). Codec envelope v1 already shipped (Tier 4); pluggable codecs deferred.
+- Phase 8.8 — Memory optimization (lazy meta materialization, bounded history with ring buffer / time eviction / spill-to-disk, structural sharing, node pooling, lazy hydration). Dormant subgraph eviction is already in Parked.
+
+#### 14.5.8 Phase 6.x content addressing
+*Source: roadmap.md Phase 6.1 / 6.2 / 6.3*
+**ALL POST-1.0 — see Parked table.** Versioning depth not blocking 1.0:
+- 6.1 — Lazy CID computation.
+- 6.2 — V2 schema validation at node boundaries.
+- 6.3 — V3 caps (serialized guard policy) + refs (cross-graph references).
+
+#### 14.5.9 Phase 7.4 + 7.5 quality hardening
+*Source: roadmap.md Phase 7.4 scenario tests + 7.5 inspection stress tests*
+**POST-LAUNCH — see Parked table.** Demo-shaped scenario tests (order pipeline, agent task board, monitoring dashboard, docs assistant) and inspection stress tests (describe consistency under batch drain, observe correctness under concurrent updates, Graph.diff perf on 500-node graphs, snapshot during drain, etc.) ride along with their owning demos / shipping. EH-19 `validateNoIslands` perf is already tracked under Phase 11.4 Wait.
+
+#### 14.5.10 Inspection consolidation PY parity
+*Source: roadmap.md "Inspection Tool Consolidation > PY consolidation/new tools"*
+**PARKED with PY parity umbrella.** PY `spy()` → `observe(format=)`, `trace_log()` → `trace()`, `Graph.diff()` port, `harness_trace()` Python implementation, runner `__repr__` diagnostics. All gated on the PY parity reopen post-1.0.
+
+---
+
+### Phase 15 — Eval program
+
+*Source: roadmap.md §9.1 "Eval Program (umbrella)" + Wave 1 "The Eval Story"; deferred 2026-04 per re-prioritization*
+
+**Pushed AFTER Phase 13** — eval program needs agent-layer + memory + harness primitives stable. Pushed AFTER Phase 14 — eval-side reactivity benefits from the new delta protocol.
+
+**DESIGN-SESSION-NEEDED (DS-15):** opens Phase 15. Walks:
+- Two-tier eval shape (fast synthetic + slow human-graded; reference: `archive/docs/SESSION-eval-blog-materials.md`, `SESSION-eval-story-reframe.md`).
+- Catalog automation (§9.1b) — `autoSolidify(verifyResult, reflectOutput, catalog)` in REFLECT stage; ties Phase 13 agent + multi-agent verifiers to catalog growth.
+- Harness scorecard (roadmap §9.4).
+- Eval adapter stack migration (retire `evals/lib/llm-client.ts` + eval-specific rate-limiter / replay-cache / budget-gate in favor of library adapter layer; Wave A Unit 12 cross-cutting).
+
+---
+
+### Phase 16 — Launch wave (post-Phase-15)
+
+*Source: roadmap.md Wave 2 "The Harness Layer" + Wave 3 "The Existential Demo"*
+
+Lands when Phase 15 ships. Major items, each potentially its own session:
+
+**Distribution / packages:**
+- **§9.3 MCP Server** (`@graphrefly/mcp-server`) — distribution priority per `archive/docs/SESSION-harness-engineering-strategy.md`. Publish to npm; submit to MCP registry, Cline Marketplace, PulseMCP; "Try it with Claude Code in 2 minutes" quickstart.
+- **§9.3b OpenClaw Context Engine Plugin** (`@graphrefly/openclaw-context-engine`) — ContextEngine 3-hook interface; reactive memory graph with `Graph.attachStorage`. Publish + plugin-registry submission.
+- **§9.3c CLI surface** (`@graphrefly/cli`) — publish to npm with single `bin` entry; `npx @graphrefly/cli` zero-install; CI smoke test every subcommand.
+- **§9.6 Framework infiltration** (per Phase 14.5.5):
+  - `@graphrefly/ai-sdk` — Vercel AI SDK middleware.
+  - `@graphrefly/langgraph` — LangGraph TS tools (Zod-validated).
+  - 3 golden template repos: incident triage reduction; agent run observatory; alert dedup/prioritization.
+- **Phase 7 launch admin (roadmap.md Phase 7):** README with "graph + re + fly" tagline; `@graphrefly/graphrefly` npm publish; docs site at `graphrefly.dev`; community launch (HN, Reddit, dev.to).
+
+**Demos:**
+- **§9.3e Spending Alerts demo** (mostly DONE 2026-04-21; interactive 3-pane Astro shell remaining).
+- **§9.5 Demo 0** Personal email triage (NL → GraphSpec → flow → run → persist → explain). Video/GIF required to gate Show HN.
+- **§9.7 Demo 6** AI Agent Observatory — harness engineering showcase + self-improving loop. `agentLoop` failure → `explainPath` causal chain → REFLECT distill into `agentMemory` → strategy model update → re-run avoids failure route.
+- **Demo 2 Multi-Agent Task Board** (per Phase 14.5.6) — React + WebLLM + Gemma 4 E2B; showcases Phase 13 `agent()` + `spawnable()` primitives.
+- **Inbox-stream demo** (per Phase 14.5.6) — per-email classify topology that genuinely shows reactive-savings + `graph.explain`. Pairs with the existing `inbox-reducer` baseline.
+- Optional **stream extractor showcase** appendix to Demo 6 (mount multiple extractors on a single `streamingPromptNode`; visible-in-real-time inspection demo).
+
+**Public-facing copy:**
+- **§9.4 Harness scorecard public release** (`graphrefly.dev/scorecard`) — folded into §9.1.5 Phase 15 deliverables; Phase 16 is the publish step.
+- **§9.2 deliverables for announcement:** "GraphReFly vs LangGraph" comparison page; blog "Why agent harnesses need reactive graphs".
+- **Wave 1 deliverables:** blog "How evals proved catalog quality is the #1 lever, and we automated it"; "Reproduce our evals" guide; multi-model comparison results page; pre-launch outreach to 20-30 design partners.
+- **Wave 2.5 deliverables:** blog "The feedback loop is the product — why we don't ship 6 optimization algorithms"; comparison page "GraphReFly refineLoop vs DSPy vs agent-opt".
+- **Wave 3 deliverables:** Show HN ("GraphReFly — the reactive harness layer for agent workflows"); Reddit (r/AI_Agents, r/typescript, r/ClaudeCode); 小红书 original "为什么 Agent Harness 需要 reactive graph"; harness-engineering.ai knowledge graph submission.
+
+---
+
+### Parked until 1.0 (or post-1.0)
+
+These items have explicit re-evaluation triggers; do NOT pull into Phases 11–16 without the trigger.
+
+| Item | Trigger to re-open | Source |
+|---|---|---|
+| **PY parity umbrella** (all `[py-parity-*]` tags; PY Wave 2 §9.2 / §9.2b backpressure / Wave 3 publish; PY inspection consolidation per Phase 14.5.10) | 1.0 ship; rigor-infrastructure projects 1–3 land | `optimizations.md` PY-parity tags; `SESSION-rigor-infrastructure-plan.md`; roadmap PY sections |
+| **Path X — Node-returning mutations** | Real recovery use case; or `defaultOnSubscribe` redesign | `optimizations.md` "Path X" |
+| **G10 atomic registry hot-swap** | Concrete consumer; pairs with `project_rewire_gap` resolution | gap-analysis G10 |
+| **Codec lazy decode + dormant subgraph eviction** | Post-1.0 scale demand | `optimizations.md` "Codec lazy decode" |
+| **`withStatus` decomposition (`statusOf` + `errorOf`)** | Post-1.0; concrete independent-companion-reuse demand | `optimizations.md` |
+| **`processManager` `queueMicrotask` cleanup** | Post-1.0 cosmetic | `optimizations.md` |
+| **AG-UI translation adapter** | Demand surfaces post-launch | intervention session §6 #5 |
+| **A2UI generative UI capability** | Separate wave; post-launch | intervention session §6 #6 |
+| **Roadmap Wave 2.5 prompt+catalog optimization beyond `refineLoop`** (`mutateAndRefine`, `strategyRegistry`, `autoSelectStrategy` per Phase 14.5.1) | Post-Phase-15 if `refineLoop` real-world surface needs cross-item learning | `roadmap.md §9.8` |
+| **`topologyView(graph)` factory** | Architecture locked Tier R1.1; pattern-PR sized | implementation-plan Tier R1.1 |
+| **Spec-level enforcement of Tier R1.2 RESOLVED wave-exclusivity** | Doc-only lock today; runtime `_emit` rejection deferred | implementation-plan Tier R1.2 |
+| **Tier R3.6 `refineLoop` `setSeed`/`reset`** | Concrete cross-item learning consumer | implementation-plan Tier R3.6 |
+| **Tier R3.7 `executeAndVerify` unified slot** | Concrete redundant-eval consumer | implementation-plan Tier R3.7 |
+| **Tier R3.8 actuator `mode: queue/drop`** | Concrete test-runner / serial actuator consumer | implementation-plan Tier R3.8 |
+| **Phase 8.5 distributed scale** (`peerGraph(transport)`, `shardedGraph(shardFn)`, adaptive sampling, 10k-node benchmark suite) | Post-1.0; multi-process consumer demand | roadmap.md Phase 8.5; Phase 14.5.7 |
+| **Phase 8.6 GraphCodec pluggable serialization** (`DagCborCodec`, `DagCborZstdCodec`, codec negotiation for `peerGraph`) | Post-1.0; gates on Phase 8.5 distributed | roadmap.md Phase 8.6; Phase 14.5.7 |
+| **Phase 8.8 memory optimization** (lazy meta materialization, bounded history with ring buffer / time-eviction / spill-to-disk, structural sharing, node pooling, lazy hydration) | Post-1.0 scale demand | roadmap.md Phase 8.8; Phase 14.5.7 |
+| **Phase 6.x content addressing depth** (6.1 lazy CID computation; 6.2 V2 schema validation at node boundaries; 6.3 V3 caps + cross-graph refs) | Post-1.0; versioning depth not blocking | roadmap.md Phase 6.x; Phase 14.5.8 |
+| **Phase 7.3 Demos 1, 3, 4 + Phase 7.3b Demos 5, 7** (order pipeline; monitoring dashboard; docs assistant; observability pipeline; log reduction) | Post-launch; build after Demo 0 / Demo 2 / Demo 6 prove the pattern | roadmap.md Phase 7.3 / 7.3b; Phase 14.5.6 |
+| **Phase 7.4 scenario tests** (per-demo `src/__tests__/scenarios/*.test.ts`) | Lands with each demo | roadmap.md Phase 7.4; Phase 14.5.9 |
+| **Phase 7.5 inspection stress + adversarial tests** (10 listed: describe consistency under batch drain, observe under concurrent updates, Graph.diff perf on 500-node, snapshot during drain, etc.) | Post-launch quality hardening | roadmap.md Phase 7.5; Phase 14.5.9 |
+| **Phase 7.6 building-block residuals** (cross-island state bridge; guard-aware describe `showDenied`; time simulation `monotonicNs()` test-mode override) | Concrete consumer | roadmap.md Phase 7.6; Phase 14.5.4 |
+| **Consumer track (pillar #1 "Stop Drowning in Information")** | Revisit at v1.0 | roadmap.md Deferred section |
+
+---
+
+### Open design sessions to schedule
+
+Numbered for cross-reference in PRs:
+
+| ID | Title | Scope | Phase |
+|----|-------|-------|-------|
+| **DS-11.10** | Operator-layer mixed-batch RESOLVED forwarding | `filter` / `map` / `take` / `skip` semantics + per-item RESOLVED tagging contract | Phase 11 (or fold into DS-14) |
+| **DS-13.B** | `JsonSchema` import strategy | `@types/json-schema` vs minimal local type | Phase 13.B; tiny |
+| **DS-13.E** | `valve` abort wiring | `(i)` `abortInFlight` opt vs `(ii)` caller-side controller pattern | Phase 13.E; ≤30 min |
+| **DS-13.I** | Strategy-key axis extension | `(presetId × rootCause × intervention) → successRate` migration | Phase 13.I; pre-1.0 break |
+| **DS-13.L** | `convergence` operator naming + semantics | `convergence` / `settle` / `quiet` / `idle`; boundary with `awaitSettled` | Phase 13.L; single session |
+| **DS-14** | Unified changesets/diff design | 9Q audit; co-designs 5 threads (op-log / worker-wire / lens.flow delta / reactiveLog.scan / restoreSnapshot diff) | Phase 14; substantial |
+| **DS-15** | Eval program shape | Two-tier design + catalog automation + scorecard | Phase 15; substantial |

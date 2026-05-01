@@ -1,6 +1,10 @@
 # Roadmap — Active Items (TS + PY)
 
-> **This file is the single source of truth** for roadmap tracking across both graphrefly-ts and graphrefly-py.
+> **⚠️ Canonical source has moved (2026-04-30):** Active pre-1.0 work is now sequenced in **[`docs/implementation-plan.md`](implementation-plan.md)** (Phases 11–16 + Parked table + Open design sessions). This roadmap is retained as the **vision / wave context document** — useful for the strategic frame (Wave 0/1/2/3 announcement structure, harness engineering positioning, eval-story narrative) but **not authoritative for what's NEXT**. New items go to `implementation-plan.md`; this roadmap is amended only when waves complete and the high-level frame shifts.
+>
+> **PY parity (TS-paired items, PY Wave 2/3 sections, all `[py-parity-*]` tags):** parked until 1.0 ship per re-prioritization 2026-04-30. See `implementation-plan.md` § Parked.
+
+> **This file was originally the single source of truth** for roadmap tracking across both graphrefly-ts and graphrefly-py. Per the canonical-source migration above, item-level state is no longer maintained here — the residuals have been folded into `implementation-plan.md` Phase 14.5 (refineLoop tail, mockLLM promotion, demo deck, etc.) or the Parked table (post-1.0 distributed, content-addressing depth, memory optimization).
 >
 > **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs-guidance.md` § "Roadmap archive" for the archive structure and workflow.
 >

@@ -24,9 +24,10 @@ Load context and plan the implementation in a single pass. **Parallelize all rea
 Read in parallel:
 - `~/src/graphrefly/GRAPHREFLY-SPEC.md` — behavior authority; deep-read sections relevant to the task
 - `~/src/graphrefly/COMPOSITION-GUIDE.md` — **composition patterns and insights** (read when building Phase 4+ factories that compose primitives — covers lazy activation, subscription ordering, null guards, Versioned navigation, factory wiring order)
-- `docs/optimizations.md` — **active work items**, anti-patterns, and **deferred follow-ups** (read when touching protocol, batch, node lifecycle, or parity). Resolved decisions are archived in `archive/optimizations/*.jsonl` — search there for historical context (see `docs/docs-guidance.md` § "Optimization decision log")
+- `docs/implementation-plan.md` — **CANONICAL pre-1.0 sequencer**. Find the phase this task belongs to (Phase 11 cleanup / Phase 12 consolidation / Phase 13 multi-agent / Phase 14 changesets / Phase 14.5 residuals / Phase 15 eval / Phase 16 launch). The phase entry tells you what's locked, what's still open-design (DS-#), and what cross-references back to `optimizations.md` for line-item state. Read this FIRST so you know whether you're picking up a NOW item or one tagged WAIT/POST-1.0.
+- `docs/optimizations.md` — **line-item state for individual deferred carries**, anti-patterns, and **deferred follow-ups** (read when touching protocol, batch, node lifecycle, or parity, OR when the implementation-plan phase entry references an optimization-id). Resolved decisions are archived in `archive/optimizations/*.jsonl` — search there for historical context (see `docs/docs-guidance.md` § "Optimization decision log")
 - `docs/test-guidance.md` — checklist for the relevant layer (core protocol, node, graph, extra)
-- `docs/roadmap.md` — if this is a new feature or cross-cutting change (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`)
+- `docs/roadmap.md` — **vision / wave context only** (no longer the sequencer per 2026-04-30 migration — implementation-plan.md is canonical). Read for the strategic frame on a feature, not to find what's next.
 - Any files the user referenced in $ARGUMENTS
 - Relevant source files in the area you'll modify (TS: `src/`, PY: `~/src/graphrefly-py/src/graphrefly/`)
 - Existing tests for the area (TS: `src/__tests__/`, PY: `~/src/graphrefly-py/tests/`)

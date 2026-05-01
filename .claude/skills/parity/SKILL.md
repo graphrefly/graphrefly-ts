@@ -17,10 +17,12 @@ Context from user: $ARGUMENTS
 
 Determine scope from $ARGUMENTS:
 - If a **feature area** is given (e.g. "Graph 1.3", "batch", "node lifecycle"), focus on that area only.
-- If `full`, scan all implemented phases in both roadmaps.
+- If `full`, scan all implemented phases in both repos.
+
+> **PY parity is currently PARKED until 1.0** per the 2026-04-30 re-prioritization in `docs/implementation-plan.md` § Parked. Run `/parity` only when explicitly invoked by the user (e.g. for a one-off audit), or when post-1.0 work resumes. Findings during the parked window get filed to `optimizations.md` under a `[py-parity-*]` tag and are NOT scheduled for implementation until the umbrella reopens.
 
 Read in parallel:
-- **Operational docs (this repo):** `docs/optimizations.md` (active items + deferred), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (active/open items only; completed phases archived to `archive/roadmap/*.jsonl`), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
+- **Operational docs (this repo):** `docs/implementation-plan.md` (canonical pre-1.0 sequencer; the matching phase tells you what's locked vs in-flight), `docs/optimizations.md` (active items + deferred, line-item state for `[py-parity-*]` carries), `archive/optimizations/*.jsonl` (cross-language notes, resolved decisions — search with `grep`), `docs/roadmap.md` (vision context only; do NOT use as the sequencer), `~/src/graphrefly/GRAPHREFLY-SPEC.md` (relevant sections)
 - **Composition guide:** `~/src/graphrefly/COMPOSITION-GUIDE.md` — **mandatory** when the scoped area includes `src/patterns/` or `src/compat/` in either repo. Composed factories require understanding lazy activation, subscription ordering, null guards, wiring order, feedback cycles, and SENTINEL gate patterns.
 - **TS source:** `src/` and `src/__tests__/` in the scoped area
 - **PY source:** `~/src/graphrefly-py/src/graphrefly/` and `~/src/graphrefly-py/tests/` in the scoped area
@@ -121,12 +123,13 @@ After user approves:
 3. If fixes approved for the **sibling repo**, apply those too:
    - Code + tests in `~/src/graphrefly-py/`
    - Run `cd ~/src/graphrefly-py && uv run pytest` — fix failures
-4. Update `docs/optimizations.md` in **both** repos:
-   - Add new open decisions under "Active work items"
+4. Update `docs/optimizations.md` (this repo — single source of truth for both):
+   - Add new open decisions under "Active work items" (line-item state for any new `[py-parity-*]` carry).
    - **Actively sweep:** scan for any fully-resolved items (all sub-tasks DONE, no remaining TODOs) and archive them to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log". Remove archived content from `optimizations.md`.
-5. Update `docs/roadmap.md`:
-   - Check off completed items
-   - **Actively sweep:** scan for any fully-completed phase or item group and archive to `archive/roadmap/*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive". Remove archived content from `roadmap.md`.
+5. Update `docs/implementation-plan.md` (canonical sequencer):
+   - When a `[py-parity-*]` item lands or its scope shifts, mark it ✅ in the matching phase entry (or note "PY parity carry" within the relevant Phase 11–16 sub-section). When PY parity reopens post-1.0, the phase entry is where future agents pick up scope.
+   - Do NOT add new sequencing here during the parked window; just record state changes.
+6. `docs/roadmap.md` is **vision context only** per 2026-04-30 migration — do NOT track item-level state here. Wave-completion archival to `archive/roadmap/*.jsonl` still applies but rarely fires during /parity.
 
 ---
 

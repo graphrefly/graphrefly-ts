@@ -46,8 +46,9 @@ For each search, read 2-3 promising results using `mcp__searxng__web_url_read` o
 
 Read these files in parallel to ground findings:
 
-- `docs/roadmap.md` — current phase and planned work
-- `docs/optimizations.md` — active backlog and open questions
+- `docs/implementation-plan.md` — **canonical pre-1.0 sequencer.** Find which phase covers this topic area (Phase 11–16 + Parked) and read what's locked, what's open-design, what's parked. This is where "current phase" lives now.
+- `docs/roadmap.md` — vision / wave context only (Wave 0/1/2/3 announcement frame, harness engineering positioning). Useful for the strategic story; do NOT use as the active sequencer.
+- `docs/optimizations.md` — active backlog and open questions (line-item state)
 - `archive/docs/design-archive-index.jsonl` — **this is an index file, not content.** Scan it for session docs whose titles/descriptions relate to the research topic. Then read the relevant `archive/docs/SESSION-*.md` files in detail. These contain design decisions, trade-off discussions, and architectural context that may directly inform the analysis.
 - `~/src/graphrefly/GRAPHREFLY-SPEC.md` — spec (skim relevant sections if topic touches protocol)
 
@@ -99,13 +100,13 @@ Answer each honestly:
 - Why it matters for GraphReFly specifically
 - Whether it validates, challenges, or is orthogonal to our current direction
 
-### 3.6 Roadmap alignment
+### 3.6 Plan alignment
 
-Cross-reference findings with `docs/roadmap.md` and `docs/optimizations.md`:
+Cross-reference findings with `docs/implementation-plan.md` (canonical) and `docs/optimizations.md` (line-item):
 
-| Finding | Roadmap alignment | Action |
+| Finding | Plan alignment | Action |
 |---|---|---|
-| {trend/demand/gap} | {matches Phase X item Y / no match / conflicts with Z} | {already planned / consider adding / park / revisit} |
+| {trend/demand/gap} | {matches Phase 11–16 item / matches Parked trigger / no match / conflicts with locked decision} | {already planned in Phase X / consider adding to Phase Y / file as Parked / file in optimizations.md / revisit} |
 
 ---
 
@@ -119,7 +120,7 @@ A prioritized list of **at most 5** concrete recommendations:
 
 1. **{Action}** — {why, grounded in research}. Priority: {high/medium/low}. Effort: {small/medium/large}.
 
-Recommendations should be actionable — not "think about X" but "add X to roadmap Phase Y" or "prototype X to validate assumption Z" or "write a comparison doc showing advantage over Y".
+Recommendations should be actionable — not "think about X" but "add X to implementation-plan.md Phase Y" / "file X under Parked with trigger Z" / "prototype X to validate assumption Z" / "write a comparison doc showing advantage over Y".
 
 ### 4.2 Discussion prompts
 
