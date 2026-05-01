@@ -62,8 +62,8 @@ interface SpawnRequest {
 }
 
 /** Sum input + output regular tokens out of an `LLMResponse`. */
-function tokensOf(resp: LLMResponse | null | undefined): number {
-	if (resp == null) return 0;
+function tokensOf(resp: LLMResponse | undefined): number {
+	if (resp === undefined) return 0;
 	const inTok = resp.usage?.input?.regular ?? 0;
 	const outTok = resp.usage?.output?.regular ?? 0;
 	return inTok + outTok;
@@ -129,16 +129,18 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 		// --- Bridge 1: classifier.lastResponse → handoffTopic.publish.
 		// FRICTION (filed in optimizations.md "Phase 13 design-session inputs" F4):
 		// `topicBridge` connects two `TopicGraph<T>`s, but
-		// `classifier.lastResponse` is a `Node<LLMResponse | null>`. Without
-		// 13.G's `bundle.out: Node<TOut>` typed as either a topic surface or a
-		// reactive emitter `topicBridge` accepts as a Node source, we hand-roll
-		// a `subscribe` that publishes the unwrapped content into the topic.
+		// `classifier.lastResponse` is a `Node<LLMResponse>` (post-F9-fix
+		// SENTINEL form — no `null` placeholder). Without 13.G's `bundle.out:
+		// Node<TOut>` typed as either a topic surface or a reactive emitter
+		// `topicBridge` accepts as a Node source, we hand-roll a `subscribe`
+		// that publishes the unwrapped content into the topic. Post-F9-fix
+		// the bridge no longer needs an `if (resp == null) continue` guard —
+		// the SENTINEL state guarantees no spurious push-on-subscribe DATA.
 		const handoffPublishes: string[] = [];
 		const subPublish = classifier.lastResponse.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] !== DATA) continue;
-				const resp = m[1] as LLMResponse | null;
-				if (resp == null) continue;
+				const resp = m[1] as LLMResponse;
 				handoffTopic.publish(resp.content);
 				handoffPublishes.push(resp.content);
 			}
@@ -210,14 +212,17 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 			(batchData, ctx) => {
 				const cBatch = batchData[0];
 				const eBatch = batchData[1];
+				// Post-F9-fix: lastResponse stays SENTINEL (`undefined`) until
+				// the first real response. `tokensOf` handles `undefined` as
+				// 0 tokens.
 				const cResp =
 					cBatch != null && cBatch.length > 0
-						? (cBatch.at(-1) as LLMResponse | null)
-						: ((ctx.prevData[0] as LLMResponse | null | undefined) ?? null);
+						? (cBatch.at(-1) as LLMResponse)
+						: (ctx.prevData[0] as LLMResponse | undefined);
 				const eResp =
 					eBatch != null && eBatch.length > 0
-						? (eBatch.at(-1) as LLMResponse | null)
-						: ((ctx.prevData[1] as LLMResponse | null | undefined) ?? null);
+						? (eBatch.at(-1) as LLMResponse)
+						: (ctx.prevData[1] as LLMResponse | undefined);
 				return [tokensOf(cResp) + tokensOf(eResp)];
 			},
 			{ keepAlive: true },
@@ -301,6 +306,7 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 
 		// Parent derived that depends on a child node — the simplest cross-graph
 		// edge. If this `explain` walk loses the mount segment, file 13.K.
+		// Post-F9-fix: lastResponse SENTINEL `undefined` until first response.
 		parent.derived<string>(
 			"costLabel",
 			[classifier.lastResponse],
@@ -308,9 +314,8 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 				const b = batchData[0];
 				const resp = (b != null && b.length > 0 ? b.at(-1) : ctx.prevData[0]) as
 					| LLMResponse
-					| null
 					| undefined;
-				if (resp == null) return [];
+				if (resp === undefined) return [];
 				return [`${resp.content}:${tokensOf(resp)}`];
 			},
 			{ keepAlive: true },
@@ -333,13 +338,14 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 	});
 
 	// -------------------------------------------------------------------------
-	// 5. SENTINEL guard — handoff doesn't fire on classifier's initial null
-	//    `lastResponse.cache`. Pins the §1a "stay SENTINEL" invariant for the
-	//    bridge effect: the executor must not run before the classifier emits
-	//    a real response.
+	// 5. SENTINEL guard (F9 fix landed) — `classifier.lastResponse` stays
+	//    SENTINEL (no DATA emitted) until the first real response. Bridge
+	//    subscribers see no spurious push-on-subscribe `null` and do NOT
+	//    need a `if (resp == null) continue` guard. Pins the §1a "stay
+	//    SENTINEL" invariant per `feedback_use_prevdata_for_sentinel`.
 	// -------------------------------------------------------------------------
 
-	it("bridge effect does not kick executor on classifier's initial null", () => {
+	it("lastResponse stays SENTINEL until first real response", () => {
 		const parent = new Graph("parent-sentinel");
 
 		const classifier = agentLoop("classifier", {
@@ -348,21 +354,69 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 		});
 		parent.mount("classifier", classifier);
 
-		const sawNull: boolean[] = [];
+		const dataPayloads: unknown[] = [];
 		const sub = classifier.lastResponse.subscribe((msgs) => {
 			for (const m of msgs) {
-				if (m[0] === DATA) sawNull.push(m[1] === null);
+				if (m[0] === DATA) dataPayloads.push(m[1]);
 			}
 		});
 
 		try {
-			// `lastResponse` has `initial: null` — push-on-subscribe delivers `null`
-			// to every fresh subscriber. A naive bridge effect that `if (resp != null)`
-			// is the canonical guard; this assertion encodes the friction so the
-			// 13.G `bundle.out: Node<TOut>` design avoids re-introducing the trap.
-			expect(sawNull[0]).toBe(true);
+			// Post-F9-fix: `lastResponse` has no `initial` — push-on-subscribe
+			// delivers START + the cached value, but the cached value is
+			// SENTINEL (`undefined`), so START is delivered with no DATA tuple.
+			// Bridge subscribers can subscribe-then-no-op without a `null`
+			// guard. Cache is `undefined` until the loop produces a response.
+			expect(dataPayloads).toEqual([]);
+			expect(classifier.lastResponse.cache).toBeUndefined();
 		} finally {
 			sub();
+			parent.destroy();
+		}
+	});
+
+	// -------------------------------------------------------------------------
+	// 5a. Bridge regression — wiring agent A's lastResponse into agent B's
+	//     in.emit must NOT kick agent B before A produces a real response.
+	//     Pre-F9-fix, the eager `null` from A would flow through the bridge
+	//     and trigger B's chat.append; post-fix the bridge stays quiet.
+	// -------------------------------------------------------------------------
+
+	it("bridge subscriber does not kick agent B before agent A emits", () => {
+		const parent = new Graph("parent-bridge");
+
+		// Agent A: synchronous adapter that emits one response.
+		const agentA = agentLoop("agentA", {
+			adapter: adapterWithCost("from-A", 10),
+			systemPrompt: "A",
+		});
+		// Agent B: also a real agentLoop so we can observe its chat-history.
+		const agentB = agentLoop("agentB", {
+			adapter: adapterWithCost("from-B", 10),
+			systemPrompt: "B",
+		});
+		parent.mount("agentA", agentA);
+		parent.mount("agentB", agentB);
+
+		// Bridge: A's lastResponse → B's chat.append (and we'd kick B's run).
+		// The body has NO `if (resp == null)` guard — relies on the SENTINEL
+		// invariant: no DATA arrives until A produces a real response.
+		const bWasKicked: string[] = [];
+		const subBridge = agentA.lastResponse.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				const resp = m[1] as LLMResponse;
+				bWasKicked.push(resp.content);
+				agentB.chat.append("user", resp.content);
+			}
+		});
+
+		try {
+			// A has not been kicked yet. Bridge must not have fired.
+			expect(bWasKicked).toEqual([]);
+			expect(agentB.chat.allMessages()).toEqual([]);
+		} finally {
+			subBridge();
 			parent.destroy();
 		}
 	});

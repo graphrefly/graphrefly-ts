@@ -20,7 +20,7 @@
  */
 
 import { batch } from "../../../core/batch.js";
-import { DATA, RESOLVED } from "../../../core/messages.js";
+import { DATA, INVALIDATE, RESOLVED } from "../../../core/messages.js";
 import { type Node, node } from "../../../core/node.js";
 import { keepalive } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -412,9 +412,13 @@ export class AgentGraph<TIn, TOut> extends Graph {
 		this.cost = costNode;
 
 		// --- 6. `out` — the typed outbox. ----------------------------------
-		// Derived from `loop.lastResponse`. SENTINEL while lastResponse is
-		// null (loop's initial-null trap; F9 lock-test pinned this) — only
-		// emit DATA when a real response arrives.
+		// Derived from `loop.lastResponse`. SENTINEL while `loop.lastResponse`
+		// has never emitted a real response (F9 fix: the loop now stays
+		// SENTINEL too — no more eager `null` placeholder), so the SENTINEL
+		// detector inside the fn is `prevData[0] === undefined`. Between
+		// runs, `loop.lastResponse.down([[INVALIDATE]])` clears that
+		// `prevData` slot back to undefined, so this derived correctly gates
+		// to RESOLVED on the next status="idle" wave.
 		const outMapper = spec.outMapper ?? defaultOutMapper<TOut>();
 		const outNode = node<TOut>(
 			[this.loop.lastResponse],
@@ -422,9 +426,9 @@ export class AgentGraph<TIn, TOut> extends Graph {
 				const batch0 = data[0];
 				const resp =
 					batch0 != null && batch0.length > 0
-						? (batch0.at(-1) as LLMResponse | null)
-						: ((ctx.prevData[0] as LLMResponse | null | undefined) ?? null);
-				if (resp == null) {
+						? (batch0.at(-1) as LLMResponse | undefined)
+						: (ctx.prevData[0] as LLMResponse | undefined);
+				if (resp === undefined) {
 					a.down([[RESOLVED]]);
 					return;
 				}
@@ -485,15 +489,18 @@ export class AgentGraph<TIn, TOut> extends Graph {
 		// Rolls forward on each loop.lastResponse emission. Reads
 		// loop.turn.cache for the iteration count (sole-owner-reactive-reader
 		// per Phase 12 D1 lock — loop is mounted as a subgraph of this Graph).
+		// SENTINEL gate: `prevData[0] === undefined` means no response has
+		// ever been delivered for this run (post-INVALIDATE reset between
+		// runs), so the rollup short-circuits.
 		const costEff = node(
 			[this.loop.lastResponse],
 			(data, _a, ctx) => {
 				const batch0 = data[0];
 				const resp =
 					batch0 != null && batch0.length > 0
-						? (batch0.at(-1) as LLMResponse | null)
-						: ((ctx.prevData[0] as LLMResponse | null | undefined) ?? null);
-				if (resp == null) return;
+						? (batch0.at(-1) as LLMResponse | undefined)
+						: (ctx.prevData[0] as LLMResponse | undefined);
+				if (resp === undefined) return;
 				const prev = (costNode.cache as CostState | undefined) ?? ZERO_COST;
 				const turns = (this.loop.turn.cache as number | undefined) ?? prev.turns;
 				const next: CostState = {
@@ -572,10 +579,17 @@ export class AgentGraph<TIn, TOut> extends Graph {
 				batch(() => {
 					// Reset per-input accumulators so cost/turns don't include
 					// the previous input. Same shape as `agentLoop.run()`'s
-					// reset batch.
+					// reset batch — `lastResponse` is reset via
+					// `[[INVALIDATE], [RESOLVED]]` (INVALIDATE clears `_cached`
+					// AND each dependent's `prevData[lastResponse]` slot back
+					// to SENTINEL `undefined`; RESOLVED un-DIRTYs each
+					// dependent's slot WITHOUT changing `prevData`, so `out`
+					// and `costEff` can fire on the next status transition
+					// without staying gated forever). Per
+					// `feedback_use_prevdata_for_sentinel`.
+					this.loop.lastResponse.down([[INVALIDATE], [RESOLVED]]);
 					this.loop.turn.emit(0);
 					this.loop.aborted.emit(false);
-					this.loop.lastResponse.emit(null);
 					costNode.emit(ZERO_COST);
 					this.loop.chat.append("user", userMsg);
 					this.loop.status.emit("thinking");

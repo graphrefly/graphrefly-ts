@@ -28,14 +28,24 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
+import { type Node, node } from "../../core/node.js";
 import {
 	type BaseAuditRecord,
 	createAuditLog,
 	registerCursor,
 	wrapMutation,
 } from "../../extra/mutation/index.js";
+import { valve } from "../../extra/operators/control.js";
+import { mergeMap } from "../../extra/operators/higher-order.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
-import { fromAny, fromTimer, type NodeInput } from "../../extra/sources.js";
+import {
+	firstWhere,
+	fromAny,
+	fromIter,
+	fromPromise,
+	fromTimer,
+	type NodeInput,
+} from "../../extra/sources.js";
 import type { AppendLogStorageTier, KvStorageTier } from "../../extra/storage-tiers.js";
 import { Graph } from "../../graph/index.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
@@ -205,6 +215,18 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 	readonly backoffMs?: readonly number[];
 	/** Handler version tag stamped onto audit records (Audit 5). */
 	readonly handlerVersion?: { id: string; version: string | number };
+	/**
+	 * When `true`, do NOT auto-restore on construction. The caller must invoke
+	 * {@link ProcessManagerResult.restore} explicitly to load persisted
+	 * snapshots and arm watch dispatch.
+	 *
+	 * **Default `false`:** the factory kicks off restoration immediately so
+	 * watch dispatch arms as soon as snapshots have loaded (or instantly when
+	 * no `stateStorage` tier is configured). Until restoration completes,
+	 * watched events accumulate at the source but are valve-blocked from
+	 * reaching the per-instance step pipeline (B5 — locked 2026-05-01).
+	 */
+	readonly deferRestore?: boolean;
 	/** Optional persistence wiring (Audit 4). */
 	readonly persistence?: {
 		/**
@@ -275,26 +297,53 @@ export interface ProcessManagerResult<TState> {
 	 */
 	getState(correlationId: string): TState | undefined;
 	/**
-	 * Restore running instances from the first {@link
-	 * ProcessManagerOpts.persistence.stateStorage} tier (Tier 6.5 3.5,
-	 * 2026-04-29). Loads every record in the tier and re-hydrates
-	 * `instanceStates` / `activeInstances` / `startedAt` for any record
-	 * whose `status === "running"`. Terminal records, if any persisted
-	 * before delete fired, are silently skipped.
+	 * Reactive lifecycle of the restore pipeline. Starts at `"pending"`,
+	 * flips to `"ready"` once snapshot loads complete (or immediately when
+	 * no `stateStorage` is configured), and flips to `"disposed"` on
+	 * {@link dispose}. Watched events are valve-gated on this node:
+	 * dispatch is blocked while `restoreState !== "ready"`.
 	 *
-	 * Idempotent — calling twice doesn't double-restore (existing entries
-	 * are overwritten). Returns the count of running instances rehydrated.
-	 *
-	 * No-op when no `stateStorage` tier is configured OR the first tier
-	 * lacks a `list?` method (returns 0). Async because kv tier `load` /
-	 * `list` may be async.
+	 * Exposed for observability and tests. Subscribers can compose
+	 * `derived([restoreState], …)` to build their own gates / readouts.
 	 */
-	restore(): Promise<number>;
+	readonly restoreState: Node<"pending" | "ready" | "disposed">;
+	/**
+	 * Trigger restoration of running instances from the first
+	 * {@link ProcessManagerOpts.persistence.stateStorage} tier (Tier 6.5
+	 * 3.5, 2026-04-29). Loads every record in the tier reactively and
+	 * re-hydrates `instanceStates` / `activeInstances` / `startedAt` for
+	 * any record whose `status === "running"`. Terminal records, if any
+	 * persisted before delete fired, are silently skipped.
+	 *
+	 * **Reactive composition (B5 — locked 2026-05-01):** internally,
+	 * `tier.list()` and `tier.load()` are wrapped in `fromPromise` sources;
+	 * a `mergeMap` flattens per-key load results; an `effect` populates
+	 * closure state and flips {@link restoreState} to `"ready"` on the
+	 * `COMPLETE` boundary. No `await` inside the reactive interior — the
+	 * single async boundary is the returned `Promise<void>`, which resolves
+	 * when {@link restoreState} transitions to `"ready"` (or `"disposed"`,
+	 * if `dispose()` interrupts restoration).
+	 *
+	 * Idempotent — calling twice subscribes to the same restore pipeline
+	 * and resolves on the same gate flip. No-op when no `stateStorage`
+	 * tier is configured OR the first tier lacks a `list?` method:
+	 * `restoreState` flips to `"ready"` immediately so watches can arm.
+	 *
+	 * **Auto-restore default.** With `deferRestore: false` (the default),
+	 * the factory invokes `restore()` once at construction so callers do
+	 * not need to remember to wire it. Pass `deferRestore: true` to
+	 * suppress auto-restore and call `restore()` manually.
+	 */
+	restore(): Promise<void>;
 	/**
 	 * Release all watched-event subscriptions and stop processing new events.
 	 *
 	 * After `dispose()`, subsequent `start()` and `cancel()` calls are no-ops.
 	 * In-flight async steps complete naturally; no new steps are dispatched.
+	 *
+	 * Flips {@link restoreState} to `"disposed"` so any pending `restore()`
+	 * promise resolves immediately and the watch valve closes (no further
+	 * dispatch even if a `fromPromise(tier.load…)` would resolve later).
 	 */
 	dispose(): void;
 }
@@ -533,14 +582,19 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 
 	// ── State-snapshot persistence (Tier 6.5 3.5) ─────────────────────────
 	const stateStorageTiers = opts.persistence?.stateStorage ?? [];
-	const persistState = (
+
+	/**
+	 * Build the snapshot payload + iterate tiers. Returns the iterator over
+	 * tiers so the caller decides whether sync throws propagate (B4 — start
+	 * path inside wrapMutation) or are swallowed (step path, fire-and-forget).
+	 */
+	const buildSnapshot = (
 		correlationId: string,
 		status: ProcessStateSnapshot<TState>["status"],
-	): void => {
-		if (stateStorageTiers.length === 0) return;
+	): ProcessStateSnapshot<TState> | undefined => {
 		const stateValue = instanceStates.get(correlationId);
-		if (stateValue === undefined) return;
-		const snapshot: ProcessStateSnapshot<TState> = {
+		if (stateValue === undefined) return undefined;
+		return {
 			correlationId,
 			state: stateValue,
 			status,
@@ -548,6 +602,20 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			updatedAt: wallClockNs(),
 			...(opts.handlerVersion !== undefined ? { handlerVersion: opts.handlerVersion } : {}),
 		};
+	};
+
+	/**
+	 * Best-effort persistence (used by step transitions). Sync throws are
+	 * swallowed so persistence failures do NOT poison reactive step dispatch.
+	 * Async rejections are caught at the Promise boundary.
+	 */
+	const persistState = (
+		correlationId: string,
+		status: ProcessStateSnapshot<TState>["status"],
+	): void => {
+		if (stateStorageTiers.length === 0) return;
+		const snapshot = buildSnapshot(correlationId, status);
+		if (snapshot === undefined) return;
 		for (const tier of stateStorageTiers) {
 			try {
 				const r = tier.save(correlationId, snapshot);
@@ -558,6 +626,29 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				}
 			} catch {
 				// best-effort; persistence failures don't block step execution
+			}
+		}
+	};
+
+	/**
+	 * Throwing variant (B4 — used inside `startInternal`'s wrapMutation
+	 * action body so a sync-throwing tier rolls back the audit-log append +
+	 * seq cursor advance). Async rejections from `tier.save()` still cannot
+	 * unwind the synchronous batch frame — that's a known limitation of
+	 * Promise-returning storage; sync-throwing tiers (the actual D2 hazard)
+	 * are fully covered.
+	 */
+	const persistStateThrowing = (
+		correlationId: string,
+		status: ProcessStateSnapshot<TState>["status"],
+	): void => {
+		if (stateStorageTiers.length === 0) return;
+		const snapshot = buildSnapshot(correlationId, status);
+		if (snapshot === undefined) return;
+		for (const tier of stateStorageTiers) {
+			const r = tier.save(correlationId, snapshot);
+			if (r != null && typeof (r as Promise<void>).then === "function") {
+				(r as Promise<void>).catch(() => undefined);
 			}
 		}
 	};
@@ -810,27 +901,70 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	}
 
 	// C3: disposal flag — set true by dispose(); gates start() and cancel().
+	// (Single source of truth for "alive": `restoreState.cache !== "disposed"`.
+	// `_disposed` mirrors that gate so synchronous start/cancel guards do not
+	// reach into the reactive layer just to check liveness.)
 	let _disposed = false;
 
-	// ── Watched event subscriptions ───────────────────────────────────────
-	// Imperative subscriptions: coordinator bridges reactive CQRS events into
-	// per-instance step execution. Not reactive edges — the process manager is
-	// an external coordinator, not a graph node. Disposers tracked for cleanup.
+	// ── Restore lifecycle state (B5 — locked 2026-05-01) ─────────────────
+	// Single reactive lifecycle node:
+	//   "pending"  → constructed; restore not yet finished. Watched events
+	//                arrive at the source but are valve-blocked from reaching
+	//                step dispatch.
+	//   "ready"    → restoration complete. Watch valve is open; events
+	//                accumulated during "pending" are delivered as the latest
+	//                cumulative cqrs log array; the per-watch cursor catches
+	//                up to that array in one step.
+	//   "disposed" → dispose() ran. Watch valve closes; any pending restore
+	//                load that resolves later is ignored because the restore
+	//                effect tears down with the keepalive.
+	const restoreState = node<"pending" | "ready" | "disposed">([], {
+		initial: "pending",
+		name: "restoreState",
+		describeKind: "state",
+	});
+	subgraph.add(restoreState, { name: "restoreState" });
+
+	// `gateOpen` is the valve control: true only while restoreState === "ready".
+	// Lazy: activates when the first valve subscribes.
+	const gateOpen = node<boolean>(
+		[restoreState as Node],
+		(data, a, ctx) => {
+			const batch0 = data[0];
+			const v = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0]) as
+				| "pending"
+				| "ready"
+				| "disposed"
+				| undefined;
+			a.emit(v === "ready");
+		},
+		{ name: "gateOpen", describeKind: "derived" },
+	);
+	subgraph.add(gateOpen, { name: "gateOpen" });
+
+	// ── Watched event subscriptions (valve-gated) ────────────────────────
+	// COMPOSITION-GUIDE §28 cursor pattern + valve(eventNode, gateOpen):
+	// per watched event type, subscribe to a valve over the cqrs event
+	// stream. While restoreState !== "ready", valve emits RESOLVED so no
+	// DATA reaches the cursor — events are NOT lost; the cqrs event log
+	// retains them. When the gate flips open, valve re-emits the latest
+	// cumulative event array (control-only wave path inside `valve`); the
+	// cursor processes everything from `lastCount` (still 0 at that point)
+	// in one shot.
 	const watchDisposers: Array<() => void> = [];
 
 	for (const eventType of opts.watching) {
 		const eventNode = cqrsGraph.event(eventType as string);
+		const gated = valve(eventNode, gateOpen, { name: `gatedEvent:${eventType as string}` });
 
-		// Subscribe-and-capture pattern (COMPOSITION-GUIDE §28):
-		// maintain a cursor (last-processed count) per event type so we only
-		// process NEW events on each wave, matching saga's behaviour.
+		// Cursor starts at 0 — pre-restore events are NOT pre-counted because
+		// they may be pre-restart events that the persisted snapshot already
+		// consumed. The restore pipeline's job is to seed instanceStates /
+		// activeInstances; events for instances NOT in activeInstances after
+		// restore drop on the floor (the per-event activeInstances.has guard).
 		let lastCount = 0;
 
-		// Seed from existing cache.
-		const cached = (eventNode.cache as readonly CqrsEvent[] | undefined) ?? [];
-		lastCount = cached.length;
-
-		const unsub = eventNode.subscribe((msgs) => {
+		const unsub = gated.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] !== DATA) continue;
 				const events = m[1] as readonly CqrsEvent[];
@@ -869,6 +1003,15 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// failures and still appended the running record. Per COMPOSITION-GUIDE
 	// §35, closure mutations are NOT rolled back — so they are deferred to
 	// after `_appendEvent` succeeds inside the action body.
+	//
+	// B4 (D2 — locked 2026-05-01): `persistState(...)` lives INSIDE the action
+	// body (after the closure mutations that seed `instanceStates`) so a
+	// sync-throwing `stateStorage` tier rolls back the in-band batch the same
+	// way `_appendEvent` failures do — neither the audit log entry nor the
+	// state snapshot ends up in the "running" record store. Per §35 the
+	// closure mutations stay (instanceStates / activeInstances / startedAt
+	// are already set), but the audit-log + persisted-snapshot are coherent
+	// with each other: both absent on throw, both present on success.
 	const startInternal = wrapMutation<[string, unknown], void, ProcessInstance<TState>>(
 		(correlationId, initialPayload) => {
 			// Synthetic start event first (potentially throws). Closure
@@ -890,6 +1033,9 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			startedAt.set(correlationId, wallClockNs());
 			instanceStates.set(correlationId, opts.initial);
 			activeInstances.add(correlationId);
+			// B4: inside the rollback boundary so a sync-throwing tier
+			// discards the audit-log append + seq cursor advance.
+			persistStateThrowing(correlationId, "running");
 		},
 		{
 			audit: instances,
@@ -922,8 +1068,9 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	function start(correlationId: string, initialPayload?: unknown): void {
 		if (_disposed) return;
 		if (activeInstances.has(correlationId)) return;
+		// B4 (D2): persistState now lives INSIDE `startInternal`'s wrapMutation
+		// action body so sync-throwing tiers roll back the audit-log entry too.
 		startInternal(correlationId, initialPayload);
-		persistState(correlationId, "running");
 	}
 
 	/**
@@ -960,33 +1107,125 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	}
 
 	/**
-	 * Release all watched-event subscriptions and stop processing new events.
+	 * Reactive restore pipeline (B5 — locked 2026-05-01).
 	 *
-	 * After `dispose()`, `start()` and `cancel()` become no-ops. In-flight
-	 * async steps complete naturally; no new steps are dispatched after the
-	 * watch subscriptions are released.
+	 * `restoreSubscription` is the single keepalive over the snapshot-load
+	 * effect. Set on first `restore()` call (or on construction when
+	 * `deferRestore !== true`). The effect:
+	 *
+	 * 1. Subscribes to `mergeMap(fromPromise(tier.list()), keys =>
+	 *    mergeMap(fromIter(keys), key => fromPromise(tier.load(key))))` —
+	 *    a fully reactive chain whose only async boundaries are the source
+	 *    `fromPromise` nodes (spec §5.10).
+	 * 2. On each per-key load DATA, populates `instanceStates` /
+	 *    `activeInstances` / `startedAt` for `status === "running"` records.
+	 * 3. On `COMPLETE` (all loads finished), flips `restoreState` to
+	 *    `"ready"` — the watch valve opens, queued cqrs events become
+	 *    deliverable, and any `firstWhere(restoreState …)` awaiter resolves.
+	 *
+	 * Idempotent: subsequent calls reuse the same subscription and resolve
+	 * on the same gate flip.
 	 */
-	async function restore(): Promise<number> {
-		if (_disposed) return 0;
+	let restoreSubscription: (() => void) | undefined;
+
+	function startRestorePipeline(): void {
+		if (restoreSubscription !== undefined) return;
 		const tier = stateStorageTiers[0];
-		if (tier == null || tier.list == null || tier.load == null) return 0;
-		const keys = await tier.list();
-		let count = 0;
-		for (const key of keys) {
-			const snap = await tier.load(key);
-			if (snap == null) continue;
-			if (snap.status !== "running") continue;
-			instanceStates.set(snap.correlationId, snap.state);
-			activeInstances.add(snap.correlationId);
-			startedAt.set(snap.correlationId, snap.startedAt);
-			count += 1;
+		if (tier == null || tier.list == null || tier.load == null) {
+			// No snapshot tier — flip immediately so watches can arm.
+			// `restoreState` is a state node so write directly.
+			if (restoreState.cache !== "disposed") restoreState.emit("ready");
+			restoreSubscription = () => undefined;
+			return;
 		}
-		return count;
+		const tierLoad = tier.load.bind(tier);
+		const tierList = tier.list.bind(tier);
+
+		// Reactive source chain. `tier.list()` and `tier.load(key)` are the
+		// only async boundaries; both are wrapped in `fromPromise` so the
+		// entire downstream graph is sync-reactive.
+		const listSource = fromPromise<readonly string[]>(Promise.resolve(tierList()));
+		const flattened = mergeMap(listSource, (keys: readonly string[]) => {
+			if (keys.length === 0) {
+				// fromIter([]) emits no DATA, only COMPLETE — which propagates
+				// up through mergeMap so the effect sees its own COMPLETE.
+				return fromIter<ProcessStateSnapshot<TState> | undefined>([]);
+			}
+			return mergeMap(
+				fromIter(keys),
+				(key) =>
+					fromPromise(Promise.resolve(tierLoad(key))) as Node<
+						ProcessStateSnapshot<TState> | undefined
+					>,
+			);
+		});
+
+		// Effect node: populate closure state on each load, flip the gate on
+		// COMPLETE. Reactive — no awaits.
+		const restoreEffect = node(
+			[flattened as Node],
+			(data, _a, ctx) => {
+				const batch0 = data[0];
+				if (batch0 != null && batch0.length > 0) {
+					for (const snap of batch0 as readonly (ProcessStateSnapshot<TState> | undefined)[]) {
+						if (snap == null) continue;
+						if (snap.status !== "running") continue;
+						// Mid-dispose safety (D5): if the manager was disposed
+						// while a load was in flight, skip the closure mutation
+						// so we don't repopulate state on a torn-down manager.
+						if (restoreState.cache === "disposed") continue;
+						instanceStates.set(snap.correlationId, snap.state);
+						activeInstances.add(snap.correlationId);
+						startedAt.set(snap.correlationId, snap.startedAt);
+					}
+				}
+				if (ctx.terminalDeps[0] === true) {
+					// All loads complete — open the watch valve.
+					if (restoreState.cache !== "disposed") restoreState.emit("ready");
+				}
+			},
+			{ name: "restoreEffect", describeKind: "effect" },
+		);
+		subgraph.add(restoreEffect, { name: "restoreEffect" });
+		restoreSubscription = restoreEffect.subscribe(() => undefined);
+	}
+
+	/**
+	 * Trigger restoration (idempotent) and return a Promise that resolves
+	 * when `restoreState` transitions to `"ready"` (or `"disposed"` —
+	 * dispose interrupts an in-flight restore and the caller's promise
+	 * settles immediately so it doesn't hang).
+	 */
+	function restore(): Promise<void> {
+		startRestorePipeline();
+		const cur = restoreState.cache;
+		if (cur === "ready" || cur === "disposed") return Promise.resolve();
+		// firstWhere is the canonical reactive→Promise bridge (spec §5.10):
+		// async boundary lives at the public API edge, not in the graph.
+		return firstWhere(restoreState, (s) => s === "ready" || s === "disposed").then(() => undefined);
 	}
 
 	function dispose(): void {
 		if (_disposed) return;
 		_disposed = true;
+		// Flip restoreState first so the watch valve closes and any pending
+		// `restore()` awaiter unblocks (D5 — mid-dispose race fix). Skip if
+		// restoreState is already torn down (the subgraph unmount below
+		// fires TEARDOWN; emitting after that point is a no-op but the
+		// `.cache` guard inside restoreEffect stops state writes earlier).
+		if (restoreState.cache !== "disposed") restoreState.emit("disposed");
+		// Tear down the restore pipeline keepalive. fromPromise.cleanup sets
+		// `settled = true`, so when the underlying tier.list/load promises
+		// finally resolve, the DATA never propagates — the closure mutations
+		// in `restoreEffect` are never invoked (D5 belt + suspenders).
+		if (restoreSubscription) {
+			try {
+				restoreSubscription();
+			} catch {
+				// non-fatal
+			}
+			restoreSubscription = undefined;
+		}
 		// Release all watched-event subscriptions (C3 — watchDisposers leak fix).
 		for (const unsub of watchDisposers) {
 			try {
@@ -1007,9 +1246,15 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		}
 	}
 
+	// Auto-restore on construction unless explicitly deferred (B5).
+	if (opts.deferRestore !== true) {
+		startRestorePipeline();
+	}
+
 	return {
 		instances,
 		audit: instances,
+		restoreState,
 		start,
 		cancel,
 		getState,

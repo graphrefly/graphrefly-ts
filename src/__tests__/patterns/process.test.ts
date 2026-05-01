@@ -1013,8 +1013,11 @@ describe("processManager", () => {
 					stateStorage: [tier2 as KvStorageTier<ProcessStateSnapshot<{ step: string }>>],
 				},
 			});
-			const restored = await pm2.restore();
-			expect(restored).toBe(2);
+			// B5: restore() returns Promise<void> that resolves when
+			// restoreState transitions to "ready". The count of restored
+			// instances is observable via getState() / restoreState.cache.
+			await pm2.restore();
+			expect(pm2.restoreState.cache).toBe("ready");
 			// corr-A had advanced before restart; the persisted state reflects "advanced".
 			expect(pm2.getState("corr-A")).toEqual({ step: "advanced" });
 			expect(pm2.getState("corr-B")).toEqual({ step: "init" });
@@ -1068,6 +1071,276 @@ describe("processManager", () => {
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<unknown>[];
 			const record = entries.find((e) => e.correlationId === "corr-v");
 			expect(record?.handlerVersion).toEqual({ id: "fulfillment-handler", version: "1.2.3" });
+			app.destroy();
+		});
+	});
+
+	// ── 13. B4 — persistState inside wrapMutation rollback boundary ──────
+	//
+	// D2 (locked 2026-05-01): a sync-throwing stateStorage tier must roll
+	// back the audit-log entry too. Pre-fix: persistState lived OUTSIDE the
+	// wrapMutation in `start()`, so a tier that threw synchronously would
+	// leave the audit log saying "running" while the snapshot was missing.
+
+	describe("B4 — persistState rollback (D2)", () => {
+		it("sync-throwing tier rolls back the audit-log entry too", () => {
+			const app = cqrs("rollback-app");
+			// Tier whose save() synchronously throws on write attempts.
+			const sinkErr = new Error("sync-throwing tier");
+			const throwingTier: KvStorageTier<ProcessStateSnapshot<{ step: string }>> = {
+				load() {
+					return undefined;
+				},
+				save() {
+					throw sinkErr;
+				},
+				list() {
+					return [];
+				},
+			};
+			const pm = processManager(app, "rollback", {
+				initial: { step: "init" },
+				watching: [],
+				steps: {},
+				persistence: { stateStorage: [throwingTier] },
+				// Don't auto-restore: this test is about start(), not restore().
+				deferRestore: true,
+			});
+
+			expect(() => pm.start("corr-X")).toThrow("sync-throwing tier");
+
+			// B4 assertion: audit log empty after the throw — neither the
+			// "running" record nor any failure record was committed (the
+			// in-band batch was rolled back). The state snapshot is also
+			// missing because save() never returned. Coherent failure mode.
+			const entries = pm.instances.entries.cache as
+				| readonly ProcessInstance<{ step: string }>[]
+				| undefined;
+			expect(entries ?? []).toEqual([]);
+
+			pm.dispose();
+			app.destroy();
+		});
+	});
+
+	// ── 14. B5 — fully reactive restore() ────────────────────────────────
+	//
+	// D3 / D5 (locked 2026-05-01): restore() must not rely on async/await
+	// inside the reactive layer. Watched events are valve-gated on a
+	// `restoreState` lifecycle node so events arriving mid-restore do NOT
+	// race with the fallback `opts.initial` state, and dispose() during
+	// restore does NOT mutate closure state on a torn-down manager.
+
+	describe("B5 — reactive restore (D3 + D5)", () => {
+		it("watch event mid-restore is valve-deferred and processed after gate opens", async () => {
+			// Scriptable tier: tier.list() returns one key immediately, but
+			// tier.load() returns a Promise we control via a deferred
+			// resolver — emulating "snapshot loads slowly while events
+			// arrive at the cqrs source."
+			let loadResolver: ((v: ProcessStateSnapshot<{ n: number }>) => void) | undefined;
+			const loadPromise = new Promise<ProcessStateSnapshot<{ n: number }>>((res) => {
+				loadResolver = res;
+			});
+			const fakeTier: KvStorageTier<ProcessStateSnapshot<{ n: number }>> = {
+				load() {
+					return loadPromise;
+				},
+				save() {
+					return undefined;
+				},
+				list() {
+					return ["corr-mid"];
+				},
+			};
+
+			const app = cqrs<{ tickEv: { delta: number } }>("mid-app");
+			app.command("tick", (payload: { delta: number; corrId: string }, { emit }) => {
+				emit("tickEv", { delta: payload.delta });
+			});
+
+			let stepCallCount = 0;
+			const pm = processManager(app, "mid-restore", {
+				initial: { n: 0 },
+				watching: ["tickEv"],
+				steps: {
+					tickEv(state, event) {
+						stepCallCount++;
+						return {
+							outcome: "success" as const,
+							state: { n: state.n + event.payload.delta },
+						};
+					},
+				},
+				persistence: { stateStorage: [fakeTier] },
+				// Auto-restore default: the factory kicks off restore on
+				// construction, but tier.load is held open by loadPromise.
+			});
+
+			expect(pm.restoreState.cache).toBe("pending");
+
+			// Dispatch an event while restore is still pending — it lands
+			// on the cqrs event log but the watch valve is closed.
+			app.dispatch("tick", { delta: 5, corrId: "corr-mid" }, { correlationId: "corr-mid" });
+			await flushPromises();
+
+			// No step yet: the valve dropped the event because gate was closed.
+			expect(stepCallCount).toBe(0);
+			expect(pm.restoreState.cache).toBe("pending");
+
+			// Resolve the load: snapshot arrives, restoreState flips to
+			// "ready", valve opens, the queued event is delivered, step runs.
+			loadResolver!({
+				correlationId: "corr-mid",
+				state: { n: 100 },
+				status: "running",
+				startedAt: 0,
+				updatedAt: 0,
+			});
+			await pm.restore();
+			expect(pm.restoreState.cache).toBe("ready");
+			await flushPromises();
+
+			expect(stepCallCount).toBe(1);
+			// Step ran against the RESTORED state (n=100), not the
+			// fallback opts.initial (n=0). 100 + 5 = 105.
+			expect(pm.getState("corr-mid")).toEqual({ n: 105 });
+
+			pm.dispose();
+			app.destroy();
+		});
+
+		it("dispose() mid-restore — no post-dispose mutations; restoreState flips to 'disposed'", async () => {
+			// Hold tier.load() open so restore() is pending when dispose() fires.
+			let loadResolver: ((v: ProcessStateSnapshot<{ n: number }>) => void) | undefined;
+			const loadPromise = new Promise<ProcessStateSnapshot<{ n: number }>>((res) => {
+				loadResolver = res;
+			});
+			const fakeTier: KvStorageTier<ProcessStateSnapshot<{ n: number }>> = {
+				load() {
+					return loadPromise;
+				},
+				save() {
+					return undefined;
+				},
+				list() {
+					return ["corr-mid-dispose"];
+				},
+			};
+
+			const app = cqrs("dispose-mid-app");
+			const pm = processManager(app, "dispose-mid", {
+				initial: { n: 0 },
+				watching: [],
+				steps: {},
+				persistence: { stateStorage: [fakeTier] },
+			});
+
+			expect(pm.restoreState.cache).toBe("pending");
+
+			// Kick off the public restore() promise — it should resolve
+			// when dispose() flips restoreState to "disposed" (not hang).
+			const restorePromise = pm.restore();
+
+			// dispose() while load is in flight.
+			pm.dispose();
+			expect(pm.restoreState.cache).toBe("disposed");
+
+			// restore() promise resolves (does NOT hang) on the disposed flip.
+			await restorePromise;
+
+			// Now resolve the load — the snapshot arrives, but the
+			// restoreEffect has been torn down by dispose() and the
+			// restoreState !== "disposed" guard inside the effect fires.
+			// No mutation to instanceStates / activeInstances.
+			loadResolver!({
+				correlationId: "corr-mid-dispose",
+				state: { n: 999 },
+				status: "running",
+				startedAt: 0,
+				updatedAt: 0,
+			});
+			await flushPromises();
+
+			expect(pm.getState("corr-mid-dispose")).toBeUndefined();
+			app.destroy();
+		});
+
+		it("restore() Promise resolves at the right moment (after all loads complete)", async () => {
+			const tier: KvStorageTier<ProcessStateSnapshot<{ step: string }>> = kvStorage(
+				memoryBackend(),
+				{
+					name: "restore-resolve-states",
+				},
+			) as KvStorageTier<ProcessStateSnapshot<{ step: string }>>;
+			// Pre-seed a record so list() returns one key.
+			await tier.save("corr-R", {
+				correlationId: "corr-R",
+				state: { step: "loaded" },
+				status: "running",
+				startedAt: 0,
+				updatedAt: 0,
+			});
+			await tier.flush?.();
+
+			const app = cqrs("restore-resolve");
+			const pm = processManager(app, "resolve", {
+				initial: { step: "init" },
+				watching: [],
+				steps: {},
+				persistence: { stateStorage: [tier] },
+				deferRestore: true,
+			});
+
+			// Before restore() is called, restoreState stays "pending"
+			// (deferRestore: true suppresses the auto-kick).
+			expect(pm.restoreState.cache).toBe("pending");
+			expect(pm.getState("corr-R")).toBeUndefined();
+
+			await pm.restore();
+
+			// After restore() resolves, restoreState is "ready" and the
+			// rehydrated instance is observable via getState().
+			expect(pm.restoreState.cache).toBe("ready");
+			expect(pm.getState("corr-R")).toEqual({ step: "loaded" });
+
+			pm.dispose();
+			app.destroy();
+		});
+
+		it("{ deferRestore: true } doesn't auto-restore on construction", async () => {
+			const tier: KvStorageTier<ProcessStateSnapshot<{ step: string }>> = kvStorage(
+				memoryBackend(),
+				{
+					name: "defer-states",
+				},
+			) as KvStorageTier<ProcessStateSnapshot<{ step: string }>>;
+			await tier.save("corr-D", {
+				correlationId: "corr-D",
+				state: { step: "loaded" },
+				status: "running",
+				startedAt: 0,
+				updatedAt: 0,
+			});
+			await tier.flush?.();
+
+			const app = cqrs("defer-app");
+			const pm = processManager(app, "defer", {
+				initial: { step: "init" },
+				watching: [],
+				steps: {},
+				persistence: { stateStorage: [tier] },
+				deferRestore: true,
+			});
+
+			// Wait long enough that an auto-restore would have completed.
+			await flushPromises();
+
+			// deferRestore: true → restoreState stays "pending" until the
+			// caller explicitly invokes restore().
+			expect(pm.restoreState.cache).toBe("pending");
+			expect(pm.getState("corr-D")).toBeUndefined();
+
+			pm.dispose();
 			app.destroy();
 		});
 	});

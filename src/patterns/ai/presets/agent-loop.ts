@@ -5,7 +5,7 @@
 export type AgentLoopStatus = "idle" | "thinking" | "acting" | "done" | "error";
 
 import { batch } from "../../../core/batch.js";
-import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
+import { DATA, ERROR, INVALIDATE, RESOLVED } from "../../../core/messages.js";
 import { placeholderArgs } from "../../../core/meta.js";
 import { type Node, node, node as nodeFactory } from "../../../core/node.js";
 
@@ -112,11 +112,16 @@ export class AgentLoopGraph extends Graph {
 
 	/**
 	 * Most recent LLM response. State-backed mirror driven by the response
-	 * effect. `initial: null` — subscribers can read the cache synchronously;
-	 * `awaitSettled(lastResponse)` or `firstWhere(lastResponse, v => v != null)`
-	 * bridges to the first non-null value as a Promise.
+	 * effect. **Stays SENTINEL** (`cache === undefined`, no DATA emitted)
+	 * until the first real response — bridge subscribers see no spurious
+	 * push-on-subscribe DATA. After a real response, holds the latest
+	 * `LLMResponse`. Reset between `run()` calls via `[[INVALIDATE]]` (clears
+	 * cache back to SENTINEL) so a second run with a pre-aborted signal
+	 * cannot leak the prior run's response. Bridge with
+	 * `awaitSettled(lastResponse)` for the first DATA as a Promise; consumers
+	 * inside reactive fns gate on `ctx.prevData[i] === undefined`.
 	 */
-	readonly lastResponse: Node<LLMResponse | null>;
+	readonly lastResponse: Node<LLMResponse>;
 	/** Tool-call batch emitted by the most recent LLM response. SENTINEL. */
 	readonly toolCalls: Node<readonly ToolCall[]>;
 	/** Tool-result batch (one entry per call) after reactive execution. SENTINEL. */
@@ -334,9 +339,22 @@ export class AgentLoopGraph extends Graph {
 		// `_terminalResult` evaluate `stat=done` (driven by `effAbort`) +
 		// `resp=<prior run's response>` (cached on `llmResponse`) and resolve
 		// the Promise with stale data instead of rejecting with AbortError.
-		// The mirror is reset to `null` in `run()`'s reset batch, so the abort
-		// path correctly emits `[[ERROR, AbortError]]` from terminalResult's
-		// `stat="done" && resp==null → ERROR` guard.
+		// The mirror is **reset via `[[INVALIDATE]]`** in `run()`'s reset
+		// batch — INVALIDATE clears `_cached` back to `undefined` (SENTINEL)
+		// AND clears the `prevData` slot on every dependent (`_terminalResult`,
+		// `toolCallsRaw`), so the abort path correctly emits
+		// `[[ERROR, AbortError]]` from terminalResult's `stat="done" &&
+		// prevData[lastResponse] === undefined → ERROR` guard.
+		//
+		// **No `T | null` placeholder.** Per `feedback_use_prevdata_for_sentinel`
+		// + COMPOSITION-GUIDE §1a, the SENTINEL state IS the "never sent
+		// real DATA yet" signal. An eager `initial: null` would push `[null]`
+		// to every fresh subscriber — a footgun for bridge subscribers that
+		// would otherwise need `if (resp == null) continue` guards. Stay
+		// SENTINEL; consumers detect "no response yet" via
+		// `ctx.prevData[i] === undefined` (or `cache === undefined` outside
+		// reactive fns). F9 lock-test (`multi-agent-example.test.ts` test 5)
+		// pins this invariant.
 		//
 		// What this does NOT solve: the §32 mid-wave "stale peer-read"
 		// hazard. Investigation (2026-04-25) confirmed `_dirtyDepCount`
@@ -354,13 +372,10 @@ export class AgentLoopGraph extends Graph {
 		// signal rejects AbortError (no stale response leak)`) — both
 		// fail when `_terminalResult` is rewired to depend on `llmResponse`
 		// directly. See COMPOSITION-GUIDE §32 (cross-wave reset reframe).
-		const lastResponseState = node<LLMResponse | null>([], {
-			...{
-				name: "lastResponse",
-				describeKind: "state",
-				meta: aiMeta("agent_last_response"),
-			},
-			initial: null,
+		const lastResponseState = node<LLMResponse>([], {
+			name: "lastResponse",
+			describeKind: "state",
+			meta: aiMeta("agent_last_response"),
 		});
 		this.lastResponse = lastResponseState;
 
@@ -379,7 +394,12 @@ export class AgentLoopGraph extends Graph {
 		const toolCallsRaw = nodeFactory<readonly ToolCall[]>(
 			[lastResponseState, statusNode],
 			(data, actions, ctx) => {
-				const resp = readLatest<LLMResponse | null | undefined>(data, ctx.prevData, 0, null);
+				// SENTINEL guard: `lastResponseState` stays `undefined` (cache
+				// + prevData) until the first real response. `readLatest`'s
+				// fallback returns `undefined` here so the no-DATA branch is
+				// indistinguishable from the protocol SENTINEL — both gate to
+				// RESOLVED. Per `feedback_use_prevdata_for_sentinel`.
+				const resp = readLatest<LLMResponse | undefined>(data, ctx.prevData, 0, undefined);
 				const stat = readLatest<AgentLoopStatus>(data, ctx.prevData, 1, "idle");
 				if (stat !== "acting") {
 					actions.down([[RESOLVED]]);
@@ -547,16 +567,23 @@ export class AgentLoopGraph extends Graph {
 		// closure-held counter and a per-emission object allocation from
 		// the hot path.
 		//
-		// C3 (abort-before-response) unchanged: when `stat === "done"` but
-		// `resp == null`, emit `ERROR(AbortError)` so the awaiting Promise
-		// rejects instead of hanging on a RESOLVED.
+		// C3 (abort-before-response) post-SENTINEL: when `stat === "done"` but
+		// `lastResponseState` is SENTINEL (no DATA ever delivered for this
+		// run — `prevData[1] === undefined`, equivalently `resp === undefined`
+		// after `readLatest`'s fallback), emit `ERROR(AbortError)` so the
+		// awaiting Promise rejects instead of hanging on a RESOLVED. The
+		// SENTINEL state is restored at every `run()` boundary by
+		// `lastResponse.down([[INVALIDATE]])` (clears `_cached` AND clears
+		// each dependent's `prevData` slot for this dep), so a second run
+		// after a successful first run still detects the abort cleanly —
+		// no stale `prevData` leak.
 		this._terminalResult = nodeFactory<LLMResponse>(
 			[statusNode, lastResponseState],
 			(data, actions, ctx) => {
 				const stat = readLatest<AgentLoopStatus>(data, ctx.prevData, 0, "idle");
-				const resp = readLatest<LLMResponse | null | undefined>(data, ctx.prevData, 1, null);
+				const resp = readLatest<LLMResponse | undefined>(data, ctx.prevData, 1, undefined);
 				if (stat === "done") {
-					if (resp != null) {
+					if (resp !== undefined) {
 						actions.emit(resp);
 						return;
 					}
@@ -575,6 +602,14 @@ export class AgentLoopGraph extends Graph {
 				name: "terminalResult",
 				describeKind: "derived",
 				meta: aiMeta("agent_terminal_result"),
+				// `lastResponseState` is SENTINEL until the first real response
+				// arrives — without `partial: true`, the spec §2.7 first-run
+				// gate would block this fn from ever firing on the abort-
+				// before-response path (`status → "done"` while `lastResponse`
+				// has never delivered DATA). The fn explicitly handles the
+				// SENTINEL case (`resp === undefined → ERROR(AbortError)`),
+				// so partial-fire is safe by design.
+				partial: true,
 			},
 		);
 		// Wave B-CC Q2/C: register intermediate pipeline nodes so consumers
@@ -661,14 +696,32 @@ export class AgentLoopGraph extends Graph {
 			// evaluates `stat="done"` + `resp=<prior respA>` and emits DATA
 			// as a fresh post-subscribe signal → `awaitSettled` resolves
 			// with the stale response instead of rejecting with AbortError.
-			// The C3 `stat=done && resp==null → ERROR` guard in
+			// The C3 `stat=done && resp===undefined → ERROR` guard in
 			// `_terminalResult` is only correct once the reset clears the
 			// cache.
+			//
+			// **SENTINEL reset via `[[INVALIDATE], [RESOLVED]]`** (per
+			// `feedback_use_prevdata_for_sentinel`). `lastResponse` is a
+			// `Node<LLMResponse>` with no `initial` — it stays SENTINEL
+			// until the first real response. Resetting via `emit(null)`
+			// would push a `null` DATA placeholder (the F9 trap).
+			//
+			// Why both INVALIDATE and RESOLVED:
+			// - INVALIDATE clears `_cached` AND clears each dependent's
+			//   `prevData[lastResponse]` slot back to `undefined`, restoring
+			//   the SENTINEL detector for the C3 abort branch.
+			// - INVALIDATE also marks each dependent dirty (`_dirtyDepCount++`).
+			//   Without a follow-up settlement signal, `_terminalResult`'s fn
+			//   would never re-fire (gated on `_dirtyDepCount === 0`).
+			// - RESOLVED un-DIRTYs each dependent's slot WITHOUT changing
+			//   `prevData` — i.e. leaves the SENTINEL state intact. Together
+			//   the pair restores SENTINEL state AND lets dependents fire on
+			//   the next status transition.
 			batch(() => {
+				this.lastResponse.down([[INVALIDATE], [RESOLVED]]);
 				this.turn.emit(0);
 				this.aborted.emit(false);
 				this.status.emit("idle");
-				this.lastResponse.emit(null);
 			});
 			if (userMessage != null) this.chat.append("user", userMessage);
 
