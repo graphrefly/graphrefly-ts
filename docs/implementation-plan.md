@@ -853,9 +853,9 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 - **WAIT:** `diffMap<K, V>` operator extraction. Wait for third consumer (Tier 10.2).
 - **GATES PHASE 13:** `extends Graph` sweep — `RefineLoopGraph` + `AgentMemoryGraph` migration. R5.1 deferred but **lifts in Phase 12.D** because `agent()` (Phase 13.G) wants the same shape.
 
-#### 11.10 Operator-layer review (one-shot)
-*Source: optimizations.md "Operator-layer: filter mixed-batch RESOLVED forwarding"*
-- **DESIGN-SESSION-NEEDED (DS-11.10):** mixed-batch RESOLVED across `filter` / `map` / `take` / `skip`. Decide (a) emission-semantics normalization, (b) per-item RESOLVED tagging contract, (c) tier-3 counter dependence. Scope is operator-layer-wide. Land before Phase 13 if multi-agent surfaces per-item accounting needs; otherwise can defer to Phase 14 design session.
+#### 11.10 Operator-layer review (one-shot) — ✅ RESOLVED 2026-04-30
+*Source: optimizations.md "Operator-layer: filter mixed-batch RESOLVED forwarding" (archived 2026-04-30)*
+- **DS-11.10 (RESOLVED 2026-04-30):** the deferred questions (a/b/c) are already locked at the protocol level by spec §1.3.3 "Tier-3 wave exclusivity" + COMPOSITION-GUIDE §41 — both authored post-2026-04-24, post-dating the deferral. (a) Emission semantics ARE normalized across `filter`/`map`/`take`/`skip`/`takeWhile`/`distinctUntilChanged`/`pairwise`/`scan`/`reduce` — all conform to wave-exclusivity. (b) Per-item RESOLVED tagging is REJECTED at the protocol level. (c) Tier-3 counters count upstream of operators (codified in `filter` JSDoc at [transform.ts:51-60](src/extra/operators/transform.ts#L51)). Optimizations.md entry archived to `archive/optimizations/resolved-decisions.jsonl` (id: `operator-layer-mixed-batch-resolved-2026-04-24`). Optional polish (deferred — not strictly necessary): add JSDoc cross-references to spec §1.3.3 in `map`/`take`/`skip`/etc. for parity with `filter`'s JSDoc.
 
 #### 11.11 Misc consumer-driven follow-ups
 - **WAIT:** Tier R3.6 `refineLoop` persistent re-seed `setSeed` / `reset`.
@@ -910,7 +910,7 @@ Add to `src/patterns/messaging/`:
 - `interface Message<T> { id: string; schema?: JsonSchema; expiresAt?: string; correlationId?: string; payload: T }`.
 - Standard topic name constants: `PROMPTS_TOPIC` / `RESPONSES_TOPIC` / `INJECTIONS_TOPIC` / `DEFERRED_TOPIC` / `SPAWNS_TOPIC`. Co-land both sessions' topic conventions in the same edit so the file isn't double-touched.
 - JSDoc clarifying `Message<T>` is a recommended envelope for hub topics, not a required protocol type.
-- **DESIGN-SESSION-NEEDED (DS-13.B):** `JsonSchema` import strategy — `@types/json-schema` or minimal local type? Tiny session; lean: minimal local type to keep zero-dep posture.
+- **DS-13.B (LOCKED 2026-04-30):** `JsonSchema` = minimal local type. Keeps zero-dep posture; we only need a structural shape for envelope validation, not a full JSON-Schema validator. Validators are caller-supplied if used.
 
 #### 13.C `selector` + `materialize` composers
 *Source: SESSION-multi-agent-gap-analysis G2 lock C*
@@ -933,7 +933,7 @@ Two paths:
 - **(i)** Add `valve(source, { open, abortInFlight?: AbortController })` opt — when controller is supplied AND `open` flips to `false`, fire `abort()` automatically.
 - **(ii)** Document the existing pattern: caller manages `AbortController`, passes `controller.signal` into `LLMInvokeOptions.signal`, AND closes the valve.
 
-**DESIGN-SESSION-NEEDED (DS-13.E):** ≤30 min. Lean: (i) — one fewer wiring step; matches the session's "panic stop kills tokens" commitment. **Note:** the underlying signal-threading IS shipped end-to-end (per optimizations.md "Phase 1 adapter-abort path" + R2.5b harness `parentSignal`); this is purely about ergonomics of `valve` itself.
+**DS-13.E (LOCKED 2026-04-30):** path **(i)** — `valve` accepts `abortInFlight?: AbortController`; auto-`abort()` when `open` flips false. One wiring step instead of two; matches "panic stop kills tokens" commitment. Underlying signal-threading already ships end-to-end (optimizations.md "Phase 1 adapter-abort path" + R2.5b harness `parentSignal`); this is purely valve ergonomics. Caller-managed pattern (ii) remains available as the unwrapped form for advanced cases.
 
 #### 13.F `humanInput<T>` + `tracker` sibling presets
 *Source: SESSION-human-llm-intervention-primitives §5, §9 Phase 2*
@@ -957,7 +957,7 @@ Two paths:
 *Source: SESSION-multi-agent-gap-analysis G3 lock B + G5 reframe*
 - `spawnable(opts: { hub, registry, budgetGate?, depthCap?, validatorSchema? })` in `src/patterns/harness/presets/spawnable.ts`. Wraps `MessagingHubGraph` + `presetRegistry` + `materialize` + depth-guard `valve` + termination contract (`expiresAt` → `timeout` + `fallback`).
 - Returns `{ spawnTopic, activeSlot: Node<ReadonlyMap<...>>, rejected: TopicGraph<...> }`.
-- **DESIGN-SESSION-NEEDED (DS-13.I):** Strategy-key axis extension `(presetId × rootCause × intervention) → successRate`. Pre-1.0 breaking change to `harness/types.ts` `StrategyKey` template literal type. Decide if extension lands inline with 13.I or as a separate pre-implementation step.
+- **DS-13.I (LOCKED 2026-04-30):** Strategy-key axis extension `(presetId × rootCause × intervention) → successRate` lands **inline with 13.I**. Single template-literal-type bump in `harness/types.ts`; pre-1.0 breaking is fine. No standalone pre-step — keeping it bundled with `spawnable()` keeps the migration narrative coherent ("multi-agent introduces presetId axis"). Existing 2-axis strategy nodes get the new key shape with `presetId="default"` if no preset registry is wired.
 
 #### 13.J `boundaryDrain` (recipe vs factory)
 *Source: SESSION-human-llm-intervention-primitives §3d, §11 #4*
@@ -969,7 +969,7 @@ Validation pass — write a regression test: parent hub + 2 mounted agent subgra
 
 #### 13.L G9 `convergence` operator
 *Source: SESSION-multi-agent-gap-analysis G9, §11 stub*
-`convergence<T>(source: Node<T>, opts: { quietWaves: number, maxWaves?: number, equals? }): Node<T>` in `src/extra/operators/control.ts`. Emits last-stable value + `COMPLETE` when no DATA for N waves. **DESIGN-SESSION-NEEDED (DS-13.L):** name (`convergence` / `settle` / `quiet` / `idle`); clarify boundary with existing `awaitSettled`. Walk Q2–Q9; small operator, single session.
+`settle<T>(source: Node<T>, opts: { quietWaves: number, maxWaves?: number, equals? }): Node<T>` in `src/extra/operators/control.ts`. Emits last-stable value + `COMPLETE` when no DATA for N waves. **DS-13.L (LOCKED 2026-04-30):** name = **`settle`**. Semantically adjacent to `awaitSettled` (one-shot promise-style); `settle` is the reactive operator form of the same notion ("value has stabilized"). `convergence` is grandiose; `quiet`/`idle` lose the "value stabilized" connotation. Boundary: `awaitSettled` resolves a Promise once the graph reaches a quiet point; `settle` emits a Node value when its source has been quiet for N waves — operator-level, composable, can complete and re-arm if upstream resumes.
 
 #### 13.M Worked multi-agent example test
 *Source: SESSION-multi-agent-gap-analysis §13 #9*
@@ -1148,10 +1148,10 @@ Numbered for cross-reference in PRs:
 
 | ID | Title | Scope | Phase |
 |----|-------|-------|-------|
-| **DS-11.10** | Operator-layer mixed-batch RESOLVED forwarding | `filter` / `map` / `take` / `skip` semantics + per-item RESOLVED tagging contract | Phase 11 (or fold into DS-14) |
-| **DS-13.B** | `JsonSchema` import strategy | `@types/json-schema` vs minimal local type | Phase 13.B; tiny |
-| **DS-13.E** | `valve` abort wiring | `(i)` `abortInFlight` opt vs `(ii)` caller-side controller pattern | Phase 13.E; ≤30 min |
-| **DS-13.I** | Strategy-key axis extension | `(presetId × rootCause × intervention) → successRate` migration | Phase 13.I; pre-1.0 break |
-| **DS-13.L** | `convergence` operator naming + semantics | `convergence` / `settle` / `quiet` / `idle`; boundary with `awaitSettled` | Phase 13.L; single session |
+| **DS-11.10** ✅ RESOLVED 2026-04-30 | Operator-layer mixed-batch RESOLVED forwarding | Already locked by spec §1.3.3 + COMPOSITION-GUIDE §41 (post-dated the deferral); no design call left | Archived |
+| **DS-13.B** ✅ LOCKED 2026-04-30 | `JsonSchema` import strategy | Minimal local type; zero-dep posture | Phase 13.B |
+| **DS-13.E** ✅ LOCKED 2026-04-30 | `valve` abort wiring | Path (i) — `valve(source, { open, abortInFlight? })` opt | Phase 13.E |
+| **DS-13.I** ✅ LOCKED 2026-04-30 | Strategy-key axis extension | `(presetId × rootCause × intervention) → successRate`; inline with 13.I | Phase 13.I |
+| **DS-13.L** ✅ LOCKED 2026-04-30 | `settle` operator | Name = `settle`; reactive operator form of `awaitSettled` | Phase 13.L |
 | **DS-14** | Unified changesets/diff design | 9Q audit; co-designs 5 threads (op-log / worker-wire / lens.flow delta / reactiveLog.scan / restoreSnapshot diff) | Phase 14; substantial |
 | **DS-15** | Eval program shape | Two-tier design + catalog automation + scorecard | Phase 15; substantial |
