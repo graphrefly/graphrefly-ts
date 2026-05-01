@@ -441,4 +441,95 @@ describe("Graph.observe({ changeset: true })", () => {
 			}),
 		).toThrow(/mutually exclusive/);
 	});
+
+	// /qa F-1: changeset stream subscribes to nodes added AFTER activation.
+	it("/qa F-1: streams data events for nodes added after subscription", () => {
+		const g = new Graph("g");
+		const { all, off } = collect(g);
+		all.length = 0;
+
+		// Add a fresh node post-activation; emit on it; expect data events.
+		const late = node<number>([], { initial: 0, equals: () => false });
+		g.add(late, { name: "late" });
+		all.length = 0; // drop the node-added event
+		g.set("late", 42);
+		g.set("late", 43);
+
+		const dataEvents = all.filter((e) => e.type === "data" && e.scope === "late");
+		expect(dataEvents.length).toBeGreaterThanOrEqual(2);
+		off();
+	});
+
+	// /qa F-21: subscriptions detach symmetrically on node-removed.
+	it("/qa F-21: stops streaming data events after node-removed", () => {
+		const g = new Graph("g");
+		const { all, off } = collect(g);
+
+		const live = node<number>([], { initial: 0, equals: () => false });
+		g.add(live, { name: "live" });
+		all.length = 0;
+		g.set("live", 1);
+		const before = all.filter((e) => e.type === "data" && e.scope === "live").length;
+		expect(before).toBeGreaterThan(0);
+
+		g.remove("live");
+		// After removal the node detaches; future emissions on the orphaned
+		// Node ref must not surface on the changeset stream.
+		all.length = 0;
+		live.emit(2);
+		const after = all.filter((e) => e.type === "data" && e.scope === "live").length;
+		expect(after).toBe(0);
+		off();
+	});
+
+	// /qa F-4: tier whitelist filters topology + batch frame variants.
+	it("/qa F-4: tiers: ['data'] filters out topology + batch events", () => {
+		const g = new Graph("g");
+		const out = g.observe({ changeset: true, tiers: ["data"] });
+		const all: GraphChange[] = [];
+		const off = out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) all.push(m[1] as GraphChange);
+		});
+		const a = node<number>([], { initial: 0, equals: () => false });
+		g.add(a, { name: "a" });
+		batch(() => {
+			g.set("a", 1);
+			g.set("a", 2);
+		});
+		// No topology or batch-frame events should leak through.
+		expect(all.some((e) => e.type === "node-added")).toBe(false);
+		expect(all.some((e) => e.type === "batch-start")).toBe(false);
+		expect(all.some((e) => e.type === "batch-end")).toBe(false);
+		// Data events still flow.
+		expect(all.some((e) => e.type === "data")).toBe(true);
+		off();
+	});
+
+	// /qa F-3: GraphChangeNodeAdded carries the resolved describeKind.
+	it("/qa F-3: node-added events carry the resolved describeKind", () => {
+		const g = new Graph("g");
+		const { all, off } = collect(g);
+
+		// Add a state node — its describeKind is "state".
+		g.state("s", 0);
+		const stateAdded = all.find(
+			(e): e is GraphChange & { type: "node-added"; nodeKind?: string } =>
+				e.type === "node-added" && e.scope === "s",
+		);
+		expect(stateAdded).toBeDefined();
+		expect(stateAdded?.nodeKind).toBe("state");
+
+		// Add a derived node — describeKind "derived".
+		g.derived("d", ["s"], (data, ctx) => {
+			const x = data[0]?.[0] ?? ctx.prevData[0]?.[0] ?? 0;
+			return [x as number];
+		});
+		const derivedAdded = all.find(
+			(e): e is GraphChange & { type: "node-added"; nodeKind?: string } =>
+				e.type === "node-added" && e.scope === "d",
+		);
+		expect(derivedAdded).toBeDefined();
+		expect(derivedAdded?.nodeKind).toBe("derived");
+		off();
+	});
 });

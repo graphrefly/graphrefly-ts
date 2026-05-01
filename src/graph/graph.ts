@@ -3479,6 +3479,7 @@ export class Graph {
 	private _observeChangeset(path: string | undefined, options: ObserveOptions): Node<GraphChange> {
 		const name = options.changesetName ?? "observe-changeset";
 		const tierSet = options.tiers != null ? new Set(options.tiers) : null;
+		const self = this;
 		// Subscribe directly to picked targets (no inner structured observer)
 		// so the per-target sink callback boundary defines a delivery wave —
 		// each wave gets exactly one batch-start / batch-end pair. Topology
@@ -3503,8 +3504,12 @@ export class Graph {
 					actions.emit(build(stamp(scope)));
 				};
 
+				// /qa F-4: separate tier whitelist for the full GraphChange
+				// type-set (including topology + batch frame variants). Casting
+				// to `ObserveEvent["type"]` silently dropped node-added /
+				// node-removed / mount / unmount / batch-start / batch-end.
 				const inTier = (type: GraphChange["type"]): boolean =>
-					tierSet == null || tierSet.has(type as ObserveEvent["type"]);
+					tierSet == null || (tierSet as Set<string>).has(type);
 
 				/**
 				 * Wrap a sink-loop body in a batch-start/batch-end pair when the
@@ -3522,6 +3527,7 @@ export class Graph {
 					const open = (): void => {
 						if (opened) return;
 						opened = true;
+						if (!inTier("batch-start")) return;
 						emitNow((env) => ({ type: "batch-start", ...env }) satisfies GraphChangeBatchStart, "");
 					};
 					const wrappedEmit = (build: (env: Envelope) => GraphChange, scope: string): void => {
@@ -3530,132 +3536,157 @@ export class Graph {
 						emitNow(build, scope);
 					};
 					body(wrappedEmit);
-					if (opened) {
+					if (opened && inTier("batch-end")) {
 						emitNow((env) => ({ type: "batch-end", ...env }) satisfies GraphChangeBatchEnd, "");
 					}
 				};
 
 				// ---- Build the observe-target reverse index for `fromPath`
 				// resolution. Walk the same tree the structured observer walks
-				// (sorted, with nested mount prefixes). The map is rebuilt only
-				// at activation time — for fully dynamic upstream attribution
-				// we fall back to `node.name` when the upstream isn't a known
-				// observe target (e.g. an internal sub-node from a factory).
-				const targets: [string, Node][] = [];
-				this._collectObserveTargets("", targets);
-				const nodeToPath = new WeakMap<Node, string>();
-				for (const [p, nd] of targets) nodeToPath.set(nd, p);
+				// (sorted, with nested mount prefixes). The map is updated
+				// dynamically as nodes are added/removed via the watchTopologyTree
+				// callback (/qa F-1).
+				const initialTargets: [string, Node][] = [];
+				this._collectObserveTargets("", initialTargets);
+				const nodeToPath = new Map<Node, string>();
+				for (const [p, nd] of initialTargets) nodeToPath.set(nd, p);
 
 				const actor = options.actor;
-				const picked =
-					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
-				const filteredByPath: [string, Node][] =
-					path != null ? picked.filter(([p]) => p === path) : picked;
 
-				// Inspector hooks (causal trace) — mirror the structured
-				// observer's `attachInspector` to capture `trigger_dep_index`
-				// per data emission.
+				// /qa F-19: capture the upstream Node ref directly at hook fire
+				// time (not via _deps[idx] later) so attribution survives
+				// dynamicNode/autoTrackNode `_deps` mutation between fire and
+				// event emit.
+				const lastTriggerDep = new Map<Node, { node: Node; depIndex: number }>();
 				const inspectorOn = this.config.inspectorEnabled;
-				const lastTriggerDepIndex = new Map<Node, number>();
-				const inspectorDetaches: Array<() => void> = [];
-				if (inspectorOn) {
-					for (const [, target] of filteredByPath) {
-						if (!(target instanceof NodeImpl)) continue;
+
+				// /qa F-1 + F-21: keyed-by-path so we can attach/detach
+				// symmetrically in the watchTopologyTree callback.
+				const subscriptionsByPath = new Map<string, () => void>();
+				const inspectorDetachesByPath = new Map<string, () => void>();
+
+				const subscribeTarget = (targetPath: string, target: Node): void => {
+					if (subscriptionsByPath.has(targetPath)) return;
+					if (actor != null && !target.allowsObserve(actor)) return;
+
+					if (inspectorOn && target instanceof NodeImpl) {
 						const detach = target._setInspectorHook((ev) => {
 							if (ev.kind === "dep_message") {
-								lastTriggerDepIndex.set(target, ev.depIndex);
+								// Capture the upstream Node directly from the
+								// hook event when available; fall back to
+								// `_deps[idx]` for inspector implementations
+								// that don't surface the node ref.
+								const upstream =
+									target._deps[ev.depIndex]?.node ?? undefined;
+								if (upstream != null) {
+									lastTriggerDep.set(target, { node: upstream, depIndex: ev.depIndex });
+								}
 							}
 						});
-						inspectorDetaches.push(detach);
+						inspectorDetachesByPath.set(targetPath, detach);
 					}
-				}
 
-				const unsubs: Array<() => void> = [];
-				for (const [targetPath, target] of filteredByPath) {
-					unsubs.push(
-						target.subscribe((msgs) => {
-							if (disposed) return;
-							wrapWave((emitOne) => {
-								for (const m of msgs) {
-									const t = m[0];
-									if (t === DATA) {
-										if (!inTier("data")) continue;
-										const triggerIdx =
-											target instanceof NodeImpl ? lastTriggerDepIndex.get(target) : undefined;
-										let fromPath = targetPath;
-										let fromDepIndex = -1;
-										if (
-											target instanceof NodeImpl &&
-											triggerIdx != null &&
-											triggerIdx >= 0 &&
-											triggerIdx < target._deps.length
-										) {
-											const upstream = target._deps[triggerIdx]?.node;
-											fromDepIndex = triggerIdx;
-											if (upstream != null) {
-												fromPath = nodeToPath.get(upstream) ?? upstream.name ?? targetPath;
-											}
-										}
-										const attribution =
-											target instanceof NodeImpl
-												? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
-												: DEFAULT_ACTOR;
-										const value = m[1];
-										emitOne(
-											(env): GraphChangeData => ({
-												type: "data",
-												value,
-												fromPath,
-												fromDepIndex,
-												actor: attribution,
-												...env,
-											}),
-											targetPath,
-										);
-									} else if (t === DIRTY) {
-										if (!inTier("dirty")) continue;
-										emitOne((env): GraphChangeDirty => ({ type: "dirty", ...env }), targetPath);
-									} else if (t === RESOLVED) {
-										if (!inTier("resolved")) continue;
-										emitOne(
-											(env): GraphChangeResolved => ({ type: "resolved", ...env }),
-											targetPath,
-										);
-									} else if (t === ERROR) {
-										if (!inTier("error")) continue;
-										const attribution =
-											target instanceof NodeImpl
-												? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
-												: DEFAULT_ACTOR;
-										const errVal = m[1];
-										emitOne(
-											(env): GraphChangeError => ({
-												type: "error",
-												error: errVal,
-												actor: attribution,
-												...env,
-											}),
-											targetPath,
-										);
-									} else if (t === COMPLETE) {
-										if (!inTier("complete")) continue;
-										emitOne(
-											(env): GraphChangeComplete => ({ type: "complete", ...env }),
-											targetPath,
-										);
-									} else if (t === TEARDOWN) {
-										if (!inTier("teardown")) continue;
-										emitOne(
-											(env): GraphChangeTeardown => ({ type: "teardown", ...env }),
-											targetPath,
-										);
+					const unsub = target.subscribe((msgs) => {
+						if (disposed) return;
+						wrapWave((emitOne) => {
+							for (const m of msgs) {
+								const t = m[0];
+								if (t === DATA) {
+									if (!inTier("data")) continue;
+									const trig = lastTriggerDep.get(target);
+									let fromPath = targetPath;
+									let fromDepIndex = -1;
+									if (trig != null) {
+										fromDepIndex = trig.depIndex;
+										// /qa F-20: distinguish self-source from
+										// anonymous-upstream by using a sentinel
+										// when the upstream isn't a registered
+										// observe target and has no `.name`.
+										const resolved =
+											nodeToPath.get(trig.node) ??
+											trig.node.name ??
+											"<anonymous>";
+										fromPath = resolved;
 									}
-									// PAUSE / RESUME / INVALIDATE: reserved future
-									// variants — current implementation skips them.
+									const attribution =
+										target instanceof NodeImpl
+											? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+											: DEFAULT_ACTOR;
+									const value = m[1];
+									emitOne(
+										(env): GraphChangeData => ({
+											type: "data",
+											value,
+											fromPath,
+											fromDepIndex,
+											actor: attribution,
+											...env,
+										}),
+										targetPath,
+									);
+								} else if (t === DIRTY) {
+									if (!inTier("dirty")) continue;
+									emitOne((env): GraphChangeDirty => ({ type: "dirty", ...env }), targetPath);
+								} else if (t === RESOLVED) {
+									if (!inTier("resolved")) continue;
+									emitOne(
+										(env): GraphChangeResolved => ({ type: "resolved", ...env }),
+										targetPath,
+									);
+								} else if (t === ERROR) {
+									if (!inTier("error")) continue;
+									const attribution =
+										target instanceof NodeImpl
+											? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+											: DEFAULT_ACTOR;
+									const errVal = m[1];
+									emitOne(
+										(env): GraphChangeError => ({
+											type: "error",
+											error: errVal,
+											actor: attribution,
+											...env,
+										}),
+										targetPath,
+									);
+								} else if (t === COMPLETE) {
+									if (!inTier("complete")) continue;
+									emitOne(
+										(env): GraphChangeComplete => ({ type: "complete", ...env }),
+										targetPath,
+									);
+								} else if (t === TEARDOWN) {
+									if (!inTier("teardown")) continue;
+									emitOne(
+										(env): GraphChangeTeardown => ({ type: "teardown", ...env }),
+										targetPath,
+									);
 								}
-							});
-						}),
-					);
+								// PAUSE / RESUME / INVALIDATE: reserved future
+								// variants — current implementation skips them.
+							}
+						});
+					});
+					subscriptionsByPath.set(targetPath, unsub);
+				};
+
+				const unsubscribeTarget = (targetPath: string): void => {
+					const unsub = subscriptionsByPath.get(targetPath);
+					if (unsub != null) {
+						unsub();
+						subscriptionsByPath.delete(targetPath);
+					}
+					const detach = inspectorDetachesByPath.get(targetPath);
+					if (detach != null) {
+						detach();
+						inspectorDetachesByPath.delete(targetPath);
+					}
+				};
+
+				// Initial subscribe pass (filtered by actor + path).
+				for (const [targetPath, target] of initialTargets) {
+					if (path != null && targetPath !== path) continue;
+					subscribeTarget(targetPath, target);
 				}
 
 				// ---- Topology events via watchTopologyTree ----
@@ -3663,23 +3694,60 @@ export class Graph {
 				// (including children mounted/unmounted dynamically). Names
 				// arrive as `event.name`; `prefix` is the qualified prefix
 				// from the root, so `prefix + name` is the full scope path.
+				//
+				// /qa F-1: on `added` + nodeKind==="node" we resolve the new
+				// node and append a fresh subscription + inspector hook. On
+				// `removed` we detach symmetrically.
 				const offTopology = watchTopologyTree(this, (event, _emitter, prefix) => {
 					if (disposed) return;
 					const qualified = `${prefix}${event.name}`;
+
 					wrapWave((emitOne) => {
 						if (event.kind === "added") {
 							if (event.nodeKind === "node") {
-								emitOne((env): GraphChangeNodeAdded => ({ type: "node-added", ...env }), qualified);
+								// /qa F-1: subscribe + inspector for the new node.
+								// Path-scoped observers only subscribe to nodes
+								// matching the path filter.
+								if (path == null || qualified === path) {
+									const newNode = self.tryResolve(qualified);
+									if (newNode != null) {
+										nodeToPath.set(newNode, qualified);
+										subscribeTarget(qualified, newNode);
+									}
+								}
+
+								// /qa F-3: populate `nodeKind` with the resolved
+								// describeKind (state | derived | producer |
+								// effect) per the type's documented contract.
+								const resolved = self.tryResolve(qualified);
+								const kind =
+									resolved instanceof NodeImpl ? resolved._describeKind : undefined;
+								if (!inTier("node-added")) return;
+								emitOne(
+									(env): GraphChangeNodeAdded =>
+										kind != null
+											? { type: "node-added", nodeKind: kind, ...env }
+											: { type: "node-added", ...env },
+									qualified,
+								);
 							} else {
+								if (!inTier("mount")) return;
 								emitOne((env): GraphChangeMount => ({ type: "mount", ...env }), qualified);
 							}
 						} else {
+							// removed
 							if (event.nodeKind === "node") {
+								// /qa F-21: detach subscription + inspector hook
+								// before emitting `node-removed` so consumers
+								// don't see further DATA from the dead node.
+								unsubscribeTarget(qualified);
+								if (!inTier("node-removed")) return;
 								emitOne(
 									(env): GraphChangeNodeRemoved => ({ type: "node-removed", ...env }),
 									qualified,
 								);
 							} else {
+								if (!inTier("unmount")) return;
 								emitOne((env): GraphChangeUnmount => ({ type: "unmount", ...env }), qualified);
 							}
 						}
@@ -3688,8 +3756,10 @@ export class Graph {
 
 				return () => {
 					disposed = true;
-					for (const u of unsubs) u();
-					for (const d of inspectorDetaches) d();
+					for (const unsub of subscriptionsByPath.values()) unsub();
+					for (const detach of inspectorDetachesByPath.values()) detach();
+					subscriptionsByPath.clear();
+					inspectorDetachesByPath.clear();
 					offTopology();
 				};
 			},
