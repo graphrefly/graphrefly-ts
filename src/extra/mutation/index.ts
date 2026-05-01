@@ -26,11 +26,13 @@ import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "..
 /**
  * Bounded increment for a self-owned counter state node.
  *
- * Reads `counter.cache`, bumps by 1 if under `cap`, writes back. Returns
- * `false` when the cap is reached. Documented P3 exception: the counter is
- * not a declared dep of the caller — it's a private budget read+written from
- * a single call site. This helper keeps the `.cache` access in one named
- * place.
+ * Reads `counter.cache`, bumps by `by` (default 1) if `cur + by <= cap`,
+ * writes back. Returns `false` when the cap would be exceeded (no-op write).
+ * Documented P3 exception: the counter is not a declared dep of the caller —
+ * it's a private budget read+written from a single call site. This helper
+ * keeps the `.cache` access in one named place so caller bodies (which may
+ * be inside reactive fn execution paths) stay free of cross-node `.cache`
+ * reads.
  *
  * **Safety today:**
  *   1. Single-threaded JS runner never invokes the caller concurrently.
@@ -41,11 +43,18 @@ import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "..
  * **Future risk:** under a free-threaded runner (PY no-GIL or hypothetical
  * concurrent TS runner), two concurrent firings could still race. Revisit
  * when that surfaces.
+ *
+ * @param counter - Self-owned counter Node. Caller is the sole writer.
+ * @param cap - Upper bound (inclusive). Pass `Number.MAX_SAFE_INTEGER` for
+ *              "effectively unbounded" use cases (e.g. token meters).
+ * @param by - Delta to add (default `1`). Must be a finite non-negative
+ *             number; callers should pre-validate. Overflow-safe via
+ *             `by > cap - cur` check rather than `cur + by >= cap`.
  */
-export function tryIncrementBounded(counter: Node<number>, cap: number): boolean {
+export function tryIncrementBounded(counter: Node<number>, cap: number, by = 1): boolean {
 	const cur = (counter.cache as number | undefined) ?? 0;
-	if (cur >= cap) return false;
-	counter.down([[DIRTY], [DATA, cur + 1]]);
+	if (by > cap - cur) return false;
+	counter.down([[DIRTY], [DATA, cur + by]]);
 	return true;
 }
 

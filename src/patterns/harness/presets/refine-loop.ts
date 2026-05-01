@@ -35,8 +35,10 @@
 
 import { batch } from "../../../core/batch.js";
 import { monotonicNs } from "../../../core/clock.js";
-import { DATA, ERROR } from "../../../core/messages.js";
+import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
+import { placeholderArgs } from "../../../core/meta.js";
 import { type Node, node } from "../../../core/node.js";
+import { tryIncrementBounded } from "../../../extra/mutation/index.js";
 import { switchMap } from "../../../extra/operators.js";
 import type { NodeInput } from "../../../extra/sources.js";
 import { Graph, type GraphOptions } from "../../../graph/graph.js";
@@ -109,6 +111,20 @@ export interface RefineStrategy<T> {
  * reactive nodes; the evaluator's returned node IS the EVALUATE topic's source
  * (no glue). Implementers can batch-eval (e.g. `funnel` with concurrency) or
  * map per-candidate — user's code.
+ *
+ * **Cancel-on-input contract (load-bearing).** Evaluators with async work
+ * (LLM calls, network requests, etc.) MUST cancel any in-flight work when
+ * `candidates` emits a new batch. The canonical pattern is `switchMap` over
+ * `candidates`. If an evaluator does NOT cancel — e.g. naively kicks a
+ * `Promise.all` per-batch and emits whatever resolves — late scores from a
+ * prior iteration can arrive after the loop has already moved to the next
+ * iteration (especially after `pause()` / `resume()`). Such stale scores
+ * trip {@link refineLoop}'s `feedbackEnvelopeNode` with mismatched
+ * `iter`/`scores`/`items`, producing an incorrect `DecideEvent` and (worse)
+ * marking the iter as decided so the real iter's scores get skipped by
+ * de-dup, stalling the loop. See `optimizations.md` "refineLoop async-
+ * evaluator stale-scores follow-up" for the proposed `wrapEvaluator()`
+ * helper that would enforce cancellation.
  *
  * **`EvalResult.candidateIndex` semantics.** Optional per-result field.
  * When present, multi-candidate aggregators ({@link errorCritique}'s
@@ -187,6 +203,37 @@ export interface DecideEvent {
 
 export type RefineStatus = "running" | "converged" | "budget" | "paused" | "errored";
 
+/**
+ * **Internal envelope** — carries the iteration number alongside the
+ * candidates batch so `iter` rides the data wave through the pipeline. Lets
+ * downstream stages read iter from a real reactive edge instead of from
+ * `iterationTrigger.cache` (P3 violation; see /qa D1, 2026-05-01).
+ *
+ * Sidecar `candidatesItemsNode = derived([candidatesNode], ([env]) => env.items)`
+ * preserves the user-facing `Evaluator<T>` API (which sees `Node<readonly T[]>`).
+ */
+interface CandidatesEnvelope<T> {
+	readonly iter: number;
+	readonly items: readonly T[];
+}
+
+/**
+ * **Internal envelope** — assembled by `feedbackEnvelopeNode` from
+ * `userScoresNode` + `candidatesNode`. Carries iter + items + scores +
+ * feedback together as the trigger payload for `decideEffect` (`§16` nested
+ * `withLatestFrom` advisory-samples history / budget / pause). Lets
+ * `decideEffect` read iter from the envelope (no `iterationTrigger.cache` read)
+ * AND ensures decideEffect only fires when the user evaluator has actually
+ * emitted fresh scores (gate via `batchData[scores]` length, eliminating
+ * spurious decides on candidates-only fan-out waves).
+ */
+interface FeedbackEnvelope<T> {
+	readonly iter: number;
+	readonly items: readonly T[];
+	readonly scores: readonly EvalResult[];
+	readonly feedback: Feedback;
+}
+
 export interface Iteration<T> {
 	readonly n: number;
 	readonly candidates: readonly T[];
@@ -214,27 +261,782 @@ export interface RefineLoopOptions extends ConvergenceOptions {
 }
 
 /**
- * Return type — extends Graph so all observability tools (`describe`,
- * `explain`, `observe`, `attachSnapshotStorage`, `snapshot`) Just Work.
+ * `class RefineLoopGraph<T> extends Graph` — the universal prompt/artifact
+ * optimization loop as a reactive Graph subclass.
+ *
+ * Constructed via the {@link refineLoop} factory in normal use; exported as a
+ * class so consumers can `instanceof`-narrow on returned values (Phase 13.G
+ * `agent(spec)` is the consumer that motivated the migration). All
+ * observability tools (`describe`, `explain`, `observe`, `attachSnapshotStorage`,
+ * `snapshot`) Just Work since this `extends Graph`.
+ *
+ * **Phase 12.D (2026-04-30):** Migrated from `Object.assign(graph, ...)` factory
+ * pattern to `class extends Graph` (Tier R5.1 deferral lifted; mirrors the
+ * `MemoryWith*Graph` precedent). `setStrategy` / `pause` / `resume` are now
+ * instance methods that read `this.strategy` / `this._pauseState` / `this.status`
+ * / `this.iteration` instead of factory-local closures.
  */
-export interface RefineLoopGraph<T> extends Graph {
+export class RefineLoopGraph<T> extends Graph {
 	readonly best: Node<T | null>;
 	readonly score: Node<number>;
 	readonly status: Node<RefineStatus>;
 	readonly history: Node<readonly Iteration<T>[]>;
 	readonly strategy: Node<RefineStrategy<T>>;
 	readonly iteration: Node<number>;
-	/** Stage topics — subscribe for per-stage streaming / cursor consumers. */
+	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
 	readonly generate: TopicGraph<GenerateEvent<T>>;
+	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
 	readonly evaluate: TopicGraph<EvaluateEvent<T>>;
+	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
 	readonly analyze: TopicGraph<AnalyzeEvent<T>>;
+	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
 	readonly decide: TopicGraph<DecideEvent>;
+
+	/** Internal: paused-flag node. Mounted as "paused" in describe(). */
+	private readonly _pauseState: Node<boolean>;
+
+	constructor(
+		seed: T,
+		evaluator: Evaluator<T>,
+		initialStrategy: RefineStrategy<T>,
+		opts: RefineLoopOptions,
+	) {
+		const name = opts.name ?? "refine-loop";
+		super(name, opts.graph);
+
+		// /qa A2 (2026-04-30): tag the Graph with its constructing factory so
+		// `describe()` / `compileSpec` round-trip surfaces provenance — mirrors
+		// the `agentMemory` pattern. `seed` / `evaluator` / `initialStrategy`
+		// and option fields are non-JSON (functions, strategies); route through
+		// `placeholderArgs` (DG2=ii) which substitutes `"<function>"` /
+		// `"<Node>"` / `"<unserializable>"` for non-JSON values.
+		this.tagFactory(
+			"refineLoop",
+			placeholderArgs({ seed, evaluator, initialStrategy, ...opts } as unknown as Record<
+				string,
+				unknown
+			>),
+		);
+
+		// --- Dataset: auto-wrap arrays into a state node ------------------------
+		const datasetNode: Node<readonly DatasetItem[]> = isNode<readonly DatasetItem[]>(opts.dataset)
+			? opts.dataset
+			: node<readonly DatasetItem[]>([], {
+					name: "dataset",
+					initial: opts.dataset as readonly DatasetItem[],
+				});
+		this.add(datasetNode, { name: "dataset" });
+
+		// --- State nodes --------------------------------------------------------
+		const iterationTrigger = node<number>([], { name: "iteration", initial: 0 });
+		this.add(iterationTrigger, { name: "iteration" });
+
+		const strategyNode = node<RefineStrategy<T>>([], {
+			name: "strategy",
+			initial: initialStrategy,
+			equals: () => false, // always propagate strategy swaps
+		});
+		this.add(strategyNode, { name: "strategy" });
+
+		const lastFeedbackState = node<Feedback | null>([], { name: "lastFeedback", initial: null });
+		this.add(lastFeedbackState, { name: "lastFeedback" });
+
+		const prevCandidatesState = node<readonly T[]>([], { name: "prevCandidates", initial: [] });
+		this.add(prevCandidatesState, { name: "prevCandidates" });
+
+		const pauseState = node<boolean>([], { name: "paused", initial: false });
+		this.add(pauseState, { name: "paused" });
+
+		const statusState = node<RefineStatus>([], { name: "status", initial: "running" });
+		this.add(statusState, { name: "status" });
+
+		const historyState = node<readonly Iteration<T>[]>([], {
+			name: "history",
+			initial: [],
+			equals: () => false, // append-style; reactive consumers want every push
+		});
+		this.add(historyState, { name: "history" });
+
+		const bestState = node<T | null>([], { name: "best", initial: null });
+		this.add(bestState, { name: "best" });
+
+		const scoreState = node<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
+		this.add(scoreState, { name: "score" });
+
+		// --- Budget counter -----------------------------------------------------
+		const budgetState = node<number>([], { name: "budget-used", initial: 0 });
+		this.add(budgetState, { name: "budget-used" });
+
+		// --- Stage hub (Shape B + C-aspects) ------------------------------------
+		// One messagingHub instead of four standalone TopicGraphs. Topics are
+		// eagerly created so the public accessors (loop.generate etc.) are
+		// available immediately without waiting for the first event to fire.
+		// The hub is mounted in this so all stage topics appear under "stages::"
+		// in describe()/explain() — visible edges, not closure-held singletons.
+		const hub = messagingHub("stages");
+		this.mount("stages", hub);
+		const hubGenerateTopic = hub.topic<GenerateEvent<T>>("generate");
+		const hubEvaluateTopic = hub.topic<EvaluateEvent<T>>("evaluate");
+		const hubAnalyzeTopic = hub.topic<AnalyzeEvent<T>>("analyze");
+		const hubDecideTopic = hub.topic<DecideEvent>("decide");
+
+		// /qa A1 (2026-04-30): assign the public field surface BEFORE wiring
+		// any effect / subscribe activation below. A synchronous strategy can
+		// drain the entire GENERATE → EVALUATE → ANALYZE → DECIDE cascade
+		// during the constructor body (see strategy doc above); fields must be
+		// reachable in case any future subscribe handler dereferences `this.X`
+		// during that synchronous drain. Defensive — no current handler reads
+		// `this.<field>`, but keeping construction-order safe avoids future
+		// undefined-field crashes.
+		this.best = bestState as Node<T | null>;
+		this.score = scoreState;
+		this.status = statusState;
+		this.history = historyState;
+		this.strategy = strategyNode;
+		this.iteration = iterationTrigger;
+		this.generate = hubGenerateTopic;
+		this.evaluate = hubEvaluateTopic;
+		this.analyze = hubAnalyzeTopic;
+		this.decide = hubDecideTopic;
+		this._pauseState = pauseState;
+
+		// --- Factory-time seed closures (§28) -----------------------------------
+		// These mirror the reactive dep values so the generate fn can read them
+		// without the multi-dep push-on-subscribe initial-pair drop. Per
+		// COMPOSITION-GUIDE-PROTOCOL.md §28: "The closure reads inside the
+		// reactive fn are NOT P3 violations — they read a closure variable,
+		// not a `.cache`." Subscribe handlers run synchronously on dep DATA,
+		// so the closure mirrors are always current by the time the generate
+		// fn fires for the next iter.
+		let latestStrategy: RefineStrategy<T> = initialStrategy;
+		let latestFeedback: Feedback | null = null;
+		let latestPrevCandidates: readonly T[] = [];
+		this.addDisposer(
+			strategyNode.subscribe((msgs) => {
+				for (const m of msgs) if (m[0] === DATA) latestStrategy = m[1] as RefineStrategy<T>;
+			}),
+		);
+		this.addDisposer(
+			lastFeedbackState.subscribe((msgs) => {
+				for (const m of msgs) if (m[0] === DATA) latestFeedback = m[1] as Feedback | null;
+			}),
+		);
+		this.addDisposer(
+			prevCandidatesState.subscribe((msgs) => {
+				for (const m of msgs) if (m[0] === DATA) latestPrevCandidates = m[1] as readonly T[];
+			}),
+		);
+
+		// --- GENERATE: iterationTrigger → candidates ----------------------------
+		// switchMap cancels any in-flight generate when a new iteration fires.
+		// At iteration 0, strategy.seed(seed). At iteration > 0, strategy.generate.
+		//
+		// Sync strategies emit in the same wave as `iterationTrigger` — no microtask
+		// bridge. This eliminates the per-topic iteration race (Edge #5): all four
+		// stage effects drain under one wave, so iteration numbers across
+		// GENERATE / EVALUATE / ANALYZE / DECIDE are guaranteed identical.
+		//
+		// Async strategies still cross a Promise boundary — that's the strategy's
+		// async-source contract (spec §5.10: async boundaries belong in sources).
+		// Cancellation on strategy swap / pause / new iteration uses switchMap's
+		// inner-node unsubscribe + a `cancelled` flag so late Promise resolutions
+		// don't emit into a torn-down switchMap slot.
+		//
+		// **/qa D1 (2026-05-01) — envelope shape:** the inner producer emits
+		// `{iter, items}` so `iter` rides the data wave through every downstream
+		// stage. Eliminates the cross-node `iterationTrigger.cache` P3 violation
+		// in `decideEffect` (and the resume-stall failure mode it caused). User-
+		// facing evaluator API stays `Node<readonly T[]>` via the
+		// `candidatesItemsNode` sidecar derived below.
+		const candidatesNode = switchMap<number, CandidatesEnvelope<T>>(
+			iterationTrigger,
+			(iter) => {
+				const strat = latestStrategy;
+				const isSeed = iter === 0 || latestFeedback == null;
+				return node<CandidatesEnvelope<T>>(
+					[],
+					(_data, actions) => {
+						let cancelled = false;
+						try {
+							const result = isSeed
+								? strat.seed(seed)
+								: strat.generate(latestFeedback as Feedback, latestPrevCandidates);
+							if (result instanceof Promise) {
+								result.then(
+									(v) => {
+										if (!cancelled) actions.emit({ iter, items: v });
+									},
+									(err) => {
+										if (!cancelled) actions.down([[ERROR, err]]);
+									},
+								);
+								return () => {
+									cancelled = true;
+								};
+							}
+							actions.emit({ iter, items: result });
+						} catch (err) {
+							cancelled = true;
+							actions.down([[ERROR, err]]);
+						}
+						return undefined;
+					},
+					{ describeKind: "producer" },
+				);
+			},
+			{ name: "candidates" },
+		);
+		this.add(candidatesNode, { name: "candidates" });
+
+		// User-facing items sidecar: preserves the `Evaluator<T>` API
+		// (`(candidates: Node<readonly T[]>, dataset: Node<readonly DatasetItem[]>) => ...`)
+		// while the internal pipeline reads iter from the envelope.
+		const candidatesItemsNode = node<readonly T[]>(
+			[candidatesNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const env = data[0] as CandidatesEnvelope<T> | undefined;
+				if (env === undefined) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				actions.emit(env.items);
+			},
+			{ name: "candidates-items", describeKind: "derived" },
+		);
+		this.add(candidatesItemsNode, { name: "candidates-items" });
+
+		// Error watcher — strategy throws surface as ERROR on `candidatesNode`.
+		// Promote to `status = "errored"` so callers don't have to subscribe to
+		// the error channel directly.
+		const errorWatcher = node(
+			[candidatesNode],
+			(_batchData, _actions, ctx) => {
+				const terminal = ctx.terminalDeps[0];
+				if (terminal !== undefined && terminal !== true) {
+					statusState.emit("errored");
+				}
+			},
+			{ name: "error-watcher", describeKind: "effect", errorWhenDepsError: false },
+		);
+		this.add(errorWatcher, { name: "error-watcher" });
+		this.addDisposer(errorWatcher.subscribe(() => undefined));
+
+		// GENERATE stage: three nodes replace one monolithic effect.
+		// (1) derived computes the event payload — reactive edge visible in explain().
+		// (2) publish effect routes the derived event to the hub topic.
+		// (3) mirror effect keeps prevCandidatesState in sync for §28 closure reads.
+		// Budget accounting stays in decideEffect (single authority).
+		// /qa D1: iter + items both come from the candidates envelope — no
+		// separate `iterationTrigger` dep, no cross-node cache reads.
+		const generateEventNode = node<GenerateEvent<T>>(
+			[candidatesNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const env = data[0] as CandidatesEnvelope<T>;
+				actions.emit({
+					iteration: env.iter,
+					candidates: env.items,
+					timestamp_ns: monotonicNs(),
+				});
+			},
+			{ name: "generate-event", describeKind: "derived" },
+		);
+		this.add(generateEventNode, { name: "generate-event" });
+		this.addDisposer(generateEventNode.subscribe(() => undefined));
+
+		const generatePublishEffect = node(
+			[generateEventNode],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				hubGenerateTopic.publish(data[0] as GenerateEvent<T>);
+			},
+			{ name: "generate-publish", describeKind: "effect" },
+		);
+		this.add(generatePublishEffect, { name: "generate-publish" });
+		this.addDisposer(generatePublishEffect.subscribe(() => undefined));
+
+		const generateMirrorEffect = node(
+			[candidatesNode],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const env = data[0] as CandidatesEnvelope<T>;
+				prevCandidatesState.emit(env.items);
+			},
+			{ name: "generate-mirror", describeKind: "effect" },
+		);
+		this.add(generateMirrorEffect, { name: "generate-mirror" });
+		this.addDisposer(generateMirrorEffect.subscribe(() => undefined));
+
+		// --- EVALUATE: candidates × dataset → scores ----------------------------
+		// User evaluator sees the items sidecar (preserves `Evaluator<T>` API).
+		const scoresNode = evaluator(candidatesItemsNode, datasetNode);
+		this.add(scoresNode, { name: "scores" });
+
+		// EVALUATE stage: derived event node + publish effect.
+		// /qa D1: iter from candidates envelope; gate on `scoresFired` so a
+		// candidates-only fan-out wave (e.g. async eval still in flight) does
+		// NOT publish a stale evaluate event.
+		const evaluateEventNode = node<EvaluateEvent<T>>(
+			[scoresNode, candidatesNode],
+			(batchData, actions, ctx) => {
+				const scoresFired = batchData[0] != null && batchData[0].length > 0;
+				if (!scoresFired) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const scores = data[0] as readonly EvalResult[];
+				const env = data[1] as CandidatesEnvelope<T>;
+				actions.emit({
+					iteration: env.iter,
+					candidates: env.items,
+					scores,
+					timestamp_ns: monotonicNs(),
+				});
+			},
+			{ name: "evaluate-event", describeKind: "derived" },
+		);
+		this.add(evaluateEventNode, { name: "evaluate-event" });
+		this.addDisposer(evaluateEventNode.subscribe(() => undefined));
+
+		const evaluatePublishEffect = node(
+			[evaluateEventNode],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				hubEvaluateTopic.publish(data[0] as EvaluateEvent<T>);
+			},
+			{ name: "evaluate-publish", describeKind: "effect" },
+		);
+		this.add(evaluatePublishEffect, { name: "evaluate-publish" });
+		this.addDisposer(evaluatePublishEffect.subscribe(() => undefined));
+
+		// --- ANALYZE: strategy.analyze(scores, candidates) → feedbackEnvelope ---
+		// /qa D1: feedbackEnvelope is the canonical iter-tagged trigger payload
+		// for the DECIDE stage. Gates on `scoresFired` so a candidates-only
+		// wave (async eval not settled yet) does NOT emit stale feedback into
+		// `decideEffect`. When the user evaluator emits, both deps' caches are
+		// consistent (candidates envelope carries iter that matches the scores
+		// the user just produced — *assuming the user evaluator cancels async
+		// work on candidates change; see Evaluator<T> JSDoc contract*).
+		const feedbackEnvelopeNode = node<FeedbackEnvelope<T>>(
+			[scoresNode, candidatesNode],
+			(batchData, actions, ctx) => {
+				const scoresFired = batchData[0] != null && batchData[0].length > 0;
+				if (!scoresFired) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const scores = data[0] as readonly EvalResult[];
+				const env = data[1] as CandidatesEnvelope<T>;
+				actions.emit({
+					iter: env.iter,
+					items: env.items,
+					scores,
+					feedback: latestStrategy.analyze(scores, env.items),
+				});
+			},
+			{ name: "feedback-envelope", describeKind: "derived" },
+		);
+		this.add(feedbackEnvelopeNode, { name: "feedback-envelope" });
+
+		// User-facing feedback projection sidecar — preserves `feedback` path
+		// for observers that consume the bare `Feedback` shape via
+		// `loop.observe("feedback")` etc.
+		const feedbackNode = node<Feedback>(
+			[feedbackEnvelopeNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const fbEnv = data[0] as FeedbackEnvelope<T>;
+				actions.emit(fbEnv.feedback);
+			},
+			{ name: "feedback", describeKind: "derived" },
+		);
+		this.add(feedbackNode, { name: "feedback" });
+
+		// ANALYZE stage: derived event node + publish effect.
+		// /qa D1: pull iter + items from feedbackEnvelopeNode (single source of
+		// truth for the analyze beat). No cross-node cache reads.
+		const analyzeEventNode = node<AnalyzeEvent<T>>(
+			[feedbackEnvelopeNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const fbEnv = data[0] as FeedbackEnvelope<T>;
+				actions.emit({
+					iteration: fbEnv.iter,
+					candidates: fbEnv.items,
+					feedback: fbEnv.feedback,
+					timestamp_ns: monotonicNs(),
+				});
+			},
+			{ name: "analyze-event", describeKind: "derived" },
+		);
+		this.add(analyzeEventNode, { name: "analyze-event" });
+		this.addDisposer(analyzeEventNode.subscribe(() => undefined));
+
+		const analyzePublishEffect = node(
+			[analyzeEventNode],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				hubAnalyzeTopic.publish(data[0] as AnalyzeEvent<T>);
+			},
+			{ name: "analyze-publish", describeKind: "effect" },
+		);
+		this.add(analyzePublishEffect, { name: "analyze-publish" });
+		this.addDisposer(analyzePublishEffect.subscribe(() => undefined));
+
+		// --- Convergence: four derived nodes fanning into one boolean -----------
+		const patienceNode = node<boolean>(
+			[historyState],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const h = data[0] as readonly Iteration<T>[];
+				if (opts.patience == null || h.length <= opts.patience) {
+					actions.emit(false);
+					return;
+				}
+				// No improvement over the last `patience` iterations.
+				const lookback = h.slice(-(opts.patience + 1));
+				const baseline = lookback[0]!.bestScore;
+				actions.emit(lookback.slice(1).every((i) => i.bestScore <= baseline));
+			},
+			{ name: "patience-check", describeKind: "derived" },
+		);
+		this.add(patienceNode, { name: "patience-check" });
+
+		const minScoreNode = node<boolean>(
+			[scoreState],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(opts.minScore != null && (data[0] as number) >= opts.minScore);
+			},
+			{ name: "min-score-check", describeKind: "derived" },
+		);
+		this.add(minScoreNode, { name: "min-score-check" });
+
+		const minDeltaNode = node<boolean>(
+			[historyState],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const h = data[0] as readonly Iteration<T>[];
+				if (opts.minDelta == null || h.length < 2) {
+					actions.emit(false);
+					return;
+				}
+				const prev = h[h.length - 2]!.bestScore;
+				const curr = h[h.length - 1]!.bestScore;
+				actions.emit(Math.abs(curr - prev) < opts.minDelta);
+			},
+			{ name: "min-delta-check", describeKind: "derived" },
+		);
+		this.add(minDeltaNode, { name: "min-delta-check" });
+
+		const maxEvalsNode = node<boolean>(
+			[budgetState],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(opts.maxEvaluations != null && (data[0] as number) >= opts.maxEvaluations);
+			},
+			{ name: "max-evaluations-check", describeKind: "derived" },
+		);
+		this.add(maxEvalsNode, { name: "max-evaluations-check" });
+
+		const maxIterNode = node<boolean>(
+			[iterationTrigger],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(opts.maxIterations != null && (data[0] as number) >= opts.maxIterations);
+			},
+			{ name: "max-iterations-check", describeKind: "derived" },
+		);
+		this.add(maxIterNode, { name: "max-iterations-check" });
+
+		const budgetExhaustedNode = node<boolean>(
+			[budgetState],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit(opts.budget != null && (data[0] as number) >= opts.budget);
+			},
+			{ name: "budget-exhausted-check", describeKind: "derived" },
+		);
+		this.add(budgetExhaustedNode, { name: "budget-exhausted-check" });
+
+		// Activate convergence derivations so their cache stays current — decideEffect
+		// reads their cache via external-boundary reads (§28). They must NOT be direct
+		// deps: that would create a feedback cycle (decideEffect writes history/score,
+		// convergence derives from those, cycle).
+		this.addDisposer(patienceNode.subscribe(() => undefined));
+		this.addDisposer(minScoreNode.subscribe(() => undefined));
+		this.addDisposer(minDeltaNode.subscribe(() => undefined));
+		this.addDisposer(maxEvalsNode.subscribe(() => undefined));
+		this.addDisposer(maxIterNode.subscribe(() => undefined));
+		this.addDisposer(budgetExhaustedNode.subscribe(() => undefined));
+
+		const convergedNode = node<{ converged: boolean; reason?: string }>(
+			[patienceNode, minScoreNode, minDeltaNode, maxEvalsNode, maxIterNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const [p, ms, md, me, mi] = data;
+				if (p) {
+					actions.emit({ converged: true, reason: "patience" });
+					return;
+				}
+				if (ms) {
+					actions.emit({ converged: true, reason: "min-score" });
+					return;
+				}
+				if (md) {
+					actions.emit({ converged: true, reason: "min-delta" });
+					return;
+				}
+				if (me) {
+					actions.emit({ converged: true, reason: "max-evaluations" });
+					return;
+				}
+				if (mi) {
+					actions.emit({ converged: true, reason: "max-iterations" });
+					return;
+				}
+				actions.emit({ converged: false });
+			},
+			{ name: "converged", describeKind: "derived" },
+		);
+		this.add(convergedNode, { name: "converged" });
+		this.addDisposer(convergedNode.subscribe(() => undefined));
+
+		// --- DECIDE: feedbackEnvelope settles → fire next iteration OR terminate ---
+		// **/qa D1 (2026-05-01) — reactive form via §32 envelope + sole-owner
+		// `.cache` reads + reactive `pauseState` dep.** Two patterns at play:
+		//
+		// - **`iter` rides with the feedbackEnvelope payload** (§32 envelope).
+		//   Eliminates the original `iterationTrigger.cache` cross-node read
+		//   that caused the resume-stall (where iter.cache was bumped past
+		//   the candidates batch we're processing).
+		//
+		// - **`historyState` / `budgetState` are read via `.cache`** as a
+		//   sole-owner pattern: decideEffect is the SOLE WRITER + sole
+		//   reactive READER, both declared in the same enclosing constructor
+		//   scope. Reading their `.cache` here is "read your own scratchpad"
+		//   semantically, even though they're sibling Node objects. Adding
+		//   them as direct deps would create the §7 self-feedback cycle
+		//   (decideEffect writes them, would re-trigger itself); closure
+		//   mirrors would just duplicate state already held in the nodes
+		//   themselves. The comment block belongs to /qa D1 follow-up
+		//   (2026-05-01) — explicit user lock that sole-owner-and-reader
+		//   nodes in the same enclosing scope are a sanctioned `.cache` read
+		//   form.
+		//
+		// - **`pauseState` is a direct dep** because it's an EXTERNAL CONTROL
+		//   INPUT — written by `pause()` / `resume()` imperative methods at
+		//   the user-call boundary, NOT by decideEffect. Making it a real
+		//   declared edge surfaces "this decision considers pause state" in
+		//   `describe()` / `explain()` topology. The `feedbackFired` gate
+		//   below skips fn body execution when only pauseState fired (no new
+		//   iteration to decide).
+		//
+		// Trigger semantics: feedbackEnvelopeNode itself only fires when the
+		// user evaluator emits fresh scores (gate via `batchData[scoresIdx]`
+		// in feedbackEnvelopeNode), so a candidates-only fan-out wave (async
+		// eval still in flight after `resume()`) does NOT spuriously trigger
+		// decideEffect.
+		//
+		// **Score-staleness contract:** if the user's `Evaluator<T>` does NOT
+		// cancel its async work when `candidates` changes, late scores from a
+		// prior iter can emit to scoresNode and trip feedbackEnvelopeNode +
+		// decideEffect with the new candidates' iter tag but stale scores
+		// data. See `Evaluator<T>` JSDoc (cancel-on-input contract) and
+		// `optimizations.md` "refineLoop async-evaluator stale-scores
+		// follow-up" for the wrapper proposal.
+		//
+		// Track last-decided iteration to avoid re-deciding when feedbackEnv
+		// re-fires within one wave (e.g. async evaluator emits multiple
+		// scores per candidates change).
+		let lastDecidedIteration = -1;
+		const decideEffect = node(
+			[feedbackEnvelopeNode, pauseState],
+			(batchData, _actions, ctx) => {
+				// `pauseState` is declared dep #1 — gate skips fn body when
+				// only pauseState fired (no new iteration to decide; we just
+				// want pauseState's prevData to advance for the next feedback
+				// fire).
+				const feedbackFired = batchData[0] != null && batchData[0].length > 0;
+				if (!feedbackFired) return;
+
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				const fbEnv = data[0] as FeedbackEnvelope<T>;
+				const paused = data[1] as boolean;
+
+				const i = fbEnv.iter;
+				const fb = fbEnv.feedback;
+				const cs = fbEnv.items;
+				const scores = fbEnv.scores;
+
+				// De-dup: only run once per iteration. fn may fire multiple
+				// times per wave as feedbackEnvelopeNode settles.
+				if (i <= lastDecidedIteration) return;
+				lastDecidedIteration = i;
+
+				// Sole-owner `.cache` reads — decideEffect is the SOLE
+				// writer and sole reactive reader of these state nodes.
+				const currentHistory = historyState.cache as readonly Iteration<T>[];
+				const currentBudget = budgetState.cache as number;
+
+				// Compute next history / score.
+				const { best, bestScore } = pickBest(cs, scores);
+				const iteration: Iteration<T> = {
+					n: i,
+					candidates: cs,
+					scores,
+					feedback: fb,
+					best,
+					bestScore,
+					timestamp_ns: monotonicNs(),
+				};
+				const nextHistory = [...currentHistory, iteration];
+				// Budget accounting — decideEffect is the single authority.
+				const nextBudget = currentBudget + cs.length;
+
+				// Inline convergence checks — single source of truth. The derived
+				// `convergedNode` + friends exist for describe()/observe() surface;
+				// inlining here avoids a drain-round-trip deadlock where decideEffect
+				// would need convergedNode.cache to update before running, but
+				// convergedNode needs historyState.emit from inside decideEffect.
+				let decision: DecideEvent["decision"] = "continue";
+				let reason: string | undefined;
+				const budgetOut = opts.budget != null && nextBudget >= opts.budget;
+				if (budgetOut) {
+					decision = "budget";
+					reason = "budget";
+				} else if (opts.minScore != null && fb.score >= opts.minScore) {
+					decision = "converged";
+					reason = "min-score";
+				} else if (opts.maxIterations != null && i >= opts.maxIterations) {
+					decision = "converged";
+					reason = "max-iterations";
+				} else if (opts.maxEvaluations != null && nextBudget >= opts.maxEvaluations) {
+					decision = "converged";
+					reason = "max-evaluations";
+				} else if (opts.minDelta != null && nextHistory.length >= 2) {
+					const prev = nextHistory[nextHistory.length - 2]!.bestScore;
+					const curr = nextHistory[nextHistory.length - 1]!.bestScore;
+					if (Math.abs(curr - prev) < opts.minDelta) {
+						decision = "converged";
+						reason = "min-delta";
+					}
+				} else if (opts.patience != null && nextHistory.length > opts.patience) {
+					const lookback = nextHistory.slice(-(opts.patience + 1));
+					const baseline = lookback[0]!.bestScore;
+					if (lookback.slice(1).every((it) => it.bestScore <= baseline)) {
+						decision = "converged";
+						reason = "patience";
+					}
+				}
+				// paused takes precedence over continue — if paused AND no convergence,
+				// we pause. Otherwise if converged we stop for real.
+				if (decision === "continue" && paused) {
+					decision = "paused";
+				}
+
+				// All emissions in one batch — drain order is feedback mirror first
+				// (§32), then iterationTrigger, so the next generate sees fresh fb.
+				// `lastFeedbackState` is always mirrored (regardless of decision) so
+				// resume-after-pause gets current feedback; only `iterationTrigger`
+				// is gated on `continue`.
+				batch(() => {
+					bestState.emit(best);
+					scoreState.emit(fb.score);
+					historyState.emit(nextHistory);
+					budgetState.emit(nextBudget);
+					lastFeedbackState.emit(fb);
+					hubDecideTopic.publish({
+						iteration: i,
+						decision,
+						reason,
+						timestamp_ns: monotonicNs(),
+					});
+
+					if (decision === "continue") {
+						iterationTrigger.emit(i + 1);
+					} else {
+						statusState.emit(
+							decision === "converged" ? "converged" : decision === "budget" ? "budget" : "paused",
+						);
+					}
+				});
+			},
+			{ name: "decide-bridge", describeKind: "effect" },
+		);
+		this.add(decideEffect, { name: "decide-bridge" });
+		this.addDisposer(decideEffect.subscribe(() => undefined));
+
+		// /qa A1 (2026-04-30): public field surface (best / score / status /
+		// history / strategy / iteration / generate / evaluate / analyze /
+		// decide / _pauseState) is assigned EARLIER, immediately after the
+		// stage hub is mounted (search "qa A1" above). Doing the assignment
+		// before any subscribe activation keeps `this.<field>` reachable
+		// during a synchronous strategy drain.
+	}
+
 	/** Swap the active strategy mid-run (human-in-the-loop handoff). */
-	setStrategy(next: RefineStrategy<T>): void;
+	setStrategy(next: RefineStrategy<T>): void {
+		this.strategy.emit(next);
+	}
+
 	/** Pause after the current iteration completes. */
-	pause(): void;
-	/** Resume a paused loop. */
-	resume(): void;
+	pause(): void {
+		this._pauseState.emit(true);
+	}
+
+	/**
+	 * Resume a paused loop. Idempotent: only un-pauses from the "paused"
+	 * terminal state. Converged / budget / errored are permanent — a user
+	 * wanting to start over should construct a fresh refineLoop.
+	 */
+	resume(): void {
+		if (this.status.cache !== "paused") return;
+		batch(() => {
+			this._pauseState.emit(false);
+			this.status.emit("running" as RefineStatus);
+			this.iteration.emit((this.iteration.cache as number) + 1);
+		});
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -317,590 +1119,18 @@ function meanScore(scores: readonly EvalResult[]): number {
 // refineLoop factory
 // ---------------------------------------------------------------------------
 
+/**
+ * Construct a {@link RefineLoopGraph} — the universal prompt/artifact
+ * optimization loop. Thin wrapper over `new RefineLoopGraph(...)` for
+ * call-site ergonomics.
+ */
 export function refineLoop<T>(
 	seed: T,
 	evaluator: Evaluator<T>,
 	initialStrategy: RefineStrategy<T>,
 	opts: RefineLoopOptions,
 ): RefineLoopGraph<T> {
-	const name = opts.name ?? "refine-loop";
-	const g = new Graph(name, opts.graph);
-
-	// --- Dataset: auto-wrap arrays into a state node ------------------------
-	const datasetNode: Node<readonly DatasetItem[]> = isNode<readonly DatasetItem[]>(opts.dataset)
-		? opts.dataset
-		: node<readonly DatasetItem[]>([], {
-				name: "dataset",
-				initial: opts.dataset as readonly DatasetItem[],
-			});
-	g.add(datasetNode, { name: "dataset" });
-
-	// --- State nodes --------------------------------------------------------
-	const iterationTrigger = node<number>([], { name: "iteration", initial: 0 });
-	g.add(iterationTrigger, { name: "iteration" });
-
-	const strategyNode = node<RefineStrategy<T>>([], {
-		name: "strategy",
-		initial: initialStrategy,
-		equals: () => false, // always propagate strategy swaps
-	});
-	g.add(strategyNode, { name: "strategy" });
-
-	const lastFeedbackState = node<Feedback | null>([], { name: "lastFeedback", initial: null });
-	g.add(lastFeedbackState, { name: "lastFeedback" });
-
-	const prevCandidatesState = node<readonly T[]>([], { name: "prevCandidates", initial: [] });
-	g.add(prevCandidatesState, { name: "prevCandidates" });
-
-	const pauseState = node<boolean>([], { name: "paused", initial: false });
-	g.add(pauseState, { name: "paused" });
-
-	const statusState = node<RefineStatus>([], { name: "status", initial: "running" });
-	g.add(statusState, { name: "status" });
-
-	const historyState = node<readonly Iteration<T>[]>([], {
-		name: "history",
-		initial: [],
-		equals: () => false, // append-style; reactive consumers want every push
-	});
-	g.add(historyState, { name: "history" });
-
-	const bestState = node<T | null>([], { name: "best", initial: null });
-	g.add(bestState, { name: "best" });
-
-	const scoreState = node<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
-	g.add(scoreState, { name: "score" });
-
-	// --- Budget counter -----------------------------------------------------
-	const budgetState = node<number>([], { name: "budget-used", initial: 0 });
-	g.add(budgetState, { name: "budget-used" });
-
-	// --- Stage hub (Shape B + C-aspects) ------------------------------------
-	// One messagingHub instead of four standalone TopicGraphs. Topics are
-	// eagerly created so the public accessors (loop.generate etc.) are
-	// available immediately without waiting for the first event to fire.
-	// The hub is mounted in g so all stage topics appear under "stages::"
-	// in describe()/explain() — visible edges, not closure-held singletons.
-	const hub = messagingHub("stages");
-	g.mount("stages", hub);
-	const hubGenerateTopic = hub.topic<GenerateEvent<T>>("generate");
-	const hubEvaluateTopic = hub.topic<EvaluateEvent<T>>("evaluate");
-	const hubAnalyzeTopic = hub.topic<AnalyzeEvent<T>>("analyze");
-	const hubDecideTopic = hub.topic<DecideEvent>("decide");
-
-	// --- Factory-time seed closures (§28) -----------------------------------
-	// These mirror the reactive dep values so the generate fn can read them
-	// without the multi-dep push-on-subscribe initial-pair drop.
-	let latestStrategy: RefineStrategy<T> = initialStrategy;
-	let latestFeedback: Feedback | null = null;
-	let latestPrevCandidates: readonly T[] = [];
-	g.addDisposer(
-		strategyNode.subscribe((msgs) => {
-			for (const m of msgs) if (m[0] === DATA) latestStrategy = m[1] as RefineStrategy<T>;
-		}),
-	);
-	g.addDisposer(
-		lastFeedbackState.subscribe((msgs) => {
-			for (const m of msgs) if (m[0] === DATA) latestFeedback = m[1] as Feedback | null;
-		}),
-	);
-	g.addDisposer(
-		prevCandidatesState.subscribe((msgs) => {
-			for (const m of msgs) if (m[0] === DATA) latestPrevCandidates = m[1] as readonly T[];
-		}),
-	);
-
-	// --- GENERATE: iterationTrigger → candidates ----------------------------
-	// switchMap cancels any in-flight generate when a new iteration fires.
-	// At iteration 0, strategy.seed(seed). At iteration > 0, strategy.generate.
-	//
-	// Sync strategies emit in the same wave as `iterationTrigger` — no microtask
-	// bridge. This eliminates the per-topic iteration race (Edge #5): all four
-	// stage effects drain under one wave, so iteration numbers across
-	// GENERATE / EVALUATE / ANALYZE / DECIDE are guaranteed identical.
-	//
-	// Async strategies still cross a Promise boundary — that's the strategy's
-	// async-source contract (spec §5.10: async boundaries belong in sources).
-	// Cancellation on strategy swap / pause / new iteration uses switchMap's
-	// inner-node unsubscribe + a `cancelled` flag so late Promise resolutions
-	// don't emit into a torn-down switchMap slot.
-	const candidatesNode = switchMap<number, readonly T[]>(
-		iterationTrigger,
-		(iter) => {
-			const strat = latestStrategy;
-			const isSeed = iter === 0 || latestFeedback == null;
-			return node<readonly T[]>(
-				[],
-				(_data, actions) => {
-					let cancelled = false;
-					try {
-						const result = isSeed
-							? strat.seed(seed)
-							: strat.generate(latestFeedback as Feedback, latestPrevCandidates);
-						if (result instanceof Promise) {
-							result.then(
-								(v) => {
-									if (!cancelled) actions.emit(v);
-								},
-								(err) => {
-									if (!cancelled) actions.down([[ERROR, err]]);
-								},
-							);
-							return () => {
-								cancelled = true;
-							};
-						}
-						actions.emit(result);
-					} catch (err) {
-						cancelled = true;
-						actions.down([[ERROR, err]]);
-					}
-					return undefined;
-				},
-				{ describeKind: "producer" },
-			);
-		},
-		{ name: "candidates" },
-	);
-	g.add(candidatesNode, { name: "candidates" });
-
-	// Error watcher — strategy throws surface as ERROR on `candidatesNode`.
-	// Promote to `status = "errored"` so callers don't have to subscribe to
-	// the error channel directly.
-	const errorWatcher = node(
-		[candidatesNode],
-		(_batchData, _actions, ctx) => {
-			const terminal = ctx.terminalDeps[0];
-			if (terminal !== undefined && terminal !== true) {
-				statusState.emit("errored");
-			}
-		},
-		{ name: "error-watcher", describeKind: "effect", errorWhenDepsError: false },
-	);
-	g.add(errorWatcher, { name: "error-watcher" });
-	g.addDisposer(errorWatcher.subscribe(() => undefined));
-
-	// GENERATE stage: three nodes replace one monolithic effect.
-	// (1) derived computes the event payload — reactive edge visible in explain().
-	// (2) publish effect routes the derived event to the hub topic.
-	// (3) mirror effect keeps prevCandidatesState in sync for §28 closure reads.
-	// Budget accounting stays in decideEffect (single authority).
-	const generateEventNode = node<GenerateEvent<T>>(
-		[candidatesNode, iterationTrigger],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit({
-				iteration: data[1] as number,
-				candidates: data[0] as readonly T[],
-				timestamp_ns: monotonicNs(),
-			});
-		},
-		{ name: "generate-event", describeKind: "derived" },
-	);
-	g.add(generateEventNode, { name: "generate-event" });
-	g.addDisposer(generateEventNode.subscribe(() => undefined));
-
-	const generatePublishEffect = node(
-		[generateEventNode],
-		(batchData, _actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			hubGenerateTopic.publish(data[0] as GenerateEvent<T>);
-		},
-		{ name: "generate-publish", describeKind: "effect" },
-	);
-	g.add(generatePublishEffect, { name: "generate-publish" });
-	g.addDisposer(generatePublishEffect.subscribe(() => undefined));
-
-	const generateMirrorEffect = node(
-		[candidatesNode],
-		(batchData, _actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			prevCandidatesState.emit(data[0] as readonly T[]);
-		},
-		{ name: "generate-mirror", describeKind: "effect" },
-	);
-	g.add(generateMirrorEffect, { name: "generate-mirror" });
-	g.addDisposer(generateMirrorEffect.subscribe(() => undefined));
-
-	// --- EVALUATE: candidates × dataset → scores ----------------------------
-	const scoresNode = evaluator(candidatesNode, datasetNode);
-	g.add(scoresNode, { name: "scores" });
-
-	// EVALUATE stage: derived event node + publish effect.
-	const evaluateEventNode = node<EvaluateEvent<T>>(
-		[scoresNode, candidatesNode, iterationTrigger],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit({
-				iteration: data[2] as number,
-				candidates: data[1] as readonly T[],
-				scores: data[0] as readonly EvalResult[],
-				timestamp_ns: monotonicNs(),
-			});
-		},
-		{ name: "evaluate-event", describeKind: "derived" },
-	);
-	g.add(evaluateEventNode, { name: "evaluate-event" });
-	g.addDisposer(evaluateEventNode.subscribe(() => undefined));
-
-	const evaluatePublishEffect = node(
-		[evaluateEventNode],
-		(batchData, _actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			hubEvaluateTopic.publish(data[0] as EvaluateEvent<T>);
-		},
-		{ name: "evaluate-publish", describeKind: "effect" },
-	);
-	g.add(evaluatePublishEffect, { name: "evaluate-publish" });
-	g.addDisposer(evaluatePublishEffect.subscribe(() => undefined));
-
-	// --- ANALYZE: strategy.analyze(scores, candidates) → feedback -----------
-	const feedbackNode = node<Feedback>(
-		[scoresNode, candidatesNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(
-				latestStrategy.analyze(data[0] as readonly EvalResult[], data[1] as readonly T[]),
-			);
-		},
-		{ name: "feedback", describeKind: "derived" },
-	);
-	g.add(feedbackNode, { name: "feedback" });
-
-	// ANALYZE stage: derived event node + publish effect.
-	const analyzeEventNode = node<AnalyzeEvent<T>>(
-		[feedbackNode, candidatesNode, iterationTrigger],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit({
-				iteration: data[2] as number,
-				candidates: data[1] as readonly T[],
-				feedback: data[0] as Feedback,
-				timestamp_ns: monotonicNs(),
-			});
-		},
-		{ name: "analyze-event", describeKind: "derived" },
-	);
-	g.add(analyzeEventNode, { name: "analyze-event" });
-	g.addDisposer(analyzeEventNode.subscribe(() => undefined));
-
-	const analyzePublishEffect = node(
-		[analyzeEventNode],
-		(batchData, _actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			hubAnalyzeTopic.publish(data[0] as AnalyzeEvent<T>);
-		},
-		{ name: "analyze-publish", describeKind: "effect" },
-	);
-	g.add(analyzePublishEffect, { name: "analyze-publish" });
-	g.addDisposer(analyzePublishEffect.subscribe(() => undefined));
-
-	// --- Convergence: four derived nodes fanning into one boolean -----------
-	const patienceNode = node<boolean>(
-		[historyState],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const h = data[0] as readonly Iteration<T>[];
-			if (opts.patience == null || h.length <= opts.patience) {
-				actions.emit(false);
-				return;
-			}
-			// No improvement over the last `patience` iterations.
-			const lookback = h.slice(-(opts.patience + 1));
-			const baseline = lookback[0]!.bestScore;
-			actions.emit(lookback.slice(1).every((i) => i.bestScore <= baseline));
-		},
-		{ name: "patience-check", describeKind: "derived" },
-	);
-	g.add(patienceNode, { name: "patience-check" });
-
-	const minScoreNode = node<boolean>(
-		[scoreState],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(opts.minScore != null && (data[0] as number) >= opts.minScore);
-		},
-		{ name: "min-score-check", describeKind: "derived" },
-	);
-	g.add(minScoreNode, { name: "min-score-check" });
-
-	const minDeltaNode = node<boolean>(
-		[historyState],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const h = data[0] as readonly Iteration<T>[];
-			if (opts.minDelta == null || h.length < 2) {
-				actions.emit(false);
-				return;
-			}
-			const prev = h[h.length - 2]!.bestScore;
-			const curr = h[h.length - 1]!.bestScore;
-			actions.emit(Math.abs(curr - prev) < opts.minDelta);
-		},
-		{ name: "min-delta-check", describeKind: "derived" },
-	);
-	g.add(minDeltaNode, { name: "min-delta-check" });
-
-	const maxEvalsNode = node<boolean>(
-		[budgetState],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(opts.maxEvaluations != null && (data[0] as number) >= opts.maxEvaluations);
-		},
-		{ name: "max-evaluations-check", describeKind: "derived" },
-	);
-	g.add(maxEvalsNode, { name: "max-evaluations-check" });
-
-	const maxIterNode = node<boolean>(
-		[iterationTrigger],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(opts.maxIterations != null && (data[0] as number) >= opts.maxIterations);
-		},
-		{ name: "max-iterations-check", describeKind: "derived" },
-	);
-	g.add(maxIterNode, { name: "max-iterations-check" });
-
-	const budgetExhaustedNode = node<boolean>(
-		[budgetState],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			actions.emit(opts.budget != null && (data[0] as number) >= opts.budget);
-		},
-		{ name: "budget-exhausted-check", describeKind: "derived" },
-	);
-	g.add(budgetExhaustedNode, { name: "budget-exhausted-check" });
-
-	// Activate convergence derivations so their cache stays current — decideEffect
-	// reads their cache via external-boundary reads (§28). They must NOT be direct
-	// deps: that would create a feedback cycle (decideEffect writes history/score,
-	// convergence derives from those, cycle).
-	g.addDisposer(patienceNode.subscribe(() => undefined));
-	g.addDisposer(minScoreNode.subscribe(() => undefined));
-	g.addDisposer(minDeltaNode.subscribe(() => undefined));
-	g.addDisposer(maxEvalsNode.subscribe(() => undefined));
-	g.addDisposer(maxIterNode.subscribe(() => undefined));
-	g.addDisposer(budgetExhaustedNode.subscribe(() => undefined));
-
-	const convergedNode = node<{ converged: boolean; reason?: string }>(
-		[patienceNode, minScoreNode, minDeltaNode, maxEvalsNode, maxIterNode],
-		(batchData, actions, ctx) => {
-			const data = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			const [p, ms, md, me, mi] = data;
-			if (p) {
-				actions.emit({ converged: true, reason: "patience" });
-				return;
-			}
-			if (ms) {
-				actions.emit({ converged: true, reason: "min-score" });
-				return;
-			}
-			if (md) {
-				actions.emit({ converged: true, reason: "min-delta" });
-				return;
-			}
-			if (me) {
-				actions.emit({ converged: true, reason: "max-evaluations" });
-				return;
-			}
-			if (mi) {
-				actions.emit({ converged: true, reason: "max-iterations" });
-				return;
-			}
-			actions.emit({ converged: false });
-		},
-		{ name: "converged", describeKind: "derived" },
-	);
-	g.add(convergedNode, { name: "converged" });
-	g.addDisposer(convergedNode.subscribe(() => undefined));
-
-	// --- DECIDE: feedback settles → fire next iteration OR terminate --------
-	// §32 nested-drain state-mirror: inside batch(), `lastFeedback` emission
-	// drains BEFORE `iterationTrigger` emission. The closure updater for
-	// `latestFeedback` runs between them, so the next generate sees the fresh
-	// feedback.
-	// Track last-decided iteration to avoid re-deciding when deps re-fire in the
-	// same iteration (the fn can fire multiple times per wave as deps settle).
-	let lastDecidedIteration = -1;
-	const decideEffect = node(
-		[feedbackNode, scoresNode, candidatesNode],
-		(batchData, _actions, ctx) => {
-			const [feedback, scoresIn, candidates] = batchData.map((batch, i) =>
-				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-			);
-			// Read iteration from cache — it's always latest. Using it as a fn
-			// dep produces stale reads when iterationTrigger's wave and the
-			// candidates-cascade wave land in different drain cycles (candidates
-			// arrive async via switchMap, so prevData[iter] can be from an
-			// earlier wave than the fresh feedback).
-			const i = iterationTrigger.cache as number;
-			const fb = feedback as Feedback;
-			const cs = candidates as readonly T[];
-			const scores = scoresIn as readonly EvalResult[];
-
-			// De-dup: only run once per iteration. The effect may fire multiple
-			// times as feedback/scores/candidates settle within one wave.
-			if (i <= lastDecidedIteration) return;
-			lastDecidedIteration = i;
-
-			// Compute next history / score BEFORE writing — we need these values
-			// to evaluate convergence inline (the derived convergenceNodes would
-			// require a full drain cycle before their cache updates, which
-			// doesn't happen inside our current batch).
-			const { best, bestScore } = pickBest(cs, scores);
-			const currentHistory = historyState.cache as readonly Iteration<T>[];
-			const iteration: Iteration<T> = {
-				n: i,
-				candidates: cs,
-				scores,
-				feedback: fb,
-				best,
-				bestScore,
-				timestamp_ns: monotonicNs(),
-			};
-			const nextHistory = [...currentHistory, iteration];
-			// Budget accounting — decideEffect is the single authority. Compute
-			// the post-this-iteration total from the prior budget + this wave's
-			// candidate count, so convergence checks use the correct value
-			// regardless of whether generateEffect or decideEffect drained first.
-			const nextBudget = (budgetState.cache as number) + cs.length;
-
-			// Inline convergence checks — single source of truth. The derived
-			// `convergedNode` + friends exist for describe()/observe() surface;
-			// inlining here avoids a drain-round-trip deadlock where decideEffect
-			// would need convergedNode.cache to update before running, but
-			// convergedNode needs historyState.emit from inside decideEffect.
-			let decision: DecideEvent["decision"] = "continue";
-			let reason: string | undefined;
-			const budgetOut = opts.budget != null && nextBudget >= opts.budget;
-			const paused = pauseState.cache as boolean;
-			if (budgetOut) {
-				decision = "budget";
-				reason = "budget";
-			} else if (opts.minScore != null && fb.score >= opts.minScore) {
-				decision = "converged";
-				reason = "min-score";
-			} else if (opts.maxIterations != null && i >= opts.maxIterations) {
-				decision = "converged";
-				reason = "max-iterations";
-			} else if (opts.maxEvaluations != null && nextBudget >= opts.maxEvaluations) {
-				decision = "converged";
-				reason = "max-evaluations";
-			} else if (opts.minDelta != null && nextHistory.length >= 2) {
-				const prev = nextHistory[nextHistory.length - 2]!.bestScore;
-				const curr = nextHistory[nextHistory.length - 1]!.bestScore;
-				if (Math.abs(curr - prev) < opts.minDelta) {
-					decision = "converged";
-					reason = "min-delta";
-				}
-			} else if (opts.patience != null && nextHistory.length > opts.patience) {
-				const lookback = nextHistory.slice(-(opts.patience + 1));
-				const baseline = lookback[0]!.bestScore;
-				if (lookback.slice(1).every((it) => it.bestScore <= baseline)) {
-					decision = "converged";
-					reason = "patience";
-				}
-			}
-			// paused takes precedence over continue — if paused AND no convergence,
-			// we pause. Otherwise if converged we stop for real.
-			if (decision === "continue" && paused) {
-				decision = "paused";
-			}
-
-			// All emissions in one batch — drain order is feedback mirror first
-			// (§32), then iterationTrigger, so the next generate sees fresh fb.
-			// `lastFeedbackState` is always mirrored (regardless of decision) so
-			// resume-after-pause gets current feedback; only `iterationTrigger`
-			// is gated on `continue`.
-			batch(() => {
-				bestState.emit(best);
-				scoreState.emit(fb.score);
-				historyState.emit(nextHistory);
-				budgetState.emit(nextBudget);
-				lastFeedbackState.emit(fb);
-				hubDecideTopic.publish({
-					iteration: i,
-					decision,
-					reason,
-					timestamp_ns: monotonicNs(),
-				});
-
-				if (decision === "continue") {
-					iterationTrigger.emit(i + 1);
-				} else {
-					statusState.emit(
-						decision === "converged" ? "converged" : decision === "budget" ? "budget" : "paused",
-					);
-				}
-			});
-		},
-		{ name: "decide-bridge", describeKind: "effect" },
-	);
-	g.add(decideEffect, { name: "decide-bridge" });
-	g.addDisposer(decideEffect.subscribe(() => undefined));
-
-	// --- Assemble the returned graph ----------------------------------------
-	const out = Object.assign(g, {
-		best: bestState as Node<T | null>,
-		score: scoreState,
-		status: statusState,
-		history: historyState,
-		strategy: strategyNode,
-		iteration: iterationTrigger,
-		generate: hubGenerateTopic,
-		evaluate: hubEvaluateTopic,
-		analyze: hubAnalyzeTopic,
-		decide: hubDecideTopic,
-		setStrategy(next: RefineStrategy<T>): void {
-			strategyNode.emit(next);
-		},
-		pause(): void {
-			pauseState.emit(true);
-		},
-		resume(): void {
-			// Idempotent: only un-pause from the "paused" terminal state.
-			// Converged / budget / errored are permanent — a user wanting to
-			// start over should construct a fresh refineLoop.
-			if (statusState.cache !== "paused") return;
-			batch(() => {
-				pauseState.emit(false);
-				statusState.emit("running");
-				iterationTrigger.emit((iterationTrigger.cache as number) + 1);
-			});
-		},
-	}) as RefineLoopGraph<T>;
-
-	return out;
+	return new RefineLoopGraph<T>(seed, evaluator, initialStrategy, opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -1012,10 +1242,12 @@ export function blindVariation<T>(opts: BlindVariationOptions<T>): RefineStrateg
 				return out;
 			} finally {
 				if (opts.tokens != null && iterCost > 0) {
-					// Self-owned counter boundary read (P3 gray zone, same pattern
-					// as `tryIncrementBounded` in patterns/_internal.ts).
-					const prev = (opts.tokens.cache as number | undefined) ?? 0;
-					opts.tokens.emit(prev + iterCost);
+					// /qa D1 follow-up (2026-05-01): replaced direct `.cache` read
+					// + emit with `tryIncrementBounded`, which encapsulates the
+					// self-owned-counter `.cache` access in the canonical helper
+					// (sole sanctioned site per its JSDoc). Cap is unbounded for
+					// the token meter.
+					tryIncrementBounded(opts.tokens, Number.MAX_SAFE_INTEGER, iterCost);
 				}
 			}
 		},
@@ -1230,10 +1462,10 @@ export function errorCritique<T>(opts: ErrorCritiqueOptions<T>): RefineStrategy<
 				return out;
 			} finally {
 				if (opts.tokens != null && iterCost > 0) {
-					// Self-owned counter boundary read (P3 gray zone, same
-					// pattern as `tryIncrementBounded` in patterns/_internal.ts).
-					const prev = (opts.tokens.cache as number | undefined) ?? 0;
-					opts.tokens.emit(prev + iterCost);
+					// /qa D1 follow-up (2026-05-01): replaced direct `.cache` read
+					// + emit with `tryIncrementBounded`, which encapsulates the
+					// self-owned-counter `.cache` access in the canonical helper.
+					tryIncrementBounded(opts.tokens, Number.MAX_SAFE_INTEGER, iterCost);
 				}
 			}
 		},
