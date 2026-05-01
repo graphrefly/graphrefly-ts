@@ -1,22 +1,18 @@
 ---
 title: "mermaidLiveUrl()"
-description: "Encode a mermaid source string to a `https://mermaid.live/edit#base64:…`\ndeep link. Round-trip with the mermaid.live editor's `/edit#base64:`\nshare format — pay"
+description: "Encode an arbitrary mermaid source string to a `mermaid.live` deep link.\nExported separately so callers that already rendered mermaid text can\nupgrade to a live"
 ---
 
-Encode a mermaid source string to a `https://mermaid.live/edit#base64:…`
-deep link. Round-trip with the mermaid.live editor's `/edit#base64:`
-share format — payload is `base64url(JSON({code, mermaid: {theme}, ...}))`.
-
-Exported so callers that already have rendered mermaid text (e.g. from
-`describe({ format: "mermaid" })`) can upgrade to a live-editor URL
-without re-rendering. Pairs with `describe({ format: "mermaid-url" })`.
+Encode an arbitrary mermaid source string to a `mermaid.live` deep link.
+Exported separately so callers that already rendered mermaid text can
+upgrade to a live-editor URL without re-rendering.
 
 ## Signature
 
 ```ts
 function mermaidLiveUrl(
 	mermaidSrc: string,
-	opts?: { theme?: "default" | "dark" | "forest" | "neutral" | "base"; autoSync?: boolean },
+	opts?: { theme?: MermaidLiveTheme; autoSync?: boolean },
 ): string
 ```
 
@@ -25,4 +21,4 @@ function mermaidLiveUrl(
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `mermaidSrc` | `string` |  |
-| `opts` | `{ theme?: "default" | "dark" | "forest" | "neutral" | "base"; autoSync?: boolean }` |  |
+| `opts` | `{ theme?: MermaidLiveTheme; autoSync?: boolean }` |  |

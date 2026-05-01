@@ -85,6 +85,7 @@ import {
 	getGraphToken,
 	observeSSE,
 } from "@graphrefly/graphrefly/compat/nestjs";
+import { graphSpecToD2, graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
 
 type CqrsEvent = patterns.cqrs.CqrsEvent;
 type CqrsGraph = patterns.cqrs.CqrsGraph;
@@ -376,12 +377,12 @@ class AdminController {
 
 	@Get("mermaid")
 	mermaid() {
-		return this.graph.toMermaid({ direction: "LR" });
+		return graphSpecToMermaid(this.graph.describe(), { direction: "LR" });
 	}
 
 	@Get("d2")
 	d2() {
-		return this.graph.toD2({ direction: "LR" });
+		return graphSpecToD2(this.graph.describe(), { direction: "LR" });
 	}
 }
 

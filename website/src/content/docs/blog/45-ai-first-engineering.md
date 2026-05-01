@@ -33,7 +33,7 @@ The AI-First version is different: describe what you need in natural language, h
 
 GraphReFly's GraphSpec is designed for exactly this. It's a declarative schema that constrains what an LLM can produce to structural operations: add this node with these deps, connect these sources, apply this operator. The constraint space is narrow, like SQL constraining database operations — which means the LLM gets it right more often, and when it gets it wrong, the error is structural and obvious, not subtle and hidden in code.
 
-The review step happens at the `describe({format: "mermaid"})` level: before a graph runs, the engineer reviews a simplified flow view. Not code. Not a wall of JSON. A node graph that shows what connects to what and in what order.
+The review step happens at the `graphSpecToMermaid(graph.describe())` level (any of the `graphSpecTo*` pure renderers from `@graphrefly/graphrefly/extra/render` works the same way): before a graph runs, the engineer reviews a simplified flow view. Not code. Not a wall of JSON. A node graph that shows what connects to what and in what order.
 
 ```
 A ──► B ──► D ──► output
@@ -79,7 +79,7 @@ The v0.4 work hardened the three layers that AI-First architectures depend on:
 
 **Correctness foundation (P2/P3):** When AI generates the topology and that topology runs in production, the correctness invariants need to be unconditional. An AI-generated graph shouldn't fail because of a wave-timing race or a stale cache read. The foundation redesign makes correctness structural, not dependent on knowing which composition patterns to avoid.
 
-**Observable state (unified `describe`):** AI-generated systems are harder to debug when you can't see their runtime state. The unified `describe({format})`, `trace()`, and `resourceProfile()` give AI models the same structured access to runtime state that human engineers have. When an AI agent debugging a running harness can call `graph.describe()` and get the same structured output a human engineer would use, the debugging process becomes collaborative — not "the engineer debugs what the AI produced" but "both use the same tools."
+**Observable state (unified `describe`):** AI-generated systems are harder to debug when you can't see their runtime state. The unified `describe()` snapshot — paired with the `graphSpecTo*` pure renderers in `@graphrefly/graphrefly/extra/render` — plus `trace()` and `resourceProfile()` give AI models the same structured access to runtime state that human engineers have. When an AI agent debugging a running harness can call `graph.describe()` and get the same structured output a human engineer would use, the debugging process becomes collaborative — not "the engineer debugs what the AI produced" but "both use the same tools."
 
 **Durable execution (`attachStorage`):** AI-First workflows run for hours or days. They need to survive restarts, handle partial failures, and resume from checkpoints without losing state. `attachStorage` with cascading tiers and V0 version-counter shortcuts makes this operational without requiring custom storage infrastructure per deployment.
 

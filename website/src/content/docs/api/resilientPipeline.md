@@ -46,5 +46,5 @@ const safeFetch = resilientPipeline(fetchNode, {
   });
 safeFetch.output.subscribe(msgs => console.log(msgs));
 safeFetch.status.subscribe(msgs => console.log(msgs));
-safeFetch.describe({ format: "ascii" }); // visualize the chain
+graphSpecToAscii(safeFetch.describe()); // visualize the chain
 ```

@@ -17,6 +17,10 @@ tags:
 
 ---
 
+> **Update (post-v0.4 — D1 three-layer view):** the `format` sugar option on `describe()` was removed. `describe()` now returns data only (`GraphDescribeOutput` / `GraphSpec`); rendering moved to the pure functions in `@graphrefly/graphrefly/extra/render` — `graphSpecToMermaid`, `graphSpecToAscii`, `graphSpecToD2`, `graphSpecToPretty`, `graphSpecToJson`, `graphSpecToMermaidUrl`. The four-entry-points-into-one consolidation story below still holds — but the "one entry point" is now the data snapshot, with rendering composed on top via `derived` for live formatted output. The cognitive-cost argument carries over.
+
+---
+
 Here's a problem that doesn't look like a problem until you have several developers working with the same system: every introspection task requires learning a different API.
 
 Want to dump the graph's current state for debugging? That's `dumpGraph()`. Want to generate a Mermaid diagram for documentation? That's `toMermaid()`. Want D2 format for your architecture diagrams? That's `toD2()`. Want structured JSON for a monitoring dashboard? That's `describe()` with specific options.

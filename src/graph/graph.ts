@@ -767,9 +767,10 @@ function deepEqual(a: unknown, b: unknown): boolean {
 //  describe()-format renderers — moved to `src/extra/render/` per Tier 2.1 A2.
 //
 //  The ex-`describe({ format: ... })` dispatch is gone. Use the pure
-//  renderers (`toMermaid`, `toD2`, `toAscii`, `toPretty`, `toJson`,
-//  `toMermaidUrl`) from `@graphrefly/graphrefly/extra/render` directly on a
-//  describe snapshot, or wrap with `derived` for live formatted output.
+//  renderers (`graphSpecToMermaid`, `graphSpecToD2`, `graphSpecToAscii`,
+//  `graphSpecToPretty`, `graphSpecToJson`, `graphSpecToMermaidUrl`) from
+//  `@graphrefly/graphrefly/extra/render` directly on a describe snapshot,
+//  or wrap with `derived` for live formatted output.
 // ---------------------------------------------------------------------------
 
 function escapeRegexLiteral(value: string): string {
@@ -2289,21 +2290,21 @@ export class Graph {
 	 * `@graphrefly/graphrefly/extra/render`:
 	 *
 	 * ```ts
-	 * import { toMermaid, toAscii } from "@graphrefly/graphrefly/extra/render";
+	 * import { graphSpecToMermaid, graphSpecToAscii } from "@graphrefly/graphrefly/extra/render";
 	 *
-	 * const mermaid = toMermaid(graph.describe());
-	 * const ascii = toAscii(graph.describe(), { direction: "TD" });
+	 * const mermaid = graphSpecToMermaid(graph.describe());
+	 * const ascii = graphSpecToAscii(graph.describe(), { direction: "TD" });
 	 * ```
 	 *
 	 * For live formatted output, compose with `derived`:
 	 *
 	 * ```ts
 	 * import { derived } from "@graphrefly/graphrefly";
-	 * import { toMermaid } from "@graphrefly/graphrefly/extra/render";
+	 * import { graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
 	 *
 	 * const live = derived(
 	 *   [graph.describe({ reactive: true }).node],
-	 *   ([g]) => toMermaid(g),
+	 *   ([g]) => graphSpecToMermaid(g),
 	 * );
 	 * ```
 	 *
@@ -2650,10 +2651,12 @@ export class Graph {
 		};
 
 		// Tier 2.1 A2: `format` option dropped — use the pure renderers in
-		// `@graphrefly/graphrefly/extra/render` (`toMermaid`, `toAscii`,
-		// `toD2`, `toPretty`, `toJson`, `toMermaidUrl`) on the returned
-		// snapshot, or compose `derived([describe({reactive:true}).node], toMermaid)`
-		// for live formatted output.
+		// `@graphrefly/graphrefly/extra/render` (`graphSpecToMermaid`,
+		// `graphSpecToAscii`, `graphSpecToD2`, `graphSpecToPretty`,
+		// `graphSpecToJson`, `graphSpecToMermaidUrl`) on the returned
+		// snapshot, or compose
+		// `derived([describe({reactive:true}).node], graphSpecToMermaid)` for
+		// live formatted output.
 		return struct;
 	}
 
@@ -3750,9 +3753,10 @@ export class Graph {
 		});
 	}
 
-	// Tier 2.1 A2: ex-`describe({ format })` renderers (`toMermaid`, `toD2`,
-	// `toAscii`, `toPretty`, `toJson`, `toMermaidUrl`) live in
-	// `@graphrefly/graphrefly/extra/render` — pure functions over a
+	// Tier 2.1 A2: ex-`describe({ format })` renderers
+	// (`graphSpecToMermaid`, `graphSpecToD2`, `graphSpecToAscii`,
+	// `graphSpecToPretty`, `graphSpecToJson`, `graphSpecToMermaidUrl`) live
+	// in `@graphrefly/graphrefly/extra/render` — pure functions over a
 	// `GraphDescribeOutput` snapshot (no Graph instance dependency).
 
 	// ——————————————————————————————————————————————————————————————

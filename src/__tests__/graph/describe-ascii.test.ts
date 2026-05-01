@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { node } from "../../core/node.js";
 
-import { toAscii } from "../../extra/render/index.js";
+import { graphSpecToAscii } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 
 /**
@@ -20,11 +20,11 @@ function allBoxesPresent(output: string, paths: readonly string[]): boolean {
 	return paths.every((p) => output.includes(p));
 }
 
-describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => {
+describe("graphSpecToAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => {
 	it("renders a single node as one box containing its label", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(out).toContain("a");
 		// Default Unicode charset uses box-drawing corners.
 		expect(out).toMatch(/[┌┐└┘]/u);
@@ -56,7 +56,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
-		const out = toAscii(g.describe(), { direction: "LR" });
+		const out = graphSpecToAscii(g.describe(), { direction: "LR" });
 		expect(allBoxesPresent(out, ["a", "b", "c"])).toBe(true);
 		// LR arrow tip points right.
 		expect(out).toContain("▶");
@@ -96,7 +96,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
-		const out = toAscii(g.describe(), { direction: "TD" });
+		const out = graphSpecToAscii(g.describe(), { direction: "TD" });
 		expect(allBoxesPresent(out, ["a", "b", "c"])).toBe(true);
 		// TD arrow tip points down.
 		expect(out).toContain("▼");
@@ -146,7 +146,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.add(d, { name: "d" });
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(allBoxesPresent(out, ["a", "b", "c", "d"])).toBe(true);
 		expect(out).toContain("▶");
 		// Every row should stay sane width; no Infinity / NaN leakage.
@@ -195,7 +195,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(b, { name: "b" });
 		g.add(c, { name: "c" });
 		g.add(d, { name: "d" });
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(allBoxesPresent(out, ["a", "b", "c", "d"])).toBe(true);
 		// One arrow tip per distinct target-node entry point. b, c, d each
 		// receive at least one arrow; edges converging on the same cell
@@ -225,7 +225,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const out = toAscii(g.describe(), { asciiCharset: "ascii" });
+		const out = graphSpecToAscii(g.describe(), { asciiCharset: "ascii" });
 		// No Unicode box-drawing characters.
 		expect(out).not.toMatch(/[─│┌┐└┘┬┴├┤┼▶▼]/u);
 		// Must have the ASCII equivalents.
@@ -237,7 +237,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(node([], { name: "this_is_a_rather_long_path_name", initial: 1 }), {
 			name: "this_is_a_rather_long_path_name",
 		});
-		const out = toAscii(g.describe(), { maxLabelWidth: 10 });
+		const out = graphSpecToAscii(g.describe(), { maxLabelWidth: 10 });
 		expect(out).toContain("…");
 		expect(out).not.toContain("this_is_a_rather_long_path_name");
 	});
@@ -245,7 +245,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 	it("CJK labels keep box structure aligned (2 cells per wide char)", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "日本語", initial: 1 }), { name: "日本語" });
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(out).toContain("日本語");
 		// The box borders should be long enough that the top row has at
 		// least 6 horizontal glyphs (3 CJK = 6 cells + 2 borders + 2 padding).
@@ -262,14 +262,14 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		const a = node([], { name: "a", initial: 1 });
 		sub.add(a, { name: "a" });
 		g.mount("sub", sub);
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(out).toContain("sub::a");
 	});
 
 	it("invalid direction throws a clear error", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-		expect(() => toAscii(g.describe(), { direction: "BT" as unknown as "LR" })).toThrow(
+		expect(() => graphSpecToAscii(g.describe(), { direction: "BT" as unknown as "LR" })).toThrow(
 			/ascii describe supports direction "LR" or "TD"/,
 		);
 	});
@@ -278,7 +278,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		let captured = "";
-		const out = toAscii(g.describe(), {
+		const out = graphSpecToAscii(g.describe(), {
 			logger: (text) => {
 				captured = text;
 			},
@@ -297,7 +297,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
-				actions.emit(toAscii(data[0]));
+				actions.emit(graphSpecToAscii(data[0]));
 			},
 			{ describeKind: "derived", name: "live-ascii" },
 		);
@@ -350,7 +350,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 			prev = next;
 		}
 		const start = Date.now();
-		const out = toAscii(g.describe(), { maxLabelWidth: 10 });
+		const out = graphSpecToAscii(g.describe(), { maxLabelWidth: 10 });
 		const elapsed = Date.now() - start;
 		expect(out.length).toBeGreaterThan(100);
 		// Every registered name should appear in the output. Truncation
@@ -366,12 +366,12 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 
 	it("empty graph renders as a valid (possibly empty) string without throwing", () => {
 		const g = new Graph("empty");
-		const out = toAscii(g.describe());
+		const out = graphSpecToAscii(g.describe());
 		expect(typeof out).toBe("string");
 	});
 
 	it("malformed snapshot with same-layer or back edges renders best-effort, no crash", () => {
-		// Real GraphReFly graphs are DAGs, so we feed toAscii a synthetic
+		// Real GraphReFly graphs are DAGs, so we feed graphSpecToAscii a synthetic
 		// GraphDescribeOutput containing a back-edge to exercise the defensive
 		// drop in `insertVirtualNodes`. We build the smallest possible describe
 		// shape by hand.
@@ -389,7 +389,7 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 			],
 			subgraphs: [],
 		};
-		const out = toAscii(fake as never);
+		const out = graphSpecToAscii(fake as never);
 		expect(out).toContain("a");
 		expect(out).toContain("b");
 		// No NaN leaked into the output.
@@ -433,8 +433,8 @@ describe("toAscii (extra/render — ex `describe({ format: 'ascii' })`)", () => 
 		g.add(b, { name: "beta" });
 		g.add(c, { name: "gamma" });
 		g.add(d, { name: "delta" });
-		const lr = toAscii(g.describe(), { direction: "LR" });
-		const td = toAscii(g.describe(), { direction: "TD" });
+		const lr = graphSpecToAscii(g.describe(), { direction: "LR" });
+		const td = graphSpecToAscii(g.describe(), { direction: "TD" });
 		for (const n of ["alpha", "beta", "gamma", "delta"]) {
 			expect(lr).toContain(n);
 			expect(td).toContain(n);

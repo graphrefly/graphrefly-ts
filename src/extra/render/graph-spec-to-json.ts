@@ -1,6 +1,6 @@
 /**
- * `toJson(g, opts?)` — render a {@link GraphDescribeOutput} as deterministic
- * JSON text with sorted keys.
+ * `graphSpecToJson(g, opts?)` — render a {@link GraphDescribeOutput} as
+ * deterministic JSON text with sorted keys.
  *
  * Pure function over the describe snapshot; no Graph instance dependency.
  *
@@ -10,7 +10,7 @@
 import type { GraphDescribeOutput } from "../../graph/graph.js";
 import { sortJsonValue } from "./_internal.js";
 
-export type ToJsonOptions = {
+export type GraphSpecToJsonOptions = {
 	/** Include the Edges section (default `true`). */
 	includeEdges?: boolean;
 	/** Include the Subgraphs section (default `true`). */
@@ -21,7 +21,7 @@ export type ToJsonOptions = {
 	logger?: (text: string) => void;
 };
 
-export function toJson(g: GraphDescribeOutput, opts?: ToJsonOptions): string {
+export function graphSpecToJson(g: GraphDescribeOutput, opts?: GraphSpecToJsonOptions): string {
 	const includeEdges = opts?.includeEdges ?? true;
 	const includeSubgraphs = opts?.includeSubgraphs ?? true;
 	const { expand: _expand, ...rest } = g;

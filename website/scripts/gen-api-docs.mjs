@@ -220,7 +220,7 @@ const REGISTRY = {
 	Graph: "src/graph/graph.ts",
 	reachable: "src/graph/graph.ts",
 	explainPath: "src/graph/explain.ts",
-	mermaidLiveUrl: "src/graph/graph.ts",
+	mermaidLiveUrl: "src/extra/render/graph-spec-to-mermaid-url.ts",
 	validateGraphObservability: "src/graph/validate-observability.ts",
 	validateNoIslands: "src/graph/validate-no-islands.ts",
 	watchTopologyTree: "src/graph/topology-tree.ts",

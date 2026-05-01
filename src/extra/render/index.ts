@@ -5,31 +5,31 @@
  * Compose with `derived` for live formatted output:
  *
  * ```ts
- * import { toMermaid } from "@graphrefly/graphrefly/extra/render";
+ * import { graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
  * import { derived } from "@graphrefly/graphrefly";
  *
  * const live = derived(
  *   [graph.describe({ reactive: true }).node],
- *   ([g]) => toMermaid(g),
+ *   ([g]) => graphSpecToMermaid(g),
  * );
  * ```
  *
- * Replaces the old `describe({ format })` dispatch — see Tier 1.5.1 deferred
- * "format option removal" entry in the implementation plan.
+ * Replaces the old `describe({ format })` dispatch — the `format` sugar option
+ * was removed in the D1 three-layer-view refactor (pre-1.0 breaking, no shim).
  *
  * @module
  */
 
 export type { DiagramDirection } from "./_internal.js";
 export type { LayoutDirection } from "./_layout-sugiyama.js";
-export { type ToAsciiOptions, toAscii } from "./to-ascii.js";
-export { type ToD2Options, toD2 } from "./to-d2.js";
-export { type ToJsonOptions, toJson } from "./to-json.js";
-export { type ToMermaidOptions, toMermaid } from "./to-mermaid.js";
+export { type GraphSpecToAsciiOptions, graphSpecToAscii } from "./graph-spec-to-ascii.js";
+export { type GraphSpecToD2Options, graphSpecToD2 } from "./graph-spec-to-d2.js";
+export { type GraphSpecToJsonOptions, graphSpecToJson } from "./graph-spec-to-json.js";
+export { type GraphSpecToMermaidOptions, graphSpecToMermaid } from "./graph-spec-to-mermaid.js";
 export {
+	type GraphSpecToMermaidUrlOptions,
+	graphSpecToMermaidUrl,
 	type MermaidLiveTheme,
 	mermaidLiveUrl,
-	type ToMermaidUrlOptions,
-	toMermaidUrl,
-} from "./to-mermaid-url.js";
-export { type ToPrettyOptions, toPretty } from "./to-pretty.js";
+} from "./graph-spec-to-mermaid-url.js";
+export { type GraphSpecToPrettyOptions, graphSpecToPretty } from "./graph-spec-to-pretty.js";

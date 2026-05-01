@@ -1,5 +1,5 @@
 /**
- * `toPretty(g, opts?)` — render a {@link GraphDescribeOutput} as
+ * `graphSpecToPretty(g, opts?)` — render a {@link GraphDescribeOutput} as
  * human-readable plaintext (Node list with values, plus optional Edges and
  * Subgraphs sections).
  *
@@ -11,7 +11,7 @@
 import type { GraphDescribeOutput } from "../../graph/graph.js";
 import { describeData } from "./_internal.js";
 
-export type ToPrettyOptions = {
+export type GraphSpecToPrettyOptions = {
 	/** Include the Edges section (default `true`). */
 	includeEdges?: boolean;
 	/** Include the Subgraphs section (default `true`). */
@@ -20,7 +20,7 @@ export type ToPrettyOptions = {
 	logger?: (text: string) => void;
 };
 
-export function toPretty(g: GraphDescribeOutput, opts?: ToPrettyOptions): string {
+export function graphSpecToPretty(g: GraphDescribeOutput, opts?: GraphSpecToPrettyOptions): string {
 	const includeEdges = opts?.includeEdges ?? true;
 	const includeSubgraphs = opts?.includeSubgraphs ?? true;
 	const lines: string[] = [];

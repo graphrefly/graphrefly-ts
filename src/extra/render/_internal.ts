@@ -3,7 +3,8 @@
  *
  * These are pure functions over `GraphDescribeOutput` — no Graph instance
  * dependency. Extracted from `src/graph/graph.ts` (the consolidated
- * ex-dumpGraph / ex-toMermaid / ex-toD2 renderers) per Tier 2.1 A2.
+ * ex-dumpGraph / ex-graphSpecToMermaid / ex-graphSpecToD2 renderers) per
+ * Tier 2.1 A2.
  */
 
 import type { GraphDescribeOutput } from "../../graph/graph.js";
@@ -79,7 +80,7 @@ export function normalizeDiagramDirection(direction: unknown): DiagramDirection 
 	);
 }
 
-/** JSON-aware single-value formatter (used by `toPretty`). */
+/** JSON-aware single-value formatter (used by `graphSpecToPretty`). */
 export function describeData(value: unknown): string {
 	if (typeof value === "string") return JSON.stringify(value);
 	if (typeof value === "number" || typeof value === "boolean" || value == null)

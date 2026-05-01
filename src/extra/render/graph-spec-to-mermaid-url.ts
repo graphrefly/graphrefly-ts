@@ -1,6 +1,6 @@
 /**
- * `toMermaidUrl(g, opts?)` — encode a {@link GraphDescribeOutput} as a
- * `https://mermaid.live/edit#base64:…` deep link.
+ * `graphSpecToMermaidUrl(g, opts?)` — encode a {@link GraphDescribeOutput}
+ * as a `https://mermaid.live/edit#base64:…` deep link.
  *
  * Round-trip with the mermaid.live editor's `/edit#base64:` share format —
  * payload is `base64url(JSON({code, mermaid: {theme}, ...}))`. No network
@@ -10,11 +10,11 @@
  */
 
 import type { GraphDescribeOutput } from "../../graph/graph.js";
-import { type ToMermaidOptions, toMermaid } from "./to-mermaid.js";
+import { type GraphSpecToMermaidOptions, graphSpecToMermaid } from "./graph-spec-to-mermaid.js";
 
 export type MermaidLiveTheme = "default" | "dark" | "forest" | "neutral" | "base";
 
-export type ToMermaidUrlOptions = ToMermaidOptions & {
+export type GraphSpecToMermaidUrlOptions = GraphSpecToMermaidOptions & {
 	theme?: MermaidLiveTheme;
 	autoSync?: boolean;
 };
@@ -41,7 +41,10 @@ export function mermaidLiveUrl(
 	return `https://mermaid.live/edit#base64:${b64}`;
 }
 
-export function toMermaidUrl(g: GraphDescribeOutput, opts?: ToMermaidUrlOptions): string {
-	const mermaidSrc = toMermaid(g, opts);
+export function graphSpecToMermaidUrl(
+	g: GraphDescribeOutput,
+	opts?: GraphSpecToMermaidUrlOptions,
+): string {
+	const mermaidSrc = graphSpecToMermaid(g, opts);
 	return mermaidLiveUrl(mermaidSrc, opts);
 }

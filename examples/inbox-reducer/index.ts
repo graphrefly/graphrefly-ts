@@ -29,6 +29,7 @@ import {
 	type TokenUsage,
 	validateGraphObservability,
 } from "@graphrefly/graphrefly";
+import { graphSpecToAscii } from "@graphrefly/graphrefly/extra/render";
 import { computePrice, observableAdapter } from "@graphrefly/graphrefly/patterns/ai";
 
 import { assertApiKey, buildAdapterStack } from "./adapter-stack.js";
@@ -58,10 +59,11 @@ async function confirm(question: string): Promise<boolean> {
 	});
 }
 
-// (Flowchart rendering — `graph.describe({ format: "ascii" })` produces a
-// stdout-native DAG diagram with Unicode box-drawing glyphs. For clickable
-// mermaid, `describe({ format: "mermaid-url" })` encodes a mermaid.live
-// deep link; for bare mermaid text use `format: "mermaid"`.)
+// (Flowchart rendering — `graphSpecToAscii(graph.describe())` from
+// `@graphrefly/graphrefly/extra/render` produces a stdout-native DAG diagram
+// with Unicode box-drawing glyphs. For clickable mermaid,
+// `graphSpecToMermaidUrl(graph.describe())` encodes a mermaid.live deep
+// link; for bare mermaid text use `graphSpecToMermaid`.)
 
 // ---------------------------------------------------------------------------
 // Stage-log formatter for subscribers
@@ -126,9 +128,10 @@ async function dryRun(): Promise<void> {
 			console.error(`\n!! describe({ explain }).text render is degenerate. Aborting.`);
 			process.exit(3);
 		}
-		// Path 1B — stdout-native DAG flowchart via `describe({ format: "ascii" })`.
+		// Path 1B — stdout-native DAG flowchart via the `graphSpecToAscii`
+		// pure renderer over `graph.describe()`.
 		console.log("\nFlowchart:");
-		console.log(graph.describe({ format: "ascii" }));
+		console.log(graphSpecToAscii(graph.describe()));
 	} finally {
 		graph.destroy();
 	}

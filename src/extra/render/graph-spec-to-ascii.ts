@@ -1,5 +1,5 @@
 /**
- * `toAscii(g, opts?)` — stdout-native DAG flowchart renderer for a
+ * `graphSpecToAscii(g, opts?)` — stdout-native DAG flowchart renderer for a
  * {@link GraphDescribeOutput}.
  *
  * Zero external dependencies, graph-size independent via proper Sugiyama
@@ -25,7 +25,7 @@ const LAYER_GAP = 4;
 const NODE_GAP = 1;
 const BOX_HEIGHT = 3;
 
-export type ToAsciiOptions = {
+export type GraphSpecToAsciiOptions = {
 	/**
 	 * ASCII layout direction. ASCII grid semantics are meaningful only for
 	 * `"LR"` (default) and `"TD"`.
@@ -39,7 +39,7 @@ export type ToAsciiOptions = {
 	logger?: (text: string) => void;
 };
 
-export function toAscii(g: GraphDescribeOutput, opts?: ToAsciiOptions): string {
+export function graphSpecToAscii(g: GraphDescribeOutput, opts?: GraphSpecToAsciiOptions): string {
 	const direction = normalizeAsciiDirection(opts?.direction);
 	const maxLabel = Math.max(3, opts?.maxLabelWidth ?? DEFAULT_LABEL_WIDTH);
 	const charset = opts?.asciiCharset ?? "unicode";

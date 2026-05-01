@@ -22,6 +22,7 @@
  */
 
 import { DATA, validateGraphObservability } from "@graphrefly/graphrefly";
+import { graphSpecToPretty } from "@graphrefly/graphrefly/extra/render";
 import type { VerifyResult } from "@graphrefly/graphrefly/patterns/harness";
 
 import { helloHarness, REQUIRED_KEYWORDS } from "./pipeline.js";
@@ -96,10 +97,10 @@ try {
 	}
 
 	// Topology snapshot — proves every wiring decision is inspectable.
-	// The full causal trace lives in `harness.describe({ format: "mermaid" })`;
+	// The full causal trace lives in `graphSpecToMermaid(harness.describe())`;
 	// we print the pretty text form here so the output stays terminal-friendly.
-	console.log(`\n${HEAVY}\nTopology — graph.describe({ format: "pretty" })\n${HEAVY}`);
-	console.log(harness.describe({ format: "pretty" }));
+	console.log(`\n${HEAVY}\nTopology — graphSpecToPretty(graph.describe())\n${HEAVY}`);
+	console.log(graphSpecToPretty(harness.describe()));
 
 	verifyUnsub();
 	harness.destroy();

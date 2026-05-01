@@ -5,7 +5,13 @@ import { GuardDenied, policy } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, PAUSE, RESUME, TEARDOWN } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 
-import { toD2, toJson, toMermaid, toMermaidUrl, toPretty } from "../../extra/render/index.js";
+import {
+	graphSpecToD2,
+	graphSpecToJson,
+	graphSpecToMermaid,
+	graphSpecToMermaidUrl,
+	graphSpecToPretty,
+} from "../../extra/render/index.js";
 import {
 	GRAPH_META_SEGMENT,
 	Graph,
@@ -702,7 +708,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(obs.events.some((e) => e.timestamp_ns != null)).toBe(true);
 	});
 
-	it("toMermaid exports qualified nodes and edges with direction", () => {
+	it("graphSpecToMermaid exports qualified nodes and edges with direction", () => {
 		const g = new Graph("g");
 		const child = new Graph("child");
 		const a = node([], { name: "a", initial: 0 });
@@ -719,14 +725,14 @@ describe("Graph introspection (Phase 1.3)", () => {
 		child.add(a, { name: "a" });
 		child.add(b, { name: "b" });
 		g.mount("sub", child);
-		const text = toMermaid(g.describe(), { direction: "TD" });
+		const text = graphSpecToMermaid(g.describe(), { direction: "TD" });
 		expect(text).toContain("flowchart TD");
 		expect(text).toContain('["sub::a"]');
 		expect(text).toContain('["sub::b"]');
 		expect(text).toContain("-->");
 	});
 
-	it("toD2 exports qualified nodes and maps direction", () => {
+	it("graphSpecToD2 exports qualified nodes and maps direction", () => {
 		const g = new Graph("g");
 		const a = node([], { name: "a", initial: 1 });
 		const b = node(
@@ -741,25 +747,25 @@ describe("Graph introspection (Phase 1.3)", () => {
 		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const text = toD2(g.describe(), { direction: "RL" });
+		const text = graphSpecToD2(g.describe(), { direction: "RL" });
 		expect(text).toContain("direction: left");
 		expect(text).toContain('"a"');
 		expect(text).toContain('"b"');
 		expect(text).toContain("->");
 	});
 
-	it("toMermaid rejects invalid direction at runtime", () => {
+	it("graphSpecToMermaid rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-		expect(() => toMermaid(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
-			/invalid diagram direction/,
-		);
+		expect(() =>
+			graphSpecToMermaid(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" }),
+		).toThrow(/invalid diagram direction/);
 	});
 
-	it("toD2 rejects invalid direction at runtime", () => {
+	it("graphSpecToD2 rejects invalid direction at runtime", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 0 }), { name: "a" });
-		expect(() => toD2(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
+		expect(() => graphSpecToD2(g.describe(), { direction: "SIDEWAYS" as unknown as "TD" })).toThrow(
 			/invalid diagram direction/,
 		);
 	});
@@ -796,7 +802,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		live.dispose();
 	});
 
-	it("D2: derived(describe({ reactive: true }) → toMermaid) yields a live Mermaid Node<string>", () => {
+	it("D2: derived(describe({ reactive: true }) → graphSpecToMermaid) yields a live Mermaid Node<string>", () => {
 		const g = new Graph("g");
 		g.add(node([], { name: "a", initial: 1 }), { name: "a" });
 		const live = g.describe({ reactive: true });
@@ -806,7 +812,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
-				actions.emit(toMermaid(data[0]));
+				actions.emit(graphSpecToMermaid(data[0]));
 			},
 			{ describeKind: "derived", name: "live-mermaid" },
 		);
@@ -817,7 +823,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		live.dispose();
 	});
 
-	it("toMermaidUrl emits mermaid.live deep link round-trippable to mermaid source", () => {
+	it("graphSpecToMermaidUrl emits mermaid.live deep link round-trippable to mermaid source", () => {
 		const g = new Graph("g");
 		const a = node([], { name: "a", initial: 1 });
 		const b = node(
@@ -832,7 +838,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const url = toMermaidUrl(g.describe());
+		const url = graphSpecToMermaidUrl(g.describe());
 		expect(url).toMatch(/^https:\/\/mermaid\.live\/edit#base64:/);
 		const b64 = url.slice("https://mermaid.live/edit#base64:".length);
 		// url-safe base64 → standard base64 + padding
@@ -844,7 +850,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(json.mermaid?.theme).toBe("default");
 	});
 
-	it("toMermaid and toD2 render constructor deps without explicit connect", () => {
+	it("graphSpecToMermaid and graphSpecToD2 render constructor deps without explicit connect", () => {
 		const g = new Graph("g");
 		const a = node([], { name: "a", initial: 1 });
 		const b = node(
@@ -860,9 +866,9 @@ describe("Graph introspection (Phase 1.3)", () => {
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
 		// No connect() — deps only
-		const mermaid = toMermaid(g.describe());
+		const mermaid = graphSpecToMermaid(g.describe());
 		expect(mermaid).toContain("-->");
-		const d2 = toD2(g.describe());
+		const d2 = graphSpecToD2(g.describe());
 		expect(d2).toContain("->");
 	});
 
@@ -922,7 +928,7 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(parsed.some((evt) => evt.type === "data" && evt.path === "b")).toBe(true);
 	});
 
-	it("toPretty / toJson render the snapshot", () => {
+	it("graphSpecToPretty / graphSpecToJson render the snapshot", () => {
 		const g = new Graph("g");
 		const a = node([], { name: "a", initial: 1 });
 		const b = node(
@@ -937,12 +943,12 @@ describe("Graph introspection (Phase 1.3)", () => {
 		);
 		g.add(a, { name: "a" });
 		g.add(b, { name: "b" });
-		const pretty = toPretty(g.describe({ detail: "standard" }));
+		const pretty = graphSpecToPretty(g.describe({ detail: "standard" }));
 		expect(pretty).toContain("Graph g");
 		expect(pretty).toContain("Nodes:");
 		expect(pretty).toContain("Edges:");
-		const jsonText = toJson(g.describe({ detail: "standard" }), { indent: 2 });
-		expect(jsonText).toBe(toJson(g.describe({ detail: "standard" }), { indent: 2 }));
+		const jsonText = graphSpecToJson(g.describe({ detail: "standard" }), { indent: 2 });
+		expect(jsonText).toBe(graphSpecToJson(g.describe({ detail: "standard" }), { indent: 2 }));
 		const parsed = JSON.parse(jsonText) as {
 			name: string;
 			nodes: Record<string, unknown>;
@@ -951,6 +957,85 @@ describe("Graph introspection (Phase 1.3)", () => {
 		expect(parsed.name).toBe("g");
 		expect(parsed.nodes.a).toBeDefined();
 		expect(parsed.edges).toEqual([{ from: "a", to: "b" }]);
+	});
+
+	it("D1 byte-identical fixture pins each graphSpecTo* renderer's output", () => {
+		// Locks the exact pre-extraction bytes for a known-shape fixture graph
+		// so any drift in `graphSpecTo*` (tab/spacing changes, key reordering,
+		// label escaping regressions) surfaces immediately. The fixture is the
+		// minimal a→b derived chain plus a `c::child` mount so all three of
+		// edges / subgraphs / qualified labels are exercised.
+		const g = new Graph("fixture");
+		const a = node([], { name: "a", initial: 1 });
+		const b = node(
+			[a],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((batch, i) =>
+					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as number) + 1);
+			},
+			{ describeKind: "derived", name: "b" },
+		);
+		g.add(a, { name: "a" });
+		g.add(b, { name: "b" });
+		const child = new Graph("child");
+		child.add(node([], { name: "leaf", initial: 0 }), { name: "leaf" });
+		g.mount("c", child);
+
+		// Mermaid — flowchart text with sorted ids n0/n1/...
+		const mermaid = graphSpecToMermaid(g.describe(), { direction: "LR" });
+		expect(mermaid).toBe(
+			["flowchart LR", '  n0["a"]', '  n1["b"]', '  n2["c::leaf"]', "  n0 --> n1"].join("\n"),
+		);
+
+		// D2 — direction text + sibling ids + arrows.
+		const d2 = graphSpecToD2(g.describe(), { direction: "LR" });
+		expect(d2).toBe(
+			["direction: right", 'n0: "a"', 'n1: "b"', 'n2: "c::leaf"', "n0 -> n1"].join("\n"),
+		);
+
+		// Pretty — node lines include the runtime status + value via
+		// `describeData`. Source `state(N)` nodes settle synchronously; the
+		// derived `b` is `sentinel` until any subscriber wakes it.
+		const pretty = graphSpecToPretty(g.describe({ detail: "standard" }));
+		expect(pretty).toBe(
+			[
+				"Graph fixture",
+				"Nodes:",
+				"- a (state/settled): 1",
+				"- b (derived/sentinel): undefined",
+				"- c::leaf (state/settled): 0",
+				"Edges:",
+				"- a -> b",
+				"Subgraphs:",
+				"- c",
+			].join("\n"),
+		);
+
+		// JSON — deterministic sorted-key text. We don't pin the entire
+		// 1-3KB output since it embeds version counters and per-node meta;
+		// we lock the structural keys + edge/subgraph/name layout instead.
+		const jsonText = graphSpecToJson(g.describe(), { indent: 2 });
+		const parsed = JSON.parse(jsonText) as {
+			name: string;
+			edges: Array<{ from: string; to: string }>;
+			subgraphs: string[];
+			nodes: Record<string, unknown>;
+		};
+		expect(parsed.name).toBe("fixture");
+		expect(parsed.edges).toEqual([{ from: "a", to: "b" }]);
+		expect(parsed.subgraphs).toEqual(["c"]);
+		expect(Object.keys(parsed.nodes).sort()).toEqual(["a", "b", "c::leaf"]);
+
+		// Mermaid URL — same mermaid bytes, base64url'd into the fragment.
+		const url = graphSpecToMermaidUrl(g.describe(), { direction: "LR" });
+		expect(url.startsWith("https://mermaid.live/edit#base64:")).toBe(true);
+		const b64 = url.slice("https://mermaid.live/edit#base64:".length);
+		let std = b64.replace(/-/g, "+").replace(/_/g, "/");
+		while (std.length % 4 !== 0) std += "=";
+		const decoded = JSON.parse(globalThis.atob(std)) as { code: string };
+		expect(decoded.code).toBe(mermaid);
 	});
 });
 

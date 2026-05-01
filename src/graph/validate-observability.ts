@@ -20,7 +20,14 @@
  * @module
  */
 
-import { toAscii, toD2, toJson, toMermaid, toMermaidUrl, toPretty } from "../extra/render/index.js";
+import {
+	graphSpecToAscii,
+	graphSpecToD2,
+	graphSpecToJson,
+	graphSpecToMermaid,
+	graphSpecToMermaidUrl,
+	graphSpecToPretty,
+} from "../extra/render/index.js";
 import type { CausalChain } from "./explain.js";
 import type { Graph, GraphDescribeOutput } from "./graph.js";
 
@@ -34,12 +41,12 @@ export type ObservabilityDescribeFormat =
 	| "ascii";
 
 const FORMAT_RENDERERS: Record<ObservabilityDescribeFormat, (g: GraphDescribeOutput) => string> = {
-	json: (g) => toJson(g),
-	pretty: (g) => toPretty(g),
-	mermaid: (g) => toMermaid(g),
-	"mermaid-url": (g) => toMermaidUrl(g),
-	d2: (g) => toD2(g),
-	ascii: (g) => toAscii(g),
+	json: (g) => graphSpecToJson(g),
+	pretty: (g) => graphSpecToPretty(g),
+	mermaid: (g) => graphSpecToMermaid(g),
+	"mermaid-url": (g) => graphSpecToMermaidUrl(g),
+	d2: (g) => graphSpecToD2(g),
+	ascii: (g) => graphSpecToAscii(g),
 };
 
 /** One observability check performed by {@link validateGraphObservability}. */
@@ -47,7 +54,7 @@ export type ObservabilityCheck =
 	/** `describe()` was exercised and its structural invariants (nodes ⊇ deps) held. */
 	| { kind: "describe"; ok: true; nodeCount: number; edgeCount: number }
 	| { kind: "describe"; ok: false; reason: string; danglingDeps?: readonly string[] }
-	/** `describe({ format })` render was exercised and produced non-empty output. */
+	/** A `graphSpecTo*` renderer was exercised and produced non-empty output. */
 	| { kind: "describe-format"; ok: true; format: ObservabilityDescribeFormat; length: number }
 	| {
 			kind: "describe-format";
@@ -100,11 +107,12 @@ export interface ValidateObservabilityOptions {
 	 */
 	readonly skipDescribe?: boolean;
 	/**
-	 * Describe formats to exercise via `graph.describe({ format })`. Each
-	 * format renders the graph once and checks that the result is a non-empty
-	 * string. Useful in dry-run blocks so regressions in the render paths
-	 * (ascii, mermaid, pretty, json, d2, mermaid-url) surface before any wire
-	 * spend.
+	 * Renderers to exercise on `graph.describe()`. Each format renders the
+	 * graph once via the matching `graphSpecTo*` pure function from
+	 * `@graphrefly/graphrefly/extra/render` and checks that the result is a
+	 * non-empty string. Useful in dry-run blocks so regressions in the render
+	 * paths (ascii, mermaid, pretty, json, d2, mermaid-url) surface before any
+	 * wire spend.
 	 */
 	readonly formats?: readonly ObservabilityDescribeFormat[];
 }

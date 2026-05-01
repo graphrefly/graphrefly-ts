@@ -427,7 +427,7 @@ export class ResilientPipelineGraph<T> extends Graph {
  * });
  * safeFetch.output.subscribe(msgs => console.log(msgs));
  * safeFetch.status.subscribe(msgs => console.log(msgs));
- * safeFetch.describe({ format: "ascii" }); // visualize the chain
+ * graphSpecToAscii(safeFetch.describe()); // visualize the chain
  * ```
  *
  * @category patterns

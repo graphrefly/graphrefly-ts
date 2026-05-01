@@ -22,7 +22,7 @@
  * swaps axes at draw time — the layout is direction-agnostic by
  * construction.
  *
- * Used only by [to-ascii.ts](./to-ascii.ts); not part of the public
+ * Used only by [graph-spec-to-ascii.ts](./graph-spec-to-ascii.ts); not part of the public
  * `extra/render/index.ts` surface (underscore-prefixed).
  */
 

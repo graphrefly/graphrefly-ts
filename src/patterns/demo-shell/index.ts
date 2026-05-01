@@ -12,7 +12,7 @@ import { batch } from "../../core/batch.js";
 import { describeNode, resolveDescribeFields } from "../../core/meta.js";
 import { node } from "../../core/node.js";
 
-import { toMermaid } from "../../extra/render/index.js";
+import { graphSpecToMermaid } from "../../extra/render/index.js";
 import { Graph } from "../../graph/graph.js";
 import type { MeasurementAdapter } from "../reactive-layout/reactive-layout.js";
 import { analyzeAndMeasure, computeLineBreaks } from "../reactive-layout/reactive-layout.js";
@@ -222,7 +222,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const demo = data[0] as Graph | null;
-			actions.emit(demo ? toMermaid(demo.describe()) : "");
+			actions.emit(demo ? graphSpecToMermaid(demo.describe()) : "");
 		},
 		{ describeKind: "derived", ...{ name: "graph/mermaid" } },
 	);
@@ -303,7 +303,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 
 	// ── Cross-highlighting effect nodes (optional) ─────
 	// Created when onHighlight callbacks are provided, making the full
-	// source→derived→effect chain visible in describe()/toMermaid().
+	// source→derived→effect chain visible in describe()/graphSpecToMermaid().
 
 	if (onHighlight?.codeScroll) {
 		const cb = onHighlight.codeScroll;
@@ -409,7 +409,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 			const data = batchData.map((batch, i) =>
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
-			actions.emit((data[0] as boolean) ? toMermaid(g.describe()) : "");
+			actions.emit((data[0] as boolean) ? graphSpecToMermaid(g.describe()) : "");
 		},
 		{ describeKind: "derived", ...{ name: "meta/shell-mermaid" } },
 	);
@@ -508,7 +508,7 @@ export function demoShell(opts?: DemoShellOptions): DemoShellHandle {
 		g.add(sideWidthHint, { name: "layout/side-width-hint" });
 	}
 
-	// ── Edges (explicit wiring for describe/toMermaid) ───
+	// ── Edges (explicit wiring for describe/graphSpecToMermaid) ───
 
 	// ── Handle ───────────────────────────────────────────
 	let tickCounter = 0;

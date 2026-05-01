@@ -15,7 +15,7 @@ pnpm --filter @graphrefly-examples/harness-refine-hello start
 - **Pluggable EXECUTE slot** — `refineExecutor` replaces the default LLM-backed executor. The harness emits an `ExecuteOutput` only when the inner `refineLoop` reaches a terminal status (`converged` / `budget` / `errored`).
 - **Pluggable VERIFY slot** — `evalVerifier` re-runs the *same* evaluator against the artifact emitted by EXECUTE. No "LLM said it looks fine" gap.
 - **Consistent scoring** — EXECUTE and VERIFY share the `Evaluator<T>` definition, so the verifier grades what EXECUTE optimized.
-- **Inspectable topology** — `graph.describe({ format: "pretty" })` lists every node and edge, including the `refine-executor` and `eval-verifier` slots wired through `withLatestFrom`.
+- **Inspectable topology** — `graphSpecToPretty(graph.describe())` (from `@graphrefly/graphrefly/extra/render`) lists every node and edge, including the `refine-executor` and `eval-verifier` slots wired through `withLatestFrom`.
 - **Preflight validation** — `validateGraphObservability` exits non-zero if the dry-run surface (describe + formats + resolve) can't inspect the graph, before any LLM calls run.
 
 ## Scenario

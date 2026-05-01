@@ -257,17 +257,21 @@ curl http://localhost:3000/admin/describe | jq .
 
 Returns the full topology: node names, types, dependency edges, current values, and metadata.
 
-You can also export diagrams directly from the running graph:
+You can also export diagrams directly from the running graph by composing
+the pure renderers from `@graphrefly/graphrefly/extra/render` over
+`graph.describe()`:
 
 ```ts
+import { graphSpecToD2, graphSpecToMermaid } from "@graphrefly/graphrefly/extra/render";
+
 @Get("mermaid")
 mermaid() {
-  return this.graph.toMermaid({ direction: "LR" });
+  return graphSpecToMermaid(this.graph.describe(), { direction: "LR" });
 }
 
 @Get("d2")
 d2() {
-  return this.graph.toD2({ direction: "LR" });
+  return graphSpecToD2(this.graph.describe(), { direction: "LR" });
 }
 ```
 
