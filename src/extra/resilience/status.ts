@@ -91,12 +91,18 @@ export function withStatus<T>(
 							batch(() => {
 								out.meta.error.down([[DATA, null]]);
 								out.meta.status.down([[DATA, "running"]]);
+								a.emit(m[1] as T);
 							});
 						} else {
-							out.meta.status.down([[DATA, "running"]]);
+							// F19 — wrap status flip + DATA emit in a single batch so
+							// external observers see one coherent wave (no torn reads
+							// between the status companion and the mirrored stream).
+							batch(() => {
+								out.meta.status.down([[DATA, "running"]]);
+								a.emit(m[1] as T);
+							});
 						}
 						currentStatus = "running";
-						a.emit(m[1] as T);
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
 						out.meta.status.down([[DATA, "completed"]]);

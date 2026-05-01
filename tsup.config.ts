@@ -196,6 +196,10 @@ async function assertBrowserSafeBundles(dir: string): Promise<void> {
 	//
 	// These correspond to tsup entries whose source file is itself Node-only.
 	// Keep in sync with `ENTRY_POINTS` (strip `src/` prefix + `.ts`).
+	// IMPORTANT: keep aligned with ENTRY_POINTS Node-only entries even if the
+	// source path moves to a sub-folder. Future contributors moving a Node-only
+	// entry to a sub-folder must update both lists or assertBrowserSafeBundles
+	// will silently pass.
 	const nodeOnlyEntries = new Set<string>([
 		"extra/node",
 		"extra/storage-node",

@@ -11,7 +11,7 @@
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, TEARDOWN } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS } from "../backoff.js";
+import { NS_PER_MS } from "./backoff.js";
 import { ResettableTimer } from "../timer.js";
 import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
 

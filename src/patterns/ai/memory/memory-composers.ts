@@ -166,7 +166,11 @@ export interface MemoryWithKGOptions<TMem> {
 	store: DistillBundle<TMem>;
 	/** Inner KnowledgeGraph name. Default: `${name}-kg`. */
 	kgName?: string;
-	/** Mount path within this Graph for the KnowledgeGraph. Default: `"kg"`. */
+	/**
+	 * Mount path within this Graph for the KnowledgeGraph. Default:
+	 * `"knowledge-kg"` (B5c — symmetric with the outer `knowledge` mount so
+	 * describe paths render `knowledge::knowledge-kg::*`).
+	 */
 	mountPath?: string;
 	/**
 	 * Extract entities + relations for a memory entry. Omit to mount an empty
@@ -186,7 +190,7 @@ export interface MemoryWithKGOptions<TMem> {
 
 /**
  * Graph subclass that attaches a knowledge graph alongside a `DistillBundle`.
- * Mounts the inner `KnowledgeGraph` at `mountPath` (default `"kg"`); when
+ * Mounts the inner `KnowledgeGraph` at `mountPath` (default `"knowledge-kg"`); when
  * `entityFn` is provided, an indexer effect populates entities/relations on
  * every store change.
  */
@@ -197,7 +201,7 @@ export class MemoryWithKGGraph<TMem> extends Graph {
 		const name = opts.name ?? "memory-kg";
 		super(name, opts.graph);
 		const kgName = opts.kgName ?? `${name}-kg`;
-		const mountPath = opts.mountPath ?? "kg";
+		const mountPath = opts.mountPath ?? "knowledge-kg";
 		this.kg = knowledgeGraph<unknown, string>(kgName);
 		this.mount(mountPath, this.kg);
 

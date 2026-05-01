@@ -16,8 +16,8 @@ import type { NodeGuard } from "../../core/guard.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import type { VersioningLevel } from "../../core/versioning.js";
-import { keepalive } from "../sources.js";
-import type { AppendLogStorageTier } from "../storage-tiers.js";
+import { keepalive } from "../sources/index.js";
+import type { AppendLogStorageTier } from "../storage/tiers.js";
 
 export type ReactiveLogOptions<T> = {
 	name?: string;

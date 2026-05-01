@@ -6,10 +6,10 @@
 
 import { COMPLETE, ERROR } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS, NS_PER_SEC } from "../backoff.js";
-import { switchMap } from "../operators.js";
-import type { AsyncSourceOpts } from "../sources.js";
-import { fromTimer } from "../sources.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
+import { switchMap } from "../operators/index.js";
+import type { AsyncSourceOpts } from "../sources/index.js";
+import { fromTimer } from "../sources/index.js";
 
 /** Structured ClickHouse query result row. */
 export type ClickHouseRow = Record<string, unknown>;

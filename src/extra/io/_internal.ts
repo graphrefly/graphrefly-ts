@@ -13,9 +13,9 @@
 
 import type { Node, NodeOptions } from "../../core/node.js";
 import type { GraphCheckpointRecord } from "../../graph/graph.js";
-import type { EmitTriad } from "../external-register.js";
+import type { EmitTriad } from "../composition/external-register.js";
 import type { SinkTransportError } from "../reactive-sink.js";
-import type { SnapshotStorageTier } from "../storage-tiers.js";
+import type { SnapshotStorageTier } from "../storage/tiers.js";
 
 export type ExtraOpts = Omit<NodeOptions, "describeKind">;
 

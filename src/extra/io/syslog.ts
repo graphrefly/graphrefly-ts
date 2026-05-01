@@ -6,7 +6,7 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import type { Node } from "../../core/node.js";
-import { type EmitTriad, type ExternalRegister, externalProducer } from "../external-register.js";
+import { type EmitTriad, type ExternalRegister, externalProducer } from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 
 /** Parsed syslog message (RFC 5424). */

@@ -32,6 +32,7 @@ import type { LLMAdapter } from "../adapters/core/types.js";
 import {
 	memoryRetrieval,
 	memoryWithKG,
+	type MemoryWithTiersGraph,
 	memoryWithTiers,
 	memoryWithVectors,
 } from "../memory/memory-composers.js";
@@ -143,6 +144,14 @@ export class AgentMemoryGraph<TMem = unknown> extends Graph {
 	readonly kg: KnowledgeGraph<unknown, string> | null;
 	/** Memory tiers bundle (null if not configured). */
 	readonly memoryTiers: MemoryTiersBundle<TMem> | null;
+	/**
+	 * The mounted `MemoryWithTiersGraph` subgraph (null when `opts.tiers` was
+	 * omitted). Surfaces the inner graph for `describe()` / `explain()` walks
+	 * and for callers that need direct access to the tiers subgraph (e.g.
+	 * to register additional disposers or attach storage). Companion to
+	 * `memoryTiers`, which carries only the bundle's reactive surface (B5e).
+	 */
+	readonly tiers: MemoryWithTiersGraph<unknown, TMem> | null;
 	/**
 	 * Reactive consumer API. Given a reactive `RetrievalQuery | null` source,
 	 * returns a `Node` emitting the packed retrieval results. Composable with
@@ -281,6 +290,7 @@ export class AgentMemoryGraph<TMem = unknown> extends Graph {
 
 		let distillBundle: DistillBundle<TMem>;
 		let memoryTiersBundle: MemoryTiersBundle<TMem> | null = null;
+		let tiersSubgraph: MemoryWithTiersGraph<unknown, TMem> | null = null;
 		if (opts.tiers) {
 			const tiersGraph = memoryWithTiers<unknown, TMem>({
 				// User customization first; canonical agent-memory-level overrides
@@ -300,6 +310,7 @@ export class AgentMemoryGraph<TMem = unknown> extends Graph {
 			this.mount("tiers", tiersGraph);
 			distillBundle = tiersGraph.store;
 			memoryTiersBundle = tiersGraph.tiers;
+			tiersSubgraph = tiersGraph;
 		} else {
 			distillBundle = distill<unknown, TMem>(filteredSource, extractFn, distillOpts);
 			this.add(distillBundle.store.entries, { name: "store" });
@@ -327,7 +338,7 @@ export class AgentMemoryGraph<TMem = unknown> extends Graph {
 				name: "knowledge",
 				store: distillBundle,
 				kgName: `${name}-kg`,
-				mountPath: "kg",
+				mountPath: "knowledge-kg",
 				...(opts.entityFn !== undefined ? { entityFn: opts.entityFn } : {}),
 			});
 			this.mount("knowledge", kgGraph);
@@ -368,6 +379,7 @@ export class AgentMemoryGraph<TMem = unknown> extends Graph {
 		this.vectors = vectors;
 		this.kg = kg;
 		this.memoryTiers = memoryTiersBundle;
+		this.tiers = tiersSubgraph;
 		this.retrieveReactive = retrieveReactive;
 	}
 }

@@ -16,6 +16,10 @@
  * live in {@link ../adapters.ts}.
  */
 
+// DO NOT re-export ./git.js or ./fs.js here — they are Node-only and would
+// break the universal subpath. Node-only sources go through extra/sources/node.ts
+// via the patterns/extra/node.ts barrel.
+
 // `singleFromAny` / `singleNodeFromAny` live in extra/single-from-any.ts (kept
 // independent because it imports `firstValueFrom` and would form a cycle if
 // we re-exported via async.ts during eager-eval init).

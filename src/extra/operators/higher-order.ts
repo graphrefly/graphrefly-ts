@@ -13,7 +13,7 @@ import type { NodeActions } from "../../core/config.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, START } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { fromAny, type NodeInput } from "../sources.js";
+import { fromAny, type NodeInput } from "../sources/index.js";
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
 function forwardInner<R>(inner: Node<R>, a: NodeActions, onInnerComplete: () => void): () => void {

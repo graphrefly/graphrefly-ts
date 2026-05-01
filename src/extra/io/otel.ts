@@ -6,7 +6,7 @@
 
 import { batch } from "../../core/batch.js";
 import type { Node } from "../../core/node.js";
-import { type BundleTriad, externalBundle } from "../external-register.js";
+import { type BundleTriad, externalBundle } from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 
 /** Structured OTel span. */

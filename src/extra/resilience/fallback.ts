@@ -9,7 +9,7 @@
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED, TEARDOWN } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { fromAny } from "../sources.js";
+import { fromAny } from "../sources/index.js";
 import { isAsyncIterable, isNode, isThenable, operatorOpts } from "./_internal.js";
 
 /** Inputs accepted by {@link fallback}. */

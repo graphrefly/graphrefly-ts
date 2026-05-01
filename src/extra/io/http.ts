@@ -12,13 +12,18 @@ import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS, NS_PER_SEC } from "../backoff.js";
-import { switchMap } from "../operators.js";
+import { switchMap } from "../operators/index.js";
 import {
 	type ReactiveSinkHandle,
 	reactiveSink,
 	type SinkTransportError,
 } from "../reactive-sink.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
+// NOTE: A1 batch — keep this import through the `../resilience.js` shim. Going
+// direct to `../resilience/index.js` triggers a vitest SSR module-resolution
+// quirk that desynchronises `withStatus` bindings between this file and the
+// `extra/index.ts` re-export (which still routes through the shim), causing
+// agentLoop / gatedStream tests to time out. Tracked as a deferred A1 follow-up.
 import { type WithStatusBundle, withStatus } from "../resilience.js";
 import type { AsyncSourceOpts } from "../sources.js";
 import { fromTimer } from "../sources.js";

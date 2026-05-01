@@ -4,7 +4,7 @@
  */
 
 import type { Node } from "../../core/node.js";
-import { externalProducer } from "../external-register.js";
+import { externalProducer } from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 
 /**

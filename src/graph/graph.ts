@@ -2480,7 +2480,17 @@ export class Graph {
 	 * Mutually exclusive with `detail`/`fields`/`filter`/`actor` and with
 	 * `reachable` — the runtime throws `TypeError` on any conflict.
 	 */
-	describe(options: { explain: GraphDescribeExplainInput; reactive?: false }): CausalChain;
+	// DF13 — narrowed overloads. The static form REJECTS `reactive: true` by
+	// excluding the `true` literal (only `false | undefined` accepted) AND by
+	// rejecting `name` / `reactiveName` (those only apply in reactive mode).
+	// The reactive form REQUIRES `reactive: true` literal so callers cannot
+	// silently fall back to the static return when they meant a live Node.
+	describe(options: {
+		explain: GraphDescribeExplainInput;
+		reactive?: false | undefined;
+		reactiveName?: never;
+		name?: never;
+	}): CausalChain;
 	describe(options: {
 		explain: GraphDescribeExplainInput;
 		reactive: true;
@@ -4307,6 +4317,16 @@ export class Graph {
 	 * would otherwise leak on repeated create/destroy cycles.
 	 *
 	 * Returns a removal function — call it to unregister the disposer early.
+	 *
+	 * @remarks
+	 * **B5a — safe to call mid-constructor.** `_disposers` is initialised as a
+	 * class-field initializer, which runs before any subclass constructor body
+	 * (per the ECMAScript class semantics). Subclasses can therefore call
+	 * `this.addDisposer(...)` from within their own constructor — even before
+	 * the `super()` body finishes wiring substrate — and the disposer will be
+	 * registered against a live `Set`. {@link AgentMemoryGraph} relies on this
+	 * to register `keepalive` cleanup handlers for inner reactive bundles
+	 * during construction.
 	 */
 	addDisposer(fn: () => void): () => void {
 		this._disposers.add(fn);

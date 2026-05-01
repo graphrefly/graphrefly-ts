@@ -19,7 +19,7 @@ import {
 	type SnapshotStorageTier,
 	type StorageBackend,
 	snapshotStorage,
-} from "../storage-tiers.js";
+} from "./tiers.js";
 
 export type IndexedDbBackendSpec = {
 	dbName: string;

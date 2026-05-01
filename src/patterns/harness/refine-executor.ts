@@ -133,7 +133,7 @@ export function refineExecutor<T>(config: RefineExecutorConfig<T>): HarnessExecu
 		// the null DATA so the JobFlow pump's first-DATA capture sees the
 		// terminal payload, not the intermediate null.
 		const raw = node<HarnessJobPayload<T> | null>(
-			[loop.status, loop.best, loop.score],
+			[loop.status, loop.best, loop._score],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],

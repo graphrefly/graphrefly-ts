@@ -91,9 +91,23 @@ export function selector<TIn, TKey>(
 			let emitted = false;
 			for (const v of batch0 as TIn[]) {
 				const key = fn(v);
-				if (ctx.store.hasPrev && equals(ctx.store.prev as TKey, key)) {
-					// Suppressed — same projected key as the previous emission.
-					continue;
+				if (ctx.store.hasPrev) {
+					// Edge #6 — surface user `equals(prev, next)` throws as ERROR
+					// on the selector node instead of letting them poison the
+					// reactive frame (which would unwind the whole batch). The
+					// selector terminates the wave so callers can subscribe to
+					// the ERROR companion and recover.
+					let same: boolean;
+					try {
+						same = equals(ctx.store.prev as TKey, key);
+					} catch (err) {
+						a.down([[ERROR, err]]);
+						return;
+					}
+					if (same) {
+						// Suppressed — same projected key as the previous emission.
+						continue;
+					}
 				}
 				ctx.store.prev = key;
 				ctx.store.hasPrev = true;

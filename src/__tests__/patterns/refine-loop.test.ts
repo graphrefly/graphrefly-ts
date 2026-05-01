@@ -278,14 +278,14 @@ describe("refineLoop — pause/resume", () => {
 		await tick();
 
 		expect(loop.status.cache).toBe("paused");
-		const iterAtPause = loop.iteration.cache as number;
+		const iterAtPause = loop._iteration.cache as number;
 
 		loop.resume();
 		await tick();
 
 		// After resume, status returns to running (or converged if the rest
 		// of maxIterations drained). Either way, iteration must have advanced.
-		expect(loop.iteration.cache as number).toBeGreaterThan(iterAtPause);
+		expect(loop._iteration.cache as number).toBeGreaterThan(iterAtPause);
 	});
 });
 

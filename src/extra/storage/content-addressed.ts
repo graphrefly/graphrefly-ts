@@ -19,7 +19,7 @@
  */
 
 import { sha256Hex } from "../../core/hash.js";
-import type { KvStorageTier } from "../storage-tiers.js";
+import type { KvStorageTier } from "./tiers.js";
 
 /**
  * Read / write / read-write / read-strict.

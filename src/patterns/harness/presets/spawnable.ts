@@ -103,7 +103,7 @@ export interface SpawnableOpts<TIn, TOut> {
 	/**
 	 * Optional caller-supplied validator. Returns `true` to accept the
 	 * request, `false` to reject. Reject reason on the `rejected` topic is
-	 * `"validation failed"`. Pair with the `Message.schema` field carried
+	 * `"schema validation failed"`. Pair with the `Message.schema` field carried
 	 * in the envelope when full JSON-Schema validation is needed (consumer
 	 * supplies the validator — ajv / zod / valibot — and reads the schema
 	 * from the envelope to gate). The substrate itself does NOT ship a
@@ -221,7 +221,7 @@ export class SpawnableGraph<TIn, TOut> extends Graph {
 
 		// Custom validation.
 		if (this._validate && !this._validate(req)) {
-			this.rejected.publish({ request: req, reason: "validation failed" });
+			this.rejected.publish({ request: req, reason: "schema validation failed" });
 			return;
 		}
 

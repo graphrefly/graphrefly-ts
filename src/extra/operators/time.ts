@@ -11,7 +11,7 @@ import { monotonicNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS } from "../backoff.js";
+import { NS_PER_MS } from "../resilience/backoff.js";
 import { type ExtraOpts, operatorOpts } from "./_internal.js";
 
 /**

@@ -326,6 +326,11 @@ export class GuardedExecutionGraph extends Graph {
 		// status transition; lifecycle owned by the wrapper.
 		const scopedHandle = target.describe({
 			reactive: true,
+			// F8 (Tier 5.2): `_actorNode` is `Node<Actor | null>`. The cast is
+			// safe at runtime per the `resolveActorOption` null-tolerance
+			// contract — `null` / `undefined` cache is treated as "no scoping"
+			// (full visibility). See `scopedDescribeNode` for the matching
+			// per-call site and graph.ts § "Cache-undefined semantics".
 			actor: this._actorNode as Node<Actor>,
 			reactiveName: "scopedDescribe",
 		});

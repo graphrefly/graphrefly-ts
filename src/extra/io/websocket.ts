@@ -12,7 +12,7 @@ import {
 	reactiveSink,
 	type SinkTransportError,
 } from "../reactive-sink.js";
-import { retry } from "../resilience.js";
+import { retry } from "../resilience/index.js";
 import { type ExtraOpts, sourceOpts } from "./_internal.js";
 
 /** WebSocket-like transport accepted by {@link fromWebSocket} / {@link toWebSocket}. */

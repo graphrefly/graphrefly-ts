@@ -1267,6 +1267,53 @@ describe("Graph lifecycle & persistence (Phase 1.4)", () => {
 	});
 });
 
+describe("EH-2: child mount disposer drain", () => {
+	it("addDisposer cleanup on a child fires when parent destroys", () => {
+		const root = new Graph("root");
+		const child = new Graph("child");
+		root.mount("c", child);
+		let disposed = 0;
+		child.addDisposer(() => {
+			disposed += 1;
+		});
+		expect(disposed).toBe(0);
+		root.destroy();
+		expect(disposed).toBe(1);
+	});
+
+	it("disposers drain at every depth via _destroyClearOnly cascade", () => {
+		const root = new Graph("root");
+		const child = new Graph("child");
+		const grandchild = new Graph("gc");
+		root.mount("c", child);
+		child.mount("gc", grandchild);
+		const order: string[] = [];
+		root.addDisposer(() => order.push("root"));
+		child.addDisposer(() => order.push("child"));
+		grandchild.addDisposer(() => order.push("grandchild"));
+		root.destroy();
+		// All depths drained — order may vary but every disposer must fire exactly once.
+		expect(order.sort()).toEqual(["child", "grandchild", "root"]);
+	});
+
+	it("multiple disposers on the same child all fire", () => {
+		const root = new Graph("root");
+		const child = new Graph("child");
+		root.mount("c", child);
+		let a = 0;
+		let b = 0;
+		child.addDisposer(() => {
+			a += 1;
+		});
+		child.addDisposer(() => {
+			b += 1;
+		});
+		root.destroy();
+		expect(a).toBe(1);
+		expect(b).toBe(1);
+	});
+});
+
 describe("Graph guard (Phase 1.5)", () => {
 	const human = { type: "human" as const, id: "u1" };
 	const llm = { type: "llm" as const, id: "gpt" };

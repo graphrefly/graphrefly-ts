@@ -6,7 +6,7 @@
 
 import { wallClockNs } from "../../core/clock.js";
 import type { GraphCheckpointRecord } from "../../graph/graph.js";
-import type { SnapshotStorageTier } from "../storage-tiers.js";
+import type { SnapshotStorageTier } from "../storage/tiers.js";
 import type { AttachStorageGraphLike } from "./_internal.js";
 import type { S3ClientLike } from "./to-s3.js";
 

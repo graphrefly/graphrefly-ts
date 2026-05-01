@@ -19,7 +19,7 @@ import { type NodeGuard, policy } from "../../core/guard.js";
 import { DATA, DIRTY } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 import { Graph } from "../../graph/graph.js";
-import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "../reactive-log.js";
+import { type ReactiveLogBundle, type ReactiveLogOptions, reactiveLog } from "../data-structures/reactive-log.js";
 
 // ── tryIncrementBounded ──────────────────────────────────────────────────
 

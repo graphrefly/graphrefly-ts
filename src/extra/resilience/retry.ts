@@ -18,7 +18,7 @@ import {
 	type BackoffStrategy,
 	NS_PER_MS,
 	resolveBackoffPreset,
-} from "../backoff.js";
+} from "./backoff.js";
 import { ResettableTimer } from "../timer.js";
 import {
 	coerceDelayNs,

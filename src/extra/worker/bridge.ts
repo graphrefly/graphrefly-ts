@@ -21,8 +21,8 @@
 import { batch } from "../../core/batch.js";
 import { DATA, ERROR, type Messages, TEARDOWN } from "../../core/messages.js";
 import { defaultConfig, type Node, type NodeSink, node } from "../../core/node.js";
-import { filter, first, map, merge } from "../operators.js";
-import { fromTimer } from "../sources.js";
+import { filter, first, map, merge } from "../operators/index.js";
+import { fromTimer } from "../sources/index.js";
 import type { BatchMessage, BridgeMessage } from "./protocol.js";
 import { deserializeError, nameToSignal, serializeError, signalToName } from "./protocol.js";
 import type { WorkerTransport } from "./transport.js";

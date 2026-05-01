@@ -15,8 +15,8 @@
 
 import type { Node } from "../../core/node.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
-import { type ReactiveMapBundle, reactiveMap } from "../reactive-map.js";
-import { keepalive } from "../sources.js";
+import { type ReactiveMapBundle, reactiveMap } from "../data-structures/reactive-map.js";
+import { keepalive } from "../sources/index.js";
 
 /** A single success-rate record for one key. */
 export interface AuditedSuccessEntry<TKey extends string = string> {

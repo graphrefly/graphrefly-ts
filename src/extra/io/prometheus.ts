@@ -8,10 +8,10 @@
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, ERROR } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import { NS_PER_MS, NS_PER_SEC } from "../backoff.js";
-import { switchMap } from "../operators.js";
-import type { AsyncSourceOpts } from "../sources.js";
-import { fromTimer } from "../sources.js";
+import { switchMap } from "../operators/index.js";
+import { NS_PER_MS, NS_PER_SEC } from "../resilience/backoff.js";
+import type { AsyncSourceOpts } from "../sources/index.js";
+import { fromTimer } from "../sources/index.js";
 
 /** Parsed Prometheus metric. */
 export type PrometheusMetric = {

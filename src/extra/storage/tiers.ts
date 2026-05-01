@@ -24,7 +24,7 @@
  * @module
  */
 
-import { stableJsonString } from "../storage-core.js";
+import { stableJsonString } from "./core.js";
 
 // ── Layer 1 — StorageBackend (bytes I/O) ──────────────────────────────────
 

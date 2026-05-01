@@ -42,24 +42,28 @@ import { batch, DATA } from "../../../../core/index.js";
 import { valve } from "../../../../extra/operators.js";
 import { Graph } from "../../../../graph/graph.js";
 import { agentLoop, type LLMAdapter, type LLMResponse } from "../../../../patterns/ai/index.js";
-import { messagingHub, topic } from "../../../../patterns/messaging/index.js";
+import { type Message, messagingHub, topic } from "../../../../patterns/messaging/index.js";
+import type { SpawnPayload } from "../../../../patterns/harness/presets/spawnable.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Hand-rolled `Message<T>` shape (Phase 13.B preview). Inlined here as a local
- * type so the test runs on shipped surface only — when 13.B lands, this type
- * disappears and the spawn topic types as `TopicGraph<Message<SpawnPayload>>`.
+ * Spawn task input shape — `taskInput` carries the actual work (`payload`)
+ * plus a `depth` counter so the depth-valve recipe can gate at value level
+ * before any active-slot bookkeeping. The shipped {@link SpawnPayload}
+ * envelope only carries `{ presetId, taskInput }`; depth is inlined into
+ * `taskInput` because the pre-13.I recipe does not yet have access to the
+ * `active-slot` Node from the inside.
  */
-interface SpawnRequest {
-	readonly id: string;
-	readonly presetId: string;
+interface SpawnTaskInput {
 	readonly payload: string;
 	readonly depth: number;
-	readonly correlationId?: string;
 }
+
+/** Convenience alias for the spawn-topic envelope used throughout this test. */
+type SpawnRequestMessage = Message<SpawnPayload<SpawnTaskInput>>;
 
 /** Sum input + output regular tokens out of an `LLMResponse`. */
 function tokensOf(resp: LLMResponse | undefined): number {
@@ -242,7 +246,7 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 	it("depth-valve cuts spawn requests past the cap", () => {
 		const parent = new Graph("parent-depth");
 
-		const spawnTopic = topic<SpawnRequest>("spawns");
+		const spawnTopic = topic<SpawnRequestMessage>("spawns");
 		parent.mount("spawns", spawnTopic);
 
 		// Depth counter — the substrate for the depth-cap recipe (G5 reframe in
@@ -269,20 +273,29 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 			name: "gatedSpawns",
 		});
 
-		const gatedSeen: SpawnRequest[] = [];
+		const gatedSeen: SpawnRequestMessage[] = [];
 		const sub = gatedSpawns.subscribe((msgs) => {
-			for (const m of msgs) if (m[0] === DATA) gatedSeen.push(m[1] as SpawnRequest);
+			for (const m of msgs) if (m[0] === DATA) gatedSeen.push(m[1] as SpawnRequestMessage);
 		});
 
 		try {
 			// First two spawns at depth 0 / 1 — gate is open.
 			depth.emit(0);
-			spawnTopic.publish({ id: "s1", presetId: "child", payload: "task-1", depth: 0 });
+			spawnTopic.publish({
+				id: "s1",
+				payload: { presetId: "child", taskInput: { payload: "task-1", depth: 0 } },
+			});
 			depth.emit(1);
-			spawnTopic.publish({ id: "s2", presetId: "child", payload: "task-2", depth: 1 });
+			spawnTopic.publish({
+				id: "s2",
+				payload: { presetId: "child", taskInput: { payload: "task-2", depth: 1 } },
+			});
 			// Third spawn at depth 2 — gate closes (2 < 2 is false), valve drops.
 			depth.emit(2);
-			spawnTopic.publish({ id: "s3", presetId: "child", payload: "task-3", depth: 2 });
+			spawnTopic.publish({
+				id: "s3",
+				payload: { presetId: "child", taskInput: { payload: "task-3", depth: 2 } },
+			});
 
 			expect(gatedSeen.map((s) => s.id)).toEqual(["s1", "s2"]);
 		} finally {
@@ -430,14 +443,14 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 
 	it("spawn topic round-trips a Message-shaped envelope", () => {
 		const parent = new Graph("parent-envelope");
-		const spawnTopic = topic<SpawnRequest>("spawns");
+		const spawnTopic = topic<SpawnRequestMessage>("spawns");
 		parent.mount("spawns", spawnTopic);
 
-		const seen: SpawnRequest[] = [];
+		const seen: SpawnRequestMessage[] = [];
 		const sub = spawnTopic.events.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] === DATA) {
-					for (const v of m[1] as readonly SpawnRequest[]) seen.push(v);
+					for (const v of m[1] as readonly SpawnRequestMessage[]) seen.push(v);
 				}
 			}
 		});
@@ -446,15 +459,18 @@ describe("multi-agent example (Phase 13.M lock-test)", () => {
 			batch(() => {
 				spawnTopic.publish({
 					id: "req-1",
-					presetId: "researcher",
-					payload: "Find prior incidents",
-					depth: 0,
 					correlationId: "user-session-42",
+					payload: {
+						presetId: "researcher",
+						taskInput: { payload: "Find prior incidents", depth: 0 },
+					},
 				});
 			});
 
 			expect(seen).toHaveLength(1);
 			expect(seen[0]?.correlationId).toBe("user-session-42");
+			expect(seen[0]?.payload.presetId).toBe("researcher");
+			expect(seen[0]?.payload.taskInput.payload).toBe("Find prior incidents");
 		} finally {
 			sub();
 			parent.destroy();

@@ -11,7 +11,7 @@
  */
 import { DATA, TEARDOWN } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
-import type { KvStorageTier } from "../storage-tiers.js";
+import type { KvStorageTier } from "./tiers.js";
 
 // ——————————————————————————————————————————————————————————————
 //  Eviction policy

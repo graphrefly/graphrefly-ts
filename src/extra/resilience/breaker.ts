@@ -11,7 +11,7 @@ import { monotonicNs } from "../../core/clock.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import { type BackoffStrategy, NS_PER_SEC } from "../backoff.js";
+import { type BackoffStrategy, NS_PER_SEC } from "./backoff.js";
 import {
 	clampNonNegative,
 	msgVal,

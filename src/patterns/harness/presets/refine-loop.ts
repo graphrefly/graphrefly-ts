@@ -37,7 +37,11 @@ import { batch } from "../../../core/batch.js";
 import { monotonicNs } from "../../../core/clock.js";
 import { DATA, ERROR, RESOLVED } from "../../../core/messages.js";
 import { placeholderArgs } from "../../../core/meta.js";
-import { type Node, node } from "../../../core/node.js";
+// `createNode` is the local alias for `node` so calls don't shadow
+// `Graph.prototype.node` when the file's body inadvertently references the
+// graph's `.node()` method. B5f keeps protocol-primitive construction visually
+// distinct from graph-instance method dispatch.
+import { type Node, node as createNode } from "../../../core/node.js";
 import { tryIncrementBounded } from "../../../extra/mutation/index.js";
 import { switchMap } from "../../../extra/operators.js";
 import type { NodeInput } from "../../../extra/sources.js";
@@ -274,15 +278,27 @@ export interface RefineLoopOptions extends ConvergenceOptions {
  * pattern to `class extends Graph` (Tier R5.1 deferral lifted; mirrors the
  * `MemoryWith*Graph` precedent). `setStrategy` / `pause` / `resume` are now
  * instance methods that read `this.strategy` / `this._pauseState` / `this.status`
- * / `this.iteration` instead of factory-local closures.
+ * / `this._iteration` instead of factory-local closures.
  */
 export class RefineLoopGraph<T> extends Graph {
 	readonly best: Node<T | null>;
-	readonly score: Node<number>;
+	/**
+	 * Best score so far. Pseudo-private (`_score`) to avoid colliding with any
+	 * future `Graph.prototype.score` method (B5d forward-compat hazard
+	 * prevention). Typed-public — read via `loop._score.cache` /
+	 * `loop._score.subscribe(...)` from external code.
+	 */
+	readonly _score: Node<number>;
 	readonly status: Node<RefineStatus>;
 	readonly history: Node<readonly Iteration<T>[]>;
 	readonly strategy: Node<RefineStrategy<T>>;
-	readonly iteration: Node<number>;
+	/**
+	 * Monotonic iteration counter. Pseudo-private (`_iteration`) to avoid
+	 * colliding with any future `Graph.prototype.iteration` method (B5d
+	 * forward-compat hazard prevention). Typed-public — read via
+	 * `loop._iteration.cache` / `loop._iteration.subscribe(...)`.
+	 */
+	readonly _iteration: Node<number>;
 	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
 	readonly generate: TopicGraph<GenerateEvent<T>>;
 	/** Stage topic — subscribe for per-stage streaming / cursor consumers. */
@@ -321,50 +337,50 @@ export class RefineLoopGraph<T> extends Graph {
 		// --- Dataset: auto-wrap arrays into a state node ------------------------
 		const datasetNode: Node<readonly DatasetItem[]> = isNode<readonly DatasetItem[]>(opts.dataset)
 			? opts.dataset
-			: node<readonly DatasetItem[]>([], {
+			: createNode<readonly DatasetItem[]>([], {
 					name: "dataset",
 					initial: opts.dataset as readonly DatasetItem[],
 				});
 		this.add(datasetNode, { name: "dataset" });
 
 		// --- State nodes --------------------------------------------------------
-		const iterationTrigger = node<number>([], { name: "iteration", initial: 0 });
+		const iterationTrigger = createNode<number>([], { name: "iteration", initial: 0 });
 		this.add(iterationTrigger, { name: "iteration" });
 
-		const strategyNode = node<RefineStrategy<T>>([], {
+		const strategyNode = createNode<RefineStrategy<T>>([], {
 			name: "strategy",
 			initial: initialStrategy,
 			equals: () => false, // always propagate strategy swaps
 		});
 		this.add(strategyNode, { name: "strategy" });
 
-		const lastFeedbackState = node<Feedback | null>([], { name: "lastFeedback", initial: null });
+		const lastFeedbackState = createNode<Feedback | null>([], { name: "lastFeedback", initial: null });
 		this.add(lastFeedbackState, { name: "lastFeedback" });
 
-		const prevCandidatesState = node<readonly T[]>([], { name: "prevCandidates", initial: [] });
+		const prevCandidatesState = createNode<readonly T[]>([], { name: "prevCandidates", initial: [] });
 		this.add(prevCandidatesState, { name: "prevCandidates" });
 
-		const pauseState = node<boolean>([], { name: "paused", initial: false });
+		const pauseState = createNode<boolean>([], { name: "paused", initial: false });
 		this.add(pauseState, { name: "paused" });
 
-		const statusState = node<RefineStatus>([], { name: "status", initial: "running" });
+		const statusState = createNode<RefineStatus>([], { name: "status", initial: "running" });
 		this.add(statusState, { name: "status" });
 
-		const historyState = node<readonly Iteration<T>[]>([], {
+		const historyState = createNode<readonly Iteration<T>[]>([], {
 			name: "history",
 			initial: [],
 			equals: () => false, // append-style; reactive consumers want every push
 		});
 		this.add(historyState, { name: "history" });
 
-		const bestState = node<T | null>([], { name: "best", initial: null });
+		const bestState = createNode<T | null>([], { name: "best", initial: null });
 		this.add(bestState, { name: "best" });
 
-		const scoreState = node<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
+		const scoreState = createNode<number>([], { name: "score", initial: Number.NEGATIVE_INFINITY });
 		this.add(scoreState, { name: "score" });
 
 		// --- Budget counter -----------------------------------------------------
-		const budgetState = node<number>([], { name: "budget-used", initial: 0 });
+		const budgetState = createNode<number>([], { name: "budget-used", initial: 0 });
 		this.add(budgetState, { name: "budget-used" });
 
 		// --- Stage hub (Shape B + C-aspects) ------------------------------------
@@ -389,11 +405,11 @@ export class RefineLoopGraph<T> extends Graph {
 		// `this.<field>`, but keeping construction-order safe avoids future
 		// undefined-field crashes.
 		this.best = bestState as Node<T | null>;
-		this.score = scoreState;
+		this._score = scoreState;
 		this.status = statusState;
 		this.history = historyState;
 		this.strategy = strategyNode;
-		this.iteration = iterationTrigger;
+		this._iteration = iterationTrigger;
 		this.generate = hubGenerateTopic;
 		this.evaluate = hubEvaluateTopic;
 		this.analyze = hubAnalyzeTopic;
@@ -453,7 +469,7 @@ export class RefineLoopGraph<T> extends Graph {
 			(iter) => {
 				const strat = latestStrategy;
 				const isSeed = iter === 0 || latestFeedback == null;
-				return node<CandidatesEnvelope<T>>(
+				return createNode<CandidatesEnvelope<T>>(
 					[],
 					(_data, actions) => {
 						let cancelled = false;
@@ -491,7 +507,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// User-facing items sidecar: preserves the `Evaluator<T>` API
 		// (`(candidates: Node<readonly T[]>, dataset: Node<readonly DatasetItem[]>) => ...`)
 		// while the internal pipeline reads iter from the envelope.
-		const candidatesItemsNode = node<readonly T[]>(
+		const candidatesItemsNode = createNode<readonly T[]>(
 			[candidatesNode],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -511,7 +527,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// Error watcher — strategy throws surface as ERROR on `candidatesNode`.
 		// Promote to `status = "errored"` so callers don't have to subscribe to
 		// the error channel directly.
-		const errorWatcher = node(
+		const errorWatcher = createNode(
 			[candidatesNode],
 			(_batchData, _actions, ctx) => {
 				const terminal = ctx.terminalDeps[0];
@@ -531,7 +547,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// Budget accounting stays in decideEffect (single authority).
 		// /qa D1: iter + items both come from the candidates envelope — no
 		// separate `iterationTrigger` dep, no cross-node cache reads.
-		const generateEventNode = node<GenerateEvent<T>>(
+		const generateEventNode = createNode<GenerateEvent<T>>(
 			[candidatesNode],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -549,7 +565,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.add(generateEventNode, { name: "generate-event" });
 		this.addDisposer(generateEventNode.subscribe(() => undefined));
 
-		const generatePublishEffect = node(
+		const generatePublishEffect = createNode(
 			[generateEventNode],
 			(batchData, _actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -562,7 +578,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.add(generatePublishEffect, { name: "generate-publish" });
 		this.addDisposer(generatePublishEffect.subscribe(() => undefined));
 
-		const generateMirrorEffect = node(
+		const generateMirrorEffect = createNode(
 			[candidatesNode],
 			(batchData, _actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -585,7 +601,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// /qa D1: iter from candidates envelope; gate on `scoresFired` so a
 		// candidates-only fan-out wave (e.g. async eval still in flight) does
 		// NOT publish a stale evaluate event.
-		const evaluateEventNode = node<EvaluateEvent<T>>(
+		const evaluateEventNode = createNode<EvaluateEvent<T>>(
 			[scoresNode, candidatesNode],
 			(batchData, actions, ctx) => {
 				const scoresFired = batchData[0] != null && batchData[0].length > 0;
@@ -610,7 +626,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.add(evaluateEventNode, { name: "evaluate-event" });
 		this.addDisposer(evaluateEventNode.subscribe(() => undefined));
 
-		const evaluatePublishEffect = node(
+		const evaluatePublishEffect = createNode(
 			[evaluateEventNode],
 			(batchData, _actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -631,7 +647,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// consistent (candidates envelope carries iter that matches the scores
 		// the user just produced — *assuming the user evaluator cancels async
 		// work on candidates change; see Evaluator<T> JSDoc contract*).
-		const feedbackEnvelopeNode = node<FeedbackEnvelope<T>>(
+		const feedbackEnvelopeNode = createNode<FeedbackEnvelope<T>>(
 			[scoresNode, candidatesNode],
 			(batchData, actions, ctx) => {
 				const scoresFired = batchData[0] != null && batchData[0].length > 0;
@@ -658,7 +674,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// User-facing feedback projection sidecar — preserves `feedback` path
 		// for observers that consume the bare `Feedback` shape via
 		// `loop.observe("feedback")` etc.
-		const feedbackNode = node<Feedback>(
+		const feedbackNode = createNode<Feedback>(
 			[feedbackEnvelopeNode],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -674,7 +690,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// ANALYZE stage: derived event node + publish effect.
 		// /qa D1: pull iter + items from feedbackEnvelopeNode (single source of
 		// truth for the analyze beat). No cross-node cache reads.
-		const analyzeEventNode = node<AnalyzeEvent<T>>(
+		const analyzeEventNode = createNode<AnalyzeEvent<T>>(
 			[feedbackEnvelopeNode],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -693,7 +709,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.add(analyzeEventNode, { name: "analyze-event" });
 		this.addDisposer(analyzeEventNode.subscribe(() => undefined));
 
-		const analyzePublishEffect = node(
+		const analyzePublishEffect = createNode(
 			[analyzeEventNode],
 			(batchData, _actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -707,7 +723,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.addDisposer(analyzePublishEffect.subscribe(() => undefined));
 
 		// --- Convergence: four derived nodes fanning into one boolean -----------
-		const patienceNode = node<boolean>(
+		const patienceNode = createNode<boolean>(
 			[historyState],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -727,7 +743,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.add(patienceNode, { name: "patience-check" });
 
-		const minScoreNode = node<boolean>(
+		const minScoreNode = createNode<boolean>(
 			[scoreState],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -739,7 +755,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.add(minScoreNode, { name: "min-score-check" });
 
-		const minDeltaNode = node<boolean>(
+		const minDeltaNode = createNode<boolean>(
 			[historyState],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -758,7 +774,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.add(minDeltaNode, { name: "min-delta-check" });
 
-		const maxEvalsNode = node<boolean>(
+		const maxEvalsNode = createNode<boolean>(
 			[budgetState],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -770,7 +786,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.add(maxEvalsNode, { name: "max-evaluations-check" });
 
-		const maxIterNode = node<boolean>(
+		const maxIterNode = createNode<boolean>(
 			[iterationTrigger],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -782,7 +798,7 @@ export class RefineLoopGraph<T> extends Graph {
 		);
 		this.add(maxIterNode, { name: "max-iterations-check" });
 
-		const budgetExhaustedNode = node<boolean>(
+		const budgetExhaustedNode = createNode<boolean>(
 			[budgetState],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -805,7 +821,7 @@ export class RefineLoopGraph<T> extends Graph {
 		this.addDisposer(maxIterNode.subscribe(() => undefined));
 		this.addDisposer(budgetExhaustedNode.subscribe(() => undefined));
 
-		const convergedNode = node<{ converged: boolean; reason?: string }>(
+		const convergedNode = createNode<{ converged: boolean; reason?: string }>(
 			[patienceNode, minScoreNode, minDeltaNode, maxEvalsNode, maxIterNode],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
@@ -887,7 +903,7 @@ export class RefineLoopGraph<T> extends Graph {
 		// re-fires within one wave (e.g. async evaluator emits multiple
 		// scores per candidates change).
 		let lastDecidedIteration = -1;
-		const decideEffect = node(
+		const decideEffect = createNode(
 			[feedbackEnvelopeNode, pauseState],
 			(batchData, _actions, ctx) => {
 				// `pauseState` is declared dep #1 — gate skips fn body when
@@ -1034,7 +1050,7 @@ export class RefineLoopGraph<T> extends Graph {
 		batch(() => {
 			this._pauseState.emit(false);
 			this.status.emit("running" as RefineStatus);
-			this.iteration.emit((this.iteration.cache as number) + 1);
+			this._iteration.emit((this._iteration.cache as number) + 1);
 		});
 	}
 }
