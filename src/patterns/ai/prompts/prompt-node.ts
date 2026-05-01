@@ -307,7 +307,11 @@ export function promptNode<T = string>(
 					const sub = callNode.subscribe((batch) => {
 						if (cancelled || done) return;
 						for (const msg of batch) {
-							if (done) return;
+							// F-11: re-check `cancelled` (and `done`) at the top of
+							// each per-message iteration so a teardown / abort that
+							// fires synchronously between messages stops processing
+							// further batched messages immediately.
+							if (cancelled || done) return;
 							if (msg[0] === DATA) {
 								const resp = msg[1] as LLMResponse;
 								// `format: "raw"` bypasses parsing — emit the full
@@ -316,32 +320,64 @@ export function promptNode<T = string>(
 								if (format === "raw") {
 									actions.emit(resp as unknown as T);
 								} else {
+									// F-12: cache the extracted content once on the
+									// parse-failure path so we don't call
+									// `extractContent(resp)` twice (once for parsing,
+									// once for the error-message preview).
+									let content: string;
 									try {
-										const content = extractContent(resp);
+										content = extractContent(resp);
+									} catch (err) {
+										// extractContent itself failed — propagate as
+										// an ERROR with a generic raw-extraction message.
+										const wrapped = new Error(
+											`promptNode: failed to extract content from LLM response: ${
+												(err as Error).message
+											}`,
+										);
+										// F-7: dispose abort hook on terminal-error
+										// branches so we don't retain the AbortController
+										// after the wave terminates. Idempotent.
+										abortDispose?.();
+										abortDispose = undefined;
+										done = true;
+										actions.down([[ERROR, wrapped]]);
+										return;
+									}
+									try {
 										const parsed: T =
 											format === "json"
 												? (JSON.parse(stripFences(content)) as T)
 												: (content as unknown as T);
 										actions.emit(parsed);
 									} catch (err) {
-										const raw = extractContent(resp);
 										const wrapped = new Error(
 											`promptNode: failed to parse LLM response as JSON: ${
 												(err as Error).message
-											}\n  Raw content (first 200 chars): ${previewContent(raw)}`,
+											}\n  Raw content (first 200 chars): ${previewContent(content)}`,
 										);
+										// F-7: dispose abort hook on parse-error
+										// terminal branch.
+										abortDispose?.();
+										abortDispose = undefined;
 										done = true;
 										actions.down([[ERROR, wrapped]]);
 										return;
 									}
 								}
 							} else if (msg[0] === ERROR) {
+								// F-7: dispose abort hook on terminal ERROR branch.
+								abortDispose?.();
+								abortDispose = undefined;
 								done = true;
 								actions.down([[ERROR, msg[1]]]);
 								return;
 							} else if (msg[0] === COMPLETE) {
 								// Adapter completed — propagate. emit() above already
 								// queued the parsed value so the wave carries DATA + COMPLETE.
+								// F-7: dispose abort hook on terminal COMPLETE branch.
+								abortDispose?.();
+								abortDispose = undefined;
 								done = true;
 								actions.down([[COMPLETE]]);
 								return;
@@ -359,7 +395,11 @@ export function promptNode<T = string>(
 					return () => {
 						cancelled = true;
 						sub();
+						// F-7: cleanup callback's abortDispose call is idempotent —
+						// the terminal-branch dispose above sets `abortDispose =
+						// undefined` so this is a no-op when terminal-fired.
 						abortDispose?.();
+						abortDispose = undefined;
 					};
 				},
 				{
