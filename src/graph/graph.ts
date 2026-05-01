@@ -275,6 +275,11 @@ export interface GraphStateOptions<T> extends Omit<SharedNodeOpts<T>, "initial">
  *   §5.12) — declare the node as a real dep instead.
  * - `signal` — when aborted, removes this node from the graph.
  * - `annotation` — forwarded to {@link Graph.add}.
+ *
+ * **F-15 (2026-04-30):** `equals: undefined` is filtered at the spread (the
+ * impl uses `equals != null` to gate the node-options pass-through), so
+ * passing `undefined` is functionally identical to omitting the field — the
+ * underlying `node()` falls back to its default `Object.is` dedup.
  */
 export interface GraphDerivedOptions<T> extends SharedNodeOpts<T> {
 	keepAlive?: boolean;
