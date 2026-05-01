@@ -126,28 +126,16 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	/** Latest retrieval trace for observability (null if no retrieval pipeline). */
 	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null> | null;
 	/**
-	 * Execute a retrieval query (null if no retrieval pipeline).
+	 * Reactive consumer API. Given a reactive `RetrievalQuery | null` source,
+	 * returns a `Node` emitting the packed retrieval results. Composable with
+	 * graph topology — subscribe it, chain it into `promptNode`, or switchMap
+	 * over a user-input node.
 	 *
-	 * **Synchronous consumer API** — returns the result immediately and batch-writes
-	 * `retrieval` and `retrievalTrace` state nodes for observers. Reads the store
-	 * snapshot and context value **at call time** (external-boundary read).
+	 * Each call mounts its own per-input subgraph at
+	 * `retrieval::retrieve_${id}` (via `MemoryRetrievalGraph`); concurrent
+	 * calls don't share state mirrors. One-shot consumers wrap with
+	 * `awaitSettled(retrieveReactive(query))`.
 	 *
-	 * **Do not call from inside a reactive fn body** (derived fn, subscribe callback,
-	 * effect body). The cache reads would become transitive protocol violations and
-	 * may observe wave-progressive rather than wave-final state.
-	 *
-	 * **Caller-batch caveat:** if invoked inside a caller's `batch(() => ...)` alongside
-	 * upstream store mutations, the store snapshot reflects what has been committed to
-	 * `store.entries.cache` at call time. State-backed stores update cache synchronously
-	 * so batched inserts are visible; derived-backed store transforms may defer. If you
-	 * need fresh state after batched mutations, call `retrieve` after the batch returns.
-	 */
-	readonly retrieve: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null;
-	/**
-	 * Reactive sibling of {@link retrieve}. Given a reactive
-	 * `RetrievalQuery | null` source, returns a `Node` emitting the packed
-	 * retrieval results. Composable with graph topology — subscribe it,
-	 * chain it into `promptNode`, or switchMap over a user-input node.
 	 * Null when no retrieval pipeline is configured.
 	 */
 	readonly retrieveReactive:
@@ -333,7 +321,6 @@ export function agentMemory<TMem = unknown>(
 	// --- Retrieval pipeline (composer) ---
 	let retrievalNode: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null = null;
 	let retrievalTraceNode: Node<RetrievalTrace<TMem> | null> | null = null;
-	let retrieveFn: ((query: RetrievalQuery) => ReadonlyArray<RetrievalEntry<TMem>>) | null = null;
 	let retrieveReactive:
 		| ((queryInput: NodeInput<RetrievalQuery | null>) => Node<ReadonlyArray<RetrievalEntry<TMem>>>)
 		| null = null;
@@ -358,7 +345,6 @@ export function agentMemory<TMem = unknown>(
 		graph.mount("retrieval", retrievalGraph);
 		retrievalNode = retrievalGraph.retrieval;
 		retrievalTraceNode = retrievalGraph.retrievalTrace;
-		retrieveFn = retrievalGraph.retrieve.bind(retrievalGraph);
 		retrieveReactive = retrievalGraph.retrieveReactive.bind(retrievalGraph);
 	}
 
@@ -378,7 +364,6 @@ export function agentMemory<TMem = unknown>(
 		memoryTiers: memoryTiersBundle,
 		retrieval: retrievalNode,
 		retrievalTrace: retrievalTraceNode,
-		retrieve: retrieveFn,
 		retrieveReactive,
 	}) as AgentMemoryGraph<TMem>;
 }

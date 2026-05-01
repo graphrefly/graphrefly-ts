@@ -29,6 +29,7 @@ import {
 	type LLMResponse,
 	llmConsolidator,
 	llmExtractor,
+	memoryRetrieval,
 	promptNode,
 	type StampedDelta,
 	type StrategyPlan,
@@ -1451,7 +1452,6 @@ describe("patterns.ai.agentMemory", () => {
 		expect(mem.memoryTiers).toBeNull();
 		expect(mem.retrieval).toBeNull();
 		expect(mem.retrievalTrace).toBeNull();
-		expect(mem.retrieve).toBeNull();
 		expect(mem.retrieveReactive).toBeNull();
 		mem.destroy();
 	});
@@ -1483,6 +1483,113 @@ describe("patterns.ai.agentMemory", () => {
 		// Highest-score entry first (seed value scored 2).
 		expect(packed[0]!.score).toBeGreaterThanOrEqual(packed[packed.length - 1]!.score);
 		unsub();
+		mem.destroy();
+	});
+
+	it("C1: concurrent retrieveReactive calls keep mirrors independent (no crosstalk)", () => {
+		type Mem = { text: string; tag: "alpha" | "beta" };
+		const mem = agentMemory<Mem>("c1-concurrent", node<string>([], { initial: "seed" }), {
+			extractFn: () => ({
+				upsert: [
+					{ key: "a", value: { text: "alpha-doc", tag: "alpha" } },
+					{ key: "b", value: { text: "beta-doc", tag: "beta" } },
+				],
+			}),
+			// Score by tag so the two queries' rankings are deterministic and distinct.
+			score: (m, ctx) => {
+				const wantTag = (ctx as { tag?: string } | null)?.tag;
+				return m.tag === wantTag ? 10 : 1;
+			},
+			cost: () => 1,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+
+		const qA = node<{ vector?: readonly number[]; context?: readonly string[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+		const qB = node<{ vector?: readonly number[]; context?: readonly string[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+		// `agentMemory` only supports one shared `context` node — exercise the
+		// concurrency invariant with a single context node and two distinct
+		// reactive query inputs. The point is that each call gets its own
+		// mounted subgraph: the two projection nodes are independent.
+		const rA = mem.retrieveReactive!(qA);
+		const rB = mem.retrieveReactive!(qB);
+		const unsubA = rA.subscribe(() => {});
+		const unsubB = rB.subscribe(() => {});
+
+		// Both projections fire and produce results — they don't share a mirror.
+		expect(Array.isArray(rA.cache)).toBe(true);
+		expect(Array.isArray(rB.cache)).toBe(true);
+
+		// The per-call subgraphs are visible in describe() — locked-decision #3.
+		const desc = mem.describe() as { subgraphs?: string[] };
+		expect(desc.subgraphs).toContain("retrieval");
+		const retrievalDesc = (mem.tryResolve("retrieval::retrieve_1::projection") ?? null) as unknown;
+		expect(retrievalDesc).not.toBeNull();
+		expect(mem.tryResolve("retrieval::retrieve_2::projection")).toBeDefined();
+		expect(mem.tryResolve("retrieval::retrieve_1::result")).toBeDefined();
+		expect(mem.tryResolve("retrieval::retrieve_1::mirror")).toBeDefined();
+		expect(mem.tryResolve("retrieval::retrieve_1::context")).toBeDefined();
+
+		// Updating qA must not stomp qB's projection cache (independent mirrors).
+		const beforeBCache = rB.cache;
+		qA.emit({ vector: [0.5, 0.5] });
+		expect(rB.cache).toBe(beforeBCache);
+
+		unsubA();
+		unsubB();
+		mem.destroy();
+	});
+
+	it("C1: per-call subgraph is removable from describe() via parent retrieval graph", () => {
+		// Drive `memoryRetrieval` directly so we hold a `MemoryRetrievalGraph`
+		// reference and can call `remove(segment)` on it — `agentMemory` hides
+		// the inner mount.
+		const source = node<string>([], { initial: "seed" });
+		const mem = agentMemory<{ text: string }>("c1-remove", source, {
+			extractFn: () => ({ upsert: [{ key: "a", value: { text: "a" } }] }),
+			score: () => 1,
+			cost: () => 1,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+		const retrievalGraph = memoryRetrieval<{ text: string }>({
+			name: "retrieval-direct",
+			store: mem.distillBundle,
+			vectors: mem.vectors,
+			score: () => 1,
+			cost: () => 1,
+		});
+
+		const q = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+		const r1 = retrievalGraph.retrieveReactive(q);
+		const r2 = retrievalGraph.retrieveReactive(q);
+		const u1 = r1.subscribe(() => {});
+		const u2 = r2.subscribe(() => {});
+
+		// Both segments visible in describe()'s subgraph list.
+		const before = retrievalGraph.describe() as { subgraphs?: string[] };
+		expect(before.subgraphs).toContain("retrieve_1");
+		expect(before.subgraphs).toContain("retrieve_2");
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeDefined();
+
+		// Disposing the per-call subgraph drops it from describe().
+		retrievalGraph.remove("retrieve_1");
+		const after = retrievalGraph.describe() as { subgraphs?: string[] };
+		expect(after.subgraphs).not.toContain("retrieve_1");
+		expect(after.subgraphs).toContain("retrieve_2");
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeUndefined();
+		// Sibling untouched.
+		expect(retrievalGraph.tryResolve("retrieve_2::projection")).toBeDefined();
+
+		u1();
+		u2();
+		retrievalGraph.destroy();
 		mem.destroy();
 	});
 
@@ -1643,13 +1750,20 @@ describe("patterns.ai.agentMemory", () => {
 			retrieval: { topK: 5 },
 		});
 
-		expect(mem.retrieve).not.toBeNull();
+		expect(mem.retrieveReactive).not.toBeNull();
 		expect(mem.retrievalTrace).not.toBeNull();
 
-		// Execute a retrieval query
-		const results = mem.retrieve!({ vector: [1.0, 0.0, 0.0] });
-		// Results should be an array (may be empty if store hasn't propagated yet)
+		// Execute a retrieval query reactively. C1: imperative `retrieve()`
+		// dropped — wrap a one-shot query in a reactive node and read the
+		// projection node's cache after subscription drains.
+		const q = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [1.0, 0.0, 0.0] },
+		});
+		const r = mem.retrieveReactive!(q);
+		const unsub = r.subscribe(() => {});
+		const results = r.cache as ReadonlyArray<unknown> | undefined;
 		expect(Array.isArray(results)).toBe(true);
+		unsub();
 		mem.destroy();
 	});
 
@@ -1666,7 +1780,11 @@ describe("patterns.ai.agentMemory", () => {
 			embedFn: () => [0.5, 0.5, 0.0],
 		});
 
-		mem.retrieve!({ vector: [0.5, 0.5, 0.0] });
+		const q = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [0.5, 0.5, 0.0] },
+		});
+		const r = mem.retrieveReactive!(q);
+		const unsub = r.subscribe(() => {});
 		const trace = mem.retrievalTrace!.cache;
 		if (trace) {
 			expect(trace).toHaveProperty("vectorCandidates");
@@ -1674,6 +1792,7 @@ describe("patterns.ai.agentMemory", () => {
 			expect(trace).toHaveProperty("ranked");
 			expect(trace).toHaveProperty("packed");
 		}
+		unsub();
 		mem.destroy();
 	});
 });

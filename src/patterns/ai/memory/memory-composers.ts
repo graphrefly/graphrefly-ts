@@ -536,13 +536,35 @@ function sharedPrefixDepth(
 	return i;
 }
 
+// QA-fix: element-wise reference-equality dedup so subscribers don't wake
+// up when an identical packed array lands (runRetrieval allocates a new
+// outer array reference every call).
+const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+	return true;
+};
+
 /**
  * Graph subclass that builds the retrieval pipeline (vector + KG + budget
  * packing) over a `DistillBundle` and optional vectors / kg substrates.
  *
- * Both consumer surfaces (`retrieve`, `retrieveReactive`) write to the same
- * `retrieval` + `retrievalTrace` state nodes — observers subscribed to those
- * see ALL queries regardless of which API issued them.
+ * **C1 rework (2026-04-30):** retrieval is reactive-only. Each
+ * `retrieveReactive(input)` call constructs its own per-input subgraph
+ * mounted at `retrieve_${id}` with named nodes `context`, `result`,
+ * `mirror`, and `projection`. Mirrors are scoped to that subgraph — no
+ * cross-call crosstalk on the parent's `retrieval` / `retrievalTrace`
+ * state nodes. Subgraphs register their own `keepalive` disposer so
+ * teardown is local to the per-call mount.
+ *
+ * The shared `retrieval` / `retrievalTrace` state nodes mirror the
+ * **most recent** call's packed result; subscribe to the per-call
+ * `projection` node directly when you need to discriminate concurrent
+ * queries.
+ *
+ * The prior imperative `retrieve()` API is dropped (pre-1.0 break);
+ * one-shot consumers use `awaitSettled(retrieveReactive(input))`.
  */
 export class MemoryRetrievalGraph<TMem> extends Graph {
 	/** State node mirroring the latest packed retrieval result. */
@@ -559,6 +581,7 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 	private readonly _graphDepth: number;
 	private readonly _budget: number;
 	private readonly _contextWeight: number;
+	private _retrieveSeq = 0;
 
 	constructor(opts: MemoryRetrievalOptions<TMem>) {
 		super(opts.name ?? "memory-retrieval", opts.graph);
@@ -573,45 +596,17 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		this._contextWeight = opts.contextWeight ?? 0;
 		this._contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
 
-		// QA-fix: element-wise reference-equality dedup so subscribers don't wake
-		// up when an identical packed array lands (runRetrieval allocates a new
-		// outer array reference every call).
-		const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
-			if (a === b) return true;
-			if (a.length !== b.length) return false;
-			for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-			return true;
-		};
-
-		// Raw `node()` + `this.add(...)` here (not `this.state(...)`): the
-		// state nodes need a custom `equals` predicate (not yet plumbed
-		// through `GraphStateOptions` — actually IS plumbed; but `equals`
-		// closure capture happens here for `packedEquals` typing). Both
-		// nodes need explicit `meta` (aiMeta) and `name` for describe — the
-		// restricted-state options support those, but keeping the raw node()
-		// shape keeps the code aligned with the pre-migration internals.
-		this.retrieval = node<ReadonlyArray<RetrievalEntry<TMem>>>([], {
-			initial: [],
-			name: "retrieval",
-			describeKind: "state",
-			meta: aiMeta("retrieval_pipeline"),
+		// EC14: state nodes registered via `this.state(...)` now that
+		// `GraphStateOptions` plumbs `equals` / `meta`.
+		this.retrieval = this.state<ReadonlyArray<RetrievalEntry<TMem>>>("retrieval", [], {
 			equals: packedEquals,
+			meta: aiMeta("retrieval_pipeline"),
 		});
-		this.add(this.retrieval, { name: "retrieval" });
 
-		this.retrievalTrace = node<RetrievalTrace<TMem> | null>([], {
-			initial: null,
-			name: "retrievalTrace",
-			describeKind: "state",
+		this.retrievalTrace = this.state<RetrievalTrace<TMem> | null>("retrievalTrace", null, {
 			meta: aiMeta("retrieval_trace"),
 		});
-		this.add(this.retrievalTrace, { name: "retrievalTrace" });
-
-		// Stash packedEquals for retrieveReactive's projection node.
-		this._packedEquals = packedEquals;
 	}
-
-	private readonly _packedEquals: <T>(a: readonly T[], b: readonly T[]) => boolean;
 
 	private _runRetrieval(
 		storeMap: ReadonlyMap<string, TMem>,
@@ -745,39 +740,67 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 	}
 
 	/**
-	 * Imperative consumer API — synchronous; reads cache at call time and
-	 * batch-writes both `retrieval` and `retrievalTrace` state nodes.
-	 */
-	retrieve(query: RetrievalQuery): ReadonlyArray<RetrievalEntry<TMem>> {
-		const storeMap =
-			(this._store.store.entries.cache as ReadonlyMap<string, TMem> | undefined) ??
-			new Map<string, TMem>();
-		const { packed, trace } = this._runRetrieval(storeMap, this._contextNode.cache, query);
-		batch(() => {
-			this.retrieval.emit(packed);
-			this.retrievalTrace.emit(trace);
-		});
-		return packed;
-	}
-
-	/**
-	 * Reactive sibling — chain into the graph. Mirrors observability state.
+	 * Reactive consumer API — chain into the graph.
 	 *
-	 * QA-fix (Group 1A): the reactive recompute is split into a pure `result`
-	 * derived + a co-mounted `mirror` effect + a packed projection. The mirror
-	 * makes the writes to `retrievalOutput` / `traceState` topology-visible
-	 * (proper §32 state-mirror) instead of hidden inside a `derived` fn body
-	 * (which §28 doesn't actually sanction — §28 covers factory-time *reads*).
+	 * Each call constructs its own per-input subgraph mounted at
+	 * `retrieve_${id}` (auto-incrementing within this MemoryRetrievalGraph
+	 * instance) with named nodes:
+	 *
+	 * - `context` — `fromAny(queryInput)` projection (so the input node is
+	 *   visible to `describe()` even when callers pass a raw value).
+	 * - `result` — pure derived `{ packed, trace }`.
+	 * - `mirror` — effect that writes to the parent's `retrieval` /
+	 *   `retrievalTrace` state nodes (most-recent-call wins).
+	 * - `projection` — the packed-array node returned to the caller.
+	 *
+	 * The subgraph registers its own `keepalive(mirror)` disposer so the
+	 * mirror runs even when no external subscriber holds the projection.
+	 * Disposers are local — `parent.remove("retrieve_${id}")` (or a parent
+	 * `destroy()` cascade) tears the per-call topology down without
+	 * touching siblings. Concurrent calls don't share state mirrors and
+	 * don't leak keepalives onto the parent graph.
+	 *
+	 * One-shot callers use `awaitSettled(retrieveReactive(input))`.
 	 */
 	retrieveReactive(
 		queryInput: NodeInput<RetrievalQuery | null>,
 	): Node<ReadonlyArray<RetrievalEntry<TMem>>> {
-		const q = fromAny(queryInput);
+		const id = ++this._retrieveSeq;
+		const segment = `retrieve_${id}`;
+
+		// Per-call subgraph — owns the wiring, the keepalive, and the
+		// teardown. Mounted on `this` so it's visible in `describe()` and
+		// reachable via `${parent}::retrieve_${id}::result` etc.
+		const sub = new Graph(segment);
+
+		// Wrap the input as a local pass-through so the per-call subgraph
+		// shows the query source in `describe()` regardless of where the
+		// caller's node lives in the broader topology. `fromAny` returns
+		// the original Node when given a Node, otherwise wraps a
+		// value/promise into a producer.
+		const inputNode = fromAny(queryInput);
+		const localContext = node<RetrievalQuery | null>(
+			[inputNode],
+			(batchData, actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+				);
+				actions.emit((data[0] as RetrievalQuery | null) ?? null);
+			},
+			{
+				name: "context",
+				describeKind: "derived",
+				meta: aiMeta("retrieval_query_input"),
+				initial: null,
+			},
+		);
+		sub.add(localContext, { name: "context" });
+
 		const result = node<{
 			packed: ReadonlyArray<RetrievalEntry<TMem>>;
 			trace: RetrievalTrace<TMem> | null;
 		}>(
-			[this._store.store.entries, this._contextNode, q],
+			[this._store.store.entries, this._contextNode, localContext],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((b, i) =>
 					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
@@ -794,11 +817,13 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 			},
 			{
 				describeKind: "derived",
-				name: "retrievalReactive::result",
+				name: "result",
 				meta: aiMeta("retrieval_reactive_result"),
 				initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
 			},
 		);
+		sub.add(result, { name: "result" });
+
 		const retrievalRef = this.retrieval;
 		const traceRef = this.retrievalTrace;
 		const mirror = node(
@@ -816,10 +841,15 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 					if (v.trace) traceRef.emit(v.trace);
 				});
 			},
-			{ describeKind: "effect" },
+			{
+				describeKind: "effect",
+				name: "mirror",
+				meta: aiMeta("retrieval_reactive_mirror"),
+			},
 		);
-		this.addDisposer(keepalive(mirror));
-		return node<ReadonlyArray<RetrievalEntry<TMem>>>(
+		sub.add(mirror, { name: "mirror" });
+
+		const projection = node<ReadonlyArray<RetrievalEntry<TMem>>>(
 			[result],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((b, i) =>
@@ -829,12 +859,21 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 			},
 			{
 				describeKind: "derived",
-				name: "retrievalReactive",
+				name: "projection",
 				meta: aiMeta("retrieval_reactive"),
 				initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
-				equals: this._packedEquals,
+				equals: packedEquals,
 			},
 		);
+		sub.add(projection, { name: "projection" });
+
+		// Keepalive scoped to the per-call subgraph: when the parent
+		// destroys (or we explicitly remove this mount), the disposer
+		// runs and the mirror effect deactivates.
+		sub.addDisposer(keepalive(mirror));
+
+		this.mount(segment, sub);
+		return projection;
 	}
 }
 
@@ -842,7 +881,7 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
  * Build the retrieval pipeline (vector + KG + budget packing) over a
  * `DistillBundle` and optional `vectors` / `kg` substrates. Returns a
  * `MemoryRetrievalGraph` exposing `retrieval` / `retrievalTrace` reactive
- * state and `retrieve` / `retrieveReactive` consumer methods.
+ * state and the `retrieveReactive(input)` consumer method.
  */
 export function memoryRetrieval<TMem>(
 	opts: MemoryRetrievalOptions<TMem>,
