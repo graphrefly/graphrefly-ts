@@ -29,3 +29,4 @@ export * as reduction from "./reduction/index.js";
 // exports live at the root alongside `core`/`graph`/`extra` style.
 export * from "./surface/index.js";
 export * as surface from "./surface/index.js";
+export * as topologyView from "./topology-view/index.js";

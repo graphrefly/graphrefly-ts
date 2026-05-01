@@ -446,6 +446,16 @@
 				"types": "./dist/patterns/surface/index.d.cts",
 				"default": "./dist/patterns/surface/index.cjs"
 			}
+		},
+		"./patterns/topology-view": {
+			"import": {
+				"types": "./dist/patterns/topology-view/index.d.ts",
+				"default": "./dist/patterns/topology-view/index.js"
+			},
+			"require": {
+				"types": "./dist/patterns/topology-view/index.d.cts",
+				"default": "./dist/patterns/topology-view/index.cjs"
+			}
 		}
 	},
 	"files": [

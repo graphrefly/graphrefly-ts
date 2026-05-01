@@ -33,3 +33,7 @@ export {
 	mermaidLiveUrl,
 } from "./graph-spec-to-mermaid-url.js";
 export { type GraphSpecToPrettyOptions, graphSpecToPretty } from "./graph-spec-to-pretty.js";
+export {
+	type LayoutFrameToSvgOptions,
+	layoutFrameToSvg,
+} from "./layout-frame-to-svg.js";

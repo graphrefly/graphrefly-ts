@@ -150,6 +150,7 @@ const ENTRY_POINTS = [
 	// and ships through the existing `extra/` entry. `refineLoop` is now a
 	// harness preset (γ-β) and ships through `patterns/harness/`.
 	"src/patterns/surface/index.ts",
+	"src/patterns/topology-view/index.ts",
 ];
 
 export default defineConfig({
