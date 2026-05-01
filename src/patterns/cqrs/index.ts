@@ -581,23 +581,22 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		});
 		log.withLatest();
 		const entries = log.entries;
-		const guarded = node<readonly CqrsEvent[]>(
+		const guarded = this.derived<readonly CqrsEvent[]>(
+			name,
 			[entries],
-			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-				);
-				actions.emit(data[0] as readonly CqrsEvent[]);
+			(batchData, ctx) => {
+				const latest =
+					batchData[0] != null && batchData[0].length > 0
+						? (batchData[0].at(-1) as readonly CqrsEvent[])
+						: (ctx.prevData[0] as readonly CqrsEvent[]);
+				return [latest];
 			},
 			{
-				name,
-				describeKind: "derived",
 				meta: cqrsMeta("event", { event_name: name }),
 				guard: EVENT_GUARD,
 				initial: entries.cache as readonly CqrsEvent[],
 			},
 		);
-		this.add(guarded, { name: name });
 		this.addDisposer(keepalive(guarded));
 		this._eventLogs.set(name, { log, node: guarded });
 		// M4: auto-wire any storage tiers attached via `attachEventStorage`.
@@ -632,39 +631,59 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		});
 		log.withLatest();
 		const entries = log.entries;
-		const guarded = node<readonly CqrsEvent[]>(
-			[entries],
-			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-				);
-				actions.emit(data[0] as readonly CqrsEvent[]);
-			},
-			{
-				name: nodeName,
-				describeKind: "derived",
-				meta: cqrsMeta("event_aggregate", {
-					event_name: type,
-					aggregate_id: aggregateId,
-				}),
-				guard: EVENT_GUARD,
-				initial: entries.cache as readonly CqrsEvent[],
-			},
-		);
 		// Avoid name collisions if multiple aggregates have ids that sanitize
 		// to the same node-name; suffix with a counter when necessary.
+		// Resolve the mount name BEFORE constructing the derived (the
+		// `this.derived(...)` form registers under the supplied `name`).
 		let mountName = nodeName;
 		let collisionIdx = 0;
-		while (this.nameOf(this.resolveOptional(mountName) ?? guarded) === mountName) {
+		while (this.resolveOptional(mountName) !== undefined) {
 			collisionIdx += 1;
 			mountName = `${nodeName}_${collisionIdx}`;
-			if (this.resolveOptional(mountName) === undefined) break;
 		}
+		let guarded: Node<readonly CqrsEvent[]>;
 		try {
-			this.add(guarded, { name: mountName });
+			guarded = this.derived<readonly CqrsEvent[]>(
+				mountName,
+				[entries],
+				(batchData, ctx) => {
+					const latest =
+						batchData[0] != null && batchData[0].length > 0
+							? (batchData[0].at(-1) as readonly CqrsEvent[])
+							: (ctx.prevData[0] as readonly CqrsEvent[]);
+					return [latest];
+				},
+				{
+					meta: cqrsMeta("event_aggregate", {
+						event_name: type,
+						aggregate_id: aggregateId,
+					}),
+					guard: EVENT_GUARD,
+					initial: entries.cache as readonly CqrsEvent[],
+				},
+			);
 		} catch {
-			// Name collision (likely with main type stream); skip mount —
-			// per-aggregate stream still functions, just not graph-visible.
+			// Name collision raced with another constructor — fall back to a
+			// raw, unmounted node so the per-aggregate stream still functions
+			// (just not graph-visible). Mirrors the prior best-effort branch.
+			guarded = node<readonly CqrsEvent[]>(
+				[entries],
+				(batchData, actions, ctx) => {
+					const latest =
+						batchData[0] != null && batchData[0].length > 0 ? batchData[0].at(-1) : ctx.prevData[0];
+					actions.emit(latest as readonly CqrsEvent[]);
+				},
+				{
+					name: nodeName,
+					describeKind: "derived",
+					meta: cqrsMeta("event_aggregate", {
+						event_name: type,
+						aggregate_id: aggregateId,
+					}),
+					guard: EVENT_GUARD,
+					initial: entries.cache as readonly CqrsEvent[],
+				},
+			);
 		}
 		this.addDisposer(keepalive(guarded));
 		const entry = { log, node: guarded };

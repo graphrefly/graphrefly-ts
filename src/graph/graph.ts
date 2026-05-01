@@ -1799,9 +1799,20 @@ export class Graph {
 	}
 
 	/**
-	 * Path-based reactive derivation. Resolves each entry in `depPaths`,
-	 * builds a node with restricted {@link GraphDerivedFn}, registers it,
-	 * and returns the registered Node.
+	 * Reactive derivation over a mix of `::`-qualified paths and direct
+	 * Node refs. Resolves each entry in `deps`, builds a node with
+	 * restricted {@link GraphDerivedFn}, registers it on this graph, and
+	 * returns the registered Node.
+	 *
+	 * **Deps shape.** Each entry is either a `string` (resolved at
+	 * construction time via {@link Graph.resolve}) or a `Node` (used as
+	 * the dep directly without registering on this graph). Mixed arrays
+	 * are supported — typical pattern is `[localPath, externalNodeRef]`
+	 * for nodes that live on a separate graph or are intentionally
+	 * unmounted (e.g. `reactiveLog().entries`). Node-ref deps appear in
+	 * `describe().edges` only when the dep's owning Node is itself
+	 * mounted somewhere reachable; otherwise they show up as unresolved
+	 * upstream edges (matching raw `node([nodeRef], …)` semantics).
 	 *
 	 * **Array-return semantics.** fn returns `readonly (T | null)[]`:
 	 * - `[v]` — single emit (common case).
@@ -1811,9 +1822,8 @@ export class Graph {
 	 * **First-run gate.** fn does not fire until every dep has delivered
 	 * at least one real DATA (spec §2.7, `partial: false`). A SENTINEL
 	 * dep holds activation; `null` is valid DATA and releases the gate.
-	 * **Empty `depPaths` is a vacuous gate** — fn fires once
-	 * synchronously on first activation. For async sources prefer
-	 * {@link Graph.producer}.
+	 * **Empty `deps` is a vacuous gate** — fn fires once synchronously
+	 * on first activation. For async sources prefer {@link Graph.producer}.
 	 *
 	 * **`ctx.cache`** — the node's own previous emit (`undefined` when
 	 * no prior emit, `null` when the prior emit was `null`, otherwise `T`).
@@ -1825,18 +1835,22 @@ export class Graph {
 	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
-	 * @param depPaths - `::`-qualified paths resolved at construction time.
+	 * @param deps - Mix of `::`-qualified path strings (resolved at
+	 *   construction time) and direct `Node` refs (used as-is). Strings
+	 *   resolve once at construction and the resolved refs persist; see
+	 *   `optimizations.md` C4 for the rewire gap on post-construction
+	 *   mount removal.
 	 * @param fn - Restricted compute — see {@link GraphDerivedFn}.
 	 * @param opts - {@link GraphDerivedOptions}.
 	 * @returns The registered `Node<T>`.
 	 */
 	derived<T>(
 		name: string,
-		depPaths: readonly string[],
+		deps: readonly (string | Node<unknown>)[],
 		fn: GraphDerivedFn<T>,
 		opts?: GraphDerivedOptions<T>,
 	): Node<T> {
-		const deps = depPaths.map((p) => this.resolve(p));
+		const resolvedDeps = deps.map((d) => (typeof d === "string" ? this.resolve(d) : d));
 		const { keepAlive, annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap restricted GraphDerivedFn → raw NodeFn.
@@ -1864,7 +1878,7 @@ export class Graph {
 			return undefined;
 		};
 
-		const n = node<T>(deps, wrapped, {
+		const n = node<T>(resolvedDeps, wrapped, {
 			...nodeOpts,
 			name,
 			describeKind: "derived",
@@ -1879,9 +1893,15 @@ export class Graph {
 	}
 
 	/**
-	 * Path-based managed side effect. Resolves each entry in `depPaths`,
-	 * builds a node with restricted {@link GraphEffectFn}, registers it,
-	 * and returns the registered Node.
+	 * Managed side effect over a mix of `::`-qualified paths and direct
+	 * Node refs. Resolves each entry in `deps`, builds a node with
+	 * restricted {@link GraphEffectFn}, registers it on this graph, and
+	 * returns the registered Node.
+	 *
+	 * **Deps shape.** Each entry is either a `string` (resolved at
+	 * construction time via {@link Graph.resolve}) or a `Node` (used as
+	 * the dep directly without registering on this graph). See
+	 * {@link Graph.derived} for full mixed-deps semantics.
 	 *
 	 * **Pure sink.** fn has no `emit`/`down` — effects that need
 	 * downstream emission use {@link Graph.producer} or drop to raw
@@ -1895,18 +1915,19 @@ export class Graph {
 	 * **`signal`** — when aborted, removes this node from the graph.
 	 *
 	 * @param name - Local registration name (must be unique on this graph).
-	 * @param depPaths - `::`-qualified paths resolved at construction time.
+	 * @param deps - Mix of `::`-qualified path strings (resolved at
+	 *   construction time) and direct `Node` refs (used as-is).
 	 * @param fn - Restricted side-effect — see {@link GraphEffectFn}.
 	 * @param opts - {@link GraphEffectOptions}.
 	 * @returns The registered `Node<unknown>`.
 	 */
 	effect(
 		name: string,
-		depPaths: readonly string[],
+		deps: readonly (string | Node<unknown>)[],
 		fn: GraphEffectFn,
 		opts?: GraphEffectOptions,
 	): Node<unknown> {
-		const deps = depPaths.map((p) => this.resolve(p));
+		const resolvedDeps = deps.map((d) => (typeof d === "string" ? this.resolve(d) : d));
 		const { annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap restricted GraphEffectFn → raw NodeFn.
@@ -1920,7 +1941,7 @@ export class Graph {
 			return fn(batchData, up, ctx) ?? undefined;
 		};
 
-		const n = node(deps, wrapped, {
+		const n = node(resolvedDeps, wrapped, {
 			...nodeOpts,
 			name,
 			describeKind: "effect",
@@ -3450,10 +3471,7 @@ export class Graph {
 	 * watcher tear down when the last consumer of the returned node
 	 * unsubscribes.
 	 */
-	private _observeChangeset(
-		path: string | undefined,
-		options: ObserveOptions,
-	): Node<GraphChange> {
+	private _observeChangeset(path: string | undefined, options: ObserveOptions): Node<GraphChange> {
 		const name = options.changesetName ?? "observe-changeset";
 		const tierSet = options.tiers != null ? new Set(options.tiers) : null;
 		// Subscribe directly to picked targets (no inner structured observer)
@@ -3526,9 +3544,8 @@ export class Graph {
 				const actor = options.actor;
 				const picked =
 					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
-				const filteredByPath: [string, Node][] = path != null
-					? picked.filter(([p]) => p === path)
-					: picked;
+				const filteredByPath: [string, Node][] =
+					path != null ? picked.filter(([p]) => p === path) : picked;
 
 				// Inspector hooks (causal trace) — mirror the structured
 				// observer's `attachInspector` to capture `trigger_dep_index`
@@ -3559,9 +3576,7 @@ export class Graph {
 									if (t === DATA) {
 										if (!inTier("data")) continue;
 										const triggerIdx =
-											target instanceof NodeImpl
-												? lastTriggerDepIndex.get(target)
-												: undefined;
+											target instanceof NodeImpl ? lastTriggerDepIndex.get(target) : undefined;
 										let fromPath = targetPath;
 										let fromDepIndex = -1;
 										if (
@@ -3573,9 +3588,7 @@ export class Graph {
 											const upstream = target._deps[triggerIdx]?.node;
 											fromDepIndex = triggerIdx;
 											if (upstream != null) {
-												fromPath =
-													nodeToPath.get(upstream) ??
-													(upstream.name ?? targetPath);
+												fromPath = nodeToPath.get(upstream) ?? upstream.name ?? targetPath;
 											}
 										}
 										const attribution =
@@ -3596,10 +3609,7 @@ export class Graph {
 										);
 									} else if (t === DIRTY) {
 										if (!inTier("dirty")) continue;
-										emitOne(
-											(env): GraphChangeDirty => ({ type: "dirty", ...env }),
-											targetPath,
-										);
+										emitOne((env): GraphChangeDirty => ({ type: "dirty", ...env }), targetPath);
 									} else if (t === RESOLVED) {
 										if (!inTier("resolved")) continue;
 										emitOne(
@@ -3654,10 +3664,7 @@ export class Graph {
 					wrapWave((emitOne) => {
 						if (event.kind === "added") {
 							if (event.nodeKind === "node") {
-								emitOne(
-									(env): GraphChangeNodeAdded => ({ type: "node-added", ...env }),
-									qualified,
-								);
+								emitOne((env): GraphChangeNodeAdded => ({ type: "node-added", ...env }), qualified);
 							} else {
 								emitOne((env): GraphChangeMount => ({ type: "mount", ...env }), qualified);
 							}
@@ -3668,10 +3675,7 @@ export class Graph {
 									qualified,
 								);
 							} else {
-								emitOne(
-									(env): GraphChangeUnmount => ({ type: "unmount", ...env }),
-									qualified,
-								);
+								emitOne((env): GraphChangeUnmount => ({ type: "unmount", ...env }), qualified);
 							}
 						}
 					});

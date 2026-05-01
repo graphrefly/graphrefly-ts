@@ -2490,6 +2490,95 @@ describe("Graph narrow-waist — graph.derived (P3 disposal completeness)", () =
 	});
 });
 
+describe("Graph narrow-waist — graph.derived/effect mixed (string | Node) deps", () => {
+	it("graph.derived accepts mixed (string | Node) deps and reacts to emissions on both", () => {
+		const g = new Graph("nw-mixed-deps");
+		// Path-resolved dep — registered on the graph.
+		g.add(node<number>([], { name: "a", initial: 1 }), { name: "a" });
+		// External Node ref — NOT registered on this graph (mirrors the
+		// `reactiveLog().entries` cqrs case at patterns/cqrs/index.ts:584/635
+		// where the entries node is an internal substrate).
+		const external = node<number>([], { name: "external", initial: 10 });
+
+		const seen: Array<readonly number[]> = [];
+		const out = g.derived<number>("sum", ["a", external], (data, ctx) => {
+			const [va, vb] = latestVals(data, ctx) as [number, number];
+			return [va + vb];
+		});
+		out.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] === DATA) seen.push([m[1] as number]);
+			}
+		});
+		// Initial activation pushes both deps' caches → sum = 11.
+		expect(seen.flat()).toEqual([11]);
+
+		// Emission on the path-resolved dep flows through.
+		g.set("a", 2);
+		expect(seen.flat()).toEqual([11, 12]);
+
+		// Emission on the external Node ref also flows through (registered as
+		// a dep at construction even without graph mounting).
+		external.emit(20);
+		expect(seen.flat()).toEqual([11, 12, 22]);
+
+		// `out` is registered under `sum` on this graph.
+		expect(g.node("sum")).toBe(out);
+
+		g.destroy();
+	});
+
+	it("graph.effect accepts mixed (string | Node) deps and fires on both", () => {
+		const g = new Graph("nw-mixed-deps-effect");
+		g.add(node<number>([], { name: "a", initial: 1 }), { name: "a" });
+		const external = node<number>([], { name: "external", initial: 100 });
+
+		const calls: Array<[number, number]> = [];
+		const fx = g.effect("logger", ["a", external], (data, _up, ctx) => {
+			const [va, vb] = latestVals(data, ctx) as [number, number];
+			calls.push([va, vb]);
+		});
+		fx.subscribe(() => {});
+
+		// Initial activation fires once with both deps' caches.
+		expect(calls).toEqual([[1, 100]]);
+
+		g.set("a", 2);
+		expect(calls).toEqual([
+			[1, 100],
+			[2, 100],
+		]);
+
+		external.emit(200);
+		expect(calls).toEqual([
+			[1, 100],
+			[2, 100],
+			[2, 200],
+		]);
+
+		g.destroy();
+	});
+
+	it("graph.derived with all-Node deps still resolves and registers on the graph", () => {
+		// The `event` cqrs site shape: a single external Node ref, no string paths.
+		const g = new Graph("nw-all-node-deps");
+		const ext = node<number>([], { name: "ext", initial: 7 });
+		const out = g.derived<number>("doubled", [ext], (data, ctx) => {
+			const [v] = latestVals(data, ctx) as [number];
+			return [v * 2];
+		});
+		const seen: number[] = [];
+		out.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === DATA) seen.push(m[1] as number);
+		});
+		expect(seen).toEqual([14]);
+		ext.emit(5);
+		expect(seen).toEqual([14, 10]);
+		expect(g.node("doubled")).toBe(out);
+		g.destroy();
+	});
+});
+
 describe("Graph narrow-waist — graph.effect", () => {
 	it("runs side-effect when deps settle and registers under name", () => {
 		const g = new Graph("nw-effect");
