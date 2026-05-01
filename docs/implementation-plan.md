@@ -851,7 +851,236 @@ All 13 sub-units (A–M) shipped in one batch: 13.A recovered the multi-agent ga
 
 ---
 
-### Phase 14 — Post-1.0 changesets/diff (single unified design session)
+### Phase 13.5 — Locked design sessions awaiting implementation
+
+*Source: post-Phase-13 triage session 2026-05-01.*
+
+Single home for design sessions that are decision-locked or scoped but not yet implemented. Each sub-section is self-contained — no need to cross-reference session docs to revisit them. **Implementation runs in dedicated sessions before Phase 14 opens** so the changesets/delta substrate composes against a clean protocol + primitive surface.
+
+#### DS-13.5.A — INVALIDATE protocol redesign (Bundle 1.5) — LOCKED Q1–Q15
+
+*Trigger: Agent 5's `[[INVALIDATE], [RESOLVED]]` paired-reset pattern surfaced the deadlock (INVALIDATE alone leaves dependents DIRTY without settling). Reframe: promote INVALIDATE from tier-2 to its own tier-4 settle group between value-settle (tier-3 DATA/RESOLVED) and terminal (tier-5/6 COMPLETE/ERROR).*
+
+**Locked decisions (Q1–Q15):**
+
+| Q | Decision |
+|---|---|
+| Q1 — DATA + INVALIDATE in same wave | DATA wins; source's `_cached` becomes the new DATA value. INVALIDATE's local cache-clear is a no-op when overridden. |
+| Q2 — Cascade scope | Conservative: source's `_cached` clears; downstream's `prevData[source-slot]` resets to `undefined`; downstream's own `_cached` untouched. Caller still has access to last-computed value. |
+| Q3 — RESOLVED + INVALIDATE in same wave | RESOLVED wins (it's the same-tier-as-DATA flow control; INVALIDATE is the tier-4 cleanup signal that doesn't override normal flow). |
+| Q5 — `data[i]` shape encoding | Widen to `T[] \| null \| undefined`: `undefined` = no message from this dep this wave; `null` = INVALIDATE arrived; `[]` = RESOLVED (or silent under `partial: true`); `[v, ...]` = DATA values. |
+| Q6 — INVALIDATE + COMPLETE/ERROR | Compose naturally via tier ordering. INVALIDATE cleanup fires, then terminal cascades. No special merge rule. |
+| Q7 — INVALIDATE + PAUSE/RESUME | (a) Buffer alongside DATA; replay on RESUME in arrival order. JSDoc note: paused subscribers see deferred INVALIDATE on resume. |
+| Q8 — INVALIDATE + equals substitution | INVALIDATE is not a value emission; equals never substitutes it. Always propagates. |
+| Q9 — INVALIDATE inside `batch()` | Order-independent merge: DATA always wins (Q1); RESOLVED wins over INVALIDATE (Q3); INVALIDATE+INVALIDATE collapses to single (idempotent). |
+| Q10 — INVALIDATE + replayBuffer | (a) INVALIDATE clears replay buffer too; late subscribers post-INVALIDATE see SENTINEL state, not stale history. **Loud JSDoc on the source/replayBuffer factory.** |
+| Q11 — INVALIDATE + resubscribable | INVALIDATE does NOT trigger producer resubscription. Different concerns. |
+| Q12 — Auto-cascade default | Reading A — only when a dep INVALIDATED in the wave AND fn doesn't emit (raw) / returns `undefined \| null` (sugars). New gate opt `invalidateWhenDepsInvalidate?: boolean` (default `true`). Symmetric with `errorWhenDepsError` / `completeWhenDepsComplete`. Sugar fn returning `[]` is NOT a trigger (explicit zero-emit, today's RESOLVED behavior). |
+| Q13 — `NodeFnCleanup.invalidate?` hook | No change. Fires on dependent when INVALIDATE delivers (already shipped Package 6, 2026-04-23). |
+| Q14 — TLA+ + fast-check coverage | Required: `Invalidate` action settles wave; new `InvalidateSettlesWave` invariant (counter test for the deadlock); `MergeRulesRespected` invariant (DATA wins / RESOLVED wins / INVALIDATE coalesces); update `EqualsFaithful` to confirm INVALIDATE bypasses substitution; fast-check single-INVALIDATE-settles + order-independent-merge properties. |
+| Q15 — Spec amendment scope | §1.3 (tiers): add INVALIDATE as tier-4. §1.3.1 (auto-DIRTY-prefix): extend to INVALIDATE. §2.4: rewrite — settles wave; clears source `_cached`; resets dependent `prevData[slot]`; fires cleanup hook. §2.5: cross-ref Q10 (replayBuffer clears). §2.7: clarify `data[i] === null` as INVALIDATE-this-wave marker (orthogonal to `prevData[i] === undefined` SENTINEL). New §2.4a: merge rules table. New §5.13: `invalidateWhenDepsInvalidate` opt + cascade contract. |
+
+**Additional ungated questions (lean-locked, pending implementation):**
+
+- `withStatus` interaction: stays in current status on INVALIDATE; defer `invalidated?: number` companion until consumer demand.
+- `attachStorage` / WAL: persist INVALIDATE for replay determinism; spec amendment to §8.7.
+- Worker bridge wire protocol: fold into DS-14 (bridge protocol changes anyway under changesets/delta work).
+- Codec envelope (`Graph.snapshot()`): no change — codec writes whatever's in `_cached` at snapshot time; INVALIDATE-then-snapshot writes a SENTINEL slot naturally.
+
+**Implementation scope:**
+- `src/core/clock.ts`: add INVALIDATE to `messageTier` central config as tier-4.
+- `src/core/node.ts`: `_emit` / `_frameBatch` / `_updateState` / `_maybeRunFnOnSettlement` — auto-DIRTY-prefix for INVALIDATE; INVALIDATE settles wave (decrements `_dirtyDepCount`); merge rules per Q1/Q3/Q9; `invalidateWhenDepsInvalidate` opt threading.
+- Type widening: `data[i]: T[] | null | undefined`. Audit fn signatures library-wide.
+- Sugar layer: `derived/effect/produce` recognize `undefined | null` return as auto-INVALIDATE trigger when paired with cascade default.
+- Auto-INVALIDATE + replayBuffer clearing.
+- `NodeFnCleanup.invalidate?` hook routing under new tier ordering — verify, no semantic change.
+- Spec amendments per Q15 (cross-repo edit to `~/src/graphrefly/GRAPHREFLY-SPEC.md`).
+- TLA+ extensions per Q14 (cross-repo edit to `~/src/graphrefly/formal/wave_protocol.tla` + new MC).
+- Fast-check invariants per Q14 (`src/__tests__/properties/_invariants.ts`).
+
+**Migration / unwinds:**
+- Agent 5's `[[INVALIDATE], [RESOLVED]]` paired-reset in `agent-loop.ts` simplifies to plain `[[INVALIDATE]]`.
+- COMPOSITION-GUIDE §32 cross-wave reset section simplifies (no "remember to pair with RESOLVED" guidance).
+- Audit other paired-reset callsites (refineLoop `lastFeedbackState` / `bestState` per the deferred SENTINEL sweep entry in optimizations.md) — they get the same simplification.
+
+**Path X potential connection:** under the new model, per-attempt Nodes that emit INVALIDATE before going terminal might let late subscribers (retry's factory) see the cleanup signal — possibly a third path between the two existing options for the eager-keepalive vs `defaultOnSubscribe` blocker. Probe during implementation. See `optimizations.md` "Path X" entry's nested sub-bullet.
+
+**Prerequisite for DS-14:** changesets/delta protocol composes against the new INVALIDATE substrate. DS-14 design assumes the new tier ordering and merge rules.
+
+---
+
+#### DS-13.5.B — Tier 5.2 reactive-options widening (5 primitives + companions) — STRATEGY LOCKED, timeout primitive sub-locked
+
+*Trigger: today's `resilientPipeline` rebuilds layers via switchMap on each opts emission, losing internal state (rate-limit pending buffer, breaker failure count, retry attempt count, in-flight timeout deadline). Widening primitives to accept `Node<Partial<Options>>` with rebind-on-emit lets state survive option swaps.*
+
+**Strategy locks:**
+- Split rebuild axis (mode change) from rebind axis (parameter tweak); per-primitive widening for both axes.
+- `Node<Partial<Options>>` on emit; primitive merges with prior options.
+- Empty `{}` emit is a no-op.
+- Bundle return `<Primitive>Bundle<T>` (not bare `Node<T>`); pre-1.0 break.
+- No sugar / shim preservation (no `timeout(source, 5000)` raw-number form).
+- Throw at construction if first opts emit is missing required fields.
+- Symmetric companion naming `<primitive>State` (existing `rateLimitState` renames to `rateLimiterState`).
+- **Reject mode change** — throw on the opts Node when a mode-axis transition is attempted. Document `switchMap`-rebuild as the recipe.
+- Land **before Phase 14** so DS-14 has concrete companion-Node shapes to design deltas against.
+
+**Central enum reuse:**
+- `StatusValue = "pending" | "active" | "completed" | "errored"` (already exists from `withStatus`) — reused as literal vocabulary inside discriminated state for **lifecycle-shaped primitives** (`timeout`, `retry`).
+- `GateState = "open" | "closed"` (NEW central enum) — literal vocabulary inside discriminated state for **gate-shaped primitives** (`budgetGate`, `rateLimiter` extends with `"throttled"`, `circuitBreaker` extends with `"half-open"`).
+- The central enum is the literal vocabulary; each primitive's `<Primitive>State` is a discriminated union composing the literal + per-status payload.
+
+**Implementation order:**
+1. **`timeout`** (canary — single axis, no mode question) — sub-locked below
+2. `budgetGate` (single rebind axis: constraint set; already has reactive `meta` from Tier 3.3)
+3. `retry` (two rebind axes: count + backoff; footgun: count shrink below current attempt)
+4. `circuitBreaker` / `withBreaker` (three rebind axes; state preservation interesting)
+5. `rateLimiter` (most complex; mode axis rejected; B3 (d) reactive gate falls out as the "wait for first opts emit" pattern under widening)
+
+**`timeout` primitive — full sub-lock:**
+
+```ts
+import type { StatusValue } from "../resilience/status.js";
+
+export type TimeoutOptions = {
+  ns: number;
+  meta?: Record<string, unknown>;
+};
+
+export type TimeoutState =
+  | { status: "pending" }                                                   // no active timer
+  | { status: "active"; startedAt_ns: number; deadline_ns: number }          // timer running
+  | { status: "completed"; settledAt_ns: number }                            // source resolved before deadline
+  | { status: "errored"; firedAt_ns: number; deadline_ns: number };          // timer fired
+
+export type TimeoutBundle<T> = {
+  node: Node<T>;
+  timeoutState: Node<TimeoutState>;
+};
+
+export function timeout<T>(
+  source: Node<T>,
+  opts: Partial<TimeoutOptions> | Node<Partial<TimeoutOptions>>,
+  extraOpts?: ExtraOpts,
+): TimeoutBundle<T>;
+```
+
+Per-axis policy:
+| Axis | Policy | In-flight reconciliation |
+|---|---|---|
+| `ns` change | Rebind | In-flight deadline NOT changed; new `ns` applies to next attempt only |
+| `meta` change | Rebind | Updates immediately; merged onto next attempt's emitted node meta |
+| Empty `{}` emit | No-op | Treated as "nothing changed"; no rebind, no companion fire |
+
+Construction-time validation: throw if first opts settle missing/non-positive `ns`. `Node<Partial<TimeoutOptions>>` with `cache === undefined` pauses source until first valid opts emit (same gate pattern as B3 (d) for rateLimiter / B5 reactive-restore for processManager).
+
+Companion semantics: `timeoutState` is snapshot-shaped; default `Object.is`-on-status-field equals. Subscribers don't re-fire on identical-shape transitions but DO fire on every state transition AND on payload changes within the same status. **`timeoutState` covers the `lastTimeout`-style use case** via `status === "errored"` payload (carrying `firedAt_ns` + `deadline_ns`). No separate event-shaped companion.
+
+Test cells: see "D2 — Tier 5.2 reactive-options widening" in earlier post-Phase-13 triage; ~6–10 cells for timeout, ~40–60 across all 5 primitives.
+
+**Pipeline forwarding contract:**
+- `resilientPipeline` checks `opts.<primitive>` shape; if static `Partial<Options>`, builds today's static path; if Node-form, **forwards directly without switchMap rebuild**. The switchMap rebuild remains for any non-yet-widened primitives.
+- Companion `<primitive>State` lifted onto the pipeline bundle when caller passes Node-form.
+- Pipeline's switchMap path skips widened primitives.
+
+**Pending design walks (per primitive):** budgetGate, retry, circuitBreaker, rateLimiter — each needs its own per-axis policy table (rebind contract, in-flight reconciliation, footguns). Walk one at a time before implementation in the order above.
+
+---
+
+#### DS-13.5.C — MemoryRetrievalGraph rebuild (cluster M4/EC3/EC4/EC12/EC13/EC14) — SCOPE CAPTURED, 9Q PENDING
+
+*Trigger: every `retrieveReactive(...)` call leaks a keepalive AND every concurrent reactive-query stomps shared `this.retrieval` / `this.retrievalTrace` state. Imperative `retrieve()` API races with the reactive sibling. Internal nodes (`_contextNode`, `result`, `mirror`, projection) are anonymous — invisible to describe/explain. State nodes use raw `node()` instead of `this.state` for the `equals` plumbing.*
+
+**Files:** `src/patterns/ai/memory/retrieval.ts` (or wherever `MemoryRetrievalGraph` lives — `find` to confirm).
+
+**9Q candidates for the design walk:**
+- Q1 (problem framing): what's the actual contract for `retrieve()` vs `retrieveReactive()`? Are they two faces of the same thing, or fundamentally different?
+- Q2 (scope): can we drop `retrieve()` entirely (pre-1.0 break)?
+- Q3 (API surface): per-input subgraph mounted under `retrievals/<key>` vs caller-shared-key memoization?
+- Q4 (invariants): concurrent reactive queries must NOT stomp each other; per-input lifetime tied to subscription teardown.
+- Q5 (composability): per-input subgraph register its own teardown? Or does the `MemoryRetrievalGraph` parent track per-key children?
+- Q6 (alternatives): caller-shared-key memoization (single subgraph per cache-key, reused across subscribers); pure-function retrieval (no state mutation, returns Node<RetrievalResult> directly).
+- Q7 (test coverage): concurrent retrieval doesn't stomp; describe()/explain() walks per-input subgraph; teardown drops keepalive.
+- Q8 (naming): `retrieve()` removal vs `retrieveOnce()` rename for the imperative one-shot use case.
+- Q9 (migration): pre-1.0 breaking removal of `retrieve()`. Audit consumers in `agent-memory.ts` + tests.
+
+**Why now:** Phase 14 changesets traverse memory state; rebuild here pre-Phase-14 means the delta protocol design doesn't need to accommodate the imperative quirks.
+
+---
+
+#### DS-13.5.D — JobFlow concurrency bounds — SCOPE CAPTURED, 9Q PENDING
+
+*Trigger: `maxPerPump` caps per-tick claims, not concurrent inflight. Reingest is imperative (audit-trail-only edge). `trackingKey` collisions silently overwrite. Per-claim eval subgraphs vanish from describe.*
+
+**Scope (four sub-issues, one design surface):**
+1. `maxInflight?: number` per-stage cap on JobFlow; gates pump's claim loop on `pending.length + inflight.length ≤ maxInflight`.
+2. Structural→reingest topology edge: today's dispatch effect imperatively calls `intake.publish(...)`. Want `flow.completed → structural-filter → bridge/reingest → intake.latest` as declared deps. **Blocked on** a reactive bounded-counter primitive (replaces `tryIncrementBounded` for the reingest cap).
+3. `routeJobIds` collision contract on duplicate `trackingKey`. Document caller contract; add JSDoc on `relatedTo` for retry/reingest items.
+4. Per-claim eval-verifier subgraph mounting: today's allocations are per-claim and unmounted; describe()/explain() can't walk per-claim eval topology.
+
+**9Q candidates:**
+- Q1: harness's actual concurrency contract (claims-per-pump vs total-inflight)?
+- Q2 (smallest): ship `maxInflight` first; reingest topology + bounded-counter primitive as second bundle.
+- Q5 (composability): bounded-counter primitive prerequisite for reingest topology.
+- Q6 (alternatives for collision): caller contract vs framework-enforced uniqueness.
+- Q7: per-claim eval subgraph visibility under `mount("eval/${claimId}", ...)` mount path.
+
+**Why now:** harness is the centerpiece of Wave 1; getting concurrency right pre-Phase-15 evals is high-value.
+
+---
+
+#### DS-13.5.E — Process-manager mutation framework completion — SCOPE CAPTURED, 9Q PENDING
+
+*Trigger: γ-7-B (lightMutation-wrap appendRecord) shipped Tier 9.1; full `start()`/`cancel()` body wrap in `wrapMutation` deferred (γ-7-A). Same call: messaging mutation sites (Topic.publish, Subscription.ack, Hub.delete) audit-record schemas.*
+
+**Sub-issues:**
+1. Full `process/start` + `process/cancel` `wrapMutation` migration vs current swallow-on-synthetic-event-emit-error. Locked γ-7-B keeps the swallow; γ-7-A would change semantics ("synthetic-event-emit error → failed start"). User-facing behavior change.
+2. Messaging audit-record schemas: ship `TopicPublishRecord` / `SubscriptionAckRecord` / `SubscriptionPullAndAckRecord` / `HubMutationRecord` types + matching `keyOf` exports. Today optional — `audit` field omitted across messaging sites.
+
+**9Q candidates:**
+- Q1: when does swallow-on-synthetic-event-emit-error become a real consumer concern?
+- Q3 (API): `startStrict()` vs single-API redesign vs current shape preserved with opt?
+- Q8 (naming): per-mutation-site schemas (`TopicPublishRecord` / `SubscriptionAckRecord` / etc.) vs shared base (`MessagingAuditRecord` discriminated union)?
+- Q9 (migration): pre-1.0 breaking semantic change vs additive opt.
+
+**Why now:** if start/cancel mutation atomicity changes, Phase 14 op-log changesets need to know whether mutation frames are atomic envelopes.
+
+---
+
+#### DS-13.5.F — agentMemory tier closure-state promotion + tierClassifier feedback-cycle retirement — SCOPE CAPTURED, 9Q PENDING
+
+*Trigger: `permanentKeys: Set<string>` and `entryCreatedAtNs: Map<string, number>` inside `memoryWithTiers` are still closure-held — invisible to `describe()`/`explain()` (can't trace "why was X archived?"). Separately, the `tierClassifier` effect should retire in favor of `retention.onArchive` callback wiring (eliminates §7 feedback cycle: effect writes back to its own dep).*
+
+**Files:** `src/patterns/ai/memory/memory-composers.ts` (or `tiers.ts` — find).
+
+**Related deferred item:** D1 from residual-backlog /qa pass — `retention.score` writes into `entryCreatedAtNs.set` from inside the substrate's archival scan. Symptom of the same root cause; fold into the same design walk.
+
+**9Q candidates:**
+- Q4 (semantics): `Node<ReadonlySet<string>>` vs `reactiveMap<string, true>` for `permanentKeys`?
+- Q5 (composability): does `retention.onArchive` need a richer contract to absorb the current effect's responsibilities?
+- Q7 (test coverage): describe()/explain() walks "why was X archived" via the promoted state nodes.
+- Q9 (snapshot portability): persistence keys may shift; release-note item.
+
+**Why now:** Phase 14 changesets want clean state-node visibility for delta tracking.
+
+---
+
+#### DS-13.5.G — `extends Graph` consistency sweep — SCOPE CAPTURED, 9Q PENDING
+
+*Trigger: Wave AM AM.3 migrated `agentMemory` from `Object.assign(graph, { ...bundle })` to `class AgentMemoryGraph extends Graph` for consistency with `PipelineGraph`. Other `patterns/*/index.ts` factories still use the `Object.assign` pattern.*
+
+**Audit candidates:** cqrs, process, messaging topics/job-queue, retrieval bundles outside ai-memory.
+
+**9Q candidates:**
+- Q2 (scope): which factories qualify? Some bundle-shaped factories may genuinely not need `extends Graph`.
+- Q3 (constructor-time invariants): which become expressible as class invariants?
+- Q5 (composability): `instanceof <CapabilityGraph>` for type narrowing — does it actually compose with consumer code?
+- Q9 (migration cost): per-factory; mostly mechanical.
+
+**Why now:** mostly mechanical, but the *decision* of "which factories" benefits from a single design call. Once decided, implementation is parallelizable.
+
+---
+
+
 
 *Source: optimizations.md "Store-mutation-events protocol (deferred post-1.0...)"*
 
