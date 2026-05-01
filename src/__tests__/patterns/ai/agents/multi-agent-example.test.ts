@@ -42,8 +42,8 @@ import { batch, DATA } from "../../../../core/index.js";
 import { valve } from "../../../../extra/operators.js";
 import { Graph } from "../../../../graph/graph.js";
 import { agentLoop, type LLMAdapter, type LLMResponse } from "../../../../patterns/ai/index.js";
-import { type Message, messagingHub, topic } from "../../../../patterns/messaging/index.js";
 import type { SpawnPayload } from "../../../../patterns/harness/presets/spawnable.js";
+import { type Message, messagingHub, topic } from "../../../../patterns/messaging/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

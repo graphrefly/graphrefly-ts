@@ -13,12 +13,6 @@
 import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import {
-	type BackoffPreset,
-	type BackoffStrategy,
-	NS_PER_MS,
-	resolveBackoffPreset,
-} from "./backoff.js";
 import { ResettableTimer } from "../timer.js";
 import {
 	coerceDelayNs,
@@ -28,6 +22,12 @@ import {
 	operatorOpts,
 	resolveReactiveOption,
 } from "./_internal.js";
+import {
+	type BackoffPreset,
+	type BackoffStrategy,
+	NS_PER_MS,
+	resolveBackoffPreset,
+} from "./backoff.js";
 
 export type RetryOptions = {
 	/**

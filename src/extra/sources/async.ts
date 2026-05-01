@@ -20,7 +20,7 @@ import {
 	sourceOpts,
 	wrapSubscribeHook,
 } from "./_internal.js";
-import { fromIter } from "./iter.js";
+import { fromIter, of } from "./iter.js";
 
 /**
  * Lifts a Promise (or thenable) to a single-value stream: one `DATA` then `COMPLETE`, or `ERROR` on rejection.
@@ -138,24 +138,53 @@ export function fromAsyncIter<T>(iterable: AsyncIterable<T>, opts?: AsyncSourceO
 }
 
 /**
- * Coerces a value to a `Node` by shape: existing `Node` passthrough, thenable → {@link fromPromise},
- * async iterable → {@link fromAsyncIter}, sync iterable → {@link fromIter}, else scalar → {@link of}.
+ * Coerces a value to a `Node` by shape, treating sync values as **single
+ * DATA payloads** by default (including arrays, Sets, Maps, and other sync
+ * iterables). For per-element streaming over a sync iterable, pass
+ * `{ iter: true }` to opt into {@link fromIter} dispatch.
+ *
+ * Dispatch table (default — `iter !== true`):
+ * - existing `Node` → passthrough
+ * - thenable → {@link fromPromise} (one DATA on resolve)
+ * - async iterable → {@link fromAsyncIter} (per-yield DATA stream)
+ * - everything else (scalar, array, Set, Map, generator, ...) → {@link of}
+ *   (one DATA + COMPLETE; sync values emit immediately at subscribe time)
+ *
+ * Dispatch table (with `{ iter: true }`):
+ * - same as above EXCEPT sync iterables (incl. arrays / Sets / Maps) →
+ *   {@link fromIter} (per-element DATA stream)
+ *
+ * **Why arrays default to single-value semantics (DS-13.5 follow-up,
+ * 2026-05-01):** the previous implementation dispatched every sync iterable
+ * to `fromIter`, which conflated "I have a list-shaped value" (most common
+ * caller intent — `tier.list()`, snapshot arrays, batched results) with "I
+ * have a stream of N values to emit one-by-one." The footgun bit the
+ * `processManager` restore pipeline. Pre-1.0 lock: per-element streaming is
+ * an explicit opt via `{ iter: true }` OR an explicit `fromIter(...)` call;
+ * everything else is a value.
  *
  * @param input - Any value to wrap.
  * @param opts - Passed through when a Promise/async path is chosen.
+ *   `iter: true` opts a sync iterable into per-element streaming.
  * @returns `Node` of the inferred element type.
  *
  * @example
  * ```ts
  * import { fromAny, state } from "@graphrefly/graphrefly-ts";
  *
- * fromAny(state(1));
- * fromAny(Promise.resolve(2));
+ * fromAny(state(1));                        // Node passthrough
+ * fromAny(Promise.resolve(2));              // one DATA on resolve
+ * fromAny([1, 2, 3]);                       // one DATA = [1, 2, 3]
+ * fromAny([1, 2, 3], { iter: true });       // three DATA: 1, 2, 3
+ * fromAny(asyncGenerator());                // per-yield DATA stream
  * ```
  *
  * @category extra
  */
-export function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T> {
+export function fromAny<T>(
+	input: NodeInput<T>,
+	opts?: AsyncSourceOpts & { iter?: boolean },
+): Node<T> {
 	if (isNode(input)) {
 		return input as Node<T>;
 	}
@@ -167,14 +196,15 @@ export function fromAny<T>(input: NodeInput<T>, opts?: AsyncSourceOpts): Node<T>
 		if (typeof candidate[Symbol.asyncIterator] === "function") {
 			return fromAsyncIter(input as AsyncIterable<T>, opts);
 		}
-		if (typeof candidate[Symbol.iterator] === "function") {
+		if (opts?.iter === true && typeof candidate[Symbol.iterator] === "function") {
 			return fromIter(input as Iterable<T>, opts);
 		}
 	}
-	// scalar fallback — defer to fromIter via a single-element array so the
-	// existing `of` semantics (DATA + COMPLETE) carry through without a
-	// circular import to `iter.ts`.
-	return fromIter([input] as Iterable<T>, opts);
+	// Default: treat as single value. `of(input)` emits one DATA + COMPLETE
+	// synchronously at subscribe time, regardless of whether the value is a
+	// scalar, array, Set, Map, generator, or anything else. Per-element
+	// streaming requires explicit `{ iter: true }` or `fromIter(...)`.
+	return of(input as T);
 }
 
 /**
@@ -243,7 +273,11 @@ export function defer<T>(thunk: () => NodeInput<T>, opts?: AsyncSourceOpts): Nod
 		let stopped = false;
 		try {
 			const input = thunk();
-			const src = fromAny(input, opts);
+			// `iter: true` preserves defer's RxJS-aligned per-element
+			// streaming for sync iterable thunk returns (post DS-13.5
+			// fromAny default flip; defer's documented contract is
+			// "forwards iterable values" per-element).
+			const src = fromAny(input, { ...opts, iter: true });
 			unsub = src.subscribe((msgs) => {
 				if (stopped) return;
 				for (const m of msgs) {

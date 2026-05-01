@@ -9,7 +9,11 @@ import { batch } from "../../core/batch.js";
 import { DATA } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
-import { type ReactiveMapBundle, type ReactiveMapOptions, reactiveMap } from "../data-structures/reactive-map.js";
+import {
+	type ReactiveMapBundle,
+	type ReactiveMapOptions,
+	reactiveMap,
+} from "../data-structures/reactive-map.js";
 import { merge, switchMap, withLatestFrom } from "../operators/index.js";
 import { forEach, fromAny, type NodeInput } from "../sources/index.js";
 

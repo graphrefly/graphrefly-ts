@@ -442,6 +442,28 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ValveOp
 				}
 				prevControlValue = controlValue ? true : controlValue == null ? undefined : false;
 			}
+			// Source-side terminal forwarding (D3, 2026-05-01):
+			// `completeWhenDepsComplete: false` is set on the node opts so
+			// control termination does NOT auto-complete the valve (gate
+			// completion ≠ source termination). Source termination DOES
+			// matter — explicitly forward COMPLETE / ERROR from source so
+			// downstream sees natural termination.
+			if (ctx.terminalDeps[0] !== undefined) {
+				const termType = ctx.terminalDeps[0];
+				if (termType === COMPLETE) {
+					a.down([[COMPLETE]]);
+					return;
+				}
+				if (termType === ERROR) {
+					// Source errored — propagate. ERROR payload comes via
+					// data[0] which the framework folds into a single ERROR
+					// for the dependent. We re-emit a generic ERROR; the
+					// original payload is preserved in the source's terminal
+					// event for upstream observability.
+					a.down([[ERROR, new Error("valve: source errored")]]);
+					return;
+				}
+			}
 			if (!controlValue) {
 				a.down([[RESOLVED]]);
 				return;
@@ -475,7 +497,14 @@ export function valve<T>(source: Node<T>, control: Node<boolean>, opts?: ValveOp
 		// should use the §28 closure-mirror pattern (capture
 		// `source.cache` + `control.cache` at wiring time, read inside a
 		// downstream fn). See COMPOSITION-GUIDE §28.
-		partialOperatorOpts(nodeOpts),
+		//
+		// **D3 lock (2026-05-01):** `completeWhenDepsComplete: false` so
+		// control termination does NOT auto-complete the valve — future
+		// "permanently close gate" patterns (caller wants gateOpen to
+		// complete without source termination) work cleanly. Source
+		// termination is forwarded explicitly via the `terminalDeps[0]`
+		// branch above.
+		{ ...partialOperatorOpts(nodeOpts), completeWhenDepsComplete: false },
 	);
 }
 

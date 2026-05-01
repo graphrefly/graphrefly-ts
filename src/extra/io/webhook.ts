@@ -6,7 +6,11 @@
  */
 
 import type { Node } from "../../core/node.js";
-import { type EmitTriad, type ExternalRegister, externalProducer } from "../composition/external-register.js";
+import {
+	type EmitTriad,
+	type ExternalRegister,
+	externalProducer,
+} from "../composition/external-register.js";
 import type { ExtraOpts } from "./_internal.js";
 
 /** Registration callback for {@link fromWebhook}. Alias of {@link ExternalRegister} over {@link EmitTriad}. */

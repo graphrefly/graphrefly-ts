@@ -198,9 +198,21 @@ describe("extra sources & sinks (roadmap §2.3)", () => {
 		bad.unsub();
 	});
 
-	it("fromAny dispatches iterable", () => {
+	it("fromAny treats sync iterables as single values by default (DS-13.5 semantic)", () => {
 		const a = collect(fromAny([1, 2]));
-		// No post-terminal replay — terminal guard blocks push-on-subscribe
+		// Default: array emitted as ONE DATA value (per-element streaming
+		// requires explicit { iter: true } or fromIter).
+		expect(
+			a.batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1]),
+		).toEqual([[1, 2]]);
+		a.unsub();
+	});
+
+	it("fromAny with { iter: true } opts into per-element streaming", () => {
+		const a = collect(fromAny([1, 2], { iter: true }));
 		expect(
 			a.batches
 				.flat()

@@ -30,9 +30,9 @@ import { Graph, type GraphOptions } from "../../../graph/graph.js";
 import type { KnowledgeGraph, VectorIndexGraph } from "../../memory/index.js";
 import type { LLMAdapter } from "../adapters/core/types.js";
 import {
+	type MemoryWithTiersGraph,
 	memoryRetrieval,
 	memoryWithKG,
-	type MemoryWithTiersGraph,
 	memoryWithTiers,
 	memoryWithVectors,
 } from "../memory/memory-composers.js";

@@ -1341,6 +1341,17 @@ function teardownMountedGraph(root: Graph): void {
 			/* resilience: keep tearing down siblings */
 		}
 	}
+	// A1 (QA fix 2026-05-01): release C3 ownership stamps and mark
+	// `_destroyed = true` on the unmounted root + its descendant subtree.
+	// Without this, every node inside the unmounted subgraph keeps
+	// `GRAPH_OWNER === root` even though the user's intent on
+	// `parent.remove(name)` is "this child is fully detached." Re-adding
+	// any of those nodes to a different Graph would otherwise throw
+	// `cross-graph-ownership` despite the manifest detachment. Affects
+	// `processManager.dispose()` (via `cqrsGraph.remove(mountName)`) and
+	// any other dispose path that tears down a mounted child.
+	root._releaseOwnershipStampsPublic();
+	root._markDestroyed();
 }
 
 /**
@@ -1565,11 +1576,16 @@ export class Graph {
 	 * one non-destroyed Graph at a time. Calling `add` for a Node already
 	 * registered on a different Graph throws a `TypeError` with
 	 * `code === "cross-graph-ownership"` (the message names both graphs and the
-	 * original registration name). To migrate a Node between graphs, the
-	 * previous owner must release it first via {@link Graph.remove} or
-	 * {@link Graph.destroy}; the stamp is dropped synchronously in the same
-	 * call as the TEARDOWN cascade, so a `freshly-detached` Node may be
-	 * re-registered on another Graph in the same tick:
+	 * original registration name). **Detection contract:** prefer
+	 * `err.code === "cross-graph-ownership"` over `err instanceof TypeError`
+	 * — the `code` property is realm-stable, while `instanceof TypeError`
+	 * is realm-bound and breaks when the throw happens in a different vm /
+	 * iframe / worker context than the catch (A6 lock 2026-05-01). To migrate
+	 * a Node between graphs, the previous owner must release it first via
+	 * {@link Graph.remove} or {@link Graph.destroy}; the stamp is dropped
+	 * synchronously in the same call as the TEARDOWN cascade, so a
+	 * `freshly-detached` Node may be re-registered on another Graph in the
+	 * same tick:
 	 *
 	 * ```ts
 	 * g1.add(n, { name: "x" });
@@ -2263,26 +2279,37 @@ export class Graph {
 		}
 		// C3 — defensive child-walk. Mount lineage stays innermost-owned: the
 		// child's nodes remain owned by the child, NOT by the parent. This
-		// loop only catches direct mutation of `child._nodes` that bypassed
+		// loop catches direct mutation of `child._nodes` that bypassed
 		// `child.add` (the bypass would have skipped the stamp). Reject
 		// unconditionally if a node is already owned by a *different* graph
-		// than the child — a mounted child carrying a foreign Node violates
-		// the single-owner invariant just like a direct dual-add.
-		for (const n of child._nodes.values()) {
-			const owner = GRAPH_OWNER.get(n);
-			if (owner === undefined) {
-				GRAPH_OWNER.set(n, child as Graph);
-			} else if (owner !== (child as Graph) && !owner.destroyed) {
-				const ownerName = owner.name !== "" ? owner.name : "<unnamed>";
-				const childName = (child as Graph).name !== "" ? (child as Graph).name : "<unnamed>";
-				const ownerRegName = owner._nodeToName.get(n) ?? "<unknown>";
-				const err = new TypeError(
-					`Graph "${this.name}": cannot mount "${name}" — child graph "${childName}" carries a node already owned by Graph "${ownerName}" (registered there as "${ownerRegName}").`,
-				) as TypeError & { code: string };
-				err.code = "cross-graph-ownership";
-				throw err;
+		// than the child (or any of the child's transitive mounts) — a
+		// mounted child carrying a foreign Node violates the single-owner
+		// invariant just like a direct dual-add.
+		// A2 (QA fix 2026-05-01): recurse into `child._mounts` so foreign-
+		// owned nodes nested deeper (a grandchild mount carrying a foreign
+		// Node) are caught too. The previous shallow walk only covered
+		// `child._nodes` directly.
+		const walkMountSubtree = (g: Graph): void => {
+			for (const n of g._nodes.values()) {
+				const owner = GRAPH_OWNER.get(n);
+				if (owner === undefined) {
+					GRAPH_OWNER.set(n, g);
+				} else if (owner !== g && !owner.destroyed) {
+					const ownerName = owner.name !== "" ? owner.name : "<unnamed>";
+					const childName = (child as Graph).name !== "" ? (child as Graph).name : "<unnamed>";
+					const ownerRegName = owner._nodeToName.get(n) ?? "<unknown>";
+					const err = new TypeError(
+						`Graph "${this.name}": cannot mount "${name}" — child graph "${childName}" (or its descendant) carries a node already owned by Graph "${ownerName}" (registered there as "${ownerRegName}").`,
+					) as TypeError & { code: string };
+					err.code = "cross-graph-ownership";
+					throw err;
+				}
 			}
-		}
+			for (const grandchild of g._mounts.values()) {
+				walkMountSubtree(grandchild);
+			}
+		};
+		walkMountSubtree(child as Graph);
 		this._mounts.set(name, child);
 		child._parent = this;
 		this._emitTopology({ kind: "added", name, nodeKind: "mount" });
@@ -2891,8 +2918,16 @@ export class Graph {
 				if (path.includes(`${PATH_SEP}${GRAPH_META_SEGMENT}${PATH_SEP}`)) continue;
 				// Skip well-known internal prefixes (feedback / bridge /
 				// transitive-deps synthetic paths). Mirrors decompileSpec.
-				if (path.startsWith("__feedback_effect_") || path.startsWith("__bridge_")) continue;
-				if (path.startsWith("__internal__/")) continue;
+				// A10 (QA fix 2026-05-01): tightened from `startsWith` to anchored
+				// regex so a user-typed name like `__internal__/evil` or
+				// `__feedback_effect_attacker` can't opt itself out of the strict
+				// factory-tag check. Synthetic IDs are numeric per graph.ts:
+				// `__internal__/<digits>`, `__feedback_effect_<digits>`,
+				// `__bridge_<digits>`. Anything off-pattern falls through to
+				// the assertion.
+				if (/^__internal__\/\d+($|::)/.test(path)) continue;
+				if (/^__feedback_effect_\d+($|::)/.test(path)) continue;
+				if (/^__bridge_\d+($|::)/.test(path)) continue;
 				// Parent is a subgraph mount — tagged via Graph.tagFactory, not
 				// node meta. The mount itself is not a node entry, so the
 				// `allPathsMap.has(parent)` check below already skips this case
@@ -4431,10 +4466,18 @@ export class Graph {
 		// Drain iteratively so disposers registered mid-drain also run; cap
 		// iterations to guard against a disposer that re-registers itself.
 		drainDisposers(this._disposers, this.name);
-		// C3 — release cross-graph ownership stamps SYNCHRONOUSLY in the same
-		// call as the TEARDOWN cascade so a freshly-detached Node may be
-		// re-registered on another Graph in the same tick (see Graph.add JSDoc).
-		this._releaseOwnershipStamps();
+		// C3 — release this graph's own ownership stamps SYNCHRONOUSLY in
+		// the same call as the TEARDOWN cascade so a freshly-detached Node
+		// may be re-registered on another Graph in the same tick (see
+		// Graph.add JSDoc). Mounted children's stamps are released by the
+		// `child._destroyClearOnly()` loop below — A14 fix (2026-05-01)
+		// avoids the redundant recursive walk here that would re-traverse
+		// every grandchild a second time.
+		for (const node of this._nodes.values()) {
+			if (GRAPH_OWNER.get(node) === this) {
+				GRAPH_OWNER.delete(node);
+			}
+		}
 		// TEARDOWN is tier 5 — below `attachSnapshotStorage`'s `tier < 5` gate, so no
 		// final checkpoint fires; storage disposers unsubscribe after TEARDOWN
 		// has propagated through the subscription pipeline.
@@ -4464,6 +4507,19 @@ export class Graph {
 		}
 		for (const child of this._mounts.values()) {
 			child._releaseOwnershipStamps();
+		}
+	}
+
+	/** @internal A1 (2026-05-01) — exposed for `teardownMountedGraph` (free fn). */
+	_releaseOwnershipStampsPublic(): void {
+		this._releaseOwnershipStamps();
+	}
+
+	/** @internal A1 (2026-05-01) — exposed for `teardownMountedGraph` (free fn). */
+	_markDestroyed(): void {
+		this._destroyed = true;
+		for (const child of this._mounts.values()) {
+			child._markDestroyed();
 		}
 	}
 

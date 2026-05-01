@@ -41,7 +41,7 @@ import { placeholderArgs } from "../../../core/meta.js";
 // `Graph.prototype.node` when the file's body inadvertently references the
 // graph's `.node()` method. B5f keeps protocol-primitive construction visually
 // distinct from graph-instance method dispatch.
-import { type Node, node as createNode } from "../../../core/node.js";
+import { node as createNode, type Node } from "../../../core/node.js";
 import { tryIncrementBounded } from "../../../extra/mutation/index.js";
 import { switchMap } from "../../../extra/operators.js";
 import type { NodeInput } from "../../../extra/sources.js";
@@ -354,10 +354,16 @@ export class RefineLoopGraph<T> extends Graph {
 		});
 		this.add(strategyNode, { name: "strategy" });
 
-		const lastFeedbackState = createNode<Feedback | null>([], { name: "lastFeedback", initial: null });
+		const lastFeedbackState = createNode<Feedback | null>([], {
+			name: "lastFeedback",
+			initial: null,
+		});
 		this.add(lastFeedbackState, { name: "lastFeedback" });
 
-		const prevCandidatesState = createNode<readonly T[]>([], { name: "prevCandidates", initial: [] });
+		const prevCandidatesState = createNode<readonly T[]>([], {
+			name: "prevCandidates",
+			initial: [],
+		});
 		this.add(prevCandidatesState, { name: "prevCandidates" });
 
 		const pauseState = createNode<boolean>([], { name: "paused", initial: false });

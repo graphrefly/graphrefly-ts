@@ -119,10 +119,14 @@ export function switchMap<T, R>(
 			// batch to avoid creating and immediately discarding N-1 inners.
 			// clearInner() runs once to cancel any prior-wave inner.
 			clearInner();
-			innerUnsub = forwardInner(fromAny(project(batch0[batch0.length - 1] as T)), a, () => {
-				clearInner();
-				if (sourceDone) a.down([[COMPLETE]]);
-			});
+			innerUnsub = forwardInner(
+				fromAny(project(batch0[batch0.length - 1] as T), { iter: true }),
+				a,
+				() => {
+					clearInner();
+					if (sourceDone) a.down([[COMPLETE]]);
+				},
+			);
 
 			// Deactivate-only cleanup: must NOT fire before fn reruns
 			// because the terminal wave needs to see innerUnsub intact.
@@ -188,7 +192,7 @@ export function exhaustMap<T, R>(
 
 			if (innerUnsub === undefined) {
 				// First value in batch wins (FIFO exhaustMap gate)
-				innerUnsub = forwardInner(fromAny(project(batch0[0] as T)), a, () => {
+				innerUnsub = forwardInner(fromAny(project(batch0[0] as T), { iter: true }), a, () => {
 					clearInner();
 					if (sourceDone) a.down([[COMPLETE]]);
 				});
@@ -247,7 +251,7 @@ export function concatMap<T, R>(
 			return;
 		}
 		const v = queue.shift()!;
-		innerUnsub = forwardInner(fromAny(project(v)), actions, () => {
+		innerUnsub = forwardInner(fromAny(project(v), { iter: true }), actions, () => {
 			clearInner();
 			tryPump();
 		});
@@ -356,7 +360,7 @@ export function mergeMap<T, R>(
 		// Use `let` (not `const`) so the closure can reference `stop` safely even
 		// if onInnerComplete fires synchronously (e.g. already-completed inner node).
 		let stop: (() => void) | undefined;
-		stop = forwardInner(fromAny(project(v)), actions, () => {
+		stop = forwardInner(fromAny(project(v), { iter: true }), actions, () => {
 			if (stop) innerStops.delete(stop);
 			active--;
 			drainBuffer();

@@ -93,16 +93,24 @@ export function withStatus<T>(
 								out.meta.status.down([[DATA, "running"]]);
 								a.emit(m[1] as T);
 							});
-						} else {
-							// F19 — wrap status flip + DATA emit in a single batch so
-							// external observers see one coherent wave (no torn reads
-							// between the status companion and the mirrored stream).
+							currentStatus = "running";
+						} else if (currentStatus !== "running") {
+							// First DATA after `pending` (or another non-running state):
+							// flip status to "running" alongside the DATA emit so external
+							// observers see one coherent wave (no torn reads between the
+							// status companion and the mirrored stream).
 							batch(() => {
 								out.meta.status.down([[DATA, "running"]]);
 								a.emit(m[1] as T);
 							});
+							currentStatus = "running";
+						} else {
+							// A9 (QA fix 2026-05-01): already in "running" — skip the
+							// redundant status emit that the previous code did on every
+							// DATA. Saves a wave walk per DATA on hot streams (e.g. SSE
+							// token streams through withStatus).
+							a.emit(m[1] as T);
 						}
-						currentStatus = "running";
 					} else if (t === RESOLVED) a.down([[RESOLVED]]);
 					else if (t === COMPLETE) {
 						out.meta.status.down([[DATA, "completed"]]);

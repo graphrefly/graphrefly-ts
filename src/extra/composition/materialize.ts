@@ -88,33 +88,43 @@ export function selector<TIn, TKey>(
 				a.down([[RESOLVED]]);
 				return;
 			}
-			let emitted = false;
+			// A11 (QA fix 2026-05-01): pre-pass — compute every projected
+			// key + dedup decision FIRST, surface any user `equals` throw
+			// as ERROR before any DATA goes out. The previous in-loop
+			// emission interleaved partial DATA with ERROR mid-batch; that
+			// left subscribers inconsistent (some had read the early DATA,
+			// some treated ERROR as "discard everything since RESOLVED")
+			// and left `ctx.store.prev` mutated to the last successful key,
+			// which made selector "stuck" until the next throw-free batch.
+			const toEmit: TKey[] = [];
+			let prev: TKey | undefined = ctx.store.hasPrev ? (ctx.store.prev as TKey) : undefined;
+			let hasPrev = ctx.store.hasPrev;
 			for (const v of batch0 as TIn[]) {
 				const key = fn(v);
-				if (ctx.store.hasPrev) {
-					// Edge #6 — surface user `equals(prev, next)` throws as ERROR
-					// on the selector node instead of letting them poison the
-					// reactive frame (which would unwind the whole batch). The
-					// selector terminates the wave so callers can subscribe to
-					// the ERROR companion and recover.
+				if (hasPrev) {
 					let same: boolean;
 					try {
-						same = equals(ctx.store.prev as TKey, key);
+						same = equals(prev as TKey, key);
 					} catch (err) {
+						// Pre-pass throw — abandon the whole batch (no DATA emits)
+						// and surface ERROR. ctx.store stays at its pre-batch
+						// state so the next batch starts from a known-good prev.
 						a.down([[ERROR, err]]);
 						return;
 					}
-					if (same) {
-						// Suppressed — same projected key as the previous emission.
-						continue;
-					}
+					if (same) continue;
 				}
-				ctx.store.prev = key;
-				ctx.store.hasPrev = true;
-				a.emit(key);
-				emitted = true;
+				prev = key;
+				hasPrev = true;
+				toEmit.push(key);
 			}
-			if (!emitted) a.down([[RESOLVED]]);
+			if (toEmit.length === 0) {
+				a.down([[RESOLVED]]);
+				return;
+			}
+			ctx.store.prev = prev as TKey;
+			ctx.store.hasPrev = true;
+			for (const k of toEmit) a.emit(k);
 		},
 		{
 			...operatorOpts(opts),

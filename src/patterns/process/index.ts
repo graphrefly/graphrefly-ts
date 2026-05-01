@@ -26,6 +26,7 @@
  * @module
  */
 
+import { batch } from "../../core/batch.js";
 import { wallClockNs } from "../../core/clock.js";
 import { COMPLETE, DATA, ERROR } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
@@ -39,15 +40,7 @@ import { valve } from "../../extra/operators/control.js";
 import { mergeMap } from "../../extra/operators/higher-order.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
 import type { StatusValue } from "../../extra/resilience/status.js";
-import {
-	firstWhere,
-	fromAny,
-	fromIter,
-	fromPromise,
-	fromTimer,
-	type NodeInput,
-	of,
-} from "../../extra/sources.js";
+import { firstWhere, fromAny, fromIter, fromTimer, type NodeInput } from "../../extra/sources.js";
 import type { AppendLogStorageTier, KvStorageTier } from "../../extra/storage-tiers.js";
 import { Graph } from "../../graph/index.js";
 import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
@@ -229,6 +222,21 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 	 * reaching the per-instance step pipeline (B5 — locked 2026-05-01).
 	 */
 	readonly deferRestore?: boolean;
+	/**
+	 * Maximum number of concurrent `tier.load(key)` calls during restore.
+	 *
+	 * The restore pipeline streams keys from `tier.list()` through
+	 * `mergeMap`, which by default subscribes to inner sources unbounded
+	 * (parallel up to the number of keys). For storage tiers with large
+	 * persisted-instance counts (10K+), unbounded concurrency can exhaust
+	 * file handles, connection pools, or the backend's concurrent-request
+	 * budget. This option caps the in-flight load count.
+	 *
+	 * **Default `8`** (D2 lock 2026-05-01). Set higher for backends with
+	 * generous concurrency budgets; set to `Number.POSITIVE_INFINITY` for
+	 * the prior unbounded behavior.
+	 */
+	readonly restoreConcurrency?: number;
 	/** Optional persistence wiring (Audit 4). */
 	readonly persistence?: {
 		/**
@@ -384,34 +392,6 @@ export interface ProcessManagerResult<TState> {
  * the cleanup to a microtask via `Promise.resolve().then(unsub)` to sidestep
  * the Temporal Dead Zone.
  */
-/**
- * Bridge "single value, sync OR async" into a Node that emits ONE DATA + COMPLETE.
- *
- * Differs from {@link fromAny} in iteration semantics: `fromAny` correctly
- * dispatches arrays to {@link fromIter} (per-element DATA), which is wrong
- * here — `tier.list()` returns `readonly string[]` semantically as a single
- * "list result," not as a stream of keys. `fromValue` always treats the
- * input as one value, regardless of shape.
- *
- * - Sync value (incl. arrays, scalars, undefined) → emits the value as one
- *   DATA, then COMPLETE. Synchronous; emits at subscribe time per
- *   `~/src/graphrefly/COMPOSITION-GUIDE.md` source-bridging semantics.
- * - Promise / Thenable → routes through `fromPromise`. Emits the resolved
- *   value as one DATA, then COMPLETE.
- *
- * Used by the restore pipeline so tier impls returning sync values emit
- * immediately (no Promise.resolve coercion footgun) AND tier impls returning
- * Promises behave as expected. When a tier surfaces an async-iterable
- * `list()` for streaming-list semantics, switch the call site to `fromAny`
- * (which will then per-element-emit through `fromAsyncIter`).
- */
-function fromValue<T>(input: T | PromiseLike<T>): Node<T> {
-	if (input != null && typeof (input as PromiseLike<T>).then === "function") {
-		return fromPromise(input as PromiseLike<T>);
-	}
-	return of(input as T);
-}
-
 function toPromise<T>(input: NodeInput<T>): Promise<T> {
 	// Short-circuit: null/undefined input resolves immediately.
 	if (input == null) return Promise.resolve(undefined as T);
@@ -1194,54 +1174,71 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		const tierList = tier.list.bind(tier);
 
 		// Reactive source chain. `tier.list()` and `tier.load(key)` are the
-		// only async boundaries. Both bridged via {@link fromValue} —
-		// "single value, sync or async" semantics, NOT `fromAny`'s
-		// per-element iteration semantics (which would treat `tier.list()`'s
-		// `readonly string[]` as a stream of strings, breaking the downstream
-		// `mergeMap(listSource, (keys) => …)` shape). Sync tier returns emit
-		// immediately at subscribe time; async tier returns emit on resolve.
-		const listSource = fromValue<readonly string[]>(tierList());
+		// only async boundaries. Bridged via `fromAny`, which (post DS-13.5
+		// follow-up, 2026-05-01) treats sync iterables as single DATA values
+		// by default — `tier.list()`'s `readonly string[]` flows through as
+		// ONE DATA carrying the whole list, not as a per-key stream. Sync
+		// tier returns emit immediately at subscribe time; async tier
+		// returns emit on resolve.
+		const listSource = fromAny<readonly string[]>(tierList());
 		const flattened = mergeMap(listSource, (keys: readonly string[]) => {
 			if (keys.length === 0) {
-				// fromIter([]) emits no DATA, only COMPLETE — which propagates
-				// up through mergeMap so the effect sees its own COMPLETE.
+				// fromIter([]) emits no DATA, only COMPLETE — which
+				// propagates up through mergeMap so the effect sees its
+				// own COMPLETE.
 				return fromIter<ProcessStateSnapshot<TState> | undefined>([]);
 			}
-			// Inner: per-key load via fromValue, flattened across keys.
+			// Inner: per-key load via fromAny, flattened across keys.
 			// Outer fromIter(keys) DOES want per-element emission here —
 			// each key triggers a fresh load via mergeMap.
 			return mergeMap(
 				fromIter(keys),
-				(key) =>
-					fromValue(tierLoad(key)) as Node<
-						ProcessStateSnapshot<TState> | undefined
-					>,
+				(key) => fromAny(tierLoad(key)) as Node<ProcessStateSnapshot<TState> | undefined>,
+				// Bound concurrent in-flight loads (D2, 2026-05-01) so a
+				// large persisted-instance count doesn't exhaust file
+				// handles / connection pools on the storage backend.
+				{ concurrent: opts.restoreConcurrency ?? 8 },
 			);
 		});
 
 		// Effect node: populate closure state on each load, flip the gate on
 		// COMPLETE. Reactive — no awaits.
+		//
+		// Re-entrancy guard (A3, 2026-05-01): wrap the closure-mutation loop
+		// + the gate flip in a single `batch()`. Without it, the synchronous
+		// `restoreState.emit("completed")` mid-fn-body would cascade through
+		// gateOpen → valves → cqrs cursors → step dispatch BEFORE the
+		// snapshot loop returns — external observers would see a half-
+		// populated `instanceStates` map.
+		//
+		// Mid-iteration dispose hoisting (A4, 2026-05-01): the `_disposed`
+		// check is hoisted to BEFORE the snapshot loop. The previous per-
+		// snapshot check leaked state when `dispose()` fired between
+		// snapshots N and N+1: snapshots 0..N populated `instanceStates`,
+		// then dispose flipped `_disposed`, the terminalDeps branch
+		// short-circuited the gate flip, and the cleanup path tore down the
+		// watch valve — leaving orphan entries that subsequent `start()`
+		// calls would treat as "already active" via `activeInstances.has`.
 		const restoreEffect = node(
 			[flattened as Node],
 			(data, _a, ctx) => {
+				if (_disposed) return;
 				const batch0 = data[0];
-				if (batch0 != null && batch0.length > 0) {
-					for (const snap of batch0 as readonly (ProcessStateSnapshot<TState> | undefined)[]) {
-						if (snap == null) continue;
-						if (snap.status !== "running") continue;
-						// Mid-dispose safety (D5): if the manager was disposed
-						// while a load was in flight, skip the closure mutation
-						// so we don't repopulate state on a torn-down manager.
-						if (_disposed) continue;
-						instanceStates.set(snap.correlationId, snap.state);
-						activeInstances.add(snap.correlationId);
-						startedAt.set(snap.correlationId, snap.startedAt);
+				const hasSnapshots = batch0 != null && batch0.length > 0;
+				const allDone = ctx.terminalDeps[0] === true;
+				if (!hasSnapshots && !allDone) return;
+				batch(() => {
+					if (hasSnapshots) {
+						for (const snap of batch0 as readonly (ProcessStateSnapshot<TState> | undefined)[]) {
+							if (snap == null) continue;
+							if (snap.status !== "running") continue;
+							instanceStates.set(snap.correlationId, snap.state);
+							activeInstances.add(snap.correlationId);
+							startedAt.set(snap.correlationId, snap.startedAt);
+						}
 					}
-				}
-				if (ctx.terminalDeps[0] === true) {
-					// All loads complete — open the watch valve.
-					if (!_disposed) restoreState.emit("completed");
-				}
+					if (allDone) restoreState.emit("completed");
+				});
 			},
 			{ name: "restoreEffect", describeKind: "effect" },
 		);
@@ -1261,11 +1258,17 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		if (restoreState.cache === "completed") return Promise.resolve();
 		// firstWhere is the canonical reactive→Promise bridge (spec §5.10);
 		// async boundary lives at the public API edge, not in the graph.
-		// .catch swallows COMPLETE-without-match (the dispose-tears-down case)
-		// so the public Promise resolves cleanly in both flows.
+		// .catch distinguishes the COMPLETE-without-match shape (which is
+		// the dispose-tears-down case — swallow + resolve undefined) from
+		// any other rejection (re-throw — caller sees a real failure).
 		return firstWhere(restoreState, (s) => s === "completed")
 			.then(() => undefined)
-			.catch(() => undefined);
+			.catch((err: unknown) => {
+				if (err instanceof Error && err.message === "completed without matching value") {
+					return undefined;
+				}
+				throw err;
+			});
 	}
 
 	function dispose(): void {
