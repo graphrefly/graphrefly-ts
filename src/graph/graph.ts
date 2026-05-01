@@ -2169,10 +2169,17 @@ export class Graph {
 	/**
 	 * Look up a node by qualified path (§3.5). Segments are separated by `::`.
 	 *
-	 * If the first segment equals this graph's {@link Graph.name}, it is stripped
-	 * (so `root.resolve("app::a")` works when `root.name === "app"`). The strip
-	 * is applied **recursively** when descending into mounted children, so
-	 * `child.resolve("child::x")` also works when `child.name === "child"`.
+	 * If the first segment equals this graph's {@link Graph.name} **and** more
+	 * segments follow, it is stripped (so `root.resolve("app::a")` works when
+	 * `root.name === "app"`). The strip is applied **recursively** when
+	 * descending into mounted children, so `child.resolve("child::x")` also
+	 * works when `child.name === "child"`.
+	 *
+	 * **Self-resolve fix (2026-04-30):** a single-segment path matching the
+	 * graph name is treated as a local-node lookup. This unblocks topics
+	 * named after their internal child node (e.g. `topic("events").resolve(
+	 * "events")` returns the events log instead of throwing). If no local
+	 * node matches, the standard "unknown name" error fires.
 	 *
 	 * @param path - Qualified `::` path or local name.
 	 * @returns The resolved `Node`.
@@ -2196,14 +2203,14 @@ export class Graph {
 
 	private _resolveFromSegments(segments: readonly string[]): Node {
 		// Recursive self-name strip: if the first segment equals this graph's
-		// own name, peel it off. Applied at every recursion level so nested
-		// resolution of `child::x` inside `child` works uniformly.
+		// own name AND more segments follow, peel it off. Applied at every
+		// recursion level so nested resolution of `child::x` inside `child`
+		// works uniformly. Single-segment paths matching the graph name fall
+		// through to local-node lookup (a topic named "events" with an internal
+		// "events" log node resolves correctly via `.resolve("events")`).
 		let seg = segments;
-		if (seg[0] === this.name) {
+		if (seg.length > 1 && seg[0] === this.name) {
 			seg = seg.slice(1);
-			if (seg.length === 0) {
-				throw new Error(`Graph "${this.name}": resolve path ends at graph name only`);
-			}
 		}
 		const head = seg[0] as string;
 		const rest = seg.slice(1);

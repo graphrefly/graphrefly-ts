@@ -245,7 +245,7 @@ export class PipelineGraph extends Graph {
 		const src = this._resolveStep(source);
 
 		// State subgraph
-		const internal = new Graph(`${name}_state`);
+		const internal = new Graph(`${name}-state`);
 		const pendingNode = internal.state<readonly T[]>("pending", [], {
 			equals: () => false,
 		});
@@ -262,7 +262,7 @@ export class PipelineGraph extends Graph {
 			retainedLimit: 1024,
 			graph: internal,
 		});
-		this.mount(`${name}_state`, internal);
+		this.mount(`${name}-state`, internal);
 
 		let queue: T[] = [];
 		let torn = false;

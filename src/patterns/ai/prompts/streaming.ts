@@ -138,7 +138,7 @@ function makeAccumulatedText(deltaTopic: TopicGraph<StampedDelta>, name: string)
 			);
 			const d = data[0];
 			const store = ctx.store as { acc?: string };
-			if (d == null) {
+			if (d === undefined) {
 				actions.emit(store.acc ?? "");
 				return;
 			}

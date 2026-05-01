@@ -46,23 +46,19 @@ export class TopicGraph<T> extends Graph {
 	private readonly _publishImpl: (value: T) => void;
 	readonly events: Node<readonly T[]>;
 	/**
-	 * Most recently published value, or `null` when the topic has no entries
-	 * yet. Spec §5.12 reserves `undefined` as the protocol-internal "never
-	 * sent DATA" sentinel — `null` is the idiomatic "empty / no value" signal
-	 * for domain nodes. F7.
+	 * Most recently published value. Stays in the protocol SENTINEL state
+	 * (`cache === undefined`, no DATA emitted) until the first publish, then
+	 * tracks the latest entry. Spec §5.12 reserves `undefined` as the
+	 * "never sent DATA" sentinel — and `TopicGraph.publish(undefined)` is
+	 * rejected — so `cache === undefined` unambiguously signals "empty topic"
+	 * even when `T` itself includes `null` (i.e., `topic<number | null>`).
 	 *
-	 * **Caveat when `T` itself includes `null`** (e.g., `topic<number | null>`):
-	 * `latest === null` is ambiguous — it could mean "no publish yet" OR "a
-	 * `null` value was published". Use {@link hasLatest} to disambiguate, or
-	 * observe {@link events} directly and track length yourself.
+	 * **Within a reactive fn:** detect the empty-topic case via
+	 * `ctx.prevData[i] === undefined` for the dep slot holding `topic.latest`,
+	 * or check `latest.cache === undefined` outside reactive code. No
+	 * separate `hasLatest` companion needed — the SENTINEL is the answer.
 	 */
-	readonly latest: Node<T | null>;
-	/**
-	 * Reactive `true` once the topic has at least one published entry.
-	 * Disambiguates "`null` never published" from "`null` was published" when
-	 * `T` includes `null`.
-	 */
-	readonly hasLatest: Node<boolean>;
+	readonly latest: Node<T>;
 
 	constructor(name: string, opts: TopicOptions = {}) {
 		super(name, opts.graph);
@@ -70,57 +66,55 @@ export class TopicGraph<T> extends Graph {
 			name: "events",
 			maxSize: opts.retainedLimit ?? DEFAULT_TOPIC_RETAINED_LIMIT,
 		});
-		// Activate withLatest companions (Audit 1) so `topic.lastValue` /
-		// `topic.hasLatest` shorthands resolve to the same Nodes consumers
-		// would access via `events`.
-		this._log.withLatest();
 		this.events = this._log.entries;
 		this.add(this.events, { name: "events" });
-		this.latest = node<T | null>(
-			[this.events],
-			(batchData, actions, ctx) => {
+		// `this.derived("latest", ["events"], …)` is expressible after the
+		// 2026-04-30 self-resolve fix in `Graph._resolveFromSegments` — a
+		// single-segment path matching the graph's own name (e.g.
+		// `topic("events").resolve("events")`) no longer collapses to empty
+		// and falls through to local-node lookup. Replaces the prior
+		// `node([events], …) + this.add(...)` workaround.
+		//
+		// SENTINEL on empty: returning `[]` here yields a RESOLVED-only wave
+		// (no DATA), so `latest.cache` stays `undefined` until the first
+		// publish. `TopicGraph.publish(undefined)` is rejected (line below),
+		// so `undefined` cache is unambiguously "empty topic" even when `T`
+		// itself includes `null`. Drops the prior `hasLatest` companion as
+		// redundant.
+		this.latest = this.derived<T>(
+			"latest",
+			["events"],
+			(batchData, ctx) => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
 				const entries = data[0] as readonly T[];
-				actions.emit(entries.length === 0 ? null : (entries[entries.length - 1] as T));
+				return entries.length === 0 ? [] : [entries[entries.length - 1] as T];
 			},
-			{
-				name: "latest",
-				describeKind: "derived",
-				meta: messagingMeta("topic_latest"),
-			},
+			{ meta: messagingMeta("topic_latest") },
 		);
-		this.add(this.latest, { name: "latest" });
 		this.addDisposer(keepalive(this.latest));
-
-		this.hasLatest = node<boolean>(
-			[this.events],
-			(batchData, actions, ctx) => {
-				const data = batchData.map((batch, i) =>
-					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
-				);
-				actions.emit((data[0] as readonly T[]).length > 0);
-			},
-			{
-				name: "hasLatest",
-				describeKind: "derived",
-				meta: messagingMeta("topic_has_latest"),
-			},
-		);
-		this.add(this.hasLatest, { name: "hasLatest" });
-		this.addDisposer(keepalive(this.hasLatest));
 
 		// D1(a): on teardown, propagate COMPLETE on `events` so downstream
 		// derived chains (including any externally-held SubscriptionGraph
 		// sources) see the termination via their `terminalDeps` and can stop
 		// serving stale caches. Tier-3 terminal per spec §2.2.
+		//
+		// EC16 (verified 2026-04-30): the COMPLETE-then-disposeAllViews order
+		// is intentional. COMPLETE propagates SYNCHRONOUSLY through every
+		// subscriber (cursor views, derived chains) so they self-unsubscribe
+		// in their terminal handler before `disposeAllViews` runs. Swapping
+		// the order would clear view caches before subscribers receive the
+		// terminal — strictly worse. Reading `.cache` outside a reactive fn
+		// across teardown is an anti-pattern (spec §5.12) and not a use case
+		// this ordering needs to preserve.
 		this.addDisposer(() => {
 			this.events.down([[COMPLETE]]);
 		});
 		// P9: release any memoized tail/slice view keepalives held by the log.
 		// TopicGraph itself doesn't call log.tail/slice, but plugins may have
-		// attached views via `_log` — defensive.
+		// attached views via `_log` — defensive (typical reactive subscribers
+		// have already unsubscribed in their COMPLETE handler above).
 		this.addDisposer(() => this._log.disposeAllViews());
 
 		// Tier 8 / COMPOSITION-GUIDE §35: route publish through `lightMutation`

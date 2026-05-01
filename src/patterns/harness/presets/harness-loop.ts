@@ -528,9 +528,14 @@ export function harnessLoop<A = unknown>(
 		adapter as LLMAdapter,
 		[triageInput as Node<unknown>],
 		(pair: unknown) => {
-			const asPair = pair as readonly [IntakeItem | null, StrategySnapshot] | null;
-			if (!asPair || !asPair[0]) return "";
-			return triagePromptFn(asPair as readonly [IntakeItem, StrategySnapshot]);
+			// `intake.latest` is now SENTINEL on empty (COMPOSITION-GUIDE §1a),
+			// so the `withLatestFrom partial:false` gate holds the fn until both
+			// deps deliver real DATA. The `=== undefined` guard catches the
+			// edge where the pair itself is unset (defensive — shouldn't fire
+			// in normal flow).
+			const asPair = pair as readonly [IntakeItem, StrategySnapshot] | undefined;
+			if (asPair === undefined) return "";
+			return triagePromptFn(asPair);
 		},
 		{
 			name: "triage",
@@ -668,18 +673,20 @@ export function harnessLoop<A = unknown>(
 	}
 
 	// --- executeInput: merge of post-gate route latests + retry feedback ---
-	const queueOutputs: Node<TriagedItem | null>[] = [];
+	// All inputs are SENTINEL until first DATA (COMPOSITION-GUIDE §1a): topic
+	// `latest` returns `[]` on empty, gate `output` doesn't push pre-DATA.
+	const queueOutputs: Node<TriagedItem>[] = [];
 	for (const route of QUEUE_NAMES) {
 		const config = queueConfigs.get(route)!;
 		if (config.gated && gateControllers.has(route)) {
-			queueOutputs.push(gateControllers.get(route)!.output as Node<TriagedItem | null>);
+			queueOutputs.push(gateControllers.get(route)!.output as Node<TriagedItem>);
 		} else {
-			queueOutputs.push(queueTopics.get(route)!.latest as Node<TriagedItem | null>);
+			queueOutputs.push(queueTopics.get(route)!.latest);
 		}
 	}
-	queueOutputs.push(retryTopic.latest as Node<TriagedItem | null>);
+	queueOutputs.push(retryTopic.latest);
 
-	const executeInput = merge<TriagedItem | null>(...queueOutputs);
+	const executeInput = merge<TriagedItem>(...queueOutputs);
 
 	// --- Stages 5+6: EXECUTE → VERIFY via JobFlow (Tier 6.5 C2) ---
 	const executor: HarnessExecutor<A> =
@@ -714,7 +721,7 @@ export function harnessLoop<A = unknown>(
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const item = data[0];
-			if (item == null) return;
+			if (item === undefined) return;
 			executeFlow.enqueue({ item: item as TriagedItem });
 		},
 		{ name: "execute-enqueue", describeKind: "effect" },
@@ -987,8 +994,8 @@ function buildPriorityScores<A>(
 				const vals = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
-				const item = vals[0] as TriagedItem | null;
-				if (item == null) {
+				const item = vals[0] as TriagedItem | undefined;
+				if (item === undefined) {
 					actions.emit(0);
 					return;
 				}

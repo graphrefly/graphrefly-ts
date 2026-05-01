@@ -72,7 +72,7 @@ export function costMeterExtractor(
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const d = data[0];
-			if (d == null) {
+			if (d === undefined) {
 				actions.emit(ZERO);
 				return;
 			}

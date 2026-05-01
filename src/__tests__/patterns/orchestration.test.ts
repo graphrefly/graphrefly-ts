@@ -406,9 +406,9 @@ describe("patterns.orchestration", () => {
 		g.approvalGate<number>("gated", "input");
 		const desc = g.describe();
 		expect(desc.nodes).toHaveProperty("gated");
-		expect(desc.nodes).toHaveProperty("gated_state::pending");
-		expect(desc.nodes).toHaveProperty("gated_state::isOpen");
-		expect(desc.nodes).toHaveProperty("gated_state::count");
+		expect(desc.nodes).toHaveProperty("gated-state::pending");
+		expect(desc.nodes).toHaveProperty("gated-state::isOpen");
+		expect(desc.nodes).toHaveProperty("gated-state::count");
 	});
 
 	it("gate maxPending < 1 throws RangeError", () => {

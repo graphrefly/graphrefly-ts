@@ -1,3 +1,4 @@
+import { RESOLVED } from "../../../core/messages.js";
 import { type Node, node } from "../../../core/node.js";
 
 import { type ReactiveLogBundle, reactiveLog } from "../../../extra/reactive-log.js";
@@ -18,7 +19,15 @@ export type ChatStreamOptions = {
 export class ChatStreamGraph extends Graph {
 	private readonly _log: ReactiveLogBundle<ChatMessage>;
 	readonly messages: Node<readonly ChatMessage[]>;
-	readonly latest: Node<ChatMessage | null>;
+	/**
+	 * Most recently appended message. Stays in the protocol SENTINEL state
+	 * (`cache === undefined`, no DATA emitted) until the first append, then
+	 * tracks the latest entry. Per COMPOSITION-GUIDE §1a, the SENTINEL is
+	 * the canonical "no value yet" signal — consumers detect empty via
+	 * `data[i] === undefined` inside reactive fns or `latest.cache === undefined`
+	 * outside. No `T | null` placeholder, no `hasLatest` companion.
+	 */
+	readonly latest: Node<ChatMessage>;
 	readonly messageCount: Node<number>;
 
 	constructor(name: string, opts: ChatStreamOptions = {}) {
@@ -31,14 +40,21 @@ export class ChatStreamGraph extends Graph {
 		this.messages = this._log.entries;
 		this.add(this.messages, { name: "messages" });
 
-		this.latest = node<ChatMessage | null>(
+		// SENTINEL on empty (COMPOSITION-GUIDE §1a): return `[]` for
+		// RESOLVED-only on empty stream, `[T]` to emit DATA. `latest.cache`
+		// stays `undefined` until the first append.
+		this.latest = node<ChatMessage>(
 			[this.messages],
 			(batchData, actions, ctx) => {
 				const data = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
 				const entries = data[0] as readonly ChatMessage[];
-				actions.emit(entries.length === 0 ? null : (entries[entries.length - 1] as ChatMessage));
+				if (entries.length === 0) {
+					actions.down([[RESOLVED]]);
+					return;
+				}
+				actions.emit(entries[entries.length - 1] as ChatMessage);
 			},
 			{
 				name: "latest",

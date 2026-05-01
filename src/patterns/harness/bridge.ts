@@ -59,7 +59,7 @@ export function createIntakeBridge<T>(opts: CreateIntakeBridgeOptions<T>): Node<
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const value = data[0];
-			if (value == null) return;
+			if (value === undefined) return;
 			const items = parser(value as T);
 			for (const item of items) {
 				intakeTopic.publish(item);
@@ -144,7 +144,7 @@ export function evalIntakeBridge(opts: EvalIntakeBridgeOptions): Node<unknown> {
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const results = data[0];
-			if (results == null) return;
+			if (results === undefined) return;
 			const runs = Array.isArray(results)
 				? (results as EvalRunResult[])
 				: [results as EvalRunResult];
@@ -488,7 +488,7 @@ export function codeChangeBridge(opts: CodeChangeBridgeOptions): Node<unknown> {
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const change = data[0];
-			if (change == null) return;
+			if (change === undefined) return;
 			for (const item of resolve(change as CodeChange)) {
 				intakeTopic.publish(item);
 			}
@@ -536,6 +536,16 @@ export interface NotifyEffectOptions<T> {
  */
 export function notifyEffect<T>(opts: NotifyEffectOptions<T>): Node<unknown> {
 	const { graph, topic, transport, name = "notify-effect" } = opts;
+	// SENTINEL contract on `topic.latest` (COMPOSITION-GUIDE §1a + spec §5.12):
+	// - `topic.publish(undefined)` is rejected at the publish boundary, so
+	//   `undefined` is exclusively the protocol SENTINEL on the read side.
+	// - `topic.latest` stays SENTINEL on empty (no eager DATA emission), so
+	//   the partial-false first-run gate holds this fn until the first publish.
+	// - Legit `null` DATA (when `T` includes `null`) reaches `transport`;
+	//   user transports must handle `null` themselves per v5.
+	// The `=== undefined` guard below is defense-in-depth for any future
+	// empty-batch wave where `prevData[0]` is still SENTINEL — in normal flow
+	// the first-run gate has already filtered the empty case.
 	const eff = node(
 		[topic.latest as Node<unknown>],
 		(batchData, _actions, ctx) => {
@@ -543,7 +553,7 @@ export function notifyEffect<T>(opts: NotifyEffectOptions<T>): Node<unknown> {
 				batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 			);
 			const item = data[0];
-			if (item == null) return;
+			if (item === undefined) return;
 			// transport is a side effect (webhook, Slack, email). Async transports
 			// are fire-and-forget — the Promise result does not feed back into the
 			// graph. Suppress unhandled-rejection noise by voiding the return.

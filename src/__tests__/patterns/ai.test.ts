@@ -93,7 +93,9 @@ describe("patterns.ai.chatStream", () => {
 		const cs = chatStream("test-chat");
 		expect(cs).toBeInstanceOf(ChatStreamGraph);
 		expect(cs.node("messageCount").cache).toBe(0);
-		expect(cs.node("latest").cache).toBe(null);
+		// SENTINEL on empty (COMPOSITION-GUIDE §1a) — `latest.cache` is
+		// `undefined` until the first append, not a `null` placeholder.
+		expect(cs.node("latest").cache).toBeUndefined();
 	});
 
 	it("appends messages and updates derived nodes", () => {

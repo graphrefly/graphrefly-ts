@@ -308,10 +308,7 @@ const presenceEvaluator: Evaluator<string> = (candidates, dataset) => {
 	return out;
 };
 
-function awaitFirstVerify(
-	latest: Node<VerifyResult | null>,
-	timeoutMs = 3000,
-): Promise<VerifyResult> {
+function awaitFirstVerify(latest: Node<VerifyResult>, timeoutMs = 3000): Promise<VerifyResult> {
 	return new Promise((resolve, reject) => {
 		let unsub: () => void = () => {};
 		const timer = setTimeout(() => {
@@ -358,9 +355,7 @@ describe("actuatorExecutor + evalVerifier (end-to-end)", () => {
 			}),
 		});
 
-		const verifyPromise = awaitFirstVerify(
-			harness.verifyResults.latest as Node<VerifyResult | null>,
-		);
+		const verifyPromise = awaitFirstVerify(harness.verifyResults.latest);
 		harness.intake.publish({
 			source: "eval",
 			summary: "needs abc",

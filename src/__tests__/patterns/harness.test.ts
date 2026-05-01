@@ -217,7 +217,10 @@ describe("priorityScore", () => {
 describe("evalIntakeBridge", () => {
 	it("publishes per-criterion findings for failing judge scores", () => {
 		// Start with null — bridge fires on value change, not initial
-		const evalResults = node<EvalRunResult | null>([], { initial: null });
+		// EC2/EC7 (2026-04-30): bridges use `=== undefined` SENTINEL — start
+		// the source without `initial` so its cache is the protocol SENTINEL
+		// until the test emits real DATA.
+		const evalResults = node<EvalRunResult>([]);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake");
 		const g = new Graph("test-bridge-1");
@@ -267,7 +270,10 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("handles task-level invalidity without judge scores", () => {
-		const evalResults = node<EvalRunResult | null>([], { initial: null });
+		// EC2/EC7 (2026-04-30): bridges use `=== undefined` SENTINEL — start
+		// the source without `initial` so its cache is the protocol SENTINEL
+		// until the test emits real DATA.
+		const evalResults = node<EvalRunResult>([]);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-2");
 		const g = new Graph("test-bridge-2");
@@ -301,7 +307,10 @@ describe("evalIntakeBridge", () => {
 	});
 
 	it("skips fully passing tasks", () => {
-		const evalResults = node<EvalRunResult | null>([], { initial: null });
+		// EC2/EC7 (2026-04-30): bridges use `=== undefined` SENTINEL — start
+		// the source without `initial` so its cache is the protocol SENTINEL
+		// until the test emits real DATA.
+		const evalResults = node<EvalRunResult>([]);
 
 		const intake = new TopicGraph<IntakeItem>("test-intake-3");
 		const g = new Graph("test-bridge-3");
@@ -795,8 +804,9 @@ describe("harnessLoop e2e", () => {
 		const adapter = stageAdapter();
 		const harness = harnessLoop("e2e-bridge", { adapter });
 
-		// Wire the bridge — harness extends Graph, so register on it directly
-		const evalSource = node<EvalRunResult | null>([], { initial: null });
+		// Wire the bridge — harness extends Graph, so register on it directly.
+		// EC2/EC7 (2026-04-30): no `initial: null`; bridges use SENTINEL.
+		const evalSource = node<EvalRunResult>([]);
 		const bridgeNode = evalIntakeBridge({
 			graph: harness,
 			source: evalSource as any,
@@ -1905,7 +1915,10 @@ describe("affectedTaskFilter", () => {
 
 describe("codeChangeBridge", () => {
 	it("publishes IntakeItems for lint errors and test failures", () => {
-		const source = node<CodeChange | null>([], { initial: null });
+		// EC2/EC7 (2026-04-30): bridges use `=== undefined` SENTINEL — `null`
+		// is no longer treated as "empty". Construct without `initial` so the
+		// source's cache is the protocol SENTINEL until the test emits real DATA.
+		const source = node<CodeChange>([]);
 		const intakeTopic = topic<IntakeItem>("intake");
 
 		const published: IntakeItem[] = [];
@@ -1983,6 +1996,37 @@ describe("notifyEffect", () => {
 		alertTopic.publish("hello");
 		await new Promise<void>((r) => setTimeout(r, 10));
 		expect(calls).toContain("hello");
+		unsub();
+	});
+
+	// EC2/EC7 regression — bridge guards migrated from `== null` to
+	// `=== undefined` per feedback_guard_patterns v5. The "topic empty"
+	// case is disambiguated at the source: `topic.latest` stays SENTINEL
+	// (no DATA emit) on empty per COMPOSITION-GUIDE §1a, so the partial-
+	// false first-run gate holds notifyEffect's fn until the first publish.
+	// Legit `null` then reaches the transport because `null` is valid DATA
+	// (only `undefined` is the protocol SENTINEL; `topic.publish(undefined)`
+	// is rejected at the API layer).
+	it("propagates legit null DATA when T includes null (does NOT fire on initial empty topic)", () => {
+		const nullable = topic<string | null>("nullable-alerts");
+		const calls: (string | null)[] = [];
+		const g = new Graph("notify-test-null");
+		const eff = notifyEffect({
+			graph: g,
+			topic: nullable as unknown as TopicGraph<string | null>,
+			transport: (item: string | null) => calls.push(item),
+		});
+		const unsub = eff.subscribe(() => {});
+
+		// Initial state: topic empty → no transport call.
+		expect(calls).toEqual([]);
+
+		// Legit null publish → transport called with null (was silently
+		// dropped under the prior `item == null` guard).
+		nullable.publish(null);
+		nullable.publish("after-null");
+
+		expect(calls).toEqual([null, "after-null"]);
 		unsub();
 	});
 });

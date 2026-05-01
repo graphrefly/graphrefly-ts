@@ -80,10 +80,7 @@ function cannedTriageAdapter() {
 	});
 }
 
-function awaitFirstVerify(
-	latest: Node<VerifyResult | null>,
-	timeoutMs = 2000,
-): Promise<VerifyResult> {
+function awaitFirstVerify(latest: Node<VerifyResult>, timeoutMs = 2000): Promise<VerifyResult> {
 	return new Promise((resolve, reject) => {
 		// Pre-declare with a no-op so the timeout callback can't hit TDZ if
 		// `subscribe` ever becomes async-dispatching in a future refactor.
@@ -123,9 +120,7 @@ describe("refineExecutor + evalVerifier (end-to-end)", () => {
 			}),
 		});
 
-		const verifyPromise = awaitFirstVerify(
-			harness.verifyResults.latest as Node<VerifyResult | null>,
-		);
+		const verifyPromise = awaitFirstVerify(harness.verifyResults.latest);
 
 		harness.intake.publish({
 			source: "eval",
@@ -169,9 +164,7 @@ describe("refineExecutor + evalVerifier (end-to-end)", () => {
 			}),
 		});
 
-		const verifyPromise = awaitFirstVerify(
-			harness.verifyResults.latest as Node<VerifyResult | null>,
-		);
+		const verifyPromise = awaitFirstVerify(harness.verifyResults.latest);
 		harness.intake.publish({
 			source: "eval",
 			summary: "teardown-case",
@@ -215,9 +208,7 @@ describe("refineExecutor + evalVerifier (end-to-end)", () => {
 			}),
 		});
 
-		const verifyPromise = awaitFirstVerify(
-			harness.verifyResults.latest as Node<VerifyResult | null>,
-		);
+		const verifyPromise = awaitFirstVerify(harness.verifyResults.latest);
 		harness.intake.publish({
 			source: "eval",
 			summary: "no-artifact case",
@@ -264,9 +255,7 @@ describe("pluggable slot defaults", () => {
 		});
 		const harness = harnessLoop("test-default-slots", { adapter });
 
-		const verifyPromise = awaitFirstVerify(
-			harness.verifyResults.latest as Node<VerifyResult | null>,
-		);
+		const verifyPromise = awaitFirstVerify(harness.verifyResults.latest);
 		harness.intake.publish({
 			source: "eval",
 			summary: "default-path",

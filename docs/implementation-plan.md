@@ -787,11 +787,11 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 
 #### 11.1 Class A/B migration QA carries
 *Source: optimizations.md "QA follow-ups from Class B migration /qa pass (opened 2026-04-30)" + "Class B audit follow-ups from B.2/Alt E migration"*
-- **NOW:** EC2/EC7 — bridge `value == null` → `=== undefined` per v5 guard convention (4 sites in [bridge.ts:60, :147, :484, :538](src/patterns/harness/bridge.ts:60)).
-- **NOW:** EC16 — TopicGraph dispose ordering ([messaging/index.ts:114-124](src/patterns/messaging/index.ts:114)). Cosmetic but fix-once.
-- **NOW:** EC17 — `approvalGate` `${name}_state` mount-name separator → hyphen.
-- **NOW:** `GraphDerivedOptions` widening to expose `guard:` so 4 cqrs sites can adopt `this.derived(name, deps, fn, opts)` instead of falling back to raw `node()` + `this.add()`.
-- **NOW:** `TopicGraph` self-resolve path collision (Class A Batch 2 carry) — tighten `_resolveFromSegments` OR document the `node([events], …)` + `this.add(...)` pattern as the in-name-spaced graph idiom.
+- ✅ **DONE (2026-04-30):** EC2/EC7 — 4 bridge sites flipped to `=== undefined`; the topic-empty/legit-null disambiguation fixed at the source by making `topic.latest` stay SENTINEL until the first publish (`entries.length === 0 ? [] : [T]`) — type narrowed `Node<T | null>` → `Node<T>` and the now-redundant `topic.hasLatest` companion deleted (per `feedback_no_backward_compat`). /qa sweep extended this to `ChatStream.latest` (same anti-pattern), harness-loop consumer-side `Node<T | null>` casts + `== null` guards, `streaming.ts` + `cost-meter.ts` guards, and 5 test casts. Dead `_log.withLatest()` activation in TopicGraph constructor removed. New COMPOSITION-GUIDE-PROTOCOL.md §1a "Stay SENTINEL" + GRAPH.md companion-pair table update lock the convention going forward.
+- ✅ **DONE (2026-04-30):** EC16 — closed verified-correct. The COMPLETE-then-disposeAllViews order is intentional (synchronous propagation lets subscribers self-unsubscribe in their terminal handler before view caches drain). JSDoc lock-in note added.
+- ✅ **DONE (2026-04-30):** EC17 — `${name}_state` → `${name}-state` separator landed; describe-snapshot test fixtures updated.
+- ✅ **DONE (2026-04-30):** `GraphDerivedOptions` `guard:` — verified already exposed via `SharedNodeOpts<T> = Omit<NodeOptions<T>, "name" | "describeKind">`. The 4 cqrs sites already use `this.derived(... { guard })`. Doc note was stale.
+- ✅ **DONE (2026-04-30):** `TopicGraph` self-resolve fix — `Graph._resolveFromSegments` tightened to strip the graph-name prefix only when more segments follow. `TopicGraph.latest` / `hasLatest` migrated from `node([events], …) + this.add(...)` workaround to `this.derived(...)` to dogfood the fix. Regression tests pin both halves of the resolve contract.
 - **WAIT:** M4 + EC3/EC4/EC12-14 — `MemoryRetrievalGraph` per-input subgraph + state crosstalk + anonymous internal nodes. **Re-evaluate when Phase 13 surfaces a multi-agent retrieval consumer.**
 - **WAIT:** M7 — saga `audit === invocations` aliasing. Defer until security review need.
 - **WAIT:** M8 — `singleNodeFromAny` keepalive-for-DATA-only-nodes. Pre-existing; JSDoc documents the contract.
@@ -800,7 +800,7 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 
 #### 11.2 ctx-unification + Graph narrow-waist Bundle 1 carries
 *Source: optimizations.md "QA follow-ups from Phase 11.5 ctx-unification" + "QA follow-ups from Graph narrow-waist Bundle 1"*
-- **NOW:** P11.5-D1 — topology regression test pinning the `verifiable`/`distill` `withLatestFrom` chain shape (~30 LOC test in `src/__tests__/extra/composite.test.ts`).
+- ✅ **DONE (2026-04-30):** P11.5-D1 — landed in behavioral form: 2 regression tests in `composite.test.ts` lock the partial:false withLatestFrom semantics ("trigger-before-source-DATA waits for source via withLatestFrom partial:false" pins verifiable; "consolidate fires on trigger only, not on store mutation alone" pins distill). The doc-preferred describe-snapshot form is structurally hard because verifiable/distill bundles don't expose the internal verifyStream/consolidatePaired Nodes — describe walks deps from registered roots and the chain is unreachable.
 - **WAIT:** P11.5-D2 — multi-emit through `graph.derived` end-to-end test. Until consumer needs it.
 - **WAIT:** P11.5-D3 — `verifiable` trigger-before-source-DATA semantic pin. Until consumer hits new behavior.
 - **WAIT:** C1–C2 (graph.batch throw, keepAlive cache) — pre-existing core-batch / RAM-cache semantics; documented.
@@ -833,8 +833,8 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 #### 11.7 Wave 2B DF1–DF14 cluster
 *Source: optimizations.md "Wave 2B Tier 3 audits"*
 - ✅ **DONE:** DF1 (R5.6 option b), DF2 (R2.1), DF3 (R5.7), DF6 (R2.3), DF8 (R5.7), DF11 (R5.7), DF12 (Tier 7.5), DF13 (R2.4).
-- **NOW:** DF9 — release-note for `permanent.entries` → `permanent::items` path-schema change (Wave 2A `lightCollection` fold). Doc-only.
-- **NOW:** DF10 — verify `CollectionAuditRecord.action` superset includes `upsert`/`remove`/`clear` (was a TODO at lightCollection fold).
+- ✅ **DONE (2026-04-30):** DF9 — release-note recorded inline in optimizations.md noting that pre-Wave-2A `permanent.entries` paths are NOT portable to post-Wave-2A `permanent::items` shape. Pre-1.0; non-goal to maintain snapshot portability across breaking renames.
+- ✅ **DONE (2026-04-30):** DF10 — verified at [patterns/memory/index.ts:199-202](src/patterns/memory/index.ts:199): `CollectionAuditRecord.action` is `"upsert" | "remove" | "clear" | "rescore"` (superset of the prior `lightCollection` set, plus `"rescore"` for ranked retention).
 - **WAIT:** DF4 — HeadIndexQueue `undefined`-write V8 deopt. Needs profiler before changing.
 - **WAIT:** DF5 — rateLimiter `droppedCount` activation-time emit when no subscriber. Design call deferred.
 - **WAIT:** DF14 — `describeNode` specMode SENTINEL preservation. Needs SENTINEL-aware state factory; defer until round-trip use case.
@@ -843,7 +843,7 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 #### 11.8 Tier 1.5.3 F-cluster
 *Source: optimizations.md "Tier 1.5.3 deferred QA items"*
 - ✅ **DONE:** F18 (Phase 15 verifiable migration), F24 (normalizeSpec deletion), F25 (Phase 15 distill migration).
-- **NOW:** F15 — `merge()` factoryTag opts override. Small variadic-signature change.
+- ✅ **DONE (2026-04-30):** F15 — `merge<T>` accepts trailing `ExtraOpts` via overload signatures with duck-typed Node-vs-opts detection. User `meta` overlays default `factoryTag("merge")` on both empty and active-sources paths. Regression tests landed.
 - **WAIT:** F16/F17 — `_describeReactiveDiff` empty-graph + race. Observable transient; doc-only.
 - **WAIT:** F19 `withStatus` non-recovery DATA branch; F20 factoryTag double-call override; F21 `tap` observer-arg `meta` drop; F22 switchMap factoryTag fragility; F23 metaEqual Map/Set/Date — minor consistency, no consumer.
 

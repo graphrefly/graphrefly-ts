@@ -153,27 +153,65 @@ export function withLatestFrom<A, B>(
  * Merges **`DATA`** from any source with correct two-phase dirty tracking. **`COMPLETE`** after **all** sources complete (spec §1.3.5).
  *
  * @param sources - Nodes to merge (variadic; empty completes immediately).
+ * Pass an optional trailing {@link ExtraOpts} to override `meta` (e.g. layer
+ * a `metric:` companion onto the default `factoryTag("merge")`) or thread
+ * core node options like `name` / `equals` / `versioning`.
  * @returns `Node<T>` - Merged stream.
  *
  * @remarks
  * **Ordering:** DIRTY/RESOLVED rules follow multi-source semantics in `~/src/graphrefly/GRAPHREFLY-SPEC.md`.
+ *
+ * **F-15 (2026-04-30):** `merge` accepts an optional trailing options object.
+ * The runtime distinguishes a trailing opts argument from a `Node` via duck
+ * typing (`subscribe` + `down` function shape) — caller-supplied opts that
+ * happen to look like a `Node` are not supported (none in practice; the opts
+ * shape is `{ meta?, name?, … }`).
  *
  * @example
  * ```ts
  * import { merge, state } from "@graphrefly/graphrefly-ts";
  *
  * const n = merge(state(1), state(2));
+ * const tagged = merge(state(1), state(2), { meta: { metric: "events" } });
  * ```
  *
  * @category extra
  */
-export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
+export function merge<T>(...sources: readonly Node<T>[]): Node<T>;
+export function merge<T>(...args: readonly [...Node<T>[], ExtraOpts]): Node<T>;
+export function merge<T>(...args: ReadonlyArray<Node<T> | ExtraOpts | undefined>): Node<T> {
+	// Trailing opts detection: last arg is a non-Node object. A `Node` carries
+	// `subscribe` + `down` function members; a supported `ExtraOpts` carries
+	// neither. A trailing `undefined` (idiomatic optional pass-through, e.g.
+	// `merge(a, b, opts ?? undefined)`) is treated as "no opts" and dropped
+	// from sources before the active-merge loop.
+	let opts: ExtraOpts | undefined;
+	let sources: readonly Node<T>[];
+	const last = args.length > 0 ? args[args.length - 1] : undefined;
+	if (last === undefined) {
+		// No opts; drop trailing undefined so the source loop doesn't crash.
+		sources = (
+			args.length > 0 && args[args.length - 1] === undefined ? args.slice(0, -1) : args
+		) as readonly Node<T>[];
+	} else if (
+		typeof last === "object" &&
+		!(
+			typeof (last as { subscribe?: unknown }).subscribe === "function" &&
+			typeof (last as { down?: unknown }).down === "function"
+		)
+	) {
+		opts = last as ExtraOpts;
+		sources = args.slice(0, -1) as Node<T>[];
+	} else {
+		sources = args as readonly Node<T>[];
+	}
+
 	if (sources.length === 0) {
 		return node<T>(
 			(_data, a) => {
 				a.down([[COMPLETE]]);
 			},
-			{ ...operatorOpts(), meta: { ...factoryTag("merge") } },
+			{ ...operatorOpts(opts), meta: { ...factoryTag("merge"), ...(opts?.meta ?? {}) } },
 		);
 	}
 	// producer pattern: node() cannot be used here because the sentinel gate
@@ -206,7 +244,7 @@ export function merge<T>(...sources: readonly Node<T>[]): Node<T> {
 				for (const u of unsubs) u();
 			};
 		},
-		{ ...operatorOpts(), meta: { ...factoryTag("merge") } },
+		{ ...operatorOpts(opts), meta: { ...factoryTag("merge"), ...(opts?.meta ?? {}) } },
 	);
 }
 

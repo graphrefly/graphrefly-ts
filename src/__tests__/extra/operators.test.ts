@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../../core/batch.js";
 import { COMPLETE, DATA, DIRTY, ERROR, PAUSE, RESOLVED, RESUME } from "../../core/messages.js";
+import { metaSnapshot } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 
 import {
@@ -247,6 +248,43 @@ describe("extra operators (Tier 1)", () => {
 		expect(bmc.flat().some((m) => m[0] === COMPLETE)).toBe(false);
 		e2.down([[COMPLETE]]);
 		expect(bmc.flat().some((m) => m[0] === COMPLETE)).toBe(true);
+	});
+
+	// F-15: merge() accepts an optional trailing opts object that overlays
+	// the default factoryTag meta and threads through to node opts.
+	it("merge() accepts trailing opts that override meta and node options", () => {
+		const m1 = node([], { initial: 0 });
+		const m2 = node([], { initial: 0 });
+		const tagged = merge(m1, m2, {
+			meta: { metric: "events", factory: "merge-aliased" },
+			name: "tagged-merge",
+		});
+		// node-level option threads through
+		expect(tagged.name).toBe("tagged-merge");
+		// user-supplied meta wins over the default factoryTag entries
+		expect(metaSnapshot(tagged)).toMatchObject({
+			factory: "merge-aliased",
+			metric: "events",
+		});
+	});
+
+	// F-15: empty-merge variant honors trailing opts symmetrically.
+	it("merge() with no sources but trailing opts forwards meta", () => {
+		const empty = merge<number>({ meta: { metric: "noop" } });
+		expect(metaSnapshot(empty)).toMatchObject({ metric: "noop", factory: "merge" });
+	});
+
+	// F-15 / qa A-2: a trailing `undefined` from `merge(a, b, opts ?? undefined)`
+	// must NOT be passed into the source-subscribe loop. Pre-fix this crashed
+	// with "Cannot read properties of undefined (reading 'subscribe')".
+	it("merge() with trailing undefined treats it as 'no opts' (idiomatic optional pass)", () => {
+		const m1 = node([], { initial: 1 });
+		const m2 = node([], { initial: 2 });
+		const opts: { meta?: Record<string, unknown> } | undefined = undefined;
+		const merged = merge(m1, m2, opts);
+		const { batches } = collect(merged);
+		m1.down([[DATA, 5]]);
+		expect(batches.flat().some((m) => m[0] === DATA && m[1] === 5)).toBe(true);
 	});
 
 	// Regression: GRAPHREFLY-SPEC §1.3 — concat serializes sources after the first completes.

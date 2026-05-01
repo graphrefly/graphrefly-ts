@@ -184,6 +184,22 @@ describe("Graph composition (Phase 1.2)", () => {
 		expect(child.resolve("x")).toBe(n);
 	});
 
+	// Self-resolve fix (2026-04-30): a single-segment path equal to the graph
+	// name is treated as a local-node lookup. Pre-fix this threw "resolve
+	// path ends at graph name only", blocking topics named after their own
+	// internal node (e.g. `topic("events").resolve("events")`).
+	it("resolve(graph-name) returns the local node when one matches", () => {
+		const g = new Graph("events");
+		const n = node([], { name: "events", initial: 0 });
+		g.add(n, { name: "events" });
+		expect(g.resolve("events")).toBe(n);
+	});
+
+	it("resolve(graph-name) throws unknown-name when no local node matches", () => {
+		const g = new Graph("ghost");
+		expect(() => g.resolve("ghost")).toThrow(/unknown/);
+	});
+
 	it("resolve throws when path ends at subgraph", () => {
 		const root = new Graph("app");
 		const child = new Graph("c");
