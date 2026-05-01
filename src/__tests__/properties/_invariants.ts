@@ -4602,9 +4602,7 @@ const invariant68ChangesetDataEdgeAttribution: Invariant = {
 						const idx = drive % numStates;
 						g.set(`s${idx}`, drive + 1);
 						const dataForD = events.filter((e) => e.type === "data" && e.scope === "d");
-						const dataForSource = events.filter(
-							(e) => e.type === "data" && e.scope === `s${idx}`,
-						);
+						const dataForSource = events.filter((e) => e.type === "data" && e.scope === `s${idx}`);
 						// Source data event: fromDepIndex must be -1.
 						for (const ev of dataForSource) {
 							if (ev.type !== "data") return false;

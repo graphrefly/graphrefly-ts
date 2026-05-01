@@ -390,7 +390,8 @@ describe("Graph.observe({ changeset: true })", () => {
 		for (const ev of dataEvents) {
 			const enclosing = batchStarts.findIndex(
 				(bs, i) =>
-					bs.version < ev.version && ev.version < (batchEnds[i]?.version ?? Number.POSITIVE_INFINITY),
+					bs.version < ev.version &&
+					ev.version < (batchEnds[i]?.version ?? Number.POSITIVE_INFINITY),
 			);
 			expect(enclosing).toBeGreaterThanOrEqual(0);
 		}

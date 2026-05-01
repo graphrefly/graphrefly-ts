@@ -3479,7 +3479,7 @@ export class Graph {
 	private _observeChangeset(path: string | undefined, options: ObserveOptions): Node<GraphChange> {
 		const name = options.changesetName ?? "observe-changeset";
 		const tierSet = options.tiers != null ? new Set(options.tiers) : null;
-		const self = this;
+
 		// Subscribe directly to picked targets (no inner structured observer)
 		// so the per-target sink callback boundary defines a delivery wave —
 		// each wave gets exactly one batch-start / batch-end pair. Topology
@@ -3576,8 +3576,7 @@ export class Graph {
 								// hook event when available; fall back to
 								// `_deps[idx]` for inspector implementations
 								// that don't surface the node ref.
-								const upstream =
-									target._deps[ev.depIndex]?.node ?? undefined;
+								const upstream = target._deps[ev.depIndex]?.node ?? undefined;
 								if (upstream != null) {
 									lastTriggerDep.set(target, { node: upstream, depIndex: ev.depIndex });
 								}
@@ -3602,10 +3601,7 @@ export class Graph {
 										// anonymous-upstream by using a sentinel
 										// when the upstream isn't a registered
 										// observe target and has no `.name`.
-										const resolved =
-											nodeToPath.get(trig.node) ??
-											trig.node.name ??
-											"<anonymous>";
+										const resolved = nodeToPath.get(trig.node) ?? trig.node.name ?? "<anonymous>";
 										fromPath = resolved;
 									}
 									const attribution =
@@ -3629,10 +3625,7 @@ export class Graph {
 									emitOne((env): GraphChangeDirty => ({ type: "dirty", ...env }), targetPath);
 								} else if (t === RESOLVED) {
 									if (!inTier("resolved")) continue;
-									emitOne(
-										(env): GraphChangeResolved => ({ type: "resolved", ...env }),
-										targetPath,
-									);
+									emitOne((env): GraphChangeResolved => ({ type: "resolved", ...env }), targetPath);
 								} else if (t === ERROR) {
 									if (!inTier("error")) continue;
 									const attribution =
@@ -3651,16 +3644,10 @@ export class Graph {
 									);
 								} else if (t === COMPLETE) {
 									if (!inTier("complete")) continue;
-									emitOne(
-										(env): GraphChangeComplete => ({ type: "complete", ...env }),
-										targetPath,
-									);
+									emitOne((env): GraphChangeComplete => ({ type: "complete", ...env }), targetPath);
 								} else if (t === TEARDOWN) {
 									if (!inTier("teardown")) continue;
-									emitOne(
-										(env): GraphChangeTeardown => ({ type: "teardown", ...env }),
-										targetPath,
-									);
+									emitOne((env): GraphChangeTeardown => ({ type: "teardown", ...env }), targetPath);
 								}
 								// PAUSE / RESUME / INVALIDATE: reserved future
 								// variants — current implementation skips them.
@@ -3709,7 +3696,7 @@ export class Graph {
 								// Path-scoped observers only subscribe to nodes
 								// matching the path filter.
 								if (path == null || qualified === path) {
-									const newNode = self.tryResolve(qualified);
+									const newNode = this.tryResolve(qualified);
 									if (newNode != null) {
 										nodeToPath.set(newNode, qualified);
 										subscribeTarget(qualified, newNode);
@@ -3719,9 +3706,8 @@ export class Graph {
 								// /qa F-3: populate `nodeKind` with the resolved
 								// describeKind (state | derived | producer |
 								// effect) per the type's documented contract.
-								const resolved = self.tryResolve(qualified);
-								const kind =
-									resolved instanceof NodeImpl ? resolved._describeKind : undefined;
+								const resolved = this.tryResolve(qualified);
+								const kind = resolved instanceof NodeImpl ? resolved._describeKind : undefined;
 								if (!inTier("node-added")) return;
 								emitOne(
 									(env): GraphChangeNodeAdded =>
