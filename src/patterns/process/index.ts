@@ -43,8 +43,10 @@ import {
 	firstWhere,
 	fromAny,
 	fromIter,
+	fromPromise,
 	fromTimer,
 	type NodeInput,
+	of,
 } from "../../extra/sources.js";
 import type { AppendLogStorageTier, KvStorageTier } from "../../extra/storage-tiers.js";
 import { Graph } from "../../graph/index.js";
@@ -382,6 +384,34 @@ export interface ProcessManagerResult<TState> {
  * the cleanup to a microtask via `Promise.resolve().then(unsub)` to sidestep
  * the Temporal Dead Zone.
  */
+/**
+ * Bridge "single value, sync OR async" into a Node that emits ONE DATA + COMPLETE.
+ *
+ * Differs from {@link fromAny} in iteration semantics: `fromAny` correctly
+ * dispatches arrays to {@link fromIter} (per-element DATA), which is wrong
+ * here — `tier.list()` returns `readonly string[]` semantically as a single
+ * "list result," not as a stream of keys. `fromValue` always treats the
+ * input as one value, regardless of shape.
+ *
+ * - Sync value (incl. arrays, scalars, undefined) → emits the value as one
+ *   DATA, then COMPLETE. Synchronous; emits at subscribe time per
+ *   `~/src/graphrefly/COMPOSITION-GUIDE.md` source-bridging semantics.
+ * - Promise / Thenable → routes through `fromPromise`. Emits the resolved
+ *   value as one DATA, then COMPLETE.
+ *
+ * Used by the restore pipeline so tier impls returning sync values emit
+ * immediately (no Promise.resolve coercion footgun) AND tier impls returning
+ * Promises behave as expected. When a tier surfaces an async-iterable
+ * `list()` for streaming-list semantics, switch the call site to `fromAny`
+ * (which will then per-element-emit through `fromAsyncIter`).
+ */
+function fromValue<T>(input: T | PromiseLike<T>): Node<T> {
+	if (input != null && typeof (input as PromiseLike<T>).then === "function") {
+		return fromPromise(input as PromiseLike<T>);
+	}
+	return of(input as T);
+}
+
 function toPromise<T>(input: NodeInput<T>): Promise<T> {
 	// Short-circuit: null/undefined input resolves immediately.
 	if (input == null) return Promise.resolve(undefined as T);
@@ -1164,27 +1194,26 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		const tierList = tier.list.bind(tier);
 
 		// Reactive source chain. `tier.list()` and `tier.load(key)` are the
-		// only async boundaries; both are wrapped in `fromAny` so the
-		// entire downstream graph is sync-reactive AND tier impls can return
-		// sync / Promise / async iterable / Node uniformly. The
-		// `Promise.resolve(...)` wrapper coerces the input to a Thenable so
-		// `fromAny` always takes the `fromPromise` branch — required because
-		// today's tier shapes return either `T | Promise<T>` (and a sync
-		// snapshot object would otherwise hit `fromAny`'s scalar fallback,
-		// which has different activation timing). Drop the wrapper when a
-		// tier surfaces an async-iterable `list()` or `load()` and the
-		// caller wants stream semantics.
-		const listSource = fromAny<readonly string[]>(Promise.resolve(tierList()));
+		// only async boundaries. Both bridged via {@link fromValue} —
+		// "single value, sync or async" semantics, NOT `fromAny`'s
+		// per-element iteration semantics (which would treat `tier.list()`'s
+		// `readonly string[]` as a stream of strings, breaking the downstream
+		// `mergeMap(listSource, (keys) => …)` shape). Sync tier returns emit
+		// immediately at subscribe time; async tier returns emit on resolve.
+		const listSource = fromValue<readonly string[]>(tierList());
 		const flattened = mergeMap(listSource, (keys: readonly string[]) => {
 			if (keys.length === 0) {
 				// fromIter([]) emits no DATA, only COMPLETE — which propagates
 				// up through mergeMap so the effect sees its own COMPLETE.
 				return fromIter<ProcessStateSnapshot<TState> | undefined>([]);
 			}
+			// Inner: per-key load via fromValue, flattened across keys.
+			// Outer fromIter(keys) DOES want per-element emission here —
+			// each key triggers a fresh load via mergeMap.
 			return mergeMap(
 				fromIter(keys),
 				(key) =>
-					fromAny(Promise.resolve(tierLoad(key))) as Node<
+					fromValue(tierLoad(key)) as Node<
 						ProcessStateSnapshot<TState> | undefined
 					>,
 			);
@@ -1247,9 +1276,16 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		// Promise still waiting on the gate flip) settles. firstWhere
 		// rejects on COMPLETE-without-match; the .catch in `restore()`
 		// swallows that rejection and the public Promise resolves cleanly.
-		// (Subgraph TEARDOWN below would NOT settle firstWhere — TEARDOWN
-		// is tier-5 distinct from COMPLETE, and firstWhere only handles
-		// DATA / ERROR / COMPLETE.)
+		//
+		// **Local instance of a broader convention** (tracked under
+		// DS-13.5.A spec amendment, opened 2026-05-01): the framework
+		// should auto-emit COMPLETE/ERROR before propagating TEARDOWN as
+		// the canonical teardown sequence — same shape as the synthetic-
+		// DIRTY auto-prefix already in `_emit`. Once the framework rule
+		// lands, this manual COMPLETE becomes redundant. Until then, every
+		// dispose() that uses `firstWhere`/`firstValueFrom`-style bridges
+		// against a node that may be torn down (rather than naturally
+		// COMPLETE'd) needs the same manual emission to avoid hangs.
 		restoreState.down([[COMPLETE]]);
 		// Tear down the restore pipeline keepalive. fromAny.cleanup sets
 		// `settled = true`, so when the underlying tier.list/load promises
