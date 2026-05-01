@@ -10,6 +10,8 @@
 
 ## Active work items
 
+- **`fromAny` array-as-iterable footgun (opened 2026-05-01, surfaced in process-manager restore pipeline).** `fromAny<T>(input)` correctly dispatches arrays to `fromIter` (per-element DATA emission), per its documented Iterable handling. But this is the wrong shape for "single value of type `T[]`" (e.g. `tier.list()` returning `readonly string[]` semantically as one list, not as a stream of keys). Sites that want array-as-value semantics need a different bridge — currently `process/index.ts` ships an internal `fromValue<T>(input: T | PromiseLike<T>): Node<T>` helper (`isThenable → fromPromise`, otherwise → `of(input)`). If a second pattern surfaces with the same need, promote `fromValue` to `extra/sources/`. Until then: document the gotcha at the `fromAny` JSDoc (Iterable inputs become per-element streams; pass `[arr]` to wrap as scalar, OR use `of(arr)` for clear single-value intent). Pairs with the DS-13.5.A Q16 framework convention (COMPLETE-before-TEARDOWN) — both are sharp edges around source primitives that surfaced during the same fix.
+
 - **`T | null` SENTINEL anti-pattern sweep — refineLoop residuals (opened 2026-05-01, post-F9 fix).** F9 migrated `agentLoop.lastResponse` from `Node<LLMResponse | null>` (`initial: null`) to SENTINEL form. The grep for the same anti-pattern surfaced two more sites in [refine-loop.ts](../src/patterns/harness/presets/refine-loop.ts):
   - `lastFeedbackState = node<Feedback | null>([], { name: "lastFeedback", initial: null })` ([refine-loop.ts:341](../src/patterns/harness/presets/refine-loop.ts#L341))
   - `bestState = node<T | null>([], { name: "best", initial: null })` ([refine-loop.ts:360](../src/patterns/harness/presets/refine-loop.ts#L360))
