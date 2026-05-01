@@ -30,6 +30,7 @@ import {
 	type NodeFn,
 	type NodeFnCleanup,
 	NodeImpl,
+	type NodeOptions,
 	type NodeSink,
 	type NodeTransportOptions,
 	node,
@@ -214,17 +215,40 @@ export type GraphProducerSetupFn<T> = (
 ) => NodeFnCleanup | void;
 
 /**
- * Options for {@link Graph.state}.
+ * Input-side {@link NodeOptions} fields exposed by Graph methods. Excludes
+ * `name` (handled via the explicit `name` arg) and `describeKind` (set
+ * internally per Graph method to `"state"` / `"derived"` / `"effect"` /
+ * `"producer"`). All other fields — `equals`, `initial`, `meta`, `guard`,
+ * `partial`, `pausable`, `versioning*`, `completeWhenDepsComplete`,
+ * `errorWhenDepsError`, `resubscribable`, `resetOnTeardown`, `config` — flow
+ * through the underlying `node()` call unchanged.
+ *
+ * The narrow-waist promise (Phase 11) is symmetry on the input side: any
+ * option valid on raw `node()` is valid on `graph.derived/effect/state/producer`,
+ * so guarded compute / authz / lifecycle options never force authors to drop
+ * back to raw `node() + graph.add()`. Restriction is purely on the OUTPUT
+ * side (return shape, ctx) — see {@link GraphDerivedFn} / {@link GraphEffectFn}.
  */
-export interface GraphStateOptions<T> {
-	equals?: (a: T, b: T) => boolean;
+type SharedNodeOpts<T> = Omit<NodeOptions<T>, "name" | "describeKind">;
+
+/**
+ * Options for {@link Graph.state}.
+ *
+ * Inherits all input-side {@link NodeOptions} (see {@link SharedNodeOpts})
+ * except `initial` (which is the explicit second positional arg of
+ * {@link Graph.state}) plus graph-specific extras (`signal`, `annotation`).
+ */
+export interface GraphStateOptions<T> extends Omit<SharedNodeOpts<T>, "initial"> {
 	signal?: AbortSignal;
-	meta?: Record<string, unknown>;
 	annotation?: string;
 }
 
 /**
  * Options for {@link Graph.derived}.
+ *
+ * Inherits all input-side {@link NodeOptions} (`equals`, `initial`, `meta`,
+ * `guard`, `partial`, `pausable`, `versioning*`, …) plus graph-specific
+ * extras:
  *
  * - `keepAlive: true` — installs an internal subscription so the node
  *   stays activated and `.cache` stays current for **external consumers**
@@ -234,34 +258,37 @@ export interface GraphStateOptions<T> {
  *   **Do not read `node.cache` from inside another reactive fn** (spec
  *   §5.12) — declare the node as a real dep instead.
  * - `signal` — when aborted, removes this node from the graph.
- * - `equals`, `initial`, `meta` — pass-through to node options.
  * - `annotation` — forwarded to {@link Graph.add}.
  */
-export interface GraphDerivedOptions<T> {
-	equals?: (a: T, b: T) => boolean;
-	initial?: T | null;
+export interface GraphDerivedOptions<T> extends SharedNodeOpts<T> {
 	keepAlive?: boolean;
 	signal?: AbortSignal;
-	meta?: Record<string, unknown>;
 	annotation?: string;
 }
 
 /**
  * Options for {@link Graph.effect}.
+ *
+ * Inherits all input-side {@link NodeOptions} (`meta`, `guard`, `partial`,
+ * `pausable`, `versioning*`, …) plus graph-specific extras (`signal`,
+ * `annotation`). Output side stays restricted via {@link GraphEffectFn} —
+ * `up.pause` / `up.resume` only, no `emit` / `down`.
  */
-export interface GraphEffectOptions {
+export interface GraphEffectOptions extends SharedNodeOpts<unknown> {
 	signal?: AbortSignal;
-	meta?: Record<string, unknown>;
 	annotation?: string;
 }
 
 /**
  * Options for {@link Graph.producer}.
+ *
+ * Inherits all input-side {@link NodeOptions} (no deps, so dep-gating
+ * fields like `partial` / `completeWhenDepsComplete` / `errorWhenDepsError`
+ * are inert but type-valid) plus graph-specific extras (`signal`,
+ * `annotation`).
  */
-export interface GraphProducerOptions<T> {
-	equals?: (a: T, b: T) => boolean;
+export interface GraphProducerOptions<T> extends SharedNodeOpts<T> {
 	signal?: AbortSignal;
-	meta?: Record<string, unknown>;
 	annotation?: string;
 }
 
@@ -1764,7 +1791,7 @@ export class Graph {
 		opts?: GraphDerivedOptions<T>,
 	): Node<T> {
 		const deps = depPaths.map((p) => this.resolve(p));
-		const { keepAlive, annotation, equals, initial, meta, signal } = opts ?? {};
+		const { keepAlive, annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap restricted GraphDerivedFn → raw NodeFn.
 		// Pass batchData and full ctx straight through; restriction is
@@ -1792,11 +1819,9 @@ export class Graph {
 		};
 
 		const n = node<T>(deps, wrapped, {
+			...nodeOpts,
 			name,
 			describeKind: "derived",
-			...(equals != null ? { equals } : {}),
-			...(initial !== undefined ? { initial } : {}),
-			...(meta != null ? { meta } : {}),
 		});
 		nodeRef = n;
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
@@ -1836,7 +1861,7 @@ export class Graph {
 		opts?: GraphEffectOptions,
 	): Node<unknown> {
 		const deps = depPaths.map((p) => this.resolve(p));
-		const { annotation, meta, signal } = opts ?? {};
+		const { annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap restricted GraphEffectFn → raw NodeFn.
 		// Pass batchData and full ctx straight through; restriction is
@@ -1850,9 +1875,9 @@ export class Graph {
 		};
 
 		const n = node(deps, wrapped, {
+			...nodeOpts,
 			name,
 			describeKind: "effect",
-			...(meta != null ? { meta } : {}),
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);
@@ -1874,13 +1899,12 @@ export class Graph {
 	 * @returns The registered `Node<T>`.
 	 */
 	state<T>(name: string, initial?: T | null, opts?: GraphStateOptions<T>): Node<T> {
-		const { annotation, meta, equals, signal } = opts ?? {};
+		const { annotation, signal, ...nodeOpts } = opts ?? {};
 		const n = node<T>([], {
+			...nodeOpts,
 			name,
 			describeKind: "state",
 			...(initial !== undefined ? { initial } : {}),
-			...(equals != null ? { equals } : {}),
-			...(meta != null ? { meta } : {}),
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);
@@ -1911,7 +1935,7 @@ export class Graph {
 		setupFn: GraphProducerSetupFn<T>,
 		opts?: GraphProducerOptions<T>,
 	): Node<T> {
-		const { annotation, meta, equals, signal } = opts ?? {};
+		const { annotation, signal, ...nodeOpts } = opts ?? {};
 
 		// Wrap GraphProducerSetupFn → raw NodeFn.
 		// The push channel is built from actions.emit in the NodeFn body.
@@ -1926,10 +1950,9 @@ export class Graph {
 		};
 
 		const n = node<T>(wrapped, {
+			...nodeOpts,
 			name,
 			describeKind: "producer",
-			...(equals != null ? { equals } : {}),
-			...(meta != null ? { meta } : {}),
 		});
 		this.add(n, { name, ...(annotation != null ? { annotation } : {}) });
 		this._wireSignalToRemove(name, signal);

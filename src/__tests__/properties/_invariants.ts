@@ -29,6 +29,7 @@ import {
 	type RigorRecorder,
 	registerBuiltins,
 } from "../../core/config.js";
+import { policy } from "../../core/guard.js";
 import {
 	COMPLETE,
 	DATA,
@@ -4406,6 +4407,146 @@ const invariant66GraphDerivedEmptyArrayResolved: Invariant = {
 		),
 };
 
+/**
+ * #67 — graph-narrow-waist-options-flow-through (Plan P10).
+ *
+ * Phase 11 / C2 widening — `GraphDerivedOptions`, `GraphEffectOptions`,
+ * `GraphStateOptions`, `GraphProducerOptions` all extend the input-side
+ * `NodeOptions` shape (excluding `name` / `describeKind`). Every valid
+ * `NodeOptions` field passed via the Graph methods MUST flow through to the
+ * underlying `node()` call.
+ *
+ * This invariant pins three load-bearing fields:
+ * - `guard` — the registered node has `hasGuard() === true` and rejects
+ *   denied actions (e.g. observe by an actor not on the allow list).
+ * - `meta` — every key/value in `opts.meta` appears under `describe()`'s
+ *   `node.meta` (with `detail: "standard"` or higher).
+ * - `equals` — when `opts.equals` returns `true` for two values, the second
+ *   `set()` does NOT produce a fresh DATA emission downstream (substituted
+ *   to RESOLVED per spec §3.5.1).
+ *
+ * Catches: regressions where a Graph method silently drops options that
+ * were passed but didn't land on the underlying `node()` (e.g. a future
+ * destructure that omits a new option). The `Omit<NodeOptions, "name" |
+ * "describeKind">` extension means an authored node-level field stays
+ * consistent across raw `node()` and `graph.derived/effect/state/producer`.
+ */
+const invariant67GraphNarrowWaistOptionsFlowThrough: Invariant = {
+	name: "graph-narrow-waist-options-flow-through",
+	description:
+		"All valid input-side NodeOptions (guard, meta, equals, ...) flow through Graph.derived / Graph.effect / Graph.state / Graph.producer to the underlying node().",
+	specRef:
+		"archive/docs/SESSION-graph-narrow-waist.md § Phase 11 / docs/optimizations.md C2 (widen GraphDerivedOptions / GraphEffectOptions)",
+	property: () =>
+		fc.property(
+			fc.array(fc.integer({ min: 0, max: 5 }), { minLength: 2, maxLength: 6 }),
+			(values) => {
+				const g = new Graph("prop-p10");
+				try {
+					// 1. `guard` flows through state/derived/effect.
+					const observeHumanOnly = policy((allow) => {
+						allow("observe", { where: (a) => a.type === "human" });
+					});
+					const writeAllowAll = policy((allow) => {
+						allow("write");
+						allow("observe");
+						allow("signal");
+					});
+
+					const guardedState = g.state("g_state", 0, {
+						guard: writeAllowAll,
+						meta: { kind: "guarded_state", tier: "warm" },
+					});
+					const guardedDerived = g.derived(
+						"g_derived",
+						["g_state"],
+						(data, ctx) => [latestVals(data, ctx)[0] as number],
+						{
+							guard: observeHumanOnly,
+							meta: { kind: "guarded_derived" },
+							// equals: collapse same-value emits to RESOLVED.
+							equals: (a, b) => a === b,
+						},
+					);
+					let effectInvocations = 0;
+					const effectNode = g.effect(
+						"g_effect",
+						["g_state"],
+						() => {
+							effectInvocations += 1;
+						},
+						{
+							guard: writeAllowAll,
+							meta: { kind: "guarded_effect" },
+						},
+					);
+					// Subscribe to drive activation — effects only fire when the
+					// node has at least one sink (or `keepAlive`).
+					effectNode.subscribe(() => {});
+
+					// 1a. hasGuard() returns true for all three.
+					if (!guardedState.hasGuard()) return false;
+					if (!guardedDerived.hasGuard()) return false;
+					if (!g.resolve("g_effect").hasGuard()) return false;
+
+					// 1b. observe-restricted derived denies a non-human actor.
+					if (
+						guardedDerived.allowsObserve({ type: "llm", id: "a1" }) ||
+						!guardedDerived.allowsObserve({ type: "human", id: "u1" })
+					) {
+						return false;
+					}
+
+					// 2. `meta` flows through to describe().
+					const desc = g.describe({ detail: "standard" });
+					if (desc.nodes.g_state?.meta?.kind !== "guarded_state") return false;
+					if (desc.nodes.g_state?.meta?.tier !== "warm") return false;
+					if (desc.nodes.g_derived?.meta?.kind !== "guarded_derived") return false;
+					if (desc.nodes.g_effect?.meta?.kind !== "guarded_effect") return false;
+
+					// 3. `equals` short-circuits cache emit on the derived.
+					const dataValues: number[] = [];
+					let resolvedCount = 0;
+					guardedDerived.subscribe((msgs) => {
+						for (const msg of msgs as readonly [symbol, unknown?][]) {
+							if (msg[0] === DATA) dataValues.push(msg[1] as number);
+							if (msg[0] === RESOLVED) resolvedCount += 1;
+						}
+					});
+					// Activation pushes initial DATA(0).
+					if (dataValues.length !== 1 || dataValues[0] !== 0) return false;
+					// Set the same value again — equals collapses to RESOLVED, not DATA.
+					const resolvedBefore = resolvedCount;
+					g.set("g_state", 0);
+					if (dataValues.length !== 1) return false;
+					if (resolvedCount <= resolvedBefore) return false;
+
+					// 4. Driving distinct values still emits DATA.
+					let lastDataLen = dataValues.length;
+					for (const v of values) {
+						g.set("g_state", v);
+						// Either DATA fired (new value) or RESOLVED fired (same as cached).
+						// In both cases something downstream surfaced.
+						const grew = dataValues.length > lastDataLen;
+						if (grew) {
+							const last = dataValues[dataValues.length - 1];
+							if (last !== v) return false;
+							lastDataLen = dataValues.length;
+						}
+					}
+
+					// 5. `effect` fired at least once on activation; the GuardDenied
+					// path is exercised via `allowsObserve` above.
+					if (effectInvocations < 1) return false;
+
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
 // ---------------------------------------------------------------------------
 // Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
 // follow-ons"):
@@ -4505,6 +4646,7 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant64GraphDerivedKeepAliveEquivalence,
 	invariant65GraphDerivedMultiEmitArray,
 	invariant66GraphDerivedEmptyArrayResolved,
+	invariant67GraphNarrowWaistOptionsFlowThrough,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract

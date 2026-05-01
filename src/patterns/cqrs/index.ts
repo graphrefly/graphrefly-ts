@@ -758,17 +758,13 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 		}
 		const reg: CommandRegistration<T> =
 			typeof handlerOrReg === "function" ? { handler: handlerOrReg } : handlerOrReg;
-		const cmdNode = node<T>([], {
-			name,
-			describeKind: "state",
-			initial: undefined as T,
+		const cmdNode = this.state<T>(name, undefined as T, {
 			meta: {
 				...cqrsMeta("command", { command_name: name }),
 				error: null,
 			},
 			guard: COMMAND_GUARD,
 		});
-		this.add(cmdNode, { name: name });
 		this._commandRegs.set(name, {
 			handler: reg.handler as CommandHandler<unknown>,
 			...(reg.emits !== undefined ? { emits: reg.emits } : {}),
@@ -1007,9 +1003,10 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 			}, saveDebounceMs);
 		}
 
-		const projNode = node<TState>(
-			eventNodes,
-			(batchData, actions, ctx) => {
+		const projNode = this.derived<TState>(
+			name,
+			eventNames as readonly string[],
+			(batchData, ctx) => {
 				const snapshots = batchData.map((batch, i) =>
 					batch != null && batch.length > 0 ? batch.at(-1) : ctx.prevData[i],
 				);
@@ -1034,18 +1031,15 @@ export class CqrsGraph<EM extends CqrsEventMap = Record<string, unknown>> extend
 				}
 
 				scheduleSave(newState);
-				actions.emit(newState);
+				return [newState];
 			},
 			{
-				name,
-				describeKind: "derived",
 				meta: cqrsMeta("projection", { projection_name: name, source_events: eventNames }),
 				guard: PROJECTION_GUARD,
 				initial: seedState,
 			},
 		);
 
-		this.add(projNode, { name: name });
 		this.addDisposer(keepalive(projNode));
 		this.addDisposer(() => {
 			if (saveTimer !== undefined) {
