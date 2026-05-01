@@ -29,7 +29,7 @@ import {
 	memoryWithTiers,
 	memoryWithVectors,
 } from "../memory/memory-composers.js";
-import type { RetrievalEntry, RetrievalQuery, RetrievalTrace } from "../memory/retrieval.js";
+import type { RetrievalEntry, RetrievalQuery } from "../memory/retrieval.js";
 import type { MemoryTiersBundle, MemoryTiersOptions } from "../memory/tiers.js";
 import { llmConsolidator, llmExtractor } from "../prompts/prompt-call.js";
 
@@ -121,10 +121,6 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	readonly kg: KnowledgeGraph<unknown, string> | null;
 	/** Memory tiers bundle (null if not configured). */
 	readonly memoryTiers: MemoryTiersBundle<TMem> | null;
-	/** Retrieval result node (null if no retrieval pipeline configured). */
-	readonly retrieval: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null;
-	/** Latest retrieval trace for observability (null if no retrieval pipeline). */
-	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null> | null;
 	/**
 	 * Reactive consumer API. Given a reactive `RetrievalQuery | null` source,
 	 * returns a `Node` emitting the packed retrieval results. Composable with
@@ -137,6 +133,12 @@ export type AgentMemoryGraph<TMem = unknown> = Graph & {
 	 * `awaitSettled(retrieveReactive(query))`.
 	 *
 	 * Null when no retrieval pipeline is configured.
+	 *
+	 * **QA F-9 (2026-04-30):** the prior `retrieval` / `retrievalTrace`
+	 * shared state-node mirrors have been dropped. Use `retrieveReactive`
+	 * for per-call reactive results; one-shot trace consumers should
+	 * subscribe to the projection's upstream `result` derived directly
+	 * via `view.target.resolve("retrieval::retrieve_${id}::result")`.
 	 */
 	readonly retrieveReactive:
 		| ((queryInput: NodeInput<RetrievalQuery | null>) => Node<ReadonlyArray<RetrievalEntry<TMem>>>)
@@ -319,8 +321,6 @@ export function agentMemory<TMem = unknown>(
 	}
 
 	// --- Retrieval pipeline (composer) ---
-	let retrievalNode: Node<ReadonlyArray<RetrievalEntry<TMem>>> | null = null;
-	let retrievalTraceNode: Node<RetrievalTrace<TMem> | null> | null = null;
 	let retrieveReactive:
 		| ((queryInput: NodeInput<RetrievalQuery | null>) => Node<ReadonlyArray<RetrievalEntry<TMem>>>)
 		| null = null;
@@ -343,8 +343,6 @@ export function agentMemory<TMem = unknown>(
 			...(opts.context !== undefined ? { context: opts.context } : {}),
 		});
 		graph.mount("retrieval", retrievalGraph);
-		retrievalNode = retrievalGraph.retrieval;
-		retrievalTraceNode = retrievalGraph.retrievalTrace;
 		retrieveReactive = retrievalGraph.retrieveReactive.bind(retrievalGraph);
 	}
 
@@ -362,8 +360,6 @@ export function agentMemory<TMem = unknown>(
 		vectors,
 		kg,
 		memoryTiers: memoryTiersBundle,
-		retrieval: retrievalNode,
-		retrievalTrace: retrievalTraceNode,
 		retrieveReactive,
 	}) as AgentMemoryGraph<TMem>;
 }

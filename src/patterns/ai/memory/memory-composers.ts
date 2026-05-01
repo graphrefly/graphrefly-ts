@@ -552,26 +552,23 @@ const packedEquals = <T>(a: readonly T[], b: readonly T[]): boolean => {
  *
  * **C1 rework (2026-04-30):** retrieval is reactive-only. Each
  * `retrieveReactive(input)` call constructs its own per-input subgraph
- * mounted at `retrieve_${id}` with named nodes `context`, `result`,
- * `mirror`, and `projection`. Mirrors are scoped to that subgraph — no
- * cross-call crosstalk on the parent's `retrieval` / `retrievalTrace`
- * state nodes. Subgraphs register their own `keepalive` disposer so
- * teardown is local to the per-call mount.
+ * mounted at `retrieve_${id}` with named nodes `context`, `result`, and
+ * `projection`. Subgraphs register their own scoped disposers so teardown
+ * is local to the per-call mount.
  *
- * The shared `retrieval` / `retrievalTrace` state nodes mirror the
- * **most recent** call's packed result; subscribe to the per-call
- * `projection` node directly when you need to discriminate concurrent
- * queries.
+ * **QA F-9 (2026-04-30):** the shared `retrieval` / `retrievalTrace`
+ * state-node mirrors are dropped — they were last-writer-wins under
+ * concurrent `retrieveReactive(...)` calls. Consumers must subscribe to
+ * the per-call `projection` node directly. One-shot consumers use
+ * `awaitSettled(retrieveReactive(input))`.
  *
- * The prior imperative `retrieve()` API is dropped (pre-1.0 break);
- * one-shot consumers use `awaitSettled(retrieveReactive(input))`.
+ * **QA F-6 (2026-04-30):** the per-call `result` derived declares
+ * `vectors.entries` / `kg.adjacencyOut` / `kg.adjacencyIn` as deps when
+ * configured, so a vector upsert / KG mutation re-runs retrieval even
+ * when the query / context / store-snapshot are unchanged. Resolves the
+ * §28 closure-mirror gap where these `.cache` reads were undeclared.
  */
 export class MemoryRetrievalGraph<TMem> extends Graph {
-	/** State node mirroring the latest packed retrieval result. */
-	readonly retrieval: Node<ReadonlyArray<RetrievalEntry<TMem>>>;
-	/** State node mirroring the latest retrieval trace. */
-	readonly retrievalTrace: Node<RetrievalTrace<TMem> | null>;
-
 	private readonly _store: DistillBundle<TMem>;
 	private readonly _vectors: VectorIndexGraph<TMem> | null;
 	private readonly _kg: KnowledgeGraph<unknown, string> | null;
@@ -595,17 +592,6 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		this._budget = opts.budget ?? 2000;
 		this._contextWeight = opts.contextWeight ?? 0;
 		this._contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
-
-		// EC14: state nodes registered via `this.state(...)` now that
-		// `GraphStateOptions` plumbs `equals` / `meta`.
-		this.retrieval = this.state<ReadonlyArray<RetrievalEntry<TMem>>>("retrieval", [], {
-			equals: packedEquals,
-			meta: aiMeta("retrieval_pipeline"),
-		});
-
-		this.retrievalTrace = this.state<RetrievalTrace<TMem> | null>("retrievalTrace", null, {
-			meta: aiMeta("retrieval_trace"),
-		});
 	}
 
 	private _runRetrieval(
@@ -749,16 +735,17 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 	 * - `context` — `fromAny(queryInput)` projection (so the input node is
 	 *   visible to `describe()` even when callers pass a raw value).
 	 * - `result` — pure derived `{ packed, trace }`.
-	 * - `mirror` — effect that writes to the parent's `retrieval` /
-	 *   `retrievalTrace` state nodes (most-recent-call wins).
 	 * - `projection` — the packed-array node returned to the caller.
 	 *
-	 * The subgraph registers its own `keepalive(mirror)` disposer so the
-	 * mirror runs even when no external subscriber holds the projection.
+	 * `result` declares the substrate's `store.entries`, the optional
+	 * `context` Node, the local `context` projection, and (when configured)
+	 * `vectors.entries` / `kg.adjacencyOut` / `kg.adjacencyIn` as deps —
+	 * so vector upserts and KG mutations re-trigger retrieval even when
+	 * the input is unchanged.
+	 *
 	 * Disposers are local — `parent.remove("retrieve_${id}")` (or a parent
 	 * `destroy()` cascade) tears the per-call topology down without
-	 * touching siblings. Concurrent calls don't share state mirrors and
-	 * don't leak keepalives onto the parent graph.
+	 * touching siblings.
 	 *
 	 * One-shot callers use `awaitSettled(retrieveReactive(input))`.
 	 */
@@ -796,11 +783,27 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		);
 		sub.add(localContext, { name: "context" });
 
+		// /qa F-6 (2026-04-30): declare vectors / kg substrate Node refs as
+		// deps so vector upserts / KG mutations re-trigger retrieval even
+		// when query / context / store snapshots are unchanged. The
+		// `_runRetrieval` body reads `.cache` from these substrates; before
+		// this fix those reads were undeclared §28 closure-mirrors.
+		const resultDeps: Node<unknown>[] = [
+			this._store.store.entries,
+			this._contextNode,
+			localContext,
+		];
+		if (this._vectors) resultDeps.push(this._vectors.entries as Node<unknown>);
+		if (this._kg) {
+			resultDeps.push(this._kg.adjacencyOut as Node<unknown>);
+			resultDeps.push(this._kg.adjacencyIn as Node<unknown>);
+		}
+
 		const result = node<{
 			packed: ReadonlyArray<RetrievalEntry<TMem>>;
 			trace: RetrievalTrace<TMem> | null;
 		}>(
-			[this._store.store.entries, this._contextNode, localContext],
+			resultDeps,
 			(batchData, actions, ctx) => {
 				const data = batchData.map((b, i) =>
 					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
@@ -824,31 +827,6 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		);
 		sub.add(result, { name: "result" });
 
-		const retrievalRef = this.retrieval;
-		const traceRef = this.retrievalTrace;
-		const mirror = node(
-			[result],
-			(batchData, _actions, ctx) => {
-				const data = batchData.map((b, i) =>
-					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
-				);
-				const v = data[0] as {
-					packed: ReadonlyArray<RetrievalEntry<TMem>>;
-					trace: RetrievalTrace<TMem> | null;
-				};
-				batch(() => {
-					retrievalRef.emit(v.packed);
-					if (v.trace) traceRef.emit(v.trace);
-				});
-			},
-			{
-				describeKind: "effect",
-				name: "mirror",
-				meta: aiMeta("retrieval_reactive_mirror"),
-			},
-		);
-		sub.add(mirror, { name: "mirror" });
-
 		const projection = node<ReadonlyArray<RetrievalEntry<TMem>>>(
 			[result],
 			(batchData, actions, ctx) => {
@@ -866,11 +844,6 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 			},
 		);
 		sub.add(projection, { name: "projection" });
-
-		// Keepalive scoped to the per-call subgraph: when the parent
-		// destroys (or we explicitly remove this mount), the disposer
-		// runs and the mirror effect deactivates.
-		sub.addDisposer(keepalive(mirror));
 
 		this.mount(segment, sub);
 		return projection;

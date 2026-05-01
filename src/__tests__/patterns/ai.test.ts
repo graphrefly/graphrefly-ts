@@ -1450,8 +1450,6 @@ describe("patterns.ai.agentMemory", () => {
 		expect(mem.vectors).toBeNull();
 		expect(mem.kg).toBeNull();
 		expect(mem.memoryTiers).toBeNull();
-		expect(mem.retrieval).toBeNull();
-		expect(mem.retrievalTrace).toBeNull();
 		expect(mem.retrieveReactive).toBeNull();
 		mem.destroy();
 	});
@@ -1531,7 +1529,9 @@ describe("patterns.ai.agentMemory", () => {
 		expect(retrievalDesc).not.toBeNull();
 		expect(mem.tryResolve("retrieval::retrieve_2::projection")).toBeDefined();
 		expect(mem.tryResolve("retrieval::retrieve_1::result")).toBeDefined();
-		expect(mem.tryResolve("retrieval::retrieve_1::mirror")).toBeDefined();
+		// QA F-9 (2026-04-30): the per-call `mirror` effect was dropped along
+		// with the shared `retrieval` / `retrievalTrace` state mirrors. The
+		// per-call subgraph now contains only `context`, `result`, `projection`.
 		expect(mem.tryResolve("retrieval::retrieve_1::context")).toBeDefined();
 
 		// Updating qA must not stomp qB's projection cache (independent mirrors).
@@ -1751,7 +1751,6 @@ describe("patterns.ai.agentMemory", () => {
 		});
 
 		expect(mem.retrieveReactive).not.toBeNull();
-		expect(mem.retrievalTrace).not.toBeNull();
 
 		// Execute a retrieval query reactively. C1: imperative `retrieve()`
 		// dropped — wrap a one-shot query in a reactive node and read the
@@ -1785,7 +1784,15 @@ describe("patterns.ai.agentMemory", () => {
 		});
 		const r = mem.retrieveReactive!(q);
 		const unsub = r.subscribe(() => {});
-		const trace = mem.retrievalTrace!.cache;
+		// /qa F-9 (2026-04-30): the shared `retrievalTrace` mirror was
+		// dropped. The per-call `result` derived (upstream of `projection`)
+		// still carries `{ packed, trace }`. Resolve it via the per-call
+		// subgraph mount path: `retrieval::retrieve_${seq}::result`.
+		const resultNode = mem.resolve("retrieval::retrieve_1::result");
+		const resultCache = resultNode.cache as
+			| { packed: ReadonlyArray<unknown>; trace: unknown }
+			| undefined;
+		const trace = resultCache?.trace as Record<string, unknown> | null | undefined;
 		if (trace) {
 			expect(trace).toHaveProperty("vectorCandidates");
 			expect(trace).toHaveProperty("graphExpanded");
