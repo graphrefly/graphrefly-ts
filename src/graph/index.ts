@@ -3,6 +3,29 @@
  */
 
 export { OVERHEAD as SIZEOF_OVERHEAD, SIZEOF_SYMBOL, sizeof } from "../extra/utils/sizeof.js";
+export type {
+	GraphChange,
+	GraphChangeBatchEnd,
+	GraphChangeBatchStart,
+	GraphChangeComplete,
+	GraphChangeData,
+	GraphChangeDirty,
+	GraphChangeEnvelope,
+	GraphChangeError,
+	GraphChangeInvalidate,
+	GraphChangeMount,
+	GraphChangeNodeAdded,
+	GraphChangeNodeRemoved,
+	GraphChangePause,
+	GraphChangeResolved,
+	GraphChangeResubscribe,
+	GraphChangeResume,
+	GraphChangeSnapshot,
+	GraphChangeTeardown,
+	GraphChangeTrace,
+	GraphChangeType,
+	GraphChangeUnmount,
+} from "./changeset.js";
 export {
 	createDagCborCodec,
 	createDagCborZstdCodec,

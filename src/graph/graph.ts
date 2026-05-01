@@ -42,9 +42,25 @@ import type { StorageHandle } from "../extra/storage-core.js";
 import type { SnapshotStorageTier } from "../extra/storage-tiers.js";
 import { ResettableTimer } from "../extra/timer.js";
 import { RingBuffer } from "../extra/utils/ring-buffer.js";
+import type {
+	GraphChange,
+	GraphChangeBatchEnd,
+	GraphChangeBatchStart,
+	GraphChangeComplete,
+	GraphChangeData,
+	GraphChangeDirty,
+	GraphChangeError,
+	GraphChangeMount,
+	GraphChangeNodeAdded,
+	GraphChangeNodeRemoved,
+	GraphChangeResolved,
+	GraphChangeTeardown,
+	GraphChangeUnmount,
+} from "./changeset.js";
 import { decodeEnvelope, encodeEnvelope, type GraphCodec } from "./codec.js";
 import { type CausalChain, type CausalStep, explainPath } from "./explain.js";
 import { type GraphProfileOptions, type GraphProfileResult, graphProfile } from "./profile.js";
+import { watchTopologyTree } from "./topology-tree.js";
 
 /** The separator used for qualified paths in {@link Graph.resolve} et al. */
 const PATH_SEP = "::";
@@ -1019,6 +1035,36 @@ export type ObserveOptions = {
 	reactive?: boolean;
 	/** Optional name for the reactive changeset node when `reactive: true`. */
 	reactiveName?: string;
+	/**
+	 * Tier 1.5.D2 — return a `Node<GraphChange>` that emits one DATA per
+	 * discrete graph change event (data flow, topology, batch boundaries).
+	 *
+	 * Disjoint from `reactive: true` (which returns coalesced
+	 * `ObserveChangeset`s of `ObserveEvent`s) — `changeset: true` emits a
+	 * different stream shape. The two modes are not combinable in one call;
+	 * setting both throws.
+	 *
+	 * Each event is a {@link GraphChange} carrying a common envelope
+	 * (`version`, `timestamp_ns`, `scope`) plus variant-specific payload.
+	 * Variants:
+	 * - **Core data flow:** `data` (with `fromPath` + `fromDepIndex` edge
+	 *   attribution), `dirty`, `resolved`, `error`, `complete`, `teardown`.
+	 * - **Topology:** `node-added`, `node-removed`, `mount`, `unmount`.
+	 * - **Batch boundaries:** `batch-start`, `batch-end`. A `batch-start`
+	 *   precedes the first event inside a batch; `batch-end` follows the
+	 *   last event when the batch flushes.
+	 *
+	 * The envelope shape is forward-compatible with post-1.0 store-level
+	 * `StoreOp` variants (§8.7 Delta checkpoints & WAL) — adding more
+	 * variants is a non-breaking append.
+	 *
+	 * Designed as the input layer for `topologyView` (Tier 1.5.D3): combine
+	 * `node-added` / `node-removed` for layout invalidation with `data` events
+	 * for per-frame edge highlighting.
+	 */
+	changeset?: boolean;
+	/** Optional name for the changeset node when `changeset: true`. */
+	changesetName?: string;
 
 	// ——— Format / logging (merged from spy) ———
 
@@ -3177,7 +3223,20 @@ export class Graph {
 	 *
 	 * `ObserveResult` is also an `AsyncIterable<ObserveEvent>` — use
 	 * `for await (const ev of result)` for pull-based consumption.
+	 *
+	 * **Reactive variants:**
+	 * - `observe({ reactive: true })` — returns `Node<ObserveChangeset>`,
+	 *   coalescing all observed events for one outermost batch flush into a
+	 *   single `ObserveChangeset` DATA wave.
+	 * - `observe({ changeset: true })` — returns `Node<GraphChange>`, emitting
+	 *   one DATA per discrete change (data flow + topology + batch boundaries)
+	 *   with edge attribution (`fromPath` + `fromDepIndex`) on each `data`
+	 *   event. Designed as the input layer for `topologyView` (D2 — Three-
+	 *   layer view, see `docs/optimizations.md`). Mutually exclusive with
+	 *   `reactive: true`.
 	 */
+	observe(path: string, options: ObserveOptions & { changeset: true }): Node<GraphChange>;
+	observe(options: ObserveOptions & { changeset: true }): Node<GraphChange>;
 	observe(path: string, options: ObserveOptions & { reactive: true }): Node<ObserveChangeset>;
 	observe(options: ObserveOptions & { reactive: true }): Node<ObserveChangeset>;
 	observe(path: string, options?: ObserveOptions & StructuredTriggers): ObserveResult;
@@ -3187,10 +3246,26 @@ export class Graph {
 	observe(
 		pathOrOpts?: string | ObserveOptions,
 		options?: ObserveOptions,
-	): GraphObserveOne | GraphObserveAll | ObserveResult | Node<ObserveChangeset> {
+	):
+		| GraphObserveOne
+		| GraphObserveAll
+		| ObserveResult
+		| Node<ObserveChangeset>
+		| Node<GraphChange> {
 		const isPath = typeof pathOrOpts === "string";
 		const rawOpts = isPath ? options : (pathOrOpts as ObserveOptions | undefined);
 		const resolved = resolveObserveDetail(rawOpts);
+		// Changeset variant — discrete `GraphChange` events with edge
+		// attribution + topology + batch boundaries. Disjoint from
+		// `reactive: true` (different stream shape).
+		if (resolved.changeset === true) {
+			if (resolved.reactive === true) {
+				throw new TypeError(
+					"Graph.observe(): `changeset: true` and `reactive: true` are mutually exclusive — pick one stream shape.",
+				);
+			}
+			return this._observeChangeset(isPath ? (pathOrOpts as string) : undefined, resolved);
+		}
 		// Reactive variant — coalesces all observed events for a batch into one
 		// `ObserveChangeset` DATA per batch flush. Auto-uses the structured
 		// observer for {@link ObserveEvent} access; tier filter (if set) applies.
@@ -3345,6 +3420,274 @@ export class Graph {
 				name,
 				describeKind: "producer",
 				meta: { domain: "audit", kind: "observe-reactive" } as const,
+			},
+		);
+	}
+
+	/**
+	 * Tier 1.5.D2 — discrete `GraphChange` stream.
+	 *
+	 * Returns a `Node<GraphChange>` that emits one DATA per change event.
+	 * Variants:
+	 * - **Core data flow** — `data` (with `fromPath`/`fromDepIndex`),
+	 *   `dirty`, `resolved`, `error`, `complete`, `teardown`. Sourced from
+	 *   per-node subscriptions over the picked observe targets.
+	 * - **Topology** — `node-added`, `node-removed`, `mount`, `unmount`.
+	 *   Sourced from `watchTopologyTree` — covers transitive nested mounts.
+	 * - **Batch boundaries** — `batch-start` / `batch-end` wrap each
+	 *   delivery wave (the per-`(msgs)` sink callback). Inside an explicit
+	 *   `batch(() => …)`, the runtime delivers each upstream node's
+	 *   coalesced multi-message batch as one wave; each such wave gets one
+	 *   batch-start / batch-end pair on this stream. Outside a batch (sync
+	 *   single-emit path), no boundary events fire.
+	 *
+	 * `version` is a per-stream monotonic counter (sourced via the V0 version
+	 * convention from `core/versioning.ts`). `timestamp_ns` is from
+	 * `core/clock.ts` `monotonicNs()`. `scope` is the qualified path the change
+	 * applies to; for batch boundaries, `scope = ""` (graph-level).
+	 *
+	 * Cleanup is producer-bound: every per-node subscription + the topology
+	 * watcher tear down when the last consumer of the returned node
+	 * unsubscribes.
+	 */
+	private _observeChangeset(
+		path: string | undefined,
+		options: ObserveOptions,
+	): Node<GraphChange> {
+		const name = options.changesetName ?? "observe-changeset";
+		const tierSet = options.tiers != null ? new Set(options.tiers) : null;
+		// Subscribe directly to picked targets (no inner structured observer)
+		// so the per-target sink callback boundary defines a delivery wave —
+		// each wave gets exactly one batch-start / batch-end pair. Topology
+		// events flow through `watchTopologyTree`, which surfaces the same
+		// per-emission boundary via the topology producer's own sink.
+		return node<GraphChange>(
+			(_data, actions) => {
+				let disposed = false;
+				let version = 0;
+				const stamp = (
+					scope: string,
+				): { version: number; timestamp_ns: number; scope: string } => ({
+					version: version++,
+					timestamp_ns: monotonicNs(),
+					scope,
+				});
+
+				type Envelope = { version: number; timestamp_ns: number; scope: string };
+
+				const emitNow = (build: (env: Envelope) => GraphChange, scope: string): void => {
+					if (disposed) return;
+					actions.emit(build(stamp(scope)));
+				};
+
+				const inTier = (type: GraphChange["type"]): boolean =>
+					tierSet == null || tierSet.has(type as ObserveEvent["type"]);
+
+				/**
+				 * Wrap a sink-loop body in a batch-start/batch-end pair when the
+				 * current call site is batching (`isBatching()` true), otherwise
+				 * deliver synchronously without boundary events. The body runs
+				 * once and emits zero or more events via `emitOne`.
+				 */
+				const wrapWave = (body: (emitOne: typeof emitNow) => void): void => {
+					if (disposed) return;
+					if (!isBatching()) {
+						body(emitNow);
+						return;
+					}
+					let opened = false;
+					const open = (): void => {
+						if (opened) return;
+						opened = true;
+						emitNow((env) => ({ type: "batch-start", ...env }) satisfies GraphChangeBatchStart, "");
+					};
+					const wrappedEmit = (build: (env: Envelope) => GraphChange, scope: string): void => {
+						if (disposed) return;
+						open();
+						emitNow(build, scope);
+					};
+					body(wrappedEmit);
+					if (opened) {
+						emitNow((env) => ({ type: "batch-end", ...env }) satisfies GraphChangeBatchEnd, "");
+					}
+				};
+
+				// ---- Build the observe-target reverse index for `fromPath`
+				// resolution. Walk the same tree the structured observer walks
+				// (sorted, with nested mount prefixes). The map is rebuilt only
+				// at activation time — for fully dynamic upstream attribution
+				// we fall back to `node.name` when the upstream isn't a known
+				// observe target (e.g. an internal sub-node from a factory).
+				const targets: [string, Node][] = [];
+				this._collectObserveTargets("", targets);
+				const nodeToPath = new WeakMap<Node, string>();
+				for (const [p, nd] of targets) nodeToPath.set(nd, p);
+
+				const actor = options.actor;
+				const picked =
+					actor == null ? targets : targets.filter(([, nd]) => nd.allowsObserve(actor));
+				const filteredByPath: [string, Node][] = path != null
+					? picked.filter(([p]) => p === path)
+					: picked;
+
+				// Inspector hooks (causal trace) — mirror the structured
+				// observer's `attachInspector` to capture `trigger_dep_index`
+				// per data emission.
+				const inspectorOn = this.config.inspectorEnabled;
+				const lastTriggerDepIndex = new Map<Node, number>();
+				const inspectorDetaches: Array<() => void> = [];
+				if (inspectorOn) {
+					for (const [, target] of filteredByPath) {
+						if (!(target instanceof NodeImpl)) continue;
+						const detach = target._setInspectorHook((ev) => {
+							if (ev.kind === "dep_message") {
+								lastTriggerDepIndex.set(target, ev.depIndex);
+							}
+						});
+						inspectorDetaches.push(detach);
+					}
+				}
+
+				const unsubs: Array<() => void> = [];
+				for (const [targetPath, target] of filteredByPath) {
+					unsubs.push(
+						target.subscribe((msgs) => {
+							if (disposed) return;
+							wrapWave((emitOne) => {
+								for (const m of msgs) {
+									const t = m[0];
+									if (t === DATA) {
+										if (!inTier("data")) continue;
+										const triggerIdx =
+											target instanceof NodeImpl
+												? lastTriggerDepIndex.get(target)
+												: undefined;
+										let fromPath = targetPath;
+										let fromDepIndex = -1;
+										if (
+											target instanceof NodeImpl &&
+											triggerIdx != null &&
+											triggerIdx >= 0 &&
+											triggerIdx < target._deps.length
+										) {
+											const upstream = target._deps[triggerIdx]?.node;
+											fromDepIndex = triggerIdx;
+											if (upstream != null) {
+												fromPath =
+													nodeToPath.get(upstream) ??
+													(upstream.name ?? targetPath);
+											}
+										}
+										const attribution =
+											target instanceof NodeImpl
+												? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+												: DEFAULT_ACTOR;
+										const value = m[1];
+										emitOne(
+											(env): GraphChangeData => ({
+												type: "data",
+												value,
+												fromPath,
+												fromDepIndex,
+												actor: attribution,
+												...env,
+											}),
+											targetPath,
+										);
+									} else if (t === DIRTY) {
+										if (!inTier("dirty")) continue;
+										emitOne(
+											(env): GraphChangeDirty => ({ type: "dirty", ...env }),
+											targetPath,
+										);
+									} else if (t === RESOLVED) {
+										if (!inTier("resolved")) continue;
+										emitOne(
+											(env): GraphChangeResolved => ({ type: "resolved", ...env }),
+											targetPath,
+										);
+									} else if (t === ERROR) {
+										if (!inTier("error")) continue;
+										const attribution =
+											target instanceof NodeImpl
+												? (target.lastMutation?.actor ?? DEFAULT_ACTOR)
+												: DEFAULT_ACTOR;
+										const errVal = m[1];
+										emitOne(
+											(env): GraphChangeError => ({
+												type: "error",
+												error: errVal,
+												actor: attribution,
+												...env,
+											}),
+											targetPath,
+										);
+									} else if (t === COMPLETE) {
+										if (!inTier("complete")) continue;
+										emitOne(
+											(env): GraphChangeComplete => ({ type: "complete", ...env }),
+											targetPath,
+										);
+									} else if (t === TEARDOWN) {
+										if (!inTier("teardown")) continue;
+										emitOne(
+											(env): GraphChangeTeardown => ({ type: "teardown", ...env }),
+											targetPath,
+										);
+									}
+									// PAUSE / RESUME / INVALIDATE: reserved future
+									// variants — current implementation skips them.
+								}
+							});
+						}),
+					);
+				}
+
+				// ---- Topology events via watchTopologyTree ----
+				// Transitive: covers the root graph + every mounted child
+				// (including children mounted/unmounted dynamically). Names
+				// arrive as `event.name`; `prefix` is the qualified prefix
+				// from the root, so `prefix + name` is the full scope path.
+				const offTopology = watchTopologyTree(this, (event, _emitter, prefix) => {
+					if (disposed) return;
+					const qualified = `${prefix}${event.name}`;
+					wrapWave((emitOne) => {
+						if (event.kind === "added") {
+							if (event.nodeKind === "node") {
+								emitOne(
+									(env): GraphChangeNodeAdded => ({ type: "node-added", ...env }),
+									qualified,
+								);
+							} else {
+								emitOne((env): GraphChangeMount => ({ type: "mount", ...env }), qualified);
+							}
+						} else {
+							if (event.nodeKind === "node") {
+								emitOne(
+									(env): GraphChangeNodeRemoved => ({ type: "node-removed", ...env }),
+									qualified,
+								);
+							} else {
+								emitOne(
+									(env): GraphChangeUnmount => ({ type: "unmount", ...env }),
+									qualified,
+								);
+							}
+						}
+					});
+				});
+
+				return () => {
+					disposed = true;
+					for (const u of unsubs) u();
+					for (const d of inspectorDetaches) d();
+					offTopology();
+				};
+			},
+			{
+				name,
+				describeKind: "producer",
+				meta: { domain: "audit", kind: "observe-changeset" } as const,
 			},
 		);
 	}

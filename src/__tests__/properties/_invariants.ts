@@ -4547,6 +4547,306 @@ const invariant67GraphNarrowWaistOptionsFlowThrough: Invariant = {
 		),
 };
 
+/**
+ * #68 — graph-changeset-data-edge-attribution (D2 — Three-layer view).
+ *
+ * For every `data` event on the changeset stream, `fromPath` + `fromDepIndex`
+ * correctly attribute the upstream edge that delivered the value:
+ *   - For source nodes (no upstream deps), `fromPath === scope` and
+ *     `fromDepIndex === -1`.
+ *   - For derived nodes triggered by a tracked dep, `fromPath` is the upstream
+ *     dep's qualified observe path and `fromDepIndex` is its index in the
+ *     scoped node's `_deps` array.
+ *
+ * Topology: K state sources `s_0…s_{K-1}` feed one `derived("d", [s_0…])`.
+ * Drive: emit on a random source; assert the next data event for `d`
+ * attributes `fromPath = "s_i"` and `fromDepIndex = i` for the source picked.
+ */
+const invariant68ChangesetDataEdgeAttribution: Invariant = {
+	name: "graph-changeset-data-edge-attribution",
+	description:
+		"On `Graph.observe({ changeset: true })`, every `data` event for a derived node attributes the upstream edge via fromPath + fromDepIndex; source-node data events use fromDepIndex: -1.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.integer({ min: 1, max: 4 }),
+			fc.array(fc.nat(3), { minLength: 1, maxLength: 6 }),
+			(numStates, drives) => {
+				const g = new Graph("inv-cs-attr");
+				try {
+					const sources: Node<number>[] = [];
+					const sourceNames: string[] = [];
+					for (let i = 0; i < numStates; i++) {
+						const name = `s${i}`;
+						const s = node<number>([], { name, initial: 0, equals: () => false });
+						g.add(s, { name });
+						sources.push(s);
+						sourceNames.push(name);
+					}
+					g.derived("d", sourceNames, (data, ctx) => {
+						const vals = latestVals(data, ctx) as number[];
+						return [vals.reduce((a, b) => a + b, 0)];
+					});
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					// Activate so the subscription chain is live.
+					g.node("d").subscribe(() => {});
+					events.length = 0;
+
+					for (const drive of drives) {
+						const idx = drive % numStates;
+						g.set(`s${idx}`, drive + 1);
+						const dataForD = events.filter((e) => e.type === "data" && e.scope === "d");
+						const dataForSource = events.filter(
+							(e) => e.type === "data" && e.scope === `s${idx}`,
+						);
+						// Source data event: fromDepIndex must be -1.
+						for (const ev of dataForSource) {
+							if (ev.type !== "data") return false;
+							if (ev.fromDepIndex !== -1) return false;
+							if (ev.fromPath !== `s${idx}`) return false;
+						}
+						// Derived data event: fromDepIndex must point at the
+						// driven source.
+						const lastDerived = dataForD.at(-1);
+						if (lastDerived != null) {
+							if (lastDerived.type !== "data") return false;
+							if (lastDerived.fromPath !== `s${idx}`) return false;
+							if (lastDerived.fromDepIndex !== idx) return false;
+						}
+						events.length = 0;
+					}
+					off();
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #69 — graph-changeset-version-monotonic (D2 — Three-layer view).
+ *
+ * `Graph.observe({ changeset: true })` emits events whose envelope `version`
+ * counter is strictly monotonic across all variants — data, dirty, resolved,
+ * error, complete, teardown, batch-start, batch-end, and topology events.
+ * The invariant holds across an arbitrary mix of explicit `batch()` calls,
+ * topology mutations (add/remove), and value emissions.
+ */
+const invariant69ChangesetVersionMonotonic: Invariant = {
+	name: "graph-changeset-version-monotonic",
+	description:
+		"All events from a single `Graph.observe({ changeset: true })` handle have strictly increasing envelope.version stamps.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(
+				fc.oneof(
+					fc.record({ kind: fc.constant("emit" as const), value: fc.integer() }),
+					fc.record({
+						kind: fc.constant("batch" as const),
+						values: fc.array(fc.integer(), { minLength: 1, maxLength: 4 }),
+					}),
+					fc.record({ kind: fc.constant("addNode" as const), nameSeq: fc.nat(50) }),
+				),
+				{ minLength: 1, maxLength: 12 },
+			),
+			(ops) => {
+				const g = new Graph("inv-cs-ver");
+				try {
+					const root = node<number>([], { name: "root", initial: 0, equals: () => false });
+					g.add(root, { name: "root" });
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					const used = new Set<string>(["root"]);
+					for (const op of ops) {
+						if (op.kind === "emit") {
+							g.set("root", op.value);
+						} else if (op.kind === "batch") {
+							batch(() => {
+								for (const v of op.values) g.set("root", v);
+							});
+						} else {
+							const newName = `n_${op.nameSeq}_${used.size}`;
+							if (used.has(newName)) continue;
+							used.add(newName);
+							g.add(node([], { name: newName, initial: 0 }), { name: newName });
+						}
+					}
+					off();
+					for (let i = 1; i < events.length; i++) {
+						if (events[i].version <= events[i - 1].version) return false;
+					}
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #70 — graph-changeset-batch-frame-pairing (D2 — Three-layer view).
+ *
+ * Every `batch-start` event on the changeset stream is matched by a
+ * subsequent `batch-end` whose `version` is strictly greater. Frames are
+ * non-overlapping (no nested batch-start before the previous batch-end).
+ * Every event between a batch-start and its batch-end has a `version`
+ * strictly within the pair's bounds.
+ */
+const invariant70ChangesetBatchFramePairing: Invariant = {
+	name: "graph-changeset-batch-frame-pairing",
+	description:
+		"`batch-start` and `batch-end` events on the changeset stream pair up — equal counts, non-overlapping, and every interleaved event lies within its enclosing pair's version range.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(fc.array(fc.integer(), { minLength: 1, maxLength: 3 }), {
+				minLength: 1,
+				maxLength: 5,
+			}),
+			(batches) => {
+				const g = new Graph("inv-cs-frame");
+				try {
+					const a = node<number>([], { name: "a", initial: 0, equals: () => false });
+					const b = node<number>([], { name: "b", initial: 0, equals: () => false });
+					g.add(a, { name: "a" });
+					g.add(b, { name: "b" });
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					events.length = 0;
+					for (const vals of batches) {
+						batch(() => {
+							for (let i = 0; i < vals.length; i++) {
+								(i % 2 === 0 ? a : b).emit(vals[i]);
+							}
+						});
+					}
+					off();
+
+					// Walk events: maintain a stack of open frame versions.
+					let openVersion: number | null = null;
+					for (const ev of events) {
+						if (ev.type === "batch-start") {
+							if (openVersion != null) return false; // nested
+							openVersion = ev.version;
+						} else if (ev.type === "batch-end") {
+							if (openVersion == null) return false; // unmatched
+							if (ev.version <= openVersion) return false; // bs < be
+							openVersion = null;
+						} else {
+							// Every non-boundary event inside a frame must lie
+							// within the frame's bounds (it's already after
+							// batch-start since events are version-monotonic;
+							// but it must precede batch-end too — which we
+							// can only check post-hoc). Skip here; the
+							// version-monotonic invariant pins ordering.
+						}
+					}
+					if (openVersion != null) return false; // unclosed frame
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
+
+/**
+ * #71 — graph-changeset-topology-lifecycle (D2 — Three-layer view).
+ *
+ * Topology variants on the changeset stream fire at the right lifecycle
+ * moments: `node-added` for `Graph.add`, `node-removed` for
+ * `Graph.remove(name)` of a registered node, `mount` for `Graph.mount`, and
+ * `unmount` for `Graph.remove(name)` of a mounted subgraph. The qualified
+ * `scope` matches the path the change applies to.
+ */
+const invariant71ChangesetTopologyLifecycle: Invariant = {
+	name: "graph-changeset-topology-lifecycle",
+	description:
+		"Topology events on the changeset stream — node-added, node-removed, mount, unmount — correspond 1:1 with Graph.add / Graph.remove / Graph.mount lifecycle calls and carry the qualified path as scope.",
+	specRef: "docs/optimizations.md § D — Three-layer view (D2)",
+	property: () =>
+		fc.property(
+			fc.array(
+				fc.oneof(
+					fc.record({ kind: fc.constant("addNode" as const), seq: fc.nat(20) }),
+					fc.record({ kind: fc.constant("addMount" as const), seq: fc.nat(20) }),
+				),
+				{ minLength: 1, maxLength: 6 },
+			),
+			(ops) => {
+				const g = new Graph("inv-cs-topo");
+				try {
+					const changesetNode = g.observe({ changeset: true });
+					const events: GraphChange[] = [];
+					const off = changesetNode.subscribe((msgs) => {
+						for (const m of msgs) {
+							if (m[0] === DATA) events.push(m[1] as GraphChange);
+						}
+					});
+					events.length = 0;
+
+					const addedNodes: string[] = [];
+					const addedMounts: string[] = [];
+					const usedNames = new Set<string>();
+					for (const op of ops) {
+						if (op.kind === "addNode") {
+							const name = `n_${op.seq}_${usedNames.size}`;
+							if (usedNames.has(name)) continue;
+							usedNames.add(name);
+							g.add(node([], { name, initial: 0 }), { name });
+							addedNodes.push(name);
+						} else {
+							const name = `m_${op.seq}_${usedNames.size}`;
+							if (usedNames.has(name)) continue;
+							usedNames.add(name);
+							const child = new Graph(name);
+							g.mount(name, child);
+							addedMounts.push(name);
+						}
+					}
+					// Verify node-added / mount events correspond.
+					for (const n of addedNodes) {
+						if (!events.some((e) => e.type === "node-added" && e.scope === n)) return false;
+					}
+					for (const m of addedMounts) {
+						if (!events.some((e) => e.type === "mount" && e.scope === m)) return false;
+					}
+					// Tear down each and verify removal events.
+					events.length = 0;
+					for (const n of addedNodes) g.remove(n);
+					for (const m of addedMounts) g.remove(m);
+					for (const n of addedNodes) {
+						if (!events.some((e) => e.type === "node-removed" && e.scope === n)) return false;
+					}
+					for (const m of addedMounts) {
+						if (!events.some((e) => e.type === "unmount" && e.scope === m)) return false;
+					}
+					off();
+					return true;
+				} finally {
+					g.destroy();
+				}
+			},
+		),
+};
 // ---------------------------------------------------------------------------
 // Dropped TLC mirrors (tracked in docs/optimizations.md "Remaining rigor-infra
 // follow-ons"):
@@ -4647,6 +4947,10 @@ export const INVARIANTS: readonly Invariant[] = [
 	invariant65GraphDerivedMultiEmitArray,
 	invariant66GraphDerivedEmptyArrayResolved,
 	invariant67GraphNarrowWaistOptionsFlowThrough,
+	invariant68ChangesetDataEdgeAttribution,
+	invariant69ChangesetVersionMonotonic,
+	invariant70ChangesetBatchFramePairing,
+	invariant71ChangesetTopologyLifecycle,
 ];
 
 // Enforce name uniqueness — the registry doubles as the LLM-readable contract
