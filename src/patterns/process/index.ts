@@ -38,11 +38,11 @@ import {
 import { valve } from "../../extra/operators/control.js";
 import { mergeMap } from "../../extra/operators/higher-order.js";
 import type { ReactiveLogBundle } from "../../extra/reactive-log.js";
+import type { StatusValue } from "../../extra/resilience/status.js";
 import {
 	firstWhere,
 	fromAny,
 	fromIter,
-	fromPromise,
 	fromTimer,
 	type NodeInput,
 } from "../../extra/sources.js";
@@ -297,16 +297,22 @@ export interface ProcessManagerResult<TState> {
 	 */
 	getState(correlationId: string): TState | undefined;
 	/**
-	 * Reactive lifecycle of the restore pipeline. Starts at `"pending"`,
-	 * flips to `"ready"` once snapshot loads complete (or immediately when
-	 * no `stateStorage` is configured), and flips to `"disposed"` on
-	 * {@link dispose}. Watched events are valve-gated on this node:
-	 * dispatch is blocked while `restoreState !== "ready"`.
+	 * Reactive lifecycle of the restore pipeline. Typed as the central
+	 * {@link StatusValue} enum (`"pending" | "running" | "completed" | "errored"`);
+	 * the process-manager restore state machine currently emits the `"pending"`
+	 * and `"completed"` literals only — `"running"` / `"errored"` reserved
+	 * for future fine-grained restore observability. Starts at `"pending"`,
+	 * flips to `"completed"` once snapshot loads complete (or immediately when
+	 * no `stateStorage` is configured). On {@link dispose}, the node receives
+	 * TEARDOWN via the standard subgraph teardown cascade — there is no
+	 * `"disposed"` literal; consumers detect tear-down via subscription
+	 * COMPLETE on {@link dispose}. Watched events are valve-gated on this
+	 * node: dispatch is blocked while `restoreState !== "completed"`.
 	 *
 	 * Exposed for observability and tests. Subscribers can compose
 	 * `derived([restoreState], …)` to build their own gates / readouts.
 	 */
-	readonly restoreState: Node<"pending" | "ready" | "disposed">;
+	readonly restoreState: Node<StatusValue>;
 	/**
 	 * Trigger restoration of running instances from the first
 	 * {@link ProcessManagerOpts.persistence.stateStorage} tier (Tier 6.5
@@ -316,18 +322,22 @@ export interface ProcessManagerResult<TState> {
 	 * persisted before delete fired, are silently skipped.
 	 *
 	 * **Reactive composition (B5 — locked 2026-05-01):** internally,
-	 * `tier.list()` and `tier.load()` are wrapped in `fromPromise` sources;
-	 * a `mergeMap` flattens per-key load results; an `effect` populates
-	 * closure state and flips {@link restoreState} to `"ready"` on the
-	 * `COMPLETE` boundary. No `await` inside the reactive interior — the
-	 * single async boundary is the returned `Promise<void>`, which resolves
-	 * when {@link restoreState} transitions to `"ready"` (or `"disposed"`,
-	 * if `dispose()` interrupts restoration).
+	 * `tier.list()` and `tier.load()` are wrapped in `fromAny` sources
+	 * (handles sync values, Promises, async iterables, and existing Nodes
+	 * uniformly per `~/src/graphrefly/COMPOSITION-GUIDE.md` §3 source
+	 * bridging); a `mergeMap` flattens per-key load results; an `effect`
+	 * populates closure state and flips {@link restoreState} to
+	 * `"completed"` on the `COMPLETE` boundary. No `await` inside the
+	 * reactive interior — the single async boundary is the returned
+	 * `Promise<void>`, which resolves when {@link restoreState} transitions
+	 * to `"completed"` OR when {@link dispose} tears down the restore node
+	 * (in which case `firstWhere`'s COMPLETE-rejection is swallowed and
+	 * the promise resolves to `undefined`).
 	 *
 	 * Idempotent — calling twice subscribes to the same restore pipeline
 	 * and resolves on the same gate flip. No-op when no `stateStorage`
 	 * tier is configured OR the first tier lacks a `list?` method:
-	 * `restoreState` flips to `"ready"` immediately so watches can arm.
+	 * `restoreState` flips to `"completed"` immediately so watches can arm.
 	 *
 	 * **Auto-restore default.** With `deferRestore: false` (the default),
 	 * the factory invokes `restore()` once at construction so callers do
@@ -341,9 +351,12 @@ export interface ProcessManagerResult<TState> {
 	 * After `dispose()`, subsequent `start()` and `cancel()` calls are no-ops.
 	 * In-flight async steps complete naturally; no new steps are dispatched.
 	 *
-	 * Flips {@link restoreState} to `"disposed"` so any pending `restore()`
-	 * promise resolves immediately and the watch valve closes (no further
-	 * dispatch even if a `fromPromise(tier.load…)` would resolve later).
+	 * Tears down the {@link restoreState} node via the standard subgraph
+	 * teardown cascade. Any pending `restore()` Promise resolves (the
+	 * COMPLETE-rejection from `firstWhere` is swallowed at the API edge);
+	 * the watch valve closes via TEARDOWN propagation; no further dispatch
+	 * even if a `fromAny(tier.load…)` would resolve later (the per-key
+	 * load source's cleanup sets `settled = true`, dropping the late DATA).
 	 */
 	dispose(): void;
 }
@@ -901,42 +914,47 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	}
 
 	// C3: disposal flag — set true by dispose(); gates start() and cancel().
-	// (Single source of truth for "alive": `restoreState.cache !== "disposed"`.
-	// `_disposed` mirrors that gate so synchronous start/cancel guards do not
-	// reach into the reactive layer just to check liveness.)
+	// Synchronous liveness check used by start() / cancel() to avoid
+	// reaching into the reactive layer (and to short-circuit before the
+	// teardown cascade has propagated through restoreState).
 	let _disposed = false;
 
-	// ── Restore lifecycle state (B5 — locked 2026-05-01) ─────────────────
-	// Single reactive lifecycle node:
-	//   "pending"  → constructed; restore not yet finished. Watched events
-	//                arrive at the source but are valve-blocked from reaching
-	//                step dispatch.
-	//   "ready"    → restoration complete. Watch valve is open; events
-	//                accumulated during "pending" are delivered as the latest
-	//                cumulative cqrs log array; the per-watch cursor catches
-	//                up to that array in one step.
-	//   "disposed" → dispose() ran. Watch valve closes; any pending restore
-	//                load that resolves later is ignored because the restore
-	//                effect tears down with the keepalive.
-	const restoreState = node<"pending" | "ready" | "disposed">([], {
+	// ── Restore lifecycle state (B5 — locked 2026-05-01; post-fix using
+	// central StatusValue enum 2026-05-01) ───────────────────────────────
+	// Reactive lifecycle node typed as the central StatusValue enum
+	// (`"pending" | "running" | "completed" | "errored"`). Currently emits
+	// the "pending" → "completed" subset only:
+	//   "pending"   → constructed; restore not yet finished. Watched events
+	//                 arrive at the source but are valve-blocked from
+	//                 reaching step dispatch.
+	//   "completed" → restoration complete. Watch valve is open; events
+	//                 accumulated during "pending" are delivered as the
+	//                 latest cumulative cqrs log array; the per-watch
+	//                 cursor catches up to that array in one step.
+	//   ("running" / "errored" reserved for future fine-grained restore
+	//    observability; not emitted today.)
+	// Disposal: no "disposed" literal — dispose() unmounts the subgraph
+	// which TEARDOWNs restoreState; the gateOpen valve closes via standard
+	// cascade; pending restore() Promise resolves via the .catch at the
+	// public API edge.
+	const restoreState = node<StatusValue>([], {
 		initial: "pending",
 		name: "restoreState",
 		describeKind: "state",
 	});
 	subgraph.add(restoreState, { name: "restoreState" });
 
-	// `gateOpen` is the valve control: true only while restoreState === "ready".
-	// Lazy: activates when the first valve subscribes.
+	// `gateOpen` is the valve control: true only while
+	// restoreState === "completed". Lazy: activates when the first valve
+	// subscribes.
 	const gateOpen = node<boolean>(
 		[restoreState as Node],
 		(data, a, ctx) => {
 			const batch0 = data[0];
 			const v = (batch0 != null && batch0.length > 0 ? batch0.at(-1) : ctx.prevData[0]) as
-				| "pending"
-				| "ready"
-				| "disposed"
+				| StatusValue
 				| undefined;
-			a.emit(v === "ready");
+			a.emit(v === "completed");
 		},
 		{ name: "gateOpen", describeKind: "derived" },
 	);
@@ -945,12 +963,12 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	// ── Watched event subscriptions (valve-gated) ────────────────────────
 	// COMPOSITION-GUIDE §28 cursor pattern + valve(eventNode, gateOpen):
 	// per watched event type, subscribe to a valve over the cqrs event
-	// stream. While restoreState !== "ready", valve emits RESOLVED so no
-	// DATA reaches the cursor — events are NOT lost; the cqrs event log
-	// retains them. When the gate flips open, valve re-emits the latest
-	// cumulative event array (control-only wave path inside `valve`); the
-	// cursor processes everything from `lastCount` (still 0 at that point)
-	// in one shot.
+	// stream. While restoreState !== "completed", valve emits RESOLVED so
+	// no DATA reaches the cursor — events are NOT lost; the cqrs event
+	// log retains them. When the gate flips open, valve re-emits the
+	// latest cumulative event array (control-only wave path inside
+	// `valve`); the cursor processes everything from `lastCount` (still
+	// 0 at that point) in one shot.
 	const watchDisposers: Array<() => void> = [];
 
 	for (const eventType of opts.watching) {
@@ -1107,20 +1125,24 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	}
 
 	/**
-	 * Reactive restore pipeline (B5 — locked 2026-05-01).
+	 * Reactive restore pipeline (B5 — locked 2026-05-01; post-fix using
+	 * fromAny + StatusValue 2026-05-01).
 	 *
 	 * `restoreSubscription` is the single keepalive over the snapshot-load
 	 * effect. Set on first `restore()` call (or on construction when
 	 * `deferRestore !== true`). The effect:
 	 *
-	 * 1. Subscribes to `mergeMap(fromPromise(tier.list()), keys =>
-	 *    mergeMap(fromIter(keys), key => fromPromise(tier.load(key))))` —
+	 * 1. Subscribes to `mergeMap(fromAny(tier.list()), keys =>
+	 *    mergeMap(fromIter(keys), key => fromAny(tier.load(key))))` —
 	 *    a fully reactive chain whose only async boundaries are the source
-	 *    `fromPromise` nodes (spec §5.10).
+	 *    `fromAny` nodes (spec §5.10). `fromAny` accepts sync values,
+	 *    Promises, async iterables, and existing Nodes — future-proof
+	 *    against tier impls that decide to expose paginated/streaming
+	 *    `list()` or batched `load()`.
 	 * 2. On each per-key load DATA, populates `instanceStates` /
 	 *    `activeInstances` / `startedAt` for `status === "running"` records.
 	 * 3. On `COMPLETE` (all loads finished), flips `restoreState` to
-	 *    `"ready"` — the watch valve opens, queued cqrs events become
+	 *    `"completed"` — the watch valve opens, queued cqrs events become
 	 *    deliverable, and any `firstWhere(restoreState …)` awaiter resolves.
 	 *
 	 * Idempotent: subsequent calls reuse the same subscription and resolve
@@ -1134,7 +1156,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		if (tier == null || tier.list == null || tier.load == null) {
 			// No snapshot tier — flip immediately so watches can arm.
 			// `restoreState` is a state node so write directly.
-			if (restoreState.cache !== "disposed") restoreState.emit("ready");
+			if (!_disposed) restoreState.emit("completed");
 			restoreSubscription = () => undefined;
 			return;
 		}
@@ -1142,9 +1164,17 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		const tierList = tier.list.bind(tier);
 
 		// Reactive source chain. `tier.list()` and `tier.load(key)` are the
-		// only async boundaries; both are wrapped in `fromPromise` so the
-		// entire downstream graph is sync-reactive.
-		const listSource = fromPromise<readonly string[]>(Promise.resolve(tierList()));
+		// only async boundaries; both are wrapped in `fromAny` so the
+		// entire downstream graph is sync-reactive AND tier impls can return
+		// sync / Promise / async iterable / Node uniformly. The
+		// `Promise.resolve(...)` wrapper coerces the input to a Thenable so
+		// `fromAny` always takes the `fromPromise` branch — required because
+		// today's tier shapes return either `T | Promise<T>` (and a sync
+		// snapshot object would otherwise hit `fromAny`'s scalar fallback,
+		// which has different activation timing). Drop the wrapper when a
+		// tier surfaces an async-iterable `list()` or `load()` and the
+		// caller wants stream semantics.
+		const listSource = fromAny<readonly string[]>(Promise.resolve(tierList()));
 		const flattened = mergeMap(listSource, (keys: readonly string[]) => {
 			if (keys.length === 0) {
 				// fromIter([]) emits no DATA, only COMPLETE — which propagates
@@ -1154,7 +1184,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			return mergeMap(
 				fromIter(keys),
 				(key) =>
-					fromPromise(Promise.resolve(tierLoad(key))) as Node<
+					fromAny(Promise.resolve(tierLoad(key))) as Node<
 						ProcessStateSnapshot<TState> | undefined
 					>,
 			);
@@ -1173,7 +1203,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 						// Mid-dispose safety (D5): if the manager was disposed
 						// while a load was in flight, skip the closure mutation
 						// so we don't repopulate state on a torn-down manager.
-						if (restoreState.cache === "disposed") continue;
+						if (_disposed) continue;
 						instanceStates.set(snap.correlationId, snap.state);
 						activeInstances.add(snap.correlationId);
 						startedAt.set(snap.correlationId, snap.startedAt);
@@ -1181,7 +1211,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				}
 				if (ctx.terminalDeps[0] === true) {
 					// All loads complete — open the watch valve.
-					if (restoreState.cache !== "disposed") restoreState.emit("ready");
+					if (!_disposed) restoreState.emit("completed");
 				}
 			},
 			{ name: "restoreEffect", describeKind: "effect" },
@@ -1192,29 +1222,36 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 
 	/**
 	 * Trigger restoration (idempotent) and return a Promise that resolves
-	 * when `restoreState` transitions to `"ready"` (or `"disposed"` —
-	 * dispose interrupts an in-flight restore and the caller's promise
-	 * settles immediately so it doesn't hang).
+	 * when `restoreState` transitions to `"completed"` OR when {@link dispose}
+	 * tears down the restore node (firstWhere's COMPLETE-rejection is
+	 * swallowed at the API edge so the caller's promise settles cleanly).
 	 */
 	function restore(): Promise<void> {
 		startRestorePipeline();
-		const cur = restoreState.cache;
-		if (cur === "ready" || cur === "disposed") return Promise.resolve();
-		// firstWhere is the canonical reactive→Promise bridge (spec §5.10):
+		if (_disposed) return Promise.resolve();
+		if (restoreState.cache === "completed") return Promise.resolve();
+		// firstWhere is the canonical reactive→Promise bridge (spec §5.10);
 		// async boundary lives at the public API edge, not in the graph.
-		return firstWhere(restoreState, (s) => s === "ready" || s === "disposed").then(() => undefined);
+		// .catch swallows COMPLETE-without-match (the dispose-tears-down case)
+		// so the public Promise resolves cleanly in both flows.
+		return firstWhere(restoreState, (s) => s === "completed")
+			.then(() => undefined)
+			.catch(() => undefined);
 	}
 
 	function dispose(): void {
 		if (_disposed) return;
 		_disposed = true;
-		// Flip restoreState first so the watch valve closes and any pending
-		// `restore()` awaiter unblocks (D5 — mid-dispose race fix). Skip if
-		// restoreState is already torn down (the subgraph unmount below
-		// fires TEARDOWN; emitting after that point is a no-op but the
-		// `.cache` guard inside restoreEffect stops state writes earlier).
-		if (restoreState.cache !== "disposed") restoreState.emit("disposed");
-		// Tear down the restore pipeline keepalive. fromPromise.cleanup sets
+		// Terminate restoreState explicitly via COMPLETE so any pending
+		// `firstWhere(restoreState, ...)` awaiter (i.e. a `restore()`
+		// Promise still waiting on the gate flip) settles. firstWhere
+		// rejects on COMPLETE-without-match; the .catch in `restore()`
+		// swallows that rejection and the public Promise resolves cleanly.
+		// (Subgraph TEARDOWN below would NOT settle firstWhere — TEARDOWN
+		// is tier-5 distinct from COMPLETE, and firstWhere only handles
+		// DATA / ERROR / COMPLETE.)
+		restoreState.down([[COMPLETE]]);
+		// Tear down the restore pipeline keepalive. fromAny.cleanup sets
 		// `settled = true`, so when the underlying tier.list/load promises
 		// finally resolve, the DATA never propagates — the closure mutations
 		// in `restoreEffect` are never invoked (D5 belt + suspenders).

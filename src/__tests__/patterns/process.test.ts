@@ -1014,10 +1014,10 @@ describe("processManager", () => {
 				},
 			});
 			// B5: restore() returns Promise<void> that resolves when
-			// restoreState transitions to "ready". The count of restored
+			// restoreState transitions to "completed". The count of restored
 			// instances is observable via getState() / restoreState.cache.
 			await pm2.restore();
-			expect(pm2.restoreState.cache).toBe("ready");
+			expect(pm2.restoreState.cache).toBe("completed");
 			// corr-A had advanced before restart; the persisted state reflects "advanced".
 			expect(pm2.getState("corr-A")).toEqual({ step: "advanced" });
 			expect(pm2.getState("corr-B")).toEqual({ step: "init" });
@@ -1188,7 +1188,7 @@ describe("processManager", () => {
 			expect(pm.restoreState.cache).toBe("pending");
 
 			// Resolve the load: snapshot arrives, restoreState flips to
-			// "ready", valve opens, the queued event is delivered, step runs.
+			// "completed", valve opens, the queued event is delivered, step runs.
 			loadResolver!({
 				correlationId: "corr-mid",
 				state: { n: 100 },
@@ -1197,7 +1197,7 @@ describe("processManager", () => {
 				updatedAt: 0,
 			});
 			await pm.restore();
-			expect(pm.restoreState.cache).toBe("ready");
+			expect(pm.restoreState.cache).toBe("completed");
 			await flushPromises();
 
 			expect(stepCallCount).toBe(1);
@@ -1209,7 +1209,7 @@ describe("processManager", () => {
 			app.destroy();
 		});
 
-		it("dispose() mid-restore — no post-dispose mutations; restoreState flips to 'disposed'", async () => {
+		it("dispose() mid-restore — no post-dispose mutations; restore() Promise resolves via teardown", async () => {
 			// Hold tier.load() open so restore() is pending when dispose() fires.
 			let loadResolver: ((v: ProcessStateSnapshot<{ n: number }>) => void) | undefined;
 			const loadPromise = new Promise<ProcessStateSnapshot<{ n: number }>>((res) => {
@@ -1238,19 +1238,25 @@ describe("processManager", () => {
 			expect(pm.restoreState.cache).toBe("pending");
 
 			// Kick off the public restore() promise — it should resolve
-			// when dispose() flips restoreState to "disposed" (not hang).
+			// when dispose() tears down restoreState (not hang). The
+			// firstWhere COMPLETE-rejection is swallowed at the API edge.
 			const restorePromise = pm.restore();
 
 			// dispose() while load is in flight.
 			pm.dispose();
-			expect(pm.restoreState.cache).toBe("disposed");
+			// restoreState stayed at "pending" (no transition fired before
+			// teardown); subsequent reads of `.cache` see the last-emitted
+			// value. The "alive" check uses the closure `_disposed` flag,
+			// not the reactive node — pre-empts the teardown cascade.
+			expect(pm.restoreState.cache).toBe("pending");
 
-			// restore() promise resolves (does NOT hang) on the disposed flip.
+			// restore() promise resolves (does NOT hang) via the .catch
+			// swallowing firstWhere's COMPLETE-rejection on teardown.
 			await restorePromise;
 
 			// Now resolve the load — the snapshot arrives, but the
 			// restoreEffect has been torn down by dispose() and the
-			// restoreState !== "disposed" guard inside the effect fires.
+			// `_disposed` guard inside the effect fires.
 			// No mutation to instanceStates / activeInstances.
 			loadResolver!({
 				correlationId: "corr-mid-dispose",
@@ -1298,9 +1304,9 @@ describe("processManager", () => {
 
 			await pm.restore();
 
-			// After restore() resolves, restoreState is "ready" and the
+			// After restore() resolves, restoreState is "completed" and the
 			// rehydrated instance is observable via getState().
-			expect(pm.restoreState.cache).toBe("ready");
+			expect(pm.restoreState.cache).toBe("completed");
 			expect(pm.getState("corr-R")).toEqual({ step: "loaded" });
 
 			pm.dispose();
