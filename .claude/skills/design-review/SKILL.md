@@ -183,7 +183,7 @@ For any **architectural** question that doesn't have a clear answer in the synth
 - **{Title} ({date}, design-review).** {Question}. Options: {A / B / C}. Tradeoff: {…}. Blocked on: {concrete consumer / spec clarification / further design pass}.
 ```
 
-Resolved decisions move to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log" (only after the user picks one).
+Resolved decisions move to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log" (only after the user picks one). When a design decision lands as part of a phase that fully completes, the matching `docs/implementation-plan.md` phase body should also be archived to `archive/roadmap/phase-<n>-*.jsonl` per `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/implementation-plan.md`" — flag this in the recommendation if the design under review closes out a phase.
 
 ---
 

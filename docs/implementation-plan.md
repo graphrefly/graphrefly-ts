@@ -781,83 +781,37 @@ Parked: PY parity (until 1.0); Path X (blocked); G10 (rewire-gap dependent); cod
 
 ---
 
-### Phase 11 — Cleanup batch (deferred-item roll-up)
+### Phase 11 — Cleanup batch (deferred-item roll-up) ✅ landed (2026-04-30) — DONE items archived
 
-Items below are pre-screened from `optimizations.md`. Each entry tags status as **NOW** (land in the cleanup batch), **WAIT** (genuinely consumer-driven; revisit when caller surfaces), or **POST-1.0** (defer past 1.0). `optimizations.md` remains the source of truth for per-item context — this section is the sequencer.
+DONE items from §11.1–§11.10 archived to [archive/roadmap/phase-11-cleanup.jsonl](../archive/roadmap/phase-11-cleanup.jsonl) (ids `phase-11.1-class-ab-migration-qa-carries` … `phase-11.10-operator-layer-resolved`). Headline landings: bridge `=== undefined` migration + topic-empty SENTINEL fix (EC2/EC7); `${name}-state` separator (EC17); `TopicGraph` self-resolve fix; partial:false withLatestFrom regression tests (P11.5-D1); `maxInflight` per-stage cap (R3.1); `Graph._destroyClearOnly` disposer drain (EH-2); `wrapMutation` migration for `processManager` + messaging (γ-7-A, R2.6); rateLimiter/breaker/timeout/retry/fallback reactive-options widening (R3.2) + `meta` forwarding (D8) + `rateLimitState` companion (D7); Wave 2B DF1–DF13 cluster; Tier 1.5.3 F15/F18/F24/F25; Wave AM AM.0–AM.3 + `memoryWithTiers` refactor; DS-11.10 operator-layer review resolved by spec §1.3.3 + COMPOSITION-GUIDE §41.
 
-#### 11.1 Class A/B migration QA carries
-*Source: optimizations.md "QA follow-ups from Class B migration /qa pass (opened 2026-04-30)" + "Class B audit follow-ups from B.2/Alt E migration"*
-- ✅ **DONE (2026-04-30):** EC2/EC7 — 4 bridge sites flipped to `=== undefined`; the topic-empty/legit-null disambiguation fixed at the source by making `topic.latest` stay SENTINEL until the first publish (`entries.length === 0 ? [] : [T]`) — type narrowed `Node<T | null>` → `Node<T>` and the now-redundant `topic.hasLatest` companion deleted (per `feedback_no_backward_compat`). /qa sweep extended this to `ChatStream.latest` (same anti-pattern), harness-loop consumer-side `Node<T | null>` casts + `== null` guards, `streaming.ts` + `cost-meter.ts` guards, and 5 test casts. Dead `_log.withLatest()` activation in TopicGraph constructor removed. New COMPOSITION-GUIDE-PROTOCOL.md §1a "Stay SENTINEL" + GRAPH.md companion-pair table update lock the convention going forward.
-- ✅ **DONE (2026-04-30):** EC16 — closed verified-correct. The COMPLETE-then-disposeAllViews order is intentional (synchronous propagation lets subscribers self-unsubscribe in their terminal handler before view caches drain). JSDoc lock-in note added.
-- ✅ **DONE (2026-04-30):** EC17 — `${name}_state` → `${name}-state` separator landed; describe-snapshot test fixtures updated.
-- ✅ **DONE (2026-04-30):** `GraphDerivedOptions` `guard:` — verified already exposed via `SharedNodeOpts<T> = Omit<NodeOptions<T>, "name" | "describeKind">`. The 4 cqrs sites already use `this.derived(... { guard })`. Doc note was stale.
-- ✅ **DONE (2026-04-30):** `TopicGraph` self-resolve fix — `Graph._resolveFromSegments` tightened to strip the graph-name prefix only when more segments follow. `TopicGraph.latest` / `hasLatest` migrated from `node([events], …) + this.add(...)` workaround to `this.derived(...)` to dogfood the fix. Regression tests pin both halves of the resolve contract.
-- **WAIT:** M4 + EC3/EC4/EC12-14 — `MemoryRetrievalGraph` per-input subgraph + state crosstalk + anonymous internal nodes. **Re-evaluate when Phase 13 surfaces a multi-agent retrieval consumer.**
+`optimizations.md` remains the source of truth for per-item context. The list below is the **WAIT / POST-1.0 carries that remain open** — i.e. consumer-driven follow-ups that did NOT land in the cleanup batch and stay in flight. New WAIT items added here should map to a fresh sub-bullet OR file under Phase 14.5 / Parked.
+
+#### Open WAIT carries (consumer-driven, not landed in Phase 11)
+- **WAIT:** M4 + EC3/EC4/EC12-14 — `MemoryRetrievalGraph` per-input subgraph + state crosstalk + anonymous internal nodes. **Re-evaluate when a multi-agent retrieval consumer surfaces.**
 - **WAIT:** M7 — saga `audit === invocations` aliasing. Defer until security review need.
 - **WAIT:** M8 — `singleNodeFromAny` keepalive-for-DATA-only-nodes. Pre-existing; JSDoc documents the contract.
-- **WAIT:** M10 — `pipelineGraph.approvalGate` cross-graph batch order. Bundles with §28 framework cleanup (post-Phase-13).
+- **WAIT:** M10 — `pipelineGraph.approvalGate` cross-graph batch order. Bundles with §28 framework cleanup.
 - **WAIT:** EC10/EC15 — strategy ownership doc. JSDoc-only when next harness touch.
-
-#### 11.2 ctx-unification + Graph narrow-waist Bundle 1 carries
-*Source: optimizations.md "QA follow-ups from Phase 11.5 ctx-unification" + "QA follow-ups from Graph narrow-waist Bundle 1"*
-- ✅ **DONE (2026-04-30):** P11.5-D1 — landed in behavioral form: 2 regression tests in `composite.test.ts` lock the partial:false withLatestFrom semantics ("trigger-before-source-DATA waits for source via withLatestFrom partial:false" pins verifiable; "consolidate fires on trigger only, not on store mutation alone" pins distill). The doc-preferred describe-snapshot form is structurally hard because verifiable/distill bundles don't expose the internal verifyStream/consolidatePaired Nodes — describe walks deps from registered roots and the chain is unreachable.
 - **WAIT:** P11.5-D2 — multi-emit through `graph.derived` end-to-end test. Until consumer needs it.
 - **WAIT:** P11.5-D3 — `verifiable` trigger-before-source-DATA semantic pin. Until consumer hits new behavior.
 - **WAIT:** C1–C2 (graph.batch throw, keepAlive cache) — pre-existing core-batch / RAM-cache semantics; documented.
 - **WAIT:** C3 — cross-graph Node ownership via `Graph.add`. `produce` already partially mitigates; full guard defers until dual-ownership consumer hits.
 - **PARKED:** C4 — path-based `graph.derived` reaches across mounts. Tied to `project_rewire_gap` (G10 parked).
-
-#### 11.3 Tier 6.5 harness / JobFlow carries
-*Source: optimizations.md "Tier 6.5 follow-ups from C2 lock"*
-- ✅ **DONE:** `maxInflight` per-stage cap (R3.1); routeJobIds collision JSDoc (R2.2).
-- **WAIT:** Structural→reingest topology edge — blocked on reactive bounded counter primitive. Park until that primitive lands or the dispatch-effect imperative-publish surfaces a real explainability gap.
-- **WAIT:** Per-claim eval-verifier subgraph mounting story. Bundles with future eval primitive (Phase 15).
-
-#### 11.4 Tier 9.1 / inspect / processManager carries
-*Source: optimizations.md "QA follow-ups from Tier 9.1 /qa pass"*
-- ✅ **DONE:** EH-2 framework gap `Graph._destroyClearOnly` drain disposers (R1.5); EH-16 `processManager.dispose()` mount-based cleanup (R3.3); EH-17 `lightMutation` re-entrancy hazard via R2.6 wrapMutation migration; EH-9 `validateNoIslands` `__internal__/` filter; EH-12 `bumpCursor` warn; EH-18 `auditTrail.includeTypes` exposed.
+- **WAIT:** Structural→reingest topology edge — blocked on reactive bounded counter primitive.
+- **WAIT:** Per-claim eval-verifier subgraph mounting story. Bundles with Phase 15.
 - **WAIT:** EH-19 — `validateNoIslands` reactive companion. Ship when 10k-node continuous-validation consumer surfaces.
-
-#### 11.5 Tier 8 / Wave C mutation-framework carries
-*Source: optimizations.md "Tier 8 follow-ups from γ-0 / γ-1..6 batch"*
-- ✅ **DONE:** γ-7-A processManager `wrapMutation` migration (R2.6).
 - **WAIT:** Messaging audit-record schemas (γ-5 / γ-6). Defer until real audit consumer surfaces in messaging.
-
-#### 11.6 Tier 5.2 reactive-options + companion Nodes
-*Source: optimizations.md "Tier 5.2 follow-up — primitive-side reactive-options widening"*
-- ✅ **DONE:** rateLimiter / breaker / timeout / retry / fallback widened (R3.2). `meta` forwarding (D8). `rateLimitState` companion (D7).
-- **WAIT:** Companion Nodes `budgetState` / `retryAttempts` / `lastTimeout` — additive observability, ship when consumer asks.
+- **WAIT:** Companion Nodes `budgetState` / `retryAttempts` / `lastTimeout` — additive observability.
 - **WAIT:** EC5 `audit-no-effect` lint reactivity; EC7 meta companion `resubscribable` propagation — landed R4.2; doc-only delta remains.
 - **WAIT:** F8 `as Node<Actor>` cast; F9 `graphLens.flow` reconciliation O(N) — bundle with `graphLens` 50k-node scaling (10.8 design follow-up).
-
-#### 11.7 Wave 2B DF1–DF14 cluster
-*Source: optimizations.md "Wave 2B Tier 3 audits"*
-- ✅ **DONE:** DF1 (R5.6 option b), DF2 (R2.1), DF3 (R5.7), DF6 (R2.3), DF8 (R5.7), DF11 (R5.7), DF12 (Tier 7.5), DF13 (R2.4).
-- ✅ **DONE (2026-04-30):** DF9 — release-note recorded inline in optimizations.md noting that pre-Wave-2A `permanent.entries` paths are NOT portable to post-Wave-2A `permanent::items` shape. Pre-1.0; non-goal to maintain snapshot portability across breaking renames.
-- ✅ **DONE (2026-04-30):** DF10 — verified at [patterns/memory/index.ts:199-202](src/patterns/memory/index.ts:199): `CollectionAuditRecord.action` is `"upsert" | "remove" | "clear" | "rescore"` (superset of the prior `lightCollection` set, plus `"rescore"` for ranked retention).
 - **WAIT:** DF4 — HeadIndexQueue `undefined`-write V8 deopt. Needs profiler before changing.
 - **WAIT:** DF5 — rateLimiter `droppedCount` activation-time emit when no subscriber. Design call deferred.
-- **WAIT:** DF14 — `describeNode` specMode SENTINEL preservation. Needs SENTINEL-aware state factory; defer until round-trip use case.
+- **WAIT:** DF14 — `describeNode` specMode SENTINEL preservation. Needs SENTINEL-aware state factory.
 - **POST-1.0:** DF7 PY parity policyGate.
-
-#### 11.8 Tier 1.5.3 F-cluster
-*Source: optimizations.md "Tier 1.5.3 deferred QA items"*
-- ✅ **DONE:** F18 (Phase 15 verifiable migration), F24 (normalizeSpec deletion), F25 (Phase 15 distill migration).
-- ✅ **DONE (2026-04-30):** F15 — `merge<T>` accepts trailing `ExtraOpts` via overload signatures with duck-typed Node-vs-opts detection. User `meta` overlays default `factoryTag("merge")` on both empty and active-sources paths. Regression tests landed.
 - **WAIT:** F16/F17 — `_describeReactiveDiff` empty-graph + race. Observable transient; doc-only.
-- **WAIT:** F19 `withStatus` non-recovery DATA branch; F20 factoryTag double-call override; F21 `tap` observer-arg `meta` drop; F22 switchMap factoryTag fragility; F23 metaEqual Map/Set/Date — minor consistency, no consumer.
-
-#### 11.9 Wave AM follow-ups
-*Source: optimizations.md "Wave AM audit closed", "extends Graph pattern consistency sweep", "reactiveExtractFn migration tracker"*
-- ✅ **DONE:** Wave AM AM.0–AM.3 (Tier 4); `mapFromSnapshot` deletion-then-restore (Tier 9.1 D2); reactiveExtractFn migration audit (R5.5); `memoryWithTiers` refactor + closure-state promotion (R4.1).
+- **WAIT:** F19/F20/F21/F22/F23 — minor consistency items in `withStatus` / `factoryTag` / `tap` / `switchMap` / `metaEqual`; no consumer.
 - **WAIT:** `diffMap<K, V>` operator extraction. Wait for third consumer (Tier 10.2).
-- **GATES PHASE 13:** `extends Graph` sweep — `RefineLoopGraph` + `AgentMemoryGraph` migration. R5.1 deferred but **lifts in Phase 12.D** because `agent()` (Phase 13.G) wants the same shape.
-
-#### 11.10 Operator-layer review (one-shot) — ✅ RESOLVED 2026-04-30
-*Source: optimizations.md "Operator-layer: filter mixed-batch RESOLVED forwarding" (archived 2026-04-30)*
-- **DS-11.10 (RESOLVED 2026-04-30):** the deferred questions (a/b/c) are already locked at the protocol level by spec §1.3.3 "Tier-3 wave exclusivity" + COMPOSITION-GUIDE §41 — both authored post-2026-04-24, post-dating the deferral. (a) Emission semantics ARE normalized across `filter`/`map`/`take`/`skip`/`takeWhile`/`distinctUntilChanged`/`pairwise`/`scan`/`reduce` — all conform to wave-exclusivity. (b) Per-item RESOLVED tagging is REJECTED at the protocol level. (c) Tier-3 counters count upstream of operators (codified in `filter` JSDoc at [transform.ts:51-60](src/extra/operators/transform.ts#L51)). Optimizations.md entry archived to `archive/optimizations/resolved-decisions.jsonl` (id: `operator-layer-mixed-batch-resolved-2026-04-24`). Optional polish (deferred — not strictly necessary): add JSDoc cross-references to spec §1.3.3 in `map`/`take`/`skip`/etc. for parity with `filter`'s JSDoc.
-
-#### 11.11 Misc consumer-driven follow-ups
 - **WAIT:** Tier R3.6 `refineLoop` persistent re-seed `setSeed` / `reset`.
 - **WAIT:** Tier R3.7 `executeAndVerify` unified harness slot.
 - **WAIT:** Tier R3.8 `actuatorExecutor` `mode: supersede|queue|drop`; `dispose` hook + late-resolution suppression.
@@ -871,164 +825,29 @@ Items below are pre-screened from `optimizations.md`. Each entry tags status as 
 
 ---
 
-### Phase 12 — Consolidation closure (cross-cutting refactors) ✅ landed (2026-04-30)
+### Phase 12 — Consolidation closure (cross-cutting refactors) ✅ landed (2026-04-30) — archived
 
-19. ✅ **Phase 12 closed (2026-04-30)** — single batch covering 12.A markup reconciliation + 12.B sibling-file relocation + 12.C verify + 12.D `extends Graph` migration. 2646 tests passing (no regressions; same count as the Phase 11 baseline since this batch is structural-only); `pnpm run build` green (`assertBrowserSafeBundles` honored); `pnpm run lint` shows no new errors/warnings on touched files.
+Body archived to [archive/roadmap/phase-12-consolidation.jsonl](../archive/roadmap/phase-12-consolidation.jsonl) (ids `phase-12-consolidation-batch`, `phase-12-qa-pass`).
 
-20. ✅ **/qa pass on Phase 12 batch (2026-05-01)** — adversarial review by Blind Hunter + Edge Case Hunter. Auto-applied patches landed in /qa:
-    - **A1** — `RefineLoopGraph` constructor public field assignments (`best`/`score`/`status`/`history`/`strategy`/`iteration`/`generate`/`evaluate`/`analyze`/`decide`/`_pauseState`) moved EARLIER in the constructor, immediately after the `messagingHub` is mounted, BEFORE any `subscribe(() => undefined)` activation. Defensive against sync-strategy drain reaching downstream consumers before fields are bound.
-    - **A2** — `RefineLoopGraph` constructor now calls `this.tagFactory("refineLoop", placeholderArgs({ seed, evaluator, initialStrategy, ...opts }))` after `super()` for parity with `agentMemory`. Surfaces `factory: "refineLoop"` provenance in `describe()` / `compileSpec` round-trip.
-    - **A3** — `AgentMemoryGraph` constructor: extractFn-resolution validation (`throw new Error("agentMemory: provide either extractFn or adapter + extractPrompt")`) moved BEFORE `tagFactory(...)` so an invalid-opts throw doesn't leave a tagged-but-empty Graph instance behind.
-    - **D1** — `RefineLoopGraph.decideEffect` resume-stall fix (the substantive piece). Eliminated all four cross-node `.cache` reads in the effect fn body:
-      - `iterationTrigger.cache` replaced by `iter` riding with the new `CandidatesEnvelope<T>` envelope (canonical §32 envelope pattern). The switchMap projector emits `{iter, items}`; `candidatesItemsNode` derived sidecar preserves the `Evaluator<T>` API (which still sees `Node<readonly T[]>`).
-      - `historyState.cache` / `budgetState.cache` / `pauseState.cache` replaced by §28 closure mirrors `latestHistory` / `latestBudget` / `latestPaused`, consistent with the pre-existing `latestStrategy` / `latestFeedback` / `latestPrevCandidates` mirrors in the same constructor.
-      - `feedbackEnvelopeNode` gates on `scoresFired` (only emits when the user evaluator actually fired this wave) — eliminates the spurious decideEffect trigger on candidates-only fan-out waves (which was the underlying mechanism of the resume-stall: stale-scores with new-iter envelope tag would poison `lastDecidedIteration` and starve the real next-iter decision).
-      - `evaluateEventNode` / `analyzeEventNode` / `generateEventNode` similarly read iter from the envelope (no more `iterationTrigger` deps).
-      - `Evaluator<T>` JSDoc tightened with the **cancel-on-input contract**: async evaluators MUST cancel in-flight work on candidates change (canonical pattern: `switchMap` over candidates). The library doesn't enforce this; uncancellable async evaluators can still leak stale scores through `feedbackEnvelopeNode` after `pause()` / `resume()` — filed as a deferred follow-up for a `wrapEvaluator()` helper.
-    - **D1 in-cycle extension (2026-05-01)** — audit found 2 additional cross-node `.cache` reads in pre-existing built-in strategies that are reachable from reactive fn execution paths: `opts.tokens.cache` in [blindVariation:1259](src/patterns/harness/presets/refine-loop.ts:1259) and [errorCritique:1477](src/patterns/harness/presets/refine-loop.ts:1477) (both inside the strategy's `generate()` body, called from inside the candidates switchMap inner producer). Both code-comment-acknowledged as "P3 gray zone, same pattern as `tryIncrementBounded`." Fix: generalized [`tryIncrementBounded(counter, cap, by = 1)`](src/extra/mutation/index.ts:45) with an optional `by` parameter (backward-compatible — defaults to 1; existing 3 call sites in `harness-loop.ts` × 2 + `reduction/index.ts` × 1 unchanged), then both strategies now call `tryIncrementBounded(opts.tokens, Number.MAX_SAFE_INTEGER, iterCost)`. The `.cache` access stays in the canonical helper (sole sanctioned site per its own JSDoc); strategy bodies are now P3-clean.
-    - **D1 read-pattern refinement (2026-05-01)** — second-pass cleanup of the initial closure-mirror form. User-locked principle: **sole-owner-and-reactive-reader nodes in the same enclosing constructor scope are a sanctioned `.cache` read form** (reading "your own scratchpad," even though they're sibling Node objects); closure mirrors duplicate state already held in the nodes themselves with no functional benefit. Reverted `latestHistory` / `latestBudget` closure mirrors back to `historyState.cache` / `budgetState.cache` reads inside `decideEffect.fn` (decideEffect is sole writer + sole reactive reader of both, declared in the same `RefineLoopGraph` constructor scope). `pauseState` does NOT fit the sole-owner pattern (written by `pause()` / `resume()` imperative methods, NOT by `decideEffect` — it's an external control input), so promoted to a **direct declared dep** of `decideEffect`, with the existing `feedbackFired` gate now serving double duty (skips fn body when only `pauseState` fires; reads `paused = data[1] as boolean` from batchData on real iterations). Net diff: −3 closure variables, −3 subscribe handlers (~15 LOC); +1 declared edge `decideEffect ← pauseState` visible in `describe()` / `explain()` topology.
-    - **Verification**: 2646 tests passing (no regressions); `pnpm run build` green; `pnpm run lint` clean on touched files. **All cross-node `.cache` reads in reactive fn bodies are now either eliminated, replaced with `tryIncrementBounded`, replaced with envelope/dep, or sanctioned per the sole-owner-in-same-enclosing-scope pattern.** Remaining `.cache` reads in `refine-loop.ts`: `historyState.cache` / `budgetState.cache` (sole-owner pattern, inside `decideEffect.fn`) and `this.status.cache` / `this.iteration.cache` (inside `resume()` imperative method — boundary-sanctioned).
-    - **Deferred items** (filed in [docs/optimizations.md](docs/optimizations.md) "QA follow-ups from Phase 12 /qa pass"): D1 follow-up (`wrapEvaluator()` helper for cancel-on-input enforcement); B2 (tiers-branch path divergence — pre-existing, doc-only); B3 (intra-`extra/` imports route through legacy top-level shims — would need a sed-style sweep to canonicalize); B4 (`tsup.config.ts` `nodeOnlyEntries` allow-list comment); B5a–g (smaller items: addDisposer mid-constructor doc, opts mutation freeze, KG mount asymmetry, field-name collision forward-compat, expose `tiersGraph`, `node` import shadowing, `sources/{git,fs}.ts` barrel comment).
-    - **12.A** ✅ markup-only — `io/` body extraction had already landed in commit `0dc5f9e` (Tier 2.1 follow-up); `extra/io/index.ts` is now a 98-LOC barrel with 30+ per-protocol sub-files. Updated optimizations.md entry to `done`.
-    - **12.B** ✅ 18 top-level sibling files in `extra/` flipped with their sub-folder shims (the `operators.ts` / `resilience.ts` / `sources.ts` model). `composite`, `external-register`, `stratify`, `observable`, `pubsub`, `backpressure` → `composition/`. `reactive-{map,list,log,index}` → `data-structures/`. `storage-{core,tiers,tiers-node,tiers-browser}` → `storage/{core,tiers,tiers-node,tiers-browser}` (renamed; `storage-` prefix dropped now that the folder is `storage/`). `cascading-cache`, `content-addressed-storage` → `storage/{cascading-cache,content-addressed}`. `http-error` → `io/http-error`. `backoff` → `resilience/backoff`. Top-level paths preserved as 1-line re-export shims so internal/external consumers do not have to migrate (~50 in-tree imports unchanged). `reactive-sink` deferred (no clear sub-folder home; revisit when a `sinks/` folder gels).
-    - **12.C** ✅ verify-only — exhaustive grep for `prompt_node::call` / `::call` references across `src/__tests__/`, `examples/`, `demos/`, `website/`, `evals/` returned zero hits. The `::messages` / `::output` / `::response` topology was already in place in code; the Tier 6.6 lock-in test (`phase5-llm-composition.test.ts:372`) continues to pass. Updated optimizations.md entry to `done`.
-    - **12.D** ✅ `RefineLoopGraph` ([patterns/harness/presets/refine-loop.ts](src/patterns/harness/presets/refine-loop.ts)) and `AgentMemoryGraph` ([patterns/ai/presets/agent-memory.ts](src/patterns/ai/presets/agent-memory.ts)) migrated from `Object.assign(graph, ...)` to `class extends Graph`. Tier R5.1 deferral lifted (`agent(spec)` consumer in Phase 13.G is the trigger). Both factories now `return new <ClassName>(...)` thin wrappers over the constructor. `setStrategy` / `pause` / `resume` on `RefineLoopGraph` are instance methods reading `this.strategy` / `this._pauseState` / `this.status` / `this.iteration` (private `_pauseState` field; rest are public readonly). Mirrors the `MemoryWithKGGraph` / `MemoryWithTiersGraph` precedent — node construction happens inside the constructor, public Nodes assigned to `this.<field>`, internal closure-mirror state stays as `let` locals captured by reactive subscribe handlers. Pre-1.0 surface: `RefineLoopGraph` / `AgentMemoryGraph` change from `interface ... extends Graph` / `Graph & {...}` types to real classes — `instanceof` now narrows correctly; type-aliases-to-classes is a non-breaking widening for in-tree consumers.
+Single batch covering 12.A `io/` body extraction (markup-only — `extra/io/index.ts` now a 98-LOC barrel + 30+ per-protocol sub-files; landed in commit `0dc5f9e`); 12.B sibling-file relocation (18 files moved into `composition/` / `data-structures/` / `storage/` / `io/` / `resilience/` with 1-line re-export shims at top level); 12.C `promptNode` B.3 widening (verify-only — `::messages` / `::output` / `::response` topology already in code); 12.D `extends Graph` sweep (`RefineLoopGraph` + `AgentMemoryGraph` migrated to `class extends Graph`; unblocks Phase 13.G `AgentBundle.graph: AgentGraph<TIn, TOut>` with `instanceof` narrowing). 2646 tests passing; build green; lint clean.
 
-#### 12.A `io/` body extraction ✅ landed
-*Source: optimizations.md "io/ body extraction deferred (Tier 2.1 carry)"*
-Mechanical split of `extra/io/index.ts` into ~25 protocol-adapter sub-files following the `_internal.ts` model already used in `resilience/`, `sources/`, `operators/`. Landed in commit `0dc5f9e` (pre-Phase-12 Tier 2.1 follow-up); markup reconciled in this batch.
-
-#### 12.B Sibling-file physical relocation ✅ landed
-*Source: optimizations.md "Sibling-file physical relocation deferred (Tier 2.1 carry)"*
-18 files moved from top-level `extra/` into their category folders (`composition/`, `data-structures/`, `storage/`, `io/`, `resilience/`); top-level paths preserved as 1-line re-export shims (the `operators.ts` shim model). Storage files renamed in their folder (`storage-tiers.ts` → `storage/tiers.ts`) since the folder context makes the prefix redundant. `reactive-sink.ts` deferred — no obvious sub-folder home.
-
-#### 12.C `promptNode` B.3 widening ✅ landed (verify-only)
-*Source: optimizations.md "promptNode (B.3) widening" carry*
-The `::messages` / `::output` topology was already in code from the prior `::call → ::response` rename batch; verified zero stale callsites in tests/demos/examples/website/evals. Tier 6.6 `prompt_node::output` regression test is the lock-in point and continues to pass.
-
-#### 12.D `extends Graph` sweep ✅ landed — unblocks Phase 13.G/H
-*Source: optimizations.md "extends Graph pattern consistency sweep" + Tier R5.1 deferred*
-`RefineLoopGraph` ([patterns/harness/presets/refine-loop.ts](src/patterns/harness/presets/refine-loop.ts)) and `AgentMemoryGraph` ([patterns/ai/presets/agent-memory.ts](src/patterns/ai/presets/agent-memory.ts)) are now `class extends Graph`. The `refineLoop(...)` / `agentMemory(...)` factories return `new <ClassName>(...)` thin wrappers. `setStrategy` / `pause` / `resume` are instance methods. Phase 13.G's `agent(spec)` factory can now type `AgentBundle.graph: AgentGraph<TIn, TOut>` with `instanceof` narrowing on `AgentMemoryGraph` for the default-private-memory branch. Constructor-time invariants assertable; consistent with `MemoryWithKGGraph` / `MemoryWithTiersGraph` precedent.
+/qa pass (2026-05-01) auto-applied 7 patches — A1/A2/A3 constructor field-order + tagFactory parity, D1 `RefineLoopGraph.decideEffect` resume-stall fix (eliminated 4 cross-node `.cache` reads via `CandidatesEnvelope<T>` + sole-owner sanction), D1 in-cycle extension (`tryIncrementBounded(counter, cap, by = 1)` generalization), D1 read-pattern refinement (sole-owner-in-same-enclosing-scope `.cache` reads sanctioned; closure mirrors removed; `pauseState` promoted to declared dep). Deferred items filed in [optimizations.md](optimizations.md) "QA follow-ups from Phase 12 /qa pass" (D1 wrapEvaluator, B2 tiers-branch path divergence, B3 intra-extra/ imports route through legacy shims, B4 nodeOnlyEntries comment, B5a–g minor items).
 
 ---
 
-### Phase 13 — Multi-agent + intervention substrate ✅ closed (2026-05-01) — 13 sub-units shipped + /qa pass
+### Phase 13 — Multi-agent + intervention substrate ✅ closed (2026-05-01) — archived
 
-All 13 sub-units (A through M) landed across the day. Final /qa pass on the batch landed 13 auto-applicable patches + N1(b) "agent input queue" architectural change — see `docs/optimizations.md` "/qa pass on Phase 13 batch" entry for the full patch set. 2734 tests pass; build green; lint clean.
+Body archived to [archive/roadmap/phase-13-multi-agent.jsonl](../archive/roadmap/phase-13-multi-agent.jsonl) (ids `phase-13-multi-agent-batch`, `phase-13-qa-pass`).
 
-Outstanding: 13.K `topicBridge` end-to-end `explain()` walk gap (filed in optimizations.md, deferred per user direction).
+All 13 sub-units (A–M) shipped in one batch: 13.A recovered the multi-agent gap-analysis design doc; 13.B `Message<T>` envelope + standard topic constants (`PROMPTS_TOPIC` / `RESPONSES_TOPIC` / `INJECTIONS_TOPIC` / `DEFERRED_TOPIC` / `SPAWNS_TOPIC`); 13.C `selector` + `materialize` composers in `extra/composition/`; 13.D recipe docs (cross-repo edits to COMPOSITION-GUIDE-PATTERNS.md §41–§43 — criteria-grid verifier, cost-bubble, boundaryDrain); 13.E `valve` `abortInFlight` opt; 13.F `humanInput<T>` + `tracker` sibling presets (orchestration/); 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph`; 13.H `agent(spec)` preset + `presetRegistry` sugar; 13.I `spawnable()` harness preset + strategy-key axis extension (`StrategyKey = ${PresetId}|${RootCause}→${Intervention}` with `DEFAULT_PRESET_ID = "default"`); 13.J `boundaryDrain` locked as recipe; 13.K G6 cross-graph `explain()` validation (5 tests; topicBridge end-to-end gap filed in optimizations.md); 13.L `settle<T>` operator (reactive form of `awaitSettled`); 13.M worked multi-agent example test (lock-test). 2734 tests pass (+88 over Phase 12 baseline); build green; lint clean.
 
+/qa pass auto-applied 13 patches + N1(b) "agent input queue" architectural change (kicks queued through internal `topic<TIn>` + cursor `subscription` mounted under AgentGraph; drain effect on `[inputSub.available, loop.status]`; eliminates raw-subscribe → kick re-entrancy hazard). See archive id `phase-13-qa-pass` for the full A1–A13 + N1(b) patch set.
 
+**Outstanding:** 13.K `topicBridge` end-to-end `explain()` walk gap (filed in [optimizations.md](optimizations.md), deferred per user direction; defer until a real consumer hits it OR Phase 14 surfaces a general "imperative attach" representation).
 
-Source docs:
-- `archive/docs/SESSION-human-llm-intervention-primitives.md` (locked 2026-04-28).
-- `archive/docs/SESSION-multi-agent-gap-analysis.md` (locked 2026-04-28; recovered + re-saved 2026-04-30 — see 13.A).
+**Source design docs:** `archive/docs/SESSION-human-llm-intervention-primitives.md` + `archive/docs/SESSION-multi-agent-gap-analysis.md` (both locked 2026-04-28).
 
-User flagged "I'm sure we have a lot more to discuss about the multi agent" — expect 1–2 additional design sessions during this phase, especially around (a) `AgentSpec` `meta` escape hatch, (b) handoff context-transfer ergonomics, and (c) verifier slot type widening.
-
-#### 13.A Recover + index multi-agent gap-analysis doc — ✅ DONE 2026-04-30
-[recovery operation, completed alongside this plan]
-- ✅ Copied `/tmp/recovered-multi-agent-gap-analysis.md` (extracted from session export of `agent/stupefied-curie-2498c2`) to `archive/docs/SESSION-multi-agent-gap-analysis.md`.
-- ✅ Appended index entry to `archive/docs/design-archive-index.jsonl` (id: `multi-agent-gap-analysis`).
-
-#### 13.B `Message<T>` envelope + standard topic constants ✅ landed (2026-05-01)
-*Source: SESSION-human-llm-intervention-primitives §6 #2 + #4; SESSION-multi-agent-gap-analysis §6 cross-cut*
-Shipped in `src/patterns/messaging/message.ts` (re-exported from `patterns/messaging/index.ts`):
-- `interface Message<T> { id: string; schema?: JsonSchema; expiresAt?: string; correlationId?: string; payload: T }` — recommended (not required) envelope for hub topics.
-- Standard topic name constants: `PROMPTS_TOPIC` (`"prompts"`) / `RESPONSES_TOPIC` (`"responses"`) / `INJECTIONS_TOPIC` (`"injections"`) / `DEFERRED_TOPIC` (`"deferred"`) / `SPAWNS_TOPIC` (`"spawns"`). Co-landed both sessions' topic conventions.
-- `STANDARD_TOPICS` tuple + `StandardTopic` union type for compile-time exhaustiveness.
-- `JsonSchema` = minimal local type per DS-13.B (zero-dep posture; structural shape only — full validators are caller-supplied via `ajv`/`zod`/`valibot`).
-- 4 regression tests in `src/__tests__/patterns/messaging.test.ts` ("patterns.messaging — Message envelope + standard topic constants"): constants stable, tuple ordering, full envelope round-trip, minimal-fields round-trip, correlationId filtering.
-
-#### 13.C `selector` + `materialize` composers ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G2 lock C*
-Shipped in `src/extra/composition/materialize.ts` (re-exported from `composition/index.ts` and the top-level `extra/index.ts` barrel):
-- **`selector<TIn, TKey>(input, fn, opts?)`** — projects each upstream value to a routing key, deduped on the projected key (custom `equals` accepted; defaults to `Object.is`). Differs from `map`: emits ONLY when the projected key changes, so downstream `materialize` skips unnecessary unmount/remount cycles. `factoryTag("selector")` for describe.
-- **`materialize<TKey, TGraph extends Graph>(key, factories, parent, opts?)`** — given a reactive `key: Node<TKey>` and a reactive `factories: Node<ReadonlyMap<TKey, GraphFactory<TGraph>>>`, mounts the matching factory's Graph under `parent.mount(slotName, ...)` (default `slotName: "materialized"`). Re-mounts on key change (unmounts old slot via `parent.remove`, mints fresh via factory thunk, mounts new). When `factories` mutates but `key` stays the same, the active slot is preserved per the G10 deferral ("current sessions complete on old factory; new sessions use new factory"). Cleanup on terminate / subscriber teardown unmounts the active slot. Output `Node<TGraph>` carries the active mount; SENTINEL when no factory matches `key`. `factoryTag("materialize")` + `slotName` in meta for describe.
-- **`GraphFactory<TGraph>` type** — `() => TGraph` thunk; each invocation MUST return a fresh, never-before-mounted Graph (Graph.mount rejects re-parenting).
-- **11 regression tests** in `src/__tests__/extra/materialize.test.ts`: selector projects + dedupes (3 tests), materialize mounts on key change, fresh instance per mount, deferred-hot-swap, cleanup on teardown, no-factory SENTINEL, COMPLETE propagation, selector+materialize composition.
-- **Reusable beyond agents**: harnessLoop strategy routing (selector), pipelineGraph dynamic stage selection (potential), refineLoop strategy swap (potential), Phase 13.I `spawnable()` slot mounting (consumer).
-
-#### 13.D Recipe docs (no code) — COMPOSITION-GUIDE-PATTERNS.md ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G7, G8; SESSION-human-llm-intervention-primitives §3d, §6*
-Three new recipes added to `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` (cross-repo edit):
-- **§41 Criteria-grid verifier recipe** — `humanInput<{axes}>` (or structured-output `promptNode`) → `derived(.every)` → `approvalGate`. Substitutable human/LLM verifiers via the schema. Pairs with Phase 15 `auto-solidify` for catalog promotion.
-- **§42 Cost-bubble recipe** — parent `derived` over per-agent `bundle.cost` (preserves full `TokenUsage`); USD conversion via downstream `derived` + `pricing.ts`; honest cost control = bubble + adapter-abort.
-- **§43 `boundaryDrain` recipe** — locked Phase 13.J: `buffer(source, notifier)` already covers `bufferWhen` semantics; no factory. Alias documented; promotion criterion (when to introduce a thin sugar) noted.
-
-#### 13.E `valve` + abort wiring decision ✅ landed (2026-05-01)
-*Source: SESSION-human-llm-intervention-primitives §3a + §6 Real Gap #1*
-Path (i) per DS-13.E. `valve(source, control, opts?)` keeps its existing positional shape; `opts` widens via the new `ValveOpts = ExtraOpts & { abortInFlight?: AbortController }`. When `abortInFlight` is supplied AND `control` flips truthy → falsy, `valve` automatically calls `controller.abort()`. JSDoc-locked edge cases: activation-with-falsy-control does NOT abort (no transition); already-aborted controller is no-op-safe; second close after re-open is no-op (controller already aborted). 5 regression tests in `src/__tests__/extra/operators.test.ts` ("valve abortInFlight (Phase 13.E / DS-13.E)"). Caller-managed pattern (ii) remains available as the unwrapped form when `abortInFlight` is omitted.
-
-#### 13.F `humanInput<T>` + `tracker` sibling presets ✅ landed (2026-05-01)
-*Source: SESSION-human-llm-intervention-primitives §5, §9 Phase 2*
-Two sibling presets shipped in `src/patterns/orchestration/`:
-- **`humanInput<T>(opts: { hub, prompt, schema?, idGenerator? })`** ([human-input.ts](src/patterns/orchestration/human-input.ts)) — LLM↔human runtime Q&A channel. Each `prompt` DATA mints a fresh correlationId, publishes `Message<HumanPromptPayload>` to `PROMPTS_TOPIC`, watches `RESPONSES_TOPIC` for the matching correlationId, emits `T` payload. Switchmap semantics: new prompt mid-flight abandons the prior watcher. Sibling to `approvalGate` (design-time veto vs runtime Q&A — share substrate, differ in role).
-- **`tracker<T>(opts: { hub, topicName?, name?, from? })`** ([tracker.ts](src/patterns/orchestration/tracker.ts)) — Park-as-deferred queue consumer over `DEFERRED_TOPIC` (configurable). Returns `{ topic, subscription, pending, cursor, total, add, ack, pullAndAck }`. Multi-tracker on same hub topic gets independent cursors. Total counter is `keepAlive: true` so `cache` is current without external subscribers.
-- **Naming locked (open question §11 #3 resolved):** `tracker` over `parkedQueue` / `deferredTracker`. Simpler, more general — the deferred-queue semantic is a recipe, not a name overload. Other use cases (issue tracker, todo tracker, retrospective tracker per `project_reactive_tracker`) reuse the same primitive.
-- **13 regression tests** in `src/__tests__/patterns/orchestration/human-input-tracker.test.ts`: humanInput envelope publishing (5 tests — initial publish, response correlation, ignore non-matching, switchMap semantics, schema carriage); tracker (8 tests — DEFERRED_TOPIC default, add/pending, ack, pullAndAck, multi-tracker independent cursors, custom topicName, `from: "now"`, total counter).
-
-#### 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph` ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G1 lock B; depends on Phase 12.D*
-Shipped in `src/patterns/ai/agents/agent.ts`:
-- **Types:** `AgentStatus = "idle" | "running" | "verifying" | "done" | "error"` (verifying reserved for future verifier slot). `CostState = { usage: TokenUsage; turns: number }` — wraps the canonical {@link TokenUsage} so consumers get full cache/reasoning/audio/multimodal disaggregation (per user feedback during 13.G design). `ZERO_COST` empty baseline. `addUsage(a, b)` accumulator that sums all token classes (regular / cacheRead / cacheWrite5m / cacheWrite1h / audio / image / video / toolUse / reasoning / predictionAccepted/Rejected / extensions / auxiliary).
-- **`AgentSpec<TIn, TOut>`:** required `name` + `adapter`; optional `systemPrompt`, `tools` (static array OR `Node<readonly ToolDefinition[]>` for reactive reconciliation), `memory` (shared instance for §29 handoff; default private), `inMapper` / `outMapper` (default identity for `TIn=string` / `TOut=LLMResponse`; throw at boundary otherwise), `maxIterations`, `meta`. Verifier slot intentionally NOT in v1 (G7 reframe — caller-composed recipe).
-- **`AgentBundle<TIn, TOut>`:** `in: Node<TIn>` (writable, SENTINEL until first emit, `equals: () => false` so repeat emits trigger), `out: Node<TOut>` (SENTINEL until first response, `equals: () => false` so structurally-equal responses still propagate), `status: Node<AgentStatus>`, `cost: Node<CostState>`, `graph: AgentGraph<TIn, TOut>`.
-- **`class AgentGraph<TIn, TOut> extends Graph`:** mounts inner `agentLoop` subgraph at `loop/` + (optional) `memory/`; top-level `in` / `out` / `status` / `cost`. §32 mirror translates `loop.status` (`thinking`/`acting`) → `running`. Cost rollup effect accumulates via `addUsage` on each `loop.lastResponse` emit. `in` subscriber is F2-safe — kicks via `chat.append + status.emit("thinking")` rather than `agentLoop.run()`'s Promise bridge.
-
-#### 13.H `agent(spec)` preset + `presetRegistry` sugar ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G1 + G2*
-Shipped in `src/patterns/ai/agents/presets.ts`:
-- **`agent<TIn = string, TOut = LLMResponse>(parent, spec)`** — mints `AgentGraph`, mounts under `parent.mount(spec.name, ...)`, returns `AgentBundle`. Default type params cover the "string in, LLMResponse out" common case; custom types require both mappers.
-- **`presetRegistry<TPreset>(initial?)`** — thin sugar over `reactiveMap<string, TPreset>`; returns `{ registry, put, remove }`. Generic over `TPreset` (decoupled from `AgentSpec`) so the same primitive powers harnessLoop strategy registries / pipelineGraph stage catalogs / agent preset catalogs. Composes with **13.C `materialize`**: pass `registry.entries` directly when `TPreset` is a `() => Graph` factory, or `derived(...)`-adapt when it's a richer spec.
-- **No `agent.run()`** per cross-cut #1 lock. Caller-side runtime is `bundle.in.emit(input)` + `awaitSettled(bundle.out, { skipCurrent: true })`. Subscribe-before-emit pattern is documented (otherwise the synchronous-adapter case races push-on-subscribe vs the kick).
-- **17 regression tests** in `src/__tests__/patterns/ai/agents/agent.test.ts`: basic in→out, custom mappers, default-mapper boundary throws, status idle→done, cost rollup with full TokenUsage, per-input cost reset, static + reactive tools (DF12 reconciliation: `register`/`unregister` driven by Node emits), memory partition (default private + explicit shared), presetRegistry put/replace/remove + reactive entries snapshot, F2 reachability (two-agent reactive handoff via subscriber on `classifier.out → executor.in.emit`), standalone `new AgentGraph` construction.
-
-#### 13.I `spawnable()` harness preset + strategy-key axis extension ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G3 lock B + G5 reframe*
-
-**`spawnable()` harness preset** shipped in `src/patterns/harness/presets/spawnable.ts`:
-- `spawnable<TIn = string, TOut = LLMResponse>(opts)` mints a `SpawnableGraph` that mounts under `opts.hub` at `opts.name` (default `"spawnable"`). Returns `{ spawnTopic, activeSlot, rejected, graph }`.
-- **`spawnTopic`** = `hub.topic<Message<SpawnPayload<TIn>>>(SPAWNS_TOPIC)` — well-known name from 13.B.
-- **`activeSlot: Node<ReadonlyMap<string, AgentBundle<TIn, TOut>>>`** — currently-mounted agent bundles keyed by request id. Mutations emit fresh `Map` snapshots (`equals: () => false`).
-- **`rejected: TopicGraph<SpawnRejection<TIn>>`** — out-of-policy requests (depth-cap exceeded, unknown presetId, schema-invalid, expired) with `{ request, reason }`.
-- **Per-request handler** subscribes to `subscription(spawnTopic).available` (cursor-based, multi-spawnable-safe). For each request: validate (custom predicate + minimal structural check via `validatorSchema`), depth-cap, `expiresAt` (ISO 8601), preset-registry lookup, mint via `agent(this, { ...spec, name: \`spawn-${req.id}\` })`, watch `bundle.status` → on `done`/`error` unmount + remove. Idempotent terminal-handler guard against double-fire.
-- **Termination contract:** `done` / `error` → unmount; `expiresAt` past on entry → reject with `"expired"`; recipe-style `timeout(...)` per-spawn deferred to 13.D.
-- **Cross-cut #1 honored:** kicks each agent via `bundle.in.emit(taskInput)`; no `agent.run()` Promise bridge.
-- **Depth-cap implementation note:** locked recipe (DS-13.I) is `valve(spawnTopic, derived([depthCounter], n => n < cap))`, but the practical pattern checks depth per-request inside the handler so over-cap requests surface on `rejected`. Hard-cut callers can wrap their publish path with `valve` per the recipe.
-
-**Strategy-key axis extension (DS-13.I)** shipped in `src/patterns/harness/types.ts` + `defaults.ts`:
-- `StrategyKey = \`${PresetId}|${RootCause}→${Intervention}\`` (was `\`${RootCause}→${Intervention}\``).
-- New `PresetId = string` type + `DEFAULT_PRESET_ID = "default"` const.
-- `strategyKey(presetId, rootCause, intervention)` — 3-arg signature; pre-1.0 breaking change.
-- `StrategyEntry` adds required `presetId` field.
-- Migrated all callsites: `harness-loop.ts` × 3 + `strategy.ts` × 1 pass `DEFAULT_PRESET_ID`. Tests: 28 callsites in `harness.test.ts` migrated via `strategyKey(DEFAULT_PRESET_ID, ...)` form; literal-string assertion updated to expect the new `default|composition→template` shape.
-
-**11 regression tests** in `src/__tests__/patterns/harness/spawnable.test.ts`: basic spawn lifecycle (mid-flight presence + completion cleanup), taskInput forwarded to bundle.in (chat first message verified), depth-cap rejection with reason, unknown-presetId rejection, schema validator rejection (empty id), custom validator predicate, `expiresAt` past → reject + future → accept, `SPAWNS_TOPIC` integration, multiple spawnable instances on the same hub use distinct names + share the well-known topic, multi-request flow.
-
-**Phase 13 keystone:** spawnable composes 13.B (`Message` + `SPAWNS_TOPIC`) + 13.G/H (`agent` + `presetRegistry` + `AgentBundle`) + 13.E (per-spawn abort hook is wired via the agent's existing `loop.abort()` path; valve recipe documented in 13.D). With 13.I shipped, the multi-agent topology that the §13.M lock-test hand-rolled is now first-class — Phase 13.M can be migrated to use spawnable + agent without changing the topology.
-
-#### 13.J `boundaryDrain` (recipe vs factory) ✅ locked as recipe (2026-05-01)
-*Source: SESSION-human-llm-intervention-primitives §3d, §11 #4*
-**Locked: recipe.** Today's `buffer(source, notifier)` already covers `bufferWhen` semantics — no factory needed. Documented as **§43 `boundaryDrain` recipe** in `~/src/graphrefly/COMPOSITION-GUIDE-PATTERNS.md` as part of the 13.D landing. Promotion criterion (when to upgrade to a thin sugar): a second consumer surfaces with non-trivial wiring around the buffer (max-buffer-size cap, fallback emission on timeout, per-boundary TTL).
-
-#### 13.K G6 cross-graph `explain()` validation ✅ landed (2026-05-01) — partial confirmation, 1 gap filed
-*Source: SESSION-multi-agent-gap-analysis G6, §5 drift suspicion*
-Regression test shipped at `src/__tests__/graph/explain-cross-mount.test.ts` (5 tests). Three topology cases probed:
-- ✅ **Case 1 — parent → child:** `parent.derived` ← `child::node` walks cleanly. No `<anonymous>` steps.
-- ✅ **Case 2 — childA → parent → childB:** explain traces the multi-mount path through a parent-level shared node by Node-ref deps. The `shared` step is in the chain at the expected hop.
-- ❌ **Case 3 — `topicBridge` end-to-end:** `src::events → bridge::output` walks; `src::events → dst::events` does NOT, because `bridge.output → target.events` goes through `_attachArrayToLog` (imperative subscribe, not a declared dep). Test pins the failure mode (`expect(endToEnd.found).toBe(false)`); flip the assertion when the gap is fixed.
-- ✅ Sanity: explain returns `no-such-from` / `no-such-to` for missing paths.
-
-**Static-face / dynamic-interior pitch impact:** holds for declared cross-mount deps (the common case for `agent` / `materialize` / `spawnable` topology — parent.derived aggregating child outputs, `agent.in` fed by selector/materialize, etc.). The gap is specifically `topicBridge`'s imperative attach. Filed in [optimizations.md](docs/optimizations.md) "Phase 13.K — `topicBridge` end-to-end `explain()` walk gap" with three resolution options (declare attach edge / extend explain to consume `meta.targetRef` / accept gap + document). Defer until a real consumer hits it OR Phase 14's changesets-deltas work surfaces a more general "imperative attach" representation.
-
-#### 13.L G9 `convergence` operator ✅ landed as `settle` (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis G9, §11 stub*
-`settle<T>(source: Node<T>, opts: SettleOpts<T>): Node<T>` in `src/extra/operators/control.ts`. Forwards every upstream DATA unchanged; tracks "quiet waves" (consecutive operator-fn invocations where the upstream batch had no DATA, or DATA equal-to-prior under the optional `equals` comparator); emits `COMPLETE` after `quietWaves` consecutive quiet waves, or after `maxWaves` total waves regardless of convergence. Construction-time validation rejects non-positive-integer `quietWaves` / `maxWaves`. 8 regression tests in `src/__tests__/extra/operators.test.ts` ("settle (Phase 13.L / DS-13.L) — convergence detector"): forwards DATA, COMPLETE on convergence, counter resets on change, strict no-DATA semantics without `equals`, `maxWaves` cap, validation, upstream COMPLETE propagation. **Boundary recap (DS-13.L):** `awaitSettled` is one-shot Promise; `settle` is the reactive operator form — composable, completes on quiescence, source-COMPLETE propagates through.
-
-#### 13.M Worked multi-agent example test ✅ landed (2026-05-01)
-*Source: SESSION-multi-agent-gap-analysis §13 #9*
-`src/__tests__/patterns/ai/agents/multi-agent-example.test.ts` — handoff between two `agent()` instances using `topicBridge`. **Hand-rolled first** using shipped primitives (`messagingHub`, `topic`, `agentLoop`, `valve`, `Graph.derived/effect/state`, `parent.describe({ explain })`) BEFORE 13.B–13.I implementation lands; serves as the design lock-test. **Six tests passing** (handoff via topic, cost-bubble, depth-valve, cross-graph explain, SENTINEL guard, SpawnRequest envelope). Friction filed in `optimizations.md` as **"Phase 13 design-session inputs from §13.M lock-test"** — items F1–F9 motivate 13.B (`Message<T>`), 13.G (`AgentBundle.in / .out / .cost`), 13.G re-entrancy contract for `agent.run` under nested drains, and a small `keepAlive` opt on `GraphEffectOptions`. F7 confirms the basic cross-graph explain walk works (parent.derived ← `classifier::lastResponse`), so 13.K's regression test can claim this baseline; 13.K still needs the multi-mount + topicBridge case before the static-face / dynamic-interior pitch is locked. F8 confirms the depth-valve recipe; F9 pins the SENTINEL/initial-null trap as a 13.G API-shape requirement. **Refactors planned:** as 13.B/13.G/13.I land, the test should rewrite from hand-rolled `SpawnRequest` interface + imperative `executor.run` kick to `Message<SpawnPayload>` envelope + `bundle.in.emit(...)` reactive entry — no topology changes, only surface simplification.
+**Open follow-up design sessions** (queued for the post-Phase-13 wave): (a) `AgentSpec` `meta` escape hatch, (b) handoff context-transfer ergonomics, (c) verifier slot type widening.
 
 ---
 

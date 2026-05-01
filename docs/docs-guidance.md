@@ -193,7 +193,7 @@ Every exported function must have a structured JSDoc block. The generator reads 
 
 ### Roadmap archive
 
-`docs/roadmap.md` contains **only active/open items**. All completed phases and items are archived to JSONL files in `archive/roadmap/`.
+Both `docs/roadmap.md` (vision / wave context) and `docs/implementation-plan.md` (canonical pre-1.0 sequencer) feed the same `archive/roadmap/` JSONL set. Each file should keep **only active / open / load-bearing-historical content**. Once a phase, sub-section, or item group is fully landed and no longer informs in-flight work, move it to the appropriate `archive/roadmap/*.jsonl` file as a new JSONL line.
 
 | File | Content |
 |------|---------|
@@ -207,6 +207,9 @@ Every exported function must have a structured JSDoc block. The generator reads 
 | `phase-7-polish.jsonl` | Phase 7: llms.txt, reactive layout, demo shell, streaming node convention |
 | `phase-8-reduction-layer.jsonl` | Phase 8: reduction primitives, domain templates, LLM graph composition, backpressure |
 | `phase-9-harness-sprint.jsonl` | Phase 9 + hotfix: collaboration loop primitives, eval tiers, schema fixes, rich catalog, harness sprint deliverables, equals/error hotfix |
+| `phase-11-cleanup.jsonl` | Phase 11 (2026-04-30 sequencing): deferred-item cleanup batch — ✅ DONE entries from §11.1–§11.11 |
+| `phase-12-consolidation.jsonl` | Phase 12 (2026-04-30 sequencing): consolidation closure (`io/` body extraction, sibling-file relocation, `extends Graph` sweep, promptNode B.3 widening) |
+| `phase-13-multi-agent.jsonl` | Phase 13 (2026-04-30 sequencing): multi-agent + intervention substrate (`Message<T>`, `selector`/`materialize`, `valve` abort, `humanInput`/`tracker`, `agent`/`AgentBundle`, `spawnable`, `settle`) |
 | `push-model-migration.jsonl` | Push Model Migration (spec v0.1→v0.2): phases 1-3 (TS), phase 5 (LLM validation), inspection TS consolidation |
 
 **JSONL schema:**
@@ -215,11 +218,25 @@ Every exported function must have a structured JSDoc block. The generator reads 
 {"id": "kebab-case-slug", "phase": "0.1", "title": "Short title", "items": ["completed item 1", "completed item 2"]}
 ```
 
-**Workflow:**
+**Workflow — `docs/roadmap.md` (vision / wave context):**
 
-1. **New open items** go in `docs/roadmap.md` under the appropriate section.
-2. When a phase or item group is **completed**, move it from `docs/roadmap.md` to the appropriate `archive/roadmap/*.jsonl` file (append a new line).
+1. **New open items** go in `docs/roadmap.md` under the appropriate section (rare today; most new items belong in `implementation-plan.md`).
+2. When a phase or item group is **completed**, move it from `docs/roadmap.md` to the appropriate `archive/roadmap/*.jsonl` file (append a new line) and replace the body with a one-line pointer (`> **DONE — archived to archive/roadmap/<file>.jsonl** (id: <slug>).`).
 3. Items that remain open from completed phases stay in `docs/roadmap.md` under "Open items from completed phases."
+
+**Workflow — `docs/implementation-plan.md` (canonical sequencer):**
+
+1. **New open items** go in `docs/implementation-plan.md` under the matching Phase 11–16 entry (or a new sub-phase / DS-# session if scope warrants).
+2. When a sub-section item lands, mark it ✅ inline with the date.
+3. When **every** item in a sub-section lands, mark the sub-section ✅ and tag with the date.
+4. When a **whole Phase** lands (all sub-sections ✅, no open WAIT/POST-1.0 carries that still need this phase's context to be readable), archive it:
+    - Append a JSONL line to the matching `archive/roadmap/phase-<n>-*.jsonl` (create the file the first time a phase lands), capturing the sub-section titles + a short summary per sub-section in the `items` array.
+    - Replace the in-file Phase body with a 2–4-line summary + archive pointer (id, file). Keep the heading so cross-references from other phases / optimizations.md stay resolvable.
+    - If a single item still has a follow-up (e.g. Phase 13.K's `topicBridge` gap), file it in `docs/optimizations.md` "Active work items" with a back-link, then archive the parent phase.
+5. Tier 1–10 historical content predates this sequencing migration (locked 2026-04-30). Treat each Tier the same way: archive whole tiers when they no longer inform in-flight work; keep a 1–2-line summary + archive pointer in place. The "Deviations" sections at the top stay only as long as they're load-bearing for in-flight phases — once the referenced phases archive, the deviations archive with them.
+6. Items that are still **WAIT** / **POST-1.0** / **PARKED** stay in the phase entry until they unblock or are demoted to the Parked table.
+
+**The trigger to archive is "the body no longer informs anyone reading the file for what's next" — not a calendar date.** If a `/qa` or `/dev-dispatch` pass closes the last in-flight item from a phase, archive in the same pass.
 
 ### Design decision archive
 
@@ -314,7 +331,8 @@ Examples that bit us during Tier 8 / Tier 9.1 (caught in /qa, not at land):
 | New subpath | `tsup.config.ts` `ENTRY_POINTS` + (if node-only) `nodeOnlyEntries` + `package.json` `exports` block + JSDoc `@example` uses the new subpath | n/a (PY doesn't have this split yet) |
 | Protocol or Graph behavior | `~/src/graphrefly/GRAPHREFLY-SPEC.md` (canonical) + JSDoc/docstring on both |
 | New runnable example | `examples/<name>.ts` | `examples/<name>.py` (in graphrefly-py) |
-| Phase completed | Archive done items to `archive/roadmap/*.jsonl`, update `docs/roadmap.md` (both in this repo) |
+| Phase / sub-section item completed | Mark ✅ inline in `docs/implementation-plan.md` (or `docs/roadmap.md` for Wave-frame items) with the date. Also re-check `docs/optimizations.md` for any "Active work items" the landed work resolves and move those to the appropriate `archive/optimizations/*.jsonl`. |
+| Whole Phase / Tier completed | Archive the body to `archive/roadmap/*.jsonl` (one JSONL line per sub-section), replace the in-file content with a 2–4-line summary + archive pointer. Open follow-ups (single residual items) move to `docs/optimizations.md` with a back-link. See § Roadmap archive — Workflow for `docs/implementation-plan.md`. |
 | AI / LLM discovery | `llms.txt` (repo root) — synced to `website/public/` by build |
 | Crawler directives | `robots.txt` (repo root) — synced to `website/public/` by build |
 | New blog post | `website/src/content/docs/blog/<slug>.md` — see blog post format below |

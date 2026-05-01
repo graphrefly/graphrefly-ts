@@ -110,4 +110,6 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 
 If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, or “needs spec” item), add it to **`docs/optimizations.md`** under “Active work items” (this repo is the single source of truth). When resolved, archive to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md`.
 
+If implementation **closes the last in-flight item from a Phase 11–16 sub-section** in `docs/implementation-plan.md`, mark the sub-section ✅ inline. If it closes the **last in-flight item in a whole Phase**, also archive the phase body to the matching `archive/roadmap/phase-<n>-*.jsonl` and replace the phase body with a 2–4-line summary + archive pointer per `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/implementation-plan.md`". Single residual follow-ups move to `docs/optimizations.md` with a back-link to the archived phase id. Same convention applies to fully-completed waves / sections in `docs/roadmap.md`.
+
 When done, briefly list files changed and new exports added. Then suggest running `/qa` for adversarial review and final checks.

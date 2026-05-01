@@ -128,8 +128,9 @@ After user approves:
    - **Actively sweep:** scan for any fully-resolved items (all sub-tasks DONE, no remaining TODOs) and archive them to `archive/optimizations/resolved-decisions.jsonl` per `docs/docs-guidance.md` § "Optimization decision log". Remove archived content from `optimizations.md`.
 5. Update `docs/implementation-plan.md` (canonical sequencer):
    - When a `[py-parity-*]` item lands or its scope shifts, mark it ✅ in the matching phase entry (or note "PY parity carry" within the relevant Phase 11–16 sub-section). When PY parity reopens post-1.0, the phase entry is where future agents pick up scope.
+   - If a parity pass closes the **last in-flight item from a Phase**, archive the phase body to `archive/roadmap/phase-<n>-*.jsonl` and replace with a 2–4-line summary + archive pointer per `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/implementation-plan.md`". Single residual follow-ups move to `optimizations.md` with a back-link.
    - Do NOT add new sequencing here during the parked window; just record state changes.
-6. `docs/roadmap.md` is **vision context only** per 2026-04-30 migration — do NOT track item-level state here. Wave-completion archival to `archive/roadmap/*.jsonl` still applies but rarely fires during /parity.
+6. `docs/roadmap.md` is **vision context only** per 2026-04-30 migration — do NOT track item-level state here. Wave-completion archival to `archive/roadmap/*.jsonl` (with a one-line pointer left behind) still applies per `docs/docs-guidance.md` § "Roadmap archive — Workflow for `docs/roadmap.md`" but rarely fires during /parity.
 
 ---
 
