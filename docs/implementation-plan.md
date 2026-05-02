@@ -853,11 +853,18 @@ All 13 sub-units (A–M) shipped in one batch: 13.A recovered the multi-agent ga
 
 ### Phase 13.5 — Locked design sessions awaiting implementation
 
-*Source: post-Phase-13 triage session 2026-05-01.*
+*Source: post-Phase-13 triage session 2026-05-01. All sub-sections fully locked in **DS-13.5 lock-down session 2026-05-01** (this session).*
 
 Single home for design sessions that are decision-locked or scoped but not yet implemented. Each sub-section is self-contained — no need to cross-reference session docs to revisit them. **Implementation runs in dedicated sessions before Phase 14 opens** so the changesets/delta substrate composes against a clean protocol + primitive surface.
 
-#### DS-13.5.A — INVALIDATE protocol redesign (Bundle 1.5) — LOCKED Q1–Q15
+**Per-DS implementation sub-plans** at `docs/implementation-plan-DS-13.5/<DS>.md` — each file self-contained for handoff to an unfamiliar implementer. They include locked decisions, COMPOSITION-GUIDE pointers, files-to-touch, watch-outs, ACs, and required tests.
+
+**Lock-down session insights folded back into canonical guidance:**
+- COMPOSITION-GUIDE-PATTERNS L2 §44 — `T | Node<T>` parameter widening (when not to make a primitive). Surfaced during DS-13.5.D walk; saved as a first-class principle.
+- `StatusValue` central enum widened to `"pending" | "running" | "completed" | "errored" | "cancelled" | "paused"` (DS-13.5.B follow-on). `processManager` migrates `status: "compensated"` → `status: "cancelled"` (pre-1.0 internal break).
+- `GateState` central enum to ship at `src/extra/resilience/gate-state.ts` as `"open" | "closed"` (DS-13.5.B follow-on).
+
+#### DS-13.5.A — INVALIDATE protocol redesign (Bundle 1.5) — LOCKED Q1–Q16 (2026-05-01)
 
 *Trigger: Agent 5's `[[INVALIDATE], [RESOLVED]]` paired-reset pattern surfaced the deadlock (INVALIDATE alone leaves dependents DIRTY without settling). Reframe: promote INVALIDATE from tier-2 to its own tier-4 settle group between value-settle (tier-3 DATA/RESOLVED) and terminal (tier-5/6 COMPLETE/ERROR).*
 
@@ -910,7 +917,7 @@ Single home for design sessions that are decision-locked or scoped but not yet i
 
 ---
 
-#### DS-13.5.B — Tier 5.2 reactive-options widening (5 primitives + companions) — STRATEGY LOCKED, timeout primitive sub-locked
+#### DS-13.5.B — Tier 5.2 reactive-options widening (5 primitives + companions) — FULLY LOCKED 2026-05-01
 
 *Trigger: today's `resilientPipeline` rebuilds layers via switchMap on each opts emission, losing internal state (rate-limit pending buffer, breaker failure count, retry attempt count, in-flight timeout deadline). Widening primitives to accept `Node<Partial<Options>>` with rebind-on-emit lets state survive option swaps.*
 
@@ -983,101 +990,215 @@ Test cells: see "D2 — Tier 5.2 reactive-options widening" in earlier post-Phas
 - Companion `<primitive>State` lifted onto the pipeline bundle when caller passes Node-form.
 - Pipeline's switchMap path skips widened primitives.
 
-**Pending design walks (per primitive):** budgetGate, retry, circuitBreaker, rateLimiter — each needs its own per-axis policy table (rebind contract, in-flight reconciliation, footguns). Walk one at a time before implementation in the order above.
+**Per-primitive policy tables (locked 2026-05-01):**
+
+**Cross-cutting locks:**
+- (α) State preservation across rebind: pre-1.0 break for `retry`, `circuitBreaker`, `rateLimiter` — current "reset on opts swap" semantics goes away. Mode-axis transitions throw on the opts Node.
+- `StatusValue` shipped vocabulary `"pending" | "running" | "completed" | "errored"` reused as literal where lifecycle-shaped; widened to add `"cancelled" | "paused"` per follow-on lock above.
+- `GateState = "open" | "closed"` ships at `src/extra/resilience/gate-state.ts`. `rateLimiter` extends with `"throttled"`; `circuitBreaker` extends with `"half-open"`. Each primitive's `<Primitive>State` is a discriminated union composing the literal + per-status payload.
+
+**budgetGate** ([src/extra/resilience/budget-gate.ts](../src/extra/resilience/budget-gate.ts))
+
+| Axis | Policy |
+|---|---|
+| `constraints` array shape | **Reject** — switchMap rebuild recipe |
+| Individual constraint values | Reactive per-constraint Node (already shipped) |
+| `meta` | Reactive |
+| Empty `{}` | No-op |
+
+State preserved: pending buffer, pause flag. Bundle: `BudgetGateBundle<T> = { node: Node<T>; budgetGateState: Node<BudgetGateState> }` where `BudgetGateState = { status: "open" | "closed"; constraintsSnapshot: ReadonlyArray<{ name; satisfied; value }> }`.
+
+**retry** ([src/extra/resilience/retry.ts](../src/extra/resilience/retry.ts))
+
+| Axis | Policy |
+|---|---|
+| `count` | Rebind, state-preserving. Footgun: new count < current attempt → next failure terminates immediately (document) |
+| `backoff` strategy | Rebind, state-preserving. Applies to next delay calc; in-flight delay unchanged |
+| `meta` | Reactive |
+| Empty `{}` | No-op |
+
+State preserved: `attempt`, `prevDelay`, in-flight timer. Bundle: `RetryBundle<T> = { node: Node<T>; retryState: Node<RetryState> }` where `RetryState = { status: StatusValue; attempt: number; lastDelay_ns: number | null }`. **Pre-1.0 break:** today's reset on opts swap goes away.
+
+**circuitBreaker / withBreaker** ([src/extra/resilience/breaker.ts](../src/extra/resilience/breaker.ts))
+
+| Axis | Policy |
+|---|---|
+| `failureThreshold` | Rebind, state-preserving. Edge: new threshold ≤ current `_failureCount` → opens on next failure |
+| `cooldownNs` / `cooldown` | Rebind, state-preserving. Applies to next open-cycle |
+| `halfOpenMax` | Rebind, state-preserving. Applies to next half-open transition |
+| `meta` | Reactive (add) |
+| `now` | **Reject** — clock override structural |
+| Empty `{}` | No-op |
+
+State preserved: `_state`, `_failureCount`, `_openCycle`, `_lastOpenedAt`, `_lastCooldownNs`, `_halfOpenAttempts`. Bundle: existing `breakerState` widens to `Node<BreakerState>` where `BreakerState = { status: GateState ∪ "half-open"; failureCount; openCycle; lastOpenedAtNs; halfOpenAttempts; lastCooldownNs }`. **Pre-1.0 break:** today's reset on opts swap goes away.
+
+**rateLimiter** ([src/extra/resilience/rate-limiter.ts](../src/extra/resilience/rate-limiter.ts))
+
+| Axis | Policy |
+|---|---|
+| `maxEvents` | Rebind, state-preserving. Cap shrink drops oldest pending excess (existing F-C behavior) |
+| `windowNs` | Rebind, state-preserving |
+| `maxBuffer` | **Reject** — mode-locked at construction |
+| `onOverflow` | Rebind, state-preserving (applies to subsequent events) |
+| `meta` | Reactive |
+| Empty `{}` | No-op |
+
+State preserved: `bucket`, `pending`, `dropped`, `paused`, `lastState`. Bundle existing: `{ node, droppedCount, rateLimitState }`. `RateLimiterState` widens to discriminated union over `GateState ∪ "throttled"`.
+
+**Pipeline forwarding** ([src/extra/resilience/resilient-pipeline.ts](../src/extra/resilience/resilient-pipeline.ts:236)): switchMap rebuild path stays per primitive; if `opts.<primitive>` is Node-form, forward directly to widened primitive (no switchMap). Companion `<primitive>State` lifted onto pipeline bundle when caller passes Node-form.
+
+**Implementation order:** timeout (already sub-locked) → budgetGate → retry → circuitBreaker → rateLimiter.
 
 ---
 
-#### DS-13.5.C — MemoryRetrievalGraph rebuild (cluster M4/EC3/EC4/EC12/EC13/EC14) — SCOPE CAPTURED, 9Q PENDING
+#### DS-13.5.C — MemoryRetrievalGraph keepalive + state plumbing — LOCKED 2026-05-01 (alt A)
 
-*Trigger: every `retrieveReactive(...)` call leaks a keepalive AND every concurrent reactive-query stomps shared `this.retrieval` / `this.retrievalTrace` state. Imperative `retrieve()` API races with the reactive sibling. Internal nodes (`_contextNode`, `result`, `mirror`, projection) are anonymous — invisible to describe/explain. State nodes use raw `node()` instead of `this.state` for the `equals` plumbing.*
+**Reframe (post-walk 2026-05-01):** original DS-scope text predated C1 rework. Reality:
+- No imperative `retrieve()` API exists (already removed pre-walk).
+- Shared `this.retrieval` / `this.retrievalTrace` state already dropped (C1 rework).
+- Per-call subgraph already mounted at `retrieve_${id}` with named `context`/`result`/`projection`.
+- **Real remaining issues:** (i) keepalive leak — per-call subgraph never calls `keepalive()`; (ii) raw `node()` skips `equals` plumbing on `context`/`result`; (iii) `_contextNode` raw + unregistered when `opts.context` not supplied.
 
-**Files:** `src/patterns/ai/memory/retrieval.ts` (or wherever `MemoryRetrievalGraph` lives — `find` to confirm).
+**Files:** [src/patterns/ai/memory/memory-composers.ts:553–855](../src/patterns/ai/memory/memory-composers.ts:553) (`MemoryRetrievalGraph extends Graph`). Cluster M4/EC3/EC4/EC12/EC13/EC14 entries marked addressed by this lock.
 
-**9Q candidates for the design walk:**
-- Q1 (problem framing): what's the actual contract for `retrieve()` vs `retrieveReactive()`? Are they two faces of the same thing, or fundamentally different?
-- Q2 (scope): can we drop `retrieve()` entirely (pre-1.0 break)?
-- Q3 (API surface): per-input subgraph mounted under `retrievals/<key>` vs caller-shared-key memoization?
-- Q4 (invariants): concurrent reactive queries must NOT stomp each other; per-input lifetime tied to subscription teardown.
-- Q5 (composability): per-input subgraph register its own teardown? Or does the `MemoryRetrievalGraph` parent track per-key children?
-- Q6 (alternatives): caller-shared-key memoization (single subgraph per cache-key, reused across subscribers); pure-function retrieval (no state mutation, returns Node<RetrievalResult> directly).
-- Q7 (test coverage): concurrent retrieval doesn't stomp; describe()/explain() walks per-input subgraph; teardown drops keepalive.
-- Q8 (naming): `retrieve()` removal vs `retrieveOnce()` rename for the imperative one-shot use case.
-- Q9 (migration): pre-1.0 breaking removal of `retrieve()`. Audit consumers in `agent-memory.ts` + tests.
+**Locked decisions (alt A — per-call subgraph + keepalive-on-projection-TEARDOWN):**
+- Per-call subgraph stays mounted at `retrieve_${id}` (no rename, no caller-shared memoization).
+- `localContext` and `result` migrate to `sub.state(...)` (Graph's equals plumbing).
+- `projection` keeps custom `packedEquals` but uses `sub.derived(...)`.
+- Synthesized `_contextNode` (when `opts.context` not supplied) registers on parent `this` graph as `_context` (visible to describe).
+- After `this.mount(segment, sub)`, register a TEARDOWN-on-projection disposer that calls `this.remove(segment)` to auto-unmount on last unsubscribe.
+- No surface API change. JSDoc on `retrieveReactive` documents the lifecycle contract.
+- C1 isolation invariant preserved.
 
-**Why now:** Phase 14 changesets traverse memory state; rebuild here pre-Phase-14 means the delta protocol design doesn't need to accommodate the imperative quirks.
+**Hidden invariants (watch-outs):**
+- Caller must subscribe to projection OR drop `r` and let TEARDOWN cascade unmount the subgraph.
+- Per-call subgraph removal must happen after caller drops; only safe trigger is projection's TEARDOWN cascade.
+
+**Implementation guidance:** if `onLastUnsubscribe(node, fn)` helper isn't already shipped, inline `sub.addDisposer(...)` with manual COMPLETE listener.
+
+**Generalization candidate:** `perCallSubgraph(parent, prefix, factory)` helper extraction deferred — extract after DS-13.5.D.4 (per-claim eval mounting) lands the same shape.
 
 ---
 
-#### DS-13.5.D — JobFlow concurrency bounds — SCOPE CAPTURED, 9Q PENDING
+#### DS-13.5.D — JobFlow concurrency bounds — LOCKED 2026-05-01 (revised: drop boundedCounter)
 
 *Trigger: `maxPerPump` caps per-tick claims, not concurrent inflight. Reingest is imperative (audit-trail-only edge). `trackingKey` collisions silently overwrite. Per-claim eval subgraphs vanish from describe.*
 
-**Scope (four sub-issues, one design surface):**
-1. `maxInflight?: number` per-stage cap on JobFlow; gates pump's claim loop on `pending.length + inflight.length ≤ maxInflight`.
-2. Structural→reingest topology edge: today's dispatch effect imperatively calls `intake.publish(...)`. Want `flow.completed → structural-filter → bridge/reingest → intake.latest` as declared deps. **Blocked on** a reactive bounded-counter primitive (replaces `tryIncrementBounded` for the reingest cap).
-3. `routeJobIds` collision contract on duplicate `trackingKey`. Document caller contract; add JSDoc on `relatedTo` for retry/reingest items.
-4. Per-claim eval-verifier subgraph mounting: today's allocations are per-claim and unmounted; describe()/explain() can't walk per-claim eval topology.
+**D.1 — `maxInflight` per-stage cap ✅ ALREADY SHIPPED** — Tier 6.5 3.1, [src/patterns/job-queue/index.ts:533](../src/patterns/job-queue/index.ts:533) + test [src/__tests__/patterns/messaging.test.ts:281](../src/__tests__/patterns/messaging.test.ts:281). Archived.
 
-**9Q candidates:**
-- Q1: harness's actual concurrency contract (claims-per-pump vs total-inflight)?
-- Q2 (smallest): ship `maxInflight` first; reingest topology + bounded-counter primitive as second bundle.
-- Q5 (composability): bounded-counter primitive prerequisite for reingest topology.
-- Q6 (alternatives for collision): caller contract vs framework-enforced uniqueness.
-- Q7: per-claim eval subgraph visibility under `mount("eval/${claimId}", ...)` mount path.
+**D.2 — Reactive bounded-counter primitive — REVISED 2026-05-01: KEEP `tryIncrementBounded`, NO NEW PRIMITIVE.** User direction surfaced the "wrap-imperative-as-reactive-then-bolt-imperative-back" anti-pattern (now codified as COMPOSITION-GUIDE-PATTERNS L2 §44). Original `boundedCounter` proposal would have wrapped existing helper into a bundle whose contents (count Node already exists, `isAtCap` is a one-line derived, `tryIncrement` IS the existing function, reset is one line) add zero new semantics. Decision: **keep `tryIncrementBounded` at [src/extra/mutation/index.ts:58](../src/extra/mutation/index.ts:58)**. **Optional widening (deferred until consumer surfaces):** widen `cap` parameter from `number` to `number | Node<number>` (one-line branch reading `.cache` if Node-shaped) to support reactive caps without wrapping. Reingest-topology declared-deps rewrite parked indefinitely — no consumer signal, harness works imperatively today, Phase 14 doesn't depend on it.
+
+**D.3 — `routeJobIds` collision contract — LOCKED 2026-05-01 (alt A: JSDoc + regression test)**
+- File: [src/patterns/harness/types.ts:79–87](../src/patterns/harness/types.ts:79) (`IntakeItem.relatedTo` field).
+- Document the contract on `relatedTo`: items lacking `relatedTo[0]` and producing colliding `trackingKey`s overwrite the prior entry; retry/reingest items must set `relatedTo[0]` to the original key.
+- No code change. Add a regression-pinning test asserting last-write-wins behavior for the documented contract.
+- **Hidden invariant:** ack runs before reingest publishes (harness flow invariant — preserved).
+
+**D.4 — Per-claim eval-verifier subgraph mounting — LOCKED 2026-05-01 (alt A: mount at `eval/${claimId}`)**
+- File: [src/patterns/harness/eval-verifier.ts:200–240](../src/patterns/harness/eval-verifier.ts:200).
+- Mount per-claim eval subgraph at `eval/${claimId}` on the JobFlow's graph. Cleanup on claim ack/nack.
+- Same per-call-subgraph-with-cleanup shape as DS-13.5.C alternative A (candidate for shared `perCallSubgraph` helper extraction once both land).
+- **Hidden invariants:** subgraph torn down on claim ack/nack; claimId unique per pump cycle.
+- After fix: `describe()` shows `eval/<claimId>::{candidates, dataset, scoresNode, raw, filter}` while claim is active; cleared after ack/nack.
 
 **Why now:** harness is the centerpiece of Wave 1; getting concurrency right pre-Phase-15 evals is high-value.
 
 ---
 
-#### DS-13.5.E — Process-manager mutation framework completion — SCOPE CAPTURED, 9Q PENDING
+#### DS-13.5.E — Messaging audit-record schemas — LOCKED 2026-05-01 (alt A: 4 records)
 
-*Trigger: γ-7-B (lightMutation-wrap appendRecord) shipped Tier 9.1; full `start()`/`cancel()` body wrap in `wrapMutation` deferred (γ-7-A). Same call: messaging mutation sites (Topic.publish, Subscription.ack, Hub.delete) audit-record schemas.*
+**E.1 — `process/start` + `process/cancel` `wrapMutation` migration ✅ ALREADY SHIPPED** — γ-7-A (2026-04-28), full body wrapped at [src/patterns/process/index.ts:1043](../src/patterns/process/index.ts:1043). B4/D2 fold (sync `persistStateThrowing` inside action body) shipped 2026-05-01. Synthetic-event-emit-error swallow at [process/index.ts:785](../src/patterns/process/index.ts:785) and :870 retained — separate concern (CQRS side-effect events from step handlers). `startStrict()` proposal **DROPPED** (no consumer signal). Archived.
 
-**Sub-issues:**
-1. Full `process/start` + `process/cancel` `wrapMutation` migration vs current swallow-on-synthetic-event-emit-error. Locked γ-7-B keeps the swallow; γ-7-A would change semantics ("synthetic-event-emit error → failed start"). User-facing behavior change.
-2. Messaging audit-record schemas: ship `TopicPublishRecord` / `SubscriptionAckRecord` / `SubscriptionPullAndAckRecord` / `HubMutationRecord` types + matching `keyOf` exports. Today optional — `audit` field omitted across messaging sites.
+**E.2 — Messaging audit-record schemas — LOCKED 2026-05-01 (alt A: per-site, 4 records)**
 
-**9Q candidates:**
-- Q1: when does swallow-on-synthetic-event-emit-error become a real consumer concern?
-- Q3 (API): `startStrict()` vs single-API redesign vs current shape preserved with opt?
-- Q8 (naming): per-mutation-site schemas (`TopicPublishRecord` / `SubscriptionAckRecord` / etc.) vs shared base (`MessagingAuditRecord` discriminated union)?
-- Q9 (migration): pre-1.0 breaking semantic change vs additive opt.
+Ship 4 record types + matching `keyOf` exports at new file `src/patterns/messaging/audit-records.ts`. `audit` field stays **optional** at all mutation sites (caller opts in). Per-site discriminator via `kind` field; matches `ProcessInstance` precedent. `HubAddTopicRecord` deferred until Hub.addTopic surfaces an audit consumer (no current callsite).
 
-**Why now:** if start/cancel mutation atomicity changes, Phase 14 op-log changesets need to know whether mutation frames are atomic envelopes.
+```ts
+export interface TopicPublishRecord extends BaseAuditRecord {
+  kind: "topic.publish";
+  topicName: string;
+  itemKey: string;  // result of topic.keyOf(item)
+}
+export interface SubscriptionAckRecord extends BaseAuditRecord {
+  kind: "subscription.ack";
+  subscriptionId: string;
+  cursor: number;
+}
+export interface SubscriptionPullAndAckRecord extends BaseAuditRecord {
+  kind: "subscription.pullAndAck";
+  subscriptionId: string;
+  cursor: number;
+  itemCount: number;
+}
+export interface HubRemoveTopicRecord extends BaseAuditRecord {
+  kind: "hub.removeTopic";
+  topicName: string;
+}
+```
+
+Plus matching `topicPublishKeyOf`, `subscriptionAckKeyOf`, `subscriptionPullAndAckKeyOf`, `hubRemoveTopicKeyOf` exports.
+
+**Hidden invariants:**
+- `kind` strings are pre-1.0 stable contract once shipped (renaming downstream breaks auditors).
+- `seq` (from `BaseAuditRecord`) monotonic per audit log; `keyOf` returns stable per-record identifier.
+
+**Why now:** if start/cancel mutation atomicity changes, Phase 14 op-log changesets need to know whether mutation frames are atomic envelopes (E.1 confirms they are).
 
 ---
 
-#### DS-13.5.F — agentMemory tier closure-state promotion + tierClassifier feedback-cycle retirement — SCOPE CAPTURED, 9Q PENDING
+#### DS-13.5.F — `retention.score` side-effect extraction — LOCKED 2026-05-01 (alt A)
 
-*Trigger: `permanentKeys: Set<string>` and `entryCreatedAtNs: Map<string, number>` inside `memoryWithTiers` are still closure-held — invisible to `describe()`/`explain()` (can't trace "why was X archived?"). Separately, the `tierClassifier` effect should retire in favor of `retention.onArchive` callback wiring (eliminates §7 feedback cycle: effect writes back to its own dep).*
+**Reframe (post-walk 2026-05-01):** original DS scope mostly addressed by Tier 4.3 B (closure-state promotion shipped 2026-04-29). Remaining: D1 fix only.
 
-**Files:** `src/patterns/ai/memory/memory-composers.ts` (or `tiers.ts` — find).
+**F.1 — Closure-state promotion ✅ ALREADY SHIPPED** — Tier 4.3 B (2026-04-29). `permanentKeys` is now `reactiveMap<string, true>` mounted at [memory-composers.ts:319](../src/patterns/ai/memory/memory-composers.ts:319); `entryCreatedAtNs` is `reactiveMap<string, number>` mounted at [memory-composers.ts:321](../src/patterns/ai/memory/memory-composers.ts:321). Both visible to `describe()` / `explain()`.
 
-**Related deferred item:** D1 from residual-backlog /qa pass — `retention.score` writes into `entryCreatedAtNs.set` from inside the substrate's archival scan. Symptom of the same root cause; fold into the same design walk.
+**F.2 — `tierClassifier` feedback-cycle retirement ✅ ALREADY SHIPPED** — retention wired into distill at construction time (line 383: `mapOptions: { retention }`). Archival happens synchronously inside distill's mutation, not as secondary reactive effect. Zero §7 feedback cycle.
 
-**9Q candidates:**
-- Q4 (semantics): `Node<ReadonlySet<string>>` vs `reactiveMap<string, true>` for `permanentKeys`?
-- Q5 (composability): does `retention.onArchive` need a richer contract to absorb the current effect's responsibilities?
-- Q7 (test coverage): describe()/explain() walks "why was X archived" via the promoted state nodes.
-- Q9 (snapshot portability): persistence keys may shift; release-note item.
+**F.3 — D1 fix (`retention.score` side-effect extraction) — LOCKED 2026-05-01 (alt A)**
+- File: [src/patterns/ai/memory/memory-composers.ts:355–367](../src/patterns/ai/memory/memory-composers.ts:355) (`retention.score` body) + [line 363](../src/patterns/ai/memory/memory-composers.ts:363) (the offending `entryCreatedAtNsRef.set(...)` first-write).
+- Extract first-write into a new effect mounted on the parent graph at `entryCreatedAtNs/sync`. Effect watches `store.entries`; on each new key (not present in `entryCreatedAtNs`), writes `entryCreatedAtNs.set(key, nowNs)`. Idempotent — re-emits skip already-set keys.
+- After extraction: `retention.score` becomes pure (read-only against `entryCreatedAtNs.get(key)`).
+- Existing `?? nowNs` fallback covers the race window where `score` runs before the effect (no new race introduced).
+- **`retention.onArchive` callback unused — leave unused** (POST-1.0 carry; current distill retention path handles archival inside its mutation, no consumer needs the callback).
+
+**Hidden invariants:**
+- INVARIANT: effect runs before first archival scan, OR `score` fn handles undefined-timestamp via `?? nowNs` fallback (already the case today).
+- INVARIANT: effect is idempotent — re-emissions of `store.entries` for already-tracked keys skip via `entryCreatedAtNs.has(key)` check before write.
+- INVARIANT: `entryCreatedAtNs` GC cleanup ([line 427](../src/patterns/ai/memory/memory-composers.ts:427)) still drives via the existing subscriber that compares against active keys.
+- Snapshot portability preserved (same keys, same timestamps; only the write path changes).
 
 **Why now:** Phase 14 changesets want clean state-node visibility for delta tracking.
 
 ---
 
-#### DS-13.5.G — `extends Graph` consistency sweep — SCOPE CAPTURED, 9Q PENDING
+#### DS-13.5.G — `extends Graph` consistency sweep ✅ closed without action (2026-05-01)
 
-*Trigger: Wave AM AM.3 migrated `agentMemory` from `Object.assign(graph, { ...bundle })` to `class AgentMemoryGraph extends Graph` for consistency with `PipelineGraph`. Other `patterns/*/index.ts` factories still use the `Object.assign` pattern.*
+Audit confirmed Phase 12.D's `extends Graph` migration is complete across all eligible factories: cqrs, messaging (topic/subscription/hub/topicBridge), job-queue (jobQueue/jobFlow), pipeline, AI memory (collection/vectorIndex/knowledgeGraph/agentMemory), refineLoop. `processManager` is a legitimate non-class exception — it returns `ProcessManagerResult` (imperative coordinator with no constructor-time reactive invariants). Zero consumer code uses `instanceof DomainGraph` narrowing.
 
-**Audit candidates:** cqrs, process, messaging topics/job-queue, retrieval bundles outside ai-memory.
+**Closing audit (2026-05-01):** Explore-agent grep confirmed `class \w+ extends Graph` (17 hits, all eligible factories), `Object.assign(graph` (0 actual factories — both hits are comments documenting prior migration), `instanceof <CapabilityGraph>` (0 consumer sites — only `instanceof Graph` at framework-internal sites: `inspect/audit.ts:511`, `graph/topology-tree.ts:67/90`). No follow-up.
 
-**9Q candidates:**
-- Q2 (scope): which factories qualify? Some bundle-shaped factories may genuinely not need `extends Graph`.
-- Q3 (constructor-time invariants): which become expressible as class invariants?
-- Q5 (composability): `instanceof <CapabilityGraph>` for type narrowing — does it actually compose with consumer code?
-- Q9 (migration cost): per-factory; mostly mechanical.
+---
 
-**Why now:** mostly mechanical, but the *decision* of "which factories" benefits from a single design call. Once decided, implementation is parallelizable.
+### Phase 13.6 — Rules/invariants audit + library-wide cleanup pass
+
+*Source: lock-down-session insight 2026-05-01 — the DS-13.5 walks surfaced enough cross-cutting inconsistencies (bundle vs Node vs Graph form, imperative-vs-reactive boundary placement, when to wrap as primitive vs widen with `T | Node<T>`) that a dedicated audit-and-cleanup phase is warranted before Phase 14 opens.*
+
+**Placement:** AFTER DS-13.5 implementation completes, BEFORE Phase 14 (changesets/diff). The audit wants concrete code to compare rules against; landed DS-13.5 changes are the natural baseline. The audit may also surface principles that affect Phase 14 design (op-log changesets touch every reactive primitive).
+
+**Phase 13.6.A — Rules/invariants inventory + contradiction check + locking**
+- Compile every rule / invariant / principle / anti-pattern from canonical guidance: GRAPHREFLY-SPEC §5.8–5.12, COMPOSITION-GUIDE L0/L1/L2/L3 (4 files), feedback memories. Inventory document seeded by the 2026-05-01 lock-down session (`docs/implementation-plan-13.6-prep-inventory.md`) — see that file for the precursor list.
+- Contradiction-check the inventoried rules. Surface overlaps, conflicts, gaps.
+- Identify encountered-issues that should generate new rules (anti-patterns observed but not yet codified). The DS-13.5 walks already added L2 §44; expect 3–7 more candidate rules from the audit.
+- Lock the "ultimate" invariants document. Output: amendments to spec § + COMPOSITION-GUIDE sections.
+- **Substantial 9Q audit; produces a doc, not code.**
+
+**Phase 13.6.B — Library-wide cleanup against locked invariants**
+- Per-layer pass: core → extras → patterns → solutions.
+- Each layer audited against locked invariants; deviations either fixed or filed as accepted exceptions with rationale.
+- Parallelizable across layers; expect 3–6 implementation sub-sessions (one per layer + cross-cutting tidy-ups).
+- Output: code changes across `src/`, possibly minor spec/guide tightening as the audit process surfaces ambiguities.
+
+**Why now:** the DS-13.5 walks repeatedly hit "is this principle codified anywhere?" — for the cases we hit (e.g., §44 `T | Node<T>` widening), the answer was "no, lock-down session was the first time." Implies more such gaps. A dedicated audit phase before Phase 14 sets the substrate cleanly.
 
 ---
 
