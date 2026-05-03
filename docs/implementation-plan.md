@@ -1223,6 +1223,22 @@ Audit confirmed Phase 12.D's `extends Graph` migration is complete across all el
 
 **Why now:** the DS-13.5 walks repeatedly hit "is this principle codified anywhere?" — for the cases we hit (e.g., §44 `T | Node<T>` widening), the answer was "no, lock-down session was the first time." Implies more such gaps. A dedicated audit phase before Phase 14 sets the substrate cleanly.
 
+**Rust-port deferral classification (guardrail for 13.6.B scope)**
+
+*Source: 2026-05-02 brainstorm on Rust-port timing. Phase 13.6.A spec/lock work is language-independent — both the current TS impl and any future Rust port must honor identical invariants. Phase 13.6.B implementation work, however, has dramatically asymmetric cost in TS vs Rust for some items. Mark the carve-outs explicitly so 13.6.B doesn't bolt heavy hardening onto TS that would be near-free in Rust.*
+
+**DON'T DEFER — do in TS during 13.6.A + 13.6.B:**
+- All of 13.6.A — invariant lock, contradiction check, doc amendments. Pure spec/doc work, language-irrelevant.
+- Spec-level rollback semantics (L2.35-rollback-*) — contract every impl must honor.
+- Audit-record schemas (DS-13.5.E) — wire format, both impls must agree.
+- Imperative-vs-reactive boundary rubric (DS-13.5.G follow-up) — API design.
+- Reactive composition primitives — domain semantics belong in spec / COMPOSITION-GUIDE regardless of impl language.
+
+**STRONG DEFER — leave for Rust port; don't bolt onto TS:**
+- Hardening rollback against the L2.35-rollback-scope caveat ("closure mutations not covered"). In Rust, `&mut T` ownership + `imbl`-style persistent collections make this nearly automatic. Catch-mutation gymnastics in TS would be fighting the language for a temporary fix.
+- ACID storage-tier tightening (G.27-atomicity beyond best-effort). `redb`-style ACID transactions are a Rust crate choice; in TS this is a multi-week project.
+- Strict per-tier transaction semantics in storage primitives — same reason as above.
+
 ---
 
 
@@ -1240,6 +1256,25 @@ Pre-1.0 placement justified by user re-prio: lands AFTER Phase 13 multi-agent sh
 5. **`restoreSnapshot mode: "diff"` WAL replay** — depends on (1)+(2)+the `StorageTier.listByPrefix(prefix)` / `readWAL(key)` extension.
 
 Co-design rationale: all five rest on a delta protocol with `version` field = the per-substrate counter. Designing in isolation produces incompatible deltas. Landing across 2–3 implementation sessions afterward.
+
+**Rust-port deferral classification (guardrail for Phase 14 land scope)**
+
+*Source: 2026-05-02 brainstorm on Rust-port timing. The user-facing API shape of the delta protocol must be designed and shipped in TS first — both to validate the surface and to give 1.0 a complete story. But the perf-and-rigor hardening of the same surface lands much more cheaply on a Rust substrate. Mark the carve-outs.*
+
+**DON'T DEFER — do in TS during Phase 14 land:**
+- Op-log changeset protocol shape (`{ version, ops, rootRef? }`) — user-facing API, must validate in TS.
+- Delta protocol `version` field semantics — both impls share.
+- `lens.flow` delta companion API shape — public surface.
+- `restoreSnapshot mode: "diff"` user contract — semantics, not perf.
+- All five DS-14 threads' API shapes — the *surface*, not the substrate.
+- Codec envelope evolution for delta-aware codecs (`DagCborCodec` integration with version-counter substrate).
+
+**STRONG DEFER — leave for Rust port; don't bolt onto TS:**
+- High-throughput diff/changeset replay performance. Rust `imbl`-style persistent collections give O(log n) snapshot-and-revert naturally; TS impl gets correctness, Rust impl gets perf-without-engineering.
+- Strict cross-tier WAL atomicity beyond best-effort (depends on storage-tier ACID work that's also Rust-deferred per Phase 13.6 guardrail).
+- CRDT-backed `reactiveMap` / `reactiveLog` variants. The Rust CRDT ecosystem (`yrs`, `automerge`, `loro`, `diamond-types`) dominates — yjs JS users increasingly run yrs under WASM. Doing CRDT work in TS first means re-implementing or wasm-wrapping work that gets redone on the port.
+- `peerGraph(transport)` multi-replica sync (already POST-1.0 per Phase 8.5; flagging here so it doesn't get pulled into pre-1.0 by accident — Rust + libp2p + IPLD content-addressing gives this natively).
+- Cross-replica changeset merging with CRDT semantics — same Rust ecosystem alignment.
 
 ---
 
