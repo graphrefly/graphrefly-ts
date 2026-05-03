@@ -312,8 +312,8 @@ describe("terminal and control messages are not phase-2", () => {
 		}
 	});
 
-	// v5: TEARDOWN is tier 5, deferred to drainPhase4 inside a batch.
-	it("TEARDOWN is deferred inside batch (tier 5)", () => {
+	// DS-13.5.A: TEARDOWN is tier 6, deferred to drainPhase4 inside a batch.
+	it("TEARDOWN is deferred inside batch (tier 6)", () => {
 		const log: symbol[] = [];
 		batch(() => {
 			downWithBatch(
@@ -330,9 +330,10 @@ describe("terminal and control messages are not phase-2", () => {
 		expect(log).toEqual([TEARDOWN]);
 	});
 
-	// Canonical ordering: terminal signals (COMPLETE, ERROR) are tier 4 — deferred to
-	// after phase-2 inside a batch, so DATA/RESOLVED reach sinks before node goes terminal.
-	it("ERROR, COMPLETE are deferred (tier 4) — delivered after phase-2 in batch", () => {
+	// Canonical ordering: terminal signals (COMPLETE, ERROR) are tier 5 — deferred to
+	// after phase-2 (settle slice) inside a batch, so DATA/RESOLVED/INVALIDATE reach
+	// sinks before node goes terminal.
+	it("ERROR, COMPLETE are deferred (tier 5) — delivered after phase-2 in batch", () => {
 		for (const t of [ERROR, COMPLETE] as const) {
 			const log: symbol[] = [];
 			batch(() => {
@@ -343,7 +344,7 @@ describe("terminal and control messages are not phase-2", () => {
 					[[t]],
 					tierOf,
 				);
-				// Terminal is deferred inside batch (tier 4).
+				// Terminal is deferred inside batch (tier 5).
 				expect(log).toEqual([]);
 			});
 			// Delivered on batch exit.
@@ -687,10 +688,10 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 	});
 
 	it("pausable: resumeAll — COMPLETE bypasses bufferAll and reaches subscribers even while paused", () => {
-		// Spec §2.6 bufferAll: tier-4 (COMPLETE/ERROR) dispatches synchronously
+		// Spec §2.6 bufferAll: tier-5 (COMPLETE/ERROR) dispatches synchronously
 		// even while a pause lock is held — stream-lifecycle signals must
-		// reach observers regardless of flow control, parallel to tier-5
-		// TEARDOWN's bypass. Prior to this: tier-4 was captured in pauseBuffer
+		// reach observers regardless of flow control, parallel to tier-6
+		// TEARDOWN's bypass. Prior to this: tier-5 was captured in pauseBuffer
 		// and silently discarded at _deactivate if no RESUME ever came,
 		// stranding subscribers without an end-of-stream signal.
 		const s = node([], { pausable: "resumeAll", initial: 0 });
@@ -723,7 +724,7 @@ describe("C0: PAUSE/RESUME lock-id", () => {
 	});
 
 	it("pausable: resumeAll — ERROR bypasses bufferAll and reaches subscribers even while paused", () => {
-		// Companion to the COMPLETE test: tier-4 ERROR also bypasses bufferAll.
+		// Companion to the COMPLETE test: tier-5 ERROR also bypasses bufferAll.
 		const s = node([], { pausable: "resumeAll", initial: 0 });
 		const seen: Array<{ type: symbol; value?: unknown }> = [];
 		const unsub = s.subscribe((msgs) => {

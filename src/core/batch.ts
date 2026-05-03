@@ -3,9 +3,10 @@
  * explicit `batch()` scopes.
  *
  * **Canonical invariant:** GRAPHREFLY-SPEC.md §1.3.7 — inside a batch,
- * tier 0–2 signals propagate immediately; tier 3 (DATA/RESOLVED), tier 4
- * (COMPLETE/ERROR), and tier 5 (TEARDOWN) are queued and drained in ascending
- * phase order after the outermost `batch()` callback returns.
+ * tier 0–2 signals propagate immediately; tier 3 (DATA/RESOLVED) and tier 4
+ * (INVALIDATE) form one settle slice; tier 5 (COMPLETE/ERROR) and tier 6
+ * (TEARDOWN) follow in ascending phase order after the outermost `batch()`
+ * callback returns.
  *
  * **Per-node emit coalescing (Bug 2 fix, 2026-04-17).** Inside an explicit
  * `batch()` scope, consecutive emissions from the same node accumulate in
@@ -14,11 +15,27 @@
  * one coalesced `downWithBatch` call per child edge at batch end. Outside batch
  * (or during drain), coalescing does NOT apply — each emit produces its own wave.
  *
- * **Phase vocabulary:**
+ * **Phase vocabulary (post-DS-13.5.A renumbering):**
  * - Phase 1 = tiers 0–2 — immediate, never queued.
- * - Phase 2 = tier 3 — {@link drainPhase2}. Value settlements.
- * - Phase 3 = tier 4 — {@link drainPhase3}. Terminal signals.
- * - Phase 4 = tier 5 — {@link drainPhase4}. TEARDOWN (unified deferral).
+ * - Phase 2 = tier 3 (DATA/RESOLVED) + tier 4 (INVALIDATE) — {@link drainPhase2}.
+ *   The "settle slice." INVALIDATE is settle-class (decrements
+ *   `_dirtyDepCount` like RESOLVED) so it shares the same drain queue —
+ *   one batch-frame == one wave settlement, regardless of whether the
+ *   wave carries DATA, RESOLVED, INVALIDATE, or any mix across nodes.
+ * - Phase 3 = tier 5 (COMPLETE/ERROR) — {@link drainPhase3}. Terminal signals.
+ * - Phase 4 = tier 6 (TEARDOWN) — {@link drainPhase4}. Unified teardown deferral.
+ *
+ * **Q16 atomicity carve-out (DS-13.5.A).** When a single emit's framed wave
+ * carries BOTH tier-5 (COMPLETE/ERROR) AND tier-6 (TEARDOWN) — the shape
+ * Q16 produces by auto-prefixing a synthetic `[COMPLETE]` before
+ * user-emitted `[TEARDOWN]` on a non-terminal node — the entire
+ * terminal+teardown slice drains together at phase 4, not split across
+ * phases 3 and 4. Splitting would let the dep callback's settlement
+ * check fire between COMPLETE delivery and TEARDOWN delivery,
+ * re-establishing cleanup hooks that then double-fire on TEARDOWN
+ * (regression originally surfaced by `Graph.destroy` cleanup-fires-once
+ * tests). Standalone COMPLETE/ERROR emissions (no TEARDOWN in the same
+ * wave) still drain at phase 3 normally.
  *
  * Drain rule: fire any pending flush hooks first, then the lowest non-empty
  * phase. Re-enqueues during drain (and hooks registered by reentrant batches
@@ -33,11 +50,11 @@ const MAX_DRAIN_ITERATIONS = 1000;
 let batchDepth = 0;
 let flushInProgress = false;
 
-/** Tier 3 (DATA/RESOLVED) deferral queue — drained first. */
+/** Tier 3 (DATA/RESOLVED) + tier 4 (INVALIDATE) deferral queue — settle slice, drained first. */
 const drainPhase2: Array<() => void> = [];
-/** Tier 4 (COMPLETE/ERROR) deferral queue — drained after phase 2. */
+/** Tier 5 (COMPLETE/ERROR) deferral queue — drained after the settle slice. */
 const drainPhase3: Array<() => void> = [];
-/** Tier 5 (TEARDOWN) deferral queue — drained last. */
+/** Tier 6 (TEARDOWN) deferral queue — drained last. */
 const drainPhase4: Array<() => void> = [];
 
 /**
@@ -200,11 +217,14 @@ function drainPending(): void {
  * `node.ts`); the walker exploits that invariant to find phase cuts in one
  * pass without re-sorting.
  *
- * Behavior:
+ * Behavior (post-DS-13.5.A tier renumbering):
  * - Tier 0–2 — delivered synchronously.
- * - Tier 3 — deferred to {@link drainPhase2} when batching, else synchronous.
- * - Tier 4 — deferred to {@link drainPhase3} when batching, else synchronous.
- * - Tier 5 — deferred to {@link drainPhase4} when batching, else synchronous.
+ * - Tier 3 (DATA/RESOLVED) — deferred to {@link drainPhase2} when batching.
+ * - Tier 4 (INVALIDATE) — deferred to {@link drainPhase2} alongside the value
+ *   settlements (the "settle slice" — INVALIDATE settles a wave so it must
+ *   land in the same drain phase as DATA/RESOLVED).
+ * - Tier 5 (COMPLETE/ERROR) — deferred to {@link drainPhase3} when batching.
+ * - Tier 6 (TEARDOWN) — deferred to {@link drainPhase4} when batching.
  *
  * Tier-classification uses the caller-supplied `tierOf` so that batch stays
  * decoupled from `GraphReFlyConfig`. NodeImpl passes `config.tierOf` (a
@@ -225,7 +245,9 @@ export function downWithBatch(
 			sink(messages);
 			return;
 		}
-		const queue = tier >= 5 ? drainPhase4 : tier === 4 ? drainPhase3 : drainPhase2;
+		// tier 3 (DATA/RESOLVED) and tier 4 (INVALIDATE) share drainPhase2 —
+		// one settle slice. tier 5 → drainPhase3 (terminal). tier ≥ 6 → drainPhase4 (TEARDOWN).
+		const queue = tier >= 6 ? drainPhase4 : tier === 5 ? drainPhase3 : drainPhase2;
 		queue.push(() => sink(messages));
 		return;
 	}
@@ -240,13 +262,36 @@ export function downWithBatch(
 	let i = 0;
 	while (i < n && tierOf(messages[i][0]) < 3) i++;
 	phase2Start = i;
-	while (i < n && tierOf(messages[i][0]) === 3) i++;
+	// Phase 2 (settle slice): tier 3 DATA/RESOLVED + tier 4 INVALIDATE.
+	while (i < n && tierOf(messages[i][0]) <= 4) i++;
 	phase3Start = i;
-	while (i < n && tierOf(messages[i][0]) === 4) i++;
+	// Phase 3 (terminal): tier 5 COMPLETE/ERROR.
+	while (i < n && tierOf(messages[i][0]) === 5) i++;
 	phase4Start = i;
-	// Anything from phase4Start..n has tier >= 5.
+	// Anything from phase4Start..n has tier >= 6 (TEARDOWN).
 
 	const batching = isBatching();
+
+	// DS-13.5.A Q16 atomicity: Q16 auto-precedes TEARDOWN with [COMPLETE].
+	// Splitting that pair across two sink calls lets fn re-run between them
+	// (the dep callback's settlement check sees `_hasNewTerminal=true` after
+	// COMPLETE delivery and falls through to `_execFn`, which re-establishes
+	// cleanup that then fires again on TEARDOWN). Keep COMPLETE/ERROR +
+	// TEARDOWN atomic so the terminal lifecycle pair is observed as one
+	// logical wave — applies to both sync delivery and in-batch deferred
+	// delivery (push as a single op into the latest phase queue).
+	if (phase4Start > phase3Start && n > phase4Start) {
+		if (phase2Start > 0) sink(messages.slice(0, phase2Start));
+		if (phase3Start > phase2Start) {
+			const phase2 = messages.slice(phase2Start, phase3Start);
+			if (batching) drainPhase2.push(() => sink(phase2));
+			else sink(phase2);
+		}
+		const terminalAndTeardown = messages.slice(phase3Start, n);
+		if (batching) drainPhase4.push(() => sink(terminalAndTeardown));
+		else sink(terminalAndTeardown);
+		return;
+	}
 
 	if (phase2Start > 0) {
 		// Immediate tier 0–2 region.

@@ -1274,22 +1274,13 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 	function dispose(): void {
 		if (_disposed) return;
 		_disposed = true;
-		// Terminate restoreState explicitly via COMPLETE so any pending
-		// `firstWhere(restoreState, ...)` awaiter (i.e. a `restore()`
-		// Promise still waiting on the gate flip) settles. firstWhere
-		// rejects on COMPLETE-without-match; the .catch in `restore()`
-		// swallows that rejection and the public Promise resolves cleanly.
-		//
-		// **Local instance of a broader convention** (tracked under
-		// DS-13.5.A spec amendment, opened 2026-05-01): the framework
-		// should auto-emit COMPLETE/ERROR before propagating TEARDOWN as
-		// the canonical teardown sequence — same shape as the synthetic-
-		// DIRTY auto-prefix already in `_emit`. Once the framework rule
-		// lands, this manual COMPLETE becomes redundant. Until then, every
-		// dispose() that uses `firstWhere`/`firstValueFrom`-style bridges
-		// against a node that may be torn down (rather than naturally
-		// COMPLETE'd) needs the same manual emission to avoid hangs.
-		restoreState.down([[COMPLETE]]);
+		// Pending `firstWhere(restoreState, ...)` awaiters (i.e. a `restore()`
+		// Promise still waiting on the gate flip) settle via the framework's
+		// DS-13.5.A Q16 auto-precede rule: TEARDOWN delivery on a non-terminal
+		// node automatically prepends [COMPLETE] in `_frameBatch`, so sinks
+		// see [[COMPLETE], [TEARDOWN]] in order. firstWhere rejects on
+		// COMPLETE-without-match; the .catch in `restore()` swallows that
+		// rejection and the public Promise resolves cleanly.
 		// Tear down the restore pipeline keepalive. fromAny.cleanup sets
 		// `settled = true`, so when the underlying tier.list/load promises
 		// finally resolve, the DATA never propagates — the closure mutations

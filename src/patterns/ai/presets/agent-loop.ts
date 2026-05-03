@@ -700,25 +700,20 @@ export class AgentLoopGraph extends Graph {
 			// `_terminalResult` is only correct once the reset clears the
 			// cache.
 			//
-			// **SENTINEL reset via `[[INVALIDATE], [RESOLVED]]`** (per
-			// `feedback_use_prevdata_for_sentinel`). `lastResponse` is a
-			// `Node<LLMResponse>` with no `initial` — it stays SENTINEL
-			// until the first real response. Resetting via `emit(null)`
-			// would push a `null` DATA placeholder (the F9 trap).
-			//
-			// Why both INVALIDATE and RESOLVED:
-			// - INVALIDATE clears `_cached` AND clears each dependent's
-			//   `prevData[lastResponse]` slot back to `undefined`, restoring
-			//   the SENTINEL detector for the C3 abort branch.
-			// - INVALIDATE also marks each dependent dirty (`_dirtyDepCount++`).
-			//   Without a follow-up settlement signal, `_terminalResult`'s fn
-			//   would never re-fire (gated on `_dirtyDepCount === 0`).
-			// - RESOLVED un-DIRTYs each dependent's slot WITHOUT changing
-			//   `prevData` — i.e. leaves the SENTINEL state intact. Together
-			//   the pair restores SENTINEL state AND lets dependents fire on
-			//   the next status transition.
+			// **SENTINEL reset via plain `[[INVALIDATE]]`** (DS-13.5.A,
+			// 2026-05-01). Pre-DS-13.5.A this required a paired
+			// `[[INVALIDATE], [RESOLVED]]` because INVALIDATE alone left
+			// dependents wedged in DIRTY. With INVALIDATE settling the wave
+			// (decrementing `_dirtyDepCount` like RESOLVED) and clearing
+			// `_cached` + each dependent's `prevData[lastResponse]` slot
+			// back to `undefined`, a single emission restores SENTINEL state
+			// AND lets dependents fire on the next status transition.
+			// `lastResponse` is a `Node<LLMResponse>` with no `initial` —
+			// it stays SENTINEL until the first real response; resetting
+			// via `emit(null)` would push a `null` DATA placeholder (the
+			// F9 trap), which is why INVALIDATE rather than emit is used.
 			batch(() => {
-				this.lastResponse.down([[INVALIDATE], [RESOLVED]]);
+				this.lastResponse.down([[INVALIDATE]]);
 				this.turn.emit(0);
 				this.aborted.emit(false);
 				this.status.emit("idle");

@@ -1818,7 +1818,7 @@ export class Graph {
 	}
 
 	/**
-	 * Emit a single `[[INVALIDATE]]` (tier 1) on a node. Thin wrapper over
+	 * Emit a single `[[INVALIDATE]]` (tier 4) on a node. Thin wrapper over
 	 * `node.down([[INVALIDATE]], …)` matching the {@link Graph.set} ergonomics.
 	 */
 	invalidate(name: string, options?: GraphActorOptions): void {
@@ -1831,7 +1831,7 @@ export class Graph {
 	}
 
 	/**
-	 * Emit a single `[[ERROR, err]]` (tier 4) on a node.
+	 * Emit a single `[[ERROR, err]]` (tier 5) on a node.
 	 */
 	error(name: string, err: unknown, options?: GraphActorOptions): void {
 		const internal = options?.internal === true;
@@ -1843,7 +1843,7 @@ export class Graph {
 	}
 
 	/**
-	 * Emit a single `[[COMPLETE]]` (tier 4) on a node, declaring the stream
+	 * Emit a single `[[COMPLETE]]` (tier 5) on a node, declaring the stream
 	 * cleanly finished. Distinct from {@link Graph.remove} (which emits
 	 * TEARDOWN and unregisters the node).
 	 */
@@ -2450,21 +2450,22 @@ export class Graph {
 	 * @param options - Optional `actor` / `internal` for transport.
 	 */
 	signal(messages: Messages, options?: GraphActorOptions): void {
-		// Reject tier ≥ 3 (DATA / RESOLVED / COMPLETE / ERROR / TEARDOWN when
-		// called externally — destroy() routes through signal with
-		// `{internal: true}` which bypasses this check). Broadcasting per-flow
-		// values to every node in the tree is almost always a mistake.
+		// Reject tier 3 (DATA / RESOLVED) when called externally — destroy()
+		// routes through signal with `{internal: true}` which bypasses this
+		// check. Broadcasting per-flow values to every node in the tree is
+		// almost always a mistake.
 		if (options?.internal !== true) {
 			for (const m of messages) {
 				const tier = this.config.messageTier(m[0]);
 				// Tier 3 (DATA / RESOLVED) is per-flow state — broadcasting it
-				// to every node overwrites unrelated caches. Tier 4/5 stays
-				// allowed: ERROR/COMPLETE/TEARDOWN have legitimate broadcast
-				// use (graceful shutdown, error cascade).
+				// to every node overwrites unrelated caches. Tier 4 INVALIDATE,
+				// tier 5 COMPLETE/ERROR, and tier 6 TEARDOWN all stay allowed:
+				// they have legitimate broadcast use (cache reset, graceful
+				// shutdown, error cascade, teardown).
 				if (tier === 3) {
 					throw new Error(
 						`Graph "${this.name}": Graph.signal() rejects tier-3 messages (DATA / RESOLVED). ` +
-							`Broadcast is for control-plane tiers (START / DIRTY / INVALIDATE / PAUSE / RESUME / COMPLETE / ERROR / TEARDOWN). ` +
+							`Broadcast is for control-plane (START / DIRTY / PAUSE / RESUME / INVALIDATE) and lifecycle (COMPLETE / ERROR / TEARDOWN) tiers. ` +
 							`For per-node value writes, use Graph.set or graph.node(name).down(...).`,
 					);
 				}
@@ -4478,7 +4479,7 @@ export class Graph {
 				GRAPH_OWNER.delete(node);
 			}
 		}
-		// TEARDOWN is tier 5 — below `attachSnapshotStorage`'s `tier < 5` gate, so no
+		// TEARDOWN is tier 6 — above `attachSnapshotStorage`'s `tier < 6` gate, so no
 		// final checkpoint fires; storage disposers unsubscribe after TEARDOWN
 		// has propagated through the subscription pipeline.
 		this.signal([[TEARDOWN]] satisfies Messages, { internal: true });
@@ -4999,7 +5000,9 @@ export class Graph {
 		const onEvent = (path: string, messages: Messages): void => {
 			const triggeredByTier = messages.some((m) => {
 				const tier = this.config.messageTier(m[0]);
-				return tier >= 3 && tier < 5;
+				// Include DATA/RESOLVED (3), INVALIDATE (4), COMPLETE/ERROR (5);
+				// exclude TEARDOWN (6) — graph teardown skips the final checkpoint.
+				return tier >= 3 && tier < 6;
 			});
 			if (!triggeredByTier) return;
 			if (options.filter) {

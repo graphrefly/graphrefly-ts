@@ -578,16 +578,14 @@ export class AgentGraph<TIn, TOut> extends Graph {
 				const userMsg = inMapper(input);
 				batch(() => {
 					// Reset per-input accumulators so cost/turns don't include
-					// the previous input. Same shape as `agentLoop.run()`'s
-					// reset batch — `lastResponse` is reset via
-					// `[[INVALIDATE], [RESOLVED]]` (INVALIDATE clears `_cached`
-					// AND each dependent's `prevData[lastResponse]` slot back
-					// to SENTINEL `undefined`; RESOLVED un-DIRTYs each
-					// dependent's slot WITHOUT changing `prevData`, so `out`
-					// and `costEff` can fire on the next status transition
-					// without staying gated forever). Per
-					// `feedback_use_prevdata_for_sentinel`.
-					this.loop.lastResponse.down([[INVALIDATE], [RESOLVED]]);
+					// the previous input. `lastResponse` is reset via plain
+					// `[[INVALIDATE]]` — under DS-13.5.A INVALIDATE both clears
+					// `_cached` AND settles the consuming wave (decrements
+					// `_dirtyDepCount` like RESOLVED), so dependents like
+					// `out` / `costEff` fire on the next status transition
+					// without staying wedged in DIRTY. Pre-DS-13.5.A this used
+					// the `[[INVALIDATE], [RESOLVED]]` paired-reset workaround.
+					this.loop.lastResponse.down([[INVALIDATE]]);
 					this.loop.turn.emit(0);
 					this.loop.aborted.emit(false);
 					costNode.emit(ZERO_COST);

@@ -71,10 +71,11 @@ export interface NodeActions {
 	down(messageOrMessages: Message | Messages): void;
 	/**
 	 * Send one or more messages upstream. Accepts the same shapes as
-	 * {@link down}. Tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR)
-	 * are downstream-only and will throw — up is for DIRTY, INVALIDATE,
-	 * PAUSE, RESUME, and TEARDOWN only. No cache advance, no equals,
-	 * no framing — a plain forward to every dep.
+	 * {@link down}. Tier 3 (DATA/RESOLVED) and tier 5 (COMPLETE/ERROR)
+	 * are downstream-only and will throw — `up` is for control-plane
+	 * tiers only: DIRTY (tier 1), PAUSE / RESUME (tier 2), INVALIDATE
+	 * (tier 4), and TEARDOWN (tier 6). No cache advance, no equals, no
+	 * framing — a plain forward to every dep.
 	 */
 	up(messageOrMessages: Message | Messages): void;
 }
@@ -465,30 +466,43 @@ export class GraphReFlyConfig {
 export function registerBuiltins(cfg: GraphReFlyConfig): void {
 	cfg.registerMessageType(START, { tier: 0, wireCrossing: false });
 	cfg.registerMessageType(DIRTY, { tier: 1, wireCrossing: false });
-	// INVALIDATE, COMPLETE, ERROR, TEARDOWN do NOT pass through to meta
-	// companions via Graph.signal (spec §2.3). Meta still sees them via the
-	// primary's own down-cascade.
-	cfg.registerMessageType(INVALIDATE, {
-		tier: 1,
-		wireCrossing: false,
-		metaPassthrough: false,
-	});
 	cfg.registerMessageType(PAUSE, { tier: 2, wireCrossing: false });
 	cfg.registerMessageType(RESUME, { tier: 2, wireCrossing: false });
 	cfg.registerMessageType(DATA, { tier: 3, wireCrossing: true });
 	cfg.registerMessageType(RESOLVED, { tier: 3, wireCrossing: true });
-	cfg.registerMessageType(COMPLETE, {
+	// INVALIDATE, COMPLETE, ERROR, TEARDOWN do NOT pass through to meta
+	// companions via Graph.signal (spec §2.3). Meta still sees them via the
+	// primary's own down-cascade.
+	//
+	// DS-13.5.A (2026-05-01): INVALIDATE promoted to its own tier-4 settle
+	// group between value-settle (tier-3 DATA/RESOLVED) and terminal
+	// (tier-5 COMPLETE/ERROR). INVALIDATE settles a wave (same role as
+	// RESOLVED for `_dirtyDepCount` accounting) so a single `[[INVALIDATE]]`
+	// emission no longer leaves dependents wedged in DIRTY (the Agent 5
+	// deadlock). COMPLETE/ERROR shift to tier-5; TEARDOWN to tier-6.
+	//
+	// `wireCrossing: true` (was `false` pre-DS-13.5.A) — INVALIDATE persists
+	// across worker-bridge / WAL boundaries for replay determinism (per
+	// DS-13.5.A "attachStorage / WAL: persist INVALIDATE for replay
+	// determinism"). Worker bridges that previously dropped tier-1
+	// INVALIDATE traffic must now forward it.
+	cfg.registerMessageType(INVALIDATE, {
 		tier: 4,
+		wireCrossing: true,
+		metaPassthrough: false,
+	});
+	cfg.registerMessageType(COMPLETE, {
+		tier: 5,
 		wireCrossing: true,
 		metaPassthrough: false,
 	});
 	cfg.registerMessageType(ERROR, {
-		tier: 4,
+		tier: 5,
 		wireCrossing: true,
 		metaPassthrough: false,
 	});
 	cfg.registerMessageType(TEARDOWN, {
-		tier: 5,
+		tier: 6,
 		wireCrossing: true,
 		metaPassthrough: false,
 	});

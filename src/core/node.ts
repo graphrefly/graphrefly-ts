@@ -32,6 +32,7 @@ import type { GuardAction, NodeGuard } from "./guard.js";
 import { GuardDenied } from "./guard.js";
 import {
 	COMPLETE,
+	COMPLETE_MSG,
 	COMPLETE_ONLY_BATCH,
 	DATA,
 	DIRTY,
@@ -326,11 +327,12 @@ export interface Node<T = unknown> {
 	emit(value: T | undefined | null, options?: NodeTransportOptions): void;
 	/**
 	 * Send one or more messages upstream. Accepts the same shapes as
-	 * {@link down}. Upstream messages are tier <3 + tier 5 only
-	 * (DIRTY, INVALIDATE, PAUSE, RESUME, TEARDOWN); tier-3/4 payloads
-	 * throw — DATA/RESOLVED/COMPLETE/ERROR are downstream-only in this
-	 * protocol. No equals substitution, no cache advance, no DIRTY
-	 * auto-prefix — the up direction just forwards to every dep.
+	 * {@link down}. Upstream is restricted to control-plane tiers
+	 * (DIRTY, PAUSE, RESUME, INVALIDATE, TEARDOWN); tier-3 (DATA/RESOLVED)
+	 * and tier-5 (COMPLETE/ERROR) payloads throw — value/terminal traffic
+	 * is downstream-only in this protocol. No equals substitution, no
+	 * cache advance, no DIRTY auto-prefix — the up direction just
+	 * forwards to every dep.
 	 */
 	up?(messageOrMessages: Message | Messages, options?: NodeTransportOptions): void;
 	subscribe(sink: NodeSink, actor?: Actor): () => void;
@@ -553,6 +555,20 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	_store: Record<string, unknown> = {};
 	_waveHasNewData = false;
 	_hasNewTerminal = false;
+	/**
+	 * Set in `_depInvalidated` whenever a dep delivers INVALIDATE during a
+	 * wave. Used by `_maybeRunFnOnSettlement` to suppress both the pre-fn
+	 * skip RESOLVED emit AND the fn re-run when a wave consists only of
+	 * dep INVALIDATE arrivals: the cascade in `_onDepMessage`'s INVALIDATE
+	 * branch (`_emit(INVALIDATE_ONLY_BATCH)`) has already settled the wave,
+	 * and re-firing here would either deliver a redundant RESOLVED that
+	 * contradicts the just-cleared cache, or run fn with cleared
+	 * `prevData[i]` (e.g. `undefined * 2 = NaN`). DS-13.5.A invariant.
+	 *
+	 * Cleared in `_clearWaveFlags` alongside `_waveHasNewData` /
+	 * `_hasNewTerminal`.
+	 */
+	_waveHasInvalidate = false;
 	_hasCalledFnOnce = false;
 	_paused = false;
 	_pendingWave = false;
@@ -566,6 +582,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	 * treats `0` as "wave settled" — O(1) check for full dep settlement.
 	 */
 	_dirtyDepCount = 0;
+
+	// --- DS-13.5.A Q16 idempotency guard ---
+	/**
+	 * Set to `true` the first time a TEARDOWN message is fully processed by
+	 * `_updateState`. Used by `_frameBatch` to suppress the synthetic
+	 * `[COMPLETE]` auto-prefix on subsequent TEARDOWN deliveries (which would
+	 * otherwise re-deliver `[COMPLETE], [TEARDOWN]` pairs to sinks every time
+	 * a redundant TEARDOWN arrives via `Graph.destroy` broadcast + dep cascade).
+	 */
+	private _teardownDone = false;
 
 	// --- Per-batch emit accumulator (Bug 2: K+1 fan-in fix) ---
 	/**
@@ -953,10 +979,11 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * Upstream forward (spec §1.4). Carries tier-1/2/5 control-plane only:
-	 * DIRTY (tier 1), PAUSE/RESUME (tier 2), INVALIDATE/TEARDOWN (tier 5).
-	 * Tier-3/4 (DATA/RESOLVED/COMPLETE/ERROR) are rejected by
-	 * `_validateUpTiers` — downstream-only by protocol.
+	 * Upstream forward (spec §1.4). Carries control-plane tiers only —
+	 * DIRTY (tier 1), PAUSE / RESUME (tier 2), INVALIDATE (tier 4),
+	 * TEARDOWN (tier 6) — and rejects tier-3 (DATA / RESOLVED) and tier-5
+	 * (COMPLETE / ERROR) per `_validateUpTiers` — downstream-only by
+	 * protocol.
 	 *
 	 * **Upstream-origin PAUSE applies at the PARENT's lockset via the parent's
 	 * own `up()`, not at this source's `_pauseLocks` when `_deps.length === 0`.**
@@ -1005,16 +1032,21 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 	/**
 	 * @internal Enforce spec §1.2 — up-direction messages are restricted to
-	 * tier 0–2 and tier 5 (START, DIRTY, INVALIDATE, PAUSE, RESUME,
-	 * TEARDOWN). Tier 3 (DATA/RESOLVED) and tier 4 (COMPLETE/ERROR) are
-	 * downstream-only. Emitting tier-3/4 via `up` would bypass equals
+	 * the control-plane tiers (START, DIRTY, PAUSE, RESUME, INVALIDATE,
+	 * TEARDOWN). Tier 3 (DATA/RESOLVED) and tier 5 (COMPLETE/ERROR) are
+	 * downstream-only. Emitting them via `up` would bypass equals
 	 * substitution and cache advance entirely and is a protocol bug.
+	 *
+	 * Post-DS-13.5.A: INVALIDATE is tier 4 and IS allowed upstream — it is
+	 * a settle-class control signal whose role for `_dirtyDepCount` mirrors
+	 * RESOLVED. Only tier 3 (value settle) and tier 5 (terminal lifecycle)
+	 * are rejected.
 	 */
 	private _validateUpTiers(messages: Messages): void {
 		const tierOf = this._config.tierOf;
 		for (const m of messages) {
 			const tier = tierOf(m[0]);
-			if (tier === 3 || tier === 4) {
+			if (tier === 3 || tier === 5) {
 				throw new Error(
 					`Node "${this.name}": tier-${tier} messages cannot flow up — ` +
 						"DATA/RESOLVED/COMPLETE/ERROR are downstream-only. Use " +
@@ -1037,49 +1069,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const wasTerminal = this._isTerminal;
 		const afterTerminalReset = wasTerminal && this._resubscribable;
 		if (afterTerminalReset) {
-			this._cached = undefined;
-			this._status = "sentinel";
-			this._store = {};
-			this._hasCalledFnOnce = false;
-			this._waveHasNewData = false;
-			this._hasNewTerminal = false;
-			this._paused = false;
-			this._pendingWave = false;
-			this._pendingRerun = false;
-			this._isExecutingFn = false;
-			this._rerunDepth = 0;
-			this._dirtyDepCount = 0;
-			// C0: clear pause state so a new subscriber after terminal-reset
-			// starts from a clean pause lockset — otherwise a lockId from
-			// the previous lifecycle would leave the node stuck paused and
-			// swallow every emit.
-			this._pauseLocks = null;
-			this._pauseBuffer = null;
-			for (const d of this._deps) resetDepRecord(d);
-			// Defensive invariant: the first-run gate (§2.7) assumes
-			// `_hasCalledFnOnce === false` above AND every DepRecord in
-			// sentinel shape below were reset together. A future refactor
-			// that reorders these two resets (or skips `resetDepRecord` for
-			// any dep) would let the gate see a dep as "settled" from the
-			// prior lifecycle and release on first partial settlement with
-			// stale data. This assert catches the coupling in tests before
-			// users hit it in production.
-			if (this._partial === false) {
-				for (const d of this._deps) {
-					if (
-						d.prevData !== undefined ||
-						d.dataBatch.length !== 0 ||
-						d.terminal !== undefined ||
-						d.dirty
-					) {
-						throw new Error(
-							`resubscribable-reset invariant: DepRecord not fully reset for node ${
-								this._optsName ?? "(anonymous)"
-							}`,
-						);
-					}
-				}
-			}
+			this._resetForFreshLifecycle();
 		}
 
 		this._sinkCount += 1;
@@ -1114,6 +1104,15 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// _activate() rolls back its own partial dep subscriptions before re-throwing.
 		const isTerminalNow = this._isTerminal;
 		if (this._sinkCount === 1 && !isTerminalNow) {
+			// DS-13.5.A Q16 defensive reset: clear `_teardownDone` whenever a
+			// node comes alive on first-subscriber activation. `_deactivate`
+			// already clears it on last-sink-detach, but a non-resubscribable
+			// node that was re-added to a different graph (or any path that
+			// reaches `_sinkCount === 0` without `_deactivate` running) would
+			// otherwise carry a stale `_teardownDone=true` into the new
+			// lifecycle, permanently wedging fn re-runs at the
+			// `_maybeRunFnOnSettlement` early-return guard.
+			this._teardownDone = false;
 			try {
 				this._activate();
 			} catch (err) {
@@ -1160,6 +1159,76 @@ export class NodeImpl<T = unknown> implements Node<T> {
 				this._sinks = only;
 			} else if (this._sinks.size === 0) {
 				this._sinks = null;
+			}
+		}
+	}
+
+	/**
+	 * @internal Clear all per-lifecycle state so a subsequent activation (or
+	 * existing subscriber's next wave) sees a fresh node — same shape as the
+	 * `subscribe()` `afterTerminalReset` path, but does NOT disconnect deps.
+	 *
+	 * Two callers:
+	 * 1. `subscribe()` when `wasTerminal && _resubscribable` — first new
+	 *    subscriber after a terminal-resubscribable reaches a clean state.
+	 * 2. `_updateState`'s INVALIDATE branch when `_isTerminal && _resubscribable`
+	 *    — INVALIDATE on a terminal-resubscribable is a lifecycle boundary
+	 *    (DS-13.5.A pass-3, N1 fix). Without this, a multi-subscriber
+	 *    resubscribable node that goes terminal, then has one sink unsub
+	 *    (skipping `_deactivate`), then receives INVALIDATE, would carry
+	 *    stale `_hasCalledFnOnce` / `_dirtyDepCount` / DepRecord state into
+	 *    the next wave — fn would compute against ghost `prevData`.
+	 *
+	 * The reset does NOT touch `_sinks`, `_deps[i].unsub`, or `_cleanup` —
+	 * those are owned by `_activate`/`_deactivate`. Existing subscribers
+	 * stay attached; existing dep subscriptions stay live; pending cleanup
+	 * (e.g. an `invalidate?` hook on object-form cleanup) fires through the
+	 * caller's normal path after this returns.
+	 */
+	private _resetForFreshLifecycle(): void {
+		this._cached = undefined;
+		this._status = "sentinel";
+		this._store = {};
+		this._hasCalledFnOnce = false;
+		this._waveHasNewData = false;
+		this._hasNewTerminal = false;
+		this._waveHasInvalidate = false;
+		this._teardownDone = false;
+		this._paused = false;
+		this._pendingWave = false;
+		this._pendingRerun = false;
+		this._isExecutingFn = false;
+		this._rerunDepth = 0;
+		this._dirtyDepCount = 0;
+		// C0: clear pause state so a new subscriber after terminal-reset
+		// starts from a clean pause lockset — otherwise a lockId from
+		// the previous lifecycle would leave the node stuck paused and
+		// swallow every emit.
+		this._pauseLocks = null;
+		this._pauseBuffer = null;
+		for (const d of this._deps) resetDepRecord(d);
+		// Defensive invariant: the first-run gate (§2.7) assumes
+		// `_hasCalledFnOnce === false` above AND every DepRecord in
+		// sentinel shape below were reset together. A future refactor
+		// that reorders these two resets (or skips `resetDepRecord` for
+		// any dep) would let the gate see a dep as "settled" from the
+		// prior lifecycle and release on first partial settlement with
+		// stale data. This assert catches the coupling in tests before
+		// users hit it in production.
+		if (this._partial === false) {
+			for (const d of this._deps) {
+				if (
+					d.prevData !== undefined ||
+					d.dataBatch.length !== 0 ||
+					d.terminal !== undefined ||
+					d.dirty
+				) {
+					throw new Error(
+						`resubscribable-reset invariant: DepRecord not fully reset for node ${
+							this._optsName ?? "(anonymous)"
+						}`,
+					);
+				}
 			}
 		}
 	}
@@ -1211,7 +1280,8 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// closures that outlived the subscription.
 					if (dep.unsub === null) return;
 					// Track whether any tier-3+ settlement-class message arrived
-					// (DATA/RESOLVED at tier 3, COMPLETE/ERROR at tier 4). Fire
+					// (DATA/RESOLVED at tier 3, INVALIDATE at tier 4,
+					// COMPLETE/ERROR at tier 5). Fire
 					// `_maybeRunFnOnSettlement` once at the end of the iteration
 					// loop when at least one settlement was seen — one invocation
 					// per dep batch, not per message, so `fn` sees the full wave
@@ -1395,6 +1465,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		// Clear wave + store state.
 		this._waveHasNewData = false;
 		this._hasNewTerminal = false;
+		this._waveHasInvalidate = false;
 		this._hasCalledFnOnce = false;
 		this._paused = false;
 		this._pendingWave = false;
@@ -1403,6 +1474,13 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		this._store = {};
 		// A3 counter reset with DepRecord bulk-reset.
 		this._dirtyDepCount = 0;
+		// DS-13.5.A Q16 idempotency: clear `_teardownDone` so a resubscribable
+		// node that received TEARDOWN can re-arm Q16 on the next lifecycle.
+		// Without this, the `_maybeRunFnOnSettlement` early-return at the
+		// `_teardownDone` guard would permanently wedge fn after the first
+		// TEARDOWN — breaking compat layers (`compat/jotai`, `compat/nanostores`,
+		// `compat/signals`) that rely on `resubscribable: true`.
+		this._teardownDone = false;
 		// C0 pause state: TEARDOWN is a hard reset. Buffered tier-3/4
 		// messages from a paused `resumeAll` node are DISCARDED rather than
 		// drained, matching "teardown wipes in-flight state" semantics.
@@ -1462,6 +1540,16 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		if (t === INVALIDATE) {
 			this._depInvalidated(dep);
+			// **INVARIANT (DS-13.5.A diamond fan-in):** `_depInvalidated`
+			// runs UNCONDITIONALLY before this `_cached === undefined`
+			// idempotency guard. Second-arrival counter-correctness depends
+			// on `_depInvalidated`'s own `if (dep.dirty)` pre-check
+			// (line ~1670) — first arrival flips dep.dirty to false so the
+			// second arrival's decrement is gated out. Any future refactor
+			// that relaxes that pre-check (e.g. unconditional dirty toggle)
+			// will silently underflow `_dirtyDepCount` on diamond second
+			// arrivals. Keep the dep.dirty pre-check load-bearing.
+			//
 			// Diamond fan-in guard (TLA+ batch 5 B parity, 2026-04-23): when a
 			// second INVALIDATE arrives at a node whose cache was already reset
 			// by an earlier arrival this wave (e.g. topology `A → {B, C} → D`
@@ -1504,7 +1592,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			return;
 		}
 
-		// Tier 5
+		// Tier 6
 		if (t === TEARDOWN) {
 			this._emit(TEARDOWN_ONLY_BATCH);
 			return;
@@ -1617,25 +1705,47 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	}
 
 	/**
-	 * Called when a dep emits INVALIDATE: clears prevData, terminal, and
-	 * dataBatch. The dep is now back in the "never delivered a real value"
-	 * state — `prevData === undefined` so the sentinel check in fn will fire.
+	 * Called when a dep emits INVALIDATE.
+	 *
+	 * **DS-13.5.A invariant:** INVALIDATE settles a wave for this dep — same
+	 * `_dirtyDepCount` accounting role as RESOLVED. A single `[[INVALIDATE]]`
+	 * arrival on a previously-dirty dep clears the dirty flag and decrements
+	 * the counter; a single arrival on a clean dep is a no-op for the
+	 * counter (the dep was never participating in the wave). Either way, the
+	 * dep's per-wave state — `prevData`, `terminal`, `dataBatch` — clears so
+	 * the next fn run sees the dep in SENTINEL state.
+	 *
+	 * `involvedThisWave` is left `false`: INVALIDATE is not a "fn-must-run"
+	 * trigger by itself. The `invalidateWhenDepsInvalidate` cascade default
+	 * (Q12, deferred) will track involvement separately when implemented.
 	 */
 	private _depInvalidated(dep: DepRecord): void {
 		dep.prevData = undefined;
 		dep.terminal = undefined;
 		dep.dataBatch.length = 0;
-		if (!dep.dirty) {
-			dep.dirty = true;
-			dep.involvedThisWave = true;
-			this._dirtyDepCount++;
-		} else {
-			dep.involvedThisWave = false; // cancel prior wave involvement
+		if (dep.dirty) {
+			dep.dirty = false;
+			this._dirtyDepCount--;
 		}
+		dep.involvedThisWave = false;
+		// DS-13.5.A: mark the wave as having seen an INVALIDATE so
+		// `_maybeRunFnOnSettlement` doesn't re-fire RESOLVED or fn after
+		// the cascade (`_emit(INVALIDATE_ONLY_BATCH)` already settled the
+		// downstream wave via INVALIDATE).
+		this._waveHasInvalidate = true;
 	}
 
 	private _maybeRunFnOnSettlement(): void {
 		if (this._isTerminal && !this._resubscribable) return;
+		// DS-13.5.A Q16 idempotency: a node that has fully torn down (TEARDOWN
+		// processed once, deps disconnected, cleanup fired) must not re-run
+		// fn even when subsequent dep cascades carry settlement-class
+		// messages. Without this guard, the synthetic [[COMPLETE], [TEARDOWN]]
+		// pair Q16 emits on the FIRST teardown delivery floats `_hasNewTerminal`
+		// for downstream consumers; their `_maybeRunFnOnSettlement` then
+		// falls through to `_execFn`, which re-establishes `_cleanup`,
+		// causing a second cleanup invocation on the next TEARDOWN delivery.
+		if (this._teardownDone) return;
 		// O(1) gate: `_dirtyDepCount === 0` means every dep has delivered its
 		// settlement for this wave (DATA, RESOLVED, or terminal).
 		if (this._dirtyDepCount > 0) return;
@@ -1661,6 +1771,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		}
 		if (this._paused) {
 			this._pendingWave = true;
+			return;
+		}
+		// DS-13.5.A: a pure-INVALIDATE wave (no DATA, no terminal, but at
+		// least one dep emitted INVALIDATE) is already settled via the
+		// cascade in `_onDepMessage`'s INVALIDATE branch
+		// (`_emit(INVALIDATE_ONLY_BATCH)` cleared `_cached`, set
+		// `_status = "sentinel"`, and forwarded INVALIDATE to sinks).
+		// Re-firing pre-fn skip RESOLVED here would deliver a
+		// "value-unchanged" claim that contradicts the just-cleared cache,
+		// and re-running fn would compute on cleared `prevData` slots
+		// (e.g. `undefined * 2 = NaN`). Settle silently.
+		if (
+			this._waveHasInvalidate &&
+			!this._waveHasNewData &&
+			!this._hasNewTerminal &&
+			this._hasCalledFnOnce
+		) {
+			this._clearWaveFlags();
+			this._maybeAutoTerminalAfterWave();
 			return;
 		}
 		// Pre-fn skip: when no dep sent DATA this wave (all RESOLVED), skip
@@ -1845,6 +1974,7 @@ export class NodeImpl<T = unknown> implements Node<T> {
 	private _clearWaveFlags(): void {
 		this._waveHasNewData = false;
 		this._hasNewTerminal = false;
+		this._waveHasInvalidate = false;
 		for (const d of this._deps) {
 			d.involvedThisWave = false;
 			d.dataBatch.length = 0;
@@ -1873,22 +2003,55 @@ export class NodeImpl<T = unknown> implements Node<T> {
 		const tierOf = this._config.tierOf;
 		// Fast path: single message.
 		if (messages.length === 1) {
-			const t = tierOf(messages[0][0]);
+			const t0 = messages[0][0];
+			const t = tierOf(t0);
 			if (t === 3 && this._status !== "dirty") {
 				return [DIRTY_MSG, messages[0]];
 			}
+			// DS-13.5.A Q15 extension of Rule 1.5: tier-4 INVALIDATE also
+			// gets the synthetic DIRTY auto-prefix when the node isn't
+			// already dirty. This guarantees consumers see DIRTY → INVALIDATE
+			// in order, so dep-side `_depDirtied` increments `_dirtyDepCount`
+			// before `_depInvalidated` decrements it — preserving wave-
+			// settlement accounting for any node that mixes INVALIDATE with
+			// other settle-class signals on sibling deps.
+			if (t === 4 && this._status !== "dirty") {
+				return [DIRTY_MSG, messages[0]];
+			}
+			// DS-13.5.A Q16: TEARDOWN auto-precedes with [COMPLETE] when the
+			// node hasn't yet emitted a terminal lifecycle signal. Idempotent
+			// via `_teardownDone` so redundant TEARDOWN deliveries (e.g.
+			// `Graph.destroy` broadcast + dep cascade) don't re-emit
+			// `[[COMPLETE], [TEARDOWN]]` pairs to sinks. State nodes that
+			// never delivered DATA (status="sentinel") still get the synthetic
+			// COMPLETE so bridge subscribers (firstWhere/firstValueFrom)
+			// reject cleanly instead of hanging on a TEARDOWN-only wave.
+			if (t0 === TEARDOWN && !this._teardownDone && !this._isTerminal) {
+				return [COMPLETE_MSG, messages[0]];
+			}
 			return messages;
 		}
-		// Check monotonicity and tier-3 presence in a single pass.
+		// Check monotonicity, settle-slice presence (tier 3 or tier 4),
+		// terminal-lifecycle presence, TEARDOWN presence, and INVALIDATE
+		// count in a single pass — used for DIRTY auto-prefix (§1.3.1
+		// + Q15 extension), Q16 COMPLETE auto-prefix, and DS-13.5.A §2.4a
+		// same-wave merge rules.
 		let monotone = true;
-		let hasTier3 = false;
+		let hasSettleSlice = false;
 		let hasDirty = false;
+		let hasTerminalLifecycle = false;
+		let hasTeardown = false;
+		let invalidateCount = 0;
 		let prevTier = -1;
 		for (const m of messages) {
-			const tier = tierOf(m[0]);
+			const t = m[0];
+			const tier = tierOf(t);
 			if (tier < prevTier) monotone = false;
-			if (tier === 3) hasTier3 = true;
-			if (m[0] === DIRTY) hasDirty = true;
+			if (tier === 3 || tier === 4) hasSettleSlice = true;
+			if (t === DIRTY) hasDirty = true;
+			else if (t === COMPLETE || t === ERROR) hasTerminalLifecycle = true;
+			else if (t === TEARDOWN) hasTeardown = true;
+			if (t === INVALIDATE) invalidateCount++;
 			prevTier = tier;
 		}
 		let sorted: Messages = messages;
@@ -1898,13 +2061,60 @@ export class NodeImpl<T = unknown> implements Node<T> {
 			indexed.sort((a, b) => a.tier - b.tier || a.i - b.i);
 			sorted = indexed.map((x) => x.m);
 		}
-		if (hasTier3 && !hasDirty && this._status !== "dirty") {
+		// DS-13.5.A §2.4a merge rules — INVALIDATE wins by natural tier-sort.
+		// With INVALIDATE at tier 4 (after tier-3 DATA/RESOLVED), the sorted
+		// wave walks DIRTY → DATA(v) → INVALIDATE. `_updateState` advances
+		// `_cached` to v on DATA, then INVALIDATE clears it back to
+		// `undefined`. Final cache state matches user intent: a wave that
+		// carries an INVALIDATE leaves the cache cleared, regardless of
+		// whether DATA/RESOLVED also rode the same wave. Subscribers observe
+		// the full sequence (`[DIRTY, DATA(v), INVALIDATE]` etc.) so they
+		// can distinguish "we got a value briefly then it was invalidated"
+		// from "no DATA arrived this wave."
+		//
+		// Q9 — INVALIDATE + INVALIDATE collapse to one. Idempotent: multiple
+		// INVALIDATEs in the same wave express the same intent; collapsing
+		// keeps the wire compact and prevents duplicate cleanup-hook firing.
+		if (invalidateCount > 1) {
+			let firstInvalidateKept = false;
+			const merged: Message[] = [];
+			for (const m of sorted) {
+				if (m[0] === INVALIDATE) {
+					if (firstInvalidateKept) continue;
+					firstInvalidateKept = true;
+				}
+				merged.push(m);
+			}
+			sorted = merged as unknown as Messages;
+		}
+		// DIRTY auto-prefix (§1.3.1 + DS-13.5.A Q15 extension to tier-4).
+		// Triggers when the wave carries any settle-class payload (tier-3
+		// DATA/RESOLVED OR tier-4 INVALIDATE) and the node isn't already
+		// in `dirty` status.
+		if (hasSettleSlice && !hasDirty && this._status !== "dirty") {
 			// Insert DIRTY after any tier-0 START entries to preserve
 			// monotonicity.
 			let insertAt = 0;
 			while (insertAt < sorted.length && tierOf(sorted[insertAt][0]) === 0) insertAt++;
-			if (insertAt === 0) return [DIRTY_MSG, ...sorted];
-			return [...sorted.slice(0, insertAt), DIRTY_MSG, ...sorted.slice(insertAt)];
+			sorted =
+				insertAt === 0
+					? [DIRTY_MSG, ...sorted]
+					: [...sorted.slice(0, insertAt), DIRTY_MSG, ...sorted.slice(insertAt)];
+		}
+		// DS-13.5.A Q16: TEARDOWN auto-precedes with [COMPLETE] when the node
+		// hasn't yet emitted a terminal lifecycle signal AND no terminal
+		// signal is already present in this wave. Idempotent via
+		// `_teardownDone` so redundant TEARDOWN deliveries don't re-fire.
+		// Sentinel-status state nodes still get the prefix — bridge
+		// subscribers need the COMPLETE to settle on streams that never
+		// delivered DATA.
+		if (hasTeardown && !hasTerminalLifecycle && !this._teardownDone && !this._isTerminal) {
+			let teardownIdx = 0;
+			while (teardownIdx < sorted.length && sorted[teardownIdx][0] !== TEARDOWN) teardownIdx++;
+			sorted =
+				teardownIdx === 0
+					? [COMPLETE_MSG, ...sorted]
+					: [...sorted.slice(0, teardownIdx), COMPLETE_MSG, ...sorted.slice(teardownIdx)];
 		}
 		return sorted;
 	}
@@ -2030,25 +2240,36 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							this._paused = false;
 							// Replay bufferAll buffer through the outgoing
 							// pipeline BEFORE forwarding RESUME — subscribers
-							// observe the deferred DATAs as part of the
+							// observe the deferred messages as part of the
 							// pre-RESUME wake-up.
 							//
-							// D2 (2026-04-13) semantic note: the recursive
-							// `_emit(drain)` goes through the full pipeline
-							// including `_updateState`'s equals substitution.
-							// A buffered `[DATA, v]` whose value matches the
-							// *pre-pause* cache will collapse to RESOLVED on
-							// replay — producer "pulses" that write the same
-							// value while paused are absorbed. This matches
-							// diamond-safety intent: `.cache` stays coherent
-							// with "the last DATA actually delivered to
-							// sinks". Producers that need pulse semantics
-							// (every write observable regardless of value)
-							// should set `equals: () => false` on the node.
+							// DS-13.5.A N3(a): drain each buffered message as
+							// its own `_emit` wave so the cross-tier ordering
+							// of DATA/RESOLVED and INVALIDATE is preserved.
+							// Replaying as one combined batch would re-frame
+							// + tier-sort the buffer, collapsing a sequence
+							// like `[DATA(v1), INVALIDATE, DATA(v2)]` into a
+							// single re-sorted wave that loses the user's
+							// intent (cache reset between v1 and v2). One
+							// emit per entry keeps each settle-class signal
+							// in its original position.
+							//
+							// D2 (2026-04-13) semantic note: each `_emit(...)`
+							// goes through the full pipeline including
+							// `_updateState`'s equals substitution. A buffered
+							// `[DATA, v]` whose value matches the *pre-pause*
+							// (or last-emitted) cache collapses to RESOLVED
+							// on replay — producer "pulses" that write the
+							// same value while paused are absorbed. Producers
+							// that need pulse semantics (every write
+							// observable regardless of value) should set
+							// `equals: () => false` on the node.
 							if (this._pauseBuffer != null && this._pauseBuffer.length > 0) {
 								const drain = this._pauseBuffer;
 								this._pauseBuffer = [];
-								this._emit(drain);
+								for (const m of drain) {
+									this._emit([m]);
+								}
 							}
 							// Kick the held wave forward if one was pending.
 							if (this._pendingWave) {
@@ -2111,24 +2332,25 @@ export class NodeImpl<T = unknown> implements Node<T> {
 
 		if (finalMessages.length > 0) {
 			// BufferAll: while paused with `pausable: "resumeAll"`, buffer
-			// tier-3 (DATA/RESOLVED) payloads in order. Everything else —
-			// tier 0–2 (START/DIRTY/INVALIDATE/PAUSE/RESUME), tier 4
-			// (COMPLETE/ERROR), and tier 5 (TEARDOWN) — dispatches
-			// synchronously so subscribers, downstream pausers, and graph
-			// teardown observe them regardless of flow control. Tier-4
-			// stream-lifecycle signals must reach subscribers even when a
-			// controller holds a lock and never issues RESUME — the
-			// alternative strands observers without an end-of-stream signal
-			// (leaked-controller + source-terminates = subscriber waits
-			// indefinitely). Cache/status advance has already happened via
-			// `_updateState`, so the replay later just pushes the deferred
-			// messages back through `downWithBatch`. Spec §2.6 bufferAll.
+			// the settle slice — tier-3 (DATA/RESOLVED) and tier-4 (INVALIDATE,
+			// per DS-13.5.A Q7) — in arrival order. Everything else —
+			// tier 0–2 (START/DIRTY/PAUSE/RESUME), tier 5 (COMPLETE/ERROR),
+			// and tier 6 (TEARDOWN) — dispatches synchronously so
+			// subscribers, downstream pausers, and graph teardown observe
+			// them regardless of flow control. Tier-5 stream-lifecycle
+			// signals must reach subscribers even when a controller holds
+			// a lock and never issues RESUME — the alternative strands
+			// observers without an end-of-stream signal (leaked-controller
+			// + source-terminates = subscriber waits indefinitely).
+			// Cache/status advance has already happened via `_updateState`,
+			// so the replay later just pushes the deferred messages back
+			// through `downWithBatch`. Spec §2.6 bufferAll.
 			if (this._paused && this._pausable === "resumeAll" && this._pauseBuffer != null) {
 				const tierOf = this._config.tierOf;
 				const immediate: Message[] = [];
 				for (const m of finalMessages) {
 					const tier = tierOf(m[0]);
-					if (tier === 3) {
+					if (tier === 3 || tier === 4) {
 						this._pauseBuffer.push(m);
 					} else {
 						immediate.push(m);
@@ -2308,8 +2530,39 @@ export class NodeImpl<T = unknown> implements Node<T> {
 							}
 						}
 					}
-					this._cached = undefined;
-					this._status = "dirty";
+					// DS-13.5.A pass-3 (N1 fix): INVALIDATE on a
+					// terminal-resubscribable node is a lifecycle boundary —
+					// run the full lifecycle reset so any subscribers that
+					// kept the node alive past terminal (multi-sub case where
+					// `_deactivate` did NOT run) don't carry stale
+					// `_hasCalledFnOnce` / `_dirtyDepCount` / DepRecord state
+					// into the next wave. Without this, fn computes against
+					// ghost `prevData` after INVALIDATE clears caches.
+					// `_resetForFreshLifecycle` clears `_cached` + sets status
+					// to `"sentinel"` itself, so this is the single
+					// state-mutation entry on the resubscribable path.
+					if (this._isTerminal && this._resubscribable) {
+						this._resetForFreshLifecycle();
+					} else {
+						this._cached = undefined;
+						// DS-13.5.A: INVALIDATE is settle-class (decrements
+						// `_dirtyDepCount` on consumers like RESOLVED). It
+						// does NOT leave the emitting node in `"dirty"`
+						// status — `"dirty"` means "value about to change"
+						// but INVALIDATE has just cleared the cache outright
+						// with no new value pending. Transition to
+						// `"sentinel"` ("no value, nothing pending").
+						// Critically, `defaultOnSubscribe`'s
+						// push-on-subscribe sees `"sentinel"` + `_cached ===
+						// undefined` and pushes only `[START]` to new
+						// subscribers, rather than `[START, DIRTY]` for
+						// `"dirty"` status — that DIRTY-inheritance was the
+						// regression source for agentLoop's abort path (a
+						// freshly-attached `_terminalResult` had its
+						// `lastResponseState` dep slot permanently dirty,
+						// never settled, fn never re-ran).
+						this._status = "sentinel";
+					}
 					// Cleanup firing on INVALIDATE:
 					// - Function form: fires in full (all three transitions share
 					//   the function) and is cleared.
@@ -2343,6 +2596,9 @@ export class NodeImpl<T = unknown> implements Node<T> {
 					// TEARDOWN is a hard reset — unconditionally "sentinel",
 					// even if the node was previously completed/errored.
 					this._status = "sentinel";
+					// DS-13.5.A Q16 idempotency: subsequent TEARDOWN deliveries
+					// must not re-fire the synthetic [COMPLETE] auto-prefix.
+					this._teardownDone = true;
 				}
 			}
 		}

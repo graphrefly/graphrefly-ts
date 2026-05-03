@@ -3,7 +3,7 @@ import { COMPLETE, DATA, DIRTY, INVALIDATE, type Messages, PAUSE } from "../../c
 import { node } from "../../core/node.js";
 
 describe("0.6 lifecycle: INVALIDATE", () => {
-	it("INVALIDATE marks a source node dirty and reaches subscribers", () => {
+	it("INVALIDATE on a source node clears cache, transitions to sentinel, reaches subscribers", () => {
 		const s = node<number>({ initial: 1 });
 		const seen: symbol[] = [];
 		const unsub = s.subscribe((msgs) => {
@@ -12,9 +12,11 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 
 		s.down([[INVALIDATE]]);
 
-		expect(s.status).toBe("dirty");
+		// DS-13.5.A: INVALIDATE is settle-class; status transitions to
+		// "sentinel" (no value, nothing pending) — NOT "dirty" (which means
+		// "value about to change"). Cache is cleared per spec §1.2.
+		expect(s.status).toBe("sentinel");
 		expect(seen).toContain(INVALIDATE);
-		// GRAPHREFLY-SPEC §1.2: INVALIDATE clears cached state (no auto-emit).
 		expect(s.cache).toBeUndefined();
 
 		unsub();
@@ -39,8 +41,10 @@ describe("0.6 lifecycle: INVALIDATE", () => {
 
 		src.down([[INVALIDATE]]);
 
+		// DS-13.5.A: post-INVALIDATE the derived's status is "sentinel"
+		// (cache cleared, no pending update), not "dirty".
 		expect(seen).toContain(INVALIDATE);
-		expect(d.status).toBe("dirty");
+		expect(d.status).toBe("sentinel");
 		expect(d.cache).toBeUndefined();
 
 		unsub();

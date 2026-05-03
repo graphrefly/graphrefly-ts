@@ -417,8 +417,9 @@ describe("node primitive", () => {
 		expect(hop.cache).toBeUndefined();
 		expect(leaf.cache).toBeUndefined();
 		// ROM rule: state nodes preserve status across disconnect.
-		// INVALIDATE set "dirty"; unsub() doesn't change that.
-		expect(source.status).toBe("dirty");
+		// DS-13.5.A: INVALIDATE transitions status to "sentinel" (cache
+		// cleared, no pending update); unsub() doesn't change that.
+		expect(source.status).toBe("sentinel");
 	});
 
 	it("INVALIDATE clears dep memo so identical DATA triggers recompute", () => {

@@ -864,9 +864,32 @@ Single home for design sessions that are decision-locked or scoped but not yet i
 - `StatusValue` central enum widened to `"pending" | "running" | "completed" | "errored" | "cancelled" | "paused"` (DS-13.5.B follow-on). `processManager` migrates `status: "compensated"` → `status: "cancelled"` (pre-1.0 internal break).
 - `GateState` central enum to ship at `src/extra/resilience/gate-state.ts` as `"open" | "closed"` (DS-13.5.B follow-on).
 
-#### DS-13.5.A — INVALIDATE protocol redesign (Bundle 1.5) — LOCKED Q1–Q16 (2026-05-01)
+#### DS-13.5.A — INVALIDATE protocol redesign (Bundle 1.5) — LOCKED Q1–Q16 (2026-05-01); core ✅ landed 2026-05-02 (Q5/Q10/Q12/Q14/PY-parity deferred)
 
 *Trigger: Agent 5's `[[INVALIDATE], [RESOLVED]]` paired-reset pattern surfaced the deadlock (INVALIDATE alone leaves dependents DIRTY without settling). Reframe: promote INVALIDATE from tier-2 to its own tier-4 settle group between value-settle (tier-3 DATA/RESOLVED) and terminal (tier-5/6 COMPLETE/ERROR).*
+
+**Core landed 2026-05-02 (TS only, no PY parity, no TLA+) — 2771 / 2771 tests pass:**
+- Tier renumbering: INVALIDATE→4, COMPLETE/ERROR→5, TEARDOWN→6 (config.ts, batch.ts, node.ts up-validation, graph.ts checkpoint gate).
+- INVALIDATE-settles-wave invariant: `_depInvalidated` decrements `_dirtyDepCount` (same role as RESOLVED).
+- INVALIDATE transitions emitting node's status to `"sentinel"` (was `"dirty"`) — load-bearing for `defaultOnSubscribe`'s push-on-subscribe (sentinel pushes only `[START]`; dirty would push `[START, DIRTY]` and infect freshly-attached dep slots with phantom dirty count).
+- Q9 same-wave INVALIDATE+INVALIDATE collapse (Q1/Q3 dropping rules retired during impl — natural tier-sort handles `[DATA(v), INVALIDATE]` correctly: cache cleared, both delivered).
+- Q15 DIRTY auto-prefix extended to tier-4 INVALIDATE.
+- Q7 PAUSE/RESUME bufferAll widened to include tier-4 INVALIDATE; drain emits per-entry to preserve cross-tier ordering.
+- Q16 TEARDOWN auto-precede with `[COMPLETE]` (idempotent via `_teardownDone`; cleared on `_deactivate` so resubscribable nodes recover); atomic delivery for Q16-synthesized terminal-pairs in `downWithBatch` (sync AND in-batch).
+- Migration: `agent-loop.ts` and `agents/agent.ts` paired-reset → plain `[[INVALIDATE]]`. `processManager.dispose()` manual COMPLETE workaround removed.
+- Spec amendments in `~/src/graphrefly/GRAPHREFLY-SPEC.md` §1.3 (tier table), §1.4 (INVALIDATE direction), §2.4a NEW (merge rules), §2.6 (Q16 TEARDOWN auto-precede + bufferAll per-entry drain).
+- 13 new core tests in [src/__tests__/core/invalidate.test.ts](../src/__tests__/core/invalidate.test.ts) covering Q1/Q3/Q9 merges, Q16 atomicity + idempotency, INVALIDATE-settles-wave, `_terminalResult`-shape regression.
+- /qa pass (2026-05-02) auto-applied 8 patches: A1 `_teardownDone` reset on resubscribable (CRITICAL), A2 Q16 sentinel-status guard loosening, A3–A5 spec wording (§2.4a equals order, §2.6 tier-4, §1.4 INVALIDATE upstream), A6 stale tier comments, A7 wireCrossing flip comment, A8 test strengthening.
+- /qa Needs-Decision: N1 (DATA + INVALIDATE merge) → user picked "INVALIDATE wins via natural tier-sort" (Q1/Q3 explicit merges retired). N2 (Q16 atomicity inside batch) → extended. N3 (bufferAll INVALIDATE ordering) → per-entry drain. Root-cause for the 3 agentLoop abort-test regressions: INVALIDATE was setting `_status = "dirty"` instead of `"sentinel"`, infecting late-attaching dep slots via push-on-subscribe DIRTY. Fixed by the status-transition change above.
+- /qa pass-2 (2026-05-03) auto-applied 6 patches (A1 spec §2.6 sentinel-allow-list, A2 `_teardownDone` defensive subscribe reset, A3 stale tier comments, A4 Q16 phase-4 atomicity doc, A5 3 protocol-level regression tests, A6 diamond fan-in invariant comment) plus N1 fix (resubscribable + INVALIDATE → fresh-lifecycle reset via new `_resetForFreshLifecycle()` helper shared between `subscribe()` and `_updateState`'s INVALIDATE branch). 2776 / 2776 tests pass post-fix.
+
+**Deferred (additive, no consumer signal):**
+- Q5 `data[i]` widening to `T[] | null | undefined` library-wide (mechanical; large surface).
+- Q12 `invalidateWhenDepsInvalidate?: boolean` opt + sugar-layer auto-cascade (`undefined | null` returns).
+- Q10 replay-buffer clearing on INVALIDATE.
+- Q14 TLA+ `Invalidate` action + new invariants + MC config.
+- Q14 fast-check `single-invalidate-settles` + `invalidate-merge-order-independent` properties.
+- PY parity (per dev-dispatch scope decision 2026-05-02).
 
 **Locked decisions (Q1–Q15):**
 
