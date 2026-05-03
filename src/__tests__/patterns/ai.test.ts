@@ -1595,6 +1595,146 @@ describe("patterns.ai.agentMemory", () => {
 		mem.destroy();
 	});
 
+	// Regression: Pre-DS-13.5.C, the synthesized `_contextNode` (when
+	// opts.context wasn't supplied) was a raw `node([], { initial: null })`
+	// that wasn't registered on the parent graph — invisible to describe().
+	// Spec: docs/implementation-plan.md DS-13.5.C
+	it("DS-13.5.C: synthesized _context is registered on parent graph when opts.context absent", () => {
+		const source = node<string>([], { initial: "seed" });
+		const mem = agentMemory<{ text: string }>("dsC-synth", source, {
+			extractFn: () => ({ upsert: [{ key: "a", value: { text: "a" } }] }),
+			score: () => 1,
+			cost: () => 1,
+		});
+		const retrievalGraph = memoryRetrieval<{ text: string }>({
+			name: "retrieval-no-ctx",
+			store: mem.distillBundle,
+			score: () => 1,
+			cost: () => 1,
+			// no `context` supplied
+		});
+
+		// Synthesized `_context` is registered → describe() / tryResolve see it.
+		expect(retrievalGraph.tryResolve("_context")).toBeDefined();
+
+		retrievalGraph.destroy();
+		mem.destroy();
+	});
+
+	it("DS-13.5.C: caller-supplied opts.context is NOT registered on retrieval graph (cross-graph ownership)", () => {
+		const source = node<string>([], { initial: "seed" });
+		const mem = agentMemory<{ text: string }>("dsC-owned", source, {
+			extractFn: () => ({ upsert: [{ key: "a", value: { text: "a" } }] }),
+			score: () => 1,
+			cost: () => 1,
+		});
+		const callerOwnedCtx = node<unknown>([], { initial: { hint: "caller-owned" } });
+		const retrievalGraph = memoryRetrieval<{ text: string }>({
+			name: "retrieval-owned-ctx",
+			store: mem.distillBundle,
+			score: () => 1,
+			cost: () => 1,
+			context: callerOwnedCtx,
+		});
+
+		// Caller-owned node is NOT registered on retrievalGraph.
+		expect(retrievalGraph.tryResolve("_context")).toBeUndefined();
+
+		retrievalGraph.destroy();
+		mem.destroy();
+	});
+
+	// Regression: Pre-DS-13.5.C, per-call subgraph leaked when caller dropped
+	// projection — `retrieve_${id}` segments accumulated in the parent graph.
+	// Post-fix, projection's `deactivate` cleanup hook fires on last
+	// unsubscribe and removes the segment via `parent.remove(segment)`.
+	// Spec: docs/implementation-plan.md DS-13.5.C
+	it("DS-13.5.C: per-call subgraph auto-unmounts after subscribe-then-unsubscribe", () => {
+		const source = node<string>([], { initial: "seed" });
+		const mem = agentMemory<{ text: string }>("dsC-unmount", source, {
+			extractFn: () => ({ upsert: [{ key: "a", value: { text: "a" } }] }),
+			score: () => 1,
+			cost: () => 1,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+		const retrievalGraph = memoryRetrieval<{ text: string }>({
+			name: "retrieval-unmount",
+			store: mem.distillBundle,
+			vectors: mem.vectors,
+			score: () => 1,
+			cost: () => 1,
+		});
+
+		const q = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+
+		const r = retrievalGraph.retrieveReactive(q);
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeDefined();
+
+		const unsub = r.subscribe(() => {});
+
+		// While subscriber is attached, segment stays mounted.
+		const subgraphsDuring = (retrievalGraph.describe() as { subgraphs?: string[] }).subgraphs;
+		expect(subgraphsDuring).toContain("retrieve_1");
+
+		// Last unsubscribe → projection's deactivate cleanup fires → segment removed.
+		unsub();
+
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeUndefined();
+		const subgraphsAfter = (retrievalGraph.describe() as { subgraphs?: string[] }).subgraphs;
+		expect(subgraphsAfter ?? []).not.toContain("retrieve_1");
+
+		retrievalGraph.destroy();
+		mem.destroy();
+	});
+
+	it("DS-13.5.C: concurrent retrieveReactive calls auto-unmount independently", () => {
+		const source = node<string>([], { initial: "seed" });
+		const mem = agentMemory<{ text: string }>("dsC-concurrent", source, {
+			extractFn: () => ({ upsert: [{ key: "a", value: { text: "a" } }] }),
+			score: () => 1,
+			cost: () => 1,
+			vectorDimensions: 2,
+			embedFn: () => [0.5, 0.5],
+		});
+		const retrievalGraph = memoryRetrieval<{ text: string }>({
+			name: "retrieval-concurrent",
+			store: mem.distillBundle,
+			vectors: mem.vectors,
+			score: () => 1,
+			cost: () => 1,
+		});
+
+		const qA = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+		const qB = node<{ vector?: readonly number[] } | null>([], {
+			initial: { vector: [0.5, 0.5] },
+		});
+		const rA = retrievalGraph.retrieveReactive(qA);
+		const rB = retrievalGraph.retrieveReactive(qB);
+		const uA = rA.subscribe(() => {});
+		const uB = rB.subscribe(() => {});
+
+		// Both segments mounted.
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeDefined();
+		expect(retrievalGraph.tryResolve("retrieve_2::projection")).toBeDefined();
+
+		// Unsubscribe A → only A's segment is removed; B stays.
+		uA();
+		expect(retrievalGraph.tryResolve("retrieve_1::projection")).toBeUndefined();
+		expect(retrievalGraph.tryResolve("retrieve_2::projection")).toBeDefined();
+
+		// Unsubscribe B → B's segment is removed too.
+		uB();
+		expect(retrievalGraph.tryResolve("retrieve_2::projection")).toBeUndefined();
+
+		retrievalGraph.destroy();
+		mem.destroy();
+	});
+
 	it("B12: contextWeight boosts entries whose breadcrumb matches the query", () => {
 		type Mem = { text: string; context: readonly string[] };
 		const mem = agentMemory<Mem>("hier", node<string>([], { initial: "seed" }), {
@@ -1731,6 +1871,121 @@ describe("patterns.ai.agentMemory", () => {
 		// `tiers` subgraph (`MemoryWithTiersGraph`).
 		expect(mem.tryResolve("tiers::permanentKeys")).toBeDefined();
 		expect(mem.tryResolve("tiers::entryCreatedAtNs")).toBeDefined();
+
+		mem.destroy();
+	});
+
+	// Regression: Pre-DS-13.5.F, retention.score wrote
+	// `entryCreatedAtNs.set(key, nowNs)` from inside the score fn (D1).
+	// Post-fix, retention.score is read-only and the first-write happens via
+	// the `entryCreatedAtNs/sync` effect on store.entries.
+	// Spec: docs/implementation-plan.md DS-13.5.F
+	it("DS-13.5.F: entryCreatedAtNs/sync effect populates timestamps for new keys", () => {
+		const source = node<string>([], { initial: "v0" });
+		const mem = agentMemory<string>("f-sync-add", source, {
+			extractFn: (raw, _existing) => ({
+				upsert: [{ key: "k1", value: String(raw) }],
+			}),
+			score: () => 1.0, // above archiveThreshold → entry stays active
+			cost: () => 1,
+			tiers: { archiveThreshold: 0.1, maxActive: 100 },
+		});
+
+		source.down([[DATA, "v1"]]);
+
+		const createdNode = mem.tryResolve("tiers::entryCreatedAtNs");
+		expect(createdNode).toBeDefined();
+		const created = createdNode!.cache as ReadonlyMap<string, number> | undefined;
+		expect(created?.has("k1")).toBe(true);
+		expect(typeof created?.get("k1")).toBe("number");
+		expect(created?.get("k1")).toBeGreaterThan(0);
+
+		mem.destroy();
+	});
+
+	it("DS-13.5.F: entryCreatedAtNs/sync is idempotent — re-emission keeps original timestamp", () => {
+		const source = node<string>([], { initial: "v0" });
+		const mem = agentMemory<string>("f-idem", source, {
+			extractFn: (raw, _existing) => ({
+				upsert: [{ key: "k1", value: String(raw) }],
+			}),
+			score: () => 1.0,
+			cost: () => 1,
+			tiers: { archiveThreshold: 0.1, maxActive: 100 },
+		});
+
+		source.down([[DATA, "first"]]);
+		const created1 = mem.tryResolve("tiers::entryCreatedAtNs")!.cache as ReadonlyMap<
+			string,
+			number
+		>;
+		const ts1 = created1.get("k1");
+		expect(ts1).toBeDefined();
+
+		// Re-emit for the same key — sync effect should skip via has() guard.
+		source.down([[DATA, "second"]]);
+		source.down([[DATA, "third"]]);
+
+		const created2 = mem.tryResolve("tiers::entryCreatedAtNs")!.cache as ReadonlyMap<
+			string,
+			number
+		>;
+		const ts2 = created2.get("k1");
+		expect(ts2).toBe(ts1);
+
+		mem.destroy();
+	});
+
+	it("DS-13.5.F: entryCreatedAtNs/sync visible in describe()", () => {
+		const source = node<string>([], { initial: "v0" });
+		const mem = agentMemory<string>("f-describe", source, {
+			extractFn: (_raw, _existing) => ({
+				upsert: [{ key: "k1", value: "v" }],
+			}),
+			score: () => 1.0,
+			cost: () => 1,
+			tiers: { archiveThreshold: 0.1, maxActive: 100 },
+		});
+
+		// New effect is mounted at `entryCreatedAtNs/sync` on the inner
+		// MemoryWithTiersGraph (subgraph "tiers" from agentMemory's perspective).
+		expect(mem.tryResolve("tiers::entryCreatedAtNs/sync")).toBeDefined();
+
+		mem.destroy();
+	});
+
+	it("DS-13.5.F: entryCreatedAtNs GC still removes keys absent from active store", () => {
+		const source = node<string>([], { initial: "v0" });
+		// Use a score that flips: entry stays active during first wave,
+		// then archives on next emission via maxActive eviction.
+		let scoreVal = 1.0;
+		const mem = agentMemory<string>("f-gc", source, {
+			extractFn: (_raw, _existing) => ({
+				upsert: [{ key: "k1", value: "v" }],
+			}),
+			score: () => scoreVal,
+			cost: () => 1,
+			tiers: { archiveThreshold: 0.1, maxActive: 100 },
+		});
+
+		source.down([[DATA, "first"]]);
+		const beforeArchive = mem.tryResolve("tiers::entryCreatedAtNs")!.cache as ReadonlyMap<
+			string,
+			number
+		>;
+		expect(beforeArchive.has("k1")).toBe(true);
+
+		// Drop the score under archiveThreshold; next emission archives k1
+		// from the active store. The pre-existing GC subscriber on
+		// store.store.entries should then prune the entryCreatedAtNs entry.
+		scoreVal = 0.05;
+		source.down([[DATA, "second"]]);
+
+		const afterArchive = mem.tryResolve("tiers::entryCreatedAtNs")!.cache as ReadonlyMap<
+			string,
+			number
+		>;
+		expect(afterArchive.has("k1")).toBe(false);
 
 		mem.destroy();
 	});

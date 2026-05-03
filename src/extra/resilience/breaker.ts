@@ -11,16 +11,31 @@ import { monotonicNs } from "../../core/clock.js";
 import { COMPLETE, DATA, DIRTY, ERROR, RESOLVED } from "../../core/messages.js";
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
-import {
-	clampNonNegative,
-	msgVal,
-	type NodeOrValue,
-	operatorOpts,
-	resolveReactiveOption,
-} from "./_internal.js";
+import { clampNonNegative, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
 import { type BackoffStrategy, NS_PER_SEC } from "./backoff.js";
+import type { GateState } from "./gate-state.js";
 
 export type CircuitState = "closed" | "open" | "half-open";
+
+/**
+ * Lifecycle-shaped state companion emitted by {@link withBreaker}
+ * (DS-13.5.B, locked 2026-05-01). Pre-1.0 break vs the prior
+ * `Node<CircuitState>` (string-only) shape.
+ *
+ * `status` extends {@link GateState} with `"half-open"`. The numeric
+ * fields surface the breaker's full internal state for telemetry and
+ * `describe()` traversal.
+ *
+ * @category extra/resilience
+ */
+export interface BreakerState {
+	readonly status: GateState | "half-open";
+	readonly failureCount: number;
+	readonly openCycle: number;
+	readonly lastOpenedAtNs: number;
+	readonly halfOpenAttempts: number;
+	readonly lastCooldownNs: number;
+}
 
 /**
  * Thrown when {@link withBreaker} is configured with `onOpen: "error"` and the breaker rejects work.
@@ -138,21 +153,63 @@ export function circuitBreaker(options?: NodeOrValue<CircuitBreakerOptions>): Ci
 	let _lastCooldownNs = baseCooldownNs;
 	let _halfOpenAttempts = 0;
 
-	// Initial application + reactive subscription. On every DATA from a
-	// reactive option Node, reset the breaker to "closed" so re-tuning
-	// produces a clean baseline (locked semantic).
-	const optMirror = resolveReactiveOption<CircuitBreakerOptions>(
-		options as NodeOrValue<CircuitBreakerOptions>,
-		(next) => {
-			applyOptions(next);
-			_state = "closed";
-			_failureCount = 0;
-			_openCycle = 0;
-			_halfOpenAttempts = 0;
-			_lastCooldownNs = baseCooldownNs;
-		},
-	);
-	applyOptions(optMirror.current());
+	// DS-13.5.B (locked 2026-05-01): reactive option swaps preserve
+	// internal state — no reset across rebind. `now` is mode-locked at
+	// construction (clock override is structural); a mid-flight `now`
+	// change is logged and skipped (the prior `now` is preserved).
+	// Empty `{}` emits are no-ops.
+	//
+	// QA A2 (2026-05-03): bad-`now` mid-flight does NOT throw — sync
+	// throw inside a subscribe callback corrupts host scheduler state
+	// (mirrors timeout's `actions.down([[ERROR]])` rationale; sink-side
+	// throws break the wave's dispatch contract).
+	//
+	// QA A8 (2026-05-03): the push-on-subscribe re-delivery of the
+	// cached opts fires the subscribe callback once at attach time with
+	// the same value used for the eager `applyOptions(initialOpts)`
+	// call above. Skip the first cached emit so opts are not re-applied
+	// twice on construction.
+	let initialOpts: CircuitBreakerOptions | undefined;
+	let optsUnsub: (() => void) | undefined;
+	if (isNode(options)) {
+		const optsNode = options as Node<CircuitBreakerOptions>;
+		initialOpts = optsNode.cache as CircuitBreakerOptions | undefined;
+		applyOptions(initialOpts);
+		const lockedNow = initialOpts?.now;
+		const hadInitialCache = initialOpts !== undefined;
+		let firstEmit = hadInitialCache;
+		optsUnsub = optsNode.subscribe((msgs) => {
+			for (const m of msgs) {
+				if (m[0] !== DATA) continue;
+				if (firstEmit) {
+					firstEmit = false;
+					continue; // QA A8: skip push-on-subscribe replay of cached opts
+				}
+				const next = m[1] as CircuitBreakerOptions | undefined;
+				if (next == null || typeof next !== "object") continue;
+				if (Object.keys(next).length === 0) continue; // empty {} no-op
+				if ("now" in next && next.now !== lockedNow) {
+					// QA A2: log + skip; do NOT throw inside a subscribe
+					// callback — host scheduler corruption hazard.
+					console.error(
+						"circuitBreaker: ignoring mid-flight `now` change — clock override is mode-locked at construction. Prior `now` preserved.",
+					);
+					continue;
+				}
+				// State-preserving merge: only re-apply the axes that
+				// changed; preserve `_state`, `_failureCount`, etc.
+				const merged: CircuitBreakerOptions = {
+					...(initialOpts ?? {}),
+					...next,
+					...(lockedNow !== undefined ? { now: lockedNow } : {}),
+				};
+				applyOptions(merged);
+				initialOpts = merged;
+			}
+		});
+	} else {
+		applyOptions(options as CircuitBreakerOptions | undefined);
+	}
 	_lastCooldownNs = baseCooldownNs;
 
 	function getCooldownNs(): number {
@@ -230,16 +287,28 @@ export function circuitBreaker(options?: NodeOrValue<CircuitBreakerOptions>): Ci
 		},
 
 		dispose(): void {
-			optMirror.unsub();
+			optsUnsub?.();
 		},
+
+		// Internal accessors used by withBreaker for the BreakerState
+		// companion (DS-13.5.B). Not part of the public CircuitBreaker
+		// interface but exposed for the bundle wiring.
 	};
+	(breaker as unknown as { _stateSnapshot: () => BreakerState })._stateSnapshot = () => ({
+		status: _state,
+		failureCount: _failureCount,
+		openCycle: _openCycle,
+		lastOpenedAtNs: _lastOpenedAt,
+		halfOpenAttempts: _halfOpenAttempts,
+		lastCooldownNs: _lastCooldownNs,
+	});
 
 	return breaker;
 }
 
 export type WithBreakerBundle<T> = {
 	node: Node<T>;
-	breakerState: Node<CircuitState>;
+	breakerState: Node<BreakerState>;
 };
 
 /**
@@ -273,11 +342,32 @@ export function withBreaker<T>(
 	const callerMeta = options?.meta;
 
 	return (source: Node<T>): WithBreakerBundle<T> => {
+		const snapshot = (breaker as unknown as { _stateSnapshot?: () => BreakerState })._stateSnapshot;
+		const initialSnapshot: BreakerState = snapshot
+			? snapshot()
+			: {
+					status: breaker.state,
+					failureCount: breaker.failureCount,
+					openCycle: 0,
+					lastOpenedAtNs: 0,
+					halfOpenAttempts: 0,
+					lastCooldownNs: 0,
+				};
 		const wrapped = node<T>(
 			[],
 			(_deps, a) => {
 				function syncState(): void {
-					wrapped.meta.breakerState.down([[DATA, breaker.state]]);
+					const s = snapshot
+						? snapshot()
+						: {
+								status: breaker.state,
+								failureCount: breaker.failureCount,
+								openCycle: 0,
+								lastOpenedAtNs: 0,
+								halfOpenAttempts: 0,
+								lastCooldownNs: 0,
+							};
+					wrapped.meta.breakerState.down([[DIRTY], [DATA, s]]);
 				}
 
 				const unsub = source.subscribe((msgs) => {
@@ -312,7 +402,7 @@ export function withBreaker<T>(
 				...operatorOpts(),
 				meta: {
 					...(callerMeta ?? {}),
-					breakerState: breaker.state,
+					breakerState: initialSnapshot,
 					...factoryTag("withBreaker", { onOpen }),
 				},
 				completeWhenDepsComplete: false,
@@ -320,6 +410,6 @@ export function withBreaker<T>(
 			},
 		);
 
-		return { node: wrapped, breakerState: wrapped.meta.breakerState as Node<CircuitState> };
+		return { node: wrapped, breakerState: wrapped.meta.breakerState as Node<BreakerState> };
 	};
 }

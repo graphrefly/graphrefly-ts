@@ -319,5 +319,5 @@ export function fromWebSocketReconnect<T = unknown>(
 				...rest,
 			}),
 		{ count: maxRetries, backoff },
-	);
+	).node;
 }

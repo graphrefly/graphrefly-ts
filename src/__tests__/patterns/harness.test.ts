@@ -4,6 +4,7 @@ import { DATA } from "../../core/messages.js";
 import { node } from "../../core/node.js";
 import { Graph } from "../../graph/graph.js";
 
+import { trackingKey } from "../../patterns/_internal/index.js";
 import { contentGate, redactor } from "../../patterns/ai/index.js";
 import {
 	affectedTaskFilter,
@@ -69,6 +70,78 @@ describe("harness types", () => {
 			detail: "Missing node: rateLimiter not found in catalog",
 		};
 		expect(defaultErrorClassifier(result)).toBe("structural");
+	});
+
+	// Regression: routeJobIds collision contract — items lacking
+	// relatedTo[0] produce last-write-wins on identical summary derivations.
+	// COMPOSITION-GUIDE-PATTERNS L2 §17 (stable identity for retried items).
+	// Spec: docs/implementation-plan.md DS-13.5.D.3
+	it("DS-13.5.D.3: trackingKey collides for two items with identical summary and no relatedTo[0]", () => {
+		const a: IntakeItem = {
+			source: "human",
+			summary: "fix login bug",
+			evidence: "evidence-a",
+			affectsAreas: ["auth"],
+		};
+		const b: IntakeItem = {
+			source: "llm",
+			summary: "fix login bug",
+			evidence: "different evidence",
+			affectsAreas: ["auth", "ux"],
+		};
+		// Same summary + no relatedTo → identical tracking key →
+		// `routeJobIds.set()` is last-write-wins (publishing `b` overwrites `a`).
+		expect(trackingKey(a)).toBe(trackingKey(b));
+	});
+
+	it("DS-13.5.D.3: trackingKey preserves identity via relatedTo[0] across decorated retry summaries", () => {
+		const original: IntakeItem = {
+			source: "human",
+			summary: "fix login bug",
+			evidence: "ev",
+			affectsAreas: ["auth"],
+		};
+		const originalKey = trackingKey(original);
+
+		// Retry decorates summary; relatedTo[0] carries the original key.
+		const retry: IntakeItem = {
+			source: "human",
+			summary: "[RETRY 1/3] fix login bug — prior failure: timeout",
+			evidence: "ev",
+			affectsAreas: ["auth"],
+			relatedTo: [originalKey],
+		};
+		expect(trackingKey(retry)).toBe(originalKey);
+
+		// Reingest path keeps the original key at index 0 even when chained.
+		const reingest: IntakeItem = {
+			source: "llm",
+			summary: "(reingest) fix login bug",
+			evidence: "ev2",
+			affectsAreas: ["auth"],
+			relatedTo: [originalKey, "intermediate-cycle-2"],
+		};
+		expect(trackingKey(reingest)).toBe(originalKey);
+	});
+
+	it("DS-13.5.D.3: caller-supplied relatedTo[0] disambiguates colliding summaries", () => {
+		const summary = "fix login bug";
+		const a: IntakeItem = {
+			source: "human",
+			summary,
+			evidence: "",
+			affectsAreas: [],
+			relatedTo: ["request-A"],
+		};
+		const b: IntakeItem = {
+			source: "human",
+			summary,
+			evidence: "",
+			affectsAreas: [],
+			relatedTo: ["request-B"],
+		};
+		// Same summary, but distinct relatedTo[0] → distinct tracking keys.
+		expect(trackingKey(a)).not.toBe(trackingKey(b));
 	});
 });
 

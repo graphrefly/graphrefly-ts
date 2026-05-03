@@ -156,7 +156,7 @@ function executeOne(
 ): Node<ToolResult> {
 	const attempted: Node<unknown> = retry(() => tools.executeReactive(call.name, call.arguments), {
 		count: retryCount,
-	});
+	}).node;
 	const onSuccess = node<ToolResult>(
 		[attempted],
 		(batchData, actions, ctx) => {

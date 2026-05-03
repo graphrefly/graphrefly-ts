@@ -55,9 +55,9 @@ import type { CqrsEvent, CqrsEventMap, CqrsGraph } from "../cqrs/index.js";
  * - `"success"` — step ran cleanly; update state, optionally emit
  *   side-effect events and schedule a future synthetic event. The process
  *   instance stays `"running"`.
- * - `"terminate"` — workflow complete; instance moves to `"terminated"`.
+ * - `"terminate"` — workflow complete; instance moves to `"completed"`.
  *   Process-specific extension to the canonical outcome enum.
- * - `"failure"` — triggers compensation; instance moves to `"compensated"` /
+ * - `"failure"` — triggers compensation; instance moves to `"cancelled"` /
  *   `"errored"`.
  *
  * Field name is `outcome` (matching `cqrs.DispatchRecord.outcome` and the
@@ -113,7 +113,7 @@ export type ProcessCompensate<TState> = (state: TState, error: unknown) => NodeI
 /**
  * Audit record for a single process instance state transition.
  *
- * Every status change (start → running → terminated / errored / compensated)
+ * Every status change (start → running → completed / errored / cancelled)
  * appends one record. `correlationId` is the stable process key.
  *
  * Extends {@link BaseAuditRecord} so records carry `t_ns` / `seq` /
@@ -125,14 +125,14 @@ export interface ProcessInstance<TState> extends BaseAuditRecord {
 	/** Most-recent instance state at this transition. */
 	readonly state: TState;
 	/** Current lifecycle status after this transition. */
-	readonly status: "running" | "terminated" | "errored" | "compensated";
+	readonly status: "running" | "completed" | "errored" | "cancelled";
 	/** Wall-clock nanoseconds when `start()` was called. */
 	readonly startedAt: number;
 	/** Wall-clock nanoseconds of this transition. */
 	readonly updatedAt: number;
 	/** Handler version stamped at transition time (Audit 5). */
 	readonly handlerVersion?: { id: string; version: string | number };
-	/** Optional human-readable reason for cancellation. Present only on `"compensated"` records produced by `cancel()`. */
+	/** Optional human-readable reason for cancellation. Present only on `"cancelled"` records produced by `cancel()`. */
 	readonly reason?: string;
 }
 
@@ -148,14 +148,14 @@ export const processInstanceKeyOf = <TState>(i: ProcessInstance<TState>): string
  * lifecycle metadata so a fresh `processManager` can resume in-flight
  * workflows after restart via {@link ProcessManagerResult.restore}.
  *
- * Terminal records (`status` ∈ `"terminated" | "errored" | "compensated"`)
+ * Terminal records (`status` ∈ `"completed" | "errored" | "cancelled"`)
  * are deleted from the kv tier on transition — only running instances
  * persist between restarts.
  */
 export interface ProcessStateSnapshot<TState> {
 	readonly correlationId: string;
 	readonly state: TState;
-	readonly status: "running" | "terminated" | "errored" | "compensated";
+	readonly status: "running" | "completed" | "errored" | "cancelled";
 	readonly startedAt: number;
 	readonly updatedAt: number;
 	readonly handlerVersion?: { id: string; version: string | number };
@@ -182,12 +182,12 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 	/**
 	 * Optional compensation handler. Runs on step `outcome: "failure"` / step throw
 	 * and on explicit `cancel()`. If omitted, instances fail silently with
-	 * status `"errored"` instead of `"compensated"`.
+	 * status `"errored"` instead of `"cancelled"`.
 	 */
 	readonly compensate?: ProcessCompensate<TState>;
 	/**
 	 * Optional predicate called after each `"success"` step. When it returns
-	 * `true`, the instance is moved to `"terminated"` immediately without
+	 * `true`, the instance is moved to `"completed"` immediately without
 	 * waiting for a `"terminate"` step result.
 	 */
 	readonly isTerminal?: (state: TState) => boolean;
@@ -248,7 +248,7 @@ export interface ProcessManagerOpts<TState, EM extends CqrsEventMap> {
 		 * Wire per-correlationId state snapshots to kv tiers (Tier 6.5 3.5,
 		 * 2026-04-29). Each `start()` and step transition writes the running
 		 * instance's state under its `correlationId`; terminal transitions
-		 * (`terminated` / `errored` / `compensated`) `delete` the key. After
+		 * (`completed` / `errored` / `cancelled`) `delete` the key. After
 		 * restart, callers invoke {@link ProcessManagerResult.restore} to
 		 * reload running instances from the first tier.
 		 *
@@ -294,7 +294,7 @@ export interface ProcessManagerResult<TState> {
 	 * Cancel a running instance by correlationId.
 	 *
 	 * Triggers the `compensate` handler (if configured), then marks the
-	 * instance as `"compensated"`. If the instance is not running, this is
+	 * instance as `"cancelled"`. If the instance is not running, this is
 	 * a no-op.
 	 *
 	 * @param correlationId - Instance to cancel.
@@ -721,7 +721,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 		if (opts.compensate) {
 			try {
 				await toPromise(opts.compensate(state, error) as NodeInput<void>);
-				appendRecord(correlationId, state, "compensated", reason);
+				appendRecord(correlationId, state, "cancelled", reason);
 				removeState(correlationId);
 			} catch (_compErr) {
 				// Compensation itself failed — still mark as errored so instance
@@ -797,7 +797,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 				activeInstances.delete(correlationId);
 				instanceStates.delete(correlationId);
 				startedAt.delete(correlationId); // M3 — cleanup startedAt on isTerminal terminate
-				appendRecord(correlationId, result.state, "terminated", undefined);
+				appendRecord(correlationId, result.state, "completed", undefined);
 				removeState(correlationId);
 				return;
 			}
@@ -875,7 +875,7 @@ export function processManager<TState, EM extends CqrsEventMap = Record<string, 
 			activeInstances.delete(correlationId);
 			instanceStates.delete(correlationId);
 			startedAt.delete(correlationId); // M3 — cleanup startedAt on terminate
-			appendRecord(correlationId, result.state, "terminated", undefined);
+			appendRecord(correlationId, result.state, "completed", undefined);
 			removeState(correlationId);
 		}
 	}

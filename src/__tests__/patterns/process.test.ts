@@ -189,7 +189,7 @@ describe("processManager", () => {
 
 			// Audit log should contain a terminated record.
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<{ result: string }>[];
-			const terminated = entries.find((e) => e.status === "terminated");
+			const terminated = entries.find((e) => e.status === "completed");
 			expect(terminated).toBeDefined();
 			expect(terminated?.correlationId).toBe("corr-term");
 			app.destroy();
@@ -260,7 +260,7 @@ describe("processManager", () => {
 			expect(pm.getState("corr-pred")).toBeUndefined();
 
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<{ count: number }>[];
-			const terminated = entries.find((e) => e.status === "terminated");
+			const terminated = entries.find((e) => e.status === "completed");
 			expect(terminated).toBeDefined();
 			app.destroy();
 		});
@@ -298,7 +298,7 @@ describe("processManager", () => {
 			expect(pm.getState("corr-fail")).toBeUndefined();
 
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<unknown>[];
-			const comp = entries.find((e) => e.status === "compensated");
+			const comp = entries.find((e) => e.status === "cancelled");
 			expect(comp?.correlationId).toBe("corr-fail");
 			app.destroy();
 		});
@@ -455,7 +455,7 @@ describe("processManager", () => {
 			expect(pm.getState("corr-cancel")).toBeUndefined();
 
 			const entries = pm.instances.entries.cache as readonly ProcessInstance<unknown>[];
-			const comp = entries.find((e) => e.status === "compensated");
+			const comp = entries.find((e) => e.status === "cancelled");
 			expect(comp?.correlationId).toBe("corr-cancel");
 			app.destroy();
 		});

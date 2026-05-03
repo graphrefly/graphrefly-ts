@@ -18,6 +18,7 @@
 import { batch } from "../../core/batch.js";
 import { type Node, node } from "../../core/node.js";
 import { filter } from "../../extra/operators.js";
+import { Graph } from "../../graph/graph.js";
 import type { JobEnvelope } from "../job-queue/index.js";
 import type {
 	DatasetItem,
@@ -79,6 +80,25 @@ export interface EvalVerifierConfig<T> {
 
 	/** Node name prefix for introspection. */
 	name?: string;
+
+	/**
+	 * Optional parent graph on which per-claim eval subgraphs mount at
+	 * `eval/${claimId}` (DS-13.5.D.4, locked 2026-05-01). When provided,
+	 * each claim creates a fresh `Graph(\`eval_${claimId}\`)` subgraph
+	 * carrying `candidates` / `dataset` / `output` and mounts it at
+	 * `eval/${claimId}` on this parent — `describe()` walks the parent
+	 * see the per-claim topology while the claim is in flight, and the
+	 * subgraph is removed via `parent.remove("eval/${claimId}")` on the
+	 * output node's `deactivate` cleanup (fires when JobFlow's pump
+	 * unsubscribes after ack/nack).
+	 *
+	 * **claimId source.** `JobEnvelope.id` (assigned at enqueue time);
+	 * unique within a JobFlow lifetime — uniqueness within a single pump
+	 * cycle is the JobFlow's contract.
+	 *
+	 * When omitted, internal nodes float (pre-DS-13.5.D.4 behavior).
+	 */
+	graph?: Graph;
 }
 
 function meanScore(scores: readonly EvalResult[]): number {
@@ -133,6 +153,16 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 	const threshold = config.threshold ?? 0.5;
 	const toOutput = config.toOutput ?? defaultToOutput;
 	const extract = config.extractArtifact ?? defaultExtractArtifact<T>;
+	const parentGraph = config.graph;
+	// DS-13.5.B QA A7 (2026-05-03): per-claimId collision counter.
+	// Reingest paths preserve identity per DS-13.5.D.3 so the same
+	// claimId can land on the verifier while a prior cycle is still
+	// in-flight. Without disambiguation, `parentGraph.mount(
+	// "eval/${id}", sub)` would either silently overwrite the prior
+	// mount or throw "mount already exists". The counter is keyed by
+	// claimId so DISTINCT ids start at seq=0 (`eval/${id}`) and only
+	// REPEAT ids get a `_${seq}` suffix.
+	const mountSeqByClaimId = new Map<string, number>();
 
 	return (job: JobEnvelope<HarnessJobPayload<T>>) => {
 		const { item, execution } = job.payload;
@@ -197,18 +227,68 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 		// single-emit). See `harness-default-bridges.test.ts` regression test
 		// "evalVerifier coalesces synchronous-emit-during-subscribe
 		// evaluators" for the locked contract.
+		// DS-13.5.D.4 (locked 2026-05-01): when `parentGraph` is configured,
+		// each claim creates its own subgraph `eval_${claimId}` and mounts
+		// it at `eval/${claimId}` on the parent. Internal node names use
+		// the simple shape (`candidates`, `dataset`, `output`) since each
+		// subgraph is a fresh namespace. Cleanup attaches to `raw`'s
+		// deactivate hook so the segment is removed when JobFlow
+		// unsubscribes after ack/nack (canonical "last unsubscribe"
+		// signal via the existing NodeFnCleanup.deactivate protocol).
+		const claimId = job.id;
+		// QA A7: only append a `_${seq}` suffix when this claimId has
+		// already been mounted (collision case). Distinct claimIds
+		// resolve to `eval/${claimId}` as before.
+		const seq = mountSeqByClaimId.get(claimId) ?? 0;
+		mountSeqByClaimId.set(claimId, seq + 1);
+		const segmentSuffix = seq === 0 ? "" : `_${seq}`;
+		const segmentPath = `eval/${claimId}${segmentSuffix}`;
+		const sub = parentGraph != null ? new Graph(`eval_${claimId}${segmentSuffix}`) : null;
+		const candidatesName = sub != null ? "candidates" : `${name}/candidates`;
+		const datasetName = sub != null ? "dataset" : `${name}/dataset`;
+		const outputName = sub != null ? "output" : `${name}/output`;
+		const gateName = sub != null ? "gate-out" : `${name}/gate-out`;
+
 		const candidates = node<readonly T[]>([], {
 			initial: [artifact as T],
-			name: `${name}/candidates`,
+			name: candidatesName,
 		});
 		const dataset = node<readonly DatasetItem[]>([], {
 			initial: config.datasetFor(item),
-			name: `${name}/dataset`,
+			name: datasetName,
 		});
+		if (sub != null) {
+			sub.add(candidates, { name: "candidates" });
+			sub.add(dataset, { name: "dataset" });
+		}
 		let scoresNode!: ReturnType<Evaluator<T>>;
 		batch(() => {
 			scoresNode = config.evaluator(candidates, dataset);
 		});
+		// DS-13.5.B QA A1 (2026-05-03): the deactivate cleanup hook MUST
+		// be returned on every fn run, including the early-return path
+		// where `arr == null` (evaluator emits a placeholder before
+		// settling). Cleanup capture happens at the END of fn execution
+		// (NodeFnCleanup contract), so a fn that returned early without
+		// the cleanup object would leak `eval/${claimId}` if its first
+		// run produced null and the consumer unsubscribed before
+		// scoresNode emits non-null.
+		const cleanup =
+			parentGraph != null
+				? () => ({
+						deactivate: () => {
+							// Auto-unmount on JobFlow's pump unsubscribe after
+							// ack/nack (DS-13.5.D.4). Idempotent: try/catch
+							// covers the case where the segment was already
+							// removed (e.g. parent destroy cascade ran first).
+							try {
+								parentGraph.remove(segmentPath);
+							} catch {
+								/* best-effort cleanup */
+							}
+						},
+					})
+				: () => undefined;
 		const raw = node<HarnessJobPayload<T> | null>(
 			[scoresNode as Node<unknown>],
 			(batchData, actions, ctx) => {
@@ -218,7 +298,7 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 				const arr = data[0] as readonly EvalResult[] | null | undefined;
 				if (arr == null) {
 					actions.emit(null);
-					return;
+					return cleanup();
 				}
 				const mean = meanScore(arr);
 				const passCount = arr.filter((s) => s.score >= threshold).length;
@@ -232,12 +312,24 @@ export function evalVerifier<T>(config: EvalVerifierConfig<T>): HarnessVerifier<
 						threshold,
 					}),
 				});
+				return cleanup();
 			},
-			{ name: `${name}/output`, describeKind: "derived" },
+			{ name: outputName, describeKind: "derived" },
 		);
-		return filter(raw, (v) => v != null, { name: `${name}/gate-out` }) as ReturnType<
+		const gateOut = filter(raw, (v) => v != null, { name: gateName }) as ReturnType<
 			HarnessVerifier<T>
 		>;
+		if (sub != null) {
+			sub.add(raw, { name: "output" });
+			// QA A6: register the gate-out filter on the per-claim
+			// subgraph so describe() walks see the consumer-facing node
+			// alongside candidates/dataset/output. Without this, the
+			// returned filter floats and the subgraph's external surface
+			// is incomplete in topology snapshots.
+			sub.add(gateOut as Node<unknown>, { name: "gate-out" });
+			(parentGraph as Graph).mount(segmentPath, sub);
+		}
+		return gateOut;
 	};
 }
 

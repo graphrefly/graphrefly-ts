@@ -57,7 +57,7 @@ describe("resilientPipeline — basic shape", () => {
 		// Activate
 		pipeline.output.subscribe(() => {});
 		expect(pipeline.breakerState).toBeDefined();
-		expect(pipeline.breakerState?.cache).toBe("closed");
+		expect((pipeline.breakerState?.cache as { status: string } | undefined)?.status).toBe("closed");
 
 		const desc = pipeline.describe();
 		expect(desc.nodes.breakerWrapped).toBeDefined();
@@ -195,7 +195,7 @@ describe("resilientPipeline — layer behavior", () => {
 		pipeline.output.subscribe(() => {});
 		expect(pipeline.status.cache).toBeDefined();
 		expect(pipeline.lastError.cache).toBe(null);
-		expect(pipeline.breakerState?.cache).toBe("closed");
+		expect((pipeline.breakerState?.cache as { status: string } | undefined)?.status).toBe("closed");
 		expect(pipeline.droppedCount?.cache).toBe(0);
 
 		// All intermediates are mounted — describe surfaces the full chain.
@@ -227,18 +227,18 @@ describe("resilientPipeline — layer behavior", () => {
 });
 
 describe("resilientPipeline — reactive options (switchMap rebuild — qa G1C-prime)", () => {
-	it("accepts a Node<RateLimiterOptions>; layer is mounted and switchMap'd over the option Node", () => {
+	it("accepts a Node<RateLimiterOptions>; DS-13.5.B forwards Node directly (no switchMap rebuild)", () => {
 		const src = node([], { resubscribable: true, initial: 0 });
 		const rateOpts = node([], { initial: { maxEvents: 10, windowNs: NS_PER_SEC, maxBuffer: 100 } });
 		const pipeline = resilientPipeline(src, { rateLimit: rateOpts });
 		pipeline.output.subscribe(() => {});
 		// Layer mounted.
 		expect(pipeline.describe().nodes.rateLimited).toBeDefined();
-		// Companions NOT exposed in reactive mode (per-rebuild instances would
-		// otherwise track only the latest bundle). Caller awaits primitive-side
-		// widening.
-		expect(pipeline.droppedCount).toBeUndefined();
-		expect(pipeline.rateLimitState).toBeUndefined();
+		// DS-13.5.B forwarding contract: companions ARE exposed in reactive
+		// mode now that the primitive's internal state is preserved across
+		// opts swaps (no per-rebuild instances).
+		expect(pipeline.droppedCount).toBeDefined();
+		expect(pipeline.rateLimitState).toBeDefined();
 	});
 
 	it("accepts a Node<RetryOptions>; layer rebuilds on each emission (state-loss caveat)", () => {

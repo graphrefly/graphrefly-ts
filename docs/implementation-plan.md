@@ -940,7 +940,7 @@ Single home for design sessions that are decision-locked or scoped but not yet i
 
 ---
 
-#### DS-13.5.B — Tier 5.2 reactive-options widening (5 primitives + companions) — FULLY LOCKED 2026-05-01
+#### DS-13.5.B — Tier 5.2 reactive-options widening (5 primitives + companions) — FULLY LOCKED 2026-05-01; ✅ landed 2026-05-03 (TS; PY-parity deferred)
 
 *Trigger: today's `resilientPipeline` rebuilds layers via switchMap on each opts emission, losing internal state (rate-limit pending buffer, breaker failure count, retry attempt count, in-flight timeout deadline). Widening primitives to accept `Node<Partial<Options>>` with rebind-on-emit lets state survive option swaps.*
 
@@ -1074,7 +1074,7 @@ State preserved: `bucket`, `pending`, `dropped`, `paused`, `lastState`. Bundle e
 
 ---
 
-#### DS-13.5.C — MemoryRetrievalGraph keepalive + state plumbing — LOCKED 2026-05-01 (alt A)
+#### DS-13.5.C — MemoryRetrievalGraph keepalive + state plumbing — LOCKED 2026-05-01 (alt A); ✅ landed 2026-05-03 (TS; PY-parity deferred)
 
 **Reframe (post-walk 2026-05-01):** original DS-scope text predated C1 rework. Reality:
 - No imperative `retrieve()` API exists (already removed pre-walk).
@@ -1103,7 +1103,7 @@ State preserved: `bucket`, `pending`, `dropped`, `paused`, `lastState`. Bundle e
 
 ---
 
-#### DS-13.5.D — JobFlow concurrency bounds — LOCKED 2026-05-01 (revised: drop boundedCounter)
+#### DS-13.5.D — JobFlow concurrency bounds — LOCKED 2026-05-01 (revised: drop boundedCounter); D.3 + D.4 ✅ landed 2026-05-03 (TS; PY-parity deferred); D.2 deferred (no consumer signal)
 
 *Trigger: `maxPerPump` caps per-tick claims, not concurrent inflight. Reingest is imperative (audit-trail-only edge). `trackingKey` collisions silently overwrite. Per-claim eval subgraphs vanish from describe.*
 
@@ -1128,7 +1128,7 @@ State preserved: `bucket`, `pending`, `dropped`, `paused`, `lastState`. Bundle e
 
 ---
 
-#### DS-13.5.E — Messaging audit-record schemas — LOCKED 2026-05-01 (alt A: 4 records)
+#### DS-13.5.E — Messaging audit-record schemas — LOCKED 2026-05-01 (alt A: 4 records); ✅ landed 2026-05-03 (TS; PY-parity deferred)
 
 **E.1 — `process/start` + `process/cancel` `wrapMutation` migration ✅ ALREADY SHIPPED** — γ-7-A (2026-04-28), full body wrapped at [src/patterns/process/index.ts:1043](../src/patterns/process/index.ts:1043). B4/D2 fold (sync `persistStateThrowing` inside action body) shipped 2026-05-01. Synthetic-event-emit-error swallow at [process/index.ts:785](../src/patterns/process/index.ts:785) and :870 retained — separate concern (CQRS side-effect events from step handlers). `startStrict()` proposal **DROPPED** (no consumer signal). Archived.
 
@@ -1169,7 +1169,7 @@ Plus matching `topicPublishKeyOf`, `subscriptionAckKeyOf`, `subscriptionPullAndA
 
 ---
 
-#### DS-13.5.F — `retention.score` side-effect extraction — LOCKED 2026-05-01 (alt A)
+#### DS-13.5.F — `retention.score` side-effect extraction — LOCKED 2026-05-01 (alt A); ✅ landed 2026-05-03 (TS; PY-parity deferred)
 
 **Reframe (post-walk 2026-05-01):** original DS scope mostly addressed by Tier 4.3 B (closure-state promotion shipped 2026-04-29). Remaining: D1 fix only.
 

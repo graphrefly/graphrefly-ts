@@ -12,6 +12,7 @@ import { ResettableTimer } from "../timer.js";
 import { RingBuffer } from "../utils/ring-buffer.js";
 import { isNode, type NodeOrValue, operatorOpts, resolveReactiveOption } from "./_internal.js";
 import { NS_PER_MS, NS_PER_SEC } from "./backoff.js";
+import type { GateState } from "./gate-state.js";
 
 // `adaptiveRateLimiter` lives in extra/adaptive-rate-limiter.ts (kept independent
 // because it has its own internal control-loop machinery).
@@ -177,7 +178,20 @@ export class RateLimiterOverflowError extends Error {
  * flag so consumers can render backpressure (UI), feed `lens.health`, or
  * gate downstream effects.
  */
+/**
+ * Lifecycle-shaped state companion emitted by {@link rateLimiter}.
+ *
+ * **DS-13.5.B widening (2026-05-01).** `status` extends {@link GateState}
+ * with `"throttled"` (= `paused === true`). Pre-1.0 break vs the prior
+ * shape (which omitted `status`).
+ *
+ * - `"open"` — passing through (no buffering, no recent overflow drops).
+ * - `"throttled"` — at least one item queued awaiting a token refill.
+ * - `"closed"` — reserved for future terminal lifecycle reporting.
+ */
 export type RateLimiterState = {
+	/** DS-13.5.B status field — `"open" | "closed" | "throttled"`. */
+	status: GateState | "throttled";
 	/** Cumulative `DATA` items dropped due to overflow since this subscription cycle started. */
 	droppedCount: number;
 	/** Items currently buffered awaiting a token refill. `0` when the limiter is passing through. */
@@ -188,11 +202,15 @@ export type RateLimiterState = {
 
 function rateLimiterStateEqual(a: RateLimiterState, b: RateLimiterState): boolean {
 	return (
-		a.droppedCount === b.droppedCount && a.pendingCount === b.pendingCount && a.paused === b.paused
+		a.status === b.status &&
+		a.droppedCount === b.droppedCount &&
+		a.pendingCount === b.pendingCount &&
+		a.paused === b.paused
 	);
 }
 
 const RATE_LIMITER_INITIAL_STATE: RateLimiterState = Object.freeze({
+	status: "open" as const,
 	droppedCount: 0,
 	pendingCount: 0,
 	paused: false,
@@ -341,10 +359,12 @@ export function rateLimiter<T>(
 			let lastState: RateLimiterState = RATE_LIMITER_INITIAL_STATE;
 			function syncState(): void {
 				droppedNode.emit(dropped);
+				const isPaused = pending.size > 0;
 				const next: RateLimiterState = {
+					status: isPaused ? "throttled" : "open",
 					droppedCount: dropped,
 					pendingCount: pending.size,
-					paused: pending.size > 0,
+					paused: isPaused,
 				};
 				// Equality-dedup at the emit boundary so steady-state pass-through
 				// (every DATA passes immediately — pendingCount stays 0, paused
@@ -376,6 +396,15 @@ export function rateLimiter<T>(
 				(next) => {
 					if (terminated) return;
 					if (next == null) return;
+					// QA A9 (2026-05-03): explicit empty `{}` short-circuit
+					// for symmetry with timeout / retry / circuitBreaker
+					// (DS-13.5.B locked rule: empty `{}` is a no-op — no
+					// rebind, no companion fire). Pre-fix, empty `{}` was
+					// implicitly a no-op via the validation gate's
+					// `next.maxEvents > 0` check on `undefined`; this
+					// makes the rule explicit and resilient to future
+					// validation refactors.
+					if (typeof next === "object" && Object.keys(next).length === 0) return;
 					// Validate; if invalid, keep previous values (no throw into dataplane).
 					if (!(next.maxEvents > 0) || !(next.windowNs > 0)) return;
 					const nextBuf = next.maxBuffer;

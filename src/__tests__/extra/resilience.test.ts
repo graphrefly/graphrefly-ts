@@ -14,6 +14,8 @@ import {
 	withMaxAttempts,
 } from "../../extra/backoff.js";
 import {
+	type BudgetGateState,
+	budgetGate,
 	type CircuitBreakerOptions,
 	CircuitOpenError,
 	circuitBreaker,
@@ -25,6 +27,8 @@ import {
 	rateLimiter,
 	retry,
 	TimeoutError,
+	type TimeoutOptions,
+	type TimeoutState,
 	timeout,
 	tokenBucket,
 	withBreaker,
@@ -134,7 +138,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ describeKind: "producer", resubscribable: true },
 			);
-			const out = retry(src, { count: 0 });
+			const out = retry(src, { count: 0 }).node;
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
 			unsub();
@@ -155,7 +159,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ describeKind: "producer", resubscribable: true },
 			);
-			const out = retry(src, { count: 2, backoff: constant(0) });
+			const out = retry(src, { count: 2, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -179,7 +183,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			// withMaxAttempts(constant(0), 2) → attempts 0,1 get 0 delay; attempt 2 → null → stop.
 			// `count: Infinity` because the strategy's null-return is what bounds the retries here.
 			const capped = withMaxAttempts(constant(0), 2);
-			const out = retry(src, { count: Infinity, backoff: capped });
+			const out = retry(src, { count: Infinity, backoff: capped }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(50);
 			const errors = batches.flat().filter((m) => m[0] === ERROR);
@@ -208,7 +212,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, { count: 5, backoff: constant(0) });
+			const out = retry(factory, { count: 5, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -227,7 +231,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					},
 					{ describeKind: "producer" },
 				);
-			const out = retry(factory, { count: 0 });
+			const out = retry(factory, { count: 0 }).node;
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === ERROR)).toBe(true);
 			unsub();
@@ -246,7 +250,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, { count: 2, backoff: constant(0) });
+			const out = retry(factory, { count: 2, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const errors = batches.flat().filter((m) => m[0] === ERROR);
@@ -270,7 +274,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, { count: 3, backoff: constant(0) });
+			const out = retry(factory, { count: 3, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(10);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -292,7 +296,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, { count: 5, backoff: constant(0) });
+			const out = retry(factory, { count: 5, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			expect(batches.flat().some((m) => m[0] === COMPLETE)).toBe(true);
 			expect(builds).toBe(1);
@@ -324,7 +328,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			// With reset-on-DATA semantics, after build=1 emits 10 the attempt
 			// counter is cleared, so the subsequent errors all fit within the
 			// same retry budget. We assert the happy path reaches build 5.
-			const out = retry(factory, { count: 4, backoff: constant(0) });
+			const out = retry(factory, { count: 4, backoff: constant(0) }).node;
 			const { batches, unsub } = collect(out);
 			await vi.advanceTimersByTimeAsync(20);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -348,7 +352,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) });
+			const out = retry(factory, { count: 10, backoff: constant(1 * NS_PER_SEC) }).node;
 			const { unsub } = collect(out);
 			unsub();
 			await vi.advanceTimersByTimeAsync(10 * NS_PER_SEC);
@@ -359,7 +363,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("forwards DATA / DIRTY / RESOLVED transparently", async () => {
 			const src = node<number>([], { initial: 1 });
-			const out = retry(() => src, { count: 0 });
+			const out = retry(() => src, { count: 0 }).node;
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 2]]);
 			const data = batches.flat().filter((m) => m[0] === DATA);
@@ -641,7 +645,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const s = node([], { initial: 1 });
 			const bundle = withBreaker(b)(s);
 			expect(bundle.node.meta.breakerState).toBe(bundle.breakerState);
-			expect(bundle.breakerState.cache).toBe("closed");
+			expect((bundle.breakerState.cache as { status: string }).status).toBe("closed");
 		});
 
 		it("withStatus companions are accessible via node.meta", () => {
@@ -662,7 +666,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			const desc = g.describe({ detail: "standard" });
 			const metaPath = "guarded::__meta__::breakerState";
 			expect(desc.nodes[metaPath]).toBeDefined();
-			expect(desc.nodes[metaPath].value).toBe("closed");
+			expect((desc.nodes[metaPath].value as { status: string }).status).toBe("closed");
 		});
 
 		it("withStatus companions appear in graph.describe()", () => {
@@ -682,7 +686,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 	describe("pipe composition", () => {
 		it("pipe accepts retry operator", () => {
 			const s = node([], { initial: 1 });
-			const out = retry(s, { count: 0 });
+			const out = retry(s, { count: 0 }).node;
 			expect(out.cache).toBe(1);
 		});
 	});
@@ -796,7 +800,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				{ describeKind: "producer", resubscribable: true },
 			);
 			// retry with count: 0 means no retries — ERROR propagates immediately
-			const out = fallback(retry(src, { count: 0 }), "safe");
+			const out = fallback(retry(src, { count: 0 }).node, "safe");
 			const { batches, unsub } = collect(out);
 			await new Promise((r) => setTimeout(r, 20));
 			const flat = batches.flat();
@@ -811,14 +815,14 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 	describe("timeout", () => {
 		it("throws RangeError for non-positive timeoutNs", () => {
-			expect(() => timeout(node([], { initial: 1 }), 0)).toThrow(RangeError);
-			expect(() => timeout(node([], { initial: 1 }), -1)).toThrow(RangeError);
+			expect(() => timeout(node([], { initial: 1 }), { ns: 0 })).toThrow(RangeError);
+			expect(() => timeout(node([], { initial: 1 }), { ns: -1 })).toThrow(RangeError);
 		});
 
 		it("emits TimeoutError when no DATA arrives", () => {
 			vi.useFakeTimers();
 			const src = node(() => undefined, { describeKind: "producer" }); // never emits
-			const out = timeout(src, 100 * NS_PER_MS);
+			const out = timeout(src, { ns: 100 * NS_PER_MS }).node;
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(150);
 			const flat = batches.flat();
@@ -835,7 +839,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 		it("DATA resets the timer", () => {
 			vi.useFakeTimers();
 			const src = node([], { initial: 0 });
-			const out = timeout(src, 100 * NS_PER_MS);
+			const out = timeout(src, { ns: 100 * NS_PER_MS }).node;
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(80);
 			src.down([[DATA, 1]]); // resets timer
@@ -858,7 +862,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ describeKind: "producer" },
 			);
-			const out = timeout(src, 100 * NS_PER_MS);
+			const out = timeout(src, { ns: 100 * NS_PER_MS }).node;
 			const { batches, unsub } = collect(out);
 			vi.advanceTimersByTime(200);
 			const flat = batches.flat();
@@ -869,7 +873,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 
 		it("passes DATA through on time", () => {
 			const src = node([], { initial: 42 });
-			const out = timeout(src, 10 * NS_PER_SEC);
+			const out = timeout(src, { ns: 10 * NS_PER_SEC }).node;
 			const { batches, unsub } = collect(out);
 			src.down([[DATA, 99]]);
 			const flat = batches.flat();
@@ -878,6 +882,215 @@ describe("extra resilience (roadmap §3.1)", () => {
 					(m) => (m as [symbol, unknown])[0] === DATA && (m as [symbol, unknown])[1] === 99,
 				),
 			).toBe(true);
+			unsub();
+		});
+
+		// DS-13.5.B locked 2026-05-01: timeout returns TimeoutBundle<T>;
+		// `timeoutState` companion tracks the lifecycle. Tests below pin
+		// the bundle shape, the lifecycle transitions, the empty-{}-no-op
+		// rule, and the rebind-preserves-deadline contract.
+		describe("DS-13.5.B — TimeoutBundle + reactive opts", () => {
+			it("returns a bundle with `node` and `timeoutState`", () => {
+				const src = node([], { initial: 0 });
+				const bundle = timeout(src, { ns: 10 * NS_PER_SEC });
+				expect(bundle.node).toBeDefined();
+				expect(bundle.timeoutState).toBeDefined();
+				// Type-level: TimeoutBundle<number>.node is Node<number>.
+				const _typeCheck: TimeoutOptions = { ns: 100 };
+				expect(_typeCheck.ns).toBe(100);
+			});
+
+			it("timeoutState transitions pending → running on first DATA", () => {
+				vi.useFakeTimers();
+				const src = node([], { initial: 0 });
+				const { node: out, timeoutState } = timeout(src, { ns: 100 * NS_PER_MS });
+				const { batches, unsub } = collect(timeoutState);
+				const outUnsub = out.subscribe(() => {});
+				src.down([[DATA, 1]]);
+				const states = batches
+					.flat()
+					.filter((m) => m[0] === DATA)
+					.map((m) => m[1] as TimeoutState);
+				expect(states.some((s) => s.status === "pending")).toBe(true);
+				expect(states.some((s) => s.status === "running")).toBe(true);
+				outUnsub();
+				unsub();
+			});
+
+			it("timeoutState transitions to errored on timer fire", () => {
+				vi.useFakeTimers();
+				const src = node(() => undefined, { describeKind: "producer" });
+				const { node: out, timeoutState } = timeout(src, { ns: 100 * NS_PER_MS });
+				const { batches, unsub } = collect(timeoutState);
+				const outUnsub = out.subscribe(() => {});
+				vi.advanceTimersByTime(150);
+				const states = batches
+					.flat()
+					.filter((m) => m[0] === DATA)
+					.map((m) => m[1] as TimeoutState);
+				const errored = states.find((s) => s.status === "errored");
+				expect(errored).toBeDefined();
+				if (errored && errored.status === "errored") {
+					expect(errored.deadline_ns).toBe(100 * NS_PER_MS);
+					expect(typeof errored.firedAt_ns).toBe("number");
+				}
+				outUnsub();
+				unsub();
+			});
+
+			it("timeoutState transitions to completed on source COMPLETE", () => {
+				vi.useFakeTimers();
+				const src = node(
+					[],
+					(_data, a) => {
+						a.down([[COMPLETE]]);
+					},
+					{ describeKind: "producer" },
+				);
+				const { node: out, timeoutState } = timeout(src, { ns: 100 * NS_PER_MS });
+				const { batches, unsub } = collect(timeoutState);
+				const outUnsub = out.subscribe(() => {});
+				const states = batches
+					.flat()
+					.filter((m) => m[0] === DATA)
+					.map((m) => m[1] as TimeoutState);
+				expect(states.some((s) => s.status === "completed")).toBe(true);
+				outUnsub();
+				unsub();
+			});
+
+			it("reactive Node<Partial<TimeoutOptions>> rebind: ns change applies to next attempt only", () => {
+				vi.useFakeTimers();
+				const src = node(() => undefined, { describeKind: "producer" });
+				const optNode = node<Partial<TimeoutOptions>>([], { initial: { ns: 50 * NS_PER_MS } });
+				const { node: out } = timeout(src, optNode);
+				const { batches, unsub } = collect(out);
+				vi.advanceTimersByTime(30);
+				expect(batches.flat().some((m) => m[0] === ERROR)).toBe(false);
+				// Rebind to 200ms — does NOT affect in-flight timer.
+				optNode.emit({ ns: 200 * NS_PER_MS });
+				vi.advanceTimersByTime(25); // 30 + 25 = 55ms — past original 50ms
+				expect(
+					batches.flat().some((m) => m[0] === ERROR && (m[1] as Error) instanceof TimeoutError),
+				).toBe(true);
+				unsub();
+			});
+
+			it("empty {} emit on opts Node is a no-op", () => {
+				vi.useFakeTimers();
+				const src = node(() => undefined, { describeKind: "producer" });
+				const optNode = node<Partial<TimeoutOptions>>([], { initial: { ns: 100 * NS_PER_MS } });
+				const { node: out, timeoutState } = timeout(src, optNode);
+				const { batches: stateBatches, unsub: stateUnsub } = collect(timeoutState);
+				const outUnsub = out.subscribe(() => {});
+				const baselineCount = stateBatches.flat().filter((m) => m[0] === DATA).length;
+				optNode.emit({}); // no-op
+				const afterCount = stateBatches.flat().filter((m) => m[0] === DATA).length;
+				expect(afterCount).toBe(baselineCount);
+				outUnsub();
+				stateUnsub();
+			});
+
+			it("construction-time validation throws RangeError for missing ns (static form)", () => {
+				const src = node([], { initial: 0 });
+				expect(() => timeout(src, {})).toThrow(RangeError);
+			});
+
+			it("construction-time validation throws RangeError for invalid ns in defined-cache opts Node", () => {
+				const src = node([], { initial: 0 });
+				const optNode = node<Partial<TimeoutOptions>>([], { initial: { ns: -5 } });
+				expect(() => timeout(src, optNode)).toThrow(RangeError);
+			});
+
+			it("opts Node with cache === undefined pauses source until first valid opts emit", () => {
+				vi.useFakeTimers();
+				let srcEmitted = false;
+				const src = node(
+					[],
+					(_data, a) => {
+						srcEmitted = true;
+						a.emit(42);
+					},
+					{ describeKind: "producer" },
+				);
+				const optNode = node<Partial<TimeoutOptions>>([]); // SENTINEL: no initial
+				const { node: out } = timeout(src, optNode);
+				const { unsub } = collect(out);
+				// Source not yet attached because opts hasn't settled.
+				expect(srcEmitted).toBe(false);
+				// Provide valid opts → source attaches, fires.
+				optNode.emit({ ns: 100 * NS_PER_MS });
+				expect(srcEmitted).toBe(true);
+				unsub();
+			});
+		});
+	});
+
+	// DS-13.5.B locked 2026-05-01: budgetGate returns BudgetGateBundle<T>;
+	// `budgetGateState` companion tracks "open" / "closed" with per-constraint
+	// snapshot. Bundle return is a pre-1.0 break vs the prior `Node<T>`.
+	describe("DS-13.5.B — BudgetGateBundle + budgetGateState companion", () => {
+		it("returns a bundle with `node` and `budgetGateState`", () => {
+			const src = node<number>([], { initial: 0 });
+			const budget = node<number>([], { initial: 100 });
+			const bundle = budgetGate(src, [
+				{ node: budget, check: (v) => (v as number) > 0, name: "main" },
+			]);
+			expect(bundle.node).toBeDefined();
+			expect(bundle.budgetGateState).toBeDefined();
+		});
+
+		it("budgetGateState transitions open ↔ closed as constraints change", () => {
+			const src = node<number>([], { initial: 0 });
+			const budget = node<number>([], { initial: 100 });
+			const { node: gated, budgetGateState } = budgetGate(src, [
+				{ node: budget, check: (v) => (v as number) > 0, name: "main" },
+			]);
+			const gatedUnsub = gated.subscribe(() => {});
+			const { batches, unsub } = collect(budgetGateState);
+			// Open initially (budget=100>0).
+			const states = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as BudgetGateState);
+			expect(states.some((s) => s.status === "open")).toBe(true);
+			// Drain budget.
+			budget.down([[DATA, 0]]);
+			const after = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as BudgetGateState);
+			expect(after.some((s) => s.status === "closed")).toBe(true);
+			// Replenish.
+			budget.down([[DATA, 50]]);
+			const final = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as BudgetGateState);
+			expect(final[final.length - 1]?.status).toBe("open");
+			gatedUnsub();
+			unsub();
+		});
+
+		it("constraintsSnapshot reflects per-constraint name + satisfied + value", () => {
+			const src = node<number>([], { initial: 0 });
+			const budget = node<number>([], { initial: 25 });
+			const { node: gated, budgetGateState } = budgetGate(src, [
+				{ node: budget, check: (v) => (v as number) > 0, name: "tokens" },
+			]);
+			const gatedUnsub = gated.subscribe(() => {});
+			const { batches, unsub } = collect(budgetGateState);
+			const states = batches
+				.flat()
+				.filter((m) => m[0] === DATA)
+				.map((m) => m[1] as BudgetGateState);
+			const latest = states[states.length - 1];
+			expect(latest).toBeDefined();
+			expect(latest?.constraintsSnapshot).toHaveLength(1);
+			expect(latest?.constraintsSnapshot[0]?.name).toBe("tokens");
+			expect(latest?.constraintsSnapshot[0]?.satisfied).toBe(true);
+			expect(latest?.constraintsSnapshot[0]?.value).toBe(25);
+			gatedUnsub();
 			unsub();
 		});
 	});
@@ -928,7 +1141,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 				},
 				{ describeKind: "producer", resubscribable: true },
 			);
-			const sourceOut = retry(sharedSrc, { count: 5, backoff: constant(0) });
+			const sourceOut = retry(sharedSrc, { count: 5, backoff: constant(0) }).node;
 			const sourceCollect = collect(sourceOut);
 			await vi.advanceTimersByTimeAsync(50);
 
@@ -946,7 +1159,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					);
 				},
 				{ count: 5, backoff: constant(0) },
-			);
+			).node;
 			const factoryCollect = collect(factoryOut);
 			await vi.advanceTimersByTimeAsync(50);
 
@@ -1102,18 +1315,18 @@ describe("extra resilience (roadmap §3.1)", () => {
 	// ── Tier 6.5 3.2: reactive option swaps (NodeOrValue<Options>) ──────────
 
 	describe("Tier 6.5 3.2: reactive options widening", () => {
-		it("3.2.1 timeout: Node<number> option re-read on next attempt boundary", () => {
+		it("3.2.1 timeout: Node<Partial<TimeoutOptions>> re-read on next attempt boundary", () => {
 			vi.useFakeTimers();
 			const src = node(() => undefined, { describeKind: "producer" }); // never emits
-			const optNode = node<number>([], { initial: 50 * NS_PER_MS });
-			const out = timeout(src, optNode);
+			const optNode = node<{ ns: number }>([], { initial: { ns: 50 * NS_PER_MS } });
+			const out = timeout(src, optNode).node;
 			const { batches, unsub } = collect(out);
 			// Initial 50ms — no fire yet at 30ms.
 			vi.advanceTimersByTime(30);
 			expect(batches.flat().some((m) => (m as [symbol])[0] === ERROR)).toBe(false);
 			// Swap option to 200ms — applies to the NEXT timer (current
 			// in-flight timer keeps its 50ms deadline). Past 50ms total → fire.
-			optNode.emit(200 * NS_PER_MS);
+			optNode.emit({ ns: 200 * NS_PER_MS });
 			vi.advanceTimersByTime(30); // total 60ms — original deadline crossed
 			const flat = batches.flat();
 			expect(
@@ -1141,7 +1354,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 					{ describeKind: "producer" },
 				);
 			};
-			const out = retry(factory, optNode);
+			const out = retry(factory, optNode).node;
 			const { batches, unsub } = collect(out);
 			// First attempt fires synchronously via the producer body; further
 			// retries are scheduled via 1ms-floor timer. Drive timer drain.
@@ -1199,7 +1412,7 @@ describe("extra resilience (roadmap §3.1)", () => {
 			vi.useRealTimers();
 		});
 
-		it("3.2.4 circuitBreaker: Node<Options> swap resets to closed (locked semantic)", () => {
+		it("3.2.4 circuitBreaker: Node<Options> swap preserves state (DS-13.5.B locked 2026-05-01)", () => {
 			const now = 0;
 			const optNode = node<CircuitBreakerOptions>([], {
 				initial: {
@@ -1213,10 +1426,42 @@ describe("extra resilience (roadmap §3.1)", () => {
 			breaker.recordFailure();
 			expect(breaker.state).toBe("open"); // hit threshold
 			expect(breaker.failureCount).toBe(2);
-			// Swap options — locked: resets to closed, counters cleared.
-			optNode.emit({ failureThreshold: 5, cooldownNs: NS_PER_SEC, now: () => now });
-			expect(breaker.state).toBe("closed");
-			expect(breaker.failureCount).toBe(0);
+			// DS-13.5.B: state-preserving rebind. Today's "reset on opts swap"
+			// is gone — counters and `_state` carry across the swap.
+			const fixedNow = optNode.cache?.now;
+			optNode.emit({ failureThreshold: 5, cooldownNs: NS_PER_SEC, now: fixedNow });
+			expect(breaker.state).toBe("open");
+			expect(breaker.failureCount).toBe(2);
+			breaker.dispose();
+		});
+
+		it("3.2.4 circuitBreaker: empty {} opts emit is a no-op", () => {
+			const optNode = node<CircuitBreakerOptions>([], {
+				initial: { failureThreshold: 2, cooldownNs: NS_PER_SEC, now: () => 0 },
+			});
+			const breaker = circuitBreaker(optNode);
+			breaker.recordFailure();
+			expect(breaker.failureCount).toBe(1);
+			optNode.emit({} as CircuitBreakerOptions);
+			expect(breaker.failureCount).toBe(1);
+			breaker.dispose();
+		});
+
+		it("3.2.4 circuitBreaker: changing `now` mid-flight is logged + skipped (mode-locked, QA A2)", () => {
+			const optNode = node<CircuitBreakerOptions>([], {
+				initial: { failureThreshold: 2, cooldownNs: NS_PER_SEC, now: () => 0 },
+			});
+			const breaker = circuitBreaker(optNode);
+			breaker.recordFailure();
+			expect(breaker.failureCount).toBe(1);
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+			// QA A2 (2026-05-03): no longer throws — sync throw inside subscribe
+			// callback corrupted the host scheduler's wave dispatch. The bad
+			// `now` change is logged and skipped; prior state is preserved.
+			expect(() => optNode.emit({ now: () => 999 } as CircuitBreakerOptions)).not.toThrow();
+			expect(errSpy).toHaveBeenCalled();
+			expect(breaker.failureCount).toBe(1);
+			errSpy.mockRestore();
 			breaker.dispose();
 		});
 	});

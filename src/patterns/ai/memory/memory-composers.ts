@@ -349,19 +349,21 @@ export class MemoryWithTiersGraph<TRaw, TMem> extends Graph {
 		const score = opts.score;
 
 		// Build retention. `score` runs synchronously inside store mutations.
-		// Permanent matches return Infinity to bypass eviction. New entries have
-		// their creation time recorded inline (the entryCreatedAtNs subscriber
-		// below maintains the GC-on-removal half).
+		// Permanent matches return Infinity to bypass eviction.
+		//
+		// DS-13.5.F (2026-05-01): `score` is read-only against
+		// `entryCreatedAtNs` — the first-write side-effect was extracted into
+		// the `entryCreatedAtNs/sync` effect below. Race window for the very
+		// first call on a new key is mitigated by the `?? nowNs` fallback
+		// (yields ageSeconds = 0, i.e. fresh-decay), and the sync effect
+		// populates the map after the wave settles so subsequent score calls
+		// see the persisted timestamp.
 		const retention: ReactiveMapRetention<string, TMem> = {
 			score: (key, value) => {
 				if (permanentFilter(key, value)) return Number.POSITIVE_INFINITY;
 				if (permanentKeysRef.has(key)) return Number.POSITIVE_INFINITY;
 				const nowNs = monotonicNs();
-				let createdNs = entryCreatedAtNsRef.get(key);
-				if (createdNs === undefined) {
-					createdNs = nowNs;
-					entryCreatedAtNsRef.set(key, nowNs);
-				}
+				const createdNs = entryCreatedAtNsRef.get(key) ?? nowNs;
 				const ageSeconds = Number(nowNs - createdNs) / 1e9;
 				return decay(score(value, latestCtx), ageSeconds, decayRate);
 			},
@@ -407,9 +409,37 @@ export class MemoryWithTiersGraph<TRaw, TMem> extends Graph {
 			permanentRef.upsert(key, value);
 		};
 
+		// DS-13.5.F (2026-05-01): first-write of `entryCreatedAtNs[key]` runs
+		// here (extracted from `retention.score` to keep score pure). Reads
+		// `store.store.entries`, writes `entryCreatedAtNs` — distinct nodes,
+		// no §7 feedback cycle. Idempotent: re-emissions for already-tracked
+		// keys skip via `entryCreatedAtNsRef.has(key)`.
+		const syncCreatedAt = node(
+			[this.store.store.entries],
+			(batchData, _actions, ctx) => {
+				const data = batchData.map((b, i) =>
+					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+				);
+				const map = (data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
+				const nowNs = monotonicNs();
+				const toAdd: string[] = [];
+				for (const key of map.keys()) {
+					if (!entryCreatedAtNsRef.has(key)) toAdd.push(key);
+				}
+				if (toAdd.length > 0) {
+					batch(() => {
+						for (const key of toAdd) entryCreatedAtNsRef.set(key, nowNs);
+					});
+				}
+			},
+			{ name: "entryCreatedAtNs/sync", describeKind: "effect" },
+		);
+		this.add(syncCreatedAt, { name: "entryCreatedAtNs/sync" });
+		this.addDisposer(keepalive(syncCreatedAt));
+
 		// GC entryCreatedAtNs entries that no longer exist in the active store.
-		// (Adds happen inline inside retention.score; removals piggyback on the
-		// store-snapshot subscriber here so the map stays in sync.)
+		// (Adds happen via the syncCreatedAt effect above; removals piggyback
+		// on the store-snapshot subscriber here so the map stays in sync.)
 		const entriesUnsub = this.store.store.entries.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] !== DATA) continue;
@@ -595,7 +625,17 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		this._graphDepth = opts.graphDepth ?? 1;
 		this._budget = opts.budget ?? 2000;
 		this._contextWeight = opts.contextWeight ?? 0;
-		this._contextNode = opts.context ? fromAny(opts.context) : node<unknown>([], { initial: null });
+		// DS-13.5.C: synthesized branch (no `opts.context` supplied) registers
+		// on this graph as `_context` so describe()/explain() can walk to it.
+		// User-supplied branch stays unregistered — `fromAny` returns the
+		// caller's owned Node, which is owned by their graph; mounting it
+		// here would corrupt cross-graph ownership (mirrors MemoryWithTiers's
+		// context-branch policy).
+		if (opts.context) {
+			this._contextNode = fromAny(opts.context);
+		} else {
+			this._contextNode = this.state<unknown>("_context", null);
+		}
 	}
 
 	private _runRetrieval(
@@ -747,9 +787,28 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 	 * so vector upserts and KG mutations re-trigger retrieval even when
 	 * the input is unchanged.
 	 *
-	 * Disposers are local — `parent.remove("retrieve_${id}")` (or a parent
-	 * `destroy()` cascade) tears the per-call topology down without
-	 * touching siblings.
+	 * **Lifecycle contract (DS-13.5.C, 2026-05-01).** The per-call subgraph
+	 * stays mounted while the returned `projection` has at least one
+	 * subscriber. When the last subscriber unsubscribes, projection's
+	 * `deactivate` cleanup hook fires (canonical "last unsubscribe" signal
+	 * via the existing `NodeFnCleanup.deactivate` protocol), which calls
+	 * `parent.remove(retrieve_${id})` and tears the per-call topology
+	 * down via TEARDOWN cascade (post-DS-13.5.A Q16, COMPLETE auto-precedes).
+	 *
+	 * **Single-shot lifecycle.** This auto-unmount is keyed to the FIRST
+	 * last-unsubscribe event — projection is non-resubscribable from the
+	 * caller's perspective. Callers who need to subscribe / unsubscribe /
+	 * re-subscribe should hold a long-lived subscription externally (e.g.
+	 * `keepalive(projection)`) or call `retrieveReactive(...)` again to
+	 * mount a fresh per-call subgraph.
+	 *
+	 * **Caller obligation.** Either subscribe to `projection` (and
+	 * eventually unsubscribe to trigger cleanup) OR drop the returned
+	 * reference without subscribing — in the no-subscribe case the
+	 * subgraph is dormant (no compute fires) and a parent `destroy()`
+	 * cascade reclaims it. Holding `projection` without subscribing AND
+	 * without ever destroying the parent is the leak case the JSDoc above
+	 * the C1 rework covers.
 	 *
 	 * One-shot callers use `awaitSettled(retrieveReactive(input))`.
 	 */
@@ -769,30 +828,32 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 		// caller's node lives in the broader topology. `fromAny` returns
 		// the original Node when given a Node, otherwise wraps a
 		// value/promise into a producer.
+		//
+		// DS-13.5.C: registered via `sub.derived(...)` (Graph helper) for
+		// equals plumbing + automatic registration; replaces the prior raw
+		// `node([inputNode], fn) + sub.add(...)` shape.
 		const inputNode = fromAny(queryInput);
-		const localContext = node<RetrievalQuery | null>(
+		const localContext = sub.derived<RetrievalQuery | null>(
+			"context",
 			[inputNode],
-			(batchData, actions, ctx) => {
+			(batchData, ctx) => {
 				const data = batchData.map((b, i) =>
 					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
-				actions.emit((data[0] as RetrievalQuery | null) ?? null);
+				return [(data[0] as RetrievalQuery | null) ?? null];
 			},
 			{
-				name: "context",
-				describeKind: "derived",
 				meta: aiMeta("retrieval_query_input"),
 				initial: null,
 			},
 		);
-		sub.add(localContext, { name: "context" });
 
 		// /qa F-6 (2026-04-30): declare vectors / kg substrate Node refs as
 		// deps so vector upserts / KG mutations re-trigger retrieval even
 		// when query / context / store snapshots are unchanged. The
 		// `_runRetrieval` body reads `.cache` from these substrates; before
 		// this fix those reads were undeclared §28 closure-mirrors.
-		const resultDeps: Node<unknown>[] = [
+		const resultDeps: (string | Node<unknown>)[] = [
 			this._store.store.entries,
 			this._contextNode,
 			localContext,
@@ -803,34 +864,39 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 			resultDeps.push(this._kg.adjacencyIn as Node<unknown>);
 		}
 
-		const result = node<{
+		// DS-13.5.C: migrated to `sub.derived(...)` for equals plumbing +
+		// automatic registration.
+		const result = sub.derived<{
 			packed: ReadonlyArray<RetrievalEntry<TMem>>;
 			trace: RetrievalTrace<TMem> | null;
 		}>(
+			"result",
 			resultDeps,
-			(batchData, actions, ctx) => {
+			(batchData, ctx) => {
 				const data = batchData.map((b, i) =>
 					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
 				const query = data[2];
 				if (query == null) {
-					actions.emit({ packed: [], trace: null });
-					return;
+					return [{ packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null }];
 				}
 				const storeMap =
 					(data[0] as ReadonlyMap<string, TMem> | undefined) ?? new Map<string, TMem>();
 				const { packed, trace } = this._runRetrieval(storeMap, data[1], query as RetrievalQuery);
-				actions.emit({ packed, trace });
+				return [{ packed, trace }];
 			},
 			{
-				describeKind: "derived",
-				name: "result",
 				meta: aiMeta("retrieval_reactive_result"),
 				initial: { packed: [] as ReadonlyArray<RetrievalEntry<TMem>>, trace: null },
 			},
 		);
-		sub.add(result, { name: "result" });
 
+		// DS-13.5.C: projection stays as raw `node()` (not `sub.derived`)
+		// because the keepalive disposer is wired via the fn's
+		// `NodeFnCleanup.deactivate` hook — projection's cleanup-on-last-
+		// unsubscribe is what drives `parent.remove(segment)`. The Graph
+		// `.derived()` helper drops the cleanup return, so the raw form
+		// is required here. `equals: packedEquals` is preserved verbatim.
 		const projection = node<ReadonlyArray<RetrievalEntry<TMem>>>(
 			[result],
 			(batchData, actions, ctx) => {
@@ -838,10 +904,24 @@ export class MemoryRetrievalGraph<TMem> extends Graph {
 					b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
 				);
 				actions.emit((data[0] as { packed: ReadonlyArray<RetrievalEntry<TMem>> }).packed);
+				return {
+					deactivate: () => {
+						// Auto-unmount on last unsubscribe (DS-13.5.C).
+						// Idempotent: try/catch covers the case where the
+						// segment was already removed (e.g. parent destroy
+						// cascade ran first, or the caller called remove()
+						// manually).
+						try {
+							this.remove(segment);
+						} catch {
+							/* best-effort cleanup */
+						}
+					},
+				};
 			},
 			{
-				describeKind: "derived",
 				name: "projection",
+				describeKind: "derived",
 				meta: aiMeta("retrieval_reactive"),
 				initial: [] as ReadonlyArray<RetrievalEntry<TMem>>,
 				equals: packedEquals,

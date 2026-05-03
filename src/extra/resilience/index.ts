@@ -18,10 +18,14 @@ export * from "./breaker.js";
 // patterns/reduction/) — re-export here so it ships through the barrel.
 export {
 	type BudgetConstraint,
+	type BudgetConstraintSnapshot,
+	type BudgetGateBundle,
 	type BudgetGateOptions,
+	type BudgetGateState,
 	budgetGate,
 } from "./budget-gate.js";
 export * from "./fallback.js";
+export type { GateState } from "./gate-state.js";
 export * from "./rate-limiter.js";
 // resilientPipeline preset — moved from patterns/resilient-pipeline/ per
 // Tier 9.1 γ-form γ-R-2 (semantically belongs with the resilience family,

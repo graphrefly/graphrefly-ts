@@ -371,7 +371,7 @@ describe("reduction.budgetGate", () => {
 	it("passes DATA when budget is available", () => {
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 100 }); // budget = 100
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const seen: number[] = [];
 		gated.subscribe((msgs: Messages) => {
@@ -390,7 +390,7 @@ describe("reduction.budgetGate", () => {
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // exhausted
 
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const seen: number[] = [];
 		gated.subscribe((msgs: Messages) => {
@@ -432,7 +432,7 @@ describe("reduction.budgetGate", () => {
 		// later DATA. This is correct behavior (the initial value is real DATA).
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // closed
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const events: Array<["DATA", number] | ["COMPLETE"]> = [];
 		gated.subscribe((msgs: Messages) => {
@@ -458,7 +458,7 @@ describe("reduction.budgetGate", () => {
 	it("propagates ERROR and force-flushes buffered DATA before terminal (invariant 1)", () => {
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // closed
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const events: Array<["DATA", number] | ["ERROR"]> = [];
 		gated.subscribe((msgs: Messages) => {
@@ -481,7 +481,7 @@ describe("reduction.budgetGate", () => {
 	it("drains buffer FIFO when constraint releases — PAUSE→RESUME ordering (invariant 2)", () => {
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // closed initially
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const order: number[] = [];
 		gated.subscribe((msgs: Messages) => {
@@ -517,7 +517,7 @@ describe("reduction.budgetGate", () => {
 		const N = 5_000;
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // closed
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const order: number[] = [];
 		gated.subscribe((msgs: Messages) => {
@@ -546,7 +546,7 @@ describe("reduction.budgetGate", () => {
 	it("RESOLVED is deferred until buffer drains (invariant 3)", () => {
 		const source = node<number>([], { initial: 0 });
 		const budget = node<number>([], { initial: 0 }); // closed
-		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]);
+		const gated = budgetGate(source, [{ node: budget, check: (v) => (v as number) > 0 }]).node;
 
 		const events: Array<["DATA", number] | ["RESOLVED"]> = [];
 		gated.subscribe((msgs: Messages) => {

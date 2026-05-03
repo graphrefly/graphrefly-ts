@@ -240,7 +240,7 @@ export async function awaitSettled<T>(
 		_timeoutOp = resilience.timeout;
 		_nsPerMs = backoff.NS_PER_MS;
 	}
-	const guarded = _timeoutOp(source, opts.timeoutMs * (_nsPerMs as number));
+	const guarded = _timeoutOp(source, { ns: opts.timeoutMs * (_nsPerMs as number) }).node;
 	return (await firstWhere(guarded, predicate, { skipCurrent })) as NonNullable<T>;
 }
 

@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { DATA } from "../../core/messages.js";
 import { type Node, node } from "../../core/node.js";
 
+import { Graph } from "../../graph/graph.js";
 import {
 	evalVerifier,
 	type HarnessJobPayload,
@@ -24,6 +25,7 @@ import type {
 	Evaluator,
 	RefineStrategy,
 } from "../../patterns/harness/presets/refine-loop.js";
+import type { JobEnvelope } from "../../patterns/job-queue/index.js";
 import { mockLLM } from "../helpers/mock-llm.js";
 
 const REQUIRED = ["reactive", "composable", "inspectable"] as const;
@@ -227,6 +229,126 @@ describe("refineExecutor + evalVerifier (end-to-end)", () => {
 		expect(verify.findings.join(" ")).toContain("artifact");
 
 		harness.destroy();
+	});
+});
+
+// Regression: per-claim eval subgraph mounting (DS-13.5.D.4, locked
+// 2026-05-01). When `evalVerifier` is configured with a `graph` parent,
+// each claim mounts its own `Graph(\`eval_${claimId}\`)` subgraph at
+// `eval/${claimId}` so describe() walks see the per-claim topology while
+// the claim is in flight; the segment is removed via the output node's
+// `deactivate` cleanup hook when JobFlow unsubscribes after ack/nack.
+//
+// Spec: docs/implementation-plan.md DS-13.5.D.4
+describe("evalVerifier — per-claim subgraph mounting (DS-13.5.D.4)", () => {
+	function makeJob(id: string): JobEnvelope<HarnessJobPayload<string>> {
+		return {
+			id,
+			payload: {
+				item: {
+					source: "eval" as const,
+					summary: "test",
+					evidence: "",
+					affectsAreas: [],
+					severity: "low" as const,
+					rootCause: "missing-fn" as const,
+					intervention: "template" as const,
+					route: "auto-fix" as const,
+					priority: 50,
+				},
+				execution: {
+					item: {} as never,
+					outcome: "success",
+					detail: "ok",
+					artifact: "reactive composable inspectable",
+				},
+			},
+			attempts: 0,
+			metadata: {},
+			state: "inflight",
+		};
+	}
+
+	it("mounts per-claim subgraph at eval/<claimId> during the verify wave", () => {
+		const parent = new Graph("parent");
+		const verifier = evalVerifier<string>({
+			datasetFor: () => DATASET,
+			evaluator: keywordEvaluator,
+			threshold: 1.0,
+			graph: parent,
+		});
+
+		const job = makeJob("job-A");
+		const result = verifier(job);
+
+		// Subscribe to drive the evaluator and the output node.
+		const unsub = result.subscribe(() => {});
+
+		// While subscribed, the per-claim subgraph is mounted.
+		expect(parent.tryResolve("eval/job-A::candidates")).toBeDefined();
+		expect(parent.tryResolve("eval/job-A::dataset")).toBeDefined();
+		expect(parent.tryResolve("eval/job-A::output")).toBeDefined();
+		const subgraphsDuring = (parent.describe() as { subgraphs?: string[] }).subgraphs;
+		expect(subgraphsDuring).toContain("eval/job-A");
+
+		// JobFlow's pump unsubscribes from the result on settle (ack/nack);
+		// last unsub fires the output node's deactivate cleanup, which
+		// removes the segment from the parent graph.
+		unsub();
+
+		expect(parent.tryResolve("eval/job-A::candidates")).toBeUndefined();
+		expect(parent.tryResolve("eval/job-A::output")).toBeUndefined();
+		const subgraphsAfter = (parent.describe() as { subgraphs?: string[] }).subgraphs;
+		expect(subgraphsAfter ?? []).not.toContain("eval/job-A");
+	});
+
+	it("concurrent claims have independent eval subgraphs", () => {
+		const parent = new Graph("parent");
+		const verifier = evalVerifier<string>({
+			datasetFor: () => DATASET,
+			evaluator: keywordEvaluator,
+			threshold: 1.0,
+			graph: parent,
+		});
+
+		const jobA = makeJob("job-A");
+		const jobB = makeJob("job-B");
+		const rA = verifier(jobA);
+		const rB = verifier(jobB);
+		const uA = rA.subscribe(() => {});
+		const uB = rB.subscribe(() => {});
+
+		// Both segments mounted independently.
+		expect(parent.tryResolve("eval/job-A::output")).toBeDefined();
+		expect(parent.tryResolve("eval/job-B::output")).toBeDefined();
+
+		// Unsubscribing one cleans up only that segment.
+		uA();
+		expect(parent.tryResolve("eval/job-A::output")).toBeUndefined();
+		expect(parent.tryResolve("eval/job-B::output")).toBeDefined();
+
+		uB();
+		expect(parent.tryResolve("eval/job-B::output")).toBeUndefined();
+	});
+
+	it("without `graph` config, behavior is unchanged (no segment mount)", () => {
+		const verifier = evalVerifier<string>({
+			datasetFor: () => DATASET,
+			evaluator: keywordEvaluator,
+			threshold: 1.0,
+			// no `graph` supplied
+		});
+
+		const job = makeJob("job-A");
+		const result = verifier(job);
+		const unsub = result.subscribe(() => {});
+
+		// When no parent graph is supplied, internal nodes float —
+		// nothing to assert about the parent (there isn't one). The
+		// result node still emits the verify payload as before.
+		expect(result).toBeDefined();
+
+		unsub();
 	});
 });
 

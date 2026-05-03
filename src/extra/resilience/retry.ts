@@ -14,20 +14,51 @@ import { COMPLETE, DATA, DIRTY, ERROR, type Message, RESOLVED } from "../../core
 import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { ResettableTimer } from "../timer.js";
-import {
-	coerceDelayNs,
-	isNode,
-	msgVal,
-	type NodeOrValue,
-	operatorOpts,
-	resolveReactiveOption,
-} from "./_internal.js";
+import { coerceDelayNs, isNode, msgVal, type NodeOrValue, operatorOpts } from "./_internal.js";
 import {
 	type BackoffPreset,
 	type BackoffStrategy,
 	NS_PER_MS,
 	resolveBackoffPreset,
 } from "./backoff.js";
+import type { StatusValue } from "./status.js";
+
+/**
+ * Lifecycle-shaped state companion emitted by {@link retry} (DS-13.5.B,
+ * locked 2026-05-01). Tracks the retry state machine's current status,
+ * the attempt counter, and the last scheduled delay (null before the
+ * first retry).
+ *
+ * @category extra/resilience
+ */
+export interface RetryState {
+	status: StatusValue;
+	attempt: number;
+	lastDelay_ns: number | null;
+}
+
+/**
+ * Bundle returned by {@link retry}: the retry-wrapped output node and its
+ * lifecycle state companion. Pre-1.0 break vs the prior `Node<T>` return.
+ *
+ * **Single-subscriber / pipeline-only contract (DS-13.5.B QA, N1, 2026-05-03).**
+ * The `retryState` companion is allocated once at factory time and shared
+ * across all subscribers to `node`. With one subscriber (the typical use
+ * case — wire `node` into your downstream chain, optionally observe
+ * `retryState` separately) the companion reflects a coherent timeline.
+ * With **two or more subscribers** to `node`, each subscriber re-runs the
+ * producer body and writes into the same `retryState`, including
+ * `publish("pending")` resets that can clobber an in-flight machine's
+ * `running`/`paused` state. Don't fan out `node` to multiple subscribers
+ * and rely on `retryState` accuracy unless you use
+ * {@link keepalive} / `share`-style consolidation.
+ *
+ * @category extra/resilience
+ */
+export interface RetryBundle<T> {
+	node: Node<T>;
+	retryState: Node<RetryState>;
+}
 
 export type RetryOptions = {
 	/**
@@ -113,12 +144,17 @@ function _runRetryStateMachine<T>(
 	getCfg: () => ResolvedRetryConfig,
 	acquireSource: () => Node<T>,
 	a: { emit: (v: T) => void; down: (msgs: Message[]) => void },
+	emitState?: (next: RetryState) => void,
 ): () => void {
 	let attempt = 0;
 	let stopped = false;
 	let prevDelay: number | null = null;
 	let unsub: (() => void) | undefined;
 	const timer = new ResettableTimer();
+	const publish = (status: StatusValue): void => {
+		emitState?.({ status, attempt, lastDelay_ns: prevDelay });
+	};
+	publish("pending");
 
 	function disconnectUpstream(): void {
 		unsub?.();
@@ -130,6 +166,7 @@ function _runRetryStateMachine<T>(
 		const cfg = getCfg();
 		if (attempt >= cfg.maxRetries) {
 			disconnectUpstream();
+			publish("errored");
 			a.down([[ERROR, err]]);
 			return;
 		}
@@ -137,6 +174,7 @@ function _runRetryStateMachine<T>(
 		// null from strategy = "stop retrying" (e.g. withMaxAttempts cap reached)
 		if (raw === null || raw === undefined) {
 			disconnectUpstream();
+			publish("errored");
 			a.down([[ERROR, err]]);
 			return;
 		}
@@ -149,12 +187,14 @@ function _runRetryStateMachine<T>(
 			delayNs = coerceDelayNs(raw);
 		} catch {
 			disconnectUpstream();
+			publish("errored");
 			a.down([[ERROR, err]]);
 			return;
 		}
 		prevDelay = delayNs;
 		attempt += 1;
 		disconnectUpstream();
+		publish("paused");
 		// `Math.max(1, …)` floor: every backoff schedule floors at 1ms even when
 		// the strategy returns 0ns. Avoids 0-delay re-entrancy on the active
 		// stack frame (which would risk stack overflow on a tight ERROR loop).
@@ -177,6 +217,7 @@ function _runRetryStateMachine<T>(
 			scheduleRetryOrFinish(err);
 			return;
 		}
+		publish("running");
 		unsub = src.subscribe((msgs) => {
 			if (stopped) return;
 			for (const m of msgs) {
@@ -186,6 +227,7 @@ function _runRetryStateMachine<T>(
 					attempt = 0;
 					prevDelay = null;
 					a.emit(m[1] as T);
+					publish("running");
 				} else if (t === RESOLVED) a.down([[RESOLVED]]);
 				else if (t === COMPLETE) {
 					// DF2 (2026-04-29): set `stopped = true` BEFORE
@@ -196,6 +238,7 @@ function _runRetryStateMachine<T>(
 					// schedule a new retry timer.
 					stopped = true;
 					disconnectUpstream();
+					publish("completed");
 					a.down([[COMPLETE]]);
 				} else if (t === ERROR) {
 					scheduleRetryOrFinish(msgVal(m));
@@ -208,9 +251,11 @@ function _runRetryStateMachine<T>(
 	connect();
 
 	return () => {
+		const wasStopped = stopped;
 		stopped = true;
 		timer.cancel();
 		disconnectUpstream();
+		if (!wasStopped) publish("cancelled");
 	};
 }
 
@@ -259,23 +304,78 @@ function _runRetryStateMachine<T>(
  *
  * @category extra
  */
-export function retry<T>(input: Node<T>, opts?: NodeOrValue<RetryOptions>): Node<T>;
-export function retry<T>(input: () => Node<T>, opts?: NodeOrValue<RetryFactoryOptions<T>>): Node<T>;
+export function retry<T>(input: Node<T>, opts?: NodeOrValue<RetryOptions>): RetryBundle<T>;
+export function retry<T>(
+	input: () => Node<T>,
+	opts?: NodeOrValue<RetryFactoryOptions<T>>,
+): RetryBundle<T>;
 export function retry<T>(
 	input: Node<T> | (() => Node<T>),
 	opts?: NodeOrValue<RetryOptions | RetryFactoryOptions<T>>,
-): Node<T> {
+): RetryBundle<T> {
+	const retryState = node<RetryState>([], {
+		name: "retryState",
+		describeKind: "state",
+		initial: { status: "pending", attempt: 0, lastDelay_ns: null },
+		equals: (a, b) =>
+			a === b ||
+			(a != null &&
+				b != null &&
+				typeof a === "object" &&
+				typeof b === "object" &&
+				JSON.stringify(a) === JSON.stringify(b)),
+	});
+	const emit = (s: RetryState): void => {
+		retryState.down([[DIRTY], [DATA, s]]);
+	};
 	if (typeof input === "function") {
-		return _retryFactory(input, opts as NodeOrValue<RetryFactoryOptions<T>> | undefined);
+		return {
+			node: _retryFactory(input, opts as NodeOrValue<RetryFactoryOptions<T>> | undefined, emit),
+			retryState,
+		};
 	}
-	return _retrySource(input, opts as NodeOrValue<RetryOptions> | undefined);
+	return {
+		node: _retrySource(input, opts as NodeOrValue<RetryOptions> | undefined, emit),
+		retryState,
+	};
+}
+
+// DS-13.5.B helper: like `resolveReactiveOption` but shallow-merges each
+// reactive emit over the prior opts and treats empty `{}` as a no-op
+// (per the locked cross-cutting rule). Static-form arg returns the value
+// as-is and never subscribes.
+function makeMergedOptsMirror<R extends Record<string, unknown>>(
+	arg: NodeOrValue<R> | undefined,
+): { current: () => R | undefined; unsub: () => void } {
+	if (arg === undefined) {
+		return { current: () => undefined, unsub: () => undefined };
+	}
+	if (!isNode(arg)) {
+		return { current: () => arg as R, unsub: () => undefined };
+	}
+	const optsNode = arg as Node<R>;
+	let merged: R | undefined = (optsNode.cache as R | undefined) ?? undefined;
+	const unsub = optsNode.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] !== DATA) continue;
+			const next = m[1] as R | undefined;
+			if (next == null || typeof next !== "object") continue;
+			if (Object.keys(next).length === 0) continue; // empty {} no-op
+			merged = { ...(merged ?? ({} as R)), ...next } as R;
+		}
+	});
+	return { current: () => merged, unsub };
 }
 
 // DF6 (2026-04-29): once-per-source dedup for the source-mode-retry warn.
 // Mirrors the `_bumpCursorWarned` pattern in `extra/mutation/index.ts`.
 const _retrySourceNonResubscribableWarned = new WeakSet<Node<unknown>>();
 
-function _retrySource<T>(source: Node<T>, opts?: NodeOrValue<RetryOptions>): Node<T> {
+function _retrySource<T>(
+	source: Node<T>,
+	opts?: NodeOrValue<RetryOptions>,
+	emitState?: (s: RetryState) => void,
+): Node<T> {
 	// Source-mode retry re-subscribes to the SAME source node after each
 	// terminal ERROR. If the upstream was constructed with the default
 	// `resubscribable: false`, the second subscribe-after-terminal is a
@@ -301,12 +401,12 @@ function _retrySource<T>(source: Node<T>, opts?: NodeOrValue<RetryOptions>): Nod
 	if (!isNode(opts)) resolveRetryConfig(staticOpts);
 	return node<T>(
 		(_data, a) => {
-			const optMirror = resolveReactiveOption<RetryOptions>(opts as NodeOrValue<RetryOptions>);
-			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(optMirror.current());
-			const inner = _runRetryStateMachine(getCfg, () => source, a);
+			const merged = makeMergedOptsMirror<RetryOptions>(opts);
+			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(merged.current());
+			const inner = _runRetryStateMachine(getCfg, () => source, a, emitState);
 			return () => {
 				inner();
-				optMirror.unsub();
+				merged.unsub();
 			};
 		},
 		{
@@ -326,20 +426,19 @@ function _retrySource<T>(source: Node<T>, opts?: NodeOrValue<RetryOptions>): Nod
 function _retryFactory<T>(
 	factory: () => Node<T>,
 	opts?: NodeOrValue<RetryFactoryOptions<T>>,
+	emitState?: (s: RetryState) => void,
 ): Node<T> {
 	const staticOpts = isNode(opts) ? undefined : (opts as RetryFactoryOptions<T> | undefined);
 	// Eager validation for static-form opts (Tier 3.1 footgun preservation).
 	if (!isNode(opts)) resolveRetryConfig(staticOpts);
 	return node<T>(
 		(_data, a) => {
-			const optMirror = resolveReactiveOption<RetryFactoryOptions<T>>(
-				opts as NodeOrValue<RetryFactoryOptions<T>>,
-			);
-			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(optMirror.current());
-			const inner = _runRetryStateMachine(getCfg, factory, a);
+			const merged = makeMergedOptsMirror<RetryFactoryOptions<T>>(opts);
+			const getCfg = (): ResolvedRetryConfig => resolveRetryConfig(merged.current());
+			const inner = _runRetryStateMachine(getCfg, factory, a, emitState);
 			return () => {
 				inner();
-				optMirror.unsub();
+				merged.unsub();
 			};
 		},
 		{

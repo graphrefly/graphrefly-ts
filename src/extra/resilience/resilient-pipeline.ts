@@ -42,6 +42,7 @@
  *
  * @module
  */
+import { ERROR } from "../../core/messages.js";
 import { placeholderArgs } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { Graph, type GraphOptions } from "../../graph/index.js";
@@ -49,6 +50,7 @@ import { domainMeta } from "../meta.js";
 import { switchMap } from "../operators/index.js";
 import { NS_PER_MS } from "./backoff.js";
 import {
+	type BreakerState,
 	type BudgetConstraint,
 	budgetGate,
 	type CircuitBreakerOptions,
@@ -59,9 +61,12 @@ import {
 	type RateLimiterOptions,
 	type RateLimiterState,
 	type RetryOptions,
+	type RetryState,
 	rateLimiter,
 	retry,
 	type StatusValue,
+	type TimeoutOptions,
+	type TimeoutState,
 	timeout,
 	withBreaker,
 	withStatus,
@@ -207,7 +212,21 @@ export class ResilientPipelineGraph<T> extends Graph {
 	 */
 	readonly lastError: Node<unknown | null>;
 	/** Breaker state when `opts.breaker` is provided; `undefined` otherwise. */
-	readonly breakerState: Node<CircuitState> | undefined;
+	readonly breakerState: Node<BreakerState> | undefined;
+	/**
+	 * Timeout state companion when `opts.timeoutMs` is supplied as a
+	 * `Node<Partial<TimeoutOptions>>`-like form; `undefined` otherwise
+	 * (DS-13.5.B forwarding contract — Node-form opts skip the switchMap
+	 * rebuild and lift the primitive's lifecycle companion onto the
+	 * pipeline bundle).
+	 */
+	readonly timeoutState: Node<TimeoutState> | undefined;
+	/**
+	 * Retry state companion when `opts.retry` is supplied as a
+	 * `Node<RetryOptions>`-like form; `undefined` otherwise
+	 * (DS-13.5.B forwarding contract).
+	 */
+	readonly retryState: Node<RetryState> | undefined;
 	/**
 	 * Drop-counter when `opts.rateLimit` is provided; `undefined` otherwise.
 	 *
@@ -230,28 +249,26 @@ export class ResilientPipelineGraph<T> extends Graph {
 		let current: Node<T> = source;
 		let droppedCount: Node<number> | undefined;
 		let rateLimitState: Node<RateLimiterState> | undefined;
-		let breakerState: Node<CircuitState> | undefined;
+		let breakerState: Node<BreakerState> | undefined;
+		let timeoutState: Node<TimeoutState> | undefined;
+		let retryState: Node<RetryState> | undefined;
 
 		// 1. Admission control — cheapest to drop / queue before any other work.
 		if (opts.rateLimit != null) {
 			if (isNode<Omit<RateLimiterOptions, "maxBuffer"> & { maxBuffer?: number }>(opts.rateLimit)) {
-				// Reactive: switchMap on the option Node. Each emission rebuilds
-				// the rate-limit layer (state-loss caveat — pending buffer
-				// resets per rebuild). Companions (droppedCount /
-				// rateLimitState) NOT exposed in this mode; they'd track only
-				// the latest bundle. Caller awaits primitive-side widening for
-				// reactive companions.
-				const inputForLayer = current;
-				const reactiveOpts = opts.rateLimit;
-				current = switchMap(reactiveOpts, (rl) => {
-					const merged: RateLimiterOptions = {
-						...rl,
-						maxBuffer: rl.maxBuffer ?? Infinity,
-						meta: domainMeta("resilient", "rate-limit"),
-					};
-					return rateLimiter(inputForLayer, merged).node;
-				});
+				// DS-13.5.B forwarding: rateLimiter primitive is widened to
+				// accept `NodeOrValue<RateLimiterOptions>` directly. Forward
+				// the Node form to preserve internal state (pending buffer,
+				// dropped counter) across opts swaps. Companion nodes
+				// (droppedCount / rateLimitState) lift onto the pipeline
+				// bundle. The pre-DS-13.5.B switchMap-rebuild path is gone.
+				const bundle = rateLimiter(current, opts.rateLimit as NodeOrValue<RateLimiterOptions>);
+				current = bundle.node;
+				droppedCount = bundle.droppedCount;
+				rateLimitState = bundle.rateLimitState;
 				this.add(current, { name: "rateLimited" });
+				this.add(droppedCount, { name: "droppedCount" });
+				this.add(rateLimitState, { name: "rateLimitState" });
 			} else {
 				const rateOpts: RateLimiterOptions = {
 					...opts.rateLimit,
@@ -277,45 +294,36 @@ export class ResilientPipelineGraph<T> extends Graph {
 					constraints.length > 0
 						? budgetGate(inputForLayer, constraints, {
 								meta: domainMeta("resilient", "budget"),
-							})
+							}).node
 						: inputForLayer,
 				);
 				this.add(current, { name: "budgetGated" });
 			} else if (opts.budget.length > 0) {
 				current = budgetGate(current, opts.budget, {
 					meta: domainMeta("resilient", "budget"),
-				});
+				}).node;
 				this.add(current, { name: "budgetGated" });
 			}
 		}
 
 		// 3. Breaker — skip the resource when unhealthy (fail-fast before retry wastes time).
 		if (opts.breaker != null) {
-			if (isNode<CircuitBreakerOptions>(opts.breaker)) {
-				const inputForLayer = current;
-				const reactiveBreaker = opts.breaker;
-				const onOpen = opts.breakerOnOpen ?? "skip";
-				current = switchMap(reactiveBreaker, (br) => {
-					const breaker = circuitBreaker(br);
-					return withBreaker<T>(breaker, {
-						onOpen,
-						meta: domainMeta("resilient", "breaker"),
-					})(inputForLayer).node;
-				});
-				this.add(current, { name: "breakerWrapped" });
-				// breakerState companion NOT exposed in reactive mode (per-rebuild instances).
-			} else {
-				const breaker = circuitBreaker(opts.breaker);
-				const onOpen = opts.breakerOnOpen ?? "skip";
-				const wrapped = withBreaker<T>(breaker, {
-					onOpen,
-					meta: domainMeta("resilient", "breaker"),
-				})(current);
-				current = wrapped.node;
-				breakerState = wrapped.breakerState;
-				this.add(current, { name: "breakerWrapped" });
-				this.add(breakerState, { name: "breakerState" });
-			}
+			// DS-13.5.B forwarding: circuitBreaker primitive accepts
+			// `NodeOrValue<CircuitBreakerOptions>` directly. Pass the Node
+			// form straight through so internal state (`_state`,
+			// `_failureCount`, `_openCycle`, …) is preserved across opts
+			// swaps. Companion `breakerState` lifts onto the pipeline
+			// bundle in both static and Node-form paths.
+			const breaker = circuitBreaker(opts.breaker as NodeOrValue<CircuitBreakerOptions>);
+			const onOpen = opts.breakerOnOpen ?? "skip";
+			const wrapped = withBreaker<T>(breaker, {
+				onOpen,
+				meta: domainMeta("resilient", "breaker"),
+			})(current);
+			current = wrapped.node;
+			breakerState = wrapped.breakerState;
+			this.add(current, { name: "breakerWrapped" });
+			this.add(breakerState, { name: "breakerState" });
 		}
 
 		// 4. Timeout — per-attempt deadline. Applied BEFORE retry so each retry
@@ -324,37 +332,103 @@ export class ResilientPipelineGraph<T> extends Graph {
 		//    retry chain — not what callers expect for "per-attempt timeout."
 		if (opts.timeoutMs != null) {
 			if (isNode<number>(opts.timeoutMs)) {
-				const inputForLayer = current;
+				// DS-13.5.B forwarding: build a derived `Node<{ns}>` from
+				// the caller's `Node<number>` (ms) and pass directly to the
+				// widened timeout primitive. State preservation (in-flight
+				// deadline) is handled inside timeout's reactive opts path.
+				// Companion `timeoutState` lifts onto the pipeline bundle.
 				const reactiveTimeoutMs = opts.timeoutMs;
-				current = switchMap(reactiveTimeoutMs, (ms) => {
-					assertTimeoutMsValid(ms);
-					return timeout(inputForLayer, ms * NS_PER_MS, {
-						meta: domainMeta("resilient", "timeout"),
-					});
-				});
-				this.add(current, { name: "timeoutWrapped" });
-			} else {
-				assertTimeoutMsValid(opts.timeoutMs);
-				current = timeout(current, opts.timeoutMs * NS_PER_MS, {
+				const initialMs = reactiveTimeoutMs.cache as number | undefined;
+				// QA A5 (2026-05-03): assert validity of the cached initial
+				// value at construction so a bad cache fails loud at wire
+				// time, not silently at first emit. Reactive emits with
+				// invalid values flow through the producer body's ERROR
+				// channel rather than throwing into the host scheduler.
+				if (initialMs !== undefined) assertTimeoutMsValid(initialMs);
+				const optsBridge = node<Partial<TimeoutOptions>>(
+					[reactiveTimeoutMs as Node<unknown>],
+					(batchData, actions, ctx) => {
+						const data = batchData.map((b, i) =>
+							b != null && b.length > 0 ? b.at(-1) : ctx.prevData[i],
+						);
+						const ms = data[0] as number | undefined;
+						if (ms === undefined) return;
+						// QA A5: route validation failures through the
+						// reactive ERROR channel — sync `throw` inside a
+						// producer body corrupts the host scheduler's
+						// wave dispatch (mirrors timeout primitive's
+						// "sync throw would corrupt the host scheduler"
+						// rationale).
+						if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0 || ms > 9_000_000) {
+							actions.down([
+								[
+									ERROR,
+									new RangeError(
+										`resilientPipeline: timeoutMs reactive emit invalid (${ms}); must be > 0 and <= 9_000_000.`,
+									),
+								],
+							]);
+							return;
+						}
+						actions.emit({ ns: ms * NS_PER_MS });
+					},
+					{
+						describeKind: "derived",
+						name: "timeoutOptsBridge",
+						...(initialMs !== undefined
+							? { initial: { ns: initialMs * NS_PER_MS } as Partial<TimeoutOptions> }
+							: {}),
+					},
+				);
+				// QA A5: register the bridge on the pipeline graph so
+				// describe() walks see the full topology (dry-run /
+				// real-run equivalence per CLAUDE.md).
+				this.add(optsBridge, { name: "timeoutOptsBridge" });
+				const bundle = timeout(current, optsBridge, {
 					meta: domainMeta("resilient", "timeout"),
 				});
+				current = bundle.node;
+				timeoutState = bundle.timeoutState;
 				this.add(current, { name: "timeoutWrapped" });
+				this.add(timeoutState, { name: "timeoutState" });
+			} else {
+				assertTimeoutMsValid(opts.timeoutMs);
+				const bundle = timeout(
+					current,
+					{ ns: opts.timeoutMs * NS_PER_MS },
+					{
+						meta: domainMeta("resilient", "timeout"),
+					},
+				);
+				current = bundle.node;
+				timeoutState = bundle.timeoutState;
+				this.add(current, { name: "timeoutWrapped" });
+				this.add(timeoutState, { name: "timeoutState" });
 			}
 		}
 
 		// 5. Retry — resubscribe on `ERROR` up to `count` times. Wraps timeout
 		//    so each retry gets its own fresh deadline.
 		if (opts.retry != null) {
+			// DS-13.5.B forwarding: retry primitive accepts
+			// `NodeOrValue<RetryOptions>` directly. Forward Node form so
+			// `attempt` / `prevDelay` / in-flight timer survive opts swaps.
+			// Companion `retryState` lifts onto the pipeline bundle.
 			if (isNode<RetryOptions>(opts.retry)) {
-				const inputForLayer = current;
-				const reactiveRetry = opts.retry;
-				current = switchMap(reactiveRetry, (r) =>
-					retry(inputForLayer, { ...r, meta: domainMeta("resilient", "retry") }),
-				);
+				const bundle = retry(current, opts.retry as NodeOrValue<RetryOptions>);
+				current = bundle.node;
+				retryState = bundle.retryState;
 				this.add(current, { name: "retryWrapped" });
+				this.add(retryState, { name: "retryState" });
 			} else {
-				current = retry(current, { ...opts.retry, meta: domainMeta("resilient", "retry") });
+				const bundle = retry(current, {
+					...opts.retry,
+					meta: domainMeta("resilient", "retry"),
+				});
+				current = bundle.node;
+				retryState = bundle.retryState;
 				this.add(current, { name: "retryWrapped" });
+				this.add(retryState, { name: "retryState" });
 			}
 		}
 
@@ -379,6 +453,8 @@ export class ResilientPipelineGraph<T> extends Graph {
 		this.breakerState = breakerState;
 		this.droppedCount = droppedCount;
 		this.rateLimitState = rateLimitState;
+		this.timeoutState = timeoutState;
+		this.retryState = retryState;
 
 		// Mount the externally-visible top-level entries by name. Each carries
 		// its own factoryTag meta from the underlying primitive (`withStatus`

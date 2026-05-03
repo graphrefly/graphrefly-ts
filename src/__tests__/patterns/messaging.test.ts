@@ -1,20 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { node } from "../../core/node.js";
 
+import { createAuditLog, lightMutation } from "../../extra/mutation/index.js";
 import { jobFlow, jobQueue } from "../../patterns/job-queue/index.js";
 import {
 	DEFERRED_TOPIC,
+	type HubRemoveTopicRecord,
+	hubRemoveTopicKeyOf,
 	INJECTIONS_TOPIC,
 	type Message,
+	type MessagingAuditRecord,
 	messagingHub,
 	PROMPTS_TOPIC,
 	RESPONSES_TOPIC,
 	SPAWNS_TOPIC,
 	STANDARD_TOPICS,
 	type StandardTopic,
+	type SubscriptionAckRecord,
+	type SubscriptionPullAndAckRecord,
 	subscription,
+	subscriptionAckKeyOf,
+	subscriptionPullAndAckKeyOf,
+	type TopicPublishRecord,
 	topic,
 	topicBridge,
+	topicPublishKeyOf,
 } from "../../patterns/messaging/index.js";
 
 describe("patterns.messaging", () => {
@@ -582,5 +592,234 @@ describe("patterns.messaging — Message envelope + standard topic constants (Ph
 		const matchingA = all.filter((m) => m.correlationId === "req-A");
 		expect(matchingA).toHaveLength(2);
 		expect(matchingA.map((m) => m.payload)).toEqual(["ans-A", "ans-A2"]);
+	});
+});
+
+// Regression: messaging audit-record schemas added pre-1.0 for symmetry with
+// ProcessInstance.
+// Spec: docs/implementation-plan.md DS-13.5.E (alt A, 4 records)
+describe("patterns.messaging — audit-record schemas (DS-13.5.E)", () => {
+	it("topicPublishKeyOf returns topicName::itemKey format", () => {
+		const r: TopicPublishRecord = {
+			t_ns: 0,
+			seq: 1,
+			kind: "topic.publish",
+			topicName: "orders",
+			itemKey: "abc",
+		};
+		expect(topicPublishKeyOf(r)).toBe("orders::abc");
+	});
+
+	it("subscriptionAckKeyOf returns subscriptionId::cursor format", () => {
+		const r: SubscriptionAckRecord = {
+			t_ns: 0,
+			seq: 1,
+			kind: "subscription.ack",
+			subscriptionId: "worker-1",
+			cursor: 7,
+		};
+		expect(subscriptionAckKeyOf(r)).toBe("worker-1::7");
+	});
+
+	it("subscriptionPullAndAckKeyOf returns subscriptionId::cursor format", () => {
+		const r: SubscriptionPullAndAckRecord = {
+			t_ns: 0,
+			seq: 1,
+			kind: "subscription.pullAndAck",
+			subscriptionId: "worker-2",
+			cursor: 12,
+			itemCount: 3,
+		};
+		expect(subscriptionPullAndAckKeyOf(r)).toBe("worker-2::12");
+	});
+
+	it("hubRemoveTopicKeyOf returns topicName", () => {
+		const r: HubRemoveTopicRecord = {
+			t_ns: 0,
+			seq: 1,
+			kind: "hub.removeTopic",
+			topicName: "stale",
+		};
+		expect(hubRemoveTopicKeyOf(r)).toBe("stale");
+	});
+
+	it("kind discriminator narrows record types in MessagingAuditRecord union", () => {
+		const records: MessagingAuditRecord[] = [
+			{ t_ns: 1, kind: "topic.publish", topicName: "t", itemKey: "k" },
+			{ t_ns: 2, kind: "subscription.ack", subscriptionId: "s", cursor: 1 },
+			{
+				t_ns: 3,
+				kind: "subscription.pullAndAck",
+				subscriptionId: "s",
+				cursor: 2,
+				itemCount: 1,
+			},
+			{ t_ns: 4, kind: "hub.removeTopic", topicName: "t" },
+		];
+
+		const keys = records.map((r): string => {
+			switch (r.kind) {
+				case "topic.publish":
+					// Narrowed: TopicPublishRecord
+					return topicPublishKeyOf(r);
+				case "subscription.ack":
+					return subscriptionAckKeyOf(r);
+				case "subscription.pullAndAck":
+					return subscriptionPullAndAckKeyOf(r);
+				case "hub.removeTopic":
+					return hubRemoveTopicKeyOf(r);
+				default: {
+					const _exhaustive: never = r;
+					return _exhaustive;
+				}
+			}
+		});
+
+		expect(keys).toEqual(["t::k", "s::1", "s::2", "t"]);
+	});
+
+	it("TopicPublishRecord composes with lightMutation audit opts (opt-in emission)", () => {
+		const t = topic<{ id: string; payload: string }>("orders");
+		const log = createAuditLog<TopicPublishRecord>({ name: "publishes" });
+		// Activate the entries node so .cache reflects appends synchronously.
+		const unsub = log.entries.subscribe(() => undefined);
+
+		const auditedPublish = lightMutation(
+			(item: { id: string; payload: string }): void => t.publish(item),
+			{
+				audit: log,
+				onSuccess: ([item], _r, m) => ({
+					t_ns: m.t_ns,
+					seq: m.seq,
+					kind: "topic.publish" as const,
+					topicName: t.name,
+					itemKey: item.id,
+				}),
+			},
+		);
+
+		auditedPublish({ id: "a", payload: "first" });
+		auditedPublish({ id: "b", payload: "second" });
+
+		const entries = log.entries.cache as readonly TopicPublishRecord[];
+		expect(entries).toHaveLength(2);
+		expect(entries[0]!.kind).toBe("topic.publish");
+		expect(entries[0]!.topicName).toBe("orders");
+		expect(entries[0]!.itemKey).toBe("a");
+		expect(entries[1]!.itemKey).toBe("b");
+
+		unsub();
+	});
+
+	it("SubscriptionAckRecord composes with lightMutation audit opts", () => {
+		const t = topic<number>("nums");
+		t.publish(10);
+		t.publish(20);
+		t.publish(30);
+		const sub = subscription<number>("worker", t);
+
+		const log = createAuditLog<SubscriptionAckRecord>({ name: "acks" });
+		const unsub = log.entries.subscribe(() => undefined);
+
+		const auditedAck = lightMutation((count: number): number => sub.ack(count), {
+			audit: log,
+			onSuccess: (_args, cursor, m) => ({
+				t_ns: m.t_ns,
+				seq: m.seq,
+				kind: "subscription.ack" as const,
+				subscriptionId: sub.name,
+				cursor,
+			}),
+		});
+
+		auditedAck(2);
+		auditedAck(1);
+
+		const entries = log.entries.cache as readonly SubscriptionAckRecord[];
+		expect(entries).toHaveLength(2);
+		expect(entries[0]!.kind).toBe("subscription.ack");
+		expect(entries[0]!.subscriptionId).toBe("worker");
+		expect(entries[0]!.cursor).toBe(2);
+		expect(entries[1]!.cursor).toBe(3);
+
+		unsub();
+	});
+
+	it("SubscriptionPullAndAckRecord composes with lightMutation audit opts", () => {
+		const t = topic<string>("letters");
+		t.publish("a");
+		t.publish("b");
+		t.publish("c");
+		const sub = subscription<string>("reader", t);
+
+		const log = createAuditLog<SubscriptionPullAndAckRecord>({ name: "pulls" });
+		const unsub = log.entries.subscribe(() => undefined);
+
+		const auditedPullAndAck = lightMutation((limit: number) => sub.pullAndAck(limit), {
+			audit: log,
+			onSuccess: (_args, result, m) => ({
+				t_ns: m.t_ns,
+				seq: m.seq,
+				kind: "subscription.pullAndAck" as const,
+				subscriptionId: sub.name,
+				cursor: result.cursor,
+				itemCount: result.items.length,
+			}),
+		});
+
+		auditedPullAndAck(2);
+		auditedPullAndAck(5);
+
+		const entries = log.entries.cache as readonly SubscriptionPullAndAckRecord[];
+		expect(entries).toHaveLength(2);
+		expect(entries[0]!.itemCount).toBe(2);
+		expect(entries[0]!.cursor).toBe(2);
+		expect(entries[1]!.itemCount).toBe(1);
+		expect(entries[1]!.cursor).toBe(3);
+
+		unsub();
+	});
+
+	it("HubRemoveTopicRecord composes with lightMutation audit opts", () => {
+		const hub = messagingHub("hub");
+		hub.topic<number>("alpha");
+		hub.topic<number>("beta");
+
+		const log = createAuditLog<HubRemoveTopicRecord>({ name: "removals" });
+		const unsub = log.entries.subscribe(() => undefined);
+
+		const auditedRemove = lightMutation((name: string): boolean => hub.removeTopic(name), {
+			audit: log,
+			onSuccess: ([name], removed, m) =>
+				removed
+					? {
+							t_ns: m.t_ns,
+							seq: m.seq,
+							kind: "hub.removeTopic" as const,
+							topicName: name,
+						}
+					: undefined,
+		});
+
+		auditedRemove("alpha");
+		auditedRemove("does-not-exist"); // should NOT emit (returns false → undefined)
+
+		const entries = log.entries.cache as readonly HubRemoveTopicRecord[];
+		expect(entries).toHaveLength(1);
+		expect(entries[0]!.kind).toBe("hub.removeTopic");
+		expect(entries[0]!.topicName).toBe("alpha");
+
+		unsub();
+	});
+
+	it("audit field stays optional — Topic.publish without audit opts emits no records", () => {
+		// Without lightMutation/audit wiring, the topic's mutation site does
+		// not emit any records (audit field stays optional at all four sites).
+		const t = topic<number>("plain");
+		t.publish(1);
+		t.publish(2);
+		// No audit log to assert against — the absence of an audit surface IS
+		// the contract. Confirm the topic still works as expected.
+		expect(t.retained()).toEqual([1, 2]);
 	});
 });

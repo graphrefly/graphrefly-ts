@@ -239,7 +239,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { NS_PER_SEC } = await import("../../extra/backoff.js");
 
 		const src = node([], { initial: 0 });
-		const timed = timeout(src, 5 * NS_PER_SEC);
+		const timed = timeout(src, { ns: 5 * NS_PER_SEC }).node;
 		const off = timed.subscribe(() => {});
 
 		const g = new Graph("g");
@@ -247,8 +247,8 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const spec = g.describe({ detail: "spec" });
 
 		expect(spec.nodes.timed?.meta?.factory).toBe("timeout");
-		const args = spec.nodes.timed?.meta?.factoryArgs as { timeoutNs: number };
-		expect(args.timeoutNs).toBe(5 * NS_PER_SEC);
+		const args = spec.nodes.timed?.meta?.factoryArgs as { ns: number };
+		expect(args.ns).toBe(5 * NS_PER_SEC);
 
 		off();
 	});
@@ -257,7 +257,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { retry } = await import("../../extra/resilience.js");
 
 		const src = node([], { initial: 0 });
-		const wrapped = retry(src, { count: 3, backoff: "exponential" });
+		const wrapped = retry(src, { count: 3, backoff: "exponential" }).node;
 		const off = wrapped.subscribe(() => {});
 
 		const g = new Graph("g");
@@ -276,7 +276,7 @@ describe("Phase 2 — tagged factories surface meta.factory in describe()", () =
 		const { retry } = await import("../../extra/resilience.js");
 
 		const src = node([], { initial: 0 });
-		const wrapped = retry(src, { count: 2, backoff: () => 100 });
+		const wrapped = retry(src, { count: 2, backoff: () => 100 }).node;
 		const off = wrapped.subscribe(() => {});
 
 		const g = new Graph("g");

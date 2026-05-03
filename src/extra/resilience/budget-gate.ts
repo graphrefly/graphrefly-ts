@@ -21,6 +21,7 @@ import {
 } from "../../core/messages.js";
 import { type Node, type NodeOptions, node } from "../../core/node.js";
 import { domainMeta } from "../meta.js";
+import type { GateState } from "./gate-state.js";
 
 /** A reactive constraint for {@link budgetGate}. */
 export type BudgetConstraint<T = unknown> = {
@@ -28,12 +29,57 @@ export type BudgetConstraint<T = unknown> = {
 	node: Node<T>;
 	/** Returns `true` when the constraint is satisfied (budget available). */
 	check: (value: T) => boolean;
+	/**
+	 * Optional human-readable name for `BudgetGateState.constraintsSnapshot`.
+	 * Defaults to the constraint Node's `.name` (or `""` when unset).
+	 */
+	name?: string;
 };
 
 /** Options for {@link budgetGate}. */
 export type BudgetGateOptions = Omit<NodeOptions<unknown>, "describeKind" | "name" | "meta"> & {
 	meta?: Record<string, unknown>;
 };
+
+/**
+ * Per-constraint snapshot inside {@link BudgetGateState}. The `value` field is
+ * typed as `unknown` because constraint values are generic — most callers
+ * carry numeric budgets but the gate doesn't enforce that. Cast at the
+ * subscriber site if you need a narrower type.
+ *
+ * @category extra/resilience
+ */
+export interface BudgetConstraintSnapshot {
+	readonly name: string;
+	readonly satisfied: boolean;
+	readonly value: unknown;
+}
+
+/**
+ * Lifecycle-shaped state companion emitted by {@link budgetGate} (DS-13.5.B,
+ * locked 2026-05-01). `status` is `"open"` when every constraint's `check`
+ * returns true; `"closed"` otherwise. The `constraintsSnapshot` array
+ * preserves constraint ordering and reflects the most recent values seen
+ * via per-constraint reactive updates.
+ *
+ * @category extra/resilience
+ */
+export interface BudgetGateState {
+	readonly status: GateState;
+	readonly constraintsSnapshot: ReadonlyArray<BudgetConstraintSnapshot>;
+}
+
+/**
+ * Bundle returned by {@link budgetGate}: the gated output node and its
+ * gate-state companion. Pre-1.0 break vs. the prior `Node<T>` return —
+ * unwrap via `.node` for downstream wiring.
+ *
+ * @category extra/resilience
+ */
+export interface BudgetGateBundle<T> {
+	node: Node<T>;
+	budgetGateState: Node<BudgetGateState>;
+}
 
 /**
  * Unbounded head-index queue with O(1) `push` and O(1) `shift`.
@@ -192,7 +238,7 @@ export function budgetGate<T>(
 	source: Node<T>,
 	constraints: ReadonlyArray<BudgetConstraint>,
 	opts?: BudgetGateOptions,
-): Node<T> {
+): BudgetGateBundle<T> {
 	if (constraints.length === 0) throw new RangeError("budgetGate requires at least one constraint");
 
 	const constraintNodes = constraints.map((c) => c.node);
@@ -215,6 +261,79 @@ export function budgetGate<T>(
 		return constraints.every((c, i) => c.check(latestValues[i]));
 	}
 
+	// DS-13.5.B (locked 2026-05-01): lifecycle-shaped state companion.
+	// Initialized with `status: "closed"` until activation seeds the values
+	// and the first `checkBudget()` runs.
+	//
+	// QA A3 (2026-05-03): equality uses structural compare on
+	// `(status, name, satisfied, value)` tuples via `Object.is` per
+	// `value` — NOT `JSON.stringify`. Caller-supplied constraint values
+	// (`unknown`) can be circular, BigInt, or otherwise non-serializable;
+	// `JSON.stringify` would throw and corrupt the wave dispatch.
+	function budgetGateStateEqual(a: BudgetGateState, b: BudgetGateState): boolean {
+		if (a === b) return true;
+		if (a.status !== b.status) return false;
+		const sa = a.constraintsSnapshot;
+		const sb = b.constraintsSnapshot;
+		if (sa.length !== sb.length) return false;
+		for (let i = 0; i < sa.length; i++) {
+			const ai = sa[i];
+			const bi = sb[i];
+			if (ai === undefined || bi === undefined) return false;
+			if (ai.name !== bi.name) return false;
+			if (ai.satisfied !== bi.satisfied) return false;
+			if (!Object.is(ai.value, bi.value)) return false;
+		}
+		return true;
+	}
+
+	const budgetGateState = node<BudgetGateState>([], {
+		name: "budgetGateState",
+		describeKind: "state",
+		initial: {
+			status: "closed",
+			constraintsSnapshot: constraints.map((c) => ({
+				name: c.name ?? c.node.name ?? "",
+				satisfied: false,
+				value: undefined,
+			})),
+		},
+		equals: budgetGateStateEqual,
+	});
+
+	let lastEmittedState: BudgetGateState | null = null;
+
+	function publishState(): void {
+		const snapshot: BudgetConstraintSnapshot[] = constraints.map((c, i) => {
+			const v = latestValues[i];
+			let satisfied = false;
+			try {
+				satisfied = c.check(v as never);
+			} catch (err) {
+				// QA A3: log the bug-throw rather than silently mapping to
+				// `satisfied=false`. The constraint's check function failing
+				// is a programmer error — at minimum surface it to console.
+				console.error(
+					`budgetGate: constraint "${c.name ?? c.node.name ?? `[${i}]`}" check threw; treating as not satisfied.`,
+					err,
+				);
+				satisfied = false;
+			}
+			return {
+				name: c.name ?? c.node.name ?? "",
+				satisfied,
+				value: v,
+			};
+		});
+		const status: GateState = snapshot.every((s) => s.satisfied) ? "open" : "closed";
+		const next: BudgetGateState = { status, constraintsSnapshot: snapshot };
+		if (lastEmittedState != null && budgetGateStateEqual(lastEmittedState, next)) {
+			return;
+		}
+		lastEmittedState = next;
+		budgetGateState.down([[DIRTY], [DATA, next]]);
+	}
+
 	function flushBuffer(actions: NodeActions): void {
 		// FIFO drain — invariant 2 (PAUSE-release ordering). Stop early if a
 		// later constraint check flips false mid-drain (the queue's tail stays
@@ -233,7 +352,7 @@ export function budgetGate<T>(
 	// Producer pattern: manually subscribe to all deps for per-message interception.
 	// Source / constraint edges are intentionally NOT declared as `_deps` — see
 	// the JSDoc "Producer-pattern" section above and COMPOSITION-GUIDE §24.
-	return node<T>(
+	const out = node<T>(
 		[],
 		(_data, gateActions) => {
 			// Seed `latestValues` at activation (not factory time) so any constraint
@@ -242,6 +361,8 @@ export function budgetGate<T>(
 			for (let i = 0; i < constraints.length; i++) {
 				latestValues[i] = constraints[i]!.node.cache;
 			}
+			// Seed the companion state at activation as well.
+			publishState();
 			const unsubs: Array<() => void> = [];
 			for (let depIdx = 0; depIdx < allDeps.length; depIdx++) {
 				const dep = allDeps[depIdx];
@@ -263,6 +384,8 @@ export function budgetGate<T>(
 			meta: domainMeta("resilience", "budget_gate", opts?.meta),
 		} as NodeOptions<T>,
 	);
+
+	return { node: out, budgetGateState };
 
 	function _handleBudgetMessage(msg: Message, depIndex: number, actions: NodeActions): boolean {
 		const t = msg[0];
@@ -345,6 +468,8 @@ export function budgetGate<T>(
 				paused = true;
 				actions.up([[PAUSE, lockId]]);
 			}
+			// DS-13.5.B: re-publish gate state on constraint update.
+			if (t === DATA) publishState();
 			return true;
 		}
 		if (t === DIRTY) {

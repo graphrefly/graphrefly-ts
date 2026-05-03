@@ -75,14 +75,32 @@ export interface IntakeItem {
 	affectsEvalTasks?: string[];
 	severity?: Severity;
 	/**
-	 * Stable identity carrier for retry / reingestion paths. Per qa D1
-	 * (2026-04-29), `relatedTo[0]` MUST be the original tracking key for
-	 * items derived from a prior publish so the harness's `routeJobIds`
-	 * map preserves identity across decorated retry summaries. First-time
-	 * publishes leave this `undefined`; the tracking key falls back to
-	 * `summary`. Two first-time publishes with identical `summary` collide
-	 * on key — see `trackingKey` JSDoc in `patterns/_internal/index.ts`
-	 * for the uniqueness caller contract.
+	 * Identity-preservation key for retried / reingested items.
+	 *
+	 * `relatedTo[0]` MUST carry the original tracking key for retry /
+	 * reingest items so the harness's `routeJobIds` map preserves
+	 * identity across decorated retry summaries (per qa D1, 2026-04-29).
+	 * First-time publishes leave this `undefined`; the tracking key
+	 * falls back to `summary` via {@link trackingKey}.
+	 *
+	 * **Collision contract (DS-13.5.D.3, locked 2026-05-01).** Items
+	 * lacking `relatedTo[0]` and producing colliding `trackingKey()`
+	 * derivations overwrite the prior `routeJobIds` entry —
+	 * **last-write-wins**. Framework-enforced uniqueness was rejected
+	 * because it would break legitimate retry / reingest patterns where
+	 * an explicit `relatedTo[0]` carries the original key forward.
+	 *
+	 * **Single-threaded contract.** Ack runs before reingest publishes
+	 * (harness flow invariant) — under the standard single-threaded JS
+	 * pump this collapses the only practical race window. Multi-publisher
+	 * concurrency or batched intake of two first-time items with identical
+	 * `summary` can still race at boundaries; callers carrying their own
+	 * stable id should set `relatedTo[0]`.
+	 *
+	 * See {@link trackingKey} JSDoc in `patterns/_internal/index.ts` for
+	 * the uniqueness caller contract.
+	 *
+	 * Spec: docs/implementation-plan.md DS-13.5.D.3
 	 */
 	relatedTo?: string[];
 	/** Item-carried reingestion count. Incremented on each full-loop reingestion. */

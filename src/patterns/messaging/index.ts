@@ -18,6 +18,17 @@
  */
 
 export {
+	type HubRemoveTopicRecord,
+	hubRemoveTopicKeyOf,
+	type MessagingAuditRecord,
+	type SubscriptionAckRecord,
+	type SubscriptionPullAndAckRecord,
+	subscriptionAckKeyOf,
+	subscriptionPullAndAckKeyOf,
+	type TopicPublishRecord,
+	topicPublishKeyOf,
+} from "./audit-records.js";
+export {
 	DEFERRED_TOPIC,
 	INJECTIONS_TOPIC,
 	type JsonSchema,

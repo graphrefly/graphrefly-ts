@@ -11,7 +11,21 @@ import { factoryTag } from "../../core/meta.js";
 import { type Node, node } from "../../core/node.js";
 import { msgVal, operatorOpts } from "./_internal.js";
 
-export type StatusValue = "pending" | "running" | "completed" | "errored";
+/**
+ * Central lifecycle vocabulary for resilience primitives + `processManager`.
+ *
+ * **DS-13.5.B follow-on (2026-05-01).** Widened from
+ * `"pending" | "running" | "completed" | "errored"` to add `"cancelled"`
+ * (replaces `processManager`'s prior `"compensated"` semantics) and
+ * `"paused"` (carried by `<Primitive>State` lifecycle-shaped companions
+ * on `retry` / `circuitBreaker` / `rateLimiter`).
+ *
+ * Resilience primitives use this enum as the literal vocabulary inside
+ * lifecycle-shaped state nodes; `withStatus` (legacy) only emits the
+ * original four (pre-widening) — the cancelled / paused values are added
+ * for downstream consumers that need richer lifecycle reporting.
+ */
+export type StatusValue = "pending" | "running" | "completed" | "errored" | "cancelled" | "paused";
 
 export type WithStatusBundle<T> = {
 	node: Node<T>;

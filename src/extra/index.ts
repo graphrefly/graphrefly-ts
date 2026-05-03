@@ -41,6 +41,7 @@ export {
 	circuitBreaker,
 	type FallbackInput,
 	fallback,
+	type GateState,
 	type RateLimiterOptions,
 	RateLimiterOverflowError,
 	type RateLimiterOverflowPolicy,
