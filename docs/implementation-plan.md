@@ -1257,7 +1257,151 @@ Audit confirmed Phase 12.D's `extends Graph` migration is complete across all el
 
 ---
 
+### Phase 13.7 — Rust M1 bench feasibility study
 
+*Source: 2026-05-03 dev-dispatch on Rust-port timing. With 13.6.A locked (canonical spec + 24 invariant locks), the M1 (`graphrefly-core`) port has a stable target for the dispatcher subset. DS-14 (changesets) and the disconnect/resubscribe DS are still open, but neither lands in M1 territory — DS-14 is M5/M2/M4 (structures + graph snapshot + storage WAL) and the rewire DS is graph-layer (per R3.3.1: edges are derived from construction-time `_deps`, no `connect`/`disconnect` API). This phase lets us produce real Rust-vs-TS bench data BEFORE committing to full M1, and feed that data INTO the DS-14 design.*
+
+**Placement:** AFTER Phase 13.6.A locks (✅ done 2026-05-03), BEFORE DS-14. Runs in parallel with Phase 13.6.B and the disconnect/resubscribe DS — they don't conflict.
+
+**Framing:** This is a **bench feasibility study**, not the production M1 commit. The output is data + a re-decision gate, not a published `@graphrefly/core-rs` package.
+
+**Scope — port only the 13.6-locked dispatcher subset to `graphrefly-rs/crates/graphrefly-core/`:**
+- `message` — message tuples, tier definitions, interned constants
+- `handle` — `NodeId(u64)`, `HandleId(u64)`, `FnId(u64)` newtypes
+- `clock` — `monotonic_ns` / `wall_clock_ns` (`std::time::Instant` + `SystemTime`)
+- `boundary` — `BindingBoundary` trait mirroring TS prototype
+- `node` — dispatcher, dep tracking, first-run gate, equals-substitution
+- `batch` — wave coalescing, two-phase deferred delivery
+- PAUSE/RESUME with lockId set (R2.6)
+- INVALIDATE broadcast
+- TEARDOWN auto-precedes COMPLETE (Lock 6.F / R2.6.4)
+- Meta TEARDOWN ordering (R1.3.9.d) — load-bearing
+- Minimal V0/V1 versioning (NO DS-14 op-log counter shape)
+
+**Reference impl:** [src/__experiments__/handle-core/](../src/__experiments__/handle-core/) — 22 prototype tests, validated cleaving plane.
+
+**Acceptance bar:**
+- All 22 prototype tests green ([core.test.ts](../src/__experiments__/handle-core/core.test.ts) + [extensions.test.ts](../src/__experiments__/handle-core/extensions.test.ts)).
+- Property-test fixtures from `src/__tests__/properties/_invariants.ts` ported to `proptest` and green.
+- TLC harness in CI runs the full envelope of 13.6-locked semantics:
+  - `wave_protocol_MC` (base diamond) — already verified clean
+  - `wave_protocol_pause_MC` — multi-pauser correctness
+  - `wave_protocol_custom_equals_MC` — equals-substitution variance
+  - `wave_protocol_multisink_MC` / `_batch_MC` — multi-sink iteration
+  - `wave_protocol_invalidate_MC` / `_diamond_MC` — INVALIDATE cleanup
+  - `wave_protocol_resubscribe_MC` — pause-lock leak across resubscribe (`ResubscribeYieldsCleanState`)
+  - `wave_protocol_replay_resubscribe_MC` — replay-ring × resubscribe cross-axis
+  - `wave_protocol_meta_teardown_MC` — meta TEARDOWN cascade pre-reset witness
+  - All 5 handle-protocol scenario MCs from [docs/research/](docs/research/) — handle-interpretation refinement (already verified, 39,331 distinct states)
+- `cargo deny check`, `cargo clippy --all-targets`, `cargo fmt --check` clean.
+
+**Bench plan** — the value the study produces:
+1. **Microbench (no FFI):** dispatcher hot path on identity-equals-substituted DATA. Goal: floor on dispatcher cost without binding overhead.
+2. **Microbench (with napi-rs FFI):** cost per `invokeFn` boundary crossing from Node. Goal: realistic per-fn-fire cost.
+3. **Macrobench:** large diamond (100-fanout), deep chains, batch coalescing under load. Compare wall-time + alloc count against current TS core via vitest bench harness.
+4. **Cross-Worker bench:** shared `Arc<RwLock<T>>` core driven from N Node Workers. Goal: validate the uniquely-Rust-side win claim from the rust-port session doc.
+5. **Equals-substitution profile:** verify identity-equals path is u64 compare with zero FFI; custom-equals path crosses boundary exactly once per check (FFI counter assertion).
+
+**Disconnect/resubscribe pre-decision (de-risk M1 against the open DS):**
+- M1 Rust core stores DepRecords keyed by `NodeId` (not by index) — already the natural Rust shape, mirrors TS prototype. This way, future rewire (if it lands as a Graph-layer "remove + re-add with cache preservation" API) doesn't require core dispatcher rework.
+- M1 keeps `_deps` immutable post-construction (mirrors R3.3.1 "edges derived from construction-time deps"). No premature `set_deps()` primitive.
+- All 13.6-locked resubscribe semantics (R2.2.7 ROM/RAM, R2.4.6 `ctx.store` lifecycle, R2.5.3 `_hasCalledFnOnce` reset, R2.6.4 TEARDOWN auto-precedes COMPLETE) are in-scope and acceptance-tested via the resubscribe TLC MCs above.
+
+**Re-decision gate (post-bench):**
+After bench data lands, **pause** before extending to M2/M3/M4/M5. Decision options:
+- (a) Continue to M2 if bench data justifies the migration cost AND DS-14 has locked.
+- (b) Pause until DS-14 locks, even if M1 bench data is favorable.
+- (c) Throw away the bench impl if data is unfavorable; iterate on TS core instead.
+
+Default: (b) — DS-14 locks before any further Rust work.
+
+**STRONG DEFER — explicitly NOT in this phase:**
+- M2 (`graphrefly-graph`) — depends on DS-14 `restoreSnapshot mode: "diff"`.
+- M3 (`graphrefly-operators`) — wait until M1 bench data confirms FFI overhead is acceptable for hot-path operators.
+- M4 (`graphrefly-storage`) — depends on DS-14 WAL replay shape + 13.6.B-deferred ACID work.
+- M5 (`graphrefly-structures`) — STRONG DEFER per Phase 14 guardrail. Depends entirely on DS-14 op-log protocol.
+- Production `@graphrefly/*-rs` package publication — not until full M1 closes post-DS-14.
+- Replacing TS core in main package — bench study is parallel, not substitution.
+
+**Tracker:** `~/src/graphrefly-rs/docs/migration-status.md` — update bench-study sub-status alongside the existing milestone table.
+
+---
+
+### Phase 13.8 — TS rewire exploratory impl + integration gap-finding
+
+*Source: 2026-05-04 dev-dispatch follow-up after Phase 13.7 v0 bench landed. The disconnect/resubscribe DS produced a TLA+-verified `node.setDeps` substrate primitive (`docs/research/wave_protocol_rewire.tla`, 35,950 distinct states clean) and 9 integration tests in the M1 Rust core (`~/src/graphrefly-rs/crates/graphrefly-core/tests/setdeps.rs`). The Rust impl validates the **substrate** semantics; it cannot exercise interactions with the **full graphrefly feature set** (PAUSE/RESUME, INVALIDATE, TEARDOWN, replay buffer, meta companions, batch coalescing, COMPLETE/ERROR cascade) because those are M1 parity work deferred behind DS-14.*
+
+**Placement:** runs in parallel with Phase 13.7's re-decision pause; lands BEFORE DS-14 design opens. Gap-finding here directly informs DS-14 (changesets/diff touches every reactive primitive — rewire interactions are part of that surface).
+
+**Framing:** this is an **exploratory implementation**, not a production landing. The goal is to surface gaps the design walks couldn't pre-imagine — implementing `setDeps` against the full TS dispatcher will expose real interaction issues that pure thinking missed. Output is a gap-finding doc + design-notes amendments, NOT a public API export.
+
+**Scope — implement minimally in TS, behind feature flags:**
+
+1. **`node.setDeps(newDeps)`** in `src/core/node.ts` — substrate primitive mirroring the Rust impl. Self-rewire + cycle rejection enforced at this layer per [docs/research/rewire-design-notes.md](docs/research/rewire-design-notes.md).
+2. **`graph.rewire(name, newDeps)`** in `src/graph/graph.ts` — Graph-layer wrapper. Mount-aware path resolution (deps may be `mount::leaf`-style); audit record emission via existing `GraphRewireAudit` shape (mirror `GraphRemoveAudit` from R3.2.3).
+3. **Internal-only API.** Do NOT add to public exports until DS-14 lock allows it. Use `__rewire` / `__setDeps` naming to signal experimental status.
+
+**Integration test scenarios — one per gap the Rust impl can't cover:**
+
+| # | Scenario | Question to answer |
+|---|---|---|
+| 1 | rewire mid-`batch()` | Does an in-flight batch see consistent topology, or do mid-batch rewires get interleaved? |
+| 2 | rewire × INVALIDATE same wave | INVALIDATE clears cache; rewire preserves cache. What's the end state? |
+| 3 | rewire while paused | Locks preserved per design. Pauser holds L; can RESUME(L) still work after rewire? What if the pauser was on a removed dep? |
+| 4 | rewire × TEARDOWN cascade | TEARDOWN auto-precedes COMPLETE (R2.6.4). Rewire-during-teardown undefined; spec call needed. |
+| 5 | rewire × non-empty replay buffer | Resolved analytically (preserve N's replay; discard removed dep's DepRecord). Verify with non-empty buffer at rewire time. |
+| 6 | rewire × meta companions | Meta TEARDOWN ordering (R1.3.9.d) is load-bearing. Adding/removing meta companions via rewire? |
+| 7 | rewire × dep COMPLETE/ERROR | Auto-cascade gating (Lock 2.B). Removed dep was the COMPLETE/ERROR source — does cascade still fire? |
+| 8 | rewire × resubscribable terminal-reset in flight | `resubscribable: true` node post-COMPLETE clears `_hasCalledFnOnce` + DepRecords. Rewire in same wave? |
+| 9 | rewire × cross-mount path | `graph.rewire("mount::leaf", [...])` — does mount unmount/remount affect rewire? |
+
+**Real-consumer use case:**
+
+Build a **mock AI self-pruning harness** scenario (per [project_rewire_gap memory](../#)). The harness:
+- Constructs a multi-stage pipeline (e.g. `ingest → enrich → score → output`).
+- At runtime, identifies a redundant wrapper node (`enrich` is no-op for some inputs).
+- Calls `graph.rewire("score", ["ingest"])` to bypass the wrapper.
+- Asserts: cache preserved, downstream consumers see correct values, no interruption.
+
+If this can't be expressed cleanly with the proposed API, the rewire shape is wrong. Output: design questions for DS-14 input.
+
+**Output deliverables:**
+
+1. `src/core/node.ts` — `__setDeps()` impl (~100 lines).
+2. `src/graph/graph.ts` — `__rewire()` wrapper (~50 lines).
+3. `src/__tests__/rewire-integration.test.ts` — 9 scenarios from table above.
+4. `src/__tests__/rewire-mock-harness.test.ts` — AI self-pruning use case.
+5. `docs/research/rewire-gap-findings.md` — gap-finding doc:
+   - For each scenario: did it work cleanly / break / require design change?
+   - Surfaced design questions for DS-14 / Rust M1 setDeps.
+   - Recommendations for canonical-spec amendments (R3.3.1 currently says "no `connect`/`disconnect`" — does it need a `setDeps` clause?).
+6. Updated [docs/research/rewire-design-notes.md](docs/research/rewire-design-notes.md) — append "TS impl findings" section with resolved-from-implementation decisions.
+
+**Non-goals (explicit):**
+
+- Do NOT add `setDeps`/`rewire` to public exports. Internal/experimental only.
+- Do NOT optimize for perf. Correctness probe; can be O(N²) walk if it makes the impl clearer.
+- Do NOT add the M1 parity features in Rust (PAUSE/RESUME, INVALIDATE, etc.) — those are gated on DS-14 per Phase 13.7 re-decision.
+- Do NOT wire into `harnessLoop` or any production patterns — just unit tests + mock scenarios.
+
+**Why now (vs. wait for M1 Rust setDeps to land full parity):**
+
+- Pass 3+6 bench data justifies the Rust port; Rust setDeps WILL land eventually with full parity. But the integration-gap findings inform DS-14 design TODAY, not 2-3 months from now when M1 closes.
+- The Rust impl is throwaway-ish for these gap categories anyway (different language idioms, GC pressure, message protocol shape) — TS impl is the right surface to find graphrefly-specific issues.
+- AI self-pruning use case has been blocked since 2026-04-26 ([project_rewire_gap memory](../#)). This unblocks consumer experimentation.
+
+**Re-decision gate:**
+
+After gap-finding doc lands, surface decisions to user:
+- Should canonical-spec be amended (R3.3.1 update; new R rule for `setDeps`)?
+- Should Rust M1 setDeps semantics be modified based on findings?
+- Are there scenarios that require DS-14 to change shape?
+
+Default: pause again, integrate findings into DS-14 design when it opens.
+
+---
+
+### Phase 14 — Post-1.0 changesets / diff (single unified design session)
 
 *Source: optimizations.md "Store-mutation-events protocol (deferred post-1.0...)"*
 
